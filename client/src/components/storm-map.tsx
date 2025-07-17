@@ -64,9 +64,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [sectorDbzData, setSectorDbzData] = useState<{[key: string]: number}>({});
   
   // Auto-sampling state
-  const [isAutoSampling, setIsAutoSampling] = useState(false);
   const autoSampleTimeoutRef = useRef<NodeJS.Timeout>();
-  const [sampleProgress, setSampleProgress] = useState(0);
   
   // Use external storm filters if provided, otherwise use internal state
   const stormFilters = externalStormFilters || {
@@ -94,48 +92,17 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const radarCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const highlightLayerRef = useRef<any>(null);
 
-  // Auto-sampling functionality with loading indicator
+  // Auto-sampling functionality (silent background operation)
   const triggerAutoSample = () => {
     // Clear any existing timeout
     if (autoSampleTimeoutRef.current) {
       clearTimeout(autoSampleTimeoutRef.current);
     }
     
-    // Start loading indicator
-    setIsAutoSampling(true);
-    setSampleProgress(0);
-    
-    const SAMPLE_DELAY = 1500; // 1.5 seconds
-    const PROGRESS_INTERVAL = 50; // Update every 50ms for smooth animation
-    const PROGRESS_STEP = (100 / SAMPLE_DELAY) * PROGRESS_INTERVAL; // Calculate step size
-    
-    // Start progress animation
-    const progressInterval = setInterval(() => {
-      setSampleProgress(prev => {
-        const newProgress = prev + PROGRESS_STEP;
-        if (newProgress >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return newProgress;
-      });
-    }, PROGRESS_INTERVAL);
-    
-    // Set timeout for 1.5 seconds - sample AFTER progress bar completes
+    // Set timeout for 1.5 seconds - sample silently in background
     autoSampleTimeoutRef.current = setTimeout(async () => {
-      // Ensure progress bar shows 100% briefly before sampling
-      setSampleProgress(100);
-      
-      // Small delay to show completed progress bar
-      setTimeout(async () => {
-        // Perform the actual sampling
-        await sampleRadarDbz();
-        
-        // Hide loading indicator
-        setIsAutoSampling(false);
-        setSampleProgress(0);
-      }, 100);
-    }, SAMPLE_DELAY);
+      await sampleRadarDbz();
+    }, 1500);
   };
 
   // Initialize radar frames based on source
@@ -1332,7 +1299,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             variant="outline"
             size="sm"
             className="text-xs px-2"
-            disabled={isAnimating || isAutoSampling}
+            disabled={isAnimating}
           >
             Sample dBZ
           </Button>
@@ -1369,23 +1336,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       <div className="relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden" style={{ height: '400px' }}>
         <div ref={mapRef} className="w-full h-full"></div>
         
-        {/* Auto-sampling loading indicator */}
-        {isAutoSampling && (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-slate-900/95 p-3 rounded-lg border border-slate-700 min-w-[200px]">
-            <div className="text-center text-white text-sm mb-2">
-              Auto-sampling in progress...
-            </div>
-            <div className="w-full bg-slate-700 rounded-full h-2">
-              <div 
-                className="bg-blue-500 h-2 rounded-full transition-all duration-100 ease-out"
-                style={{ width: `${sampleProgress}%` }}
-              ></div>
-            </div>
-            <div className="text-center text-slate-400 text-xs mt-1">
-              {Math.round(sampleProgress)}%
-            </div>
-          </div>
-        )}
+
         
         {/* Precipitation Waypoints Legend - Mobile Responsive */}
         <div className="absolute top-1 right-1 sm:top-2 sm:right-2 z-[1000] bg-slate-900/95 p-1.5 sm:p-2 rounded border border-slate-700 text-xs max-w-[140px] sm:max-w-none">

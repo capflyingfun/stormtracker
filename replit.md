@@ -241,12 +241,11 @@ Preferred communication style: Simple, everyday language.
 - **Startup Validation Sequence**: Validates environment → database → starts server for reliable deployment
 
 ### Auto-Sampling Map Interface (July 17, 2025)
-- **Automatic dBZ Sampling**: Map automatically samples precipitation data 1.5 seconds after user stops panning or zooming
-- **Visual Progress Indicator**: Smooth loading progress bar (0-100%) displayed during auto-sampling countdown
-- **Synchronized Timing**: Progress bar completes exactly when sampling begins for perfect user feedback
-- **Button State Management**: "Sample dBZ" button disabled during auto-sampling to prevent conflicts
-- **Smooth Animation**: 50ms update intervals create fluid progress bar animation over 1.5 second duration
-- **Cleanup Handling**: Proper timeout cleanup on component unmount and when new movements interrupt sampling
+- **Silent Auto-Sampling**: Map automatically samples precipitation data 1.5 seconds after user stops panning or zooming
+- **Background Operation**: Sampling happens silently without visual indicators to avoid interrupting user experience
+- **Debounced Updates**: Multiple rapid movements reset the 1.5-second timer to prevent excessive sampling
+- **Non-Intrusive**: No progress bars or notifications - just seamless automatic data refresh
+- **Timeout Management**: Proper cleanup of sampling timeouts on component unmount and movement interruption
 
 ### Static NEXRAD Implementation (July 17, 2025)
 - **Static Radar Display**: NEXRAD configured for stable, current radar visualization without animation
