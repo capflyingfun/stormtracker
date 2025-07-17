@@ -57,7 +57,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       try {
         if (radarSource === 'rainviewer') {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15 seconds for init
           
           const response = await fetch('https://api.rainviewer.com/public/weather-maps.json', {
             signal: controller.signal
@@ -67,12 +67,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           if (response.ok) {
             const data = await response.json();
             
-            if (data && data.radar && data.radar.past && data.radar.past.length > 0) {
+            console.log('RainViewer API response:', data);
+            
+            if (data && data.radar && data.radar.past && Array.isArray(data.radar.past) && data.radar.past.length > 0) {
               // Get timestamps for past radar frames
               const pastFrames = data.radar.past.map((frame: any) => frame.time);
               setRadarFrames(pastFrames);
               setCurrentFrame(pastFrames.length - 1); // Start with most recent frame
+              console.log('RainViewer frames loaded:', pastFrames.length);
             } else {
+              console.error('Invalid RainViewer data structure:', data);
               throw new Error('Invalid radar data from RainViewer');
             }
           } else {
@@ -85,6 +89,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         }
       } catch (error) {
         console.error('Radar initialization failed:', error);
+        console.error('Error details:', error.message, error.name);
         // Fallback to simple timestamp for both sources
         setRadarFrames([Math.floor(Date.now() / 1000)]);
         setCurrentFrame(0);
@@ -351,7 +356,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       try {
         // RainViewer radar overlay with better error handling
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
         
         const response = await fetch('https://api.rainviewer.com/public/weather-maps.json', {
           signal: controller.signal
@@ -486,7 +491,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     try {
       if (radarSource === 'rainviewer') {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10 seconds
         
         const response = await fetch('https://api.rainviewer.com/public/weather-maps.json', {
           signal: controller.signal
@@ -496,12 +501,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         if (response.ok) {
           const data = await response.json();
           
-          if (data && data.radar && data.radar.past && data.radar.past.length > 0) {
+          console.log('RainViewer refresh response:', data);
+          
+          if (data && data.radar && data.radar.past && Array.isArray(data.radar.past) && data.radar.past.length > 0) {
             // Get timestamps for past radar frames
             const pastFrames = data.radar.past.map((frame: any) => frame.time);
             setRadarFrames(pastFrames);
             setCurrentFrame(pastFrames.length - 1); // Start with most recent frame
+            console.log('RainViewer refresh frames loaded:', pastFrames.length);
           } else {
+            console.error('Invalid RainViewer refresh data:', data);
             throw new Error('Invalid radar data structure');
           }
         } else {
@@ -548,13 +557,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             size="sm"
           >
             {showSectorGrid ? "Hide" : "Show"} Grid
-          </Button>
-          <Button
-            onClick={refreshRadar}
-            variant="default"
-            size="sm"
-          >
-            Refresh
           </Button>
         </div>
       </div>
