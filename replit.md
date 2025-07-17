@@ -177,3 +177,10 @@ Preferred communication style: Simple, everyday language.
 - **Storm Cell Integration**: Clustered waypoints appear in Storm Cells panel with proper distance/direction data
 - **Visual Cluster Indicators**: Marker sizes reflect both intensity and cluster count
 - **Stable Performance**: Simplified clustering without zoom dependency for reliable operation
+
+### Dual Radar Source Support (July 17, 2025)
+- **RainViewer Primary**: RainViewer set as default radar source with global coverage
+- **NEXRAD Alternative**: NEXRAD available as high-resolution US-focused option
+- **Universal Precipitation Tracking**: Same dBZ sampling system works with both radar sources
+- **Source Toggle**: Easy switching between radar sources with live reload
+- **Proxy Integration**: Server-side proxy for RainViewer tiles ensures network compatibility
