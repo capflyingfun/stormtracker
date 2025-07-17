@@ -531,9 +531,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       if (!shouldShow) continue; // Skip filtered out points
       // Get color and size based on dBZ value and zoom level
       const getDbzColor = (dbz: number) => {
-        if (dbz >= 45) return '#ff0000'; // Red - Heavy
-        if (dbz >= 35) return '#ff9600'; // Orange - Moderate
-        return '#ffff00'; // Yellow - Light
+        if (dbz >= 55) return '#8B5CF6'; // Purple - Severe
+        if (dbz >= 45) return '#EF4444'; // Red - Heavy
+        if (dbz >= 35) return '#F97316'; // Orange - Moderate
+        return '#EAB308'; // Yellow - Light
       };
       
       // Intensity-based sizing with cluster indication
