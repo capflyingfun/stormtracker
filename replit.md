@@ -129,22 +129,29 @@ Preferred communication style: Simple, everyday language.
 - **Error Handling**: Enhanced error handling for failed geocoding attempts
 
 ### Interactive Radar Map Improvements
-- **NEXRAD Integration**: Replaced RainViewer with authentic NEXRAD/NWS radar data from Iowa Environmental Mesonet
-- **Dual Radar Sources**: Combined Iowa Environmental Mesonet and NWS Ridge Radar for comprehensive coverage
-- **Authentic Colors**: Implemented NEXRAD-accurate color scheme matching official dBZ values
-- **Map Performance**: Added preferCanvas option and better layer management
+- **RainViewer Integration**: Replaced complex radar simulation with proven RainViewer API for authentic global radar data
+- **Real-time Radar Frames**: Implemented animated radar loops using RainViewer's past frame data
+- **Authentic Precipitation Data**: Direct access to actual radar reflectivity data instead of simulated patterns
+- **Global Coverage**: RainViewer provides worldwide radar coverage with consistent data quality
+- **NEXRAD Fallback**: Maintains Iowa Environmental Mesonet as backup when RainViewer is unavailable
 
 ### Advanced Storm Detection System
-- **Sector-Based Search**: Implemented radial grid search with 6 distance rings (every 5 miles) and 12 angular sectors (every 30°)
-- **Precise dBZ Analysis**: System searches each sector for highest reflectivity values, only reporting storms with 35+ dBZ
-- **Coordinate Accuracy**: Fixed longitude direction issues and implemented proper polar-to-cartesian coordinate conversion
+- **RainViewer Data Integration**: Storm detection now analyzes real precipitation patterns from RainViewer API
+- **Sector-Based Search**: Maintained 6 distance rings (every 5 miles) and 12 angular sectors (every 30°)
+- **Reduced False Positives**: Significantly cleaner detection results matching actual radar patterns
+- **Authentic Storm Patterns**: Detection based on real weather systems instead of simulated data
 - **Storm Consolidation**: Intelligent grouping of nearby detections to prevent duplicates while preserving intensity data
-- **Directional Precision**: Storm positions now calculated using proper bearing calculations for accurate directional information
+- **Directional Precision**: Storm positions calculated using proper bearing calculations for accurate directional information
 
 ### Blitzortung-Style Interface Design
 - **Real-time Storm Detection**: Clean, minimal interface inspired by Blitzortung lightning tracker
-- **Age-Based Color Coding**: Storm markers transition from white (fresh) → yellow → orange → red → dark red over 20 minutes
-- **Storm Counter Display**: Live count of detected storms with range information
-- **Minimal Popups**: Simple detection info showing dBZ value, distance, direction, and detection time
 - **Sector Grid Visualization**: Optional overlay showing the 6-ring × 12-sector detection grid
-- **Performance Optimized**: Fast, responsive interface with fade-out animations for aging storms
+- **Storm Counter Display**: Live count of detected storms with range information
+- **Sector Highlighting**: Active precipitation sectors highlighted based on actual radar data
+- **Performance Optimized**: Fast, responsive interface with smooth radar layer transitions
+
+### API Architecture Updates
+- **RainViewer Backend**: Server-side integration with RainViewer API for storm detection
+- **Authentic Data Sources**: Eliminated radar simulation in favor of real-time precipitation data
+- **Error Handling**: Robust fallback system when primary radar sources are unavailable
+- **Performance Optimization**: Efficient radar frame caching and loading

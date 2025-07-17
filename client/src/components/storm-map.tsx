@@ -50,11 +50,32 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [radarFrames, setRadarFrames] = useState<number[]>([]);
   const animationIntervalRef = useRef<NodeJS.Timeout>();
 
-  // Initialize radar frames - simplified
+  // Initialize radar frames from RainViewer API
   useEffect(() => {
-    // Just load current radar
-    setRadarFrames([Math.floor(Date.now() / 1000)]);
-    setCurrentFrame(0);
+    const fetchRadarFrames = async () => {
+      try {
+        const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+        const data = await response.json();
+        
+        if (data.radar && data.radar.past && data.radar.past.length > 0) {
+          // Get timestamps for past radar frames
+          const pastFrames = data.radar.past.map((frame: any) => frame.time);
+          setRadarFrames(pastFrames);
+          setCurrentFrame(pastFrames.length - 1); // Start with most recent frame
+        } else {
+          // Fallback to simple timestamp
+          setRadarFrames([Math.floor(Date.now() / 1000)]);
+          setCurrentFrame(0);
+        }
+      } catch (error) {
+        console.error('Failed to fetch radar frames:', error);
+        // Fallback to simple timestamp
+        setRadarFrames([Math.floor(Date.now() / 1000)]);
+        setCurrentFrame(0);
+      }
+    };
+    
+    fetchRadarFrames();
   }, []);
 
   // Initialize map
@@ -293,7 +314,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   }, [storms, showSectorGrid, location]);
 
   // Load radar layer
-  const loadRadarLayer = (frameIndex?: number) => {
+  const loadRadarLayer = async (frameIndex?: number) => {
     const map = mapInstanceRef.current;
     if (!map || !window.L || radarFrames.length === 0) return;
 
@@ -309,14 +330,45 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       radarLayerRef.current = null;
     }
 
-    // Create NEXRAD/NWS radar overlay (free, no API key required)
+    // Create RainViewer radar overlay (free, global coverage)
     try {
-      // Use Iowa Environmental Mesonet's NEXRAD radar tiles (free, high quality)
+      // First, fetch the latest radar data from RainViewer API
+      const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+      const data = await response.json();
+      
+      if (data.radar && data.radar.past && data.radar.past.length > 0) {
+        // Get the most recent radar frame
+        const latestFrame = data.radar.past[data.radar.past.length - 1];
+        
+        // Create RainViewer radar layer
+        const rainviewerLayer = window.L.tileLayer(
+          `https://tilecache.rainviewer.com/v2/radar/${latestFrame.time}/256/{z}/{x}/{y}/2/1_1.png`,
+          {
+            tileSize: 256,
+            opacity: 0.7,
+            transparent: true,
+            attribution: 'Radar data © RainViewer.com',
+            maxZoom: 12,
+            updateWhenIdle: true,
+            updateWhenZooming: false
+          }
+        );
+        
+        radarLayerRef.current = rainviewerLayer;
+        radarLayerRef.current.addTo(map);
+      } else {
+        throw new Error('No radar data available from RainViewer');
+      }
+      
+    } catch (error) {
+      console.error('Failed to load RainViewer radar layer:', error);
+      
+      // Fallback to NEXRAD radar if RainViewer fails
       const nexradLayer = window.L.tileLayer(
         'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
         {
           tileSize: 256,
-          opacity: 0.8, // Full transparency for testing
+          opacity: 0.7,
           transparent: true,
           attribution: 'NEXRAD Radar © Iowa Environmental Mesonet',
           maxZoom: 12,
@@ -325,30 +377,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         }
       );
       
-      // Alternative: Use NWS Ridge Radar (also free)
-      const ridgeLayer = window.L.tileLayer(
-        'https://nowcoast.noaa.gov/arcgis/rest/services/nowcoast/radar_meteo_imagery_nexrad_time/MapServer/tile/{z}/{y}/{x}',
-        {
-          tileSize: 256,
-          opacity: 0.7,
-          transparent: true,
-          attribution: 'NWS Ridge Radar © NOAA',
-          maxZoom: 12,
-          updateWhenIdle: true,
-          updateWhenZooming: false
-        }
-      );
-      
-      // Create layer group with both NEXRAD sources
-      const radarGroup = window.L.layerGroup();
-      radarGroup.addLayer(nexradLayer);
-      radarGroup.addLayer(ridgeLayer);
-      
-      radarLayerRef.current = radarGroup;
+      radarLayerRef.current = nexradLayer;
       radarLayerRef.current.addTo(map);
-      
-    } catch (error) {
-      console.error('Failed to load NEXRAD radar layer:', error);
       
       // Fallback to OpenWeatherMap with enhanced visibility
       radarLayerRef.current = window.L.tileLayer(
@@ -403,10 +433,27 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     refreshRadar();
   };
 
-  const refreshRadar = () => {
-    // Just refresh the current radar layer
-    setRadarFrames([Math.floor(Date.now() / 1000)]);
-    setCurrentFrame(0);
+  const refreshRadar = async () => {
+    try {
+      const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+      const data = await response.json();
+      
+      if (data.radar && data.radar.past && data.radar.past.length > 0) {
+        // Get timestamps for past radar frames
+        const pastFrames = data.radar.past.map((frame: any) => frame.time);
+        setRadarFrames(pastFrames);
+        setCurrentFrame(pastFrames.length - 1); // Start with most recent frame
+      } else {
+        // Fallback to simple timestamp
+        setRadarFrames([Math.floor(Date.now() / 1000)]);
+        setCurrentFrame(0);
+      }
+    } catch (error) {
+      console.error('Failed to refresh radar:', error);
+      // Fallback to simple timestamp
+      setRadarFrames([Math.floor(Date.now() / 1000)]);
+      setCurrentFrame(0);
+    }
   };
 
   const getTimeDisplay = (): string => {
