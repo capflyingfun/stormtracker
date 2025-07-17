@@ -534,9 +534,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
           const data = imageData.data;
           
-          // Sample every 8th pixel to find precipitation
-          for (let x = 0; x < tileSize; x += 8) {
-            for (let y = 0; y < tileSize; y += 8) {
+          // Sample every 4th pixel to find precipitation (finer grid)
+          for (let x = 0; x < tileSize; x += 4) {
+            for (let y = 0; y < tileSize; y += 4) {
               const pixelIndex = (y * tileSize + x) * 4;
               const r = data[pixelIndex];
               const g = data[pixelIndex + 1];
@@ -554,12 +554,40 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                   // Check if this point is within our 30-mile radius
                   const distance = calculateDistance(center.lat, center.lng, pixelLat, pixelLng);
                   if (distance <= 30) {
-                    precipitationPoints.push({
-                      lat: pixelLat,
-                      lon: pixelLng,
-                      dbz: dbz,
-                      id: `${tile.x}-${tile.y}-${x}-${y}`
-                    });
+                    // Allow closer spacing for higher intensity precipitation
+                    let shouldAdd = true;
+                    
+                    // Check if there's already a nearby point with lower intensity
+                    for (const existingPoint of precipitationPoints) {
+                      const existingDistance = calculateDistance(pixelLat, pixelLng, existingPoint.lat, existingPoint.lon);
+                      
+                      // Dynamic spacing based on intensity
+                      let minSpacing = 0.5; // Default minimum spacing in miles
+                      if (dbz >= 45) minSpacing = 0.2; // Allow very close spacing for heavy precipitation
+                      else if (dbz >= 35) minSpacing = 0.3; // Closer spacing for moderate precipitation
+                      
+                      if (existingDistance < minSpacing) {
+                        // If new point has higher intensity, replace the existing one
+                        if (dbz > existingPoint.dbz) {
+                          const index = precipitationPoints.indexOf(existingPoint);
+                          precipitationPoints.splice(index, 1);
+                          shouldAdd = true;
+                          break;
+                        } else {
+                          shouldAdd = false;
+                          break;
+                        }
+                      }
+                    }
+                    
+                    if (shouldAdd) {
+                      precipitationPoints.push({
+                        lat: pixelLat,
+                        lon: pixelLng,
+                        dbz: dbz,
+                        id: `${tile.x}-${tile.y}-${x}-${y}`
+                      });
+                    }
                   }
                 }
               }
@@ -581,7 +609,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       });
       setSectorDbzData(newSectorData);
       
-      console.log(`Found ${precipitationPoints.length} precipitation points:`, precipitationPoints);
+      console.log(`Found ${precipitationPoints.length} precipitation points with dynamic spacing:`, precipitationPoints);
       
     } catch (error) {
       console.error('Error sampling radar dBZ:', error);

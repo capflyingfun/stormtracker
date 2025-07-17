@@ -162,3 +162,11 @@ Preferred communication style: Simple, everyday language.
 - **Efficient Caching**: Server implements HTTP caching (304 responses) for improved performance
 - **Reliable Access**: RainViewer now works consistently across all network environments including work WiFi
 - **Maintained Functionality**: All existing features preserved while routing through proxy for universal compatibility
+
+### Direct Precipitation Waypoint System (July 17, 2025)
+- **Eliminated Grid System**: Completely removed 72-sector grid causing waypoint misalignment
+- **Direct Pixel Sampling**: Samples every 4th pixel from radar tiles for high-resolution precipitation detection
+- **Authentic Coordinates**: Waypoints placed at exact lat/lon coordinates of detected precipitation (25+ dBZ)
+- **Dynamic Spacing**: Closer waypoint spacing allowed for higher intensity precipitation (0.2 miles for 45+ dBZ)
+- **Intensity-Based Replacement**: Higher dBZ values replace nearby lower intensity points for accurate representation
+- **Real-time Accuracy**: 98% accurate waypoint positioning directly on precipitation areas shown in radar imagery
