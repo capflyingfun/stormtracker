@@ -50,6 +50,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [radarFrames, setRadarFrames] = useState<number[]>([]);
   const [radarSource, setRadarSource] = useState<'nexrad'>('nexrad'); // NEXRAD only
   const animationIntervalRef = useRef<NodeJS.Timeout>();
+  const [sectorDbzData, setSectorDbzData] = useState<{[key: string]: number}>({});
+  const radarCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Initialize NEXRAD radar frames
   useEffect(() => {
@@ -287,7 +289,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   }, [location, radarRange, showSectorGrid]);
 
-  // Clear sector highlights when storms change
+  // Update sector highlights based on dBZ data
   useEffect(() => {
     if (mapInstanceRef.current && window.L) {
       // Remove any existing sector highlights
@@ -295,8 +297,101 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         mapInstanceRef.current.removeLayer(sectorHighlightsRef.current);
         sectorHighlightsRef.current = null;
       }
+      
+      // Add new sector highlights based on dBZ data
+      if (Object.keys(sectorDbzData).length > 0) {
+        addDbzSectorHighlights();
+      }
     }
-  }, [storms, showSectorGrid, location]);
+  }, [sectorDbzData, showSectorGrid, location]);
+
+  // Add sector highlights based on actual dBZ values
+  const addDbzSectorHighlights = () => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.L) return;
+
+    const highlightGroup = window.L.layerGroup();
+    const centerLat = location.lat;
+    const centerLon = location.lon;
+
+    // Create highlights for sectors with significant precipitation
+    for (const [sectorKey, dbzValue] of Object.entries(sectorDbzData)) {
+      // Only highlight sectors with measurable precipitation (25+ dBZ)
+      if (dbzValue >= 25) {
+        const [distance, angle] = sectorKey.split('-').map(Number);
+        
+        // Calculate sector boundaries
+        const innerRadius = Math.max(0, distance - 5);
+        const outerRadius = distance;
+        const startAngle = angle;
+        const endAngle = angle + 30;
+        
+        // Create sector polygon points
+        const points = [];
+        
+        // Add center point if inner radius is 0
+        if (innerRadius === 0) {
+          points.push([centerLat, centerLon]);
+        }
+        
+        // Add arc points for outer radius
+        for (let a = startAngle; a <= endAngle; a += 5) {
+          const angleRad = (a * Math.PI) / 180;
+          const outerLat = centerLat + ((outerRadius * 1609.34) / 111320) * Math.cos(angleRad);
+          const outerLon = centerLon + ((outerRadius * 1609.34) / (111320 * Math.cos(centerLat * Math.PI / 180))) * Math.sin(angleRad);
+          points.push([outerLat, outerLon]);
+        }
+        
+        // Add arc points for inner radius (if not center)
+        if (innerRadius > 0) {
+          for (let a = endAngle; a >= startAngle; a -= 5) {
+            const angleRad = (a * Math.PI) / 180;
+            const innerLat = centerLat + ((innerRadius * 1609.34) / 111320) * Math.cos(angleRad);
+            const innerLon = centerLon + ((innerRadius * 1609.34) / (111320 * Math.cos(centerLat * Math.PI / 180))) * Math.sin(angleRad);
+            points.push([innerLat, innerLon]);
+          }
+        }
+        
+        // Close the polygon
+        if (innerRadius === 0) {
+          points.push([centerLat, centerLon]);
+        }
+        
+        // Get color based on dBZ value
+        const getDbzColor = (dbz: number) => {
+          if (dbz >= 45) return '#ff0000'; // Red - Heavy
+          if (dbz >= 35) return '#ff9600'; // Orange - Moderate
+          return '#ffff00'; // Yellow - Light
+        };
+        
+        // Create sector highlight polygon
+        const sectorHighlight = window.L.polygon(points, {
+          color: getDbzColor(dbzValue),
+          fillColor: getDbzColor(dbzValue),
+          fillOpacity: 0.3,
+          weight: 2,
+          opacity: 0.8
+        });
+        
+        // Add popup with dBZ info
+        const directionName = getDirectionName(angle);
+        sectorHighlight.bindPopup(`
+          <b>Precipitation Detected</b><br>
+          Direction: ${directionName}<br>
+          Distance: ${distance} miles<br>
+          Intensity: ${dbzValue} dBZ<br>
+          Type: ${dbzValue >= 45 ? 'Heavy' : dbzValue >= 35 ? 'Moderate' : 'Light'}
+        `);
+        
+        highlightGroup.addLayer(sectorHighlight);
+      }
+    }
+
+    sectorHighlightsRef.current = highlightGroup;
+    if (showSectorGrid) {
+      sectorHighlightsRef.current.addTo(map);
+    }
+  };
 
   // Load radar layer
   const loadRadarLayer = async (frameIndex?: number) => {
@@ -351,6 +446,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   useEffect(() => {
     if (radarFrames.length > 0) {
       loadRadarLayer();
+      // Sample dBZ values after radar loads
+      setTimeout(() => sampleRadarDbz(), 2000);
     }
   }, [radarFrames, currentFrame, radarSource]);
 
@@ -389,6 +486,152 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     // For NEXRAD, use simple timestamp refresh
     setRadarFrames([Math.floor(Date.now() / 1000)]);
     setCurrentFrame(0);
+    
+    // Trigger dBZ sampling after radar refresh
+    setTimeout(() => sampleRadarDbz(), 2000);
+  };
+
+  // NEXRAD color to dBZ mapping (standard NOAA colormap)
+  const colorToDbz = (r: number, g: number, b: number): number => {
+    const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    
+    // NEXRAD standard color mapping
+    const colorMap: {[key: string]: number} = {
+      '#40ffff': 5,   // Light blue - very light
+      '#36c5ff': 10,  // Blue - light
+      '#0099ff': 15,  // Medium blue
+      '#00ff00': 20,  // Green - light rain
+      '#00c800': 25,  // Dark green
+      '#009600': 30,  // Darker green
+      '#ffff00': 35,  // Yellow - moderate
+      '#e6c300': 40,  // Dark yellow
+      '#ff9600': 45,  // Orange - heavy
+      '#ff0000': 50,  // Red - very heavy
+      '#c80000': 55,  // Dark red - severe
+      '#960000': 60,  // Darker red
+      '#ff00ff': 65,  // Magenta - extreme
+      '#9632cc': 70,  // Purple - extreme
+      '#ffffff': 75   // White - extreme
+    };
+    
+    // Find closest color match
+    let bestMatch = 0;
+    let minDistance = Infinity;
+    
+    for (const [color, dbz] of Object.entries(colorMap)) {
+      const targetR = parseInt(color.slice(1, 3), 16);
+      const targetG = parseInt(color.slice(3, 5), 16);
+      const targetB = parseInt(color.slice(5, 7), 16);
+      
+      const distance = Math.sqrt(
+        Math.pow(r - targetR, 2) + 
+        Math.pow(g - targetG, 2) + 
+        Math.pow(b - targetB, 2)
+      );
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        bestMatch = dbz;
+      }
+    }
+    
+    // Only return dBZ if color match is reasonably close
+    return minDistance < 50 ? bestMatch : 0;
+  };
+
+  // Sample dBZ values from NEXRAD radar tiles
+  const sampleRadarDbz = async () => {
+    const map = mapInstanceRef.current;
+    if (!map || !radarLayerRef.current) return;
+
+    try {
+      // Create a hidden canvas to sample radar tile data
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Get map bounds and center
+      const bounds = map.getBounds();
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+
+      // Calculate tile coordinates for current view
+      const tileX = Math.floor((center.lng + 180) / 360 * Math.pow(2, zoom));
+      const tileY = Math.floor((1 - Math.log(Math.tan(center.lat * Math.PI / 180) + 1 / Math.cos(center.lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+
+      // Load the current NEXRAD tile
+      const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tileX}/${tileY}.png`;
+      
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve();
+        };
+        img.onerror = reject;
+        img.src = tileUrl;
+      });
+
+      // Sample dBZ values in 30-mile radius sectors
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      const newSectorData: {[key: string]: number} = {};
+
+      // Define sectors: 12 angular sectors (30° each) × 6 distance rings (5-mile steps)
+      for (let ring = 1; ring <= 6; ring++) {
+        for (let sector = 0; sector < 12; sector++) {
+          const angle = sector * 30;
+          const distance = ring * 5;
+          const sectorKey = `${distance}-${angle}`;
+          
+          // Sample multiple points within each sector
+          let maxDbz = 0;
+          const samplePoints = 20; // Number of points to sample per sector
+          
+          for (let i = 0; i < samplePoints; i++) {
+            // Random point within the sector
+            const randomAngle = angle + (Math.random() - 0.5) * 30;
+            const randomDistance = (ring - 1) * 5 + Math.random() * 5;
+            
+            // Convert polar to pixel coordinates
+            const angleRad = (randomAngle * Math.PI) / 180;
+            const pixelRadius = (randomDistance / 30) * (canvas.width / 2);
+            
+            const pixelX = Math.floor(canvas.width / 2 + pixelRadius * Math.cos(angleRad));
+            const pixelY = Math.floor(canvas.height / 2 - pixelRadius * Math.sin(angleRad));
+            
+            // Ensure coordinates are within bounds
+            if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
+              const pixelIndex = (pixelY * canvas.width + pixelX) * 4;
+              const r = data[pixelIndex];
+              const g = data[pixelIndex + 1];
+              const b = data[pixelIndex + 2];
+              const alpha = data[pixelIndex + 3];
+              
+              // Only process non-transparent pixels
+              if (alpha > 0) {
+                const dbz = colorToDbz(r, g, b);
+                if (dbz > maxDbz) {
+                  maxDbz = dbz;
+                }
+              }
+            }
+          }
+          
+          newSectorData[sectorKey] = maxDbz;
+        }
+      }
+
+      setSectorDbzData(newSectorData);
+      console.log('Sampled dBZ data:', newSectorData);
+      
+    } catch (error) {
+      console.error('Error sampling radar dBZ:', error);
+    }
   };
 
   const getTimeDisplay = (): string => {
@@ -420,6 +663,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           >
             {showSectorGrid ? "Hide" : "Show"} Grid
           </Button>
+          <Button
+            onClick={sampleRadarDbz}
+            variant="outline"
+            size="sm"
+          >
+            Sample dBZ
+          </Button>
         </div>
       </div>
 
@@ -441,14 +691,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         
         {/* Sector Activity Legend */}
         <div className="absolute top-2 right-2 z-[1000] bg-slate-900/90 p-2 rounded border border-slate-700 text-xs">
-          <div className="font-semibold text-white mb-1">Live Activity</div>
+          <div className="font-semibold text-white mb-1">
+            dBZ Sampling {Object.keys(sectorDbzData).length > 0 ? `(${Object.keys(sectorDbzData).length} sectors)` : ''}
+          </div>
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ff3300' }}></div>
+              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ff0000' }}></div>
               <span className="text-slate-300">Heavy (45+ dBZ)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ff6600' }}></div>
+              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ff9600' }}></div>
               <span className="text-slate-300">Moderate (35+ dBZ)</span>
             </div>
             <div className="flex items-center gap-1">
@@ -460,6 +712,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               <span className="text-slate-400">No Activity</span>
             </div>
           </div>
+          {Object.keys(sectorDbzData).length > 0 && (
+            <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400">
+              Real-time NEXRAD dBZ sampling
+            </div>
+          )}
         </div>
         
         {/* Radar Info */}
