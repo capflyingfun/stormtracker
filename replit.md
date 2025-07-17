@@ -232,6 +232,14 @@ Preferred communication style: Simple, everyday language.
 - **Automatic Storm Updates**: Storm data refreshes automatically every 5 minutes when location is set
 - **Direct Location Setting**: Fixed search functionality by eliminating redundant API calls that caused failures
 
+### Cloud Run Deployment Optimization (July 17, 2025)
+- **Environment Variable Validation**: Added startup validation for required DATABASE_URL and optional OPENWEATHER_API_KEY
+- **Database Connection Testing**: Implemented database connectivity verification at server startup using Neon/Drizzle
+- **Cloud Run Compatibility**: Updated server.listen configuration for proper Cloud Run host binding (0.0.0.0)
+- **Graceful Shutdown**: Added SIGTERM handler for proper Cloud Run container lifecycle management
+- **Production Error Handling**: Comprehensive try-catch wrapper around server initialization with detailed error logging
+- **Startup Validation Sequence**: Validates environment → database → starts server for reliable deployment
+
 ### Static NEXRAD Implementation (July 17, 2025)
 - **Static Radar Display**: NEXRAD configured for stable, current radar visualization without animation
 - **Disabled Animation Controls**: Play button disabled for NEXRAD to prevent animation attempts
