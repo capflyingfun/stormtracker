@@ -125,15 +125,6 @@ export default function StormTracker() {
                 
                 <div className="flex gap-2">
                   <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleGPSLocation}
-                    disabled={locationLoading}
-                  >
-                    🔄 GPS
-                  </Button>
-                  
-                  <Button
                     onClick={toggleTracking}
                     variant={isTracking ? "destructive" : "default"}
                     size="sm"
@@ -143,32 +134,18 @@ export default function StormTracker() {
                 </div>
               </div>
 
-              <div className="flex gap-2 mb-4">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Search for city, state, or address..."
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        const target = e.target as HTMLInputElement;
-                        handleLocationSearch(target.value);
-                        target.value = '';
-                      }
-                    }}
-                    className="bg-slate-700/50 border-slate-600"
-                  />
-                </div>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    const input = document.querySelector('input') as HTMLInputElement;
-                    if (input?.value) {
-                      handleLocationSearch(input.value);
-                      input.value = '';
+              <div className="mb-3">
+                <Input
+                  placeholder="Search for city, state, or address..."
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      const target = e.target as HTMLInputElement;
+                      handleLocationSearch(target.value);
+                      target.value = '';
                     }
                   }}
-                >
-                  Search
-                </Button>
+                  className="bg-slate-700/50 border-slate-600"
+                />
               </div>
 
               {lastUpdate && (
