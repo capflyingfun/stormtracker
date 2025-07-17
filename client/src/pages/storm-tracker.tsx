@@ -31,6 +31,7 @@ export default function StormTracker() {
     isLoading: locationLoading,
     setLocationFromGPS,
     setLocationFromSearch,
+    setLocationDirectly,
   } = useLocation();
 
   const {
@@ -90,18 +91,17 @@ export default function StormTracker() {
     }
   };
 
-  const handleDirectLocationSelect = async (selectedLocation: { lat: number; lon: number; name: string }) => {
-    try {
-      // Use the search method but the backend already found the location
-      await setLocationFromSearch(selectedLocation.name);
-      if (isTracking) {
-        refetchStormData();
-        setLastUpdate(new Date());
-      }
-    } catch (error) {
-      console.error("Direct location selection failed:", error);
-      // Show user-friendly error
-      alert(`Unable to set location "${selectedLocation.name}". Please try a different search term.`);
+  const handleDirectLocationSelect = (selectedLocation: { lat: number; lon: number; name: string }) => {
+    // Set location directly without another API call
+    setLocationDirectly({
+      lat: selectedLocation.lat,
+      lon: selectedLocation.lon,
+      name: selectedLocation.name,
+    });
+    
+    if (isTracking) {
+      refetchStormData();
+      setLastUpdate(new Date());
     }
   };
 

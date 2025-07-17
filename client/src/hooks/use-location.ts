@@ -72,10 +72,21 @@ export function useLocation() {
     }
   };
 
+  const setLocationDirectly = (locationData: { lat: number; lon: number; name: string; state?: string; country?: string }) => {
+    setLocation({
+      lat: locationData.lat,
+      lon: locationData.lon,
+      name: locationData.name,
+      state: locationData.state,
+      country: locationData.country,
+    });
+  };
+
   return {
     location,
     isLoading,
     setLocationFromGPS,
     setLocationFromSearch,
+    setLocationDirectly,
   };
 }
