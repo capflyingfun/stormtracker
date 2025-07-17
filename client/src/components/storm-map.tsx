@@ -236,26 +236,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return R * c;
   };
 
-  // Dynamic clustering based on zoom level - like Lightning Tracker Pro
+  // Simple clustering to reduce clutter while preserving highest intensities
   const clusterPrecipitationPoints = (points: Array<{lat: number; lon: number; dbz: number; id: string}>) => {
-    const map = mapInstanceRef.current;
-    if (!map) return points;
-
-    const zoom = map.getZoom();
     const clustered: Array<{lat: number; lon: number; dbz: number; id: string; count?: number}> = [];
     const processed = new Set<string>();
-
-    // Dynamic clustering radius based on zoom level
-    const getClusterRadius = (zoom: number, dbz: number) => {
-      // Base radius decreases as zoom increases (more detail when zoomed in)
-      let baseRadius = Math.max(0.3, 8 - zoom); // 0.3 to 8 miles
-      
-      // High intensity storms cluster less aggressively
-      if (dbz >= 45) baseRadius *= 0.6; // Heavy storms stay more separated
-      else if (dbz >= 35) baseRadius *= 0.8; // Moderate storms cluster moderately
-      
-      return baseRadius;
-    };
 
     // Sort points by intensity (highest first) to prioritize strong storms
     const sortedPoints = [...points].sort((a, b) => b.dbz - a.dbz);
@@ -263,8 +247,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     for (const point of sortedPoints) {
       if (processed.has(point.id)) continue;
 
-      // Find nearby points within dynamic clustering radius
-      const clusterRadius = getClusterRadius(zoom, point.dbz);
+      // Find nearby points within clustering radius
+      const clusterRadius = point.dbz >= 45 ? 0.8 : point.dbz >= 35 ? 1.2 : 1.5; // Miles
       const nearbyPoints = [point];
       processed.add(point.id);
 
@@ -280,7 +264,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
       // Create cluster with highest dBZ value and weighted position
       const maxDbz = Math.max(...nearbyPoints.map(p => p.dbz));
-      const maxDbzPoint = nearbyPoints.find(p => p.dbz === maxDbz)!;
       
       // Weight cluster position towards highest intensity point
       const totalWeight = nearbyPoints.reduce((sum, p) => sum + p.dbz, 0);
@@ -359,8 +342,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         return '#ffff00'; // Yellow - Light
       };
       
-      // Dynamic sizing based on zoom level and intensity
-      const getMarkerSize = (dbz: number, zoom: number, count?: number) => {
+      // Intensity-based sizing with cluster indication
+      const getMarkerSize = (dbz: number, count?: number) => {
         let baseSize = 8;
         
         // Intensity-based sizing
@@ -368,19 +351,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         else if (dbz >= 35) baseSize = 12;
         else baseSize = 10;
         
-        // Zoom-based scaling
-        const zoomFactor = Math.max(0.5, Math.min(2.0, zoom / 8));
-        baseSize *= zoomFactor;
-        
-        // Cluster size indicator when zoomed out
-        if (count && count > 1 && zoom < 8) {
-          baseSize += Math.min(6, count * 0.5);
+        // Cluster size indicator
+        if (count && count > 1) {
+          baseSize += Math.min(4, count * 0.3);
         }
         
         return Math.round(baseSize);
       };
       
-      const markerSize = getMarkerSize(point.dbz, zoom, point.count);
+      const markerSize = getMarkerSize(point.dbz, point.count);
       
       // Create custom waypoint marker
       const waypointIcon = window.L.divIcon({
@@ -395,7 +374,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: ${Math.max(7, markerSize * 0.6)}px;
+            font-size: ${Math.max(7, markerSize * 0.5)}px;
             font-weight: bold;
             color: #000;
           ">
@@ -452,23 +431,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   }, [precipitationPoints, showSectorGrid, location]);
 
-  // Re-cluster and update markers when zoom changes
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
 
-    const handleZoomEnd = () => {
-      // Re-run clustering with current zoom level
-      if (precipitationPoints.length > 0) {
-        // Get the original raw points by forcing a re-sample
-        console.log('Zoom changed, re-clustering precipitation points...');
-        // The clustering will happen automatically on next sample
-      }
-    };
-
-    map.on('zoomend', handleZoomEnd);
-    return () => map.off('zoomend', handleZoomEnd);
-  }, [precipitationPoints]);
 
   // Load radar layer
   const loadRadarLayer = async (frameIndex?: number) => {
@@ -681,8 +644,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
           const data = imageData.data;
           
-          // Dynamic sampling resolution based on zoom level
-          const sampleStep = zoom >= 10 ? 2 : zoom >= 8 ? 3 : 4; // Finer sampling when zoomed in
+          // Sample every 4th pixel to find precipitation (finer grid)
+          const sampleStep = 4;
           
           for (let x = 0; x < tileSize; x += sampleStep) {
             for (let y = 0; y < tileSize; y += sampleStep) {
