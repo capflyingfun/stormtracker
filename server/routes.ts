@@ -501,6 +501,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // NEXRAD historical frames endpoint for StormScope-style animation
+  app.get('/api/nexrad/frames', async (req, res) => {
+    try {
+      // Generate timestamps for past 60 minutes (every 5 minutes = 12 frames)
+      const now = Date.now();
+      const frames = [];
+      
+      for (let i = 11; i >= 0; i--) {
+        const timestamp = new Date(now - (i * 5 * 60 * 1000)); // 5 minutes ago
+        const year = timestamp.getUTCFullYear();
+        const month = String(timestamp.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(timestamp.getUTCDate()).padStart(2, '0');
+        const hour = String(timestamp.getUTCHours()).padStart(2, '0');
+        const minute = String(Math.floor(timestamp.getUTCMinutes() / 5) * 5).padStart(2, '0');
+        
+        frames.push({
+          timestamp: Math.floor(timestamp.getTime() / 1000),
+          timeString: `${year}${month}${day}${hour}${minute}`,
+          displayTime: timestamp.toISOString()
+        });
+      }
+      
+      res.json({ frames });
+    } catch (error) {
+      console.error('NEXRAD frames error:', error);
+      res.status(500).json({ error: 'Failed to generate NEXRAD frames' });
+    }
+  });
+
+  // NEXRAD tile proxy with historical support
+  app.get('/api/nexrad/tile/:timeString/:z/:x/:y.png', async (req, res) => {
+    try {
+      const { timeString, z, x, y } = req.params;
+      
+      // Try historical archive first
+      let tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913-${timeString}/${z}/${x}/${y}.png`;
+      let response = await fetch(tileUrl);
+      
+      // If historical doesn't exist, fall back to current
+      if (!response.ok) {
+        tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${z}/${x}/${y}.png`;
+        response = await fetch(tileUrl);
+      }
+      
+      if (!response.ok) {
+        return res.status(404).send('NEXRAD tile not found');
+      }
+      
+      const buffer = await response.arrayBuffer();
+      
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error('NEXRAD tile proxy error:', error);
+      res.status(500).send('Failed to fetch NEXRAD tile');
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
