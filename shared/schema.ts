@@ -45,41 +45,6 @@ export const weatherAlerts = pgTable("weather_alerts", {
   areas: text("areas"),
 });
 
-// Storm tracking history for movement analysis
-export const stormHistory = pgTable("storm_history", {
-  id: serial("id").primaryKey(),
-  stormId: text("storm_id").notNull(),
-  lat: real("lat").notNull(),
-  lon: real("lon").notNull(),
-  intensity: real("intensity").notNull(), // dBZ
-  direction: integer("direction").notNull(), // degrees
-  speed: real("speed").notNull(), // mph
-  timestamp: timestamp("timestamp").defaultNow(),
-});
-
-// Storm movement vectors for prediction
-export const stormMovement = pgTable("storm_movement", {
-  id: serial("id").primaryKey(),
-  stormId: text("storm_id").notNull(),
-  velocityX: real("velocity_x").notNull(), // mph eastward
-  velocityY: real("velocity_y").notNull(), // mph northward
-  acceleration: real("acceleration").notNull(), // mph²
-  intensityTrend: text("intensity_trend").notNull(), // 'strengthening', 'weakening', 'steady'
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// User preferences for clustering and alerts
-export const userPreferences = pgTable("user_preferences", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  clusterSensitivity: real("cluster_sensitivity").default(1.0), // 0.1 to 2.0
-  alertRadius: real("alert_radius").default(30.0), // miles
-  minAlertIntensity: real("min_alert_intensity").default(45.0), // dBZ
-  showStormTrails: boolean("show_storm_trails").default(true),
-  animationSpeed: real("animation_speed").default(1.0), // 0.5 to 3.0
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
 // Zod schemas for validation
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
