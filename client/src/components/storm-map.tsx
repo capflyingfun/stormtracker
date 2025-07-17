@@ -203,78 +203,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     // Create set to track unique sectors to avoid duplicates
     const activeSectors = new Set();
 
-    // Highlight sectors that have current storm activity
-    storms.forEach(storm => {
-      // Only highlight if storm is recent (within 5 minutes for live data)
-      const stormAge = Date.now() - (storm.detectedAt || Date.now());
-      const ageMinutes = stormAge / (1000 * 60);
-      
-      if (ageMinutes < 5) { // Only show current/recent activity
-        // Calculate which sector this storm is in
-        const distance = storm.distance;
-        const angle = storm.direction;
-        
-        // Find the distance ring (5-mile increments)
-        const ringDistance = Math.ceil(distance / 5) * 5;
-        
-        // Find the angular sector (30-degree increments)
-        const sectorAngle = Math.floor(angle / 30) * 30;
-        
-        const sectorKey = `${ringDistance}-${sectorAngle}`;
-        
-        // Skip if we already processed this sector
-        if (activeSectors.has(sectorKey)) return;
-        activeSectors.add(sectorKey);
-        
-        // Create sector highlight for current activity
-        const angleInRadians = (sectorAngle * Math.PI) / 180;
-        const nextAngleInRadians = ((sectorAngle + 30) * Math.PI) / 180;
-        
-        const innerRadius = Math.max(0, ringDistance - 5);
-        const outerRadius = ringDistance;
-        
-        // Create sector polygon points
-        const points = [];
-        const numPoints = 20;
-        
-        // Inner arc
-        for (let i = 0; i <= numPoints; i++) {
-          const currentAngle = angleInRadians + (i / numPoints) * (nextAngleInRadians - angleInRadians);
-          const innerDistanceInDegrees = innerRadius / 69.0;
-          const lat = centerLat + (innerDistanceInDegrees * Math.cos(currentAngle));
-          const lon = centerLon + (innerDistanceInDegrees * Math.sin(currentAngle));
-          points.push([lat, lon]);
-        }
-        
-        // Outer arc (reverse order)
-        for (let i = numPoints; i >= 0; i--) {
-          const currentAngle = angleInRadians + (i / numPoints) * (nextAngleInRadians - angleInRadians);
-          const outerDistanceInDegrees = outerRadius / 69.0;
-          const lat = centerLat + (outerDistanceInDegrees * Math.cos(currentAngle));
-          const lon = centerLon + (outerDistanceInDegrees * Math.sin(currentAngle));
-          points.push([lat, lon]);
-        }
-        
-        // Create highlighted sector with intensity-based color
-        const intensity = storm.intensity;
-        const getSectorColor = () => {
-          if (intensity >= 45) return '#ff3300'; // Red for heavy storms
-          if (intensity >= 35) return '#ff6600'; // Orange for moderate storms
-          return '#ffff00'; // Yellow for light storms
-        };
-        
-        const sectorHighlight = window.L.polygon(points, {
-          color: getSectorColor(),
-          fillColor: getSectorColor(),
-          fillOpacity: 0.3,
-          weight: 2,
-          opacity: 0.8,
-          dashArray: '3,2'
-        });
-        
-        highlightGroup.addLayer(sectorHighlight);
-      }
-    });
+    // No storm highlighting - waypoints will be added by dBZ data
 
     sectorHighlightsRef.current = highlightGroup;
     if (showSectorGrid) {
@@ -289,109 +218,107 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   }, [location, radarRange, showSectorGrid]);
 
-  // Update sector highlights based on dBZ data
-  useEffect(() => {
-    if (mapInstanceRef.current && window.L) {
-      // Remove any existing sector highlights
-      if (sectorHighlightsRef.current) {
-        mapInstanceRef.current.removeLayer(sectorHighlightsRef.current);
-        sectorHighlightsRef.current = null;
-      }
-      
-      // Add new sector highlights based on dBZ data
-      if (Object.keys(sectorDbzData).length > 0) {
-        addDbzSectorHighlights();
-      }
-    }
-  }, [sectorDbzData, showSectorGrid, location]);
-
-  // Add sector highlights based on actual dBZ values
-  const addDbzSectorHighlights = () => {
+  // Add waypoint markers for detected precipitation areas
+  const addDbzWaypoints = () => {
     const map = mapInstanceRef.current;
     if (!map || !window.L) return;
 
-    const highlightGroup = window.L.layerGroup();
+    const waypointGroup = window.L.layerGroup();
     const centerLat = location.lat;
     const centerLon = location.lon;
 
-    // Create highlights for sectors with significant precipitation
+    // Create waypoint markers for sectors with significant precipitation
     for (const [sectorKey, dbzValue] of Object.entries(sectorDbzData)) {
-      // Only highlight sectors with measurable precipitation (25+ dBZ)
+      // Only create waypoints for sectors with measurable precipitation (25+ dBZ)
       if (dbzValue >= 25) {
         const [distance, angle] = sectorKey.split('-').map(Number);
         
-        // Calculate sector boundaries
-        const innerRadius = Math.max(0, distance - 5);
-        const outerRadius = distance;
-        const startAngle = angle;
-        const endAngle = angle + 30;
+        // Calculate center position of the sector for waypoint placement
+        const midDistance = distance - 2.5; // Place waypoint in middle of 5-mile ring
+        const midAngle = angle + 15; // Place waypoint in middle of 30-degree sector
         
-        // Create sector polygon points
-        const points = [];
+        // Convert to lat/lon coordinates
+        const angleRad = (midAngle * Math.PI) / 180;
+        const waypointLat = centerLat + ((midDistance * 1609.34) / 111320) * Math.cos(angleRad);
+        const waypointLon = centerLon + ((midDistance * 1609.34) / (111320 * Math.cos(centerLat * Math.PI / 180))) * Math.sin(angleRad);
         
-        // Add center point if inner radius is 0
-        if (innerRadius === 0) {
-          points.push([centerLat, centerLon]);
-        }
-        
-        // Add arc points for outer radius
-        for (let a = startAngle; a <= endAngle; a += 5) {
-          const angleRad = (a * Math.PI) / 180;
-          const outerLat = centerLat + ((outerRadius * 1609.34) / 111320) * Math.cos(angleRad);
-          const outerLon = centerLon + ((outerRadius * 1609.34) / (111320 * Math.cos(centerLat * Math.PI / 180))) * Math.sin(angleRad);
-          points.push([outerLat, outerLon]);
-        }
-        
-        // Add arc points for inner radius (if not center)
-        if (innerRadius > 0) {
-          for (let a = endAngle; a >= startAngle; a -= 5) {
-            const angleRad = (a * Math.PI) / 180;
-            const innerLat = centerLat + ((innerRadius * 1609.34) / 111320) * Math.cos(angleRad);
-            const innerLon = centerLon + ((innerRadius * 1609.34) / (111320 * Math.cos(centerLat * Math.PI / 180))) * Math.sin(angleRad);
-            points.push([innerLat, innerLon]);
-          }
-        }
-        
-        // Close the polygon
-        if (innerRadius === 0) {
-          points.push([centerLat, centerLon]);
-        }
-        
-        // Get color based on dBZ value
+        // Get color and size based on dBZ value
         const getDbzColor = (dbz: number) => {
           if (dbz >= 45) return '#ff0000'; // Red - Heavy
           if (dbz >= 35) return '#ff9600'; // Orange - Moderate
           return '#ffff00'; // Yellow - Light
         };
         
-        // Create sector highlight polygon
-        const sectorHighlight = window.L.polygon(points, {
-          color: getDbzColor(dbzValue),
-          fillColor: getDbzColor(dbzValue),
-          fillOpacity: 0.3,
-          weight: 2,
-          opacity: 0.8
+        const getMarkerSize = (dbz: number) => {
+          if (dbz >= 45) return 12; // Large for heavy precipitation
+          if (dbz >= 35) return 10; // Medium for moderate precipitation
+          return 8; // Small for light precipitation
+        };
+        
+        // Create custom waypoint marker
+        const waypointIcon = window.L.divIcon({
+          html: `
+            <div style="
+              width: ${getMarkerSize(dbzValue)}px;
+              height: ${getMarkerSize(dbzValue)}px;
+              background-color: ${getDbzColor(dbzValue)};
+              border: 2px solid #ffffff;
+              border-radius: 50%;
+              box-shadow: 0 0 6px rgba(0,0,0,0.5);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 8px;
+              font-weight: bold;
+              color: #000;
+            ">
+              ${dbzValue}
+            </div>
+          `,
+          className: 'dbz-waypoint',
+          iconSize: [getMarkerSize(dbzValue), getMarkerSize(dbzValue)],
+          iconAnchor: [getMarkerSize(dbzValue) / 2, getMarkerSize(dbzValue) / 2]
         });
         
-        // Add popup with dBZ info
+        // Create waypoint marker
+        const waypointMarker = window.L.marker([waypointLat, waypointLon], {
+          icon: waypointIcon
+        });
+        
+        // Add popup with precipitation info
         const directionName = getDirectionName(angle);
-        sectorHighlight.bindPopup(`
-          <b>Precipitation Detected</b><br>
+        waypointMarker.bindPopup(`
+          <b>Precipitation Waypoint</b><br>
           Direction: ${directionName}<br>
           Distance: ${distance} miles<br>
           Intensity: ${dbzValue} dBZ<br>
-          Type: ${dbzValue >= 45 ? 'Heavy' : dbzValue >= 35 ? 'Moderate' : 'Light'}
+          Type: ${dbzValue >= 45 ? 'Heavy' : dbzValue >= 35 ? 'Moderate' : 'Light'}<br>
+          <small>Real-time NEXRAD data</small>
         `);
         
-        highlightGroup.addLayer(sectorHighlight);
+        waypointGroup.addLayer(waypointMarker);
       }
     }
 
-    sectorHighlightsRef.current = highlightGroup;
-    if (showSectorGrid) {
-      sectorHighlightsRef.current.addTo(map);
-    }
+    sectorHighlightsRef.current = waypointGroup;
+    sectorHighlightsRef.current.addTo(map);
   };
+
+  // Update waypoint markers based on dBZ data
+  useEffect(() => {
+    if (mapInstanceRef.current && window.L) {
+      // Remove any existing markers
+      if (sectorHighlightsRef.current) {
+        mapInstanceRef.current.removeLayer(sectorHighlightsRef.current);
+        sectorHighlightsRef.current = null;
+      }
+      
+      // Add new waypoint markers based on dBZ data
+      if (Object.keys(sectorDbzData).length > 0) {
+        addDbzWaypoints();
+      }
+    }
+  }, [sectorDbzData, showSectorGrid, location]);
 
   // Load radar layer
   const loadRadarLayer = async (frameIndex?: number) => {
@@ -689,32 +616,28 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       <div className="relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden" style={{ height: '500px' }}>
         <div ref={mapRef} className="w-full h-full"></div>
         
-        {/* Sector Activity Legend */}
+        {/* Precipitation Waypoints Legend */}
         <div className="absolute top-2 right-2 z-[1000] bg-slate-900/90 p-2 rounded border border-slate-700 text-xs">
           <div className="font-semibold text-white mb-1">
-            dBZ Sampling {Object.keys(sectorDbzData).length > 0 ? `(${Object.keys(sectorDbzData).length} sectors)` : ''}
+            Precipitation Waypoints {Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length > 0 ? `(${Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length} active)` : ''}
           </div>
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ff0000' }}></div>
+              <div className="w-3 h-3 border-2 border-white rounded-full" style={{ backgroundColor: '#ff0000' }}></div>
               <span className="text-slate-300">Heavy (45+ dBZ)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ff9600' }}></div>
+              <div className="w-2 h-2 border-2 border-white rounded-full" style={{ backgroundColor: '#ff9600' }}></div>
               <span className="text-slate-300">Moderate (35+ dBZ)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ffff00' }}></div>
+              <div className="w-2 h-2 border-2 border-white rounded-full" style={{ backgroundColor: '#ffff00' }}></div>
               <span className="text-slate-300">Light (25+ dBZ)</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-2 border border-slate-600" style={{ backgroundColor: 'transparent' }}></div>
-              <span className="text-slate-400">No Activity</span>
             </div>
           </div>
           {Object.keys(sectorDbzData).length > 0 && (
             <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400">
-              Real-time NEXRAD dBZ sampling
+              Real-time NEXRAD radar sampling
             </div>
           )}
         </div>
