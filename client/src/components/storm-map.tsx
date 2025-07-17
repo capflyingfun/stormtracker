@@ -139,21 +139,47 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       radarLayerRef.current = null;
     }
 
-    // Create new radar layer with OpenWeatherMap tiles (more stable)
+    // Create colorful weather radar layer with multiple overlays
     try {
-      // Use OpenWeatherMap precipitation layer instead of RainViewer
-      radarLayerRef.current = window.L.tileLayer(
-        `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
+      // Create a layer group with multiple weather data layers
+      const layerGroup = window.L.layerGroup();
+      
+      // Add temperature layer for visual interest
+      const tempLayer = window.L.tileLayer(
+        `https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
         {
-          tileSize: 256,
-          opacity: 0.6,
+          opacity: 0.3,
           transparent: true,
-          attribution: 'Weather data © OpenWeatherMap',
-          maxZoom: 10,
-          updateWhenIdle: true,
-          updateWhenZooming: false
+          attribution: 'Temperature data © OpenWeatherMap'
         }
       );
+      
+      // Add precipitation layer with higher opacity for visibility
+      const precipLayer = window.L.tileLayer(
+        `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
+        {
+          opacity: 0.8,
+          transparent: true,
+          attribution: 'Precipitation data © OpenWeatherMap'
+        }
+      );
+      
+      // Add wind layer for movement visualization
+      const windLayer = window.L.tileLayer(
+        `https://tile.openweathermap.org/map/wind_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
+        {
+          opacity: 0.5,
+          transparent: true,
+          attribution: 'Wind data © OpenWeatherMap'
+        }
+      );
+      
+      // Add layers to group
+      layerGroup.addLayer(tempLayer);
+      layerGroup.addLayer(precipLayer);
+      layerGroup.addLayer(windLayer);
+      
+      radarLayerRef.current = layerGroup;
       
       // Add to map
       radarLayerRef.current.addTo(map);
@@ -239,7 +265,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold">
-          Live Storm Radar - {radarRange} Mile Range
+          Live Weather Radar - {radarRange} Mile Range
         </h2>
         
         <div className="flex items-center gap-2">
@@ -262,7 +288,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             <span>Radar: {getTimeDisplay()}</span>
           </div>
           <div className="mt-1 text-xs text-slate-400">
-            Range: {radarRange} miles | Click refresh to update
+            Range: {radarRange} miles | Temperature, Precipitation & Wind data
           </div>
         </div>
       </div>
