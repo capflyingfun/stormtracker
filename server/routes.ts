@@ -504,22 +504,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // NEXRAD historical frames endpoint for StormScope-style animation
   app.get('/api/nexrad/frames', async (req, res) => {
     try {
-      // Generate timestamps for past 60 minutes (every 5 minutes = 12 frames)
-      const now = Date.now();
+      // Get actual available NEXRAD timestamps from Iowa State Mesonet
       const frames = [];
+      const now = new Date();
       
-      for (let i = 11; i >= 0; i--) {
-        const timestamp = new Date(now - (i * 5 * 60 * 1000)); // 5 minutes ago
+      // Generate timestamps for past 40 minutes (every 5 minutes = 8 frames)
+      for (let i = 7; i >= 0; i--) {
+        const timestamp = new Date(now.getTime() - (i * 5 * 60 * 1000));
         const year = timestamp.getUTCFullYear();
         const month = String(timestamp.getUTCMonth() + 1).padStart(2, '0');
         const day = String(timestamp.getUTCDate()).padStart(2, '0');
         const hour = String(timestamp.getUTCHours()).padStart(2, '0');
         const minute = String(Math.floor(timestamp.getUTCMinutes() / 5) * 5).padStart(2, '0');
         
+        const timeString = `${year}${month}${day}_${hour}${minute}`;
+        
         frames.push({
           timestamp: Math.floor(timestamp.getTime() / 1000),
-          timeString: `${year}${month}${day}${hour}${minute}`,
-          displayTime: timestamp.toISOString()
+          timeString: timeString,
+          displayTime: timestamp.toISOString(),
+          ridgeFormat: `${year}${month}${day}_${hour}${minute}`
         });
       }
       
@@ -530,7 +534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // NEXRAD tile proxy with historical support
+  // NEXRAD tile proxy with historical RIDGE format support
   app.get('/api/nexrad/tile/:timeString/:z/:x/:y.png', async (req, res) => {
     try {
       const { timeString, z, x, y } = req.params;
@@ -546,36 +550,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const buffer = await response.arrayBuffer();
         res.setHeader('Content-Type', 'image/png');
-        res.setHeader('Cache-Control', 'public, max-age=60'); // Shorter cache for live
+        res.setHeader('Cache-Control', 'public, max-age=60');
         res.send(Buffer.from(buffer));
         return;
       }
       
-      // For historical frames, try multiple time formats
-      const timeFormats = [
-        timeString, // Original format (YYYYMMDDHHMM)
-        timeString.substring(0, 10) + timeString.substring(10, 12), // Remove seconds if present
-      ];
-      
+      // For historical frames using RIDGE format (YYYYMMDD_HHMM)
       let foundTile = false;
       let buffer;
       
-      for (const format of timeFormats) {
+      // Try RIDGE CONUS format first (most reliable for animation)
+      try {
+        const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::CONUS::${timeString}/${z}/${x}/${y}.png`;
+        const response = await fetch(tileUrl);
+        
+        if (response.ok) {
+          buffer = await response.arrayBuffer();
+          foundTile = true;
+        }
+      } catch (e) {
+        // Continue to fallback
+      }
+      
+      // Fallback to standard NEXRAD format
+      if (!foundTile) {
         try {
-          const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913-${format}/${z}/${x}/${y}.png`;
+          const simplifiedTime = timeString.replace('_', '');
+          const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913-${simplifiedTime}/${z}/${x}/${y}.png`;
           const response = await fetch(tileUrl);
           
           if (response.ok) {
             buffer = await response.arrayBuffer();
             foundTile = true;
-            break;
           }
         } catch (e) {
-          continue;
+          // Continue to final fallback
         }
       }
       
-      // If no historical tile found, fall back to current
+      // Final fallback to current radar
       if (!foundTile) {
         const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${z}/${x}/${y}.png`;
         const response = await fetch(tileUrl);

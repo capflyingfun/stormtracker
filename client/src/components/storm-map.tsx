@@ -109,21 +109,28 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           setRadarSource('nexrad');
         }
       } else {
-        // For NEXRAD, create animation frames with current data + cache busting
-        // Since historical NEXRAD data isn't reliably available, we'll animate current radar
-        const currentTime = Math.floor(Date.now() / 1000);
-        const frames = [];
-        
-        // Create 6 frames with slight time variations for animation effect
-        for (let i = 0; i < 6; i++) {
-          frames.push(`current_${currentTime + i}`);
+        // For NEXRAD, fetch real historical frames using RIDGE format
+        try {
+          const response = await fetch('/api/nexrad/frames');
+          const data = await response.json();
+          if (data.frames && data.frames.length > 0) {
+            const frames = data.frames.map((frame: any) => frame.ridgeFormat);
+            setRadarFrames(frames);
+            setCurrentFrame(frames.length - 1);
+            setCurrentFrameIndex(frames.length - 1);
+            
+            console.log(`NEXRAD: Loaded ${frames.length} historical RIDGE frames for animation`);
+          } else {
+            throw new Error('No NEXRAD frames received');
+          }
+        } catch (error) {
+          console.error('Failed to load NEXRAD frames:', error);
+          // Fallback to single current frame
+          const frames = ['current'];
+          setRadarFrames(frames);
+          setCurrentFrame(0);
+          setCurrentFrameIndex(0);
         }
-        
-        setRadarFrames(frames);
-        setCurrentFrame(frames.length - 1);
-        setCurrentFrameIndex(frames.length - 1);
-        
-        console.log(`NEXRAD: Created ${frames.length} animation frames (current radar)`);
       }
     };
 
@@ -186,10 +193,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             attribution: 'RainViewer'
           });
         } else {
-          // NEXRAD: Use current radar with cache busting for animation effect
-          const timestampStr = String(timestamp);
-          const cacheParam = timestampStr.startsWith('current') ? `?t=${Date.now()}` : '';
-          const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png${cacheParam}`;
+          // NEXRAD: Use server proxy for historical RIDGE frames
+          const nexradUrl = `/api/nexrad/tile/${timestamp}/{z}/{x}/{y}.png`;
           radarLayerRef.current = window.L.tileLayer(nexradUrl, {
             opacity: 0.7,
             zIndex: 200,
