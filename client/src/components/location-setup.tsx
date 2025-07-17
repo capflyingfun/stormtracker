@@ -1,7 +1,6 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import SmartAddressSearch from "@/components/smart-address-search";
+import SimpleLocationSearch from "@/components/simple-location-search";
 
 interface LocationSetupProps {
   onGPSLocation: () => Promise<void>;
@@ -11,7 +10,7 @@ interface LocationSetupProps {
 }
 
 export default function LocationSetup({ onGPSLocation, onLocationSearch, onLocationSelect, isLoading }: LocationSetupProps) {
-  const handleSmartLocationSelect = async (location: { lat: number; lon: number; name: string }) => {
+  const handleLocationSelect = async (location: { lat: number; lon: number; name: string }) => {
     if (onLocationSelect) {
       onLocationSelect(location);
     } else {
@@ -28,25 +27,10 @@ export default function LocationSetup({ onGPSLocation, onLocationSearch, onLocat
         <p className="text-slate-300 mb-6 text-sm sm:text-base">Choose your location to start tracking storms</p>
         
         <div className="space-y-4 max-w-md mx-auto">
-          <Button
-            onClick={onGPSLocation}
-            disabled={isLoading}
-            className="w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-4 sm:py-3 bg-blue-600 hover:bg-blue-500 text-base h-12 sm:h-auto touch-manipulation"
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-          >
-            {isLoading ? (
-              <Loader2 className="h-5 w-5 sm:h-4 sm:w-4 animate-spin" />
-            ) : (
-              <span>🔄</span>
-            )}
-            <span className="text-base sm:text-sm">{isLoading ? 'Getting location...' : 'Use Current GPS Location'}</span>
-          </Button>
-          
-          <div className="text-slate-400 text-sm sm:text-base">— or —</div>
-          
-          <SmartAddressSearch
-            onLocationSelect={handleSmartLocationSelect}
-            placeholder="Search for an address, city, or ZIP code..."
+          <SimpleLocationSearch
+            onLocationSelect={handleLocationSelect}
+            onUseCurrentLocation={onGPSLocation}
+            placeholder="Enter city, state, or ZIP code..."
             className="w-full"
           />
         </div>
