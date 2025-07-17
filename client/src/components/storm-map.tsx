@@ -49,7 +49,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [currentFrame, setCurrentFrame] = useState(10);
   const [radarFrames, setRadarFrames] = useState<number[]>([]);
   const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer'); // RainViewer primary
+  const [currentFrameIndex, setCurrentFrameIndex] = useState<number>(-1);
   const animationIntervalRef = useRef<NodeJS.Timeout>();
+  const animationSpeedRef = useRef<number>(800); // ms between frames
   const [sectorDbzData, setSectorDbzData] = useState<{[key: string]: number}>({});
   const [precipitationPoints, setPrecipitationPoints] = useState<Array<{
     lat: number;
@@ -96,6 +98,50 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     loadRadarFrames();
   }, [radarSource]);
+
+  // Animation functions
+  const startAnimation = () => {
+    if (radarFrames.length < 2) return;
+    
+    setIsAnimating(true);
+    setCurrentFrameIndex(0);
+    
+    animationIntervalRef.current = setInterval(() => {
+      setCurrentFrameIndex(prev => {
+        const nextIndex = (prev + 1) % radarFrames.length;
+        return nextIndex;
+      });
+    }, animationSpeedRef.current);
+  };
+
+  const stopAnimation = () => {
+    setIsAnimating(false);
+    if (animationIntervalRef.current) {
+      clearInterval(animationIntervalRef.current);
+      animationIntervalRef.current = undefined;
+    }
+    // Return to most recent frame
+    if (radarFrames.length > 0) {
+      setCurrentFrameIndex(radarFrames.length - 1);
+    }
+  };
+
+  const toggleAnimation = () => {
+    if (isAnimating) {
+      stopAnimation();
+    } else {
+      startAnimation();
+    }
+  };
+
+  // Update radar display when animation frame changes
+  useEffect(() => {
+    if (currentFrameIndex >= 0 && radarFrames[currentFrameIndex]) {
+      const timestamp = radarFrames[currentFrameIndex];
+      loadRadarTiles(timestamp);
+      loadPrecipitationData(timestamp);
+    }
+  }, [currentFrameIndex, radarFrames]);
 
   // Initialize map
   useEffect(() => {
@@ -616,9 +662,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return directions[index];
   };
 
-  const toggleAnimation = () => {
-    // Disable animation for now - just refresh the radar
-    refreshRadar();
+  const toggleRadarAnimation = () => {
+    if (isAnimating) {
+      stopAnimation();
+    } else {
+      startAnimation();
+    }
   };
 
   const refreshRadar = async () => {
@@ -853,6 +902,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           
           console.log(`Radar frame stored. History: ${updatedHistory.length} frames spanning ${updatedHistory.length > 1 ? Math.round((currentTimestamp - updatedHistory[0].timestamp) / 1000 / 60) : 0} minutes. Current frame has ${precipitationPoints.length} points.`);
           
+          // Automatically detect movement when we have enough frames
+          if (updatedHistory.length >= 3) {
+            console.log('Sufficient frames for movement analysis available');
+          }
+          
           return updatedHistory;
         });
       }
@@ -943,6 +997,20 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           >
             Sample dBZ
           </Button>
+          <Button
+            onClick={toggleRadarAnimation}
+            variant={isAnimating ? "destructive" : "default"}
+            size="sm"
+            className="text-xs px-2"
+            disabled={radarFrames.length < 2}
+          >
+            {isAnimating ? 'Stop' : 'Play'}
+          </Button>
+          {radarFrames.length > 1 && (
+            <span className="text-xs text-slate-400">
+              {currentFrameIndex >= 0 ? `${currentFrameIndex + 1}/${radarFrames.length}` : 'Live'}
+            </span>
+          )}
         </div>
       </div>
 
