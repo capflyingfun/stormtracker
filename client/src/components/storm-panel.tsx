@@ -18,6 +18,7 @@ interface StormPanelProps {
   formatDistance: (miles: number) => string;
   formatSpeed: (mph: number) => string;
   isLoading: boolean;
+  onStormClick?: (storm: Storm) => void;
 }
 
 const getDirectionName = (degrees: number): string => {
@@ -44,7 +45,7 @@ const getStormColor = (intensity: number): string => {
   return 'bg-blue-500';
 };
 
-export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading }: StormPanelProps) {
+export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, onStormClick }: StormPanelProps) {
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <div className="flex items-center gap-3 mb-4">
@@ -60,7 +61,11 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
           </p>
         ) : (
           storms.map((storm) => (
-            <div key={storm.id} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
+            <div 
+              key={storm.id} 
+              className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50 cursor-pointer hover:bg-slate-600/50 transition-colors"
+              onClick={() => onStormClick?.(storm)}
+            >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${getStormColor(storm.intensity)} animate-pulse`}></div>
@@ -71,7 +76,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
               
               {/* Enhanced storm description with directional info */}
               <p className="text-sm text-slate-300 mb-2">
-                {getStormIntensityName(storm.intensity)} ({storm.intensity.toFixed(0)}dBZ) {getDirectionName(storm.direction)} of you with {storm.type.toLowerCase()} {formatDistance(storm.distance)} away moving {getDirectionName(storm.direction)} at {formatSpeed(storm.speed)}
+                {getStormIntensityName(storm.intensity)} ({storm.intensity.toFixed(0)}dBZ) {getDirectionName(storm.direction)} of you with {storm.type.toLowerCase()} {formatDistance(storm.distance)} away{storm.speed > 0 ? ` moving ${getDirectionName((storm as any).movementDirection || storm.direction)} at ${formatSpeed(storm.speed)}` : ' (stationary)'}
               </p>
               
               {storm.description && (

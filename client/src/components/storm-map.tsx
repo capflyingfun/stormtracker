@@ -27,6 +27,7 @@ interface StormMapProps {
   useMetric: boolean;
   formatDistance: (miles: number) => string;
   formatSpeed: (mph: number) => string;
+  onStormHighlight?: (stormId: string | null) => void;
 }
 
 declare global {
@@ -35,7 +36,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, onStormHighlight }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -57,7 +58,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     dbz: number;
     id: string;
   }>>([]);
+  const [previousPrecipitationPoints, setPreviousPrecipitationPoints] = useState<Array<{
+    lat: number;
+    lon: number;
+    dbz: number;
+    id: string;
+    timestamp: number;
+  }>>([]);
+  const [highlightedStorm, setHighlightedStorm] = useState<string | null>(null);
   const radarCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const highlightLayerRef = useRef<any>(null);
 
   // Initialize radar frames based on source
   useEffect(() => {
@@ -301,14 +311,45 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return clustered;
   };
 
+  // Calculate storm movement by comparing current and previous frames
+  const calculateStormMovement = (currentCluster: any, previousPoints: any[]): {speed: number, direction: number} => {
+    if (previousPoints.length === 0) return {speed: 0, direction: 0};
+
+    // Find closest previous point within reasonable distance (5 miles)
+    let closestPrevious = null;
+    let minDistance = Infinity;
+
+    for (const prevPoint of previousPoints) {
+      const distance = calculateDistance(currentCluster.lat, currentCluster.lon, prevPoint.lat, prevPoint.lon);
+      if (distance < 5 && distance < minDistance) { // Within 5 miles
+        minDistance = distance;
+        closestPrevious = prevPoint;
+      }
+    }
+
+    if (!closestPrevious) return {speed: 0, direction: 0};
+
+    // Calculate movement
+    const distance = calculateDistance(closestPrevious.lat, closestPrevious.lon, currentCluster.lat, currentCluster.lon);
+    const timeDiff = (Date.now() - closestPrevious.timestamp) / 1000 / 3600; // Convert to hours
+    
+    if (timeDiff === 0) return {speed: 0, direction: 0};
+
+    const speed = distance / timeDiff; // mph
+    const direction = calculateBearing(closestPrevious.lat, closestPrevious.lon, currentCluster.lat, currentCluster.lon);
+
+    return {speed: Math.min(speed, 100), direction}; // Cap at 100 mph for realism
+  };
+
   // Update storm data from precipitation points for the Storm Cells panel
   const updateStormDataFromPrecipitation = (clusters: Array<{lat: number; lon: number; dbz: number; id: string; count?: number}>) => {
     if (!location) return;
 
-    // Convert precipitation clusters to storm format
+    // Convert precipitation clusters to storm format with movement data
     const stormCells = clusters.map((cluster, index) => {
       const distance = calculateDistance(location.lat, location.lon, cluster.lat, cluster.lon);
       const bearing = calculateBearing(location.lat, location.lon, cluster.lat, cluster.lon);
+      const movement = calculateStormMovement(cluster, previousPrecipitationPoints);
       
       return {
         id: `storm_${Date.now()}_${index}`,
@@ -317,9 +358,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         intensity: cluster.dbz,
         distance: distance,
         direction: bearing,
-        speed: 0, // No movement data from static precipitation
+        speed: movement.speed,
         type: cluster.dbz >= 45 ? 'Heavy' : cluster.dbz >= 35 ? 'Moderate' : 'Light',
-        description: `${cluster.dbz} dBZ precipitation ${cluster.count ? `(${cluster.count} cells)` : ''}`
+        description: `${cluster.dbz} dBZ precipitation ${cluster.count ? `(${cluster.count} cells)` : ''}`,
+        movementDirection: movement.direction
       };
     });
 
@@ -426,6 +468,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
            <small>Real-time NEXRAD data</small>`;
       
       waypointMarker.bindPopup(popupContent);
+      
+      // Add click handler for storm highlighting
+      waypointMarker.on('click', () => {
+        highlightStormCell(point.lat, point.lon);
+        onStormHighlight?.(point.id);
+      });
       
       waypointGroup.addLayer(waypointMarker);
     }
@@ -772,6 +820,18 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       console.log(`Found ${precipitationPoints.length} raw points, clustered to ${clusteredPoints.length} waypoints:`, clusteredPoints);
       
+      // Store previous points for movement calculation
+      if (precipitationPoints.length > 0) {
+        setPreviousPrecipitationPoints(prev => {
+          const currentTimestamp = Date.now();
+          const withTimestamp = precipitationPoints.map(p => ({...p, timestamp: currentTimestamp}));
+          
+          // Keep only last 2 frames for movement calculation
+          const combined = [...prev, ...withTimestamp];
+          return combined.slice(-200); // Keep reasonable history
+        });
+      }
+
       // Update storm data with clustered precipitation points
       updateStormDataFromPrecipitation(clusteredPoints);
       
@@ -780,12 +840,55 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   };
 
+  // Highlight storm cell with pulsing animation
+  const highlightStormCell = (lat: number, lon: number) => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.L) return;
+
+    // Remove existing highlight
+    if (highlightLayerRef.current) {
+      map.removeLayer(highlightLayerRef.current);
+    }
+
+    // Create pulsing highlight circle
+    const highlightCircle = window.L.circle([lat, lon], {
+      color: '#00ff00',
+      fillColor: '#00ff00',
+      fillOpacity: 0.3,
+      radius: 2000, // 2km radius
+      weight: 3,
+      className: 'storm-highlight-pulse'
+    });
+
+    highlightLayerRef.current = highlightCircle;
+    highlightCircle.addTo(map);
+
+    // Auto-remove highlight after 3 seconds
+    setTimeout(() => {
+      if (highlightLayerRef.current) {
+        map.removeLayer(highlightLayerRef.current);
+        highlightLayerRef.current = null;
+      }
+    }, 3000);
+  };
+
   const getTimeDisplay = (): string => {
     return 'Live';
   };
 
+  // Listen for storm highlight events from panel
+  useEffect(() => {
+    const handleStormHighlight = (event: any) => {
+      const { lat, lon } = event.detail;
+      highlightStormCell(lat, lon);
+    };
+
+    window.addEventListener('highlightStormOnMap', handleStormHighlight);
+    return () => window.removeEventListener('highlightStormOnMap', handleStormHighlight);
+  }, []);
+
   return (
-    <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50">
+    <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50 storm-map-container">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
           <h2 className="text-lg font-semibold text-white">
