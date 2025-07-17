@@ -1585,8 +1585,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       <div className="mt-3 bg-slate-800/50 rounded-lg border border-slate-700 p-3">
         <div className="font-semibold text-white mb-2 text-sm">
           Precipitation Waypoints {precipitationPoints.length > 0 ? `(${precipitationPoints.filter(point => {
-            const category = point.dbz >= 55 ? 'severe' : 
-                            point.dbz >= 45 ? 'heavy' : 
+            const category = point.dbz >= 61 ? 'extreme' :
+                            point.dbz >= 55 ? 'veryHeavy' :
+                            point.dbz >= 46 ? 'heavy' : 
                             point.dbz >= 35 ? 'moderate' : 'light';
             return stormFilters[category as keyof typeof stormFilters];
           }).length})` : ''}
@@ -1594,23 +1595,33 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#8B5CF6' }}></div>
-            <span className="text-slate-300 text-xs">Extreme (61+)</span>
+            <span className="text-slate-300 text-xs">
+              Extreme (61+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 61 && stormFilters.extreme).length})`}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#EF4444' }}></div>
-            <span className="text-slate-300 text-xs">Very Heavy (55+)</span>
+            <span className="text-slate-300 text-xs">
+              Very Heavy (55+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 55 && p.dbz < 61 && stormFilters.veryHeavy).length})`}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#F97316' }}></div>
-            <span className="text-slate-300 text-xs">Heavy (46+)</span>
+            <span className="text-slate-300 text-xs">
+              Heavy (46+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 46 && p.dbz < 55 && stormFilters.heavy).length})`}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#EAB308' }}></div>
-            <span className="text-slate-300 text-xs">Moderate (35+)</span>
+            <span className="text-slate-300 text-xs">
+              Moderate (35+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 35 && p.dbz < 46 && stormFilters.moderate).length})`}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#22C55E' }}></div>
-            <span className="text-slate-300 text-xs">Light (20+)</span>
+            <span className="text-slate-300 text-xs">
+              Light (20+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 20 && p.dbz < 35 && stormFilters.light).length})`}
+            </span>
           </div>
         </div>
         {precipitationPoints.length > 0 && (
