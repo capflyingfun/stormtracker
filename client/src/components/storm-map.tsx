@@ -1485,12 +1485,20 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </h2>
           <div className="flex items-center gap-2 sm:gap-3 text-sm">
             <div className="bg-slate-800 px-2 py-1 rounded text-white text-xs sm:text-sm">
-              {storms.filter(storm => {
-                const category = storm.intensity >= 55 ? 'severe' : 
-                                storm.intensity >= 45 ? 'heavy' : 
-                                storm.intensity >= 35 ? 'moderate' : 'light';
-                return stormFilters[category as keyof typeof stormFilters];
-              }).length} storms detected
+              {precipitationPoints.length > 0 ? 
+                precipitationPoints.filter(point => {
+                  const category = point.dbz >= 55 ? 'severe' : 
+                                  point.dbz >= 45 ? 'heavy' : 
+                                  point.dbz >= 35 ? 'moderate' : 'light';
+                  return stormFilters[category as keyof typeof stormFilters];
+                }).length : 
+                storms.filter(storm => {
+                  const category = storm.intensity >= 55 ? 'severe' : 
+                                  storm.intensity >= 45 ? 'heavy' : 
+                                  storm.intensity >= 35 ? 'moderate' : 'light';
+                  return stormFilters[category as keyof typeof stormFilters];
+                }).length
+              } storms detected
             </div>
             <div className="text-slate-400 text-xs sm:text-sm">
               Range: {radarRange} miles
