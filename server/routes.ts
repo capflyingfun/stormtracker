@@ -1,6 +1,5 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer } from "ws";
 import { z } from "zod";
 import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema } from "@shared/schema";
 
@@ -477,67 +476,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
-  
-  // WebSocket server for real-time storm updates
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-  
-  // Store active connections
-  const clients = new Set();
-  
-  wss.on('connection', (ws) => {
-    clients.add(ws);
-    console.log('Client connected to WebSocket');
-    
-    // Send initial connection message
-    ws.send(JSON.stringify({
-      type: 'connection',
-      message: 'Connected to real-time storm tracking'
-    }));
-    
-    ws.on('close', () => {
-      clients.delete(ws);
-      console.log('Client disconnected from WebSocket');
-    });
-    
-    ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
-      clients.delete(ws);
-    });
-  });
-  
-  // Function to broadcast storm updates to all connected clients
-  const broadcastStormUpdate = (data: any) => {
-    const message = JSON.stringify({
-      type: 'storm-update',
-      data: data,
-      timestamp: Date.now()
-    });
-    
-    clients.forEach((client: any) => {
-      if (client.readyState === 1) { // WebSocket.OPEN
-        client.send(message);
-      }
-    });
-  };
-  
-  // Function to broadcast movement vectors
-  const broadcastMovementUpdate = (data: any) => {
-    const message = JSON.stringify({
-      type: 'movement-update',
-      data: data,
-      timestamp: Date.now()
-    });
-    
-    clients.forEach((client: any) => {
-      if (client.readyState === 1) {
-        client.send(message);
-      }
-    });
-  };
-  
-  // Make broadcast functions available globally
-  (global as any).broadcastStormUpdate = broadcastStormUpdate;
-  (global as any).broadcastMovementUpdate = broadcastMovementUpdate;
-  
   return httpServer;
 }

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import StormMovementTracker from "@/components/storm-movement-tracker";
 
 interface Location {
   lat: number;
@@ -39,8 +38,6 @@ declare global {
 export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  const [stormMovements, setStormMovements] = useState<any[]>([]);
-  const [stormTrails, setStormTrails] = useState<any[]>([]);
   const radarLayerRef = useRef<any>(null);
   const rangeCircleRef = useRef<any>(null);
   const stormMarkersRef = useRef<any[]>([]);
@@ -306,37 +303,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const updateStormDataFromPrecipitation = (clusters: Array<{lat: number; lon: number; dbz: number; id: string; count?: number}>) => {
     if (!location) return;
 
-    // Convert precipitation clusters to storm format with enhanced data
+    // Convert precipitation clusters to storm format
     const stormCells = clusters.map((cluster, index) => {
       const distance = calculateDistance(location.lat, location.lon, cluster.lat, cluster.lon);
       const bearing = calculateBearing(location.lat, location.lon, cluster.lat, cluster.lon);
       
-      // Enhanced storm classification
-      const getStormType = (dbz: number) => {
-        if (dbz >= 65) return 'Extreme';
-        if (dbz >= 55) return 'Severe';
-        if (dbz >= 45) return 'Heavy';
-        if (dbz >= 35) return 'Moderate';
-        return 'Light';
-      };
-
-      // Enhanced storm description with weather patterns
-      const getStormDescription = (dbz: number, count?: number) => {
-        let desc = `${dbz} dBZ reflectivity`;
-        if (count && count > 1) {
-          desc += ` (${count} cells clustered)`;
-        }
-        
-        // Add precipitation rate estimation
-        if (dbz >= 65) desc += ' - Extreme precipitation (>4 in/hr)';
-        else if (dbz >= 55) desc += ' - Very heavy rain (2-4 in/hr)';
-        else if (dbz >= 45) desc += ' - Heavy rain (1-2 in/hr)';
-        else if (dbz >= 35) desc += ' - Moderate rain (0.5-1 in/hr)';
-        else desc += ' - Light rain (<0.5 in/hr)';
-        
-        return desc;
-      };
-
       return {
         id: `storm_${Date.now()}_${index}`,
         lat: cluster.lat,
@@ -344,11 +315,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         intensity: cluster.dbz,
         distance: distance,
         direction: bearing,
-        speed: 0, // Will be calculated from movement tracking
-        type: getStormType(cluster.dbz),
-        description: getStormDescription(cluster.dbz, cluster.count),
-        cellCount: cluster.count || 1,
-        timestamp: Date.now()
+        speed: 0, // No movement data from static precipitation
+        type: cluster.dbz >= 45 ? 'Heavy' : cluster.dbz >= 35 ? 'Moderate' : 'Light',
+        description: `${cluster.dbz} dBZ precipitation ${cluster.count ? `(${cluster.count} cells)` : ''}`
       };
     });
 
@@ -369,29 +338,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     
     let bearing = Math.atan2(y, x) * 180 / Math.PI;
     return (bearing + 360) % 360;
-  };
-
-  // Helper function to calculate destination point from bearing and distance
-  const calculateDestination = (lat: number, lon: number, bearing: number, distance: number): {lat: number, lon: number} => {
-    const R = 3959; // Earth's radius in miles
-    const bearingRad = bearing * Math.PI / 180;
-    const latRad = lat * Math.PI / 180;
-    const lonRad = lon * Math.PI / 180;
-    
-    const destLatRad = Math.asin(
-      Math.sin(latRad) * Math.cos(distance / R) +
-      Math.cos(latRad) * Math.sin(distance / R) * Math.cos(bearingRad)
-    );
-    
-    const destLonRad = lonRad + Math.atan2(
-      Math.sin(bearingRad) * Math.sin(distance / R) * Math.cos(latRad),
-      Math.cos(distance / R) - Math.sin(latRad) * Math.sin(destLatRad)
-    );
-    
-    return {
-      lat: destLatRad * 180 / Math.PI,
-      lon: destLonRad * 180 / Math.PI
-    };
   };
 
   // Add waypoint markers for detected precipitation areas with dynamic sizing
@@ -468,46 +414,18 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       // Add popup with precipitation info
       const pointDistance = calculateDistance(centerLat, centerLon, point.lat, point.lon);
-      // Enhanced popup with more detailed storm information
-      const getStormType = (dbz: number) => {
-        if (dbz >= 65) return 'Extreme';
-        if (dbz >= 55) return 'Severe';
-        if (dbz >= 45) return 'Heavy';
-        if (dbz >= 35) return 'Moderate';
-        return 'Light';
-      };
-
-      const getPrecipitationRate = (dbz: number) => {
-        if (dbz >= 65) return '>4 in/hr';
-        if (dbz >= 55) return '2-4 in/hr';
-        if (dbz >= 45) return '1-2 in/hr';
-        if (dbz >= 35) return '0.5-1 in/hr';
-        return '<0.5 in/hr';
-      };
-
-      const getDirectionText = (bearing: number) => {
-        const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-        const index = Math.round(bearing / 22.5) % 16;
-        return directions[index];
-      };
-
-      const bearing = calculateBearing(centerLat, centerLon, point.lat, point.lon);
-      const directionText = getDirectionText(bearing);
-
       const popupContent = point.count && point.count > 1 
-        ? `<b>🌩️ Storm Cell Cluster</b><br>
-           📍 Distance: ${pointDistance.toFixed(1)} miles ${directionText}<br>
-           ⚡ Max Intensity: ${point.dbz} dBZ (${getStormType(point.dbz)})<br>
-           🌧️ Precipitation Rate: ${getPrecipitationRate(point.dbz)}<br>
-           🔢 Cells Clustered: ${point.count}<br>
-           📊 Coverage: ~${(point.count * 0.5).toFixed(1)} sq miles<br>
-           <small>🛰️ Real-time ${useNexrad ? 'NEXRAD' : 'RainViewer'} data</small>`
-        : `<b>🌧️ Precipitation Cell</b><br>
-           📍 Distance: ${pointDistance.toFixed(1)} miles ${directionText}<br>
-           ⚡ Intensity: ${point.dbz} dBZ (${getStormType(point.dbz)})<br>
-           🌧️ Precipitation Rate: ${getPrecipitationRate(point.dbz)}<br>
-           📊 Coverage: ~0.5 sq miles<br>
-           <small>🛰️ Real-time ${useNexrad ? 'NEXRAD' : 'RainViewer'} data</small>`;
+        ? `<b>Storm Cell Cluster</b><br>
+           Distance: ${pointDistance.toFixed(1)} miles<br>
+           Max Intensity: ${point.dbz} dBZ<br>
+           Type: ${point.dbz >= 45 ? 'Heavy' : point.dbz >= 35 ? 'Moderate' : 'Light'}<br>
+           Cells: ${point.count}<br>
+           <small>Real-time NEXRAD data</small>`
+        : `<b>Precipitation Cell</b><br>
+           Distance: ${pointDistance.toFixed(1)} miles<br>
+           Intensity: ${point.dbz} dBZ<br>
+           Type: ${point.dbz >= 45 ? 'Heavy' : point.dbz >= 35 ? 'Moderate' : 'Light'}<br>
+           <small>Real-time NEXRAD data</small>`;
       
       waypointMarker.bindPopup(popupContent);
       
@@ -552,10 +470,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return () => map.off('zoomend', handleZoomEnd);
   }, [precipitationPoints]);
 
-  // Load radar layer with dual source support
+  // Load radar layer
   const loadRadarLayer = async (frameIndex?: number) => {
     const map = mapInstanceRef.current;
-    if (!map || !window.L) return;
+    if (!map || !window.L || radarFrames.length === 0) return;
 
     const timestamp = radarFrames[frameIndex ?? currentFrame] || radarFrames[radarFrames.length - 1];
 
@@ -569,42 +487,34 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       radarLayerRef.current = null;
     }
 
-    // Determine radar source based on location
-    const useNexrad = location && isLocationInUS(location.lat, location.lon);
+    // NEXRAD radar overlay
+    const nexradLayer = window.L.tileLayer(
+      'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
+      {
+        tileSize: 256,
+        opacity: 0.7,
+        transparent: true,
+        attribution: 'NEXRAD Radar © Iowa Environmental Mesonet',
+        maxZoom: 12,
+        updateWhenIdle: true,
+        updateWhenZooming: false
+      }
+    );
+    
+    radarLayerRef.current = nexradLayer;
+    radarLayerRef.current.addTo(map);
 
-    if (useNexrad) {
-      // NEXRAD radar overlay for US locations
-      const nexradLayer = window.L.tileLayer(
-        'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
+    // Fallback to OpenWeatherMap if both fail
+    if (!radarLayerRef.current) {
+      // Fallback to OpenWeatherMap with enhanced visibility
+      radarLayerRef.current = window.L.tileLayer(
+        `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
         {
-          tileSize: 256,
-          opacity: 0.7,
+          opacity: 0.9,
           transparent: true,
-          attribution: 'NEXRAD Radar © Iowa Environmental Mesonet',
-          maxZoom: 12,
-          updateWhenIdle: true,
-          updateWhenZooming: false
+          attribution: 'Weather data © OpenWeatherMap'
         }
       );
-      radarLayerRef.current = nexradLayer;
-    } else if (radarFrames.length > 0) {
-      // RainViewer radar overlay for global coverage
-      const rainViewerLayer = window.L.tileLayer(
-        `/api/rainviewer?path=${encodeURIComponent(`https://tilecache.rainviewer.com/v2/radar/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`)}`,
-        {
-          tileSize: 256,
-          opacity: 0.7,
-          transparent: true,
-          attribution: 'RainViewer © Global Radar Data',
-          maxZoom: 12,
-          updateWhenIdle: true,
-          updateWhenZooming: false
-        }
-      );
-      radarLayerRef.current = rainViewerLayer;
-    }
-
-    if (radarLayerRef.current) {
       radarLayerRef.current.addTo(map);
     }
   };
@@ -658,21 +568,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     setTimeout(() => sampleRadarDbz(), 2000);
   };
 
-  // Determine if location is within US/territories for radar source selection
-  const isLocationInUS = (lat: number, lon: number): boolean => {
-    // Continental US bounds
-    if (lat >= 24.5 && lat <= 49.4 && lon >= -125.0 && lon <= -66.9) return true;
-    // Alaska bounds
-    if (lat >= 54.0 && lat <= 71.5 && lon >= -180.0 && lon <= -129.0) return true;
-    // Hawaii bounds
-    if (lat >= 18.9 && lat <= 22.2 && lon >= -160.5 && lon <= -154.8) return true;
-    // Puerto Rico bounds
-    if (lat >= 17.9 && lat <= 18.5 && lon >= -67.3 && lon <= -65.2) return true;
-    // Guam bounds
-    if (lat >= 13.2 && lat <= 13.7 && lon >= 144.6 && lon <= 145.0) return true;
-    return false;
-  };
-
   // NEXRAD color to dBZ mapping (standard NOAA colormap)
   const colorToDbz = (r: number, g: number, b: number): number => {
     const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
@@ -721,43 +616,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return minDistance < 50 ? bestMatch : 0;
   };
 
-  // RainViewer color to dBZ mapping
-  const rainViewerColorToDbz = (r: number, g: number, b: number): number => {
-    // RainViewer uses different color scheme
-    const colorMap: {[key: string]: number} = {
-      '#181818': 0,   // No precipitation
-      '#1a1a1a': 5,   // Very light
-      '#0099ff': 15,  // Light blue
-      '#00ff00': 25,  // Green - light
-      '#ffff00': 35,  // Yellow - moderate
-      '#ff9600': 45,  // Orange - heavy
-      '#ff0000': 55,  // Red - very heavy
-      '#ff00ff': 65,  // Magenta - extreme
-    };
-    
-    let bestMatch = 0;
-    let minDistance = Infinity;
-    
-    for (const [color, dbz] of Object.entries(colorMap)) {
-      const targetR = parseInt(color.slice(1, 3), 16);
-      const targetG = parseInt(color.slice(3, 5), 16);
-      const targetB = parseInt(color.slice(5, 7), 16);
-      
-      const distance = Math.sqrt(
-        Math.pow(r - targetR, 2) + 
-        Math.pow(g - targetG, 2) + 
-        Math.pow(b - targetB, 2)
-      );
-      
-      if (distance < minDistance) {
-        minDistance = distance;
-        bestMatch = dbz;
-      }
-    }
-    
-    return minDistance < 60 ? bestMatch : 0;
-  };
-
   // Sample dBZ values directly from visible precipitation areas
   const sampleRadarDbz = async () => {
     const map = mapInstanceRef.current;
@@ -796,27 +654,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         id: string;
       }> = [];
 
-      // Determine radar source based on location
-      const useNexrad = isLocationInUS(center.lat, center.lng);
-      console.log(`Using ${useNexrad ? 'NEXRAD' : 'RainViewer'} radar for location:`, center.lat, center.lng);
-
       // Sample each tile for precipitation
       for (const tile of tilesToCheck) {
         try {
-          let tileUrl: string;
-          
-          if (useNexrad) {
-            // Use NEXRAD for US locations
-            tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tile.x}/${tile.y}.png`;
-          } else {
-            // Use RainViewer for global coverage
-            if (radarFrames.length > 0) {
-              const timestamp = radarFrames[currentFrame] || radarFrames[radarFrames.length - 1];
-              tileUrl = `/api/rainviewer?path=${encodeURIComponent(`https://tilecache.rainviewer.com/v2/radar/${timestamp}/256/${zoom}/${tile.x}/${tile.y}/2/1_1.png`)}`;
-            } else {
-              continue; // Skip if no RainViewer frames available
-            }
-          }
+          const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tile.x}/${tile.y}.png`;
           
           const canvas = document.createElement('canvas');
           const tileSize = 256;
@@ -852,7 +693,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               const alpha = data[pixelIndex + 3];
               
               if (alpha > 0) {
-                const dbz = useNexrad ? colorToDbz(r, g, b) : rainViewerColorToDbz(r, g, b);
+                const dbz = colorToDbz(r, g, b);
                 if (dbz >= 25) {
                   // Convert pixel position back to lat/lon
                   const pixelLng = (tile.x + x / tileSize) * 360 / Math.pow(2, zoom) - 180;
@@ -920,7 +761,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       });
       setSectorDbzData(newSectorData);
       
-      console.log(`Found ${precipitationPoints.length} raw points (${useNexrad ? 'NEXRAD' : 'RainViewer'}), clustered to ${clusteredPoints.length} waypoints:`, clusteredPoints);
+      console.log(`Found ${precipitationPoints.length} raw points, clustered to ${clusteredPoints.length} waypoints:`, clusteredPoints);
       
       // Update storm data with clustered precipitation points
       updateStormDataFromPrecipitation(clusteredPoints);
@@ -936,21 +777,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
   return (
     <div className="bg-slate-900/80 rounded-xl p-4 border border-slate-600/50">
-      {/* Storm Movement Tracker - headless component */}
-      <StormMovementTracker 
-        storms={precipitationPoints}
-        onMovementUpdate={setStormMovements}
-        onTrailUpdate={setStormTrails}
-      />
-      
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-semibold text-white">
-            Global Storm Tracker
+            Storm Tracker
           </h2>
           <div className="flex items-center gap-3 text-sm">
             <div className="bg-slate-800 px-2 py-1 rounded text-white">
-              {precipitationPoints.length} cells detected
+              {storms.length} storms detected
             </div>
             <div className="text-slate-400">
               Range: {radarRange} miles
@@ -976,23 +810,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
 
-      {/* Enhanced Radar Info */}
+      {/* Radar Info */}
       <div className="bg-slate-800/50 rounded-lg p-3 mb-4 border border-slate-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-sm text-slate-300">Radar Source:</span>
-            <div className="text-sm text-white">
-              {location ? (isLocationInUS(location.lat, location.lon) ? 'NEXRAD' : 'RainViewer') : 'Auto-Select'}
-            </div>
+            <div className="text-sm text-white">NEXRAD</div>
           </div>
           <div className="text-xs text-slate-400">
-            {location ? (isLocationInUS(location.lat, location.lon) ? 'US High-Resolution' : 'Global Coverage') : 'Location-Based'}
+            US High-Resolution
           </div>
-        </div>
-        <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
-          <span>Movement Vectors: {stormMovements.length}</span>
-          <span>Active Trails: {stormTrails.length}</span>
-          <span>Zoom Level: {currentZoom}</span>
         </div>
       </div>
       
@@ -1020,7 +847,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </div>
           {Object.keys(sectorDbzData).length > 0 && (
             <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400">
-              Real-time {location ? (isLocationInUS(location.lat, location.lon) ? 'NEXRAD' : 'RainViewer') : 'radar'} sampling
+              Real-time NEXRAD radar sampling
             </div>
           )}
         </div>
@@ -1031,7 +858,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             <span>Radar: {getTimeDisplay()}</span>
           </div>
           <div className="mt-1 text-xs text-slate-400">
-            Range: {radarRange} miles | {location ? (isLocationInUS(location.lat, location.lon) ? 'NEXRAD (NWS/NOAA)' : 'RainViewer (Global)') : 'Auto-Select Radar'}
+            Range: {radarRange} miles | NEXRAD Radar (NWS/NOAA)
           </div>
         </div>
       </div>
