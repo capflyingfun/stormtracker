@@ -94,8 +94,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
   // Auto-sampling functionality (silent background operation)
   const triggerAutoSample = () => {
-    console.log('Auto-sample triggered - will sample in 0.75s');
-    
     // Clear any existing timeout
     if (autoSampleTimeoutRef.current) {
       clearTimeout(autoSampleTimeoutRef.current);
@@ -103,7 +101,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     
     // Set timeout for 0.75 seconds - sample silently in background
     autoSampleTimeoutRef.current = setTimeout(async () => {
-      console.log('Auto-sampling now...');
       await sampleRadarDbz();
     }, 750);
   };
@@ -272,13 +269,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     
     // Wait for radar layer to load, then sample new data
     const refreshTimer = setTimeout(() => {
-      if (radarSource === 'nexrad') {
-        console.log('Radar source switched to NEXRAD - sampling precipitation data');
-        sampleRadarDbz();
-      } else {
-        console.log('Radar source switched to RainViewer - clearing waypoints (overlay only)');
-        // RainViewer mode: just clear waypoints, radar overlay will show visually
-      }
+      console.log(`Radar source switched to ${radarSource.toUpperCase()} - sampling precipitation data`);
+      sampleRadarDbz();
     }, 1500); // Give time for radar tiles to load
     
     return () => clearTimeout(refreshTimer);
@@ -327,7 +319,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       mapInstanceRef.current = map;
       
       // Add map event listeners for auto-sampling
-      map.on('moveend zoomend', () => {
+      map.on('moveend', () => {
+        triggerAutoSample();
+      });
+      map.on('zoomend', () => {
         triggerAutoSample();
       });
     };
