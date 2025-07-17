@@ -48,7 +48,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [showSectorGrid, setShowSectorGrid] = useState(true);
   const [currentFrame, setCurrentFrame] = useState(10);
   const [radarFrames, setRadarFrames] = useState<number[]>([]);
-  const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>('nexrad'); // Default to NEXRAD for reliability
+  const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer'); // RainViewer primary with NEXRAD fallback
   const animationIntervalRef = useRef<NodeJS.Timeout>();
 
   // Initialize radar frames based on selected source
