@@ -48,32 +48,45 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
   // Initialize radar frames
   useEffect(() => {
-    const now = Math.floor(Date.now() / 1000);
-    const frames = [];
-    for (let i = 10; i >= 0; i--) {
-      frames.push(now - (i * 600)); // 10-minute intervals
+    if (radarFrames.length === 0) {
+      const now = Math.floor(Date.now() / 1000);
+      const frames = [];
+      for (let i = 10; i >= 0; i--) {
+        frames.push(now - (i * 600)); // 10-minute intervals
+      }
+      setRadarFrames(frames);
+      setCurrentFrame(frames.length - 1);
     }
-    setRadarFrames(frames);
-    setCurrentFrame(frames.length - 1);
   }, []);
 
   // Initialize map
   useEffect(() => {
-    if (!mapRef.current || !window.L || mapInstanceRef.current) return;
+    if (!mapRef.current || mapInstanceRef.current) return;
 
-    const map = window.L.map(mapRef.current, {
-      zoomControl: true,
-      attributionControl: true
-    }).setView([location.lat, location.lon], 8);
+    // Wait for Leaflet to load
+    const initMap = () => {
+      if (!window.L) {
+        setTimeout(initMap, 100);
+        return;
+      }
 
-    // Add dark base tile layer
-    window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 19
-    }).addTo(map);
+      const map = window.L.map(mapRef.current, {
+        zoomControl: true,
+        attributionControl: true,
+        preferCanvas: true
+      }).setView([location.lat, location.lon], 8);
 
-    mapInstanceRef.current = map;
+      // Add dark base tile layer
+      window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19
+      }).addTo(map);
+
+      mapInstanceRef.current = map;
+    };
+
+    initMap();
 
     return () => {
       if (mapInstanceRef.current) {
@@ -125,18 +138,29 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     // Remove existing radar layer
     if (radarLayerRef.current) {
       map.removeLayer(radarLayerRef.current);
+      radarLayerRef.current = null;
     }
 
-    // Add RainViewer radar layer
-    radarLayerRef.current = window.L.tileLayer(
-      `https://tilecache.rainviewer.com/v2/radar/${timestamp}/256/{z}/{x}/{y}/6/1_1.png`,
-      {
-        tileSize: 256,
-        opacity: 0.6,
-        transparent: true,
-        attribution: 'Weather data © RainViewer'
-      }
-    ).addTo(map);
+    // Add RainViewer radar layer with better error handling
+    try {
+      radarLayerRef.current = window.L.tileLayer(
+        `https://tilecache.rainviewer.com/v2/radar/${timestamp}/256/{z}/{x}/{y}/6/1_1.png`,
+        {
+          tileSize: 256,
+          opacity: 0.6,
+          transparent: true,
+          attribution: 'Weather data © RainViewer',
+          errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+        }
+      );
+      
+      radarLayerRef.current.addTo(map);
+      
+      // Log for debugging
+      console.log('Radar layer loaded:', timestamp, new Date(timestamp * 1000).toLocaleTimeString());
+    } catch (error) {
+      console.error('Failed to load radar layer:', error);
+    }
   };
 
   // Load radar when frames are ready

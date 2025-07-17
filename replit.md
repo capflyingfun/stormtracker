@@ -120,3 +120,22 @@ Preferred communication style: Simple, everyday language.
 4. **Error Handling**: Comprehensive error boundaries and API error handling
 5. **Performance**: Optimized map rendering with conditional layer loading
 6. **Accessibility**: Radix UI components ensure WCAG compliance
+
+## Recent Changes - July 17, 2025
+
+### Enhanced Location Search
+- **Fixed ZIP Code Support**: Added dedicated ZIP code API endpoint for US postal codes (10001, 90210, etc.)
+- **Improved Geocoding**: Better handling of multiple location formats (city names, addresses, zip codes)
+- **Error Handling**: Enhanced error handling for failed geocoding attempts
+
+### Interactive Radar Map Improvements
+- **Leaflet Integration**: Fixed Leaflet library loading with proper timeout handling
+- **RainViewer Radar**: Implemented live radar tiles from RainViewer API with 10-minute intervals
+- **Map Performance**: Added preferCanvas option and better layer management
+- **Debugging**: Added console logging for radar frame loading diagnostics
+
+### User Interface Enhancements
+- **Dark Theme**: Optimized Leaflet map styling for dark theme consistency
+- **Storm Markers**: Custom animated storm markers with intensity-based coloring
+- **Radar Controls**: Time slider for radar animation with play/pause functionality
+- **Responsive Design**: Mobile-optimized radar controls and map display
