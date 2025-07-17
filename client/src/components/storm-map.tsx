@@ -40,8 +40,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const radarLayerRef = useRef<any>(null);
   const rangeCircleRef = useRef<any>(null);
   const stormMarkersRef = useRef<any[]>([]);
+  const sectorGridRef = useRef<any>(null);
   
   const [isAnimating, setIsAnimating] = useState(false);
+  const [showSectorGrid, setShowSectorGrid] = useState(true);
   const [currentFrame, setCurrentFrame] = useState(10);
   const [radarFrames, setRadarFrames] = useState<number[]>([]);
   const animationIntervalRef = useRef<NodeJS.Timeout>();
@@ -121,6 +123,70 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       })
     }).addTo(map).bindPopup(`<b>Your Location</b><br>${location.name}`);
   }, [location, radarRange]);
+
+  // Add sector grid overlay for visualization
+  const addSectorGrid = () => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.L) return;
+
+    // Remove existing sector grid
+    if (sectorGridRef.current) {
+      map.removeLayer(sectorGridRef.current);
+    }
+
+    const sectorGroup = window.L.layerGroup();
+    const centerLat = location.lat;
+    const centerLon = location.lon;
+
+    // Draw distance rings (every 5 miles)
+    const distanceRings = [5, 10, 15, 20, 25, 30];
+    distanceRings.forEach(distance => {
+      const ring = window.L.circle([centerLat, centerLon], {
+        color: '#64748b',
+        fillColor: 'transparent',
+        fillOpacity: 0,
+        radius: distance * 1609.34, // Convert miles to meters
+        weight: 1,
+        opacity: 0.3,
+        dashArray: '2,4'
+      });
+      sectorGroup.addLayer(ring);
+    });
+
+    // Draw angular sectors (every 30 degrees)
+    const angleSectors = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
+    angleSectors.forEach(angle => {
+      const angleInRadians = (angle * Math.PI) / 180;
+      const maxDistance = 30; // 30 miles
+      const distanceInDegrees = maxDistance / 69.0; // Rough conversion
+      
+      const endLat = centerLat + (distanceInDegrees * Math.cos(angleInRadians));
+      const endLon = centerLon + (distanceInDegrees * Math.sin(angleInRadians));
+      
+      const sectorLine = window.L.polyline([
+        [centerLat, centerLon],
+        [endLat, endLon]
+      ], {
+        color: '#64748b',
+        weight: 1,
+        opacity: 0.3,
+        dashArray: '2,4'
+      });
+      sectorGroup.addLayer(sectorLine);
+    });
+
+    sectorGridRef.current = sectorGroup;
+    if (showSectorGrid) {
+      sectorGridRef.current.addTo(map);
+    }
+  };
+
+  // Update sector grid when location or range changes
+  useEffect(() => {
+    if (mapInstanceRef.current && window.L) {
+      addSectorGrid();
+    }
+  }, [location, radarRange, showSectorGrid]);
 
   // Load radar layer
   const loadRadarLayer = (frameIndex?: number) => {
@@ -283,6 +349,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </h2>
         
         <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setShowSectorGrid(!showSectorGrid)}
+            variant={showSectorGrid ? "default" : "outline"}
+            size="sm"
+          >
+            {showSectorGrid ? "Hide" : "Show"} Sector Grid
+          </Button>
           <Button
             onClick={refreshRadar}
             variant="default"
