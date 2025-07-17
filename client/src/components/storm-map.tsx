@@ -59,7 +59,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15 seconds for init
           
-          const response = await fetch('https://api.rainviewer.com/public/weather-maps.json', {
+          const response = await fetch('/api/rainviewer', {
             signal: controller.signal
           });
           clearTimeout(timeoutId);
@@ -365,7 +365,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
         
-        const response = await fetch('https://api.rainviewer.com/public/weather-maps.json', {
+        const response = await fetch('/api/rainviewer', {
           signal: controller.signal
         });
         clearTimeout(timeoutId);
@@ -500,7 +500,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10 seconds
         
-        const response = await fetch('https://api.rainviewer.com/public/weather-maps.json', {
+        const response = await fetch('/api/rainviewer', {
           signal: controller.signal
         });
         clearTimeout(timeoutId);

@@ -458,6 +458,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return []; // Return empty array if radar analysis fails
   }
 
+  // Proxy RainViewer API to bypass network restrictions
+  app.get('/api/rainviewer', async (req, res) => {
+    try {
+      const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+      
+      if (!response.ok) {
+        throw new Error(`RainViewer API returned ${response.status}`);
+      }
+      
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Error proxying RainViewer API:', error);
+      res.status(500).json({ error: 'Failed to fetch radar data' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
