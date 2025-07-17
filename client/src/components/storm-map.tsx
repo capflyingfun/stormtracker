@@ -139,100 +139,34 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       radarLayerRef.current = null;
     }
 
-    // Create colorful radar overlay with RadarScope color palette
+    // Create real radar overlay using Windy.com radar tiles
     try {
-      // RadarScope color palette (dBZ values)
-      const colorPalette = [
-        { dbz: 5, color: '#1f293f' },   // Dark blue
-        { dbz: 10, color: '#48738e' },  // Medium blue
-        { dbz: 15, color: '#7da4bd' },  // Light blue
-        { dbz: 20, color: '#54fc5a' },  // Bright green
-        { dbz: 25, color: '#319d33' },  // Dark green
-        { dbz: 30, color: '#10400d' },  // Very dark green
-        { dbz: 35, color: '#ffff00' },  // Yellow
-        { dbz: 45, color: '#fe761b' },  // Orange
-        { dbz: 50, color: '#ff0000' },  // Red
-        { dbz: 55, color: '#8c0000' },  // Dark red
-        { dbz: 60, color: '#ff00ff' },  // Magenta
-        { dbz: 65, color: '#ffffff' }   // White
-      ];
+      // Use Windy.com radar tiles for authentic precipitation data
+      const windyApiKey = 'JrvJTWS51va9QtAECyWEWAgyad3WfaZo';
       
-      const getColorForIntensity = (dbz) => {
-        for (let i = colorPalette.length - 1; i >= 0; i--) {
-          if (dbz >= colorPalette[i].dbz) {
-            return colorPalette[i].color;
-          }
+      radarLayerRef.current = window.L.tileLayer(
+        `https://tile.windy.com/v2/radar/{z}/{x}/{y}.png?key=${windyApiKey}`,
+        {
+          tileSize: 256,
+          opacity: 0.8,
+          transparent: true,
+          attribution: 'Radar data © Windy.com',
+          maxZoom: 12,
+          updateWhenIdle: true,
+          updateWhenZooming: false
         }
-        return null;
-      };
+      );
       
-      // Create layer group for multiple colored circles
-      const radarGroup = window.L.layerGroup();
-      
-      // Create sample radar patterns with realistic colors
-      const centerLat = location.lat;
-      const centerLon = location.lon;
-      
-      // Generate realistic precipitation patterns
-      for (let i = 0; i < 20; i++) {
-        const angle = (i / 20) * Math.PI * 2;
-        const distance = Math.random() * 0.4; // Within 30 mile radius
-        const intensity = Math.random() * 60 + 5; // 5-65 dBZ
-        
-        const lat = centerLat + Math.cos(angle) * distance;
-        const lon = centerLon + Math.sin(angle) * distance;
-        
-        const color = getColorForIntensity(intensity);
-        
-        if (color) {
-          const circle = window.L.circle([lat, lon], {
-            color: color,
-            fillColor: color,
-            fillOpacity: 0.7,
-            radius: 2000 + Math.random() * 3000, // 2-5km radius
-            weight: 0
-          });
-          
-          radarGroup.addLayer(circle);
-        }
-      }
-      
-      // Add some storm cells for more realistic appearance
-      for (let i = 0; i < 5; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const distance = Math.random() * 0.3;
-        const intensity = 35 + Math.random() * 30; // 35-65 dBZ for storms
-        
-        const lat = centerLat + Math.cos(angle) * distance;
-        const lon = centerLon + Math.sin(angle) * distance;
-        
-        const color = getColorForIntensity(intensity);
-        
-        if (color) {
-          const stormCell = window.L.circle([lat, lon], {
-            color: color,
-            fillColor: color,
-            fillOpacity: 0.8,
-            radius: 1000 + Math.random() * 2000, // 1-3km radius
-            weight: 1,
-            opacity: 0.9
-          });
-          
-          radarGroup.addLayer(stormCell);
-        }
-      }
-      
-      radarLayerRef.current = radarGroup;
       radarLayerRef.current.addTo(map);
       
     } catch (error) {
-      console.error('Failed to load custom radar layer:', error);
+      console.error('Failed to load Windy radar layer:', error);
       
-      // Fallback to more vibrant precipitation layer
+      // Fallback to OpenWeatherMap precipitation layer
       radarLayerRef.current = window.L.tileLayer(
         `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
         {
-          opacity: 0.9,
+          opacity: 0.8,
           transparent: true,
           attribution: 'Weather data © OpenWeatherMap'
         }
@@ -336,31 +270,31 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         
         {/* Radar Legend */}
         <div className="absolute top-2 right-2 z-[1000] bg-slate-900/90 p-2 rounded border border-slate-700 text-xs">
-          <div className="font-semibold text-white mb-1">dBZ Scale</div>
+          <div className="font-semibold text-white mb-1">Radar Scale</div>
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(31, 41, 63)' }}></div>
-              <span className="text-slate-300">5-10</span>
+              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(100, 150, 200)' }}></div>
+              <span className="text-slate-300">Light</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(72, 115, 142)' }}></div>
-              <span className="text-slate-300">10-15</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(84, 252, 90)' }}></div>
-              <span className="text-slate-300">20-25</span>
+              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(50, 200, 50)' }}></div>
+              <span className="text-slate-300">Moderate</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 255, 0)' }}></div>
-              <span className="text-slate-300">35-40</span>
+              <span className="text-slate-300">Heavy</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 120, 0)' }}></div>
+              <span className="text-slate-300">Intense</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 0, 0)' }}></div>
-              <span className="text-slate-300">50-55</span>
+              <span className="text-slate-300">Severe</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 0, 255)' }}></div>
-              <span className="text-slate-300">60+</span>
+              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(200, 0, 200)' }}></div>
+              <span className="text-slate-300">Extreme</span>
             </div>
           </div>
         </div>
@@ -371,7 +305,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             <span>Radar: {getTimeDisplay()}</span>
           </div>
           <div className="mt-1 text-xs text-slate-400">
-            Range: {radarRange} miles | dBZ Reflectivity (RadarScope BR palette)
+            Range: {radarRange} miles | Live Radar Data (Windy.com)
           </div>
         </div>
       </div>
