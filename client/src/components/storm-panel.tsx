@@ -74,7 +74,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
               
               {/* Enhanced storm description with directional info */}
               <p className="text-sm text-slate-300 mb-2">
-                {getStormIntensityName(storm.intensity)} ({storm.intensity.toFixed(0)}dBZ) {getDirectionName(storm.direction)} of you with {storm.type.toLowerCase()} {formatDistance(storm.distance)} away moving {getDirectionName((storm as any).movementDirection || storm.direction)} at {formatSpeed(storm.speed)}
+                {getStormIntensityName(storm.intensity)} ({storm.intensity.toFixed(0)}dBZ) {getDirectionName(storm.direction)} of you with {storm.type.toLowerCase()} {formatDistance(storm.distance)} away {storm.speed > 0 ? `moving ${getDirectionName((storm as any).movementDirection || storm.direction)} at ${formatSpeed(storm.speed)}` : '(stationary)'}
               </p>
               
 

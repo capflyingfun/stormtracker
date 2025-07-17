@@ -193,8 +193,8 @@ Preferred communication style: Simple, everyday language.
 - **Touch-Friendly Controls**: Adequate spacing and sizing for mobile interaction
 
 ### Interactive Storm Tracking (July 17, 2025)
-- **Storm Cell Highlighting**: Click storms in panel or map to highlight with pulsing green circle
-- **Enhanced Movement Calculation**: Improved storm tracking using intensity matching and realistic speed ranges (5-80 mph)
-- **Dynamic Speed/Direction**: Storm cells show realistic movement data with fallback to generated speeds for better UX
-- **Cross-Component Integration**: Storm panel clicks highlight corresponding cells on map with visual feedback
-- **Extended Movement History**: Maintains 30-minute precipitation history for more accurate storm movement tracking
+- **Accurate Movement Calculation**: Frame-by-frame comparison of radar images to calculate real storm movement
+- **Historical Frame Analysis**: Maintains 10-frame history (15-20 minutes) for precise storm tracking
+- **Realistic Speed Detection**: Shows actual storm speeds (5-70 mph) or stationary when no movement detected
+- **Intelligent Storm Matching**: Matches storms across frames using distance (<8 miles) and intensity similarity (<20 dBZ)
+- **Movement Direction Accuracy**: Calculates true storm movement direction based on position changes between radar frames

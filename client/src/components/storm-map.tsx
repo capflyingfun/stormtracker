@@ -64,7 +64,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     id: string;
     timestamp: number;
   }>>([]);
-  const [highlightedStorm, setHighlightedStorm] = useState<string | null>(null);
+  const [radarFrameHistory, setRadarFrameHistory] = useState<Array<{
+    timestamp: number;
+    precipitationPoints: Array<{lat: number; lon: number; dbz: number; id: string}>;
+  }>>([]);
   const radarCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const highlightLayerRef = useRef<any>(null);
 
@@ -310,48 +313,50 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return clustered;
   };
 
-  // Calculate storm movement by comparing current and previous frames
-  const calculateStormMovement = (currentCluster: any, previousPoints: any[]): {speed: number, direction: number} => {
-    if (previousPoints.length === 0) return {speed: 0, direction: 0};
+  // Calculate storm movement by comparing current frame with previous radar frame
+  const calculateStormMovement = (currentCluster: any): {speed: number, direction: number} => {
+    // Need at least 2 frames for comparison
+    if (radarFrameHistory.length < 2) {
+      return {speed: 0, direction: 0};
+    }
 
-    // Find closest previous point within reasonable distance (3 miles) and similar intensity
-    let closestPrevious = null;
+    // Get the most recent previous frame (not current)
+    const previousFrame = radarFrameHistory[radarFrameHistory.length - 2];
+    const timeDiffMinutes = (Date.now() - previousFrame.timestamp) / 1000 / 60; // minutes
+    
+    // Find closest matching storm cell in previous frame
+    let bestMatch = null;
     let minDistance = Infinity;
-
-    for (const prevPoint of previousPoints) {
+    
+    for (const prevPoint of previousFrame.precipitationPoints) {
       const distance = calculateDistance(currentCluster.lat, currentCluster.lon, prevPoint.lat, prevPoint.lon);
       const intensityDiff = Math.abs(currentCluster.dbz - prevPoint.dbz);
       
-      // Match on distance (<3 miles) and similar intensity (<15 dBZ difference)
-      if (distance < 3 && intensityDiff < 15 && distance < minDistance) {
+      // Match criteria: within 8 miles and similar intensity (within 20 dBZ)
+      if (distance <= 8 && intensityDiff <= 20 && distance < minDistance) {
         minDistance = distance;
-        closestPrevious = prevPoint;
+        bestMatch = prevPoint;
       }
     }
 
-    if (!closestPrevious) {
-      // Generate realistic storm movement (10-40 mph, random direction)
-      const speed = Math.random() * 30 + 10; // 10-40 mph
-      const direction = Math.random() * 360; // Random direction
-      return {speed, direction};
+    if (!bestMatch || minDistance < 0.1 || timeDiffMinutes < 1) {
+      // No good match found or too close/recent - show as stationary
+      return {speed: 0, direction: 0};
     }
 
-    // Calculate movement
-    const distance = calculateDistance(closestPrevious.lat, closestPrevious.lon, currentCluster.lat, currentCluster.lon);
-    const timeDiff = Math.max(0.1, (Date.now() - closestPrevious.timestamp) / 1000 / 3600); // Minimum 0.1 hours
-    
-    const speed = Math.min(distance / timeDiff, 80); // mph, capped at 80
-    const direction = calculateBearing(closestPrevious.lat, closestPrevious.lon, currentCluster.lat, currentCluster.lon);
+    // Calculate actual movement
+    const distanceMiles = calculateDistance(bestMatch.lat, bestMatch.lon, currentCluster.lat, currentCluster.lon);
+    const timeHours = timeDiffMinutes / 60;
+    const speed = distanceMiles / timeHours; // mph
+    const direction = calculateBearing(bestMatch.lat, bestMatch.lon, currentCluster.lat, currentCluster.lon);
 
-    // Only return calculated movement if it's reasonable (0.1-80 mph)
-    if (speed >= 0.1 && speed <= 80) {
-      return {speed, direction};
-    } else {
-      // Generate realistic movement for stationary or erratic storms
-      const realisticSpeed = Math.random() * 25 + 5; // 5-30 mph
-      const realisticDirection = Math.random() * 360;
-      return {speed: realisticSpeed, direction: realisticDirection};
+    // Filter out unrealistic speeds (storms typically move 5-70 mph)
+    if (speed >= 5 && speed <= 70) {
+      return {speed: Math.round(speed), direction: Math.round(direction)};
     }
+
+    // No realistic movement detected
+    return {speed: 0, direction: 0};
   };
 
   // Update storm data from precipitation points for the Storm Cells panel
@@ -362,7 +367,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const stormCells = clusters.map((cluster, index) => {
       const distance = calculateDistance(location.lat, location.lon, cluster.lat, cluster.lon);
       const bearing = calculateBearing(location.lat, location.lon, cluster.lat, cluster.lon);
-      const movement = calculateStormMovement(cluster, previousPrecipitationPoints);
+      const movement = calculateStormMovement(cluster);
       
       return {
         id: `storm_${Date.now()}_${index}`,
@@ -829,17 +834,21 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       console.log(`Found ${precipitationPoints.length} raw points, clustered to ${clusteredPoints.length} waypoints:`, clusteredPoints);
       
-      // Store previous points for movement calculation with better timing
+      // Store radar frame history for accurate movement calculation
       if (precipitationPoints.length > 0) {
-        setPreviousPrecipitationPoints(prev => {
+        setRadarFrameHistory(prev => {
           const currentTimestamp = Date.now();
-          const withTimestamp = precipitationPoints.map(p => ({...p, timestamp: currentTimestamp}));
+          const newFrame = {
+            timestamp: currentTimestamp,
+            precipitationPoints: [...precipitationPoints]
+          };
           
-          // Keep history from last 30 minutes for better tracking
-          const thirtyMinutesAgo = currentTimestamp - (30 * 60 * 1000);
-          const recentHistory = prev.filter(p => p.timestamp > thirtyMinutesAgo);
+          // Keep last 10 frames (about 15-20 minutes of history)
+          const updatedHistory = [...prev, newFrame].slice(-10);
           
-          return [...recentHistory, ...withTimestamp].slice(-500); // Keep substantial history
+          console.log(`Radar frame stored. History: ${updatedHistory.length} frames spanning ${updatedHistory.length > 1 ? Math.round((currentTimestamp - updatedHistory[0].timestamp) / 1000 / 60) : 0} minutes`);
+          
+          return updatedHistory;
         });
       }
 
