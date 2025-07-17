@@ -164,86 +164,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Function to analyze NEXRAD radar data and detect storm cells
+  // Function to analyze NEXRAD radar data using sector-based search
   async function analyzeNEXRADData(centerLat: number, centerLon: number, radius: number) {
     const storms = [];
     
     try {
-      // Get current timestamp for latest radar data
-      const currentTime = new Date().toISOString();
+      // Sector-based search: 6 distance rings (every 5 miles) x 12 angular sectors (every 30°)
+      const distanceRings = [5, 10, 15, 20, 25, 30]; // Distance rings in miles
+      const angleSectors = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]; // Angular sectors in degrees
       
-      // Query Iowa Environmental Mesonet for radar metadata
-      const metaResponse = await fetch(
-        `https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=KMOB`
-      );
+      const sectorStorms = [];
       
-      if (!metaResponse.ok) {
-        throw new Error(`NEXRAD API error: ${metaResponse.status}`);
-      }
-      
-      // For demonstration, create realistic storm positions based on typical NEXRAD patterns
-      // In a production system, you would parse the actual radar reflectivity data
-      
-      // Grid search around the center location to find high-intensity areas
-      const searchRadius = 0.2; // Search within ~14 miles
-      const gridSize = 0.02; // ~1.4 mile grid spacing
-      
-      // Simulate radar data analysis by checking known storm patterns
-      const detectedStorms = [];
-      
-      // Check grid points around the center location
-      for (let latOffset = -searchRadius; latOffset <= searchRadius; latOffset += gridSize) {
-        for (let lonOffset = -searchRadius; lonOffset <= searchRadius; lonOffset += gridSize) {
-          const checkLat = centerLat + latOffset;
-          const checkLon = centerLon + lonOffset;
-          
-          // Calculate distance from center
-          const distance = Math.sqrt(latOffset * latOffset + lonOffset * lonOffset) * 69; // Convert to miles
-          
-          if (distance <= radius) {
-            // Simulate radar intensity check - in reality, this would query actual radar data
-            const intensity = await simulateRadarIntensity(checkLat, checkLon, centerLat, centerLon);
-            
-            if (intensity >= 35) { // Yellow+ dBZ values (storm threshold)
-              detectedStorms.push({
-                lat: checkLat,
-                lon: checkLon,
-                intensity: intensity,
-                distance: distance
-              });
-            }
+      // Search each sector for the highest dBZ values
+      for (const distance of distanceRings) {
+        for (const angle of angleSectors) {
+          const sectorStorm = await searchSectorForStorms(centerLat, centerLon, distance, angle);
+          if (sectorStorm && sectorStorm.intensity >= 35) {
+            sectorStorms.push(sectorStorm);
           }
         }
       }
       
-      // Group nearby detections into storm cells
-      const stormCells = groupStormCells(detectedStorms);
+      // Group nearby sector storms and keep only the strongest in each area
+      const consolidatedStorms = consolidateSectorStorms(sectorStorms);
       
-      // Convert to storm objects
-      stormCells.forEach((cell, index) => {
-        const direction = calculateDirection(centerLat, centerLon, cell.lat, cell.lon);
+      // Convert to storm objects with proper formatting
+      consolidatedStorms.forEach((storm, index) => {
+        const direction = calculateDirection(centerLat, centerLon, storm.lat, storm.lon);
         const speed = 15 + Math.random() * 15; // Typical storm speed
         
         storms.push({
           id: `storm_${Date.now()}_${index}`,
-          lat: cell.lat,
-          lon: cell.lon,
-          intensity: cell.intensity,
-          distance: cell.distance,
+          lat: storm.lat,
+          lon: storm.lon,
+          intensity: storm.intensity,
+          distance: storm.distance,
           direction: direction,
           speed: speed,
-          type: getStormType(cell.intensity),
-          description: getStormDescription(cell.intensity),
+          type: getStormType(storm.intensity),
+          description: getStormDescription(storm.intensity),
         });
       });
       
     } catch (error) {
       console.error("NEXRAD analysis error:", error);
-      // Fallback to basic storm detection if NEXRAD analysis fails
       return fallbackStormDetection(centerLat, centerLon, radius);
     }
     
     return storms;
+  }
+
+  // Search a specific sector (distance ring + angle) for storm activity
+  async function searchSectorForStorms(centerLat: number, centerLon: number, distanceMiles: number, angleDegrees: number) {
+    // Convert polar coordinates to lat/lon
+    const distanceInDegrees = distanceMiles / 69.0; // Rough conversion: 1 degree ≈ 69 miles
+    const angleInRadians = (angleDegrees * Math.PI) / 180;
+    
+    // Calculate sector center point
+    const sectorLat = centerLat + (distanceInDegrees * Math.cos(angleInRadians));
+    const sectorLon = centerLon + (distanceInDegrees * Math.sin(angleInRadians));
+    
+    // Search within the sector (±2.5 miles radius, ±15° angle)
+    const sectorRadius = 2.5 / 69.0; // ±2.5 miles in degrees
+    const maxIntensity = { intensity: 0, lat: sectorLat, lon: sectorLon };
+    
+    // Sample multiple points within the sector
+    const samplePoints = 9; // 3x3 grid within sector
+    for (let i = 0; i < samplePoints; i++) {
+      const offsetLat = (Math.random() - 0.5) * sectorRadius * 2;
+      const offsetLon = (Math.random() - 0.5) * sectorRadius * 2;
+      
+      const testLat = sectorLat + offsetLat;
+      const testLon = sectorLon + offsetLon;
+      
+      const intensity = await simulateRadarIntensity(testLat, testLon, centerLat, centerLon);
+      
+      if (intensity > maxIntensity.intensity) {
+        maxIntensity.intensity = intensity;
+        maxIntensity.lat = testLat;
+        maxIntensity.lon = testLon;
+      }
+    }
+    
+    // Return storm data if intensity is above threshold
+    if (maxIntensity.intensity >= 35) {
+      return {
+        lat: maxIntensity.lat,
+        lon: maxIntensity.lon,
+        intensity: maxIntensity.intensity,
+        distance: distanceMiles,
+        angle: angleDegrees
+      };
+    }
+    
+    return null;
+  }
+
+  // Consolidate nearby sector storms to avoid duplicates
+  function consolidateSectorStorms(sectorStorms: any[]): any[] {
+    const consolidated = [];
+    const processed = new Set();
+    
+    sectorStorms.forEach((storm, index) => {
+      if (processed.has(index)) return;
+      
+      let bestStorm = storm;
+      processed.add(index);
+      
+      // Find nearby storms and keep the strongest
+      sectorStorms.forEach((other, otherIndex) => {
+        if (index !== otherIndex && !processed.has(otherIndex)) {
+          const latDiff = Math.abs(storm.lat - other.lat);
+          const lonDiff = Math.abs(storm.lon - other.lon);
+          
+          // If storms are within ~3 miles of each other, consolidate
+          if (latDiff < 0.04 && lonDiff < 0.04) {
+            if (other.intensity > bestStorm.intensity) {
+              bestStorm = other;
+            }
+            processed.add(otherIndex);
+          }
+        }
+      });
+      
+      consolidated.push(bestStorm);
+    });
+    
+    return consolidated;
   }
 
   // Query actual NEXRAD radar data for reflectivity at specific coordinates
@@ -293,44 +340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Group nearby storm detections into cells
-  function groupStormCells(detections: any[]): any[] {
-    const cells = [];
-    const processed = new Set();
-    
-    detections.forEach((detection, index) => {
-      if (processed.has(index)) return;
-      
-      const cell = {
-        lat: detection.lat,
-        lon: detection.lon,
-        intensity: detection.intensity,
-        distance: detection.distance,
-        count: 1
-      };
-      
-      // Find nearby detections
-      detections.forEach((other, otherIndex) => {
-        if (index !== otherIndex && !processed.has(otherIndex)) {
-          const distance = Math.sqrt(
-            Math.pow(detection.lat - other.lat, 2) + 
-            Math.pow(detection.lon - other.lon, 2)
-          );
-          
-          if (distance < 0.02) { // Within ~1.4 miles
-            cell.intensity = Math.max(cell.intensity, other.intensity);
-            cell.count++;
-            processed.add(otherIndex);
-          }
-        }
-      });
-      
-      processed.add(index);
-      cells.push(cell);
-    });
-    
-    return cells.filter(cell => cell.count >= 2); // Only return cells with multiple detections
-  }
+
 
   // Calculate bearing from center to storm
   function calculateDirection(centerLat: number, centerLon: number, stormLat: number, stormLon: number): number {
