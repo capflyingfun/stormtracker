@@ -109,11 +109,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           setRadarSource('nexrad');
         }
       } else {
-        // For NEXRAD, generate multiple timestamps for animation (every 10 minutes for past 2 hours)
+        // For NEXRAD, generate multiple timestamps for animation (every 5 minutes for past hour)
         const currentTime = Math.floor(Date.now() / 1000);
         const frames = [];
         for (let i = 11; i >= 0; i--) {
-          frames.push(currentTime - (i * 600)); // 10-minute intervals
+          frames.push(currentTime - (i * 300)); // 5-minute intervals (300 seconds)
         }
         setRadarFrames(frames);
         setCurrentFrame(frames.length - 1);
@@ -182,8 +182,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             attribution: 'RainViewer'
           });
         } else {
-          // NEXRAD with timestamp parameter for animation
-          const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?${timestamp}`;
+          // NEXRAD animation: Use time-based URL format
+          const date = new Date(timestamp * 1000);
+          const year = date.getUTCFullYear();
+          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(date.getUTCDate()).padStart(2, '0');
+          const hour = String(date.getUTCHours()).padStart(2, '0');
+          const minute = String(Math.floor(date.getUTCMinutes() / 5) * 5).padStart(2, '0'); // Round to 5-minute intervals
+          
+          const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913-${year}${month}${day}${hour}${minute}/{z}/{x}/{y}.png`;
           radarLayerRef.current = window.L.tileLayer(nexradUrl, {
             opacity: 0.7,
             zIndex: 200,
