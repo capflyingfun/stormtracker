@@ -15,11 +15,13 @@ export default function StormTracker() {
   const radarRange = 30; // Fixed at 30 miles
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   
-  // Storm filtering state - meaningful precipitation only (20-90 dBZ)
+  // Storm filtering state - 5 meteorological categories (20-90 dBZ)
   const [stormFilters, setStormFilters] = useState({
-    light: true,     // 20-34 dBZ (Light rain)
-    moderate: true,  // 35-54 dBZ (Moderate to heavy rain)
-    heavy: true,     // 55+ dBZ (Very heavy rain/hail)
+    light: true,     // 20-34 dBZ (Light rain) - Green
+    moderate: true,  // 35-45 dBZ (Moderate rain) - Yellow
+    heavy: true,     // 46-54 dBZ (Heavy rain) - Orange
+    veryHeavy: true, // 55-60 dBZ (Very heavy rain/hail) - Red
+    extreme: true,   // 61+ dBZ (Extreme thunderstorms) - Purple
   });
   
   const {
@@ -36,10 +38,12 @@ export default function StormTracker() {
     isLoading: stormDataLoading,
   } = useStormData(location, radarRange);
   
-  // Filter storms based on intensity (20-90 dBZ meaningful precipitation)
+  // Filter storms based on intensity (5-category system)
   const filteredStorms = (storms || []).filter(storm => {
-    const category = storm.intensity >= 55 ? 'heavy' :     // Very heavy rain/hail
-                    storm.intensity >= 35 ? 'moderate' :   // Moderate to heavy rain
+    const category = storm.intensity >= 61 ? 'extreme' :    // Extreme thunderstorms
+                    storm.intensity >= 55 ? 'veryHeavy' :  // Very heavy rain/hail
+                    storm.intensity >= 46 ? 'heavy' :      // Heavy rain
+                    storm.intensity >= 35 ? 'moderate' :   // Moderate rain
                     'light';                               // Light rain (20-34 dBZ)
     return stormFilters[category as keyof typeof stormFilters];
   });

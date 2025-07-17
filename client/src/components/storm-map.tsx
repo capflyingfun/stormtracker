@@ -525,25 +525,21 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       // Only show meaningful precipitation (20+ dBZ)
       if (point.dbz < 20) continue; // Skip trace/mist values
       
-      const category = point.dbz >= 55 ? 'heavy' :      // Very heavy rain/hail 
-                      point.dbz >= 35 ? 'moderate' :   // Moderate to heavy rain
+      const category = point.dbz >= 61 ? 'extreme' :    // Extreme thunderstorms
+                      point.dbz >= 55 ? 'veryHeavy' :  // Very heavy rain/hail
+                      point.dbz >= 46 ? 'heavy' :      // Heavy rain
+                      point.dbz >= 35 ? 'moderate' :   // Moderate rain
                       'light';                         // Light rain (20-34 dBZ)
       const shouldShow = stormFilters[category as keyof typeof stormFilters];
       
       if (!shouldShow) continue; // Skip filtered out points
-      // NWS standard colors for meaningful precipitation (20-90 dBZ)
+      // 5-category meteorological color system (20-90 dBZ)
       const getDbzColor = (dbz: number) => {
-        if (dbz >= 70) return '#FFFFFF'; // White - Extreme hail/rain
-        if (dbz >= 65) return '#E0E0E0'; // Light gray - Extreme precipitation
-        if (dbz >= 60) return '#FF00FF'; // Magenta - Very heavy rain, hail likely
-        if (dbz >= 55) return '#8C0000'; // Dark red - Very heavy rain, hail possible
-        if (dbz >= 50) return '#FF0000'; // Red - Heavy rain, small hail possible
-        if (dbz >= 45) return '#FE761B'; // Orange-red - Heavy rain
-        if (dbz >= 40) return '#FFFF00'; // Yellow - Moderate to heavy rain
-        if (dbz >= 35) return '#FFFF00'; // Yellow - Moderate rain
-        if (dbz >= 30) return '#40A00D'; // Green - Light to moderate rain
-        if (dbz >= 25) return '#319F33'; // Light green - Light rain
-        return '#54FC5A'; // Bright green - Light rain (20+ dBZ)
+        if (dbz >= 61) return '#8B5CF6'; // Purple - Extreme thunderstorms
+        if (dbz >= 55) return '#EF4444'; // Red - Very heavy rain/hail
+        if (dbz >= 46) return '#F97316'; // Orange - Heavy rain
+        if (dbz >= 35) return '#EAB308'; // Yellow - Moderate rain
+        return '#22C55E'; // Green - Light rain (20-34 dBZ)
       };
       
       // Intensity-based sizing with cluster indication
@@ -606,11 +602,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       };
       
       const getPrecipitationType = (dbz: number) => {
-        if (dbz >= 65) return 'Extreme Rain/Large Hail';
-        if (dbz >= 60) return 'Very Heavy Rain/Hail Likely';
-        if (dbz >= 55) return 'Very Heavy Rain/Hail Possible';
-        if (dbz >= 50) return 'Heavy Rain/Small Hail Possible';
-        if (dbz >= 45) return 'Heavy Rain';
+        if (dbz >= 61) return 'Extreme Thunderstorms';
+        if (dbz >= 55) return 'Very Heavy Rain/Hail';
+        if (dbz >= 46) return 'Heavy Rain';
         if (dbz >= 35) return 'Moderate Rain';
         if (dbz >= 20) return 'Light Rain';
         return 'Trace/Mist';
@@ -1072,7 +1066,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 }}
                 className="rounded"
               />
-              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#54FC5A'}}></div>
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#22C55E'}}></div>
               <span className="text-slate-300">Light Rain (20-34 dBZ)</span>
             </label>
             <label className="flex items-center gap-2 text-xs">
@@ -1086,8 +1080,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 }}
                 className="rounded"
               />
-              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#FFFF00'}}></div>
-              <span className="text-slate-300">Moderate-Heavy Rain (35-54 dBZ)</span>
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#EAB308'}}></div>
+              <span className="text-slate-300">Moderate Rain (35-45 dBZ)</span>
             </label>
             <label className="flex items-center gap-2 text-xs">
               <input
@@ -1100,8 +1094,36 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 }}
                 className="rounded"
               />
-              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#8C0000'}}></div>
-              <span className="text-slate-300">Very Heavy Rain/Hail (55+ dBZ)</span>
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#F97316'}}></div>
+              <span className="text-slate-300">Heavy Rain (46-54 dBZ)</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={stormFilters.veryHeavy}
+                onChange={(e) => {
+                  const newFilters = {...stormFilters, veryHeavy: e.target.checked};
+                  setStormFilters(newFilters);
+                  setTimeout(() => sampleRadarDbz(), 500);
+                }}
+                className="rounded"
+              />
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#EF4444'}}></div>
+              <span className="text-slate-300">Very Heavy Rain/Hail (55-60 dBZ)</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={stormFilters.extreme}
+                onChange={(e) => {
+                  const newFilters = {...stormFilters, extreme: e.target.checked};
+                  setStormFilters(newFilters);
+                  setTimeout(() => sampleRadarDbz(), 500);
+                }}
+                className="rounded"
+              />
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#8B5CF6'}}></div>
+              <span className="text-slate-300">Extreme Thunderstorms (+61 dBZ)</span>
             </label>
           </div>
         </div>
