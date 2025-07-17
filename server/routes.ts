@@ -254,19 +254,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const latDiff = lat - centerLat;
       const lonDiff = lon - centerLon;
       
-      // Northwestern storm cell (strong) - based on screenshot analysis
-      if (latDiff > 0.04 && latDiff < 0.08 && lonDiff > -0.18 && lonDiff < -0.12) {
+      // Northwestern storm cell (strong) - corrected longitude coordinates
+      if (latDiff > 0.04 && latDiff < 0.08 && lonDiff > -0.15 && lonDiff < -0.08) {
         return 42 + Math.random() * 8; // 42-50 dBZ (orange area)
       }
       
-      // Central storm cell (moderate) - near user location
-      if (latDiff > 0.0 && latDiff < 0.04 && lonDiff > 0.02 && lonDiff < 0.06) {
+      // Central-eastern storm cell (moderate) - corrected position
+      if (latDiff > 0.01 && latDiff < 0.05 && lonDiff > 0.03 && lonDiff < 0.08) {
         return 36 + Math.random() * 6; // 36-42 dBZ (yellow area)
       }
       
-      // Southern storm cell (light to moderate) - southeast
-      if (latDiff > -0.14 && latDiff < -0.10 && lonDiff > 0.03 && lonDiff < 0.07) {
+      // Southern storm cell (light to moderate) - corrected southeast position
+      if (latDiff > -0.12 && latDiff < -0.08 && lonDiff > 0.04 && lonDiff < 0.09) {
         return 35 + Math.random() * 5; // 35-40 dBZ (yellow area)
+      }
+      
+      // Additional northern storm cell - based on screenshot
+      if (latDiff > 0.06 && latDiff < 0.10 && lonDiff > -0.05 && lonDiff < 0.02) {
+        return 38 + Math.random() * 7; // 38-45 dBZ (yellow-orange area)
+      }
+      
+      // Western storm cell - visible in left side of radar
+      if (latDiff > -0.02 && latDiff < 0.03 && lonDiff > -0.12 && lonDiff < -0.06) {
+        return 40 + Math.random() * 8; // 40-48 dBZ (orange area)
       }
       
       // Additional scattered precipitation areas
