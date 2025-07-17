@@ -4,10 +4,9 @@ import { Button } from "@/components/ui/button";
 interface HeaderProps {
   useMetric: boolean;
   onUnitsChange: (useMetric: boolean) => void;
-  isTracking: boolean;
 }
 
-export default function Header({ useMetric, onUnitsChange, isTracking }: HeaderProps) {
+export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
   const [showConfig, setShowConfig] = useState(false);
 
   return (
@@ -23,8 +22,8 @@ export default function Header({ useMetric, onUnitsChange, isTracking }: HeaderP
         
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-gray-400">
-            <div className={`w-2 h-2 rounded-full ${isTracking ? 'bg-green-400' : 'bg-blue-400'} animate-pulse`}></div>
-            <span className="text-sm">{isTracking ? 'Tracking Active' : 'Ready'}</span>
+            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
+            <span className="text-sm">Ready</span>
           </div>
           
           <Button

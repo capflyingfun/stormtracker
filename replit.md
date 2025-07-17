@@ -228,6 +228,9 @@ Preferred communication style: Simple, everyday language.
 - **Error Handling**: Clear user feedback for failed searches with retry suggestions
 - **Universal Compatibility**: Works reliably across all devices and browsers
 - **Clean Interface**: Simplified design focused on core search functionality without distracting elements
+- **Change Location Feature**: Replaced tracking controls with "Change Location" button for easy location reset
+- **Automatic Storm Updates**: Storm data refreshes automatically every 5 minutes when location is set
+- **Direct Location Setting**: Fixed search functionality by eliminating redundant API calls that caused failures
 
 ### Static NEXRAD Implementation (July 17, 2025)
 - **Static Radar Display**: NEXRAD configured for stable, current radar visualization without animation
