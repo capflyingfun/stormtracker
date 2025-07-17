@@ -193,8 +193,18 @@ export default function StormTracker() {
               </div>
             </div>
 
-            {/* Storm Data Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Interactive Radar Map */}
+            <StormMap
+              location={location}
+              storms={storms || []}
+              radarRange={radarRange}
+              useMetric={useMetric}
+              formatDistance={formatDistance}
+              formatSpeed={formatSpeed}
+            />
+
+            {/* Storm Data Grid - Moved below radar */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
               <StormPanel
                 storms={storms || []}
                 useMetric={useMetric}
@@ -208,16 +218,6 @@ export default function StormTracker() {
                 isLoading={stormDataLoading}
               />
             </div>
-
-            {/* Interactive Radar Map */}
-            <StormMap
-              location={location}
-              storms={storms || []}
-              radarRange={radarRange}
-              useMetric={useMetric}
-              formatDistance={formatDistance}
-              formatSpeed={formatSpeed}
-            />
           </>
         )}
       </div>
