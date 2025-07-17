@@ -241,9 +241,10 @@ Preferred communication style: Simple, everyday language.
 - **Startup Validation Sequence**: Validates environment → database → starts server for reliable deployment
 
 ### Auto-Sampling Map Interface (July 17, 2025)
-- **Silent Auto-Sampling**: Map automatically samples precipitation data 1.5 seconds after user stops panning or zooming
+- **Fast Auto-Sampling**: Map automatically samples precipitation data 0.75 seconds after user stops panning or zooming
 - **Background Operation**: Sampling happens silently without visual indicators to avoid interrupting user experience
-- **Debounced Updates**: Multiple rapid movements reset the 1.5-second timer to prevent excessive sampling
+- **Debounced Updates**: Multiple rapid movements reset the 0.75-second timer to prevent excessive sampling
+- **Debug Logging**: Console logging available to troubleshoot auto-sampling trigger events
 - **Non-Intrusive**: No progress bars or notifications - just seamless automatic data refresh
 - **Timeout Management**: Proper cleanup of sampling timeouts on component unmount and movement interruption
 
