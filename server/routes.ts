@@ -559,17 +559,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let foundTile = false;
       let buffer;
       
-      // Try RIDGE CONUS format first (most reliable for animation)
-      try {
-        const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::CONUS::${timeString}/${z}/${x}/${y}.png`;
-        const response = await fetch(tileUrl);
-        
-        if (response.ok) {
-          buffer = await response.arrayBuffer();
-          foundTile = true;
+      // Try local radar sites first for better regional coverage
+      const radarSites = ['MOB', 'BMX', 'LCH']; // Mobile, Birmingham, Lake Charles (covers Gulf Coast)
+      
+      for (const site of radarSites) {
+        try {
+          const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::K${site}::${timeString}/${z}/${x}/${y}.png`;
+          const response = await fetch(tileUrl);
+          
+          if (response.ok) {
+            buffer = await response.arrayBuffer();
+            foundTile = true;
+            break;
+          }
+        } catch (e) {
+          continue;
         }
-      } catch (e) {
-        // Continue to fallback
+      }
+      
+      // Fallback to CONUS if local sites don't have data
+      if (!foundTile) {
+        try {
+          const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::CONUS::${timeString}/${z}/${x}/${y}.png`;
+          const response = await fetch(tileUrl);
+          
+          if (response.ok) {
+            buffer = await response.arrayBuffer();
+            foundTile = true;
+          }
+        } catch (e) {
+          // Continue to next fallback
+        }
       }
       
       // Fallback to standard NEXRAD format
