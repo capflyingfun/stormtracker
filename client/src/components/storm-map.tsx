@@ -94,15 +94,18 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
   // Auto-sampling functionality (silent background operation)
   const triggerAutoSample = () => {
+    console.log('Auto-sample triggered - will sample in 0.75s');
+    
     // Clear any existing timeout
     if (autoSampleTimeoutRef.current) {
       clearTimeout(autoSampleTimeoutRef.current);
     }
     
-    // Set timeout for 1.5 seconds - sample silently in background
+    // Set timeout for 0.75 seconds - sample silently in background
     autoSampleTimeoutRef.current = setTimeout(async () => {
+      console.log('Auto-sampling now...');
       await sampleRadarDbz();
-    }, 1500);
+    }, 750);
   };
 
   // Initialize radar frames based on source
