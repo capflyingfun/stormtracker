@@ -139,34 +139,71 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       radarLayerRef.current = null;
     }
 
-    // Create real radar overlay using Windy.com radar tiles
+    // Create real radar overlay using RainViewer with proper timestamp API
     try {
-      // Use Windy.com radar tiles for authentic precipitation data
-      const windyApiKey = 'JrvJTWS51va9QtAECyWEWAgyad3WfaZo';
-      
-      radarLayerRef.current = window.L.tileLayer(
-        `https://tile.windy.com/v2/radar/{z}/{x}/{y}.png?key=${windyApiKey}`,
-        {
-          tileSize: 256,
-          opacity: 0.8,
-          transparent: true,
-          attribution: 'Radar data © Windy.com',
-          maxZoom: 12,
-          updateWhenIdle: true,
-          updateWhenZooming: false
-        }
-      );
-      
-      radarLayerRef.current.addTo(map);
+      // Fetch available radar timestamps from RainViewer API
+      fetch('https://api.rainviewer.com/public/maps.json')
+        .then(response => response.json())
+        .then(radarData => {
+          if (radarData && radarData.radar && radarData.radar.past && radarData.radar.past.length > 0) {
+            // Get the most recent radar frame
+            const latestFrame = radarData.radar.past[radarData.radar.past.length - 1];
+            
+            // Create RainViewer radar layer with proper timestamp
+            radarLayerRef.current = window.L.tileLayer(
+              `https://tilecache.rainviewer.com${latestFrame.path}/256/{z}/{x}/{y}/3/0_0.png`,
+              {
+                tileSize: 256,
+                opacity: 0.8,
+                transparent: true,
+                attribution: 'Radar data © RainViewer',
+                maxZoom: 12,
+                updateWhenIdle: true,
+                updateWhenZooming: false
+              }
+            );
+            
+            radarLayerRef.current.addTo(map);
+            
+            // Also add OpenWeatherMap precipitation layer as backup for better coverage
+            const precipLayer = window.L.tileLayer(
+              `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
+              {
+                opacity: 0.3,
+                transparent: true,
+                attribution: 'Weather data © OpenWeatherMap'
+              }
+            );
+            
+            precipLayer.addTo(map);
+            
+          } else {
+            throw new Error('No radar data available from RainViewer');
+          }
+        })
+        .catch(error => {
+          console.error('Failed to load RainViewer radar layer:', error);
+          
+          // Fallback to OpenWeatherMap precipitation layer only
+          radarLayerRef.current = window.L.tileLayer(
+            `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
+            {
+              opacity: 0.9,
+              transparent: true,
+              attribution: 'Weather data © OpenWeatherMap'
+            }
+          );
+          radarLayerRef.current.addTo(map);
+        });
       
     } catch (error) {
-      console.error('Failed to load Windy radar layer:', error);
+      console.error('Failed to load radar layer:', error);
       
-      // Fallback to OpenWeatherMap precipitation layer
+      // Fallback to OpenWeatherMap precipitation layer only
       radarLayerRef.current = window.L.tileLayer(
         `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
         {
-          opacity: 0.8,
+          opacity: 0.9,
           transparent: true,
           attribution: 'Weather data © OpenWeatherMap'
         }
@@ -305,7 +342,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             <span>Radar: {getTimeDisplay()}</span>
           </div>
           <div className="mt-1 text-xs text-slate-400">
-            Range: {radarRange} miles | Live Radar Data (Windy.com)
+            Range: {radarRange} miles | Live Radar Data (RainViewer)
           </div>
         </div>
       </div>
