@@ -15,12 +15,12 @@ export default function StormTracker() {
   const radarRange = 30; // Fixed at 30 miles
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   
-  // Storm filtering state lifted up from StormMap
+  // Storm filtering state lifted up from StormMap - updated ranges
   const [stormFilters, setStormFilters] = useState({
-    light: true,     // 25-34 dBZ
-    moderate: true,  // 35-44 dBZ  
-    heavy: true,     // 45-54 dBZ
-    severe: true     // 55+ dBZ
+    light: true,     // 5-19 dBZ (Trace/mist)
+    moderate: true,  // 20-34 dBZ (Light rain)
+    heavy: true,     // 35-54 dBZ (Moderate to heavy rain)
+    severe: true     // 55+ dBZ (Very heavy rain/hail)
   });
   
   const {
@@ -37,11 +37,12 @@ export default function StormTracker() {
     isLoading: stormDataLoading,
   } = useStormData(location, radarRange);
   
-  // Filter storms based on intensity (after storms are loaded)
+  // Filter storms based on intensity (after storms are loaded) - updated thresholds
   const filteredStorms = (storms || []).filter(storm => {
-    const category = storm.intensity >= 55 ? 'severe' : 
-                    storm.intensity >= 45 ? 'heavy' : 
-                    storm.intensity >= 35 ? 'moderate' : 'light';
+    const category = storm.intensity >= 55 ? 'severe' :    // Very heavy rain/hail
+                    storm.intensity >= 35 ? 'heavy' :      // Moderate to heavy rain
+                    storm.intensity >= 20 ? 'moderate' :   // Light rain
+                    'light';                               // Trace/mist
     return stormFilters[category as keyof typeof stormFilters];
   });
 

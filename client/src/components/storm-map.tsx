@@ -522,19 +522,29 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     // Create waypoint markers for each actual precipitation point
     for (const point of precipitationPoints) {
-      // Check if this point should be visible based on filters
-      const category = point.dbz >= 55 ? 'severe' : 
-                      point.dbz >= 45 ? 'heavy' : 
-                      point.dbz >= 35 ? 'moderate' : 'light';
+      // Check if this point should be visible based on filters (updated thresholds)
+      const category = point.dbz >= 55 ? 'severe' :    // Very heavy rain/hail 
+                      point.dbz >= 35 ? 'heavy' :      // Moderate to heavy rain
+                      point.dbz >= 20 ? 'moderate' :   // Light rain  
+                      'light';                         // Trace/mist
       const shouldShow = stormFilters[category as keyof typeof stormFilters];
       
       if (!shouldShow) continue; // Skip filtered out points
-      // Get color and size based on dBZ value and zoom level
+      // Get color and size based on dBZ value using NWS standards
       const getDbzColor = (dbz: number) => {
-        if (dbz >= 55) return '#8B5CF6'; // Purple - Severe
-        if (dbz >= 45) return '#EF4444'; // Red - Heavy
-        if (dbz >= 35) return '#F97316'; // Orange - Moderate
-        return '#EAB308'; // Yellow - Light
+        if (dbz >= 65) return '#FFFFFF'; // White - Extreme hail/rain (421 mm/h)
+        if (dbz >= 60) return '#FF00FF'; // Magenta - Very heavy rain, hail likely (205 mm/h)
+        if (dbz >= 55) return '#8C0000'; // Dark red - Very heavy rain, hail possible (100 mm/h)
+        if (dbz >= 50) return '#FF0000'; // Red - Heavy rain, small hail possible (48.6 mm/h)
+        if (dbz >= 45) return '#FE761B'; // Orange-red - Heavy rain (23.7 mm/h)
+        if (dbz >= 40) return '#FFFF00'; // Yellow - Moderate to heavy rain (11.53 mm/h)
+        if (dbz >= 35) return '#FFFF00'; // Yellow - Moderate rain (5.6 mm/h)
+        if (dbz >= 30) return '#40A00D'; // Green - Light to moderate rain (2.7 mm/h)
+        if (dbz >= 25) return '#319F33'; // Light green - Light rain (1.3 mm/h)
+        if (dbz >= 20) return '#54FC5A'; // Bright green - Light rain (0.6 mm/h)
+        if (dbz >= 15) return '#7DBC8D'; // Blue-green - Trace accumulation (0.3 mm/h)
+        if (dbz >= 10) return '#6693B3'; // Light blue - Trace/mist (0.15 mm/h)
+        return '#485E73'; // Dark blue - Trace/mist (0.07 mm/h)
       };
       
       // Intensity-based sizing with cluster indication
@@ -586,19 +596,43 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         icon: waypointIcon
       });
       
-      // Add popup with precipitation info
+      // Add popup with precipitation info including rainfall rate
       const pointDistance = calculateDistance(centerLat, centerLon, point.lat, point.lon);
+      
+      // Calculate rainfall rate using Marshall-Palmer formula: R = (Z/200)^(1/1.6)
+      const getRainfallRate = (dbz: number) => {
+        const z = Math.pow(10, dbz / 10); // Convert dBZ to Z
+        const rate = Math.pow(z / 200, 1 / 1.6); // Marshall-Palmer formula
+        return Math.max(0.01, rate); // Minimum 0.01 mm/h
+      };
+      
+      const getPrecipitationType = (dbz: number) => {
+        if (dbz >= 65) return 'Extreme Rain/Large Hail';
+        if (dbz >= 60) return 'Very Heavy Rain/Hail Likely';
+        if (dbz >= 55) return 'Very Heavy Rain/Hail Possible';
+        if (dbz >= 50) return 'Heavy Rain/Small Hail Possible';
+        if (dbz >= 45) return 'Heavy Rain';
+        if (dbz >= 35) return 'Moderate Rain';
+        if (dbz >= 20) return 'Light Rain';
+        return 'Trace/Mist';
+      };
+      
+      const rainfallRate = getRainfallRate(point.dbz);
+      const precipType = getPrecipitationType(point.dbz);
+      
       const popupContent = point.count && point.count > 1 
         ? `<b>Storm Cell Cluster</b><br>
            Distance: ${pointDistance.toFixed(1)} miles<br>
            Max Intensity: ${point.dbz} dBZ<br>
-           Type: ${point.dbz >= 45 ? 'Heavy' : point.dbz >= 35 ? 'Moderate' : 'Light'}<br>
+           Rain Rate: ${rainfallRate.toFixed(1)} mm/h (${(rainfallRate * 0.0394).toFixed(2)} in/h)<br>
+           Type: ${precipType}<br>
            Cells: ${point.count}<br>
            <small>Real-time NEXRAD data</small>`
         : `<b>Precipitation Cell</b><br>
            Distance: ${pointDistance.toFixed(1)} miles<br>
            Intensity: ${point.dbz} dBZ<br>
-           Type: ${point.dbz >= 45 ? 'Heavy' : point.dbz >= 35 ? 'Moderate' : 'Light'}<br>
+           Rain Rate: ${rainfallRate.toFixed(1)} mm/h (${(rainfallRate * 0.0394).toFixed(2)} in/h)<br>
+           Type: ${precipType}<br>
            <small>Real-time NEXRAD data</small>`;
       
       waypointMarker.bindPopup(popupContent);
@@ -1039,8 +1073,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 }}
                 className="rounded"
               />
-              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-              <span className="text-slate-300">Light (25-34 dBZ)</span>
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#485E73'}}></div>
+              <span className="text-slate-300">Trace/Mist (5-19 dBZ)</span>
             </label>
             <label className="flex items-center gap-2 text-xs">
               <input
@@ -1053,8 +1087,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 }}
                 className="rounded"
               />
-              <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-              <span className="text-slate-300">Moderate (35-44 dBZ)</span>
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#54FC5A'}}></div>
+              <span className="text-slate-300">Light Rain (20-34 dBZ)</span>
             </label>
             <label className="flex items-center gap-2 text-xs">
               <input
@@ -1067,8 +1101,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 }}
                 className="rounded"
               />
-              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-              <span className="text-slate-300">Heavy (45-54 dBZ)</span>
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#FFFF00'}}></div>
+              <span className="text-slate-300">Moderate-Heavy Rain (35-54 dBZ)</span>
             </label>
             <label className="flex items-center gap-2 text-xs">
               <input
@@ -1081,8 +1115,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 }}
                 className="rounded"
               />
-              <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-              <span className="text-slate-300">Severe (55+ dBZ)</span>
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#8C0000'}}></div>
+              <span className="text-slate-300">Very Heavy Rain/Hail (55+ dBZ)</span>
             </label>
           </div>
         </div>
