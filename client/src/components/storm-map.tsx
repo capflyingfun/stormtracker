@@ -218,7 +218,19 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   }, [location, radarRange, showSectorGrid]);
 
-  // Add waypoint markers for detected precipitation areas
+  // Calculate distance between two lat/lon points in miles
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 3959; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  // Add waypoint markers for detected precipitation areas with clustering
   const addDbzWaypoints = () => {
     const map = mapInstanceRef.current;
     if (!map || !window.L) return;
@@ -227,13 +239,23 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const centerLat = location.lat;
     const centerLon = location.lon;
 
-    // Create waypoint markers for sectors with significant precipitation
+    // First, collect all precipitation points
+    const precipitationPoints: Array<{
+      lat: number;
+      lon: number;
+      dbz: number;
+      distance: number;
+      angle: number;
+      sectorKey: string;
+    }> = [];
+
+    // Create precipitation points for sectors with significant precipitation
     for (const [sectorKey, dbzValue] of Object.entries(sectorDbzData)) {
-      // Only create waypoints for sectors with measurable precipitation (25+ dBZ)
+      // Only process sectors with measurable precipitation (25+ dBZ)
       if (dbzValue >= 25) {
         const [distance, angle] = sectorKey.split('-').map(Number);
         
-        // Calculate center position of the sector for waypoint placement
+        // Calculate center position of the sector
         const midDistance = distance - 2.5; // Place waypoint in middle of 5-mile ring
         const midAngle = angle + 15; // Place waypoint in middle of 30-degree sector
         
@@ -242,62 +264,121 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         const waypointLat = centerLat + ((midDistance * 1609.34) / 111320) * Math.cos(angleRad);
         const waypointLon = centerLon + ((midDistance * 1609.34) / (111320 * Math.cos(centerLat * Math.PI / 180))) * Math.sin(angleRad);
         
-        // Get color and size based on dBZ value
-        const getDbzColor = (dbz: number) => {
-          if (dbz >= 45) return '#ff0000'; // Red - Heavy
-          if (dbz >= 35) return '#ff9600'; // Orange - Moderate
-          return '#ffff00'; // Yellow - Light
-        };
-        
-        const getMarkerSize = (dbz: number) => {
-          if (dbz >= 45) return 12; // Large for heavy precipitation
-          if (dbz >= 35) return 10; // Medium for moderate precipitation
-          return 8; // Small for light precipitation
-        };
-        
-        // Create custom waypoint marker
-        const waypointIcon = window.L.divIcon({
-          html: `
-            <div style="
-              width: ${getMarkerSize(dbzValue)}px;
-              height: ${getMarkerSize(dbzValue)}px;
-              background-color: ${getDbzColor(dbzValue)};
-              border: 2px solid #ffffff;
-              border-radius: 50%;
-              box-shadow: 0 0 6px rgba(0,0,0,0.5);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 8px;
-              font-weight: bold;
-              color: #000;
-            ">
-              ${dbzValue}
-            </div>
-          `,
-          className: 'dbz-waypoint',
-          iconSize: [getMarkerSize(dbzValue), getMarkerSize(dbzValue)],
-          iconAnchor: [getMarkerSize(dbzValue) / 2, getMarkerSize(dbzValue) / 2]
+        precipitationPoints.push({
+          lat: waypointLat,
+          lon: waypointLon,
+          dbz: dbzValue,
+          distance,
+          angle,
+          sectorKey
         });
-        
-        // Create waypoint marker
-        const waypointMarker = window.L.marker([waypointLat, waypointLon], {
-          icon: waypointIcon
-        });
-        
-        // Add popup with precipitation info
-        const directionName = getDirectionName(angle);
-        waypointMarker.bindPopup(`
-          <b>Precipitation Waypoint</b><br>
-          Direction: ${directionName}<br>
-          Distance: ${distance} miles<br>
-          Intensity: ${dbzValue} dBZ<br>
-          Type: ${dbzValue >= 45 ? 'Heavy' : dbzValue >= 35 ? 'Moderate' : 'Light'}<br>
-          <small>Real-time NEXRAD data</small>
-        `);
-        
-        waypointGroup.addLayer(waypointMarker);
       }
+    }
+
+    // Cluster nearby points (within 5 miles)
+    const clusteredPoints: Array<{
+      lat: number;
+      lon: number;
+      dbz: number;
+      count: number;
+      sectors: string[];
+    }> = [];
+
+    const processedPoints = new Set<string>();
+
+    for (const point of precipitationPoints) {
+      if (processedPoints.has(point.sectorKey)) continue;
+
+      // Find all points within 5 miles of this point
+      const nearbyPoints = [point];
+      processedPoints.add(point.sectorKey);
+
+      for (const otherPoint of precipitationPoints) {
+        if (processedPoints.has(otherPoint.sectorKey)) continue;
+        
+        const distance = calculateDistance(point.lat, point.lon, otherPoint.lat, otherPoint.lon);
+        if (distance <= 5) {
+          nearbyPoints.push(otherPoint);
+          processedPoints.add(otherPoint.sectorKey);
+        }
+      }
+
+      // Create cluster waypoint
+      if (nearbyPoints.length > 0) {
+        // Calculate center position of cluster
+        const clusterLat = nearbyPoints.reduce((sum, p) => sum + p.lat, 0) / nearbyPoints.length;
+        const clusterLon = nearbyPoints.reduce((sum, p) => sum + p.lon, 0) / nearbyPoints.length;
+        
+        // Use highest dBZ value in cluster
+        const maxDbz = Math.max(...nearbyPoints.map(p => p.dbz));
+        
+        clusteredPoints.push({
+          lat: clusterLat,
+          lon: clusterLon,
+          dbz: maxDbz,
+          count: nearbyPoints.length,
+          sectors: nearbyPoints.map(p => p.sectorKey)
+        });
+      }
+    }
+
+    // Create waypoint markers for clustered points
+    for (const cluster of clusteredPoints) {
+      // Get color and size based on dBZ value
+      const getDbzColor = (dbz: number) => {
+        if (dbz >= 45) return '#ff0000'; // Red - Heavy
+        if (dbz >= 35) return '#ff9600'; // Orange - Moderate
+        return '#ffff00'; // Yellow - Light
+      };
+      
+      const getMarkerSize = (dbz: number) => {
+        if (dbz >= 45) return 14; // Large for heavy precipitation
+        if (dbz >= 35) return 12; // Medium for moderate precipitation
+        return 10; // Small for light precipitation
+      };
+      
+      // Create custom waypoint marker
+      const waypointIcon = window.L.divIcon({
+        html: `
+          <div style="
+            width: ${getMarkerSize(cluster.dbz)}px;
+            height: ${getMarkerSize(cluster.dbz)}px;
+            background-color: ${getDbzColor(cluster.dbz)};
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: bold;
+            color: #000;
+          ">
+            ${cluster.dbz}
+          </div>
+        `,
+        className: 'dbz-waypoint-cluster',
+        iconSize: [getMarkerSize(cluster.dbz), getMarkerSize(cluster.dbz)],
+        iconAnchor: [getMarkerSize(cluster.dbz) / 2, getMarkerSize(cluster.dbz) / 2]
+      });
+      
+      // Create waypoint marker
+      const waypointMarker = window.L.marker([cluster.lat, cluster.lon], {
+        icon: waypointIcon
+      });
+      
+      // Add popup with cluster info
+      const clusterDistance = calculateDistance(centerLat, centerLon, cluster.lat, cluster.lon);
+      waypointMarker.bindPopup(`
+        <b>Precipitation Cluster</b><br>
+        Distance: ${clusterDistance.toFixed(1)} miles<br>
+        Max Intensity: ${cluster.dbz} dBZ<br>
+        Type: ${cluster.dbz >= 45 ? 'Heavy' : cluster.dbz >= 35 ? 'Moderate' : 'Light'}<br>
+        Sectors: ${cluster.count}<br>
+        <small>Real-time NEXRAD data</small>
+      `);
+      
+      waypointGroup.addLayer(waypointMarker);
     }
 
     sectorHighlightsRef.current = waypointGroup;
@@ -640,7 +721,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         {/* Precipitation Waypoints Legend */}
         <div className="absolute top-2 right-2 z-[1000] bg-slate-900/90 p-2 rounded border border-slate-700 text-xs">
           <div className="font-semibold text-white mb-1">
-            Precipitation Waypoints {Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length > 0 ? `(${Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length} active)` : ''}
+            Precipitation Clusters {Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length > 0 ? `(${Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length} sectors)` : ''}
           </div>
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
