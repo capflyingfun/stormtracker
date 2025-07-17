@@ -1570,7 +1570,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         {/* Precipitation Waypoints Legend - Mobile Responsive */}
         <div className="absolute top-1 right-1 sm:top-2 sm:right-2 z-[1000] bg-slate-900/95 p-1.5 sm:p-2 rounded border border-slate-700 text-xs max-w-[140px] sm:max-w-none">
           <div className="font-semibold text-white mb-1 text-xs">
-            Waypoints {precipitationPoints.length > 0 ? `(${precipitationPoints.length})` : ''}
+            Waypoints {precipitationPoints.length > 0 ? `(${precipitationPoints.filter(point => {
+              const category = point.dbz >= 55 ? 'severe' : 
+                              point.dbz >= 45 ? 'heavy' : 
+                              point.dbz >= 35 ? 'moderate' : 'light';
+              return stormFilters[category as keyof typeof stormFilters];
+            }).length})` : ''}
           </div>
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1">

@@ -221,6 +221,7 @@ export default function StormTracker() {
                 formatSpeed={formatSpeed}
                 isLoading={stormDataLoading}
                 radarSource={currentRadarSource}
+                stormFilters={stormFilters}
               />
               
               <AlertsPanel
