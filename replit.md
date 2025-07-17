@@ -232,3 +232,4 @@ Preferred communication style: Simple, everyday language.
 - **Smart Coverage Detection**: Automatic radar source selection with appropriate feature availability
 - **Clean International Experience**: Outside US, users see radar overlay without potentially inaccurate waypoint markers
 - **Enhanced Storm Cell Information**: Detailed storm panels showing distance, direction, rainfall rate, intensity, coordinates, and movement data
+- **Updated Waypoints Legend**: Full 5-color meteorological scale (Light Rain through Extreme Thunderstorms) matching professional standards
