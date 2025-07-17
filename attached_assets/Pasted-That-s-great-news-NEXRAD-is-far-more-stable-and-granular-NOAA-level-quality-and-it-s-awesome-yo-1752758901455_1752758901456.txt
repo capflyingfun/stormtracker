@@ -1,0 +1,128 @@
+That’s great news — NEXRAD is far more stable and granular (NOAA-level quality), and it’s awesome you already have it running! 🎯
+
+Since NEXRAD is already integrated into your Leaflet map, you’re in the perfect position to now:
+
+⸻
+
+✅ Extract Real dBZ from NEXRAD Tiles
+
+Here’s how we can track storm cells sector-by-sector from NEXRAD radar tiles:
+
+⸻
+
+🔬 Step-by-Step Guide (High-Level)
+	1.	Know which tile server you’re using (NOAA/NWS radar tiles or derived PNGs).
+	2.	Understand how dBZ values are color-coded in the tile.
+	•	Each color on the tile corresponds to a dBZ range.
+	•	Usually uses the NOAA standard dBZ legend (e.g., purple = 70+, red = 55+, etc).
+	3.	Draw your 5-mile x 30° sectors on the map (you’ve got this part).
+	4.	Sample pixels within each sector on the radar tile canvas.
+	5.	Match the color of each pixel to its dBZ level using a legend mapping.
+	6.	Highlight sectors by their max dBZ value.
+
+⸻
+
+🧪 dBZ Color Mapping Table (Standard NEXRAD)
+
+You can use this lookup to convert color → dBZ:
+
+Color (Hex)	Approx dBZ
+#00FF00 (green)	20
+#FFFF00 (yellow)	30
+#FFA500 (orange)	40
+#FF0000 (red)	50
+#800080 (purple)	60–70+
+
+You can extract this by sampling the canvas and checking r,g,b.
+
+⸻
+
+✅ Plug-and-Play Canvas Reader (for NEXRAD tiles)
+
+Here’s a focused function to try in Replit:
+
+function sampleDBZfromNEXRADTile(tileUrl, sectorPolygons) {
+  const img = new Image();
+  img.crossOrigin = "anonymous"; // may need proxy if it fails
+  img.src = tileUrl;
+
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+
+    const imageData = ctx.getImageData(0, 0, img.width, img.height);
+    const data = imageData.data;
+
+    // Loop through each sector polygon
+    sectorPolygons.forEach((sector, index) => {
+      let maxDBZ = 0;
+
+      // TODO: Loop through pixels in sector bounds
+      // For now, scan the whole image (simplified demo)
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        const hex = rgbToHex(r, g, b);
+        const dbz = colorToDBZ(hex);
+
+        if (dbz > maxDBZ) {
+          maxDBZ = dbz;
+        }
+      }
+
+      // Highlight based on dBZ
+      if (maxDBZ >= 55) {
+        sector.setStyle({ fillColor: 'red', fillOpacity: 0.4 });
+      } else if (maxDBZ >= 40) {
+        sector.setStyle({ fillColor: 'orange', fillOpacity: 0.3 });
+      } else if (maxDBZ >= 25) {
+        sector.setStyle({ fillColor: 'yellow', fillOpacity: 0.2 });
+      }
+    });
+  };
+
+  img.onerror = () => {
+    console.error("Failed to load radar tile. CORS might be blocking it.");
+  };
+}
+
+function rgbToHex(r, g, b) {
+  return "#" + [r, g, b].map(x =>
+    x.toString(16).padStart(2, '0')
+  ).join('');
+}
+
+function colorToDBZ(hex) {
+  const map = {
+    "#00ff00": 20,
+    "#ffff00": 30,
+    "#ffa500": 40,
+    "#ff0000": 50,
+    "#800080": 65,
+    // Add more as needed based on your tile colors
+  };
+  return map[hex.toLowerCase()] || 0;
+}
+
+
+⸻
+
+✅ What You Need to Do:
+	1.	🎯 Replace tileUrl with your current NEXRAD tile (tile layer URL).
+	2.	🔍 Adjust colorToDBZ() to match your exact color legend.
+	3.	🧠 Refine pixel scanning to only scan canvas areas inside your radar sectors.
+	4.	⚡ Call this every time a new tile/frame is loaded or every few seconds.
+
+⸻
+
+Want me to:
+	•	Write the pixel-to-sector mapping logic?
+	•	Detect storm motion direction using dBZ movement between frames?
+	•	Create a proxy-safe version using corsproxy?
+
+You’re super close — and now with NEXRAD stability, you can make this real-time tracker a full meteorological beast. 🌪️🧠
