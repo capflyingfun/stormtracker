@@ -141,9 +141,10 @@ Preferred communication style: Simple, everyday language.
 - **Storm Consolidation**: Intelligent grouping of nearby detections to prevent duplicates while preserving intensity data
 - **Directional Precision**: Storm positions now calculated using proper bearing calculations for accurate directional information
 
-### User Interface Enhancements
-- **Dark Theme**: Optimized Leaflet map styling for dark theme consistency
-- **Enhanced Storm Panel**: Color-coded storm cards with intensity-based markers and detailed directional information
-- **Pulsing Animation**: Added subtle pulsing animation to storm markers for better visibility
-- **NEXRAD Legend**: Updated radar legend to show authentic dBZ scale values (5-15, 20-30, 35-40, 45-50, 55-60, 65+)
-- **Multi-Storm Detection**: System now accurately detects 5-11 storm cells based on actual radar intensity patterns
+### Blitzortung-Style Interface Design
+- **Real-time Storm Detection**: Clean, minimal interface inspired by Blitzortung lightning tracker
+- **Age-Based Color Coding**: Storm markers transition from white (fresh) → yellow → orange → red → dark red over 20 minutes
+- **Storm Counter Display**: Live count of detected storms with range information
+- **Minimal Popups**: Simple detection info showing dBZ value, distance, direction, and detection time
+- **Sector Grid Visualization**: Optional overlay showing the 6-ring × 12-sector detection grid
+- **Performance Optimized**: Fast, responsive interface with fade-out animations for aging storms

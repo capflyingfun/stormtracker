@@ -203,6 +203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           speed: speed,
           type: getStormType(storm.intensity),
           description: getStormDescription(storm.intensity),
+          detectedAt: Date.now() - (Math.random() * 1200000), // Random age up to 20 minutes
         });
       });
       
