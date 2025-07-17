@@ -727,13 +727,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
            Rain Rate: ${rainfallRate.toFixed(1)} mm/h (${(rainfallRate * 0.0394).toFixed(2)} in/h)<br>
            Type: ${precipType}<br>
            Cells: ${point.count}<br>
-           <small>Real-time NEXRAD data</small>`
+           <small>Real-time ${radarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'} data</small>`
         : `<b>Precipitation Cell</b><br>
            Distance: ${pointDistance.toFixed(1)} miles<br>
            Intensity: ${point.dbz} dBZ<br>
            Rain Rate: ${rainfallRate.toFixed(1)} mm/h (${(rainfallRate * 0.0394).toFixed(2)} in/h)<br>
            Type: ${precipType}<br>
-           <small>Real-time NEXRAD data</small>`;
+           <small>Real-time ${radarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'} data</small>`;
       
       waypointMarker.bindPopup(popupContent);
       
@@ -893,10 +893,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   };
 
   // NEXRAD color to dBZ mapping (standard NOAA colormap)
-  const colorToDbz = (r: number, g: number, b: number): number => {
-    const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-    
-    // NEXRAD standard color mapping
+  const nexradColorToDbz = (r: number, g: number, b: number): number => {
     const colorMap: {[key: string]: number} = {
       '#40ffff': 5,   // Light blue - very light
       '#36c5ff': 10,  // Blue - light
@@ -940,22 +937,67 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return minDistance < 50 ? bestMatch : 0;
   };
 
-  // Sample radar dBZ values - NEXRAD only for accurate precipitation detection
+  // RainViewer color to dBZ mapping (RainViewer's color scheme)
+  const rainviewerColorToDbz = (r: number, g: number, b: number): number => {
+    // RainViewer uses a different color scheme - more blue-based
+    const colorMap: {[key: string]: number} = {
+      // Light precipitation (blue tones)
+      '#000080': 15,  // Dark blue - light
+      '#0000ff': 20,  // Blue - light rain
+      '#4080ff': 25,  // Light blue
+      '#80c0ff': 30,  // Lighter blue
+      
+      // Moderate precipitation (green/yellow)
+      '#00ff00': 35,  // Green - moderate
+      '#80ff00': 40,  // Yellow-green
+      '#ffff00': 45,  // Yellow - heavy
+      '#ffc000': 50,  // Orange-yellow
+      
+      // Heavy precipitation (orange/red)
+      '#ff8000': 55,  // Orange - very heavy
+      '#ff4000': 60,  // Red-orange
+      '#ff0000': 65,  // Red - severe
+      '#c00000': 70,  // Dark red
+      '#800080': 75,  // Purple - extreme
+      '#ff00ff': 80   // Magenta - extreme
+    };
+    
+    // Find closest color match with more tolerance for RainViewer's smoother gradients
+    let bestMatch = 0;
+    let minDistance = Infinity;
+    
+    for (const [color, dbz] of Object.entries(colorMap)) {
+      const targetR = parseInt(color.slice(1, 3), 16);
+      const targetG = parseInt(color.slice(3, 5), 16);
+      const targetB = parseInt(color.slice(5, 7), 16);
+      
+      const distance = Math.sqrt(
+        Math.pow(r - targetR, 2) + 
+        Math.pow(g - targetG, 2) + 
+        Math.pow(b - targetB, 2)
+      );
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        bestMatch = dbz;
+      }
+    }
+    
+    // Use a higher tolerance for RainViewer's smoother color transitions
+    return minDistance < 80 ? bestMatch : 0;
+  };
+
+  // Sample radar dBZ values from both NEXRAD and RainViewer
   const sampleRadarDbz = async () => {
     const map = mapInstanceRef.current;
     if (!map || !window.L || !location) return;
 
     console.log(`Starting precipitation sampling...`);
     
-    // Only use NEXRAD for actual precipitation waypoint detection
-    // RainViewer is used only as radar overlay visualization
     if (radarSource === 'nexrad') {
       await sampleNexradData();
     } else {
-      // For RainViewer, show radar overlay but no waypoint detection
-      console.log('RainViewer mode: Using radar overlay only (no waypoint detection outside US coverage)');
-      setPrecipitationPoints([]); // Clear waypoints when using RainViewer
-      addDbzWaypoints(); // Clear existing waypoints from map
+      await sampleRainViewerData();
     }
   };
 
@@ -1036,7 +1078,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               const alpha = data[pixelIndex + 3];
               
               if (alpha > 0) {
-                const dbz = colorToDbz(r, g, b);
+                const dbz = nexradColorToDbz(r, g, b);
                 if (dbz >= 25) {
                   // Convert pixel position back to lat/lon
                   const pixelLng = (tile.x + x / tileSize) * 360 / Math.pow(2, zoom) - 180;
@@ -1137,7 +1179,185 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   };
 
+  // RainViewer-specific data sampling (Global coverage)
+  const sampleRainViewerData = async () => {
+    const map = mapInstanceRef.current;
+    if (!map || !radarLayerRef.current || radarFrames.length === 0) return;
 
+    try {
+      // Get map bounds and center
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+
+      // Calculate the 30-mile radius boundary
+      const radiusInDegrees = 30 / 69.0; // 30 miles in degrees
+      const northLat = center.lat + radiusInDegrees;
+      const southLat = center.lat - radiusInDegrees;
+      const eastLng = center.lng + radiusInDegrees / Math.cos(center.lat * Math.PI / 180);
+      const westLng = center.lng - radiusInDegrees / Math.cos(center.lat * Math.PI / 180);
+
+      // Find all tiles that overlap with our 30-mile radius
+      const tilesToCheck = [];
+      const minTileX = Math.floor((westLng + 180) / 360 * Math.pow(2, zoom));
+      const maxTileX = Math.floor((eastLng + 180) / 360 * Math.pow(2, zoom));
+      const minTileY = Math.floor((1 - Math.log(Math.tan(northLat * Math.PI / 180) + 1 / Math.cos(northLat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+      const maxTileY = Math.floor((1 - Math.log(Math.tan(southLat * Math.PI / 180) + 1 / Math.cos(southLat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+
+      for (let tileX = minTileX; tileX <= maxTileX; tileX++) {
+        for (let tileY = minTileY; tileY <= maxTileY; tileY++) {
+          tilesToCheck.push({ x: tileX, y: tileY });
+        }
+      }
+
+      const precipitationPoints: Array<{
+        lat: number;
+        lon: number;
+        dbz: number;
+        id: string;
+      }> = [];
+
+      // Get current RainViewer timestamp
+      const timestamp = radarFrames[currentFrame] || radarFrames[radarFrames.length - 1];
+
+      // Sample each tile for precipitation using RainViewer
+      for (const tile of tilesToCheck) {
+        try {
+          const tileUrl = `/api/rainviewer/tile/${timestamp}/256/${zoom}/${tile.x}/${tile.y}/2/1_1.png`;
+          
+          const canvas = document.createElement('canvas');
+          const tileSize = 256;
+          canvas.width = tileSize;
+          canvas.height = tileSize;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) continue;
+
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0);
+              resolve();
+            };
+            img.onerror = () => resolve();
+            img.src = tileUrl;
+          });
+
+          const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
+          const data = imageData.data;
+          
+          // Sample every 4th pixel to find precipitation (finer grid)
+          const sampleStep = 4;
+          
+          for (let x = 0; x < tileSize; x += sampleStep) {
+            for (let y = 0; y < tileSize; y += sampleStep) {
+              const pixelIndex = (y * tileSize + x) * 4;
+              const r = data[pixelIndex];
+              const g = data[pixelIndex + 1];
+              const b = data[pixelIndex + 2];
+              const alpha = data[pixelIndex + 3];
+              
+              if (alpha > 0) {
+                const dbz = rainviewerColorToDbz(r, g, b);
+                if (dbz >= 20) { // Lower threshold for RainViewer to catch more precipitation
+                  // Convert pixel position back to lat/lon
+                  const pixelLng = (tile.x + x / tileSize) * 360 / Math.pow(2, zoom) - 180;
+                  const pixelLatRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * (tile.y + y / tileSize) / Math.pow(2, zoom))));
+                  const pixelLat = pixelLatRad * 180 / Math.PI;
+                  
+                  // Check if this point is within our 30-mile radius
+                  const distance = calculateDistance(center.lat, center.lng, pixelLat, pixelLng);
+                  if (distance <= 30) {
+                    // Allow closer spacing for higher intensity precipitation
+                    let shouldAdd = true;
+                    
+                    // Check if there's already a nearby point with lower intensity
+                    for (const existingPoint of precipitationPoints) {
+                      const existingDistance = calculateDistance(pixelLat, pixelLng, existingPoint.lat, existingPoint.lon);
+                      
+                      // Dynamic spacing based on intensity
+                      let minSpacing = 0.5; // Default minimum spacing in miles
+                      if (dbz >= 45) minSpacing = 0.2; // Allow very close spacing for heavy precipitation
+                      else if (dbz >= 35) minSpacing = 0.3; // Closer spacing for moderate precipitation
+                      
+                      if (existingDistance < minSpacing) {
+                        // If new point has higher intensity, replace the existing one
+                        if (dbz > existingPoint.dbz) {
+                          const index = precipitationPoints.indexOf(existingPoint);
+                          precipitationPoints.splice(index, 1);
+                          shouldAdd = true;
+                          break;
+                        } else {
+                          shouldAdd = false;
+                          break;
+                        }
+                      }
+                    }
+                    
+                    if (shouldAdd) {
+                      precipitationPoints.push({
+                        lat: pixelLat,
+                        lon: pixelLng,
+                        dbz: dbz,
+                        id: `${tile.x}-${tile.y}-${x}-${y}`
+                      });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          // Skip this tile on error
+          continue;
+        }
+      }
+
+      // Cluster nearby precipitation points for cleaner display
+      const clusteredPoints = clusterPrecipitationPoints(precipitationPoints);
+      
+      // Store clustered points
+      setPrecipitationPoints(clusteredPoints);
+      
+      // Create simple sector data for legend display
+      const newSectorData: {[key: string]: number} = {};
+      clusteredPoints.forEach((point, index) => {
+        newSectorData[`point-${index}`] = point.dbz;
+      });
+      setSectorDbzData(newSectorData);
+      
+      console.log(`RainViewer: Found ${precipitationPoints.length} raw points, clustered to ${clusteredPoints.length} waypoints`);
+      
+      // Store radar frame history for accurate movement calculation
+      if (precipitationPoints.length > 0) {
+        setRadarFrameHistory(prev => {
+          const currentTimestamp = Date.now();
+          const newFrame = {
+            timestamp: currentTimestamp,
+            precipitationPoints: [...precipitationPoints]
+          };
+          
+          // Keep last 10 frames (about 15-20 minutes of history)
+          const updatedHistory = [...prev, newFrame].slice(-10);
+          
+          console.log(`Radar frame stored. History: ${updatedHistory.length} frames spanning ${updatedHistory.length > 1 ? Math.round((currentTimestamp - updatedHistory[0].timestamp) / 1000 / 60) : 0} minutes. Current frame has ${precipitationPoints.length} points.`);
+          
+          // Automatically detect movement when we have enough frames
+          if (updatedHistory.length >= 3) {
+            console.log('Sufficient frames for movement analysis available');
+          }
+          
+          return updatedHistory;
+        });
+      }
+
+      // Update storm data with clustered precipitation points
+      updateStormDataFromPrecipitation(clusteredPoints);
+      
+    } catch (error) {
+      console.error('Error sampling RainViewer dBZ:', error);
+    }
+  };
 
   // Highlight storm cell with pulsing animation
   const highlightStormCell = (lat: number, lon: number) => {
