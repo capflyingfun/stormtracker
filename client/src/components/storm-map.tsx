@@ -27,6 +27,13 @@ interface StormMapProps {
   useMetric: boolean;
   formatDistance: (miles: number) => string;
   formatSpeed: (mph: number) => string;
+  stormFilters?: {
+    light: boolean;
+    moderate: boolean;
+    heavy: boolean;
+    severe: boolean;
+  };
+  onStormFiltersChange?: (filters: {light: boolean; moderate: boolean; heavy: boolean; severe: boolean}) => void;
 }
 
 declare global {
@@ -35,7 +42,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onStormFiltersChange }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -53,6 +60,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const animationIntervalRef = useRef<NodeJS.Timeout>();
   const animationSpeedRef = useRef<number>(800); // ms between frames
   const [sectorDbzData, setSectorDbzData] = useState<{[key: string]: number}>({});
+  
+  // Use external storm filters if provided, otherwise use internal state
+  const stormFilters = externalStormFilters || {
+    light: true, moderate: true, heavy: true, severe: true
+  };
+  
+  const setStormFilters = onStormFiltersChange || (() => {});
   const [precipitationPoints, setPrecipitationPoints] = useState<Array<{
     lat: number;
     lon: number;
@@ -94,9 +108,17 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           setRadarSource('nexrad');
         }
       } else {
-        // For NEXRAD, use simple timestamp
-        setRadarFrames([Math.floor(Date.now() / 1000)]);
-        setCurrentFrame(0);
+        // For NEXRAD, generate multiple timestamps for animation (every 10 minutes for past 2 hours)
+        const currentTime = Math.floor(Date.now() / 1000);
+        const frames = [];
+        for (let i = 11; i >= 0; i--) {
+          frames.push(currentTime - (i * 600)); // 10-minute intervals
+        }
+        setRadarFrames(frames);
+        setCurrentFrame(frames.length - 1);
+        setCurrentFrameIndex(frames.length - 1);
+        
+        console.log(`Generated ${frames.length} NEXRAD frames for animation`);
       }
     };
 
@@ -151,15 +173,24 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       // Load new radar layer for this timestamp
       const map = mapInstanceRef.current;
       if (map && window.L) {
-        const tileUrlTemplate = radarSource === 'rainviewer' 
-          ? `/api/rainviewer/tile/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`
-          : `https://tilecache.rainviewer.com/v2/radar/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`;
-
-        radarLayerRef.current = window.L.tileLayer(tileUrlTemplate, {
-          opacity: 0.6,
-          zIndex: 200,
-          attribution: radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'
-        });
+        if (radarSource === 'rainviewer') {
+          const tileUrlTemplate = `/api/rainviewer/tile/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`;
+          radarLayerRef.current = window.L.tileLayer(tileUrlTemplate, {
+            opacity: 0.6,
+            zIndex: 200,
+            attribution: 'RainViewer'
+          });
+        } else {
+          // NEXRAD with timestamp parameter for animation
+          const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?${timestamp}`;
+          radarLayerRef.current = window.L.tileLayer(nexradUrl, {
+            opacity: 0.7,
+            zIndex: 200,
+            attribution: 'NEXRAD',
+            updateWhenIdle: true,
+            updateWhenZooming: false
+          });
+        }
         
         radarLayerRef.current.addTo(map);
       }
@@ -983,6 +1014,55 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
   return (
     <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50">
+      {/* Storm Intensity Filters */}
+      <div className="mb-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <span className="text-sm font-medium text-white">Filter Storms:</span>
+          <div className="flex flex-wrap gap-2">
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={stormFilters.light}
+                onChange={(e) => setStormFilters(prev => ({...prev, light: e.target.checked}))}
+                className="rounded"
+              />
+              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+              <span className="text-slate-300">Light (25-34 dBZ)</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={stormFilters.moderate}
+                onChange={(e) => setStormFilters(prev => ({...prev, moderate: e.target.checked}))}
+                className="rounded"
+              />
+              <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+              <span className="text-slate-300">Moderate (35-44 dBZ)</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={stormFilters.heavy}
+                onChange={(e) => setStormFilters(prev => ({...prev, heavy: e.target.checked}))}
+                className="rounded"
+              />
+              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+              <span className="text-slate-300">Heavy (45-54 dBZ)</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={stormFilters.severe}
+                onChange={(e) => setStormFilters(prev => ({...prev, severe: e.target.checked}))}
+                className="rounded"
+              />
+              <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+              <span className="text-slate-300">Severe (55+ dBZ)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
           <h2 className="text-lg font-semibold text-white">
@@ -990,7 +1070,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </h2>
           <div className="flex items-center gap-2 sm:gap-3 text-sm">
             <div className="bg-slate-800 px-2 py-1 rounded text-white text-xs sm:text-sm">
-              {storms.length} storms detected
+              {storms.filter(storm => {
+                const category = storm.intensity >= 55 ? 'severe' : 
+                                storm.intensity >= 45 ? 'heavy' : 
+                                storm.intensity >= 35 ? 'moderate' : 'light';
+                return stormFilters[category as keyof typeof stormFilters];
+              }).length} storms detected
             </div>
             <div className="text-slate-400 text-xs sm:text-sm">
               Range: {radarRange} miles

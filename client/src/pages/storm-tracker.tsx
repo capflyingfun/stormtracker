@@ -15,6 +15,14 @@ export default function StormTracker() {
   const radarRange = 30; // Fixed at 30 miles
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   
+  // Storm filtering state lifted up from StormMap
+  const [stormFilters, setStormFilters] = useState({
+    light: true,     // 25-34 dBZ
+    moderate: true,  // 35-44 dBZ  
+    heavy: true,     // 45-54 dBZ
+    severe: true     // 55+ dBZ
+  });
+  
   const {
     location,
     isLoading: locationLoading,
@@ -28,6 +36,14 @@ export default function StormTracker() {
     refetch: refetchStormData,
     isLoading: stormDataLoading,
   } = useStormData(location, radarRange);
+  
+  // Filter storms based on intensity (after storms are loaded)
+  const filteredStorms = (storms || []).filter(storm => {
+    const category = storm.intensity >= 55 ? 'severe' : 
+                    storm.intensity >= 45 ? 'heavy' : 
+                    storm.intensity >= 35 ? 'moderate' : 'light';
+    return stormFilters[category as keyof typeof stormFilters];
+  });
 
   // Auto-refresh when tracking is enabled
   useEffect(() => {
@@ -164,12 +180,14 @@ export default function StormTracker() {
               useMetric={useMetric}
               formatDistance={formatDistance}
               formatSpeed={formatSpeed}
+              stormFilters={stormFilters}
+              onStormFiltersChange={setStormFilters}
             />
 
             {/* Storm Data Grid - Moved below radar */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mt-4 sm:mt-6">
               <StormPanel
-                storms={storms || []}
+                storms={filteredStorms}
                 useMetric={useMetric}
                 formatDistance={formatDistance}
                 formatSpeed={formatSpeed}
