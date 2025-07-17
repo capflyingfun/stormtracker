@@ -18,6 +18,7 @@ interface StormPanelProps {
   formatDistance: (miles: number) => string;
   formatSpeed: (mph: number) => string;
   isLoading: boolean;
+  radarSource?: 'rainviewer' | 'nexrad';
 }
 
 const getDirectionName = (degrees: number): string => {
@@ -50,7 +51,7 @@ const getRainfallRate = (dbz: number) => {
   return Math.max(0.01, rate); // Minimum 0.01 mm/h
 };
 
-export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading }: StormPanelProps) {
+export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource }: StormPanelProps) {
   // Sort storms by distance (closest first)
   const sortedStorms = [...storms].sort((a, b) => a.distance - b.distance);
   return (
@@ -64,7 +65,10 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
       <div className="space-y-3">
         {sortedStorms.length === 0 ? (
           <p className="text-slate-400 text-center py-8">
-            {isLoading ? 'Detecting storms...' : 'No storms detected in your area'}
+            {radarSource === 'rainviewer' ? 
+              'Switch to NEXRAD for storm cell detection' : 
+              (isLoading ? 'Detecting storms...' : 'No storms detected in your area')
+            }
           </p>
         ) : (
           sortedStorms.map((storm) => (

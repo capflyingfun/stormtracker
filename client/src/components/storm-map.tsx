@@ -34,6 +34,7 @@ interface StormMapProps {
     severe: boolean;
   };
   onStormFiltersChange?: (filters: {light: boolean; moderate: boolean; heavy: boolean; severe: boolean}) => void;
+  onRadarSourceChange?: (source: 'rainviewer' | 'nexrad') => void;
 }
 
 declare global {
@@ -42,7 +43,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onStormFiltersChange }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onStormFiltersChange, onRadarSourceChange }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -228,6 +229,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     
     return () => clearTimeout(refreshTimer);
   }, [radarSource]);
+
+  // Notify parent component when radar source changes
+  useEffect(() => {
+    if (onRadarSourceChange) {
+      onRadarSourceChange(radarSource);
+    }
+  }, [radarSource, onRadarSourceChange]);
 
   // Initialize map
   useEffect(() => {

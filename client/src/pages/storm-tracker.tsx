@@ -24,6 +24,8 @@ export default function StormTracker() {
     extreme: true,   // 61+ dBZ (Extreme thunderstorms) - Purple
   });
   
+  const [currentRadarSource, setCurrentRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer');
+  
   const {
     location,
     isLoading: locationLoading,
@@ -185,16 +187,18 @@ export default function StormTracker() {
               formatSpeed={formatSpeed}
               stormFilters={stormFilters}
               onStormFiltersChange={setStormFilters}
+              onRadarSourceChange={setCurrentRadarSource}
             />
 
             {/* Storm Data Grid - Moved below radar */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mt-4 sm:mt-6">
               <StormPanel
-                storms={filteredStorms}
+                storms={currentRadarSource === 'nexrad' ? filteredStorms : []}
                 useMetric={useMetric}
                 formatDistance={formatDistance}
                 formatSpeed={formatSpeed}
                 isLoading={stormDataLoading}
+                radarSource={currentRadarSource}
               />
               
               <AlertsPanel
