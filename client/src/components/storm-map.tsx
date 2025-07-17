@@ -785,27 +785,28 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   };
 
   return (
-    <div className="bg-slate-900/80 rounded-xl p-4 border border-slate-600/50">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-4">
+    <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
           <h2 className="text-lg font-semibold text-white">
             Storm Tracker
           </h2>
-          <div className="flex items-center gap-3 text-sm">
-            <div className="bg-slate-800 px-2 py-1 rounded text-white">
+          <div className="flex items-center gap-2 sm:gap-3 text-sm">
+            <div className="bg-slate-800 px-2 py-1 rounded text-white text-xs sm:text-sm">
               {storms.length} storms detected
             </div>
-            <div className="text-slate-400">
+            <div className="text-slate-400 text-xs sm:text-sm">
               Range: {radarRange} miles
             </div>
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={() => setShowSectorGrid(!showSectorGrid)}
             variant={showSectorGrid ? "default" : "outline"}
             size="sm"
+            className="text-xs px-2"
           >
             {showSectorGrid ? "Hide" : "Show"} Grid
           </Button>
@@ -813,6 +814,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             onClick={() => setRadarSource(radarSource === 'rainviewer' ? 'nexrad' : 'rainviewer')}
             variant="outline"
             size="sm"
+            className="text-xs px-2"
           >
             Switch to {radarSource === 'rainviewer' ? 'NEXRAD' : 'RainViewer'}
           </Button>
@@ -820,6 +822,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             onClick={sampleRadarDbz}
             variant="outline"
             size="sm"
+            className="text-xs px-2"
           >
             Sample dBZ
           </Button>
@@ -827,11 +830,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       </div>
 
       {/* Radar Info */}
-      <div className="bg-slate-800/50 rounded-lg p-3 mb-4 border border-slate-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-300">Radar Source:</span>
-            <div className="text-sm text-white">{radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'}</div>
+      <div className="bg-slate-800/50 rounded-lg p-2 sm:p-3 mb-4 border border-slate-700">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-0">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="text-xs sm:text-sm text-slate-300">Radar Source:</span>
+            <div className="text-xs sm:text-sm text-white">{radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'}</div>
           </div>
           <div className="text-xs text-slate-400">
             {radarSource === 'rainviewer' ? 'Global Coverage' : 'US High-Resolution'}
@@ -839,31 +842,31 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
       
-      <div className="relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden" style={{ height: '500px' }}>
+      <div className="relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden" style={{ height: '400px' }}>
         <div ref={mapRef} className="w-full h-full"></div>
         
-        {/* Precipitation Waypoints Legend */}
-        <div className="absolute top-2 right-2 z-[1000] bg-slate-900/90 p-2 rounded border border-slate-700 text-xs">
-          <div className="font-semibold text-white mb-1">
-            Precipitation Waypoints {Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length > 0 ? `(${Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length} points)` : ''}
+        {/* Precipitation Waypoints Legend - Mobile Responsive */}
+        <div className="absolute top-1 right-1 sm:top-2 sm:right-2 z-[1000] bg-slate-900/95 p-1.5 sm:p-2 rounded border border-slate-700 text-xs max-w-[140px] sm:max-w-none">
+          <div className="font-semibold text-white mb-1 text-xs">
+            Waypoints {Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length > 0 ? `(${Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length})` : ''}
           </div>
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 border-2 border-white rounded-full" style={{ backgroundColor: '#ff0000' }}></div>
-              <span className="text-slate-300">Heavy (45+ dBZ)</span>
+              <div className="w-2 h-2 sm:w-3 sm:h-3 border border-white rounded-full" style={{ backgroundColor: '#ff0000' }}></div>
+              <span className="text-slate-300 text-xs">Heavy (45+)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 border-2 border-white rounded-full" style={{ backgroundColor: '#ff9600' }}></div>
-              <span className="text-slate-300">Moderate (35+ dBZ)</span>
+              <div className="w-2 h-2 border border-white rounded-full" style={{ backgroundColor: '#ff9600' }}></div>
+              <span className="text-slate-300 text-xs">Moderate (35+)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 border-2 border-white rounded-full" style={{ backgroundColor: '#ffff00' }}></div>
-              <span className="text-slate-300">Light (25+ dBZ)</span>
+              <div className="w-2 h-2 border border-white rounded-full" style={{ backgroundColor: '#ffff00' }}></div>
+              <span className="text-slate-300 text-xs">Light (25+)</span>
             </div>
           </div>
           {Object.keys(sectorDbzData).length > 0 && (
-            <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400">
-              Real-time {radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'} radar sampling
+            <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400 text-xs hidden sm:block">
+              {radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'} radar
             </div>
           )}
         </div>

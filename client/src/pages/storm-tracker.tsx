@@ -101,7 +101,7 @@ export default function StormTracker() {
         isTracking={isTracking}
       />
       
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         {!location ? (
           <LocationSetup
             onGPSLocation={handleGPSLocation}
@@ -111,13 +111,13 @@ export default function StormTracker() {
         ) : (
           <>
             {/* Location Display */}
-            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 mb-6">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-slate-800/50 rounded-xl p-3 sm:p-6 border border-slate-700/50 mb-4 sm:mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3 sm:gap-0">
                 <div className="flex items-center gap-3">
-                  <div className="text-2xl">📍</div>
+                  <div className="text-xl sm:text-2xl">📍</div>
                   <div>
-                    <h2 className="text-xl font-semibold">{location.name}</h2>
-                    <p className="text-slate-300">
+                    <h2 className="text-lg sm:text-xl font-semibold">{location.name}</h2>
+                    <p className="text-slate-300 text-sm sm:text-base">
                       Detection Radius: {formatDistance(30)} (Fixed)
                     </p>
                   </div>
@@ -128,6 +128,7 @@ export default function StormTracker() {
                     onClick={toggleTracking}
                     variant={isTracking ? "destructive" : "default"}
                     size="sm"
+                    className="text-xs sm:text-sm"
                   >
                     {isTracking ? "⏸️ Stop Tracking" : "▶️ Start Tracking"}
                   </Button>
@@ -149,7 +150,7 @@ export default function StormTracker() {
               </div>
 
               {lastUpdate && (
-                <div className="text-sm text-slate-400">
+                <div className="text-xs sm:text-sm text-slate-400">
                   Last updated: {lastUpdate.toLocaleTimeString()}
                 </div>
               )}
@@ -166,7 +167,7 @@ export default function StormTracker() {
             />
 
             {/* Storm Data Grid - Moved below radar */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mt-4 sm:mt-6">
               <StormPanel
                 storms={storms || []}
                 useMetric={useMetric}
