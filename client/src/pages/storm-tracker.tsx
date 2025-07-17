@@ -8,12 +8,11 @@ import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
 
 export default function StormTracker() {
   const [useMetric, setUseMetric] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
-  const [radarRange, setRadarRange] = useState(30);
+  const radarRange = 30; // Fixed at 30 miles
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   
   const {
@@ -119,7 +118,7 @@ export default function StormTracker() {
                   <div>
                     <h2 className="text-xl font-semibold">{location.name}</h2>
                     <p className="text-slate-300">
-                      Detection Radius: {formatDistance(radarRange)}
+                      Detection Radius: {formatDistance(30)} (Fixed)
                     </p>
                   </div>
                 </div>
@@ -173,24 +172,10 @@ export default function StormTracker() {
               </div>
 
               {lastUpdate && (
-                <div className="text-sm text-slate-400 mb-3">
+                <div className="text-sm text-slate-400">
                   Last updated: {lastUpdate.toLocaleTimeString()}
                 </div>
               )}
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Detection Radius: {formatDistance(radarRange)}
-                </label>
-                <Slider
-                  value={[radarRange]}
-                  onValueChange={(value) => setRadarRange(value[0])}
-                  min={5}
-                  max={30}
-                  step={1}
-                  className="w-full"
-                />
-              </div>
             </div>
 
             {/* Interactive Radar Map */}
