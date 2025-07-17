@@ -55,7 +55,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [isAnimating, setIsAnimating] = useState(false);
   const [showSectorGrid, setShowSectorGrid] = useState(true);
   const [currentFrame, setCurrentFrame] = useState(10);
-  const [radarFrames, setRadarFrames] = useState<number[]>([]);
+  const [radarFrames, setRadarFrames] = useState<(string | number)[]>([]);
   const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer'); // RainViewer primary
   const [currentFrameIndex, setCurrentFrameIndex] = useState<number>(-1);
   const [nexradSite, setNexradSite] = useState<string>('');
@@ -139,11 +139,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const { timestamps } = await timestampsResponse.json();
           
           if (timestamps && timestamps.length > 0) {
-            setRadarFrames(timestamps);
-            setCurrentFrame(timestamps.length - 1);
-            setCurrentFrameIndex(timestamps.length - 1);
+            // Convert string timestamps to ensure compatibility
+            const frameTimestamps = timestamps.map(String);
+            setRadarFrames(frameTimestamps);
+            setCurrentFrame(frameTimestamps.length - 1);
+            setCurrentFrameIndex(frameTimestamps.length - 1);
             
-            console.log(`NEXRAD: Loaded ${timestamps.length} historical frames for site ${site}`);
+            console.log(`NEXRAD: Loaded ${frameTimestamps.length} historical frames for site ${site}`);
           } else {
             throw new Error('No timestamps available');
           }
