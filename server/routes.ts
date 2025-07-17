@@ -475,6 +475,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Proxy RainViewer tiles to bypass network restrictions
+  app.get('/api/rainviewer/tile/:timestamp/:size/:z/:x/:y/:color/:smooth.png', async (req, res) => {
+    try {
+      const { timestamp, size, z, x, y, color, smooth } = req.params;
+      const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${timestamp}/${size}/${z}/${x}/${y}/${color}/${smooth}.png`;
+      
+      const response = await fetch(tileUrl);
+      
+      if (!response.ok) {
+        res.status(404).send('Tile not found');
+        return;
+      }
+      
+      // Set appropriate headers
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minute cache
+      
+      // Pipe the image data
+      const buffer = await response.arrayBuffer();
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error('Error proxying RainViewer tile:', error);
+      res.status(500).send('Failed to fetch tile');
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

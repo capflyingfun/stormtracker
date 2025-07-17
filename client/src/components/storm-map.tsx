@@ -48,7 +48,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [showSectorGrid, setShowSectorGrid] = useState(true);
   const [currentFrame, setCurrentFrame] = useState(10);
   const [radarFrames, setRadarFrames] = useState<number[]>([]);
-  const [radarSource, setRadarSource] = useState<'nexrad'>('nexrad'); // NEXRAD only
+  const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer'); // RainViewer primary
   const animationIntervalRef = useRef<NodeJS.Timeout>();
   const [sectorDbzData, setSectorDbzData] = useState<{[key: string]: number}>({});
   const [precipitationPoints, setPrecipitationPoints] = useState<Array<{
@@ -59,12 +59,31 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   }>>([]);
   const radarCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Initialize NEXRAD radar frames
+  // Initialize radar frames based on source
   useEffect(() => {
-    // For NEXRAD, use simple timestamp
-    setRadarFrames([Math.floor(Date.now() / 1000)]);
-    setCurrentFrame(0);
-  }, []);
+    const loadRadarFrames = async () => {
+      if (radarSource === 'rainviewer') {
+        try {
+          const response = await fetch('/api/rainviewer');
+          const data = await response.json();
+          if (data.radar && data.radar.past) {
+            setRadarFrames(data.radar.past.map((frame: any) => frame.time));
+            setCurrentFrame(Math.max(0, data.radar.past.length - 1));
+          }
+        } catch (error) {
+          console.error('Failed to load RainViewer frames:', error);
+          // Fallback to NEXRAD
+          setRadarSource('nexrad');
+        }
+      } else {
+        // For NEXRAD, use simple timestamp
+        setRadarFrames([Math.floor(Date.now() / 1000)]);
+        setCurrentFrame(0);
+      }
+    };
+
+    loadRadarFrames();
+  }, [radarSource]);
 
   // Initialize map
   useEffect(() => {
@@ -433,7 +452,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
 
 
-  // Load radar layer
+  // Load radar layer based on source
   const loadRadarLayer = async (frameIndex?: number) => {
     const map = mapInstanceRef.current;
     if (!map || !window.L || radarFrames.length === 0) return;
@@ -450,26 +469,39 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       radarLayerRef.current = null;
     }
 
-    // NEXRAD radar overlay
-    const nexradLayer = window.L.tileLayer(
-      'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
-      {
-        tileSize: 256,
-        opacity: 0.7,
-        transparent: true,
-        attribution: 'NEXRAD Radar © Iowa Environmental Mesonet',
-        maxZoom: 12,
-        updateWhenIdle: true,
-        updateWhenZooming: false
+    try {
+      if (radarSource === 'rainviewer') {
+        // RainViewer global radar with proxy
+        const rainviewerUrl = `/api/rainviewer/tile/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`;
+        
+        radarLayerRef.current = window.L.tileLayer(rainviewerUrl, {
+          attribution: 'RainViewer',
+          opacity: 0.6,
+          transparent: true,
+          zIndex: 1000,
+          maxZoom: 12
+        });
+      } else {
+        // NEXRAD radar overlay
+        radarLayerRef.current = window.L.tileLayer(
+          'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
+          {
+            tileSize: 256,
+            opacity: 0.7,
+            transparent: true,
+            attribution: 'NEXRAD Radar © Iowa Environmental Mesonet',
+            maxZoom: 12,
+            updateWhenIdle: true,
+            updateWhenZooming: false
+          }
+        );
       }
-    );
-    
-    radarLayerRef.current = nexradLayer;
-    radarLayerRef.current.addTo(map);
-
-    // Fallback to OpenWeatherMap if both fail
-    if (!radarLayerRef.current) {
-      // Fallback to OpenWeatherMap with enhanced visibility
+      
+      radarLayerRef.current.addTo(map);
+    } catch (error) {
+      console.error(`Error loading ${radarSource} radar:`, error);
+      
+      // Fallback to OpenWeatherMap
       radarLayerRef.current = window.L.tileLayer(
         `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
         {
@@ -523,9 +555,23 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   };
 
   const refreshRadar = async () => {
-    // For NEXRAD, use simple timestamp refresh
-    setRadarFrames([Math.floor(Date.now() / 1000)]);
-    setCurrentFrame(0);
+    if (radarSource === 'rainviewer') {
+      // Reload RainViewer frames
+      try {
+        const response = await fetch('/api/rainviewer');
+        const data = await response.json();
+        if (data.radar && data.radar.past) {
+          setRadarFrames(data.radar.past.map((frame: any) => frame.time));
+          setCurrentFrame(Math.max(0, data.radar.past.length - 1));
+        }
+      } catch (error) {
+        console.error('Failed to refresh RainViewer frames:', error);
+      }
+    } else {
+      // For NEXRAD, use simple timestamp refresh
+      setRadarFrames([Math.floor(Date.now() / 1000)]);
+      setCurrentFrame(0);
+    }
     
     // Trigger dBZ sampling after radar refresh
     setTimeout(() => sampleRadarDbz(), 2000);
@@ -764,6 +810,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             {showSectorGrid ? "Hide" : "Show"} Grid
           </Button>
           <Button
+            onClick={() => setRadarSource(radarSource === 'rainviewer' ? 'nexrad' : 'rainviewer')}
+            variant="outline"
+            size="sm"
+          >
+            Switch to {radarSource === 'rainviewer' ? 'NEXRAD' : 'RainViewer'}
+          </Button>
+          <Button
             onClick={sampleRadarDbz}
             variant="outline"
             size="sm"
@@ -778,10 +831,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-sm text-slate-300">Radar Source:</span>
-            <div className="text-sm text-white">NEXRAD</div>
+            <div className="text-sm text-white">{radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'}</div>
           </div>
           <div className="text-xs text-slate-400">
-            US High-Resolution
+            {radarSource === 'rainviewer' ? 'Global Coverage' : 'US High-Resolution'}
           </div>
         </div>
       </div>
@@ -810,7 +863,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </div>
           {Object.keys(sectorDbzData).length > 0 && (
             <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400">
-              Real-time NEXRAD radar sampling
+              Real-time {radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'} radar sampling
             </div>
           )}
         </div>
@@ -821,7 +874,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             <span>Radar: {getTimeDisplay()}</span>
           </div>
           <div className="mt-1 text-xs text-slate-400">
-            Range: {radarRange} miles | NEXRAD Radar (NWS/NOAA)
+            Range: {radarRange} miles | {radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD Radar (NWS/NOAA)'}
           </div>
         </div>
       </div>
