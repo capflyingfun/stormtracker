@@ -48,63 +48,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [showSectorGrid, setShowSectorGrid] = useState(true);
   const [currentFrame, setCurrentFrame] = useState(10);
   const [radarFrames, setRadarFrames] = useState<number[]>([]);
-  const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer'); // RainViewer primary with NEXRAD fallback
+  const [radarSource, setRadarSource] = useState<'nexrad'>('nexrad'); // NEXRAD only
   const animationIntervalRef = useRef<NodeJS.Timeout>();
 
-  // Initialize radar frames based on selected source
+  // Initialize NEXRAD radar frames
   useEffect(() => {
-    const fetchRadarFrames = async () => {
-      try {
-        if (radarSource === 'rainviewer') {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15 seconds for init
-          
-          const response = await fetch('/api/rainviewer', {
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-          
-          if (response.ok) {
-            const data = await response.json();
-            
-            console.log('RainViewer API response:', data);
-            
-            if (data && data.radar && data.radar.past && Array.isArray(data.radar.past) && data.radar.past.length > 0) {
-              // Get timestamps for past radar frames
-              const pastFrames = data.radar.past.map((frame: any) => frame.time);
-              setRadarFrames(pastFrames);
-              setCurrentFrame(pastFrames.length - 1); // Start with most recent frame
-              console.log('RainViewer frames loaded:', pastFrames.length);
-            } else {
-              console.error('Invalid RainViewer data structure:', data);
-              throw new Error('Invalid radar data from RainViewer');
-            }
-          } else {
-            throw new Error(`RainViewer API returned ${response.status}`);
-          }
-        } else {
-          // For NEXRAD, use simple timestamp
-          setRadarFrames([Math.floor(Date.now() / 1000)]);
-          setCurrentFrame(0);
-        }
-      } catch (error) {
-        console.error('Radar initialization failed:', error);
-        console.error('Error details:', error.message, error.name);
-        
-        // If RainViewer fails, automatically switch to NEXRAD
-        if (radarSource === 'rainviewer') {
-          console.log('Switching to NEXRAD due to RainViewer failure');
-          setRadarSource('nexrad');
-        }
-        
-        // Fallback to simple timestamp for both sources
-        setRadarFrames([Math.floor(Date.now() / 1000)]);
-        setCurrentFrame(0);
-      }
-    };
-    
-    fetchRadarFrames();
-  }, [radarSource]);
+    // For NEXRAD, use simple timestamp
+    setRadarFrames([Math.floor(Date.now() / 1000)]);
+    setCurrentFrame(0);
+  }, []);
 
   // Initialize map
   useEffect(() => {
@@ -335,10 +287,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   }, [location, radarRange, showSectorGrid]);
 
-  // Update sector highlights when storms change
+  // Clear sector highlights when storms change
   useEffect(() => {
-    if (mapInstanceRef.current && window.L && storms.length > 0) {
-      addSectorHighlights();
+    if (mapInstanceRef.current && window.L) {
+      // Remove any existing sector highlights
+      if (sectorHighlightsRef.current) {
+        mapInstanceRef.current.removeLayer(sectorHighlightsRef.current);
+        sectorHighlightsRef.current = null;
+      }
     }
   }, [storms, showSectorGrid, location]);
 
@@ -359,86 +315,22 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       radarLayerRef.current = null;
     }
 
-    // Create radar overlay based on selected source
-    if (radarSource === 'rainviewer') {
-      try {
-        // RainViewer radar overlay with better error handling
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-        
-        const response = await fetch('/api/rainviewer', {
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          throw new Error(`RainViewer API returned ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data && data.radar && data.radar.past && data.radar.past.length > 0) {
-          // Get the most recent radar frame or use current frame index
-          const frameTime = radarFrames[frameIndex ?? currentFrame] || data.radar.past[data.radar.past.length - 1].time;
-          
-          // Create RainViewer radar layer
-          const rainviewerLayer = window.L.tileLayer(
-            `https://tilecache.rainviewer.com/v2/radar/${frameTime}/256/{z}/{x}/{y}/2/1_1.png`,
-            {
-              tileSize: 256,
-              opacity: 0.7,
-              transparent: true,
-              attribution: 'Radar data © RainViewer.com',
-              maxZoom: 12,
-              updateWhenIdle: true,
-              updateWhenZooming: false
-            }
-          );
-          
-          radarLayerRef.current = rainviewerLayer;
-          radarLayerRef.current.addTo(map);
-        } else {
-          throw new Error('Invalid or empty radar data from RainViewer');
-        }
-        
-      } catch (error) {
-        console.error('RainViewer failed, switching to NEXRAD:', error);
-        
-        // Fallback to NEXRAD immediately
-        const nexradLayer = window.L.tileLayer(
-          'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
-          {
-            tileSize: 256,
-            opacity: 0.7,
-            transparent: true,
-            attribution: 'NEXRAD Radar © Iowa Environmental Mesonet',
-            maxZoom: 12,
-            updateWhenIdle: true,
-            updateWhenZooming: false
-          }
-        );
-        
-        radarLayerRef.current = nexradLayer;
-        radarLayerRef.current.addTo(map);
+    // NEXRAD radar overlay
+    const nexradLayer = window.L.tileLayer(
+      'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
+      {
+        tileSize: 256,
+        opacity: 0.7,
+        transparent: true,
+        attribution: 'NEXRAD Radar © Iowa Environmental Mesonet',
+        maxZoom: 12,
+        updateWhenIdle: true,
+        updateWhenZooming: false
       }
-    } else {
-      // NEXRAD radar overlay
-      const nexradLayer = window.L.tileLayer(
-        'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
-        {
-          tileSize: 256,
-          opacity: 0.7,
-          transparent: true,
-          attribution: 'NEXRAD Radar © Iowa Environmental Mesonet',
-          maxZoom: 12,
-          updateWhenIdle: true,
-          updateWhenZooming: false
-        }
-      );
-      
-      radarLayerRef.current = nexradLayer;
-      radarLayerRef.current.addTo(map);
-    }
+    );
+    
+    radarLayerRef.current = nexradLayer;
+    radarLayerRef.current.addTo(map);
 
     // Fallback to OpenWeatherMap if both fail
     if (!radarLayerRef.current) {
@@ -462,7 +354,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   }, [radarFrames, currentFrame, radarSource]);
 
-  // Remove individual storm markers - only show sector highlights
+  // Remove individual storm markers
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !window.L) return;
@@ -470,8 +362,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     // Clear existing storm markers completely
     stormMarkersRef.current.forEach(marker => map.removeLayer(marker));
     stormMarkersRef.current = [];
-
-    // No individual storm markers - only sector-based visualization
   }, [storms]);
 
   const getStormColor = (intensity: number): string => {
@@ -496,45 +386,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   };
 
   const refreshRadar = async () => {
-    try {
-      if (radarSource === 'rainviewer') {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10 seconds
-        
-        const response = await fetch('/api/rainviewer', {
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        
-        if (response.ok) {
-          const data = await response.json();
-          
-          console.log('RainViewer refresh response:', data);
-          
-          if (data && data.radar && data.radar.past && Array.isArray(data.radar.past) && data.radar.past.length > 0) {
-            // Get timestamps for past radar frames
-            const pastFrames = data.radar.past.map((frame: any) => frame.time);
-            setRadarFrames(pastFrames);
-            setCurrentFrame(pastFrames.length - 1); // Start with most recent frame
-            console.log('RainViewer refresh frames loaded:', pastFrames.length);
-          } else {
-            console.error('Invalid RainViewer refresh data:', data);
-            throw new Error('Invalid radar data structure');
-          }
-        } else {
-          throw new Error(`API returned ${response.status}`);
-        }
-      } else {
-        // For NEXRAD, use simple timestamp
-        setRadarFrames([Math.floor(Date.now() / 1000)]);
-        setCurrentFrame(0);
-      }
-    } catch (error) {
-      console.error('Radar refresh failed:', error);
-      // Fallback to simple timestamp for both sources
-      setRadarFrames([Math.floor(Date.now() / 1000)]);
-      setCurrentFrame(0);
-    }
+    // For NEXRAD, use simple timestamp refresh
+    setRadarFrames([Math.floor(Date.now() / 1000)]);
+    setCurrentFrame(0);
   };
 
   const getTimeDisplay = (): string => {
@@ -569,32 +423,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
 
-      {/* Radar Controls - Simplified */}
+      {/* Radar Info */}
       <div className="bg-slate-800/50 rounded-lg p-3 mb-4 border border-slate-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-sm text-slate-300">Radar Source:</span>
-            <div className="flex bg-slate-700 rounded-md p-1">
-              <Button
-                onClick={() => setRadarSource('rainviewer')}
-                variant={radarSource === 'rainviewer' ? "default" : "ghost"}
-                size="sm"
-                className="h-7 px-3 text-xs"
-              >
-                RainViewer
-              </Button>
-              <Button
-                onClick={() => setRadarSource('nexrad')}
-                variant={radarSource === 'nexrad' ? "default" : "ghost"}
-                size="sm"
-                className="h-7 px-3 text-xs"
-              >
-                NEXRAD
-              </Button>
-            </div>
+            <div className="text-sm text-white">NEXRAD</div>
           </div>
           <div className="text-xs text-slate-400">
-            {radarSource === 'rainviewer' ? 'Global' : 'US High-Res'}
+            US High-Resolution
           </div>
         </div>
       </div>
