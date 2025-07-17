@@ -18,7 +18,6 @@ interface StormPanelProps {
   formatDistance: (miles: number) => string;
   formatSpeed: (mph: number) => string;
   isLoading: boolean;
-  onStormClick?: (storm: Storm) => void;
 }
 
 const getDirectionName = (degrees: number): string => {
@@ -45,7 +44,7 @@ const getStormColor = (intensity: number): string => {
   return 'bg-blue-500';
 };
 
-export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, onStormClick }: StormPanelProps) {
+export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading }: StormPanelProps) {
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <div className="flex items-center gap-3 mb-4">
@@ -63,8 +62,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
           storms.map((storm) => (
             <div 
               key={storm.id} 
-              className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50 cursor-pointer hover:bg-slate-600/50 transition-colors"
-              onClick={() => onStormClick?.(storm)}
+              className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50"
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -79,10 +77,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                 {getStormIntensityName(storm.intensity)} ({storm.intensity.toFixed(0)}dBZ) {getDirectionName(storm.direction)} of you with {storm.type.toLowerCase()} {formatDistance(storm.distance)} away moving {getDirectionName((storm as any).movementDirection || storm.direction)} at {formatSpeed(storm.speed)}
               </p>
               
-              {/* Click instruction */}
-              <p className="text-xs text-slate-400 italic">
-                Click to highlight on map
-              </p>
+
               
               {storm.description && (
                 <p className="text-xs text-slate-400 mt-2">{storm.description}</p>

@@ -164,10 +164,6 @@ export default function StormTracker() {
               useMetric={useMetric}
               formatDistance={formatDistance}
               formatSpeed={formatSpeed}
-              onStormHighlight={(stormId) => {
-                // Handle storm highlighting from map clicks
-                console.log('Storm highlighted:', stormId);
-              }}
             />
 
             {/* Storm Data Grid - Moved below radar */}
@@ -178,15 +174,6 @@ export default function StormTracker() {
                 formatDistance={formatDistance}
                 formatSpeed={formatSpeed}
                 isLoading={stormDataLoading}
-                onStormClick={(storm) => {
-                  // Find and highlight the storm on the map
-                  const stormMapComponent = document.querySelector('.storm-map-container');
-                  if (stormMapComponent) {
-                    window.dispatchEvent(new CustomEvent('highlightStormOnMap', {
-                      detail: { lat: storm.lat, lon: storm.lon, id: storm.id }
-                    }));
-                  }
-                }}
               />
               
               <AlertsPanel

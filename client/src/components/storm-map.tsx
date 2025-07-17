@@ -27,7 +27,6 @@ interface StormMapProps {
   useMetric: boolean;
   formatDistance: (miles: number) => string;
   formatSpeed: (mph: number) => string;
-  onStormHighlight?: (stormId: string | null) => void;
 }
 
 declare global {
@@ -36,7 +35,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, onStormHighlight }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -483,11 +482,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       waypointMarker.bindPopup(popupContent);
       
-      // Add click handler for storm highlighting
-      waypointMarker.on('click', () => {
-        highlightStormCell(point.lat, point.lon);
-        onStormHighlight?.(point.id);
-      });
+
       
       waypointGroup.addLayer(waypointMarker);
     }
@@ -892,19 +887,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return 'Live';
   };
 
-  // Listen for storm highlight events from panel
-  useEffect(() => {
-    const handleStormHighlight = (event: any) => {
-      const { lat, lon } = event.detail;
-      highlightStormCell(lat, lon);
-    };
-
-    window.addEventListener('highlightStormOnMap', handleStormHighlight);
-    return () => window.removeEventListener('highlightStormOnMap', handleStormHighlight);
-  }, []);
-
   return (
-    <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50 storm-map-container">
+    <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
           <h2 className="text-lg font-semibold text-white">
