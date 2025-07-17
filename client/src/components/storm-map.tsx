@@ -522,6 +522,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     // Create waypoint markers for each actual precipitation point
     for (const point of precipitationPoints) {
+      // Check if this point should be visible based on filters
+      const category = point.dbz >= 55 ? 'severe' : 
+                      point.dbz >= 45 ? 'heavy' : 
+                      point.dbz >= 35 ? 'moderate' : 'light';
+      const shouldShow = stormFilters[category as keyof typeof stormFilters];
+      
+      if (!shouldShow) continue; // Skip filtered out points
       // Get color and size based on dBZ value and zoom level
       const getDbzColor = (dbz: number) => {
         if (dbz >= 45) return '#ff0000'; // Red - Heavy
@@ -604,7 +611,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     sectorHighlightsRef.current.addTo(map);
   };
 
-  // Update waypoint markers based on dBZ data
+  // Update waypoint markers based on dBZ data and filters
   useEffect(() => {
     if (mapInstanceRef.current && window.L) {
       // Remove any existing markers
@@ -618,7 +625,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         addDbzWaypoints();
       }
     }
-  }, [precipitationPoints, showSectorGrid, location]);
+  }, [precipitationPoints, showSectorGrid, location, stormFilters]);
 
 
 
@@ -1023,7 +1030,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               <input
                 type="checkbox"
                 checked={stormFilters.light}
-                onChange={(e) => setStormFilters(prev => ({...prev, light: e.target.checked}))}
+                onChange={(e) => {
+                  const newFilters = {...stormFilters, light: e.target.checked};
+                  setStormFilters(newFilters);
+                  // Auto-refresh sampling when filters change
+                  setTimeout(() => sampleRadarDbz(), 500);
+                }}
                 className="rounded"
               />
               <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
@@ -1033,7 +1045,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               <input
                 type="checkbox"
                 checked={stormFilters.moderate}
-                onChange={(e) => setStormFilters(prev => ({...prev, moderate: e.target.checked}))}
+                onChange={(e) => {
+                  const newFilters = {...stormFilters, moderate: e.target.checked};
+                  setStormFilters(newFilters);
+                  setTimeout(() => sampleRadarDbz(), 500);
+                }}
                 className="rounded"
               />
               <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
@@ -1043,7 +1059,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               <input
                 type="checkbox"
                 checked={stormFilters.heavy}
-                onChange={(e) => setStormFilters(prev => ({...prev, heavy: e.target.checked}))}
+                onChange={(e) => {
+                  const newFilters = {...stormFilters, heavy: e.target.checked};
+                  setStormFilters(newFilters);
+                  setTimeout(() => sampleRadarDbz(), 500);
+                }}
                 className="rounded"
               />
               <div className="w-3 h-3 bg-red-500 rounded-full"></div>
@@ -1053,7 +1073,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               <input
                 type="checkbox"
                 checked={stormFilters.severe}
-                onChange={(e) => setStormFilters(prev => ({...prev, severe: e.target.checked}))}
+                onChange={(e) => {
+                  const newFilters = {...stormFilters, severe: e.target.checked};
+                  setStormFilters(newFilters);
+                  setTimeout(() => sampleRadarDbz(), 500);
+                }}
                 className="rounded"
               />
               <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
