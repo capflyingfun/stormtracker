@@ -183,7 +183,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   };
 
-  // Add sector highlights for areas with storm activity
+  // Add sector highlights for areas with current storm activity (live radar data)
   const addSectorHighlights = () => {
     const map = mapInstanceRef.current;
     if (!map || !window.L) return;
@@ -197,58 +197,80 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const centerLat = location.lat;
     const centerLon = location.lon;
 
-    // Highlight sectors that have storms
+    // Create set to track unique sectors to avoid duplicates
+    const activeSectors = new Set();
+
+    // Highlight sectors that have current storm activity
     storms.forEach(storm => {
-      // Calculate which sector this storm is in
-      const distance = storm.distance;
-      const angle = storm.direction;
+      // Only highlight if storm is recent (within 5 minutes for live data)
+      const stormAge = Date.now() - (storm.detectedAt || Date.now());
+      const ageMinutes = stormAge / (1000 * 60);
       
-      // Find the distance ring (5-mile increments)
-      const ringDistance = Math.ceil(distance / 5) * 5;
-      
-      // Find the angular sector (30-degree increments)
-      const sectorAngle = Math.floor(angle / 30) * 30;
-      
-      // Create sector highlight
-      const angleInRadians = (sectorAngle * Math.PI) / 180;
-      const nextAngleInRadians = ((sectorAngle + 30) * Math.PI) / 180;
-      
-      const innerRadius = Math.max(0, ringDistance - 5);
-      const outerRadius = ringDistance;
-      
-      // Create sector polygon points
-      const points = [];
-      const numPoints = 20; // More points for smoother curves
-      
-      // Inner arc
-      for (let i = 0; i <= numPoints; i++) {
-        const currentAngle = angleInRadians + (i / numPoints) * (nextAngleInRadians - angleInRadians);
-        const innerDistanceInDegrees = innerRadius / 69.0;
-        const lat = centerLat + (innerDistanceInDegrees * Math.cos(currentAngle));
-        const lon = centerLon + (innerDistanceInDegrees * Math.sin(currentAngle));
-        points.push([lat, lon]);
+      if (ageMinutes < 5) { // Only show current/recent activity
+        // Calculate which sector this storm is in
+        const distance = storm.distance;
+        const angle = storm.direction;
+        
+        // Find the distance ring (5-mile increments)
+        const ringDistance = Math.ceil(distance / 5) * 5;
+        
+        // Find the angular sector (30-degree increments)
+        const sectorAngle = Math.floor(angle / 30) * 30;
+        
+        const sectorKey = `${ringDistance}-${sectorAngle}`;
+        
+        // Skip if we already processed this sector
+        if (activeSectors.has(sectorKey)) return;
+        activeSectors.add(sectorKey);
+        
+        // Create sector highlight for current activity
+        const angleInRadians = (sectorAngle * Math.PI) / 180;
+        const nextAngleInRadians = ((sectorAngle + 30) * Math.PI) / 180;
+        
+        const innerRadius = Math.max(0, ringDistance - 5);
+        const outerRadius = ringDistance;
+        
+        // Create sector polygon points
+        const points = [];
+        const numPoints = 20;
+        
+        // Inner arc
+        for (let i = 0; i <= numPoints; i++) {
+          const currentAngle = angleInRadians + (i / numPoints) * (nextAngleInRadians - angleInRadians);
+          const innerDistanceInDegrees = innerRadius / 69.0;
+          const lat = centerLat + (innerDistanceInDegrees * Math.cos(currentAngle));
+          const lon = centerLon + (innerDistanceInDegrees * Math.sin(currentAngle));
+          points.push([lat, lon]);
+        }
+        
+        // Outer arc (reverse order)
+        for (let i = numPoints; i >= 0; i--) {
+          const currentAngle = angleInRadians + (i / numPoints) * (nextAngleInRadians - angleInRadians);
+          const outerDistanceInDegrees = outerRadius / 69.0;
+          const lat = centerLat + (outerDistanceInDegrees * Math.cos(currentAngle));
+          const lon = centerLon + (outerDistanceInDegrees * Math.sin(currentAngle));
+          points.push([lat, lon]);
+        }
+        
+        // Create highlighted sector with intensity-based color
+        const intensity = storm.intensity;
+        const getSectorColor = () => {
+          if (intensity >= 45) return '#ff3300'; // Red for heavy storms
+          if (intensity >= 35) return '#ff6600'; // Orange for moderate storms
+          return '#ffff00'; // Yellow for light storms
+        };
+        
+        const sectorHighlight = window.L.polygon(points, {
+          color: getSectorColor(),
+          fillColor: getSectorColor(),
+          fillOpacity: 0.3,
+          weight: 2,
+          opacity: 0.8,
+          dashArray: '3,2'
+        });
+        
+        highlightGroup.addLayer(sectorHighlight);
       }
-      
-      // Outer arc (reverse order)
-      for (let i = numPoints; i >= 0; i--) {
-        const currentAngle = angleInRadians + (i / numPoints) * (nextAngleInRadians - angleInRadians);
-        const outerDistanceInDegrees = outerRadius / 69.0;
-        const lat = centerLat + (outerDistanceInDegrees * Math.cos(currentAngle));
-        const lon = centerLon + (outerDistanceInDegrees * Math.sin(currentAngle));
-        points.push([lat, lon]);
-      }
-      
-      // Create highlighted sector
-      const sectorHighlight = window.L.polygon(points, {
-        color: '#ff6600',
-        fillColor: '#ff6600',
-        fillOpacity: 0.2,
-        weight: 2,
-        opacity: 0.6,
-        dashArray: '5,3'
-      });
-      
-      highlightGroup.addLayer(sectorHighlight);
     });
 
     sectorHighlightsRef.current = highlightGroup;
@@ -349,62 +371,17 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   }, [radarFrames, currentFrame]);
 
-  // Update storm markers
+  // Remove individual storm markers - only show sector highlights
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !window.L) return;
 
-    // Clear existing storm markers
+    // Clear existing storm markers completely
     stormMarkersRef.current.forEach(marker => map.removeLayer(marker));
     stormMarkersRef.current = [];
 
-    // Add new storm markers with Blitzortung-style real-time detection
-    storms.forEach(storm => {
-      const stormAge = Date.now() - (storm.detectedAt || Date.now());
-      const ageMinutes = stormAge / (1000 * 60);
-      
-      // Blitzortung-style color coding: white for recent, fading to dark red for older
-      const getStormDisplayColor = (intensity: number, ageMinutes: number): string => {
-        if (ageMinutes < 5) return '#ffffff'; // Fresh white
-        if (ageMinutes < 10) return '#ffff66'; // Recent yellow
-        if (ageMinutes < 15) return '#ff6600'; // Moderate orange
-        if (ageMinutes < 20) return '#ff3300'; // Older red
-        return '#990000'; // Old dark red
-      };
-      
-      const marker = window.L.circleMarker([storm.lat, storm.lon], {
-        radius: Math.max(6, Math.min(12, storm.intensity / 5)),
-        fillColor: getStormDisplayColor(storm.intensity, ageMinutes),
-        color: '#000000',
-        weight: 1,
-        opacity: Math.max(0.3, 1 - (ageMinutes / 30)), // Fade over 30 minutes
-        fillOpacity: Math.max(0.4, 1 - (ageMinutes / 25)),
-        className: 'storm-detection-marker'
-      }).addTo(map);
-
-      // Blitzortung-style minimal popup with detection info
-      const getStormIntensityName = (intensity: number): string => {
-        if (intensity >= 65) return 'Extreme Storm';
-        if (intensity >= 55) return 'Severe Storm';
-        if (intensity >= 45) return 'Heavy Storm';
-        if (intensity >= 35) return 'Moderate Storm';
-        if (intensity >= 20) return 'Light Storm';
-        return 'Weak Storm';
-      };
-
-      const detectionTime = new Date(storm.detectedAt || Date.now()).toLocaleTimeString();
-      marker.bindPopup(`
-        <div style="color: #000; font-size: 11px; line-height: 1.3; min-width: 140px;">
-          <strong>Storm Detection</strong><br>
-          <span style="color: #666;">dBZ: ${storm.intensity.toFixed(0)}</span><br>
-          <span style="color: #666;">${formatDistance(storm.distance)} ${getDirectionName(storm.direction)}</span><br>
-          <span style="color: #888; font-size: 10px;">Detected: ${detectionTime}</span>
-        </div>
-      `);
-
-      stormMarkersRef.current.push(marker);
-    });
-  }, [storms, formatDistance, formatSpeed]);
+    // No individual storm markers - only sector-based visualization
+  }, [storms]);
 
   const getStormColor = (intensity: number): string => {
     // NEXRAD-accurate color scheme matching dBZ values
@@ -475,29 +452,25 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       <div className="relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden" style={{ height: '500px' }}>
         <div ref={mapRef} className="w-full h-full"></div>
         
-        {/* Storm Age Legend (Blitzortung style) */}
+        {/* Sector Activity Legend */}
         <div className="absolute top-2 right-2 z-[1000] bg-slate-900/90 p-2 rounded border border-slate-700 text-xs">
-          <div className="font-semibold text-white mb-1">Storm Age</div>
+          <div className="font-semibold text-white mb-1">Live Activity</div>
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full border border-black" style={{ backgroundColor: '#ffffff' }}></div>
-              <span className="text-slate-300">0-5 min</span>
+              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ff3300' }}></div>
+              <span className="text-slate-300">Heavy (45+ dBZ)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full border border-black" style={{ backgroundColor: '#ffff66' }}></div>
-              <span className="text-slate-300">5-10 min</span>
+              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ff6600' }}></div>
+              <span className="text-slate-300">Moderate (35+ dBZ)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full border border-black" style={{ backgroundColor: '#ff6600' }}></div>
-              <span className="text-slate-300">10-15 min</span>
+              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ffff00' }}></div>
+              <span className="text-slate-300">Light (25+ dBZ)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full border border-black" style={{ backgroundColor: '#ff3300' }}></div>
-              <span className="text-slate-300">15-20 min</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full border border-black" style={{ backgroundColor: '#990000' }}></div>
-              <span className="text-slate-300">20+ min</span>
+              <div className="w-3 h-2 border border-slate-600" style={{ backgroundColor: 'transparent' }}></div>
+              <span className="text-slate-400">No Activity</span>
             </div>
           </div>
         </div>
