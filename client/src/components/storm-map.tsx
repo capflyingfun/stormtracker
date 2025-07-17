@@ -790,7 +790,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     try {
       if (radarSource === 'rainviewer') {
         // RainViewer global radar with proxy
-        const rainviewerUrl = `/api/rainviewer/tile/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`;
+        // Ensure we have a valid timestamp for RainViewer
+        const validTimestamp = timestamp && timestamp !== 'current' ? timestamp : Math.floor(Date.now() / 1000);
+        const rainviewerUrl = `/api/rainviewer/tile/${validTimestamp}/256/{z}/{x}/{y}/2/1_1.png`;
         
         radarLayerRef.current = window.L.tileLayer(rainviewerUrl, {
           attribution: 'RainViewer',
@@ -1222,8 +1224,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         id: string;
       }> = [];
 
-      // Get current RainViewer timestamp
+      // Get current RainViewer timestamp - ensure it's valid
       const timestamp = radarFrames[currentFrame] || radarFrames[radarFrames.length - 1];
+      if (!timestamp || timestamp === 'current') {
+        console.log('RainViewer: Invalid timestamp, skipping sampling');
+        return;
+      }
 
       // Sample each tile for precipitation using RainViewer
       for (const tile of tilesToCheck) {
@@ -1489,22 +1495,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             Storm Tracker
           </h2>
           <div className="flex items-center gap-2 sm:gap-3 text-sm">
-            <div className="bg-slate-800 px-2 py-1 rounded text-white text-xs sm:text-sm">
-              {precipitationPoints.length > 0 ? 
-                precipitationPoints.filter(point => {
-                  const category = point.dbz >= 55 ? 'severe' : 
-                                  point.dbz >= 45 ? 'heavy' : 
-                                  point.dbz >= 35 ? 'moderate' : 'light';
-                  return stormFilters[category as keyof typeof stormFilters];
-                }).length : 
-                storms.filter(storm => {
-                  const category = storm.intensity >= 55 ? 'severe' : 
-                                  storm.intensity >= 45 ? 'heavy' : 
-                                  storm.intensity >= 35 ? 'moderate' : 'light';
-                  return stormFilters[category as keyof typeof stormFilters];
-                }).length
-              } storms detected
-            </div>
             <div className="text-slate-400 text-xs sm:text-sm">
               Range: {radarRange} miles
             </div>

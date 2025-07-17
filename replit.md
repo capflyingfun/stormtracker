@@ -248,6 +248,14 @@ Preferred communication style: Simple, everyday language.
 - **Non-Intrusive**: No progress bars or notifications - just seamless automatic data refresh
 - **Timeout Management**: Proper cleanup of sampling timeouts on component unmount and movement interruption
 
+### Storm Count Consistency Fix (July 17, 2025)
+- **Unified Data Source**: Storm Cells panel now uses precipitation storm data when available (same as waypoints)
+- **Event-Based Communication**: Added event listener to receive real-time precipitation storm data from map component
+- **Consistent Filtering**: Both waypoint legend and Storm Cells panel use identical filtering logic and data source
+- **Individual Category Counts**: Waypoint legend shows breakdown like "Light (25), Moderate (4), Heavy (3)" etc.
+- **Removed Redundant Displays**: Eliminated duplicate storm count from top section to reduce visual clutter
+- **Real-time Synchronization**: All storm counts update simultaneously when moving map or changing filters
+
 ### Static NEXRAD Implementation (July 17, 2025)
 - **Static Radar Display**: NEXRAD configured for stable, current radar visualization without animation
 - **Disabled Animation Controls**: Play button disabled for NEXRAD to prevent animation attempts
