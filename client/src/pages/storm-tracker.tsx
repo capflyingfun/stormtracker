@@ -90,6 +90,19 @@ export default function StormTracker() {
     }
   };
 
+  const handleDirectLocationSelect = async (selectedLocation: { lat: number; lon: number; name: string }) => {
+    try {
+      // Use the smart search direct coordinates
+      await setLocationFromSearch(selectedLocation.name);
+      if (isTracking) {
+        refetchStormData();
+        setLastUpdate(new Date());
+      }
+    } catch (error) {
+      console.error("Direct location selection failed:", error);
+    }
+  };
+
   const toggleTracking = () => {
     if (!isTracking && location) {
       refetchStormData();
@@ -127,6 +140,7 @@ export default function StormTracker() {
           <LocationSetup
             onGPSLocation={handleGPSLocation}
             onLocationSearch={handleLocationSearch}
+            onLocationSelect={handleDirectLocationSelect}
             isLoading={locationLoading}
           />
         ) : (
