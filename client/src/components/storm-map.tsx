@@ -139,67 +139,48 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       radarLayerRef.current = null;
     }
 
-    // Create real radar overlay using RainViewer with proper timestamp API
+    // Create NEXRAD/NWS radar overlay (free, no API key required)
     try {
-      // Fetch available radar timestamps from RainViewer API
-      fetch('https://api.rainviewer.com/public/maps.json')
-        .then(response => response.json())
-        .then(radarData => {
-          if (radarData && radarData.radar && radarData.radar.past && radarData.radar.past.length > 0) {
-            // Get the most recent radar frame
-            const latestFrame = radarData.radar.past[radarData.radar.past.length - 1];
-            
-            // Create RainViewer radar layer with proper timestamp
-            radarLayerRef.current = window.L.tileLayer(
-              `https://tilecache.rainviewer.com${latestFrame.path}/256/{z}/{x}/{y}/3/0_0.png`,
-              {
-                tileSize: 256,
-                opacity: 0.8,
-                transparent: true,
-                attribution: 'Radar data © RainViewer',
-                maxZoom: 12,
-                updateWhenIdle: true,
-                updateWhenZooming: false
-              }
-            );
-            
-            radarLayerRef.current.addTo(map);
-            
-            // Also add OpenWeatherMap precipitation layer as backup for better coverage
-            const precipLayer = window.L.tileLayer(
-              `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
-              {
-                opacity: 0.3,
-                transparent: true,
-                attribution: 'Weather data © OpenWeatherMap'
-              }
-            );
-            
-            precipLayer.addTo(map);
-            
-          } else {
-            throw new Error('No radar data available from RainViewer');
-          }
-        })
-        .catch(error => {
-          console.error('Failed to load RainViewer radar layer:', error);
-          
-          // Fallback to OpenWeatherMap precipitation layer only
-          radarLayerRef.current = window.L.tileLayer(
-            `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
-            {
-              opacity: 0.9,
-              transparent: true,
-              attribution: 'Weather data © OpenWeatherMap'
-            }
-          );
-          radarLayerRef.current.addTo(map);
-        });
+      // Use Iowa Environmental Mesonet's NEXRAD radar tiles (free, high quality)
+      const nexradLayer = window.L.tileLayer(
+        'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
+        {
+          tileSize: 256,
+          opacity: 0.8,
+          transparent: true,
+          attribution: 'NEXRAD Radar © Iowa Environmental Mesonet',
+          maxZoom: 12,
+          updateWhenIdle: true,
+          updateWhenZooming: false
+        }
+      );
+      
+      // Alternative: Use NWS Ridge Radar (also free)
+      const ridgeLayer = window.L.tileLayer(
+        'https://nowcoast.noaa.gov/arcgis/rest/services/nowcoast/radar_meteo_imagery_nexrad_time/MapServer/tile/{z}/{y}/{x}',
+        {
+          tileSize: 256,
+          opacity: 0.7,
+          transparent: true,
+          attribution: 'NWS Ridge Radar © NOAA',
+          maxZoom: 12,
+          updateWhenIdle: true,
+          updateWhenZooming: false
+        }
+      );
+      
+      // Create layer group with both NEXRAD sources
+      const radarGroup = window.L.layerGroup();
+      radarGroup.addLayer(nexradLayer);
+      radarGroup.addLayer(ridgeLayer);
+      
+      radarLayerRef.current = radarGroup;
+      radarLayerRef.current.addTo(map);
       
     } catch (error) {
-      console.error('Failed to load radar layer:', error);
+      console.error('Failed to load NEXRAD radar layer:', error);
       
-      // Fallback to OpenWeatherMap precipitation layer only
+      // Fallback to OpenWeatherMap with enhanced visibility
       radarLayerRef.current = window.L.tileLayer(
         `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
         {
@@ -305,33 +286,33 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       <div className="relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden" style={{ height: '500px' }}>
         <div ref={mapRef} className="w-full h-full"></div>
         
-        {/* Radar Legend */}
+        {/* NEXRAD Radar Legend */}
         <div className="absolute top-2 right-2 z-[1000] bg-slate-900/90 p-2 rounded border border-slate-700 text-xs">
-          <div className="font-semibold text-white mb-1">Radar Scale</div>
+          <div className="font-semibold text-white mb-1">NEXRAD dBZ</div>
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(100, 150, 200)' }}></div>
-              <span className="text-slate-300">Light</span>
+              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(64, 196, 255)' }}></div>
+              <span className="text-slate-300">5-15</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(50, 200, 50)' }}></div>
-              <span className="text-slate-300">Moderate</span>
+              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(0, 255, 0)' }}></div>
+              <span className="text-slate-300">20-30</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 255, 0)' }}></div>
-              <span className="text-slate-300">Heavy</span>
+              <span className="text-slate-300">35-40</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 120, 0)' }}></div>
-              <span className="text-slate-300">Intense</span>
+              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 140, 0)' }}></div>
+              <span className="text-slate-300">45-50</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 0, 0)' }}></div>
-              <span className="text-slate-300">Severe</span>
+              <span className="text-slate-300">55-60</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(200, 0, 200)' }}></div>
-              <span className="text-slate-300">Extreme</span>
+              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 0, 255)' }}></div>
+              <span className="text-slate-300">65+</span>
             </div>
           </div>
         </div>
@@ -342,7 +323,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             <span>Radar: {getTimeDisplay()}</span>
           </div>
           <div className="mt-1 text-xs text-slate-400">
-            Range: {radarRange} miles | Live Radar Data (RainViewer)
+            Range: {radarRange} miles | NEXRAD Radar (NWS/NOAA)
           </div>
         </div>
       </div>
