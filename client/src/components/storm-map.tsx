@@ -1570,47 +1570,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       <div className="relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden" style={{ height: '400px' }}>
         <div ref={mapRef} className="w-full h-full"></div>
         
-
-        
-        {/* Precipitation Waypoints Legend - Mobile Responsive */}
-        <div className="absolute top-1 right-1 sm:top-2 sm:right-2 z-[1000] bg-slate-900/95 p-1.5 sm:p-2 rounded border border-slate-700 text-xs max-w-[140px] sm:max-w-none">
-          <div className="font-semibold text-white mb-1 text-xs">
-            Waypoints {precipitationPoints.length > 0 ? `(${precipitationPoints.filter(point => {
-              const category = point.dbz >= 55 ? 'severe' : 
-                              point.dbz >= 45 ? 'heavy' : 
-                              point.dbz >= 35 ? 'moderate' : 'light';
-              return stormFilters[category as keyof typeof stormFilters];
-            }).length})` : ''}
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 sm:w-3 sm:h-3 border border-white rounded-full" style={{ backgroundColor: '#8B5CF6' }}></div>
-              <span className="text-slate-300 text-xs">Extreme (61+)</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 border border-white rounded-full" style={{ backgroundColor: '#EF4444' }}></div>
-              <span className="text-slate-300 text-xs">Very Heavy (55+)</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 border border-white rounded-full" style={{ backgroundColor: '#F97316' }}></div>
-              <span className="text-slate-300 text-xs">Heavy (46+)</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 border border-white rounded-full" style={{ backgroundColor: '#EAB308' }}></div>
-              <span className="text-slate-300 text-xs">Moderate (35+)</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 border border-white rounded-full" style={{ backgroundColor: '#22C55E' }}></div>
-              <span className="text-slate-300 text-xs">Light (20+)</span>
-            </div>
-          </div>
-          {precipitationPoints.length > 0 && (
-            <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400 text-xs hidden sm:block">
-              {radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'} radar
-            </div>
-          )}
-        </div>
-        
         {/* Radar Info */}
         <div className="radar-controls">
           <div className="flex items-center gap-2 text-xs text-slate-300">
@@ -1620,6 +1579,45 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             Range: {radarRange} miles | {radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD Radar (NWS/NOAA)'}
           </div>
         </div>
+      </div>
+
+      {/* Precipitation Waypoints Legend - Now outside map */}
+      <div className="mt-3 bg-slate-800/50 rounded-lg border border-slate-700 p-3">
+        <div className="font-semibold text-white mb-2 text-sm">
+          Precipitation Waypoints {precipitationPoints.length > 0 ? `(${precipitationPoints.filter(point => {
+            const category = point.dbz >= 55 ? 'severe' : 
+                            point.dbz >= 45 ? 'heavy' : 
+                            point.dbz >= 35 ? 'moderate' : 'light';
+            return stormFilters[category as keyof typeof stormFilters];
+          }).length})` : ''}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#8B5CF6' }}></div>
+            <span className="text-slate-300 text-xs">Extreme (61+)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#EF4444' }}></div>
+            <span className="text-slate-300 text-xs">Very Heavy (55+)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#F97316' }}></div>
+            <span className="text-slate-300 text-xs">Heavy (46+)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#EAB308' }}></div>
+            <span className="text-slate-300 text-xs">Moderate (35+)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#22C55E' }}></div>
+            <span className="text-slate-300 text-xs">Light (20+)</span>
+          </div>
+        </div>
+        {precipitationPoints.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-slate-600 text-slate-400 text-xs">
+            Data source: {radarSource === 'rainviewer' ? 'RainViewer (Global)' : 'NEXRAD (NWS/NOAA)'}
+          </div>
+        )}
       </div>
     </div>
   );
