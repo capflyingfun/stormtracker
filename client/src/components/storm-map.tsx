@@ -119,7 +119,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             setCurrentFrame(frames.length - 1);
             setCurrentFrameIndex(frames.length - 1);
             
-            console.log(`NEXRAD: Loaded ${frames.length} historical RIDGE frames for animation`);
+            console.log(`NEXRAD: Loaded ${frames.length} historical RIDGE frames for animation (prioritizing KMOB local radar)`);
           } else {
             throw new Error('No NEXRAD frames received');
           }
