@@ -110,13 +110,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           setRadarSource('nexrad');
         }
       } else {
-        // For NEXRAD, get nearest radar site and timestamps
+        // For NEXRAD, use static current radar display
         try {
           if (!location) {
             throw new Error('Location required for NEXRAD');
           }
           
-          // Find nearest radar site
+          // Find nearest radar site for proper attribution
           const nearbyResponse = await fetch('/api/nexrad/nearby', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -130,41 +130,18 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const { site } = await nearbyResponse.json();
           setNexradSite(site);
           
-          // Get available timestamps for this site
-          const timestampsResponse = await fetch(`/api/nexrad/timestamps/${site}`);
-          if (!timestampsResponse.ok) {
-            throw new Error('Failed to fetch timestamps');
-          }
+          // Use static current NEXRAD radar (no animation)
+          const frames = ['current'];
+          setRadarFrames(frames);
+          setCurrentFrame(0);
+          setCurrentFrameIndex(0);
           
-          const { timestamps } = await timestampsResponse.json();
-          
-          if (timestamps && timestamps.length > 0) {
-            // Convert string timestamps to ensure compatibility
-            const frameTimestamps = timestamps.map(String);
-            setRadarFrames(frameTimestamps);
-            setCurrentFrame(frameTimestamps.length - 1);
-            setCurrentFrameIndex(frameTimestamps.length - 1);
-            
-            console.log(`NEXRAD: Loaded ${frameTimestamps.length} historical frames for site ${site}`);
-          } else {
-            throw new Error('No timestamps available');
-          }
+          console.log(`NEXRAD: Using static current radar for site ${site}`);
         } catch (error) {
-          console.error('Failed to load NEXRAD frames:', error);
-          
-          // Check if API returned proper error response indicating service unavailability
-          if (error instanceof Error && error.message.includes('Failed to fetch timestamps')) {
-            // NEXRAD animation temporarily unavailable - show current radar with notice
-            console.warn('NEXRAD animation unavailable: Iowa Mesonet services temporarily inaccessible');
-            const frames = ['current'];
-            setRadarFrames(frames);
-            setCurrentFrame(0);
-            setCurrentFrameIndex(0);
-          } else {
-            // Other errors - fall back to RainViewer
-            console.log('Switching to RainViewer due to NEXRAD issues');
-            setRadarSource('rainviewer');
-          }
+          console.error('Failed to load NEXRAD radar:', error);
+          // Fall back to RainViewer
+          console.log('Switching to RainViewer due to NEXRAD issues');
+          setRadarSource('rainviewer');
         }
       }
     };
@@ -1301,7 +1278,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             variant={isAnimating ? "destructive" : "default"}
             size="sm"
             className="text-xs px-2"
-            disabled={radarFrames.length < 2}
+            disabled={radarSource === 'nexrad' || radarFrames.length < 2}
           >
             {isAnimating ? 'Stop' : 'Play'}
           </Button>
@@ -1321,7 +1298,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             <div className="text-xs sm:text-sm text-white">{radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'}</div>
           </div>
           <div className="text-xs text-slate-400">
-            {radarSource === 'rainviewer' ? 'Global Coverage (Radar Only)' : 'US High-Resolution (Full Detection)'}
+            {radarSource === 'rainviewer' ? 'Global Coverage (Animated)' : 'US High-Resolution (Static)'}
           </div>
         </div>
       </div>
