@@ -17,6 +17,7 @@ interface Storm {
   speed: number;
   type: string;
   description?: string;
+  detectedAt?: number; // Timestamp for age-based coloring
 }
 
 interface StormMapProps {
@@ -275,19 +276,31 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     stormMarkersRef.current.forEach(marker => map.removeLayer(marker));
     stormMarkersRef.current = [];
 
-    // Add new storm markers positioned over radar intensity areas
+    // Add new storm markers with Blitzortung-style real-time detection
     storms.forEach(storm => {
+      const stormAge = Date.now() - (storm.detectedAt || Date.now());
+      const ageMinutes = stormAge / (1000 * 60);
+      
+      // Blitzortung-style color coding: white for recent, fading to dark red for older
+      const getStormDisplayColor = (intensity: number, ageMinutes: number): string => {
+        if (ageMinutes < 5) return '#ffffff'; // Fresh white
+        if (ageMinutes < 10) return '#ffff66'; // Recent yellow
+        if (ageMinutes < 15) return '#ff6600'; // Moderate orange
+        if (ageMinutes < 20) return '#ff3300'; // Older red
+        return '#990000'; // Old dark red
+      };
+      
       const marker = window.L.circleMarker([storm.lat, storm.lon], {
-        radius: Math.max(10, storm.intensity / 6),
-        fillColor: getStormColor(storm.intensity),
-        color: '#ffffff',
-        weight: 2,
-        opacity: 1,
-        fillOpacity: 0.9,
-        className: 'storm-marker pulsing-marker'
+        radius: Math.max(6, Math.min(12, storm.intensity / 5)),
+        fillColor: getStormDisplayColor(storm.intensity, ageMinutes),
+        color: '#000000',
+        weight: 1,
+        opacity: Math.max(0.3, 1 - (ageMinutes / 30)), // Fade over 30 minutes
+        fillOpacity: Math.max(0.4, 1 - (ageMinutes / 25)),
+        className: 'storm-detection-marker'
       }).addTo(map);
 
-      // Enhanced popup with directional information like "Heavy Storm (55dBZ) NE of you"
+      // Blitzortung-style minimal popup with detection info
       const getStormIntensityName = (intensity: number): string => {
         if (intensity >= 65) return 'Extreme Storm';
         if (intensity >= 55) return 'Severe Storm';
@@ -297,12 +310,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         return 'Weak Storm';
       };
 
+      const detectionTime = new Date(storm.detectedAt || Date.now()).toLocaleTimeString();
       marker.bindPopup(`
-        <div class="text-slate-200 min-w-56">
-          <strong>${getStormIntensityName(storm.intensity)} (${storm.intensity.toFixed(0)}dBZ)</strong><br>
-          <span class="text-sm">${getDirectionName(storm.direction)} of you with ${storm.type.toLowerCase()}</span><br>
-          <span class="text-sm">${formatDistance(storm.distance)} away moving ${getDirectionName(storm.direction)} at ${formatSpeed(storm.speed)}</span><br>
-          <span class="text-xs text-slate-400 mt-1 block">${storm.description || ''}</span>
+        <div style="color: #000; font-size: 11px; line-height: 1.3; min-width: 140px;">
+          <strong>Storm Detection</strong><br>
+          <span style="color: #666;">dBZ: ${storm.intensity.toFixed(0)}</span><br>
+          <span style="color: #666;">${formatDistance(storm.distance)} ${getDirectionName(storm.direction)}</span><br>
+          <span style="color: #888; font-size: 10px;">Detected: ${detectionTime}</span>
         </div>
       `);
 
@@ -342,11 +356,21 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   };
 
   return (
-    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">
-          Live Weather Radar - {radarRange} Mile Range
-        </h2>
+    <div className="bg-slate-900/80 rounded-xl p-4 border border-slate-600/50">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold text-white">
+            Storm Tracker
+          </h2>
+          <div className="flex items-center gap-3 text-sm">
+            <div className="bg-slate-800 px-2 py-1 rounded text-white">
+              {storms.length} storms detected
+            </div>
+            <div className="text-slate-400">
+              Range: {radarRange} miles
+            </div>
+          </div>
+        </div>
         
         <div className="flex items-center gap-2">
           <Button
@@ -354,14 +378,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             variant={showSectorGrid ? "default" : "outline"}
             size="sm"
           >
-            {showSectorGrid ? "Hide" : "Show"} Sector Grid
+            {showSectorGrid ? "Hide" : "Show"} Grid
           </Button>
           <Button
             onClick={refreshRadar}
             variant="default"
             size="sm"
           >
-            🔄 Refresh Radar
+            Refresh
           </Button>
         </div>
       </div>
@@ -369,33 +393,29 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       <div className="relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden" style={{ height: '500px' }}>
         <div ref={mapRef} className="w-full h-full"></div>
         
-        {/* NEXRAD Radar Legend */}
+        {/* Storm Age Legend (Blitzortung style) */}
         <div className="absolute top-2 right-2 z-[1000] bg-slate-900/90 p-2 rounded border border-slate-700 text-xs">
-          <div className="font-semibold text-white mb-1">NEXRAD dBZ</div>
+          <div className="font-semibold text-white mb-1">Storm Age</div>
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(64, 196, 255)' }}></div>
-              <span className="text-slate-300">5-15</span>
+              <div className="w-3 h-3 rounded-full border border-black" style={{ backgroundColor: '#ffffff' }}></div>
+              <span className="text-slate-300">0-5 min</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(0, 255, 0)' }}></div>
-              <span className="text-slate-300">20-30</span>
+              <div className="w-3 h-3 rounded-full border border-black" style={{ backgroundColor: '#ffff66' }}></div>
+              <span className="text-slate-300">5-10 min</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 255, 0)' }}></div>
-              <span className="text-slate-300">35-40</span>
+              <div className="w-3 h-3 rounded-full border border-black" style={{ backgroundColor: '#ff6600' }}></div>
+              <span className="text-slate-300">10-15 min</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 140, 0)' }}></div>
-              <span className="text-slate-300">45-50</span>
+              <div className="w-3 h-3 rounded-full border border-black" style={{ backgroundColor: '#ff3300' }}></div>
+              <span className="text-slate-300">15-20 min</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 0, 0)' }}></div>
-              <span className="text-slate-300">55-60</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-2" style={{ backgroundColor: 'rgb(255, 0, 255)' }}></div>
-              <span className="text-slate-300">65+</span>
+              <div className="w-3 h-3 rounded-full border border-black" style={{ backgroundColor: '#990000' }}></div>
+              <span className="text-slate-300">20+ min</span>
             </div>
           </div>
         </div>
