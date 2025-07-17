@@ -545,32 +545,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get NEXRAD timestamps for animation
+  // Get NEXRAD timestamps for animation using authentic Iowa Mesonet API
   app.get('/api/nexrad/timestamps/:site', async (req, res) => {
     try {
       const { site } = req.params;
       
-      // Generate timestamps for NEXRAD animation - use predictable schedule
-      const timestamps = [];
-      const now = new Date();
+      // Try multiple API approaches for authentic NEXRAD data
+      const apiAttempts = [
+        `https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=${site}&product=n0q`,
+        `https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=${site}`,
+        `https://mesonet.agron.iastate.edu/json/ridge_current.json?radar=${site}`,
+      ];
       
-      // NEXRAD updates every 5-10 minutes, generate 8 recent frames
-      for (let i = 7; i >= 0; i--) {
-        const timestamp = new Date(now.getTime() - (i * 7 * 60 * 1000)); // Every 7 minutes
-        const year = timestamp.getUTCFullYear();
-        const month = String(timestamp.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(timestamp.getUTCDate()).padStart(2, '0');
-        const hour = String(timestamp.getUTCHours()).padStart(2, '0');
-        const minute = String(Math.floor(timestamp.getUTCMinutes() / 5) * 5).padStart(2, '0');
-        
-        timestamps.push(`${year}${month}${day}${hour}${minute}`);
+      for (const apiUrl of apiAttempts) {
+        try {
+          console.log(`Attempting NEXRAD API: ${apiUrl}`);
+          const response = await fetch(apiUrl, {
+            timeout: 5000,
+            headers: {
+              'User-Agent': 'StormTracker/1.0'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`API response for ${site}:`, JSON.stringify(data).substring(0, 200));
+            
+            let timestamps = data.scans || data.times || [];
+            
+            if (timestamps.length > 0) {
+              const recentTimestamps = timestamps.slice(-8);
+              console.log(`✅ Success: Fetched ${recentTimestamps.length} authentic NEXRAD timestamps for ${site}`);
+              res.json({ timestamps: recentTimestamps, site });
+              return;
+            }
+          }
+        } catch (apiError) {
+          console.log(`API attempt failed: ${apiError.message}`);
+          continue;
+        }
       }
       
-      console.log(`Generated ${timestamps.length} NEXRAD animation frames for ${site}`);
-      res.json({ timestamps, site });
+      // All authentic APIs failed - return error for data integrity
+      console.error(`❌ All NEXRAD API sources failed for site ${site}. No authentic timestamps available.`);
+      res.status(503).json({ 
+        error: 'NEXRAD data temporarily unavailable', 
+        message: 'Unable to fetch authentic radar timestamps from Iowa Mesonet services',
+        site 
+      });
+      
     } catch (error) {
       console.error('NEXRAD timestamps error:', error);
-      res.json({ timestamps: ['current'], site: req.params.site }); // Always return something
+      res.status(500).json({ error: 'Failed to fetch timestamps' });
     }
   });
 
