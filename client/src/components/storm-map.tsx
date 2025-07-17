@@ -63,6 +63,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const animationSpeedRef = useRef<number>(800); // ms between frames
   const [sectorDbzData, setSectorDbzData] = useState<{[key: string]: number}>({});
   
+  // Auto-sampling state
+  const [isAutoSampling, setIsAutoSampling] = useState(false);
+  const autoSampleTimeoutRef = useRef<NodeJS.Timeout>();
+  const [sampleProgress, setSampleProgress] = useState(0);
+  
   // Use external storm filters if provided, otherwise use internal state
   const stormFilters = externalStormFilters || {
     light: true, moderate: true, heavy: true, severe: true
@@ -88,6 +93,42 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   }>>([]);
   const radarCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const highlightLayerRef = useRef<any>(null);
+
+  // Auto-sampling functionality with loading indicator
+  const triggerAutoSample = () => {
+    // Clear any existing timeout
+    if (autoSampleTimeoutRef.current) {
+      clearTimeout(autoSampleTimeoutRef.current);
+    }
+    
+    // Start loading indicator
+    setIsAutoSampling(true);
+    setSampleProgress(0);
+    
+    // Start progress animation
+    const progressInterval = setInterval(() => {
+      setSampleProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(progressInterval);
+          return 100;
+        }
+        return prev + 5; // Progress every 100ms for 2 seconds
+      });
+    }, 100);
+    
+    // Set timeout for 2 seconds
+    autoSampleTimeoutRef.current = setTimeout(async () => {
+      clearInterval(progressInterval);
+      setSampleProgress(100);
+      
+      // Perform the actual sampling
+      await sampleRadarDbz();
+      
+      // Hide loading indicator
+      setIsAutoSampling(false);
+      setSampleProgress(0);
+    }, 2000);
+  };
 
   // Initialize radar frames based on source
   useEffect(() => {
@@ -272,6 +313,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   }, [radarSource, onRadarSourceChange]);
 
+  // Cleanup auto-sampling timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSampleTimeoutRef.current) {
+        clearTimeout(autoSampleTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Initialize map
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
@@ -297,6 +347,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       }).addTo(map);
 
       mapInstanceRef.current = map;
+      
+      // Add map event listeners for auto-sampling
+      map.on('moveend zoomend', () => {
+        triggerAutoSample();
+      });
     };
 
     initMap();
@@ -1269,7 +1324,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             variant="outline"
             size="sm"
             className="text-xs px-2"
-            disabled={isAnimating}
+            disabled={isAnimating || isAutoSampling}
           >
             Sample dBZ
           </Button>
@@ -1305,6 +1360,24 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       <div className="relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden" style={{ height: '400px' }}>
         <div ref={mapRef} className="w-full h-full"></div>
+        
+        {/* Auto-sampling loading indicator */}
+        {isAutoSampling && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-slate-900/95 p-3 rounded-lg border border-slate-700 min-w-[200px]">
+            <div className="text-center text-white text-sm mb-2">
+              Auto-sampling in progress...
+            </div>
+            <div className="w-full bg-slate-700 rounded-full h-2">
+              <div 
+                className="bg-blue-500 h-2 rounded-full transition-all duration-100 ease-out"
+                style={{ width: `${sampleProgress}%` }}
+              ></div>
+            </div>
+            <div className="text-center text-slate-400 text-xs mt-1">
+              {Math.round(sampleProgress)}%
+            </div>
+          </div>
+        )}
         
         {/* Precipitation Waypoints Legend - Mobile Responsive */}
         <div className="absolute top-1 right-1 sm:top-2 sm:right-2 z-[1000] bg-slate-900/95 p-1.5 sm:p-2 rounded border border-slate-700 text-xs max-w-[140px] sm:max-w-none">
