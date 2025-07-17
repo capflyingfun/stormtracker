@@ -15,16 +15,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { query } = locationSearchSchema.parse(req.body);
       
-      // Try OpenWeather geocoding first
-      const response = await fetch(
-        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=1&appid=${API_KEYS.openweather}`
-      );
+      // Try different geocoding approaches
+      let locations = [];
       
-      if (!response.ok) {
-        throw new Error(`Geocoding API error: ${response.status}`);
+      // Check if it's a zip code (5 digits, optionally with +4)
+      const zipCodeMatch = query.match(/^\d{5}(-\d{4})?$/);
+      if (zipCodeMatch) {
+        // For zip codes, add US country code
+        const zipResponse = await fetch(
+          `https://api.openweathermap.org/geo/1.0/zip?zip=${query},US&appid=${API_KEYS.openweather}`
+        );
+        
+        if (zipResponse.ok) {
+          const zipData = await zipResponse.json();
+          locations = [{
+            lat: zipData.lat,
+            lon: zipData.lon,
+            name: zipData.name,
+            state: '', // Zip API doesn't return state
+            country: zipData.country
+          }];
+        }
       }
       
-      const locations = await response.json();
+      // If no results from zip code API or not a zip code, try direct geocoding
+      if (locations.length === 0) {
+        const response = await fetch(
+          `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=5&appid=${API_KEYS.openweather}`
+        );
+        
+        if (response.ok) {
+          locations = await response.json();
+        }
+      }
       
       if (locations.length > 0) {
         const location = locations[0];
