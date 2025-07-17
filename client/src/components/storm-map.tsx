@@ -102,6 +102,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     // Set timeout for 0.75 seconds - sample silently in background
     autoSampleTimeoutRef.current = setTimeout(async () => {
       if (mapInstanceRef.current && location) {
+        console.log('Auto-sampling triggered by map movement');
         await sampleRadarDbz();
       }
     }, 750);
@@ -321,18 +322,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       mapInstanceRef.current = map;
       
       // Add map event listeners for auto-sampling
-      map.on('moveend', () => {
-        triggerAutoSample();
-      });
-      map.on('zoomend', () => {
-        triggerAutoSample();
-      });
+      map.on('moveend', triggerAutoSample);
+      map.on('zoomend', triggerAutoSample);
     };
 
     initMap();
 
     return () => {
       if (mapInstanceRef.current) {
+        mapInstanceRef.current.off('moveend');
+        mapInstanceRef.current.off('zoomend');
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
@@ -585,7 +584,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const movement = calculateStormMovement(cluster);
       
       return {
-        id: `precip_${cluster.lat.toFixed(6)}_${cluster.lon.toFixed(6)}_${cluster.dbz}`,
+        id: `precip_${radarSource}_${cluster.lat.toFixed(6)}_${cluster.lon.toFixed(6)}_${cluster.dbz}_${Date.now()}`,
         lat: cluster.lat,
         lon: cluster.lon,
         intensity: cluster.dbz,

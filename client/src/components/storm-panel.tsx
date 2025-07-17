@@ -69,11 +69,16 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
     };
   }, []);
 
-  // Combine API storms with precipitation-detected storms, prioritizing precipitation data
-  const allStorms = [...precipitationStorms, ...storms];
+  // Clear precipitation storms when radar source changes
+  useEffect(() => {
+    setPrecipitationStorms([]);
+  }, [radarSource]);
+
+  // Use precipitation storms when available, otherwise use API storms
+  const effectiveStorms = precipitationStorms.length > 0 ? precipitationStorms : storms;
   
   // Sort storms by distance (closest first)
-  const sortedStorms = [...allStorms].sort((a, b) => a.distance - b.distance);
+  const sortedStorms = [...effectiveStorms].sort((a, b) => a.distance - b.distance);
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <div className="flex items-center gap-3 mb-4">
