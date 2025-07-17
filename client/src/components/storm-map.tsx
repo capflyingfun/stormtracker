@@ -155,9 +155,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       sectorGroup.addLayer(ring);
     });
 
-    // Draw angular sectors (every 30 degrees)
-    const angleSectors = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
-    angleSectors.forEach(angle => {
+    // Draw angular sectors (every 30 degrees) - ensure complete circle
+    for (let angle = 0; angle < 360; angle += 30) {
       const angleInRadians = (angle * Math.PI) / 180;
       const maxDistance = 30; // 30 miles
       const distanceInDegrees = maxDistance / 69.0; // Rough conversion
@@ -175,7 +174,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         dashArray: '2,4'
       });
       sectorGroup.addLayer(sectorLine);
-    });
+    }
 
     sectorGridRef.current = sectorGroup;
     if (showSectorGrid) {
