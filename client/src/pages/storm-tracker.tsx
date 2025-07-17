@@ -92,7 +92,7 @@ export default function StormTracker() {
 
   const handleDirectLocationSelect = async (selectedLocation: { lat: number; lon: number; name: string }) => {
     try {
-      // Use the smart search direct coordinates
+      // Use the search method but the backend already found the location
       await setLocationFromSearch(selectedLocation.name);
       if (isTracking) {
         refetchStormData();
@@ -100,6 +100,8 @@ export default function StormTracker() {
       }
     } catch (error) {
       console.error("Direct location selection failed:", error);
+      // Show user-friendly error
+      alert(`Unable to set location "${selectedLocation.name}". Please try a different search term.`);
     }
   };
 

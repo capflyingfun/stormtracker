@@ -32,6 +32,7 @@ export default function SimpleLocationSearch({
 
       if (response.ok) {
         const location = await response.json();
+        console.log('Location found:', location); // Debug log
         onLocationSelect({
           lat: location.lat,
           lon: location.lon,
@@ -39,7 +40,9 @@ export default function SimpleLocationSearch({
         });
         setQuery(""); // Clear input after successful search
       } else {
-        alert("Location not found. Please try a different search term.");
+        const errorData = await response.json();
+        console.error('Search error:', errorData);
+        alert(`Location not found: ${errorData.message || 'Please try a different search term.'}`);
       }
     } catch (error) {
       console.error('Location search failed:', error);
