@@ -26,6 +26,24 @@ const getDirectionName = (degrees: number): string => {
   return directions[index];
 };
 
+const getStormIntensityName = (intensity: number): string => {
+  if (intensity >= 65) return 'Extreme Storm';
+  if (intensity >= 55) return 'Severe Storm';
+  if (intensity >= 45) return 'Heavy Storm';
+  if (intensity >= 35) return 'Moderate Storm';
+  if (intensity >= 20) return 'Light Storm';
+  return 'Weak Storm';
+};
+
+const getStormColor = (intensity: number): string => {
+  if (intensity >= 65) return 'bg-purple-500';
+  if (intensity >= 55) return 'bg-red-500';
+  if (intensity >= 45) return 'bg-orange-500';
+  if (intensity >= 35) return 'bg-yellow-500';
+  if (intensity >= 20) return 'bg-green-500';
+  return 'bg-blue-500';
+};
+
 export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading }: StormPanelProps) {
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
@@ -45,18 +63,20 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
             <div key={storm.id} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
-                  <span className="font-semibold">{storm.type}</span>
+                  <div className={`w-3 h-3 rounded-full ${getStormColor(storm.intensity)} animate-pulse`}></div>
+                  <span className="font-semibold">{getStormIntensityName(storm.intensity)}</span>
                 </div>
                 <span className="text-sm text-slate-300">{storm.intensity.toFixed(0)} dBZ</span>
               </div>
+              
+              {/* Enhanced storm description with directional info */}
+              <p className="text-sm text-slate-300 mb-2">
+                {getStormIntensityName(storm.intensity)} ({storm.intensity.toFixed(0)}dBZ) {getDirectionName(storm.direction)} of you with {storm.type.toLowerCase()} {formatDistance(storm.distance)} away moving {getDirectionName(storm.direction)} at {formatSpeed(storm.speed)}
+              </p>
+              
               {storm.description && (
-                <p className="text-sm text-slate-300 mb-2">{storm.description}</p>
+                <p className="text-xs text-slate-400 mt-2">{storm.description}</p>
               )}
-              <div className="flex justify-between text-sm text-slate-400">
-                <span>{formatDistance(storm.distance)} {getDirectionName(storm.direction)}</span>
-                <span>Moving {formatSpeed(storm.speed)}</span>
-              </div>
             </div>
           ))
         )}

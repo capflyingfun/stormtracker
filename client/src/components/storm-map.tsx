@@ -209,25 +209,34 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     stormMarkersRef.current.forEach(marker => map.removeLayer(marker));
     stormMarkersRef.current = [];
 
-    // Add new storm markers
+    // Add new storm markers positioned over radar intensity areas
     storms.forEach(storm => {
       const marker = window.L.circleMarker([storm.lat, storm.lon], {
-        radius: Math.max(8, storm.intensity / 8),
+        radius: Math.max(10, storm.intensity / 6),
         fillColor: getStormColor(storm.intensity),
         color: '#ffffff',
         weight: 2,
-        opacity: 0.8,
-        fillOpacity: 0.6,
-        className: 'storm-marker'
+        opacity: 1,
+        fillOpacity: 0.9,
+        className: 'storm-marker pulsing-marker'
       }).addTo(map);
 
+      // Enhanced popup with directional information like "Heavy Storm (55dBZ) NE of you"
+      const getStormIntensityName = (intensity: number): string => {
+        if (intensity >= 65) return 'Extreme Storm';
+        if (intensity >= 55) return 'Severe Storm';
+        if (intensity >= 45) return 'Heavy Storm';
+        if (intensity >= 35) return 'Moderate Storm';
+        if (intensity >= 20) return 'Light Storm';
+        return 'Weak Storm';
+      };
+
       marker.bindPopup(`
-        <div class="text-slate-200">
-          <b>${storm.type} Cell</b><br>
-          Intensity: ${storm.intensity.toFixed(0)} dBZ<br>
-          Distance: ${formatDistance(storm.distance)} ${getDirectionName(storm.direction)}<br>
-          Speed: ${formatSpeed(storm.speed)}<br>
-          <em>${storm.description || ''}</em>
+        <div class="text-slate-200 min-w-56">
+          <strong>${getStormIntensityName(storm.intensity)} (${storm.intensity.toFixed(0)}dBZ)</strong><br>
+          <span class="text-sm">${getDirectionName(storm.direction)} of you with ${storm.type.toLowerCase()}</span><br>
+          <span class="text-sm">${formatDistance(storm.distance)} away moving ${getDirectionName(storm.direction)} at ${formatSpeed(storm.speed)}</span><br>
+          <span class="text-xs text-slate-400 mt-1 block">${storm.description || ''}</span>
         </div>
       `);
 
@@ -236,12 +245,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   }, [storms, formatDistance, formatSpeed]);
 
   const getStormColor = (intensity: number): string => {
-    if (intensity >= 60) return '#8B0000'; // Dark red - Extreme
-    if (intensity >= 50) return '#FF0000'; // Red - Severe
-    if (intensity >= 40) return '#FF4500'; // Orange red - Heavy
-    if (intensity >= 30) return '#FF8C00'; // Orange - Moderate
-    if (intensity >= 20) return '#FFD700'; // Gold - Light
-    return '#32CD32'; // Green - Very light
+    // NEXRAD-accurate color scheme matching dBZ values
+    if (intensity >= 65) return '#ff00ff'; // Purple - Extreme (65+ dBZ)
+    if (intensity >= 55) return '#ff0000'; // Red - Severe (55-60 dBZ)
+    if (intensity >= 45) return '#ff8c00'; // Orange - Heavy (45-50 dBZ)
+    if (intensity >= 35) return '#ffff00'; // Yellow - Moderate (35-40 dBZ)
+    if (intensity >= 20) return '#00ff00'; // Green - Light (20-30 dBZ)
+    return '#40c4ff'; // Light blue - Very light (5-15 dBZ)
   };
 
   const getDirectionName = (degrees: number): string => {
