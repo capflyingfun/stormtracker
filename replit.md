@@ -184,3 +184,10 @@ Preferred communication style: Simple, everyday language.
 - **Universal Precipitation Tracking**: Same dBZ sampling system works with both radar sources
 - **Source Toggle**: Easy switching between radar sources with live reload
 - **Proxy Integration**: Server-side proxy for RainViewer tiles ensures network compatibility
+
+### Mobile UI Optimization (July 17, 2025)
+- **Responsive Layout**: Fixed mobile interface extending too far to the side
+- **Flexible Button Layout**: Button groups wrap properly on small screens
+- **Compact Legend**: Mobile-optimized precipitation waypoints legend with constrained width
+- **Responsive Typography**: Text sizes scale appropriately for mobile devices
+- **Touch-Friendly Controls**: Adequate spacing and sizing for mobile interaction
