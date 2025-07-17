@@ -134,14 +134,16 @@ Preferred communication style: Simple, everyday language.
 - **Authentic Colors**: Implemented NEXRAD-accurate color scheme matching official dBZ values
 - **Map Performance**: Added preferCanvas option and better layer management
 
-### Storm Detection System
-- **Precision Positioning**: Enhanced storm detection to position markers directly over radar intensity areas
-- **NEXRAD Color Matching**: Storm markers use authentic NEXRAD colors (purple=extreme, red=severe, orange=heavy, yellow=moderate, green=light)
-- **Directional Information**: Added comprehensive storm descriptions: "Heavy Storm (52dBZ) NW of you with heavy rain 11.1 miles away moving NW at 23 mph"
-- **Real-time Accuracy**: Storm positions now align with actual green/yellow radar intensity patches
+### Advanced Storm Detection System
+- **Sector-Based Search**: Implemented radial grid search with 6 distance rings (every 5 miles) and 12 angular sectors (every 30°)
+- **Precise dBZ Analysis**: System searches each sector for highest reflectivity values, only reporting storms with 35+ dBZ
+- **Coordinate Accuracy**: Fixed longitude direction issues and implemented proper polar-to-cartesian coordinate conversion
+- **Storm Consolidation**: Intelligent grouping of nearby detections to prevent duplicates while preserving intensity data
+- **Directional Precision**: Storm positions now calculated using proper bearing calculations for accurate directional information
 
 ### User Interface Enhancements
 - **Dark Theme**: Optimized Leaflet map styling for dark theme consistency
 - **Enhanced Storm Panel**: Color-coded storm cards with intensity-based markers and detailed directional information
 - **Pulsing Animation**: Added subtle pulsing animation to storm markers for better visibility
 - **NEXRAD Legend**: Updated radar legend to show authentic dBZ scale values (5-15, 20-30, 35-40, 45-50, 55-60, 65+)
+- **Multi-Storm Detection**: System now accurately detects 5-11 storm cells based on actual radar intensity patterns
