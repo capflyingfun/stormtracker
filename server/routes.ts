@@ -179,7 +179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const distance of distanceRings) {
         for (const angle of angleSectors) {
           const sectorStorm = await searchSectorForStorms(centerLat, centerLon, distance, angle);
-          if (sectorStorm && sectorStorm.intensity >= 35) {
+          if (sectorStorm && sectorStorm.intensity >= 25) { // Lower threshold to catch more storms
             sectorStorms.push(sectorStorm);
           }
         }
