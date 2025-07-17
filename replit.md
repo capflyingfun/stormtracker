@@ -198,3 +198,10 @@ Preferred communication style: Simple, everyday language.
 - **Realistic Speed Detection**: Shows actual storm speeds (5-70 mph) or stationary when no movement detected
 - **Intelligent Storm Matching**: Matches storms across frames using distance (<8 miles) and intensity similarity (<20 dBZ)
 - **Movement Direction Accuracy**: Calculates true storm movement direction based on position changes between radar frames
+
+### Animated Radar System (July 17, 2025)
+- **Real-time Animation**: Play/Stop controls to cycle through multiple historical radar frames automatically
+- **Frame Counter Display**: Shows current frame position (e.g., "3/10") during animation playback
+- **Dynamic Frame Loading**: Each animated frame loads corresponding radar tiles and samples precipitation data
+- **Live Storm Tracking**: Animation enables accurate storm movement visualization across time
+- **Seamless Integration**: Animation system works with both RainViewer and NEXRAD radar sources

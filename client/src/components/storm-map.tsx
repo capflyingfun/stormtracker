@@ -81,8 +81,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const response = await fetch('/api/rainviewer');
           const data = await response.json();
           if (data.radar && data.radar.past) {
-            setRadarFrames(data.radar.past.map((frame: any) => frame.time));
-            setCurrentFrame(Math.max(0, data.radar.past.length - 1));
+            const frames = data.radar.past.map((frame: any) => frame.time);
+            setRadarFrames(frames);
+            setCurrentFrame(Math.max(0, frames.length - 1));
+            setCurrentFrameIndex(frames.length - 1); // Start with most recent frame
+            
+            console.log(`Loaded ${frames.length} radar frames for animation`);
           }
         } catch (error) {
           console.error('Failed to load RainViewer frames:', error);
@@ -138,10 +142,32 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   useEffect(() => {
     if (currentFrameIndex >= 0 && radarFrames[currentFrameIndex]) {
       const timestamp = radarFrames[currentFrameIndex];
-      loadRadarTiles(timestamp);
-      loadPrecipitationData(timestamp);
+      // Load radar layer for this frame
+      if (radarLayerRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(radarLayerRef.current);
+        radarLayerRef.current = null;
+      }
+      
+      // Load new radar layer for this timestamp
+      const map = mapInstanceRef.current;
+      if (map && window.L) {
+        const tileUrlTemplate = radarSource === 'rainviewer' 
+          ? `/api/rainviewer/tile/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`
+          : `https://tilecache.rainviewer.com/v2/radar/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`;
+
+        radarLayerRef.current = window.L.tileLayer(tileUrlTemplate, {
+          opacity: 0.6,
+          zIndex: 200,
+          attribution: radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'
+        });
+        
+        radarLayerRef.current.addTo(map);
+      }
+      
+      // Sample precipitation data for this frame
+      setTimeout(() => sampleRadarDbz(), 1000);
     }
-  }, [currentFrameIndex, radarFrames]);
+  }, [currentFrameIndex, radarFrames, radarSource]);
 
   // Initialize map
   useEffect(() => {
