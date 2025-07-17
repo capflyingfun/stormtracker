@@ -205,3 +205,11 @@ Preferred communication style: Simple, everyday language.
 - **Dynamic Frame Loading**: Each animated frame loads corresponding radar tiles and samples precipitation data
 - **Live Storm Tracking**: Animation enables accurate storm movement visualization across time
 - **Seamless Integration**: Animation system works with both RainViewer and NEXRAD radar sources
+- **NEXRAD Animation Fixed**: Generated time-based frame sequences for NEXRAD animation compatibility
+
+### Enhanced Storm Management (July 17, 2025)
+- **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
+- **Simplified Storm Display**: Removed speed and direction information for cleaner interface focusing on distance and intensity
+- **Intensity-Based Filtering**: Added filter controls above radar map with checkboxes for Light, Moderate, Heavy, and Severe storms
+- **Real-time Filter Updates**: Filter selections affect both map display and Storm Cell list simultaneously
+- **Interactive Filter Controls**: Color-coded checkboxes matching storm intensity visualization (yellow, orange, red, purple)

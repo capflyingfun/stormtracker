@@ -45,21 +45,23 @@ const getStormColor = (intensity: number): string => {
 };
 
 export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading }: StormPanelProps) {
+  // Sort storms by distance (closest first)
+  const sortedStorms = [...storms].sort((a, b) => a.distance - b.distance);
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <div className="flex items-center gap-3 mb-4">
         <div className="text-2xl">⚡</div>
-        <h2 className="text-xl font-semibold">Storm Cells ({storms.length})</h2>
+        <h2 className="text-xl font-semibold">Storm Cells ({sortedStorms.length})</h2>
         {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-400" />}
       </div>
       
       <div className="space-y-3">
-        {storms.length === 0 ? (
+        {sortedStorms.length === 0 ? (
           <p className="text-slate-400 text-center py-8">
             {isLoading ? 'Detecting storms...' : 'No storms detected in your area'}
           </p>
         ) : (
-          storms.map((storm) => (
+          sortedStorms.map((storm) => (
             <div 
               key={storm.id} 
               className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50"
@@ -72,9 +74,9 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                 <span className="text-sm text-slate-300">{storm.intensity.toFixed(0)} dBZ</span>
               </div>
               
-              {/* Enhanced storm description with directional info */}
+              {/* Simplified storm description with distance only */}
               <p className="text-sm text-slate-300 mb-2">
-                {getStormIntensityName(storm.intensity)} ({storm.intensity.toFixed(0)}dBZ) {getDirectionName(storm.direction)} of you with {storm.type.toLowerCase()} {formatDistance(storm.distance)} away {storm.speed > 0 ? `moving ${getDirectionName((storm as any).movementDirection || storm.direction)} at ${formatSpeed(storm.speed)}` : '(stationary)'}
+                {formatDistance(storm.distance)} {getDirectionName(storm.direction)}
               </p>
               
 
