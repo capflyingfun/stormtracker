@@ -205,9 +205,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     // Only trigger if we have a map and location
     if (!mapInstanceRef.current || !location) return;
     
-    // Clear existing waypoints and storm data when switching sources
+    // Clear existing waypoints when switching sources
     setPrecipitationPoints([]);
-    setStormData([]);
     setRadarFrameHistory([]);
     
     // Clear waypoint markers from map
