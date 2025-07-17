@@ -317,12 +317,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const calculateStormMovement = (currentCluster: any): {speed: number, direction: number} => {
     // Need at least 2 frames for comparison
     if (radarFrameHistory.length < 2) {
+      console.log(`Not enough frames for movement calculation: ${radarFrameHistory.length} frames available`);
       return {speed: 0, direction: 0};
     }
 
     // Get the most recent previous frame (not current)
     const previousFrame = radarFrameHistory[radarFrameHistory.length - 2];
     const timeDiffMinutes = (Date.now() - previousFrame.timestamp) / 1000 / 60; // minutes
+    
+    console.log(`Calculating movement: ${timeDiffMinutes.toFixed(1)} minutes between frames`);
     
     // Find closest matching storm cell in previous frame
     let bestMatch = null;
@@ -332,15 +335,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const distance = calculateDistance(currentCluster.lat, currentCluster.lon, prevPoint.lat, prevPoint.lon);
       const intensityDiff = Math.abs(currentCluster.dbz - prevPoint.dbz);
       
-      // Match criteria: within 8 miles and similar intensity (within 20 dBZ)
-      if (distance <= 8 && intensityDiff <= 20 && distance < minDistance) {
+      // Match criteria: within 8 miles and similar intensity (within 25 dBZ)
+      if (distance <= 8 && intensityDiff <= 25 && distance < minDistance) {
         minDistance = distance;
         bestMatch = prevPoint;
       }
     }
 
-    if (!bestMatch || minDistance < 0.1 || timeDiffMinutes < 1) {
-      // No good match found or too close/recent - show as stationary
+    if (!bestMatch) {
+      console.log(`No match found for storm at ${currentCluster.lat.toFixed(3)}, ${currentCluster.lon.toFixed(3)} (${currentCluster.dbz} dBZ)`);
       return {speed: 0, direction: 0};
     }
 
@@ -350,12 +353,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const speed = distanceMiles / timeHours; // mph
     const direction = calculateBearing(bestMatch.lat, bestMatch.lon, currentCluster.lat, currentCluster.lon);
 
-    // Filter out unrealistic speeds (storms typically move 5-70 mph)
-    if (speed >= 5 && speed <= 70) {
+    console.log(`Storm moved ${distanceMiles.toFixed(2)} miles in ${timeDiffMinutes.toFixed(1)} min = ${speed.toFixed(1)} mph @ ${direction.toFixed(0)}°`);
+
+    // Filter out unrealistic speeds (storms typically move 3-70 mph)
+    if (speed >= 3 && speed <= 70 && distanceMiles >= 0.2) {
       return {speed: Math.round(speed), direction: Math.round(direction)};
     }
 
-    // No realistic movement detected
+    // Movement too slow or too fast - show as stationary
     return {speed: 0, direction: 0};
   };
 
@@ -846,7 +851,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           // Keep last 10 frames (about 15-20 minutes of history)
           const updatedHistory = [...prev, newFrame].slice(-10);
           
-          console.log(`Radar frame stored. History: ${updatedHistory.length} frames spanning ${updatedHistory.length > 1 ? Math.round((currentTimestamp - updatedHistory[0].timestamp) / 1000 / 60) : 0} minutes`);
+          console.log(`Radar frame stored. History: ${updatedHistory.length} frames spanning ${updatedHistory.length > 1 ? Math.round((currentTimestamp - updatedHistory[0].timestamp) / 1000 / 60) : 0} minutes. Current frame has ${precipitationPoints.length} points.`);
           
           return updatedHistory;
         });
