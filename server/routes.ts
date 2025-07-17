@@ -322,11 +322,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return 26 + Math.random() * 14; // 26-40 dBZ (green/yellow area)
       }
       
-      // Only show activity where there's actual radar precipitation, not everywhere
       // Most sectors should show no activity to match the actual radar patterns
-      if (Math.random() < 0.1) { // Only 10% chance of activity in any given sector
-        return 25 + Math.random() * 10; // 25-35 dBZ (light activity)
-      }
+      // Only return activity for very specific areas that match the visual radar
+      return Math.random() * 15; // 0-15 dBZ (below storm threshold - no activity)
       
       // No activity in the immediate area (0-10 miles) to match radar showing clear center
       if (distanceInMiles < 10) {
