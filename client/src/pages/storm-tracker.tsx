@@ -215,7 +215,7 @@ export default function StormTracker() {
             {/* Storm Data Grid - Moved below radar */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mt-4 sm:mt-6">
               <StormPanel
-                storms={currentRadarSource === 'nexrad' ? filteredStorms : []}
+                storms={filteredStorms}
                 useMetric={useMetric}
                 formatDistance={formatDistance}
                 formatSpeed={formatSpeed}

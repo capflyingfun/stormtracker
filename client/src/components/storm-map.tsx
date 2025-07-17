@@ -101,7 +101,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     
     // Set timeout for 0.75 seconds - sample silently in background
     autoSampleTimeoutRef.current = setTimeout(async () => {
-      await sampleRadarDbz();
+      if (mapInstanceRef.current && location) {
+        await sampleRadarDbz();
+      }
     }, 750);
   };
 
@@ -583,7 +585,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const movement = calculateStormMovement(cluster);
       
       return {
-        id: `storm_${Date.now()}_${index}`,
+        id: `precip_${cluster.lat.toFixed(6)}_${cluster.lon.toFixed(6)}_${cluster.dbz}`,
         lat: cluster.lat,
         lon: cluster.lon,
         intensity: cluster.dbz,
@@ -600,6 +602,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     window.dispatchEvent(new CustomEvent('precipitationStormData', {
       detail: stormCells
     }));
+
+
   };
 
   // Calculate bearing between two points
