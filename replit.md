@@ -215,12 +215,12 @@ Preferred communication style: Simple, everyday language.
 - **Interactive Filter Controls**: Color-coded checkboxes matching storm intensity visualization (yellow, orange, red, purple)
 
 ### NWS-Standard dBZ Color Coding (July 17, 2025)
-- **Authentic Meteorological Colors**: Implemented National Weather Service standard dBZ color scale from 5-70+ dBZ
+- **Authentic Meteorological Colors**: Implemented National Weather Service standard dBZ color scale from 20-90 dBZ
 - **Scientific Accuracy**: Colors match official weather radar displays used by meteorologists
 - **Marshall-Palmer Rainfall Rates**: Added calculated rainfall rates (mm/h and in/h) using standard meteorological formula
-- **Precipitation Type Classification**: Detailed precipitation descriptions from trace/mist to extreme rain/large hail
-- **Updated Filter Categories**: Reorganized filters to match meteorological standards:
-  - Trace/Mist (5-19 dBZ): Dark blue - 0.07-0.3 mm/h
+- **Precipitation Type Classification**: Detailed precipitation descriptions from light rain to extreme rain/large hail
+- **Meaningful Precipitation Only**: Removed trace/mist values below 20 dBZ for cleaner display
+- **Simplified Filter Categories**: Three categories for meaningful precipitation:
   - Light Rain (20-34 dBZ): Bright green - 0.6-2.7 mm/h  
   - Moderate-Heavy Rain (35-54 dBZ): Yellow to red - 5.6-48.6 mm/h
   - Very Heavy Rain/Hail (55+ dBZ): Dark red to white - 100+ mm/h with hail potential
