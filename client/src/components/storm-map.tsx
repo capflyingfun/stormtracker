@@ -472,40 +472,22 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     if (!map || !radarLayerRef.current) return;
 
     try {
-      // Create a hidden canvas to sample radar tile data
-      const canvas = document.createElement('canvas');
-      canvas.width = 512;
-      canvas.height = 512;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
       // Get map bounds and center
-      const bounds = map.getBounds();
       const center = map.getCenter();
       const zoom = map.getZoom();
 
-      // Calculate tile coordinates for current view
-      const tileX = Math.floor((center.lng + 180) / 360 * Math.pow(2, zoom));
-      const tileY = Math.floor((1 - Math.log(Math.tan(center.lat * Math.PI / 180) + 1 / Math.cos(center.lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
-
-      // Load the current NEXRAD tile
-      const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tileX}/${tileY}.png`;
+      // Calculate multiple tiles around the center to get better coverage
+      const tilesToCheck = [];
+      const baseTileX = Math.floor((center.lng + 180) / 360 * Math.pow(2, zoom));
+      const baseTileY = Math.floor((1 - Math.log(Math.tan(center.lat * Math.PI / 180) + 1 / Math.cos(center.lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
       
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve();
-        };
-        img.onerror = reject;
-        img.src = tileUrl;
-      });
+      // Check 3x3 grid of tiles around center
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          tilesToCheck.push({ x: baseTileX + dx, y: baseTileY + dy });
+        }
+      }
 
-      // Sample dBZ values in 30-mile radius sectors
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
       const newSectorData: {[key: string]: number} = {};
 
       // Define sectors: 12 angular sectors (30° each) × 6 distance rings (5-mile steps)
@@ -515,41 +497,80 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const distance = ring * 5;
           const sectorKey = `${distance}-${angle}`;
           
-          // Sample multiple points within each sector
-          let maxDbz = 0;
-          const samplePoints = 20; // Number of points to sample per sector
+          // Calculate the geographic center of this sector
+          const sectorAngleRad = ((angle + 15) * Math.PI) / 180; // Middle of sector
+          const sectorDistance = distance - 2.5; // Middle of ring
           
-          for (let i = 0; i < samplePoints; i++) {
-            // Random point within the sector
-            const randomAngle = angle + (Math.random() - 0.5) * 30;
-            const randomDistance = (ring - 1) * 5 + Math.random() * 5;
+          // Convert sector position to geographic coordinates
+          const sectorLat = center.lat + (sectorDistance * Math.cos(sectorAngleRad)) / 69.0;
+          const sectorLon = center.lng + (sectorDistance * Math.sin(sectorAngleRad)) / (69.0 * Math.cos(center.lat * Math.PI / 180));
+          
+          // Find which tile contains this sector
+          const tileX = Math.floor((sectorLon + 180) / 360 * Math.pow(2, zoom));
+          const tileY = Math.floor((1 - Math.log(Math.tan(sectorLat * Math.PI / 180) + 1 / Math.cos(sectorLat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+          
+          // Calculate pixel position within the tile
+          const tileSize = 256;
+          const pixelX = Math.floor(((sectorLon + 180) / 360 * Math.pow(2, zoom) - tileX) * tileSize);
+          const pixelY = Math.floor(((1 - Math.log(Math.tan(sectorLat * Math.PI / 180) + 1 / Math.cos(sectorLat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom) - tileY) * tileSize);
+          
+          // Sample the radar data at this location
+          try {
+            const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tileX}/${tileY}.png`;
             
-            // Convert polar to pixel coordinates
-            const angleRad = (randomAngle * Math.PI) / 180;
-            const pixelRadius = (randomDistance / 30) * (canvas.width / 2);
+            const canvas = document.createElement('canvas');
+            canvas.width = tileSize;
+            canvas.height = tileSize;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) continue;
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
             
-            const pixelX = Math.floor(canvas.width / 2 + pixelRadius * Math.cos(angleRad));
-            const pixelY = Math.floor(canvas.height / 2 - pixelRadius * Math.sin(angleRad));
+            await new Promise<void>((resolve, reject) => {
+              img.onload = () => {
+                ctx.drawImage(img, 0, 0);
+                resolve();
+              };
+              img.onerror = () => resolve(); // Continue on error
+              img.src = tileUrl;
+            });
+
+            // Sample the pixel data
+            const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
+            const data = imageData.data;
             
-            // Ensure coordinates are within bounds
-            if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
-              const pixelIndex = (pixelY * canvas.width + pixelX) * 4;
-              const r = data[pixelIndex];
-              const g = data[pixelIndex + 1];
-              const b = data[pixelIndex + 2];
-              const alpha = data[pixelIndex + 3];
-              
-              // Only process non-transparent pixels
-              if (alpha > 0) {
-                const dbz = colorToDbz(r, g, b);
-                if (dbz > maxDbz) {
-                  maxDbz = dbz;
+            // Sample multiple points around the sector center
+            let maxDbz = 0;
+            const sampleRadius = 10; // Sample in 10-pixel radius
+            
+            for (let dx = -sampleRadius; dx <= sampleRadius; dx += 2) {
+              for (let dy = -sampleRadius; dy <= sampleRadius; dy += 2) {
+                const sampleX = Math.max(0, Math.min(tileSize - 1, pixelX + dx));
+                const sampleY = Math.max(0, Math.min(tileSize - 1, pixelY + dy));
+                
+                const pixelIndex = (sampleY * tileSize + sampleX) * 4;
+                const r = data[pixelIndex];
+                const g = data[pixelIndex + 1];
+                const b = data[pixelIndex + 2];
+                const alpha = data[pixelIndex + 3];
+                
+                // Only process non-transparent pixels
+                if (alpha > 0) {
+                  const dbz = colorToDbz(r, g, b);
+                  if (dbz > maxDbz) {
+                    maxDbz = dbz;
+                  }
                 }
               }
             }
+            
+            newSectorData[sectorKey] = maxDbz;
+            
+          } catch (error) {
+            // Skip this sector on error
+            newSectorData[sectorKey] = 0;
           }
-          
-          newSectorData[sectorKey] = maxDbz;
         }
       }
 
