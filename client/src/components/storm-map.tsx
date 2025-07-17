@@ -42,6 +42,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const rangeCircleRef = useRef<any>(null);
   const stormMarkersRef = useRef<any[]>([]);
   const sectorGridRef = useRef<any>(null);
+  const sectorHighlightsRef = useRef<any>(null);
   
   const [isAnimating, setIsAnimating] = useState(false);
   const [showSectorGrid, setShowSectorGrid] = useState(true);
@@ -182,12 +183,93 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   };
 
+  // Add sector highlights for areas with storm activity
+  const addSectorHighlights = () => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.L) return;
+
+    // Remove existing sector highlights
+    if (sectorHighlightsRef.current) {
+      map.removeLayer(sectorHighlightsRef.current);
+    }
+
+    const highlightGroup = window.L.layerGroup();
+    const centerLat = location.lat;
+    const centerLon = location.lon;
+
+    // Highlight sectors that have storms
+    storms.forEach(storm => {
+      // Calculate which sector this storm is in
+      const distance = storm.distance;
+      const angle = storm.direction;
+      
+      // Find the distance ring (5-mile increments)
+      const ringDistance = Math.ceil(distance / 5) * 5;
+      
+      // Find the angular sector (30-degree increments)
+      const sectorAngle = Math.floor(angle / 30) * 30;
+      
+      // Create sector highlight
+      const angleInRadians = (sectorAngle * Math.PI) / 180;
+      const nextAngleInRadians = ((sectorAngle + 30) * Math.PI) / 180;
+      
+      const innerRadius = Math.max(0, ringDistance - 5);
+      const outerRadius = ringDistance;
+      
+      // Create sector polygon points
+      const points = [];
+      const numPoints = 20; // More points for smoother curves
+      
+      // Inner arc
+      for (let i = 0; i <= numPoints; i++) {
+        const currentAngle = angleInRadians + (i / numPoints) * (nextAngleInRadians - angleInRadians);
+        const innerDistanceInDegrees = innerRadius / 69.0;
+        const lat = centerLat + (innerDistanceInDegrees * Math.cos(currentAngle));
+        const lon = centerLon + (innerDistanceInDegrees * Math.sin(currentAngle));
+        points.push([lat, lon]);
+      }
+      
+      // Outer arc (reverse order)
+      for (let i = numPoints; i >= 0; i--) {
+        const currentAngle = angleInRadians + (i / numPoints) * (nextAngleInRadians - angleInRadians);
+        const outerDistanceInDegrees = outerRadius / 69.0;
+        const lat = centerLat + (outerDistanceInDegrees * Math.cos(currentAngle));
+        const lon = centerLon + (outerDistanceInDegrees * Math.sin(currentAngle));
+        points.push([lat, lon]);
+      }
+      
+      // Create highlighted sector
+      const sectorHighlight = window.L.polygon(points, {
+        color: '#ff6600',
+        fillColor: '#ff6600',
+        fillOpacity: 0.2,
+        weight: 2,
+        opacity: 0.6,
+        dashArray: '5,3'
+      });
+      
+      highlightGroup.addLayer(sectorHighlight);
+    });
+
+    sectorHighlightsRef.current = highlightGroup;
+    if (showSectorGrid) {
+      sectorHighlightsRef.current.addTo(map);
+    }
+  };
+
   // Update sector grid when location or range changes
   useEffect(() => {
     if (mapInstanceRef.current && window.L) {
       addSectorGrid();
     }
   }, [location, radarRange, showSectorGrid]);
+
+  // Update sector highlights when storms change
+  useEffect(() => {
+    if (mapInstanceRef.current && window.L && storms.length > 0) {
+      addSectorHighlights();
+    }
+  }, [storms, showSectorGrid, location]);
 
   // Load radar layer
   const loadRadarLayer = (frameIndex?: number) => {
@@ -213,7 +295,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
         {
           tileSize: 256,
-          opacity: 0.8,
+          opacity: 0.8, // Full transparency for testing
           transparent: true,
           attribution: 'NEXRAD Radar © Iowa Environmental Mesonet',
           maxZoom: 12,
