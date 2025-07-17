@@ -155,8 +155,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       sectorGroup.addLayer(ring);
     });
 
-    // Draw angular sectors (every 45 degrees for cleaner look) - ensure complete circle
-    for (let angle = 0; angle < 360; angle += 45) {
+    // Draw angular sectors (every 30 degrees) - ensure complete circle
+    for (let angle = 0; angle < 360; angle += 30) {
       const angleInRadians = (angle * Math.PI) / 180;
       const maxDistance = 30; // 30 miles
       const distanceInDegrees = maxDistance / 69.0; // Rough conversion
@@ -213,8 +213,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         // Find the distance ring (5-mile increments)
         const ringDistance = Math.ceil(distance / 5) * 5;
         
-        // Find the angular sector (45-degree increments)
-        const sectorAngle = Math.floor(angle / 45) * 45;
+        // Find the angular sector (30-degree increments)
+        const sectorAngle = Math.floor(angle / 30) * 30;
         
         const sectorKey = `${ringDistance}-${sectorAngle}`;
         
@@ -224,7 +224,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         
         // Create sector highlight for current activity
         const angleInRadians = (sectorAngle * Math.PI) / 180;
-        const nextAngleInRadians = ((sectorAngle + 45) * Math.PI) / 180;
+        const nextAngleInRadians = ((sectorAngle + 30) * Math.PI) / 180;
         
         const innerRadius = Math.max(0, ringDistance - 5);
         const outerRadius = ringDistance;
