@@ -43,7 +43,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const stormMarkersRef = useRef<any[]>([]);
   const sectorGridRef = useRef<any>(null);
   const sectorHighlightsRef = useRef<any>(null);
-  const radarSectorsRef = useRef<any[]>([]);
   
   const [isAnimating, setIsAnimating] = useState(false);
   const [showSectorGrid, setShowSectorGrid] = useState(true);
@@ -51,8 +50,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [radarFrames, setRadarFrames] = useState<number[]>([]);
   const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer'); // RainViewer primary with NEXRAD fallback
   const animationIntervalRef = useRef<NodeJS.Timeout>();
-  const [sectorData, setSectorData] = useState<{[key: string]: number}>({});
-  const [showRadarSectors, setShowRadarSectors] = useState(false);
 
   // Initialize radar frames based on selected source
   useEffect(() => {
@@ -234,133 +231,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   };
 
-  // New sector-based radar scanning functionality
-  const drawRadarSectors = () => {
-    const map = mapInstanceRef.current;
-    if (!map || !window.L) return;
-
-    // Cleanup previous sectors
-    if (radarSectorsRef.current) {
-      radarSectorsRef.current.forEach(sector => {
-        try {
-          map.removeLayer(sector);
-        } catch (e) {
-          console.log('Error removing sector:', e);
-        }
-      });
-    }
-    radarSectorsRef.current = [];
-
-    const centerLatLng = { lat: location.lat, lng: location.lon };
-    const angleStep = 30; // 12 sectors
-    const ringStepMiles = 5;
-    const maxRadiusMiles = 30;
-    const newSectorData: {[key: string]: number} = {};
-
-    // Create sectors for each ring and angle
-    for (let r = 0; r < maxRadiusMiles; r += ringStepMiles) {
-      for (let angle = 0; angle < 360; angle += angleStep) {
-        const sectorKey = `${r + ringStepMiles}-${angle}`;
-        
-        // Create sector polygon points
-        const points = [centerLatLng];
-        
-        // Add arc points for the sector
-        for (let a = angle; a <= angle + angleStep; a += 5) {
-          const radiusMeters = (r + ringStepMiles) * 1609.34; // Convert miles to meters
-          const angleRad = (a * Math.PI) / 180;
-          
-          // Calculate destination point using basic geometry
-          const lat = centerLatLng.lat + (radiusMeters / 111320) * Math.cos(angleRad);
-          const lon = centerLatLng.lng + (radiusMeters / (111320 * Math.cos(centerLatLng.lat * Math.PI / 180))) * Math.sin(angleRad);
-          
-          points.push({ lat, lng: lon });
-        }
-        
-        // Add inner arc points if not the innermost ring
-        if (r > 0) {
-          for (let a = angle + angleStep; a >= angle; a -= 5) {
-            const radiusMeters = r * 1609.34;
-            const angleRad = (a * Math.PI) / 180;
-            
-            const lat = centerLatLng.lat + (radiusMeters / 111320) * Math.cos(angleRad);
-            const lon = centerLatLng.lng + (radiusMeters / (111320 * Math.cos(centerLatLng.lat * Math.PI / 180))) * Math.sin(angleRad);
-            
-            points.push({ lat, lng: lon });
-          }
-        }
-        
-        points.push(centerLatLng); // Close the sector
-
-        // Convert points to Leaflet format
-        const leafletPoints = points.map(p => [p.lat, p.lng]);
-
-        // Simulate dBZ sampling (replace with real radar data sampling later)
-        const simulatedDBZ = Math.floor(Math.random() * 70);
-        newSectorData[sectorKey] = simulatedDBZ;
-
-        // Determine sector color based on dBZ thresholds
-        let fillColor = 'transparent';
-        let fillOpacity = 0.05;
-        
-        if (simulatedDBZ >= 45) {
-          fillColor = 'red';
-          fillOpacity = 0.3;
-        } else if (simulatedDBZ >= 35) {
-          fillColor = 'orange';
-          fillOpacity = 0.25;
-        } else if (simulatedDBZ >= 25) {
-          fillColor = 'yellow';
-          fillOpacity = 0.15;
-        }
-
-        // Create sector polygon
-        const sectorPolygon = window.L.polygon(leafletPoints, {
-          color: fillColor === 'transparent' ? '#64748b' : fillColor,
-          fillColor: fillColor,
-          fillOpacity: fillOpacity,
-          weight: 1,
-          opacity: fillColor === 'transparent' ? 0.1 : 0.6,
-          className: 'radar-sector'
-        });
-
-        // Add popup with sector info
-        sectorPolygon.bindPopup(`
-          <b>Sector ${sectorKey}</b><br>
-          Range: ${r + ringStepMiles} miles<br>
-          Direction: ${angle}°<br>
-          dBZ: ${simulatedDBZ}
-        `);
-
-        sectorPolygon.addTo(map);
-        radarSectorsRef.current.push(sectorPolygon);
-      }
-    }
-
-    setSectorData(newSectorData);
-  };
-
-  // Toggle radar sector display
-  const toggleRadarSectors = () => {
-    setShowRadarSectors(!showRadarSectors);
-    if (!showRadarSectors) {
-      // Draw sectors when enabling
-      setTimeout(() => drawRadarSectors(), 100);
-    } else {
-      // Clear sectors when disabling
-      if (radarSectorsRef.current) {
-        radarSectorsRef.current.forEach(sector => {
-          try {
-            const map = mapInstanceRef.current;
-            if (map) map.removeLayer(sector);
-          } catch (e) {
-            console.log('Error removing sector:', e);
-          }
-        });
-        radarSectorsRef.current = [];
-      }
-    }
-  };
 
   // Add sector highlights for areas with current storm activity (live radar data)
   const addSectorHighlights = () => {
@@ -723,18 +593,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={toggleRadarSectors}
-              variant={showRadarSectors ? "default" : "ghost"}
-              size="sm"
-              className="h-7 px-3 text-xs"
-            >
-              {showRadarSectors ? 'Hide' : 'Show'} Sectors
-            </Button>
-            <div className="text-xs text-slate-400">
-              {radarSource === 'rainviewer' ? 'Global' : 'US High-Res'}
-            </div>
+          <div className="text-xs text-slate-400">
+            {radarSource === 'rainviewer' ? 'Global' : 'US High-Res'}
           </div>
         </div>
       </div>
@@ -744,20 +604,18 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         
         {/* Sector Activity Legend */}
         <div className="absolute top-2 right-2 z-[1000] bg-slate-900/90 p-2 rounded border border-slate-700 text-xs">
-          <div className="font-semibold text-white mb-1">
-            Radar Sectors {showRadarSectors ? `(${Object.keys(sectorData).length})` : ''}
-          </div>
+          <div className="font-semibold text-white mb-1">Live Activity</div>
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2 border border-black" style={{ backgroundColor: 'red' }}></div>
+              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ff3300' }}></div>
               <span className="text-slate-300">Heavy (45+ dBZ)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2 border border-black" style={{ backgroundColor: 'orange' }}></div>
+              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ff6600' }}></div>
               <span className="text-slate-300">Moderate (35+ dBZ)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-2 border border-black" style={{ backgroundColor: 'yellow' }}></div>
+              <div className="w-3 h-2 border border-black" style={{ backgroundColor: '#ffff00' }}></div>
               <span className="text-slate-300">Light (25+ dBZ)</span>
             </div>
             <div className="flex items-center gap-1">
@@ -765,11 +623,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               <span className="text-slate-400">No Activity</span>
             </div>
           </div>
-          {showRadarSectors && (
-            <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400">
-              30-mile radius • 12 sectors • 6 rings
-            </div>
-          )}
         </div>
         
         {/* Radar Info */}
