@@ -129,13 +129,19 @@ Preferred communication style: Simple, everyday language.
 - **Error Handling**: Enhanced error handling for failed geocoding attempts
 
 ### Interactive Radar Map Improvements
-- **Leaflet Integration**: Fixed Leaflet library loading with proper timeout handling
-- **RainViewer Radar**: Implemented live radar tiles from RainViewer API with 10-minute intervals
+- **NEXRAD Integration**: Replaced RainViewer with authentic NEXRAD/NWS radar data from Iowa Environmental Mesonet
+- **Dual Radar Sources**: Combined Iowa Environmental Mesonet and NWS Ridge Radar for comprehensive coverage
+- **Authentic Colors**: Implemented NEXRAD-accurate color scheme matching official dBZ values
 - **Map Performance**: Added preferCanvas option and better layer management
-- **Debugging**: Added console logging for radar frame loading diagnostics
+
+### Storm Detection System
+- **Precision Positioning**: Enhanced storm detection to position markers directly over radar intensity areas
+- **NEXRAD Color Matching**: Storm markers use authentic NEXRAD colors (purple=extreme, red=severe, orange=heavy, yellow=moderate, green=light)
+- **Directional Information**: Added comprehensive storm descriptions: "Heavy Storm (52dBZ) NW of you with heavy rain 11.1 miles away moving NW at 23 mph"
+- **Real-time Accuracy**: Storm positions now align with actual green/yellow radar intensity patches
 
 ### User Interface Enhancements
 - **Dark Theme**: Optimized Leaflet map styling for dark theme consistency
-- **Storm Markers**: Custom animated storm markers with intensity-based coloring
-- **Radar Controls**: Time slider for radar animation with play/pause functionality
-- **Responsive Design**: Mobile-optimized radar controls and map display
+- **Enhanced Storm Panel**: Color-coded storm cards with intensity-based markers and detailed directional information
+- **Pulsing Animation**: Added subtle pulsing animation to storm markers for better visibility
+- **NEXRAD Legend**: Updated radar legend to show authentic dBZ scale values (5-15, 20-30, 35-40, 45-50, 55-60, 65+)
