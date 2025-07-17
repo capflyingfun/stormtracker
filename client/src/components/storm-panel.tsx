@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 interface Storm {
@@ -52,8 +53,27 @@ const getRainfallRate = (dbz: number) => {
 };
 
 export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource }: StormPanelProps) {
+  const [precipitationStorms, setPrecipitationStorms] = useState<Storm[]>([]);
+
+  // Listen for precipitation storm data from the map component
+  useEffect(() => {
+    const handlePrecipitationStormData = (event: CustomEvent) => {
+      const stormCells = event.detail as Storm[];
+      setPrecipitationStorms(stormCells);
+    };
+
+    window.addEventListener('precipitationStormData', handlePrecipitationStormData as EventListener);
+    
+    return () => {
+      window.removeEventListener('precipitationStormData', handlePrecipitationStormData as EventListener);
+    };
+  }, []);
+
+  // Combine API storms with precipitation-detected storms, prioritizing precipitation data
+  const allStorms = [...precipitationStorms, ...storms];
+  
   // Sort storms by distance (closest first)
-  const sortedStorms = [...storms].sort((a, b) => a.distance - b.distance);
+  const sortedStorms = [...allStorms].sort((a, b) => a.distance - b.distance);
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <div className="flex items-center gap-3 mb-4">
@@ -65,10 +85,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
       <div className="space-y-3">
         {sortedStorms.length === 0 ? (
           <p className="text-slate-400 text-center py-8">
-            {radarSource === 'rainviewer' ? 
-              'Switch to NEXRAD for storm cell detection' : 
-              (isLoading ? 'Detecting storms...' : 'No storms detected in your area')
-            }
+            {isLoading ? 'Detecting storms...' : 'No storms detected in your area'}
           </p>
         ) : (
           sortedStorms.map((storm) => (

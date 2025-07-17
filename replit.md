@@ -276,3 +276,6 @@ Preferred communication style: Simple, everyday language.
 - **Source-Aware Tooltips**: Storm cell popups clearly indicate data source (NEXRAD vs RainViewer)
 - **Consistent Detection Accuracy**: Same clustering and filtering algorithms applied to both radar sources
 - **Professional dBZ Classification**: Full 5-color meteorological scale maintained across both radar sources
+- **Unified Storm List**: Both radar sources feed storm data into the same Storm Cells panel, sorted by distance
+- **Auto-Sampling for Both Sources**: 0.75-second auto-sampling works seamlessly with both NEXRAD and RainViewer
+- **Real-time Storm Integration**: Precipitation-detected storms from both sources appear immediately in the storm list
