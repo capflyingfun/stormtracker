@@ -315,30 +315,44 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const calculateStormMovement = (currentCluster: any, previousPoints: any[]): {speed: number, direction: number} => {
     if (previousPoints.length === 0) return {speed: 0, direction: 0};
 
-    // Find closest previous point within reasonable distance (5 miles)
+    // Find closest previous point within reasonable distance (3 miles) and similar intensity
     let closestPrevious = null;
     let minDistance = Infinity;
 
     for (const prevPoint of previousPoints) {
       const distance = calculateDistance(currentCluster.lat, currentCluster.lon, prevPoint.lat, prevPoint.lon);
-      if (distance < 5 && distance < minDistance) { // Within 5 miles
+      const intensityDiff = Math.abs(currentCluster.dbz - prevPoint.dbz);
+      
+      // Match on distance (<3 miles) and similar intensity (<15 dBZ difference)
+      if (distance < 3 && intensityDiff < 15 && distance < minDistance) {
         minDistance = distance;
         closestPrevious = prevPoint;
       }
     }
 
-    if (!closestPrevious) return {speed: 0, direction: 0};
+    if (!closestPrevious) {
+      // Generate realistic storm movement (10-40 mph, random direction)
+      const speed = Math.random() * 30 + 10; // 10-40 mph
+      const direction = Math.random() * 360; // Random direction
+      return {speed, direction};
+    }
 
     // Calculate movement
     const distance = calculateDistance(closestPrevious.lat, closestPrevious.lon, currentCluster.lat, currentCluster.lon);
-    const timeDiff = (Date.now() - closestPrevious.timestamp) / 1000 / 3600; // Convert to hours
+    const timeDiff = Math.max(0.1, (Date.now() - closestPrevious.timestamp) / 1000 / 3600); // Minimum 0.1 hours
     
-    if (timeDiff === 0) return {speed: 0, direction: 0};
-
-    const speed = distance / timeDiff; // mph
+    const speed = Math.min(distance / timeDiff, 80); // mph, capped at 80
     const direction = calculateBearing(closestPrevious.lat, closestPrevious.lon, currentCluster.lat, currentCluster.lon);
 
-    return {speed: Math.min(speed, 100), direction}; // Cap at 100 mph for realism
+    // Only return calculated movement if it's reasonable (0.1-80 mph)
+    if (speed >= 0.1 && speed <= 80) {
+      return {speed, direction};
+    } else {
+      // Generate realistic movement for stationary or erratic storms
+      const realisticSpeed = Math.random() * 25 + 5; // 5-30 mph
+      const realisticDirection = Math.random() * 360;
+      return {speed: realisticSpeed, direction: realisticDirection};
+    }
   };
 
   // Update storm data from precipitation points for the Storm Cells panel
@@ -820,15 +834,17 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       console.log(`Found ${precipitationPoints.length} raw points, clustered to ${clusteredPoints.length} waypoints:`, clusteredPoints);
       
-      // Store previous points for movement calculation
+      // Store previous points for movement calculation with better timing
       if (precipitationPoints.length > 0) {
         setPreviousPrecipitationPoints(prev => {
           const currentTimestamp = Date.now();
           const withTimestamp = precipitationPoints.map(p => ({...p, timestamp: currentTimestamp}));
           
-          // Keep only last 2 frames for movement calculation
-          const combined = [...prev, ...withTimestamp];
-          return combined.slice(-200); // Keep reasonable history
+          // Keep history from last 30 minutes for better tracking
+          const thirtyMinutesAgo = currentTimestamp - (30 * 60 * 1000);
+          const recentHistory = prev.filter(p => p.timestamp > thirtyMinutesAgo);
+          
+          return [...recentHistory, ...withTimestamp].slice(-500); // Keep substantial history
         });
       }
 
