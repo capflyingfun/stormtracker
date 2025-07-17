@@ -129,17 +129,17 @@ Preferred communication style: Simple, everyday language.
 - **Error Handling**: Enhanced error handling for failed geocoding attempts
 
 ### Interactive Radar Map Improvements
-- **RainViewer Integration**: Replaced complex radar simulation with proven RainViewer API for authentic global radar data
-- **Real-time Radar Frames**: Implemented animated radar loops using RainViewer's past frame data
-- **Authentic Precipitation Data**: Direct access to actual radar reflectivity data instead of simulated patterns
-- **Global Coverage**: RainViewer provides worldwide radar coverage with consistent data quality
-- **NEXRAD Fallback**: Maintains Iowa Environmental Mesonet as backup when RainViewer is unavailable
+- **Dual Radar Sources**: Implemented toggle between RainViewer (global) and NEXRAD (US high-resolution) radar data
+- **NEXRAD Primary**: NEXRAD set as primary radar source for reliability in Replit environment  
+- **RainViewer Optional**: RainViewer available as alternative but with network timeout handling
+- **Authentic Precipitation Data**: Direct access to actual radar reflectivity data from both sources
+- **Automatic Fallback**: Seamless fallback to NEXRAD when RainViewer experiences connectivity issues
 
 ### Advanced Storm Detection System
-- **RainViewer Data Integration**: Storm detection now analyzes real precipitation patterns from RainViewer API
+- **Multi-Source Data Integration**: Storm detection analyzes real precipitation patterns from NEXRAD and RainViewer APIs
 - **Sector-Based Search**: Maintained 6 distance rings (every 5 miles) and 12 angular sectors (every 30°)
-- **Reduced False Positives**: Significantly cleaner detection results matching actual radar patterns
-- **Authentic Storm Patterns**: Detection based on real weather systems instead of simulated data
+- **Fixed 30-Mile Radius**: Detection radius permanently set to 30 miles for simplified interface
+- **Authentic Storm Patterns**: Detection based on real weather systems from reliable radar sources
 - **Storm Consolidation**: Intelligent grouping of nearby detections to prevent duplicates while preserving intensity data
 - **Directional Precision**: Storm positions calculated using proper bearing calculations for accurate directional information
 
@@ -150,8 +150,9 @@ Preferred communication style: Simple, everyday language.
 - **Sector Highlighting**: Active precipitation sectors highlighted based on actual radar data
 - **Performance Optimized**: Fast, responsive interface with smooth radar layer transitions
 
-### API Architecture Updates
-- **RainViewer Backend**: Server-side integration with RainViewer API for storm detection
-- **Authentic Data Sources**: Eliminated radar simulation in favor of real-time precipitation data
-- **Error Handling**: Robust fallback system when primary radar sources are unavailable
-- **Performance Optimization**: Efficient radar frame caching and loading
+### Interface Simplification (July 17, 2025)
+- **Removed Detection Radius Slider**: Fixed radius at 30 miles, removed adjustable slider control
+- **Streamlined Controls**: Removed GPS and Search buttons, simplified to Enter-key search functionality
+- **Cleaned Button Layout**: Eliminated refresh button and other UI clutter for cleaner appearance
+- **Improved Error Handling**: Enhanced timeout handling and automatic source switching for radar reliability
+- **NEXRAD Default**: Set NEXRAD as default radar source due to better connectivity in Replit environment
