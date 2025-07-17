@@ -66,15 +66,18 @@ export default function SmartAddressSearch({
     }
   };
 
-  // Debounced search
+  // Debounced search with longer delay for mobile
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
+    // Longer delay for mobile to prevent excessive API calls while typing
+    const delay = window.innerWidth < 768 ? 500 : 200;
+    
     searchTimeoutRef.current = setTimeout(() => {
       fetchSuggestions(query);
-    }, 200);
+    }, delay);
 
     return () => {
       if (searchTimeoutRef.current) {
@@ -87,6 +90,12 @@ export default function SmartAddressSearch({
   const selectSuggestion = (suggestion: AddressSuggestion) => {
     setQuery(suggestion.display_name);
     setShowSuggestions(false);
+    // Keep focus on input for mobile after selection
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.blur();
+      }
+    }, 100);
     onLocationSelect({
       lat: suggestion.lat,
       lon: suggestion.lon,
@@ -203,8 +212,13 @@ export default function SmartAddressSearch({
                   setShowSuggestions(true);
                 }
               }}
-              className="pl-10 pr-4"
+              className="pl-10 pr-4 text-base md:text-sm h-12 md:h-10"
+              style={{ fontSize: '16px' }} // Prevent zoom on iOS
               disabled={isLoading}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
             />
             {isLoading && (
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -217,25 +231,33 @@ export default function SmartAddressSearch({
           {showSuggestions && suggestions.length > 0 && (
             <div
               ref={suggestionsRef}
-              className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto"
+              className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-50 max-h-80 md:max-h-64 overflow-y-auto"
             >
               {suggestions.map((suggestion, index) => (
                 <button
                   key={suggestion.id}
+                  onMouseDown={(e) => {
+                    // Prevent input from losing focus on mobile
+                    e.preventDefault();
+                  }}
                   onClick={() => selectSuggestion(suggestion)}
-                  className={`w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-600 last:border-b-0 transition-colors ${
+                  className={`w-full text-left px-4 py-4 md:py-3 hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-600 last:border-b-0 transition-colors touch-manipulation ${
                     index === selectedIndex ? 'bg-slate-50 dark:bg-slate-700' : ''
                   }`}
+                  style={{ 
+                    WebkitTapHighlightColor: 'transparent',
+                    touchAction: 'manipulation' 
+                  }}
                 >
                   <div className="flex items-start gap-3">
-                    <span className="text-lg mt-0.5 flex-shrink-0">
+                    <span className="text-xl md:text-lg mt-0.5 flex-shrink-0">
                       {getSuggestionIcon(suggestion.type)}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-slate-900 dark:text-slate-100 truncate">
+                      <div className="font-medium text-slate-900 dark:text-slate-100 truncate text-base md:text-sm">
                         {suggestion.display_name}
                       </div>
-                      <div className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                      <div className="text-sm md:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         {suggestion.type === 'postal_code' ? 'ZIP Code' : 
                          suggestion.type === 'address' ? 'Address' : 'Place'}
                         {suggestion.address.country && ` • ${suggestion.address.country}`}
@@ -252,11 +274,12 @@ export default function SmartAddressSearch({
           <Button
             onClick={onUseCurrentLocation}
             variant="outline"
-            size="icon"
-            className="flex-shrink-0"
+            className="flex-shrink-0 px-3 sm:px-4 py-3 sm:py-2 h-12 md:h-10 touch-manipulation"
             title="Use current location"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
-            <Navigation className="h-4 w-4" />
+            <Navigation className="h-5 w-5 sm:h-4 sm:w-4" />
+            <span className="ml-2 text-sm hidden sm:inline">GPS</span>
           </Button>
         )}
       </div>
