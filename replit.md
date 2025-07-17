@@ -218,9 +218,17 @@ Preferred communication style: Simple, everyday language.
 - **Professional Meteorological Standards**: Implemented precise 5-category dBZ color system (20-90 dBZ)
 - **Scientific Accuracy**: Colors and thresholds based on meteorological best practices
 - **Marshall-Palmer Rainfall Rates**: Added calculated rainfall rates (mm/h and in/h) using standard meteorological formula
+- **Enhanced Storm Cell Details**: Storm panel now shows comprehensive information including rainfall rates, coordinates, and movement data
 - **Comprehensive Precipitation Classification**: Five distinct categories covering all meaningful precipitation:
   - Light Rain (20-34 dBZ): Green - 0.6-2.7 mm/h
   - Moderate Rain (35-45 dBZ): Yellow - 5.6-23.7 mm/h
   - Heavy Rain (46-54 dBZ): Orange - 28.8-48.6 mm/h
   - Very Heavy Rain/Hail (55-60 dBZ): Red - 100-205 mm/h with hail potential
   - Extreme Thunderstorms (61+ dBZ): Purple - 250+ mm/h with large hail likely
+
+### Dual Radar Processing Systems (July 17, 2025)
+- **Separate Processing Engines**: Independent dBZ sampling systems for NEXRAD and RainViewer radar sources
+- **NEXRAD Precision**: US-focused system using authentic NOAA color mapping for maximum accuracy within United States
+- **RainViewer Global Coverage**: Worldwide precipitation detection with specialized color interpretation for international users
+- **Regional Adaptability**: Automatically selects appropriate radar processing based on source selection
+- **Error Handling**: Robust fallback systems ensure global functionality regardless of location or network conditions

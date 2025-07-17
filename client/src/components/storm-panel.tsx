@@ -27,21 +27,27 @@ const getDirectionName = (degrees: number): string => {
 };
 
 const getStormIntensityName = (intensity: number): string => {
-  if (intensity >= 65) return 'Extreme Storm';
-  if (intensity >= 55) return 'Severe Storm';
-  if (intensity >= 45) return 'Heavy Storm';
-  if (intensity >= 35) return 'Moderate Storm';
-  if (intensity >= 20) return 'Light Storm';
+  if (intensity >= 61) return 'Extreme Thunderstorms';
+  if (intensity >= 55) return 'Very Heavy Rain/Hail';
+  if (intensity >= 46) return 'Heavy Rain';
+  if (intensity >= 35) return 'Moderate Rain';
+  if (intensity >= 20) return 'Light Rain';
   return 'Weak Storm';
 };
 
 const getStormColor = (intensity: number): string => {
-  if (intensity >= 65) return 'bg-purple-500';
+  if (intensity >= 61) return 'bg-purple-500';
   if (intensity >= 55) return 'bg-red-500';
-  if (intensity >= 45) return 'bg-orange-500';
+  if (intensity >= 46) return 'bg-orange-500';
   if (intensity >= 35) return 'bg-yellow-500';
   if (intensity >= 20) return 'bg-green-500';
   return 'bg-blue-500';
+};
+
+const getRainfallRate = (dbz: number) => {
+  const z = Math.pow(10, dbz / 10); // Convert dBZ to Z
+  const rate = Math.pow(z / 200, 1 / 1.6); // Marshall-Palmer formula
+  return Math.max(0.01, rate); // Minimum 0.01 mm/h
 };
 
 export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading }: StormPanelProps) {
@@ -74,15 +80,40 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                 <span className="text-sm text-slate-300">{storm.intensity.toFixed(0)} dBZ</span>
               </div>
               
-              {/* Simplified storm description with distance only */}
-              <p className="text-sm text-slate-300 mb-2">
-                {formatDistance(storm.distance)} {getDirectionName(storm.direction)}
-              </p>
-              
-
+              {/* Enhanced storm information */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-300">Distance:</span>
+                  <span className="text-sm text-white">{formatDistance(storm.distance)} {getDirectionName(storm.direction)}</span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-300">Rain Rate:</span>
+                  <span className="text-sm text-white">
+                    {getRainfallRate(storm.intensity).toFixed(1)} mm/h ({(getRainfallRate(storm.intensity) * 0.0394).toFixed(2)} in/h)
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-300">Intensity:</span>
+                  <span className="text-sm text-white">{storm.intensity.toFixed(0)} dBZ</span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-300">Coordinates:</span>
+                  <span className="text-xs text-slate-400">{storm.lat.toFixed(3)}°, {storm.lon.toFixed(3)}°</span>
+                </div>
+                
+                {storm.speed > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-slate-300">Movement:</span>
+                    <span className="text-sm text-white">{formatSpeed(storm.speed)} @ {storm.direction.toFixed(0)}°</span>
+                  </div>
+                )}
+              </div>
               
               {storm.description && (
-                <p className="text-xs text-slate-400 mt-2">{storm.description}</p>
+                <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-600">{storm.description}</p>
               )}
             </div>
           ))
