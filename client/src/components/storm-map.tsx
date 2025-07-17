@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 
 interface Location {
@@ -93,7 +93,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const highlightLayerRef = useRef<any>(null);
 
   // Auto-sampling functionality (silent background operation)
-  const triggerAutoSample = () => {
+  const triggerAutoSample = useCallback(() => {
     // Clear any existing timeout
     if (autoSampleTimeoutRef.current) {
       clearTimeout(autoSampleTimeoutRef.current);
@@ -101,12 +101,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     
     // Set timeout for 0.75 seconds - sample silently in background
     autoSampleTimeoutRef.current = setTimeout(async () => {
-      if (mapInstanceRef.current && location) {
+      if (mapInstanceRef.current && location && radarFrames.length > 0) {
         console.log('Auto-sampling triggered by map movement');
         await sampleRadarDbz();
       }
     }, 750);
-  };
+  }, [location, radarFrames.length]);
 
   // Initialize radar frames based on source
   useEffect(() => {
@@ -321,9 +321,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
       mapInstanceRef.current = map;
       
-      // Add map event listeners for auto-sampling
-      map.on('moveend', triggerAutoSample);
-      map.on('zoomend', triggerAutoSample);
+      // Add map event listeners for auto-sampling with debouncing
+      const debouncedTrigger = () => {
+        console.log('Map movement detected, triggering auto-sample');
+        triggerAutoSample();
+      };
+      
+      map.on('moveend', debouncedTrigger);
+      map.on('zoomend', debouncedTrigger);
     };
 
     initMap();
