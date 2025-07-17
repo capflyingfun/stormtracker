@@ -52,7 +52,7 @@ const getRainfallRate = (dbz: number) => {
   return Math.max(0.01, rate); // Minimum 0.01 mm/h
 };
 
-export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource }: StormPanelProps) {
+export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource, stormFilters }: StormPanelProps & { stormFilters?: any }) {
   const [precipitationStorms, setPrecipitationStorms] = useState<Storm[]>([]);
 
   // Listen for precipitation storm data from the map component
@@ -77,8 +77,16 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
   // Use precipitation storms when available, otherwise use API storms
   const effectiveStorms = precipitationStorms.length > 0 ? precipitationStorms : storms;
   
+  // Apply storm filters if provided
+  const filteredStorms = stormFilters ? effectiveStorms.filter(storm => {
+    const category = storm.intensity >= 55 ? 'severe' : 
+                    storm.intensity >= 45 ? 'heavy' : 
+                    storm.intensity >= 35 ? 'moderate' : 'light';
+    return stormFilters[category as keyof typeof stormFilters];
+  }) : effectiveStorms;
+  
   // Sort storms by distance (closest first)
-  const sortedStorms = [...effectiveStorms].sort((a, b) => a.distance - b.distance);
+  const sortedStorms = [...filteredStorms].sort((a, b) => a.distance - b.distance);
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <div className="flex items-center gap-3 mb-4">
