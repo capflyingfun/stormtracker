@@ -105,29 +105,37 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     setIsAutoSampling(true);
     setSampleProgress(0);
     
+    const SAMPLE_DELAY = 1500; // 1.5 seconds
+    const PROGRESS_INTERVAL = 50; // Update every 50ms for smooth animation
+    const PROGRESS_STEP = (100 / SAMPLE_DELAY) * PROGRESS_INTERVAL; // Calculate step size
+    
     // Start progress animation
     const progressInterval = setInterval(() => {
       setSampleProgress(prev => {
-        if (prev >= 100) {
+        const newProgress = prev + PROGRESS_STEP;
+        if (newProgress >= 100) {
           clearInterval(progressInterval);
           return 100;
         }
-        return prev + 5; // Progress every 100ms for 2 seconds
+        return newProgress;
       });
-    }, 100);
+    }, PROGRESS_INTERVAL);
     
-    // Set timeout for 2 seconds
+    // Set timeout for 1.5 seconds - sample AFTER progress bar completes
     autoSampleTimeoutRef.current = setTimeout(async () => {
-      clearInterval(progressInterval);
+      // Ensure progress bar shows 100% briefly before sampling
       setSampleProgress(100);
       
-      // Perform the actual sampling
-      await sampleRadarDbz();
-      
-      // Hide loading indicator
-      setIsAutoSampling(false);
-      setSampleProgress(0);
-    }, 2000);
+      // Small delay to show completed progress bar
+      setTimeout(async () => {
+        // Perform the actual sampling
+        await sampleRadarDbz();
+        
+        // Hide loading indicator
+        setIsAutoSampling(false);
+        setSampleProgress(0);
+      }, 100);
+    }, SAMPLE_DELAY);
   };
 
   // Initialize radar frames based on source
