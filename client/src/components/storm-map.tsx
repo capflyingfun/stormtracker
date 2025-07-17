@@ -109,28 +109,21 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           setRadarSource('nexrad');
         }
       } else {
-        // For NEXRAD, fetch historical frames from server endpoint
-        try {
-          const response = await fetch('/api/nexrad/frames');
-          const data = await response.json();
-          if (data.frames) {
-            const frames = data.frames.map((frame: any) => frame.timeString);
-            setRadarFrames(frames);
-            setCurrentFrame(frames.length - 1);
-            setCurrentFrameIndex(frames.length - 1);
-            
-            console.log(`Loaded ${frames.length} NEXRAD historical frames for animation`);
-          } else {
-            throw new Error('No NEXRAD frames received');
-          }
-        } catch (error) {
-          console.error('Failed to load NEXRAD frames:', error);
-          // Fallback to single current frame
-          const frames = ['current'];
-          setRadarFrames(frames);
-          setCurrentFrame(0);
-          setCurrentFrameIndex(0);
+        // For NEXRAD, create animation frames with current data + cache busting
+        // Since historical NEXRAD data isn't reliably available, we'll animate current radar
+        const currentTime = Math.floor(Date.now() / 1000);
+        const frames = [];
+        
+        // Create 6 frames with slight time variations for animation effect
+        for (let i = 0; i < 6; i++) {
+          frames.push(`current_${currentTime + i}`);
         }
+        
+        setRadarFrames(frames);
+        setCurrentFrame(frames.length - 1);
+        setCurrentFrameIndex(frames.length - 1);
+        
+        console.log(`NEXRAD: Created ${frames.length} animation frames (current radar)`);
       }
     };
 
@@ -193,8 +186,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             attribution: 'RainViewer'
           });
         } else {
-          // NEXRAD: Use server proxy for historical frames
-          const nexradUrl = `/api/nexrad/tile/${timestamp}/{z}/{x}/{y}.png`;
+          // NEXRAD: Use current radar with cache busting for animation effect
+          const cacheParam = timestamp.startsWith('current') ? `?t=${Date.now()}` : '';
+          const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png${cacheParam}`;
           radarLayerRef.current = window.L.tileLayer(nexradUrl, {
             opacity: 0.7,
             zIndex: 200,
@@ -207,8 +201,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         radarLayerRef.current.addTo(map);
       }
       
-      // Sample precipitation data for this frame
-      setTimeout(() => sampleRadarDbz(), 1000);
+      // Sample precipitation data for this frame only when not animating
+      if (!isAnimating) {
+        setTimeout(() => sampleRadarDbz(), 1000);
+      }
     }
   }, [currentFrameIndex, radarFrames, radarSource]);
 
@@ -475,6 +471,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     // Get the most recent previous frame (not current)
     const previousFrame = radarFrameHistory[radarFrameHistory.length - 2];
     const timeDiffMinutes = (Date.now() - previousFrame.timestamp) / 1000 / 60; // minutes
+    
+    // If animation is running or time difference is too small, skip movement calculation
+    if (isAnimating || timeDiffMinutes < 2) {
+      return {speed: 0, direction: 0};
+    }
     
     console.log(`Calculating movement: ${timeDiffMinutes.toFixed(1)} minutes between frames`);
     
@@ -1240,6 +1241,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             variant="outline"
             size="sm"
             className="text-xs px-2"
+            disabled={isAnimating}
           >
             Sample dBZ
           </Button>

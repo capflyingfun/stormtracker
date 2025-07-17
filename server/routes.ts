@@ -535,21 +535,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { timeString, z, x, y } = req.params;
       
-      // Try historical archive first
-      let tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913-${timeString}/${z}/${x}/${y}.png`;
-      let response = await fetch(tileUrl);
-      
-      // If historical doesn't exist, fall back to current
-      if (!response.ok) {
-        tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${z}/${x}/${y}.png`;
-        response = await fetch(tileUrl);
+      // For current frame, use live radar
+      if (timeString === 'current') {
+        const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${z}/${x}/${y}.png`;
+        const response = await fetch(tileUrl);
+        
+        if (!response.ok) {
+          return res.status(404).send('NEXRAD tile not found');
+        }
+        
+        const buffer = await response.arrayBuffer();
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=60'); // Shorter cache for live
+        res.send(Buffer.from(buffer));
+        return;
       }
       
-      if (!response.ok) {
+      // For historical frames, try multiple time formats
+      const timeFormats = [
+        timeString, // Original format (YYYYMMDDHHMM)
+        timeString.substring(0, 10) + timeString.substring(10, 12), // Remove seconds if present
+      ];
+      
+      let foundTile = false;
+      let buffer;
+      
+      for (const format of timeFormats) {
+        try {
+          const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913-${format}/${z}/${x}/${y}.png`;
+          const response = await fetch(tileUrl);
+          
+          if (response.ok) {
+            buffer = await response.arrayBuffer();
+            foundTile = true;
+            break;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+      
+      // If no historical tile found, fall back to current
+      if (!foundTile) {
+        const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${z}/${x}/${y}.png`;
+        const response = await fetch(tileUrl);
+        
+        if (response.ok) {
+          buffer = await response.arrayBuffer();
+          foundTile = true;
+        }
+      }
+      
+      if (!foundTile) {
         return res.status(404).send('NEXRAD tile not found');
       }
-      
-      const buffer = await response.arrayBuffer();
       
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'public, max-age=300');
