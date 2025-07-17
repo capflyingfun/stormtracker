@@ -214,13 +214,13 @@ Preferred communication style: Simple, everyday language.
 - **Real-time Filter Updates**: Filter selections affect both map display and Storm Cell list simultaneously
 - **Interactive Filter Controls**: Color-coded checkboxes matching storm intensity visualization (yellow, orange, red, purple)
 
-### NWS-Standard dBZ Color Coding (July 17, 2025)
-- **Authentic Meteorological Colors**: Implemented National Weather Service standard dBZ color scale from 20-90 dBZ
-- **Scientific Accuracy**: Colors match official weather radar displays used by meteorologists
+### Enhanced 5-Category dBZ Classification System (July 17, 2025)
+- **Professional Meteorological Standards**: Implemented precise 5-category dBZ color system (20-90 dBZ)
+- **Scientific Accuracy**: Colors and thresholds based on meteorological best practices
 - **Marshall-Palmer Rainfall Rates**: Added calculated rainfall rates (mm/h and in/h) using standard meteorological formula
-- **Precipitation Type Classification**: Detailed precipitation descriptions from light rain to extreme rain/large hail
-- **Meaningful Precipitation Only**: Removed trace/mist values below 20 dBZ for cleaner display
-- **Simplified Filter Categories**: Three categories for meaningful precipitation:
-  - Light Rain (20-34 dBZ): Bright green - 0.6-2.7 mm/h  
-  - Moderate-Heavy Rain (35-54 dBZ): Yellow to red - 5.6-48.6 mm/h
-  - Very Heavy Rain/Hail (55+ dBZ): Dark red to white - 100+ mm/h with hail potential
+- **Comprehensive Precipitation Classification**: Five distinct categories covering all meaningful precipitation:
+  - Light Rain (20-34 dBZ): Green - 0.6-2.7 mm/h
+  - Moderate Rain (35-45 dBZ): Yellow - 5.6-23.7 mm/h
+  - Heavy Rain (46-54 dBZ): Orange - 28.8-48.6 mm/h
+  - Very Heavy Rain/Hail (55-60 dBZ): Red - 100-205 mm/h with hail potential
+  - Extreme Thunderstorms (61+ dBZ): Purple - 250+ mm/h with large hail likely
