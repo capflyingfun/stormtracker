@@ -236,6 +236,87 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return R * c;
   };
 
+  // Cluster precipitation points to reduce clutter while preserving highest intensities
+  const clusterPrecipitationPoints = (points: Array<{lat: number; lon: number; dbz: number; id: string}>) => {
+    const clustered: Array<{lat: number; lon: number; dbz: number; id: string; count?: number}> = [];
+    const processed = new Set<string>();
+
+    for (const point of points) {
+      if (processed.has(point.id)) continue;
+
+      // Find nearby points within clustering radius
+      const clusterRadius = point.dbz >= 45 ? 0.8 : point.dbz >= 35 ? 1.2 : 1.5; // Miles
+      const nearbyPoints = [point];
+      processed.add(point.id);
+
+      for (const otherPoint of points) {
+        if (processed.has(otherPoint.id)) continue;
+        
+        const distance = calculateDistance(point.lat, point.lon, otherPoint.lat, otherPoint.lon);
+        if (distance <= clusterRadius) {
+          nearbyPoints.push(otherPoint);
+          processed.add(otherPoint.id);
+        }
+      }
+
+      // Create cluster with highest dBZ value and average position
+      const maxDbz = Math.max(...nearbyPoints.map(p => p.dbz));
+      const avgLat = nearbyPoints.reduce((sum, p) => sum + p.lat, 0) / nearbyPoints.length;
+      const avgLon = nearbyPoints.reduce((sum, p) => sum + p.lon, 0) / nearbyPoints.length;
+
+      clustered.push({
+        lat: avgLat,
+        lon: avgLon,
+        dbz: maxDbz,
+        id: `cluster-${clustered.length}`,
+        count: nearbyPoints.length
+      });
+    }
+
+    return clustered;
+  };
+
+  // Update storm data from precipitation points for the Storm Cells panel
+  const updateStormDataFromPrecipitation = (clusters: Array<{lat: number; lon: number; dbz: number; id: string; count?: number}>) => {
+    if (!location) return;
+
+    // Convert precipitation clusters to storm format
+    const stormCells = clusters.map((cluster, index) => {
+      const distance = calculateDistance(location.lat, location.lon, cluster.lat, cluster.lon);
+      const bearing = calculateBearing(location.lat, location.lon, cluster.lat, cluster.lon);
+      
+      return {
+        id: `storm_${Date.now()}_${index}`,
+        lat: cluster.lat,
+        lon: cluster.lon,
+        intensity: cluster.dbz,
+        distance: distance,
+        direction: bearing,
+        speed: 0, // No movement data from static precipitation
+        type: cluster.dbz >= 45 ? 'Heavy' : cluster.dbz >= 35 ? 'Moderate' : 'Light',
+        description: `${cluster.dbz} dBZ precipitation ${cluster.count ? `(${cluster.count} cells)` : ''}`
+      };
+    });
+
+    // Trigger custom event to update storm data
+    window.dispatchEvent(new CustomEvent('precipitationStormData', {
+      detail: stormCells
+    }));
+  };
+
+  // Calculate bearing between two points
+  const calculateBearing = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const lat1Rad = lat1 * Math.PI / 180;
+    const lat2Rad = lat2 * Math.PI / 180;
+    
+    const y = Math.sin(dLon) * Math.cos(lat2Rad);
+    const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+    
+    let bearing = Math.atan2(y, x) * 180 / Math.PI;
+    return (bearing + 360) % 360;
+  };
+
   // Add waypoint markers for detected precipitation areas
   const addDbzWaypoints = () => {
     const map = mapInstanceRef.current;
@@ -599,17 +680,23 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         }
       }
 
-      // Store precipitation points
-      setPrecipitationPoints(precipitationPoints);
+      // Cluster nearby precipitation points for cleaner display
+      const clusteredPoints = clusterPrecipitationPoints(precipitationPoints);
+      
+      // Store clustered points
+      setPrecipitationPoints(clusteredPoints);
       
       // Create simple sector data for legend display
       const newSectorData: {[key: string]: number} = {};
-      precipitationPoints.forEach((point, index) => {
+      clusteredPoints.forEach((point, index) => {
         newSectorData[`point-${index}`] = point.dbz;
       });
       setSectorDbzData(newSectorData);
       
-      console.log(`Found ${precipitationPoints.length} precipitation points with dynamic spacing:`, precipitationPoints);
+      console.log(`Found ${precipitationPoints.length} raw points, clustered to ${clusteredPoints.length} waypoints:`, clusteredPoints);
+      
+      // Update storm data with clustered precipitation points
+      updateStormDataFromPrecipitation(clusteredPoints);
       
     } catch (error) {
       console.error('Error sampling radar dBZ:', error);
