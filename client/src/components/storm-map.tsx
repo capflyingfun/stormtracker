@@ -522,29 +522,28 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     // Create waypoint markers for each actual precipitation point
     for (const point of precipitationPoints) {
-      // Check if this point should be visible based on filters (updated thresholds)
-      const category = point.dbz >= 55 ? 'severe' :    // Very heavy rain/hail 
-                      point.dbz >= 35 ? 'heavy' :      // Moderate to heavy rain
-                      point.dbz >= 20 ? 'moderate' :   // Light rain  
-                      'light';                         // Trace/mist
+      // Only show meaningful precipitation (20+ dBZ)
+      if (point.dbz < 20) continue; // Skip trace/mist values
+      
+      const category = point.dbz >= 55 ? 'heavy' :      // Very heavy rain/hail 
+                      point.dbz >= 35 ? 'moderate' :   // Moderate to heavy rain
+                      'light';                         // Light rain (20-34 dBZ)
       const shouldShow = stormFilters[category as keyof typeof stormFilters];
       
       if (!shouldShow) continue; // Skip filtered out points
-      // Get color and size based on dBZ value using NWS standards
+      // NWS standard colors for meaningful precipitation (20-90 dBZ)
       const getDbzColor = (dbz: number) => {
-        if (dbz >= 65) return '#FFFFFF'; // White - Extreme hail/rain (421 mm/h)
-        if (dbz >= 60) return '#FF00FF'; // Magenta - Very heavy rain, hail likely (205 mm/h)
-        if (dbz >= 55) return '#8C0000'; // Dark red - Very heavy rain, hail possible (100 mm/h)
-        if (dbz >= 50) return '#FF0000'; // Red - Heavy rain, small hail possible (48.6 mm/h)
-        if (dbz >= 45) return '#FE761B'; // Orange-red - Heavy rain (23.7 mm/h)
-        if (dbz >= 40) return '#FFFF00'; // Yellow - Moderate to heavy rain (11.53 mm/h)
-        if (dbz >= 35) return '#FFFF00'; // Yellow - Moderate rain (5.6 mm/h)
-        if (dbz >= 30) return '#40A00D'; // Green - Light to moderate rain (2.7 mm/h)
-        if (dbz >= 25) return '#319F33'; // Light green - Light rain (1.3 mm/h)
-        if (dbz >= 20) return '#54FC5A'; // Bright green - Light rain (0.6 mm/h)
-        if (dbz >= 15) return '#7DBC8D'; // Blue-green - Trace accumulation (0.3 mm/h)
-        if (dbz >= 10) return '#6693B3'; // Light blue - Trace/mist (0.15 mm/h)
-        return '#485E73'; // Dark blue - Trace/mist (0.07 mm/h)
+        if (dbz >= 70) return '#FFFFFF'; // White - Extreme hail/rain
+        if (dbz >= 65) return '#E0E0E0'; // Light gray - Extreme precipitation
+        if (dbz >= 60) return '#FF00FF'; // Magenta - Very heavy rain, hail likely
+        if (dbz >= 55) return '#8C0000'; // Dark red - Very heavy rain, hail possible
+        if (dbz >= 50) return '#FF0000'; // Red - Heavy rain, small hail possible
+        if (dbz >= 45) return '#FE761B'; // Orange-red - Heavy rain
+        if (dbz >= 40) return '#FFFF00'; // Yellow - Moderate to heavy rain
+        if (dbz >= 35) return '#FFFF00'; // Yellow - Moderate rain
+        if (dbz >= 30) return '#40A00D'; // Green - Light to moderate rain
+        if (dbz >= 25) return '#319F33'; // Light green - Light rain
+        return '#54FC5A'; // Bright green - Light rain (20+ dBZ)
       };
       
       // Intensity-based sizing with cluster indication
@@ -1061,6 +1060,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <span className="text-sm font-medium text-white">Filter Storms:</span>
           <div className="flex flex-wrap gap-2">
+
             <label className="flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
@@ -1068,13 +1068,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 onChange={(e) => {
                   const newFilters = {...stormFilters, light: e.target.checked};
                   setStormFilters(newFilters);
-                  // Auto-refresh sampling when filters change
                   setTimeout(() => sampleRadarDbz(), 500);
                 }}
                 className="rounded"
               />
-              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#485E73'}}></div>
-              <span className="text-slate-300">Trace/Mist (5-19 dBZ)</span>
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#54FC5A'}}></div>
+              <span className="text-slate-300">Light Rain (20-34 dBZ)</span>
             </label>
             <label className="flex items-center gap-2 text-xs">
               <input
@@ -1087,8 +1086,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 }}
                 className="rounded"
               />
-              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#54FC5A'}}></div>
-              <span className="text-slate-300">Light Rain (20-34 dBZ)</span>
+              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#FFFF00'}}></div>
+              <span className="text-slate-300">Moderate-Heavy Rain (35-54 dBZ)</span>
             </label>
             <label className="flex items-center gap-2 text-xs">
               <input
@@ -1096,20 +1095,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 checked={stormFilters.heavy}
                 onChange={(e) => {
                   const newFilters = {...stormFilters, heavy: e.target.checked};
-                  setStormFilters(newFilters);
-                  setTimeout(() => sampleRadarDbz(), 500);
-                }}
-                className="rounded"
-              />
-              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#FFFF00'}}></div>
-              <span className="text-slate-300">Moderate-Heavy Rain (35-54 dBZ)</span>
-            </label>
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={stormFilters.severe}
-                onChange={(e) => {
-                  const newFilters = {...stormFilters, severe: e.target.checked};
                   setStormFilters(newFilters);
                   setTimeout(() => sampleRadarDbz(), 500);
                 }}
