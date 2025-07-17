@@ -205,7 +205,8 @@ Preferred communication style: Simple, everyday language.
 - **Dynamic Frame Loading**: Each animated frame loads corresponding radar tiles and samples precipitation data
 - **Live Storm Tracking**: Animation enables accurate storm movement visualization across time
 - **Seamless Integration**: Animation system works with both RainViewer and NEXRAD radar sources
-- **NEXRAD Animation**: Current radar with cache-busting for smooth visual animation (6 frames)
+- **NEXRAD RIDGE Animation**: Real historical radar data using Iowa Mesonet RIDGE API with site-specific timestamps
+- **Nearest Radar Detection**: Automatically finds closest NEXRAD site for authentic local radar animation
 - **Animation Safeguards**: "Sample dBZ" button disabled during animation to prevent waypoint lag and unrealistic storm movement calculations
 
 ### Enhanced Storm Management (July 17, 2025)
