@@ -139,116 +139,100 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       radarLayerRef.current = null;
     }
 
-    // Create custom radar overlay with RadarScope color palette
+    // Create colorful radar overlay with RadarScope color palette
     try {
-      // Create custom canvas overlay for realistic radar colors
-      const CustomRadarLayer = window.L.Layer.extend({
-        initialize: function(options) {
-          window.L.setOptions(this, options);
-          this._canvas = document.createElement('canvas');
-          this._ctx = this._canvas.getContext('2d');
-        },
-        
-        onAdd: function(map) {
-          this._map = map;
-          this._canvas.width = map.getSize().x;
-          this._canvas.height = map.getSize().y;
-          this._canvas.style.position = 'absolute';
-          this._canvas.style.top = '0';
-          this._canvas.style.left = '0';
-          this._canvas.style.pointerEvents = 'none';
-          this._canvas.style.opacity = '0.7';
-          
-          map.getPanes().overlayPane.appendChild(this._canvas);
-          this._drawRadar();
-          
-          map.on('moveend zoom', this._drawRadar, this);
-        },
-        
-        onRemove: function(map) {
-          map.getPanes().overlayPane.removeChild(this._canvas);
-          map.off('moveend zoom', this._drawRadar, this);
-        },
-        
-        _drawRadar: function() {
-          const map = this._map;
-          const canvas = this._canvas;
-          const ctx = this._ctx;
-          
-          canvas.width = map.getSize().x;
-          canvas.height = map.getSize().y;
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          
-          // Draw simulated radar data with your color palette
-          this._drawRadarData(ctx, map);
-        },
-        
-        _drawRadarData: function(ctx, map) {
-          // RadarScope color palette (dBZ values)
-          const colorPalette = [
-            { dbz: 0, color: 'rgba(0, 17, 23, 0.0)' },
-            { dbz: 5, color: 'rgba(31, 41, 63, 0.8)' },
-            { dbz: 10, color: 'rgba(72, 115, 142, 0.8)' },
-            { dbz: 15, color: 'rgba(125, 164, 189, 0.8)' },
-            { dbz: 20, color: 'rgba(84, 252, 90, 0.8)' },
-            { dbz: 25, color: 'rgba(49, 157, 51, 0.8)' },
-            { dbz: 30, color: 'rgba(16, 64, 13, 0.8)' },
-            { dbz: 35, color: 'rgba(255, 255, 0, 0.8)' },
-            { dbz: 45, color: 'rgba(254, 118, 27, 0.8)' },
-            { dbz: 50, color: 'rgba(255, 0, 0, 0.8)' },
-            { dbz: 55, color: 'rgba(140, 0, 0, 0.8)' },
-            { dbz: 60, color: 'rgba(255, 0, 255, 0.8)' },
-            { dbz: 65, color: 'rgba(255, 255, 255, 0.8)' }
-          ];
-          
-          // Create sample radar patterns (in a real app, this would be actual radar data)
-          const centerPoint = map.latLngToContainerPoint([location.lat, location.lon]);
-          const maxRadius = Math.min(canvas.width, canvas.height) / 2;
-          
-          // Draw concentric circles with different intensities
-          for (let i = 0; i < 8; i++) {
-            const angle = (i / 8) * Math.PI * 2;
-            const radius = Math.random() * maxRadius * 0.6;
-            const intensity = Math.random() * 60 + 5; // 5-65 dBZ
-            
-            const color = this._getColorForIntensity(intensity, colorPalette);
-            if (color) {
-              ctx.fillStyle = color;
-              ctx.beginPath();
-              ctx.arc(
-                centerPoint.x + Math.cos(angle) * radius,
-                centerPoint.y + Math.sin(angle) * radius,
-                20 + Math.random() * 40,
-                0,
-                Math.PI * 2
-              );
-              ctx.fill();
-            }
-          }
-        },
-        
-        _getColorForIntensity: function(dbz, palette) {
-          for (let i = palette.length - 1; i >= 0; i--) {
-            if (dbz >= palette[i].dbz) {
-              return palette[i].color;
-            }
-          }
-          return null;
-        }
-      });
+      // RadarScope color palette (dBZ values)
+      const colorPalette = [
+        { dbz: 5, color: '#1f293f' },   // Dark blue
+        { dbz: 10, color: '#48738e' },  // Medium blue
+        { dbz: 15, color: '#7da4bd' },  // Light blue
+        { dbz: 20, color: '#54fc5a' },  // Bright green
+        { dbz: 25, color: '#319d33' },  // Dark green
+        { dbz: 30, color: '#10400d' },  // Very dark green
+        { dbz: 35, color: '#ffff00' },  // Yellow
+        { dbz: 45, color: '#fe761b' },  // Orange
+        { dbz: 50, color: '#ff0000' },  // Red
+        { dbz: 55, color: '#8c0000' },  // Dark red
+        { dbz: 60, color: '#ff00ff' },  // Magenta
+        { dbz: 65, color: '#ffffff' }   // White
+      ];
       
-      // Create and add the custom radar layer
-      radarLayerRef.current = new CustomRadarLayer();
+      const getColorForIntensity = (dbz) => {
+        for (let i = colorPalette.length - 1; i >= 0; i--) {
+          if (dbz >= colorPalette[i].dbz) {
+            return colorPalette[i].color;
+          }
+        }
+        return null;
+      };
+      
+      // Create layer group for multiple colored circles
+      const radarGroup = window.L.layerGroup();
+      
+      // Create sample radar patterns with realistic colors
+      const centerLat = location.lat;
+      const centerLon = location.lon;
+      
+      // Generate realistic precipitation patterns
+      for (let i = 0; i < 20; i++) {
+        const angle = (i / 20) * Math.PI * 2;
+        const distance = Math.random() * 0.4; // Within 30 mile radius
+        const intensity = Math.random() * 60 + 5; // 5-65 dBZ
+        
+        const lat = centerLat + Math.cos(angle) * distance;
+        const lon = centerLon + Math.sin(angle) * distance;
+        
+        const color = getColorForIntensity(intensity);
+        
+        if (color) {
+          const circle = window.L.circle([lat, lon], {
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.7,
+            radius: 2000 + Math.random() * 3000, // 2-5km radius
+            weight: 0
+          });
+          
+          radarGroup.addLayer(circle);
+        }
+      }
+      
+      // Add some storm cells for more realistic appearance
+      for (let i = 0; i < 5; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * 0.3;
+        const intensity = 35 + Math.random() * 30; // 35-65 dBZ for storms
+        
+        const lat = centerLat + Math.cos(angle) * distance;
+        const lon = centerLon + Math.sin(angle) * distance;
+        
+        const color = getColorForIntensity(intensity);
+        
+        if (color) {
+          const stormCell = window.L.circle([lat, lon], {
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.8,
+            radius: 1000 + Math.random() * 2000, // 1-3km radius
+            weight: 1,
+            opacity: 0.9
+          });
+          
+          radarGroup.addLayer(stormCell);
+        }
+      }
+      
+      radarLayerRef.current = radarGroup;
       radarLayerRef.current.addTo(map);
       
     } catch (error) {
       console.error('Failed to load custom radar layer:', error);
       
-      // Fallback to standard precipitation layer
+      // Fallback to more vibrant precipitation layer
       radarLayerRef.current = window.L.tileLayer(
         `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
         {
-          opacity: 0.7,
+          opacity: 0.9,
           transparent: true,
           attribution: 'Weather data © OpenWeatherMap'
         }
