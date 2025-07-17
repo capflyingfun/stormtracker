@@ -178,3 +178,17 @@ Preferred communication style: Simple, everyday language.
 - **Dynamic Marker Sizing**: Waypoint sizes scale with zoom level and show cluster count when zoomed out
 - **Zoom-Based Sampling**: Finer pixel sampling (every 2nd pixel) when zoomed in for maximum detail
 - **Real-time Re-clustering**: Automatically adjusts clustering when user changes zoom level
+
+### Global Storm Tracking System (July 17, 2025)
+- **Dual Radar Coverage**: Automatic source selection between NEXRAD (US) and RainViewer (global) based on location
+- **Enhanced Database Schema**: Added storm history, movement vectors, and user preferences tables
+- **Real-time WebSocket Updates**: Implemented WebSocket server for live storm movement broadcasting
+- **Storm Movement Tracking**: Calculates velocity, direction, acceleration, and intensity trends
+- **Advanced Storm Trails**: Visual trail system showing storm path history up to 2 hours
+- **Movement Vector Visualization**: Animated arrows showing storm direction and speed
+- **Enhanced Storm Classification**: Upgraded from 3 to 5 intensity levels (Light, Moderate, Heavy, Severe, Extreme)
+- **Precipitation Rate Estimation**: Real-time precipitation rate calculations based on dBZ values
+- **Storm Animation System**: Pulse effects for high-intensity storms, trail fading, and movement indicators
+- **Global Location Detection**: Intelligent radar source selection based on GPS coordinates
+- **Professional-Grade UI**: Clean interface inspired by professional lightning tracking applications
+- **Enhanced Popup Information**: Detailed storm data including coverage area, precipitation rates, and directional information

@@ -6,6 +6,7 @@ import LocationSetup from "@/components/location-setup";
 import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
+import StormAlertSystem from "@/components/storm-alert-system";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -164,6 +165,16 @@ export default function StormTracker() {
               formatDistance={formatDistance}
               formatSpeed={formatSpeed}
             />
+
+            {/* Enhanced Storm Alert System */}
+            <div className="mt-6">
+              <StormAlertSystem
+                storms={storms || []}
+                location={location}
+                alertRadius={radarRange}
+                onAlertDismiss={(alertId) => console.log('Alert dismissed:', alertId)}
+              />
+            </div>
 
             {/* Storm Data Grid - Moved below radar */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
