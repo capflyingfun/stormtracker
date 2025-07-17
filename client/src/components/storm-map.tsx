@@ -187,7 +187,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           });
         } else {
           // NEXRAD: Use current radar with cache busting for animation effect
-          const cacheParam = timestamp.startsWith('current') ? `?t=${Date.now()}` : '';
+          const timestampStr = String(timestamp);
+          const cacheParam = timestampStr.startsWith('current') ? `?t=${Date.now()}` : '';
           const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png${cacheParam}`;
           radarLayerRef.current = window.L.tileLayer(nexradUrl, {
             opacity: 0.7,
