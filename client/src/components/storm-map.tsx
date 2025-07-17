@@ -682,7 +682,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const data = imageData.data;
           
           // Dynamic sampling resolution based on zoom level
-          const zoom = map.getZoom();
           const sampleStep = zoom >= 10 ? 2 : zoom >= 8 ? 3 : 4; // Finer sampling when zoomed in
           
           for (let x = 0; x < tileSize; x += sampleStep) {
