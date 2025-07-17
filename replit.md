@@ -155,5 +155,10 @@ Preferred communication style: Simple, everyday language.
 - **Streamlined Controls**: Removed GPS and Search buttons, simplified to Enter-key search functionality
 - **Cleaned Button Layout**: Eliminated refresh button and other UI clutter for cleaner appearance
 - **Improved Error Handling**: Enhanced timeout handling and automatic source switching for radar reliability
-- **Network Compatibility**: RainViewer API may be blocked by certain corporate/unsecured networks, works well on mobile data and secure connections
-- **RainViewer Primary**: Restored RainViewer as primary radar source with reliable NEXRAD fallback system
+
+### Network Bypass Implementation (July 17, 2025)
+- **Server-Side Proxy**: Added `/api/rainviewer` endpoint to route RainViewer requests through backend server
+- **Corporate Network Solution**: Successfully bypasses restrictive corporate/public WiFi networks that block external APIs
+- **Efficient Caching**: Server implements HTTP caching (304 responses) for improved performance
+- **Reliable Access**: RainViewer now works consistently across all network environments including work WiFi
+- **Maintained Functionality**: All existing features preserved while routing through proxy for universal compatibility
