@@ -48,7 +48,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [showSectorGrid, setShowSectorGrid] = useState(true);
   const [currentFrame, setCurrentFrame] = useState(10);
   const [radarFrames, setRadarFrames] = useState<number[]>([]);
-  const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer');
+  const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>('nexrad'); // Default to NEXRAD for reliability
   const animationIntervalRef = useRef<NodeJS.Timeout>();
 
   // Initialize radar frames based on selected source
@@ -90,6 +90,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       } catch (error) {
         console.error('Radar initialization failed:', error);
         console.error('Error details:', error.message, error.name);
+        
+        // If RainViewer fails, automatically switch to NEXRAD
+        if (radarSource === 'rainviewer') {
+          console.log('Switching to NEXRAD due to RainViewer failure');
+          setRadarSource('nexrad');
+        }
+        
         // Fallback to simple timestamp for both sources
         setRadarFrames([Math.floor(Date.now() / 1000)]);
         setCurrentFrame(0);
