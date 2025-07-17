@@ -155,4 +155,5 @@ Preferred communication style: Simple, everyday language.
 - **Streamlined Controls**: Removed GPS and Search buttons, simplified to Enter-key search functionality
 - **Cleaned Button Layout**: Eliminated refresh button and other UI clutter for cleaner appearance
 - **Improved Error Handling**: Enhanced timeout handling and automatic source switching for radar reliability
-- **NEXRAD Default**: Set NEXRAD as default radar source due to better connectivity in Replit environment
+- **Network Compatibility**: RainViewer API may be blocked by certain corporate/unsecured networks, works well on mobile data and secure connections
+- **RainViewer Primary**: Restored RainViewer as primary radar source with reliable NEXRAD fallback system
