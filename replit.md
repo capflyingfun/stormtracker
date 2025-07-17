@@ -256,6 +256,12 @@ Preferred communication style: Simple, everyday language.
 - **Removed Redundant Displays**: Eliminated duplicate storm count from top section to reduce visual clutter
 - **Real-time Synchronization**: All storm counts update simultaneously when moving map or changing filters
 
+### User Interface Improvements (July 17, 2025)
+- **Renamed Sample dBZ Button**: Changed "Sample dBZ" to "Update Storms" for clearer user understanding
+- **Relocated Update Button**: Moved "Update Storms" button to top-right corner of map for better accessibility
+- **Improved Button Styling**: Enhanced button appearance with semi-transparent background and better contrast
+- **Streamlined Interface**: Removed button from main control bar to reduce clutter and improve map focus
+
 ### Static NEXRAD Implementation (July 17, 2025)
 - **Static Radar Display**: NEXRAD configured for stable, current radar visualization without animation
 - **Disabled Animation Controls**: Play button disabled for NEXRAD to prevent animation attempts

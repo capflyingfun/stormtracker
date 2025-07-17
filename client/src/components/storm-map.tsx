@@ -1518,15 +1518,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           >
             Switch to {radarSource === 'rainviewer' ? 'NEXRAD' : 'RainViewer'}
           </Button>
-          <Button
-            onClick={sampleRadarDbz}
-            variant="outline"
-            size="sm"
-            className="text-xs px-2"
-            disabled={isAnimating}
-          >
-            Sample dBZ
-          </Button>
+
           <Button
             onClick={toggleRadarAnimation}
             variant={isAnimating ? "destructive" : "default"}
@@ -1559,6 +1551,19 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       <div className="relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden" style={{ height: '400px' }}>
         <div ref={mapRef} className="w-full h-full"></div>
+        
+        {/* Update Storms Button - Top Right */}
+        <div className="absolute top-3 right-3 z-[1000]">
+          <Button
+            onClick={sampleRadarDbz}
+            variant="outline"
+            size="sm"
+            className="text-xs px-3 py-2 bg-slate-800/90 border-slate-600 hover:bg-slate-700/90"
+            disabled={isAnimating}
+          >
+            Update Storms
+          </Button>
+        </div>
         
         {/* Radar Info */}
         <div className="radar-controls">
