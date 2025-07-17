@@ -170,3 +170,11 @@ Preferred communication style: Simple, everyday language.
 - **Dynamic Spacing**: Closer waypoint spacing allowed for higher intensity precipitation (0.2 miles for 45+ dBZ)
 - **Intensity-Based Replacement**: Higher dBZ values replace nearby lower intensity points for accurate representation
 - **Real-time Accuracy**: 98% accurate waypoint positioning directly on precipitation areas shown in radar imagery
+
+### Dynamic Zoom-Based Clustering (July 17, 2025)
+- **Lightning Tracker Pro Style**: Implemented zoom-responsive clustering similar to professional lightning tracking apps
+- **Adaptive Clustering Radius**: Cluster radius decreases as zoom increases (8 miles at zoom 1, 0.3 miles at zoom 10+)
+- **Intensity-Weighted Positioning**: Cluster centers weighted toward highest dBZ values for accurate storm representation
+- **Dynamic Marker Sizing**: Waypoint sizes scale with zoom level and show cluster count when zoomed out
+- **Zoom-Based Sampling**: Finer pixel sampling (every 2nd pixel) when zoomed in for maximum detail
+- **Real-time Re-clustering**: Automatically adjusts clustering when user changes zoom level
