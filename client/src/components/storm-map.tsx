@@ -109,17 +109,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           setRadarSource('nexrad');
         }
       } else {
-        // For NEXRAD, generate multiple timestamps for animation (every 5 minutes for past hour)
+        // For NEXRAD, use single current frame (no historical animation available)
         const currentTime = Math.floor(Date.now() / 1000);
-        const frames = [];
-        for (let i = 11; i >= 0; i--) {
-          frames.push(currentTime - (i * 300)); // 5-minute intervals (300 seconds)
-        }
+        const frames = [currentTime];
         setRadarFrames(frames);
-        setCurrentFrame(frames.length - 1);
-        setCurrentFrameIndex(frames.length - 1);
+        setCurrentFrame(0);
+        setCurrentFrameIndex(0);
         
-        console.log(`Generated ${frames.length} NEXRAD frames for animation`);
+        console.log(`NEXRAD: Using current radar frame (no animation support)`);
       }
     };
 
@@ -182,15 +179,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             attribution: 'RainViewer'
           });
         } else {
-          // NEXRAD animation: Use time-based URL format
-          const date = new Date(timestamp * 1000);
-          const year = date.getUTCFullYear();
-          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-          const day = String(date.getUTCDate()).padStart(2, '0');
-          const hour = String(date.getUTCHours()).padStart(2, '0');
-          const minute = String(Math.floor(date.getUTCMinutes() / 5) * 5).padStart(2, '0'); // Round to 5-minute intervals
-          
-          const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913-${year}${month}${day}${hour}${minute}/{z}/{x}/{y}.png`;
+          // NEXRAD: Use current live radar (no historical animation support)
+          const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?${timestamp}`;
           radarLayerRef.current = window.L.tileLayer(nexradUrl, {
             opacity: 0.7,
             zIndex: 200,
@@ -1244,13 +1234,18 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             variant={isAnimating ? "destructive" : "default"}
             size="sm"
             className="text-xs px-2"
-            disabled={radarFrames.length < 2}
+            disabled={radarFrames.length < 2 || radarSource === 'nexrad'}
           >
             {isAnimating ? 'Stop' : 'Play'}
           </Button>
-          {radarFrames.length > 1 && (
+          {radarFrames.length > 1 && radarSource === 'rainviewer' && (
             <span className="text-xs text-slate-400">
               {currentFrameIndex >= 0 ? `${currentFrameIndex + 1}/${radarFrames.length}` : 'Live'}
+            </span>
+          )}
+          {radarSource === 'nexrad' && (
+            <span className="text-xs text-slate-400">
+              Live Radar Only
             </span>
           )}
         </div>
