@@ -26,6 +26,9 @@ export default function StormTracker() {
   
   const [currentRadarSource, setCurrentRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer');
   
+  // State for precipitation-based storm data
+  const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
+  
   const {
     location,
     isLoading: locationLoading,
@@ -42,8 +45,11 @@ export default function StormTracker() {
     isLoading: stormDataLoading,
   } = useStormData(location, radarRange);
   
+  // Use precipitation storms when available, otherwise use API storms
+  const activeStorms = precipitationStorms.length > 0 ? precipitationStorms : (storms || []);
+  
   // Filter storms based on intensity (5-category system)
-  const filteredStorms = (storms || []).filter(storm => {
+  const filteredStorms = activeStorms.filter(storm => {
     const category = storm.intensity >= 61 ? 'extreme' :    // Extreme thunderstorms
                     storm.intensity >= 55 ? 'veryHeavy' :  // Very heavy rain/hail
                     storm.intensity >= 46 ? 'heavy' :      // Heavy rain
@@ -51,6 +57,19 @@ export default function StormTracker() {
                     'light';                               // Light rain (20-34 dBZ)
     return stormFilters[category as keyof typeof stormFilters];
   });
+
+  // Listen for precipitation storm data from the map component
+  useEffect(() => {
+    const handlePrecipitationStormData = (event: any) => {
+      setPrecipitationStorms(event.detail || []);
+    };
+
+    window.addEventListener('precipitationStormData', handlePrecipitationStormData);
+    
+    return () => {
+      window.removeEventListener('precipitationStormData', handlePrecipitationStormData);
+    };
+  }, []);
 
   // Auto-enable tracking when location is set
   useEffect(() => {
