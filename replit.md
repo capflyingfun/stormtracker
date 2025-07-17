@@ -267,10 +267,11 @@ Preferred communication style: Simple, everyday language.
   - Very Heavy Rain/Hail (55-60 dBZ): Red - 100-205 mm/h with hail potential
   - Extreme Thunderstorms (61+ dBZ): Purple - 250+ mm/h with large hail likely
 
-### Optimized Radar Coverage System (July 17, 2025)
-- **NEXRAD-Only Waypoint Detection**: Accurate precipitation waypoints only generated from NEXRAD data within US coverage
-- **Global Radar Visualization**: RainViewer provides worldwide radar overlay without waypoint generation to prevent false detections
-- **Smart Coverage Detection**: Automatic radar source selection with appropriate feature availability
-- **Clean International Experience**: Outside US, users see radar overlay without potentially inaccurate waypoint markers
-- **Enhanced Storm Cell Information**: Detailed storm panels showing distance, direction, rainfall rate, intensity, coordinates, and movement data
-- **Updated Waypoints Legend**: Full 5-color meteorological scale (Light Rain through Extreme Thunderstorms) matching professional standards
+### Dual-Source Precipitation Detection System (July 17, 2025)
+- **Enhanced RainViewer Support**: Added dedicated RainViewer color mapping and precipitation detection algorithms
+- **Dual Radar Waypoint Detection**: Both NEXRAD (US) and RainViewer (global) now generate accurate precipitation waypoints
+- **Radar-Specific Color Mapping**: NEXRAD uses standard NOAA color scheme, RainViewer uses blue-based intensity mapping
+- **Global Storm Detection**: RainViewer enables worldwide storm detection beyond US NEXRAD coverage
+- **Source-Aware Tooltips**: Storm cell popups clearly indicate data source (NEXRAD vs RainViewer)
+- **Consistent Detection Accuracy**: Same clustering and filtering algorithms applied to both radar sources
+- **Professional dBZ Classification**: Full 5-color meteorological scale maintained across both radar sources
