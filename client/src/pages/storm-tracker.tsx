@@ -186,7 +186,7 @@ export default function StormTracker() {
                   value={[radarRange]}
                   onValueChange={(value) => setRadarRange(value[0])}
                   min={5}
-                  max={50}
+                  max={30}
                   step={1}
                   className="w-full"
                 />
