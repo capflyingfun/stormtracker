@@ -200,6 +200,36 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   }, [currentFrameIndex, radarFrames, radarSource]);
 
+  // Auto-refresh waypoints when radar source changes
+  useEffect(() => {
+    // Only trigger if we have a map and location
+    if (!mapInstanceRef.current || !location) return;
+    
+    // Clear existing waypoints and storm data when switching sources
+    setPrecipitationPoints([]);
+    setStormData([]);
+    setRadarFrameHistory([]);
+    
+    // Clear waypoint markers from map
+    if (sectorHighlightsRef.current) {
+      mapInstanceRef.current.removeLayer(sectorHighlightsRef.current);
+      sectorHighlightsRef.current = null;
+    }
+    
+    // Wait for radar layer to load, then sample new data
+    const refreshTimer = setTimeout(() => {
+      if (radarSource === 'nexrad') {
+        console.log('Radar source switched to NEXRAD - sampling precipitation data');
+        sampleRadarDbz();
+      } else {
+        console.log('Radar source switched to RainViewer - clearing waypoints (overlay only)');
+        // RainViewer mode: just clear waypoints, radar overlay will show visually
+      }
+    }, 1500); // Give time for radar tiles to load
+    
+    return () => clearTimeout(refreshTimer);
+  }, [radarSource]);
+
   // Initialize map
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
