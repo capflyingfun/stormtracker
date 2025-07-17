@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 
 export default function StormTracker() {
   const [useMetric, setUseMetric] = useState(false);
-  const [isTracking, setIsTracking] = useState(false);
+  const [isTracking, setIsTracking] = useState(true); // Auto-enable tracking when location is set
   const radarRange = 30; // Fixed at 30 miles
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   
@@ -32,6 +32,7 @@ export default function StormTracker() {
     setLocationFromGPS,
     setLocationFromSearch,
     setLocationDirectly,
+    clearLocation,
   } = useLocation();
 
   const {
@@ -50,6 +51,14 @@ export default function StormTracker() {
                     'light';                               // Light rain (20-34 dBZ)
     return stormFilters[category as keyof typeof stormFilters];
   });
+
+  // Auto-enable tracking when location is set
+  useEffect(() => {
+    if (location && !isTracking) {
+      setIsTracking(true);
+      setLastUpdate(new Date());
+    }
+  }, [location]);
 
   // Auto-refresh when tracking is enabled
   useEffect(() => {
@@ -105,12 +114,10 @@ export default function StormTracker() {
     }
   };
 
-  const toggleTracking = () => {
-    if (!isTracking && location) {
-      refetchStormData();
-      setLastUpdate(new Date());
-    }
-    setIsTracking(!isTracking);
+  const resetLocation = () => {
+    clearLocation(); // This will trigger location setup to show
+    setIsTracking(false);
+    setLastUpdate(null);
   };
 
   const formatDistance = (miles: number) => {
@@ -134,7 +141,6 @@ export default function StormTracker() {
       <Header 
         useMetric={useMetric}
         onUnitsChange={setUseMetric}
-        isTracking={isTracking}
       />
       
       <div className="p-3 sm:p-6">
@@ -162,12 +168,12 @@ export default function StormTracker() {
                 
                 <div className="flex gap-2">
                   <Button
-                    onClick={toggleTracking}
-                    variant={isTracking ? "destructive" : "default"}
+                    onClick={resetLocation}
+                    variant="outline"
                     size="sm"
                     className="text-xs sm:text-sm"
                   >
-                    {isTracking ? "⏸️ Stop Tracking" : "▶️ Start Tracking"}
+                    📍 Change Location
                   </Button>
                 </div>
               </div>

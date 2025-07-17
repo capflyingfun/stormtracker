@@ -82,11 +82,16 @@ export function useLocation() {
     });
   };
 
+  const clearLocation = () => {
+    setLocation(null);
+  };
+
   return {
     location,
     isLoading,
     setLocationFromGPS,
     setLocationFromSearch,
     setLocationDirectly,
+    clearLocation,
   };
 }
