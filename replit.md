@@ -191,3 +191,10 @@ Preferred communication style: Simple, everyday language.
 - **Compact Legend**: Mobile-optimized precipitation waypoints legend with constrained width
 - **Responsive Typography**: Text sizes scale appropriately for mobile devices
 - **Touch-Friendly Controls**: Adequate spacing and sizing for mobile interaction
+
+### Interactive Storm Tracking (July 17, 2025)
+- **Storm Cell Highlighting**: Click storms in panel or map to highlight with pulsing green circle
+- **Real Movement Calculation**: Tracks storm positions across radar frames to calculate actual speed and direction
+- **Dynamic Speed/Direction**: Storm cells now show real movement data based on position changes over time
+- **Cross-Component Integration**: Storm panel clicks highlight corresponding cells on map with visual feedback
+- **Movement History**: Maintains precipitation point history to enable accurate storm tracking between frames
