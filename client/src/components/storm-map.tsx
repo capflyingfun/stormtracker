@@ -151,11 +151,20 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           }
         } catch (error) {
           console.error('Failed to load NEXRAD frames:', error);
-          // Fallback to current radar
-          const frames = ['current'];
-          setRadarFrames(frames);
-          setCurrentFrame(0);
-          setCurrentFrameIndex(0);
+          
+          // Check if API returned proper error response indicating service unavailability
+          if (error instanceof Error && error.message.includes('Failed to fetch timestamps')) {
+            // NEXRAD animation temporarily unavailable - show current radar with notice
+            console.warn('NEXRAD animation unavailable: Iowa Mesonet services temporarily inaccessible');
+            const frames = ['current'];
+            setRadarFrames(frames);
+            setCurrentFrame(0);
+            setCurrentFrameIndex(0);
+          } else {
+            // Other errors - fall back to RainViewer
+            console.log('Switching to RainViewer due to NEXRAD issues');
+            setRadarSource('rainviewer');
+          }
         }
       }
     };
