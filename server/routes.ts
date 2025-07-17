@@ -501,100 +501,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // NEXRAD historical frames endpoint for StormScope-style animation
-  app.get('/api/nexrad/frames', async (req, res) => {
+  // Get nearby NEXRAD radar sites
+  app.post('/api/nexrad/nearby', async (req, res) => {
     try {
-      // Generate timestamps for past 60 minutes (every 5 minutes = 12 frames)
-      const now = Date.now();
-      const frames = [];
+      const { lat, lon } = weatherDataRequestSchema.parse(req.body);
       
-      for (let i = 11; i >= 0; i--) {
-        const timestamp = new Date(now - (i * 5 * 60 * 1000)); // 5 minutes ago
-        const year = timestamp.getUTCFullYear();
-        const month = String(timestamp.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(timestamp.getUTCDate()).padStart(2, '0');
-        const hour = String(timestamp.getUTCHours()).padStart(2, '0');
-        const minute = String(Math.floor(timestamp.getUTCMinutes() / 5) * 5).padStart(2, '0');
-        
-        frames.push({
-          timestamp: Math.floor(timestamp.getTime() / 1000),
-          timeString: `${year}${month}${day}${hour}${minute}`,
-          displayTime: timestamp.toISOString()
-        });
+      // Fetch available radar sites from Iowa Mesonet
+      const response = await fetch('https://mesonet.agron.iastate.edu/json/radar');
+      if (!response.ok) {
+        throw new Error('Failed to fetch radar sites');
       }
       
-      res.json({ frames });
+      const sites = await response.json();
+      
+      // Find nearest radar site
+      let nearest = null;
+      let minDistance = Infinity;
+      
+      for (const site of sites) {
+        if (site.lat && site.lon) {
+          const distance = Math.sqrt(
+            Math.pow(lat - site.lat, 2) + Math.pow(lon - site.lon, 2)
+          );
+          if (distance < minDistance) {
+            minDistance = distance;
+            nearest = site;
+          }
+        }
+      }
+      
+      res.json({ site: nearest?.id || 'DMX' }); // Default to Des Moines if not found
     } catch (error) {
-      console.error('NEXRAD frames error:', error);
-      res.status(500).json({ error: 'Failed to generate NEXRAD frames' });
+      console.error('Nearby radar error:', error);
+      res.status(500).json({ error: 'Failed to find nearby radar' });
     }
   });
 
-  // NEXRAD tile proxy with historical support
-  app.get('/api/nexrad/tile/:timeString/:z/:x/:y.png', async (req, res) => {
+  // Get NEXRAD timestamps for a specific site
+  app.get('/api/nexrad/timestamps/:site', async (req, res) => {
     try {
-      const { timeString, z, x, y } = req.params;
+      const { site } = req.params;
       
-      // For current frame, use live radar
-      if (timeString === 'current') {
-        const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${z}/${x}/${y}.png`;
-        const response = await fetch(tileUrl);
+      // Fetch available timestamps from Iowa Mesonet
+      const response = await fetch(`https://mesonet.agron.iastate.edu/json/ridge_current.json?radar=${site}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch timestamps');
+      }
+      
+      const data = await response.json();
+      const timestamps = data.scans || [];
+      
+      // Return last 10 timestamps for animation
+      const recentTimestamps = timestamps.slice(-10);
+      
+      res.json({ timestamps: recentTimestamps, site });
+    } catch (error) {
+      console.error('Timestamps error:', error);
+      res.status(500).json({ error: 'Failed to fetch timestamps' });
+    }
+  });
+
+  // NEXRAD RIDGE tile proxy for specific site and timestamp
+  app.get('/api/nexrad/tile/:site/:timestamp/:z/:x/:y.png', async (req, res) => {
+    try {
+      const { site, timestamp, z, x, y } = req.params;
+      
+      // Use RIDGE API for site-specific historical radar
+      const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::${site}::${timestamp}/${z}/${x}/${y}.png`;
+      const response = await fetch(tileUrl);
+      
+      if (!response.ok) {
+        // Fallback to current NEXRAD composite
+        const fallbackUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${z}/${x}/${y}.png`;
+        const fallbackResponse = await fetch(fallbackUrl);
         
-        if (!response.ok) {
+        if (!fallbackResponse.ok) {
           return res.status(404).send('NEXRAD tile not found');
         }
         
-        const buffer = await response.arrayBuffer();
+        const buffer = await fallbackResponse.arrayBuffer();
         res.setHeader('Content-Type', 'image/png');
-        res.setHeader('Cache-Control', 'public, max-age=60'); // Shorter cache for live
+        res.setHeader('Cache-Control', 'public, max-age=60');
         res.send(Buffer.from(buffer));
         return;
       }
       
-      // For historical frames, try multiple time formats
-      const timeFormats = [
-        timeString, // Original format (YYYYMMDDHHMM)
-        timeString.substring(0, 10) + timeString.substring(10, 12), // Remove seconds if present
-      ];
-      
-      let foundTile = false;
-      let buffer;
-      
-      for (const format of timeFormats) {
-        try {
-          const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913-${format}/${z}/${x}/${y}.png`;
-          const response = await fetch(tileUrl);
-          
-          if (response.ok) {
-            buffer = await response.arrayBuffer();
-            foundTile = true;
-            break;
-          }
-        } catch (e) {
-          continue;
-        }
-      }
-      
-      // If no historical tile found, fall back to current
-      if (!foundTile) {
-        const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${z}/${x}/${y}.png`;
-        const response = await fetch(tileUrl);
-        
-        if (response.ok) {
-          buffer = await response.arrayBuffer();
-          foundTile = true;
-        }
-      }
-      
-      if (!foundTile) {
-        return res.status(404).send('NEXRAD tile not found');
-      }
-      
+      const buffer = await response.arrayBuffer();
       res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.setHeader('Cache-Control', 'public, max-age=600'); // Cache historical data longer
       res.send(Buffer.from(buffer));
     } catch (error) {
-      console.error('NEXRAD tile proxy error:', error);
+      console.error('NEXRAD RIDGE tile proxy error:', error);
       res.status(500).send('Failed to fetch NEXRAD tile');
     }
   });

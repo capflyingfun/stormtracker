@@ -58,6 +58,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [radarFrames, setRadarFrames] = useState<number[]>([]);
   const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer'); // RainViewer primary
   const [currentFrameIndex, setCurrentFrameIndex] = useState<number>(-1);
+  const [nexradSite, setNexradSite] = useState<string>('');
   const animationIntervalRef = useRef<NodeJS.Timeout>();
   const animationSpeedRef = useRef<number>(800); // ms between frames
   const [sectorDbzData, setSectorDbzData] = useState<{[key: string]: number}>({});
@@ -109,21 +110,51 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           setRadarSource('nexrad');
         }
       } else {
-        // For NEXRAD, create animation frames with current data + cache busting
-        // Since historical NEXRAD data isn't reliably available, we'll animate current radar
-        const currentTime = Math.floor(Date.now() / 1000);
-        const frames = [];
-        
-        // Create 6 frames with slight time variations for animation effect
-        for (let i = 0; i < 6; i++) {
-          frames.push(`current_${currentTime + i}`);
+        // For NEXRAD, get nearest radar site and timestamps
+        try {
+          if (!location) {
+            throw new Error('Location required for NEXRAD');
+          }
+          
+          // Find nearest radar site
+          const nearbyResponse = await fetch('/api/nexrad/nearby', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat: location.lat, lon: location.lon })
+          });
+          
+          if (!nearbyResponse.ok) {
+            throw new Error('Failed to find nearby radar');
+          }
+          
+          const { site } = await nearbyResponse.json();
+          setNexradSite(site);
+          
+          // Get available timestamps for this site
+          const timestampsResponse = await fetch(`/api/nexrad/timestamps/${site}`);
+          if (!timestampsResponse.ok) {
+            throw new Error('Failed to fetch timestamps');
+          }
+          
+          const { timestamps } = await timestampsResponse.json();
+          
+          if (timestamps && timestamps.length > 0) {
+            setRadarFrames(timestamps);
+            setCurrentFrame(timestamps.length - 1);
+            setCurrentFrameIndex(timestamps.length - 1);
+            
+            console.log(`NEXRAD: Loaded ${timestamps.length} historical frames for site ${site}`);
+          } else {
+            throw new Error('No timestamps available');
+          }
+        } catch (error) {
+          console.error('Failed to load NEXRAD frames:', error);
+          // Fallback to current radar
+          const frames = ['current'];
+          setRadarFrames(frames);
+          setCurrentFrame(0);
+          setCurrentFrameIndex(0);
         }
-        
-        setRadarFrames(frames);
-        setCurrentFrame(frames.length - 1);
-        setCurrentFrameIndex(frames.length - 1);
-        
-        console.log(`NEXRAD: Created ${frames.length} animation frames (current radar)`);
       }
     };
 
@@ -186,14 +217,22 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             attribution: 'RainViewer'
           });
         } else {
-          // NEXRAD: Use current radar with cache busting for animation effect
+          // NEXRAD: Use RIDGE API for site-specific historical data
           const timestampStr = String(timestamp);
-          const cacheParam = timestampStr.startsWith('current') ? `?t=${Date.now()}` : '';
-          const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png${cacheParam}`;
+          let nexradUrl;
+          
+          if (timestampStr.startsWith('current') || !nexradSite) {
+            // Fallback to current composite radar
+            nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
+          } else {
+            // Use RIDGE API for historical site-specific data
+            nexradUrl = `/api/nexrad/tile/${nexradSite}/${timestamp}/{z}/{x}/{y}.png`;
+          }
+          
           radarLayerRef.current = window.L.tileLayer(nexradUrl, {
             opacity: 0.7,
             zIndex: 200,
-            attribution: 'NEXRAD',
+            attribution: `NEXRAD ${nexradSite ? `(${nexradSite})` : ''}`,
             updateWhenIdle: true,
             updateWhenZooming: false
           });
