@@ -46,17 +46,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [radarFrames, setRadarFrames] = useState<number[]>([]);
   const animationIntervalRef = useRef<NodeJS.Timeout>();
 
-  // Initialize radar frames
+  // Initialize radar frames - simplified
   useEffect(() => {
-    if (radarFrames.length === 0) {
-      const now = Math.floor(Date.now() / 1000);
-      const frames = [];
-      for (let i = 10; i >= 0; i--) {
-        frames.push(now - (i * 600)); // 10-minute intervals
-      }
-      setRadarFrames(frames);
-      setCurrentFrame(frames.length - 1);
-    }
+    // Just load current radar
+    setRadarFrames([Math.floor(Date.now() / 1000)]);
+    setCurrentFrame(0);
   }, []);
 
   // Initialize map
@@ -135,29 +129,35 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     const timestamp = radarFrames[frameIndex ?? currentFrame] || radarFrames[radarFrames.length - 1];
 
-    // Remove existing radar layer
+    // Remove existing radar layer first
     if (radarLayerRef.current) {
-      map.removeLayer(radarLayerRef.current);
+      try {
+        map.removeLayer(radarLayerRef.current);
+      } catch (e) {
+        console.log('Error removing radar layer:', e);
+      }
       radarLayerRef.current = null;
     }
 
-    // Add RainViewer radar layer with better error handling
+    // Create new radar layer with OpenWeatherMap tiles (more stable)
     try {
+      // Use OpenWeatherMap precipitation layer instead of RainViewer
       radarLayerRef.current = window.L.tileLayer(
-        `https://tilecache.rainviewer.com/v2/radar/${timestamp}/256/{z}/{x}/{y}/6/1_1.png`,
+        `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
         {
           tileSize: 256,
           opacity: 0.6,
           transparent: true,
-          attribution: 'Weather data © RainViewer',
-          errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+          attribution: 'Weather data © OpenWeatherMap',
+          maxZoom: 10,
+          updateWhenIdle: true,
+          updateWhenZooming: false
         }
       );
       
+      // Add to map
       radarLayerRef.current.addTo(map);
       
-      // Log for debugging
-      console.log('Radar layer loaded:', timestamp, new Date(timestamp * 1000).toLocaleTimeString());
     } catch (error) {
       console.error('Failed to load radar layer:', error);
     }
@@ -221,45 +221,18 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   };
 
   const toggleAnimation = () => {
-    if (isAnimating) {
-      if (animationIntervalRef.current) {
-        clearInterval(animationIntervalRef.current);
-      }
-      setIsAnimating(false);
-    } else {
-      setIsAnimating(true);
-      animationIntervalRef.current = setInterval(() => {
-        setCurrentFrame((prev) => {
-          const nextFrame = (prev + 1) % radarFrames.length;
-          loadRadarLayer(nextFrame);
-          return nextFrame;
-        });
-      }, 500);
-    }
+    // Disable animation for now - just refresh the radar
+    refreshRadar();
   };
 
   const refreshRadar = () => {
-    const now = Math.floor(Date.now() / 1000);
-    const frames = [];
-    for (let i = 10; i >= 0; i--) {
-      frames.push(now - (i * 600));
-    }
-    setRadarFrames(frames);
-    setCurrentFrame(frames.length - 1);
-  };
-
-  const handleTimeSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newFrame = parseInt(e.target.value);
-    setCurrentFrame(newFrame);
-    loadRadarLayer(newFrame);
+    // Just refresh the current radar layer
+    setRadarFrames([Math.floor(Date.now() / 1000)]);
+    setCurrentFrame(0);
   };
 
   const getTimeDisplay = (): string => {
-    if (radarFrames.length === 0) return 'Loading...';
-    const timestamp = radarFrames[currentFrame];
-    if (currentFrame === radarFrames.length - 1) return 'Live';
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return 'Live';
   };
 
   return (
@@ -271,18 +244,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         
         <div className="flex items-center gap-2">
           <Button
-            onClick={toggleAnimation}
+            onClick={refreshRadar}
             variant="default"
             size="sm"
           >
-            {isAnimating ? '⏸️ Pause' : '▶️ Play'}
-          </Button>
-          <Button
-            onClick={refreshRadar}
-            variant="secondary"
-            size="sm"
-          >
-            🔄 Refresh
+            🔄 Refresh Radar
           </Button>
         </div>
       </div>
@@ -290,22 +256,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       <div className="relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden" style={{ height: '500px' }}>
         <div ref={mapRef} className="w-full h-full"></div>
         
-        {/* Radar Animation Controls */}
+        {/* Radar Info */}
         <div className="radar-controls">
           <div className="flex items-center gap-2 text-xs text-slate-300">
-            <span>Radar Time:</span>
-            <input
-              type="range"
-              min="0"
-              max={Math.max(0, radarFrames.length - 1)}
-              value={currentFrame}
-              onChange={handleTimeSliderChange}
-              className="w-24 h-1"
-            />
-            <span>{getTimeDisplay()}</span>
+            <span>Radar: {getTimeDisplay()}</span>
           </div>
           <div className="mt-1 text-xs text-slate-400">
-            Updates: 10 min | Range: {radarRange} miles
+            Range: {radarRange} miles | Click refresh to update
           </div>
         </div>
       </div>
