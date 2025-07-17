@@ -51,6 +51,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [radarSource, setRadarSource] = useState<'nexrad'>('nexrad'); // NEXRAD only
   const animationIntervalRef = useRef<NodeJS.Timeout>();
   const [sectorDbzData, setSectorDbzData] = useState<{[key: string]: number}>({});
+  const [precipitationPoints, setPrecipitationPoints] = useState<Array<{
+    lat: number;
+    lon: number;
+    dbz: number;
+    id: string;
+  }>>([]);
   const radarCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Initialize NEXRAD radar frames
@@ -230,7 +236,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return R * c;
   };
 
-  // Add waypoint markers for detected precipitation areas with clustering
+  // Add waypoint markers for detected precipitation areas
   const addDbzWaypoints = () => {
     const map = mapInstanceRef.current;
     if (!map || !window.L) return;
@@ -239,91 +245,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const centerLat = location.lat;
     const centerLon = location.lon;
 
-    // First, collect all precipitation points
-    const precipitationPoints: Array<{
-      lat: number;
-      lon: number;
-      dbz: number;
-      distance: number;
-      angle: number;
-      sectorKey: string;
-    }> = [];
-
-    // Create precipitation points for sectors with significant precipitation
-    for (const [sectorKey, dbzValue] of Object.entries(sectorDbzData)) {
-      // Only process sectors with measurable precipitation (25+ dBZ)
-      if (dbzValue >= 25) {
-        const [distance, angle] = sectorKey.split('-').map(Number);
-        
-        // Calculate center position of the sector
-        const midDistance = distance - 2.5; // Place waypoint in middle of 5-mile ring
-        const midAngle = angle + 15; // Place waypoint in middle of 30-degree sector
-        
-        // Convert to lat/lon coordinates
-        const angleRad = (midAngle * Math.PI) / 180;
-        const waypointLat = centerLat + ((midDistance * 1609.34) / 111320) * Math.cos(angleRad);
-        const waypointLon = centerLon + ((midDistance * 1609.34) / (111320 * Math.cos(centerLat * Math.PI / 180))) * Math.sin(angleRad);
-        
-        precipitationPoints.push({
-          lat: waypointLat,
-          lon: waypointLon,
-          dbz: dbzValue,
-          distance,
-          angle,
-          sectorKey
-        });
-      }
-    }
-
-    // Cluster nearby points (within 5 miles)
-    const clusteredPoints: Array<{
-      lat: number;
-      lon: number;
-      dbz: number;
-      count: number;
-      sectors: string[];
-    }> = [];
-
-    const processedPoints = new Set<string>();
-
+    // Create waypoint markers for each actual precipitation point
     for (const point of precipitationPoints) {
-      if (processedPoints.has(point.sectorKey)) continue;
-
-      // Find all points within 5 miles of this point
-      const nearbyPoints = [point];
-      processedPoints.add(point.sectorKey);
-
-      for (const otherPoint of precipitationPoints) {
-        if (processedPoints.has(otherPoint.sectorKey)) continue;
-        
-        const distance = calculateDistance(point.lat, point.lon, otherPoint.lat, otherPoint.lon);
-        if (distance <= 5) {
-          nearbyPoints.push(otherPoint);
-          processedPoints.add(otherPoint.sectorKey);
-        }
-      }
-
-      // Create cluster waypoint
-      if (nearbyPoints.length > 0) {
-        // Calculate center position of cluster
-        const clusterLat = nearbyPoints.reduce((sum, p) => sum + p.lat, 0) / nearbyPoints.length;
-        const clusterLon = nearbyPoints.reduce((sum, p) => sum + p.lon, 0) / nearbyPoints.length;
-        
-        // Use highest dBZ value in cluster
-        const maxDbz = Math.max(...nearbyPoints.map(p => p.dbz));
-        
-        clusteredPoints.push({
-          lat: clusterLat,
-          lon: clusterLon,
-          dbz: maxDbz,
-          count: nearbyPoints.length,
-          sectors: nearbyPoints.map(p => p.sectorKey)
-        });
-      }
-    }
-
-    // Create waypoint markers for clustered points
-    for (const cluster of clusteredPoints) {
       // Get color and size based on dBZ value
       const getDbzColor = (dbz: number) => {
         if (dbz >= 45) return '#ff0000'; // Red - Heavy
@@ -332,49 +255,48 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       };
       
       const getMarkerSize = (dbz: number) => {
-        if (dbz >= 45) return 14; // Large for heavy precipitation
-        if (dbz >= 35) return 12; // Medium for moderate precipitation
-        return 10; // Small for light precipitation
+        if (dbz >= 45) return 12; // Large for heavy precipitation
+        if (dbz >= 35) return 10; // Medium for moderate precipitation
+        return 8; // Small for light precipitation
       };
       
       // Create custom waypoint marker
       const waypointIcon = window.L.divIcon({
         html: `
           <div style="
-            width: ${getMarkerSize(cluster.dbz)}px;
-            height: ${getMarkerSize(cluster.dbz)}px;
-            background-color: ${getDbzColor(cluster.dbz)};
+            width: ${getMarkerSize(point.dbz)}px;
+            height: ${getMarkerSize(point.dbz)}px;
+            background-color: ${getDbzColor(point.dbz)};
             border: 2px solid #ffffff;
             border-radius: 50%;
-            box-shadow: 0 0 8px rgba(0,0,0,0.6);
+            box-shadow: 0 0 6px rgba(0,0,0,0.5);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 9px;
+            font-size: 8px;
             font-weight: bold;
             color: #000;
           ">
-            ${cluster.dbz}
+            ${point.dbz}
           </div>
         `,
-        className: 'dbz-waypoint-cluster',
-        iconSize: [getMarkerSize(cluster.dbz), getMarkerSize(cluster.dbz)],
-        iconAnchor: [getMarkerSize(cluster.dbz) / 2, getMarkerSize(cluster.dbz) / 2]
+        className: 'dbz-waypoint',
+        iconSize: [getMarkerSize(point.dbz), getMarkerSize(point.dbz)],
+        iconAnchor: [getMarkerSize(point.dbz) / 2, getMarkerSize(point.dbz) / 2]
       });
       
-      // Create waypoint marker
-      const waypointMarker = window.L.marker([cluster.lat, cluster.lon], {
+      // Create waypoint marker at actual precipitation location
+      const waypointMarker = window.L.marker([point.lat, point.lon], {
         icon: waypointIcon
       });
       
-      // Add popup with cluster info
-      const clusterDistance = calculateDistance(centerLat, centerLon, cluster.lat, cluster.lon);
+      // Add popup with precipitation info
+      const pointDistance = calculateDistance(centerLat, centerLon, point.lat, point.lon);
       waypointMarker.bindPopup(`
-        <b>Precipitation Cluster</b><br>
-        Distance: ${clusterDistance.toFixed(1)} miles<br>
-        Max Intensity: ${cluster.dbz} dBZ<br>
-        Type: ${cluster.dbz >= 45 ? 'Heavy' : cluster.dbz >= 35 ? 'Moderate' : 'Light'}<br>
-        Sectors: ${cluster.count}<br>
+        <b>Precipitation Point</b><br>
+        Distance: ${pointDistance.toFixed(1)} miles<br>
+        Intensity: ${point.dbz} dBZ<br>
+        Type: ${point.dbz >= 45 ? 'Heavy' : point.dbz >= 35 ? 'Moderate' : 'Light'}<br>
         <small>Real-time NEXRAD data</small>
       `);
       
@@ -394,12 +316,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         sectorHighlightsRef.current = null;
       }
       
-      // Add new waypoint markers based on dBZ data
-      if (Object.keys(sectorDbzData).length > 0) {
+      // Add new waypoint markers based on precipitation points
+      if (precipitationPoints.length > 0) {
         addDbzWaypoints();
       }
     }
-  }, [sectorDbzData, showSectorGrid, location]);
+  }, [precipitationPoints, showSectorGrid, location]);
 
   // Load radar layer
   const loadRadarLayer = async (frameIndex?: number) => {
@@ -547,7 +469,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return minDistance < 50 ? bestMatch : 0;
   };
 
-  // Sample dBZ values from NEXRAD radar tiles
+  // Sample dBZ values directly from visible precipitation areas
   const sampleRadarDbz = async () => {
     const map = mapInstanceRef.current;
     if (!map || !radarLayerRef.current) return;
@@ -556,107 +478,110 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       // Get map bounds and center
       const center = map.getCenter();
       const zoom = map.getZoom();
+      const bounds = map.getBounds();
 
-      // Calculate multiple tiles around the center to get better coverage
+      // Calculate the 30-mile radius boundary
+      const radiusInDegrees = 30 / 69.0; // 30 miles in degrees
+      const northLat = center.lat + radiusInDegrees;
+      const southLat = center.lat - radiusInDegrees;
+      const eastLng = center.lng + radiusInDegrees / Math.cos(center.lat * Math.PI / 180);
+      const westLng = center.lng - radiusInDegrees / Math.cos(center.lat * Math.PI / 180);
+
+      // Find all tiles that overlap with our 30-mile radius
       const tilesToCheck = [];
-      const baseTileX = Math.floor((center.lng + 180) / 360 * Math.pow(2, zoom));
-      const baseTileY = Math.floor((1 - Math.log(Math.tan(center.lat * Math.PI / 180) + 1 / Math.cos(center.lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
-      
-      // Check 3x3 grid of tiles around center
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          tilesToCheck.push({ x: baseTileX + dx, y: baseTileY + dy });
+      const minTileX = Math.floor((westLng + 180) / 360 * Math.pow(2, zoom));
+      const maxTileX = Math.floor((eastLng + 180) / 360 * Math.pow(2, zoom));
+      const minTileY = Math.floor((1 - Math.log(Math.tan(northLat * Math.PI / 180) + 1 / Math.cos(northLat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+      const maxTileY = Math.floor((1 - Math.log(Math.tan(southLat * Math.PI / 180) + 1 / Math.cos(southLat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+
+      for (let tileX = minTileX; tileX <= maxTileX; tileX++) {
+        for (let tileY = minTileY; tileY <= maxTileY; tileY++) {
+          tilesToCheck.push({ x: tileX, y: tileY });
         }
       }
 
-      const newSectorData: {[key: string]: number} = {};
+      const precipitationPoints: Array<{
+        lat: number;
+        lon: number;
+        dbz: number;
+        id: string;
+      }> = [];
 
-      // Define sectors: 12 angular sectors (30° each) × 6 distance rings (5-mile steps)
-      for (let ring = 1; ring <= 6; ring++) {
-        for (let sector = 0; sector < 12; sector++) {
-          const angle = sector * 30;
-          const distance = ring * 5;
-          const sectorKey = `${distance}-${angle}`;
+      // Sample each tile for precipitation
+      for (const tile of tilesToCheck) {
+        try {
+          const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tile.x}/${tile.y}.png`;
           
-          // Calculate the geographic center of this sector
-          const sectorAngleRad = ((angle + 15) * Math.PI) / 180; // Middle of sector
-          const sectorDistance = distance - 2.5; // Middle of ring
-          
-          // Convert sector position to geographic coordinates
-          const sectorLat = center.lat + (sectorDistance * Math.cos(sectorAngleRad)) / 69.0;
-          const sectorLon = center.lng + (sectorDistance * Math.sin(sectorAngleRad)) / (69.0 * Math.cos(center.lat * Math.PI / 180));
-          
-          // Find which tile contains this sector
-          const tileX = Math.floor((sectorLon + 180) / 360 * Math.pow(2, zoom));
-          const tileY = Math.floor((1 - Math.log(Math.tan(sectorLat * Math.PI / 180) + 1 / Math.cos(sectorLat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
-          
-          // Calculate pixel position within the tile
+          const canvas = document.createElement('canvas');
           const tileSize = 256;
-          const pixelX = Math.floor(((sectorLon + 180) / 360 * Math.pow(2, zoom) - tileX) * tileSize);
-          const pixelY = Math.floor(((1 - Math.log(Math.tan(sectorLat * Math.PI / 180) + 1 / Math.cos(sectorLat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom) - tileY) * tileSize);
+          canvas.width = tileSize;
+          canvas.height = tileSize;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) continue;
+
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
           
-          // Sample the radar data at this location
-          try {
-            const tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tileX}/${tileY}.png`;
-            
-            const canvas = document.createElement('canvas');
-            canvas.width = tileSize;
-            canvas.height = tileSize;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) continue;
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0);
+              resolve();
+            };
+            img.onerror = () => resolve();
+            img.src = tileUrl;
+          });
 
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            
-            await new Promise<void>((resolve, reject) => {
-              img.onload = () => {
-                ctx.drawImage(img, 0, 0);
-                resolve();
-              };
-              img.onerror = () => resolve(); // Continue on error
-              img.src = tileUrl;
-            });
-
-            // Sample the pixel data
-            const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
-            const data = imageData.data;
-            
-            // Sample multiple points around the sector center
-            let maxDbz = 0;
-            const sampleRadius = 10; // Sample in 10-pixel radius
-            
-            for (let dx = -sampleRadius; dx <= sampleRadius; dx += 2) {
-              for (let dy = -sampleRadius; dy <= sampleRadius; dy += 2) {
-                const sampleX = Math.max(0, Math.min(tileSize - 1, pixelX + dx));
-                const sampleY = Math.max(0, Math.min(tileSize - 1, pixelY + dy));
-                
-                const pixelIndex = (sampleY * tileSize + sampleX) * 4;
-                const r = data[pixelIndex];
-                const g = data[pixelIndex + 1];
-                const b = data[pixelIndex + 2];
-                const alpha = data[pixelIndex + 3];
-                
-                // Only process non-transparent pixels
-                if (alpha > 0) {
-                  const dbz = colorToDbz(r, g, b);
-                  if (dbz > maxDbz) {
-                    maxDbz = dbz;
+          const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
+          const data = imageData.data;
+          
+          // Sample every 8th pixel to find precipitation
+          for (let x = 0; x < tileSize; x += 8) {
+            for (let y = 0; y < tileSize; y += 8) {
+              const pixelIndex = (y * tileSize + x) * 4;
+              const r = data[pixelIndex];
+              const g = data[pixelIndex + 1];
+              const b = data[pixelIndex + 2];
+              const alpha = data[pixelIndex + 3];
+              
+              if (alpha > 0) {
+                const dbz = colorToDbz(r, g, b);
+                if (dbz >= 25) {
+                  // Convert pixel position back to lat/lon
+                  const pixelLng = (tile.x + x / tileSize) * 360 / Math.pow(2, zoom) - 180;
+                  const pixelLatRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * (tile.y + y / tileSize) / Math.pow(2, zoom))));
+                  const pixelLat = pixelLatRad * 180 / Math.PI;
+                  
+                  // Check if this point is within our 30-mile radius
+                  const distance = calculateDistance(center.lat, center.lng, pixelLat, pixelLng);
+                  if (distance <= 30) {
+                    precipitationPoints.push({
+                      lat: pixelLat,
+                      lon: pixelLng,
+                      dbz: dbz,
+                      id: `${tile.x}-${tile.y}-${x}-${y}`
+                    });
                   }
                 }
               }
             }
-            
-            newSectorData[sectorKey] = maxDbz;
-            
-          } catch (error) {
-            // Skip this sector on error
-            newSectorData[sectorKey] = 0;
           }
+        } catch (error) {
+          // Skip this tile on error
+          continue;
         }
       }
 
+      // Store precipitation points
+      setPrecipitationPoints(precipitationPoints);
+      
+      // Create simple sector data for legend display
+      const newSectorData: {[key: string]: number} = {};
+      precipitationPoints.forEach((point, index) => {
+        newSectorData[`point-${index}`] = point.dbz;
+      });
       setSectorDbzData(newSectorData);
-      console.log('Sampled dBZ data:', newSectorData);
+      
+      console.log(`Found ${precipitationPoints.length} precipitation points:`, precipitationPoints);
       
     } catch (error) {
       console.error('Error sampling radar dBZ:', error);
@@ -721,7 +646,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         {/* Precipitation Waypoints Legend */}
         <div className="absolute top-2 right-2 z-[1000] bg-slate-900/90 p-2 rounded border border-slate-700 text-xs">
           <div className="font-semibold text-white mb-1">
-            Precipitation Clusters {Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length > 0 ? `(${Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length} sectors)` : ''}
+            Precipitation Waypoints {Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length > 0 ? `(${Object.keys(sectorDbzData).filter(key => sectorDbzData[key] >= 25).length} points)` : ''}
           </div>
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
