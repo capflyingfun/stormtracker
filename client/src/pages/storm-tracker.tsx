@@ -117,7 +117,12 @@ export default function StormTracker() {
             console.log(`Alert System: Event-driven risk assessment for ${sortedFilteredStorms.length} FILTERED precipitation storms (SAME data as Storm Panel)`);
             console.log('Alert System: Using FILTERED Storm Panel data:', sortedFilteredStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
             console.log(`Alert System: Applied storm filters - filtered from ${newPrecipitationStorms.length} to ${sortedFilteredStorms.length} storms`);
-            const riskData = await assessRisk(location, sortedFilteredStorms, lightningCount);
+            
+            // Use ONLY the nearest storm for risk assessment (same as Storm Cells panel display)
+            const nearestStormOnly = sortedFilteredStorms.length > 0 ? [sortedFilteredStorms[0]] : [];
+            console.log(`Alert System: Using NEAREST STORM ONLY for alert calculation:`, nearestStormOnly.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
+            
+            const riskData = await assessRisk(location, nearestStormOnly, lightningCount);
             if (riskData && riskData.shouldAlert) {
               console.log('Alert System: Event-driven alert triggered with Storm Panel data:', riskData.title, riskData.conditions);
               showAlert(riskData);
