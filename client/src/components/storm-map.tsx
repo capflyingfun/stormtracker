@@ -1758,6 +1758,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true } // Show all if currently isolated
                 : { extreme: true, veryHeavy: false, heavy: false, moderate: false, light: false }; // Isolate this category
               setLocalStormFilters(newFilters);
+              // Dispatch filter change event
+              window.dispatchEvent(new CustomEvent('stormFiltersChanged', { detail: newFilters }));
 
             }}
             className={`flex items-center gap-2 p-1 rounded transition-colors ${
@@ -1777,6 +1779,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
                 : { extreme: false, veryHeavy: true, heavy: false, moderate: false, light: false };
               setLocalStormFilters(newFilters);
+              // Dispatch filter change event
+              window.dispatchEvent(new CustomEvent('stormFiltersChanged', { detail: newFilters }));
 
             }}
             className={`flex items-center gap-2 p-1 rounded transition-colors ${
@@ -1796,6 +1800,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
                 : { extreme: false, veryHeavy: false, heavy: true, moderate: false, light: false };
               setLocalStormFilters(newFilters);
+              // Dispatch filter change event
+              window.dispatchEvent(new CustomEvent('stormFiltersChanged', { detail: newFilters }));
 
             }}
             className={`flex items-center gap-2 p-1 rounded transition-colors ${
@@ -1815,6 +1821,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
                 : { extreme: false, veryHeavy: false, heavy: false, moderate: true, light: false };
               setLocalStormFilters(newFilters);
+              // Dispatch filter change event
+              window.dispatchEvent(new CustomEvent('stormFiltersChanged', { detail: newFilters }));
 
             }}
             className={`flex items-center gap-2 p-1 rounded transition-colors ${
@@ -1834,6 +1842,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
                 : { extreme: false, veryHeavy: false, heavy: false, moderate: false, light: true };
               setLocalStormFilters(newFilters);
+              // Dispatch filter change event
+              window.dispatchEvent(new CustomEvent('stormFiltersChanged', { detail: newFilters }));
 
             }}
             className={`flex items-center gap-2 p-1 rounded transition-colors ${

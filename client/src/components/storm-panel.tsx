@@ -81,6 +81,23 @@ const getRainfallRate = (dbz: number): { mmh: number; inh: number } => {
 };
 
 export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource, stormFilters, alertPreferences }: StormPanelProps & { stormFilters?: any; alertPreferences?: any }) {
+  // Local filter state that syncs with the map's precipitation waypoints legend
+  const [currentFilters, setCurrentFilters] = useState({
+    light: true, moderate: true, heavy: true, veryHeavy: true, extreme: true
+  });
+
+  // Listen for filter changes from the precipitation waypoints legend
+  useEffect(() => {
+    const handleFilterChange = (event: any) => {
+      setCurrentFilters(event.detail);
+    };
+
+    window.addEventListener('stormFiltersChanged', handleFilterChange);
+    return () => {
+      window.removeEventListener('stormFiltersChanged', handleFilterChange);
+    };
+  }, []);
+
   // Use storms passed as props (these are the precipitation storms from the parent component)
   console.log(`STORM PANEL: Received ${storms.length} storms as props`);
   console.log('STORM PANEL: Props storms:', storms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
@@ -89,14 +106,14 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
   // This ensures we only show storms that are actually detected in the radar imagery
   const effectiveStorms = storms;
   
-  // Apply storm filters if provided
-  const filteredStorms = stormFilters ? effectiveStorms.filter(storm => {
+  // Apply current filter state (synchronized with precipitation waypoints legend)
+  const filteredStorms = effectiveStorms.filter(storm => {
     const category = storm.intensity >= 61 ? 'extreme' :
                     storm.intensity >= 55 ? 'veryHeavy' :
                     storm.intensity >= 46 ? 'heavy' : 
                     storm.intensity >= 35 ? 'moderate' : 'light';
-    return stormFilters[category as keyof typeof stormFilters];
-  }) : effectiveStorms;
+    return currentFilters[category as keyof typeof currentFilters];
+  });
   
   console.log(`STORM PANEL: Filtered storms from ${effectiveStorms.length} to ${filteredStorms.length}`);
   console.log('STORM PANEL: Final filtered storms:', filteredStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
