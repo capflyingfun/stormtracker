@@ -19,7 +19,14 @@ interface AddressSuggestion {
 }
 
 interface SmartAddressSearchProps {
-  onLocationSelect: (location: { lat: number; lon: number; name: string }) => void;
+  onLocationSelect: (location: { 
+    lat: number; 
+    lon: number; 
+    name: string; 
+    country?: string; 
+    isUS?: boolean; 
+    recommendedRadarSource?: 'rainviewer' | 'nexrad' 
+  }) => void;
   onUseCurrentLocation?: () => void;
   placeholder?: string;
   className?: string;
@@ -99,7 +106,10 @@ export default function SmartAddressSearch({
     onLocationSelect({
       lat: suggestion.lat,
       lon: suggestion.lon,
-      name: suggestion.display_name
+      name: suggestion.display_name,
+      country: suggestion.address?.country,
+      isUS: suggestion.address?.country === 'US',
+      recommendedRadarSource: suggestion.address?.country === 'US' ? 'nexrad' : 'rainviewer'
     });
   };
 
@@ -155,12 +165,19 @@ export default function SmartAddressSearch({
         onLocationSelect({
           lat: location.lat,
           lon: location.lon,
-          name: location.name + (location.state ? `, ${location.state}` : '')
+          name: location.name + (location.state ? `, ${location.state}` : ''),
+          country: location.country,
+          isUS: location.isUS,
+          recommendedRadarSource: location.recommendedRadarSource
         });
         setShowSuggestions(false);
+        setQuery("");
+      } else {
+        alert("Location not found. Please try a different search term.");
       }
     } catch (error) {
       console.error('Direct search failed:', error);
+      alert("Search failed. Please check your connection and try again.");
     } finally {
       setIsLoading(false);
     }
