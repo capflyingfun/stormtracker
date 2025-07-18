@@ -94,8 +94,16 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
     return stormFilters[category as keyof typeof stormFilters];
   }) : effectiveStorms;
   
-  // Sort storms by distance (closest first)
-  const sortedStorms = [...filteredStorms].sort((a, b) => a.distance - b.distance);
+  // Sort storms by distance (closest first), then by highest dBZ intensity
+  const sortedStorms = [...filteredStorms].sort((a, b) => {
+    // Primary sort: distance (closest first)
+    const distanceDiff = a.distance - b.distance;
+    if (Math.abs(distanceDiff) > 0.1) { // If distance difference is significant (>0.1 miles)
+      return distanceDiff;
+    }
+    // Secondary sort: intensity (highest dBZ first) for storms at similar distances
+    return b.intensity - a.intensity;
+  });
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <div className="flex items-center gap-3 mb-4">

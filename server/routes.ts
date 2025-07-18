@@ -1063,12 +1063,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { lat, lon, storms, lightningCount, preferences } = riskAssessmentSchema.parse(req.body);
       
-      // Calculate risk factors
-      const nearestStorm = storms.reduce((nearest, storm) => {
-        const distance = calculateDistance(lat, lon, storm.lat, storm.lon);
-        const stormWithDistance = { ...storm, distance };
-        return (!nearest || distance < nearest.distance) ? stormWithDistance : nearest;
-      }, null);
+      // Calculate risk factors - sort by distance first, then by intensity
+      const stormsWithDistance = storms.map(storm => ({
+        ...storm,
+        distance: calculateDistance(lat, lon, storm.lat, storm.lon)
+      }));
+      
+      // Sort by distance first, then by intensity (highest dBZ) for storms at similar distances
+      const sortedStorms = stormsWithDistance.sort((a, b) => {
+        const distanceDiff = a.distance - b.distance;
+        if (Math.abs(distanceDiff) > 0.1) { // If distance difference is significant (>0.1 miles)
+          return distanceDiff;
+        }
+        // Secondary sort: intensity (highest dBZ first) for storms at similar distances
+        return b.intensity - a.intensity;
+      });
+      
+      const nearestStorm = sortedStorms.length > 0 ? sortedStorms[0] : null;
       
       // Calculate bearing to nearest storm if it exists
       let nearestStormDirection = undefined;
