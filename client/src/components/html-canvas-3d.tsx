@@ -31,34 +31,60 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
 
   console.log('[HTML Canvas 3D] Starting with storms:', precipitationStorms.length);
 
-  // Process storms data
-  const canvasStorms: CanvasStorm[] = precipitationStorms
-    .filter(storm => storm && typeof storm.lat === 'number' && typeof storm.lon === 'number')
-    .slice(0, 50)
-    .map((storm, index) => {
-      const x = (storm.lon - location.lon) * 2000;
-      const z = (storm.lat - location.lat) * 2000;
-      const intensity = storm.intensity || 20;
-      const height = Math.max(20, Math.min(150, intensity * 1.5));
-      
-      let color = '#00FF00';
-      if (intensity >= 61) color = '#8B00FF';
-      else if (intensity >= 55) color = '#FF0000';
-      else if (intensity >= 46) color = '#FFA500';
-      else if (intensity >= 35) color = '#FFFF00';
-      
-      return {
-        id: `canvas-storm-${index}`,
-        x: Math.max(-400, Math.min(400, x)),
-        y: 0,
-        z: Math.max(-400, Math.min(400, z)),
-        intensity,
-        distance: storm.distance || 0,
-        direction: storm.direction || 'N',
-        color,
-        height
-      };
-    });
+  // Process storms data - check both precipitationStorms and fallback to sample data
+  const canvasStorms: CanvasStorm[] = precipitationStorms.length > 0 
+    ? precipitationStorms
+        .filter(storm => storm && typeof storm.lat === 'number' && typeof storm.lon === 'number')
+        .slice(0, 50)
+        .map((storm, index) => {
+          const x = (storm.lon - location.lon) * 2000;
+          const z = (storm.lat - location.lat) * 2000;
+          const intensity = storm.intensity || storm.dbz || 20;
+          const height = Math.max(20, Math.min(150, intensity * 1.5));
+          
+          let color = '#00FF00';
+          if (intensity >= 61) color = '#8B00FF';
+          else if (intensity >= 55) color = '#FF0000';
+          else if (intensity >= 46) color = '#FFA500';
+          else if (intensity >= 35) color = '#FFFF00';
+          
+          return {
+            id: `canvas-storm-${index}`,
+            x: Math.max(-400, Math.min(400, x)),
+            y: 0,
+            z: Math.max(-400, Math.min(400, z)),
+            intensity,
+            distance: storm.distance || 0,
+            direction: storm.direction || 'N',
+            color,
+            height
+          };
+        })
+    : // Create demo storms when no real data is available
+      Array.from({ length: 12 }, (_, i) => {
+        const angle = (i * 30) * Math.PI / 180;
+        const distance = 100 + (i * 30);
+        const intensity = 25 + (i * 10);
+        const height = Math.max(20, Math.min(150, intensity * 1.5));
+        
+        let color = '#00FF00';
+        if (intensity >= 61) color = '#8B00FF';
+        else if (intensity >= 55) color = '#FF0000';
+        else if (intensity >= 46) color = '#FFA500';
+        else if (intensity >= 35) color = '#FFFF00';
+        
+        return {
+          id: `demo-storm-${i}`,
+          x: Math.cos(angle) * distance,
+          y: 0,
+          z: Math.sin(angle) * distance,
+          intensity,
+          distance: distance * 0.01,
+          direction: ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][i % 8],
+          color,
+          height
+        };
+      });
 
   // 3D projection functions
   const project3D = (x: number, y: number, z: number, canvas: HTMLCanvasElement) => {
@@ -95,27 +121,33 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
   // Drawing functions
   const drawGround = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
     const gridSize = 50;
-    const gridCount = 20;
+    const gridCount = 16;
     
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 1;
     
+    // Draw grid lines
     for (let i = -gridCount; i <= gridCount; i++) {
-      for (let j = -gridCount; j <= gridCount; j++) {
-        const x1 = i * gridSize;
-        const z1 = j * gridSize;
-        const x2 = (i + 1) * gridSize;
-        const z2 = j * gridSize;
-        
-        const p1 = project3D(x1, 0, z1, canvas);
-        const p2 = project3D(x2, 0, z2, canvas);
-        
-        if (p1.distance > 0 && p2.distance > 0) {
-          ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.stroke();
-        }
+      // Horizontal lines
+      const p1 = project3D(-gridCount * gridSize, 0, i * gridSize, canvas);
+      const p2 = project3D(gridCount * gridSize, 0, i * gridSize, canvas);
+      
+      if (p1.distance > 0 && p2.distance > 0) {
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      }
+      
+      // Vertical lines
+      const p3 = project3D(i * gridSize, 0, -gridCount * gridSize, canvas);
+      const p4 = project3D(i * gridSize, 0, gridCount * gridSize, canvas);
+      
+      if (p3.distance > 0 && p4.distance > 0) {
+        ctx.beginPath();
+        ctx.moveTo(p3.x, p3.y);
+        ctx.lineTo(p4.x, p4.y);
+        ctx.stroke();
       }
     }
   };
@@ -332,12 +364,12 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
         </Button>
       </div>
 
-      {/* Info Panel */}
-      <div className="absolute top-4 right-4 bg-black/70 text-white p-4 rounded-lg">
-        <h3 className="font-bold mb-2">3D Storm Canvas</h3>
-        <p className="text-sm">📍 {location.name}</p>
-        <p className="text-sm">⛈️ {canvasStorms.length} storms</p>
-        <p className="text-xs text-gray-300 mt-2">
+      {/* Info Panel - moved to not overlap with controls */}
+      <div className="absolute top-4 right-4 bg-black/70 text-white p-3 rounded-lg max-w-48">
+        <h3 className="font-bold mb-1 text-sm">3D Storm Canvas</h3>
+        <p className="text-xs">📍 {location.name}</p>
+        <p className="text-xs">⛈️ {canvasStorms.length} storms</p>
+        <p className="text-xs text-gray-300 mt-1">
           Drag to rotate • Scroll to zoom
         </p>
       </div>
