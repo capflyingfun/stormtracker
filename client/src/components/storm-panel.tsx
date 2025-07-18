@@ -36,8 +36,9 @@ const formatDirectionWithBearing = (distance: number, bearing: number, formatDis
 };
 
 const getStormIntensityName = (intensity: number): string => {
-  if (intensity >= 61) return 'Extreme Thunderstorms';
-  if (intensity >= 55) return 'Very Heavy Rain/Hail';
+  if (intensity >= 65) return 'Extreme Thunderstorms (Large Hail Likely)';
+  if (intensity >= 60) return 'Severe Thunderstorms (2"+ Hail Possible)';
+  if (intensity >= 55) return 'Very Heavy Rain/Small Hail';
   if (intensity >= 46) return 'Heavy Rain';
   if (intensity >= 35) return 'Moderate Rain';
   if (intensity >= 20) return 'Light Rain';
@@ -151,11 +152,22 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                 </div>
                 
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-300">Rain Rate:</span>
+                  <span className="text-sm text-slate-300">{storm.intensity >= 55 ? 'Rain/Hail Rate:' : 'Rain Rate:'}</span>
                   <span className="text-sm text-white">
                     {getRainfallRate(storm.intensity).mmh} mm/h ({getRainfallRate(storm.intensity).inh} in/h)
                   </span>
                 </div>
+                
+                {storm.intensity >= 55 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-slate-300">Hail Potential:</span>
+                    <span className="text-sm text-orange-300">
+                      {storm.intensity >= 65 ? 'Large hail (2"+ diameter)' : 
+                       storm.intensity >= 60 ? 'Golf ball size (1.75")' : 
+                       'Quarter size (1")'}
+                    </span>
+                  </div>
+                )}
                 
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-300">Intensity:</span>

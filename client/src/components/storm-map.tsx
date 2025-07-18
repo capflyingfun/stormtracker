@@ -905,8 +905,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       };
       
       const getPrecipitationType = (dbz: number) => {
-        if (dbz >= 61) return 'Extreme Thunderstorms';
-        if (dbz >= 55) return 'Very Heavy Rain/Hail';
+        if (dbz >= 65) return 'Extreme Thunderstorms (Large Hail Likely)';
+        if (dbz >= 60) return 'Severe Thunderstorms (2"+ Hail Possible)';
+        if (dbz >= 55) return 'Very Heavy Rain/Small Hail';
         if (dbz >= 46) return 'Heavy Rain';
         if (dbz >= 35) return 'Moderate Rain';
         if (dbz >= 20) return 'Light Rain';
@@ -919,19 +920,30 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       // Calculate distance for popup display
       const displayDistance = pointDistance;
       
+      const getHailInfo = (dbz: number) => {
+        if (dbz >= 65) return 'Large hail likely (2"+ diameter)';
+        if (dbz >= 60) return 'Golf ball size hail possible (1.75")';
+        if (dbz >= 55) return 'Quarter size hail possible (1")';
+        return '';
+      };
+
+      const hailWarning = getHailInfo(point.dbz);
+      
       const popupContent = point.count && point.count > 1 
         ? `<b>Storm Cell Cluster</b><br>
            Distance: ${displayDistance.toFixed(1)} miles<br>
            Max Intensity: ${point.dbz} dBZ<br>
-           Rain Rate: ${rainfallData.mmh} mm/h (${rainfallData.inh} in/h)<br>
+           ${point.dbz >= 55 ? 'Rain/Hail Rate:' : 'Rain Rate:'} ${rainfallData.mmh} mm/h (${rainfallData.inh} in/h)<br>
            Type: ${precipType}<br>
+           ${hailWarning ? `<span style="color: orange;">${hailWarning}</span><br>` : ''}
            Cells: ${point.count}<br>
            <small>Real-time ${radarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'} data</small>`
         : `<b>Precipitation Cell</b><br>
            Distance: ${displayDistance.toFixed(1)} miles<br>
            Intensity: ${point.dbz} dBZ<br>
-           Rain Rate: ${rainfallData.mmh} mm/h (${rainfallData.inh} in/h)<br>
+           ${point.dbz >= 55 ? 'Rain/Hail Rate:' : 'Rain Rate:'} ${rainfallData.mmh} mm/h (${rainfallData.inh} in/h)<br>
            Type: ${precipType}<br>
+           ${hailWarning ? `<span style="color: orange;">${hailWarning}</span><br>` : ''}
            <small>Real-time ${radarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'} data</small>`;
       
       waypointMarker.bindPopup(popupContent);
