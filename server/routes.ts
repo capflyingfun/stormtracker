@@ -430,8 +430,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           distance: storm.distance,
           direction: direction,
           speed: speed,
-          type: getStormType(storm.intensity),
-          description: getStormDescription(storm.intensity),
+          type: getStormType(storm.intensity, 'rainviewer'),
+          description: getStormDescription(storm.intensity, 'rainviewer'),
           detectedAt: Date.now() // Current timestamp for live detection
         });
       });
@@ -654,19 +654,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return (bearing + 360) % 360;
   }
 
-  // Get storm type based on intensity
-  function getStormType(intensity: number): string {
-    if (intensity >= 55) return 'Severe Thunderstorm';
-    if (intensity >= 45) return 'Heavy Rain';
-    if (intensity >= 35) return 'Moderate Rain';
+  // Get storm type based on intensity and radar source
+  function getStormType(intensity: number, radarSource: 'nexrad' | 'rainviewer' = 'nexrad'): string {
+    // RainViewer reads 5-12 dBZ higher than NEXRAD, so adjust thresholds accordingly
+    const thresholds = radarSource === 'rainviewer' 
+      ? { severe: 45, heavy: 35, moderate: 25 }  // RainViewer adjusted (5-10 dBZ lower)
+      : { severe: 55, heavy: 45, moderate: 35 }; // NEXRAD standard
+    
+    if (intensity >= thresholds.severe) return 'Severe Thunderstorm';
+    if (intensity >= thresholds.heavy) return 'Heavy Rain';
+    if (intensity >= thresholds.moderate) return 'Moderate Rain';
     return 'Light Rain';
   }
 
-  // Get storm description based on intensity
-  function getStormDescription(intensity: number): string {
-    if (intensity >= 55) return 'Severe thunderstorm with heavy rain and possible hail';
-    if (intensity >= 45) return 'Heavy thunderstorm with intense precipitation';
-    if (intensity >= 35) return 'Moderate thunderstorm with steady precipitation';
+  // Get storm description based on intensity and radar source
+  function getStormDescription(intensity: number, radarSource: 'nexrad' | 'rainviewer' = 'nexrad'): string {
+    // RainViewer reads 5-12 dBZ higher than NEXRAD, so adjust thresholds accordingly
+    const thresholds = radarSource === 'rainviewer' 
+      ? { severe: 45, heavy: 35, moderate: 25 }  // RainViewer adjusted (5-10 dBZ lower)
+      : { severe: 55, heavy: 45, moderate: 35 }; // NEXRAD standard
+    
+    if (intensity >= thresholds.severe) return 'Severe thunderstorm with heavy rain and possible hail';
+    if (intensity >= thresholds.heavy) return 'Heavy thunderstorm with intense precipitation';
+    if (intensity >= thresholds.moderate) return 'Moderate thunderstorm with steady precipitation';
     return 'Light thunderstorm with scattered precipitation';
   }
 

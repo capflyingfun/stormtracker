@@ -65,6 +65,17 @@ const getStormColor = (intensity: number): string => {
   return 'bg-blue-500';
 };
 
+// dBZ threshold adjustment based on radar source
+// RainViewer reads 5-12 dBZ higher than NEXRAD due to different calibration
+const getIntensityThresholds = (radarSource: string = 'nexrad') => {
+  if (radarSource === 'rainviewer') {
+    // RainViewer adjusted thresholds (5-10 dBZ lower to account for higher readings)
+    return { extreme: 53, veryHeavy: 47, heavy: 38, moderate: 27, light: 15 };
+  }
+  // NEXRAD standard thresholds
+  return { extreme: 61, veryHeavy: 55, heavy: 46, moderate: 35, light: 20 };
+};
+
 // Official NOAA/NWS dBZ to rainfall rate conversion table
 // Source: https://www.noaa.gov/jetstream/jetstream/radar-images-velocity
 const getRainfallRate = (dbz: number): { mmh: number; inh: number } => {
@@ -107,12 +118,13 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
   // This ensures we only show storms that are actually detected in the radar imagery
   const effectiveStorms = storms;
   
-  // Apply current filter state (synchronized with precipitation waypoints legend)
+  // Apply current filter state using radar source-specific thresholds
+  const thresholds = getIntensityThresholds(radarSource);
   const filteredStorms = effectiveStorms.filter(storm => {
-    const category = storm.intensity >= 61 ? 'extreme' :
-                    storm.intensity >= 55 ? 'veryHeavy' :
-                    storm.intensity >= 46 ? 'heavy' : 
-                    storm.intensity >= 35 ? 'moderate' : 'light';
+    const category = storm.intensity >= thresholds.extreme ? 'extreme' :
+                    storm.intensity >= thresholds.veryHeavy ? 'veryHeavy' :
+                    storm.intensity >= thresholds.heavy ? 'heavy' : 
+                    storm.intensity >= thresholds.moderate ? 'moderate' : 'light';
     return currentFilters[category as keyof typeof currentFilters];
   });
   
@@ -130,13 +142,13 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
     return b.intensity - a.intensity;
   });
 
-  // Group storms by intensity category
+  // Group storms by intensity category using radar source-specific thresholds
   const stormsByCategory = {
-    extreme: sortedStorms.filter(s => s.intensity >= 61),
-    veryHeavy: sortedStorms.filter(s => s.intensity >= 55 && s.intensity < 61),
-    heavy: sortedStorms.filter(s => s.intensity >= 46 && s.intensity < 55),
-    moderate: sortedStorms.filter(s => s.intensity >= 35 && s.intensity < 46),
-    light: sortedStorms.filter(s => s.intensity >= 20 && s.intensity < 35)
+    extreme: sortedStorms.filter(s => s.intensity >= thresholds.extreme),
+    veryHeavy: sortedStorms.filter(s => s.intensity >= thresholds.veryHeavy && s.intensity < thresholds.extreme),
+    heavy: sortedStorms.filter(s => s.intensity >= thresholds.heavy && s.intensity < thresholds.veryHeavy),
+    moderate: sortedStorms.filter(s => s.intensity >= thresholds.moderate && s.intensity < thresholds.heavy),
+    light: sortedStorms.filter(s => s.intensity >= thresholds.light && s.intensity < thresholds.moderate)
   };
 
   const renderStormCard = (storm: any) => {

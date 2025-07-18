@@ -792,14 +792,25 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     // Create waypoint markers for each actual precipitation point
     for (const point of precipitationPoints) {
-      // Only show meaningful precipitation (20+ dBZ)
-      if (point.dbz < 20) continue; // Skip trace/mist values
+      // Get radar source-specific thresholds
+      const getIntensityThresholds = (radarSource: string = 'nexrad') => {
+        if (radarSource === 'rainviewer') {
+          // RainViewer adjusted thresholds (5-10 dBZ lower to account for higher readings)
+          return { extreme: 53, veryHeavy: 47, heavy: 38, moderate: 27, light: 15 };
+        }
+        // NEXRAD standard thresholds
+        return { extreme: 61, veryHeavy: 55, heavy: 46, moderate: 35, light: 20 };
+      };
       
-      const category = point.dbz >= 61 ? 'extreme' :    // Extreme thunderstorms
-                      point.dbz >= 55 ? 'veryHeavy' :  // Very heavy rain/hail
-                      point.dbz >= 46 ? 'heavy' :      // Heavy rain
-                      point.dbz >= 35 ? 'moderate' :   // Moderate rain
-                      'light';                         // Light rain (20-34 dBZ)
+      const thresholds = getIntensityThresholds(radarSource);
+      
+      // Only show meaningful precipitation based on radar source
+      if (point.dbz < thresholds.light) continue; // Skip trace/mist values
+      
+      const category = point.dbz >= thresholds.extreme ? 'extreme' :
+                      point.dbz >= thresholds.veryHeavy ? 'veryHeavy' :
+                      point.dbz >= thresholds.heavy ? 'heavy' :
+                      point.dbz >= thresholds.moderate ? 'moderate' : 'light';
       const shouldShow = stormFilters[category as keyof typeof stormFilters];
       
       if (!shouldShow) continue; // Skip filtered out points
@@ -905,18 +916,19 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         return { mmh: 0, inh: 0 };
       };
       
-      const getPrecipitationType = (dbz: number) => {
-        if (dbz >= 65) return 'Extreme Thunderstorms';
-        if (dbz >= 60) return 'Severe Thunderstorms';
-        if (dbz >= 55) return 'Very Heavy Rain/Hail';
-        if (dbz >= 46) return 'Heavy Rain';
-        if (dbz >= 35) return 'Moderate Rain';
-        if (dbz >= 20) return 'Light Rain';
+      const getPrecipitationType = (dbz: number, radarSource: string = 'nexrad') => {
+        const thresholds = getIntensityThresholds(radarSource);
+        if (dbz >= thresholds.extreme + 8) return 'Extreme Thunderstorms';
+        if (dbz >= thresholds.extreme) return 'Severe Thunderstorms';
+        if (dbz >= thresholds.veryHeavy) return 'Very Heavy Rain/Hail';
+        if (dbz >= thresholds.heavy) return 'Heavy Rain';
+        if (dbz >= thresholds.moderate) return 'Moderate Rain';
+        if (dbz >= thresholds.light) return 'Light Rain';
         return 'Trace/Mist';
       };
       
       const rainfallData = getRainfallRate(point.dbz);
-      const precipType = getPrecipitationType(point.dbz);
+      const precipType = getPrecipitationType(point.dbz, radarSource);
       
       // Calculate distance for popup display
       const displayDistance = pointDistance;
