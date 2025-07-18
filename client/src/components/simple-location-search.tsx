@@ -31,37 +31,38 @@ export default function SimpleLocationSearch({
 
     setIsLoading(true);
     try {
-      // First try enhanced search that supports multiple formats
-      const searchQuery = query.trim();
-      let location = null;
-      
-      // Enhanced search logic - handle multiple formats
-      if (searchQuery.match(/^\d{5}$/)) {
-        // ZIP code search
-        location = await searchZipCode(searchQuery);
-      } else if (searchQuery.includes(',')) {
-        // City, State or international format
-        location = await searchCityState(searchQuery);
-      } else if (searchQuery.match(/\d+\s+\w+/)) {
-        // Street address format
-        location = await searchAddress(searchQuery);
-      } else {
-        // Simple city search
-        location = await searchCity(searchQuery);
-      }
-      
-      if (location) {
+      const response = await fetch('/api/geocode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query.trim() })
+      });
+
+      if (response.ok) {
+        const location = await response.json();
+        console.log('Location found:', location); // Debug log
+        
+        // Create display name with country for international locations
+        let displayName = location.name;
+        if (location.state) {
+          displayName += `, ${location.state}`;
+        }
+        if (location.country && location.country !== 'US') {
+          displayName += `, ${location.country}`;
+        }
+        
         onLocationSelect({
           lat: location.lat,
           lon: location.lon,
-          name: location.name,
+          name: displayName,
           country: location.country,
           isUS: location.isUS,
           recommendedRadarSource: location.recommendedRadarSource
         });
         setQuery(""); // Clear input after successful search
       } else {
-        alert("Location not found. Please try a different search term.");
+        const errorData = await response.json();
+        console.error('Search error:', errorData);
+        alert(`Location not found: ${errorData.message || 'Please try a different search term.'}`);
       }
     } catch (error) {
       console.error('Location search failed:', error);
@@ -69,91 +70,6 @@ export default function SimpleLocationSearch({
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Enhanced search functions
-  const searchZipCode = async (zipCode: string) => {
-    const response = await fetch('/api/geocode', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: zipCode })
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        lat: data.lat,
-        lon: data.lon,
-        name: `${zipCode} - ${data.name}`,
-        country: data.country,
-        isUS: data.isUS,
-        recommendedRadarSource: data.recommendedRadarSource
-      };
-    }
-    return null;
-  };
-
-  const searchCityState = async (cityState: string) => {
-    const response = await fetch('/api/geocode', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: cityState })
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        lat: data.lat,
-        lon: data.lon,
-        name: data.name,
-        country: data.country,
-        isUS: data.isUS,
-        recommendedRadarSource: data.recommendedRadarSource
-      };
-    }
-    return null;
-  };
-
-  const searchAddress = async (address: string) => {
-    const response = await fetch('/api/geocode', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: address })
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        lat: data.lat,
-        lon: data.lon,
-        name: data.name,
-        country: data.country,
-        isUS: data.isUS,
-        recommendedRadarSource: data.recommendedRadarSource
-      };
-    }
-    return null;
-  };
-
-  const searchCity = async (city: string) => {
-    const response = await fetch('/api/geocode', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: city })
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        lat: data.lat,
-        lon: data.lon,
-        name: data.name,
-        country: data.country,
-        isUS: data.isUS,
-        recommendedRadarSource: data.recommendedRadarSource
-      };
-    }
-    return null;
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
