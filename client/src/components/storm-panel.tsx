@@ -74,8 +74,9 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
     setPrecipitationStorms([]);
   }, [radarSource]);
 
-  // Use precipitation storms when available, otherwise use API storms
-  const effectiveStorms = precipitationStorms.length > 0 ? precipitationStorms : storms;
+  // Always use precipitation storms data (real radar data) instead of API storms
+  // This ensures we only show storms that are actually detected in the radar imagery
+  const effectiveStorms = precipitationStorms;
   
   // Apply storm filters if provided
   const filteredStorms = stormFilters ? effectiveStorms.filter(storm => {
