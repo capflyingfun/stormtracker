@@ -244,10 +244,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
           const radius = Math.max(4, 20 * scale); // Circular column radius
 
-          // Draw original solid storm column
+          // Draw solid, opaque storm column
           const columnGradient = ctx.createLinearGradient(base.x - radius, top.y, base.x + radius, base.y);
-          columnGradient.addColorStop(0, color + '99'); // Semi-transparent top
-          columnGradient.addColorStop(1, color + 'FF'); // Solid bottom
+          columnGradient.addColorStop(0, color + 'E6'); // Much more opaque top (90%)
+          columnGradient.addColorStop(1, color + 'FF'); // Fully solid bottom
 
           ctx.fillStyle = columnGradient;
           ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
