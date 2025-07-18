@@ -23,7 +23,7 @@ interface HTMLCanvas3DProps {
 export default function HTMLCanvas3D({ location, precipitationStorms, onClose }: HTMLCanvas3DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isRotating, setIsRotating] = useState(false);
-  const [rotation, setRotation] = useState({ x: 0, y: 0 });
+  const [rotation, setRotation] = useState({ x: -15, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
@@ -64,7 +64,7 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
   const project3D = (x: number, y: number, z: number, canvas: HTMLCanvasElement) => {
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
-    const fov = 600;
+    const fov = 400;
     
     // Apply rotation
     const cosX = Math.cos(rotation.x * Math.PI / 180);
@@ -72,22 +72,22 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
     const cosY = Math.cos(rotation.y * Math.PI / 180);
     const sinY = Math.sin(rotation.y * Math.PI / 180);
     
-    // Rotate around Y axis
+    // Rotate around Y axis first
     const x1 = x * cosY - z * sinY;
     const z1 = x * sinY + z * cosY;
     
-    // Rotate around X axis
+    // Then rotate around X axis
     const y1 = y * cosX - z1 * sinX;
     const z2 = y * sinX + z1 * cosX;
     
-    // Project to 2D
-    const distance = z2 + 800;
+    // Move camera back and project to 2D
+    const distance = Math.max(1, z2 + 600);
     const scale = (fov / distance) * zoom;
     
     return {
       x: centerX + x1 * scale,
       y: centerY - y1 * scale,
-      scale: scale,
+      scale: Math.max(0.1, scale),
       distance: distance
     };
   };
@@ -124,25 +124,46 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
     const base = project3D(storm.x, 0, storm.z, canvas);
     const top = project3D(storm.x, storm.height, storm.z, canvas);
     
-    if (base.distance > 0 && top.distance > 0) {
-      const gradient = ctx.createLinearGradient(base.x, base.y, top.x, top.y);
-      gradient.addColorStop(0, storm.color);
-      gradient.addColorStop(1, storm.color + '80');
+    if (base.distance > 0 && top.distance > 0 && Math.abs(base.y - top.y) > 1) {
+      // Create 3D column effect with multiple faces
+      const width = Math.max(3, base.scale * 12);
+      const depth = width * 0.6;
       
-      ctx.fillStyle = gradient;
-      ctx.strokeStyle = storm.color;
-      ctx.lineWidth = 2;
-      
-      // Draw column as rectangle
-      const width = Math.max(2, base.scale * 8);
+      // Front face
+      ctx.fillStyle = storm.color;
       ctx.fillRect(base.x - width/2, top.y, width, base.y - top.y);
+      
+      // Right face (darker)
+      ctx.fillStyle = storm.color + '80';
+      ctx.beginPath();
+      ctx.moveTo(base.x + width/2, top.y);
+      ctx.lineTo(base.x + width/2 + depth, top.y - depth);
+      ctx.lineTo(base.x + width/2 + depth, base.y - depth);
+      ctx.lineTo(base.x + width/2, base.y);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Top face (lighter)
+      ctx.fillStyle = storm.color + 'CC';
+      ctx.beginPath();
+      ctx.moveTo(base.x - width/2, top.y);
+      ctx.lineTo(base.x - width/2 + depth, top.y - depth);
+      ctx.lineTo(base.x + width/2 + depth, top.y - depth);
+      ctx.lineTo(base.x + width/2, top.y);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Add outline for definition
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
       ctx.strokeRect(base.x - width/2, top.y, width, base.y - top.y);
       
       // Add glow effect for intense storms
       if (storm.intensity >= 55) {
         ctx.shadowColor = storm.color;
-        ctx.shadowBlur = 10;
-        ctx.fillRect(base.x - width/2, top.y, width, base.y - top.y);
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = storm.color + '40';
+        ctx.fillRect(base.x - width/2 - 2, top.y - 2, width + 4, base.y - top.y + 4);
         ctx.shadowBlur = 0;
       }
     }
@@ -171,17 +192,14 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Set canvas size
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
+    // Clear canvas with proper dimensions
+    const rect = canvas.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
     
     // Draw ground grid
     drawGround(ctx, canvas);
     
-    // Sort storms by distance for proper rendering order
+    // Sort storms by distance for proper rendering order (back to front)
     const sortedStorms = [...canvasStorms].sort((a, b) => {
       const distA = project3D(a.x, a.y, a.z, canvas).distance;
       const distB = project3D(b.x, b.y, b.z, canvas).distance;
@@ -235,11 +253,33 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
 
   // Initialize rendering
   useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    // Set proper canvas size
+    const resizeCanvas = () => {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      canvas.style.width = rect.width + 'px';
+      canvas.style.height = rect.height + 'px';
+      
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      }
+    };
+    
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
     animationRef.current = requestAnimationFrame(render);
+    
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
+      window.removeEventListener('resize', resizeCanvas);
     };
   }, [rotation, zoom, isRotating, canvasStorms]);
 
@@ -279,8 +319,9 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
         
         <Button
           onClick={() => {
-            setRotation({ x: 0, y: 0 });
+            setRotation({ x: -15, y: 0 });
             setZoom(1);
+            setIsRotating(false);
           }}
           variant="outline"
           size="sm"
