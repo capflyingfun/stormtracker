@@ -1722,8 +1722,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           <button 
             onClick={() => {
-              // Isolate only extreme storms
-              const newFilters = { extreme: true, veryHeavy: false, heavy: false, moderate: false, light: false };
+              // Check if this category is currently isolated
+              const isIsolated = stormFilters.extreme && !stormFilters.veryHeavy && !stormFilters.heavy && !stormFilters.moderate && !stormFilters.light;
+              const newFilters = isIsolated 
+                ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true } // Show all if currently isolated
+                : { extreme: true, veryHeavy: false, heavy: false, moderate: false, light: false }; // Isolate this category
               setStormFilters(newFilters);
               onStormFiltersChange?.(newFilters);
             }}
@@ -1739,8 +1742,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </button>
           <button 
             onClick={() => {
-              // Isolate only very heavy storms
-              const newFilters = { extreme: false, veryHeavy: true, heavy: false, moderate: false, light: false };
+              const isIsolated = !stormFilters.extreme && stormFilters.veryHeavy && !stormFilters.heavy && !stormFilters.moderate && !stormFilters.light;
+              const newFilters = isIsolated 
+                ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
+                : { extreme: false, veryHeavy: true, heavy: false, moderate: false, light: false };
               setStormFilters(newFilters);
               onStormFiltersChange?.(newFilters);
             }}
@@ -1756,8 +1761,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </button>
           <button 
             onClick={() => {
-              // Isolate only heavy storms
-              const newFilters = { extreme: false, veryHeavy: false, heavy: true, moderate: false, light: false };
+              const isIsolated = !stormFilters.extreme && !stormFilters.veryHeavy && stormFilters.heavy && !stormFilters.moderate && !stormFilters.light;
+              const newFilters = isIsolated 
+                ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
+                : { extreme: false, veryHeavy: false, heavy: true, moderate: false, light: false };
               setStormFilters(newFilters);
               onStormFiltersChange?.(newFilters);
             }}
@@ -1773,8 +1780,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </button>
           <button 
             onClick={() => {
-              // Isolate only moderate storms
-              const newFilters = { extreme: false, veryHeavy: false, heavy: false, moderate: true, light: false };
+              const isIsolated = !stormFilters.extreme && !stormFilters.veryHeavy && !stormFilters.heavy && stormFilters.moderate && !stormFilters.light;
+              const newFilters = isIsolated 
+                ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
+                : { extreme: false, veryHeavy: false, heavy: false, moderate: true, light: false };
               setStormFilters(newFilters);
               onStormFiltersChange?.(newFilters);
             }}
@@ -1790,8 +1799,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </button>
           <button 
             onClick={() => {
-              // Isolate only light storms
-              const newFilters = { extreme: false, veryHeavy: false, heavy: false, moderate: false, light: true };
+              const isIsolated = !stormFilters.extreme && !stormFilters.veryHeavy && !stormFilters.heavy && !stormFilters.moderate && stormFilters.light;
+              const newFilters = isIsolated 
+                ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
+                : { extreme: false, veryHeavy: false, heavy: false, moderate: false, light: true };
               setStormFilters(newFilters);
               onStormFiltersChange?.(newFilters);
             }}
@@ -1804,19 +1815,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             <span className="text-slate-300 text-xs">
               Light (20+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 20 && p.dbz < 35).length})`}
             </span>
-          </button>
-        </div>
-        <div className="mt-2 text-center">
-          <button 
-            onClick={() => {
-              // Show all storms (reset filters)
-              const newFilters = { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true };
-              setStormFilters(newFilters);
-              onStormFiltersChange?.(newFilters);
-            }}
-            className="text-xs text-slate-400 hover:text-slate-300 underline"
-          >
-            Show All
           </button>
         </div>
         {precipitationPoints.length > 0 && (
