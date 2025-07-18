@@ -459,3 +459,14 @@ Preferred communication style: Simple, everyday language.
 - **Professional Data Source**: Implements exact dBZ thresholds and rainfall rates used by professional meteorologists
 - **Enhanced Storm Information**: Storm cells and map popups display precise rainfall rates consistent with NWS radar products
 - **Scientific Validation**: All precipitation data now aligns with official weather service calculations for maximum accuracy
+
+### Enhanced Hail Detection System (July 18, 2025)
+- **Professional Hail Size Estimation**: Implemented research-based hail detection using dBZ thresholds from meteorological studies
+- **Accurate Hail Size Indicators**: Storm cells now display specific hail size warnings based on radar reflectivity:
+  - 55+ dBZ: Quarter size hail possible (1" diameter)
+  - 60+ dBZ: Golf ball size hail possible (1.75" diameter)  
+  - 65+ dBZ: Large hail likely (2"+ diameter) - significant damage potential
+- **Enhanced Storm Classification**: Updated storm names to include hail potential for severe storms (55+ dBZ)
+- **Meteorological Research Integration**: Based on Boulder Cast, Weather Underground, and Iowa State radar interpretation guides
+- **Comprehensive Hail Warnings**: Storm panels and map popups now include specific hail size information for qualifying storms
+- **Professional Standards**: Hail detection follows established meteorological principles where 65+ dBZ almost certainly contains 2"+ hail
