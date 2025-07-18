@@ -7,13 +7,25 @@ interface Simple3DCanvasProps {
   onClose: () => void;
 }
 
-// Convert dBZ to height (in pixels)
+// 3D perspective transformation
+interface Point3D {
+  x: number;
+  y: number;
+  z: number;
+}
+
+interface Point2D {
+  x: number;
+  y: number;
+}
+
+// Convert dBZ to 3D height
 const dbzToHeight = (dbz: number): number => {
-  if (dbz >= 61) return 200; // Extreme thunderstorms
-  if (dbz >= 55) return 160; // Very heavy rain/hail
-  if (dbz >= 46) return 120; // Heavy rain
-  if (dbz >= 35) return 80;  // Moderate rain
-  return 40;                 // Light rain
+  if (dbz >= 61) return 8;  // Extreme thunderstorms
+  if (dbz >= 55) return 6;  // Very heavy rain/hail
+  if (dbz >= 46) return 4;  // Heavy rain
+  if (dbz >= 35) return 2;  // Moderate rain
+  return 1;                 // Light rain
 };
 
 // Convert dBZ to color
@@ -25,23 +37,35 @@ const dbzToColor = (dbz: number): string => {
   return '#22C55E';                // Green - Light
 };
 
-// Convert geographic coordinates to 2D canvas coordinates
-const geoToCanvas = (lat: number, lon: number, centerLat: number, centerLon: number, canvasWidth: number, canvasHeight: number): [number, number] => {
+// 3D to 2D projection with perspective
+const project3D = (point: Point3D, cameraDistance: number, canvasWidth: number, canvasHeight: number): Point2D => {
+  const scale = cameraDistance / (cameraDistance + point.z);
+  return {
+    x: canvasWidth / 2 + point.x * scale * 50,
+    y: canvasHeight / 2 + point.y * scale * 50
+  };
+};
+
+// Convert geographic coordinates to 3D world coordinates
+const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number): Point3D => {
   // Simple flat projection for local area (30-mile radius)
   const x = (lon - centerLon) * 111320 * Math.cos(centerLat * Math.PI / 180) / 1000; // km
   const z = (lat - centerLat) * 110540 / 1000; // km
   
-  // Scale to canvas and center
-  const canvasX = canvasWidth / 2 + (x * 5); // Scale factor of 5
-  const canvasZ = canvasHeight / 2 - (z * 5); // Invert Z for screen coordinates
-  
-  return [canvasX, canvasZ];
+  return {
+    x: x * 0.2, // Scale down
+    y: 0,       // Ground level
+    z: z * 0.2  // Scale down
+  };
 };
 
 export default function Simple3DCanvas({ location, precipitationStorms, onClose }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(true);
-  const [rotation, setRotation] = useState(0);
+  const [rotationY, setRotationY] = useState(0);
+  const [cameraHeight, setCameraHeight] = useState(3);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastMouseX, setLastMouseX] = useState(0);
 
   useEffect(() => {
     if (!canvasRef.current || !location) return;
@@ -54,94 +78,157 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
 
+    const cameraDistance = 10;
+
+    // Rotate a 3D point around Y axis
+    const rotateY = (point: Point3D, angle: number): Point3D => {
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      return {
+        x: point.x * cos + point.z * sin,
+        y: point.y,
+        z: -point.x * sin + point.z * cos
+      };
+    };
+
     const draw = () => {
-      // Clear canvas
-      ctx.fillStyle = '#000011';
+      // Clear canvas with space-like background
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, '#000030');
+      gradient.addColorStop(1, '#000010');
+      ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw ground grid
-      ctx.strokeStyle = '#333';
+      // Draw 3D ground grid
+      ctx.strokeStyle = '#333355';
       ctx.lineWidth = 1;
-      for (let i = 0; i < canvas.width; i += 50) {
-        ctx.beginPath();
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i, canvas.height);
-        ctx.stroke();
-      }
-      for (let i = 0; i < canvas.height; i += 50) {
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(canvas.width, i);
-        ctx.stroke();
+      for (let x = -10; x <= 10; x += 2) {
+        for (let z = -10; z <= 10; z += 2) {
+          const corners = [
+            rotateY({ x, y: 0, z }, rotationY),
+            rotateY({ x: x + 2, y: 0, z }, rotationY),
+            rotateY({ x: x + 2, y: 0, z: z + 2 }, rotationY),
+            rotateY({ x, y: 0, z: z + 2 }, rotationY)
+          ];
+
+          const projected = corners.map(corner => 
+            project3D({ ...corner, y: corner.y - cameraHeight }, cameraDistance, canvas.width, canvas.height)
+          );
+
+          ctx.beginPath();
+          ctx.moveTo(projected[0].x, projected[0].y);
+          for (let i = 1; i < projected.length; i++) {
+            ctx.lineTo(projected[i].x, projected[i].y);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
       }
 
-      // Draw user location
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
+      // Draw user location marker
+      const userPos = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
+      const userProjected = project3D({ ...userPos, y: userPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
       
       ctx.fillStyle = '#00FF00';
       ctx.beginPath();
-      ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
+      ctx.arc(userProjected.x, userProjected.y, 6, 0, 2 * Math.PI);
       ctx.fill();
 
-      // Draw location text
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '16px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('Your Location', centerX, centerY - 20);
-      ctx.fillText(location.city || `${location.lat.toFixed(2)}, ${location.lon.toFixed(2)}`, centerX, centerY + 30);
-
-      // Draw storms as 3D-like cylinders
-      precipitationStorms.forEach((storm, index) => {
-        const [x, z] = geoToCanvas(storm.lat, storm.lon, location.lat, location.lon, canvas.width, canvas.height);
+      // Draw storms as 3D columns with perspective
+      const stormData = precipitationStorms.map(storm => {
+        const pos3D = geoTo3D(storm.lat, storm.lon, location.lat, location.lon);
         const intensity = storm.dbz || storm.intensity || 25;
         const height = dbzToHeight(intensity);
         const color = dbzToColor(intensity);
 
-        // Skip storms outside canvas
-        if (x < 0 || x > canvas.width || z < 0 || z > canvas.height) return;
+        return { pos3D, intensity, height, color };
+      });
 
-        // Draw 3D-like storm column
-        const baseY = canvas.height - 50; // Ground level
-        const topY = baseY - height;
+      // Sort by z-distance for proper depth rendering
+      stormData.sort((a, b) => {
+        const aRotated = rotateY(a.pos3D, rotationY);
+        const bRotated = rotateY(b.pos3D, rotationY);
+        return bRotated.z - aRotated.z; // Draw far objects first
+      });
 
-        // Storm cylinder (simplified 3D effect)
-        const gradient = ctx.createLinearGradient(x - 15, topY, x + 15, baseY);
-        gradient.addColorStop(0, color + '80'); // Semi-transparent top
-        gradient.addColorStop(1, color + 'FF'); // Solid bottom
+      stormData.forEach(({ pos3D, intensity, height, color }) => {
+        const rotatedPos = rotateY(pos3D, rotationY);
+        
+        // Base and top positions
+        const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
 
-        ctx.fillStyle = gradient;
-        ctx.fillRect(x - 10, topY, 20, height);
+        // Calculate width based on distance for perspective
+        const distance = Math.sqrt(rotatedPos.x * rotatedPos.x + rotatedPos.z * rotatedPos.z);
+        const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
+        const width = Math.max(2, 20 * scale);
 
-        // Storm intensity label
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '12px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${intensity}dBZ`, x, topY - 5);
+        // Draw storm column with 3D effect
+        const columnGradient = ctx.createLinearGradient(base.x - width/2, top.y, base.x + width/2, base.y);
+        columnGradient.addColorStop(0, color + '60'); // Transparent top
+        columnGradient.addColorStop(1, color + 'FF'); // Solid bottom
+
+        ctx.fillStyle = columnGradient;
+        ctx.fillRect(base.x - width/2, top.y, width, base.y - top.y);
+
+        // Add storm cap
+        ctx.fillStyle = color + '80';
+        ctx.beginPath();
+        ctx.ellipse(top.x, top.y, width/2, width/4, 0, 0, 2 * Math.PI);
+        ctx.fill();
 
         // Waypoint dot if enabled
         if (showWaypoints) {
           ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.arc(x, z, 4, 0, 2 * Math.PI);
+          ctx.arc(base.x, base.y, Math.max(2, 4 * scale), 0, 2 * Math.PI);
           ctx.fill();
         }
-      });
 
-      // Draw horizon line
-      ctx.strokeStyle = '#666';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, canvas.height - 50);
-      ctx.lineTo(canvas.width, canvas.height - 50);
-      ctx.stroke();
+        // Intensity label for nearby storms
+        if (distance < 8 && scale > 0.3) {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = `${Math.max(8, 12 * scale)}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.fillText(`${intensity}`, top.x, top.y - 5);
+        }
+      });
     };
 
     draw();
 
-    // Animation loop for rotation effect
+    // Mouse controls for rotation
+    const handleMouseDown = (e: MouseEvent) => {
+      setIsDragging(true);
+      setLastMouseX(e.clientX);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - lastMouseX;
+      setRotationY(prev => prev + deltaX * 0.01);
+      setLastMouseX(e.clientX);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setCameraHeight(prev => Math.max(1, Math.min(10, prev + e.deltaY * 0.01)));
+    };
+
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('wheel', handleWheel);
+
+    // Auto-rotation animation
     const animate = () => {
-      setRotation(prev => (prev + 0.5) % 360);
+      if (!isDragging) {
+        setRotationY(prev => prev + 0.005);
+      }
       draw();
       requestAnimationFrame(animate);
     };
@@ -150,8 +237,12 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
     return () => {
       cancelAnimationFrame(animationId);
+      canvas.removeEventListener('mousedown', handleMouseDown);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('mouseup', handleMouseUp);
+      canvas.removeEventListener('wheel', handleWheel);
     };
-  }, [location, precipitationStorms, showWaypoints, rotation]);
+  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isDragging, lastMouseX]);
 
   if (!location) {
     return (
@@ -167,26 +258,19 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
   return (
     <div className="fixed inset-0 bg-black z-50">
-      {/* Header Controls */}
-      <div className="absolute top-4 left-4 right-4 z-10 flex justify-between items-center">
-        <div className="bg-slate-800/90 backdrop-blur-sm rounded-lg p-3 border border-slate-700">
-          <h2 className="text-xl font-semibold text-white">3D Storm Visualization (Canvas)</h2>
-          <p className="text-sm text-slate-300">{location.city || `${location.lat.toFixed(3)}, ${location.lon.toFixed(3)}`}</p>
-          <p className="text-xs text-slate-400">{precipitationStorms.length} storms detected</p>
-        </div>
-        
-        <div className="flex gap-2">
-          <Button
-            onClick={() => setShowWaypoints(!showWaypoints)}
-            variant="outline"
-            className={`${showWaypoints ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
-          >
-            {showWaypoints ? 'Hide Waypoints' : 'Show Waypoints'}
-          </Button>
-          <Button onClick={onClose} variant="outline">
-            Exit 3D
-          </Button>
-        </div>
+      {/* Minimal Controls - Top Right Only */}
+      <div className="absolute top-4 right-4 z-10 flex gap-2">
+        <Button
+          onClick={() => setShowWaypoints(!showWaypoints)}
+          variant="outline"
+          size="sm"
+          className={`${showWaypoints ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
+        >
+          {showWaypoints ? 'Hide Dots' : 'Show Dots'}
+        </Button>
+        <Button onClick={onClose} variant="outline" size="sm">
+          Exit 3D
+        </Button>
       </div>
 
       {/* Canvas */}
@@ -196,32 +280,31 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         style={{ cursor: 'crosshair' }}
       />
       
-      {/* Legend */}
-      <div className="absolute bottom-4 left-4 bg-slate-800/90 backdrop-blur-sm rounded-lg p-4 border border-slate-700">
-        <h3 className="text-sm font-semibold text-white mb-2">Storm Heights & Colors</h3>
-        <div className="space-y-1 text-xs">
+      {/* Compact Legend */}
+      <div className="absolute bottom-4 left-4 bg-slate-800/80 backdrop-blur-sm rounded-lg p-3 border border-slate-700/50">
+        <div className="text-xs text-slate-300 space-y-1">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#22C55E' }}></div>
-            <span className="text-slate-300">Light Rain (20-34 dBZ) - 40px height</span>
+            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#22C55E' }}></div>
+            <span>Light (20-34)</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EAB308' }}></div>
-            <span className="text-slate-300">Moderate Rain (35-45 dBZ) - 80px height</span>
+            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#EAB308' }}></div>
+            <span>Moderate (35-45)</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#F97316' }}></div>
-            <span className="text-slate-300">Heavy Rain (46-54 dBZ) - 120px height</span>
+            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#F97316' }}></div>
+            <span>Heavy (46-54)</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EF4444' }}></div>
-            <span className="text-slate-300">Very Heavy/Hail (55-60 dBZ) - 160px height</span>
+            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#EF4444' }}></div>
+            <span>Very Heavy (55-60)</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#8B5CF6' }}></div>
-            <span className="text-slate-300">Extreme (61+ dBZ) - 200px height</span>
+            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#8B5CF6' }}></div>
+            <span>Extreme (61+)</span>
           </div>
         </div>
-        <p className="text-xs text-slate-400 mt-2">Canvas-based 3D visualization</p>
+        <p className="text-xs text-slate-500 mt-2">Drag to rotate • Scroll to zoom</p>
       </div>
     </div>
   );
