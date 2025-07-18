@@ -60,30 +60,13 @@ const getRainfallRate = (dbz: number) => {
 };
 
 export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource, stormFilters }: StormPanelProps & { stormFilters?: any }) {
-  const [precipitationStorms, setPrecipitationStorms] = useState<Storm[]>([]);
-
-  // Listen for precipitation storm data from the map component
-  useEffect(() => {
-    const handlePrecipitationStormData = (event: CustomEvent) => {
-      const stormCells = event.detail as Storm[];
-      setPrecipitationStorms(stormCells);
-    };
-
-    window.addEventListener('precipitationStormData', handlePrecipitationStormData as EventListener);
-    
-    return () => {
-      window.removeEventListener('precipitationStormData', handlePrecipitationStormData as EventListener);
-    };
-  }, []);
-
-  // Clear precipitation storms when radar source changes
-  useEffect(() => {
-    setPrecipitationStorms([]);
-  }, [radarSource]);
-
-  // Always use precipitation storms data (real radar data) instead of API storms
+  // Use storms passed as props (these are the precipitation storms from the parent component)
+  console.log(`STORM PANEL: Received ${storms.length} storms as props`);
+  console.log('STORM PANEL: Props storms:', storms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
+  
+  // Always use precipitation storms data (real radar data) passed as props
   // This ensures we only show storms that are actually detected in the radar imagery
-  const effectiveStorms = precipitationStorms;
+  const effectiveStorms = storms;
   
   // Apply storm filters if provided
   const filteredStorms = stormFilters ? effectiveStorms.filter(storm => {
@@ -93,6 +76,9 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                     storm.intensity >= 35 ? 'moderate' : 'light';
     return stormFilters[category as keyof typeof stormFilters];
   }) : effectiveStorms;
+  
+  console.log(`STORM PANEL: Filtered storms from ${effectiveStorms.length} to ${filteredStorms.length}`);
+  console.log('STORM PANEL: Final filtered storms:', filteredStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
   
   // Sort storms by distance (closest first), then by highest dBZ intensity
   const sortedStorms = [...filteredStorms].sort((a, b) => {
