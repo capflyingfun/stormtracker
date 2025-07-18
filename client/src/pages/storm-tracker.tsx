@@ -6,7 +6,7 @@ import LocationSetup from "@/components/location-setup";
 import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
-import Storm3D from "@/components/storm-3d";
+import Simple3DCanvas from "@/components/simple-3d-canvas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -278,7 +278,7 @@ export default function StormTracker() {
       
       {/* 3D Storm Visualization */}
       {show3D && (
-        <Storm3D 
+        <Simple3DCanvas 
           location={location} 
           precipitationStorms={precipitationStorms}
           onClose={() => setShow3D(false)}
