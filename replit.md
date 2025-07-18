@@ -380,6 +380,6 @@ Preferred communication style: Simple, everyday language.
 - **16-Point Compass**: Full compass rose with detailed directions (N, NNE, NE, ENE, E, ESE, SE, SSE, S, SSW, SW, WSW, W, WNW, NW, NNW)
 - **Professional Layout**: Heading display positioned in top-right corner with clear typography and semi-transparent background
 - **Degree Accuracy**: Shows exact compass bearing to help users orient themselves relative to storm positions
-- **Fixed Compass Needle**: Compass arrow always points North (fixed direction) with "N" label for consistent orientation
+- **Dynamic Compass Needle**: Compass arrow rotates to always point North (like a real compass) with "N" label for consistent orientation
 - **Corrected Initial View**: 3D view now starts facing North (0°) instead of South for proper initialization
 - **Standard Compass Behavior**: Negative rotation calculation matches standard compass behavior for accurate directional display
