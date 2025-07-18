@@ -37,6 +37,15 @@ const dbzToColor = (dbz: number): string => {
   return '#22C55E';                // Green - Light
 };
 
+// Convert dBZ to transparency level based on intensity
+const dbzToTransparency = (dbz: number): string => {
+  if (dbz >= 61) return 'FF';      // Purple - 100% opaque
+  if (dbz >= 55) return 'CC';      // Red - 80% opaque
+  if (dbz >= 46) return '99';      // Orange - 60% opaque
+  if (dbz >= 35) return '66';      // Yellow - 40% opaque
+  return '33';                     // Green - 20% opaque
+};
+
 // 3D to 2D projection with wider field of view
 const project3D = (point: Point3D, cameraDistance: number, canvasWidth: number, canvasHeight: number): Point2D => {
   const scale = cameraDistance / (cameraDistance + point.z + 0.1); // Prevent division by zero
@@ -244,10 +253,11 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
           const radius = Math.max(4, 20 * scale); // Circular column radius
 
-          // Draw solid, opaque storm column
+          // Draw storm column with intensity-based transparency
+          const transparency = dbzToTransparency(intensity);
           const columnGradient = ctx.createLinearGradient(base.x - radius, top.y, base.x + radius, base.y);
-          columnGradient.addColorStop(0, color + 'E6'); // Much more opaque top (90%)
-          columnGradient.addColorStop(1, color + 'FF'); // Fully solid bottom
+          columnGradient.addColorStop(0, color + transparency); // Top uses intensity transparency
+          columnGradient.addColorStop(1, color + transparency); // Bottom uses same transparency for consistency
 
           ctx.fillStyle = columnGradient;
           ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
