@@ -65,8 +65,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const [rotationY, setRotationY] = useState(0); // Start straight
   const [cameraHeight, setCameraHeight] = useState(6); // Tilted down view
   const [isRotating, setIsRotating] = useState(false);
-  const [autoRotate, setAutoRotate] = useState(true); // Auto-rotation enabled by default
-  const [rotationSpeedMultiplier, setRotationSpeedMultiplier] = useState(2); // 1=slow, 2=normal, 3=fast
+  const [autoRotate, setAutoRotate] = useState(false); // Auto-rotation disabled by default
+  const [rotationSpeedMultiplier, setRotationSpeedMultiplier] = useState(1); // Start at slowest speed
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
 
@@ -81,7 +81,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
 
-    const cameraDistance = 10;
+    const cameraDistance = 15; // Zoomed out more for better overview
 
     // Rotate a 3D point around Y axis
     const rotateY = (point: Point3D, angle: number): Point3D => {
@@ -168,7 +168,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       if (precipitationStorms.length > 0) {
         // Create a grid for terrain mesh
         const gridSize = 32; // Grid resolution
-        const gridExtent = 15; // km from center
+        const gridExtent = 20; // km from center - larger floor area
         const heightMap: number[][] = [];
         
         // Initialize height map
@@ -373,12 +373,21 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         </div>
         <div className="flex gap-2">
           <Button
-            onClick={() => setAutoRotate(!autoRotate)}
+            onClick={() => {
+              setAutoRotate(!autoRotate);
+              if (!autoRotate) {
+                // Reset to North when starting animation
+                setRotationY(0);
+              } else {
+                // Return to North when stopping animation
+                setRotationY(0);
+              }
+            }}
             variant="outline"
             size="sm"
             className={`${autoRotate ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
           >
-            {autoRotate ? 'Auto On' : 'Auto Off'}
+            {autoRotate ? '⏸️ Pause' : '▶️ Play'}
           </Button>
           <Button
             onClick={() => setRotationSpeedMultiplier(prev => prev === 3 ? 1 : prev + 1)}
