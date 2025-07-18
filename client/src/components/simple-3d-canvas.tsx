@@ -65,7 +65,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const [rotationY, setRotationY] = useState(0); // Start straight
   const [cameraHeight, setCameraHeight] = useState(6); // Tilted down view
   const [isRotating, setIsRotating] = useState(false);
-  const [rotationSpeed, setRotationSpeed] = useState(2); // 1=slow, 2=medium, 3=fast
+  const [rotationSpeed, setRotationSpeed] = useState(3); // 1=slow, 2=medium, 3=fast
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
 
@@ -189,107 +189,46 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
       // Draw terrain-style polygonal storm visualization
       if (precipitationStorms.length > 0) {
-        // Create a grid for terrain mesh
-        const gridSize = 32; // Grid resolution
-        const gridExtent = 20; // km from center - larger floor area
-        const heightMap: number[][] = [];
-        
-        // Initialize height map
-        for (let i = 0; i <= gridSize; i++) {
-          heightMap[i] = [];
-          for (let j = 0; j <= gridSize; j++) {
-            heightMap[i][j] = 0;
-          }
-        }
-        
-        // Sample storm data into grid
-        precipitationStorms.forEach(storm => {
+        // Draw simple circular storm columns directly from precipitation data
+        const stormData = precipitationStorms.map(storm => {
           const pos3D = geoTo3D(storm.lat, storm.lon, location.lat, location.lon);
           const intensity = storm.dbz || storm.intensity || 25;
           const height = dbzToHeight(intensity);
-          
-          // Map to grid coordinates
-          const gridX = Math.round(((pos3D.x / gridExtent) + 1) * gridSize / 2);
-          const gridZ = Math.round(((pos3D.z / gridExtent) + 1) * gridSize / 2);
-          
-          if (gridX >= 0 && gridX <= gridSize && gridZ >= 0 && gridZ <= gridSize) {
-            // Use maximum height at each grid point for overlapping storms
-            heightMap[gridZ][gridX] = Math.max(heightMap[gridZ][gridX], height);
-          }
-        });
-        
-        // Smooth the height map for terrain effect
-        for (let pass = 0; pass < 2; pass++) {
-          const smoothed = heightMap.map(row => [...row]);
-          for (let i = 1; i < gridSize; i++) {
-            for (let j = 1; j < gridSize; j++) {
-              smoothed[i][j] = (
-                heightMap[i-1][j] + heightMap[i+1][j] + 
-                heightMap[i][j-1] + heightMap[i][j+1] + 
-                heightMap[i][j] * 4
-              ) / 8;
-            }
-          }
-          heightMap.splice(0, heightMap.length, ...smoothed);
-        }
-        
-        // Sort grid points by z-distance for proper depth rendering
-        const gridPoints: Array<{i: number, j: number, height: number, z: number}> = [];
-        for (let i = 0; i < gridSize; i++) {
-          for (let j = 0; j < gridSize; j++) {
-            const height = heightMap[i][j];
-            if (height > 0.1) {
-              const x = ((j / gridSize) * 2 - 1) * gridExtent;
-              const z = ((i / gridSize) * 2 - 1) * gridExtent;
-              const rotatedPos = rotateY({ x, y: 0, z }, rotationY);
-              gridPoints.push({ i, j, height, z: rotatedPos.z });
-            }
-          }
-        }
-        
-        // Sort by z-distance (far to near)
-        gridPoints.sort((a, b) => b.z - a.z);
-        
-        // Render terrain mesh
-        gridPoints.forEach(({ i, j, height }) => {
-          // Convert grid back to 3D coordinates
-          const x = ((j / gridSize) * 2 - 1) * gridExtent;
-          const z = ((i / gridSize) * 2 - 1) * gridExtent;
-          
-          const pos3D = { x, y: 0, z };
+          const color = dbzToColor(intensity);
           const rotatedPos = rotateY(pos3D, rotationY);
-          
+
+          return { pos3D, intensity, height, color, rotatedPos };
+        });
+
+        // Sort by z-distance for proper depth rendering
+        stormData.sort((a, b) => b.rotatedPos.z - a.rotatedPos.z);
+
+        stormData.forEach(({ pos3D, intensity, height, color, rotatedPos }) => {
           // Project to screen
           const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
           const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-          
-          // Calculate scale and make columns truly square with no gaps
+
+          // Calculate scale for perspective
           const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
-          const squareSize = Math.max(10, 55 * scale); // Much larger to eliminate all gaps
-          
-          // Determine color based on height
-          const color = height >= 3.5 ? '#8B5CF6' : // Purple - Extreme
-                       height >= 2.5 ? '#EF4444' : // Red - Very Heavy
-                       height >= 1.5 ? '#F97316' : // Orange - Heavy
-                       height >= 0.8 ? '#EAB308' : // Yellow - Moderate
-                       '#22C55E';                   // Green - Light
-          
-          // Draw solid square terrain columns with exact square dimensions
-          const terrainGradient = ctx.createLinearGradient(base.x - squareSize/2, top.y, base.x + squareSize/2, base.y);
-          terrainGradient.addColorStop(0, color + 'DD'); // More opaque top
-          terrainGradient.addColorStop(1, color + 'FF'); // Fully solid bottom
-          
-          ctx.fillStyle = terrainGradient;
-          // Draw perfect square - width and height are the same
-          ctx.fillRect(base.x - squareSize/2, top.y, squareSize, base.y - top.y);
-          
-          // Add top face for 3D effect
-          ctx.fillStyle = color + 'EE';
-          ctx.fillRect(base.x - squareSize/2, top.y - 2, squareSize, 4);
-          
+          const radius = Math.max(4, 20 * scale); // Circular column radius
+
+          // Draw circular storm column with gradient
+          const columnGradient = ctx.createLinearGradient(base.x - radius, top.y, base.x + radius, base.y);
+          columnGradient.addColorStop(0, color + '80'); // Semi-transparent top
+          columnGradient.addColorStop(1, color + 'FF'); // Solid bottom
+
+          ctx.fillStyle = columnGradient;
+          ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
+
+          // Add circular top cap
+          ctx.fillStyle = color + 'CC';
+          ctx.beginPath();
+          ctx.arc(top.x, top.y, radius, 0, 2 * Math.PI);
+          ctx.fill();
+
           // Waypoint dots for reference if enabled
-          if (showWaypoints && height > 0.5) {
-            ctx.fillStyle = color + 'CC';
+          if (showWaypoints) {
+            ctx.fillStyle = color;
             ctx.beginPath();
             ctx.arc(base.x, base.y, Math.max(2, 4 * scale), 0, 2 * Math.PI);
             ctx.fill();
