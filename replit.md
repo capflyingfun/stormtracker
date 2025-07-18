@@ -374,6 +374,20 @@ Preferred communication style: Simple, everyday language.
 - **Zero-Storm Accuracy**: When no precipitation is detected (like London with 0 points), Storm Cells correctly shows "No storms detected"
 - **Consistent Data Source**: Both precipitation waypoints and Storm Cells now use identical real radar data for 100% accuracy
 
+### Personalized Weather Risk Alert System (July 18, 2025)
+- **Intelligent Risk Assessment**: Real-time risk analysis based on storm intensity, distance, and lightning activity
+- **Personalized Alert Preferences**: Customizable alert settings for different storm intensities (light to extreme)
+- **Multi-Level Risk Classification**: Low, medium, high, and extreme risk levels with appropriate alert tones
+- **Smart Alert Frequency**: Configurable alert intervals to prevent notification fatigue
+- **Professional Alert Notifications**: Color-coded alerts with detailed storm information and meteorological data
+- **Audio Alert System**: Different alert tones for different risk levels (frequency-based audio synthesis)
+- **Comprehensive Settings Panel**: User-friendly interface to customize alert preferences and thresholds
+- **Real-time Lightning Integration**: Lightning strike count influences risk assessment for enhanced accuracy
+- **Distance-based Risk Calculation**: Alerts triggered based on storm proximity within customizable radius
+- **Storm Intensity Filtering**: Selective alerts based on dBZ intensity thresholds (20-90 dBZ meteorological scale)
+- **Visual Risk Indicators**: Color-coded notifications with storm details including distance, intensity, and movement
+- **Auto-dismissing Alerts**: Smart alert duration based on risk level (10-30 seconds) with manual dismiss option
+
 ### 3D Heading Indicator Implementation (July 18, 2025)
 - **Compass Heading Display**: Added live heading indicator showing exact degrees (e.g., 245°) and cardinal direction (WSW)
 - **Real-time Updates**: Heading updates continuously as user rotates the 3D view for precise navigation

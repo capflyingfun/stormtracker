@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "@/hooks/use-location";
 import { useStormData } from "@/hooks/use-storm-data";
+import { useRiskAlerts } from "@/hooks/use-risk-alerts";
 import Header from "@/components/header";
 import LocationSetup from "@/components/location-setup";
 import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
+import RiskAlertNotification from "@/components/risk-alert-notification";
+import AlertSettings from "@/components/alert-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -30,6 +33,8 @@ export default function StormTracker() {
   
   // State for precipitation-based storm data
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
+  const [lightningCount, setLightningCount] = useState(0);
+  const [showAlertSettings, setShowAlertSettings] = useState(false);
   
   const {
     location,
@@ -46,6 +51,16 @@ export default function StormTracker() {
     refetch: refetchStormData,
     isLoading: stormDataLoading,
   } = useStormData(location, radarRange);
+
+  // Initialize risk alert system
+  const {
+    currentAlert,
+    isAlertVisible,
+    preferences,
+    assessRisk,
+    showAlert,
+    dismissAlert,
+  } = useRiskAlerts();
   
   // Always use precipitation storms (real radar data) instead of API storms
   // This ensures we only show storms that are actually detected in the radar imagery
@@ -73,6 +88,55 @@ export default function StormTracker() {
       window.removeEventListener('precipitationStormData', handlePrecipitationStormData);
     };
   }, []);
+
+  // Listen for lightning data updates from the map component
+  useEffect(() => {
+    const handleLightningData = (event: any) => {
+      setLightningCount(event.detail?.count || 0);
+    };
+
+    window.addEventListener('lightningData', handleLightningData);
+    
+    return () => {
+      window.removeEventListener('lightningData', handleLightningData);
+    };
+  }, []);
+
+  // Risk assessment and alert generation
+  useEffect(() => {
+    const performRiskAssessment = async () => {
+      if (!location || !preferences || precipitationStorms.length === 0) return;
+
+      try {
+        const riskData = await assessRisk(location, precipitationStorms, lightningCount);
+        if (riskData && riskData.shouldAlert) {
+          showAlert(riskData);
+        }
+      } catch (error) {
+        console.error('Risk assessment failed:', error);
+      }
+    };
+
+    // Perform risk assessment when storms or location change
+    if (location && preferences) {
+      performRiskAssessment();
+    }
+  }, [location, precipitationStorms, lightningCount, preferences, assessRisk, showAlert]);
+
+  // Handle alert settings save
+  const handleAlertSettingsSave = async (newPreferences: any) => {
+    try {
+      await fetch('/api/alerts/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPreferences)
+      });
+      // Force refresh preferences
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to save alert preferences:', error);
+    }
+  };
 
   // Clear precipitation storms when location changes
   useEffect(() => {
@@ -183,6 +247,24 @@ export default function StormTracker() {
         onUnitsChange={setUseMetric}
       />
       
+      {/* Risk Alert Notification */}
+      <RiskAlertNotification
+        alert={currentAlert}
+        isVisible={isAlertVisible}
+        onDismiss={dismissAlert}
+        onOpenSettings={() => setShowAlertSettings(true)}
+      />
+
+      {/* Alert Settings Modal */}
+      {preferences && (
+        <AlertSettings
+          isOpen={showAlertSettings}
+          onClose={() => setShowAlertSettings(false)}
+          preferences={preferences}
+          onSave={handleAlertSettingsSave}
+        />
+      )}
+      
       <div className="p-3 sm:p-6">
         {!location ? (
           <LocationSetup
@@ -207,6 +289,14 @@ export default function StormTracker() {
                 </div>
                 
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => setShowAlertSettings(true)}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs sm:text-sm"
+                  >
+                    🔔 Alert Settings
+                  </Button>
                   <Button
                     onClick={resetLocation}
                     variant="outline"
