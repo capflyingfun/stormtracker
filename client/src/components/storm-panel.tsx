@@ -134,34 +134,34 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
             return (
               <div 
                 key={storm.id} 
-                className={`bg-slate-700/50 rounded-lg p-4 border ${alertBorderClass} mb-4`}
+                className={`bg-slate-700/50 rounded-lg p-3 border ${alertBorderClass} mb-3`}
               >
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${getStormColor(storm.intensity)} animate-pulse`}></div>
-                  <span className="font-semibold">{getStormIntensityName(storm.intensity)}</span>
+                  <div className={`w-2 h-2 rounded-full ${getStormColor(storm.intensity)} animate-pulse`}></div>
+                  <span className="font-medium text-sm">{getStormIntensityName(storm.intensity)}</span>
                 </div>
-                <span className="text-sm text-slate-300">{storm.intensity.toFixed(0)} dBZ</span>
+                <span className="text-xs text-slate-300">{storm.intensity.toFixed(0)} dBZ</span>
               </div>
               
               {/* Enhanced storm information */}
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-300">Location:</span>
-                  <span className="text-sm text-white">{formatDirectionWithBearing(storm.distance, storm.direction, formatDistance)}</span>
+                  <span className="text-xs text-slate-300">Location:</span>
+                  <span className="text-xs text-white">{formatDirectionWithBearing(storm.distance, storm.direction, formatDistance)}</span>
                 </div>
                 
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-300">{storm.intensity >= 55 ? 'Rain/Hail Rate:' : 'Rain Rate:'}</span>
-                  <span className="text-sm text-white">
+                  <span className="text-xs text-slate-300">{storm.intensity >= 55 ? 'Rain/Hail Rate:' : 'Rain Rate:'}</span>
+                  <span className="text-xs text-white">
                     {getRainfallRate(storm.intensity).mmh} mm/h ({getRainfallRate(storm.intensity).inh} in/h)
                   </span>
                 </div>
                 
                 {storm.intensity >= 55 && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-300">Hail Potential:</span>
-                    <span className="text-sm text-orange-300">
+                    <span className="text-xs text-slate-300">Hail Potential:</span>
+                    <span className="text-xs text-orange-300">
                       {storm.intensity >= 65 ? 'Large hail (2"+ diameter)' : 
                        storm.intensity >= 60 ? 'Golf ball size (1.75")' : 
                        'Quarter size (1")'}
@@ -170,19 +170,19 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                 )}
                 
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-300">Intensity:</span>
-                  <span className="text-sm text-white">{storm.intensity.toFixed(0)} dBZ</span>
+                  <span className="text-xs text-slate-300">Intensity:</span>
+                  <span className="text-xs text-white">{storm.intensity.toFixed(0)} dBZ</span>
                 </div>
                 
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-300">Coordinates:</span>
+                  <span className="text-xs text-slate-300">Coordinates:</span>
                   <span className="text-xs text-slate-400">{storm.lat.toFixed(3)}°, {storm.lon.toFixed(3)}°</span>
                 </div>
                 
                 {storm.speed > 0 && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-300">Movement:</span>
-                    <span className="text-sm text-white">{formatSpeed(storm.speed)} @ {storm.direction.toFixed(0)}°</span>
+                    <span className="text-xs text-slate-300">Movement:</span>
+                    <span className="text-xs text-white">{formatSpeed(storm.speed)} @ {storm.direction.toFixed(0)}°</span>
                   </div>
                 )}
               </div>
