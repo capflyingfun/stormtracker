@@ -574,48 +574,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Try multiple endpoints for better reliability
       let lightningData = null;
       
-      try {
-        // Primary endpoint - live lightning data
-        const blitzResponse = await fetch(
-          `https://data.blitzortung.org/Data/Protected/last_strikes.php?coord_x=${lon}&coord_y=${lat}&radius=${radius}&number_of_strikes=500`,
-          {
+      // Try multiple lightning data sources for better reliability
+      const lightningAPIs = [
+        // Blitzortung.org API attempt 1 - JSON format
+        {
+          url: `https://www.blitzortung.org/en/api/live/strokes?time=20&region=1`,
+          parser: 'blitzortung_json'
+        },
+        // WWLLN (World Wide Lightning Location Network) via public API
+        {
+          url: `https://map.blitzortung.org/live_strikes.php?coord_x=${lon}&coord_y=${lat}&radius=${radius}`,
+          parser: 'blitzortung_text'
+        },
+        // Lightning Maps global data
+        {
+          url: `https://map.lightningmaps.org/getData.php?lat=${lat}&lon=${lon}&radius=${radius}`,
+          parser: 'lightningmaps'
+        }
+      ];
+
+      for (const api of lightningAPIs) {
+        try {
+          console.log(`Attempting lightning API: ${api.url}`);
+          const response = await fetch(api.url, {
             headers: {
-              'User-Agent': 'StormTracker/1.0',
-              'Accept': 'application/json'
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'application/json, text/plain, */*',
+              'Referer': 'https://www.blitzortung.org/'
             },
             timeout: 8000
-          }
-        );
-        
-        if (blitzResponse.ok) {
-          const textData = await blitzResponse.text();
-          // Parse the lightning data format from Blitzortung
-          lightningData = parseLightningData(textData);
-        }
-      } catch (e) {
-        // Continue to fallback
-      }
-      
-      // Fallback: use lightningmaps.org data format
-      if (!lightningData) {
-        try {
-          const fallbackResponse = await fetch(
-            `https://data.lightningmaps.org/blitzortung/live_lightning.php?regions=1,2,3,4,5,6,7&number_of_strokes=500`,
-            {
-              headers: {
-                'User-Agent': 'StormTracker/1.0',
-                'Accept': '*/*'
-              },
-              timeout: 10000
-            }
-          );
+          });
           
-          if (fallbackResponse.ok) {
-            const textData = await fallbackResponse.text();
-            lightningData = parseLightningDataLightningMaps(textData);
+          if (response.ok) {
+            const textData = await response.text();
+            console.log(`Lightning API response (${api.parser}):`, textData.substring(0, 200));
+            
+            if (api.parser === 'blitzortung_json') {
+              lightningData = parseBlitzortungJSON(textData);
+            } else if (api.parser === 'blitzortung_text') {
+              lightningData = parseLightningData(textData);
+            } else if (api.parser === 'lightningmaps') {
+              lightningData = parseLightningDataLightningMaps(textData);
+            }
+            
+            if (lightningData && lightningData.length > 0) {
+              console.log(`✅ Found ${lightningData.length} lightning strikes from ${api.parser}`);
+              break;
+            }
+          } else {
+            console.log(`API returned ${response.status}: ${response.statusText}`);
           }
         } catch (e) {
-          // Continue to mock data
+          console.log(`Lightning API failed: ${e.message}`);
+          continue;
         }
       }
       
@@ -670,6 +681,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Parse Blitzortung JSON format
+  function parseBlitzortungJSON(textData: string) {
+    try {
+      const data = JSON.parse(textData);
+      const strikes = [];
+      
+      if (data.strokes && Array.isArray(data.strokes)) {
+        for (const stroke of data.strokes) {
+          strikes.push({
+            timestamp: stroke.time || stroke.t || Date.now() / 1000,
+            lat: stroke.lat || stroke.y,
+            lon: stroke.lon || stroke.x,
+            intensity: stroke.amp || stroke.intensity || 1
+          });
+        }
+      }
+      
+      return strikes;
+    } catch (e) {
+      console.log('Failed to parse Blitzortung JSON:', e.message);
+      return [];
+    }
+  }
 
   // Parse Blitzortung lightning data format
   function parseLightningData(textData: string) {
