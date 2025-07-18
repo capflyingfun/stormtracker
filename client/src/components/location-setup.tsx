@@ -5,12 +5,26 @@ import SimpleLocationSearch from "@/components/simple-location-search";
 interface LocationSetupProps {
   onGPSLocation: () => Promise<void>;
   onLocationSearch: (query: string) => Promise<void>;
-  onLocationSelect?: (location: { lat: number; lon: number; name: string }) => void;
+  onLocationSelect?: (location: { 
+    lat: number; 
+    lon: number; 
+    name: string; 
+    country?: string; 
+    isUS?: boolean; 
+    recommendedRadarSource?: 'rainviewer' | 'nexrad' 
+  }) => void;
   isLoading: boolean;
 }
 
 export default function LocationSetup({ onGPSLocation, onLocationSearch, onLocationSelect, isLoading }: LocationSetupProps) {
-  const handleLocationSelect = async (location: { lat: number; lon: number; name: string }) => {
+  const handleLocationSelect = async (location: { 
+    lat: number; 
+    lon: number; 
+    name: string; 
+    country?: string; 
+    isUS?: boolean; 
+    recommendedRadarSource?: 'rainviewer' | 'nexrad' 
+  }) => {
     if (onLocationSelect) {
       onLocationSelect(location);
     } else {
@@ -30,7 +44,7 @@ export default function LocationSetup({ onGPSLocation, onLocationSearch, onLocat
           <SimpleLocationSearch
             onLocationSelect={handleLocationSelect}
             onUseCurrentLocation={onGPSLocation}
-            placeholder="Enter city, state, or ZIP code..."
+            placeholder="Enter city, country, state, or ZIP code..."
             className="w-full"
           />
         </div>

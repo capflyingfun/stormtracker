@@ -262,6 +262,15 @@ Preferred communication style: Simple, everyday language.
 - **Improved Button Styling**: Enhanced button appearance with semi-transparent background and better contrast
 - **Streamlined Interface**: Removed button from main control bar to reduce clutter and improve map focus
 
+### Global Location Search Implementation (July 17, 2025)
+- **International Geocoding**: Enhanced location search to support worldwide cities, countries, and regions
+- **Smart Radar Source Switching**: Automatically switches to RainViewer for international locations, NEXRAD for US locations
+- **Enhanced Location Detection**: Backend determines location type (US/international) and recommends optimal radar source
+- **Global Search Examples**: Updated search examples to include international locations like "London, UK", "Tokyo, Japan", "São Paulo, Brazil"
+- **Country Display**: International locations show country information in search results and location display
+- **Seamless Integration**: Automatic radar source switching happens transparently when selecting international locations
+- **OpenWeather Global API**: Utilizes OpenWeather's worldwide geocoding API with improved result limits for better international coverage
+
 ### Static NEXRAD Implementation (July 17, 2025)
 - **Static Radar Display**: NEXRAD configured for stable, current radar visualization without animation
 - **Disabled Animation Controls**: Play button disabled for NEXRAD to prevent animation attempts

@@ -119,13 +119,26 @@ export default function StormTracker() {
     }
   };
 
-  const handleDirectLocationSelect = (selectedLocation: { lat: number; lon: number; name: string }) => {
+  const handleDirectLocationSelect = (selectedLocation: { 
+    lat: number; 
+    lon: number; 
+    name: string; 
+    country?: string; 
+    isUS?: boolean; 
+    recommendedRadarSource?: 'rainviewer' | 'nexrad' 
+  }) => {
     // Set location directly without another API call
     setLocationDirectly({
       lat: selectedLocation.lat,
       lon: selectedLocation.lon,
       name: selectedLocation.name,
     });
+    
+    // Automatically switch radar source based on location
+    if (selectedLocation.recommendedRadarSource) {
+      setCurrentRadarSource(selectedLocation.recommendedRadarSource);
+      console.log(`Auto-switched to ${selectedLocation.recommendedRadarSource} for ${selectedLocation.country === 'US' ? 'US' : 'international'} location: ${selectedLocation.name}`);
+    }
     
     if (isTracking) {
       refetchStormData();
@@ -229,6 +242,7 @@ export default function StormTracker() {
               stormFilters={stormFilters}
               onStormFiltersChange={setStormFilters}
               onRadarSourceChange={setCurrentRadarSource}
+              radarSource={currentRadarSource}
             />
 
             {/* Storm Data Grid - Moved below radar */}

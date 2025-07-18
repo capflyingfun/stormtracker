@@ -4,7 +4,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 interface SimpleLocationSearchProps {
-  onLocationSelect: (location: { lat: number; lon: number; name: string }) => void;
+  onLocationSelect: (location: { 
+    lat: number; 
+    lon: number; 
+    name: string; 
+    country?: string; 
+    isUS?: boolean; 
+    recommendedRadarSource?: 'rainviewer' | 'nexrad' 
+  }) => void;
   onUseCurrentLocation?: () => void;
   placeholder?: string;
   className?: string;
@@ -33,10 +40,23 @@ export default function SimpleLocationSearch({
       if (response.ok) {
         const location = await response.json();
         console.log('Location found:', location); // Debug log
+        
+        // Create display name with country for international locations
+        let displayName = location.name;
+        if (location.state) {
+          displayName += `, ${location.state}`;
+        }
+        if (location.country && location.country !== 'US') {
+          displayName += `, ${location.country}`;
+        }
+        
         onLocationSelect({
           lat: location.lat,
           lon: location.lon,
-          name: location.name + (location.state ? `, ${location.state}` : '')
+          name: displayName,
+          country: location.country,
+          isUS: location.isUS,
+          recommendedRadarSource: location.recommendedRadarSource
         });
         setQuery(""); // Clear input after successful search
       } else {
@@ -108,7 +128,7 @@ export default function SimpleLocationSearch({
 
       {/* Search examples */}
       <div className="mt-2 text-xs text-slate-400">
-        Examples: "New York", "90210", "Miami Beach, FL", "London, UK"
+        Examples: "New York", "90210", "London, UK", "Tokyo, Japan", "São Paulo, Brazil"
       </div>
     </div>
   );
