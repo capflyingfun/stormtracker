@@ -103,7 +103,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       // Draw North arrow compass in top right
       const compassSize = 60;
       const compassX = canvas.width - compassSize - 20;
-      const compassY = compassSize + 120; // Below the control buttons
+      const compassY = compassSize + 60; // Below the centered control buttons
       
       // Compass background circle
       ctx.fillStyle = 'rgba(51, 51, 85, 0.3)';
@@ -314,42 +314,35 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
   return (
     <div className="fixed inset-0 bg-black z-50">
-      {/* Controls - Reorganized */}
-      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 items-end">
-        {/* Exit and visibility controls */}
-        <div className="flex gap-2">
-          <Button onClick={onClose} variant="outline" size="sm">
-            Exit 3D
-          </Button>
-          <Button
-            onClick={() => setShowWaypoints(!showWaypoints)}
-            variant="outline"
-            size="sm"
-            className={`${showWaypoints ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
-          >
-            {showWaypoints ? 'Hide Dots' : 'Show Dots'}
-          </Button>
-        </div>
-        
-        {/* View controls */}
-        <div className="flex gap-2">
-          <Button
-            onClick={() => setCameraHeight(3)}
-            variant="outline"
-            size="sm"
-            className={`${cameraHeight <= 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
-          >
-            Ground View
-          </Button>
-          <Button
-            onClick={() => setCameraHeight(8)}
-            variant="outline"
-            size="sm"
-            className={`${cameraHeight > 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
-          >
-            Overhead View
-          </Button>
-        </div>
+      {/* Top Controls - Single Row */}
+      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 flex gap-2">
+        <Button onClick={onClose} variant="outline" size="sm">
+          Exit 3D
+        </Button>
+        <Button
+          onClick={() => setShowWaypoints(!showWaypoints)}
+          variant="outline"
+          size="sm"
+          className={`${showWaypoints ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
+        >
+          {showWaypoints ? 'Hide Dots' : 'Show Dots'}
+        </Button>
+        <Button
+          onClick={() => setCameraHeight(3)}
+          variant="outline"
+          size="sm"
+          className={`${cameraHeight <= 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
+        >
+          Ground
+        </Button>
+        <Button
+          onClick={() => setCameraHeight(8)}
+          variant="outline"
+          size="sm"
+          className={`${cameraHeight > 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
+        >
+          Overhead
+        </Button>
       </div>
 
       {/* Canvas */}
