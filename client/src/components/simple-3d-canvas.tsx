@@ -65,7 +65,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const [rotationY, setRotationY] = useState(0); // Start straight
   const [cameraHeight, setCameraHeight] = useState(6); // Tilted down view
   const [isRotating, setIsRotating] = useState(false);
-  // Removed auto-rotation completely
+  const [rotationSpeed, setRotationSpeed] = useState(3); // 1=slow, 2=medium, 3=fast
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
 
@@ -209,51 +209,68 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           heightMap.splice(0, heightMap.length, ...smoothed);
         }
         
-        // Render terrain mesh
+        // Sort grid points by z-distance for proper depth rendering
+        const gridPoints: Array<{i: number, j: number, height: number, z: number}> = [];
         for (let i = 0; i < gridSize; i++) {
           for (let j = 0; j < gridSize; j++) {
             const height = heightMap[i][j];
             if (height > 0.1) {
-              // Convert grid back to 3D coordinates
               const x = ((j / gridSize) * 2 - 1) * gridExtent;
               const z = ((i / gridSize) * 2 - 1) * gridExtent;
-              
-              const pos3D = { x, y: 0, z };
-              const rotatedPos = rotateY(pos3D, rotationY);
-              
-              // Project to screen
-              const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-              const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-              
-              // Calculate scale and color
-              const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
-              const width = Math.max(4, 30 * scale); // Larger, square columns
-              
-              // Determine color based on height
-              const color = height >= 3.5 ? '#8B5CF6' : // Purple - Extreme
-                           height >= 2.5 ? '#EF4444' : // Red - Very Heavy
-                           height >= 1.5 ? '#F97316' : // Orange - Heavy
-                           height >= 0.8 ? '#EAB308' : // Yellow - Moderate
-                           '#22C55E';                   // Green - Light
-              
-              // Draw solid square terrain columns
-              const terrainGradient = ctx.createLinearGradient(base.x - width/2, top.y, base.x + width/2, base.y);
-              terrainGradient.addColorStop(0, color + 'CC'); // More opaque top
-              terrainGradient.addColorStop(1, color + 'FF'); // Fully solid bottom
-              
-              ctx.fillStyle = terrainGradient;
-              ctx.fillRect(base.x - width/2, top.y, width, base.y - top.y);
-              
-              // Waypoint dots for reference if enabled
-              if (showWaypoints && height > 0.5) {
-                ctx.fillStyle = color + 'CC';
-                ctx.beginPath();
-                ctx.arc(base.x, base.y, Math.max(2, 3 * scale), 0, 2 * Math.PI);
-                ctx.fill();
-              }
+              const rotatedPos = rotateY({ x, y: 0, z }, rotationY);
+              gridPoints.push({ i, j, height, z: rotatedPos.z });
             }
           }
         }
+        
+        // Sort by z-distance (far to near)
+        gridPoints.sort((a, b) => b.z - a.z);
+        
+        // Render terrain mesh
+        gridPoints.forEach(({ i, j, height }) => {
+          // Convert grid back to 3D coordinates
+          const x = ((j / gridSize) * 2 - 1) * gridExtent;
+          const z = ((i / gridSize) * 2 - 1) * gridExtent;
+          
+          const pos3D = { x, y: 0, z };
+          const rotatedPos = rotateY(pos3D, rotationY);
+          
+          // Project to screen
+          const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+          const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+          
+          // Calculate scale and make columns truly square
+          const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
+          const squareSize = Math.max(6, 40 * scale); // Larger square size
+          
+          // Determine color based on height
+          const color = height >= 3.5 ? '#8B5CF6' : // Purple - Extreme
+                       height >= 2.5 ? '#EF4444' : // Red - Very Heavy
+                       height >= 1.5 ? '#F97316' : // Orange - Heavy
+                       height >= 0.8 ? '#EAB308' : // Yellow - Moderate
+                       '#22C55E';                   // Green - Light
+          
+          // Draw solid square terrain columns with exact square dimensions
+          const terrainGradient = ctx.createLinearGradient(base.x - squareSize/2, top.y, base.x + squareSize/2, base.y);
+          terrainGradient.addColorStop(0, color + 'DD'); // More opaque top
+          terrainGradient.addColorStop(1, color + 'FF'); // Fully solid bottom
+          
+          ctx.fillStyle = terrainGradient;
+          // Draw perfect square - width and height are the same
+          ctx.fillRect(base.x - squareSize/2, top.y, squareSize, base.y - top.y);
+          
+          // Add top face for 3D effect
+          ctx.fillStyle = color + 'EE';
+          ctx.fillRect(base.x - squareSize/2, top.y - 2, squareSize, 4);
+          
+          // Waypoint dots for reference if enabled
+          if (showWaypoints && height > 0.5) {
+            ctx.fillStyle = color + 'CC';
+            ctx.beginPath();
+            ctx.arc(base.x, base.y, Math.max(2, 4 * scale), 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        });
       }
     };
 
@@ -266,7 +283,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       const centerX = rect.width / 2;
       const clickX = clientX - rect.left;
       // Fix direction: Right side = negative rotation (clockwise), Left side = positive rotation (counter-clockwise)
-      const baseSpeed = 0.0005; // Fixed manual rotation speed
+      const baseSpeed = 0.0005 * rotationSpeed; // Adjustable manual rotation speed
       targetRotationSpeed.current = clickX > centerX ? -baseSpeed : baseSpeed;
     };
 
@@ -333,7 +350,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating]);
+  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating, rotationSpeed]);
 
   if (!location) {
     return (
@@ -372,6 +389,14 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
             className="bg-green-600 border-green-500"
           >
             📍 North
+          </Button>
+          <Button
+            onClick={() => setRotationSpeed(prev => prev === 3 ? 1 : prev + 1)}
+            variant="outline"
+            size="sm"
+            className="bg-purple-600 border-purple-500"
+          >
+            Speed {rotationSpeed}x
           </Button>
         </div>
       </div>
