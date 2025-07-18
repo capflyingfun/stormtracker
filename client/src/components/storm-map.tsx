@@ -37,6 +37,7 @@ interface StormMapProps {
   onRadarSourceChange?: (source: 'rainviewer' | 'nexrad') => void;
   radarSource?: 'rainviewer' | 'nexrad';
   isDisabled?: boolean;
+  alertPreferences?: any;
 }
 
 declare global {
@@ -45,7 +46,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onStormFiltersChange, onRadarSourceChange, radarSource: externalRadarSource, isDisabled }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onStormFiltersChange, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
