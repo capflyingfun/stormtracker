@@ -79,7 +79,9 @@ export default function StormTracker() {
   // Listen for precipitation storm data from the map component
   useEffect(() => {
     const handlePrecipitationStormData = (event: any) => {
-      setPrecipitationStorms(event.detail || []);
+      const newPrecipitationStorms = event.detail || [];
+      console.log(`Updated precipitation storms: ${newPrecipitationStorms.length} storms detected from radar imagery`);
+      setPrecipitationStorms(newPrecipitationStorms);
     };
 
     window.addEventListener('precipitationStormData', handlePrecipitationStormData);
