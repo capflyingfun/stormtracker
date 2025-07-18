@@ -212,19 +212,13 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
           const radius = Math.max(4, 20 * scale); // Circular column radius
 
-          // Draw solid storm column with original appearance
-          const columnGradient = ctx.createLinearGradient(base.x - radius, top.y, base.x + radius, base.y);
-          columnGradient.addColorStop(0, color + '60'); // Transparent top
-          columnGradient.addColorStop(1, color + 'FF'); // Solid bottom
-
-          ctx.fillStyle = columnGradient;
+          // Draw simple solid rectangular storm column - no glow effects
+          ctx.fillStyle = color + 'DD'; // Solid color with slight transparency
           ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
 
-          // Add storm cap
-          ctx.fillStyle = color + '80';
-          ctx.beginPath();
-          ctx.ellipse(top.x, top.y, radius, radius/2, 0, 0, 2 * Math.PI);
-          ctx.fill();
+          // Simple flat top - no cap effects
+          ctx.fillStyle = color + 'FF'; // Fully solid top
+          ctx.fillRect(base.x - radius, top.y - 2, radius * 2, 4);
 
           // Waypoint dots only if enabled
           if (showWaypoints) {
