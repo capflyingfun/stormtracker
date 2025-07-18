@@ -1173,7 +1173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // For now, return default preferences since we don't have user authentication
       // In a real app, this would fetch from database based on user ID
       const defaultPreferences = {
-        minimumDbz: 35, // Default to moderate rain (35+ dBZ)
+        minimumDbz: 45, // Default to heavy rain (45+ dBZ)
         alertRadius: 30,
         alertFrequency: 15,
         soundEnabled: true,

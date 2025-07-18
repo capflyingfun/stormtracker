@@ -52,11 +52,11 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
   };
 
   const getDbzDescription = (dbz: number) => {
-    if (dbz >= 61) return { category: 'Extreme Thunderstorms', color: 'text-purple-400', description: '250+ mm/h, large hail likely' };
-    if (dbz >= 55) return { category: 'Very Heavy Rain/Hail', color: 'text-red-400', description: '100-205 mm/h, hail potential' };
-    if (dbz >= 46) return { category: 'Heavy Rain', color: 'text-orange-400', description: '28.8-48.6 mm/h' };
-    if (dbz >= 35) return { category: 'Moderate Rain', color: 'text-yellow-400', description: '5.6-23.7 mm/h' };
-    if (dbz >= 20) return { category: 'Light Rain', color: 'text-green-400', description: '0.6-2.7 mm/h' };
+    if (dbz >= 61) return { category: 'Extreme Thunderstorms', color: 'text-purple-400', description: '250+ mm/h (10+ in/h), large hail likely' };
+    if (dbz >= 55) return { category: 'Very Heavy Rain/Hail', color: 'text-red-400', description: '100-205 mm/h (4-8 in/h), hail potential' };
+    if (dbz >= 46) return { category: 'Heavy Rain', color: 'text-orange-400', description: '28.8-48.6 mm/h (1.1-1.9 in/h)' };
+    if (dbz >= 35) return { category: 'Moderate Rain', color: 'text-yellow-400', description: '5.6-23.7 mm/h (0.22-0.93 in/h)' };
+    if (dbz >= 20) return { category: 'Light Rain', color: 'text-green-400', description: '0.6-2.7 mm/h (0.02-0.11 in/h)' };
     return { category: 'No Precipitation', color: 'text-gray-400', description: 'Clear conditions' };
   };
 

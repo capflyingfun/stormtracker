@@ -150,7 +150,7 @@ export const riskAssessmentSchema = z.object({
   })),
   lightningCount: z.number().default(0),
   preferences: z.object({
-    minimumDbz: z.number().default(35),
+    minimumDbz: z.number().default(45),
     alertRadius: z.number().default(30),
     alertFrequency: z.number().default(15),
     soundEnabled: z.boolean().default(true),
