@@ -61,11 +61,11 @@ const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number)
 
 export default function Simple3DCanvas({ location, precipitationStorms, onClose }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [showWaypoints, setShowWaypoints] = useState(true);
+  const [showWaypoints, setShowWaypoints] = useState(false); // Default to hidden for better performance
   const [rotationY, setRotationY] = useState(0); // Start straight
   const [cameraHeight, setCameraHeight] = useState(6); // Tilted down view
   const [isRotating, setIsRotating] = useState(false);
-  const [rotationSpeed, setRotationSpeed] = useState(3); // 1=slow, 2=medium, 3=fast
+  const [rotationSpeed, setRotationSpeed] = useState(2); // 1=slow, 2=medium, 3=fast
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
 
@@ -212,16 +212,16 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
           const radius = Math.max(4, 20 * scale); // Circular column radius
 
-          // Draw circular storm column with gradient
+          // Draw circular storm column with 50% more transparency
           const columnGradient = ctx.createLinearGradient(base.x - radius, top.y, base.x + radius, base.y);
-          columnGradient.addColorStop(0, color + '80'); // Semi-transparent top
-          columnGradient.addColorStop(1, color + 'FF'); // Solid bottom
+          columnGradient.addColorStop(0, color + '40'); // Much more transparent top
+          columnGradient.addColorStop(1, color + '80'); // 50% transparent bottom
 
           ctx.fillStyle = columnGradient;
           ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
 
-          // Add circular top cap
-          ctx.fillStyle = color + 'CC';
+          // Add circular top cap with transparency
+          ctx.fillStyle = color + '66'; // 40% opacity
           ctx.beginPath();
           ctx.arc(top.x, top.y, radius, 0, 2 * Math.PI);
           ctx.fill();
