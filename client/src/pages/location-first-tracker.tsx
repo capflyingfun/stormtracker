@@ -9,6 +9,7 @@ import AlertsPanel from "@/components/alerts-panel";
 import Game3DEnvironment from "@/components/game-3d-environment";
 import SimpleFallback3D from "@/components/simple-fallback-3d";
 import Basic3DEnvironment from "@/components/basic-3d-environment";
+import PureCSS3DEnvironment from "@/components/pure-css-3d-environment";
 import ModeSelector from "@/components/mode-selector";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -201,9 +202,9 @@ export default function LocationFirstTracker() {
       hasValidLocation: !!(location && location.lat && location.lon)
     });
     
-    // Use the reliable Basic3D environment directly
+    // Use the CSS 3D environment to avoid React Three Fiber issues
     return (
-      <Basic3DEnvironment
+      <PureCSS3DEnvironment
         location={location}
         precipitationStorms={precipitationStorms}
         onClose={resetToLocationSetup}
