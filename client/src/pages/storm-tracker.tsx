@@ -8,6 +8,7 @@ import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import True3DEnvironment from "@/components/true-3d-environment";
+import WebGL3DEnvironment from "@/components/webgl-3d-environment";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -17,7 +18,7 @@ export default function StormTracker() {
   const radarRange = 30; // Fixed at 30 miles
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [show3D, setShow3D] = useState(false);
-  const [use3DMode, setUse3DMode] = useState<'canvas' | 'true3d'>('true3d'); // Default to true 3D
+  const [use3DMode, setUse3DMode] = useState<'canvas' | 'true3d' | 'webgl'>('webgl'); // Default to WebGL 3D
   
   // Storm filtering state - 5 meteorological categories (20-90 dBZ)
   const [stormFilters, setStormFilters] = useState({
@@ -209,15 +210,18 @@ export default function StormTracker() {
                     size="sm"
                     className="bg-purple-600/20 border-purple-500 hover:bg-purple-600/30"
                   >
-                    🌩️ {use3DMode === 'true3d' ? 'True 3D' : '3D Canvas'}
+                    🌩️ {use3DMode === 'webgl' ? 'WebGL 3D' : use3DMode === 'true3d' ? 'React 3D' : '3D Canvas'}
                   </Button>
                   <Button
-                    onClick={() => setUse3DMode(prev => prev === 'true3d' ? 'canvas' : 'true3d')}
+                    onClick={() => setUse3DMode(prev => 
+                      prev === 'webgl' ? 'true3d' : 
+                      prev === 'true3d' ? 'canvas' : 'webgl'
+                    )}
                     variant="outline"
                     size="sm"
                     className="text-xs"
                   >
-                    Mode: {use3DMode === 'true3d' ? 'Real 3D' : 'Canvas'}
+                    Mode: {use3DMode === 'webgl' ? 'WebGL' : use3DMode === 'true3d' ? 'React' : 'Canvas'}
                   </Button>
                   <Button
                     onClick={resetLocation}
@@ -289,7 +293,13 @@ export default function StormTracker() {
       {/* 3D Storm Visualization */}
       {show3D && (
         <>
-          {use3DMode === 'true3d' ? (
+          {use3DMode === 'webgl' ? (
+            <WebGL3DEnvironment 
+              location={location} 
+              precipitationStorms={precipitationStorms}
+              onClose={() => setShow3D(false)}
+            />
+          ) : use3DMode === 'true3d' ? (
             <True3DEnvironment 
               location={location} 
               precipitationStorms={precipitationStorms}
