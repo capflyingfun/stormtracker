@@ -126,8 +126,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, rect.width, rect.height);
       
-      // Debug: Log storm count
-      console.log(`[3D Canvas] Drawing ${precipitationStorms.length} storms at rotation ${rotationY.toFixed(2)}`);
+      // Debug: Log storm count (reduce log frequency)
+      if (Math.floor(rotationY * 10) % 10 === 0) {
+        console.log(`[3D Canvas] ${precipitationStorms.length} total storms, showing top ${isMobile ? 25 : 50} by intensity/distance`);
+      }
       
       if (precipitationStorms.length === 0) {
         // Show no storms message
@@ -200,17 +202,25 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       ctx.arc(userProjected.x, userProjected.y, 6, 0, 2 * Math.PI);
       ctx.fill();
 
-      // Mobile optimization: limit storm count and reduce detail
-      const maxStorms = isMobile ? 30 : precipitationStorms.length;
-      const visibleStorms = precipitationStorms
-        .slice(0, maxStorms)
-        .map(storm => {
-          const pos3D = geoTo3D(storm.lat, storm.lon, location.lat, location.lon);
-          const intensity = storm.dbz || storm.intensity || 25;
-          const height = dbzToHeight(intensity);
-          const color = dbzToColor(intensity);
-          return { pos3D, intensity, height, color };
-        });
+      // Smart storm limiting: prioritize nearby and high-intensity storms
+      const maxStorms = isMobile ? 25 : 50; // Much lower limits for performance
+      const stormData = precipitationStorms.map(storm => {
+        const pos3D = geoTo3D(storm.lat, storm.lon, location.lat, location.lon);
+        const intensity = storm.dbz || storm.intensity || 25;
+        const distance = Math.sqrt(pos3D.x * pos3D.x + pos3D.z * pos3D.z);
+        const height = dbzToHeight(intensity);
+        const color = dbzToColor(intensity);
+        return { pos3D, intensity, height, color, distance };
+      });
+
+      // Sort by priority: higher intensity and closer storms first
+      stormData.sort((a, b) => {
+        const aScore = a.intensity * 2 - a.distance; // Weight intensity heavily
+        const bScore = b.intensity * 2 - b.distance;
+        return bScore - aScore;
+      });
+
+      const visibleStorms = stormData.slice(0, maxStorms);
 
       // Sort by z-distance for proper depth rendering
       visibleStorms.sort((a, b) => {
@@ -219,7 +229,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         return bRotated.z - aRotated.z; // Draw far objects first
       });
 
-      visibleStorms.forEach(({ pos3D, intensity, height, color }) => {
+      visibleStorms.forEach(({ pos3D, intensity, height, color, distance }) => {
         const rotatedPos = rotateY(pos3D, rotationY);
         
         // Base and top positions
@@ -227,9 +237,11 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, rect.width, rect.height);
 
         // Calculate width based on distance for perspective (wider columns)
-        const distance = Math.sqrt(rotatedPos.x * rotatedPos.x + rotatedPos.z * rotatedPos.z);
         const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
         const width = Math.max(4, 30 * scale);
+        
+        // Skip rendering if too far away or too small
+        if (scale < 0.1 || distance > 25) return;
 
         // Simplified rendering for mobile performance
         if (isMobile) {
