@@ -53,9 +53,9 @@ const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number)
   const z = (lat - centerLat) * 110540 / 1000; // km
   
   return {
-    x: x * 0.2, // Scale down
-    y: 0,       // Ground level
-    z: z * 0.2  // Scale down
+    x: x * 0.2,  // Scale down
+    y: 0,        // Ground level
+    z: -z * 0.2  // Flip Z to fix upside-down orientation
   };
 };
 
@@ -224,10 +224,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
     canvas.addEventListener('mouseup', handleMouseUp);
     canvas.addEventListener('wheel', handleWheel);
 
-    // Auto-rotation animation
+    // Auto-rotation animation (much slower)
     const animate = () => {
       if (!isDragging) {
-        setRotationY(prev => prev + 0.005);
+        setRotationY(prev => prev + 0.001); // Much slower rotation
       }
       draw();
       requestAnimationFrame(animate);
