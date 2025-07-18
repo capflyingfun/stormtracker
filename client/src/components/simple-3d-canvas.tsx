@@ -365,27 +365,27 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
   return (
     <div className="fixed inset-0 bg-black z-50">
-      {/* Mobile-Optimized Legend - Bottom */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-slate-800/90 backdrop-blur-sm rounded-lg p-2 border border-slate-700/50 z-10">
-        <div className="flex flex-wrap gap-3 text-xs text-slate-300 justify-center">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#22C55E', opacity: 0.2 }}></div>
+      {/* Full-Width Legend - Bottom */}
+      <div className="absolute bottom-4 left-4 right-4 bg-slate-800/90 backdrop-blur-sm rounded-lg p-3 border border-slate-700/50 z-10">
+        <div className="flex justify-between items-center text-xs text-slate-300">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#22C55E', opacity: 0.2 }}></div>
             <span>Light</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#EAB308', opacity: 0.4 }}></div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EAB308', opacity: 0.4 }}></div>
             <span>Moderate</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#F97316', opacity: 0.6 }}></div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#F97316', opacity: 0.6 }}></div>
             <span>Heavy</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#EF4444', opacity: 0.8 }}></div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EF4444', opacity: 0.8 }}></div>
             <span>V.Heavy</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#8B5CF6', opacity: 1.0 }}></div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#8B5CF6', opacity: 1.0 }}></div>
             <span>Extreme</span>
           </div>
         </div>
