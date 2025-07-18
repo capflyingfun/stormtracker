@@ -380,3 +380,4 @@ Preferred communication style: Simple, everyday language.
 - **16-Point Compass**: Full compass rose with detailed directions (N, NNE, NE, ENE, E, ESE, SE, SSE, S, SSW, SW, WSW, W, WNW, NW, NNW)
 - **Professional Layout**: Heading display positioned in top-right corner with clear typography and semi-transparent background
 - **Degree Accuracy**: Shows exact compass bearing to help users orient themselves relative to storm positions
+- **Correct Direction**: Shows the direction you're looking toward (not from) by adding 180° to the rotation for intuitive navigation

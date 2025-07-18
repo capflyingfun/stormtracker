@@ -46,10 +46,10 @@ const dbzToTransparency = (dbz: number): string => {
   return '33';                     // Green - 20% opaque
 };
 
-// Convert rotation angle to compass heading
+// Convert rotation angle to compass heading (direction you're looking toward)
 const getCompassHeading = (rotationY: number): { degrees: number; direction: string } => {
-  // Convert radians to degrees and normalize to 0-360
-  let degrees = ((rotationY * 180 / Math.PI) % 360 + 360) % 360;
+  // Convert radians to degrees, add 180° to reverse direction, and normalize to 0-360
+  let degrees = ((rotationY * 180 / Math.PI + 180) % 360 + 360) % 360;
   
   // Round to nearest degree
   degrees = Math.round(degrees);
