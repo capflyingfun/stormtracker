@@ -297,14 +297,14 @@ Preferred communication style: Simple, everyday language.
 ### Enhanced 5-Category dBZ Classification System (July 17, 2025)
 - **Professional Meteorological Standards**: Implemented precise 5-category dBZ color system (20-90 dBZ)
 - **Scientific Accuracy**: Colors and thresholds based on meteorological best practices
-- **Marshall-Palmer Rainfall Rates**: Added calculated rainfall rates (mm/h and in/h) using standard meteorological formula
+- **Official NOAA/NWS Rainfall Rates**: Updated to use official National Weather Service dBZ-to-rainfall conversion table from NOAA JetStream
 - **Enhanced Storm Cell Details**: Storm panel now shows comprehensive information including rainfall rates, coordinates, and movement data
 - **Comprehensive Precipitation Classification**: Five distinct categories covering all meaningful precipitation:
-  - Light Rain (20-34 dBZ): Green - 0.6-2.7 mm/h
-  - Moderate Rain (35-45 dBZ): Yellow - 5.6-23.7 mm/h
-  - Heavy Rain (46-54 dBZ): Orange - 28.8-48.6 mm/h
-  - Very Heavy Rain/Hail (55-60 dBZ): Red - 100-205 mm/h with hail potential
-  - Extreme Thunderstorms (61+ dBZ): Purple - 250+ mm/h with large hail likely
+  - Light Rain (20-34 dBZ): Green - 0.25-3 mm/h (0.01-0.10 in/h)
+  - Moderate Rain (35-45 dBZ): Yellow - 6-24 mm/h (0.22-0.92 in/h)
+  - Heavy Rain (46-54 dBZ): Orange - 47 mm/h (1.9 in/h)
+  - Very Heavy Rain/Hail (55-60 dBZ): Red - 100-205 mm/h (4.0-8.0 in/h) with hail potential
+  - Extreme Thunderstorms (61+ dBZ): Purple - 420+ mm/h (16+ in/h) with large hail likely
 
 ### Dual-Source Precipitation Detection System (July 17, 2025)
 - **Enhanced RainViewer Support**: Added dedicated RainViewer color mapping and precipitation detection algorithms
@@ -452,3 +452,10 @@ Preferred communication style: Simple, everyday language.
 - **Clean UI Integration**: Visual alerts enhance existing Storm Cells panel and map markers instead of creating separate notification popups
 - **User-Preferred Approach**: Visual highlighting approach confirmed as more intuitive and less intrusive than popup notifications
 - **Seamless Alert Experience**: Distance, direction, and intensity information already present in Storm Cells panel provides complete context without additional UI elements
+
+### Official NOAA/NWS Data Integration (July 18, 2025)
+- **Authentic Rainfall Calculations**: Replaced Marshall-Palmer formula with official NOAA/NWS dBZ-to-rainfall conversion table
+- **Meteorological Accuracy**: All rainfall rates now match National Weather Service standards from NOAA JetStream education portal
+- **Professional Data Source**: Implements exact dBZ thresholds and rainfall rates used by professional meteorologists
+- **Enhanced Storm Information**: Storm cells and map popups display precise rainfall rates consistent with NWS radar products
+- **Scientific Validation**: All precipitation data now aligns with official weather service calculations for maximum accuracy
