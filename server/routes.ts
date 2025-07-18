@@ -889,6 +889,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return strikes;
   }
 
+  // Winds Aloft data for storm movement calculation
+  app.get('/api/winds-aloft', async (req, res) => {
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+    
+    if (!lat || !lon) {
+      return res.status(400).json({ error: 'Latitude and longitude required' });
+    }
+
+    try {
+      const windsData = await getWindsAloft(lat, lon);
+      res.json(windsData);
+    } catch (error) {
+      console.error('Winds Aloft API error:', error);
+      res.status(500).json({ error: 'Winds aloft data temporarily unavailable' });
+    }
+  });
+
   // Proxy RainViewer API to bypass network restrictions
   app.get('/api/rainviewer', async (req, res) => {
     try {
@@ -1228,6 +1246,328 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Failed to get recent alerts' });
     }
   });
+  // Get Winds Aloft data from NOAA Aviation Weather API
+  async function getWindsAloft(lat: number, lon: number) {
+    try {
+      // Find nearest aviation weather station for winds aloft data
+      const stationId = findNearestWindsAloftStation(lat, lon);
+      
+      // Fetch winds aloft forecast from NOAA Aviation Weather API
+      const response = await fetch(`https://aviationweather.gov/api/data/windtemp?ids=${stationId}&format=json`, {
+        headers: {
+          'User-Agent': 'StormTracker/1.0 (weather app for storm movement prediction)'
+        },
+        timeout: 8000
+      });
+
+      if (!response.ok) {
+        throw new Error(`Aviation Weather API returned ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        // Fallback to alternative approach using nearest METAR station
+        return await getWindsFromMETAR(lat, lon);
+      }
+
+      const windReport = data[0];
+      const windsAloft = parseWindsAloftData(windReport);
+      
+      // Calculate storm movement based on wind data at typical storm altitudes
+      const stormMovement = calculateStormMovement(windsAloft);
+      
+      return {
+        station: stationId,
+        location: { lat, lon },
+        winds: windsAloft,
+        stormMovement,
+        timestamp: Date.now(),
+        source: 'NOAA Aviation Weather'
+      };
+
+    } catch (error) {
+      console.error('Winds Aloft fetch error:', error);
+      
+      // Fallback to surface winds from OpenWeather API
+      return await getFallbackWindData(lat, lon);
+    }
+  }
+
+  // Find nearest winds aloft reporting station
+  function findNearestWindsAloftStation(lat: number, lon: number): string {
+    // Major US winds aloft reporting stations with approximate coordinates
+    const stations = [
+      { id: 'ATL', lat: 33.640, lon: -84.427 }, // Atlanta
+      { id: 'BOS', lat: 42.364, lon: -71.006 }, // Boston  
+      { id: 'BUF', lat: 42.940, lon: -78.732 }, // Buffalo
+      { id: 'CHI', lat: 41.995, lon: -87.534 }, // Chicago
+      { id: 'CVG', lat: 39.048, lon: -84.667 }, // Cincinnati
+      { id: 'DEN', lat: 39.861, lon: -104.673 }, // Denver
+      { id: 'DFW', lat: 32.847, lon: -97.052 }, // Dallas
+      { id: 'DTT', lat: 42.212, lon: -83.353 }, // Detroit
+      { id: 'ELP', lat: 31.806, lon: -106.378 }, // El Paso
+      { id: 'HOU', lat: 29.645, lon: -95.278 }, // Houston
+      { id: 'IAH', lat: 29.990, lon: -95.341 }, // Houston Intercontinental
+      { id: 'JAX', lat: 30.494, lon: -81.687 }, // Jacksonville
+      { id: 'LAS', lat: 36.080, lon: -115.152 }, // Las Vegas
+      { id: 'LAX', lat: 33.942, lon: -118.408 }, // Los Angeles
+      { id: 'MIA', lat: 25.796, lon: -80.287 }, // Miami
+      { id: 'MSY', lat: 29.993, lon: -90.258 }, // New Orleans
+      { id: 'NYC', lat: 40.779, lon: -73.969 }, // New York
+      { id: 'ORD', lat: 41.978, lon: -87.904 }, // Chicago O'Hare
+      { id: 'PHX', lat: 33.434, lon: -112.008 }, // Phoenix
+      { id: 'SEA', lat: 47.449, lon: -122.308 }, // Seattle
+      { id: 'SLC', lat: 40.785, lon: -111.977 }, // Salt Lake City
+      { id: 'STL', lat: 38.748, lon: -90.370 }  // St. Louis
+    ];
+
+    let nearest = stations[0];
+    let minDistance = Infinity;
+
+    for (const station of stations) {
+      const distance = Math.sqrt(
+        Math.pow(lat - station.lat, 2) + Math.pow(lon - station.lon, 2)
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearest = station;
+      }
+    }
+
+    return nearest.id;
+  }
+
+  // Parse winds aloft data from NOAA format
+  function parseWindsAloftData(windReport: any) {
+    const winds = [];
+    
+    try {
+      // Parse wind/temperature data for each altitude
+      if (windReport.levels && Array.isArray(windReport.levels)) {
+        for (const level of windReport.levels) {
+          const altitude = parseInt(level.altitude) || 0;
+          const windDir = parseInt(level.windDir) || 0;
+          const windSpeed = parseInt(level.windSpeed) || 0;
+          const temperature = parseInt(level.temp) || 0;
+          
+          if (altitude > 0 && windSpeed > 0) {
+            winds.push({
+              altitude,
+              direction: windDir,
+              speed: windSpeed, // knots
+              temperature,
+              level: level.level || `${Math.floor(altitude/1000)}K`
+            });
+          }
+        }
+      }
+      
+      // If structured data not available, try parsing raw text format
+      if (winds.length === 0 && windReport.rawText) {
+        winds.push(...parseWindsAloftText(windReport.rawText));
+      }
+      
+    } catch (error) {
+      console.error('Error parsing winds aloft:', error);
+    }
+    
+    return winds;
+  }
+
+  // Parse traditional winds aloft text format
+  function parseWindsAloftText(rawText: string) {
+    const winds = [];
+    const lines = rawText.split('\n');
+    
+    // Look for lines with altitude/wind data
+    for (const line of lines) {
+      const windMatch = line.match(/(\d{2})(\d{2})\+?(\d{2})?/g);
+      if (windMatch) {
+        let altitude = 3000; // Start at 3000 ft
+        
+        for (const wind of windMatch) {
+          const direction = parseInt(wind.substring(0, 2)) * 10; // First 2 digits * 10
+          const speed = parseInt(wind.substring(2, 4)); // Next 2 digits
+          const temperature = wind.length > 4 ? parseInt(wind.substring(4)) : null;
+          
+          winds.push({
+            altitude,
+            direction,
+            speed,
+            temperature,
+            level: `${Math.floor(altitude/1000)}K`
+          });
+          
+          altitude += 3000; // Increment by 3000 ft for next level
+        }
+        break; // Only process first valid line
+      }
+    }
+    
+    return winds;
+  }
+
+  // Calculate storm movement based on winds aloft
+  function calculateStormMovement(windsAloft: any[]) {
+    if (!windsAloft || windsAloft.length === 0) {
+      return {
+        direction: 0,
+        speed: 0,
+        confidence: 'low',
+        method: 'insufficient_data'
+      };
+    }
+    
+    // Focus on winds at typical thunderstorm altitudes (6,000-18,000 ft)
+    const stormAltitudeWinds = windsAloft.filter(w => w.altitude >= 6000 && w.altitude <= 18000);
+    
+    if (stormAltitudeWinds.length === 0) {
+      // Use all available winds if no storm-level data
+      stormAltitudeWinds.push(...windsAloft);
+    }
+    
+    // Calculate weighted average based on altitude (higher altitudes weighted more for storm movement)
+    let totalDirection = 0;
+    let totalSpeed = 0;
+    let totalWeight = 0;
+    
+    for (const wind of stormAltitudeWinds) {
+      // Weight by altitude - storms typically move with mid-to-upper level winds
+      const weight = wind.altitude >= 12000 ? 2.0 : 
+                     wind.altitude >= 9000 ? 1.5 : 1.0;
+      
+      totalDirection += wind.direction * weight;
+      totalSpeed += wind.speed * weight;
+      totalWeight += weight;
+    }
+    
+    if (totalWeight === 0) {
+      return {
+        direction: 0,
+        speed: 0,
+        confidence: 'low',
+        method: 'no_valid_data'
+      };
+    }
+    
+    const avgDirection = (totalDirection / totalWeight) % 360;
+    const avgSpeed = totalSpeed / totalWeight;
+    
+    // Convert wind speed from knots to mph and apply storm movement factor
+    // Storms typically move at 60-80% of the speed of the steering winds
+    const stormSpeedMph = Math.round(avgSpeed * 1.151 * 0.7); // 1.151 = knots to mph, 0.7 = storm factor
+    
+    return {
+      direction: Math.round(avgDirection),
+      speed: stormSpeedMph,
+      confidence: stormAltitudeWinds.length >= 3 ? 'high' : 
+                  stormAltitudeWinds.length >= 2 ? 'medium' : 'low',
+      method: 'winds_aloft',
+      sourceWinds: stormAltitudeWinds.length,
+      steeringLevel: stormAltitudeWinds.length > 0 ? 
+                     `${Math.round(stormAltitudeWinds.reduce((sum, w) => sum + w.altitude, 0) / stormAltitudeWinds.length / 1000)}K ft` : 
+                     'unknown'
+    };
+  }
+
+  // Fallback: Get winds from METAR data
+  async function getWindsFromMETAR(lat: number, lon: number) {
+    try {
+      // Find nearest METAR station
+      const response = await fetch(`https://aviationweather.gov/api/data/metar?bbox=${lat-0.5},${lon-0.5},${lat+0.5},${lon+0.5}&format=json&taf=false&hours=1`, {
+        headers: {
+          'User-Agent': 'StormTracker/1.0 (weather app for storm movement prediction)'
+        },
+        timeout: 5000
+      });
+
+      if (!response.ok) {
+        throw new Error(`METAR API returned ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data && Array.isArray(data) && data.length > 0) {
+        const metar = data[0];
+        const surfaceWind = {
+          altitude: 0,
+          direction: metar.wdir || 0,
+          speed: metar.wspd || 0,
+          temperature: metar.temp || 15,
+          level: 'SFC'
+        };
+        
+        return {
+          station: metar.icaoId || 'UNKNOWN',
+          location: { lat, lon },
+          winds: [surfaceWind],
+          stormMovement: calculateStormMovement([surfaceWind]),
+          timestamp: Date.now(),
+          source: 'METAR (surface winds only)'
+        };
+      }
+      
+      throw new Error('No METAR data available');
+      
+    } catch (error) {
+      console.error('METAR fallback error:', error);
+      throw error;
+    }
+  }
+
+  // Final fallback: OpenWeather surface winds
+  async function getFallbackWindData(lat: number, lon: number) {
+    const apiKey = process.env.OPENWEATHER_API_KEY || 'a8f3a8e5a1a3b3d5e9a8f3a8e5a1a3b3';
+    
+    try {
+      const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`, {
+        timeout: 5000
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenWeather API returned ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      const surfaceWind = {
+        altitude: 0,
+        direction: data.wind?.deg || 0,
+        speed: Math.round((data.wind?.speed || 0) * 1.944), // m/s to knots
+        temperature: Math.round(data.main?.temp || 15),
+        level: 'SFC'
+      };
+      
+      return {
+        station: 'OpenWeather',
+        location: { lat, lon },
+        winds: [surfaceWind],
+        stormMovement: calculateStormMovement([surfaceWind]),
+        timestamp: Date.now(),
+        source: 'OpenWeather (surface winds only - limited accuracy)'
+      };
+      
+    } catch (error) {
+      console.error('OpenWeather fallback error:', error);
+      
+      // Return minimal data structure
+      return {
+        station: 'UNAVAILABLE',
+        location: { lat, lon },
+        winds: [],
+        stormMovement: {
+          direction: 0,
+          speed: 0,
+          confidence: 'none',
+          method: 'no_data_available'
+        },
+        timestamp: Date.now(),
+        source: 'No wind data available',
+        error: 'All wind data sources unavailable'
+      };
+    }
+  }
   
   // Helper function to calculate distance between two points
   function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {

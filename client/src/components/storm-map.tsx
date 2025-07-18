@@ -733,15 +733,46 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return {speed: 0, direction: 0};
   };
 
+  // Fetch winds aloft data for storm movement prediction
+  const fetchWindsAloft = async (lat: number, lon: number) => {
+    try {
+      const response = await fetch(`/api/winds-aloft?lat=${lat}&lon=${lon}`);
+      if (!response.ok) {
+        console.warn('Winds aloft data unavailable');
+        return null;
+      }
+      const data = await response.json();
+      console.log('Winds aloft data received:', data.source, data.stormMovement);
+      return data;
+    } catch (error) {
+      console.warn('Failed to fetch winds aloft:', error);
+      return null;
+    }
+  };
+
   // Update storm data from precipitation points for the Storm Cells panel
-  const updateStormDataFromPrecipitation = (clusters: Array<{lat: number; lon: number; dbz: number; id: string; count?: number}>) => {
+  const updateStormDataFromPrecipitation = async (clusters: Array<{lat: number; lon: number; dbz: number; id: string; count?: number}>) => {
     if (!location) return;
+
+    // Fetch winds aloft data for movement prediction (only once per update)
+    const windsData = await fetchWindsAloft(location.lat, location.lon);
 
     // Convert precipitation clusters to storm format with movement data
     const stormCells = clusters.map((cluster, index) => {
       const distance = calculateDistance(location.lat, location.lon, cluster.lat, cluster.lon);
       const bearing = calculateBearing(location.lat, location.lon, cluster.lat, cluster.lon);
-      const movement = calculateStormMovement(cluster);
+      const observedMovement = calculateStormMovement(cluster);
+      
+      // Enhanced movement prediction using winds aloft data
+      let windsPrediction = null;
+      if (windsData && windsData.stormMovement && windsData.stormMovement.speed > 0) {
+        windsPrediction = {
+          direction: windsData.stormMovement.direction,
+          speed: windsData.stormMovement.speed,
+          confidence: windsData.stormMovement.confidence || 'medium',
+          source: windsData.source || 'NOAA Aviation Weather'
+        };
+      }
       
       return {
         id: `precip_${radarSource}_${cluster.lat.toFixed(6)}_${cluster.lon.toFixed(6)}_${cluster.dbz}_${Date.now()}`,
@@ -750,20 +781,23 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         intensity: cluster.dbz,
         distance: distance,
         direction: bearing,
-        speed: movement.speed,
+        speed: observedMovement.speed,
         type: cluster.dbz >= 45 ? 'Heavy' : cluster.dbz >= 35 ? 'Moderate' : 'Light',
         description: `${cluster.dbz} dBZ precipitation ${cluster.count ? `(${cluster.count} cells)` : ''}`,
-        movementDirection: movement.direction
+        movementDirection: observedMovement.direction,
+        windsPrediction: windsPrediction // Add winds aloft prediction
       };
     });
 
     // Trigger custom event to update storm data
     console.log(`DISPATCH EVENT: Dispatching precipitationStormData event with ${stormCells.length} storm cells for alert system`);
     console.log('DISPATCH EVENT: Storm cells being sent:', stormCells.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
+    if (windsData) {
+      console.log('WINDS ALOFT: Movement prediction available:', windsData.stormMovement);
+    }
     window.dispatchEvent(new CustomEvent('precipitationStormData', {
       detail: stormCells
     }));
-
 
   };
 
