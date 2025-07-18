@@ -100,38 +100,58 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw 3D ground grid (only major lines)
-      ctx.strokeStyle = '#333355';
-      ctx.lineWidth = 1;
-      const gridSize = 20;
-      const gridSpacing = 4;
+      // Draw North arrow compass instead of grid
+      const compassSize = 80;
+      const compassX = canvas.width - compassSize - 20;
+      const compassY = canvas.height - compassSize - 80;
       
-      // Major grid lines only
-      for (let x = -gridSize; x <= gridSize; x += gridSpacing) {
-        const start = rotateY({ x, y: 0, z: -gridSize }, rotationY);
-        const end = rotateY({ x, y: 0, z: gridSize }, rotationY);
-        
-        const startProj = project3D({ ...start, y: start.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-        const endProj = project3D({ ...end, y: end.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-        
-        ctx.beginPath();
-        ctx.moveTo(startProj.x, startProj.y);
-        ctx.lineTo(endProj.x, endProj.y);
-        ctx.stroke();
-      }
+      // Compass background circle
+      ctx.fillStyle = 'rgba(51, 51, 85, 0.3)';
+      ctx.beginPath();
+      ctx.arc(compassX, compassY, compassSize / 2, 0, Math.PI * 2);
+      ctx.fill();
       
-      for (let z = -gridSize; z <= gridSize; z += gridSpacing) {
-        const start = rotateY({ x: -gridSize, y: 0, z }, rotationY);
-        const end = rotateY({ x: gridSize, y: 0, z }, rotationY);
-        
-        const startProj = project3D({ ...start, y: start.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-        const endProj = project3D({ ...end, y: end.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-        
-        ctx.beginPath();
-        ctx.moveTo(startProj.x, startProj.y);
-        ctx.lineTo(endProj.x, endProj.y);
-        ctx.stroke();
-      }
+      // North arrow (considering current rotation)
+      const northAngle = -rotationY; // Adjust for current camera rotation
+      const arrowLength = compassSize / 3;
+      
+      // Arrow shaft
+      ctx.strokeStyle = '#ff4444';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(compassX, compassY);
+      ctx.lineTo(
+        compassX + Math.sin(northAngle) * arrowLength,
+        compassY - Math.cos(northAngle) * arrowLength
+      );
+      ctx.stroke();
+      
+      // Arrow head
+      ctx.fillStyle = '#ff4444';
+      ctx.beginPath();
+      const headSize = 8;
+      const headX = compassX + Math.sin(northAngle) * arrowLength;
+      const headY = compassY - Math.cos(northAngle) * arrowLength;
+      ctx.moveTo(headX, headY);
+      ctx.lineTo(
+        headX - Math.sin(northAngle + 0.5) * headSize,
+        headY + Math.cos(northAngle + 0.5) * headSize
+      );
+      ctx.lineTo(
+        headX - Math.sin(northAngle - 0.5) * headSize,
+        headY + Math.cos(northAngle - 0.5) * headSize
+      );
+      ctx.closePath();
+      ctx.fill();
+      
+      // "N" label
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '14px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('N', 
+        compassX + Math.sin(northAngle) * (arrowLength + 15),
+        compassY - Math.cos(northAngle) * (arrowLength + 15) + 5
+      );
 
       // Draw user location marker
       const userPos = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
@@ -211,8 +231,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       const rect = canvas.getBoundingClientRect();
       const centerX = rect.width / 2;
       const clickX = clientX - rect.left;
-      // Right side = positive rotation (clockwise), Left side = negative rotation (counter-clockwise)
-      targetRotationSpeed.current = clickX > centerX ? 0.001 : -0.001; // Much slower speed
+      // Fix direction: Right side = negative rotation (clockwise), Left side = positive rotation (counter-clockwise)
+      targetRotationSpeed.current = clickX > centerX ? -0.001 : 0.001; // Much slower speed
     };
 
     const handleEnd = () => {
