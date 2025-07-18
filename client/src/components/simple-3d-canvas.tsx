@@ -142,7 +142,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       ctx.fill();
       
       // North arrow (rotates to always point North)
-      const northAngle = -rotationY; // Rotate opposite to view so it always points North
+      const northAngle = rotationY; // Rotate with view so it always points North (flipped direction)
       const arrowLength = compassSize / 3;
       
       // Arrow shaft
