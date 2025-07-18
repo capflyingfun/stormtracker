@@ -65,7 +65,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const [rotationY, setRotationY] = useState(0); // Start straight
   const [cameraHeight, setCameraHeight] = useState(8); // High overhead view
   const [isRotating, setIsRotating] = useState(false);
-  const rotationSpeed = useRef(0);
+  const targetRotationSpeed = useRef(0);
+  const currentRotationSpeed = useRef(0);
 
   useEffect(() => {
     if (!canvasRef.current || !location) return;
@@ -99,30 +100,37 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw 3D ground grid
+      // Draw 3D ground grid (only major lines)
       ctx.strokeStyle = '#333355';
       ctx.lineWidth = 1;
-      for (let x = -10; x <= 10; x += 2) {
-        for (let z = -10; z <= 10; z += 2) {
-          const corners = [
-            rotateY({ x, y: 0, z }, rotationY),
-            rotateY({ x: x + 2, y: 0, z }, rotationY),
-            rotateY({ x: x + 2, y: 0, z: z + 2 }, rotationY),
-            rotateY({ x, y: 0, z: z + 2 }, rotationY)
-          ];
-
-          const projected = corners.map(corner => 
-            project3D({ ...corner, y: corner.y - cameraHeight }, cameraDistance, canvas.width, canvas.height)
-          );
-
-          ctx.beginPath();
-          ctx.moveTo(projected[0].x, projected[0].y);
-          for (let i = 1; i < projected.length; i++) {
-            ctx.lineTo(projected[i].x, projected[i].y);
-          }
-          ctx.closePath();
-          ctx.stroke();
-        }
+      const gridSize = 20;
+      const gridSpacing = 4;
+      
+      // Major grid lines only
+      for (let x = -gridSize; x <= gridSize; x += gridSpacing) {
+        const start = rotateY({ x, y: 0, z: -gridSize }, rotationY);
+        const end = rotateY({ x, y: 0, z: gridSize }, rotationY);
+        
+        const startProj = project3D({ ...start, y: start.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        const endProj = project3D({ ...end, y: end.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        
+        ctx.beginPath();
+        ctx.moveTo(startProj.x, startProj.y);
+        ctx.lineTo(endProj.x, endProj.y);
+        ctx.stroke();
+      }
+      
+      for (let z = -gridSize; z <= gridSize; z += gridSpacing) {
+        const start = rotateY({ x: -gridSize, y: 0, z }, rotationY);
+        const end = rotateY({ x: gridSize, y: 0, z }, rotationY);
+        
+        const startProj = project3D({ ...start, y: start.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        const endProj = project3D({ ...end, y: end.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        
+        ctx.beginPath();
+        ctx.moveTo(startProj.x, startProj.y);
+        ctx.lineTo(endProj.x, endProj.y);
+        ctx.stroke();
       }
 
       // Draw user location marker
@@ -197,18 +205,18 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
     draw();
 
-    // Touch and mouse rotation controls
+    // Touch and mouse rotation controls with smoother speed
     const handleStart = (clientX: number, clientY: number) => {
       setIsRotating(true);
       const rect = canvas.getBoundingClientRect();
       const centerX = rect.width / 2;
       const clickX = clientX - rect.left;
-      rotationSpeed.current = clickX > centerX ? 0.02 : -0.02; // Right = clockwise, Left = counter-clockwise
+      targetRotationSpeed.current = clickX > centerX ? 0.005 : -0.005; // Much slower base speed
     };
 
     const handleEnd = () => {
       setIsRotating(false);
-      rotationSpeed.current = 0;
+      targetRotationSpeed.current = 0;
     };
 
     // Mouse events
@@ -243,11 +251,17 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
     canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
     canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 
-    // Animation loop for smooth rotation
+    // Animation loop with lerped rotation for smoothness
     const animate = () => {
-      if (isRotating) {
-        setRotationY(prev => prev + rotationSpeed.current);
+      // Lerp rotation speed for smooth acceleration/deceleration
+      const lerpFactor = 0.1;
+      currentRotationSpeed.current += (targetRotationSpeed.current - currentRotationSpeed.current) * lerpFactor;
+      
+      // Apply rotation
+      if (Math.abs(currentRotationSpeed.current) > 0.0001) {
+        setRotationY(prev => prev + currentRotationSpeed.current);
       }
+      
       draw();
       requestAnimationFrame(animate);
     };
@@ -321,8 +335,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         style={{ cursor: 'crosshair', touchAction: 'none' }}
       />
       
-      {/* Compact Legend */}
-      <div className="absolute bottom-4 left-4 bg-slate-800/80 backdrop-blur-sm rounded-lg p-3 border border-slate-700/50">
+      {/* Compact Legend - Top Left */}
+      <div className="absolute top-4 left-4 bg-slate-800/80 backdrop-blur-sm rounded-lg p-3 border border-slate-700/50">
         <div className="text-xs text-slate-300 space-y-1">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded" style={{ backgroundColor: '#22C55E' }}></div>
@@ -345,7 +359,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
             <span>Extreme (61+)</span>
           </div>
         </div>
-        <p className="text-xs text-slate-500 mt-2">Tap & hold to rotate • Use view buttons</p>
+        <p className="text-xs text-slate-500 mt-2">Tap & hold to rotate</p>
       </div>
     </div>
   );
