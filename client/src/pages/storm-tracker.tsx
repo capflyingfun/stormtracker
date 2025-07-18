@@ -98,10 +98,21 @@ export default function StormTracker() {
               return stormFilters[category as keyof typeof stormFilters];
             });
             
-            console.log(`Alert System: Event-driven risk assessment for ${filteredStorms.length} FILTERED precipitation storms (SAME data as Storm Panel)`);
-            console.log('Alert System: Using FILTERED Storm Panel data:', filteredStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
-            console.log(`Alert System: Applied storm filters - filtered from ${newPrecipitationStorms.length} to ${filteredStorms.length} storms`);
-            const riskData = await assessRisk(location, filteredStorms, lightningCount);
+            // Sort filtered storms by highest dBZ first, then closest distance (same as Storm Cells panel)
+            const sortedFilteredStorms = [...filteredStorms].sort((a, b) => {
+              // Primary sort: intensity (highest dBZ first)
+              const intensityDiff = b.intensity - a.intensity;
+              if (Math.abs(intensityDiff) > 1) { // If intensity difference is significant (>1 dBZ)
+                return intensityDiff;
+              }
+              // Secondary sort: distance (closest first) for storms at similar intensities
+              return a.distance - b.distance;
+            });
+            
+            console.log(`Alert System: Event-driven risk assessment for ${sortedFilteredStorms.length} FILTERED precipitation storms (SAME data as Storm Panel)`);
+            console.log('Alert System: Using FILTERED Storm Panel data:', sortedFilteredStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
+            console.log(`Alert System: Applied storm filters - filtered from ${newPrecipitationStorms.length} to ${sortedFilteredStorms.length} storms`);
+            const riskData = await assessRisk(location, sortedFilteredStorms, lightningCount);
             if (riskData && riskData.shouldAlert) {
               console.log('Alert System: Event-driven alert triggered with Storm Panel data:', riskData.title, riskData.conditions);
               showAlert(riskData);
