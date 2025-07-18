@@ -87,13 +87,16 @@ export function useLocation() {
       
       // Emit location data with recommended radar source for GPS usage
       if (locationData.recommendedRadarSource) {
-        window.dispatchEvent(new CustomEvent('locationWithRadarSource', {
-          detail: {
-            ...location,
-            recommendedRadarSource: locationData.recommendedRadarSource,
-            isUS: locationData.isUS
-          }
-        }));
+        // Add delay to ensure radar system has time to process the new location, especially NEXRAD
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('locationWithRadarSource', {
+            detail: {
+              ...location,
+              recommendedRadarSource: locationData.recommendedRadarSource,
+              isUS: locationData.isUS
+            }
+          }));
+        }, 1200); // Increased delay for NEXRAD initialization and tile loading
       }
     } catch (error) {
       console.error('GPS location error:', error);

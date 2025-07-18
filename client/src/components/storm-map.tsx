@@ -230,13 +230,20 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                 zIndex: 200,
                 attribution: `NEXRAD (${site})`,
                 updateWhenIdle: true,
-                updateWhenZooming: false
+                updateWhenZooming: false,
+                // Force reload to ensure fresh tiles
+                updateInterval: 0
               });
               
               radarLayerRef.current.addTo(mapInstanceRef.current);
               console.log(`NEXRAD radar layer loaded for site ${site}`);
+              
+              // Give additional time for tiles to load before enabling sampling
+              setTimeout(() => {
+                console.log('NEXRAD radar tiles should be loaded now');
+              }, 1000);
             }
-          }, 500); // Short delay to ensure map is ready
+          }, 1000); // Increased delay to 1 second for slower connections
           
         } catch (error) {
           console.error('Failed to load NEXRAD radar:', error);
