@@ -1738,130 +1738,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
 
-      {/* Precipitation Waypoints Legend - Now outside map */}
+      {/* Precipitation Waypoints Count - Simple display */}
       <div className="mt-3 bg-slate-800/50 rounded-lg border border-slate-700 p-3">
-        <div className="font-semibold text-white mb-2 text-sm">
-          Precipitation Waypoints {precipitationPoints.length > 0 ? `(${precipitationPoints.filter(point => {
-            const category = point.dbz >= 61 ? 'extreme' :
-                            point.dbz >= 55 ? 'veryHeavy' :
-                            point.dbz >= 46 ? 'heavy' : 
-                            point.dbz >= 35 ? 'moderate' : 'light';
-            return stormFilters[category as keyof typeof stormFilters];
-          }).length})` : '(0)'}
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          <button 
-            onClick={() => {
-              // Check if this category is currently isolated
-              const isIsolated = stormFilters.extreme && !stormFilters.veryHeavy && !stormFilters.heavy && !stormFilters.moderate && !stormFilters.light;
-              const newFilters = isIsolated 
-                ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true } // Show all if currently isolated
-                : { extreme: true, veryHeavy: false, heavy: false, moderate: false, light: false }; // Isolate this category
-              setLocalStormFilters(newFilters);
-              // Dispatch filter change event
-              window.dispatchEvent(new CustomEvent('stormFiltersChanged', { detail: newFilters }));
-
-            }}
-            className={`flex items-center gap-2 p-1 rounded transition-colors ${
-              stormFilters.extreme && !stormFilters.veryHeavy && !stormFilters.heavy && !stormFilters.moderate && !stormFilters.light 
-                ? 'bg-purple-900/50 hover:bg-purple-900/60' : 'hover:bg-slate-700/30'
-            }`}
-          >
-            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#8B5CF6' }}></div>
-            <span className="text-slate-300 text-xs">
-              Extreme (61+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 61).length})`}
-            </span>
-          </button>
-          <button 
-            onClick={() => {
-              const isIsolated = !stormFilters.extreme && stormFilters.veryHeavy && !stormFilters.heavy && !stormFilters.moderate && !stormFilters.light;
-              const newFilters = isIsolated 
-                ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
-                : { extreme: false, veryHeavy: true, heavy: false, moderate: false, light: false };
-              setLocalStormFilters(newFilters);
-              // Dispatch filter change event
-              window.dispatchEvent(new CustomEvent('stormFiltersChanged', { detail: newFilters }));
-
-            }}
-            className={`flex items-center gap-2 p-1 rounded transition-colors ${
-              !stormFilters.extreme && stormFilters.veryHeavy && !stormFilters.heavy && !stormFilters.moderate && !stormFilters.light 
-                ? 'bg-red-900/50 hover:bg-red-900/60' : 'hover:bg-slate-700/30'
-            }`}
-          >
-            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#EF4444' }}></div>
-            <span className="text-slate-300 text-xs">
-              Very Heavy (55+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 55 && p.dbz < 61).length})`}
-            </span>
-          </button>
-          <button 
-            onClick={() => {
-              const isIsolated = !stormFilters.extreme && !stormFilters.veryHeavy && stormFilters.heavy && !stormFilters.moderate && !stormFilters.light;
-              const newFilters = isIsolated 
-                ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
-                : { extreme: false, veryHeavy: false, heavy: true, moderate: false, light: false };
-              setLocalStormFilters(newFilters);
-              // Dispatch filter change event
-              window.dispatchEvent(new CustomEvent('stormFiltersChanged', { detail: newFilters }));
-
-            }}
-            className={`flex items-center gap-2 p-1 rounded transition-colors ${
-              !stormFilters.extreme && !stormFilters.veryHeavy && stormFilters.heavy && !stormFilters.moderate && !stormFilters.light 
-                ? 'bg-orange-900/50 hover:bg-orange-900/60' : 'hover:bg-slate-700/30'
-            }`}
-          >
-            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#F97316' }}></div>
-            <span className="text-slate-300 text-xs">
-              Heavy (46+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 46 && p.dbz < 55).length})`}
-            </span>
-          </button>
-          <button 
-            onClick={() => {
-              const isIsolated = !stormFilters.extreme && !stormFilters.veryHeavy && !stormFilters.heavy && stormFilters.moderate && !stormFilters.light;
-              const newFilters = isIsolated 
-                ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
-                : { extreme: false, veryHeavy: false, heavy: false, moderate: true, light: false };
-              setLocalStormFilters(newFilters);
-              // Dispatch filter change event
-              window.dispatchEvent(new CustomEvent('stormFiltersChanged', { detail: newFilters }));
-
-            }}
-            className={`flex items-center gap-2 p-1 rounded transition-colors ${
-              !stormFilters.extreme && !stormFilters.veryHeavy && !stormFilters.heavy && stormFilters.moderate && !stormFilters.light 
-                ? 'bg-yellow-900/50 hover:bg-yellow-900/60' : 'hover:bg-slate-700/30'
-            }`}
-          >
-            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#EAB308' }}></div>
-            <span className="text-slate-300 text-xs">
-              Moderate (35+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 35 && p.dbz < 46).length})`}
-            </span>
-          </button>
-          <button 
-            onClick={() => {
-              const isIsolated = !stormFilters.extreme && !stormFilters.veryHeavy && !stormFilters.heavy && !stormFilters.moderate && stormFilters.light;
-              const newFilters = isIsolated 
-                ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
-                : { extreme: false, veryHeavy: false, heavy: false, moderate: false, light: true };
-              setLocalStormFilters(newFilters);
-              // Dispatch filter change event
-              window.dispatchEvent(new CustomEvent('stormFiltersChanged', { detail: newFilters }));
-
-            }}
-            className={`flex items-center gap-2 p-1 rounded transition-colors ${
-              !stormFilters.extreme && !stormFilters.veryHeavy && !stormFilters.heavy && !stormFilters.moderate && stormFilters.light 
-                ? 'bg-green-900/50 hover:bg-green-900/60' : 'hover:bg-slate-700/30'
-            }`}
-          >
-            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#22C55E' }}></div>
-            <span className="text-slate-300 text-xs">
-              Light (20+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 20 && p.dbz < 35).length})`}
-            </span>
-          </button>
-        </div>
-        {precipitationPoints.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-slate-600 text-slate-400 text-xs">
-            Data source: {radarSource === 'rainviewer' ? 'RainViewer (Global)' : 'NEXRAD (NWS/NOAA)'}
+        <div className="flex justify-between items-center">
+          <div className="font-semibold text-white text-sm">
+            Precipitation Waypoints ({precipitationPoints.length})
           </div>
-        )}
+          <div className="text-xs text-slate-400">
+            Data source: {radarSource?.toUpperCase()} {radarSource === 'nexrad' ? '(NWS/NOAA)' : '(Global)'}
+          </div>
+        </div>
       </div>
     </div>
   );
