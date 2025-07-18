@@ -30,6 +30,8 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
   const animationRef = useRef<number>();
 
   console.log('[HTML Canvas 3D] Starting with storms:', precipitationStorms.length);
+  console.log('[HTML Canvas 3D] Precipitation storms:', precipitationStorms);
+  console.log('[HTML Canvas 3D] Location:', location);
 
   // Process storms data - check both precipitationStorms and fallback to sample data
   const canvasStorms: CanvasStorm[] = precipitationStorms.length > 0 
@@ -85,6 +87,8 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
           height
         };
       });
+
+  console.log('[HTML Canvas 3D] Final canvasStorms:', canvasStorms.length, canvasStorms);
 
   // 3D projection functions
   const project3D = (x: number, y: number, z: number, canvas: HTMLCanvasElement) => {
@@ -156,49 +160,21 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
     const base = project3D(storm.x, 0, storm.z, canvas);
     const top = project3D(storm.x, storm.height, storm.z, canvas);
     
-    if (base.distance > 0 && top.distance > 0 && Math.abs(base.y - top.y) > 1) {
-      // Create 3D column effect with multiple faces
-      const width = Math.max(3, base.scale * 12);
-      const depth = width * 0.6;
-      
-      // Front face
-      ctx.fillStyle = storm.color;
-      ctx.fillRect(base.x - width/2, top.y, width, base.y - top.y);
-      
-      // Right face (darker)
-      ctx.fillStyle = storm.color + '80';
-      ctx.beginPath();
-      ctx.moveTo(base.x + width/2, top.y);
-      ctx.lineTo(base.x + width/2 + depth, top.y - depth);
-      ctx.lineTo(base.x + width/2 + depth, base.y - depth);
-      ctx.lineTo(base.x + width/2, base.y);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Top face (lighter)
-      ctx.fillStyle = storm.color + 'CC';
-      ctx.beginPath();
-      ctx.moveTo(base.x - width/2, top.y);
-      ctx.lineTo(base.x - width/2 + depth, top.y - depth);
-      ctx.lineTo(base.x + width/2 + depth, top.y - depth);
-      ctx.lineTo(base.x + width/2, top.y);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Add outline for definition
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(base.x - width/2, top.y, width, base.y - top.y);
-      
-      // Add glow effect for intense storms
-      if (storm.intensity >= 55) {
-        ctx.shadowColor = storm.color;
-        ctx.shadowBlur = 8;
-        ctx.fillStyle = storm.color + '40';
-        ctx.fillRect(base.x - width/2 - 2, top.y - 2, width + 4, base.y - top.y + 4);
-        ctx.shadowBlur = 0;
-      }
-    }
+    // Draw simple rectangle for debugging
+    ctx.fillStyle = storm.color;
+    ctx.strokeStyle = '#FFF';
+    ctx.lineWidth = 2;
+    
+    const width = Math.max(8, base.scale * 20);
+    const height = Math.max(10, Math.abs(base.y - top.y));
+    
+    ctx.fillRect(base.x - width/2, top.y, width, height);
+    ctx.strokeRect(base.x - width/2, top.y, width, height);
+    
+    // Add text label for debugging
+    ctx.fillStyle = '#FFF';
+    ctx.font = '12px Arial';
+    ctx.fillText(`${storm.intensity}`, base.x - 10, top.y - 5);
   };
 
   const drawLocationMarker = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
@@ -219,10 +195,16 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
 
   const render = () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      console.log('[HTML Canvas 3D] No canvas ref');
+      return;
+    }
     
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.log('[HTML Canvas 3D] No canvas context');
+      return;
+    }
     
     // Clear canvas with proper dimensions
     const rect = canvas.getBoundingClientRect();
@@ -238,8 +220,13 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
       return distB - distA;
     });
     
+    console.log('[HTML Canvas 3D] Rendering', sortedStorms.length, 'storms');
+    
     // Draw storms
-    sortedStorms.forEach(storm => {
+    sortedStorms.forEach((storm, index) => {
+      if (index < 3) {
+        console.log('[HTML Canvas 3D] Drawing storm', index, storm);
+      }
       drawStormColumn(ctx, storm, canvas);
     });
     
@@ -250,8 +237,6 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
     if (isRotating) {
       setRotation(prev => ({ ...prev, y: (prev.y + 0.5) % 360 }));
     }
-    
-    animationRef.current = requestAnimationFrame(render);
   };
 
   // Mouse handlers
@@ -285,35 +270,46 @@ export default function HTMLCanvas3D({ location, precipitationStorms, onClose }:
 
   // Initialize rendering
   useEffect(() => {
+    console.log('[HTML Canvas 3D] useEffect triggered');
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      console.log('[HTML Canvas 3D] No canvas in useEffect');
+      return;
+    }
     
     // Set proper canvas size
     const resizeCanvas = () => {
       const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * window.devicePixelRatio;
-      canvas.height = rect.height * window.devicePixelRatio;
-      canvas.style.width = rect.width + 'px';
-      canvas.style.height = rect.height + 'px';
-      
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-      }
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      console.log('[HTML Canvas 3D] Canvas resized:', rect.width, 'x', rect.height);
     };
     
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
     
-    animationRef.current = requestAnimationFrame(render);
+    // Create render loop
+    const renderLoop = () => {
+      render();
+      animationRef.current = requestAnimationFrame(renderLoop);
+    };
+    
+    console.log('[HTML Canvas 3D] Starting render loop');
+    animationRef.current = requestAnimationFrame(renderLoop);
     
     return () => {
+      console.log('[HTML Canvas 3D] Cleanup');
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, [rotation, zoom, isRotating, canvasStorms]);
+  }, []);
+
+  // Separate effect for storm data changes
+  useEffect(() => {
+    console.log('[HTML Canvas 3D] Storms data updated:', canvasStorms.length);
+  }, [canvasStorms]);
 
   return (
     <div className="fixed inset-0 bg-black z-50">
