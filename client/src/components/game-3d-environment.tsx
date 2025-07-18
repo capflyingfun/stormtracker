@@ -97,20 +97,29 @@ function StormColumn({ storm }: { storm: GameStorm }) {
   
   useFrame((state) => {
     if (meshRef.current) {
-      // Gentle pulsing animation
-      const pulse = Math.sin(state.clock.elapsedTime * 2) * 0.1 + 1;
-      meshRef.current.scale.y = pulse;
-      
-      // Rotate very slowly
-      meshRef.current.rotation.y += 0.01;
+      try {
+        // Gentle pulsing animation
+        const pulse = Math.sin(state.clock.elapsedTime * 2) * 0.1 + 1;
+        meshRef.current.scale.y = pulse;
+        
+        // Rotate very slowly
+        meshRef.current.rotation.y += 0.01;
+      } catch (error) {
+        console.error('[3D Storm Column] Animation error:', error);
+      }
     }
   });
+  
+  if (!storm || typeof storm.intensity !== 'number') {
+    console.error('[3D Storm Column] Invalid storm data:', storm);
+    return null;
+  }
   
   const height = getStormHeight(storm.intensity);
   const color = getStormColor(storm.intensity);
   
   return (
-    <group position={[storm.x, height / 2, storm.z]}>
+    <group position={[storm.x || 0, height / 2, storm.z || 0]}>
       {/* Main storm column */}
       <Box
         ref={meshRef}
@@ -136,7 +145,7 @@ function StormColumn({ storm }: { storm: GameStorm }) {
           anchorX="center"
           anchorY="middle"
         >
-          {`${storm.intensity} dBZ\n${storm.distance.toFixed(1)} mi ${storm.direction}`}
+          {`${storm.intensity} dBZ\n${storm.distance?.toFixed(1) || '0.0'} mi ${storm.direction || 'N'}`}
         </Text>
       )}
       
@@ -159,38 +168,48 @@ function RainEffect({ storms }: { storms: GameStorm[] }) {
   const particlesRef = useRef<THREE.Points>(null);
   
   useEffect(() => {
-    if (!particlesRef.current) return;
+    if (!particlesRef.current || !storms || storms.length === 0) return;
     
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(storms.length * 200 * 3); // 200 raindrops per storm
-    
-    storms.forEach((storm, stormIndex) => {
-      for (let i = 0; i < 200; i++) {
-        const index = (stormIndex * 200 + i) * 3;
-        positions[index] = storm.x + (Math.random() - 0.5) * 20;
-        positions[index + 1] = Math.random() * 30 + 10;
-        positions[index + 2] = storm.z + (Math.random() - 0.5) * 20;
-      }
-    });
-    
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    particlesRef.current.geometry = geometry;
+    try {
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(storms.length * 200 * 3); // 200 raindrops per storm
+      
+      storms.forEach((storm, stormIndex) => {
+        if (!storm || typeof storm.x !== 'number' || typeof storm.z !== 'number') return;
+        
+        for (let i = 0; i < 200; i++) {
+          const index = (stormIndex * 200 + i) * 3;
+          positions[index] = storm.x + (Math.random() - 0.5) * 20;
+          positions[index + 1] = Math.random() * 30 + 10;
+          positions[index + 2] = storm.z + (Math.random() - 0.5) * 20;
+        }
+      });
+      
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      particlesRef.current.geometry = geometry;
+    } catch (error) {
+      console.error('[3D Rain Effect] Error creating rain particles:', error);
+    }
   }, [storms]);
   
   useFrame(() => {
-    if (!particlesRef.current) return;
+    if (!particlesRef.current?.geometry?.attributes?.position) return;
     
-    const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
-    
-    for (let i = 0; i < positions.length; i += 3) {
-      positions[i + 1] -= 0.5; // Rain falls down
+    try {
+      const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
       
-      if (positions[i + 1] < 0) {
-        positions[i + 1] = 30; // Reset to top
+      for (let i = 0; i < positions.length; i += 3) {
+        positions[i + 1] -= 0.5; // Rain falls down
+        
+        if (positions[i + 1] < 0) {
+          positions[i + 1] = 30; // Reset to top
+        }
       }
+      
+      particlesRef.current.geometry.attributes.position.needsUpdate = true;
+    } catch (error) {
+      console.error('[3D Rain Effect] Error updating rain particles:', error);
     }
-    
-    particlesRef.current.geometry.attributes.position.needsUpdate = true;
   });
   
   return (
@@ -219,20 +238,55 @@ export default function Game3DEnvironment({ location, precipitationStorms, onClo
   const [autoRotate, setAutoRotate] = useState(false);
   const [showRain, setShowRain] = useState(true);
   
-  // Convert precipitation storms to game storms
-  const gameStorms: GameStorm[] = precipitationStorms.slice(0, 50).map((storm, index) => {
-    const coords = convertToSceneCoords(storm.lat, storm.lon, location.lat, location.lon);
-    return {
-      id: `storm-${index}`,
-      lat: storm.lat,
-      lon: storm.lon,
-      intensity: storm.intensity,
-      distance: storm.distance,
-      direction: storm.direction,
-      x: coords.x,
-      z: coords.z,
-    };
+  console.log('[3D Game Environment] Starting with:', {
+    location,
+    precipitationStorms: precipitationStorms?.length || 0,
+    hasLocation: !!location,
+    hasLat: location?.lat !== undefined,
+    hasLon: location?.lon !== undefined
   });
+  
+  // Validate inputs
+  if (!location || typeof location.lat !== 'number' || typeof location.lon !== 'number') {
+    console.error('[3D Game Environment] Invalid location data:', location);
+    return (
+      <div className="fixed inset-0 bg-black z-50 flex items-center justify-center text-white">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">3D Environment Error</h2>
+          <p className="mb-4">Invalid location data provided</p>
+          <Button onClick={onClose} variant="outline">
+            Back to Menu
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Convert precipitation storms to game storms with proper validation
+  const gameStorms: GameStorm[] = (precipitationStorms || [])
+    .filter(storm => storm && typeof storm.lat === 'number' && typeof storm.lon === 'number')
+    .slice(0, 50)
+    .map((storm, index) => {
+      try {
+        const coords = convertToSceneCoords(storm.lat, storm.lon, location.lat, location.lon);
+        return {
+          id: `storm-${index}`,
+          lat: storm.lat,
+          lon: storm.lon,
+          intensity: storm.intensity || 20,
+          distance: storm.distance || 0,
+          direction: storm.direction || 'N',
+          x: coords.x,
+          z: coords.z,
+        };
+      } catch (error) {
+        console.error('[3D Game Environment] Error converting storm:', storm, error);
+        return null;
+      }
+    })
+    .filter(Boolean) as GameStorm[];
+  
+  console.log('[3D Game Environment] Processed storms:', gameStorms.length);
   
   return (
     <div className="fixed inset-0 bg-black z-50">
@@ -240,6 +294,13 @@ export default function Game3DEnvironment({ location, precipitationStorms, onClo
       <Canvas
         camera={{ position: [100, 50, 100], fov: 75 }}
         style={{ width: '100%', height: '100%' }}
+        onCreated={({ gl }) => {
+          console.log('[3D Canvas] Created successfully');
+          gl.setSize(window.innerWidth, window.innerHeight);
+        }}
+        onError={(error) => {
+          console.error('[3D Canvas] Error:', error);
+        }}
       >
         <ambientLight intensity={0.3} />
         <directionalLight position={[10, 10, 5]} intensity={0.7} />
@@ -251,7 +312,7 @@ export default function Game3DEnvironment({ location, precipitationStorms, onClo
           <StormColumn key={storm.id} storm={storm} />
         ))}
         
-        {showRain && <RainEffect storms={gameStorms} />}
+        {showRain && gameStorms.length > 0 && <RainEffect storms={gameStorms} />}
         
         <OrbitControls 
           enablePan={true}
