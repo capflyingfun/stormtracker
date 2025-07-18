@@ -88,9 +88,20 @@ export default function StormTracker() {
       if (location && preferences) {
         setTimeout(async () => {
           try {
-            console.log(`Alert System: Event-driven risk assessment for ${newPrecipitationStorms.length} precipitation storms (SAME data as Storm Panel)`);
-            console.log('Alert System: Using Storm Panel data:', newPrecipitationStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
-            const riskData = await assessRisk(location, newPrecipitationStorms, lightningCount);
+            // Apply the SAME filtering that Storm Cells panel uses
+            const filteredStorms = newPrecipitationStorms.filter(storm => {
+              const category = storm.intensity >= 61 ? 'extreme' :    // Extreme thunderstorms
+                              storm.intensity >= 55 ? 'veryHeavy' :  // Very heavy rain/hail
+                              storm.intensity >= 46 ? 'heavy' :      // Heavy rain
+                              storm.intensity >= 35 ? 'moderate' :   // Moderate rain
+                              'light';                               // Light rain (20-34 dBZ)
+              return stormFilters[category as keyof typeof stormFilters];
+            });
+            
+            console.log(`Alert System: Event-driven risk assessment for ${filteredStorms.length} FILTERED precipitation storms (SAME data as Storm Panel)`);
+            console.log('Alert System: Using FILTERED Storm Panel data:', filteredStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
+            console.log(`Alert System: Applied storm filters - filtered from ${newPrecipitationStorms.length} to ${filteredStorms.length} storms`);
+            const riskData = await assessRisk(location, filteredStorms, lightningCount);
             if (riskData && riskData.shouldAlert) {
               console.log('Alert System: Event-driven alert triggered with Storm Panel data:', riskData.title, riskData.conditions);
               showAlert(riskData);
