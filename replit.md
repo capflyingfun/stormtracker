@@ -374,6 +374,15 @@ Preferred communication style: Simple, everyday language.
 - **Zero-Storm Accuracy**: When no precipitation is detected (like London with 0 points), Storm Cells correctly shows "No storms detected"
 - **Consistent Data Source**: Both precipitation waypoints and Storm Cells now use identical real radar data for 100% accuracy
 
+### Enhanced Storm Direction Alerts (July 18, 2025)
+- **Alert Direction Integration**: Weather alerts now include nearest storm direction in format "N(000°) @ 2.6 miles" for clear positioning
+- **Compass Bearing Format**: Storm panel displays enhanced location format "North (011°) @ 4.7 miles" instead of simple distance
+- **Enhanced Risk Assessment**: Server-side risk calculation includes bearing to nearest storm for comprehensive alert information
+- **Professional Direction Display**: 3-digit zero-padded bearings with 16-point compass directions for meteorological accuracy
+- **Mobile UI Improvements**: Fixed close button cut-off issues with improved modal responsive design and safe area support
+- **GPS Loading Indicators**: Added "Getting GPS..." status display during location requests for better user feedback
+- **Radar Disable Overlay**: Map automatically disables with overlay when settings panels are open to prevent interference
+
 ### Personalized Weather Risk Alert System (July 18, 2025)
 - **Intelligent Risk Assessment**: Real-time risk analysis based on storm intensity, distance, and lightning activity
 - **Personalized Alert Preferences**: Customizable alert settings for different storm intensities (light to extreme)

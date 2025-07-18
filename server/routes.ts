@@ -1059,8 +1059,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate risk factors
       const nearestStorm = storms.reduce((nearest, storm) => {
         const distance = calculateDistance(lat, lon, storm.lat, storm.lon);
-        return (!nearest || distance < nearest.distance) ? { ...storm, distance } : nearest;
+        const stormWithDistance = { ...storm, distance };
+        return (!nearest || distance < nearest.distance) ? stormWithDistance : nearest;
       }, null);
+      
+      // Calculate bearing to nearest storm if it exists
+      let nearestStormDirection = undefined;
+      if (nearestStorm) {
+        nearestStormDirection = calculateDirection(lat, lon, nearestStorm.lat, nearestStorm.lon);
+      }
       
       const maxIntensity = storms.reduce((max, storm) => Math.max(max, storm.intensity), 0);
       const stormCount = storms.length;
@@ -1133,6 +1140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           stormCount,
           maxIntensity,
           nearestDistance: nearestStorm?.distance || 999,
+          nearestStormDirection,
           lightningCount
         },
         shouldAlert: riskLevel !== 'low' || alertType !== 'none'

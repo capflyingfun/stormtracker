@@ -10,6 +10,7 @@ interface RiskAlert {
     stormCount: number;
     maxIntensity: number;
     nearestDistance: number;
+    nearestStormDirection?: number;
     lightningCount: number;
   };
   shouldAlert: boolean;
