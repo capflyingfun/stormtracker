@@ -1,7 +1,5 @@
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { Mesh, BoxGeometry, SphereGeometry, PlaneGeometry, MeshStandardMaterial } from 'three';
+import { Canvas } from '@react-three/fiber';
+import { useState, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface Storm3DProps {
@@ -36,49 +34,22 @@ const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number)
   return [x * 0.1, z * 0.1]; // Scale down for 3D scene
 };
 
-// 3D Cloud component
-function Cloud({ position, height, color, intensity }: { 
+// Simple 3D Cloud component
+function SimpleCloud({ position, height, color }: { 
   position: [number, number, number]; 
   height: number; 
   color: string; 
-  intensity: number;
 }) {
-  const meshRef = useRef<Mesh>(null);
-
-  useFrame((state) => {
-    if (meshRef.current) {
-      const scale = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
-      meshRef.current.scale.setScalar(scale);
-    }
-  });
-
   return (
-    <group position={position}>
-      {/* Cloud base */}
-      <mesh ref={meshRef} position={[0, height / 2, 0]}>
-        <sphereGeometry args={[0.5, 8, 6]} />
-        <meshStandardMaterial color={color} transparent opacity={0.7} />
-      </mesh>
-      {/* Rain effect for higher intensities */}
-      {intensity >= 35 && (
-        <mesh position={[0, height / 2, 0]}>
-          <boxGeometry args={[0.1, height, 0.1]} />
-          <meshStandardMaterial color={color} transparent opacity={0.3} />
-        </mesh>
-      )}
-      {/* Lightning effect for extreme storms */}
-      {intensity >= 55 && (
-        <mesh position={[0, height * 0.75, 0]}>
-          <boxGeometry args={[0.05, height * 1.5, 0.05]} />
-          <meshStandardMaterial color="#FFFFFF" transparent opacity={0.8} />
-        </mesh>
-      )}
-    </group>
+    <mesh position={[position[0], height / 2, position[2]]}>
+      <sphereGeometry args={[0.5, 8, 6]} />
+      <meshBasicMaterial color={color} transparent opacity={0.7} />
+    </mesh>
   );
 }
 
-// Sonar-style radar dots
-function SonarDots({ storms, centerLat, centerLon, showWaypoints }: {
+// Simple radar dots
+function SimpleRadarDots({ storms, centerLat, centerLon, showWaypoints }: {
   storms: any[];
   centerLat: number;
   centerLon: number;
@@ -90,11 +61,11 @@ function SonarDots({ storms, centerLat, centerLon, showWaypoints }: {
     <>
       {storms.map((storm, index) => {
         const [x, z] = geoTo3D(storm.lat, storm.lon, centerLat, centerLon);
-        const color = dbzToColor(storm.dbz || storm.intensity);
+        const color = dbzToColor(storm.dbz || storm.intensity || 25);
         return (
           <mesh key={index} position={[x, 0.1, z]}>
             <sphereGeometry args={[0.05]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.3} />
+            <meshBasicMaterial color={color} />
           </mesh>
         );
       })}
@@ -102,20 +73,17 @@ function SonarDots({ storms, centerLat, centerLon, showWaypoints }: {
   );
 }
 
-// Ground plane with location-based background
-function GroundPlane({ location }: { location: { lat: number; lon: number; city?: string; } | null }) {
-  // Generate a simple gradient based on location for now
+// Simple ground plane
+function SimpleGroundPlane({ location }: { location: { lat: number; lon: number; city?: string; } | null }) {
   const backgroundColor = useMemo(() => {
-    if (!location) return '#1a1a1a';
-    // Simple hash of coordinates to generate consistent color
-    const hash = Math.abs(Math.sin(location.lat * location.lon)) * 16777215;
-    return `#${Math.floor(hash).toString(16).padStart(6, '0').substring(0, 6)}`;
+    if (!location) return '#2a2a2a';
+    return '#1a4a1a'; // Simple green ground
   }, [location]);
 
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
       <planeGeometry args={[50, 50]} />
-      <meshStandardMaterial color={backgroundColor} transparent opacity={0.3} />
+      <meshBasicMaterial color={backgroundColor} transparent opacity={0.5} />
     </mesh>
   );
 }
@@ -160,11 +128,10 @@ export default function Storm3D({ location, precipitationStorms, onClose }: Stor
 
       {/* 3D Scene */}
       <Canvas camera={{ position: [0, 10, 15], fov: 60 }}>
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[10, 10, 5]} intensity={1} />
+        <ambientLight intensity={0.6} />
         
         {/* Ground plane */}
-        <GroundPlane location={location} />
+        <SimpleGroundPlane location={location} />
         
         {/* 3D Clouds */}
         {precipitationStorms.map((storm, index) => {
@@ -174,18 +141,17 @@ export default function Storm3D({ location, precipitationStorms, onClose }: Stor
           const color = dbzToColor(intensity);
           
           return (
-            <Cloud
+            <SimpleCloud
               key={index}
               position={[x, 0, z]}
               height={height}
               color={color}
-              intensity={intensity}
             />
           );
         })}
         
         {/* Sonar dots */}
-        <SonarDots 
+        <SimpleRadarDots 
           storms={precipitationStorms} 
           centerLat={location.lat} 
           centerLon={location.lon}
@@ -195,10 +161,8 @@ export default function Storm3D({ location, precipitationStorms, onClose }: Stor
         {/* Location marker */}
         <mesh position={[0, 0.2, 0]}>
           <sphereGeometry args={[0.2]} />
-          <meshStandardMaterial color="#00FF00" emissive="#00FF00" emissiveIntensity={0.5} />
+          <meshBasicMaterial color="#00FF00" />
         </mesh>
-        
-        <OrbitControls enablePan={true} enableZoom={true} enableRotate={true} />
       </Canvas>
       
       {/* Legend */}
