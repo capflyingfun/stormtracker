@@ -409,6 +409,7 @@ export default function StormTracker() {
                 onRadarSourceChange={setCurrentRadarSource}
                 radarSource={currentRadarSource}
                 isDisabled={showAlertSettings}
+                alertPreferences={preferences}
               />
             )}
 
@@ -441,6 +442,7 @@ export default function StormTracker() {
                 isLoading={stormDataLoading}
                 radarSource={currentRadarSource}
                 stormFilters={stormFilters}
+                alertPreferences={preferences}
               />
               
               <AlertsPanel

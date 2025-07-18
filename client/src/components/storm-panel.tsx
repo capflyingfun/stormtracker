@@ -59,7 +59,7 @@ const getRainfallRate = (dbz: number) => {
   return Math.max(0.01, rate); // Minimum 0.01 mm/h
 };
 
-export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource, stormFilters }: StormPanelProps & { stormFilters?: any }) {
+export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource, stormFilters, alertPreferences }: StormPanelProps & { stormFilters?: any; alertPreferences?: any }) {
   // Use storms passed as props (these are the precipitation storms from the parent component)
   console.log(`STORM PANEL: Received ${storms.length} storms as props`);
   console.log('STORM PANEL: Props storms:', storms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
@@ -104,11 +104,16 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
             {isLoading ? 'Detecting storms...' : 'No storms detected in your area'}
           </p>
         ) : (
-          sortedStorms.map((storm) => (
-            <div 
-              key={storm.id} 
-              className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50"
-            >
+          sortedStorms.map((storm) => {
+            // Check if this storm meets the alert threshold
+            const meetsAlertThreshold = alertPreferences && storm.intensity >= alertPreferences.minimumDbz;
+            const alertBorderClass = meetsAlertThreshold ? 'border-yellow-400 border-2 bg-yellow-500/10 animate-pulse' : 'border-slate-600/50';
+            
+            return (
+              <div 
+                key={storm.id} 
+                className={`bg-slate-700/50 rounded-lg p-4 border ${alertBorderClass}`}
+              >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${getStormColor(storm.intensity)} animate-pulse`}></div>
@@ -149,11 +154,12 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                 )}
               </div>
               
-              {storm.description && (
-                <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-600">{storm.description}</p>
-              )}
-            </div>
-          ))
+                {storm.description && (
+                  <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-600">{storm.description}</p>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </div>
