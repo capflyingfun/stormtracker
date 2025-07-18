@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2, Cloud, CloudRain, CloudDrizzle, Zap, CloudSnow } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Storm {
   id: string;
@@ -128,52 +129,40 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
     // Secondary sort: intensity (highest dBZ first) for storms at similar distances
     return b.intensity - a.intensity;
   });
-  return (
-    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="text-2xl">⚡</div>
-        <h2 className="text-xl font-semibold">Storm Cells ({sortedStorms.length})</h2>
-        {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-400" />}
-      </div>
-      
-      <div className="space-y-3">
-        {sortedStorms.length === 0 ? (
-          <p className="text-slate-400 text-center py-8">
-            {isLoading ? 'Detecting storms...' : 'No storms detected in your area'}
-          </p>
-        ) : (
-          sortedStorms.map((storm) => {
-            // Check if this storm meets the alert threshold
-            const meetsAlertThreshold = alertPreferences && storm.intensity >= alertPreferences.minimumDbz;
-            
-            // Get alert threshold color class (matches the minimum dBZ setting)
-            const getAlertGradientClass = (minimumDbz: number) => {
-              if (minimumDbz >= 61) return 'from-purple-400 to-purple-600'; // Purple - Extreme (61+ dBZ)
-              if (minimumDbz >= 55) return 'from-red-400 to-red-600'; // Red - Very Heavy (55-60 dBZ)
-              if (minimumDbz >= 46) return 'from-orange-400 to-orange-600'; // Orange - Heavy (46-54 dBZ)
-              if (minimumDbz >= 35) return 'from-yellow-400 to-yellow-600'; // Yellow - Moderate (35-45 dBZ)
-              return 'from-green-400 to-green-600'; // Green - Light (20-34 dBZ)
-            };
-            
-            const getAlertBorderClass = (minimumDbz: number) => {
-              if (minimumDbz >= 61) return 'border-purple-400'; // Purple - Extreme (61+ dBZ)
-              if (minimumDbz >= 55) return 'border-red-400'; // Red - Very Heavy (55-60 dBZ)
-              if (minimumDbz >= 46) return 'border-orange-400'; // Orange - Heavy (46-54 dBZ)
-              if (minimumDbz >= 35) return 'border-yellow-400'; // Yellow - Moderate (35-45 dBZ)
-              return 'border-green-400'; // Green - Light (20-34 dBZ)
-            };
-            
-            const alertBorderClass = alertPreferences ? getAlertBorderClass(alertPreferences.minimumDbz) : 'border-yellow-400';
-            
-            return (
-              <div 
-                key={storm.id} 
-                className={`bg-slate-700/50 rounded-lg p-3 mb-3 border-2 ${
-                  meetsAlertThreshold 
-                    ? `${alertBorderClass}` 
-                    : 'border-slate-600/50'
-                }`}
-              >
+
+  // Group storms by intensity category
+  const stormsByCategory = {
+    extreme: sortedStorms.filter(s => s.intensity >= 61),
+    veryHeavy: sortedStorms.filter(s => s.intensity >= 55 && s.intensity < 61),
+    heavy: sortedStorms.filter(s => s.intensity >= 46 && s.intensity < 55),
+    moderate: sortedStorms.filter(s => s.intensity >= 35 && s.intensity < 46),
+    light: sortedStorms.filter(s => s.intensity >= 20 && s.intensity < 35)
+  };
+
+  const renderStormCard = (storm: any) => {
+    // Check if this storm meets the alert threshold
+    const meetsAlertThreshold = alertPreferences && storm.intensity >= alertPreferences.minimumDbz;
+    
+    // Get alert threshold color class (matches the minimum dBZ setting)
+    const getAlertBorderClass = (minimumDbz: number) => {
+      if (minimumDbz >= 61) return 'border-purple-400'; // Purple - Extreme (61+ dBZ)
+      if (minimumDbz >= 55) return 'border-red-400'; // Red - Very Heavy (55-60 dBZ)
+      if (minimumDbz >= 46) return 'border-orange-400'; // Orange - Heavy (46-54 dBZ)
+      if (minimumDbz >= 35) return 'border-yellow-400'; // Yellow - Moderate (35-45 dBZ)
+      return 'border-green-400'; // Green - Light (20-34 dBZ)
+    };
+    
+    const alertBorderClass = alertPreferences ? getAlertBorderClass(alertPreferences.minimumDbz) : 'border-yellow-400';
+    
+    return (
+      <div 
+        key={storm.id} 
+        className={`bg-slate-700/50 rounded-lg p-3 mb-3 border-2 ${
+          meetsAlertThreshold 
+            ? `${alertBorderClass}` 
+            : 'border-slate-600/50'
+        }`}
+      >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   {getStormIcon(storm.intensity)}
@@ -223,16 +212,95 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                     <span className="text-xs text-white">{formatSpeed(storm.speed)} @ {storm.direction.toFixed(0)}°</span>
                   </div>
                 )}
-              </div>
-              
-                {storm.description && (
-                  <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-600">{storm.description}</p>
-                )}
-              </div>
-            );
-          })
-        )}
       </div>
+      
+      {storm.description && (
+        <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-600">{storm.description}</p>
+      )}
+    </div>
+    );
+  };
+
+  return (
+    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="text-2xl">⚡</div>
+        <h2 className="text-xl font-semibold">Storm Cells ({sortedStorms.length})</h2>
+        {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-400" />}
+      </div>
+      
+      {sortedStorms.length === 0 ? (
+        <p className="text-slate-400 text-center py-8">
+          {isLoading ? 'Detecting storms...' : 'No storms detected in your area'}
+        </p>
+      ) : (
+        <Tabs defaultValue="all" className="w-full">
+          <TabsList className="grid w-full grid-cols-6 bg-slate-700/50">
+            <TabsTrigger value="all" className="text-xs">
+              All ({sortedStorms.length})
+            </TabsTrigger>
+            <TabsTrigger value="extreme" className="text-xs text-purple-300">
+              Extreme ({stormsByCategory.extreme.length})
+            </TabsTrigger>
+            <TabsTrigger value="veryHeavy" className="text-xs text-red-300">
+              Severe ({stormsByCategory.veryHeavy.length})
+            </TabsTrigger>
+            <TabsTrigger value="heavy" className="text-xs text-orange-300">
+              Heavy ({stormsByCategory.heavy.length})
+            </TabsTrigger>
+            <TabsTrigger value="moderate" className="text-xs text-yellow-300">
+              Moderate ({stormsByCategory.moderate.length})
+            </TabsTrigger>
+            <TabsTrigger value="light" className="text-xs text-green-300">
+              Light ({stormsByCategory.light.length})
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="all" className="mt-4 space-y-3 max-h-96 overflow-y-auto">
+            {sortedStorms.map(renderStormCard)}
+          </TabsContent>
+          
+          <TabsContent value="extreme" className="mt-4 space-y-3 max-h-96 overflow-y-auto">
+            {stormsByCategory.extreme.length === 0 ? (
+              <p className="text-slate-400 text-center py-4">No extreme storms detected</p>
+            ) : (
+              stormsByCategory.extreme.map(renderStormCard)
+            )}
+          </TabsContent>
+          
+          <TabsContent value="veryHeavy" className="mt-4 space-y-3 max-h-96 overflow-y-auto">
+            {stormsByCategory.veryHeavy.length === 0 ? (
+              <p className="text-slate-400 text-center py-4">No severe storms detected</p>
+            ) : (
+              stormsByCategory.veryHeavy.map(renderStormCard)
+            )}
+          </TabsContent>
+          
+          <TabsContent value="heavy" className="mt-4 space-y-3 max-h-96 overflow-y-auto">
+            {stormsByCategory.heavy.length === 0 ? (
+              <p className="text-slate-400 text-center py-4">No heavy rain detected</p>
+            ) : (
+              stormsByCategory.heavy.map(renderStormCard)
+            )}
+          </TabsContent>
+          
+          <TabsContent value="moderate" className="mt-4 space-y-3 max-h-96 overflow-y-auto">
+            {stormsByCategory.moderate.length === 0 ? (
+              <p className="text-slate-400 text-center py-4">No moderate rain detected</p>
+            ) : (
+              stormsByCategory.moderate.map(renderStormCard)
+            )}
+          </TabsContent>
+          
+          <TabsContent value="light" className="mt-4 space-y-3 max-h-96 overflow-y-auto">
+            {stormsByCategory.light.length === 0 ? (
+              <p className="text-slate-400 text-center py-4">No light rain detected</p>
+            ) : (
+              stormsByCategory.light.map(renderStormCard)
+            )}
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }
