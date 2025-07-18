@@ -23,12 +23,18 @@ interface CSS3DEnvironmentProps {
 
 // Convert lat/lon to 3D coordinates with user at center
 function latLonTo3D(lat: number, lon: number, userLat: number, userLon: number, scale: number = 200) {
-  const latDiff = (lat - userLat) * scale;
-  const lonDiff = (lon - userLon) * scale;
+  const latDiff = (lat - userLat);
+  const lonDiff = (lon - userLon);
+  
+  // Convert to pixels - smaller scale for better visibility
+  const x = lonDiff * scale;
+  const z = latDiff * scale;
+  
+  console.log(`Storm at ${lat}, ${lon} relative to user ${userLat}, ${userLon} = ${x}, ${z}`);
   
   return {
-    x: lonDiff * 111, // Approximate km per degree longitude
-    z: latDiff * 111, // Approximate km per degree latitude
+    x,
+    z,
     y: 0
   };
 }
@@ -56,41 +62,46 @@ function StormColumn({ storm, userLocation }: { storm: PrecipitationStorm; userL
   const pos3D = latLonTo3D(storm.lat, storm.lon, userLocation.lat, userLocation.lon);
   const height = getStormHeight(storm.dbz);
   const color = getStormColor(storm.dbz);
-  const baseSize = Math.max(10, storm.dbz / 3); // Size based on intensity
+  const baseSize = Math.max(20, storm.dbz / 2); // Larger size for visibility
 
   return (
     <div
       className="absolute flex flex-col items-center pointer-events-none"
       style={{
-        transform: `translate3d(${pos3D.x}px, ${-height}px, ${pos3D.z}px)`,
-        transformOrigin: 'bottom center'
+        transform: `translate3d(${pos3D.x}px, ${-height/2}px, ${pos3D.z}px)`,
+        transformOrigin: 'bottom center',
+        border: '1px solid red' // Debug border
       }}
     >
       {/* Storm column */}
       <div
-        className="rounded-t-lg opacity-80 shadow-lg"
+        className="rounded-lg opacity-90 shadow-lg"
         style={{
           width: `${baseSize}px`,
           height: `${height}px`,
           backgroundColor: color,
-          boxShadow: `0 0 20px ${color}40`,
+          boxShadow: `0 0 20px ${color}80`,
         }}
       />
       
       {/* dBZ label */}
       <div
-        className="text-white text-xs font-bold mt-1 bg-black/50 px-1 rounded"
-        style={{ fontSize: '10px' }}
+        className="text-white text-xs font-bold mt-1 bg-black/70 px-2 py-1 rounded"
       >
-        {storm.dbz}
+        {storm.dbz} dBZ
+      </div>
+      
+      {/* Debug position info */}
+      <div className="text-yellow-400 text-xs bg-black/70 px-1 rounded mt-1">
+        {pos3D.x.toFixed(0)}, {pos3D.z.toFixed(0)}
       </div>
       
       {/* Base ring */}
       <div
-        className="absolute bottom-0 rounded-full opacity-30"
+        className="absolute bottom-0 rounded-full opacity-50"
         style={{
-          width: `${baseSize * 1.5}px`,
-          height: `${baseSize * 1.5}px`,
+          width: `${baseSize * 2}px`,
+          height: `${baseSize * 2}px`,
           backgroundColor: color,
           transform: 'translateY(50%)'
         }}
@@ -103,9 +114,9 @@ export default function CSS3DEnvironment({ location, precipitationStorms, onClos
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(true);
-  const [rotationX, setRotationX] = useState(-20); // Slight downward angle
+  const [rotationX, setRotationX] = useState(-45); // Better downward angle to see storms
   const [rotationY, setRotationY] = useState(0);
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(0.5); // Start zoomed out to see more storms
   const [isDragging, setIsDragging] = useState(false);
   const [lastMouseX, setLastMouseX] = useState(0);
   const [lastMouseY, setLastMouseY] = useState(0);
@@ -224,9 +235,9 @@ export default function CSS3DEnvironment({ location, precipitationStorms, onClos
         </Button>
         <Button
           onClick={() => {
-            setRotationX(-20);
+            setRotationX(-45);
             setRotationY(0);
-            setScale(1);
+            setScale(0.5);
           }}
           variant="outline"
           size="sm"
@@ -289,11 +300,11 @@ export default function CSS3DEnvironment({ location, precipitationStorms, onClos
           <div
             className="absolute bg-green-900/20 border border-green-700/30"
             style={{
-              width: '800px',
-              height: '800px',
+              width: '2000px',
+              height: '2000px',
               transform: 'rotateX(90deg) translateZ(-1px)',
-              left: '-400px',
-              top: '-400px',
+              left: '-1000px',
+              top: '-1000px',
               background: `
                 linear-gradient(45deg, transparent 24%, rgba(34, 197, 94, 0.1) 25%, rgba(34, 197, 94, 0.1) 26%, transparent 27%, transparent 74%, rgba(34, 197, 94, 0.1) 75%, rgba(34, 197, 94, 0.1) 76%, transparent 77%), 
                 linear-gradient(45deg, transparent 24%, rgba(34, 197, 94, 0.1) 25%, rgba(34, 197, 94, 0.1) 26%, transparent 27%, transparent 74%, rgba(34, 197, 94, 0.1) 75%, rgba(34, 197, 94, 0.1) 76%, transparent 77%)
@@ -329,14 +340,22 @@ export default function CSS3DEnvironment({ location, precipitationStorms, onClos
             </div>
           </div>
 
+          {/* Debug info */}
+          <div className="absolute top-4 left-4 text-white text-xs bg-black/50 p-2 rounded">
+            Storms: {precipitationStorms.length} | Show: {showWaypoints.toString()}
+          </div>
+
           {/* Storm columns */}
-          {showWaypoints && precipitationStorms.map((storm) => (
-            <StormColumn
-              key={storm.id}
-              storm={storm}
-              userLocation={location}
-            />
-          ))}
+          {showWaypoints && precipitationStorms.map((storm) => {
+            console.log('Rendering storm:', storm, 'at location:', location);
+            return (
+              <StormColumn
+                key={storm.id}
+                storm={storm}
+                userLocation={location}
+              />
+            );
+          })}
         </div>
       </div>
     </div>
