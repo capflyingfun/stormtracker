@@ -309,6 +309,17 @@ Preferred communication style: Simple, everyday language.
 ### Dual-Source Precipitation Detection System (July 17, 2025)
 - **Enhanced RainViewer Support**: Added dedicated RainViewer color mapping and precipitation detection algorithms
 - **Dual Radar Waypoint Detection**: Both NEXRAD (US) and RainViewer (global) now generate accurate precipitation waypoints
+
+### 3D Storm Visualization Implementation (July 18, 2025)
+- **Experimental 3D Mode**: Added dedicated 3D storm visualization using React Three.js (@react-three/fiber, @react-three/drei)
+- **Height-Based Cloud Rendering**: Storm clouds positioned at realistic altitudes based on dBZ intensity (2,000-15,000+ feet)
+- **Authentic Color Mapping**: Same meteorological color scheme as 2D radar (Green/Yellow/Orange/Red/Purple)
+- **Interactive 3D Scene**: Full orbit controls with pan, zoom, rotate around user's location
+- **Sonar-Style Radar Dots**: Optional toggle to show/hide precipitation waypoints as colored dots in 3D space
+- **Location-Based Ground Plane**: Dynamic background texture generation based on geographic coordinates
+- **Storm Visual Effects**: Rain columns for moderate+ storms, lightning effects for severe storms (55+ dBZ)
+- **Comprehensive 3D Legend**: Height and intensity mapping guide with meteorological accuracy
+- **Seamless Integration**: Uses same precipitation storm data as 2D map for consistency
 - **Radar-Specific Color Mapping**: NEXRAD uses standard NOAA color scheme, RainViewer uses blue-based intensity mapping
 - **Global Storm Detection**: RainViewer enables worldwide storm detection beyond US NEXRAD coverage
 - **Source-Aware Tooltips**: Storm cell popups clearly indicate data source (NEXRAD vs RainViewer)

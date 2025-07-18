@@ -6,6 +6,7 @@ import LocationSetup from "@/components/location-setup";
 import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
+import Storm3D from "@/components/storm-3d";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -14,6 +15,7 @@ export default function StormTracker() {
   const [isTracking, setIsTracking] = useState(true); // Auto-enable tracking when location is set
   const radarRange = 30; // Fixed at 30 miles
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [show3D, setShow3D] = useState(false);
   
   // Storm filtering state - 5 meteorological categories (20-90 dBZ)
   const [stormFilters, setStormFilters] = useState({
@@ -198,7 +200,15 @@ export default function StormTracker() {
                   </div>
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => setShow3D(true)}
+                    variant="outline"
+                    size="sm"
+                    className="bg-purple-600/20 border-purple-500 hover:bg-purple-600/30"
+                  >
+                    🌩️ 3D Experimental
+                  </Button>
                   <Button
                     onClick={resetLocation}
                     variant="outline"
@@ -265,6 +275,15 @@ export default function StormTracker() {
           </>
         )}
       </div>
+      
+      {/* 3D Storm Visualization */}
+      {show3D && (
+        <Storm3D 
+          location={location} 
+          precipitationStorms={precipitationStorms}
+          onClose={() => setShow3D(false)}
+        />
+      )}
     </div>
   );
 }
