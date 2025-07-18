@@ -37,21 +37,12 @@ const dbzToColor = (dbz: number): string => {
   return '#22C55E';                // Green - Light
 };
 
-// 3D to 2D projection with angled down camera
+// 3D to 2D projection with wider field of view
 const project3D = (point: Point3D, cameraDistance: number, canvasWidth: number, canvasHeight: number): Point2D => {
-  // Apply camera tilt rotation (40° down angle)
-  const tiltAngle = Math.PI / 4.5; // ~40 degrees in radians
-  const cosTilt = Math.cos(tiltAngle);
-  const sinTilt = Math.sin(tiltAngle);
-  
-  // Rotate point around X axis for downward angle
-  const rotatedY = point.y * cosTilt - point.z * sinTilt;
-  const rotatedZ = point.y * sinTilt + point.z * cosTilt;
-  
-  const scale = cameraDistance / (cameraDistance + rotatedZ + 0.1);
+  const scale = cameraDistance / (cameraDistance + point.z + 0.1); // Prevent division by zero
   return {
-    x: canvasWidth / 2 + point.x * scale * 25,
-    y: canvasHeight / 2 - rotatedY * scale * 25
+    x: canvasWidth / 2 + point.x * scale * 25,  // Wider field of view
+    y: canvasHeight / 2 - point.y * scale * 25  // Standard projection
   };
 };
 
@@ -213,9 +204,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         stormData.sort((a, b) => b.rotatedPos.z - a.rotatedPos.z);
 
         stormData.forEach(({ pos3D, intensity, height, color, rotatedPos }) => {
-          // Project to screen
-          const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-          const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+          // Project to screen with raised base for angled down effect
+          const raisedBase = 3; // Raise bottom by 3 units for angled perspective
+          const base = project3D({ ...rotatedPos, y: rotatedPos.y + raisedBase - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+          const top = project3D({ ...rotatedPos, y: rotatedPos.y + height + raisedBase - cameraHeight }, cameraDistance, canvas.width, canvas.height);
 
           // Calculate scale for perspective
           const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
