@@ -37,12 +37,12 @@ const dbzToColor = (dbz: number): string => {
   return '#22C55E';                // Green - Light
 };
 
-// 3D to 2D projection with perspective
+// 3D to 2D projection with better perspective
 const project3D = (point: Point3D, cameraDistance: number, canvasWidth: number, canvasHeight: number): Point2D => {
-  const scale = cameraDistance / (cameraDistance + point.z);
+  const scale = cameraDistance / (cameraDistance + point.z + 0.1); // Prevent division by zero
   return {
-    x: canvasWidth / 2 + point.x * scale * 50,
-    y: canvasHeight / 2 + point.y * scale * 50
+    x: canvasWidth / 2 + point.x * scale * 30,  // Reduced scale for better spread
+    y: canvasHeight / 2 - point.y * scale * 30  // Negative for proper Y axis
   };
 };
 
@@ -53,17 +53,17 @@ const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number)
   const z = (lat - centerLat) * 110540 / 1000; // km
   
   return {
-    x: x * 0.2,  // Scale down
+    x: x * 0.3,  // Slightly larger scale for better spread
     y: 0,        // Ground level
-    z: -z * 0.2  // Flip Z to fix upside-down orientation
+    z: z * 0.3   // Normal Z orientation
   };
 };
 
 export default function Simple3DCanvas({ location, precipitationStorms, onClose }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(true);
-  const [rotationY, setRotationY] = useState(0);
-  const [cameraHeight, setCameraHeight] = useState(3);
+  const [rotationY, setRotationY] = useState(0.3); // Start with slight angle
+  const [cameraHeight, setCameraHeight] = useState(5); // Higher starting position
   const [isDragging, setIsDragging] = useState(false);
   const [lastMouseX, setLastMouseX] = useState(0);
 
@@ -224,19 +224,14 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
     canvas.addEventListener('mouseup', handleMouseUp);
     canvas.addEventListener('wheel', handleWheel);
 
-    // Auto-rotation animation (much slower)
-    const animate = () => {
-      if (!isDragging) {
-        setRotationY(prev => prev + 0.001); // Much slower rotation
-      }
-      draw();
-      requestAnimationFrame(animate);
-    };
+    // Static render - no auto rotation
+    draw();
 
-    const animationId = requestAnimationFrame(animate);
+    // Only redraw when state changes
+    const intervalId = setInterval(draw, 50); // 20 FPS for smooth mouse interaction
 
     return () => {
-      cancelAnimationFrame(animationId);
+      clearInterval(intervalId);
       canvas.removeEventListener('mousedown', handleMouseDown);
       canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('mouseup', handleMouseUp);
