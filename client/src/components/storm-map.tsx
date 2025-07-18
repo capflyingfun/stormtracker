@@ -1720,36 +1720,91 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           }).length})` : ''}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#8B5CF6' }}></div>
+          <button 
+            onClick={() => {
+              const newFilters = { ...stormFilters, extreme: !stormFilters.extreme };
+              setStormFilters(newFilters);
+              onStormFiltersChange?.(newFilters);
+            }}
+            className={`flex items-center gap-2 p-1 rounded transition-colors ${
+              stormFilters.extreme ? 'bg-purple-900/30 hover:bg-purple-900/50' : 'hover:bg-slate-700/30'
+            }`}
+          >
+            <div className="w-3 h-3 border border-white rounded-full" style={{ 
+              backgroundColor: stormFilters.extreme ? '#8B5CF6' : '#6B7280'
+            }}></div>
             <span className="text-slate-300 text-xs">
               Extreme (61+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 61 && stormFilters.extreme).length})`}
             </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#EF4444' }}></div>
+          </button>
+          <button 
+            onClick={() => {
+              const newFilters = { ...stormFilters, veryHeavy: !stormFilters.veryHeavy };
+              setStormFilters(newFilters);
+              onStormFiltersChange?.(newFilters);
+            }}
+            className={`flex items-center gap-2 p-1 rounded transition-colors ${
+              stormFilters.veryHeavy ? 'bg-red-900/30 hover:bg-red-900/50' : 'hover:bg-slate-700/30'
+            }`}
+          >
+            <div className="w-3 h-3 border border-white rounded-full" style={{ 
+              backgroundColor: stormFilters.veryHeavy ? '#EF4444' : '#6B7280'
+            }}></div>
             <span className="text-slate-300 text-xs">
               Very Heavy (55+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 55 && p.dbz < 61 && stormFilters.veryHeavy).length})`}
             </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#F97316' }}></div>
+          </button>
+          <button 
+            onClick={() => {
+              const newFilters = { ...stormFilters, heavy: !stormFilters.heavy };
+              setStormFilters(newFilters);
+              onStormFiltersChange?.(newFilters);
+            }}
+            className={`flex items-center gap-2 p-1 rounded transition-colors ${
+              stormFilters.heavy ? 'bg-orange-900/30 hover:bg-orange-900/50' : 'hover:bg-slate-700/30'
+            }`}
+          >
+            <div className="w-3 h-3 border border-white rounded-full" style={{ 
+              backgroundColor: stormFilters.heavy ? '#F97316' : '#6B7280'
+            }}></div>
             <span className="text-slate-300 text-xs">
               Heavy (46+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 46 && p.dbz < 55 && stormFilters.heavy).length})`}
             </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#EAB308' }}></div>
+          </button>
+          <button 
+            onClick={() => {
+              const newFilters = { ...stormFilters, moderate: !stormFilters.moderate };
+              setStormFilters(newFilters);
+              onStormFiltersChange?.(newFilters);
+            }}
+            className={`flex items-center gap-2 p-1 rounded transition-colors ${
+              stormFilters.moderate ? 'bg-yellow-900/30 hover:bg-yellow-900/50' : 'hover:bg-slate-700/30'
+            }`}
+          >
+            <div className="w-3 h-3 border border-white rounded-full" style={{ 
+              backgroundColor: stormFilters.moderate ? '#EAB308' : '#6B7280'
+            }}></div>
             <span className="text-slate-300 text-xs">
               Moderate (35+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 35 && p.dbz < 46 && stormFilters.moderate).length})`}
             </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 border border-white rounded-full" style={{ backgroundColor: '#22C55E' }}></div>
+          </button>
+          <button 
+            onClick={() => {
+              const newFilters = { ...stormFilters, light: !stormFilters.light };
+              setStormFilters(newFilters);
+              onStormFiltersChange?.(newFilters);
+            }}
+            className={`flex items-center gap-2 p-1 rounded transition-colors ${
+              stormFilters.light ? 'bg-green-900/30 hover:bg-green-900/50' : 'hover:bg-slate-700/30'
+            }`}
+          >
+            <div className="w-3 h-3 border border-white rounded-full" style={{ 
+              backgroundColor: stormFilters.light ? '#22C55E' : '#6B7280'
+            }}></div>
             <span className="text-slate-300 text-xs">
               Light (20+) {precipitationPoints.length > 0 && `(${precipitationPoints.filter(p => p.dbz >= 20 && p.dbz < 35 && stormFilters.light).length})`}
             </span>
-          </div>
+          </button>
         </div>
         {precipitationPoints.length > 0 && (
           <div className="mt-2 pt-2 border-t border-slate-600 text-slate-400 text-xs">
