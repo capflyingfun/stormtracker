@@ -120,15 +120,27 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
     const draw = () => {
       // Clear canvas with space-like background
-      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      const gradient = ctx.createLinearGradient(0, 0, 0, rect.height);
       gradient.addColorStop(0, '#000030');
       gradient.addColorStop(1, '#000010');
       ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      
+      // Debug: Log storm count
+      console.log(`[3D Canvas] Drawing ${precipitationStorms.length} storms at rotation ${rotationY.toFixed(2)}`);
+      
+      if (precipitationStorms.length === 0) {
+        // Show no storms message
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No storms detected', rect.width / 2, rect.height / 2);
+        return;
+      }
 
       // Draw North arrow compass in top right
       const compassSize = 60;
-      const compassX = canvas.width - compassSize - 20;
+      const compassX = rect.width - compassSize - 20;
       const compassY = compassSize + 100; // Below the centered control buttons (2 rows)
       
       // Compass background circle
@@ -181,7 +193,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
       // Draw user location marker
       const userPos = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
-      const userProjected = project3D({ ...userPos, y: userPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+      const userProjected = project3D({ ...userPos, y: userPos.y - cameraHeight }, cameraDistance, rect.width, rect.height);
       
       ctx.fillStyle = '#00FF00';
       ctx.beginPath();
@@ -211,8 +223,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         const rotatedPos = rotateY(pos3D, rotationY);
         
         // Base and top positions
-        const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-        const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, rect.width, rect.height);
+        const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, rect.width, rect.height);
 
         // Calculate width based on distance for perspective (wider columns)
         const distance = Math.sqrt(rotatedPos.x * rotatedPos.x + rotatedPos.z * rotatedPos.z);
