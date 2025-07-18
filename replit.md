@@ -212,6 +212,16 @@ Preferred communication style: Simple, everyday language.
 - **Nearest Radar Detection**: Automatically finds closest NEXRAD site for authentic local radar animation
 - **Animation Safeguards**: "Sample dBZ" button disabled during animation to prevent waypoint lag and unrealistic storm movement calculations
 
+### NOAA Aviation Weather Storm Movement Integration (July 18, 2025)
+- **Professional Winds Aloft Data**: Integrated NOAA Aviation Weather API for accurate storm movement forecasting
+- **Multi-Source Wind Integration**: Primary winds aloft data with METAR and OpenWeather fallbacks for comprehensive coverage
+- **Storm Movement Prediction**: Enhanced storm cells display both observed movement and forecast movement based on atmospheric wind patterns
+- **Meteorological Accuracy**: Proper altitude weighting (6,000-18,000 ft) for thunderstorm movement calculations using aviation weather standards
+- **Confidence Levels**: Wind-based forecasts include confidence ratings (high/medium/low) based on data quality and source availability
+- **Professional API Integration**: Custom User-Agent headers and proper timeout handling for aviationweather.gov compliance
+- **Fallback Data Sources**: Seamless degradation through winds aloft → METAR → OpenWeather → surface-only predictions
+- **Storm Speed Factor**: Applied 70% factor to steering winds for realistic storm movement speeds (storms move slower than wind)
+
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
 - **Simplified Storm Display**: Removed speed and direction information for cleaner interface focusing on distance and intensity
