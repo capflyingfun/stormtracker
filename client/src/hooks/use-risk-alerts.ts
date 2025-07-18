@@ -59,13 +59,12 @@ export function useRiskAlerts() {
           storms: mappedStorms,
           lightningCount,
           preferences: {
-            riskLevel: preferences.riskLevel,
+            minimumDbz: preferences.minimumDbz,
             alertRadius: preferences.alertRadius,
-            lightRainEnabled: preferences.lightRainEnabled,
-            moderateRainEnabled: preferences.moderateRainEnabled,
-            heavyRainEnabled: preferences.heavyRainEnabled,
-            veryHeavyRainEnabled: preferences.veryHeavyRainEnabled,
-            extremeStormEnabled: preferences.extremeStormEnabled,
+            alertFrequency: preferences.alertFrequency,
+            soundEnabled: preferences.soundEnabled,
+            pushEnabled: preferences.pushEnabled,
+            emailEnabled: preferences.emailEnabled,
           }
         })
       });

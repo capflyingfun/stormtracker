@@ -1092,63 +1092,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const maxIntensity = storms.reduce((max, storm) => Math.max(max, storm.intensity), 0);
       const stormCount = storms.length;
       
-      // Determine risk level based on user preferences and conditions
+      // NEW SIMPLIFIED APPROACH: Use minimum dBZ threshold
       let riskLevel = 'low';
       let alertType = 'none';
       let title = 'Weather Conditions Normal';
       let message = 'No significant weather risks detected in your area.';
       
-      // Check for extreme conditions first
-      if (storms.some(s => s.intensity >= 61 && s.distance < preferences.alertRadius)) {
-        if (preferences.extremeStormEnabled) {
+      // Check if there are any storms meeting the user's minimum dBZ threshold
+      const qualifyingStorms = storms.filter(s => s.intensity >= preferences.minimumDbz && s.distance < preferences.alertRadius);
+      
+      if (qualifyingStorms.length > 0 && nearestStorm) {
+        // Determine alert level based on intensity of nearest qualifying storm
+        if (nearestStorm.intensity >= 61) {
           riskLevel = 'extreme';
           alertType = 'extreme_storm';
           title = '⚠️ EXTREME STORM ALERT';
-          message = `Extreme thunderstorm with ${maxIntensity.toFixed(0)} dBZ detected ${nearestStorm.distance.toFixed(1)} miles away. Large hail and damaging winds possible. Seek shelter immediately.`;
-        }
-      } else if (storms.some(s => s.intensity >= 55 && s.distance < preferences.alertRadius)) {
-        if (preferences.veryHeavyRainEnabled) {
+          message = `Extreme thunderstorm with ${nearestStorm.intensity.toFixed(0)} dBZ detected ${nearestStorm.distance.toFixed(1)} miles away. Large hail and damaging winds possible. Seek shelter immediately.`;
+        } else if (nearestStorm.intensity >= 55) {
           riskLevel = 'high';
           alertType = 'severe_storm';
           title = '🌩️ SEVERE STORM WARNING';
-          message = `Severe thunderstorm with ${maxIntensity.toFixed(0)} dBZ detected ${nearestStorm.distance.toFixed(1)} miles away. Heavy rain and possible hail. Monitor conditions closely.`;
-        }
-      } else if (storms.some(s => s.intensity >= 46 && s.distance < preferences.alertRadius)) {
-        if (preferences.heavyRainEnabled) {
+          message = `Severe thunderstorm with ${nearestStorm.intensity.toFixed(0)} dBZ detected ${nearestStorm.distance.toFixed(1)} miles away. Heavy rain and possible hail. Monitor conditions closely.`;
+        } else if (nearestStorm.intensity >= 46) {
           riskLevel = 'medium';
           alertType = 'heavy_rain';
           title = '🌧️ Heavy Rain Alert';
-          message = `Heavy rainfall detected ${nearestStorm.distance.toFixed(1)} miles away with ${maxIntensity.toFixed(0)} dBZ intensity. Expect significant precipitation.`;
-        }
-      } else if (storms.some(s => s.intensity >= 35 && s.distance < preferences.alertRadius)) {
-        if (preferences.moderateRainEnabled) {
+          message = `Heavy rainfall detected ${nearestStorm.distance.toFixed(1)} miles away with ${nearestStorm.intensity.toFixed(0)} dBZ intensity. Expect significant precipitation.`;
+        } else if (nearestStorm.intensity >= 35) {
           riskLevel = 'low';
           alertType = 'moderate_rain';
           title = '🌦️ Moderate Rain Nearby';
-          message = `Moderate rainfall detected ${nearestStorm.distance.toFixed(1)} miles away. Light to moderate precipitation expected.`;
+          message = `Moderate rainfall detected ${nearestStorm.distance.toFixed(1)} miles away with ${nearestStorm.intensity.toFixed(0)} dBZ intensity. Light to moderate precipitation expected.`;
+        } else {
+          riskLevel = 'low';
+          alertType = 'light_rain';
+          title = '🌧️ Light Rain Detected';
+          message = `Light rainfall detected ${nearestStorm.distance.toFixed(1)} miles away with ${nearestStorm.intensity.toFixed(0)} dBZ intensity.`;
         }
       }
       
-      // Lightning risk assessment
+      // Lightning risk assessment (can enhance existing alerts)
       if (lightningCount > 0) {
         if (lightningCount >= 10) {
-          riskLevel = Math.max(riskLevel, 'high');
+          if (riskLevel === 'low') riskLevel = 'high';
           alertType = 'lightning_high';
           title = '⚡ HIGH LIGHTNING ACTIVITY';
           message = `${lightningCount} lightning strikes detected within 100 miles. Significant electrical storm activity in your area.`;
         } else if (lightningCount >= 5) {
-          riskLevel = Math.max(riskLevel, 'medium');
+          if (riskLevel === 'low') riskLevel = 'medium';
           alertType = 'lightning_moderate';
           title = '⚡ Lightning Activity';
           message = `${lightningCount} lightning strikes detected nearby. Electrical storm activity in your area.`;
         }
-      }
-      
-      // Adjust risk level based on user preference
-      if (preferences.riskLevel === 'high' && riskLevel === 'medium') {
-        riskLevel = 'high';
-      } else if (preferences.riskLevel === 'low' && riskLevel === 'medium') {
-        riskLevel = 'low';
       }
       
       res.json({
