@@ -839,11 +839,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       // Get alert threshold color (color that matches the minimum dBZ setting)
       const getAlertThresholdColor = (minimumDbz: number) => {
-        if (minimumDbz >= 61) return '#8B5CF6'; // Purple - Extreme
-        if (minimumDbz >= 55) return '#EF4444'; // Red - Very Heavy
-        if (minimumDbz >= 46) return '#F97316'; // Orange - Heavy
-        if (minimumDbz >= 35) return '#EAB308'; // Yellow - Moderate
-        return '#22C55E'; // Green - Light
+        if (minimumDbz >= 61) return '#8B5CF6'; // Purple - Extreme (61+ dBZ)
+        if (minimumDbz >= 55) return '#EF4444'; // Red - Very Heavy (55-60 dBZ)
+        if (minimumDbz >= 46) return '#F97316'; // Orange - Heavy (46-54 dBZ)
+        if (minimumDbz >= 35) return '#EAB308'; // Yellow - Moderate (35-45 dBZ)
+        return '#22C55E'; // Green - Light (20-34 dBZ)
       };
       
       const alertColor = alertPreferences ? getAlertThresholdColor(alertPreferences.minimumDbz) : '#ffff00';

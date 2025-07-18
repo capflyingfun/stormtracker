@@ -440,8 +440,15 @@ Preferred communication style: Simple, everyday language.
 - **Real-time Storm Validation**: Console logging added to verify alert system uses authentic precipitation data instead of synthetic storms
 
 ### Visual Alert Enhancement System (July 18, 2025)
-- **Enhanced Storm Cell Highlighting**: Storm cells meeting alert threshold (35+ dBZ default) now display pulsing yellow borders for immediate visual identification
-- **Map Waypoint Visual Alerts**: Precipitation waypoints for qualifying storms show enhanced pulsing circles with yellow glow and larger borders
+- **Enhanced Storm Cell Highlighting**: Storm cells meeting alert threshold now display pulsing borders in colors matching the user's dBZ threshold setting
+- **Map Waypoint Visual Alerts**: Precipitation waypoints for qualifying storms show enhanced pulsing circles with threshold-matched colored borders and glow
+- **5-Color Alert System**: Complete meteorological color scale for visual alerts:
+  - Green (20-34 dBZ): Light rain threshold highlighting
+  - Yellow (35-45 dBZ): Moderate rain threshold highlighting  
+  - Orange (46-54 dBZ): Heavy rain threshold highlighting
+  - Red (55-60 dBZ): Very heavy/severe threshold highlighting
+  - Purple (61+ dBZ): Extreme thunderstorm threshold highlighting
+- **Intuitive Color Matching**: Alert highlighting color automatically matches the meteorological intensity category of the user's minimum dBZ threshold
 - **Clean UI Integration**: Visual alerts enhance existing Storm Cells panel and map markers instead of creating separate notification popups
 - **User-Preferred Approach**: Visual highlighting approach confirmed as more intuitive and less intrusive than popup notifications
 - **Seamless Alert Experience**: Distance, direction, and intensity information already present in Storm Cells panel provides complete context without additional UI elements
