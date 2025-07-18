@@ -120,22 +120,34 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
             const meetsAlertThreshold = alertPreferences && storm.intensity >= alertPreferences.minimumDbz;
             
             // Get alert threshold color class (matches the minimum dBZ setting)
-            const getAlertColorClass = (minimumDbz: number) => {
-              if (minimumDbz >= 61) return 'border-purple-400/80'; // Purple - Extreme (61+ dBZ)
-              if (minimumDbz >= 55) return 'border-red-400/80'; // Red - Very Heavy (55-60 dBZ)
-              if (minimumDbz >= 46) return 'border-orange-400/80'; // Orange - Heavy (46-54 dBZ)
-              if (minimumDbz >= 35) return 'border-yellow-400/80'; // Yellow - Moderate (35-45 dBZ)
-              return 'border-green-400/80'; // Green - Light (20-34 dBZ)
+            const getAlertGradientClass = (minimumDbz: number) => {
+              if (minimumDbz >= 61) return 'from-purple-400 to-purple-600'; // Purple - Extreme (61+ dBZ)
+              if (minimumDbz >= 55) return 'from-red-400 to-red-600'; // Red - Very Heavy (55-60 dBZ)
+              if (minimumDbz >= 46) return 'from-orange-400 to-orange-600'; // Orange - Heavy (46-54 dBZ)
+              if (minimumDbz >= 35) return 'from-yellow-400 to-yellow-600'; // Yellow - Moderate (35-45 dBZ)
+              return 'from-green-400 to-green-600'; // Green - Light (20-34 dBZ)
             };
             
-            const alertColorClass = alertPreferences ? getAlertColorClass(alertPreferences.minimumDbz) : 'border-yellow-400/80';
-            const alertBorderClass = meetsAlertThreshold ? `${alertColorClass} border-2` : 'border-slate-600/50';
+            const alertGradientClass = alertPreferences ? getAlertGradientClass(alertPreferences.minimumDbz) : 'from-yellow-400 to-yellow-600';
             
             return (
               <div 
                 key={storm.id} 
-                className={`bg-slate-700/50 rounded-lg p-3 border ${alertBorderClass} mb-3`}
+                className={`bg-slate-700/50 rounded-lg p-3 mb-3 ${
+                  meetsAlertThreshold 
+                    ? 'border-2 border-transparent bg-gradient-to-r p-[2px]' 
+                    : 'border border-slate-600/50'
+                }`}
+                style={meetsAlertThreshold ? {
+                  background: `linear-gradient(45deg, var(--tw-gradient-from), var(--tw-gradient-to)) padding-box, linear-gradient(45deg, var(--tw-gradient-from), var(--tw-gradient-to)) border-box`,
+                  backgroundImage: `linear-gradient(135deg, transparent, transparent), linear-gradient(135deg, ${alertGradientClass.includes('purple') ? '#a855f7, #7c3aed' : 
+                    alertGradientClass.includes('red') ? '#f87171, #dc2626' :
+                    alertGradientClass.includes('orange') ? '#fb923c, #ea580c' :
+                    alertGradientClass.includes('yellow') ? '#facc15, #ca8a04' :
+                    '#4ade80, #16a34a'})`
+                } : {}}
               >
+                <div className={`${meetsAlertThreshold ? 'bg-slate-700/50 rounded-md p-3' : ''}`}>
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${getStormColor(storm.intensity)} animate-pulse`}></div>
@@ -190,6 +202,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                 {storm.description && (
                   <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-600">{storm.description}</p>
                 )}
+                </div>
               </div>
             );
           })
