@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import SmartAddressSearch from "@/components/smart-address-search";
+import SimpleLocationSearch from "@/components/simple-location-search";
 
 interface LocationSetupProps {
   onGPSLocation: () => Promise<void>;
@@ -41,10 +41,10 @@ export default function LocationSetup({ onGPSLocation, onLocationSearch, onLocat
         <p className="text-slate-300 mb-6 text-sm sm:text-base">Choose your location to start tracking storms</p>
         
         <div className="space-y-4 max-w-md mx-auto">
-          <SmartAddressSearch
+          <SimpleLocationSearch
             onLocationSelect={handleLocationSelect}
             onUseCurrentLocation={onGPSLocation}
-            placeholder="Enter address, city, state, or ZIP code..."
+            placeholder="Enter city, state, or ZIP code..."
             className="w-full"
           />
         </div>
