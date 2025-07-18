@@ -33,7 +33,7 @@ interface StormMapProps {
     heavy: boolean;
     severe: boolean;
   };
-  onStormFiltersChange?: (filters: {light: boolean; moderate: boolean; heavy: boolean; severe: boolean}) => void;
+
   onRadarSourceChange?: (source: 'rainviewer' | 'nexrad') => void;
   radarSource?: 'rainviewer' | 'nexrad';
   isDisabled?: boolean;
@@ -46,7 +46,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onStormFiltersChange, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -77,11 +77,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   }, [externalRadarSource]);
 
   // Use external storm filters if provided, otherwise use internal state
-  const stormFilters = externalStormFilters || {
-    light: true, moderate: true, heavy: true, severe: true
-  };
+  // Local storm filter state
+  const [localStormFilters, setLocalStormFilters] = useState({
+    light: true, moderate: true, heavy: true, veryHeavy: true, extreme: true
+  });
   
-  const setStormFilters = onStormFiltersChange || (() => {});
+  const stormFilters = localStormFilters;
   const [precipitationPoints, setPrecipitationPoints] = useState<Array<{
     lat: number;
     lon: number;
@@ -1616,85 +1617,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
   return (
     <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50">
-      {/* Storm Intensity Filters */}
-      <div className="mb-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <span className="text-sm font-medium text-white">Filter Storms:</span>
-          <div className="flex flex-wrap gap-2">
 
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={stormFilters.light}
-                onChange={(e) => {
-                  const newFilters = {...stormFilters, light: e.target.checked};
-                  setStormFilters(newFilters);
-                  setTimeout(() => sampleRadarDbz(), 500);
-                }}
-                className="rounded"
-              />
-              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#22C55E'}}></div>
-              <span className="text-slate-300">Light Rain (20-34 dBZ)</span>
-            </label>
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={stormFilters.moderate}
-                onChange={(e) => {
-                  const newFilters = {...stormFilters, moderate: e.target.checked};
-                  setStormFilters(newFilters);
-                  setTimeout(() => sampleRadarDbz(), 500);
-                }}
-                className="rounded"
-              />
-              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#EAB308'}}></div>
-              <span className="text-slate-300">Moderate Rain (35-45 dBZ)</span>
-            </label>
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={stormFilters.heavy}
-                onChange={(e) => {
-                  const newFilters = {...stormFilters, heavy: e.target.checked};
-                  setStormFilters(newFilters);
-                  setTimeout(() => sampleRadarDbz(), 500);
-                }}
-                className="rounded"
-              />
-              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#F97316'}}></div>
-              <span className="text-slate-300">Heavy Rain (46-54 dBZ)</span>
-            </label>
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={stormFilters.veryHeavy}
-                onChange={(e) => {
-                  const newFilters = {...stormFilters, veryHeavy: e.target.checked};
-                  setStormFilters(newFilters);
-                  setTimeout(() => sampleRadarDbz(), 500);
-                }}
-                className="rounded"
-              />
-              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#EF4444'}}></div>
-              <span className="text-slate-300">Very Heavy Rain/Hail (55-60 dBZ)</span>
-            </label>
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={stormFilters.extreme}
-                onChange={(e) => {
-                  const newFilters = {...stormFilters, extreme: e.target.checked};
-                  setStormFilters(newFilters);
-                  setTimeout(() => sampleRadarDbz(), 500);
-                }}
-                className="rounded"
-              />
-              <div className="w-3 h-3 rounded-full" style={{backgroundColor: '#8B5CF6'}}></div>
-              <span className="text-slate-300">Extreme Thunderstorms (+61 dBZ)</span>
-            </label>
-          </div>
-        </div>
-      </div>
       
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
@@ -1834,8 +1757,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               const newFilters = isIsolated 
                 ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true } // Show all if currently isolated
                 : { extreme: true, veryHeavy: false, heavy: false, moderate: false, light: false }; // Isolate this category
-              setStormFilters(newFilters);
-              onStormFiltersChange?.(newFilters);
+              setLocalStormFilters(newFilters);
+
             }}
             className={`flex items-center gap-2 p-1 rounded transition-colors ${
               stormFilters.extreme && !stormFilters.veryHeavy && !stormFilters.heavy && !stormFilters.moderate && !stormFilters.light 
@@ -1853,8 +1776,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               const newFilters = isIsolated 
                 ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
                 : { extreme: false, veryHeavy: true, heavy: false, moderate: false, light: false };
-              setStormFilters(newFilters);
-              onStormFiltersChange?.(newFilters);
+              setLocalStormFilters(newFilters);
+
             }}
             className={`flex items-center gap-2 p-1 rounded transition-colors ${
               !stormFilters.extreme && stormFilters.veryHeavy && !stormFilters.heavy && !stormFilters.moderate && !stormFilters.light 
@@ -1872,8 +1795,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               const newFilters = isIsolated 
                 ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
                 : { extreme: false, veryHeavy: false, heavy: true, moderate: false, light: false };
-              setStormFilters(newFilters);
-              onStormFiltersChange?.(newFilters);
+              setLocalStormFilters(newFilters);
+
             }}
             className={`flex items-center gap-2 p-1 rounded transition-colors ${
               !stormFilters.extreme && !stormFilters.veryHeavy && stormFilters.heavy && !stormFilters.moderate && !stormFilters.light 
@@ -1891,8 +1814,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               const newFilters = isIsolated 
                 ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
                 : { extreme: false, veryHeavy: false, heavy: false, moderate: true, light: false };
-              setStormFilters(newFilters);
-              onStormFiltersChange?.(newFilters);
+              setLocalStormFilters(newFilters);
+
             }}
             className={`flex items-center gap-2 p-1 rounded transition-colors ${
               !stormFilters.extreme && !stormFilters.veryHeavy && !stormFilters.heavy && stormFilters.moderate && !stormFilters.light 
@@ -1910,8 +1833,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               const newFilters = isIsolated 
                 ? { extreme: true, veryHeavy: true, heavy: true, moderate: true, light: true }
                 : { extreme: false, veryHeavy: false, heavy: false, moderate: false, light: true };
-              setStormFilters(newFilters);
-              onStormFiltersChange?.(newFilters);
+              setLocalStormFilters(newFilters);
+
             }}
             className={`flex items-center gap-2 p-1 rounded transition-colors ${
               !stormFilters.extreme && !stormFilters.veryHeavy && !stormFilters.heavy && !stormFilters.moderate && stormFilters.light 

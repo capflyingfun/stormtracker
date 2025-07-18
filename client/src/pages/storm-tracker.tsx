@@ -332,7 +332,6 @@ export default function StormTracker() {
                 formatDistance={formatDistance}
                 formatSpeed={formatSpeed}
                 stormFilters={stormFilters}
-                onStormFiltersChange={setStormFilters}
                 onRadarSourceChange={setCurrentRadarSource}
                 radarSource={currentRadarSource}
                 isDisabled={showAlertSettings}

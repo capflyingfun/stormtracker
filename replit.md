@@ -215,9 +215,9 @@ Preferred communication style: Simple, everyday language.
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
 - **Simplified Storm Display**: Removed speed and direction information for cleaner interface focusing on distance and intensity
-- **Intensity-Based Filtering**: Added filter controls above radar map with checkboxes for Light, Moderate, Heavy, and Severe storms
+- **Unified Filter System**: Consolidated duplicate filter systems into single precipitation waypoints legend for simplified interface
 - **Real-time Filter Updates**: Filter selections affect both map display and Storm Cell list simultaneously
-- **Interactive Filter Controls**: Color-coded checkboxes matching storm intensity visualization (yellow, orange, red, purple)
+- **Interactive Filter Controls**: Color-coded filter buttons in precipitation waypoints legend matching storm intensity visualization
 
 ### Simple Location Search Implementation (July 17, 2025)
 - **Mobile-First Design**: Clean, simple search interface optimized for mobile devices
