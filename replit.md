@@ -439,9 +439,9 @@ Preferred communication style: Simple, everyday language.
 - **Enhanced Alert Accuracy**: Eliminated false alerts by ensuring only radar-detected precipitation triggers weather warnings
 - **Real-time Storm Validation**: Console logging added to verify alert system uses authentic precipitation data instead of synthetic storms
 
-### Alert System Data Synchronization (July 18, 2025)
-- **Critical Issue**: Alert system and Storm Cells panel show different storm counts despite using same data source
-- **Data Flow Problem**: Storm Cells panel correctly filters 95 storms to 18, but alert system still uses all 95 storms
-- **Filter Inconsistency**: Alert shows 95 storms at 4.3 miles, Storm Cells shows 18 storms with nearest at 6.1 miles
-- **Technical Challenge**: Both components receive identical precipitation data but apply filtering differently
-- **User Impact**: Alerts provide incorrect storm counts and distances compared to visible Storm Cells panel data
+### Visual Alert Enhancement System (July 18, 2025)
+- **Enhanced Storm Cell Highlighting**: Storm cells meeting alert threshold (35+ dBZ default) now display pulsing yellow borders for immediate visual identification
+- **Map Waypoint Visual Alerts**: Precipitation waypoints for qualifying storms show enhanced pulsing circles with yellow glow and larger borders
+- **Clean UI Integration**: Visual alerts enhance existing Storm Cells panel and map markers instead of creating separate notification popups
+- **User-Preferred Approach**: Visual highlighting approach confirmed as more intuitive and less intrusive than popup notifications
+- **Seamless Alert Experience**: Distance, direction, and intensity information already present in Storm Cells panel provides complete context without additional UI elements
