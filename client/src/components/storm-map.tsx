@@ -905,9 +905,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       };
       
       const getPrecipitationType = (dbz: number) => {
-        if (dbz >= 65) return 'Extreme Thunderstorms (Large Hail Likely)';
-        if (dbz >= 60) return 'Severe Thunderstorms (2"+ Hail Possible)';
-        if (dbz >= 55) return 'Very Heavy Rain/Small Hail';
+        if (dbz >= 65) return 'Extreme Thunderstorms';
+        if (dbz >= 60) return 'Severe Thunderstorms';
+        if (dbz >= 55) return 'Very Heavy Rain/Hail';
         if (dbz >= 46) return 'Heavy Rain';
         if (dbz >= 35) return 'Moderate Rain';
         if (dbz >= 20) return 'Light Rain';

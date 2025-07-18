@@ -36,9 +36,9 @@ const formatDirectionWithBearing = (distance: number, bearing: number, formatDis
 };
 
 const getStormIntensityName = (intensity: number): string => {
-  if (intensity >= 65) return 'Extreme Thunderstorms (Large Hail Likely)';
-  if (intensity >= 60) return 'Severe Thunderstorms (2"+ Hail Possible)';
-  if (intensity >= 55) return 'Very Heavy Rain/Small Hail';
+  if (intensity >= 65) return 'Extreme Thunderstorms';
+  if (intensity >= 60) return 'Severe Thunderstorms';  
+  if (intensity >= 55) return 'Very Heavy Rain/Hail';
   if (intensity >= 46) return 'Heavy Rain';
   if (intensity >= 35) return 'Moderate Rain';
   if (intensity >= 20) return 'Light Rain';
