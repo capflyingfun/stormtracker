@@ -48,8 +48,9 @@ const dbzToTransparency = (dbz: number): string => {
 
 // Convert rotation angle to compass heading (direction you're looking toward)
 const getCompassHeading = (rotationY: number): { degrees: number; direction: string } => {
-  // Convert radians to degrees, add 180° to reverse direction, and normalize to 0-360
-  let degrees = ((rotationY * 180 / Math.PI + 180) % 360 + 360) % 360;
+  // Convert radians to degrees and normalize to 0-360
+  // Negative rotation to match standard compass behavior
+  let degrees = ((-rotationY * 180 / Math.PI) % 360 + 360) % 360;
   
   // Round to nearest degree
   degrees = Math.round(degrees);
@@ -87,7 +88,7 @@ const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number)
 export default function Simple3DCanvas({ location, precipitationStorms, onClose }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(false); // Default to hidden for better performance
-  const [rotationY, setRotationY] = useState(0); // Start straight
+  const [rotationY, setRotationY] = useState(0); // Start facing North (0°)
   const [cameraHeight, setCameraHeight] = useState(5); // Normal camera height
   // Removed storm selection to improve performance and usability
   const [isRotating, setIsRotating] = useState(false);
@@ -140,8 +141,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       ctx.arc(compassX, compassY, compassSize / 2, 0, Math.PI * 2);
       ctx.fill();
       
-      // North arrow (corrected for rotation direction)
-      const northAngle = rotationY; // Corrected: compass rotates with view
+      // North arrow (always points North - fixed direction)
+      const northAngle = 0; // Always point North (up)
       const arrowLength = compassSize / 3;
       
       // Arrow shaft
