@@ -283,19 +283,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (locations.length > 0) {
         const location = locations[0];
+        // Determine if this is a US location for radar source recommendation
+        const isUSLocation = location.country === 'US' || location.country === 'United States';
+        
         res.json({
           lat,
           lon,
           name: `${location.name}${location.state ? `, ${location.state}` : ''}`,
           state: location.state,
           country: location.country,
+          isUS: isUSLocation,
+          // Suggest radar source based on location
+          recommendedRadarSource: isUSLocation ? 'nexrad' : 'rainviewer'
         });
       } else {
+        // Default to coordinates with US radar detection based on lat/lon
+        const isUSLocation = lat >= 24.5 && lat <= 49.5 && lon >= -125 && lon <= -66.5;
+        
         res.json({
           lat,
           lon,
           name: `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
           country: 'Unknown',
+          isUS: isUSLocation,
+          recommendedRadarSource: isUSLocation ? 'nexrad' : 'rainviewer'
         });
       }
     } catch (error) {

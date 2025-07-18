@@ -102,6 +102,23 @@ export default function StormTracker() {
     };
   }, []);
 
+  // Listen for location updates with radar source recommendations
+  useEffect(() => {
+    const handleLocationWithRadarSource = (event: any) => {
+      const locationData = event.detail;
+      if (locationData?.recommendedRadarSource) {
+        setCurrentRadarSource(locationData.recommendedRadarSource);
+        console.log(`Auto-switched to ${locationData.recommendedRadarSource} for ${locationData.isUS ? 'US' : 'international'} location: ${locationData.name}`);
+      }
+    };
+
+    window.addEventListener('locationWithRadarSource', handleLocationWithRadarSource);
+    
+    return () => {
+      window.removeEventListener('locationWithRadarSource', handleLocationWithRadarSource);
+    };
+  }, []);
+
   // Risk assessment and alert generation
   useEffect(() => {
     const performRiskAssessment = async () => {
