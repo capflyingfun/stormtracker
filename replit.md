@@ -271,6 +271,17 @@ Preferred communication style: Simple, everyday language.
 - **Seamless Integration**: Automatic radar source switching happens transparently when selecting international locations
 - **OpenWeather Global API**: Utilizes OpenWeather's worldwide geocoding API with improved result limits for better international coverage
 
+### Real-Time Lightning Detection System (July 17, 2025)
+- **Blitzortung.org Integration**: Added free real-time lightning strike overlay using Blitzortung.org's global lightning detection network
+- **Live Lightning Markers**: Yellow lightning bolt icons (⚡) displayed on map with age-based opacity fading
+- **30-Second Updates**: Lightning data refreshes automatically every 30 seconds for real-time tracking
+- **Strike Details**: Click lightning markers to view distance, age, and data source information
+- **Toggle Control**: Show/Hide button to control lightning overlay visibility
+- **Age-Based Visualization**: Recent strikes appear brighter, older strikes fade for temporal context
+- **Dual-Source Fallback**: Primary Blitzortung.org endpoint with LightningMaps.org backup for reliability
+- **Global Coverage**: Lightning detection works worldwide, complementing both NEXRAD and RainViewer radar data
+- **Professional Integration**: Lightning overlay works alongside precipitation waypoints for comprehensive storm tracking
+
 ### Static NEXRAD Implementation (July 17, 2025)
 - **Static Radar Display**: NEXRAD configured for stable, current radar visualization without animation
 - **Disabled Animation Controls**: Play button disabled for NEXRAD to prevent animation attempts
