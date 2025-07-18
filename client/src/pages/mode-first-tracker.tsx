@@ -6,21 +6,19 @@ import LocationSetup from "@/components/location-setup";
 import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
-import Game3DEnvironment from "@/components/game-3d-environment";
-import SimpleFallback3D from "@/components/simple-fallback-3d";
-import Basic3DEnvironment from "@/components/basic-3d-environment";
-import PureCSS3DEnvironment from "@/components/pure-css-3d-environment";
 import HTMLCanvas3D from "@/components/html-canvas-3d";
 import ModeSelector from "@/components/mode-selector";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Settings } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-export default function LocationFirstTracker() {
+export default function ModeFirstTracker() {
   const [useMetric, setUseMetric] = useState(false);
   const [isTracking, setIsTracking] = useState(true);
   const radarRange = 30;
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [appMode, setAppMode] = useState<'2d' | '3d' | null>(null);
+  const [showLocationDialog, setShowLocationDialog] = useState(false);
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
   
   const [stormFilters, setStormFilters] = useState({
@@ -83,6 +81,7 @@ export default function LocationFirstTracker() {
   const handleLocationSearch = async (query: string) => {
     try {
       await setLocationFromSearch(query);
+      setShowLocationDialog(false);
       if (isTracking) {
         refetchStormData();
         setLastUpdate(new Date());
@@ -95,6 +94,7 @@ export default function LocationFirstTracker() {
   const handleGPSLocation = async () => {
     try {
       await setLocationFromGPS();
+      setShowLocationDialog(false);
       if (isTracking) {
         refetchStormData();
         setLastUpdate(new Date());
@@ -122,6 +122,8 @@ export default function LocationFirstTracker() {
       setCurrentRadarSource(selectedLocation.recommendedRadarSource);
     }
     
+    setShowLocationDialog(false);
+    
     if (isTracking) {
       refetchStormData();
       setLastUpdate(new Date());
@@ -144,52 +146,47 @@ export default function LocationFirstTracker() {
     return `${mph.toFixed(0)} mph`;
   };
 
-  const resetToLocationSetup = () => {
-    clearLocation();
+  const resetToModeSelection = () => {
     setAppMode(null);
   };
 
-  // Step 1: Location Setup
-  if (!location) {
+  // Step 1: Mode Selection
+  if (!appMode) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
         <Header useMetric={useMetric} onUnitsChange={setUseMetric} />
         <div className="p-3 sm:p-6">
-          <LocationSetup
-            onGPSLocation={handleGPSLocation}
-            onLocationSearch={handleLocationSearch}
-            onLocationSelect={handleDirectLocationSelect}
-            isLoading={locationLoading}
-          />
+          <ModeSelector onModeSelect={setAppMode} />
         </div>
       </div>
     );
   }
 
-  // Step 2: Mode Selection
-  if (!appMode) {
+  // Step 2: Location Check - If no location, show dialog
+  if (!location) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
-        <Header useMetric={useMetric} onUnitsChange={setUseMetric} />
-        
-        <div className="p-3 sm:p-6">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold mb-2">Location Set: {location.name}</h2>
-            <p className="text-slate-300">Choose your viewing mode</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white flex items-center justify-center">
+        <div className="text-center p-6">
+          <h2 className="text-2xl font-bold mb-4">Location Required</h2>
+          <p className="text-slate-300 mb-6">Please set your location to view weather data</p>
+          
+          <div className="max-w-md">
+            <LocationSetup
+              onGPSLocation={handleGPSLocation}
+              onLocationSearch={handleLocationSearch}
+              onLocationSelect={handleDirectLocationSelect}
+              isLoading={locationLoading}
+            />
           </div>
           
-          <ModeSelector onModeSelect={setAppMode} />
-          
-          <div className="text-center mt-6">
-            <Button
-              variant="outline"
-              onClick={resetToLocationSetup}
-              className="border-slate-600 text-slate-300 hover:bg-slate-700"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Change Location
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            onClick={resetToModeSelection}
+            className="mt-4 border-slate-600 text-slate-300 hover:bg-slate-700"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Mode Selection
+          </Button>
         </div>
       </div>
     );
@@ -197,18 +194,11 @@ export default function LocationFirstTracker() {
 
   // Step 3: 3D Mode
   if (appMode === '3d') {
-    console.log('[Location First Tracker] Entering 3D mode with:', {
-      location: location,
-      precipitationStorms: precipitationStorms?.length || 0,
-      hasValidLocation: !!(location && location.lat && location.lon)
-    });
-    
-    // Use the HTML Canvas 3D environment
     return (
       <HTMLCanvas3D
         location={location}
         precipitationStorms={precipitationStorms}
-        onClose={resetToLocationSetup}
+        onClose={resetToModeSelection}
       />
     );
   }
@@ -228,14 +218,40 @@ export default function LocationFirstTracker() {
           </div>
           
           <div className="flex items-center gap-2 sm:gap-3">
+            <Dialog open={showLocationDialog} onOpenChange={setShowLocationDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Location Settings
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-slate-800 border-slate-700">
+                <DialogHeader>
+                  <DialogTitle className="text-white">Change Location</DialogTitle>
+                </DialogHeader>
+                <div className="p-4">
+                  <LocationSetup
+                    onGPSLocation={handleGPSLocation}
+                    onLocationSearch={handleLocationSearch}
+                    onLocationSelect={handleDirectLocationSelect}
+                    isLoading={locationLoading}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
+            
             <Button
               variant="outline"
               size="sm"
-              onClick={resetToLocationSetup}
+              onClick={resetToModeSelection}
               className="border-slate-600 text-slate-300 hover:bg-slate-700"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Main Menu
+              Mode Selection
             </Button>
           </div>
         </div>
