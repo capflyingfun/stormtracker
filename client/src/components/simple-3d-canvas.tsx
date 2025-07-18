@@ -19,13 +19,13 @@ interface Point2D {
   y: number;
 }
 
-// Convert dBZ to 3D height (taller for better visibility)
+// Convert dBZ to 3D height
 const dbzToHeight = (dbz: number): number => {
-  if (dbz >= 61) return 12;  // Extreme thunderstorms
-  if (dbz >= 55) return 10;  // Very heavy rain/hail
-  if (dbz >= 46) return 7;   // Heavy rain
-  if (dbz >= 35) return 4;   // Moderate rain
-  return 2;                  // Light rain
+  if (dbz >= 61) return 8;  // Extreme thunderstorms
+  if (dbz >= 55) return 6;  // Very heavy rain/hail
+  if (dbz >= 46) return 4;  // Heavy rain
+  if (dbz >= 35) return 2;  // Moderate rain
+  return 1;                 // Light rain
 };
 
 // Convert dBZ to color
@@ -63,22 +63,11 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(true);
   const [rotationY, setRotationY] = useState(0); // Start straight
-  const [cameraHeight, setCameraHeight] = useState(15); // Higher overhead view for better storm visibility
+  const [cameraHeight, setCameraHeight] = useState(8); // High overhead view
   const [isRotating, setIsRotating] = useState(false);
   const [rotationSpeedMultiplier, setRotationSpeedMultiplier] = useState(2); // 1=slow, 2=normal, 3=fast
-  const [isMobile, setIsMobile] = useState(false);
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
-
-  // Detect mobile device
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768 || 'ontouchstart' in window);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   useEffect(() => {
     if (!canvasRef.current || !location) return;
@@ -87,25 +76,11 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size with mobile optimization
-    const dpr = isMobile ? Math.min(window.devicePixelRatio, 2) : window.devicePixelRatio;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    canvas.style.width = rect.width + 'px';
-    canvas.style.height = rect.height + 'px';
-    ctx.scale(dpr, dpr);
+    // Set canvas size
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
 
     const cameraDistance = 10;
-
-    // Project 3D point to 2D screen coordinates
-    const project3D = (point: Point3D, cameraDistance: number, canvasWidth: number, canvasHeight: number): Point2D => {
-      const scale = cameraDistance / (cameraDistance + point.z + 0.1);
-      return {
-        x: canvasWidth / 2 + point.x * scale * 30,
-        y: canvasHeight / 2 - point.y * scale * 30
-      };
-    };
 
     // Rotate a 3D point around Y axis
     const rotateY = (point: Point3D, angle: number): Point3D => {
@@ -120,29 +95,15 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
     const draw = () => {
       // Clear canvas with space-like background
-      const gradient = ctx.createLinearGradient(0, 0, 0, rect.height);
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
       gradient.addColorStop(0, '#000030');
       gradient.addColorStop(1, '#000010');
       ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, rect.width, rect.height);
-      
-      // Debug: Log storm count (reduce log frequency)
-      if (Math.floor(rotationY * 10) % 10 === 0) {
-        console.log(`[3D Canvas] ${precipitationStorms.length} total storms, showing top ${isMobile ? 25 : 50} by intensity/distance`);
-      }
-      
-      if (precipitationStorms.length === 0) {
-        // Show no storms message
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '16px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('No storms detected', rect.width / 2, rect.height / 2);
-        return;
-      }
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Draw North arrow compass in top right
       const compassSize = 60;
-      const compassX = rect.width - compassSize - 20;
+      const compassX = canvas.width - compassSize - 20;
       const compassY = compassSize + 100; // Below the centered control buttons (2 rows)
       
       // Compass background circle
@@ -195,79 +156,55 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
       // Draw user location marker
       const userPos = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
-      const userProjected = project3D({ ...userPos, y: userPos.y - cameraHeight }, cameraDistance, rect.width, rect.height);
+      const userProjected = project3D({ ...userPos, y: userPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
       
       ctx.fillStyle = '#00FF00';
       ctx.beginPath();
       ctx.arc(userProjected.x, userProjected.y, 6, 0, 2 * Math.PI);
       ctx.fill();
 
-      // Smart storm limiting: prioritize nearby and high-intensity storms
-      const maxStorms = isMobile ? 25 : 50; // Much lower limits for performance
+      // Draw storms as 3D columns with perspective
       const stormData = precipitationStorms.map(storm => {
         const pos3D = geoTo3D(storm.lat, storm.lon, location.lat, location.lon);
         const intensity = storm.dbz || storm.intensity || 25;
-        const distance = Math.sqrt(pos3D.x * pos3D.x + pos3D.z * pos3D.z);
         const height = dbzToHeight(intensity);
         const color = dbzToColor(intensity);
-        return { pos3D, intensity, height, color, distance };
-      });
 
-      // Sort by priority: higher intensity and closer storms first
-      stormData.sort((a, b) => {
-        const aScore = a.intensity * 2 - a.distance; // Weight intensity heavily
-        const bScore = b.intensity * 2 - b.distance;
-        return bScore - aScore;
+        return { pos3D, intensity, height, color };
       });
-
-      const visibleStorms = stormData.slice(0, maxStorms);
 
       // Sort by z-distance for proper depth rendering
-      visibleStorms.sort((a, b) => {
+      stormData.sort((a, b) => {
         const aRotated = rotateY(a.pos3D, rotationY);
         const bRotated = rotateY(b.pos3D, rotationY);
         return bRotated.z - aRotated.z; // Draw far objects first
       });
 
-      visibleStorms.forEach(({ pos3D, intensity, height, color, distance }) => {
+      stormData.forEach(({ pos3D, intensity, height, color }) => {
         const rotatedPos = rotateY(pos3D, rotationY);
         
         // Base and top positions
-        const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, rect.width, rect.height);
-        const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, rect.width, rect.height);
+        const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
 
-        // Calculate width based on distance for perspective (wider columns)
+        // Calculate width based on distance for perspective
+        const distance = Math.sqrt(rotatedPos.x * rotatedPos.x + rotatedPos.z * rotatedPos.z);
         const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
-        const width = Math.max(4, 30 * scale);
-        
-        // Skip rendering if too far away or too small
-        if (scale < 0.1 || distance > 25) return;
+        const width = Math.max(2, 20 * scale);
 
-        // Simplified rendering for mobile performance
-        if (isMobile) {
-          // Simple solid column for mobile
-          ctx.fillStyle = color;
-          ctx.fillRect(base.x - width/2, top.y, width, base.y - top.y);
-          
-          // Simple circle cap
-          ctx.beginPath();
-          ctx.arc(top.x, top.y, width/3, 0, 2 * Math.PI);
-          ctx.fill();
-        } else {
-          // Full gradient effect for desktop
-          const columnGradient = ctx.createLinearGradient(base.x - width/2, top.y, base.x + width/2, base.y);
-          columnGradient.addColorStop(0, color + '60'); // Transparent top
-          columnGradient.addColorStop(1, color + 'FF'); // Solid bottom
+        // Draw storm column with 3D effect
+        const columnGradient = ctx.createLinearGradient(base.x - width/2, top.y, base.x + width/2, base.y);
+        columnGradient.addColorStop(0, color + '60'); // Transparent top
+        columnGradient.addColorStop(1, color + 'FF'); // Solid bottom
 
-          ctx.fillStyle = columnGradient;
-          ctx.fillRect(base.x - width/2, top.y, width, base.y - top.y);
+        ctx.fillStyle = columnGradient;
+        ctx.fillRect(base.x - width/2, top.y, width, base.y - top.y);
 
-          // Add storm cap
-          ctx.fillStyle = color + '80';
-          ctx.beginPath();
-          ctx.ellipse(top.x, top.y, width/2, width/4, 0, 0, 2 * Math.PI);
-          ctx.fill();
-        }
+        // Add storm cap
+        ctx.fillStyle = color + '80';
+        ctx.beginPath();
+        ctx.ellipse(top.x, top.y, width/2, width/4, 0, 0, 2 * Math.PI);
+        ctx.fill();
 
         // Waypoint dot if enabled
         if (showWaypoints) {
@@ -277,19 +214,12 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           ctx.fill();
         }
 
-        // Reduced labels on mobile for performance
-        const showLabel = isMobile ? (scale > 0.4 && distance < 5) : (scale > 0.1);
-        if (showLabel) {
+        // Intensity label for nearby storms
+        if (distance < 8 && scale > 0.3) {
           ctx.fillStyle = '#FFFFFF';
-          if (!isMobile) {
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 2;
-          }
-          ctx.font = `${Math.max(10, 14 * scale)}px Arial`;
+          ctx.font = `${Math.max(8, 12 * scale)}px Arial`;
           ctx.textAlign = 'center';
-          const labelText = isMobile ? `${intensity}` : `${intensity} dBZ`;
-          if (!isMobile) ctx.strokeText(labelText, top.x, top.y - 8);
-          ctx.fillText(labelText, top.x, top.y - 8);
+          ctx.fillText(`${intensity}`, top.x, top.y - 5);
         }
       });
     };
@@ -344,13 +274,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
     canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
     canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 
-    // Optimized animation loop
-    let frameCount = 0;
+    // Animation loop with lerped rotation for smoothness
     const animate = () => {
-      frameCount++;
-      
       // Lerp rotation speed for smooth acceleration/deceleration
-      const lerpFactor = isMobile ? 0.15 : 0.1; // Faster response on mobile
+      const lerpFactor = 0.1;
       currentRotationSpeed.current += (targetRotationSpeed.current - currentRotationSpeed.current) * lerpFactor;
       
       // Apply rotation
@@ -358,12 +285,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         setRotationY(prev => prev + currentRotationSpeed.current);
       }
       
-      // Reduce render frequency on mobile when not rotating
-      const shouldRender = !isMobile || isRotating || frameCount % 2 === 0;
-      if (shouldRender) {
-        draw();
-      }
-      
+      draw();
       requestAnimationFrame(animate);
     };
 
@@ -378,7 +300,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating, rotationSpeedMultiplier, isMobile]);
+  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating, rotationSpeedMultiplier]);
 
   if (!location) {
     return (
