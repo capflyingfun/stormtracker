@@ -97,8 +97,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 // Geocoding endpoint (enhanced for precise location selection)
   app.post("/api/geocode", async (req, res) => {
+    let query = '';
     try {
-      const { query } = locationSearchSchema.parse(req.body);
+      const parsedBody = locationSearchSchema.parse(req.body);
+      query = parsedBody.query;
       console.log(`Geocoding search for: "${query}"`);
       
       // Try different geocoding approaches
