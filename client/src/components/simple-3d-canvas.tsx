@@ -65,6 +65,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const [rotationY, setRotationY] = useState(0); // Start straight
   const [cameraHeight, setCameraHeight] = useState(8); // High overhead view
   const [isRotating, setIsRotating] = useState(false);
+  const [rotationSpeedMultiplier, setRotationSpeedMultiplier] = useState(2); // 1=slow, 2=normal, 3=fast
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
 
@@ -103,7 +104,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       // Draw North arrow compass in top right
       const compassSize = 60;
       const compassX = canvas.width - compassSize - 20;
-      const compassY = compassSize + 60; // Below the centered control buttons
+      const compassY = compassSize + 100; // Below the centered control buttons (2 rows)
       
       // Compass background circle
       ctx.fillStyle = 'rgba(51, 51, 85, 0.3)';
@@ -232,7 +233,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       const centerX = rect.width / 2;
       const clickX = clientX - rect.left;
       // Fix direction: Right side = negative rotation (clockwise), Left side = positive rotation (counter-clockwise)
-      targetRotationSpeed.current = clickX > centerX ? -0.001 : 0.001; // Much slower speed
+      const baseSpeed = 0.001 * rotationSpeedMultiplier;
+      targetRotationSpeed.current = clickX > centerX ? -baseSpeed : baseSpeed;
     };
 
     const handleEnd = () => {
@@ -298,7 +300,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating]);
+  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating, rotationSpeedMultiplier]);
 
   if (!location) {
     return (
@@ -314,35 +316,47 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
   return (
     <div className="fixed inset-0 bg-black z-50">
-      {/* Top Controls - Single Row */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 flex gap-2">
-        <Button onClick={onClose} variant="outline" size="sm">
-          Exit 3D
-        </Button>
-        <Button
-          onClick={() => setShowWaypoints(!showWaypoints)}
-          variant="outline"
-          size="sm"
-          className={`${showWaypoints ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
-        >
-          {showWaypoints ? 'Hide Dots' : 'Show Dots'}
-        </Button>
-        <Button
-          onClick={() => setCameraHeight(3)}
-          variant="outline"
-          size="sm"
-          className={`${cameraHeight <= 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
-        >
-          Ground
-        </Button>
-        <Button
-          onClick={() => setCameraHeight(8)}
-          variant="outline"
-          size="sm"
-          className={`${cameraHeight > 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
-        >
-          Overhead
-        </Button>
+      {/* Top Controls - Two Rows */}
+      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 flex flex-col gap-2 items-center">
+        <div className="flex gap-2">
+          <Button onClick={onClose} variant="outline" size="sm">
+            Exit 3D
+          </Button>
+          <Button
+            onClick={() => setShowWaypoints(!showWaypoints)}
+            variant="outline"
+            size="sm"
+            className={`${showWaypoints ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
+          >
+            {showWaypoints ? 'Hide Dots' : 'Show Dots'}
+          </Button>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setCameraHeight(3)}
+            variant="outline"
+            size="sm"
+            className={`${cameraHeight <= 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
+          >
+            Ground
+          </Button>
+          <Button
+            onClick={() => setCameraHeight(8)}
+            variant="outline"
+            size="sm"
+            className={`${cameraHeight > 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
+          >
+            Overhead
+          </Button>
+          <Button
+            onClick={() => setRotationSpeedMultiplier(prev => prev === 3 ? 1 : prev + 1)}
+            variant="outline"
+            size="sm"
+            className="bg-purple-600 border-purple-500"
+          >
+            Speed {rotationSpeedMultiplier}x
+          </Button>
+        </div>
       </div>
 
       {/* Canvas */}
@@ -352,8 +366,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         style={{ cursor: 'crosshair', touchAction: 'none' }}
       />
       
-      {/* Compact Legend - Top Left */}
-      <div className="absolute top-4 left-4 bg-slate-800/80 backdrop-blur-sm rounded-lg p-3 border border-slate-700/50">
+      {/* Compact Legend - Top Left, Lower Position */}
+      <div className="absolute top-20 left-4 bg-slate-800/80 backdrop-blur-sm rounded-lg p-3 border border-slate-700/50">
         <div className="text-xs text-slate-300 space-y-1">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded" style={{ backgroundColor: '#22C55E' }}></div>
