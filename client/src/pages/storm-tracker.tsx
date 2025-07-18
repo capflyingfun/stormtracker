@@ -7,6 +7,7 @@ import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
+import True3DEnvironment from "@/components/true-3d-environment";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -16,6 +17,7 @@ export default function StormTracker() {
   const radarRange = 30; // Fixed at 30 miles
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [show3D, setShow3D] = useState(false);
+  const [use3DMode, setUse3DMode] = useState<'canvas' | 'true3d'>('true3d'); // Default to true 3D
   
   // Storm filtering state - 5 meteorological categories (20-90 dBZ)
   const [stormFilters, setStormFilters] = useState({
@@ -207,7 +209,15 @@ export default function StormTracker() {
                     size="sm"
                     className="bg-purple-600/20 border-purple-500 hover:bg-purple-600/30"
                   >
-                    🌩️ 3D Experimental
+                    🌩️ {use3DMode === 'true3d' ? 'True 3D' : '3D Canvas'}
+                  </Button>
+                  <Button
+                    onClick={() => setUse3DMode(prev => prev === 'true3d' ? 'canvas' : 'true3d')}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                  >
+                    Mode: {use3DMode === 'true3d' ? 'Real 3D' : 'Canvas'}
                   </Button>
                   <Button
                     onClick={resetLocation}
@@ -278,11 +288,21 @@ export default function StormTracker() {
       
       {/* 3D Storm Visualization */}
       {show3D && (
-        <Simple3DCanvas 
-          location={location} 
-          precipitationStorms={precipitationStorms}
-          onClose={() => setShow3D(false)}
-        />
+        <>
+          {use3DMode === 'true3d' ? (
+            <True3DEnvironment 
+              location={location} 
+              precipitationStorms={precipitationStorms}
+              onClose={() => setShow3D(false)}
+            />
+          ) : (
+            <Simple3DCanvas 
+              location={location} 
+              precipitationStorms={precipitationStorms}
+              onClose={() => setShow3D(false)}
+            />
+          )}
+        </>
       )}
     </div>
   );
