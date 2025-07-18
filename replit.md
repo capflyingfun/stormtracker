@@ -470,3 +470,9 @@ Preferred communication style: Simple, everyday language.
 - **Meteorological Research Integration**: Based on Boulder Cast, Weather Underground, and Iowa State radar interpretation guides
 - **Comprehensive Hail Warnings**: Storm panels and map popups now include specific hail size information for qualifying storms
 - **Professional Standards**: Hail detection follows established meteorological principles where 65+ dBZ almost certainly contains 2"+ hail
+
+### Storm Cell UI Improvements (July 18, 2025)
+- **Fixed Storm Cell Overlap**: Added proper spacing (mb-4) between storm cell cards to prevent visual overlap
+- **Enhanced Visual Clarity**: Storm cells in the panel now have adequate spacing for better readability
+- **Maintained Alert Highlighting**: Preserved pulsating border alerts while improving card layout
+- **Professional Interface**: Clean separation between storm cards for improved user experience

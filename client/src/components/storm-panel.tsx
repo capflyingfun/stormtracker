@@ -134,7 +134,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
             return (
               <div 
                 key={storm.id} 
-                className={`bg-slate-700/50 rounded-lg p-4 border ${alertBorderClass}`}
+                className={`bg-slate-700/50 rounded-lg p-4 border ${alertBorderClass} mb-4`}
               >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
