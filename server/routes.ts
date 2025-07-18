@@ -271,9 +271,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { lat, lon } = weatherDataRequestSchema.parse(req.body);
       
+      // Add timeout for faster GPS response
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
       const response = await fetch(
-        `https://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${API_KEYS.openweather}`
+        `https://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${API_KEYS.openweather}`,
+        { signal: controller.signal }
       );
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
         throw new Error(`Reverse geocoding API error: ${response.status}`);

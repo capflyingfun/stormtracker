@@ -26,6 +26,7 @@ export default function SimpleLocationSearch({
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGPSLoading, setIsGPSLoading] = useState(false);
+  const [gpsStatus, setGpsStatus] = useState<string>('');
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -119,8 +120,14 @@ export default function SimpleLocationSearch({
           <Button
             onClick={async () => {
               setIsGPSLoading(true);
+              setGpsStatus('Getting GPS location...');
               try {
                 await onUseCurrentLocation();
+                setGpsStatus('GPS location found!');
+                setTimeout(() => setGpsStatus(''), 2000);
+              } catch (error) {
+                setGpsStatus('GPS failed - try again');
+                setTimeout(() => setGpsStatus(''), 3000);
               } finally {
                 setIsGPSLoading(false);
               }
@@ -142,6 +149,16 @@ export default function SimpleLocationSearch({
           </Button>
         )}
       </div>
+
+      {/* GPS Status */}
+      {gpsStatus && (
+        <div className={`text-xs mb-2 font-medium ${
+          gpsStatus.includes('failed') ? 'text-red-400' : 
+          gpsStatus.includes('found') ? 'text-green-400' : 'text-blue-400'
+        }`}>
+          {gpsStatus}
+        </div>
+      )}
 
       {/* Search examples */}
       <div className="text-xs text-slate-400">
