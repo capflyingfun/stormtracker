@@ -827,6 +827,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const markerSize = getMarkerSize(point.dbz, point.count);
       
+      // Add popup with precipitation info including rainfall rate
+      const pointDistance = calculateDistance(centerLat, centerLon, point.lat, point.lon);
+      
       // Determine if this is the nearest high-intensity storm for alert highlighting
       const isAlertStorm = point.dbz >= 55 && pointDistance <= 6; // High intensity within 6 miles
       
@@ -870,9 +873,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         icon: waypointIcon
       });
       
-      // Add popup with precipitation info including rainfall rate
-      const pointDistance = calculateDistance(centerLat, centerLon, point.lat, point.lon);
-      
       // Calculate rainfall rate using Marshall-Palmer formula: R = (Z/200)^(1/1.6)
       const getRainfallRate = (dbz: number) => {
         const z = Math.pow(10, dbz / 10); // Convert dBZ to Z
@@ -892,16 +892,19 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const rainfallRate = getRainfallRate(point.dbz);
       const precipType = getPrecipitationType(point.dbz);
       
+      // Calculate distance for popup display
+      const displayDistance = pointDistance;
+      
       const popupContent = point.count && point.count > 1 
         ? `<b>Storm Cell Cluster</b><br>
-           Distance: ${pointDistance.toFixed(1)} miles<br>
+           Distance: ${displayDistance.toFixed(1)} miles<br>
            Max Intensity: ${point.dbz} dBZ<br>
            Rain Rate: ${rainfallRate.toFixed(1)} mm/h (${(rainfallRate * 0.0394).toFixed(2)} in/h)<br>
            Type: ${precipType}<br>
            Cells: ${point.count}<br>
            <small>Real-time ${radarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'} data</small>`
         : `<b>Precipitation Cell</b><br>
-           Distance: ${pointDistance.toFixed(1)} miles<br>
+           Distance: ${displayDistance.toFixed(1)} miles<br>
            Intensity: ${point.dbz} dBZ<br>
            Rain Rate: ${rainfallRate.toFixed(1)} mm/h (${(rainfallRate * 0.0394).toFixed(2)} in/h)<br>
            Type: ${precipType}<br>
