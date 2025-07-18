@@ -14,6 +14,7 @@ interface RiskAlert {
     maxIntensity: number;
     nearestDistance: number;
     lightningCount: number;
+    nearestStormDirection?: number;
   };
   shouldAlert: boolean;
 }
@@ -73,6 +74,24 @@ export default function RiskAlertNotification({
     return `${distance.toFixed(1)} mi`;
   };
 
+  // Helper function to get compass direction from bearing
+  const getCompassDirection = (bearing: number): string => {
+    const directions = [
+      'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+      'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'
+    ];
+    const index = Math.round(bearing / 22.5) % 16;
+    return directions[index];
+  };
+
+  // Helper function to format storm direction with bearing
+  const formatStormDirection = (distance: number, bearing?: number): string => {
+    if (bearing === undefined || distance === 999) return formatDistance(distance);
+    const direction = getCompassDirection(bearing);
+    const formattedBearing = bearing.toFixed(0).padStart(3, '0');
+    return `${direction}(${formattedBearing}°) @ ${formatDistance(distance)}`;
+  };
+
   return (
     <div className="fixed top-2 left-2 right-2 z-50 sm:top-4 sm:right-4 sm:left-auto sm:max-w-md">
       <Card className={`${getRiskColor(alert.riskLevel)} text-white shadow-2xl transition-all duration-300 ${
@@ -103,9 +122,16 @@ export default function RiskAlertNotification({
         </CardHeader>
         
         <CardContent className="pt-0">
-          <p className="text-sm mb-4 leading-relaxed">
+          <p className="text-sm mb-2 leading-relaxed">
             {alert.message}
           </p>
+          
+          {/* Storm Direction Information */}
+          {alert.conditions.nearestStormDirection !== undefined && alert.conditions.nearestDistance !== 999 && (
+            <p className="text-sm mb-4 font-semibold text-yellow-200">
+              Nearest storm: {formatStormDirection(alert.conditions.nearestDistance, alert.conditions.nearestStormDirection)}
+            </p>
+          )}
           
           {/* Weather Conditions Summary */}
           <div className="bg-black/20 rounded-lg p-3 mb-4">
