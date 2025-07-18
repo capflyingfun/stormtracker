@@ -19,7 +19,7 @@ export default function StormTracker() {
   const radarRange = 30; // Fixed at 30 miles
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [show3D, setShow3D] = useState(false);
-  const [use3DMode, setUse3DMode] = useState<'canvas' | 'true3d' | 'webgl' | 'css3d'>('css3d'); // Default to CSS 3D
+  const [use3DMode, setUse3DMode] = useState<'canvas' | 'true3d' | 'webgl' | 'css3d'>('canvas'); // Default to HTML Canvas 3D
   
   // Storm filtering state - 5 meteorological categories (20-90 dBZ)
   const [stormFilters, setStormFilters] = useState({
