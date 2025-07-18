@@ -1349,6 +1349,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       }
 
       // Update storm data with clustered precipitation points
+      console.log(`NEXRAD: Calling updateStormDataFromPrecipitation with ${clusteredPoints.length} clustered precipitation points`);
       updateStormDataFromPrecipitation(clusteredPoints);
       
     } catch (error) {
@@ -1533,6 +1534,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       }
 
       // Update storm data with clustered precipitation points
+      console.log(`RainViewer: Calling updateStormDataFromPrecipitation with ${clusteredPoints.length} clustered precipitation points`);
       updateStormDataFromPrecipitation(clusteredPoints);
       
     } catch (error) {
