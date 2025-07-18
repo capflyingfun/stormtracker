@@ -373,3 +373,10 @@ Preferred communication style: Simple, everyday language.
 - **Cleared Stale Data**: Precipitation storms are properly cleared when switching locations or radar sources
 - **Zero-Storm Accuracy**: When no precipitation is detected (like London with 0 points), Storm Cells correctly shows "No storms detected"
 - **Consistent Data Source**: Both precipitation waypoints and Storm Cells now use identical real radar data for 100% accuracy
+
+### 3D Heading Indicator Implementation (July 18, 2025)
+- **Compass Heading Display**: Added live heading indicator showing exact degrees (e.g., 245°) and cardinal direction (WSW)
+- **Real-time Updates**: Heading updates continuously as user rotates the 3D view for precise navigation
+- **16-Point Compass**: Full compass rose with detailed directions (N, NNE, NE, ENE, E, ESE, SE, SSE, S, SSW, SW, WSW, W, WNW, NW, NNW)
+- **Professional Layout**: Heading display positioned in top-right corner with clear typography and semi-transparent background
+- **Degree Accuracy**: Shows exact compass bearing to help users orient themselves relative to storm positions
