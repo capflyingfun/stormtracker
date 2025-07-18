@@ -388,6 +388,14 @@ Preferred communication style: Simple, everyday language.
 - **Visual Risk Indicators**: Color-coded notifications with storm details including distance, intensity, and movement
 - **Auto-dismissing Alerts**: Smart alert duration based on risk level (10-30 seconds) with manual dismiss option
 
+### GPS Radar Source Consistency Fix (July 18, 2025)
+- **Fixed GPS vs ZIP Code Radar Inconsistency**: Resolved bug where GPS defaulted to RainViewer while ZIP codes used NEXRAD for same location
+- **Unified Location-Based Radar Selection**: Both GPS and search now automatically select appropriate radar source (NEXRAD for US, RainViewer for international)
+- **Enhanced Reverse Geocoding**: Added radar source recommendations to GPS reverse geocoding API endpoint
+- **Automatic Source Switching**: GPS and search locations now trigger automatic radar source changes based on geographic coordinates
+- **Consistent US Detection**: Improved US location detection using coordinate boundaries (24.5-49.5°N, 125-66.5°W) for GPS fallbacks
+- **Event-Driven Architecture**: Implemented custom events to communicate radar source recommendations between location services and UI
+
 ### 3D Heading Indicator Implementation (July 18, 2025)
 - **Compass Heading Display**: Added live heading indicator showing exact degrees (e.g., 245°) and cardinal direction (WSW)
 - **Real-time Updates**: Heading updates continuously as user rotates the 3D view for precise navigation

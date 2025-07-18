@@ -35,13 +35,26 @@ export function useLocation() {
       const response = await apiRequest('POST', '/api/reverse-geocode', { lat, lon });
       const locationData = await response.json();
 
-      setLocation({
+      const location = {
         lat,
         lon,
         name: locationData.name,
         state: locationData.state,
         country: locationData.country,
-      });
+      };
+      
+      setLocation(location);
+      
+      // Emit location data with recommended radar source for GPS usage
+      if (locationData.recommendedRadarSource) {
+        window.dispatchEvent(new CustomEvent('locationWithRadarSource', {
+          detail: {
+            ...location,
+            recommendedRadarSource: locationData.recommendedRadarSource,
+            isUS: locationData.isUS
+          }
+        }));
+      }
     } catch (error) {
       console.error('GPS location error:', error);
       throw error;
@@ -57,13 +70,26 @@ export function useLocation() {
       const response = await apiRequest('POST', '/api/geocode', { query });
       const locationData = await response.json();
 
-      setLocation({
+      const location = {
         lat: locationData.lat,
         lon: locationData.lon,
         name: `${locationData.name}${locationData.state ? `, ${locationData.state}` : ''}`,
         state: locationData.state,
         country: locationData.country,
-      });
+      };
+      
+      setLocation(location);
+      
+      // Emit location data with recommended radar source for search usage
+      if (locationData.recommendedRadarSource) {
+        window.dispatchEvent(new CustomEvent('locationWithRadarSource', {
+          detail: {
+            ...location,
+            recommendedRadarSource: locationData.recommendedRadarSource,
+            isUS: locationData.isUS
+          }
+        }));
+      }
     } catch (error) {
       console.error('Location search error:', error);
       throw error;
