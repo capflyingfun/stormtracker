@@ -141,11 +141,15 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
             return (
               <div 
                 key={storm.id} 
-                className={`bg-slate-700/50 rounded-lg p-3 mb-3 border-2 ${
+                className={`bg-slate-700/50 rounded-lg p-3 mb-3 border ${
                   meetsAlertThreshold 
-                    ? `${alertBorderClass} animate-pulse` 
+                    ? `${alertBorderClass}` 
                     : 'border-slate-600/50'
                 }`}
+                style={meetsAlertThreshold ? {
+                  animation: 'pulse 3s ease-in-out infinite',
+                  borderWidth: '1px'
+                } : {}}
               >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
