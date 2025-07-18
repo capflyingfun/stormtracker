@@ -7,10 +7,6 @@ import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
-import True3DEnvironment from "@/components/true-3d-environment";
-import WebGL3DEnvironment from "@/components/webgl-3d-environment";
-import CSS3DEnvironment from "@/components/css-3d-environment";
-import ModeSelector from "@/components/mode-selector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -20,8 +16,6 @@ export default function StormTracker() {
   const radarRange = 30; // Fixed at 30 miles
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [show3D, setShow3D] = useState(false);
-  const [use3DMode, setUse3DMode] = useState<'canvas' | 'true3d' | 'webgl' | 'css3d'>('canvas'); // Default to HTML Canvas 3D
-  const [appMode, setAppMode] = useState<'2d' | '3d' | null>(null);
   
   // Storm filtering state - 5 meteorological categories (20-90 dBZ)
   const [stormFilters, setStormFilters] = useState({
@@ -178,26 +172,20 @@ export default function StormTracker() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
-      {!appMode && (
-        <ModeSelector onModeSelect={setAppMode} />
-      )}
+      <Header 
+        useMetric={useMetric}
+        onUnitsChange={setUseMetric}
+      />
       
-      {appMode && (
-        <>
-          <Header 
-            useMetric={useMetric}
-            onUnitsChange={setUseMetric}
+      <div className="p-3 sm:p-6">
+        {!location ? (
+          <LocationSetup
+            onGPSLocation={handleGPSLocation}
+            onLocationSearch={handleLocationSearch}
+            onLocationSelect={handleDirectLocationSelect}
+            isLoading={locationLoading}
           />
-          
-          <div className="p-3 sm:p-6">
-            {!location ? (
-              <LocationSetup
-                onGPSLocation={handleGPSLocation}
-                onLocationSearch={handleLocationSearch}
-                onLocationSelect={handleDirectLocationSelect}
-                isLoading={locationLoading}
-              />
-            ) : (
+        ) : (
           <>
             {/* Location Display */}
             <div className="bg-slate-800/50 rounded-xl p-3 sm:p-6 border border-slate-700/50 mb-4 sm:mb-6">
@@ -219,19 +207,7 @@ export default function StormTracker() {
                     size="sm"
                     className="bg-purple-600/20 border-purple-500 hover:bg-purple-600/30"
                   >
-                    🌩️ {use3DMode === 'css3d' ? 'CSS 3D' : use3DMode === 'webgl' ? 'WebGL 3D' : use3DMode === 'true3d' ? 'React 3D' : '3D Canvas'}
-                  </Button>
-                  <Button
-                    onClick={() => setUse3DMode(prev => 
-                      prev === 'css3d' ? 'webgl' : 
-                      prev === 'webgl' ? 'true3d' : 
-                      prev === 'true3d' ? 'canvas' : 'css3d'
-                    )}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                  >
-                    Mode: {use3DMode === 'css3d' ? 'CSS' : use3DMode === 'webgl' ? 'WebGL' : use3DMode === 'true3d' ? 'React' : 'Canvas'}
+                    🌩️ 3D Experimental
                   </Button>
                   <Button
                     onClick={resetLocation}
@@ -298,39 +274,15 @@ export default function StormTracker() {
             </div>
           </>
         )}
-        
-        {/* 3D Storm Visualization */}
-        {show3D && (
-          <>
-            {use3DMode === 'css3d' ? (
-              <CSS3DEnvironment 
-                location={location} 
-                precipitationStorms={precipitationStorms}
-                onClose={() => setShow3D(false)}
-              />
-            ) : use3DMode === 'webgl' ? (
-              <WebGL3DEnvironment 
-                location={location} 
-                precipitationStorms={precipitationStorms}
-                onClose={() => setShow3D(false)}
-              />
-            ) : use3DMode === 'true3d' ? (
-              <True3DEnvironment 
-                location={location} 
-                precipitationStorms={precipitationStorms}
-                onClose={() => setShow3D(false)}
-              />
-            ) : (
-              <Simple3DCanvas 
-                location={location} 
-                precipitationStorms={precipitationStorms}
-                onClose={() => setShow3D(false)}
-              />
-            )}
-          </>
-        )}
-        </div>
-        </>
+      </div>
+      
+      {/* 3D Storm Visualization */}
+      {show3D && (
+        <Simple3DCanvas 
+          location={location} 
+          precipitationStorms={precipitationStorms}
+          onClose={() => setShow3D(false)}
+        />
       )}
     </div>
   );
