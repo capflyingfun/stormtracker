@@ -205,13 +205,14 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
     draw();
 
-    // Touch and mouse rotation controls with smoother speed
+    // Touch and mouse rotation controls with proper direction
     const handleStart = (clientX: number, clientY: number) => {
       setIsRotating(true);
       const rect = canvas.getBoundingClientRect();
       const centerX = rect.width / 2;
       const clickX = clientX - rect.left;
-      targetRotationSpeed.current = clickX > centerX ? 0.005 : -0.005; // Much slower base speed
+      // Right side = positive rotation (clockwise), Left side = negative rotation (counter-clockwise)
+      targetRotationSpeed.current = clickX > centerX ? 0.001 : -0.001; // Much slower speed
     };
 
     const handleEnd = () => {
