@@ -255,6 +255,7 @@ Preferred communication style: Simple, everyday language.
 - **Individual Category Counts**: Waypoint legend shows breakdown like "Light (25), Moderate (4), Heavy (3)" etc.
 - **Removed Redundant Displays**: Eliminated duplicate storm count from top section to reduce visual clutter
 - **Real-time Synchronization**: All storm counts update simultaneously when moving map or changing filters
+- **Fixed Classification Consistency**: Storm Cells panel and precipitation waypoints now use identical dBZ categorization logic
 
 ### User Interface Improvements (July 17, 2025)
 - **Renamed Sample dBZ Button**: Changed "Sample dBZ" to "Update Storms" for clearer user understanding
