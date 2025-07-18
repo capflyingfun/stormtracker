@@ -238,7 +238,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-slate-300">Forecast Movement:</span>
                     <span className="text-xs text-blue-300">
-                      {storm.windsPrediction.speed > 0 ? `${storm.windsPrediction.speed} mph ${getCompassDirection(storm.windsPrediction.direction)}` : 'Stationary'}
+                      {storm.windsPrediction.speed > 0 ? `${storm.windsPrediction.speed} mph toward ${getCompassDirection(storm.windsPrediction.direction)}` : 'Stationary'}
                       {storm.windsPrediction.confidence && storm.windsPrediction.confidence !== 'low' && (
                         <span className="ml-1 text-slate-400">({storm.windsPrediction.confidence})</span>
                       )}

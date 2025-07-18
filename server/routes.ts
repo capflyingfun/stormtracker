@@ -1451,15 +1451,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
     }
     
-    const avgDirection = (totalDirection / totalWeight) % 360;
+    const avgWindDirection = (totalDirection / totalWeight) % 360;
     const avgSpeed = totalSpeed / totalWeight;
+    
+    // Convert from wind direction (where wind comes FROM) to storm movement direction (where storm moves TO)
+    // Add 180° and normalize to 0-360 range
+    const stormMovementDirection = (avgWindDirection + 180) % 360;
     
     // Convert wind speed from knots to mph and apply storm movement factor
     // Storms typically move at 60-80% of the speed of the steering winds
     const stormSpeedMph = Math.round(avgSpeed * 1.151 * 0.7); // 1.151 = knots to mph, 0.7 = storm factor
     
     return {
-      direction: Math.round(avgDirection),
+      direction: Math.round(stormMovementDirection),
       speed: stormSpeedMph,
       confidence: stormAltitudeWinds.length >= 3 ? 'high' : 
                   stormAltitudeWinds.length >= 2 ? 'medium' : 'low',
