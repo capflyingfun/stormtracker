@@ -49,7 +49,7 @@ export default function SmartAddressSearch({
 
   // Fetch address suggestions
   const fetchSuggestions = async (searchQuery: string) => {
-    if (searchQuery.length < 2) {
+    if (searchQuery.length < 3) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
@@ -60,14 +60,18 @@ export default function SmartAddressSearch({
       const response = await fetch(`/api/address-suggest?q=${encodeURIComponent(searchQuery)}`);
       const data = await response.json();
       
-      if (data.suggestions) {
+      if (data.suggestions && data.suggestions.length > 0) {
         setSuggestions(data.suggestions);
         setShowSuggestions(true);
         setSelectedIndex(-1);
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
       }
     } catch (error) {
       console.error('Failed to fetch address suggestions:', error);
       setSuggestions([]);
+      setShowSuggestions(false);
     } finally {
       setIsLoading(false);
     }
@@ -79,12 +83,17 @@ export default function SmartAddressSearch({
       clearTimeout(searchTimeoutRef.current);
     }
 
-    // Longer delay for mobile to prevent excessive API calls while typing
-    const delay = window.innerWidth < 768 ? 500 : 200;
-    
-    searchTimeoutRef.current = setTimeout(() => {
-      fetchSuggestions(query);
-    }, delay);
+    // Only fetch suggestions, don't auto-submit
+    if (query.trim().length >= 3) { // Require at least 3 characters
+      const delay = 1000; // 1 second delay to prevent auto-submission
+      
+      searchTimeoutRef.current = setTimeout(() => {
+        fetchSuggestions(query);
+      }, delay);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
 
     return () => {
       if (searchTimeoutRef.current) {
@@ -115,10 +124,18 @@ export default function SmartAddressSearch({
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!showSuggestions || suggestions.length === 0) {
-      if (e.key === 'Enter') {
+    // Only handle Enter key if user explicitly presses it
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (showSuggestions && selectedIndex >= 0 && selectedIndex < suggestions.length) {
+        selectSuggestion(suggestions[selectedIndex]);
+      } else if (query.trim().length >= 2) {
         handleDirectSearch();
       }
+      return;
+    }
+
+    if (!showSuggestions || suggestions.length === 0) {
       return;
     }
 
@@ -133,17 +150,12 @@ export default function SmartAddressSearch({
         e.preventDefault();
         setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
         break;
-      case 'Enter':
-        e.preventDefault();
-        if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
-          selectSuggestion(suggestions[selectedIndex]);
-        } else {
-          handleDirectSearch();
-        }
-        break;
       case 'Escape':
         setShowSuggestions(false);
         setSelectedIndex(-1);
+        if (inputRef.current) {
+          inputRef.current.blur();
+        }
         break;
     }
   };

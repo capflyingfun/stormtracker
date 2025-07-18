@@ -328,3 +328,22 @@ Preferred communication style: Simple, everyday language.
 - **Unified Storm List**: Both radar sources feed storm data into the same Storm Cells panel, sorted by distance
 - **Auto-Sampling for Both Sources**: 0.75-second auto-sampling works seamlessly with both NEXRAD and RainViewer
 - **Real-time Storm Integration**: Precipitation-detected storms from both sources appear immediately in the storm list
+
+### Interactive 3D Storm Cells (July 18, 2025)
+- **Clickable Storm Columns**: Tap any storm column in 3D view to display detailed storm information popup
+- **Comprehensive Storm Details**: Shows dBZ intensity, distance in miles, compass direction, coordinates, and storm category
+- **Professional Storm Information**: Distance calculation using Haversine formula, bearing calculation with 16-point compass
+- **Touch-Friendly Detection**: Wider hit areas for storm columns to ensure easy tapping on mobile devices
+- **Smart Click Detection**: Distinguishes between storm column clicks and rotation gestures for intuitive interaction
+- **Modal Storm Popup**: Professional modal dialog with color-coded intensity indicators and meteorological data
+- **Storm Category Classification**: Clear classification from Light to Extreme based on dBZ thresholds
+
+### Enhanced Address Search with Autocomplete (July 18, 2025)
+- **Google/Apple Maps Style Search**: Real-time address suggestions with dropdown autocomplete functionality
+- **Multi-Source Address Recognition**: Supports ZIP codes, street addresses, cities, states, and international locations
+- **Intelligent Debouncing**: 1-second delay with 3-character minimum to prevent auto-submission and improve user experience
+- **Smart Suggestion Filtering**: Prioritizes postal codes, addresses, and places with importance scoring
+- **Mobile-Optimized Autocomplete**: Touch-friendly suggestion dropdown with appropriate delays for mobile typing
+- **International Address Support**: Handles global addresses with country detection and radar source recommendation
+- **Fallback Direct Search**: Manual search button and Enter key support for locations without autocomplete suggestions
+- **Professional UI**: Clean suggestion dropdown with icons, location types, and country information display
