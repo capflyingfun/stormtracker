@@ -122,18 +122,20 @@ export default function StormTracker() {
   // Risk assessment and alert generation
   useEffect(() => {
     const performRiskAssessment = async () => {
-      // Only perform risk assessment if we have real precipitation storm data
-      if (!location || !preferences || precipitationStorms.length === 0) {
-        console.log('No precipitation storms detected - skipping risk assessment');
+      // Always perform risk assessment to clear false alerts when no storms detected
+      if (!location || !preferences) {
         return;
       }
 
       try {
-        console.log(`Assessing risk for ${precipitationStorms.length} precipitation-detected storms`);
+        console.log(`Assessing risk for ${precipitationStorms.length} precipitation-detected storms (not synthetic API data)`);
         const riskData = await assessRisk(location, precipitationStorms, lightningCount);
         if (riskData && riskData.shouldAlert) {
           console.log('Risk alert triggered:', riskData.title);
           showAlert(riskData);
+        } else if (precipitationStorms.length === 0) {
+          console.log('No precipitation storms detected - clearing any existing alerts');
+          dismissAlert(); // Clear any existing alerts when no real storms are found
         }
       } catch (error) {
         console.error('Risk assessment failed:', error);
@@ -144,7 +146,7 @@ export default function StormTracker() {
     if (location && preferences) {
       performRiskAssessment();
     }
-  }, [location, precipitationStorms, lightningCount, preferences, assessRisk, showAlert]);
+  }, [location, precipitationStorms, lightningCount, preferences, assessRisk, showAlert, dismissAlert]);
 
   // Handle alert settings save
   const handleAlertSettingsSave = async (newPreferences: any) => {
@@ -407,7 +409,7 @@ export default function StormTracker() {
             {/* Storm Data Grid - Moved below radar */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mt-4 sm:mt-6">
               <StormPanel
-                storms={filteredStorms}
+                storms={precipitationStorms}
                 useMetric={useMetric}
                 formatDistance={formatDistance}
                 formatSpeed={formatSpeed}
