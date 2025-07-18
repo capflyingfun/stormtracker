@@ -8,13 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { X, Volume2, Bell, Mail, AlertTriangle } from 'lucide-react';
 
 interface AlertPreferences {
-  lightRainEnabled: boolean;
-  moderateRainEnabled: boolean;
-  heavyRainEnabled: boolean;
-  veryHeavyRainEnabled: boolean;
-  extremeStormEnabled: boolean;
+  minimumDbz: number; // Minimum dBZ to trigger alerts
   alertRadius: number;
-  riskLevel: 'low' | 'medium' | 'high';
   alertFrequency: number;
   soundEnabled: boolean;
   pushEnabled: boolean;
@@ -56,6 +51,17 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
     }
   };
 
+  const getDbzDescription = (dbz: number) => {
+    if (dbz >= 61) return { category: 'Extreme Thunderstorms', color: 'text-purple-400', description: '250+ mm/h, large hail likely' };
+    if (dbz >= 55) return { category: 'Very Heavy Rain/Hail', color: 'text-red-400', description: '100-205 mm/h, hail potential' };
+    if (dbz >= 46) return { category: 'Heavy Rain', color: 'text-orange-400', description: '28.8-48.6 mm/h' };
+    if (dbz >= 35) return { category: 'Moderate Rain', color: 'text-yellow-400', description: '5.6-23.7 mm/h' };
+    if (dbz >= 20) return { category: 'Light Rain', color: 'text-green-400', description: '0.6-2.7 mm/h' };
+    return { category: 'No Precipitation', color: 'text-gray-400', description: 'Clear conditions' };
+  };
+
+  const dbzInfo = getDbzDescription(localPreferences.minimumDbz);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
       <Card className="w-full max-w-md bg-slate-800 border-slate-700 max-h-[90vh] sm:max-h-[95vh] overflow-y-auto m-2 sm:m-0">
@@ -77,64 +83,44 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
         </CardHeader>
         
         <CardContent className="space-y-6">
-          {/* Storm Intensity Alerts */}
+          {/* Minimum Storm Intensity */}
           <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Storm Intensity Alerts</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="light-rain" className={`text-sm ${getIntensityColor('light')}`}>
-                  Light Rain (20-34 dBZ)
-                </Label>
-                <Switch
-                  id="light-rain"
-                  checked={localPreferences.lightRainEnabled}
-                  onCheckedChange={(checked) => updatePreference('lightRainEnabled', checked)}
+            <h3 className="text-sm font-semibold text-white mb-3">Alert Threshold</h3>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm text-slate-300">Minimum Storm Intensity</Label>
+                  <span className="text-sm text-white font-mono">{localPreferences.minimumDbz} dBZ</span>
+                </div>
+                <Slider
+                  value={[localPreferences.minimumDbz]}
+                  onValueChange={(value) => updatePreference('minimumDbz', value[0])}
+                  max={70}
+                  min={20}
+                  step={5}
+                  className="w-full"
                 />
               </div>
               
-              <div className="flex items-center justify-between">
-                <Label htmlFor="moderate-rain" className={`text-sm ${getIntensityColor('moderate')}`}>
-                  Moderate Rain (35-45 dBZ)
-                </Label>
-                <Switch
-                  id="moderate-rain"
-                  checked={localPreferences.moderateRainEnabled}
-                  onCheckedChange={(checked) => updatePreference('moderateRainEnabled', checked)}
-                />
+              {/* Current threshold description */}
+              <div className="bg-slate-700/50 p-3 rounded-lg border border-slate-600">
+                <div className="flex items-center justify-between mb-1">
+                  <span className={`text-sm font-medium ${dbzInfo.color}`}>
+                    {dbzInfo.category}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {localPreferences.minimumDbz}+ dBZ
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300">
+                  {dbzInfo.description}
+                </p>
               </div>
               
-              <div className="flex items-center justify-between">
-                <Label htmlFor="heavy-rain" className={`text-sm ${getIntensityColor('heavy')}`}>
-                  Heavy Rain (46-54 dBZ)
-                </Label>
-                <Switch
-                  id="heavy-rain"
-                  checked={localPreferences.heavyRainEnabled}
-                  onCheckedChange={(checked) => updatePreference('heavyRainEnabled', checked)}
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="very-heavy-rain" className={`text-sm ${getIntensityColor('veryHeavy')}`}>
-                  Very Heavy Rain (55-60 dBZ)
-                </Label>
-                <Switch
-                  id="very-heavy-rain"
-                  checked={localPreferences.veryHeavyRainEnabled}
-                  onCheckedChange={(checked) => updatePreference('veryHeavyRainEnabled', checked)}
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="extreme-storm" className={`text-sm ${getIntensityColor('extreme')}`}>
-                  Extreme Storms (61+ dBZ)
-                </Label>
-                <Switch
-                  id="extreme-storm"
-                  checked={localPreferences.extremeStormEnabled}
-                  onCheckedChange={(checked) => updatePreference('extremeStormEnabled', checked)}
-                />
-              </div>
+              <p className="text-xs text-slate-400">
+                Alerts will be triggered for storms at or above this intensity level. 
+                The system will find the closest qualifying storm within your alert radius.
+              </p>
             </div>
           </div>
 
@@ -155,24 +141,6 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
                 className="w-full"
               />
             </div>
-          </div>
-
-          {/* Risk Sensitivity */}
-          <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Risk Sensitivity</h3>
-            <Select 
-              value={localPreferences.riskLevel} 
-              onValueChange={(value) => updatePreference('riskLevel', value)}
-            >
-              <SelectTrigger className="w-full bg-slate-700 border-slate-600">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="low">Low - Fewer alerts</SelectItem>
-                <SelectItem value="medium">Medium - Balanced</SelectItem>
-                <SelectItem value="high">High - More alerts</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Alert Frequency */}
@@ -219,18 +187,6 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
                   id="push-alerts"
                   checked={localPreferences.pushEnabled}
                   onCheckedChange={(checked) => updatePreference('pushEnabled', checked)}
-                />
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="email-alerts" className="text-sm text-slate-300 flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Email Alerts
-                </Label>
-                <Switch
-                  id="email-alerts"
-                  checked={localPreferences.emailEnabled}
-                  onCheckedChange={(checked) => updatePreference('emailEnabled', checked)}
                 />
               </div>
             </div>

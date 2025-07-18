@@ -17,13 +17,8 @@ interface RiskAlert {
 }
 
 interface AlertPreferences {
-  lightRainEnabled: boolean;
-  moderateRainEnabled: boolean;
-  heavyRainEnabled: boolean;
-  veryHeavyRainEnabled: boolean;
-  extremeStormEnabled: boolean;
+  minimumDbz: number; // Minimum dBZ to trigger alerts
   alertRadius: number;
-  riskLevel: 'low' | 'medium' | 'high';
   alertFrequency: number;
   soundEnabled: boolean;
   pushEnabled: boolean;

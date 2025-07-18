@@ -88,41 +88,35 @@ export default function StormTracker() {
       if (location && preferences) {
         setTimeout(async () => {
           try {
-            // Apply the SAME filtering that Storm Cells panel uses
-            console.log('Alert System: Current storm filters:', stormFilters);
-            const filteredStorms = newPrecipitationStorms.filter(storm => {
-              const category = storm.intensity >= 61 ? 'extreme' :    // Extreme thunderstorms
-                              storm.intensity >= 55 ? 'veryHeavy' :  // Very heavy rain/hail
-                              storm.intensity >= 46 ? 'heavy' :      // Heavy rain
-                              storm.intensity >= 35 ? 'moderate' :   // Moderate rain
-                              'light';                               // Light rain (20-34 dBZ)
-              const included = stormFilters[category as keyof typeof stormFilters];
-              if (!included) {
-                console.log(`Alert System: Filtering out ${storm.intensity}dBZ storm (category: ${category})`);
-              }
-              return included;
-            });
+            // NEW APPROACH: Find storms that meet the user's minimum dBZ threshold
+            if (!preferences) {
+              console.log('Alert System: No preferences loaded, skipping alert assessment');
+              return;
+            }
             
-            // Sort filtered storms by highest dBZ first, then closest distance (same as Storm Cells panel)
-            const sortedFilteredStorms = [...filteredStorms].sort((a, b) => {
-              // Primary sort: intensity (highest dBZ first)
-              const intensityDiff = b.intensity - a.intensity;
-              if (Math.abs(intensityDiff) > 1) { // If intensity difference is significant (>1 dBZ)
-                return intensityDiff;
-              }
-              // Secondary sort: distance (closest first) for storms at similar intensities
-              return a.distance - b.distance;
-            });
+            console.log(`Alert System: User minimum dBZ threshold: ${preferences.minimumDbz}`);
             
-            console.log(`Alert System: Event-driven risk assessment for ${sortedFilteredStorms.length} FILTERED precipitation storms (SAME data as Storm Panel)`);
-            console.log('Alert System: Using FILTERED Storm Panel data:', sortedFilteredStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
-            console.log(`Alert System: Applied storm filters - filtered from ${newPrecipitationStorms.length} to ${sortedFilteredStorms.length} storms`);
+            // Filter storms by user's minimum dBZ preference
+            const qualifyingStorms = newPrecipitationStorms.filter(storm => 
+              storm.intensity >= preferences.minimumDbz
+            );
             
-            // Use ONLY the nearest storm for risk assessment (same as Storm Cells panel display)
-            const nearestStormOnly = sortedFilteredStorms.length > 0 ? [sortedFilteredStorms[0]] : [];
-            console.log(`Alert System: Using NEAREST STORM ONLY for alert calculation:`, nearestStormOnly.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
+            console.log(`Alert System: Found ${qualifyingStorms.length} storms meeting ${preferences.minimumDbz}+ dBZ threshold from ${newPrecipitationStorms.length} total storms`);
             
-            const riskData = await assessRisk(location, nearestStormOnly, lightningCount);
+            if (qualifyingStorms.length === 0) {
+              console.log('Alert System: No storms meet minimum dBZ threshold - no alert');
+              return;
+            }
+            
+            // Find the closest qualifying storm
+            const closestQualifyingStorm = qualifyingStorms.reduce((closest, current) => 
+              current.distance < closest.distance ? current : closest
+            );
+            
+            console.log(`Alert System: Closest qualifying storm: ${closestQualifyingStorm.intensity}dBZ @ ${closestQualifyingStorm.distance?.toFixed(1)}mi`);
+            console.log(`Alert System: Sending ONLY the closest qualifying storm for risk assessment`);
+            
+            const riskData = await assessRisk(location, [closestQualifyingStorm], lightningCount);
             if (riskData && riskData.shouldAlert) {
               console.log('Alert System: Event-driven alert triggered with Storm Panel data:', riskData.title, riskData.conditions);
               showAlert(riskData);
