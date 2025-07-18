@@ -99,6 +99,18 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   }>>([]);
   const radarCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const highlightLayerRef = useRef<any>(null);
+  const lightningLayerRef = useRef<any>(null);
+  
+  // Lightning state
+  const [lightningStrikes, setLightningStrikes] = useState<Array<{
+    lat: number;
+    lon: number;
+    timestamp: number;
+    age: number;
+    intensity: number;
+    distance: number;
+  }>>([]);
+  const [showLightning, setShowLightning] = useState(true);
 
   // Auto-sampling functionality (silent background operation)
   const triggerAutoSample = useCallback(() => {
@@ -115,6 +127,32 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       }
     }, 750);
   }, [location, radarFrames.length]);
+
+  // Fetch lightning data
+  const fetchLightningData = useCallback(async () => {
+    if (!location) return;
+    
+    try {
+      const response = await fetch(`/api/lightning?lat=${location.lat}&lon=${location.lon}&radius=100`);
+      if (response.ok) {
+        const data = await response.json();
+        setLightningStrikes(data.strikes || []);
+        console.log(`Lightning: Found ${data.strikes?.length || 0} strikes within 100 miles`);
+      }
+    } catch (error) {
+      console.error('Failed to fetch lightning data:', error);
+    }
+  }, [location]);
+
+  // Fetch lightning data every 30 seconds
+  useEffect(() => {
+    if (!location) return;
+    
+    fetchLightningData(); // Initial fetch
+    
+    const interval = setInterval(fetchLightningData, 30000); // Every 30 seconds
+    return () => clearInterval(interval);
+  }, [location, fetchLightningData]);
 
   // Initialize radar frames based on source
   useEffect(() => {
@@ -286,6 +324,70 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     
     return () => clearTimeout(refreshTimer);
   }, [radarSource]);
+
+  // Update lightning markers when lightning data changes
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.L) return;
+
+    // Remove existing lightning layer
+    if (lightningLayerRef.current) {
+      map.removeLayer(lightningLayerRef.current);
+      lightningLayerRef.current = null;
+    }
+
+    // Add lightning markers if enabled and data available
+    if (showLightning && lightningStrikes.length > 0) {
+      const lightningMarkers = [];
+
+      for (const strike of lightningStrikes) {
+        // Calculate age-based opacity (newer strikes are brighter)
+        const maxAge = 20 * 60 * 1000; // 20 minutes in milliseconds
+        const opacity = Math.max(0.2, 1 - (strike.age / maxAge));
+        
+        // Create lightning bolt icon
+        const lightningIcon = window.L.divIcon({
+          html: `<div style="
+            color: #ffff00; 
+            font-size: 12px; 
+            text-shadow: 0 0 3px #ffff00, 0 0 6px #ffff00;
+            opacity: ${opacity};
+            filter: drop-shadow(0 0 2px #ffff00);
+          ">⚡</div>`,
+          className: 'lightning-marker',
+          iconSize: [12, 12],
+          iconAnchor: [6, 6]
+        });
+
+        const marker = window.L.marker([strike.lat, strike.lon], {
+          icon: lightningIcon,
+          zIndexOffset: 1000
+        });
+
+        // Add popup with strike details
+        const ageMinutes = Math.floor(strike.age / 60000);
+        const ageSeconds = Math.floor((strike.age % 60000) / 1000);
+        const distanceText = `${strike.distance.toFixed(1)} miles`;
+        
+        marker.bindPopup(`
+          <div class="text-sm">
+            <div class="font-semibold flex items-center gap-1">⚡ Lightning Strike</div>
+            <div class="mt-1 space-y-1 text-xs">
+              <div><strong>Distance:</strong> ${distanceText}</div>
+              <div><strong>Age:</strong> ${ageMinutes}m ${ageSeconds}s ago</div>
+              <div><strong>Source:</strong> Blitzortung.org</div>
+            </div>
+          </div>
+        `);
+
+        lightningMarkers.push(marker);
+      }
+
+      // Create lightning layer group
+      lightningLayerRef.current = window.L.layerGroup(lightningMarkers);
+      lightningLayerRef.current.addTo(map);
+    }
+  }, [showLightning, lightningStrikes]);
 
   // Notify parent component when radar source changes
   useEffect(() => {
@@ -1582,6 +1684,28 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             Range: {radarRange} miles | {radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD Radar (NWS/NOAA)'}
           </div>
         </div>
+      </div>
+
+      {/* Lightning Toggle */}
+      <div className="mt-3 bg-slate-800/50 rounded-lg border border-slate-700 p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="font-semibold text-white text-sm flex items-center gap-2">
+            ⚡ Lightning Strikes {lightningStrikes.length > 0 && `(${lightningStrikes.length})`}
+          </div>
+          <Button
+            onClick={() => setShowLightning(!showLightning)}
+            variant="outline"
+            size="sm"
+            className={`text-xs px-3 py-1 ${showLightning ? 'bg-yellow-600 border-yellow-500' : 'bg-slate-700 border-slate-600'}`}
+          >
+            {showLightning ? 'Hide' : 'Show'}
+          </Button>
+        </div>
+        {lightningStrikes.length > 0 && (
+          <div className="text-xs text-slate-400">
+            Last 20 minutes • Updates every 30 seconds
+          </div>
+        )}
       </div>
 
       {/* Precipitation Waypoints Legend - Now outside map */}

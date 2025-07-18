@@ -561,6 +561,175 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return []; // Return empty array if radar analysis fails
   }
 
+  // Lightning data endpoint (Blitzortung.org proxy)
+  app.get("/api/lightning", async (req, res) => {
+    try {
+      const { lat, lon, radius = 100 } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      // Use Blitzortung.org's lightning data
+      // Try multiple endpoints for better reliability
+      let lightningData = null;
+      
+      try {
+        // Primary endpoint - live lightning data
+        const blitzResponse = await fetch(
+          `https://data.blitzortung.org/Data/Protected/last_strikes.php?coord_x=${lon}&coord_y=${lat}&radius=${radius}&number_of_strikes=500`,
+          {
+            headers: {
+              'User-Agent': 'StormTracker/1.0',
+              'Accept': 'application/json'
+            },
+            timeout: 8000
+          }
+        );
+        
+        if (blitzResponse.ok) {
+          const textData = await blitzResponse.text();
+          // Parse the lightning data format from Blitzortung
+          lightningData = parseLightningData(textData);
+        }
+      } catch (e) {
+        // Continue to fallback
+      }
+      
+      // Fallback: use lightningmaps.org data format
+      if (!lightningData) {
+        try {
+          const fallbackResponse = await fetch(
+            `https://data.lightningmaps.org/blitzortung/live_lightning.php?regions=1,2,3,4,5,6,7&number_of_strokes=500`,
+            {
+              headers: {
+                'User-Agent': 'StormTracker/1.0',
+                'Accept': '*/*'
+              },
+              timeout: 10000
+            }
+          );
+          
+          if (fallbackResponse.ok) {
+            const textData = await fallbackResponse.text();
+            lightningData = parseLightningDataLightningMaps(textData);
+          }
+        } catch (e) {
+          // Continue to mock data
+        }
+      }
+      
+      // If no real data available, return empty result
+      if (!lightningData) {
+        lightningData = [];
+      }
+      
+      // Filter strikes within radius of user location
+      const userLat = parseFloat(lat as string);
+      const userLon = parseFloat(lon as string);
+      const maxRadius = parseFloat(radius as string);
+      
+      const nearbyStrikes = lightningData
+        .map((strike: any) => {
+          // Calculate distance using Haversine formula
+          const R = 3959; // Earth's radius in miles
+          const dLat = (strike.lat - userLat) * Math.PI / 180;
+          const dLon = (strike.lon - userLon) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                   Math.cos(userLat * Math.PI / 180) * Math.cos(strike.lat * Math.PI / 180) *
+                   Math.sin(dLon/2) * Math.sin(dLon/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          const distance = R * c;
+          
+          return {
+            lat: strike.lat,
+            lon: strike.lon,
+            timestamp: strike.timestamp,
+            distance: distance,
+            age: Date.now() - (strike.timestamp * 1000), // Age in milliseconds
+            intensity: strike.intensity || 1
+          };
+        })
+        .filter((strike: any) => strike.distance <= maxRadius)
+        .sort((a: any, b: any) => b.timestamp - a.timestamp) // Most recent first
+        .slice(0, 200); // Limit to 200 strikes for performance
+      
+      res.json({
+        strikes: nearbyStrikes,
+        count: nearbyStrikes.length,
+        radius: maxRadius,
+        center: { lat: userLat, lon: userLon }
+      });
+      
+    } catch (error) {
+      console.error("Lightning API error:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch lightning data",
+        strikes: [],
+        count: 0
+      });
+    }
+  });
+
+  // Parse Blitzortung lightning data format
+  function parseLightningData(textData: string) {
+    const strikes = [];
+    const lines = textData.split('\n');
+    
+    for (const line of lines) {
+      if (line.trim()) {
+        // Blitzortung format: timestamp lat lon intensity
+        const parts = line.split(/\s+/);
+        if (parts.length >= 3) {
+          strikes.push({
+            timestamp: parseInt(parts[0]) || Date.now() / 1000,
+            lat: parseFloat(parts[1]),
+            lon: parseFloat(parts[2]),
+            intensity: parseFloat(parts[3]) || 1
+          });
+        }
+      }
+    }
+    
+    return strikes;
+  }
+
+  // Parse LightningMaps data format
+  function parseLightningDataLightningMaps(textData: string) {
+    const strikes = [];
+    
+    try {
+      // LightningMaps may use JSON format
+      const jsonData = JSON.parse(textData);
+      if (Array.isArray(jsonData)) {
+        return jsonData.map((strike: any) => ({
+          timestamp: strike.time || strike.timestamp || Date.now() / 1000,
+          lat: strike.lat || strike.latitude,
+          lon: strike.lon || strike.longitude,
+          intensity: strike.intensity || 1
+        }));
+      }
+    } catch (e) {
+      // Not JSON, try text parsing
+      const lines = textData.split('\n');
+      for (const line of lines) {
+        if (line.trim()) {
+          const parts = line.split(/[,;\s]+/);
+          if (parts.length >= 3) {
+            strikes.push({
+              timestamp: parseInt(parts[0]) || Date.now() / 1000,
+              lat: parseFloat(parts[1]),
+              lon: parseFloat(parts[2]),
+              intensity: parseFloat(parts[3]) || 1
+            });
+          }
+        }
+      }
+    }
+    
+    return strikes;
+  }
+
   // Proxy RainViewer API to bypass network restrictions
   app.get('/api/rainviewer', async (req, res) => {
     try {
