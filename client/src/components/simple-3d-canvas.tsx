@@ -154,10 +154,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         compassY - Math.cos(northAngle) * (arrowLength + 15) + 5
       );
 
-      // Draw retro-style grid floor for reference
-      const gridSize = 20; // Grid lines every 20 units
-      const gridExtent = 50; // Grid extends 50 units in each direction
-      ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)'; // Semi-transparent gray
+      // Draw subtle grid floor for reference
+      const gridSize = 40; // Grid lines every 40 units (less dense)
+      const gridExtent = 80; // Grid extends 80 units in each direction
+      ctx.strokeStyle = 'rgba(80, 80, 80, 0.15)'; // Very subtle gray
       ctx.lineWidth = 1;
 
       // Draw grid lines parallel to X axis (running east-west)
