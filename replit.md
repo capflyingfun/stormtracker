@@ -383,6 +383,15 @@ Preferred communication style: Simple, everyday language.
 - **GPS Loading Indicators**: Added "Getting GPS..." status display during location requests for better user feedback
 - **Radar Disable Overlay**: Map automatically disables with overlay when settings panels are open to prevent interference
 
+### GPS Reliability Improvements (July 18, 2025)
+- **Automatic GPS Retry Logic**: Implements 3-attempt retry system with exponential backoff for failed GPS requests
+- **Progressive Timeout Strategy**: First attempt uses 8-second timeout with high accuracy, subsequent attempts use 15-second timeout with cached locations
+- **Reverse Geocoding Fallback**: GPS works even when reverse geocoding fails, using coordinate-based naming with proper radar source detection
+- **Real-time GPS Status Feedback**: Shows "Getting GPS location...", "GPS location found!" or "GPS failed - try again" messages
+- **Server-Side Timeout Optimization**: Reduced reverse geocoding timeout to 5 seconds to prevent long delays
+- **Enhanced Error Handling**: Comprehensive error logging and graceful degradation for GPS and network failures
+- **Smart Location Detection**: Automatic US/international detection based on coordinates when API calls fail
+
 ### Personalized Weather Risk Alert System (July 18, 2025)
 - **Intelligent Risk Assessment**: Real-time risk analysis based on storm intensity, distance, and lightning activity
 - **Personalized Alert Preferences**: Customizable alert settings for different storm intensities (light to extreme)
