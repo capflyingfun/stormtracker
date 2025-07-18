@@ -80,35 +80,37 @@ export default function SimpleLocationSearch({
 
   return (
     <div className={`${className}`}>
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input
-            type="text"
-            placeholder={placeholder}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="pl-10 pr-4 text-base h-12 md:h-10 bg-slate-700/50 border-slate-600 focus:border-blue-400"
-            style={{ fontSize: '16px' }} // Prevent iOS zoom
-            disabled={isLoading}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-          />
-        </div>
-        
+      {/* Search Input */}
+      <div className="relative mb-3">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <Input
+          type="text"
+          placeholder={placeholder}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyPress={handleKeyPress}
+          className="pl-10 pr-4 text-base h-12 md:h-10 bg-slate-700/50 border-slate-600 focus:border-blue-400"
+          style={{ fontSize: '16px' }} // Prevent iOS zoom
+          disabled={isLoading}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck="false"
+        />
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-2 mb-3">
         <Button
           onClick={handleSearch}
           disabled={isLoading || !query.trim()}
-          className="px-4 sm:px-6 py-3 h-12 md:h-10 bg-green-600 hover:bg-green-500 touch-manipulation"
+          className="flex-1 px-4 sm:px-6 py-3 h-12 md:h-10 bg-green-600 hover:bg-green-500 touch-manipulation"
           style={{ WebkitTapHighlightColor: 'transparent' }}
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            'Search'
+            'Search Location'
           )}
         </Button>
 
@@ -121,13 +123,13 @@ export default function SimpleLocationSearch({
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             <Navigation className="h-4 w-4" />
-            <span className="ml-2 text-sm hidden sm:inline">GPS</span>
+            <span className="ml-2 text-sm hidden sm:inline">Use GPS</span>
           </Button>
         )}
       </div>
 
       {/* Search examples */}
-      <div className="mt-2 text-xs text-slate-400">
+      <div className="text-xs text-slate-400">
         Examples: "New York", "90210", "1600 Pennsylvania Ave", "Miami, FL", "London, UK"
       </div>
     </div>

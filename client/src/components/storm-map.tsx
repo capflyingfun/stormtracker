@@ -178,7 +178,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         // For NEXRAD, use static current radar display
         try {
           if (!location) {
-            throw new Error('Location required for NEXRAD');
+            console.log('NEXRAD: Waiting for location...');
+            return; // Wait for location before loading NEXRAD
           }
           
           // Find nearest radar site for proper attribution
@@ -202,6 +203,31 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           setCurrentFrameIndex(0);
           
           console.log(`NEXRAD: Using static current radar for site ${site}`);
+          
+          // Immediately load the radar layer for better initial display
+          setTimeout(() => {
+            if (mapInstanceRef.current && window.L) {
+              const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
+              
+              // Remove existing radar layer
+              if (radarLayerRef.current) {
+                mapInstanceRef.current.removeLayer(radarLayerRef.current);
+              }
+              
+              // Add NEXRAD layer immediately
+              radarLayerRef.current = window.L.tileLayer(nexradUrl, {
+                opacity: 0.7,
+                zIndex: 200,
+                attribution: `NEXRAD (${site})`,
+                updateWhenIdle: true,
+                updateWhenZooming: false
+              });
+              
+              radarLayerRef.current.addTo(mapInstanceRef.current);
+              console.log(`NEXRAD radar layer loaded for site ${site}`);
+            }
+          }, 500); // Short delay to ensure map is ready
+          
         } catch (error) {
           console.error('Failed to load NEXRAD radar:', error);
           // Fall back to RainViewer
@@ -212,7 +238,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     };
 
     loadRadarFrames();
-  }, [radarSource]);
+  }, [radarSource, location]); // Added location dependency
 
   // Animation functions
   const startAnimation = () => {
