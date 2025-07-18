@@ -832,8 +832,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       // Add popup with precipitation info including rainfall rate
       const pointDistance = calculateDistance(centerLat, centerLon, point.lat, point.lon);
       
-      // Determine if this is the nearest high-intensity storm for alert highlighting
-      const isAlertStorm = point.dbz >= 55 && pointDistance <= 6; // High intensity within 6 miles
+      // Determine if this storm meets the user's alert threshold
+      const meetsAlertThreshold = alertPreferences && point.dbz >= alertPreferences.minimumDbz;
+      const isAlertStorm = meetsAlertThreshold && pointDistance <= (alertPreferences?.alertRadius || 30);
       
       // Create custom waypoint marker with optional pulsing effect
       const waypointIcon = window.L.divIcon({
