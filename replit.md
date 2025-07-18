@@ -431,3 +431,10 @@ Preferred communication style: Simple, everyday language.
 - **Corrected Initial View**: 3D view now starts facing North (0°) instead of South for proper initialization
 - **Standard Compass Behavior**: Positive rotation calculation matches standard compass behavior for accurate directional display
 - **Compass Calibration Complete**: Extensive testing confirmed proper compass needle orientation in all directions (North, South, East, West)
+
+### Alert System Reliability Fix (July 18, 2025)
+- **Fixed Alert Z-Index Layering**: Risk alert notifications now appear above radar map with z-[9999] priority
+- **Authentic Storm Data Validation**: Risk assessment now only uses real precipitation-detected storms, not synthetic API data
+- **Alert Storm Cell Highlighting**: High-intensity storms (55+ dBZ) within 6 miles now pulse with yellow borders for visual identification
+- **Enhanced Alert Accuracy**: Eliminated false alerts by ensuring only radar-detected precipitation triggers weather warnings
+- **Real-time Storm Validation**: Console logging added to verify alert system uses authentic precipitation data instead of synthetic storms

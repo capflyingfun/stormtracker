@@ -93,7 +93,7 @@ export default function RiskAlertNotification({
   };
 
   return (
-    <div className="fixed top-2 left-2 right-2 z-50 sm:top-4 sm:right-4 sm:left-auto sm:max-w-md">
+    <div className="fixed top-2 left-2 right-2 z-[9999] sm:top-4 sm:right-4 sm:left-auto sm:max-w-md">
       <Card className={`${getRiskColor(alert.riskLevel)} text-white shadow-2xl transition-all duration-300 ${
         isAnimating && alert.riskLevel === 'extreme' ? 'animate-pulse' : ''
       }`}>
