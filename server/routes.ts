@@ -23,7 +23,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Try OpenWeatherMap geocoding for comprehensive results
       const response = await fetch(
-        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=8&appid=${API_KEYS.openweather}`
+        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=8&appid=${API_KEYS.openweather}`,
+        {
+          signal: AbortSignal.timeout(5000) // 5 second timeout
+        }
       );
       
       if (response.ok) {
@@ -103,87 +106,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
       query = parsedBody.query;
       console.log(`Geocoding search for: "${query}"`);
       
-      // Try different geocoding approaches
+      // Try different geocoding approaches starting with most reliable free services
       let locations = [];
       
-      // Check if it's a zip code (5 digits, optionally with +4)
-      const zipCodeMatch = query.match(/^\d{5}(-\d{4})?$/);
-      if (zipCodeMatch) {
-        console.log('Detected ZIP code format, using ZIP API');
-        // For zip codes, add US country code
-        const zipResponse = await fetch(
-          `https://api.openweathermap.org/geo/1.0/zip?zip=${query},US&appid=${API_KEYS.openweather}`
+      // First try Nominatim (OpenStreetMap) - most reliable and supports detailed addresses
+      console.log('Trying Nominatim for address search');
+      try {
+        const nominatimResponse = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`,
+          {
+            headers: {
+              'User-Agent': 'StormTracker/1.0 (Weather Application)'
+            },
+            signal: AbortSignal.timeout(5000) // 5 second timeout
+          }
         );
         
-        if (zipResponse.ok) {
-          const zipData = await zipResponse.json();
-          console.log('ZIP API response:', zipData);
-          locations = [{
-            lat: zipData.lat,
-            lon: zipData.lon,
-            name: zipData.name,
-            state: '', // Zip API doesn't return state
-            country: zipData.country
-          }];
+        if (nominatimResponse.ok) {
+          const nominatimData = await nominatimResponse.json();
+          console.log('Nominatim response:', nominatimData);
+          locations = nominatimData.map((loc: any) => ({
+            lat: parseFloat(loc.lat),
+            lon: parseFloat(loc.lon),
+            name: loc.address?.house_number && loc.address?.road 
+              ? `${loc.address.house_number} ${loc.address.road}`
+              : loc.address?.city || loc.address?.town || loc.address?.village || loc.display_name.split(',')[0],
+            state: loc.address?.state || '',
+            country: loc.address?.country || '',
+            countryCode: loc.address?.country_code?.toUpperCase() || ''
+          }));
         } else {
-          console.log('ZIP API failed:', zipResponse.status);
+          console.log('Nominatim API failed:', nominatimResponse.status);
+        }
+      } catch (nominatimError) {
+        console.log('Nominatim fallback failed:', nominatimError);
+      }
+      
+      // If no results from Nominatim, try Photon (another OpenStreetMap-based geocoder)
+      if (locations.length === 0) {
+        console.log('Trying Photon API for address search');
+        try {
+          const photonResponse = await fetch(
+            `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`,
+            {
+              signal: AbortSignal.timeout(5000) // 5 second timeout
+            }
+          );
+          
+          if (photonResponse.ok) {
+            const photonData = await photonResponse.json();
+            console.log('Photon response:', photonData);
+            if (photonData.features && photonData.features.length > 0) {
+              locations = photonData.features.map((feature: any) => ({
+                lat: feature.geometry.coordinates[1],
+                lon: feature.geometry.coordinates[0],
+                name: feature.properties.name || feature.properties.street || 
+                      `${feature.properties.housenumber || ''} ${feature.properties.street || ''}`.trim() ||
+                      feature.properties.city || feature.properties.town || 'Unknown',
+                state: feature.properties.state || '',
+                country: feature.properties.country || '',
+                countryCode: feature.properties.countrycode?.toUpperCase() || ''
+              }));
+            }
+          } else {
+            console.log('Photon API failed:', photonResponse.status);
+          }
+        } catch (photonError) {
+          console.log('Photon API failed:', photonError);
         }
       }
       
-      // If no results from zip code API or not a zip code, try direct geocoding
+      // If still no results, try OpenWeatherMap (only if previous services failed)
       if (locations.length === 0) {
-        console.log('Using OpenWeatherMap direct geocoding');
-        // First try OpenWeatherMap geocoding for cities and general locations
-        const response = await fetch(
-          `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=10&appid=${API_KEYS.openweather}`
-        );
-        
-        if (response.ok) {
-          const rawLocations = await response.json();
-          console.log('OpenWeatherMap response:', rawLocations);
-          locations = rawLocations.map((loc: any) => ({
-            lat: loc.lat,
-            lon: loc.lon,
-            name: loc.name,
-            state: loc.state || '',
-            country: loc.country || '',
-            countryCode: loc.country
-          }));
-        } else {
-          console.log('OpenWeatherMap API failed:', response.status);
-        }
-        
-        // If OpenWeatherMap didn't find results, try Nominatim for detailed addresses
-        if (locations.length === 0) {
-          console.log('Trying Nominatim for address search');
+        // Check if it's a zip code (5 digits, optionally with +4)
+        const zipCodeMatch = query.match(/^\d{5}(-\d{4})?$/);
+        if (zipCodeMatch) {
+          console.log('Detected ZIP code format, using ZIP API');
           try {
-            const nominatimResponse = await fetch(
-              `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`,
+            const zipResponse = await fetch(
+              `https://api.openweathermap.org/geo/1.0/zip?zip=${query},US&appid=${API_KEYS.openweather}`,
               {
-                headers: {
-                  'User-Agent': 'StormTracker/1.0 (Weather Application)'
-                }
+                signal: AbortSignal.timeout(3000) // 3 second timeout
               }
             );
             
-            if (nominatimResponse.ok) {
-              const nominatimData = await nominatimResponse.json();
-              console.log('Nominatim response:', nominatimData);
-              locations = nominatimData.map((loc: any) => ({
-                lat: parseFloat(loc.lat),
-                lon: parseFloat(loc.lon),
-                name: loc.address?.house_number && loc.address?.road 
-                  ? `${loc.address.house_number} ${loc.address.road}`
-                  : loc.address?.city || loc.address?.town || loc.address?.village || loc.display_name.split(',')[0],
-                state: loc.address?.state || '',
-                country: loc.address?.country || '',
-                countryCode: loc.address?.country_code?.toUpperCase() || ''
+            if (zipResponse.ok) {
+              const zipData = await zipResponse.json();
+              console.log('ZIP API response:', zipData);
+              locations = [{
+                lat: zipData.lat,
+                lon: zipData.lon,
+                name: zipData.name,
+                state: '',
+                country: zipData.country
+              }];
+            } else {
+              console.log('ZIP API failed:', zipResponse.status);
+            }
+          } catch (zipError) {
+            console.log('ZIP API timeout/error:', zipError);
+          }
+        }
+        
+        // Try OpenWeatherMap direct geocoding as last resort
+        if (locations.length === 0) {
+          console.log('Using OpenWeatherMap direct geocoding as fallback');
+          try {
+            const response = await fetch(
+              `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=10&appid=${API_KEYS.openweather}`,
+              {
+                signal: AbortSignal.timeout(3000) // 3 second timeout
+              }
+            );
+            
+            if (response.ok) {
+              const rawLocations = await response.json();
+              console.log('OpenWeatherMap response:', rawLocations);
+              locations = rawLocations.map((loc: any) => ({
+                lat: loc.lat,
+                lon: loc.lon,
+                name: loc.name,
+                state: loc.state || '',
+                country: loc.country || '',
+                countryCode: loc.country
               }));
             } else {
-              console.log('Nominatim API failed:', nominatimResponse.status);
+              console.log('OpenWeatherMap API failed:', response.status);
             }
-          } catch (nominatimError) {
-            console.log('Nominatim fallback failed:', nominatimError);
+          } catch (owmError) {
+            console.log('OpenWeatherMap API timeout/error:', owmError);
           }
         }
       }
