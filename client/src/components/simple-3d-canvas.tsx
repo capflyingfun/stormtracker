@@ -212,21 +212,21 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
           const radius = Math.max(4, 20 * scale); // Circular column radius
 
-          // Draw circular storm column with 50% more transparency
+          // Draw solid storm column with original appearance
           const columnGradient = ctx.createLinearGradient(base.x - radius, top.y, base.x + radius, base.y);
-          columnGradient.addColorStop(0, color + '40'); // Much more transparent top
-          columnGradient.addColorStop(1, color + '80'); // 50% transparent bottom
+          columnGradient.addColorStop(0, color + '60'); // Transparent top
+          columnGradient.addColorStop(1, color + 'FF'); // Solid bottom
 
           ctx.fillStyle = columnGradient;
           ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
 
-          // Add circular top cap with transparency
-          ctx.fillStyle = color + '66'; // 40% opacity
+          // Add storm cap
+          ctx.fillStyle = color + '80';
           ctx.beginPath();
-          ctx.arc(top.x, top.y, radius, 0, 2 * Math.PI);
+          ctx.ellipse(top.x, top.y, radius, radius/2, 0, 0, 2 * Math.PI);
           ctx.fill();
 
-          // Waypoint dots for reference if enabled
+          // Waypoint dots only if enabled
           if (showWaypoints) {
             ctx.fillStyle = color;
             ctx.beginPath();
@@ -341,7 +341,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
             size="sm"
             className={`${showWaypoints ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
           >
-            {showWaypoints ? 'Hide Dots' : 'Show Dots'}
+{showWaypoints ? 'Hide Dots' : 'Show Dots'}
           </Button>
         </div>
         <div className="flex gap-2">
