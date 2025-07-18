@@ -110,11 +110,11 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
             
             // Get alert threshold color class (matches the minimum dBZ setting)
             const getAlertColorClass = (minimumDbz: number) => {
-              if (minimumDbz >= 61) return 'border-purple-400 bg-purple-500/10'; // Purple - Extreme
-              if (minimumDbz >= 55) return 'border-red-400 bg-red-500/10'; // Red - Very Heavy  
-              if (minimumDbz >= 46) return 'border-orange-400 bg-orange-500/10'; // Orange - Heavy
-              if (minimumDbz >= 35) return 'border-yellow-400 bg-yellow-500/10'; // Yellow - Moderate
-              return 'border-green-400 bg-green-500/10'; // Green - Light
+              if (minimumDbz >= 61) return 'border-purple-400 bg-purple-500/10'; // Purple - Extreme (61+ dBZ)
+              if (minimumDbz >= 55) return 'border-red-400 bg-red-500/10'; // Red - Very Heavy (55-60 dBZ)
+              if (minimumDbz >= 46) return 'border-orange-400 bg-orange-500/10'; // Orange - Heavy (46-54 dBZ)
+              if (minimumDbz >= 35) return 'border-yellow-400 bg-yellow-500/10'; // Yellow - Moderate (35-45 dBZ)
+              return 'border-green-400 bg-green-500/10'; // Green - Light (20-34 dBZ)
             };
             
             const alertColorClass = alertPreferences ? getAlertColorClass(alertPreferences.minimumDbz) : 'border-yellow-400 bg-yellow-500/10';
