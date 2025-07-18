@@ -827,27 +827,40 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const markerSize = getMarkerSize(point.dbz, point.count);
       
-      // Create custom waypoint marker
+      // Determine if this is the nearest high-intensity storm for alert highlighting
+      const isAlertStorm = point.dbz >= 55 && pointDistance <= 6; // High intensity within 6 miles
+      
+      // Create custom waypoint marker with optional pulsing effect
       const waypointIcon = window.L.divIcon({
         html: `
           <div style="
             width: ${markerSize}px;
             height: ${markerSize}px;
             background-color: ${getDbzColor(point.dbz)};
-            border: 2px solid #ffffff;
+            border: ${isAlertStorm ? '3px solid #ffff00' : '2px solid #ffffff'};
             border-radius: 50%;
-            box-shadow: 0 0 6px rgba(0,0,0,0.5);
+            box-shadow: 0 0 ${isAlertStorm ? '12px rgba(255,255,0,0.8)' : '6px rgba(0,0,0,0.5)'};
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: ${Math.max(7, markerSize * 0.5)}px;
             font-weight: bold;
             color: #000;
+            ${isAlertStorm ? 'animation: pulse 2s infinite;' : ''}
           ">
             ${point.dbz}
           </div>
+          ${isAlertStorm ? `
+            <style>
+              @keyframes pulse {
+                0% { transform: scale(1); opacity: 1; }
+                50% { transform: scale(1.2); opacity: 0.7; }
+                100% { transform: scale(1); opacity: 1; }
+              }
+            </style>
+          ` : ''}
         `,
-        className: 'dbz-waypoint',
+        className: `dbz-waypoint ${isAlertStorm ? 'alert-storm' : ''}`,
         iconSize: [markerSize, markerSize],
         iconAnchor: [markerSize / 2, markerSize / 2]
       });

@@ -122,11 +122,17 @@ export default function StormTracker() {
   // Risk assessment and alert generation
   useEffect(() => {
     const performRiskAssessment = async () => {
-      if (!location || !preferences || precipitationStorms.length === 0) return;
+      // Only perform risk assessment if we have real precipitation storm data
+      if (!location || !preferences || precipitationStorms.length === 0) {
+        console.log('No precipitation storms detected - skipping risk assessment');
+        return;
+      }
 
       try {
+        console.log(`Assessing risk for ${precipitationStorms.length} precipitation-detected storms`);
         const riskData = await assessRisk(location, precipitationStorms, lightningCount);
         if (riskData && riskData.shouldAlert) {
+          console.log('Risk alert triggered:', riskData.title);
           showAlert(riskData);
         }
       } catch (error) {
