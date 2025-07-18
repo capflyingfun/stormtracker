@@ -294,6 +294,16 @@ Preferred communication style: Simple, everyday language.
 - **Reliable Operation**: Static NEXRAD provides consistent radar overlay and precipitation detection
 - **Authentic Data Focus**: Maintained authentic Iowa Mesonet NEXRAD tiles for precipitation waypoint detection
 
+### Radar Source-Specific dBZ Calibration (July 18, 2025)
+- **Separate Threshold Systems**: Implemented radar source-specific dBZ thresholds to account for calibration differences
+- **RainViewer Calibration**: Adjusted thresholds 5-10 dBZ lower (e.g., 47 dBZ for severe vs 55 dBZ NEXRAD) due to higher readings
+- **NEXRAD Standard**: Maintained official NOAA/NWS thresholds as meteorological baseline
+- **Accurate Storm Classification**: Storm intensity categories now consistent between radar sources despite calibration differences
+- **Official RainViewer Mapping**: Implemented Weather Channel color palette from RainViewer's official documentation (-31 to +95 dBZ range)
+- **Source-Aware UI**: Alert settings and storm panels show radar source context in descriptions
+- **Consistent Filtering**: Storm filtering and alert thresholds automatically adjust based on active radar source
+- **Professional Standards**: Maintains meteorological accuracy across both global (RainViewer) and US (NEXRAD) radar systems
+
 ### Enhanced 5-Category dBZ Classification System (July 17, 2025)
 - **Professional Meteorological Standards**: Implemented precise 5-category dBZ color system (20-90 dBZ)
 - **Scientific Accuracy**: Colors and thresholds based on meteorological best practices
