@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "@/hooks/use-location";
 import { useStormData } from "@/hooks/use-storm-data";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Header from "@/components/header";
 import LocationSetup from "@/components/location-setup";
 import StormMap from "@/components/storm-map";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export default function StormTracker() {
+  const queryClient = useQueryClient();
   const [useMetric, setUseMetric] = useState(false);
   const [isTracking, setIsTracking] = useState(true);
   const radarRange = 30;
@@ -30,7 +31,7 @@ export default function StormTracker() {
   const [currentRadarSource, setCurrentRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer');
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
   const [lightningCount, setLightningCount] = useState(0);
-  const [showAlertSettings, setShowAlertSettings] = useState(false);
+  const [showStormFilteringSettings, setShowStormFilteringSettings] = useState(false);
   
   const {
     location,
@@ -115,17 +116,18 @@ export default function StormTracker() {
     };
   }, []);
 
-  // Handle alert settings save
-  const handleAlertSettingsSave = async (newPreferences: any) => {
+  // Handle storm filtering settings save
+  const handleStormFilteringSettingsSave = async (newPreferences: any) => {
     try {
       await fetch('/api/alerts/preferences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newPreferences)
       });
-      window.location.reload();
+      // Invalidate and refetch the preferences query
+      queryClient.invalidateQueries({ queryKey: ['/api/alerts/preferences'] });
     } catch (error) {
-      console.error('Failed to save alert preferences:', error);
+      console.error('Failed to save storm filtering preferences:', error);
     }
   };
 
@@ -236,13 +238,13 @@ export default function StormTracker() {
         onUnitsChange={setUseMetric}
       />
       
-      {/* Alert Settings Modal */}
+      {/* Storm Filtering Settings Modal */}
       {preferences && (
         <AlertSettings
-          isOpen={showAlertSettings}
-          onClose={() => setShowAlertSettings(false)}
+          isOpen={showStormFilteringSettings}
+          onClose={() => setShowStormFilteringSettings(false)}
           preferences={preferences}
-          onSave={handleAlertSettingsSave}
+          onSave={handleStormFilteringSettingsSave}
         />
       )}
       
@@ -271,12 +273,12 @@ export default function StormTracker() {
                 
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    onClick={() => setShowAlertSettings(true)}
+                    onClick={() => setShowStormFilteringSettings(true)}
                     variant="outline"
                     size="sm"
                     className="text-xs sm:text-sm"
                   >
-                    🔔 Alert Settings
+                    🌩️ Storm Filtering
                   </Button>
                   <Button
                     onClick={resetLocation}
@@ -322,6 +324,60 @@ export default function StormTracker() {
               )}
             </div>
 
+            {/* Storm Summary Section */}
+            {filteredStorms.length > 0 && (
+              <div className="bg-slate-800/50 rounded-xl p-3 sm:p-6 border border-slate-700/50 mb-4 sm:mb-6">
+                <h3 className="text-lg font-semibold mb-3 text-white flex items-center gap-2">
+                  ⚡ Storm Summary
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Closest Storm */}
+                  {(() => {
+                    const closestStorm = [...filteredStorms].sort((a, b) => a.distance - b.distance)[0];
+                    return (
+                      <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="text-blue-400">🎯</div>
+                          <span className="text-sm font-medium text-slate-300">Closest Storm</span>
+                        </div>
+                        <div className="text-white font-semibold">
+                          {formatDistance(closestStorm.distance)}
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          {closestStorm.intensity}dBZ • {closestStorm.intensity >= 61 ? 'Extreme' :
+                           closestStorm.intensity >= 55 ? 'Very Heavy' :
+                           closestStorm.intensity >= 46 ? 'Heavy' :
+                           closestStorm.intensity >= 35 ? 'Moderate' : 'Light'}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* Strongest Storm */}
+                  {(() => {
+                    const strongestStorm = [...filteredStorms].sort((a, b) => b.intensity - a.intensity)[0];
+                    return (
+                      <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="text-red-400">⚡</div>
+                          <span className="text-sm font-medium text-slate-300">Strongest Storm</span>
+                        </div>
+                        <div className="text-white font-semibold">
+                          {strongestStorm.intensity}dBZ
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          {formatDistance(strongestStorm.distance)} • {strongestStorm.intensity >= 61 ? 'Extreme' :
+                           strongestStorm.intensity >= 55 ? 'Very Heavy' :
+                           strongestStorm.intensity >= 46 ? 'Heavy' :
+                           strongestStorm.intensity >= 35 ? 'Moderate' : 'Light'}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
             {/* Interactive Radar Map */}
             {!show3D && (
               <StormMap
@@ -334,7 +390,7 @@ export default function StormTracker() {
                 stormFilters={stormFilters}
                 onRadarSourceChange={setCurrentRadarSource}
                 radarSource={currentRadarSource}
-                isDisabled={showAlertSettings}
+                isDisabled={showStormFilteringSettings}
                 alertPreferences={preferences}
               />
             )}

@@ -69,7 +69,7 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
           <div className="flex items-center justify-between min-h-[2rem]">
             <CardTitle className="text-lg font-bold text-white flex items-center gap-2 pr-3">
               <AlertTriangle className="h-5 w-5" />
-              Alert Settings
+              Storm Filtering
             </CardTitle>
             <Button
               variant="ghost"
