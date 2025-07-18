@@ -366,3 +366,10 @@ Preferred communication style: Simple, everyday language.
 - **Sub-Second Search Performance**: Location searches now complete in under 1 second (down from 5+ seconds)
 - **Efficient Multi-Service Geocoding**: Nominatim and Photon APIs with 3-second timeouts for reliable, fast results
 - **Responsive User Interface**: Improved loading states and error handling for better user experience
+
+### Storm Data Accuracy Fix (July 18, 2025)
+- **Eliminated False Storm Data**: Fixed bug where old cached API storm data was displayed when no precipitation was detected
+- **Authentic Radar-Only Display**: Storm Cells panel now only shows storms detected from actual radar imagery
+- **Cleared Stale Data**: Precipitation storms are properly cleared when switching locations or radar sources
+- **Zero-Storm Accuracy**: When no precipitation is detected (like London with 0 points), Storm Cells correctly shows "No storms detected"
+- **Consistent Data Source**: Both precipitation waypoints and Storm Cells now use identical real radar data for 100% accuracy

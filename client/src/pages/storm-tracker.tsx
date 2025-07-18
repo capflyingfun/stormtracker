@@ -47,8 +47,9 @@ export default function StormTracker() {
     isLoading: stormDataLoading,
   } = useStormData(location, radarRange);
   
-  // Use precipitation storms when available, otherwise use API storms
-  const activeStorms = precipitationStorms.length > 0 ? precipitationStorms : (storms || []);
+  // Always use precipitation storms (real radar data) instead of API storms
+  // This ensures we only show storms that are actually detected in the radar imagery
+  const activeStorms = precipitationStorms;
   
   // Filter storms based on intensity (5-category system)
   const filteredStorms = activeStorms.filter(storm => {
@@ -72,6 +73,11 @@ export default function StormTracker() {
       window.removeEventListener('precipitationStormData', handlePrecipitationStormData);
     };
   }, []);
+
+  // Clear precipitation storms when location changes
+  useEffect(() => {
+    setPrecipitationStorms([]);
+  }, [location]);
 
   // Auto-enable tracking when location is set
   useEffect(() => {
