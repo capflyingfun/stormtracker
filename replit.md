@@ -481,3 +481,4 @@ Preferred communication style: Simple, everyday language.
 - **Removed Pulsating Animation**: Eliminated all pulsing effects to prevent visual overlap, now uses static colored borders only
 - **Static Alert Highlighting**: Storm cells meeting alert thresholds display solid colored borders (80% opacity) without animation
 - **Static Colored Border Alerts**: Storm cells with alerts display solid colored borders (2px) that match alert intensity levels for clear visual identification
+- **Weather Icon Storm Representation**: Each storm cell displays appropriate weather icons (lightning bolts for severe storms, cloud variants for rain, snowflake for hail) with intensity-matched colors

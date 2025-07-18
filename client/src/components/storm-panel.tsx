@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Cloud, CloudRain, CloudDrizzle, Zap, CloudSnow } from "lucide-react";
 
 interface Storm {
   id: string;
@@ -43,6 +43,16 @@ const getStormIntensityName = (intensity: number): string => {
   if (intensity >= 35) return 'Moderate Rain';
   if (intensity >= 20) return 'Light Rain';
   return 'Weak Storm';
+};
+
+const getStormIcon = (intensity: number) => {
+  if (intensity >= 65) return <Zap className="w-5 h-5 text-purple-400" />; // Extreme - Lightning
+  if (intensity >= 60) return <Zap className="w-5 h-5 text-red-400" />; // Severe - Lightning  
+  if (intensity >= 55) return <CloudSnow className="w-5 h-5 text-red-400" />; // Very Heavy/Hail
+  if (intensity >= 46) return <CloudRain className="w-5 h-5 text-orange-400" />; // Heavy Rain
+  if (intensity >= 35) return <CloudRain className="w-5 h-5 text-yellow-400" />; // Moderate Rain
+  if (intensity >= 20) return <CloudDrizzle className="w-5 h-5 text-green-400" />; // Light Rain
+  return <Cloud className="w-5 h-5 text-gray-400" />; // Weak
 };
 
 const getStormColor = (intensity: number): string => {
@@ -149,7 +159,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
               >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${getStormColor(storm.intensity)} animate-pulse`}></div>
+                  {getStormIcon(storm.intensity)}
                   <span className="font-medium text-sm">{getStormIntensityName(storm.intensity)}</span>
                 </div>
                 <span className="text-xs text-slate-300">{storm.intensity.toFixed(0)} dBZ</span>
