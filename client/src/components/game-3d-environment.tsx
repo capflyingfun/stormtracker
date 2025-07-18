@@ -49,32 +49,22 @@ function getStormHeight(intensity: number) {
 
 // Terrain component
 function Terrain({ centerLat, centerLon }: { centerLat: number; centerLon: number }) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  
   return (
     <group>
       {/* Ground plane */}
-      <Plane 
-        ref={meshRef}
-        args={[2000, 2000, 100, 100]} 
-        rotation={[-Math.PI / 2, 0, 0]} 
-        position={[0, -1, 0]}
-      >
-        <meshStandardMaterial 
-          color="#2a4a2a" 
-          wireframe={false}
-          transparent={true}
-          opacity={0.8}
-        />
-      </Plane>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]}>
+        <planeGeometry args={[2000, 2000]} />
+        <meshStandardMaterial color="#2a4a2a" transparent opacity={0.8} />
+      </mesh>
       
       {/* Grid overlay */}
       <gridHelper args={[2000, 40, '#444444', '#222222']} position={[0, -0.5, 0]} />
       
       {/* Center marker */}
-      <Sphere args={[2]} position={[0, 1, 0]}>
+      <mesh position={[0, 1, 0]}>
+        <sphereGeometry args={[2]} />
         <meshStandardMaterial color="#00AAFF" emissive="#0066AA" />
-      </Sphere>
+      </mesh>
       
       {/* Location label */}
       <Text
@@ -121,20 +111,20 @@ function StormColumn({ storm }: { storm: GameStorm }) {
   return (
     <group position={[storm.x || 0, height / 2, storm.z || 0]}>
       {/* Main storm column */}
-      <Box
+      <mesh
         ref={meshRef}
-        args={[8, height, 8]}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
       >
+        <boxGeometry args={[8, height, 8]} />
         <meshStandardMaterial 
           color={color}
           emissive={color}
           emissiveIntensity={0.3}
-          transparent={true}
+          transparent
           opacity={0.8}
         />
-      </Box>
+      </mesh>
       
       {/* Storm info when hovered */}
       {hovered && (
@@ -151,13 +141,14 @@ function StormColumn({ storm }: { storm: GameStorm }) {
       
       {/* Particle effects for severe storms */}
       {storm.intensity >= 55 && (
-        <Sphere args={[12]} position={[0, height + 5, 0]}>
+        <mesh position={[0, height + 5, 0]}>
+          <sphereGeometry args={[12]} />
           <meshStandardMaterial 
             color="#FFFFFF"
-            transparent={true}
+            transparent
             opacity={0.1}
           />
-        </Sphere>
+        </mesh>
       )}
     </group>
   );
