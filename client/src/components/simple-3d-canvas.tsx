@@ -37,12 +37,12 @@ const dbzToColor = (dbz: number): string => {
   return '#22C55E';                // Green - Light
 };
 
-// 3D to 2D projection with better perspective
+// 3D to 2D projection with wider field of view
 const project3D = (point: Point3D, cameraDistance: number, canvasWidth: number, canvasHeight: number): Point2D => {
   const scale = cameraDistance / (cameraDistance + point.z + 0.1); // Prevent division by zero
   return {
-    x: canvasWidth / 2 + point.x * scale * 30,  // Reduced scale for better spread
-    y: canvasHeight / 2 - point.y * scale * 30  // Negative for proper Y axis
+    x: canvasWidth / 2 + point.x * scale * 25,  // Wider field of view
+    y: canvasHeight / 2 - point.y * scale * 25  // 40° down angle perspective
   };
 };
 
@@ -63,7 +63,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(false); // Default to hidden for better performance
   const [rotationY, setRotationY] = useState(0); // Start straight
-  const [cameraHeight, setCameraHeight] = useState(6); // Tilted down view
+  const [cameraHeight, setCameraHeight] = useState(12); // Higher up for 40° down angle
   const [isRotating, setIsRotating] = useState(false);
   const [rotationSpeed, setRotationSpeed] = useState(2); // 1=slow, 2=medium, 3=fast
   const targetRotationSpeed = useRef(0);
@@ -80,7 +80,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
 
-    const cameraDistance = 15; // Zoomed out more for better overview
+    const cameraDistance = 25; // Much further back for wide overview
 
     // Rotate a 3D point around Y axis
     const rotateY = (point: Point3D, angle: number): Point3D => {
