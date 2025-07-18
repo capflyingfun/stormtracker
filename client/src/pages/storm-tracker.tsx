@@ -219,17 +219,33 @@ export default function StormTracker() {
               </div>
 
               <div className="mb-3">
-                <Input
-                  placeholder="Search for city, state, or address..."
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      const target = e.target as HTMLInputElement;
-                      handleLocationSearch(target.value);
-                      target.value = '';
-                    }
-                  }}
-                  className="bg-slate-700/50 border-slate-600"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Search for city, state, or address..."
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        const target = e.target as HTMLInputElement;
+                        handleLocationSearch(target.value);
+                        target.value = '';
+                      }
+                    }}
+                    className="bg-slate-700/50 border-slate-600 flex-1"
+                    id="location-search-input"
+                  />
+                  <Button
+                    onClick={() => {
+                      const input = document.getElementById('location-search-input') as HTMLInputElement;
+                      if (input && input.value.trim()) {
+                        handleLocationSearch(input.value);
+                        input.value = '';
+                      }
+                    }}
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-500 px-3"
+                  >
+                    🔍
+                  </Button>
+                </div>
               </div>
 
               {lastUpdate && (
