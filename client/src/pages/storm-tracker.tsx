@@ -241,19 +241,21 @@ export default function StormTracker() {
               )}
             </div>
 
-            {/* Interactive Radar Map */}
-            <StormMap
-              location={location}
-              storms={storms || []}
-              radarRange={radarRange}
-              useMetric={useMetric}
-              formatDistance={formatDistance}
-              formatSpeed={formatSpeed}
-              stormFilters={stormFilters}
-              onStormFiltersChange={setStormFilters}
-              onRadarSourceChange={setCurrentRadarSource}
-              radarSource={currentRadarSource}
-            />
+            {/* Interactive Radar Map - Hidden when 3D is active */}
+            {!show3D && (
+              <StormMap
+                location={location}
+                storms={storms || []}
+                radarRange={radarRange}
+                useMetric={useMetric}
+                formatDistance={formatDistance}
+                formatSpeed={formatSpeed}
+                stormFilters={stormFilters}
+                onStormFiltersChange={setStormFilters}
+                onRadarSourceChange={setCurrentRadarSource}
+                radarSource={currentRadarSource}
+              />
+            )}
 
             {/* Storm Data Grid - Moved below radar */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mt-4 sm:mt-6">

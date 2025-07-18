@@ -65,6 +65,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const [rotationY, setRotationY] = useState(0); // Start straight
   const [cameraHeight, setCameraHeight] = useState(8); // High overhead view
   const [isRotating, setIsRotating] = useState(false);
+  const [autoRotate, setAutoRotate] = useState(true); // Auto-rotation enabled by default
   const [rotationSpeedMultiplier, setRotationSpeedMultiplier] = useState(2); // 1=slow, 2=normal, 3=fast
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
@@ -276,11 +277,17 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
     // Animation loop with lerped rotation for smoothness
     const animate = () => {
-      // Lerp rotation speed for smooth acceleration/deceleration
+      // Auto-rotation when enabled and not manually rotating
+      if (autoRotate && !isRotating) {
+        const autoSpeed = 0.0008 * rotationSpeedMultiplier; // Slow, continuous rotation
+        setRotationY(prev => prev + autoSpeed);
+      }
+
+      // Manual rotation - Lerp rotation speed for smooth acceleration/deceleration
       const lerpFactor = 0.1;
       currentRotationSpeed.current += (targetRotationSpeed.current - currentRotationSpeed.current) * lerpFactor;
       
-      // Apply rotation
+      // Apply manual rotation
       if (Math.abs(currentRotationSpeed.current) > 0.0001) {
         setRotationY(prev => prev + currentRotationSpeed.current);
       }
@@ -300,7 +307,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating, rotationSpeedMultiplier]);
+  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating, autoRotate, rotationSpeedMultiplier]);
 
   if (!location) {
     return (
@@ -347,6 +354,14 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
             className={`${cameraHeight > 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
           >
             Overhead
+          </Button>
+          <Button
+            onClick={() => setAutoRotate(!autoRotate)}
+            variant="outline"
+            size="sm"
+            className={`${autoRotate ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
+          >
+            {autoRotate ? 'Auto On' : 'Auto Off'}
           </Button>
           <Button
             onClick={() => setRotationSpeedMultiplier(prev => prev === 3 ? 1 : prev + 1)}
