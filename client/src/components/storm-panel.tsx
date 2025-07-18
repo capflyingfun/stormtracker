@@ -235,23 +235,23 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
         </p>
       ) : (
         <Tabs defaultValue="all" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 bg-slate-700/50">
-            <TabsTrigger value="all" className="text-xs">
+          <TabsList className="grid w-full grid-cols-3 grid-rows-2 gap-1 bg-slate-700/50 h-auto p-2">
+            <TabsTrigger value="all" className="text-xs px-2 py-1">
               All ({sortedStorms.length})
             </TabsTrigger>
-            <TabsTrigger value="extreme" className="text-xs text-purple-300">
+            <TabsTrigger value="extreme" className="text-xs text-purple-300 px-2 py-1">
               Extreme ({stormsByCategory.extreme.length})
             </TabsTrigger>
-            <TabsTrigger value="veryHeavy" className="text-xs text-red-300">
+            <TabsTrigger value="veryHeavy" className="text-xs text-red-300 px-2 py-1">
               Severe ({stormsByCategory.veryHeavy.length})
             </TabsTrigger>
-            <TabsTrigger value="heavy" className="text-xs text-orange-300">
+            <TabsTrigger value="heavy" className="text-xs text-orange-300 px-2 py-1">
               Heavy ({stormsByCategory.heavy.length})
             </TabsTrigger>
-            <TabsTrigger value="moderate" className="text-xs text-yellow-300">
+            <TabsTrigger value="moderate" className="text-xs text-yellow-300 px-2 py-1">
               Moderate ({stormsByCategory.moderate.length})
             </TabsTrigger>
-            <TabsTrigger value="light" className="text-xs text-green-300">
+            <TabsTrigger value="light" className="text-xs text-green-300 px-2 py-1">
               Light ({stormsByCategory.light.length})
             </TabsTrigger>
           </TabsList>
