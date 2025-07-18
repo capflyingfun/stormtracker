@@ -19,13 +19,13 @@ interface Point2D {
   y: number;
 }
 
-// Convert dBZ to 3D height
+// Convert dBZ to 3D height (taller for better visibility)
 const dbzToHeight = (dbz: number): number => {
-  if (dbz >= 61) return 8;  // Extreme thunderstorms
-  if (dbz >= 55) return 6;  // Very heavy rain/hail
-  if (dbz >= 46) return 4;  // Heavy rain
-  if (dbz >= 35) return 2;  // Moderate rain
-  return 1;                 // Light rain
+  if (dbz >= 61) return 12;  // Extreme thunderstorms
+  if (dbz >= 55) return 10;  // Very heavy rain/hail
+  if (dbz >= 46) return 7;   // Heavy rain
+  if (dbz >= 35) return 4;   // Moderate rain
+  return 2;                  // Light rain
 };
 
 // Convert dBZ to color
@@ -63,7 +63,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(true);
   const [rotationY, setRotationY] = useState(0); // Start straight
-  const [cameraHeight, setCameraHeight] = useState(8); // High overhead view
+  const [cameraHeight, setCameraHeight] = useState(15); // Higher overhead view for better storm visibility
   const [isRotating, setIsRotating] = useState(false);
   const [rotationSpeedMultiplier, setRotationSpeedMultiplier] = useState(2); // 1=slow, 2=normal, 3=fast
   const targetRotationSpeed = useRef(0);
@@ -187,10 +187,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
         const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
 
-        // Calculate width based on distance for perspective
+        // Calculate width based on distance for perspective (wider columns)
         const distance = Math.sqrt(rotatedPos.x * rotatedPos.x + rotatedPos.z * rotatedPos.z);
         const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
-        const width = Math.max(2, 20 * scale);
+        const width = Math.max(4, 30 * scale);
 
         // Draw storm column with 3D effect
         const columnGradient = ctx.createLinearGradient(base.x - width/2, top.y, base.x + width/2, base.y);
@@ -214,12 +214,16 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           ctx.fill();
         }
 
-        // Intensity label for nearby storms
-        if (distance < 8 && scale > 0.3) {
+        // Enhanced intensity label for all visible storms
+        if (scale > 0.1) {
           ctx.fillStyle = '#FFFFFF';
-          ctx.font = `${Math.max(8, 12 * scale)}px Arial`;
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 2;
+          ctx.font = `${Math.max(10, 14 * scale)}px Arial`;
           ctx.textAlign = 'center';
-          ctx.fillText(`${intensity}`, top.x, top.y - 5);
+          const labelText = `${intensity} dBZ`;
+          ctx.strokeText(labelText, top.x, top.y - 8);
+          ctx.fillText(labelText, top.x, top.y - 8);
         }
       });
     };
