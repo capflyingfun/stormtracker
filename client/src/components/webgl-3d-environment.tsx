@@ -22,7 +22,7 @@ interface WebGL3DEnvironmentProps {
 }
 
 // Convert lat/lon to 3D coordinates with user at center
-function latLonTo3D(lat: number, lon: number, userLat: number, userLon: number, scale: number = 0.01) {
+function latLonTo3D(lat: number, lon: number, userLat: number, userLon: number, scale: number = 0.5) {
   const latDiff = (lat - userLat) * scale;
   const lonDiff = (lon - userLon) * scale;
   
@@ -87,7 +87,7 @@ export default function WebGL3DEnvironment({ location, precipitationStorms, onCl
       void main() {
         vColor = color;
         gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0);
-        gl_PointSize = 8.0;
+        gl_PointSize = 12.0;
       }
     `;
 
@@ -226,8 +226,8 @@ export default function WebGL3DEnvironment({ location, precipitationStorms, onCl
       gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
       gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
 
+      // Draw storm particles
       if (showWaypoints && precipitationStorms.length > 0) {
-        // Create vertices for storm particles
         const vertices: number[] = [];
         const colors: number[] = [];
         
@@ -236,7 +236,7 @@ export default function WebGL3DEnvironment({ location, precipitationStorms, onCl
           const height = getStormHeight(storm.dbz);
           const color = getStormColor(storm.dbz);
           
-          // Create multiple particles for each storm (column effect)
+          // Create storm column with particles every 0.5 units
           for (let i = 0; i <= height; i += 0.5) {
             vertices.push(pos3D.x, i, pos3D.z);
             colors.push(color[0], color[1], color[2]);
@@ -244,21 +244,18 @@ export default function WebGL3DEnvironment({ location, precipitationStorms, onCl
         });
 
         if (vertices.length > 0) {
-          // Create and bind position buffer
           const positionBuffer = gl.createBuffer();
           gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
           gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
           gl.enableVertexAttribArray(positionLocation);
           gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
 
-          // Create and bind color buffer
           const colorBuffer = gl.createBuffer();
           gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
           gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
           gl.enableVertexAttribArray(colorLocation);
           gl.vertexAttribPointer(colorLocation, 3, gl.FLOAT, false, 0, 0);
 
-          // Draw points
           gl.drawArrays(gl.POINTS, 0, vertices.length / 3);
         }
       }
@@ -312,6 +309,7 @@ export default function WebGL3DEnvironment({ location, precipitationStorms, onCl
       setIsDragging(true);
       setLastMouseX(e.clientX);
       setLastMouseY(e.clientY);
+      e.preventDefault();
     };
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -325,10 +323,12 @@ export default function WebGL3DEnvironment({ location, precipitationStorms, onCl
       
       setLastMouseX(e.clientX);
       setLastMouseY(e.clientY);
+      e.preventDefault();
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (e: MouseEvent) => {
       setIsDragging(false);
+      e.preventDefault();
     };
 
     const handleWheel = (e: WheelEvent) => {
@@ -336,16 +336,51 @@ export default function WebGL3DEnvironment({ location, precipitationStorms, onCl
       setCameraDistance(prev => Math.max(10, Math.min(100, prev + e.deltaY * 0.1)));
     };
 
+    // Touch controls for mobile
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        setIsDragging(true);
+        setLastMouseX(e.touches[0].clientX);
+        setLastMouseY(e.touches[0].clientY);
+      }
+      e.preventDefault();
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isDragging || e.touches.length !== 1) return;
+      
+      const deltaX = e.touches[0].clientX - lastMouseX;
+      const deltaY = e.touches[0].clientY - lastMouseY;
+      
+      setCameraAngle(prev => prev + deltaX * 0.01);
+      setCameraHeight(prev => Math.max(5, Math.min(50, prev - deltaY * 0.1)));
+      
+      setLastMouseX(e.touches[0].clientX);
+      setLastMouseY(e.touches[0].clientY);
+      e.preventDefault();
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      setIsDragging(false);
+      e.preventDefault();
+    };
+
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('wheel', handleWheel);
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
 
     return () => {
       canvas.removeEventListener('mousedown', handleMouseDown);
       canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('mouseup', handleMouseUp);
       canvas.removeEventListener('wheel', handleWheel);
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
     };
   }, [location, precipitationStorms, showWaypoints, cameraAngle, cameraHeight, cameraDistance, isDragging, lastMouseX, lastMouseY]);
 
