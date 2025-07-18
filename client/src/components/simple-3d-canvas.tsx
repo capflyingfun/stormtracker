@@ -141,8 +141,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       ctx.arc(compassX, compassY, compassSize / 2, 0, Math.PI * 2);
       ctx.fill();
       
-      // North arrow (always points North - fixed direction)
-      const northAngle = 0; // Always point North (up)
+      // North arrow (rotates to always point North)
+      const northAngle = -rotationY; // Rotate opposite to view so it always points North
       const arrowLength = compassSize / 3;
       
       // Arrow shaft
