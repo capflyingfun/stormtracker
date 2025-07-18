@@ -1454,8 +1454,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const avgWindDirection = (totalDirection / totalWeight) % 360;
     const avgSpeed = totalSpeed / totalWeight;
     
-    // Keep original wind direction as it already represents storm movement direction
-    const stormMovementDirection = avgWindDirection;
+    // Convert from wind direction (where wind comes FROM) to storm movement direction (where storm moves TO)
+    // Add 180° to convert wind direction to storm movement direction
+    const stormMovementDirection = (avgWindDirection + 180) % 360;
     
     // Convert wind speed from knots to mph and apply storm movement factor
     // Storms typically move at 60-80% of the speed of the steering winds
