@@ -46,6 +46,22 @@ const dbzToTransparency = (dbz: number): string => {
   return '33';                     // Green - 20% opaque
 };
 
+// Convert rotation angle to compass heading
+const getCompassHeading = (rotationY: number): { degrees: number; direction: string } => {
+  // Convert radians to degrees and normalize to 0-360
+  let degrees = ((rotationY * 180 / Math.PI) % 360 + 360) % 360;
+  
+  // Round to nearest degree
+  degrees = Math.round(degrees);
+  
+  // Get cardinal direction
+  const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  const index = Math.round(degrees / 22.5) % 16;
+  const direction = directions[index];
+  
+  return { degrees, direction };
+};
+
 // 3D to 2D projection with wider field of view
 const project3D = (point: Point3D, cameraDistance: number, canvasWidth: number, canvasHeight: number): Point2D => {
   const scale = cameraDistance / (cameraDistance + point.z + 0.1); // Prevent division by zero
@@ -427,6 +443,19 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         >
           {rotationSpeed}x
         </Button>
+      </div>
+
+      {/* Heading Display */}
+      <div className="absolute top-16 right-4 z-10 bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-slate-700/50">
+        <div className="text-center">
+          <div className="text-xs text-slate-400 mb-1">Heading</div>
+          <div className="text-lg font-bold text-white">
+            {getCompassHeading(rotationY).degrees}°
+          </div>
+          <div className="text-sm text-slate-300">
+            {getCompassHeading(rotationY).direction}
+          </div>
+        </div>
       </div>
 
       {/* Canvas */}
