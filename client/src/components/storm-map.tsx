@@ -1701,11 +1701,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             {showLightning ? 'Hide' : 'Show'}
           </Button>
         </div>
-        {lightningStrikes.length > 0 && (
-          <div className="text-xs text-slate-400">
-            Last 20 minutes • Updates every 30 seconds
-          </div>
-        )}
+        <div className="text-xs text-slate-400">
+          {lightningStrikes.length > 0 
+            ? `Last 20 minutes • Updates every 30 seconds` 
+            : `No lightning detected in 100-mile radius • Updates every 30 seconds`}
+        </div>
       </div>
 
       {/* Precipitation Waypoints Legend - Now outside map */}
