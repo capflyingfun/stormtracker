@@ -65,7 +65,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const [rotationY, setRotationY] = useState(0); // Start straight
   const [cameraHeight, setCameraHeight] = useState(6); // Tilted down view
   const [isRotating, setIsRotating] = useState(false);
-  const [rotationSpeed, setRotationSpeed] = useState(3); // 1=slow, 2=medium, 3=fast
+  const [rotationSpeed, setRotationSpeed] = useState(2); // 1=slow, 2=medium, 3=fast
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
 
@@ -154,35 +154,37 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         compassY - Math.cos(northAngle) * (arrowLength + 15) + 5
       );
 
-      // Draw user location as stick figure
+      // Draw highly visible user location marker
       const userPos = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
       const userProjected = project3D({ ...userPos, y: userPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
       
-      // Stick figure scale
-      const scale = 1.5;
+      // Large bright marker with multiple layers for visibility
+      const scale = 2.5; // Larger scale for better visibility
       
-      // Head
-      ctx.fillStyle = '#FFFF00'; // Yellow head
+      // Bright background circle for contrast
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
       ctx.beginPath();
-      ctx.arc(userProjected.x, userProjected.y - 12 * scale, 4 * scale, 0, 2 * Math.PI);
+      ctx.arc(userProjected.x, userProjected.y, 15 * scale, 0, 2 * Math.PI);
       ctx.fill();
       
-      // Body
-      ctx.strokeStyle = '#FFFFFF'; // White body
-      ctx.lineWidth = 2 * scale;
+      // Bright yellow/orange center
+      ctx.fillStyle = '#FF6600'; // Bright orange
       ctx.beginPath();
-      ctx.moveTo(userProjected.x, userProjected.y - 8 * scale);
-      ctx.lineTo(userProjected.x, userProjected.y + 4 * scale);
+      ctx.arc(userProjected.x, userProjected.y, 12 * scale, 0, 2 * Math.PI);
+      ctx.fill();
       
-      // Arms
-      ctx.moveTo(userProjected.x - 6 * scale, userProjected.y - 4 * scale);
-      ctx.lineTo(userProjected.x + 6 * scale, userProjected.y - 4 * scale);
+      // White center dot
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(userProjected.x, userProjected.y, 6 * scale, 0, 2 * Math.PI);
+      ctx.fill();
       
-      // Legs
-      ctx.moveTo(userProjected.x, userProjected.y + 4 * scale);
-      ctx.lineTo(userProjected.x - 4 * scale, userProjected.y + 12 * scale);
-      ctx.moveTo(userProjected.x, userProjected.y + 4 * scale);
-      ctx.lineTo(userProjected.x + 4 * scale, userProjected.y + 12 * scale);
+      // Pulsing outer ring
+      const pulseRadius = 18 * scale + Math.sin(Date.now() * 0.005) * 4;
+      ctx.strokeStyle = '#FFFF00';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(userProjected.x, userProjected.y, pulseRadius, 0, 2 * Math.PI);
       ctx.stroke();
 
       // Draw terrain-style polygonal storm visualization
@@ -263,7 +265,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           
           // Calculate scale and make columns truly square with no gaps
           const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
-          const squareSize = Math.max(8, 48 * scale); // Even larger for no gaps
+          const squareSize = Math.max(10, 55 * scale); // Much larger to eliminate all gaps
           
           // Determine color based on height
           const color = height >= 3.5 ? '#8B5CF6' : // Purple - Extreme
