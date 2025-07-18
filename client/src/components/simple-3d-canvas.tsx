@@ -62,10 +62,10 @@ const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number)
 export default function Simple3DCanvas({ location, precipitationStorms, onClose }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(true);
-  const [rotationY, setRotationY] = useState(0.3); // Start with slight angle
-  const [cameraHeight, setCameraHeight] = useState(5); // Higher starting position
-  const [isDragging, setIsDragging] = useState(false);
-  const [lastMouseX, setLastMouseX] = useState(0);
+  const [rotationY, setRotationY] = useState(0); // Start straight
+  const [cameraHeight, setCameraHeight] = useState(8); // High overhead view
+  const [isRotating, setIsRotating] = useState(false);
+  const rotationSpeed = useRef(0);
 
   useEffect(() => {
     if (!canvasRef.current || !location) return;
@@ -197,47 +197,43 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
     draw();
 
-    // Mouse controls for rotation
+    // Simple rotation controls
     const handleMouseDown = (e: MouseEvent) => {
-      setIsDragging(true);
-      setLastMouseX(e.clientX);
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-      const deltaX = e.clientX - lastMouseX;
-      setRotationY(prev => prev + deltaX * 0.01);
-      setLastMouseX(e.clientX);
+      setIsRotating(true);
+      // Determine rotation direction based on click position
+      const rect = canvas.getBoundingClientRect();
+      const centerX = rect.width / 2;
+      const clickX = e.clientX - rect.left;
+      rotationSpeed.current = clickX > centerX ? 0.02 : -0.02; // Right = clockwise, Left = counter-clockwise
     };
 
     const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      setCameraHeight(prev => Math.max(1, Math.min(10, prev + e.deltaY * 0.01)));
+      setIsRotating(false);
+      rotationSpeed.current = 0;
     };
 
     canvas.addEventListener('mousedown', handleMouseDown);
-    canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('wheel', handleWheel);
+    canvas.addEventListener('mouseleave', handleMouseUp); // Stop rotation if mouse leaves canvas
 
-    // Static render - no auto rotation
-    draw();
+    // Animation loop for smooth rotation
+    const animate = () => {
+      if (isRotating) {
+        setRotationY(prev => prev + rotationSpeed.current);
+      }
+      draw();
+      requestAnimationFrame(animate);
+    };
 
-    // Only redraw when state changes
-    const intervalId = setInterval(draw, 50); // 20 FPS for smooth mouse interaction
+    const animationId = requestAnimationFrame(animate);
 
     return () => {
-      clearInterval(intervalId);
+      cancelAnimationFrame(animationId);
       canvas.removeEventListener('mousedown', handleMouseDown);
-      canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('mouseup', handleMouseUp);
-      canvas.removeEventListener('wheel', handleWheel);
+      canvas.removeEventListener('mouseleave', handleMouseUp);
     };
-  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isDragging, lastMouseX]);
+  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating]);
 
   if (!location) {
     return (
@@ -253,19 +249,39 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
   return (
     <div className="fixed inset-0 bg-black z-50">
-      {/* Minimal Controls - Top Right Only */}
-      <div className="absolute top-4 right-4 z-10 flex gap-2">
-        <Button
-          onClick={() => setShowWaypoints(!showWaypoints)}
-          variant="outline"
-          size="sm"
-          className={`${showWaypoints ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
-        >
-          {showWaypoints ? 'Hide Dots' : 'Show Dots'}
-        </Button>
-        <Button onClick={onClose} variant="outline" size="sm">
-          Exit 3D
-        </Button>
+      {/* Controls */}
+      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setShowWaypoints(!showWaypoints)}
+            variant="outline"
+            size="sm"
+            className={`${showWaypoints ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
+          >
+            {showWaypoints ? 'Hide Dots' : 'Show Dots'}
+          </Button>
+          <Button onClick={onClose} variant="outline" size="sm">
+            Exit 3D
+          </Button>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setCameraHeight(3)}
+            variant="outline"
+            size="sm"
+            className={`${cameraHeight <= 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
+          >
+            Ground View
+          </Button>
+          <Button
+            onClick={() => setCameraHeight(8)}
+            variant="outline"
+            size="sm"
+            className={`${cameraHeight > 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
+          >
+            Overhead View
+          </Button>
+        </div>
       </div>
 
       {/* Canvas */}
@@ -299,7 +315,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
             <span>Extreme (61+)</span>
           </div>
         </div>
-        <p className="text-xs text-slate-500 mt-2">Drag to rotate • Scroll to zoom</p>
+        <p className="text-xs text-slate-500 mt-2">Click & hold to rotate • Use view buttons</p>
       </div>
     </div>
   );
