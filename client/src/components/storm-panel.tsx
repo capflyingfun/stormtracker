@@ -128,26 +128,25 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
               return 'from-green-400 to-green-600'; // Green - Light (20-34 dBZ)
             };
             
-            const alertGradientClass = alertPreferences ? getAlertGradientClass(alertPreferences.minimumDbz) : 'from-yellow-400 to-yellow-600';
+            const getAlertBorderClass = (minimumDbz: number) => {
+              if (minimumDbz >= 61) return 'border-purple-400'; // Purple - Extreme (61+ dBZ)
+              if (minimumDbz >= 55) return 'border-red-400'; // Red - Very Heavy (55-60 dBZ)
+              if (minimumDbz >= 46) return 'border-orange-400'; // Orange - Heavy (46-54 dBZ)
+              if (minimumDbz >= 35) return 'border-yellow-400'; // Yellow - Moderate (35-45 dBZ)
+              return 'border-green-400'; // Green - Light (20-34 dBZ)
+            };
+            
+            const alertBorderClass = alertPreferences ? getAlertBorderClass(alertPreferences.minimumDbz) : 'border-yellow-400';
             
             return (
               <div 
                 key={storm.id} 
-                className={`bg-slate-700/50 rounded-lg p-3 mb-3 ${
+                className={`bg-slate-700/50 rounded-lg p-3 mb-3 border-2 ${
                   meetsAlertThreshold 
-                    ? 'border-2 border-transparent bg-gradient-to-r p-[2px]' 
-                    : 'border border-slate-600/50'
+                    ? `${alertBorderClass} animate-pulse` 
+                    : 'border-slate-600/50'
                 }`}
-                style={meetsAlertThreshold ? {
-                  background: `linear-gradient(45deg, var(--tw-gradient-from), var(--tw-gradient-to)) padding-box, linear-gradient(45deg, var(--tw-gradient-from), var(--tw-gradient-to)) border-box`,
-                  backgroundImage: `linear-gradient(135deg, transparent, transparent), linear-gradient(135deg, ${alertGradientClass.includes('purple') ? '#a855f7, #7c3aed' : 
-                    alertGradientClass.includes('red') ? '#f87171, #dc2626' :
-                    alertGradientClass.includes('orange') ? '#fb923c, #ea580c' :
-                    alertGradientClass.includes('yellow') ? '#facc15, #ca8a04' :
-                    '#4ade80, #16a34a'})`
-                } : {}}
               >
-                <div className={`${meetsAlertThreshold ? 'bg-slate-700/50 rounded-md p-3' : ''}`}>
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${getStormColor(storm.intensity)} animate-pulse`}></div>
@@ -202,7 +201,6 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                 {storm.description && (
                   <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-600">{storm.description}</p>
                 )}
-                </div>
               </div>
             );
           })
