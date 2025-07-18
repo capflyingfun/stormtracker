@@ -202,14 +202,6 @@ export default function StormTracker() {
                 
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    onClick={() => setShow3D(true)}
-                    variant="outline"
-                    size="sm"
-                    className="bg-purple-600/20 border-purple-500 hover:bg-purple-600/30"
-                  >
-                    🌩️ 3D Experimental
-                  </Button>
-                  <Button
                     onClick={resetLocation}
                     variant="outline"
                     size="sm"
@@ -255,6 +247,25 @@ export default function StormTracker() {
                 onRadarSourceChange={setCurrentRadarSource}
                 radarSource={currentRadarSource}
               />
+            )}
+
+            {/* 3D Toggle Button - Between radar and storm panels */}
+            {!show3D && (
+              <div className="flex justify-center my-4 sm:my-6">
+                <Button
+                  onClick={() => setShow3D(true)}
+                  variant="outline"
+                  size="sm"
+                  className="bg-purple-600/20 border-purple-500 hover:bg-purple-600/30"
+                  disabled={!storms || storms.length === 0}
+                >
+                  {!storms || storms.length === 0 ? (
+                    <>⏳ Loading Storm Data...</>
+                  ) : (
+                    <>🌩️ View 3D Terrain</>
+                  )}
+                </Button>
+              </div>
             )}
 
             {/* Storm Data Grid - Moved below radar */}

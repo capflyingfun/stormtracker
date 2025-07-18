@@ -19,13 +19,13 @@ interface Point2D {
   y: number;
 }
 
-// Convert dBZ to 3D height - reduced by half for better visibility
+// Convert dBZ to 3D height - taller columns for better visibility
 const dbzToHeight = (dbz: number): number => {
-  if (dbz >= 61) return 4;    // Extreme thunderstorms
-  if (dbz >= 55) return 3;    // Very heavy rain/hail
-  if (dbz >= 46) return 2;    // Heavy rain
-  if (dbz >= 35) return 1;    // Moderate rain
-  return 0.5;                 // Light rain
+  if (dbz >= 61) return 6.0;   // Extreme thunderstorms - Very tall
+  if (dbz >= 55) return 4.5;   // Very heavy rain/hail - Tall
+  if (dbz >= 46) return 3.0;   // Heavy rain - Medium-tall
+  if (dbz >= 35) return 1.8;   // Moderate rain - Medium
+  return 1.0;                  // Light rain - Short but visible
 };
 
 // Convert dBZ to color
@@ -154,14 +154,36 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         compassY - Math.cos(northAngle) * (arrowLength + 15) + 5
       );
 
-      // Draw user location marker
+      // Draw user location as stick figure
       const userPos = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
       const userProjected = project3D({ ...userPos, y: userPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
       
-      ctx.fillStyle = '#00FF00';
+      // Stick figure scale
+      const scale = 1.5;
+      
+      // Head
+      ctx.fillStyle = '#FFFF00'; // Yellow head
       ctx.beginPath();
-      ctx.arc(userProjected.x, userProjected.y, 6, 0, 2 * Math.PI);
+      ctx.arc(userProjected.x, userProjected.y - 12 * scale, 4 * scale, 0, 2 * Math.PI);
       ctx.fill();
+      
+      // Body
+      ctx.strokeStyle = '#FFFFFF'; // White body
+      ctx.lineWidth = 2 * scale;
+      ctx.beginPath();
+      ctx.moveTo(userProjected.x, userProjected.y - 8 * scale);
+      ctx.lineTo(userProjected.x, userProjected.y + 4 * scale);
+      
+      // Arms
+      ctx.moveTo(userProjected.x - 6 * scale, userProjected.y - 4 * scale);
+      ctx.lineTo(userProjected.x + 6 * scale, userProjected.y - 4 * scale);
+      
+      // Legs
+      ctx.moveTo(userProjected.x, userProjected.y + 4 * scale);
+      ctx.lineTo(userProjected.x - 4 * scale, userProjected.y + 12 * scale);
+      ctx.moveTo(userProjected.x, userProjected.y + 4 * scale);
+      ctx.lineTo(userProjected.x + 4 * scale, userProjected.y + 12 * scale);
+      ctx.stroke();
 
       // Draw terrain-style polygonal storm visualization
       if (precipitationStorms.length > 0) {
@@ -239,9 +261,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
           const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
           
-          // Calculate scale and make columns truly square
+          // Calculate scale and make columns truly square with no gaps
           const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
-          const squareSize = Math.max(6, 40 * scale); // Larger square size
+          const squareSize = Math.max(8, 48 * scale); // Even larger for no gaps
           
           // Determine color based on height
           const color = height >= 3.5 ? '#8B5CF6' : // Purple - Extreme
