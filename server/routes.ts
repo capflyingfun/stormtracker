@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
-import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema } from "@shared/schema";
+import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema, riskAssessmentSchema, userAlertPreferences, riskAlerts, insertRiskAlertSchema, insertUserAlertPreferencesSchema, updateUserAlertPreferencesSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -1037,6 +1037,170 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).send('Failed to fetch NEXRAD tile');
     }
   });
+
+  // Risk Assessment and Personalized Alert Endpoints
+  
+  // Assess weather risk based on current conditions and user preferences
+  app.post('/api/risk/assess', async (req, res) => {
+    try {
+      const { lat, lon, storms, lightningCount, preferences } = riskAssessmentSchema.parse(req.body);
+      
+      // Calculate risk factors
+      const nearestStorm = storms.reduce((nearest, storm) => {
+        const distance = calculateDistance(lat, lon, storm.lat, storm.lon);
+        return (!nearest || distance < nearest.distance) ? { ...storm, distance } : nearest;
+      }, null);
+      
+      const maxIntensity = storms.reduce((max, storm) => Math.max(max, storm.intensity), 0);
+      const stormCount = storms.length;
+      
+      // Determine risk level based on user preferences and conditions
+      let riskLevel = 'low';
+      let alertType = 'none';
+      let title = 'Weather Conditions Normal';
+      let message = 'No significant weather risks detected in your area.';
+      
+      // Check for extreme conditions first
+      if (storms.some(s => s.intensity >= 61 && s.distance < preferences.alertRadius)) {
+        if (preferences.extremeStormEnabled) {
+          riskLevel = 'extreme';
+          alertType = 'extreme_storm';
+          title = '⚠️ EXTREME STORM ALERT';
+          message = `Extreme thunderstorm with ${maxIntensity.toFixed(0)} dBZ detected ${nearestStorm.distance.toFixed(1)} miles away. Large hail and damaging winds possible. Seek shelter immediately.`;
+        }
+      } else if (storms.some(s => s.intensity >= 55 && s.distance < preferences.alertRadius)) {
+        if (preferences.veryHeavyRainEnabled) {
+          riskLevel = 'high';
+          alertType = 'severe_storm';
+          title = '🌩️ SEVERE STORM WARNING';
+          message = `Severe thunderstorm with ${maxIntensity.toFixed(0)} dBZ detected ${nearestStorm.distance.toFixed(1)} miles away. Heavy rain and possible hail. Monitor conditions closely.`;
+        }
+      } else if (storms.some(s => s.intensity >= 46 && s.distance < preferences.alertRadius)) {
+        if (preferences.heavyRainEnabled) {
+          riskLevel = 'medium';
+          alertType = 'heavy_rain';
+          title = '🌧️ Heavy Rain Alert';
+          message = `Heavy rainfall detected ${nearestStorm.distance.toFixed(1)} miles away with ${maxIntensity.toFixed(0)} dBZ intensity. Expect significant precipitation.`;
+        }
+      } else if (storms.some(s => s.intensity >= 35 && s.distance < preferences.alertRadius)) {
+        if (preferences.moderateRainEnabled) {
+          riskLevel = 'low';
+          alertType = 'moderate_rain';
+          title = '🌦️ Moderate Rain Nearby';
+          message = `Moderate rainfall detected ${nearestStorm.distance.toFixed(1)} miles away. Light to moderate precipitation expected.`;
+        }
+      }
+      
+      // Lightning risk assessment
+      if (lightningCount > 0) {
+        if (lightningCount >= 10) {
+          riskLevel = Math.max(riskLevel, 'high');
+          alertType = 'lightning_high';
+          title = '⚡ HIGH LIGHTNING ACTIVITY';
+          message = `${lightningCount} lightning strikes detected within 100 miles. Significant electrical storm activity in your area.`;
+        } else if (lightningCount >= 5) {
+          riskLevel = Math.max(riskLevel, 'medium');
+          alertType = 'lightning_moderate';
+          title = '⚡ Lightning Activity';
+          message = `${lightningCount} lightning strikes detected nearby. Electrical storm activity in your area.`;
+        }
+      }
+      
+      // Adjust risk level based on user preference
+      if (preferences.riskLevel === 'high' && riskLevel === 'medium') {
+        riskLevel = 'high';
+      } else if (preferences.riskLevel === 'low' && riskLevel === 'medium') {
+        riskLevel = 'low';
+      }
+      
+      res.json({
+        riskLevel,
+        alertType,
+        title,
+        message,
+        conditions: {
+          stormCount,
+          maxIntensity,
+          nearestDistance: nearestStorm?.distance || 999,
+          lightningCount
+        },
+        shouldAlert: riskLevel !== 'low' || alertType !== 'none'
+      });
+      
+    } catch (error) {
+      console.error('Risk assessment error:', error);
+      res.status(500).json({ error: 'Failed to assess weather risk' });
+    }
+  });
+  
+  // Get user's alert preferences (simplified for session-based app)
+  app.get('/api/alerts/preferences', async (req, res) => {
+    try {
+      // For now, return default preferences since we don't have user authentication
+      // In a real app, this would fetch from database based on user ID
+      const defaultPreferences = {
+        lightRainEnabled: false,
+        moderateRainEnabled: true,
+        heavyRainEnabled: true,
+        veryHeavyRainEnabled: true,
+        extremeStormEnabled: true,
+        alertRadius: 30,
+        riskLevel: 'medium',
+        alertFrequency: 15,
+        soundEnabled: true,
+        pushEnabled: true,
+        emailEnabled: false
+      };
+      
+      res.json(defaultPreferences);
+    } catch (error) {
+      console.error('Get preferences error:', error);
+      res.status(500).json({ error: 'Failed to get alert preferences' });
+    }
+  });
+  
+  // Update user's alert preferences
+  app.post('/api/alerts/preferences', async (req, res) => {
+    try {
+      const preferences = updateUserAlertPreferencesSchema.parse(req.body);
+      
+      // For now, just return the updated preferences
+      // In a real app, this would update the database
+      res.json({ 
+        message: 'Alert preferences updated successfully',
+        preferences 
+      });
+    } catch (error) {
+      console.error('Update preferences error:', error);
+      res.status(500).json({ error: 'Failed to update alert preferences' });
+    }
+  });
+  
+  // Get recent risk alerts for user
+  app.get('/api/alerts/recent', async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      // For now, return empty array since we don't have user authentication
+      // In a real app, this would fetch from database
+      res.json([]);
+    } catch (error) {
+      console.error('Get recent alerts error:', error);
+      res.status(500).json({ error: 'Failed to get recent alerts' });
+    }
+  });
+  
+  // Helper function to calculate distance between two points
+  function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 3959; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
 
   const httpServer = createServer(app);
   return httpServer;
