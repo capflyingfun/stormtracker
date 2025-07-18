@@ -197,24 +197,51 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
     draw();
 
-    // Simple rotation controls
-    const handleMouseDown = (e: MouseEvent) => {
+    // Touch and mouse rotation controls
+    const handleStart = (clientX: number, clientY: number) => {
       setIsRotating(true);
-      // Determine rotation direction based on click position
       const rect = canvas.getBoundingClientRect();
       const centerX = rect.width / 2;
-      const clickX = e.clientX - rect.left;
+      const clickX = clientX - rect.left;
       rotationSpeed.current = clickX > centerX ? 0.02 : -0.02; // Right = clockwise, Left = counter-clockwise
     };
 
-    const handleMouseUp = () => {
+    const handleEnd = () => {
       setIsRotating(false);
       rotationSpeed.current = 0;
     };
 
+    // Mouse events
+    const handleMouseDown = (e: MouseEvent) => {
+      e.preventDefault();
+      handleStart(e.clientX, e.clientY);
+    };
+
+    const handleMouseUp = () => {
+      handleEnd();
+    };
+
+    // Touch events
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        handleStart(touch.clientX, touch.clientY);
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      handleEnd();
+    };
+
+    // Add all event listeners
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('mouseleave', handleMouseUp); // Stop rotation if mouse leaves canvas
+    canvas.addEventListener('mouseleave', handleMouseUp);
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 
     // Animation loop for smooth rotation
     const animate = () => {
@@ -232,6 +259,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       canvas.removeEventListener('mousedown', handleMouseDown);
       canvas.removeEventListener('mouseup', handleMouseUp);
       canvas.removeEventListener('mouseleave', handleMouseUp);
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+      canvas.removeEventListener('touchcancel', handleTouchEnd);
     };
   }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating]);
 
@@ -287,8 +317,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       {/* Canvas */}
       <canvas
         ref={canvasRef}
-        className="w-full h-full"
-        style={{ cursor: 'crosshair' }}
+        className="w-full h-full touch-none"
+        style={{ cursor: 'crosshair', touchAction: 'none' }}
       />
       
       {/* Compact Legend */}
@@ -315,7 +345,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
             <span>Extreme (61+)</span>
           </div>
         </div>
-        <p className="text-xs text-slate-500 mt-2">Click & hold to rotate • Use view buttons</p>
+        <p className="text-xs text-slate-500 mt-2">Tap & hold to rotate • Use view buttons</p>
       </div>
     </div>
   );
