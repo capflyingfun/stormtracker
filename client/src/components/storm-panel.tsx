@@ -129,12 +129,17 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
             };
             
             const alertColorClass = alertPreferences ? getAlertColorClass(alertPreferences.minimumDbz) : 'border-yellow-400/60';
-            const alertBorderClass = meetsAlertThreshold ? `${alertColorClass} border animate-pulse` : 'border-slate-600/50';
+            const alertBorderClass = meetsAlertThreshold ? `${alertColorClass} border-2` : 'border-slate-600/50';
             
             return (
               <div 
                 key={storm.id} 
-                className={`bg-slate-700/50 rounded-lg p-3 border ${alertBorderClass} mb-3`}
+                className={`bg-slate-700/50 rounded-lg p-3 border ${alertBorderClass} mb-3 ${
+                  meetsAlertThreshold ? 'animate-pulse' : ''
+                }`}
+                style={meetsAlertThreshold ? {
+                  animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                } : {}}
               >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
