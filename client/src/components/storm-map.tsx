@@ -35,6 +35,7 @@ interface StormMapProps {
   };
   onStormFiltersChange?: (filters: {light: boolean; moderate: boolean; heavy: boolean; severe: boolean}) => void;
   onRadarSourceChange?: (source: 'rainviewer' | 'nexrad') => void;
+  radarSource?: 'rainviewer' | 'nexrad';
 }
 
 declare global {
@@ -43,7 +44,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onStormFiltersChange, onRadarSourceChange }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onStormFiltersChange, onRadarSourceChange, radarSource: externalRadarSource }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -56,7 +57,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [showSectorGrid, setShowSectorGrid] = useState(true);
   const [currentFrame, setCurrentFrame] = useState(10);
   const [radarFrames, setRadarFrames] = useState<(string | number)[]>([]);
-  const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer'); // RainViewer primary
+  const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>(externalRadarSource || 'rainviewer'); // RainViewer primary
   const [currentFrameIndex, setCurrentFrameIndex] = useState<number>(-1);
   const [nexradSite, setNexradSite] = useState<string>('');
   const animationIntervalRef = useRef<NodeJS.Timeout>();
@@ -66,6 +67,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   // Auto-sampling state
   const autoSampleTimeoutRef = useRef<NodeJS.Timeout>();
   
+  // Sync with external radar source changes
+  useEffect(() => {
+    if (externalRadarSource && externalRadarSource !== radarSource) {
+      setRadarSource(externalRadarSource);
+    }
+  }, [externalRadarSource]);
+
   // Use external storm filters if provided, otherwise use internal state
   const stormFilters = externalStormFilters || {
     light: true, moderate: true, heavy: true, severe: true

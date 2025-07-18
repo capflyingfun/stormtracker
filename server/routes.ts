@@ -125,23 +125,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If no results from zip code API or not a zip code, try direct geocoding
       if (locations.length === 0) {
+        // Enhanced international geocoding with better limit for global results
         const response = await fetch(
-          `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=5&appid=${API_KEYS.openweather}`
+          `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=10&appid=${API_KEYS.openweather}`
         );
         
         if (response.ok) {
-          locations = await response.json();
+          const rawLocations = await response.json();
+          // Format locations with better international support
+          locations = rawLocations.map((loc: any) => ({
+            lat: loc.lat,
+            lon: loc.lon,
+            name: loc.name,
+            state: loc.state || '',
+            country: loc.country || '',
+            // Add country code for better identification
+            countryCode: loc.country
+          }));
         }
       }
       
       if (locations.length > 0) {
         const location = locations[0];
+        // Determine if this is a US location for radar source recommendation
+        const isUSLocation = location.country === 'US' || location.countryCode === 'US';
+        
         res.json({
           lat: location.lat,
           lon: location.lon,
           name: location.name,
-          state: location.state,
-          country: location.country,
+          state: location.state || '',
+          country: location.country || location.countryCode || '',
+          countryCode: location.countryCode || location.country || '',
+          isUS: isUSLocation,
+          // Suggest radar source based on location
+          recommendedRadarSource: isUSLocation ? 'nexrad' : 'rainviewer'
         });
       } else {
         res.status(404).json({ message: "Location not found" });
