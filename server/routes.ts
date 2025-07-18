@@ -25,7 +25,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const response = await fetch(
         `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=8&appid=${API_KEYS.openweather}`,
         {
-          signal: AbortSignal.timeout(5000) // 5 second timeout
+          signal: AbortSignal.timeout(3000) // 3 second timeout for faster response
         }
       );
       
@@ -118,7 +118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             headers: {
               'User-Agent': 'StormTracker/1.0 (Weather Application)'
             },
-            signal: AbortSignal.timeout(5000) // 5 second timeout
+            signal: AbortSignal.timeout(3000) // 3 second timeout for faster response
           }
         );
         
@@ -149,7 +149,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const photonResponse = await fetch(
             `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`,
             {
-              signal: AbortSignal.timeout(5000) // 5 second timeout
+              signal: AbortSignal.timeout(3000) // 3 second timeout for faster response
             }
           );
           

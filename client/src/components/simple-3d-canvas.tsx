@@ -73,37 +73,13 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const [showWaypoints, setShowWaypoints] = useState(false); // Default to hidden for better performance
   const [rotationY, setRotationY] = useState(0); // Start straight
   const [cameraHeight, setCameraHeight] = useState(5); // Normal camera height
-  const [selectedStorm, setSelectedStorm] = useState<any>(null); // Selected storm for info popup
+  // Removed storm selection to improve performance and usability
   const [isRotating, setIsRotating] = useState(false);
   const [rotationSpeed, setRotationSpeed] = useState(2); // 1=slow, 2=medium, 3=fast
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
 
-  // Calculate distance from user to storm
-  const calculateDistance = (stormLat: number, stormLon: number): number => {
-    const R = 3959; // Earth's radius in miles
-    const dLat = (stormLat - location.lat) * Math.PI / 180;
-    const dLon = (stormLon - location.lon) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(location.lat * Math.PI / 180) * Math.cos(stormLat * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  };
-
-  // Calculate bearing from user to storm
-  const calculateBearing = (stormLat: number, stormLon: number): string => {
-    const dLon = (stormLon - location.lon) * Math.PI / 180;
-    const lat1 = location.lat * Math.PI / 180;
-    const lat2 = stormLat * Math.PI / 180;
-    const y = Math.sin(dLon) * Math.cos(lat2);
-    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-    const bearing = Math.atan2(y, x) * 180 / Math.PI;
-    const normalized = (bearing + 360) % 360;
-    
-    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-    return directions[Math.round(normalized / 22.5) % 16];
-  };
+  // Removed storm calculation functions - not needed without storm selection
 
   useEffect(() => {
     if (!canvasRef.current || !location) return;
@@ -302,38 +278,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
     draw();
 
-    // Check if click is on a storm column
-    const getStormAtClick = (clickX: number, clickY: number): any => {
-      const rect = canvas.getBoundingClientRect();
-      const canvasX = clickX - rect.left;
-      const canvasY = clickY - rect.top;
-      
-      for (const storm of precipitationStorms) {
-        const stormPos = geoTo3D(storm.lat, storm.lon, location.lat, location.lon);
-        const rotatedPos = rotateY(stormPos, rotationY);
-        const projected = project3D(rotatedPos, cameraDistance, canvas.width, canvas.height);
-        
-        // Check if click is within storm column bounds (wider detection for easier clicking)
-        const columnWidth = 20; // Increased hit area
-        const columnHeight = dbzToHeight(storm.dbz) * 30;
-        
-        if (canvasX >= projected.x - columnWidth && canvasX <= projected.x + columnWidth &&
-            canvasY >= projected.y - columnHeight && canvasY <= projected.y + 50) {
-          return storm;
-        }
-      }
-      return null;
-    };
-
     // Touch and mouse rotation controls with proper direction
     const handleStart = (clientX: number, clientY: number) => {
-      // First check if click is on a storm
-      const clickedStorm = getStormAtClick(clientX, clientY);
-      if (clickedStorm) {
-        setSelectedStorm(clickedStorm);
-        return;
-      }
-      
       setIsRotating(true);
       const rect = canvas.getBoundingClientRect();
       const centerX = rect.width / 2;
@@ -490,53 +436,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         style={{ cursor: 'crosshair', touchAction: 'none' }}
       />
 
-      {/* Storm Info Popup */}
-      {selectedStorm && (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20" onClick={() => setSelectedStorm(null)}>
-          <div className="bg-slate-800 rounded-lg p-6 max-w-sm mx-4 border border-slate-700" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-semibold mb-4 text-center">Storm Information</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-300">Intensity:</span>
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-4 h-4 rounded" 
-                    style={{ backgroundColor: dbzToColor(selectedStorm.dbz) }}
-                  ></div>
-                  <span className="font-mono">{selectedStorm.dbz} dBZ</span>
-                </div>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-300">Distance:</span>
-                <span className="font-mono">{calculateDistance(selectedStorm.lat, selectedStorm.lon).toFixed(1)} mi</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-300">Direction:</span>
-                <span className="font-mono">{calculateBearing(selectedStorm.lat, selectedStorm.lon)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-300">Coordinates:</span>
-                <span className="font-mono text-xs">{selectedStorm.lat.toFixed(4)}, {selectedStorm.lon.toFixed(4)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-300">Category:</span>
-                <span className="font-semibold">
-                  {selectedStorm.dbz >= 61 ? 'Extreme' :
-                   selectedStorm.dbz >= 55 ? 'Very Heavy' :
-                   selectedStorm.dbz >= 46 ? 'Heavy' :
-                   selectedStorm.dbz >= 35 ? 'Moderate' : 'Light'}
-                </span>
-              </div>
-            </div>
-            <Button 
-              onClick={() => setSelectedStorm(null)}
-              className="w-full mt-4 bg-blue-600 hover:bg-blue-500"
-            >
-              Close
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* Storm Info Popup removed for better performance and usability */}
 
     </div>
   );
