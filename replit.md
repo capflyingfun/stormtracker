@@ -392,6 +392,13 @@ Preferred communication style: Simple, everyday language.
 - **Enhanced Error Handling**: Comprehensive error logging and graceful degradation for GPS and network failures
 - **Smart Location Detection**: Automatic US/international detection based on coordinates when API calls fail
 
+### NEXRAD Radar Loading Optimization (July 18, 2025)
+- **Faster NEXRAD Initialization**: Immediate radar layer loading after location is set to prevent blank maps
+- **Location-Dependent Loading**: NEXRAD radar waits for location before attempting to load, preventing unnecessary errors
+- **Improved Error Handling**: Better fallback to RainViewer when NEXRAD encounters issues
+- **Immediate Radar Display**: NEXRAD radar tiles load within 500ms of location selection for faster visual feedback
+- **Site-Specific Attribution**: Shows correct NEXRAD site identifier in map attribution for transparency
+
 ### Personalized Weather Risk Alert System (July 18, 2025)
 - **Intelligent Risk Assessment**: Real-time risk analysis based on storm intensity, distance, and lightning activity
 - **Personalized Alert Preferences**: Customizable alert settings for different storm intensities (light to extreme)
