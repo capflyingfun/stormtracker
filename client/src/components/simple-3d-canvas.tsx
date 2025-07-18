@@ -365,53 +365,54 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
   return (
     <div className="fixed inset-0 bg-black z-50">
-      {/* Legend - Top Center */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-slate-800/90 backdrop-blur-sm rounded-lg p-3 border border-slate-700/50 z-10">
-        <div className="flex gap-6 text-xs text-slate-300">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#22C55E', opacity: 0.2 }}></div>
-            <span>Light (20-34)</span>
+      {/* Mobile-Optimized Legend - Bottom */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-slate-800/90 backdrop-blur-sm rounded-lg p-2 border border-slate-700/50 z-10">
+        <div className="flex flex-wrap gap-3 text-xs text-slate-300 justify-center">
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#22C55E', opacity: 0.2 }}></div>
+            <span>Light</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EAB308', opacity: 0.4 }}></div>
-            <span>Moderate (35-45)</span>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#EAB308', opacity: 0.4 }}></div>
+            <span>Moderate</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#F97316', opacity: 0.6 }}></div>
-            <span>Heavy (46-54)</span>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#F97316', opacity: 0.6 }}></div>
+            <span>Heavy</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EF4444', opacity: 0.8 }}></div>
-            <span>Very Heavy (55-60)</span>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#EF4444', opacity: 0.8 }}></div>
+            <span>V.Heavy</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#8B5CF6', opacity: 1.0 }}></div>
-            <span>Extreme (61+)</span>
-          </div>
-          <div className="text-slate-400 ml-2">
-            Tap & hold to rotate
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded" style={{ backgroundColor: '#8B5CF6', opacity: 1.0 }}></div>
+            <span>Extreme</span>
           </div>
         </div>
       </div>
 
-      {/* Right Side Controls */}
-      <div className="absolute top-20 right-4 z-10 flex flex-col gap-2">
-        <Button onClick={onClose} variant="outline" size="sm" className="w-20">
+      {/* Top-Left Controls for Mobile */}
+      <div className="absolute top-4 left-4 z-10 flex gap-2">
+        <Button onClick={onClose} variant="outline" size="sm">
           Exit 3D
         </Button>
         <Button
           onClick={() => setShowWaypoints(!showWaypoints)}
           variant="outline"
           size="sm"
-          className={`w-20 ${showWaypoints ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
+          className={`${showWaypoints ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
         >
-          {showWaypoints ? 'Hide Dots' : 'Show Dots'}
+          {showWaypoints ? 'Hide' : 'Show'} Dots
         </Button>
+      </div>
+
+      {/* Top-Right Controls for Mobile */}
+      <div className="absolute top-4 right-4 z-10 flex gap-2">
         <Button
           onClick={() => setRotationY(0)}
           variant="outline"
           size="sm"
-          className="bg-green-600 border-green-500 w-20"
+          className="bg-green-600 border-green-500"
         >
           📍 North
         </Button>
@@ -419,9 +420,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           onClick={() => setRotationSpeed(prev => prev === 3 ? 1 : prev + 1)}
           variant="outline"
           size="sm"
-          className="bg-purple-600 border-purple-500 w-20"
+          className="bg-purple-600 border-purple-500"
         >
-          Speed {rotationSpeed}x
+          {rotationSpeed}x
         </Button>
       </div>
 
