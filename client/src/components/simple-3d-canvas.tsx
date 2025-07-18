@@ -266,7 +266,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       const centerX = rect.width / 2;
       const clickX = clientX - rect.left;
       // Fix direction: Right side = negative rotation (clockwise), Left side = positive rotation (counter-clockwise)
-      const baseSpeed = 0.0005 * rotationSpeedMultiplier; // Reduced manual rotation speed
+      const baseSpeed = 0.0005; // Fixed manual rotation speed
       targetRotationSpeed.current = clickX > centerX ? -baseSpeed : baseSpeed;
     };
 
