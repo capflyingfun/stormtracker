@@ -63,7 +63,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(true);
   const [rotationY, setRotationY] = useState(0); // Start straight
-  const [cameraHeight, setCameraHeight] = useState(8); // High overhead view
+  const [cameraHeight, setCameraHeight] = useState(6); // Tilted down view
   const [isRotating, setIsRotating] = useState(false);
   const [autoRotate, setAutoRotate] = useState(true); // Auto-rotation enabled by default
   const [rotationSpeedMultiplier, setRotationSpeedMultiplier] = useState(2); // 1=slow, 2=normal, 3=fast
@@ -215,13 +215,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           ctx.fill();
         }
 
-        // Intensity label for nearby storms
-        if (distance < 8 && scale > 0.3) {
-          ctx.fillStyle = '#FFFFFF';
-          ctx.font = `${Math.max(8, 12 * scale)}px Arial`;
-          ctx.textAlign = 'center';
-          ctx.fillText(`${intensity}`, top.x, top.y - 5);
-        }
+        // Removed intensity labels for better performance
       });
     };
 
@@ -339,22 +333,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           </Button>
         </div>
         <div className="flex gap-2">
-          <Button
-            onClick={() => setCameraHeight(3)}
-            variant="outline"
-            size="sm"
-            className={`${cameraHeight <= 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
-          >
-            Ground
-          </Button>
-          <Button
-            onClick={() => setCameraHeight(8)}
-            variant="outline"
-            size="sm"
-            className={`${cameraHeight > 4 ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600'}`}
-          >
-            Overhead
-          </Button>
           <Button
             onClick={() => setAutoRotate(!autoRotate)}
             variant="outline"
