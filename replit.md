@@ -480,3 +480,4 @@ Preferred communication style: Simple, everyday language.
 - **Subtle Visual Alerts**: Changed border from 2px to 1px with reduced opacity (60%) for cleaner appearance
 - **Removed Pulsating Animation**: Eliminated all pulsing effects to prevent visual overlap, now uses static colored borders only
 - **Static Alert Highlighting**: Storm cells meeting alert thresholds display solid colored borders (80% opacity) without animation
+- **Two-Color Gradient Borders**: Storm cells with alerts now feature diagonal gradient borders using two tones of the alert color for enhanced visual appeal
