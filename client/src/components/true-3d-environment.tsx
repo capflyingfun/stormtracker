@@ -1,9 +1,7 @@
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Text, Box, Cylinder } from '@react-three/drei';
-import { useRef, useState, useEffect } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Vector3, Color } from 'three';
-import * as THREE from 'three';
 
 interface Location {
   lat: number;
@@ -57,15 +55,15 @@ function getStormHeight(dbz: number): number {
 }
 
 // Individual storm column component
-function StormColumn({ position, dbz, id }: { position: Vector3; dbz: number; id: string }) {
-  const meshRef = useRef<THREE.Mesh>(null);
+function StormColumn({ position, dbz, id }: { position: [number, number, number]; dbz: number; id: string }) {
+  const meshRef = useRef<any>(null);
   const [hovered, setHovered] = useState(false);
   
   const height = getStormHeight(dbz);
   const color = getStormColor(dbz);
   const radius = Math.max(0.5, dbz / 100); // Size based on intensity
   
-  useFrame((state) => {
+  useFrame(() => {
     if (meshRef.current && hovered) {
       meshRef.current.rotation.y += 0.01;
     }
@@ -74,74 +72,54 @@ function StormColumn({ position, dbz, id }: { position: Vector3; dbz: number; id
   return (
     <group position={position}>
       {/* Storm column */}
-      <Cylinder
+      <mesh
         ref={meshRef}
-        args={[radius, radius * 0.8, height, 8]}
         position={[0, height / 2, 0]}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
       >
+        <cylinderGeometry args={[radius, radius * 0.8, height, 8]} />
         <meshLambertMaterial color={color} transparent opacity={0.8} />
-      </Cylinder>
-      
-      {/* dBZ label */}
-      <Text
-        position={[0, height + 1, 0]}
-        fontSize={0.8}
-        color="white"
-        anchorX="center"
-        anchorY="middle"
-      >
-        {dbz}
-      </Text>
+      </mesh>
       
       {/* Base ring */}
-      <Cylinder
-        args={[radius * 1.2, radius * 1.2, 0.1, 12]}
-        position={[0, 0.05, 0]}
-      >
+      <mesh position={[0, 0.05, 0]}>
+        <cylinderGeometry args={[radius * 1.2, radius * 1.2, 0.1, 12]} />
         <meshLambertMaterial color={color} transparent opacity={0.3} />
-      </Cylinder>
+      </mesh>
     </group>
   );
 }
 
 // Ground plane component
-function GroundPlane({ userPosition }: { userPosition: Vector3 }) {
+function GroundPlane({ userPosition }: { userPosition: [number, number, number] }) {
   return (
     <group>
       {/* Main ground plane */}
-      <Box args={[200, 0.1, 200]} position={[0, -0.1, 0]}>
+      <mesh position={[0, -0.1, 0]}>
+        <boxGeometry args={[200, 0.1, 200]} />
         <meshLambertMaterial color="#1a1a2e" />
-      </Box>
+      </mesh>
       
       {/* Grid lines */}
       {Array.from({ length: 21 }, (_, i) => (
         <group key={`grid-${i}`}>
-          <Box args={[200, 0.01, 0.1]} position={[0, 0, (i - 10) * 10]}>
+          <mesh position={[0, 0, (i - 10) * 10]}>
+            <boxGeometry args={[200, 0.01, 0.1]} />
             <meshLambertMaterial color="#333366" transparent opacity={0.3} />
-          </Box>
-          <Box args={[0.1, 0.01, 200]} position={[(i - 10) * 10, 0, 0]}>
+          </mesh>
+          <mesh position={[(i - 10) * 10, 0, 0]}>
+            <boxGeometry args={[0.1, 0.01, 200]} />
             <meshLambertMaterial color="#333366" transparent opacity={0.3} />
-          </Box>
+          </mesh>
         </group>
       ))}
       
       {/* User position marker */}
-      <Cylinder args={[1, 0.5, 0.5, 8]} position={userPosition}>
+      <mesh position={userPosition}>
+        <cylinderGeometry args={[1, 0.5, 0.5, 8]} />
         <meshLambertMaterial color="#00ff00" />
-      </Cylinder>
-      
-      {/* User label */}
-      <Text
-        position={[userPosition.x, userPosition.y + 2, userPosition.z]}
-        fontSize={1}
-        color="#00ff00"
-        anchorX="center"
-        anchorY="middle"
-      >
-        YOU
-      </Text>
+      </mesh>
     </group>
   );
 }
@@ -151,18 +129,10 @@ function Compass() {
   return (
     <group position={[0, 20, 0]}>
       {/* North arrow */}
-      <Cylinder args={[0.2, 0.1, 2, 6]} position={[0, 0, -8]} rotation={[Math.PI / 2, 0, 0]}>
+      <mesh position={[0, 0, -8]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.2, 0.1, 2, 6]} />
         <meshLambertMaterial color="#ff0000" />
-      </Cylinder>
-      <Text
-        position={[0, 0, -10]}
-        fontSize={1.5}
-        color="#ff0000"
-        anchorX="center"
-        anchorY="middle"
-      >
-        N
-      </Text>
+      </mesh>
     </group>
   );
 }
@@ -173,7 +143,7 @@ function Scene({ location, precipitationStorms, showWaypoints }: {
   precipitationStorms: PrecipitationStorm[];
   showWaypoints: boolean;
 }) {
-  const userPosition = new Vector3(0, 0, 0); // User at center
+  const userPosition: [number, number, number] = [0, 0, 0]; // User at center
 
   return (
     <>
@@ -191,7 +161,7 @@ function Scene({ location, precipitationStorms, showWaypoints }: {
       {/* Storm columns */}
       {showWaypoints && precipitationStorms.map((storm) => {
         const pos3D = latLonTo3D(storm.lat, storm.lon, location.lat, location.lon);
-        const position = new Vector3(pos3D.x, pos3D.y, pos3D.z);
+        const position: [number, number, number] = [pos3D.x, pos3D.y, pos3D.z];
         
         return (
           <StormColumn
