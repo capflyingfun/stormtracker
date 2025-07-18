@@ -19,13 +19,13 @@ interface Point2D {
   y: number;
 }
 
-// Convert dBZ to 3D height
+// Convert dBZ to 3D height - reduced by half for better visibility
 const dbzToHeight = (dbz: number): number => {
-  if (dbz >= 61) return 8;  // Extreme thunderstorms
-  if (dbz >= 55) return 6;  // Very heavy rain/hail
-  if (dbz >= 46) return 4;  // Heavy rain
-  if (dbz >= 35) return 2;  // Moderate rain
-  return 1;                 // Light rain
+  if (dbz >= 61) return 4;    // Extreme thunderstorms
+  if (dbz >= 55) return 3;    // Very heavy rain/hail
+  if (dbz >= 46) return 2;    // Heavy rain
+  if (dbz >= 35) return 1;    // Moderate rain
+  return 0.5;                 // Light rain
 };
 
 // Convert dBZ to color
