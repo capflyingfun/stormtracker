@@ -82,6 +82,25 @@ export default function StormTracker() {
       const newPrecipitationStorms = event.detail || [];
       console.log(`Updated precipitation storms: ${newPrecipitationStorms.length} storms detected from radar imagery`);
       setPrecipitationStorms(newPrecipitationStorms);
+      
+      // Trigger immediate risk assessment with fresh precipitation data
+      if (location && preferences) {
+        setTimeout(async () => {
+          try {
+            console.log(`Event-driven risk assessment for ${newPrecipitationStorms.length} precipitation storms`);
+            const riskData = await assessRisk(location, newPrecipitationStorms, lightningCount);
+            if (riskData && riskData.shouldAlert) {
+              console.log('Event-driven alert triggered:', riskData.title, riskData.conditions);
+              showAlert(riskData);
+            } else if (newPrecipitationStorms.length === 0) {
+              console.log('No precipitation storms - dismissing alerts');
+              dismissAlert();
+            }
+          } catch (error) {
+            console.error('Event-driven risk assessment failed:', error);
+          }
+        }, 500); // Small delay to ensure state is updated
+      }
     };
 
     window.addEventListener('precipitationStormData', handlePrecipitationStormData);
@@ -89,7 +108,7 @@ export default function StormTracker() {
     return () => {
       window.removeEventListener('precipitationStormData', handlePrecipitationStormData);
     };
-  }, []);
+  }, [location, preferences, lightningCount, assessRisk, showAlert, dismissAlert]);
 
   // Listen for lightning data updates from the map component
   useEffect(() => {
@@ -129,22 +148,25 @@ export default function StormTracker() {
         return;
       }
 
-      try {
-        console.log(`Assessing risk for ${precipitationStorms.length} precipitation-detected storms (not synthetic API data)`);
-        console.log('Precipitation storms data:', precipitationStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
-        const riskData = await assessRisk(location, precipitationStorms, lightningCount);
-        if (riskData && riskData.shouldAlert) {
-          console.log('Risk alert triggered with precipitation data:', riskData.title, riskData.conditions);
-          showAlert(riskData);
-        } else if (precipitationStorms.length === 0) {
-          console.log('No precipitation storms detected - clearing any existing alerts');
-          dismissAlert(); // Clear any existing alerts when no real storms are found
-        } else {
-          console.log('Precipitation storms detected but no alert triggered');
+      // Wait 3 seconds for precipitation data to load from radar imagery
+      setTimeout(async () => {
+        try {
+          console.log(`Assessing risk for ${precipitationStorms.length} precipitation-detected storms (not synthetic API data)`);
+          console.log('Precipitation storms data:', precipitationStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
+          const riskData = await assessRisk(location, precipitationStorms, lightningCount);
+          if (riskData && riskData.shouldAlert) {
+            console.log('Risk alert triggered with precipitation data:', riskData.title, riskData.conditions);
+            showAlert(riskData);
+          } else if (precipitationStorms.length === 0) {
+            console.log('No precipitation storms detected - clearing any existing alerts');
+            dismissAlert(); // Clear any existing alerts when no real storms are found
+          } else {
+            console.log('Precipitation storms detected but no alert triggered');
+          }
+        } catch (error) {
+          console.error('Risk assessment failed:', error);
         }
-      } catch (error) {
-        console.error('Risk assessment failed:', error);
-      }
+      }, 3000); // Wait 3 seconds for precipitation data to load
     };
 
     // Perform risk assessment when storms or location change
