@@ -89,13 +89,18 @@ export default function StormTracker() {
         setTimeout(async () => {
           try {
             // Apply the SAME filtering that Storm Cells panel uses
+            console.log('Alert System: Current storm filters:', stormFilters);
             const filteredStorms = newPrecipitationStorms.filter(storm => {
               const category = storm.intensity >= 61 ? 'extreme' :    // Extreme thunderstorms
                               storm.intensity >= 55 ? 'veryHeavy' :  // Very heavy rain/hail
                               storm.intensity >= 46 ? 'heavy' :      // Heavy rain
                               storm.intensity >= 35 ? 'moderate' :   // Moderate rain
                               'light';                               // Light rain (20-34 dBZ)
-              return stormFilters[category as keyof typeof stormFilters];
+              const included = stormFilters[category as keyof typeof stormFilters];
+              if (!included) {
+                console.log(`Alert System: Filtering out ${storm.intensity}dBZ storm (category: ${category})`);
+              }
+              return included;
             });
             
             // Sort filtered storms by highest dBZ first, then closest distance (same as Storm Cells panel)
