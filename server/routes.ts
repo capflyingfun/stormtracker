@@ -1063,6 +1063,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { lat, lon, storms, lightningCount, preferences } = riskAssessmentSchema.parse(req.body);
       
+      console.log(`Risk assessment received ${storms.length} storms:`, storms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1) || 'N/A'}mi`));
+      
       // Calculate risk factors - sort by distance first, then by intensity
       const stormsWithDistance = storms.map(storm => ({
         ...storm,
