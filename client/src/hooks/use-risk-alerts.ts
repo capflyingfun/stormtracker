@@ -46,18 +46,22 @@ export function useRiskAlerts() {
     if (!preferences || !location) return null;
 
     try {
+      const mappedStorms = storms.map(storm => ({
+        lat: storm.lat,
+        lon: storm.lon,
+        intensity: storm.intensity || storm.dbz || 0,
+        distance: storm.distance
+      }));
+      
+      console.log('Sending to risk assessment:', mappedStorms.length, 'storms:', mappedStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
+      
       const response = await fetch('/api/risk/assess', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           lat: location.lat,
           lon: location.lon,
-          storms: storms.map(storm => ({
-            lat: storm.lat,
-            lon: storm.lon,
-            intensity: storm.intensity || storm.dbz || 0,
-            distance: storm.distance
-          })),
+          storms: mappedStorms,
           lightningCount,
           preferences: {
             riskLevel: preferences.riskLevel,

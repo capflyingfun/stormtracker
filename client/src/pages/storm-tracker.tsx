@@ -129,13 +129,16 @@ export default function StormTracker() {
 
       try {
         console.log(`Assessing risk for ${precipitationStorms.length} precipitation-detected storms (not synthetic API data)`);
+        console.log('Precipitation storms data:', precipitationStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
         const riskData = await assessRisk(location, precipitationStorms, lightningCount);
         if (riskData && riskData.shouldAlert) {
-          console.log('Risk alert triggered:', riskData.title);
+          console.log('Risk alert triggered with precipitation data:', riskData.title, riskData.conditions);
           showAlert(riskData);
         } else if (precipitationStorms.length === 0) {
           console.log('No precipitation storms detected - clearing any existing alerts');
           dismissAlert(); // Clear any existing alerts when no real storms are found
+        } else {
+          console.log('Precipitation storms detected but no alert triggered');
         }
       } catch (error) {
         console.error('Risk assessment failed:', error);
