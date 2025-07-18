@@ -150,13 +150,12 @@ export const riskAssessmentSchema = z.object({
   })),
   lightningCount: z.number().default(0),
   preferences: z.object({
-    riskLevel: z.enum(['low', 'medium', 'high']),
+    minimumDbz: z.number().default(35),
     alertRadius: z.number().default(30),
-    lightRainEnabled: z.boolean().default(false),
-    moderateRainEnabled: z.boolean().default(true),
-    heavyRainEnabled: z.boolean().default(true),
-    veryHeavyRainEnabled: z.boolean().default(true),
-    extremeStormEnabled: z.boolean().default(true),
+    alertFrequency: z.number().default(15),
+    soundEnabled: z.boolean().default(true),
+    pushEnabled: z.boolean().default(true),
+    emailEnabled: z.boolean().default(false),
   }),
 });
 
