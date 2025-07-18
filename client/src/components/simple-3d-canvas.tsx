@@ -37,12 +37,21 @@ const dbzToColor = (dbz: number): string => {
   return '#22C55E';                // Green - Light
 };
 
-// 3D to 2D projection with wider field of view
+// 3D to 2D projection with angled down camera
 const project3D = (point: Point3D, cameraDistance: number, canvasWidth: number, canvasHeight: number): Point2D => {
-  const scale = cameraDistance / (cameraDistance + point.z + 0.1); // Prevent division by zero
+  // Apply camera tilt rotation (40° down angle)
+  const tiltAngle = Math.PI / 4.5; // ~40 degrees in radians
+  const cosTilt = Math.cos(tiltAngle);
+  const sinTilt = Math.sin(tiltAngle);
+  
+  // Rotate point around X axis for downward angle
+  const rotatedY = point.y * cosTilt - point.z * sinTilt;
+  const rotatedZ = point.y * sinTilt + point.z * cosTilt;
+  
+  const scale = cameraDistance / (cameraDistance + rotatedZ + 0.1);
   return {
-    x: canvasWidth / 2 + point.x * scale * 25,  // Wider field of view
-    y: canvasHeight / 2 - point.y * scale * 25  // 40° down angle perspective
+    x: canvasWidth / 2 + point.x * scale * 25,
+    y: canvasHeight / 2 - rotatedY * scale * 25
   };
 };
 
