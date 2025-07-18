@@ -79,8 +79,9 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
   
   // Apply storm filters if provided
   const filteredStorms = stormFilters ? effectiveStorms.filter(storm => {
-    const category = storm.intensity >= 55 ? 'severe' : 
-                    storm.intensity >= 45 ? 'heavy' : 
+    const category = storm.intensity >= 61 ? 'extreme' :
+                    storm.intensity >= 55 ? 'veryHeavy' :
+                    storm.intensity >= 46 ? 'heavy' : 
                     storm.intensity >= 35 ? 'moderate' : 'light';
     return stormFilters[category as keyof typeof stormFilters];
   }) : effectiveStorms;
