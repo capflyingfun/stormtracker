@@ -74,19 +74,19 @@ export default function RiskAlertNotification({
   };
 
   return (
-    <div className="fixed top-4 right-4 z-50 max-w-md">
+    <div className="fixed top-2 left-2 right-2 z-50 sm:top-4 sm:right-4 sm:left-auto sm:max-w-md">
       <Card className={`${getRiskColor(alert.riskLevel)} text-white shadow-2xl transition-all duration-300 ${
         isAnimating && alert.riskLevel === 'extreme' ? 'animate-pulse' : ''
       }`}>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 px-3 pt-3 sm:px-6 sm:pt-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{getRiskIcon(alert.riskLevel)}</span>
-              <CardTitle className="text-lg font-bold">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="text-xl sm:text-2xl shrink-0">{getRiskIcon(alert.riskLevel)}</span>
+              <CardTitle className="text-base sm:text-lg font-bold truncate">
                 {alert.title}
               </CardTitle>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-2">
               <Badge variant="secondary" className="text-xs">
                 {alert.riskLevel.toUpperCase()}
               </Badge>
@@ -96,7 +96,7 @@ export default function RiskAlertNotification({
                 onClick={onDismiss}
                 className="h-6 w-6 p-0 hover:bg-white/20"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
             </div>
           </div>

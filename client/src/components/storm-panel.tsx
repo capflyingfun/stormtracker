@@ -28,6 +28,13 @@ const getDirectionName = (degrees: number): string => {
   return directions[index];
 };
 
+// Helper function to format direction with bearing in compass format
+const formatDirectionWithBearing = (distance: number, bearing: number, formatDistance: (miles: number) => string): string => {
+  const direction = getDirectionName(bearing);
+  const formattedBearing = bearing.toFixed(0).padStart(3, '0');
+  return `${direction} (${formattedBearing}°) @ ${formatDistance(distance)}`;
+};
+
 const getStormIntensityName = (intensity: number): string => {
   if (intensity >= 61) return 'Extreme Thunderstorms';
   if (intensity >= 55) return 'Very Heavy Rain/Hail';
@@ -119,8 +126,8 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
               {/* Enhanced storm information */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-300">Distance:</span>
-                  <span className="text-sm text-white">{formatDistance(storm.distance)} {getDirectionName(storm.direction)}</span>
+                  <span className="text-sm text-slate-300">Location:</span>
+                  <span className="text-sm text-white">{formatDirectionWithBearing(storm.distance, storm.direction, formatDistance)}</span>
                 </div>
                 
                 <div className="flex justify-between items-center">
