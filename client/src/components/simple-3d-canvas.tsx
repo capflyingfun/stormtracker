@@ -41,8 +41,8 @@ const dbzToColor = (dbz: number): string => {
 const project3D = (point: Point3D, cameraDistance: number, canvasWidth: number, canvasHeight: number): Point2D => {
   const scale = cameraDistance / (cameraDistance + point.z + 0.1); // Prevent division by zero
   return {
-    x: canvasWidth / 2 + point.x * scale * 25,  // Wider field of view
-    y: canvasHeight / 2 - point.y * scale * 25  // Standard projection
+    x: canvasWidth / 2 + point.x * scale * 20,  // Even wider field of view
+    y: canvasHeight / 2 - point.y * scale * 20  // Zoomed out more
   };
 };
 
@@ -80,7 +80,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
 
-    const cameraDistance = 25; // Much further back for wide overview
+    const cameraDistance = 40; // Much further back for wide storm field view
 
     // Rotate a 3D point around Y axis
     const rotateY = (point: Point3D, angle: number): Point3D => {
