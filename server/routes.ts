@@ -99,6 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/geocode", async (req, res) => {
     try {
       const { query } = locationSearchSchema.parse(req.body);
+      console.log(`Geocoding search for: "${query}"`);
       
       // Try different geocoding approaches
       let locations = [];
@@ -106,6 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if it's a zip code (5 digits, optionally with +4)
       const zipCodeMatch = query.match(/^\d{5}(-\d{4})?$/);
       if (zipCodeMatch) {
+        console.log('Detected ZIP code format, using ZIP API');
         // For zip codes, add US country code
         const zipResponse = await fetch(
           `https://api.openweathermap.org/geo/1.0/zip?zip=${query},US&appid=${API_KEYS.openweather}`
@@ -113,6 +115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (zipResponse.ok) {
           const zipData = await zipResponse.json();
+          console.log('ZIP API response:', zipData);
           locations = [{
             lat: zipData.lat,
             lon: zipData.lon,
@@ -120,11 +123,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             state: '', // Zip API doesn't return state
             country: zipData.country
           }];
+        } else {
+          console.log('ZIP API failed:', zipResponse.status);
         }
       }
       
       // If no results from zip code API or not a zip code, try direct geocoding
       if (locations.length === 0) {
+        console.log('Using OpenWeatherMap direct geocoding');
         // First try OpenWeatherMap geocoding for cities and general locations
         const response = await fetch(
           `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=10&appid=${API_KEYS.openweather}`
@@ -132,6 +138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (response.ok) {
           const rawLocations = await response.json();
+          console.log('OpenWeatherMap response:', rawLocations);
           locations = rawLocations.map((loc: any) => ({
             lat: loc.lat,
             lon: loc.lon,
@@ -140,10 +147,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             country: loc.country || '',
             countryCode: loc.country
           }));
+        } else {
+          console.log('OpenWeatherMap API failed:', response.status);
         }
         
         // If OpenWeatherMap didn't find results, try Nominatim for detailed addresses
         if (locations.length === 0) {
+          console.log('Trying Nominatim for address search');
           try {
             const nominatimResponse = await fetch(
               `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`,
@@ -156,6 +166,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             if (nominatimResponse.ok) {
               const nominatimData = await nominatimResponse.json();
+              console.log('Nominatim response:', nominatimData);
               locations = nominatimData.map((loc: any) => ({
                 lat: parseFloat(loc.lat),
                 lon: parseFloat(loc.lon),
@@ -166,6 +177,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 country: loc.address?.country || '',
                 countryCode: loc.address?.country_code?.toUpperCase() || ''
               }));
+            } else {
+              console.log('Nominatim API failed:', nominatimResponse.status);
             }
           } catch (nominatimError) {
             console.log('Nominatim fallback failed:', nominatimError);
@@ -190,11 +203,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           recommendedRadarSource: isUSLocation ? 'nexrad' : 'rainviewer'
         });
       } else {
-        res.status(404).json({ message: "Location not found" });
+        console.log(`No geocoding results found for query: "${query}"`);
+        res.status(404).json({ message: "Location not found. Please try a different search term or check spelling." });
       }
     } catch (error) {
       console.error("Geocoding error:", error);
-      res.status(500).json({ message: "Failed to geocode location" });
+      console.error("Query was:", query);
+      res.status(500).json({ message: "Failed to geocode location - please try again" });
     }
   });
 
