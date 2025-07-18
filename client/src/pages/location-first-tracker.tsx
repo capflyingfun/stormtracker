@@ -8,6 +8,7 @@ import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
 import Game3DEnvironment from "@/components/game-3d-environment";
 import SimpleFallback3D from "@/components/simple-fallback-3d";
+import Basic3DEnvironment from "@/components/basic-3d-environment";
 import ModeSelector from "@/components/mode-selector";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -200,24 +201,14 @@ export default function LocationFirstTracker() {
       hasValidLocation: !!(location && location.lat && location.lon)
     });
     
-    try {
-      return (
-        <Game3DEnvironment
-          location={location}
-          precipitationStorms={precipitationStorms}
-          onClose={resetToLocationSetup}
-        />
-      );
-    } catch (error) {
-      console.error('[Location First Tracker] 3D Environment error, using fallback:', error);
-      return (
-        <SimpleFallback3D
-          location={location}
-          precipitationStorms={precipitationStorms}
-          onClose={resetToLocationSetup}
-        />
-      );
-    }
+    // Use the reliable Basic3D environment directly
+    return (
+      <Basic3DEnvironment
+        location={location}
+        precipitationStorms={precipitationStorms}
+        onClose={resetToLocationSetup}
+      />
+    );
   }
 
   // Step 4: 2D Mode
