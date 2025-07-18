@@ -476,3 +476,5 @@ Preferred communication style: Simple, everyday language.
 - **Enhanced Visual Clarity**: Storm cells in the panel now have adequate spacing for better readability
 - **Maintained Alert Highlighting**: Preserved pulsating border alerts while improving card layout
 - **Professional Interface**: Clean separation between storm cards for improved user experience
+- **Reduced Alert Border Effect**: Minimized pulsing border thickness and opacity to prevent visual overlap between storm cards
+- **Subtle Visual Alerts**: Changed border from 2px to 1px with reduced opacity (60%) for cleaner appearance
