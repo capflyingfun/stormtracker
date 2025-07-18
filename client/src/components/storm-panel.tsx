@@ -12,6 +12,12 @@ interface Storm {
   speed: number;
   type: string;
   description?: string;
+  windsPrediction?: {
+    direction: number;
+    speed: number;
+    confidence: string;
+    source: string;
+  };
 }
 
 interface StormPanelProps {
@@ -28,6 +34,9 @@ const getDirectionName = (degrees: number): string => {
   const index = Math.round(degrees / 22.5) % 16;
   return directions[index];
 };
+
+// Alias for consistency with winds aloft display
+const getCompassDirection = getDirectionName;
 
 // Helper function to format direction with bearing in compass format
 const formatDirectionWithBearing = (distance: number, bearing: number, formatDistance: (miles: number) => string): string => {
@@ -222,6 +231,18 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-slate-300">Movement:</span>
                     <span className="text-xs text-white">{formatSpeed(storm.speed)} @ {storm.direction.toFixed(0)}°</span>
+                  </div>
+                )}
+                
+                {storm.windsPrediction && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-slate-300">Forecast Movement:</span>
+                    <span className="text-xs text-blue-300">
+                      {storm.windsPrediction.speed > 0 ? `${storm.windsPrediction.speed} mph ${getCompassDirection(storm.windsPrediction.direction)}` : 'Stationary'}
+                      {storm.windsPrediction.confidence && storm.windsPrediction.confidence !== 'low' && (
+                        <span className="ml-1 text-slate-400">({storm.windsPrediction.confidence})</span>
+                      )}
+                    </span>
                   </div>
                 )}
       </div>
