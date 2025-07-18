@@ -1717,7 +1717,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                             point.dbz >= 46 ? 'heavy' : 
                             point.dbz >= 35 ? 'moderate' : 'light';
             return stormFilters[category as keyof typeof stormFilters];
-          }).length})` : ''}
+          }).length})` : '(0)'}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           <button 
