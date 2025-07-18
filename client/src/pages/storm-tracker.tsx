@@ -334,6 +334,13 @@ export default function StormTracker() {
                   {/* Closest Storm */}
                   {(() => {
                     const closestStorm = [...filteredStorms].sort((a, b) => a.distance - b.distance)[0];
+                    const getDirectionName = (degrees: number): string => {
+                      const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+                      const index = Math.round(degrees / 22.5) % 16;
+                      return directions[index];
+                    };
+                    const direction = getDirectionName(closestStorm.direction);
+                    const formattedBearing = closestStorm.direction.toFixed(0).padStart(3, '0');
                     return (
                       <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
                         <div className="flex items-center gap-2 mb-2">
@@ -341,7 +348,7 @@ export default function StormTracker() {
                           <span className="text-sm font-medium text-slate-300">Closest Storm</span>
                         </div>
                         <div className="text-white font-semibold">
-                          {formatDistance(closestStorm.distance)}
+                          {direction} ({formattedBearing}°) @ {formatDistance(closestStorm.distance)}
                         </div>
                         <div className="text-xs text-slate-400">
                           {closestStorm.intensity}dBZ • {closestStorm.intensity >= 61 ? 'Extreme' :
@@ -356,6 +363,13 @@ export default function StormTracker() {
                   {/* Strongest Storm */}
                   {(() => {
                     const strongestStorm = [...filteredStorms].sort((a, b) => b.intensity - a.intensity)[0];
+                    const getDirectionName = (degrees: number): string => {
+                      const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+                      const index = Math.round(degrees / 22.5) % 16;
+                      return directions[index];
+                    };
+                    const direction = getDirectionName(strongestStorm.direction);
+                    const formattedBearing = strongestStorm.direction.toFixed(0).padStart(3, '0');
                     return (
                       <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
                         <div className="flex items-center gap-2 mb-2">
@@ -366,7 +380,7 @@ export default function StormTracker() {
                           {strongestStorm.intensity}dBZ
                         </div>
                         <div className="text-xs text-slate-400">
-                          {formatDistance(strongestStorm.distance)} • {strongestStorm.intensity >= 61 ? 'Extreme' :
+                          {direction} ({formattedBearing}°) @ {formatDistance(strongestStorm.distance)} • {strongestStorm.intensity >= 61 ? 'Extreme' :
                            strongestStorm.intensity >= 55 ? 'Very Heavy' :
                            strongestStorm.intensity >= 46 ? 'Heavy' :
                            strongestStorm.intensity >= 35 ? 'Moderate' : 'Light'}
