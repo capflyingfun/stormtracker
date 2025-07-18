@@ -12,7 +12,7 @@ interface SimpleLocationSearchProps {
     isUS?: boolean; 
     recommendedRadarSource?: 'rainviewer' | 'nexrad' 
   }) => void;
-  onUseCurrentLocation?: () => void;
+  onUseCurrentLocation?: () => Promise<void>;
   placeholder?: string;
   className?: string;
 }
@@ -25,6 +25,7 @@ export default function SimpleLocationSearch({
 }: SimpleLocationSearchProps) {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isGPSLoading, setIsGPSLoading] = useState(false);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -116,14 +117,28 @@ export default function SimpleLocationSearch({
 
         {onUseCurrentLocation && (
           <Button
-            onClick={onUseCurrentLocation}
+            onClick={async () => {
+              setIsGPSLoading(true);
+              try {
+                await onUseCurrentLocation();
+              } finally {
+                setIsGPSLoading(false);
+              }
+            }}
+            disabled={isGPSLoading || isLoading}
             variant="outline"
             className="px-3 sm:px-4 py-3 h-12 md:h-10 touch-manipulation"
             title="Use current location"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
-            <Navigation className="h-4 w-4" />
-            <span className="ml-2 text-sm hidden sm:inline">Use GPS</span>
+            {isGPSLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Navigation className="h-4 w-4" />
+            )}
+            <span className="ml-2 text-sm hidden sm:inline">
+              {isGPSLoading ? 'Getting GPS...' : 'Use GPS'}
+            </span>
           </Button>
         )}
       </div>

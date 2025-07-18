@@ -362,7 +362,7 @@ export default function StormTracker() {
               )}
             </div>
 
-            {/* Interactive Radar Map - Hidden when 3D is active */}
+            {/* Interactive Radar Map - Hidden when 3D is active or settings are open */}
             {!show3D && (
               <StormMap
                 location={location}
@@ -375,6 +375,7 @@ export default function StormTracker() {
                 onStormFiltersChange={setStormFilters}
                 onRadarSourceChange={setCurrentRadarSource}
                 radarSource={currentRadarSource}
+                isDisabled={showAlertSettings}
               />
             )}
 

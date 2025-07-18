@@ -57,11 +57,11 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-md bg-slate-800 border-slate-700">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+      <Card className="w-full max-w-md bg-slate-800 border-slate-700 max-h-[90vh] sm:max-h-[95vh] overflow-y-auto m-2 sm:m-0">
+        <CardHeader className="pb-3 px-4 pt-4 sm:px-6 sm:pt-6">
+          <div className="flex items-center justify-between min-h-[2rem]">
+            <CardTitle className="text-lg font-bold text-white flex items-center gap-2 pr-3">
               <AlertTriangle className="h-5 w-5" />
               Alert Settings
             </CardTitle>
@@ -69,9 +69,9 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+              className="h-10 w-10 p-0 text-slate-400 hover:text-white shrink-0 flex-none -mr-2"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </Button>
           </div>
         </CardHeader>

@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Mobile safe area support */
+html {
+  /* Support for devices with notches and rounded corners */
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+
 /* Storm highlight animation */
 @keyframes storm-pulse {
   0% {
