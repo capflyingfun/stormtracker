@@ -138,6 +138,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         const data = await response.json();
         setLightningStrikes(data.strikes || []);
         console.log(`Lightning: Found ${data.strikes?.length || 0} strikes within 100 miles`);
+        
+        // Emit lightning data for risk assessment
+        const event = new CustomEvent('lightningData', { 
+          detail: { 
+            strikes: data.strikes || [], 
+            count: data.strikes?.length || 0 
+          } 
+        });
+        window.dispatchEvent(event);
       }
     } catch (error) {
       console.error('Failed to fetch lightning data:', error);
