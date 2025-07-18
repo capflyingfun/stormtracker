@@ -1738,17 +1738,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
 
-      {/* Precipitation Waypoints Count - Simple display */}
-      <div className="mt-3 bg-slate-800/50 rounded-lg border border-slate-700 p-3">
-        <div className="flex justify-between items-center">
-          <div className="font-semibold text-white text-sm">
-            Precipitation Waypoints ({precipitationPoints.length})
-          </div>
-          <div className="text-xs text-slate-400">
-            Data source: {radarSource?.toUpperCase()} {radarSource === 'nexrad' ? '(NWS/NOAA)' : '(Global)'}
-          </div>
-        </div>
-      </div>
+
     </div>
   );
 }
