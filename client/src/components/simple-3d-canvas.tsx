@@ -154,6 +154,38 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         compassY - Math.cos(northAngle) * (arrowLength + 15) + 5
       );
 
+      // Draw retro-style grid floor for reference
+      const gridSize = 20; // Grid lines every 20 units
+      const gridExtent = 50; // Grid extends 50 units in each direction
+      ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)'; // Semi-transparent gray
+      ctx.lineWidth = 1;
+
+      // Draw grid lines parallel to X axis (running east-west)
+      for (let z = -gridExtent; z <= gridExtent; z += gridSize) {
+        const start3D = rotateY({ x: -gridExtent, y: 0, z }, rotationY);
+        const end3D = rotateY({ x: gridExtent, y: 0, z }, rotationY);
+        const startProj = project3D({ ...start3D, y: start3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        const endProj = project3D({ ...end3D, y: end3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        
+        ctx.beginPath();
+        ctx.moveTo(startProj.x, startProj.y);
+        ctx.lineTo(endProj.x, endProj.y);
+        ctx.stroke();
+      }
+
+      // Draw grid lines parallel to Z axis (running north-south)
+      for (let x = -gridExtent; x <= gridExtent; x += gridSize) {
+        const start3D = rotateY({ x, y: 0, z: -gridExtent }, rotationY);
+        const end3D = rotateY({ x, y: 0, z: gridExtent }, rotationY);
+        const startProj = project3D({ ...start3D, y: start3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        const endProj = project3D({ ...end3D, y: end3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        
+        ctx.beginPath();
+        ctx.moveTo(startProj.x, startProj.y);
+        ctx.lineTo(endProj.x, endProj.y);
+        ctx.stroke();
+      }
+
       // Draw highly visible user location marker
       const userPos = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
       const userProjected = project3D({ ...userPos, y: userPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
