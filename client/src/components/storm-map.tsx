@@ -837,6 +837,17 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const meetsAlertThreshold = alertPreferences && point.dbz >= alertPreferences.minimumDbz;
       const isAlertStorm = meetsAlertThreshold && pointDistance <= (alertPreferences?.alertRadius || 30);
       
+      // Get alert threshold color (color that matches the minimum dBZ setting)
+      const getAlertThresholdColor = (minimumDbz: number) => {
+        if (minimumDbz >= 61) return '#8B5CF6'; // Purple - Extreme
+        if (minimumDbz >= 55) return '#EF4444'; // Red - Very Heavy
+        if (minimumDbz >= 46) return '#F97316'; // Orange - Heavy
+        if (minimumDbz >= 35) return '#EAB308'; // Yellow - Moderate
+        return '#22C55E'; // Green - Light
+      };
+      
+      const alertColor = alertPreferences ? getAlertThresholdColor(alertPreferences.minimumDbz) : '#ffff00';
+      
       // Create custom waypoint marker with optional pulsing effect
       const waypointIcon = window.L.divIcon({
         html: `
@@ -844,9 +855,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             width: ${markerSize}px;
             height: ${markerSize}px;
             background-color: ${getDbzColor(point.dbz)};
-            border: ${isAlertStorm ? '3px solid #ffff00' : '2px solid #ffffff'};
+            border: ${isAlertStorm ? `3px solid ${alertColor}` : '2px solid #ffffff'};
             border-radius: 50%;
-            box-shadow: 0 0 ${isAlertStorm ? '12px rgba(255,255,0,0.8)' : '6px rgba(0,0,0,0.5)'};
+            box-shadow: 0 0 ${isAlertStorm ? `12px ${alertColor}80` : '6px rgba(0,0,0,0.5)'};
             display: flex;
             align-items: center;
             justify-content: center;
