@@ -65,8 +65,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const [rotationY, setRotationY] = useState(0); // Start straight
   const [cameraHeight, setCameraHeight] = useState(6); // Tilted down view
   const [isRotating, setIsRotating] = useState(false);
-  const [autoRotate, setAutoRotate] = useState(false); // Auto-rotation disabled by default
-  const [rotationSpeedMultiplier, setRotationSpeedMultiplier] = useState(1); // Start at slowest speed
+  // Removed auto-rotation completely
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
 
@@ -228,7 +227,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
               
               // Calculate scale and color
               const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
-              const width = Math.max(3, 25 * scale);
+              const width = Math.max(4, 30 * scale); // Larger, square columns
               
               // Determine color based on height
               const color = height >= 3.5 ? '#8B5CF6' : // Purple - Extreme
@@ -237,10 +236,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
                            height >= 0.8 ? '#EAB308' : // Yellow - Moderate
                            '#22C55E';                   // Green - Light
               
-              // Draw terrain polygon with gradient
+              // Draw solid square terrain columns
               const terrainGradient = ctx.createLinearGradient(base.x - width/2, top.y, base.x + width/2, base.y);
-              terrainGradient.addColorStop(0, color + '40'); // Transparent top
-              terrainGradient.addColorStop(1, color + 'AA'); // Semi-solid bottom
+              terrainGradient.addColorStop(0, color + 'CC'); // More opaque top
+              terrainGradient.addColorStop(1, color + 'FF'); // Fully solid bottom
               
               ctx.fillStyle = terrainGradient;
               ctx.fillRect(base.x - width/2, top.y, width, base.y - top.y);
@@ -310,12 +309,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
     // Animation loop with lerped rotation for smoothness
     const animate = () => {
-      // Auto-rotation when enabled and not manually rotating
-      if (autoRotate && !isRotating) {
-        const autoSpeed = 0.0003 * rotationSpeedMultiplier; // Much slower, continuous rotation
-        setRotationY(prev => prev + autoSpeed);
-      }
-
       // Manual rotation - Lerp rotation speed for smooth acceleration/deceleration
       const lerpFactor = 0.1;
       currentRotationSpeed.current += (targetRotationSpeed.current - currentRotationSpeed.current) * lerpFactor;
@@ -340,7 +333,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating, autoRotate, rotationSpeedMultiplier]);
+  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating]);
 
   if (!location) {
     return (
@@ -373,29 +366,12 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         </div>
         <div className="flex gap-2">
           <Button
-            onClick={() => {
-              setAutoRotate(!autoRotate);
-              if (!autoRotate) {
-                // Reset to North when starting animation
-                setRotationY(0);
-              } else {
-                // Return to North when stopping animation
-                setRotationY(0);
-              }
-            }}
+            onClick={() => setRotationY(0)}
             variant="outline"
             size="sm"
-            className={`${autoRotate ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
+            className="bg-green-600 border-green-500"
           >
-            {autoRotate ? '⏸️ Pause' : '▶️ Play'}
-          </Button>
-          <Button
-            onClick={() => setRotationSpeedMultiplier(prev => prev === 3 ? 1 : prev + 1)}
-            variant="outline"
-            size="sm"
-            className="bg-purple-600 border-purple-500"
-          >
-            Speed {rotationSpeedMultiplier}x
+            📍 North
           </Button>
         </div>
       </div>
