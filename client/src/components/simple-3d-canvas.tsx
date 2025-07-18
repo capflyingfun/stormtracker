@@ -121,8 +121,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
       ctx.arc(compassX, compassY, compassSize / 2, 0, Math.PI * 2);
       ctx.fill();
       
-      // North arrow (considering current rotation)
-      const northAngle = -rotationY; // Adjust for current camera rotation
+      // North arrow (corrected for rotation direction)
+      const northAngle = rotationY; // Corrected: compass rotates with view
       const arrowLength = compassSize / 3;
       
       // Arrow shaft
