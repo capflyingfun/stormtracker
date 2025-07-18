@@ -1419,23 +1419,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
     }
     
-    // Focus on winds at typical thunderstorm altitudes (6,000-18,000 ft)
-    const stormAltitudeWinds = windsAloft.filter(w => w.altitude >= 6000 && w.altitude <= 18000);
+    // Focus on winds at typical thunderstorm steering altitudes (6,000-20,000 ft)
+    // The 500mb level (~18,000 ft) is the primary storm steering level
+    const stormAltitudeWinds = windsAloft.filter(w => w.altitude >= 6000 && w.altitude <= 20000);
     
     if (stormAltitudeWinds.length === 0) {
       // Use all available winds if no storm-level data
       stormAltitudeWinds.push(...windsAloft);
     }
     
-    // Calculate weighted average based on altitude (higher altitudes weighted more for storm movement)
+    // Calculate weighted average based on altitude (500mb level heavily weighted)
     let totalDirection = 0;
     let totalSpeed = 0;
     let totalWeight = 0;
     
     for (const wind of stormAltitudeWinds) {
-      // Weight by altitude - storms typically move with mid-to-upper level winds
-      const weight = wind.altitude >= 12000 ? 2.0 : 
-                     wind.altitude >= 9000 ? 1.5 : 1.0;
+      // Weight by altitude - 500mb level (18,000 ft) is primary storm steering
+      // 15,000-20,000 ft (500mb level): highest weight for storm steering
+      // 12,000-18,000 ft: high weight for mid-level steering
+      // 6,000-12,000 ft: moderate weight for low-level influence
+      const weight = wind.altitude >= 15000 && wind.altitude <= 20000 ? 3.0 :  // 500mb level
+                     wind.altitude >= 12000 ? 2.0 :                              // Upper mid-level
+                     wind.altitude >= 9000 ? 1.5 : 1.0;                          // Lower mid-level
       
       totalDirection += wind.direction * weight;
       totalSpeed += wind.speed * weight;
@@ -1455,8 +1460,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const avgSpeed = totalSpeed / totalWeight;
     
     // Convert from wind direction (where wind comes FROM) to storm movement direction (where storm moves TO)
-    // Add 180° to convert wind direction to storm movement direction
-    const stormMovementDirection = (avgWindDirection + 180) % 360;
+    // Subtract 180° to convert wind direction to storm movement direction
+    const stormMovementDirection = (avgWindDirection - 180 + 360) % 360;
     
     // Convert wind speed from knots to mph and apply storm movement factor
     // Storms typically move at 60-80% of the speed of the steering winds
