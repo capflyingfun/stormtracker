@@ -76,28 +76,32 @@ export default function StormTracker() {
     return stormFilters[category as keyof typeof stormFilters];
   });
 
-  // Listen for precipitation storm data from the map component
+  // Listen for precipitation storm data from the map component (same data as Storm Cells panel)
   useEffect(() => {
     const handlePrecipitationStormData = (event: any) => {
       const newPrecipitationStorms = event.detail || [];
-      console.log(`Updated precipitation storms: ${newPrecipitationStorms.length} storms detected from radar imagery`);
+      console.log(`Storm Panel Data: Updated precipitation storms: ${newPrecipitationStorms.length} storms detected from radar imagery`);
+      console.log('Storm Panel Data details:', newPrecipitationStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
       setPrecipitationStorms(newPrecipitationStorms);
       
-      // Trigger immediate risk assessment with fresh precipitation data
+      // Trigger immediate risk assessment with the SAME data that Storm Panel uses
       if (location && preferences) {
         setTimeout(async () => {
           try {
-            console.log(`Event-driven risk assessment for ${newPrecipitationStorms.length} precipitation storms`);
+            console.log(`Alert System: Event-driven risk assessment for ${newPrecipitationStorms.length} precipitation storms (SAME data as Storm Panel)`);
+            console.log('Alert System: Using Storm Panel data:', newPrecipitationStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
             const riskData = await assessRisk(location, newPrecipitationStorms, lightningCount);
             if (riskData && riskData.shouldAlert) {
-              console.log('Event-driven alert triggered:', riskData.title, riskData.conditions);
+              console.log('Alert System: Event-driven alert triggered with Storm Panel data:', riskData.title, riskData.conditions);
               showAlert(riskData);
             } else if (newPrecipitationStorms.length === 0) {
-              console.log('No precipitation storms - dismissing alerts');
+              console.log('Alert System: No precipitation storms - dismissing alerts');
               dismissAlert();
+            } else {
+              console.log('Alert System: Storm Panel data loaded but no alert triggered');
             }
           } catch (error) {
-            console.error('Event-driven risk assessment failed:', error);
+            console.error('Alert System: Event-driven risk assessment failed:', error);
           }
         }, 500); // Small delay to ensure state is updated
       }
@@ -140,40 +144,8 @@ export default function StormTracker() {
     };
   }, []);
 
-  // Risk assessment and alert generation
-  useEffect(() => {
-    const performRiskAssessment = async () => {
-      // Always perform risk assessment to clear false alerts when no storms detected
-      if (!location || !preferences) {
-        return;
-      }
-
-      // Wait 3 seconds for precipitation data to load from radar imagery
-      setTimeout(async () => {
-        try {
-          console.log(`Assessing risk for ${precipitationStorms.length} precipitation-detected storms (not synthetic API data)`);
-          console.log('Precipitation storms data:', precipitationStorms.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
-          const riskData = await assessRisk(location, precipitationStorms, lightningCount);
-          if (riskData && riskData.shouldAlert) {
-            console.log('Risk alert triggered with precipitation data:', riskData.title, riskData.conditions);
-            showAlert(riskData);
-          } else if (precipitationStorms.length === 0) {
-            console.log('No precipitation storms detected - clearing any existing alerts');
-            dismissAlert(); // Clear any existing alerts when no real storms are found
-          } else {
-            console.log('Precipitation storms detected but no alert triggered');
-          }
-        } catch (error) {
-          console.error('Risk assessment failed:', error);
-        }
-      }, 3000); // Wait 3 seconds for precipitation data to load
-    };
-
-    // Perform risk assessment when storms or location change
-    if (location && preferences) {
-      performRiskAssessment();
-    }
-  }, [location, precipitationStorms, lightningCount, preferences, assessRisk, showAlert, dismissAlert]);
+  // DISABLED: Timer-based risk assessment replaced with event-driven approach above
+  // This was causing data inconsistency between alerts and Storm Cells panel
 
   // Handle alert settings save
   const handleAlertSettingsSave = async (newPreferences: any) => {
