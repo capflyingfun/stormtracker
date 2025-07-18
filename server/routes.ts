@@ -125,23 +125,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If no results from zip code API or not a zip code, try direct geocoding
       if (locations.length === 0) {
-        // Enhanced international geocoding with better limit for global results
+        // First try OpenWeatherMap geocoding for cities and general locations
         const response = await fetch(
           `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=10&appid=${API_KEYS.openweather}`
         );
         
         if (response.ok) {
           const rawLocations = await response.json();
-          // Format locations with better international support
           locations = rawLocations.map((loc: any) => ({
             lat: loc.lat,
             lon: loc.lon,
             name: loc.name,
             state: loc.state || '',
             country: loc.country || '',
-            // Add country code for better identification
             countryCode: loc.country
           }));
+        }
+        
+        // If OpenWeatherMap didn't find results, try Nominatim for detailed addresses
+        if (locations.length === 0) {
+          try {
+            const nominatimResponse = await fetch(
+              `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`,
+              {
+                headers: {
+                  'User-Agent': 'StormTracker/1.0 (Weather Application)'
+                }
+              }
+            );
+            
+            if (nominatimResponse.ok) {
+              const nominatimData = await nominatimResponse.json();
+              locations = nominatimData.map((loc: any) => ({
+                lat: parseFloat(loc.lat),
+                lon: parseFloat(loc.lon),
+                name: loc.address?.house_number && loc.address?.road 
+                  ? `${loc.address.house_number} ${loc.address.road}`
+                  : loc.address?.city || loc.address?.town || loc.address?.village || loc.display_name.split(',')[0],
+                state: loc.address?.state || '',
+                country: loc.address?.country || '',
+                countryCode: loc.address?.country_code?.toUpperCase() || ''
+              }));
+            }
+          } catch (nominatimError) {
+            console.log('Nominatim fallback failed:', nominatimError);
+          }
         }
       }
       
