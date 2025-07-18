@@ -41,8 +41,8 @@ const dbzToColor = (dbz: number): string => {
 const project3D = (point: Point3D, cameraDistance: number, canvasWidth: number, canvasHeight: number): Point2D => {
   const scale = cameraDistance / (cameraDistance + point.z + 0.1); // Prevent division by zero
   return {
-    x: canvasWidth / 2 + point.x * scale * 20,  // Even wider field of view
-    y: canvasHeight / 2 - point.y * scale * 20  // Zoomed out more
+    x: canvasWidth / 2 + point.x * scale * 30,  // Normal field of view
+    y: canvasHeight / 2 - point.y * scale * 30  // Standard projection
   };
 };
 
@@ -63,7 +63,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(false); // Default to hidden for better performance
   const [rotationY, setRotationY] = useState(0); // Start straight
-  const [cameraHeight, setCameraHeight] = useState(12); // Higher up for 40° down angle
+  const [cameraHeight, setCameraHeight] = useState(5); // Normal camera height
   const [isRotating, setIsRotating] = useState(false);
   const [rotationSpeed, setRotationSpeed] = useState(2); // 1=slow, 2=medium, 3=fast
   const targetRotationSpeed = useRef(0);
@@ -80,7 +80,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
 
-    const cameraDistance = 40; // Much further back for wide storm field view
+    const cameraDistance = 20; // Balanced view distance
 
     // Rotate a 3D point around Y axis
     const rotateY = (point: Point3D, angle: number): Point3D => {
@@ -204,22 +204,21 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         stormData.sort((a, b) => b.rotatedPos.z - a.rotatedPos.z);
 
         stormData.forEach(({ pos3D, intensity, height, color, rotatedPos }) => {
-          // Project to screen with raised base for angled down effect
-          const raisedBase = 3; // Raise bottom by 3 units for angled perspective
-          const base = project3D({ ...rotatedPos, y: rotatedPos.y + raisedBase - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-          const top = project3D({ ...rotatedPos, y: rotatedPos.y + height + raisedBase - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+          // Project to screen - simple columns from ground up
+          const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+          const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
 
           // Calculate scale for perspective
           const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
           const radius = Math.max(4, 20 * scale); // Circular column radius
 
-          // Draw simple solid rectangular storm column - no glow effects
-          ctx.fillStyle = color + 'DD'; // Solid color with slight transparency
-          ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
+          // Draw original solid storm column
+          const columnGradient = ctx.createLinearGradient(base.x - radius, top.y, base.x + radius, base.y);
+          columnGradient.addColorStop(0, color + '99'); // Semi-transparent top
+          columnGradient.addColorStop(1, color + 'FF'); // Solid bottom
 
-          // Simple flat top - no cap effects
-          ctx.fillStyle = color + 'FF'; // Fully solid top
-          ctx.fillRect(base.x - radius, top.y - 2, radius * 2, 4);
+          ctx.fillStyle = columnGradient;
+          ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
 
           // Waypoint dots only if enabled
           if (showWaypoints) {
