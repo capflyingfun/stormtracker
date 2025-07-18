@@ -888,11 +888,20 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         icon: waypointIcon
       });
       
-      // Calculate rainfall rate using Marshall-Palmer formula: R = (Z/200)^(1/1.6)
-      const getRainfallRate = (dbz: number) => {
-        const z = Math.pow(10, dbz / 10); // Convert dBZ to Z
-        const rate = Math.pow(z / 200, 1 / 1.6); // Marshall-Palmer formula
-        return Math.max(0.01, rate); // Minimum 0.01 mm/h
+      // Official NOAA/NWS dBZ to rainfall rate conversion table
+      // Source: https://www.noaa.gov/jetstream/jetstream/radar-images-velocity
+      const getRainfallRate = (dbz: number): { mmh: number; inh: number } => {
+        if (dbz >= 65) return { mmh: 420, inh: 16.0 };
+        if (dbz >= 60) return { mmh: 205, inh: 8.0 };
+        if (dbz >= 55) return { mmh: 100, inh: 4.0 };
+        if (dbz >= 50) return { mmh: 47, inh: 1.9 };
+        if (dbz >= 45) return { mmh: 24, inh: 0.92 };
+        if (dbz >= 40) return { mmh: 12, inh: 0.45 };
+        if (dbz >= 35) return { mmh: 6, inh: 0.22 };
+        if (dbz >= 30) return { mmh: 3, inh: 0.10 };
+        if (dbz >= 25) return { mmh: 1, inh: 0.05 };
+        if (dbz >= 20) return { mmh: 0.25, inh: 0.01 }; // Trace amounts
+        return { mmh: 0, inh: 0 };
       };
       
       const getPrecipitationType = (dbz: number) => {
@@ -904,7 +913,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         return 'Trace/Mist';
       };
       
-      const rainfallRate = getRainfallRate(point.dbz);
+      const rainfallData = getRainfallRate(point.dbz);
       const precipType = getPrecipitationType(point.dbz);
       
       // Calculate distance for popup display
@@ -914,14 +923,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         ? `<b>Storm Cell Cluster</b><br>
            Distance: ${displayDistance.toFixed(1)} miles<br>
            Max Intensity: ${point.dbz} dBZ<br>
-           Rain Rate: ${rainfallRate.toFixed(1)} mm/h (${(rainfallRate * 0.0394).toFixed(2)} in/h)<br>
+           Rain Rate: ${rainfallData.mmh} mm/h (${rainfallData.inh} in/h)<br>
            Type: ${precipType}<br>
            Cells: ${point.count}<br>
            <small>Real-time ${radarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'} data</small>`
         : `<b>Precipitation Cell</b><br>
            Distance: ${displayDistance.toFixed(1)} miles<br>
            Intensity: ${point.dbz} dBZ<br>
-           Rain Rate: ${rainfallRate.toFixed(1)} mm/h (${(rainfallRate * 0.0394).toFixed(2)} in/h)<br>
+           Rain Rate: ${rainfallData.mmh} mm/h (${rainfallData.inh} in/h)<br>
            Type: ${precipType}<br>
            <small>Real-time ${radarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'} data</small>`;
       

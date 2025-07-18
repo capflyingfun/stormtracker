@@ -53,10 +53,20 @@ const getStormColor = (intensity: number): string => {
   return 'bg-blue-500';
 };
 
-const getRainfallRate = (dbz: number) => {
-  const z = Math.pow(10, dbz / 10); // Convert dBZ to Z
-  const rate = Math.pow(z / 200, 1 / 1.6); // Marshall-Palmer formula
-  return Math.max(0.01, rate); // Minimum 0.01 mm/h
+// Official NOAA/NWS dBZ to rainfall rate conversion table
+// Source: https://www.noaa.gov/jetstream/jetstream/radar-images-velocity
+const getRainfallRate = (dbz: number): { mmh: number; inh: number } => {
+  if (dbz >= 65) return { mmh: 420, inh: 16.0 };
+  if (dbz >= 60) return { mmh: 205, inh: 8.0 };
+  if (dbz >= 55) return { mmh: 100, inh: 4.0 };
+  if (dbz >= 50) return { mmh: 47, inh: 1.9 };
+  if (dbz >= 45) return { mmh: 24, inh: 0.92 };
+  if (dbz >= 40) return { mmh: 12, inh: 0.45 };
+  if (dbz >= 35) return { mmh: 6, inh: 0.22 };
+  if (dbz >= 30) return { mmh: 3, inh: 0.10 };
+  if (dbz >= 25) return { mmh: 1, inh: 0.05 };
+  if (dbz >= 20) return { mmh: 0.25, inh: 0.01 }; // Trace amounts
+  return { mmh: 0, inh: 0 };
 };
 
 export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource, stormFilters, alertPreferences }: StormPanelProps & { stormFilters?: any; alertPreferences?: any }) {
@@ -143,7 +153,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-300">Rain Rate:</span>
                   <span className="text-sm text-white">
-                    {getRainfallRate(storm.intensity).toFixed(1)} mm/h ({(getRainfallRate(storm.intensity) * 0.0394).toFixed(2)} in/h)
+                    {getRainfallRate(storm.intensity).mmh} mm/h ({getRainfallRate(storm.intensity).inh} in/h)
                   </span>
                 </div>
                 
