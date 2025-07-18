@@ -79,6 +79,32 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
 
+  // Calculate distance from user to storm
+  const calculateDistance = (stormLat: number, stormLon: number): number => {
+    const R = 3959; // Earth's radius in miles
+    const dLat = (stormLat - location.lat) * Math.PI / 180;
+    const dLon = (stormLon - location.lon) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(location.lat * Math.PI / 180) * Math.cos(stormLat * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  // Calculate bearing from user to storm
+  const calculateBearing = (stormLat: number, stormLon: number): string => {
+    const dLon = (stormLon - location.lon) * Math.PI / 180;
+    const lat1 = location.lat * Math.PI / 180;
+    const lat2 = stormLat * Math.PI / 180;
+    const y = Math.sin(dLon) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+    const bearing = Math.atan2(y, x) * 180 / Math.PI;
+    const normalized = (bearing + 360) % 360;
+    
+    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    return directions[Math.round(normalized / 22.5) % 16];
+  };
+
   useEffect(() => {
     if (!canvasRef.current || !location) return;
 
@@ -275,32 +301,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
     };
 
     draw();
-
-    // Calculate distance from user to storm
-    const calculateDistance = (stormLat: number, stormLon: number): number => {
-      const R = 3959; // Earth's radius in miles
-      const dLat = (stormLat - location.lat) * Math.PI / 180;
-      const dLon = (stormLon - location.lon) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(location.lat * Math.PI / 180) * Math.cos(stormLat * Math.PI / 180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return R * c;
-    };
-
-    // Calculate bearing from user to storm
-    const calculateBearing = (stormLat: number, stormLon: number): string => {
-      const dLon = (stormLon - location.lon) * Math.PI / 180;
-      const lat1 = location.lat * Math.PI / 180;
-      const lat2 = stormLat * Math.PI / 180;
-      const y = Math.sin(dLon) * Math.cos(lat2);
-      const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-      const bearing = Math.atan2(y, x) * 180 / Math.PI;
-      const normalized = (bearing + 360) % 360;
-      
-      const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-      return directions[Math.round(normalized / 22.5) % 16];
-    };
 
     // Check if click is on a storm column
     const getStormAtClick = (clickX: number, clickY: number): any => {
