@@ -4,6 +4,7 @@ import { z } from "zod";
 import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema, riskAssessmentSchema, userAlertPreferences, riskAlerts, insertRiskAlertSchema, insertUserAlertPreferencesSchema, updateUserAlertPreferencesSchema, insertAlertSubscriptionSchema } from "@shared/schema";
 import { storage } from "./storage";
 import { sendStormAlert, sendTestAlert, sendSMSAlert, sendTestSMS } from "./email";
+import { generateWeatherAssessment } from "./ai-assistant";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -2151,6 +2152,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const index = Math.round(degrees / 22.5) % 16;
     return directions[index];
   }
+
+  // AI Weather Assistant endpoint
+  app.post("/api/ai-assessment", async (req, res) => {
+    try {
+      const { userLocation, storms, winds, radarSource, lightningCount } = req.body;
+      
+      if (!userLocation || !Array.isArray(storms) || !Array.isArray(winds)) {
+        return res.status(400).json({ error: "Missing required weather data" });
+      }
+
+      const assessment = await generateWeatherAssessment({
+        userLocation,
+        storms,
+        winds,
+        radarSource: radarSource || 'Unknown',
+        lightningCount: lightningCount || 0
+      });
+
+      console.log(`AI assessment generated: ${assessment.riskLevel} risk level with ${assessment.confidence} confidence`);
+      res.json(assessment);
+
+    } catch (error) {
+      console.error('AI assessment endpoint error:', error);
+      res.status(500).json({ 
+        error: "Failed to generate weather assessment",
+        fallback: {
+          riskLevel: 'low',
+          summary: 'Assessment system temporarily unavailable.',
+          detailedAnalysis: 'Please monitor storm tracker manually.',
+          recommendations: ['Check local weather alerts'],
+          confidence: 0.3
+        }
+      });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;
