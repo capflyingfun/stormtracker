@@ -233,10 +233,12 @@ Preferred communication style: Simple, everyday language.
 - **Zero External Dependencies**: No API keys or external service configuration required for message delivery
 - **Professional Email Formatting**: Rich HTML emails with storm details, safety recommendations, and professional styling stored as database records
 - **Persistent Navigation**: localStorage-based location state preservation ensures users return to active storm tracker view (not location setup)
-- **Fixed Mark as Read**: Fully functional read/unread status management with immediate UI updates
+- **Automatic Mark as Read**: Gmail-style automatic read marking when messages are clicked, eliminating manual button requirement
+- **Seamless Delete Functionality**: One-click message deletion with immediate UI updates and proper database cleanup
 - **Alert History**: Complete audit trail of all storm alerts accessible through web interface
 - **Database Schema**: Comprehensive message storage with recipient info, storm context, delivery status, and timestamps
 - **Corporate Network Friendly**: Eliminates external email service dependencies that may be blocked by corporate firewalls
+- **Intuitive User Experience**: Messages automatically transition between Unread/Read tabs when selected, matching modern email client behavior
 
 ### Legacy External Email Support (July 19, 2025)  
 - **Multi-Provider Email Support**: Maintains compatibility with SendGrid, Gmail App Password, Outlook/Hotmail, Yahoo Mail, and generic SMTP providers
