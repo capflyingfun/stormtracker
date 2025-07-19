@@ -527,3 +527,13 @@ Preferred communication style: Simple, everyday language.
 - **Simplified Interface**: Focused on essential storm information through single tabbed filtering system
 - **Authentic Data Integrity**: Maintained real radar-based storm detection while removing visual redundancy
 - **Final Architecture**: Single tabbed filtering system eliminates confusion from duplicate filters
+
+### Professional Storm Cone Visualization System (July 19, 2025)
+- **StormScope-Style Movement Cones**: Implemented 30° storm movement cones extending 15 miles from storm position
+- **Global Storm Tracks Toggle**: Added "Storm Movement Tracks" control above radar for showing/hiding all storm cones simultaneously
+- **Individual vs All-Track Modes**: Click individual storms for single cone display or toggle "Show All" for complete storm field visualization
+- **Meteorological Color Coding**: Storm cones color-coded by intensity (red 55+, orange 45+, yellow 35+, green 30+ dBZ)
+- **Professional Visualization**: Reduced opacity and dashed lines for multiple cone display to prevent visual clutter
+- **Center Movement Lines**: Each cone includes center line showing predicted storm movement direction based on NOAA winds aloft data
+- **Conflict Resolution**: Individual storm clicks disabled when showing all tracks to prevent popup interference
+- **Clean Integration**: Storm tracks work seamlessly with existing directional arrow markers and professional radar interface
