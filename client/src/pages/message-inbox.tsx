@@ -46,9 +46,14 @@ export default function MessageInboxPage() {
   const deleteMutation = useMutation({
     mutationFn: async (messageId: number) => {
       console.log(`Deleting message ${messageId}`);
-      const response = await apiRequest(`/api/messages/${messageId}`, { method: "DELETE" });
-      console.log(`Delete response:`, response.status);
-      return response;
+      try {
+        const response = await apiRequest("DELETE", `/api/messages/${messageId}`);
+        console.log(`Delete response:`, response.status);
+        return response;
+      } catch (error) {
+        console.error(`Delete API call failed:`, error);
+        throw error;
+      }
     },
     onSuccess: () => {
       console.log(`Delete successful, invalidating queries`);
@@ -62,12 +67,15 @@ export default function MessageInboxPage() {
 
   // Auto-mark message as read when selected
   const handleMessageSelect = (message: MessageInbox) => {
+    console.log(`Selecting message ${message.id}, isRead: ${message.isRead}`);
     setSelectedMessage(message);
     
     // Automatically mark as read if unread
     if (!message.isRead) {
       console.log(`Auto-marking message ${message.id} as read`);
       markAsReadMutation.mutate(message.id);
+    } else {
+      console.log(`Message ${message.id} is already read`);
     }
   };
 
