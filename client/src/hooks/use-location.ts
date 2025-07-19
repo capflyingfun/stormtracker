@@ -43,8 +43,27 @@ const getLocationWithRetry = async (maxRetries = 3): Promise<GeolocationPosition
 };
 
 export function useLocation() {
-  const [location, setLocation] = useState<Location | null>(null);
+  // Initialize location from localStorage if available
+  const [location, setLocation] = useState<Location | null>(() => {
+    if (typeof window !== 'undefined') {
+      const savedLocation = localStorage.getItem('stormtracker-location');
+      return savedLocation ? JSON.parse(savedLocation) : null;
+    }
+    return null;
+  });
   const [isLoading, setIsLoading] = useState(false);
+
+  // Helper function to update location and persist to localStorage
+  const updateLocation = (newLocation: Location | null) => {
+    setLocation(newLocation);
+    if (typeof window !== 'undefined') {
+      if (newLocation) {
+        localStorage.setItem('stormtracker-location', JSON.stringify(newLocation));
+      } else {
+        localStorage.removeItem('stormtracker-location');
+      }
+    }
+  };
 
   const setLocationFromGPS = async (): Promise<void> => {
     setIsLoading(true);
@@ -83,7 +102,7 @@ export function useLocation() {
         country: locationData.country,
       };
       
-      setLocation(location);
+      updateLocation(location);
       
       // Emit location data with recommended radar source for GPS usage
       if (locationData.recommendedRadarSource) {
@@ -121,7 +140,7 @@ export function useLocation() {
         country: locationData.country,
       };
       
-      setLocation(location);
+      updateLocation(location);
       
       // Emit location data with recommended radar source for search usage
       if (locationData.recommendedRadarSource) {
@@ -142,7 +161,7 @@ export function useLocation() {
   };
 
   const setLocationDirectly = (locationData: { lat: number; lon: number; name: string; state?: string; country?: string }) => {
-    setLocation({
+    updateLocation({
       lat: locationData.lat,
       lon: locationData.lon,
       name: locationData.name,
@@ -152,7 +171,7 @@ export function useLocation() {
   };
 
   const clearLocation = () => {
-    setLocation(null);
+    updateLocation(null);
   };
 
   return {
