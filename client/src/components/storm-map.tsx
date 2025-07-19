@@ -874,8 +874,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       // Only show cones for storms above light intensity
       if (storm.intensity < 30) return;
 
-      // Use authentic storm movement data
-      const movementDirection = storm.movement?.direction || 0;
+      // Use authentic storm movement data or current winds data
+      const movementDirection = storm.movement?.direction || (currentWindsData?.stormMovement?.direction || 0);
 
       const coneDistance = 15; // 15 miles
       const coneAngle = 30; // 30° total cone (±15°)
@@ -1214,7 +1214,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           setSelectedStormId(null);
         } else {
           // Show cone for new storm using authentic storm movement data
-          const stormMovementDirection = matchingStorm?.movement?.direction || movementDirection;
+          const stormMovementDirection = matchingStorm?.movement?.direction || (currentWindsData?.stormMovement?.direction || 0);
           const stormIntensity = matchingStorm?.intensity || point.dbz;
           showStormCone(point.lat, point.lon, stormMovementDirection, stormIntensity);
           setSelectedStormId(stormId);
