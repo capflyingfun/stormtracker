@@ -785,16 +785,27 @@ export default function StormTracker() {
 
             {activeTab === 'alerts' && (
               <div className="mt-4 sm:mt-6">
-                <AlertSettings 
+                <AlertSubscription 
                   isOpen={true}
-                  onOpenChange={() => {}}
+                  onClose={() => setActiveTab('tracker')}
+                  location={location}
                 />
               </div>
             )}
 
             {activeTab === 'messages' && (
               <div className="mt-4 sm:mt-6">
-                <MessageInbox />
+                <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+                  <h3 className="text-xl font-semibold mb-4 text-white">Storm Alert Messages</h3>
+                  <p className="text-slate-300 mb-4">Your storm alert message history will appear here.</p>
+                  <Button
+                    onClick={() => window.open('/messages', '_blank')}
+                    variant="outline"
+                    className="bg-green-600/20 border-green-500 text-green-300 hover:bg-green-600/30"
+                  >
+                    Open Full Message Inbox
+                  </Button>
+                </div>
               </div>
             )}
           </>
