@@ -75,8 +75,9 @@ export default function AlertSubscription({ location }: AlertSubscriptionProps) 
 
       if (response.ok) {
         setIsSubscribed(true);
+        const isUpdate = data.message.includes('updated');
         toast({
-          title: "✅ Subscription Created!",
+          title: isUpdate ? "✅ Subscription Updated!" : "✅ Subscription Created!",
           description: `You'll receive storm alerts for ${location.name}. ${data.testEmailSent ? 'Check your email' : ''}${data.testSMSSent ? ' and phone' : ''} for test alerts.`,
         });
       } else {
