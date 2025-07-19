@@ -225,8 +225,9 @@ Preferred communication style: Simple, everyday language.
 - **Scientific Wind Conversion**: Proper m/s to knots conversion with meteorologically accurate storm movement factor (70% of steering winds)
 
 ### Professional Push Notification System (July 19, 2025)
-- **Complete Alert Infrastructure**: Implemented comprehensive storm alert system with email and SMS notifications using dual service support (SendGrid and Gmail)
-- **Gmail Integration Alternative**: Added Gmail App Password support as simpler alternative to SendGrid - no domain verification required
+- **Complete Alert Infrastructure**: Implemented comprehensive storm alert system with email and SMS notifications using multiple service providers
+- **Multi-Provider Email Support**: Added support for SendGrid, Gmail App Password, Outlook/Hotmail, Yahoo Mail, and generic SMTP providers
+- **Email Service Priority**: SendGrid preferred (100 free emails/day), with automatic fallback to configured SMTP providers
 - **Multi-Channel Alerts**: Professional email alerts with detailed storm information plus instant SMS text alerts via carrier gateways for all major US carriers (AT&T, Verizon, T-Mobile, etc.)
 - **Simple Registration**: No-password system requiring only name and email, similar to commercial weather apps like AccuWeather and Weather Channel
 - **PostgreSQL Integration**: Database storage for alert subscriptions, user preferences, alert history, and cooldown management

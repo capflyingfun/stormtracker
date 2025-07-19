@@ -1,13 +1,23 @@
 import { MailService } from '@sendgrid/mail';
 import nodemailer from 'nodemailer';
 
-// Check for Gmail configuration
+// Check for email service configuration
 const useGmail = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD;
+const useOutlook = process.env.OUTLOOK_USER && process.env.OUTLOOK_PASSWORD;
+const useYahoo = process.env.YAHOO_USER && process.env.YAHOO_PASSWORD;
+const useGenericSMTP = process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD;
 const useSendGrid = process.env.SENDGRID_API_KEY;
 
-if (!useGmail && !useSendGrid) {
+const hasEmailService = useGmail || useOutlook || useYahoo || useGenericSMTP || useSendGrid;
+
+if (!hasEmailService) {
   console.log('No email service configured - email and SMS alerts disabled');
-  console.log('Configure either GMAIL_USER + GMAIL_APP_PASSWORD or SENDGRID_API_KEY');
+  console.log('Available options:');
+  console.log('1. SendGrid: SENDGRID_API_KEY (recommended - 100 free emails/day)');
+  console.log('2. Outlook: OUTLOOK_USER + OUTLOOK_PASSWORD');
+  console.log('3. Yahoo: YAHOO_USER + YAHOO_PASSWORD');
+  console.log('4. Generic SMTP: SMTP_HOST + SMTP_USER + SMTP_PASSWORD + SMTP_PORT');
+  console.log('5. Gmail: GMAIL_USER + GMAIL_APP_PASSWORD (requires App Password)');
 }
 
 // Initialize SendGrid if available
@@ -16,14 +26,45 @@ if (useSendGrid) {
   mailService.setApiKey(process.env.SENDGRID_API_KEY!);
 }
 
-// Initialize Gmail transporter if available
-let gmailTransporter: any = null;
+// Initialize email transporter with multiple provider support
+let emailTransporter: any = null;
+
 if (useGmail) {
-  gmailTransporter = nodemailer.createTransport({
+  // Gmail with App Password
+  emailTransporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_APP_PASSWORD
+    }
+  });
+} else if (process.env.OUTLOOK_USER && process.env.OUTLOOK_PASSWORD) {
+  // Outlook/Hotmail (easier than Gmail)
+  emailTransporter = nodemailer.createTransport({
+    service: 'hotmail',
+    auth: {
+      user: process.env.OUTLOOK_USER,
+      pass: process.env.OUTLOOK_PASSWORD
+    }
+  });
+} else if (process.env.YAHOO_USER && process.env.YAHOO_PASSWORD) {
+  // Yahoo Mail
+  emailTransporter = nodemailer.createTransport({
+    service: 'yahoo',
+    auth: {
+      user: process.env.YAHOO_USER,
+      pass: process.env.YAHOO_PASSWORD
+    }
+  });
+} else if (process.env.SMTP_HOST) {
+  // Generic SMTP (for any email provider)
+  emailTransporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_PORT === '465',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASSWORD
     }
   });
 }
@@ -140,17 +181,8 @@ export async function sendStormAlert(params: StormAlertEmailParams): Promise<boo
   `;
 
   try {
-    if (useGmail) {
-      // Send via Gmail
-      await gmailTransporter.sendMail({
-        from: `"StormTracker Alerts" <${process.env.GMAIL_USER}>`,
-        to: params.to,
-        subject,
-        html,
-      });
-      console.log(`Storm alert email sent via Gmail to ${params.to}`);
-    } else {
-      // Send via SendGrid
+    if (useSendGrid) {
+      // Send via SendGrid (preferred)
       await mailService.send({
         to: params.to,
         from: 'alerts@stormtracker.app',
@@ -158,6 +190,20 @@ export async function sendStormAlert(params: StormAlertEmailParams): Promise<boo
         html,
       });
       console.log(`Storm alert email sent via SendGrid to ${params.to}`);
+    } else if (emailTransporter) {
+      // Send via SMTP (Gmail, Outlook, Yahoo, or generic)
+      const fromEmail = process.env.GMAIL_USER || process.env.OUTLOOK_USER || process.env.YAHOO_USER || process.env.SMTP_USER;
+      await emailTransporter.sendMail({
+        from: `"StormTracker Alerts" <${fromEmail}>`,
+        to: params.to,
+        subject,
+        html,
+      });
+      const provider = useGmail ? 'Gmail' : useOutlook ? 'Outlook' : useYahoo ? 'Yahoo' : 'SMTP';
+      console.log(`Storm alert email sent via ${provider} to ${params.to}`);
+    } else {
+      console.log('No email service configured - alert not sent');
+      return false;
     }
     return true;
   } catch (error) {
@@ -174,7 +220,7 @@ interface TestAlertParams {
 
 // Send SMS storm alert via carrier email gateway
 export async function sendSMSAlert(params: SMSAlertParams): Promise<boolean> {
-  if (!useGmail && !useSendGrid) {
+  if (!hasEmailService) {
     console.log("SMS would be sent:", params);
     return false;
   }
@@ -202,17 +248,8 @@ export async function sendSMSAlert(params: SMSAlertParams): Promise<boolean> {
   const message = `🌩️ STORM ALERT: ${intensityCategory} storm ${params.stormDistance.toFixed(1)}mi away from ${params.locationName}. ${params.stormIntensity}dBZ intensity. ${params.severity} risk. Stay safe! -StormTracker`;
 
   try {
-    if (useGmail) {
-      // Send via Gmail
-      await gmailTransporter.sendMail({
-        from: process.env.GMAIL_USER,
-        to: smsEmail,
-        subject: '', // SMS gateways ignore subject
-        text: message, // Plain text for SMS
-      });
-      console.log(`SMS alert sent via Gmail to ${cleanPhone} via ${params.carrier}`);
-    } else {
-      // Send via SendGrid
+    if (useSendGrid) {
+      // Send via SendGrid (preferred)
       await mailService.send({
         to: smsEmail,
         from: 'alerts@stormtracker.app',
@@ -220,6 +257,20 @@ export async function sendSMSAlert(params: SMSAlertParams): Promise<boolean> {
         text: message, // Plain text for SMS
       });
       console.log(`SMS alert sent via SendGrid to ${cleanPhone} via ${params.carrier}`);
+    } else if (emailTransporter) {
+      // Send via SMTP provider
+      const fromEmail = process.env.GMAIL_USER || process.env.OUTLOOK_USER || process.env.YAHOO_USER || process.env.SMTP_USER;
+      await emailTransporter.sendMail({
+        from: fromEmail,
+        to: smsEmail,
+        subject: '', // SMS gateways ignore subject
+        text: message, // Plain text for SMS
+      });
+      const provider = useGmail ? 'Gmail' : useOutlook ? 'Outlook' : useYahoo ? 'Yahoo' : 'SMTP';
+      console.log(`SMS alert sent via ${provider} to ${cleanPhone} via ${params.carrier}`);
+    } else {
+      console.log('No email service configured - SMS not sent');
+      return false;
     }
     return true;
   } catch (error) {
@@ -230,7 +281,7 @@ export async function sendSMSAlert(params: SMSAlertParams): Promise<boolean> {
 
 // Send test SMS
 export async function sendTestSMS(phoneNumber: string, carrier: string, name: string, locationName: string): Promise<boolean> {
-  if (!useGmail && !useSendGrid) {
+  if (!hasEmailService) {
     console.log("Test SMS would be sent:", { phoneNumber, carrier });
     return false;
   }
@@ -251,17 +302,8 @@ export async function sendTestSMS(phoneNumber: string, carrier: string, name: st
   const message = `✅ StormTracker SMS alerts active for ${locationName}. You'll get instant text alerts when storms approach. Reply STOP to opt out. -StormTracker`;
 
   try {
-    if (useGmail) {
-      // Send via Gmail
-      await gmailTransporter.sendMail({
-        from: process.env.GMAIL_USER,
-        to: smsEmail,
-        subject: '',
-        text: message,
-      });
-      console.log(`Test SMS sent via Gmail to ${cleanPhone} via ${carrier}`);
-    } else {
-      // Send via SendGrid
+    if (useSendGrid) {
+      // Send via SendGrid (preferred)
       await mailService.send({
         to: smsEmail,
         from: 'alerts@stormtracker.app',
@@ -269,6 +311,20 @@ export async function sendTestSMS(phoneNumber: string, carrier: string, name: st
         text: message,
       });
       console.log(`Test SMS sent via SendGrid to ${cleanPhone} via ${carrier}`);
+    } else if (emailTransporter) {
+      // Send via SMTP provider
+      const fromEmail = process.env.GMAIL_USER || process.env.OUTLOOK_USER || process.env.YAHOO_USER || process.env.SMTP_USER;
+      await emailTransporter.sendMail({
+        from: fromEmail,
+        to: smsEmail,
+        subject: '',
+        text: message,
+      });
+      const provider = useGmail ? 'Gmail' : useOutlook ? 'Outlook' : useYahoo ? 'Yahoo' : 'SMTP';
+      console.log(`Test SMS sent via ${provider} to ${cleanPhone} via ${carrier}`);
+    } else {
+      console.log('No email service configured - test SMS not sent');
+      return false;
     }
     return true;
   } catch (error) {
@@ -278,7 +334,7 @@ export async function sendTestSMS(phoneNumber: string, carrier: string, name: st
 }
 
 export async function sendTestAlert(params: TestAlertParams): Promise<boolean> {
-  if (!useGmail && !useSendGrid) {
+  if (!hasEmailService) {
     console.log("Test email would be sent:", params);
     return false;
   }
@@ -318,17 +374,8 @@ export async function sendTestAlert(params: TestAlertParams): Promise<boolean> {
   `;
 
   try {
-    if (useGmail) {
-      // Send via Gmail
-      await gmailTransporter.sendMail({
-        from: `"StormTracker Alerts" <${process.env.GMAIL_USER}>`,
-        to: params.to,
-        subject,
-        html,
-      });
-      console.log(`Test alert email sent via Gmail to ${params.to}`);
-    } else {
-      // Send via SendGrid
+    if (useSendGrid) {
+      // Send via SendGrid (preferred)
       await mailService.send({
         to: params.to,
         from: 'alerts@stormtracker.app',
@@ -336,6 +383,20 @@ export async function sendTestAlert(params: TestAlertParams): Promise<boolean> {
         html,
       });
       console.log(`Test alert email sent via SendGrid to ${params.to}`);
+    } else if (emailTransporter) {
+      // Send via SMTP provider
+      const fromEmail = process.env.GMAIL_USER || process.env.OUTLOOK_USER || process.env.YAHOO_USER || process.env.SMTP_USER;
+      await emailTransporter.sendMail({
+        from: `"StormTracker Alerts" <${fromEmail}>`,
+        to: params.to,
+        subject,
+        html,
+      });
+      const provider = useGmail ? 'Gmail' : useOutlook ? 'Outlook' : useYahoo ? 'Yahoo' : 'SMTP';
+      console.log(`Test alert email sent via ${provider} to ${params.to}`);
+    } else {
+      console.log('No email service configured - test email not sent');
+      return false;
     }
     return true;
   } catch (error) {
