@@ -252,7 +252,7 @@ export default function StormTracker() {
 
       {/* Alert Subscription Modal */}
       {showAlertSubscription && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 rounded-xl max-w-lg w-full max-h-[85vh] flex flex-col">
             {/* Fixed Header */}
             <div className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-between">
@@ -528,7 +528,7 @@ export default function StormTracker() {
                 stormFilters={stormFilters}
                 onRadarSourceChange={setCurrentRadarSource}
                 radarSource={currentRadarSource}
-                isDisabled={showStormFilteringSettings}
+                isDisabled={showStormFilteringSettings || showAlertSubscription}
                 alertPreferences={preferences}
               />
             )}
