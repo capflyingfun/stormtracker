@@ -34,6 +34,7 @@ export default function StormTracker() {
   const [currentRadarSource, setCurrentRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer');
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
   const [lightningCount, setLightningCount] = useState(0);
+  const [lightningDataSource, setLightningDataSource] = useState<string>('none');
   const [showStormFilteringSettings, setShowStormFilteringSettings] = useState(false);
   const [showAlertSubscription, setShowAlertSubscription] = useState(false);
   const [windsData, setWindsData] = useState<any[]>([]);
@@ -112,6 +113,7 @@ export default function StormTracker() {
   useEffect(() => {
     const handleLightningData = (event: any) => {
       setLightningCount(event.detail?.count || 0);
+      setLightningDataSource(event.detail?.dataSource || 'none');
     };
 
     window.addEventListener('lightningData', handleLightningData);

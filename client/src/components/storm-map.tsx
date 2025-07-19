@@ -114,6 +114,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     distance: number;
   }>>([]);
   const [showLightning, setShowLightning] = useState(true);
+  const [lightningDataSource, setLightningDataSource] = useState<string>('none');
   
   // Winds aloft data for arrow directions
   const [currentWindsData, setCurrentWindsData] = useState<any>(null);
@@ -149,13 +150,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       if (response.ok) {
         const data = await response.json();
         setLightningStrikes(data.strikes || []);
-        console.log(`Lightning: Found ${data.strikes?.length || 0} strikes within 100 miles`);
+        setLightningDataSource(data.dataSource || 'none');
+        console.log(`Lightning: Found ${data.strikes?.length || 0} strikes within 100 miles from ${data.dataSource || 'unknown'} source`);
         
         // Emit lightning data for risk assessment
         const event = new CustomEvent('lightningData', { 
           detail: { 
             strikes: data.strikes || [], 
-            count: data.strikes?.length || 0 
+            count: data.strikes?.length || 0,
+            dataSource: data.dataSource || 'none'
           } 
         });
         window.dispatchEvent(event);
@@ -423,13 +426,22 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         const ageSeconds = Math.floor((strike.age % 60000) / 1000);
         const distanceText = `${strike.distance.toFixed(1)} miles`;
         
+        // Determine data source display name
+        const getDataSourceName = (dataSource?: string) => {
+          if (dataSource === 'weatherbit') return 'Weatherbit (Satellite)';
+          if (dataSource === 'blitzortung_json') return 'Blitzortung.org';
+          if (dataSource === 'blitzortung_text') return 'Blitzortung.org';
+          if (dataSource === 'lightningmaps') return 'Lightning Maps';
+          return 'Lightning Network';
+        };
+        
         marker.bindPopup(`
           <div class="text-sm">
             <div class="font-semibold flex items-center gap-1">⚡ Lightning Strike</div>
             <div class="mt-1 space-y-1 text-xs">
               <div><strong>Distance:</strong> ${distanceText}</div>
               <div><strong>Age:</strong> ${ageMinutes}m ${ageSeconds}s ago</div>
-              <div><strong>Source:</strong> Blitzortung.org</div>
+              <div><strong>Source:</strong> ${getDataSourceName(lightningDataSource)}</div>
             </div>
           </div>
         `);
