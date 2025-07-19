@@ -889,7 +889,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return strikes;
   }
 
-  // Winds Aloft data for storm movement calculation
+  // Winds Aloft data for storm movement calculation using Open-Meteo API
   app.get('/api/winds-aloft', async (req, res) => {
     const lat = parseFloat(req.query.lat as string);
     const lon = parseFloat(req.query.lon as string);
@@ -899,6 +899,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
+      // Try Open-Meteo first for current and forecasted winds aloft
+      const openMeteoData = await getOpenMeteoWindsAloft(lat, lon);
+      if (openMeteoData) {
+        res.json(openMeteoData);
+        return;
+      }
+
+      // Fallback to NOAA Aviation Weather if Open-Meteo fails
       const windsData = await getWindsAloft(lat, lon);
       res.json(windsData);
     } catch (error) {
@@ -1246,6 +1254,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Failed to get recent alerts' });
     }
   });
+  // Get Winds Aloft data from Open-Meteo API (current + forecast)
+  async function getOpenMeteoWindsAloft(lat: number, lon: number) {
+    try {
+      // Open-Meteo pressure level API for winds aloft
+      const params = new URLSearchParams({
+        latitude: lat.toString(),
+        longitude: lon.toString(),
+        current: 'wind_speed_500hPa,wind_direction_500hPa,wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa',
+        hourly: 'wind_speed_500hPa,wind_direction_500hPa,wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa',
+        forecast_days: '1',
+        timezone: 'auto'
+      });
+
+      const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
+        headers: {
+          'User-Agent': 'StormTracker/1.0 (Weather Tracking Application)',
+        },
+        signal: AbortSignal.timeout(5000)
+      });
+
+      if (!response.ok) {
+        console.log(`Open-Meteo API returned ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json();
+      
+      // Extract current winds aloft data
+      const windsAloft = [];
+      
+      // 500mb level (~18,000 ft) - primary storm steering level
+      if (data.current.wind_speed_500hPa && data.current.wind_direction_500hPa) {
+        windsAloft.push({
+          altitude: 18000,
+          direction: data.current.wind_direction_500hPa,
+          speed: Math.round(data.current.wind_speed_500hPa * 1.944), // m/s to knots
+          level: '500mb',
+          pressure: 500
+        });
+      }
+
+      // 700mb level (~10,000 ft) - mid-level steering
+      if (data.current.wind_speed_700hPa && data.current.wind_direction_700hPa) {
+        windsAloft.push({
+          altitude: 10000,
+          direction: data.current.wind_direction_700hPa,
+          speed: Math.round(data.current.wind_speed_700hPa * 1.944), // m/s to knots
+          level: '700mb',
+          pressure: 700
+        });
+      }
+
+      // 850mb level (~5,000 ft) - low-level steering
+      if (data.current.wind_speed_850hPa && data.current.wind_direction_850hPa) {
+        windsAloft.push({
+          altitude: 5000,
+          direction: data.current.wind_direction_850hPa,
+          speed: Math.round(data.current.wind_speed_850hPa * 1.944), // m/s to knots
+          level: '850mb',
+          pressure: 850
+        });
+      }
+
+      if (windsAloft.length === 0) {
+        return null;
+      }
+
+      // Calculate storm movement based on pressure level winds
+      const stormMovement = calculateStormMovementFromPressureLevels(windsAloft);
+
+      return {
+        location: { lat, lon },
+        winds: windsAloft,
+        stormMovement,
+        timestamp: Date.now(),
+        source: 'Open-Meteo (Current)',
+        dataType: 'pressure_levels'
+      };
+
+    } catch (error) {
+      console.error('Open-Meteo winds aloft error:', error);
+      return null;
+    }
+  }
+
+  // Calculate storm movement from pressure level winds (Open-Meteo format)
+  function calculateStormMovementFromPressureLevels(pressureLevelWinds: any[]) {
+    if (!pressureLevelWinds || pressureLevelWinds.length === 0) {
+      return {
+        direction: 0,
+        speed: 0,
+        confidence: 'low',
+        method: 'insufficient_data'
+      };
+    }
+
+    // Weight pressure levels by their importance for storm steering
+    let totalDirection = 0;
+    let totalSpeed = 0;
+    let totalWeight = 0;
+
+    for (const wind of pressureLevelWinds) {
+      // 500mb is primary storm steering level (highest weight)
+      // 700mb is secondary steering level (medium weight)
+      // 850mb is low-level influence (lower weight)
+      const weight = wind.pressure === 500 ? 3.0 :  // 500mb - primary steering
+                     wind.pressure === 700 ? 2.0 :  // 700mb - secondary steering
+                     wind.pressure === 850 ? 1.0 :  // 850mb - low-level
+                     1.0;
+
+      totalDirection += wind.direction * weight;
+      totalSpeed += wind.speed * weight;
+      totalWeight += weight;
+    }
+
+    if (totalWeight === 0) {
+      return {
+        direction: 0,
+        speed: 0,
+        confidence: 'low',
+        method: 'no_valid_data'
+      };
+    }
+
+    const avgWindDirection = (totalDirection / totalWeight) % 360;
+    const avgSpeed = totalSpeed / totalWeight;
+
+    // Convert from wind direction (where wind comes FROM) to storm movement direction (where storm moves TO)
+    const stormMovementDirection = (avgWindDirection - 180 + 360) % 360;
+
+    console.log(`Open-Meteo wind conversion: ${Math.round(avgWindDirection)}° wind → ${Math.round(stormMovementDirection)}° storm movement`);
+
+    // Convert from knots to mph and apply storm factor (storms move ~70% of wind speed)
+    const stormSpeedMph = Math.round(avgSpeed * 1.151 * 0.7);
+
+    return {
+      direction: Math.round(stormMovementDirection),
+      speed: stormSpeedMph,
+      confidence: pressureLevelWinds.length >= 2 ? 'high' : 'medium',
+      method: 'pressure_level_winds',
+      sourceWinds: pressureLevelWinds.length,
+      steeringLevel: pressureLevelWinds.find(w => w.pressure === 500) ? '500mb' : 
+                     pressureLevelWinds.find(w => w.pressure === 700) ? '700mb' : '850mb'
+    };
+  }
+
   // Get Winds Aloft data from NOAA Aviation Weather API
   async function getWindsAloft(lat: number, lon: number) {
     try {
