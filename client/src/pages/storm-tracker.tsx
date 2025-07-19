@@ -604,7 +604,7 @@ export default function StormTracker() {
                         onClick={() => setShow3D(true)}
                         variant="outline"
                         size="sm"
-                        className="w-full text-xs bg-purple-600/20 border-purple-500 text-purple-300"
+                        className="w-full text-xs bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50"
                         disabled={!storms || storms.length === 0}
                       >
                         🌩️ 3D View
