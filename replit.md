@@ -212,18 +212,17 @@ Preferred communication style: Simple, everyday language.
 - **Nearest Radar Detection**: Automatically finds closest NEXRAD site for authentic local radar animation
 - **Animation Safeguards**: "Sample dBZ" button disabled during animation to prevent waypoint lag and unrealistic storm movement calculations
 
-### NOAA Aviation Weather Storm Movement Integration (July 18, 2025)
-- **Professional Winds Aloft Data**: Integrated NOAA Aviation Weather API for accurate storm movement forecasting
-- **Multi-Source Wind Integration**: Primary winds aloft data with METAR and OpenWeather fallbacks for comprehensive coverage
-- **Storm Movement Prediction**: Enhanced storm cells display both observed movement and forecast movement based on atmospheric wind patterns
-- **Meteorological Accuracy**: Proper altitude weighting (6,000-20,000 ft) prioritizing 500mb level (18,000 ft) for thunderstorm steering
-- **Confidence Levels**: Wind-based forecasts include confidence ratings (high/medium/low) based on data quality and source availability
-- **Professional API Integration**: Custom User-Agent headers and proper timeout handling for aviationweather.gov compliance
-- **Fallback Data Sources**: Seamless degradation through winds aloft → METAR → OpenWeather → surface-only predictions
-- **Storm Speed Factor**: Applied 70% factor to steering winds for realistic storm movement speeds (storms move slower than wind)
-- **Direction Conversion Accuracy**: Proper wind direction to storm movement conversion (wind FROM direction → storm TO direction)
-- **Enhanced Display Format**: Storm forecast shows both compass direction and precise bearing (e.g., "N (000°)") for meteorological accuracy
-- **Improved Layout**: Movement forecast displays on separate line for better mobile readability and reduced text wrapping
+### Open-Meteo Winds Aloft Integration (July 19, 2025)
+- **Superior Real-Time Wind Data**: Integrated Open-Meteo API for current and forecasted upper atmospheric winds at specific pressure levels
+- **Professional Pressure Level Data**: Direct access to 500mb (~18,000 ft), 700mb (~10,000 ft), and 850mb (~5,000 ft) wind data for accurate storm steering calculations
+- **Current + Forecasted Winds**: Open-Meteo provides both real-time current conditions and hourly forecasts vs NOAA's historical data only
+- **Meteorological Accuracy**: Proper pressure level weighting with 500mb as primary storm steering level, 700mb secondary, 850mb low-level influence
+- **Enhanced Movement Prediction**: More accurate storm movement calculations using authentic pressure level wind data instead of surface approximations
+- **Global Coverage**: Open-Meteo works worldwide with consistent data quality vs NOAA's US-only aviation weather stations
+- **Free Professional API**: No API key required, reliable service designed for meteorological applications
+- **Intelligent Fallback**: Automatic fallback to NOAA Aviation Weather if Open-Meteo unavailable, maintaining service reliability
+- **Higher Confidence Ratings**: Better confidence levels due to multiple pressure level data vs single-point station data
+- **Scientific Wind Conversion**: Proper m/s to knots conversion with meteorologically accurate storm movement factor (70% of steering winds)
 
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
