@@ -484,7 +484,7 @@ export default function StormTracker() {
                       return directions[index];
                     };
                     
-                    // Calculate impact assessment (reuse same function)
+                    // Calculate impact assessment for strongest storm (intensity-based severity)
                     const calculateImpactAssessment = (storm: any) => {
                       if (!storm.windsPrediction) return { severity: 'Low', eta: 'No data', impactChance: 'Low' };
                       
@@ -513,11 +513,13 @@ export default function StormTracker() {
                         }
                       }
                       
-                      // Severity based on intensity and proximity
+                      // Severity based primarily on intensity (for strongest storm)
                       let severity = 'Low';
-                      if (storm.intensity >= 55 && stormDistance <= 10) severity = 'High';
-                      else if (storm.intensity >= 45 && stormDistance <= 15) severity = 'Medium';
-                      else if (storm.intensity >= 35 && stormDistance <= 20) severity = 'Medium';
+                      if (storm.intensity >= 61) severity = 'Extreme';
+                      else if (storm.intensity >= 55) severity = 'High';
+                      else if (storm.intensity >= 45) severity = 'Medium';
+                      else if (storm.intensity >= 35) severity = 'Medium';
+                      else if (storm.intensity >= 20) severity = 'Low';
                       
                       return { severity, eta, impactChance, movementSpeed, stormDirection };
                     };
