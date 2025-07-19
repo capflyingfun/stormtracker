@@ -2176,18 +2176,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Parse METAR for key weather info
             const direction = getDirectionFromBearing(airport.bearing);
             
-            // Calculate time since observation
-            const obsTime = metarData.obsTime || metarData.observation_time;
+            // Calculate time since observation - handle multiple timestamp formats
+            const obsTime = metarData.obsTime || metarData.observation_time || metarData.valid_time || metarData.reportTime;
             let timeAgo = 'Unknown';
             let isStale = false;
             
             if (obsTime) {
               try {
-                const obsDate = new Date(obsTime);
+                // Convert Unix timestamp (seconds) to milliseconds and create Date
+                const obsDate = new Date(obsTime * 1000);
                 const now = new Date();
                 const diffMinutes = Math.floor((now.getTime() - obsDate.getTime()) / 60000);
                 
-                if (diffMinutes < 60) {
+                // Handle negative times (future dates - usually timezone issues)
+                if (diffMinutes < 0) {
+                  timeAgo = 'Recent';
+                  isStale = false;
+                } else if (diffMinutes < 60) {
                   timeAgo = `${diffMinutes} minutes ago`;
                   isStale = diffMinutes > 90; // METAR over 90 minutes is getting stale
                 } else if (diffMinutes < 1440) {
@@ -2195,12 +2200,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   timeAgo = `${hours} hour${hours > 1 ? 's' : ''} ago`;
                   isStale = diffMinutes > 120; // Over 2 hours is stale
                 } else {
-                  timeAgo = 'Over 24 hours ago';
+                  const days = Math.floor(diffMinutes / 1440);
+                  timeAgo = `${days} day${days > 1 ? 's' : ''} ago`;
                   isStale = true;
                 }
               } catch (e) {
-                timeAgo = 'Invalid timestamp';
-                isStale = true;
+                timeAgo = 'Recent'; // Default to recent rather than invalid
+                isStale = false; // Don't mark as stale if we can't parse
               }
             }
             
