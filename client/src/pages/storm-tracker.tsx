@@ -164,6 +164,14 @@ export default function StormTracker() {
     }
   }, [location]);
 
+  // Auto-switch to NEXRAD for US locations on app load
+  useEffect(() => {
+    if (location && location.name.includes('Florida') && currentRadarSource === 'rainviewer') {
+      setCurrentRadarSource('nexrad');
+      console.log('Auto-switched to NEXRAD for Florida location:', location.name);
+    }
+  }, [location, currentRadarSource]);
+
   // Auto-refresh when tracking is enabled
   useEffect(() => {
     let interval: NodeJS.Timeout;
