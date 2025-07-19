@@ -672,3 +672,15 @@ Preferred communication style: Simple, everyday language.
 - **North Carolina Support**: Full coverage for Charlotte, Raleigh-Durham, Asheville, and other NC airports with current METAR conditions
 - **Southeast Regional Coverage**: Complete airport coverage across Virginia, Tennessee, Kentucky, West Virginia, and Carolinas
 - **Distance-Based Prioritization**: Airports sorted by proximity to user location with accurate distance calculations using Haversine formula
+
+### Enhanced Storm Highlighting & Micro-Interaction System (July 19, 2025)
+- **Special Storm Highlighting**: Nearest and strongest storm cells display pulsing colored rings (green for nearest, gold for strongest)
+- **Enhanced Visual Effects**: Special storms show thicker borders, glowing effects, and animated pulsing rings for immediate identification
+- **Micro-Interaction Radar Zoom**: Clicking storm cells triggers smooth flyTo animation with 1-second zoom duration for detail reveal
+- **Enhanced Storm Popups**: Detailed storm information with nearest/strongest status, hail warnings, movement data, and rainfall rates
+- **Special Storm Markers**: Distinct visual treatment with "🎯 NEAREST STORM" and "💪 STRONGEST STORM" labels in popups
+- **Professional Animation System**: specialStormPulse and specialRingPulse animations for smooth visual feedback
+- **Intelligent Zoom Logic**: Automatic zoom enhancement (up to level 13) for storms below zoom level 12 for better detail viewing
+- **Enhanced Click Experience**: Storm clicks combine movement cone display, detailed popups, and smooth zoom for comprehensive interaction
+- **Visual Reference System**: Pulsing effects directly correlate to Storm Summary boxes showing closest and strongest storm data
+- **Real-Time Validation**: System confirmed working with 5 detected storms (40 dBZ strongest, nearest at 67.7 miles) displaying proper highlighting
