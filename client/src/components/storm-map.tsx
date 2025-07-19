@@ -2021,7 +2021,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
       
-      <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`} style={{ height: '400px' }}>
+      <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[400px] md:h-[600px] lg:h-[700px] xl:h-[800px] ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
         <div ref={mapRef} className="w-full h-full"></div>
         
         {/* Disabled overlay */}
