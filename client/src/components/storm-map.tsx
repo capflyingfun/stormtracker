@@ -1046,8 +1046,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const alertColor = alertPreferences ? getAlertThresholdColor(alertPreferences.minimumDbz) : '#ffff00';
       
       // All arrows point in same direction based on current winds aloft (43° northeast)  
-      // Test: SVG default is east (90°), to point northeast (45°) we need -45° rotation
-      const movementDirection = -45;
+      // SVG arrow points east, rotate by 43° - 90° + 180° to get correct northeast direction
+      const movementDirection = 43 - 90 + 180;
       
       // Create directional arrow marker using custom arrow image
       // Storm arrows point in the direction they are moving (same as wind direction)
