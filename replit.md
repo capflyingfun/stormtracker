@@ -224,6 +224,16 @@ Preferred communication style: Simple, everyday language.
 - **Higher Confidence Ratings**: Better confidence levels due to multiple pressure level data vs single-point station data
 - **Scientific Wind Conversion**: Proper m/s to knots conversion with meteorologically accurate storm movement factor (70% of steering winds)
 
+### Professional Push Notification System (July 19, 2025)
+- **Complete Alert Infrastructure**: Implemented comprehensive storm alert system with email and SMS notifications using SendGrid API and carrier email gateways
+- **Multi-Channel Alerts**: Professional email alerts with detailed storm information plus instant SMS text alerts via carrier gateways for all major US carriers (AT&T, Verizon, T-Mobile, etc.)
+- **Simple Registration**: No-password system requiring only name and email, similar to commercial weather apps like AccuWeather and Weather Channel
+- **PostgreSQL Integration**: Database storage for alert subscriptions, user preferences, alert history, and cooldown management
+- **Smart Alert Logic**: Customizable intensity thresholds, distance-based filtering, cooldown periods, and automatic alert sending when storms meet user criteria
+- **Professional UI**: Modal-based subscription interface with proper desktop layout, sticky buttons, scrollable content, and carrier selection dropdown
+- **Carrier Gateway Support**: SMS alerts via email-to-SMS gateways supporting 24 major US carriers including AT&T (@txt.att.net), Verizon (@vtext.com), T-Mobile (@tmomail.net), and others
+- **Alert Testing**: Test alert functionality for both email and SMS to verify delivery before real storm events
+
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
 - **Simplified Storm Display**: Removed speed and direction information for cleaner interface focusing on distance and intensity

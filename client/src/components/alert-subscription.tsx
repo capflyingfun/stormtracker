@@ -331,7 +331,7 @@ export default function AlertSubscription({ location }: AlertSubscriptionProps) 
           )}
         </div>
 
-        <div className="bg-blue-950/30 border border-blue-700 rounded-lg p-3">
+        <div className="bg-blue-950/30 border border-blue-700 rounded-lg p-3 mb-6">
           <p className="text-blue-300 text-sm">
             <Mail className="w-4 h-4 inline mr-2" />
             You'll receive professional alerts similar to AccuWeather and Weather Channel, 
@@ -346,29 +346,31 @@ export default function AlertSubscription({ location }: AlertSubscriptionProps) 
           </p>
         </div>
 
-        <Button 
-          onClick={handleSubscribe}
-          disabled={isSubscribing || !location}
-          className="w-full bg-blue-600 hover:bg-blue-700"
-        >
-          {isSubscribing ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Setting up alerts...
-            </>
-          ) : (
-            <>
-              <Bell className="w-4 h-4 mr-2" />
-              Subscribe to Storm Alerts
-            </>
-          )}
-        </Button>
-
         {!location && (
-          <p className="text-yellow-400 text-sm text-center">
+          <p className="text-yellow-400 text-sm text-center mb-4">
             ⚠️ Please set your location first to enable storm alerts
           </p>
         )}
+
+        <div className="sticky bottom-0 bg-slate-800 p-4 -m-4 mt-4 rounded-b-lg border-t border-slate-700">
+          <Button 
+            onClick={handleSubscribe}
+            disabled={isSubscribing || !location}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3"
+          >
+            {isSubscribing ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Setting up alerts...
+              </>
+            ) : (
+              <>
+                <Bell className="w-4 h-4 mr-2" />
+                Subscribe to Storm Alerts
+              </>
+            )}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
