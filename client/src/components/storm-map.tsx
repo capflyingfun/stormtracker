@@ -168,15 +168,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   }, [location]);
 
-  // Fetch lightning data every 30 seconds - DISABLED (Coming Soon)
-  // useEffect(() => {
-  //   if (!location) return;
+  // Fetch lightning data every 30 seconds
+  useEffect(() => {
+    if (!location) return;
     
-  //   fetchLightningData(); // Initial fetch
+    fetchLightningData(); // Initial fetch
     
-  //   const interval = setInterval(fetchLightningData, 30000); // Every 30 seconds
-  //   return () => clearInterval(interval);
-  // }, [location, fetchLightningData]);
+    const interval = setInterval(fetchLightningData, 30000); // Every 30 seconds
+    return () => clearInterval(interval);
+  }, [location, fetchLightningData]);
 
   // Initialize radar frames based on source
   useEffect(() => {
@@ -2092,30 +2092,30 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
 
-      {/* Lightning Toggle - Coming Soon */}
-      <div className="mt-3 bg-slate-800/30 rounded-lg border border-slate-600/50 p-3 opacity-60 relative">
-        {/* Coming Soon Overlay */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="bg-amber-500/90 text-amber-900 text-xs font-semibold px-2 py-1 rounded">
-            COMING SOON
-          </div>
-        </div>
-        
+      {/* Lightning Toggle */}
+      <div className="mt-3 bg-slate-800/30 rounded-lg border border-slate-600/50 p-3">
         <div className="flex items-center justify-between mb-2">
-          <div className="font-semibold text-slate-400 text-sm flex items-center gap-2">
+          <div className="font-semibold text-slate-300 text-sm flex items-center gap-2">
             ⚡ Lightning Strikes
           </div>
           <Button
             variant="outline"
             size="sm"
-            className="text-xs px-3 py-1 bg-slate-700/50 border-slate-600/50 cursor-not-allowed"
-            disabled
+            onClick={() => setShowLightning(!showLightning)}
+            className={`text-xs px-3 py-1 transition-colors ${
+              showLightning 
+                ? 'bg-yellow-600/30 border-yellow-500 text-yellow-300 hover:bg-yellow-600/40' 
+                : 'bg-slate-700/50 border-slate-600/50 text-slate-300 hover:bg-slate-600/50'
+            }`}
           >
-            Show
+            {showLightning ? 'Hide' : 'Show'}
           </Button>
         </div>
-        <div className="text-xs text-slate-500">
-          Real-time lightning detection system in development
+        <div className="text-xs text-slate-400">
+          {lightningStrikes.length > 0 
+            ? `${lightningStrikes.length} strikes detected (${lightningDataSource || 'Multiple sources'})`
+            : 'No lightning detected within 100 miles'
+          }
         </div>
       </div>
 

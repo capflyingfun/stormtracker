@@ -723,42 +723,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let lightningData = null;
       let dataSource = 'none';
       
-      // Try Weatherbit Lightning API first (premium quality)
-      if (process.env.WEATHERBIT_API_KEY) {
-        try {
-          console.log('🌩️ Fetching Weatherbit lightning data...');
-          const weatherbitUrl = `https://api.weatherbit.io/v2.0/current/lightning?lat=${userLat}&lon=${userLon}&key=${process.env.WEATHERBIT_API_KEY}`;
-          
-          const response = await fetch(weatherbitUrl, {
-            timeout: 8000,
-            headers: {
-              'Accept': 'application/json'
-            }
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log('Weatherbit lightning response:', JSON.stringify(data, null, 2));
-            
-            if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-              lightningData = data.data.map((strike: any) => ({
-                lat: parseFloat(strike.lat),
-                lon: parseFloat(strike.lon),
-                timestamp: new Date(strike.timestamp).getTime() / 1000, // Convert to Unix timestamp
-                intensity: strike.distance || 1 // Use distance as intensity indicator
-              }));
-              dataSource = 'weatherbit';
-              console.log(`✅ Weatherbit: Found ${lightningData.length} lightning strikes`);
-            } else {
-              console.log('Weatherbit: No lightning data available');
-            }
-          } else {
-            console.log(`Weatherbit API returned ${response.status}: ${response.statusText}`);
-          }
-        } catch (error) {
-          console.log('Weatherbit Lightning API error:', error.message);
-        }
-      }
+      // Skip Weatherbit Lightning API (requires paid plan)
+      // Continue with free lightning APIs only
       
       // Fallback to free lightning APIs if Weatherbit fails or no data
       if (!lightningData || lightningData.length === 0) {
@@ -1155,6 +1121,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('NEXRAD RIDGE tile proxy error:', error);
       res.status(500).send('Failed to fetch NEXRAD tile');
+    }
+  });
+
+  // Weatherbit government alerts endpoint
+  app.get("/api/weatherbit-alerts", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      const userLat = parseFloat(lat as string);
+      const userLon = parseFloat(lon as string);
+      
+      // Try Weatherbit Alerts API (included in free plan)
+      if (process.env.WEATHERBIT_API_KEY) {
+        try {
+          console.log('🚨 Fetching Weatherbit government alerts...');
+          const weatherbitUrl = `https://api.weatherbit.io/v2.0/alerts?lat=${userLat}&lon=${userLon}&key=${process.env.WEATHERBIT_API_KEY}`;
+          
+          const response = await fetch(weatherbitUrl, {
+            timeout: 8000,
+            headers: {
+              'Accept': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`✅ Weatherbit: Found ${data.alerts?.length || 0} government alerts`);
+            
+            const alerts = (data.alerts || []).map((alert: any) => ({
+              title: alert.title,
+              description: alert.description,
+              severity: alert.severity,
+              urgency: alert.urgency,
+              certainty: alert.certainty,
+              effective: alert.effective,
+              expires: alert.expires,
+              regions: alert.regions,
+              areas: alert.areas
+            }));
+            
+            return res.json({
+              alerts,
+              count: alerts.length,
+              source: 'weatherbit'
+            });
+          } else {
+            console.log(`Weatherbit API returned ${response.status}: ${response.statusText}`);
+            return res.json({ alerts: [], count: 0, source: 'none', error: 'API unavailable' });
+          }
+        } catch (error) {
+          console.log('Weatherbit Alerts API error:', error.message);
+          return res.json({ alerts: [], count: 0, source: 'none', error: error.message });
+        }
+      } else {
+        return res.json({ alerts: [], count: 0, source: 'none', error: 'No API key configured' });
+      }
+    } catch (error) {
+      console.error("Weatherbit alerts error:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch weather alerts",
+        alerts: [],
+        count: 0
+      });
     }
   });
 
