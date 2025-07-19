@@ -4,8 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Mail, Bell, CheckCircle } from "lucide-react";
+import { Loader2, Mail, Bell, CheckCircle, Smartphone } from "lucide-react";
 
 interface AlertSubscriptionProps {
   location: {
@@ -21,6 +22,9 @@ export default function AlertSubscription({ location }: AlertSubscriptionProps) 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    phoneNumber: "",
+    carrier: "",
+    smsEnabled: false,
     minimumDbz: 45,
     alertRadius: 30,
   });
@@ -56,6 +60,9 @@ export default function AlertSubscription({ location }: AlertSubscriptionProps) 
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
+          phoneNumber: formData.smsEnabled ? formData.phoneNumber : null,
+          carrier: formData.smsEnabled ? formData.carrier : null,
+          smsEnabled: formData.smsEnabled,
           lat: location.lat,
           lon: location.lon,
           locationName: location.name,
@@ -70,7 +77,7 @@ export default function AlertSubscription({ location }: AlertSubscriptionProps) 
         setIsSubscribed(true);
         toast({
           title: "✅ Subscription Created!",
-          description: `You'll receive storm alerts for ${location.name}. ${data.testEmailSent ? 'Check your email for a test alert.' : ''}`,
+          description: `You'll receive storm alerts for ${location.name}. ${data.testEmailSent ? 'Check your email' : ''}${data.testSMSSent ? ' and phone' : ''} for test alerts.`,
         });
       } else {
         throw new Error(data.error || 'Subscription failed');
@@ -110,8 +117,8 @@ export default function AlertSubscription({ location }: AlertSubscriptionProps) 
 
       if (response.ok) {
         toast({
-          title: "📧 Test Alert Sent",
-          description: "Check your email for the test alert notification.",
+          title: "📧 Test Alerts Sent",
+          description: `Check your ${data.emailSent ? 'email' : ''}${data.smsSent ? ' and phone' : ''} for test notifications.`,
         });
       } else {
         throw new Error(data.error || 'Test alert failed');
@@ -141,6 +148,33 @@ export default function AlertSubscription({ location }: AlertSubscriptionProps) 
     { value: 50, label: "50 miles" }
   ];
 
+  const carrierOptions = [
+    { value: "ATT", label: "AT&T" },
+    { value: "Verizon", label: "Verizon" },
+    { value: "T-Mobile", label: "T-Mobile" },
+    { value: "US Cellular", label: "US Cellular" },
+    { value: "Boost", label: "Boost Mobile" },
+    { value: "Cricket", label: "Cricket" },
+    { value: "Metro", label: "Metro by T-Mobile" },
+    { value: "Google Fi", label: "Google Fi" },
+    { value: "Mint Mobile", label: "Mint Mobile" },
+    { value: "Visible", label: "Visible" },
+    { value: "Xfinity Mobile", label: "Xfinity Mobile" },
+    { value: "Simple Mobile", label: "Simple Mobile" },
+    { value: "US Mobile", label: "US Mobile" },
+    { value: "Consumer Cellular", label: "Consumer Cellular" },
+    { value: "Pure Talk", label: "Pure Talk" },
+    { value: "H2O Wireless", label: "H2O Wireless" },
+    { value: "Page Plus", label: "Page Plus" },
+    { value: "Ultra Mobile", label: "Ultra Mobile" },
+    { value: "Tello", label: "Tello" },
+    { value: "Tracfone", label: "Tracfone" },
+    { value: "Twigby", label: "Twigby" },
+    { value: "Ting GSM", label: "Ting (GSM)" },
+    { value: "Ting CDMA", label: "Ting (CDMA)" },
+    { value: "C-Spire", label: "C-Spire" }
+  ];
+
   if (isSubscribed) {
     return (
       <Card className="bg-green-950/30 border-green-700">
@@ -151,7 +185,7 @@ export default function AlertSubscription({ location }: AlertSubscriptionProps) 
               Alert Subscription Active
             </h3>
             <p className="text-green-300 mb-4">
-              You'll receive storm alerts for {location?.name} at {formData.email}
+              You'll receive storm alerts for {location?.name} via email{formData.smsEnabled ? ' and SMS text' : ''}
             </p>
             <Button 
               onClick={handleTestAlert}
@@ -246,11 +280,69 @@ export default function AlertSubscription({ location }: AlertSubscriptionProps) 
           </Select>
         </div>
 
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <Checkbox 
+              id="sms-enabled"
+              checked={formData.smsEnabled}
+              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, smsEnabled: !!checked }))}
+            />
+            <Label htmlFor="sms-enabled" className="text-slate-300 flex items-center gap-2">
+              <Smartphone className="w-4 h-4" />
+              Enable SMS text alerts (instant notifications)
+            </Label>
+          </div>
+
+          {formData.smsEnabled && (
+            <div className="ml-7 space-y-3 border-l-2 border-blue-600 pl-4">
+              <div className="space-y-2">
+                <Label htmlFor="phone" className="text-slate-300">Phone Number</Label>
+                <Input
+                  id="phone"
+                  placeholder="(555) 123-4567"
+                  value={formData.phoneNumber}
+                  onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                  className="bg-slate-700/50 border-slate-600 text-white"
+                />
+                <p className="text-xs text-slate-500">
+                  US phone numbers only. Standard messaging rates may apply.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-slate-300">Mobile Carrier</Label>
+                <Select 
+                  value={formData.carrier} 
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, carrier: value }))}
+                >
+                  <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                    <SelectValue placeholder="Select your carrier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {carrierOptions.map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="bg-blue-950/30 border border-blue-700 rounded-lg p-3">
           <p className="text-blue-300 text-sm">
             <Mail className="w-4 h-4 inline mr-2" />
-            You'll receive professional email alerts similar to AccuWeather and Weather Channel, 
+            You'll receive professional alerts similar to AccuWeather and Weather Channel, 
             including storm details, safety recommendations, and arrival time estimates.
+            {formData.smsEnabled && (
+              <>
+                <br /><br />
+                <Smartphone className="w-4 h-4 inline mr-2" />
+                SMS text alerts provide instant notifications even when email is delayed.
+              </>
+            )}
           </p>
         </div>
 

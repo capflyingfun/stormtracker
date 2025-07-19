@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { z } from "zod";
 import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema, riskAssessmentSchema, userAlertPreferences, riskAlerts, insertRiskAlertSchema, insertUserAlertPreferencesSchema, updateUserAlertPreferencesSchema, insertAlertSubscriptionSchema } from "@shared/schema";
 import { storage } from "./storage";
-import { sendStormAlert, sendTestAlert } from "./email";
+import { sendStormAlert, sendTestAlert, sendSMSAlert, sendTestSMS } from "./email";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -1806,10 +1806,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         locationName: subscription.locationName
       });
       
+      // Send test SMS if SMS is enabled
+      let testSMSSent = false;
+      if (subscription.smsEnabled && subscription.phoneNumber && subscription.carrier) {
+        testSMSSent = await sendTestSMS(
+          subscription.phoneNumber,
+          subscription.carrier,
+          subscription.name,
+          subscription.locationName
+        );
+      }
+      
       res.json({ 
         message: 'Successfully subscribed to storm alerts',
         subscription,
-        testEmailSent
+        testEmailSent,
+        testSMSSent
       });
       
     } catch (error) {
@@ -1851,15 +1863,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: 'Subscription not found' });
       }
       
-      const testSent = await sendTestAlert({
+      const testEmailSent = await sendTestAlert({
         to: subscription.email,
         name: subscription.name,
         locationName: subscription.locationName
       });
       
+      // Send test SMS if SMS is enabled
+      let testSMSSent = false;
+      if (subscription.smsEnabled && subscription.phoneNumber && subscription.carrier) {
+        testSMSSent = await sendTestSMS(
+          subscription.phoneNumber,
+          subscription.carrier,
+          subscription.name,
+          subscription.locationName
+        );
+      }
+      
       res.json({ 
         message: 'Test alert sent',
-        emailSent: testSent 
+        emailSent: testEmailSent,
+        smsSent: testSMSSent
       });
       
     } catch (error) {
@@ -1925,33 +1949,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             const directionName = getDirectionName(direction);
             
-            // Send alert email
-            const alertSent = await sendStormAlert({
-              to: subscription.email,
-              name: subscription.name,
-              locationName: subscription.locationName,
-              stormIntensity: closestStorm.intensity,
-              stormDistance: closestStorm.distance,
-              stormDirection: directionName,
-              eta: 'Approaching', // You could calculate actual ETA here
-              impactChance: closestStorm.intensity >= 55 ? 'High' : closestStorm.intensity >= 45 ? 'Medium' : 'Low',
-              severity: closestStorm.intensity >= 55 ? 'High' : closestStorm.intensity >= 45 ? 'Medium' : 'Low'
-            });
+            let alertsSentForThisSubscription = 0;
             
-            if (alertSent) {
-              // Update last alert sent time
-              await storage.updateLastAlertSent(subscription.id);
-              
-              // Log alert history
-              await storage.createAlertHistory({
-                subscriptionId: subscription.id,
+            // Send email alert if enabled
+            if (subscription.emailEnabled) {
+              const emailSent = await sendStormAlert({
+                to: subscription.email,
+                name: subscription.name,
+                locationName: subscription.locationName,
                 stormIntensity: closestStorm.intensity,
                 stormDistance: closestStorm.distance,
-                alertType: 'email',
-                message: `Storm alert sent: ${closestStorm.intensity}dBZ storm ${closestStorm.distance.toFixed(1)} miles away`
+                stormDirection: directionName,
+                eta: 'Approaching', // You could calculate actual ETA here
+                impactChance: closestStorm.intensity >= 55 ? 'High' : closestStorm.intensity >= 45 ? 'Medium' : 'Low',
+                severity: closestStorm.intensity >= 55 ? 'High' : closestStorm.intensity >= 45 ? 'Medium' : 'Low'
               });
               
-              alertsSent++;
+              if (emailSent) {
+                alertsSentForThisSubscription++;
+                await storage.createAlertHistory({
+                  subscriptionId: subscription.id,
+                  stormIntensity: closestStorm.intensity,
+                  stormDistance: closestStorm.distance,
+                  alertType: 'email',
+                  message: `Email storm alert sent: ${closestStorm.intensity}dBZ storm ${closestStorm.distance.toFixed(1)} miles away`
+                });
+              }
+            }
+            
+            // Send SMS alert if enabled
+            if (subscription.smsEnabled && subscription.phoneNumber && subscription.carrier) {
+              const smsSent = await sendSMSAlert({
+                phoneNumber: subscription.phoneNumber,
+                carrier: subscription.carrier,
+                name: subscription.name,
+                locationName: subscription.locationName,
+                stormIntensity: closestStorm.intensity,
+                stormDistance: closestStorm.distance,
+                stormDirection: directionName,
+                impactChance: closestStorm.intensity >= 55 ? 'High' : closestStorm.intensity >= 45 ? 'Medium' : 'Low',
+                severity: closestStorm.intensity >= 55 ? 'High' : closestStorm.intensity >= 45 ? 'Medium' : 'Low'
+              });
+              
+              if (smsSent) {
+                alertsSentForThisSubscription++;
+                await storage.createAlertHistory({
+                  subscriptionId: subscription.id,
+                  stormIntensity: closestStorm.intensity,
+                  stormDistance: closestStorm.distance,
+                  alertType: 'sms',
+                  message: `SMS storm alert sent: ${closestStorm.intensity}dBZ storm ${closestStorm.distance.toFixed(1)} miles away`
+                });
+              }
+            }
+            
+            // Update last alert sent time if any alerts were sent
+            if (alertsSentForThisSubscription > 0) {
+              await storage.updateLastAlertSent(subscription.id);
+              alertsSent += alertsSentForThisSubscription;
             }
           }
         }
