@@ -100,7 +100,7 @@ export const riskAlerts = pgTable("risk_alerts", {
   expiresAt: timestamp("expires_at"),
 });
 
-// Alert subscriptions for push notifications via email
+// Alert subscriptions for push notifications via email and SMS
 export const alertSubscriptions = pgTable("alert_subscriptions", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -108,6 +108,11 @@ export const alertSubscriptions = pgTable("alert_subscriptions", {
   lat: real("lat").notNull(),
   lon: real("lon").notNull(),
   locationName: text("location_name").notNull(),
+  
+  // SMS text alert options
+  phoneNumber: text("phone_number"), // 10-digit US phone number
+  carrier: text("carrier"), // AT&T, Verizon, T-Mobile, etc.
+  smsEnabled: boolean("sms_enabled").default(false),
   
   // Alert preferences
   minimumDbz: integer("minimum_dbz").default(45), // minimum storm intensity
@@ -129,7 +134,7 @@ export const alertHistory = pgTable("alert_history", {
   subscriptionId: integer("subscription_id").references(() => alertSubscriptions.id),
   stormIntensity: real("storm_intensity").notNull(),
   stormDistance: real("storm_distance").notNull(),
-  alertType: text("alert_type").notNull(), // 'email'
+  alertType: text("alert_type").notNull(), // 'email', 'sms'
   message: text("message").notNull(),
   sentAt: timestamp("sent_at").defaultNow(),
 });

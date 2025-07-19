@@ -9,6 +9,7 @@ import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
+import AlertSubscription from "@/components/alert-subscription";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -32,6 +33,7 @@ export default function StormTracker() {
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
   const [lightningCount, setLightningCount] = useState(0);
   const [showStormFilteringSettings, setShowStormFilteringSettings] = useState(false);
+  const [showAlertSubscription, setShowAlertSubscription] = useState(false);
   
   const {
     location,
@@ -247,6 +249,30 @@ export default function StormTracker() {
           onSave={handleStormFilteringSettingsSave}
         />
       )}
+
+      {/* Alert Subscription Modal */}
+      {showAlertSubscription && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">Storm Alert Notifications</h2>
+              <Button
+                onClick={() => setShowAlertSubscription(false)}
+                variant="ghost"
+                size="sm"
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </Button>
+            </div>
+            <div className="p-4">
+              <AlertSubscription 
+                location={location}
+              />
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="p-3 sm:p-6">
         {!location ? (
@@ -272,6 +298,14 @@ export default function StormTracker() {
                 </div>
                 
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => setShowAlertSubscription(true)}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs sm:text-sm bg-blue-600/20 border-blue-500 text-blue-300 hover:bg-blue-600/30"
+                  >
+                    🔔 Storm Alerts
+                  </Button>
                   <Button
                     onClick={resetLocation}
                     variant="outline"
