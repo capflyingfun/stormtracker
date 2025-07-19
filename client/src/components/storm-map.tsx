@@ -102,19 +102,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   }>>([]);
   const radarCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const highlightLayerRef = useRef<any>(null);
-  const lightningLayerRef = useRef<any>(null);
-  
-  // Lightning state
-  const [lightningStrikes, setLightningStrikes] = useState<Array<{
-    lat: number;
-    lon: number;
-    timestamp: number;
-    age: number;
-    intensity: number;
-    distance: number;
-  }>>([]);
-  const [showLightning, setShowLightning] = useState(true);
-  const [lightningDataSource, setLightningDataSource] = useState<string>('none');
   
   // Winds aloft data for arrow directions
   const [currentWindsData, setCurrentWindsData] = useState<any>(null);
@@ -141,42 +128,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }, 750);
   }, [location, radarFrames.length]);
 
-  // Fetch lightning data
-  const fetchLightningData = useCallback(async () => {
-    if (!location) return;
-    
-    try {
-      const response = await fetch(`/api/lightning?lat=${location.lat}&lon=${location.lon}&radius=100`);
-      if (response.ok) {
-        const data = await response.json();
-        setLightningStrikes(data.strikes || []);
-        setLightningDataSource(data.dataSource || 'none');
-        console.log(`Lightning: Found ${data.strikes?.length || 0} strikes within 100 miles from ${data.dataSource || 'unknown'} source`);
-        
-        // Emit lightning data for risk assessment
-        const event = new CustomEvent('lightningData', { 
-          detail: { 
-            strikes: data.strikes || [], 
-            count: data.strikes?.length || 0,
-            dataSource: data.dataSource || 'none'
-          } 
-        });
-        window.dispatchEvent(event);
-      }
-    } catch (error) {
-      console.error('Failed to fetch lightning data:', error);
-    }
-  }, [location]);
 
-  // Fetch lightning data every 30 seconds
-  useEffect(() => {
-    if (!location) return;
-    
-    fetchLightningData(); // Initial fetch
-    
-    const interval = setInterval(fetchLightningData, 30000); // Every 30 seconds
-    return () => clearInterval(interval);
-  }, [location, fetchLightningData]);
 
   // Initialize radar frames based on source
   useEffect(() => {
@@ -382,78 +334,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return () => clearTimeout(refreshTimer);
   }, [radarSource]);
 
-  // Update lightning markers when lightning data changes
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !window.L) return;
 
-    // Remove existing lightning layer
-    if (lightningLayerRef.current) {
-      map.removeLayer(lightningLayerRef.current);
-      lightningLayerRef.current = null;
-    }
-
-    // Add lightning markers if enabled and data available
-    if (showLightning && lightningStrikes.length > 0) {
-      const lightningMarkers = [];
-
-      for (const strike of lightningStrikes) {
-        // Calculate age-based opacity (newer strikes are brighter)
-        const maxAge = 20 * 60 * 1000; // 20 minutes in milliseconds
-        const opacity = Math.max(0.2, 1 - (strike.age / maxAge));
-        
-        // Create lightning bolt icon
-        const lightningIcon = window.L.divIcon({
-          html: `<div style="
-            color: #ffff00; 
-            font-size: 12px; 
-            text-shadow: 0 0 3px #ffff00, 0 0 6px #ffff00;
-            opacity: ${opacity};
-            filter: drop-shadow(0 0 2px #ffff00);
-          ">⚡</div>`,
-          className: 'lightning-marker',
-          iconSize: [12, 12],
-          iconAnchor: [6, 6]
-        });
-
-        const marker = window.L.marker([strike.lat, strike.lon], {
-          icon: lightningIcon,
-          zIndexOffset: 1000
-        });
-
-        // Add popup with strike details
-        const ageMinutes = Math.floor(strike.age / 60000);
-        const ageSeconds = Math.floor((strike.age % 60000) / 1000);
-        const distanceText = `${strike.distance.toFixed(1)} miles`;
-        
-        // Determine data source display name
-        const getDataSourceName = (dataSource?: string) => {
-          if (dataSource === 'weatherbit') return 'Weatherbit (Satellite)';
-          if (dataSource === 'blitzortung_json') return 'Blitzortung.org';
-          if (dataSource === 'blitzortung_text') return 'Blitzortung.org';
-          if (dataSource === 'lightningmaps') return 'Lightning Maps';
-          return 'Lightning Network';
-        };
-        
-        marker.bindPopup(`
-          <div class="text-sm">
-            <div class="font-semibold flex items-center gap-1">⚡ Lightning Strike</div>
-            <div class="mt-1 space-y-1 text-xs">
-              <div><strong>Distance:</strong> ${distanceText}</div>
-              <div><strong>Age:</strong> ${ageMinutes}m ${ageSeconds}s ago</div>
-              <div><strong>Source:</strong> ${getDataSourceName(lightningDataSource)}</div>
-            </div>
-          </div>
-        `);
-
-        lightningMarkers.push(marker);
-      }
-
-      // Create lightning layer group
-      lightningLayerRef.current = window.L.layerGroup(lightningMarkers);
-      lightningLayerRef.current.addTo(map);
-    }
-  }, [showLightning, lightningStrikes]);
 
   // Notify parent component when radar source changes
   useEffect(() => {
@@ -2092,32 +1973,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
 
-      {/* Lightning Toggle */}
-      <div className="mt-3 bg-slate-800/30 rounded-lg border border-slate-600/50 p-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="font-semibold text-slate-300 text-sm flex items-center gap-2">
-            ⚡ Lightning Strikes
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowLightning(!showLightning)}
-            className={`text-xs px-3 py-1 transition-colors ${
-              showLightning 
-                ? 'bg-yellow-600/30 border-yellow-500 text-yellow-300 hover:bg-yellow-600/40' 
-                : 'bg-slate-700/50 border-slate-600/50 text-slate-300 hover:bg-slate-600/50'
-            }`}
-          >
-            {showLightning ? 'Hide' : 'Show'}
-          </Button>
-        </div>
-        <div className="text-xs text-slate-400">
-          {lightningStrikes.length > 0 
-            ? `${lightningStrikes.length} strikes detected (${lightningDataSource || 'Multiple sources'})`
-            : 'No lightning detected within 100 miles'
-          }
-        </div>
-      </div>
+
 
 
     </div>

@@ -36,7 +36,6 @@ interface WeatherAssessmentRequest {
   storms: StormData[];
   winds: WindData[];
   radarSource: string;
-  lightningCount?: number;
 }
 
 export async function generateWeatherAssessment(data: WeatherAssessmentRequest): Promise<{
@@ -92,7 +91,7 @@ ${stormContext.length === 0 ? 'No active storms detected within 30 miles' :
 WINDS ALOFT:
 ${windContext.map(wind => `${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}
 
-LIGHTNING ACTIVITY: ${data.lightningCount || 0} strikes detected in area
+LIGHTNING ACTIVITY: Analyzed from METAR reports (when available)
 
 AVIATION WEATHER (NEARBY AIRPORTS):
 ${aviationWeather.length > 0 ? 
@@ -190,7 +189,7 @@ When describing storm movements and directions, reference actual nearby airports
     return {
       riskLevel,
       summary,
-      detailedAnalysis: `Storm Analysis: ${data.storms.length} total storm cells detected within 30 miles. Radar source: ${data.radarSource}. Lightning activity: ${data.lightningCount || 0} strikes. Wind data: ${data.winds.length} atmospheric levels available. AI assessment currently unavailable due to quota limits - manual analysis provided.`,
+      detailedAnalysis: `Storm Analysis: ${data.storms.length} total storm cells detected within 30 miles. Radar source: ${data.radarSource}. Wind data: ${data.winds.length} atmospheric levels available. AI assessment currently unavailable due to quota limits - manual analysis provided.`,
       recommendations,
       confidence: 0.7
     };

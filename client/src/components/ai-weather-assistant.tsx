@@ -48,15 +48,13 @@ interface AIWeatherAssistantProps {
   storms: StormData[];
   winds: WindData[];
   radarSource: string;
-  lightningCount?: number;
 }
 
 export default function AIWeatherAssistant({
   userLocation,
   storms,
   winds,
-  radarSource,
-  lightningCount = 0
+  radarSource
 }: AIWeatherAssistantProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -67,8 +65,7 @@ export default function AIWeatherAssistant({
         userLocation,
         storms,
         winds,
-        radarSource,
-        lightningCount
+        radarSource
       });
       return response.json();
     },
