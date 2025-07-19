@@ -112,6 +112,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [selectedStormId, setSelectedStormId] = useState<string | null>(null);
   const stormConeLayerRef = useRef<any>(null);
   const allStormConesLayerRef = useRef<any>(null);
+  
+  // Authentic precipitation storms from backend API
+  const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
 
   // Sync with external storm tracks toggle
   useEffect(() => {
@@ -119,6 +122,18 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       setShowAllStormTracks(externalShowAllStormTracks);
     }
   }, [externalShowAllStormTracks]);
+
+  // Listen for authentic precipitation storm data from server API
+  useEffect(() => {
+    const handlePrecipitationStormData = (event: CustomEvent) => {
+      const newStorms = event.detail || [];
+      console.log(`Storm Map: Received ${newStorms.length} authentic precipitation storms for track cones`);
+      setPrecipitationStorms(newStorms);
+    };
+
+    window.addEventListener('precipitationStormData', handlePrecipitationStormData as EventListener);
+    return () => window.removeEventListener('precipitationStormData', handlePrecipitationStormData as EventListener);
+  }, []);
 
   // Auto-sampling functionality (silent background operation)
   const triggerAutoSample = useCallback(() => {
@@ -847,27 +862,20 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   // Show all storm tracks at once
   const showAllStormCones = () => {
     const map = mapInstanceRef.current;
-    if (!map || !window.L || precipitationPoints.length === 0) return;
+    if (!map || !window.L || precipitationStorms.length === 0) return;
 
     // Remove existing all-cones layer
     hideAllStormCones();
 
     const allConesGroup = window.L.layerGroup();
 
-    // Get movement direction from winds data
-    const getStormMovementDirection = () => {
-      if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
-        return currentWindsData.stormMovement.direction;
-      }
-      return 0; // Default to north
-    };
-
-    const movementDirection = getStormMovementDirection();
-
-    // Create cones for all visible precipitation points
-    precipitationPoints.forEach(point => {
+    // Create cones for all authentic precipitation storms
+    precipitationStorms.forEach(storm => {
       // Only show cones for storms above light intensity
-      if (point.dbz < 30) return;
+      if (storm.intensity < 30) return;
+
+      // Use authentic storm movement data
+      const movementDirection = storm.movement?.direction || 0;
 
       const coneDistance = 15; // 15 miles
       const coneAngle = 30; // 30° total cone (±15°)
@@ -879,17 +887,17 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const centerBearing = movementDirection;
 
       // Calculate end points of the cone
-      const leftPoint = calculateDestination(point.lat, point.lon, leftBearing, coneDistance);
-      const rightPoint = calculateDestination(point.lat, point.lon, rightBearing, coneDistance);
-      const centerPoint = calculateDestination(point.lat, point.lon, centerBearing, coneDistance);
+      const leftPoint = calculateDestination(storm.lat, storm.lon, leftBearing, coneDistance);
+      const rightPoint = calculateDestination(storm.lat, storm.lon, rightBearing, coneDistance);
+      const centerPoint = calculateDestination(storm.lat, storm.lon, centerBearing, coneDistance);
 
       // Create cone polygon
       const conePoints = [
-        [point.lat, point.lon], // Storm position (apex)
+        [storm.lat, storm.lon], // Storm position (apex)
         [leftPoint.lat, leftPoint.lon], // Left edge
         [centerPoint.lat, centerPoint.lon], // Center tip
         [rightPoint.lat, rightPoint.lon], // Right edge
-        [point.lat, point.lon] // Back to start
+        [storm.lat, storm.lon] // Back to start
       ];
 
       // Get color based on storm intensity
@@ -900,7 +908,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         return '#22C55E'; // Green for light
       };
 
-      const coneColor = getConeColor(point.dbz);
+      const coneColor = getConeColor(storm.intensity);
 
       // Create the cone polygon with reduced opacity for multiple cones
       const cone = window.L.polygon(conePoints, {
@@ -914,7 +922,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
       // Add center line showing movement direction with reduced opacity
       const centerLine = window.L.polyline([
-        [point.lat, point.lon],
+        [storm.lat, storm.lon],
         [centerPoint.lat, centerPoint.lon]
       ], {
         color: coneColor,
@@ -950,7 +958,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     } else {
       hideAllStormCones();
     }
-  }, [showAllStormTracks, precipitationPoints, currentWindsData]);
+  }, [showAllStormTracks, precipitationStorms, currentWindsData]);
 
   // Add map click handler to hide cone when clicking elsewhere (only for individual cones)
   useEffect(() => {
@@ -1192,6 +1200,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         // Don't handle individual clicks when showing all tracks
         if (showAllStormTracks) return;
         
+        // Find matching authentic precipitation storm for this waypoint
+        const matchingStorm = precipitationStorms.find(storm => 
+          Math.abs(storm.lat - point.lat) < 0.001 && 
+          Math.abs(storm.lon - point.lon) < 0.001
+        );
+        
         const stormId = point.id || `storm_${point.lat}_${point.lon}`;
         
         if (selectedStormId === stormId) {
@@ -1199,8 +1213,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           hideStormCone();
           setSelectedStormId(null);
         } else {
-          // Show cone for new storm
-          showStormCone(point.lat, point.lon, movementDirection, point.dbz);
+          // Show cone for new storm using authentic storm movement data
+          const stormMovementDirection = matchingStorm?.movement?.direction || movementDirection;
+          const stormIntensity = matchingStorm?.intensity || point.dbz;
+          showStormCone(point.lat, point.lon, stormMovementDirection, stormIntensity);
           setSelectedStormId(stormId);
         }
       });
