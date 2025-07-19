@@ -96,6 +96,37 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
 
+  // Keyboard controls for PC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key.toLowerCase()) {
+        case 'a':
+        case 'arrowleft':
+          e.preventDefault();
+          setRotationY(prev => prev - 0.1); // Rotate left
+          break;
+        case 'd':
+        case 'arrowright':
+          e.preventDefault();
+          setRotationY(prev => prev + 0.1); // Rotate right
+          break;
+        case 'w':
+        case 'arrowup':
+          e.preventDefault();
+          setCameraHeight(prev => Math.min(prev + 1, 12)); // Move camera up
+          break;
+        case 's':
+        case 'arrowdown':
+          e.preventDefault();
+          setCameraHeight(prev => Math.max(prev - 1, 1)); // Move camera down
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Removed storm calculation functions - not needed without storm selection
 
   useEffect(() => {
@@ -455,6 +486,19 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
           </div>
           <div className="text-sm text-slate-300">
             {getCompassHeading(rotationY).direction}
+          </div>
+        </div>
+      </div>
+
+      {/* Height and Controls Display */}
+      <div className="absolute top-32 right-4 z-10 bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-slate-700/50">
+        <div className="text-center">
+          <div className="text-xs text-slate-400 mb-1">Height</div>
+          <div className="text-lg font-bold text-white">
+            {(cameraHeight + 3) * 1000}ft
+          </div>
+          <div className="text-xs text-slate-300 mt-1">
+            WASD/Arrows: Navigate
           </div>
         </div>
       </div>

@@ -415,7 +415,9 @@ export default function StormTracker() {
                       const bearingToStorm = storm.direction;
                       
                       // Calculate if storm is moving toward user (within 30° cone)
-                      const directionDifference = Math.abs(((stormDirection - bearingToStorm + 180) % 360) - 180);
+                      // Storm moves toward user if its movement direction points toward user location
+                      const directionToUser = (bearingToStorm + 180) % 360; // Reverse bearing (storm to user)
+                      const directionDifference = Math.abs(((stormDirection - directionToUser + 180) % 360) - 180);
                       const isApproaching = directionDifference <= 30;
                       
                       // Calculate ETA if approaching
@@ -493,7 +495,9 @@ export default function StormTracker() {
                       const bearingToStorm = storm.direction;
                       
                       // Calculate if storm is moving toward user (within 30° cone)
-                      const directionDifference = Math.abs(((stormDirection - bearingToStorm + 180) % 360) - 180);
+                      // Storm moves toward user if its movement direction points toward user location
+                      const directionToUser = (bearingToStorm + 180) % 360; // Reverse bearing (storm to user)
+                      const directionDifference = Math.abs(((stormDirection - directionToUser + 180) % 360) - 180);
                       const isApproaching = directionDifference <= 30;
                       
                       // Calculate ETA if approaching
