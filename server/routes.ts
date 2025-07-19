@@ -1779,6 +1779,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return (bearing + 360) % 360;
   }
 
+  // Message Inbox Routes (Built-in Email/Text System)
+  
+  // Get all messages for inbox display
+  app.get("/api/messages/all", async (req, res) => {
+    try {
+      const messages = await storage.getAllMessages(100); // Get last 100 messages
+      res.json(messages);
+    } catch (error) {
+      console.error('Get all messages error:', error);
+      res.status(500).json({ error: "Failed to retrieve messages" });
+    }
+  });
+
+  // Get messages for specific subscription
+  app.get("/api/messages/subscription/:subscriptionId", async (req, res) => {
+    try {
+      const subscriptionId = parseInt(req.params.subscriptionId);
+      const messages = await storage.getMessages(subscriptionId);
+      res.json(messages);
+    } catch (error) {
+      console.error('Get subscription messages error:', error);
+      res.status(500).json({ error: "Failed to retrieve messages for subscription" });
+    }
+  });
+
+  // Get unread messages
+  app.get("/api/messages/unread/:subscriptionId", async (req, res) => {
+    try {
+      const subscriptionId = parseInt(req.params.subscriptionId);
+      const messages = await storage.getUnreadMessages(subscriptionId);
+      res.json(messages);
+    } catch (error) {
+      console.error('Get unread messages error:', error);
+      res.status(500).json({ error: "Failed to retrieve unread messages" });
+    }
+  });
+
+  // Mark message as read
+  app.post("/api/messages/:messageId/read", async (req, res) => {
+    try {
+      const messageId = parseInt(req.params.messageId);
+      await storage.markMessageAsRead(messageId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Mark message as read error:', error);
+      res.status(500).json({ error: "Failed to mark message as read" });
+    }
+  });
+
+  // Delete message
+  app.delete("/api/messages/:messageId", async (req, res) => {
+    try {
+      const messageId = parseInt(req.params.messageId);
+      await storage.deleteMessage(messageId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Delete message error:', error);
+      res.status(500).json({ error: "Failed to delete message" });
+    }
+  });
+
+  // Get all active subscriptions
+  app.get("/api/alerts/subscriptions", async (req, res) => {
+    try {
+      const subscriptions = await storage.getAllActiveSubscriptions();
+      res.json(subscriptions);
+    } catch (error) {
+      console.error('Get subscriptions error:', error);
+      res.status(500).json({ error: "Failed to retrieve subscriptions" });
+    }
+  });
+
   // Alert Subscription Routes
   
   // Subscribe to storm alerts
@@ -2046,6 +2118,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Test endpoint for manual email testing
+  app.post('/api/test-email', async (req, res) => {
+    try {
+      const { email, name, location } = req.body;
+      
+      if (!email || !name || !location) {
+        return res.status(400).json({ error: 'Email, name, and location required' });
+      }
+      
+      // Send test alert
+      const emailResult = await sendTestAlert({
+        to: email,
+        name: name,
+        locationName: location
+      });
+      
+      res.json({ 
+        success: emailResult,
+        message: emailResult ? 'Test email sent successfully!' : 'Failed to send test email'
+      });
+      
+    } catch (error) {
+      console.error('Test email error:', error);
+      res.status(500).json({ error: 'Failed to send test email' });
+    }
+  });
+
   // Helper function to get direction name
   function getDirectionName(degrees: number): string {
     const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
