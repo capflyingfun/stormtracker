@@ -10,9 +10,10 @@ import AlertsPanel from "@/components/alerts-panel";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
+import MessageInbox from "@/pages/message-inbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Link } from "wouter";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIWeatherAssistant from "@/components/ai-weather-assistant";
 
 export default function StormTracker() {
@@ -37,6 +38,7 @@ export default function StormTracker() {
   const [showStormFilteringSettings, setShowStormFilteringSettings] = useState(false);
   const [showAlertSubscription, setShowAlertSubscription] = useState(false);
   const [windsData, setWindsData] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages'>('tracker');
   
   const {
     location,
@@ -330,22 +332,31 @@ export default function StormTracker() {
                 
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    onClick={() => setShowAlertSubscription(true)}
+                    onClick={() => setActiveTab('alerts')}
                     variant="outline"
                     size="sm"
-                    className="text-xs sm:text-sm bg-blue-600/20 border-blue-500 text-blue-300 hover:bg-blue-600/30"
+                    className={`text-xs sm:text-sm ${activeTab === 'alerts' ? 'bg-blue-600/50 border-blue-400' : 'bg-blue-600/20 border-blue-500'} text-blue-300 hover:bg-blue-600/30`}
                   >
                     🔔 Storm Alerts
                   </Button>
-                  <Link href="/messages">
+                  <Button
+                    onClick={() => setActiveTab('messages')}
+                    variant="outline"
+                    size="sm"
+                    className={`text-xs sm:text-sm ${activeTab === 'messages' ? 'bg-green-600/50 border-green-400' : 'bg-green-600/20 border-green-500'} text-green-300 hover:bg-green-600/30`}
+                  >
+                    📧 View Messages
+                  </Button>
+                  {activeTab !== 'tracker' && (
                     <Button
+                      onClick={() => setActiveTab('tracker')}
                       variant="outline"
                       size="sm"
-                      className="text-xs sm:text-sm bg-green-600/20 border-green-500 text-green-300 hover:bg-green-600/30"
+                      className="text-xs sm:text-sm bg-slate-600/20 border-slate-500 text-slate-300 hover:bg-slate-600/30"
                     >
-                      📧 View Messages
+                      🏠 Back to Tracker
                     </Button>
-                  </Link>
+                  )}
                   <Button
                     onClick={resetLocation}
                     variant="outline"
@@ -743,8 +754,9 @@ export default function StormTracker() {
 
 
 
-            {/* Storm Data Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mt-4 sm:mt-6">
+            {/* Tab Content */}
+            {activeTab === 'tracker' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mt-4 sm:mt-6">
               <StormPanel
                 storms={precipitationStorms}
                 useMetric={useMetric}
@@ -761,7 +773,27 @@ export default function StormTracker() {
                 alerts={alerts || []}
                 isLoading={stormDataLoading}
               />
-            </div>
+              </div>
+            )}
+
+            {activeTab === 'alerts' && (
+              <div className="mt-4 sm:mt-6">
+                <AlertSettings 
+                  isOpen={true}
+                  onOpenChange={() => {}}
+                />
+              </div>
+            )}
+
+            {activeTab === 'messages' && (
+              <div className="mt-4 sm:mt-6">
+                <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+                  <h3 className="text-xl font-semibold mb-4 text-white">Storm Alert Messages</h3>
+                  <p className="text-slate-300 mb-4">Messages will be displayed here when you switch to the Messages tab.</p>
+                  <p className="text-slate-400 text-sm">This feature is being implemented to keep the AI assistant open while viewing messages.</p>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
