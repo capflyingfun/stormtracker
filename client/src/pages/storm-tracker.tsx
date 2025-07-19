@@ -707,15 +707,14 @@ export default function StormTracker() {
                       >
                         🔔 Alerts
                       </Button>
-                      <Link href="/messages">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full text-xs bg-green-600/20 border-green-500 text-green-300"
-                        >
-                          📧 Messages
-                        </Button>
-                      </Link>
+                      <Button
+                        onClick={() => setActiveTab('messages')}
+                        variant="outline"
+                        size="sm"
+                        className={`w-full text-xs ${activeTab === 'messages' ? 'bg-green-600/50 border-green-400' : 'bg-green-600/20 border-green-500'} text-green-300`}
+                      >
+                        📧 Messages
+                      </Button>
                     </div>
                   </div>
                 </div>
