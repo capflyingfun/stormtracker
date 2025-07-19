@@ -310,7 +310,7 @@ export default function StormTracker() {
 
       {/* Messages Modal */}
       {showMessages && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[9999]">
           <div className="bg-slate-900 rounded-xl max-w-4xl w-full max-h-[85vh] flex flex-col">
             {/* Fixed Header */}
             <div className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-between">
@@ -326,7 +326,19 @@ export default function StormTracker() {
             </div>
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-4">
-              <MessageInbox />
+              <div className="text-slate-300">
+                <h3 className="text-lg font-semibold mb-4">Storm Alert Messages</h3>
+                <p>Your storm alert message history will appear here.</p>
+                <div className="mt-4">
+                  <Button
+                    onClick={() => window.open('/messages', '_blank')}
+                    variant="outline"
+                    className="bg-green-600/20 border-green-500 text-green-300 hover:bg-green-600/30"
+                  >
+                    Open Full Message Inbox
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

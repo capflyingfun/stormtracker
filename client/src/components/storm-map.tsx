@@ -1067,7 +1067,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             display: flex;
             align-items: center;
             justify-content: center;
-            transform: rotate(${movementDirection}deg);
+            transform: rotate(${movementDirection + 90}deg);
             ${isAlertStorm ? 'animation: pulse 2s infinite;' : ''}
           ">
             <svg width="${markerSize}" height="${markerSize}" viewBox="0 0 24 24" style="
