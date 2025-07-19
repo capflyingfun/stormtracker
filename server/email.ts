@@ -1,5 +1,7 @@
 import { MailService } from '@sendgrid/mail';
 import nodemailer from 'nodemailer';
+import Mailgun from 'mailgun.js';
+import * as SibApiV3Sdk from '@sendinblue/client';
 
 // Check for email service configuration
 const useGmail = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD;
@@ -7,23 +9,42 @@ const useOutlook = process.env.OUTLOOK_USER && process.env.OUTLOOK_PASSWORD;
 const useYahoo = process.env.YAHOO_USER && process.env.YAHOO_PASSWORD;
 const useGenericSMTP = process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD;
 const useSendGrid = process.env.SENDGRID_API_KEY;
+const useMailgun = process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN;
+const useBrevo = process.env.BREVO_API_KEY;
 
-const hasEmailService = useGmail || useOutlook || useYahoo || useGenericSMTP || useSendGrid;
+const hasEmailService = useGmail || useOutlook || useYahoo || useGenericSMTP || useSendGrid || useMailgun || useBrevo;
 
 if (!hasEmailService) {
   console.log('No email service configured - email and SMS alerts disabled');
-  console.log('Available options:');
-  console.log('1. SendGrid: SENDGRID_API_KEY (recommended - 100 free emails/day)');
-  console.log('2. Outlook: OUTLOOK_USER + OUTLOOK_PASSWORD');
-  console.log('3. Yahoo: YAHOO_USER + YAHOO_PASSWORD');
-  console.log('4. Generic SMTP: SMTP_HOST + SMTP_USER + SMTP_PASSWORD + SMTP_PORT');
-  console.log('5. Gmail: GMAIL_USER + GMAIL_APP_PASSWORD (requires App Password)');
+  console.log('Recommended email providers (no app passwords needed):');
+  console.log('1. SendGrid: SENDGRID_API_KEY (100 free emails/day)');
+  console.log('2. Mailgun: MAILGUN_API_KEY + MAILGUN_DOMAIN (5,000 free emails/month)');
+  console.log('3. Brevo: BREVO_API_KEY (300 free emails/day)');
+  console.log('4. Outlook: OUTLOOK_USER + OUTLOOK_PASSWORD');
+  console.log('5. Generic SMTP: SMTP_HOST + SMTP_USER + SMTP_PASSWORD + SMTP_PORT');
 }
 
 // Initialize SendGrid if available
 const mailService = new MailService();
 if (useSendGrid) {
   mailService.setApiKey(process.env.SENDGRID_API_KEY!);
+}
+
+// Initialize Mailgun if available
+let mailgunClient: any = null;
+if (useMailgun) {
+  const mailgun = new Mailgun(FormData);
+  mailgunClient = mailgun.client({
+    username: 'api',
+    key: process.env.MAILGUN_API_KEY!,
+  });
+}
+
+// Initialize Brevo (Sendinblue) if available
+let brevoClient: any = null;
+if (useBrevo) {
+  brevoClient = new SibApiV3Sdk.TransactionalEmailsApi();
+  brevoClient.setApiKey(SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY!);
 }
 
 // Initialize email transporter with multiple provider support
@@ -181,8 +202,17 @@ export async function sendStormAlert(params: StormAlertEmailParams): Promise<boo
   `;
 
   try {
-    if (useSendGrid) {
-      // Send via SendGrid (preferred)
+    if (useMailgun) {
+      // Send via Mailgun (5,000 free emails/month)
+      await mailgunClient.messages.create(process.env.MAILGUN_DOMAIN!, {
+        from: 'StormTracker Alerts <alerts@' + process.env.MAILGUN_DOMAIN + '>',
+        to: params.to,
+        subject,
+        html,
+      });
+      console.log(`Storm alert email sent via Mailgun to ${params.to}`);
+    } else if (useSendGrid) {
+      // Send via SendGrid (100 free emails/day)
       await mailService.send({
         to: params.to,
         from: 'alerts@stormtracker.app',
@@ -190,6 +220,16 @@ export async function sendStormAlert(params: StormAlertEmailParams): Promise<boo
         html,
       });
       console.log(`Storm alert email sent via SendGrid to ${params.to}`);
+    } else if (useBrevo) {
+      // Send via Brevo (300 free emails/day)
+      const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+      sendSmtpEmail.subject = subject;
+      sendSmtpEmail.htmlContent = html;
+      sendSmtpEmail.sender = { name: 'StormTracker Alerts', email: 'alerts@stormtracker.app' };
+      sendSmtpEmail.to = [{ email: params.to }];
+      
+      await brevoClient.sendTransacEmail(sendSmtpEmail);
+      console.log(`Storm alert email sent via Brevo to ${params.to}`);
     } else if (emailTransporter) {
       // Send via SMTP (Gmail, Outlook, Yahoo, or generic)
       const fromEmail = process.env.GMAIL_USER || process.env.OUTLOOK_USER || process.env.YAHOO_USER || process.env.SMTP_USER;
@@ -248,23 +288,42 @@ export async function sendSMSAlert(params: SMSAlertParams): Promise<boolean> {
   const message = `🌩️ STORM ALERT: ${intensityCategory} storm ${params.stormDistance.toFixed(1)}mi away from ${params.locationName}. ${params.stormIntensity}dBZ intensity. ${params.severity} risk. Stay safe! -StormTracker`;
 
   try {
-    if (useSendGrid) {
-      // Send via SendGrid (preferred)
+    if (useMailgun) {
+      // Send via Mailgun
+      await mailgunClient.messages.create(process.env.MAILGUN_DOMAIN!, {
+        from: 'alerts@' + process.env.MAILGUN_DOMAIN,
+        to: smsEmail,
+        subject: '',
+        text: message,
+      });
+      console.log(`SMS alert sent via Mailgun to ${cleanPhone} via ${params.carrier}`);
+    } else if (useSendGrid) {
+      // Send via SendGrid
       await mailService.send({
         to: smsEmail,
         from: 'alerts@stormtracker.app',
-        subject: '', // SMS gateways ignore subject
-        text: message, // Plain text for SMS
+        subject: '',
+        text: message,
       });
       console.log(`SMS alert sent via SendGrid to ${cleanPhone} via ${params.carrier}`);
+    } else if (useBrevo) {
+      // Send via Brevo
+      const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+      sendSmtpEmail.subject = '';
+      sendSmtpEmail.textContent = message;
+      sendSmtpEmail.sender = { email: 'alerts@stormtracker.app' };
+      sendSmtpEmail.to = [{ email: smsEmail }];
+      
+      await brevoClient.sendTransacEmail(sendSmtpEmail);
+      console.log(`SMS alert sent via Brevo to ${cleanPhone} via ${params.carrier}`);
     } else if (emailTransporter) {
       // Send via SMTP provider
       const fromEmail = process.env.GMAIL_USER || process.env.OUTLOOK_USER || process.env.YAHOO_USER || process.env.SMTP_USER;
       await emailTransporter.sendMail({
         from: fromEmail,
         to: smsEmail,
-        subject: '', // SMS gateways ignore subject
-        text: message, // Plain text for SMS
+        subject: '',
+        text: message,
       });
       const provider = useGmail ? 'Gmail' : useOutlook ? 'Outlook' : useYahoo ? 'Yahoo' : 'SMTP';
       console.log(`SMS alert sent via ${provider} to ${cleanPhone} via ${params.carrier}`);
@@ -302,8 +361,17 @@ export async function sendTestSMS(phoneNumber: string, carrier: string, name: st
   const message = `✅ StormTracker SMS alerts active for ${locationName}. You'll get instant text alerts when storms approach. Reply STOP to opt out. -StormTracker`;
 
   try {
-    if (useSendGrid) {
-      // Send via SendGrid (preferred)
+    if (useMailgun) {
+      // Send via Mailgun
+      await mailgunClient.messages.create(process.env.MAILGUN_DOMAIN!, {
+        from: 'alerts@' + process.env.MAILGUN_DOMAIN,
+        to: smsEmail,
+        subject: '',
+        text: message,
+      });
+      console.log(`Test SMS sent via Mailgun to ${cleanPhone} via ${carrier}`);
+    } else if (useSendGrid) {
+      // Send via SendGrid
       await mailService.send({
         to: smsEmail,
         from: 'alerts@stormtracker.app',
@@ -311,6 +379,16 @@ export async function sendTestSMS(phoneNumber: string, carrier: string, name: st
         text: message,
       });
       console.log(`Test SMS sent via SendGrid to ${cleanPhone} via ${carrier}`);
+    } else if (useBrevo) {
+      // Send via Brevo
+      const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+      sendSmtpEmail.subject = '';
+      sendSmtpEmail.textContent = message;
+      sendSmtpEmail.sender = { email: 'alerts@stormtracker.app' };
+      sendSmtpEmail.to = [{ email: smsEmail }];
+      
+      await brevoClient.sendTransacEmail(sendSmtpEmail);
+      console.log(`Test SMS sent via Brevo to ${cleanPhone} via ${carrier}`);
     } else if (emailTransporter) {
       // Send via SMTP provider
       const fromEmail = process.env.GMAIL_USER || process.env.OUTLOOK_USER || process.env.YAHOO_USER || process.env.SMTP_USER;
@@ -374,8 +452,17 @@ export async function sendTestAlert(params: TestAlertParams): Promise<boolean> {
   `;
 
   try {
-    if (useSendGrid) {
-      // Send via SendGrid (preferred)
+    if (useMailgun) {
+      // Send via Mailgun
+      await mailgunClient.messages.create(process.env.MAILGUN_DOMAIN!, {
+        from: 'StormTracker Alerts <alerts@' + process.env.MAILGUN_DOMAIN + '>',
+        to: params.to,
+        subject,
+        html,
+      });
+      console.log(`Test alert email sent via Mailgun to ${params.to}`);
+    } else if (useSendGrid) {
+      // Send via SendGrid
       await mailService.send({
         to: params.to,
         from: 'alerts@stormtracker.app',
@@ -383,6 +470,16 @@ export async function sendTestAlert(params: TestAlertParams): Promise<boolean> {
         html,
       });
       console.log(`Test alert email sent via SendGrid to ${params.to}`);
+    } else if (useBrevo) {
+      // Send via Brevo
+      const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+      sendSmtpEmail.subject = subject;
+      sendSmtpEmail.htmlContent = html;
+      sendSmtpEmail.sender = { name: 'StormTracker Alerts', email: 'alerts@stormtracker.app' };
+      sendSmtpEmail.to = [{ email: params.to }];
+      
+      await brevoClient.sendTransacEmail(sendSmtpEmail);
+      console.log(`Test alert email sent via Brevo to ${params.to}`);
     } else if (emailTransporter) {
       // Send via SMTP provider
       const fromEmail = process.env.GMAIL_USER || process.env.OUTLOOK_USER || process.env.YAHOO_USER || process.env.SMTP_USER;
