@@ -50,6 +50,7 @@ export default function MessageInboxPage() {
   );
 
   const unreadMessages = filteredMessages.filter((msg: MessageInbox) => !msg.isRead);
+  const readMessages = filteredMessages.filter((msg: MessageInbox) => msg.isRead);
   const emailMessages = filteredMessages.filter((msg: MessageInbox) => msg.messageType === 'email');
   const smsMessages = filteredMessages.filter((msg: MessageInbox) => msg.messageType === 'sms');
 
@@ -130,9 +131,10 @@ export default function MessageInboxPage() {
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="all" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="all">All ({filteredMessages.length})</TabsTrigger>
                   <TabsTrigger value="unread">Unread ({unreadMessages.length})</TabsTrigger>
+                  <TabsTrigger value="read">Read ({readMessages.length})</TabsTrigger>
                   <TabsTrigger value="email">Email ({emailMessages.length})</TabsTrigger>
                   <TabsTrigger value="sms">SMS ({smsMessages.length})</TabsTrigger>
                 </TabsList>
@@ -155,14 +157,37 @@ export default function MessageInboxPage() {
                 </TabsContent>
 
                 <TabsContent value="unread" className="space-y-2">
-                  {unreadMessages.map((message: MessageInbox) => (
-                    <MessageItem 
-                      key={message.id} 
-                      message={message} 
-                      onSelect={setSelectedMessage}
-                      isSelected={selectedMessage?.id === message.id}
-                    />
-                  ))}
+                  {unreadMessages.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No unread messages
+                    </div>
+                  ) : (
+                    unreadMessages.map((message: MessageInbox) => (
+                      <MessageItem 
+                        key={message.id} 
+                        message={message} 
+                        onSelect={setSelectedMessage}
+                        isSelected={selectedMessage?.id === message.id}
+                      />
+                    ))
+                  )}
+                </TabsContent>
+
+                <TabsContent value="read" className="space-y-2">
+                  {readMessages.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No read messages
+                    </div>
+                  ) : (
+                    readMessages.map((message: MessageInbox) => (
+                      <MessageItem 
+                        key={message.id} 
+                        message={message} 
+                        onSelect={setSelectedMessage}
+                        isSelected={selectedMessage?.id === message.id}
+                      />
+                    ))
+                  )}
                 </TabsContent>
 
                 <TabsContent value="email" className="space-y-2">
@@ -196,7 +221,10 @@ export default function MessageInboxPage() {
           {selectedMessage ? (
             <MessageDetail 
               message={selectedMessage}
-              onMarkAsRead={() => markAsReadMutation.mutate(selectedMessage.id)}
+              onMarkAsRead={() => {
+                markAsReadMutation.mutate(selectedMessage.id);
+                setSelectedMessage(null); // Clear selection to refresh view
+              }}
               onDelete={() => deleteMutation.mutate(selectedMessage.id)}
             />
           ) : (
