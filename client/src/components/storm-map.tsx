@@ -1000,6 +1000,28 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const centerLon = location.lon;
     const zoom = map.getZoom();
 
+    // Find nearest and strongest storms for special highlighting
+    let nearestStorm = null;
+    let strongestStorm = null;
+    let minDistance = Infinity;
+    let maxIntensity = 0;
+
+    for (const point of precipitationPoints) {
+      const pointDistance = calculateDistance(centerLat, centerLon, point.lat, point.lon);
+      
+      // Track nearest storm
+      if (pointDistance < minDistance) {
+        minDistance = pointDistance;
+        nearestStorm = point;
+      }
+      
+      // Track strongest storm
+      if (point.dbz > maxIntensity) {
+        maxIntensity = point.dbz;
+        strongestStorm = point;
+      }
+    }
+
     // Create waypoint markers for each actual precipitation point
     for (const point of precipitationPoints) {
       // Get radar source-specific thresholds
@@ -1059,6 +1081,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const meetsAlertThreshold = alertPreferences && point.dbz >= alertPreferences.minimumDbz;
       const isAlertStorm = meetsAlertThreshold && pointDistance <= (alertPreferences?.alertRadius || 30);
       
+      // Check if this is the nearest or strongest storm for special highlighting
+      const isNearestStorm = nearestStorm && point.lat === nearestStorm.lat && point.lon === nearestStorm.lon;
+      const isStrongestStorm = strongestStorm && point.lat === strongestStorm.lat && point.lon === strongestStorm.lon;
+      const isSpecialStorm = isNearestStorm || isStrongestStorm;
+      
       // Get alert threshold color (color that matches the minimum dBZ setting)
       const getAlertThresholdColor = (minimumDbz: number) => {
         if (minimumDbz >= 61) return '#8B5CF6'; // Purple - Extreme (61+ dBZ)
@@ -1085,8 +1112,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const movementDirection = getStormMovementDirection();
       
-      // Create directional arrow marker using custom arrow image
-      // Storm arrows point in the direction they are moving (same as wind direction)
+      // Create directional arrow marker with special effects for nearest/strongest storms
       const waypointIcon = window.L.divIcon({
         html: `
           <div style="
@@ -1097,31 +1123,58 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             align-items: center;
             justify-content: center;
             transform: rotate(${movementDirection}deg);
-            ${isAlertStorm ? 'animation: pulse 2s infinite;' : ''}
+            ${isAlertStorm || isSpecialStorm ? 'animation: specialStormPulse 2s infinite;' : ''}
           ">
+            ${isSpecialStorm ? `
+              <!-- Special pulsing ring for nearest/strongest storms -->
+              <div style="
+                position: absolute;
+                width: ${markerSize + 20}px;
+                height: ${markerSize + 20}px;
+                border: 2px solid ${isNearestStorm ? '#00FF00' : '#FFD700'};
+                border-radius: 50%;
+                animation: specialRingPulse 1.5s infinite;
+                z-index: -1;
+              "></div>
+            ` : ''}
+            
             <svg width="${markerSize}" height="${markerSize}" viewBox="0 0 24 24" style="
               filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
               ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor});` : ''}
+              ${isSpecialStorm ? `filter: drop-shadow(0 0 8px ${isNearestStorm ? '#00FF00' : '#FFD700'});` : ''}
             ">
               <path d="M6 12 L18 6 L15 12 L18 18 Z" 
                     fill="${getDbzColor(point.dbz)}" 
-                    stroke="${isAlertStorm ? alertColor : '#ffffff'}" 
-                    stroke-width="${isAlertStorm ? '2' : '1'}"
+                    stroke="${isSpecialStorm ? (isNearestStorm ? '#00FF00' : '#FFD700') : (isAlertStorm ? alertColor : '#ffffff')}" 
+                    stroke-width="${isSpecialStorm || isAlertStorm ? '3' : '1'}"
                     />
             </svg>
-
           </div>
-          ${isAlertStorm ? `
-            <style>
-              @keyframes pulse {
-                0% { transform: rotate(${movementDirection}deg) scale(1); opacity: 1; }
-                50% { transform: rotate(${movementDirection}deg) scale(1.2); opacity: 0.7; }
-                100% { transform: rotate(${movementDirection}deg) scale(1); opacity: 1; }
+          
+          <style>
+            @keyframes specialStormPulse {
+              0% { transform: rotate(${movementDirection}deg) scale(1); opacity: 1; }
+              50% { transform: rotate(${movementDirection}deg) scale(1.15); opacity: 0.8; }
+              100% { transform: rotate(${movementDirection}deg) scale(1); opacity: 1; }
+            }
+            
+            @keyframes specialRingPulse {
+              0% { 
+                transform: scale(0.8); 
+                opacity: 0.8; 
               }
-            </style>
-          ` : ''}
+              50% { 
+                transform: scale(1.2); 
+                opacity: 0.3; 
+              }
+              100% { 
+                transform: scale(0.8); 
+                opacity: 0.8; 
+              }
+            }
+          </style>
         `,
-        className: `dbz-waypoint ${isAlertStorm ? 'alert-storm' : ''}`,
+        className: `dbz-waypoint ${isAlertStorm ? 'alert-storm' : ''} ${isSpecialStorm ? 'special-storm' : ''}`,
         iconSize: [markerSize, markerSize],
         iconAnchor: [markerSize / 2, markerSize / 2]
       });
@@ -1192,7 +1245,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       waypointMarker.bindPopup(popupContent);
       
-      // Add click handler to show/hide storm cone (only when not showing all tracks)
+      // Add enhanced click handler for storm cone and radar zoom functionality
       waypointMarker.on('click', (e: any) => {
         e.originalEvent.stopPropagation();
         
@@ -1212,6 +1265,37 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           hideStormCone();
           setSelectedStormId(null);
         } else {
+          // Micro-interaction: Zoom to storm for detail reveal
+          const currentZoom = map.getZoom();
+          if (currentZoom < 12) {
+            // Smooth zoom to storm location for better detail
+            map.flyTo([point.lat, point.lon], Math.min(currentZoom + 3, 13), {
+              duration: 1.0,
+              easeLinearity: 0.25
+            });
+          }
+          
+          // Show enhanced popup with detailed storm information
+          const enhancedPopup = `
+            <div style="min-width: 250px;">
+              <h4 style="margin: 0 0 8px 0; color: ${getDbzColor(point.dbz)}; font-weight: bold;">
+                ${isNearestStorm ? '🎯 NEAREST STORM' : isStrongestStorm ? '💪 STRONGEST STORM' : 'STORM CELL'}
+              </h4>
+              <div style="font-size: 13px; line-height: 1.4;">
+                <strong>Distance:</strong> ${pointDistance.toFixed(1)} miles<br>
+                <strong>Intensity:</strong> ${point.dbz} dBZ<br>
+                <strong>Category:</strong> ${getPrecipitationType(point.dbz, radarSource)}<br>
+                <strong>Rainfall Rate:</strong> ${getRainfallRate(point.dbz).mmh} mm/h (${getRainfallRate(point.dbz).inh} in/h)<br>
+                ${point.dbz >= 55 ? `<strong style="color: orange;">⚠️ ${getHailInfo(point.dbz)}</strong><br>` : ''}
+                <strong>Movement:</strong> ${currentWindsData?.stormMovement?.direction || 'Unknown'}° @ ${currentWindsData?.stormMovement?.speed || 0} mph<br>
+                <small style="color: #888;">Real-time ${radarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'} data</small>
+              </div>
+            </div>
+          `;
+          
+          waypointMarker.setPopupContent(enhancedPopup);
+          waypointMarker.openPopup();
+          
           // Show cone for new storm using authentic storm movement data
           const stormMovementDirection = matchingStorm?.movement?.direction || (currentWindsData?.stormMovement?.direction || 0);
           const stormIntensity = matchingStorm?.intensity || point.dbz;
