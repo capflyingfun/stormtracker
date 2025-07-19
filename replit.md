@@ -228,10 +228,12 @@ Preferred communication style: Simple, everyday language.
 - **Self-Contained Messaging**: Replaced external email services (SendGrid, Gmail, Mailgun) with built-in database-driven message storage system
 - **Database Message Storage**: All storm alerts stored in `message_inbox` table instead of being sent via external email providers
 - **HTML Message Interface**: Professional web-based inbox accessible via "/messages" route with rich HTML message display
-- **Complete Message Management**: View, mark as read, delete messages through intuitive web interface
+- **Complete Message Management**: View, mark as read, delete messages through intuitive web interface with proper state persistence
+- **Smart Message Filtering**: 5-tab filtering system (All, Unread, Read, Email, SMS) with real-time message counts
 - **Zero External Dependencies**: No API keys or external service configuration required for message delivery
 - **Professional Email Formatting**: Rich HTML emails with storm details, safety recommendations, and professional styling stored as database records
-- **Message Navigation**: Seamless integration with main storm tracker via "View Messages" button and back navigation
+- **Persistent Navigation**: localStorage-based location state preservation ensures users return to active storm tracker view (not location setup)
+- **Fixed Mark as Read**: Fully functional read/unread status management with immediate UI updates
 - **Alert History**: Complete audit trail of all storm alerts accessible through web interface
 - **Database Schema**: Comprehensive message storage with recipient info, storm context, delivery status, and timestamps
 - **Corporate Network Friendly**: Eliminates external email service dependencies that may be blocked by corporate firewalls
