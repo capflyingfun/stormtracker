@@ -82,7 +82,7 @@ export default function MessageInboxPage() {
     return (
       <div className="container mx-auto p-4">
         <div className="flex items-center gap-4 mb-6">
-          <Link href="/storm-tracker">
+          <Link href="/">
             <Button variant="outline" size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Tracker
@@ -98,7 +98,7 @@ export default function MessageInboxPage() {
   return (
     <div className="container mx-auto p-4 max-w-6xl">
       <div className="flex items-center gap-4 mb-6">
-        <Link href="/storm-tracker">
+        <Link href="/">
           <Button variant="outline" size="sm">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Tracker
@@ -339,7 +339,7 @@ function MessageDetail({
         <div className="flex gap-2">
           {!message.isRead && (
             <Button variant="outline" size="sm" onClick={onMarkAsRead}>
-              <MarkAsUnread className="w-4 h-4 mr-2" />
+              <MailOpen className="w-4 h-4 mr-2" />
               Mark as Read
             </Button>
           )}
