@@ -51,6 +51,7 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
   try {
     // Fetch aviation weather data from nearby airports
     let aviationWeather: any[] = [];
+    let currentWeather: any = null;
     try {
       const aviationResponse = await fetch(
         `http://localhost:5000/api/aviation-weather?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
@@ -58,7 +59,11 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       if (aviationResponse.ok) {
         const aviationData = await aviationResponse.json();
         aviationWeather = aviationData.stations || [];
+        currentWeather = aviationData.currentWeather || null;
         console.log(`AI Assistant: Found ${aviationWeather.length} nearby airport weather stations`);
+        if (currentWeather) {
+          console.log('AI Assistant: Found real-time weather data for immediate area');
+        }
       }
     } catch (aviationError) {
       console.log('AI Assistant: Could not fetch aviation weather:', aviationError.message);
@@ -235,10 +240,20 @@ ${windContext.map(wind => `${wind.altitude}: ${wind.speed} from ${wind.direction
 
 LIGHTNING ACTIVITY: Analyzed from METAR reports (when available)
 
+CURRENT WEATHER (IMMEDIATE AREA):
+${currentWeather ? 
+  `${currentWeather.location} (${currentWeather.coordinates}) - ${currentWeather.timeAgo}:\n` +
+  `  Temperature: ${currentWeather.conditions.temperature}°C  Humidity: ${currentWeather.conditions.humidity}%\n` +
+  `  Wind: ${currentWeather.conditions.windDirection}° at ${currentWeather.conditions.windSpeed} mph${currentWeather.conditions.windGust ? ` gusting ${currentWeather.conditions.windGust} mph` : ''}\n` +
+  `  Pressure: ${currentWeather.conditions.pressure} hPa  Visibility: ${currentWeather.conditions.visibility}\n` +
+  `  Weather: ${currentWeather.conditions.weather}  Cloud Cover: ${currentWeather.conditions.cloudCover}%\n` +
+  `  Source: ${currentWeather.source} (Live Data)\n` : 
+  'No real-time weather data available\n'}
+
 AVIATION WEATHER (NEARBY AIRPORTS):
 ${aviationWeather.length > 0 ? 
   aviationWeather.map(station => 
-    `${station.airport} (${station.icao}) - ${station.distance.toFixed(1)} miles ${station.direction}:\n` +
+    `${station.airport} (${station.icao}) - ${station.distance.toFixed(1)} miles ${station.direction} [${station.timeAgo}${station.isStale ? ' - STALE' : ''}]:\n` +
     `  Ceiling: ${station.conditions.ceiling}  Visibility: ${station.conditions.visibility}\n` +
     `  Clouds: ${station.conditions.clouds}  Weather: ${station.conditions.weather}\n` +
     `  Wind: ${station.conditions.wind}  Temp/Dewpoint: ${station.conditions.temperature}°/${station.conditions.dewpoint}°\n` +
