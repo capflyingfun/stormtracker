@@ -216,11 +216,13 @@ Preferred communication style: Simple, everyday language.
 - **Professional Winds Aloft Data**: Integrated NOAA Aviation Weather API for accurate storm movement forecasting
 - **Multi-Source Wind Integration**: Primary winds aloft data with METAR and OpenWeather fallbacks for comprehensive coverage
 - **Storm Movement Prediction**: Enhanced storm cells display both observed movement and forecast movement based on atmospheric wind patterns
-- **Meteorological Accuracy**: Proper altitude weighting (6,000-18,000 ft) for thunderstorm movement calculations using aviation weather standards
+- **Meteorological Accuracy**: Proper altitude weighting (6,000-20,000 ft) prioritizing 500mb level (18,000 ft) for thunderstorm steering
 - **Confidence Levels**: Wind-based forecasts include confidence ratings (high/medium/low) based on data quality and source availability
 - **Professional API Integration**: Custom User-Agent headers and proper timeout handling for aviationweather.gov compliance
 - **Fallback Data Sources**: Seamless degradation through winds aloft → METAR → OpenWeather → surface-only predictions
 - **Storm Speed Factor**: Applied 70% factor to steering winds for realistic storm movement speeds (storms move slower than wind)
+- **Direction Conversion Accuracy**: Proper wind direction to storm movement conversion (wind FROM direction → storm TO direction)
+- **Enhanced Display Format**: Storm forecast shows both compass direction and precise bearing (e.g., "N (000°)") for meteorological accuracy
 
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
