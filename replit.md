@@ -224,9 +224,20 @@ Preferred communication style: Simple, everyday language.
 - **Higher Confidence Ratings**: Better confidence levels due to multiple pressure level data vs single-point station data
 - **Scientific Wind Conversion**: Proper m/s to knots conversion with meteorologically accurate storm movement factor (70% of steering winds)
 
-### Professional Push Notification System (July 19, 2025)
-- **Complete Alert Infrastructure**: Implemented comprehensive storm alert system with email and SMS notifications using multiple service providers
-- **Multi-Provider Email Support**: Added support for SendGrid, Gmail App Password, Outlook/Hotmail, Yahoo Mail, and generic SMTP providers
+### Built-in HTML/Database Message System (July 19, 2025)
+- **Self-Contained Messaging**: Replaced external email services (SendGrid, Gmail, Mailgun) with built-in database-driven message storage system
+- **Database Message Storage**: All storm alerts stored in `message_inbox` table instead of being sent via external email providers
+- **HTML Message Interface**: Professional web-based inbox accessible via "/messages" route with rich HTML message display
+- **Complete Message Management**: View, mark as read, delete messages through intuitive web interface
+- **Zero External Dependencies**: No API keys or external service configuration required for message delivery
+- **Professional Email Formatting**: Rich HTML emails with storm details, safety recommendations, and professional styling stored as database records
+- **Message Navigation**: Seamless integration with main storm tracker via "View Messages" button and back navigation
+- **Alert History**: Complete audit trail of all storm alerts accessible through web interface
+- **Database Schema**: Comprehensive message storage with recipient info, storm context, delivery status, and timestamps
+- **Corporate Network Friendly**: Eliminates external email service dependencies that may be blocked by corporate firewalls
+
+### Legacy External Email Support (July 19, 2025)  
+- **Multi-Provider Email Support**: Maintains compatibility with SendGrid, Gmail App Password, Outlook/Hotmail, Yahoo Mail, and generic SMTP providers
 - **Email Service Priority**: SendGrid preferred (100 free emails/day), with automatic fallback to configured SMTP providers
 - **Multi-Channel Alerts**: Professional email alerts with detailed storm information plus instant SMS text alerts via carrier gateways for all major US carriers (AT&T, Verizon, T-Mobile, etc.)
 - **Simple Registration**: No-password system requiring only name and email, similar to commercial weather apps like AccuWeather and Weather Channel
