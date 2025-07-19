@@ -1070,16 +1070,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             transform: rotate(${movementDirection}deg);
             ${isAlertStorm ? 'animation: pulse 2s infinite;' : ''}
           ">
-            <div style="
-              width: ${markerSize}px;
-              height: ${markerSize}px;
-              background-image: url('/attached_assets/arrow_06_1752947186217.png');
-              background-size: contain;
-              background-repeat: no-repeat;
-              background-position: center;
-              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)) hue-rotate(${point.dbz >= 55 ? '0deg' : point.dbz >= 45 ? '20deg' : point.dbz >= 35 ? '45deg' : '120deg'}) saturate(1.5);
-              ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor}) hue-rotate(0deg) saturate(2);` : ''}
-            "></div>
+            <svg width="${markerSize}" height="${markerSize}" viewBox="0 0 24 24" style="
+              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+              ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor});` : ''}
+            ">
+              <path d="M12 3 L19 12 L15 12 L15 21 L9 21 L9 12 L5 12 Z" 
+                    fill="${getDbzColor(point.dbz)}" 
+                    stroke="${isAlertStorm ? alertColor : '#ffffff'}" 
+                    stroke-width="${isAlertStorm ? '2' : '1'}"
+                    />
+            </svg>
             <div style="
               position: absolute;
               top: 50%;
