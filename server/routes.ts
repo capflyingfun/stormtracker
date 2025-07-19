@@ -2176,6 +2176,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Parse METAR for key weather info
             const direction = getDirectionFromBearing(airport.bearing);
             
+            // Calculate time since observation
+            const obsTime = metarData.obsTime || metarData.observation_time;
+            let timeAgo = 'Unknown';
+            let isStale = false;
+            
+            if (obsTime) {
+              try {
+                const obsDate = new Date(obsTime);
+                const now = new Date();
+                const diffMinutes = Math.floor((now.getTime() - obsDate.getTime()) / 60000);
+                
+                if (diffMinutes < 60) {
+                  timeAgo = `${diffMinutes} minutes ago`;
+                  isStale = diffMinutes > 90; // METAR over 90 minutes is getting stale
+                } else if (diffMinutes < 1440) {
+                  const hours = Math.floor(diffMinutes / 60);
+                  timeAgo = `${hours} hour${hours > 1 ? 's' : ''} ago`;
+                  isStale = diffMinutes > 120; // Over 2 hours is stale
+                } else {
+                  timeAgo = 'Over 24 hours ago';
+                  isStale = true;
+                }
+              } catch (e) {
+                timeAgo = 'Invalid timestamp';
+                isStale = true;
+              }
+            }
+            
             weatherData.push({
               airport: airport.name,
               icao: airport.icao,
@@ -2183,6 +2211,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               direction: direction,
               bearing: airport.bearing,
               metar: metarData.rawOb || metarData.raw_text || '',
+              observationTime: obsTime,
+              timeAgo: timeAgo,
+              isStale: isStale,
               conditions: {
                 visibility: metarData.visib || 'Unknown',
                 ceiling: metarData.cig || 'Clear',
@@ -2200,10 +2231,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Add real-time weather data for immediate area
+      let currentWeather = null;
+      try {
+        console.log('🌤️ Fetching real-time weather for immediate area...');
+        const owmResponse = await fetch(
+          `https://api.openweathermap.org/data/2.5/weather?lat=${userLat}&lon=${userLon}&appid=${API_KEYS.openweather}&units=metric`,
+          { timeout: 3000 }
+        );
+        
+        if (owmResponse.ok) {
+          const owmData = await owmResponse.json();
+          currentWeather = {
+            location: `${owmData.name || 'Local Area'}`,
+            coordinates: `${userLat.toFixed(3)}, ${userLon.toFixed(3)}`,
+            source: 'OpenWeatherMap',
+            timestamp: new Date().toISOString(),
+            timeAgo: 'Live data',
+            isStale: false,
+            conditions: {
+              temperature: Math.round(owmData.main?.temp || 0),
+              humidity: owmData.main?.humidity || 'Unknown',
+              pressure: owmData.main?.pressure || 'Unknown',
+              visibility: owmData.visibility ? (owmData.visibility / 1000).toFixed(1) + ' km' : 'Unknown',
+              windSpeed: Math.round((owmData.wind?.speed || 0) * 2.237), // Convert m/s to mph
+              windDirection: owmData.wind?.deg || 0,
+              windGust: owmData.wind?.gust ? Math.round(owmData.wind.gust * 2.237) : null,
+              weather: owmData.weather?.[0]?.description || 'Clear',
+              cloudCover: owmData.clouds?.all || 0,
+              dewPoint: Math.round(owmData.main?.temp - ((100 - owmData.main?.humidity) / 5)) || 'Unknown'
+            }
+          };
+          console.log('✅ Real-time weather data fetched successfully');
+        }
+      } catch (owmError) {
+        console.log('Real-time weather fetch failed:', owmError.message);
+      }
+
       res.json({
+        currentWeather: currentWeather,
         stations: weatherData,
         count: weatherData.length,
-        source: 'aviation_weather'
+        source: 'aviation_weather_plus_realtime'
       });
       
     } catch (error) {
