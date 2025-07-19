@@ -617,10 +617,10 @@ Preferred communication style: Simple, everyday language.
 - **Persistent AI Analysis**: Users can now view alerts and messages while keeping their AI weather assessment open for reference
 - **Improved User Workflow**: Seamless navigation between storm tracking, alert management, and message viewing without losing AI context
 
-### UI Enhancement & Pop-up Navigation Fix (July 19, 2025)
-- **Reverted to SVG Triangle Arrows**: Changed back to reliable SVG triangular storm movement arrows from custom image implementation
-- **Fixed Alerts Pop-up Navigation**: Alerts button now opens subscription modal overlay instead of bottom tab content for better visibility
-- **Fixed Messages Pop-up Navigation**: Messages button opens full message inbox in new browser window for proper functionality
-- **Enhanced Mobile Interface**: Both desktop and mobile Alerts/Messages buttons now use pop-up navigation instead of tab switching
-- **Improved User Experience**: Pop-up approach ensures Alerts and Messages are clearly visible instead of hidden at bottom under radar
-- **Consistent Arrow Display**: Professional SVG triangular arrows with proper meteorological color coding and directional movement indication
+### Clean Arrow Display & Modal Navigation Fix (July 19, 2025)
+- **Clean Storm Arrow Display**: Removed colored dBZ box overlay from storm arrows to prevent "square box" appearance when zoomed out
+- **Right-Pointing Arrow Shape**: Changed arrow SVG from triangle to ">" pointer style (M6 12 L18 6 L15 12 L18 18 Z) for clearer directional indication
+- **Fixed Messages Modal Navigation**: Messages button now opens in modal popup like Alerts instead of new browser tab
+- **Consistent Modal Interface**: Both Alerts and Messages use identical modal overlay system for unified user experience
+- **Enhanced Mobile Interface**: Both desktop and mobile buttons now use clean modal pop-ups with proper close functionality
+- **Improved Visual Clarity**: Storm arrows now display as clean colored pointers without confusing overlay elements

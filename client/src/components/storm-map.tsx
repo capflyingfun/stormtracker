@@ -1074,29 +1074,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
               ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor});` : ''}
             ">
-              <path d="M12 3 L19 12 L15 12 L15 21 L9 21 L9 12 L5 12 Z" 
+              <path d="M6 12 L18 6 L15 12 L18 18 Z" 
                     fill="${getDbzColor(point.dbz)}" 
                     stroke="${isAlertStorm ? alertColor : '#ffffff'}" 
                     stroke-width="${isAlertStorm ? '2' : '1'}"
                     />
             </svg>
-            <div style="
-              position: absolute;
-              top: 50%;
-              left: 50%;
-              transform: translate(-50%, -50%) rotate(-${movementDirection}deg);
-              font-size: ${Math.max(6, markerSize * 0.35)}px;
-              font-weight: bold;
-              color: #ffffff;
-              text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-              pointer-events: none;
-              background-color: ${getDbzColor(point.dbz)};
-              padding: 1px 3px;
-              border-radius: 3px;
-              border: 1px solid rgba(255,255,255,0.5);
-            ">
-              ${point.dbz}
-            </div>
+
           </div>
           ${isAlertStorm ? `
             <style>
