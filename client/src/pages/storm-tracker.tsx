@@ -620,6 +620,19 @@ export default function StormTracker() {
                   </div>
                   
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                    <h3 className="text-sm font-semibold mb-3 text-slate-300">Storm Tracks</h3>
+                    <p className="text-xs text-slate-400 mb-2">Movement projection cones</p>
+                    <Button
+                      onClick={() => setShowStormTracks(!showStormTracks)}
+                      variant="outline"
+                      size="sm"
+                      className={`w-full text-xs ${showStormTracks ? 'bg-orange-600/20 border-orange-500 text-orange-300' : ''}`}
+                    >
+                      🎯 {showStormTracks ? 'Hide Tracks' : 'Show Tracks'}
+                    </Button>
+                  </div>
+                  
+                  <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                     <h3 className="text-sm font-semibold mb-3 text-slate-300">Radar Info</h3>
                     <div className="space-y-2 text-xs">
                       <div className="text-slate-400">
@@ -646,6 +659,7 @@ export default function StormTracker() {
                     radarSource={currentRadarSource}
                     isDisabled={showStormFilteringSettings || showAlertSubscription}
                     alertPreferences={preferences}
+                    showAllStormTracks={showStormTracks}
                   />
                 </div>
 
