@@ -1,12 +1,31 @@
 import { MailService } from '@sendgrid/mail';
+import nodemailer from 'nodemailer';
 
-if (!process.env.SENDGRID_API_KEY) {
-  console.warn("SENDGRID_API_KEY not configured - email and SMS alerts disabled");
+// Check for Gmail configuration
+const useGmail = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD;
+const useSendGrid = process.env.SENDGRID_API_KEY;
+
+if (!useGmail && !useSendGrid) {
+  console.log('No email service configured - email and SMS alerts disabled');
+  console.log('Configure either GMAIL_USER + GMAIL_APP_PASSWORD or SENDGRID_API_KEY');
 }
 
+// Initialize SendGrid if available
 const mailService = new MailService();
-if (process.env.SENDGRID_API_KEY) {
-  mailService.setApiKey(process.env.SENDGRID_API_KEY);
+if (useSendGrid) {
+  mailService.setApiKey(process.env.SENDGRID_API_KEY!);
+}
+
+// Initialize Gmail transporter if available
+let gmailTransporter: any = null;
+if (useGmail) {
+  gmailTransporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD
+    }
+  });
 }
 
 // SMS Carrier Email Gateways
@@ -62,7 +81,7 @@ interface SMSAlertParams {
 }
 
 export async function sendStormAlert(params: StormAlertEmailParams): Promise<boolean> {
-  if (!process.env.SENDGRID_API_KEY) {
+  if (!useGmail && !useSendGrid) {
     console.log("Email would be sent:", params);
     return false;
   }
@@ -121,16 +140,28 @@ export async function sendStormAlert(params: StormAlertEmailParams): Promise<boo
   `;
 
   try {
-    await mailService.send({
-      to: params.to,
-      from: 'alerts@stormtracker.app', // Use your verified SendGrid domain
-      subject,
-      html,
-    });
-    console.log(`Storm alert email sent to ${params.to}`);
+    if (useGmail) {
+      // Send via Gmail
+      await gmailTransporter.sendMail({
+        from: `"StormTracker Alerts" <${process.env.GMAIL_USER}>`,
+        to: params.to,
+        subject,
+        html,
+      });
+      console.log(`Storm alert email sent via Gmail to ${params.to}`);
+    } else {
+      // Send via SendGrid
+      await mailService.send({
+        to: params.to,
+        from: 'alerts@stormtracker.app',
+        subject,
+        html,
+      });
+      console.log(`Storm alert email sent via SendGrid to ${params.to}`);
+    }
     return true;
   } catch (error) {
-    console.error('SendGrid email error:', error);
+    console.error('Email sending error:', error);
     return false;
   }
 }
@@ -143,7 +174,7 @@ interface TestAlertParams {
 
 // Send SMS storm alert via carrier email gateway
 export async function sendSMSAlert(params: SMSAlertParams): Promise<boolean> {
-  if (!process.env.SENDGRID_API_KEY) {
+  if (!useGmail && !useSendGrid) {
     console.log("SMS would be sent:", params);
     return false;
   }
@@ -171,13 +202,25 @@ export async function sendSMSAlert(params: SMSAlertParams): Promise<boolean> {
   const message = `🌩️ STORM ALERT: ${intensityCategory} storm ${params.stormDistance.toFixed(1)}mi away from ${params.locationName}. ${params.stormIntensity}dBZ intensity. ${params.severity} risk. Stay safe! -StormTracker`;
 
   try {
-    await mailService.send({
-      to: smsEmail,
-      from: 'alerts@stormtracker.app',
-      subject: '', // SMS gateways ignore subject
-      text: message, // Plain text for SMS
-    });
-    console.log(`SMS alert sent to ${cleanPhone} via ${params.carrier}`);
+    if (useGmail) {
+      // Send via Gmail
+      await gmailTransporter.sendMail({
+        from: process.env.GMAIL_USER,
+        to: smsEmail,
+        subject: '', // SMS gateways ignore subject
+        text: message, // Plain text for SMS
+      });
+      console.log(`SMS alert sent via Gmail to ${cleanPhone} via ${params.carrier}`);
+    } else {
+      // Send via SendGrid
+      await mailService.send({
+        to: smsEmail,
+        from: 'alerts@stormtracker.app',
+        subject: '', // SMS gateways ignore subject
+        text: message, // Plain text for SMS
+      });
+      console.log(`SMS alert sent via SendGrid to ${cleanPhone} via ${params.carrier}`);
+    }
     return true;
   } catch (error) {
     console.error('SMS alert error:', error);
@@ -187,7 +230,7 @@ export async function sendSMSAlert(params: SMSAlertParams): Promise<boolean> {
 
 // Send test SMS
 export async function sendTestSMS(phoneNumber: string, carrier: string, name: string, locationName: string): Promise<boolean> {
-  if (!process.env.SENDGRID_API_KEY) {
+  if (!useGmail && !useSendGrid) {
     console.log("Test SMS would be sent:", { phoneNumber, carrier });
     return false;
   }
@@ -208,13 +251,25 @@ export async function sendTestSMS(phoneNumber: string, carrier: string, name: st
   const message = `✅ StormTracker SMS alerts active for ${locationName}. You'll get instant text alerts when storms approach. Reply STOP to opt out. -StormTracker`;
 
   try {
-    await mailService.send({
-      to: smsEmail,
-      from: 'alerts@stormtracker.app',
-      subject: '',
-      text: message,
-    });
-    console.log(`Test SMS sent to ${cleanPhone} via ${carrier}`);
+    if (useGmail) {
+      // Send via Gmail
+      await gmailTransporter.sendMail({
+        from: process.env.GMAIL_USER,
+        to: smsEmail,
+        subject: '',
+        text: message,
+      });
+      console.log(`Test SMS sent via Gmail to ${cleanPhone} via ${carrier}`);
+    } else {
+      // Send via SendGrid
+      await mailService.send({
+        to: smsEmail,
+        from: 'alerts@stormtracker.app',
+        subject: '',
+        text: message,
+      });
+      console.log(`Test SMS sent via SendGrid to ${cleanPhone} via ${carrier}`);
+    }
     return true;
   } catch (error) {
     console.error('Test SMS error:', error);
@@ -223,7 +278,7 @@ export async function sendTestSMS(phoneNumber: string, carrier: string, name: st
 }
 
 export async function sendTestAlert(params: TestAlertParams): Promise<boolean> {
-  if (!process.env.SENDGRID_API_KEY) {
+  if (!useGmail && !useSendGrid) {
     console.log("Test email would be sent:", params);
     return false;
   }
@@ -263,16 +318,28 @@ export async function sendTestAlert(params: TestAlertParams): Promise<boolean> {
   `;
 
   try {
-    await mailService.send({
-      to: params.to,
-      from: 'alerts@stormtracker.app',
-      subject,
-      html,
-    });
-    console.log(`Test alert email sent to ${params.to}`);
+    if (useGmail) {
+      // Send via Gmail
+      await gmailTransporter.sendMail({
+        from: `"StormTracker Alerts" <${process.env.GMAIL_USER}>`,
+        to: params.to,
+        subject,
+        html,
+      });
+      console.log(`Test alert email sent via Gmail to ${params.to}`);
+    } else {
+      // Send via SendGrid
+      await mailService.send({
+        to: params.to,
+        from: 'alerts@stormtracker.app',
+        subject,
+        html,
+      });
+      console.log(`Test alert email sent via SendGrid to ${params.to}`);
+    }
     return true;
   } catch (error) {
-    console.error('SendGrid test email error:', error);
+    console.error('Test email error:', error);
     return false;
   }
 }
