@@ -871,8 +871,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     // Create cones for all authentic precipitation storms
     precipitationStorms.forEach(storm => {
-      // Only show cones for storms above light intensity
-      if (storm.intensity < 30) return;
+      // Show movement cones for all detected storms regardless of intensity
 
       // Use authentic storm movement data or current winds data
       const movementDirection = storm.movement?.direction || (currentWindsData?.stormMovement?.direction || 0);
