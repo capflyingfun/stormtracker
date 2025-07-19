@@ -166,9 +166,17 @@ export default function StormTracker() {
 
   // Auto-switch to NEXRAD for US locations on app load
   useEffect(() => {
-    if (location && location.name.includes('Florida') && currentRadarSource === 'rainviewer') {
-      setCurrentRadarSource('nexrad');
-      console.log('Auto-switched to NEXRAD for Florida location:', location.name);
+    if (location && currentRadarSource === 'rainviewer') {
+      // Detect US locations by coordinates or common US indicators
+      const isUSLocation = location.lat >= 24.5 && location.lat <= 49.5 && location.lon >= -125 && location.lon <= -66.5;
+      const hasUSIndicators = location.name.includes(', FL') || location.name.includes(', TX') || location.name.includes(', CA') || 
+                             location.name.includes(', NY') || location.name.includes('Florida') || location.name.includes('Texas') ||
+                             location.name.includes('California') || location.name.includes('Alaska') || location.name.includes('Hawaii');
+      
+      if (isUSLocation || hasUSIndicators) {
+        setCurrentRadarSource('nexrad');
+        console.log('Auto-switched to NEXRAD for US location:', location.name);
+      }
     }
   }, [location, currentRadarSource]);
 
