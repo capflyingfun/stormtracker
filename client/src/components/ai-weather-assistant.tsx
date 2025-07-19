@@ -97,10 +97,10 @@ export default function AIWeatherAssistant({
   };
 
   return (
-    <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950 dark:to-indigo-900 border-blue-200 dark:border-blue-800">
+    <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Brain className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+        <CardTitle className="flex items-center gap-2 text-white">
+          <Brain className="w-5 h-5 text-blue-400" />
           AI Weather Assistant
           {assessment && (
             <Badge className={`ml-auto ${getRiskColor(assessment.riskLevel)}`}>
@@ -113,7 +113,7 @@ export default function AIWeatherAssistant({
       <CardContent className="space-y-4">
         {!assessment && !assessmentMutation.isPending && (
           <div className="text-center">
-            <p className="text-muted-foreground mb-4">
+            <p className="text-slate-300 mb-4">
               Get AI-powered weather impact analysis based on your current storm data
             </p>
             <Button 
@@ -128,8 +128,8 @@ export default function AIWeatherAssistant({
 
         {assessmentMutation.isPending && (
           <div className="text-center py-6">
-            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-            <p className="text-sm text-muted-foreground">
+            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-400" />
+            <p className="text-sm text-slate-300">
               AI is analyzing {storms.length} storms, wind patterns, and your location...
             </p>
           </div>
@@ -139,15 +139,15 @@ export default function AIWeatherAssistant({
           <div className="space-y-4">
             {/* Risk Summary */}
             <div>
-              <h4 className="font-semibold mb-2 flex items-center gap-2">
+              <h4 className="font-semibold mb-2 flex items-center gap-2 text-white">
                 {getRiskIcon(assessment.riskLevel)}
                 Risk Assessment
               </h4>
-              <p className="text-sm">{assessment.summary}</p>
+              <p className="text-sm text-slate-200">{assessment.summary}</p>
               {assessment.timeToImpact && (
                 <div className="flex items-center gap-2 mt-2">
-                  <Clock className="w-4 h-4 text-orange-500" />
-                  <span className="text-sm font-medium">Impact timing: {assessment.timeToImpact}</span>
+                  <Clock className="w-4 h-4 text-orange-400" />
+                  <span className="text-sm font-medium text-slate-200">Impact timing: {assessment.timeToImpact}</span>
                 </div>
               )}
             </div>
@@ -157,19 +157,19 @@ export default function AIWeatherAssistant({
             {/* Data Context */}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-gray-500" />
-                <span>{storms.length} storms tracked</span>
+                <MapPin className="w-4 h-4 text-slate-400" />
+                <span className="text-slate-300">{storms.length} storms tracked</span>
               </div>
               <div className="flex items-center gap-2">
-                <Wind className="w-4 h-4 text-gray-500" />
-                <span>{winds.length} wind levels</span>
+                <Wind className="w-4 h-4 text-slate-400" />
+                <span className="text-slate-300">{winds.length} wind levels</span>
               </div>
               <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-gray-500" />
-                <span>{lightningCount} lightning strikes</span>
+                <Zap className="w-4 h-4 text-slate-400" />
+                <span className="text-slate-300">{lightningCount} lightning strikes</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                <span className="text-xs bg-slate-700 text-slate-200 px-2 py-1 rounded">
                   {radarSource} radar
                 </span>
               </div>
@@ -181,30 +181,30 @@ export default function AIWeatherAssistant({
                 
                 {/* Detailed Analysis */}
                 <div>
-                  <h4 className="font-semibold mb-2">Detailed Analysis</h4>
-                  <p className="text-sm whitespace-pre-line">{assessment.detailedAnalysis}</p>
+                  <h4 className="font-semibold mb-2 text-white">Detailed Analysis</h4>
+                  <p className="text-sm whitespace-pre-line text-slate-200">{assessment.detailedAnalysis}</p>
                 </div>
 
-                <Separator />
+                <Separator className="bg-slate-600" />
 
                 {/* Recommendations */}
                 <div>
-                  <h4 className="font-semibold mb-2">Safety Recommendations</h4>
+                  <h4 className="font-semibold mb-2 text-white">Safety Recommendations</h4>
                   <ul className="space-y-1">
                     {assessment.recommendations.map((rec, index) => (
                       <li key={index} className="text-sm flex items-start gap-2">
-                        <span className="text-blue-600 mt-1">•</span>
-                        <span>{rec}</span>
+                        <span className="text-blue-400 mt-1">•</span>
+                        <span className="text-slate-200">{rec}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
 
-                <Separator />
+                <Separator className="bg-slate-600" />
 
                 {/* Confidence & Refresh */}
                 <div className="flex items-center justify-between">
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-xs text-slate-400">
                     Confidence: {Math.round(assessment.confidence * 100)}%
                   </div>
                   <Button 
@@ -225,7 +225,7 @@ export default function AIWeatherAssistant({
               variant="ghost"
               size="sm"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="w-full"
+              className="w-full text-slate-200 hover:bg-slate-700"
             >
               {isExpanded ? 'Show Less' : 'Show Detailed Analysis'}
             </Button>
@@ -234,15 +234,15 @@ export default function AIWeatherAssistant({
 
         {assessmentMutation.isError && (
           <div className="text-center py-4">
-            <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-red-500" />
-            <p className="text-sm text-red-600 dark:text-red-400">
+            <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-red-400" />
+            <p className="text-sm text-red-400">
               Unable to generate AI assessment. Please try again.
             </p>
             <Button 
               variant="outline" 
               size="sm" 
               onClick={() => assessmentMutation.mutate()}
-              className="mt-2"
+              className="mt-2 border-slate-600 text-slate-200 hover:bg-slate-700"
             >
               Retry Analysis
             </Button>
