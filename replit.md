@@ -223,6 +223,7 @@ Preferred communication style: Simple, everyday language.
 - **Storm Speed Factor**: Applied 70% factor to steering winds for realistic storm movement speeds (storms move slower than wind)
 - **Direction Conversion Accuracy**: Proper wind direction to storm movement conversion (wind FROM direction → storm TO direction)
 - **Enhanced Display Format**: Storm forecast shows both compass direction and precise bearing (e.g., "N (000°)") for meteorological accuracy
+- **Improved Layout**: Movement forecast displays on separate line for better mobile readability and reduced text wrapping
 
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
