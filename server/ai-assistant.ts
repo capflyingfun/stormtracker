@@ -168,7 +168,7 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       };
     });
 
-    // Prepare regional context for broader weather pattern analysis
+    // Enhanced regional context with track intersection analysis
     const regionalContext = data.regionalStorms && data.regionalStorms.length > 0 ? {
       totalStorms: data.regionalStorms.length,
       intenseCells: data.regionalStorms.filter(s => s.intensity >= 55).length,
@@ -178,7 +178,18 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
         .sort((a, b) => a.distance - b.distance)[0],
       approachingStorms: data.regionalStorms
         .filter(s => s.movement && s.movement.impact === 'high')
-        .length
+        .length,
+      // CRITICAL: Check regional storms for track intersections over user location
+      directPathStorms: data.regionalStorms
+        .map(storm => {
+          const trackIntersection = calculateStormTrackIntersection(storm, data.userLocation.lat, data.userLocation.lon);
+          return { ...storm, trackIntersection };
+        })
+        .filter(s => s.trackIntersection.intersects),
+      overlappingCones: data.regionalStorms
+        .filter(s => s.movement && s.distance <= 20) // Within 20 miles for cone analysis
+        .map(storm => calculateStormTrackIntersection(storm, data.userLocation.lat, data.userLocation.lon))
+        .filter(analysis => analysis.intersects)
     } : null;
 
     const windContext = data.winds.map(wind => ({
@@ -208,7 +219,14 @@ ${regionalContext ?
   `Approaching storms: ${regionalContext.approachingStorms} systems moving toward your area\n` +
   `${regionalContext.nearestIntense ? 
     `Nearest severe storm: ${regionalContext.nearestIntense.intensity} dBZ at ${regionalContext.nearestIntense.distance.toFixed(1)} miles ${regionalContext.nearestIntense.direction}` : 
-    'No severe storms within regional area'}` :
+    'No severe storms within regional area'}\n` +
+  `\n⚠️ CRITICAL STORM TRACK ANALYSIS:\n` +
+  `Regional storms with paths crossing user location: ${regionalContext.directPathStorms.length}\n` +
+  `${regionalContext.directPathStorms.length > 0 ? 
+    regionalContext.directPathStorms.map(storm => 
+      `- ${storm.intensity} dBZ storm at ${storm.distance.toFixed(1)} miles: ${storm.trackIntersection.status}`
+    ).join('\n') : 'No regional storm tracks crossing user location'}\n` +
+  `Overlapping movement cones detected: ${regionalContext.overlappingCones.length}` :
   'Regional storm data unavailable - analysis based on 30-mile immediate area only'}
 
 WINDS ALOFT:
@@ -239,7 +257,9 @@ Based on this comprehensive meteorological data including radar, winds aloft, an
 }
 
 Focus on:
-- STORM TRACK INTERSECTIONS: CRITICAL - Check for storms with tracks/cones crossing directly over user location (marked "DIRECT THREAT")
+- CRITICAL REGIONAL TRACK ANALYSIS: If regional storms show track intersections crossing user location, this is HIGHEST PRIORITY threat
+- OVERLAPPING STORM CONES: Multiple storm movement cones crossing the same location create EXTREME risk conditions
+- STORM TRACK INTERSECTIONS: Check for storms with tracks/cones crossing directly over user location (marked "DIRECT THREAT")
 - IMMEDIATE THREATS: Analyze the 30-mile storms for specific timing, intensity, and direct impacts at ${data.userLocation.address}
 - TRACK ANALYSIS: Pay special attention to "DIRECT PATH" and "IMMEDIATE VICINITY" storm track statuses - these indicate storms affecting the exact user location
 - REGIONAL CONTEXT: Use the 50-mile storm pattern to assess broader weather trends, approaching systems, and changing conditions
@@ -251,7 +271,7 @@ Focus on:
 - Timing analysis: immediate impacts from 30-mile storms vs longer-term threats from regional patterns
 - Directional references using nearby airports and geographic features
 - Escalation patterns: how regional storm activity may intensify or diminish over the next few hours
-- PRIORITY: If any storms show "DIRECT PATH" or user is in "IMMEDIATE VICINITY", upgrade risk level significantly regardless of distance
+- PRIORITY: If regional analysis shows overlapping cones or direct path storms, upgrade to HIGH or EXTREME risk regardless of individual storm distances
 
 Provide a comprehensive assessment that gives users immediate safety guidance while also painting the bigger regional weather picture. When describing storm movements, reference actual nearby airports, cities, or geographic features from the aviation weather data rather than vague directional terms.`;
 

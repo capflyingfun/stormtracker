@@ -441,10 +441,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Group nearby sector storms and keep only the strongest in each area
       const consolidatedStorms = consolidateSectorStorms(sectorStorms);
       
-      // Convert to storm objects with proper formatting
+      // Get winds aloft data for storm movement prediction
+      let stormMovement = { direction: 0, speed: 0, confidence: 'low' };
+      try {
+        const windsData = await getOpenMeteoWindsAloft(centerLat, centerLon);
+        if (windsData && windsData.stormMovement) {
+          stormMovement = windsData.stormMovement;
+        }
+      } catch (error) {
+        console.log('Failed to fetch winds aloft for storm movement, using defaults');
+      }
+
+      // Convert to storm objects with proper formatting including movement data
       consolidatedStorms.forEach((storm, index) => {
         const direction = calculateDirection(centerLat, centerLon, storm.lat, storm.lon);
-        const speed = 15 + Math.random() * 15; // Typical storm speed
+        const bearing = calculateBearing(centerLat, centerLon, storm.lat, storm.lon);
         
         storms.push({
           id: `storm_${Date.now()}_${index}`,
@@ -452,11 +463,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lon: storm.lon,
           intensity: storm.intensity,
           distance: storm.distance,
-          direction: direction,
-          speed: speed,
+          direction: bearing,
+          bearing: Math.round(bearing),
+          speed: stormMovement.speed,
           type: getStormType(storm.intensity, 'rainviewer'),
           description: getStormDescription(storm.intensity, 'rainviewer'),
-          detectedAt: Date.now() // Current timestamp for live detection
+          category: getCategoryFromIntensity(storm.intensity),
+          detectedAt: Date.now(),
+          // Add movement object for track intersection detection
+          movement: stormMovement.speed > 0 ? {
+            direction: stormMovement.direction,
+            speed: stormMovement.speed,
+            confidence: stormMovement.confidence || 'medium',
+            eta: calculateETA(storm.distance, stormMovement.speed),
+            impact: calculateImpactLevel(storm.distance, stormMovement.direction, bearing)
+          } : null
         });
       });
       
@@ -1796,6 +1817,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Calculate bearing between two points (alias for calculateDirection)
   function calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
     return calculateDirection(lat1, lon1, lat2, lon2);
+  }
+
+  // Helper function to get category from intensity
+  function getCategoryFromIntensity(intensity: number): string {
+    if (intensity >= 61) return 'Extreme Thunderstorm';
+    if (intensity >= 55) return 'Very Heavy Rain/Hail';
+    if (intensity >= 46) return 'Heavy Rain';
+    if (intensity >= 35) return 'Moderate Rain';
+    if (intensity >= 20) return 'Light Rain';
+    return 'Unknown';
+  }
+
+  // Helper function to calculate ETA
+  function calculateETA(distanceMiles: number, speedMph: number): string | null {
+    if (speedMph <= 0) return null;
+    const etaHours = distanceMiles / speedMph;
+    if (etaHours < 1) {
+      return `${Math.round(etaHours * 60)} min`;
+    } else if (etaHours < 24) {
+      return `${etaHours.toFixed(1)} hr`;
+    }
+    return null;
+  }
+
+  // Helper function to calculate impact level
+  function calculateImpactLevel(distance: number, stormDirection: number, bearingToStorm: number): string {
+    // Calculate if storm is moving toward user location
+    const directionToUser = (bearingToStorm + 180) % 360;
+    const angleDiff = Math.abs(((stormDirection - directionToUser + 180) % 360) - 180);
+    
+    if (distance <= 5) return 'high';
+    if (angleDiff <= 15 && distance <= 15) return 'high';
+    if (angleDiff <= 30 && distance <= 10) return 'medium';
+    return 'low';
   }
 
   // Helper function for aviation weather
