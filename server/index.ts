@@ -32,12 +32,8 @@ async function validateDatabaseConnection() {
       throw new Error('DATABASE_URL environment variable is not set');
     }
 
-    // Import drizzle and neon for connection testing
-    const { drizzle } = await import('drizzle-orm/neon-http');
-    const { neon } = await import('@neondatabase/serverless');
-    
-    const sql = neon(process.env.DATABASE_URL);
-    const db = drizzle(sql);
+    // Import the db from our db module for consistent connection
+    const { db, sql } = await import('./db.js');
     
     // Test database connection with a simple query
     await sql`SELECT 1`;
