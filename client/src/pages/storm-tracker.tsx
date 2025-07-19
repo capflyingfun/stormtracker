@@ -700,10 +700,10 @@ export default function StormTracker() {
                     <h3 className="text-sm font-semibold mb-3 text-slate-300">Quick Actions</h3>
                     <div className="space-y-2">
                       <Button
-                        onClick={() => setShowAlertSubscription(true)}
+                        onClick={() => setActiveTab('alerts')}
                         variant="outline"
                         size="sm"
-                        className="w-full text-xs bg-blue-600/20 border-blue-500 text-blue-300"
+                        className={`w-full text-xs ${activeTab === 'alerts' ? 'bg-blue-600/50 border-blue-400' : 'bg-blue-600/20 border-blue-500'} text-blue-300`}
                       >
                         🔔 Alerts
                       </Button>
@@ -738,12 +738,20 @@ export default function StormTracker() {
                     ⚙️ Settings
                   </Button>
                   <Button
-                    onClick={() => setShowAlertSubscription(true)}
+                    onClick={() => setActiveTab('alerts')}
                     variant="outline"
                     size="sm"
-                    className="bg-blue-600/20 border-blue-500 text-blue-300"
+                    className={`${activeTab === 'alerts' ? 'bg-blue-600/50 border-blue-400' : 'bg-blue-600/20 border-blue-500'} text-blue-300`}
                   >
                     🔔 Alerts
+                  </Button>
+                  <Button
+                    onClick={() => setActiveTab('messages')}
+                    variant="outline"
+                    size="sm"
+                    className={`${activeTab === 'messages' ? 'bg-green-600/50 border-green-400' : 'bg-green-600/20 border-green-500'} text-green-300`}
+                  >
+                    📧 Messages
                   </Button>
                 </div>
               </div>
@@ -786,11 +794,7 @@ export default function StormTracker() {
 
             {activeTab === 'messages' && (
               <div className="mt-4 sm:mt-6">
-                <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-                  <h3 className="text-xl font-semibold mb-4 text-white">Storm Alert Messages</h3>
-                  <p className="text-slate-300 mb-4">Messages will be displayed here when you switch to the Messages tab.</p>
-                  <p className="text-slate-400 text-sm">This feature is being implemented to keep the AI assistant open while viewing messages.</p>
-                </div>
+                <MessageInbox />
               </div>
             )}
           </>
