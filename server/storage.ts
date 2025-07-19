@@ -2,12 +2,15 @@ import {
   users, 
   alertSubscriptions, 
   alertHistory,
+  messageInbox,
   type User, 
   type InsertUser,
   type AlertSubscription,
   type InsertAlertSubscription,
   type AlertHistory,
-  type InsertAlertHistory
+  type InsertAlertHistory,
+  type MessageInbox,
+  type InsertMessageInbox
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, sql } from "drizzle-orm";
@@ -30,6 +33,14 @@ export interface IStorage {
   // Alert history methods
   createAlertHistory(history: InsertAlertHistory): Promise<AlertHistory>;
   getRecentAlerts(subscriptionId: number, hours: number): Promise<AlertHistory[]>;
+  
+  // Message inbox methods (built-in email/text system)
+  createMessage(message: InsertMessageInbox): Promise<MessageInbox>;
+  getMessages(subscriptionId: number): Promise<MessageInbox[]>;
+  getUnreadMessages(subscriptionId: number): Promise<MessageInbox[]>;
+  getAllMessages(limit?: number): Promise<MessageInbox[]>;
+  markMessageAsRead(messageId: number): Promise<void>;
+  deleteMessage(messageId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -110,7 +121,62 @@ export class DatabaseStorage implements IStorage {
           eq(alertHistory.subscriptionId, subscriptionId),
           gt(alertHistory.sentAt, hoursAgo)
         )
-      );
+      )
+      .orderBy(alertHistory.sentAt);
+  }
+
+  // Message inbox methods (built-in email/text system)
+  async createMessage(message: InsertMessageInbox): Promise<MessageInbox> {
+    const [result] = await db
+      .insert(messageInbox)
+      .values(message)
+      .returning();
+    return result;
+  }
+
+  async getMessages(subscriptionId: number): Promise<MessageInbox[]> {
+    return await db
+      .select()
+      .from(messageInbox)
+      .where(eq(messageInbox.subscriptionId, subscriptionId))
+      .orderBy(sql`${messageInbox.sentAt} DESC`);
+  }
+
+  async getUnreadMessages(subscriptionId: number): Promise<MessageInbox[]> {
+    return await db
+      .select()
+      .from(messageInbox)
+      .where(
+        and(
+          eq(messageInbox.subscriptionId, subscriptionId),
+          eq(messageInbox.isRead, false)
+        )
+      )
+      .orderBy(sql`${messageInbox.sentAt} DESC`);
+  }
+
+  async getAllMessages(limit: number = 50): Promise<MessageInbox[]> {
+    return await db
+      .select()
+      .from(messageInbox)
+      .orderBy(sql`${messageInbox.sentAt} DESC`)
+      .limit(limit);
+  }
+
+  async markMessageAsRead(messageId: number): Promise<void> {
+    await db
+      .update(messageInbox)
+      .set({ 
+        isRead: true, 
+        readAt: new Date()
+      })
+      .where(eq(messageInbox.id, messageId));
+  }
+
+  async deleteMessage(messageId: number): Promise<void> {
+    await db
+      .delete(messageInbox)
+      .where(eq(messageInbox.id, messageId));
   }
 }
 

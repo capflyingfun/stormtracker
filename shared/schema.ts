@@ -123,9 +123,42 @@ export const alertSubscriptions = pgTable("alert_subscriptions", {
   lastAlertSent: timestamp("last_alert_sent"),
   alertCooldown: integer("alert_cooldown").default(30), // minutes between alerts
   
+  // Status tracking
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Built-in message inbox system for email/text alerts
+export const messageInbox = pgTable("message_inbox", {
+  id: serial("id").primaryKey(),
+  subscriptionId: integer("subscription_id").references(() => alertSubscriptions.id),
+  
+  // Message details
+  messageType: text("message_type").notNull(), // 'email' or 'sms'
+  subject: text("subject").notNull(),
+  content: text("content").notNull(),
+  htmlContent: text("html_content"), // Rich HTML content for emails
+  
+  // Recipient info
+  recipientEmail: text("recipient_email"),
+  recipientPhone: text("recipient_phone"),
+  recipientName: text("recipient_name").notNull(),
+  
+  // Storm/alert context
+  stormCount: integer("storm_count").default(0),
+  maxIntensity: real("max_intensity").default(0),
+  nearestDistance: real("nearest_distance").default(0),
+  alertLocation: text("alert_location"),
+  
+  // Message status
+  isRead: boolean("is_read").default(false),
+  isDelivered: boolean("is_delivered").default(true), // Always true for database storage
+  deliveryMethod: text("delivery_method").default("database"), // 'database', 'email', 'sms'
+  
+  // Timestamps
+  sentAt: timestamp("sent_at").defaultNow(),
+  readAt: timestamp("read_at"),
 });
 
 // Alert history for tracking sent notifications
@@ -189,6 +222,12 @@ export const insertAlertHistorySchema = createInsertSchema(alertHistory).omit({
   sentAt: true,
 });
 
+export const insertMessageInboxSchema = createInsertSchema(messageInbox).omit({
+  id: true,
+  sentAt: true,
+  readAt: true,
+});
+
 // Risk assessment schema
 export const riskAssessmentSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -243,3 +282,6 @@ export type InsertAlertSubscription = typeof alertSubscriptions.$inferInsert;
 
 export type AlertHistory = typeof alertHistory.$inferSelect;
 export type InsertAlertHistory = typeof alertHistory.$inferInsert;
+
+export type MessageInbox = typeof messageInbox.$inferSelect;
+export type InsertMessageInbox = z.infer<typeof insertMessageInboxSchema>;

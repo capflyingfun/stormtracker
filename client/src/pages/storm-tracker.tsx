@@ -12,6 +12,7 @@ import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Link } from "wouter";
 
 export default function StormTracker() {
   const queryClient = useQueryClient();
@@ -308,6 +309,15 @@ export default function StormTracker() {
                   >
                     🔔 Storm Alerts
                   </Button>
+                  <Link href="/messages">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs sm:text-sm bg-green-600/20 border-green-500 text-green-300 hover:bg-green-600/30"
+                    >
+                      📧 View Messages
+                    </Button>
+                  </Link>
                   <Button
                     onClick={resetLocation}
                     variant="outline"
