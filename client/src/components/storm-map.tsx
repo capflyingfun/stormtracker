@@ -1067,12 +1067,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const getStormMovementDirection = () => {
         if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
           // Use actual calculated direction from Open-Meteo winds aloft
-          const windDirection = currentWindsData.stormMovement.direction;
-          // SVG arrow points east, adjust for compass direction: windDirection - 90° + 180°
-          return windDirection - 90 + 180;
+          const stormDirection = currentWindsData.stormMovement.direction;
+          // SVG arrow points east (0° in SVG), compass directions: North=0°, East=90°
+          // To convert compass to SVG rotation: compass direction directly
+          return stormDirection;
         }
         // Fallback to last known direction (43° northeast)
-        return 43 - 90 + 180;
+        return 43;
       };
       
       const movementDirection = getStormMovementDirection();
