@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "@/hooks/use-location";
 import { useStormData } from "@/hooks/use-storm-data";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import Header from "@/components/header";
 import LocationSetup from "@/components/location-setup";
 import StormMap from "@/components/storm-map";
@@ -10,11 +10,147 @@ import AlertsPanel from "@/components/alerts-panel";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
-import MessageInbox from "@/pages/message-inbox";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIWeatherAssistant from "@/components/ai-weather-assistant";
+
+// Embedded Message Inbox Component for Modal
+function EmbeddedMessageInbox() {
+  const [selectedMessage, setSelectedMessage] = useState<any | null>(null);
+  const queryClient = useQueryClient();
+
+  // Get all messages
+  const { data: messages = [], isLoading } = useQuery({
+    queryKey: ["/api/messages/all"],
+  });
+
+  // Mark message as read
+  const markAsReadMutation = useMutation({
+    mutationFn: async (messageId: number) => {
+      const response = await fetch(`/api/messages/${messageId}/read`, { method: "POST" });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/all"] });
+    },
+  });
+
+  // Delete message
+  const deleteMessageMutation = useMutation({
+    mutationFn: async (messageId: number) => {
+      const response = await fetch(`/api/messages/${messageId}`, { method: "DELETE" });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/all"] });
+      setSelectedMessage(null);
+    },
+  });
+
+  const handleMessageClick = (message: any) => {
+    setSelectedMessage(message);
+    if (!message.isRead) {
+      markAsReadMutation.mutate(message.id);
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-slate-300">Loading messages...</div>;
+  }
+
+  if (messages.length === 0) {
+    return (
+      <div className="text-center text-slate-300 py-8">
+        <div className="text-4xl mb-4">📧</div>
+        <h3 className="text-lg font-semibold mb-2">No Messages Yet</h3>
+        <p className="text-slate-400">Storm alert messages will appear here when conditions meet your alert criteria.</p>
+      </div>
+    );
+  }
+
+  if (selectedMessage) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Button
+            onClick={() => setSelectedMessage(null)}
+            variant="ghost"
+            size="sm"
+            className="text-slate-400 hover:text-white"
+          >
+            ← Back to Messages
+          </Button>
+          <Button
+            onClick={() => deleteMessageMutation.mutate(selectedMessage.id)}
+            variant="ghost"
+            size="sm"
+            className="text-red-400 hover:text-red-300"
+            disabled={deleteMessageMutation.isPending}
+          >
+            🗑️ Delete
+          </Button>
+        </div>
+        
+        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-white">{selectedMessage.subject}</h3>
+            <span className="text-xs text-slate-400">
+              {new Date(selectedMessage.sentAt).toLocaleString()}
+            </span>
+          </div>
+          
+          <div className="text-slate-300 prose prose-invert max-w-none">
+            <div dangerouslySetInnerHTML={{ __html: selectedMessage.htmlContent || selectedMessage.textContent }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="text-slate-300 mb-4">
+        <p className="text-sm">
+          Total Messages: <span className="font-semibold">{messages.length}</span>
+          {" • "}
+          Unread: <span className="font-semibold text-blue-400">{messages.filter((m: any) => !m.isRead).length}</span>
+        </p>
+      </div>
+      
+      {messages.map((message: any) => (
+        <div
+          key={message.id}
+          onClick={() => handleMessageClick(message)}
+          className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+            message.isRead 
+              ? 'bg-slate-800/30 border-slate-700 hover:bg-slate-800/50' 
+              : 'bg-blue-900/20 border-blue-600/50 hover:bg-blue-900/30'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-semibold text-white text-sm">{message.subject}</h4>
+            <div className="flex items-center gap-2">
+              {!message.isRead && (
+                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+              )}
+              <span className="text-xs text-slate-400">
+                {new Date(message.sentAt).toLocaleDateString()}
+              </span>
+            </div>
+          </div>
+          
+          <p className="text-slate-400 text-sm mb-2">To: {message.recipientEmail}</p>
+          
+          <div className="text-slate-300 text-sm line-clamp-2">
+            {message.textContent?.substring(0, 150)}...
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function StormTracker() {
   const queryClient = useQueryClient();
@@ -326,19 +462,7 @@ export default function StormTracker() {
             </div>
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-4">
-              <div className="text-slate-300">
-                <h3 className="text-lg font-semibold mb-4">Storm Alert Messages</h3>
-                <p>Your storm alert message history will appear here.</p>
-                <div className="mt-4">
-                  <Button
-                    onClick={() => window.open('/messages', '_blank')}
-                    variant="outline"
-                    className="bg-green-600/20 border-green-500 text-green-300 hover:bg-green-600/30"
-                  >
-                    Open Full Message Inbox
-                  </Button>
-                </div>
-              </div>
+              <EmbeddedMessageInbox />
             </div>
           </div>
         </div>
