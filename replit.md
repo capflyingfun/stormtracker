@@ -233,6 +233,10 @@ Preferred communication style: Simple, everyday language.
 - **Multi-Source Data Integration**: Combines NEXRAD/RainViewer radar data, winds aloft at multiple pressure levels, storm movement vectors, and lightning strike data
 - **Interactive Analysis Interface**: Clean card-based UI with expandable detailed analysis, confidence ratings, and refresh capability for updated assessments
 - **Meteorological Accuracy**: Uses professional weather service methodologies and official NOAA/NWS data standards for reliable storm impact forecasting
+- **Enhanced Dark Theme UI**: Dark slate color scheme with improved text contrast and readability for better user experience
+- **Intelligent Fallback System**: Enhanced fallback assessments when OpenAI quota exceeded, providing meaningful analysis using actual storm data
+- **Dynamic Radar Source Display**: AI assistant correctly displays active radar source (NEXRAD/RainViewer) based on current user selection
+- **Optimal Positioning**: AI assistant positioned below Storm Summary section for improved workflow and interface organization
 
 ### Built-in HTML/Database Message System (July 19, 2025)
 - **Self-Contained Messaging**: Replaced external email services (SendGrid, Gmail, Mailgun) with built-in database-driven message storage system
