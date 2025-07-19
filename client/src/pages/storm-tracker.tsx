@@ -437,6 +437,7 @@ export default function StormTracker() {
                 formatSpeed={formatSpeed}
                 isLoading={stormDataLoading}
                 radarSource={currentRadarSource}
+                userLocation={location}
                 stormFilters={stormFilters}
                 alertPreferences={preferences}
               />

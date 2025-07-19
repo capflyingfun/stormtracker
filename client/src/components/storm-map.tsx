@@ -114,6 +114,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     distance: number;
   }>>([]);
   const [showLightning, setShowLightning] = useState(true);
+  
+  // Winds aloft data for arrow directions
+  const [currentWindsData, setCurrentWindsData] = useState<any>(null);
 
   // Auto-sampling functionality (silent background operation)
   const triggerAutoSample = useCallback(() => {
@@ -756,6 +759,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     // Fetch winds aloft data for movement prediction (only once per update)
     const windsData = await fetchWindsAloft(location.lat, location.lon);
+    setCurrentWindsData(windsData); // Store for arrow directions
 
     // Convert precipitation clusters to storm format with movement data
     const stormCells = clusters.map((cluster, index) => {
@@ -894,32 +898,65 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const alertColor = alertPreferences ? getAlertThresholdColor(alertPreferences.minimumDbz) : '#ffff00';
       
-      // Create custom waypoint marker with optional pulsing effect
+      // Get storm movement direction from current winds aloft data
+      const getStormMovementDirection = () => {
+        // Use the stored winds aloft data
+        if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
+          return currentWindsData.stormMovement.direction;
+        }
+        
+        // Fallback to north if no prediction available
+        return 0;
+      };
+      
+      const movementDirection = getStormMovementDirection();
+      
+      // Create directional arrow marker pointing in movement direction
       const waypointIcon = window.L.divIcon({
         html: `
           <div style="
-            width: ${markerSize}px;
-            height: ${markerSize}px;
-            background-color: ${getDbzColor(point.dbz)};
-            border: ${isAlertStorm ? `3px solid ${alertColor}` : '2px solid #ffffff'};
-            border-radius: 50%;
-            box-shadow: 0 0 ${isAlertStorm ? `12px ${alertColor}80` : '6px rgba(0,0,0,0.5)'};
+            width: ${markerSize + 8}px;
+            height: ${markerSize + 8}px;
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: ${Math.max(7, markerSize * 0.5)}px;
-            font-weight: bold;
-            color: #000;
+            transform: rotate(${movementDirection}deg);
             ${isAlertStorm ? 'animation: pulse 2s infinite;' : ''}
           ">
-            ${point.dbz}
+            <div style="
+              width: 0;
+              height: 0;
+              border-left: ${markerSize * 0.4}px solid transparent;
+              border-right: ${markerSize * 0.4}px solid transparent;
+              border-bottom: ${markerSize}px solid ${getDbzColor(point.dbz)};
+              border: ${isAlertStorm ? `2px solid ${alertColor}` : '1px solid #ffffff'};
+              border-radius: 2px;
+              box-shadow: 0 0 ${isAlertStorm ? `8px ${alertColor}80` : '4px rgba(0,0,0,0.5)'};
+              background-color: ${getDbzColor(point.dbz)};
+              clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+            ">
+            </div>
+            <div style="
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%) rotate(-${movementDirection}deg);
+              font-size: ${Math.max(6, markerSize * 0.35)}px;
+              font-weight: bold;
+              color: #000;
+              text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+              pointer-events: none;
+            ">
+              ${point.dbz}
+            </div>
           </div>
           ${isAlertStorm ? `
             <style>
               @keyframes pulse {
-                0% { transform: scale(1); opacity: 1; }
-                50% { transform: scale(1.2); opacity: 0.7; }
-                100% { transform: scale(1); opacity: 1; }
+                0% { transform: rotate(${movementDirection}deg) scale(1); opacity: 1; }
+                50% { transform: rotate(${movementDirection}deg) scale(1.2); opacity: 0.7; }
+                100% { transform: rotate(${movementDirection}deg) scale(1); opacity: 1; }
               }
             </style>
           ` : ''}

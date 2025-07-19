@@ -27,6 +27,7 @@ interface StormPanelProps {
   formatSpeed: (mph: number) => string;
   isLoading: boolean;
   radarSource?: 'rainviewer' | 'nexrad';
+  userLocation?: { lat: number; lon: number; name: string };
 }
 
 const getDirectionName = (degrees: number): string => {
@@ -74,6 +75,82 @@ const getStormColor = (intensity: number): string => {
   return 'bg-blue-500';
 };
 
+// Calculate if storm is headed toward user's location and ETA
+const calculateStormImpact = (storm: Storm, userLat: number, userLon: number): {
+  willImpact: boolean;
+  eta: string | null;
+  impactChance: 'high' | 'medium' | 'low';
+} => {
+  if (!storm.windsPrediction || storm.windsPrediction.speed <= 0) {
+    return { willImpact: false, eta: null, impactChance: 'low' };
+  }
+
+  // Calculate bearing from storm to user
+  const stormToUserBearing = calculateBearing(storm.lat, storm.lon, userLat, userLon);
+  const stormMovementDirection = storm.windsPrediction.direction;
+  
+  // Calculate difference between storm movement direction and direction to user
+  let angleDifference = Math.abs(stormMovementDirection - stormToUserBearing);
+  if (angleDifference > 180) {
+    angleDifference = 360 - angleDifference;
+  }
+  
+  // Define impact cone: 30° left/right of storm movement direction
+  const impactConeAngle = 30;
+  const willImpact = angleDifference <= impactConeAngle;
+  
+  if (!willImpact) {
+    return { willImpact: false, eta: null, impactChance: 'low' };
+  }
+  
+  // Calculate ETA if storm is headed toward user
+  const distanceToUser = storm.distance; // in miles
+  const stormSpeedMph = storm.windsPrediction.speed;
+  
+  if (stormSpeedMph <= 0) {
+    return { willImpact: true, eta: 'Stationary', impactChance: 'medium' };
+  }
+  
+  // Calculate time to arrival
+  const hoursToArrival = distanceToUser / stormSpeedMph;
+  
+  // Determine impact chance based on angle difference
+  let impactChance: 'high' | 'medium' | 'low' = 'medium';
+  if (angleDifference <= 10) impactChance = 'high';
+  else if (angleDifference <= 20) impactChance = 'medium';
+  else impactChance = 'low';
+  
+  // Format ETA
+  let eta: string;
+  if (hoursToArrival < 1) {
+    const minutes = Math.round(hoursToArrival * 60);
+    eta = `${minutes} min`;
+  } else if (hoursToArrival < 24) {
+    const hours = Math.floor(hoursToArrival);
+    const minutes = Math.round((hoursToArrival - hours) * 60);
+    eta = hours > 0 ? `${hours}h ${minutes}m` : `${minutes} min`;
+  } else {
+    const days = Math.floor(hoursToArrival / 24);
+    const hours = Math.round(hoursToArrival % 24);
+    eta = `${days}d ${hours}h`;
+  }
+  
+  return { willImpact: true, eta, impactChance };
+};
+
+// Calculate bearing between two points (same as in storm-map.tsx)
+const calculateBearing = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const lat1Rad = lat1 * Math.PI / 180;
+  const lat2Rad = lat2 * Math.PI / 180;
+  
+  const y = Math.sin(dLon) * Math.cos(lat2Rad);
+  const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+  
+  let bearing = Math.atan2(y, x) * 180 / Math.PI;
+  return (bearing + 360) % 360;
+};
+
 // dBZ threshold adjustment based on radar source
 // RainViewer reads 5-12 dBZ higher than NEXRAD due to different calibration
 const getIntensityThresholds = (radarSource: string = 'nexrad') => {
@@ -101,7 +178,7 @@ const getRainfallRate = (dbz: number): { mmh: number; inh: number } => {
   return { mmh: 0, inh: 0 };
 };
 
-export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource, stormFilters, alertPreferences }: StormPanelProps & { stormFilters?: any; alertPreferences?: any }) {
+export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource, userLocation, stormFilters, alertPreferences }: StormPanelProps & { stormFilters?: any; alertPreferences?: any }) {
   // Local filter state that syncs with the map's precipitation waypoints legend
   const [currentFilters, setCurrentFilters] = useState({
     light: true, moderate: true, heavy: true, veryHeavy: true, extreme: true
@@ -244,6 +321,38 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                       )}
                     </div>
                   </div>
+                )}
+                
+                {/* ETA calculation display */}
+                {storm.windsPrediction && userLocation && (
+                  (() => {
+                    const impact = calculateStormImpact(storm, userLocation.lat, userLocation.lon);
+                    return (
+                      <div className="mt-2 pt-2 border-t border-slate-600/50">
+                        <div className="text-xs text-slate-300 mb-1">Impact Assessment:</div>
+                        <div className="text-right text-xs">
+                          {impact.willImpact ? (
+                            <div>
+                              <span className={`${
+                                impact.impactChance === 'high' ? 'text-red-300' :
+                                impact.impactChance === 'medium' ? 'text-yellow-300' : 'text-green-300'
+                              }`}>
+                                {impact.impactChance === 'high' ? 'High' : 
+                                 impact.impactChance === 'medium' ? 'Medium' : 'Low'} impact chance
+                              </span>
+                              {impact.eta && (
+                                <div className="text-blue-300 mt-1">
+                                  ETA: {impact.eta}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">Low chance of impact</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()
                 )}
       </div>
       
