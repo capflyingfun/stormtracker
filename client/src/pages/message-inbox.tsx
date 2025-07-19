@@ -249,9 +249,9 @@ export default function MessageInboxPage() {
             <MessageDetail 
               message={selectedMessage}
               onMarkAsRead={() => {
-                console.log(`Calling markAsRead for message ${selectedMessage.id}`);
+                // This won't be called since we removed the button
+                console.log(`Manual markAsRead called for message ${selectedMessage.id}`);
                 markAsReadMutation.mutate(selectedMessage.id);
-                // Don't clear selection immediately, let the mutation handle the refresh
               }}
               onDelete={() => {
                 console.log(`Calling delete for message ${selectedMessage.id}`);
@@ -396,16 +396,16 @@ function MessageDetail({
           Message Details
         </CardTitle>
         <div className="flex gap-2">
-          {!message.isRead && (
-            <Button variant="outline" size="sm" onClick={onMarkAsRead}>
-              <MailOpen className="w-4 h-4 mr-2" />
-              Mark as Read
-            </Button>
-          )}
           <Button variant="outline" size="sm" onClick={onDelete}>
             <Trash2 className="w-4 h-4 mr-2" />
             Delete
           </Button>
+          {message.readAt && (
+            <div className="text-sm text-muted-foreground flex items-center">
+              <MailOpen className="w-4 h-4 mr-2" />
+              Read: {new Date(message.readAt).toLocaleString()}
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
