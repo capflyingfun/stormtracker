@@ -194,7 +194,12 @@ export default function StormTracker() {
 
   const handleGPSLocation = async () => {
     try {
-      await setLocationFromGPS();
+      const result = await setLocationFromGPS();
+      // Auto-switch to NEXRAD for US GPS locations
+      if (result && (result.isUS || result.recommendedRadarSource === 'nexrad')) {
+        setCurrentRadarSource('nexrad');
+        console.log('Auto-switched to NEXRAD for US GPS location:', result.name);
+      }
       if (isTracking) {
         refetchStormData();
         setLastUpdate(new Date());
@@ -543,6 +548,41 @@ export default function StormTracker() {
               </div>
             )}
 
+            {/* AI Weather Assistant */}
+            {location && windsAloftData && (
+              <div className="mb-4 sm:mb-6">
+                <AIWeatherAssistant
+                  userLocation={{
+                    lat: location.lat,
+                    lon: location.lon,
+                    address: location.name
+                  }}
+                  storms={filteredStorms.map(storm => ({
+                    id: storm.id,
+                    lat: storm.lat,
+                    lon: storm.lon,
+                    intensity: storm.intensity,
+                    distance: storm.distance,
+                    direction: storm.direction,
+                    bearing: storm.bearing || 0,
+                    category: storm.intensity >= 61 ? 'Extreme' :
+                             storm.intensity >= 55 ? 'Very Heavy' :
+                             storm.intensity >= 46 ? 'Heavy' :
+                             storm.intensity >= 35 ? 'Moderate' : 'Light',
+                    movement: storm.windsPrediction ? {
+                      direction: storm.windsPrediction.direction,
+                      speed: storm.windsPrediction.speed,
+                      eta: storm.impactAssessment?.eta,
+                      impact: storm.impactAssessment?.impactChance
+                    } : undefined
+                  }))}
+                  winds={windsAloftData.winds || []}
+                  radarSource={currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
+                  lightningCount={lightningCount}
+                />
+              </div>
+            )}
+
             {/* Interactive Radar Map */}
             {!show3D && (
               <StormMap
@@ -579,40 +619,7 @@ export default function StormTracker() {
               </div>
             )}
 
-            {/* AI Weather Assistant */}
-            {location && windsAloftData && (
-              <div className="mb-4 sm:mb-6">
-                <AIWeatherAssistant
-                  userLocation={{
-                    lat: location.lat,
-                    lon: location.lon,
-                    address: location.name
-                  }}
-                  storms={filteredStorms.map(storm => ({
-                    id: storm.id,
-                    lat: storm.lat,
-                    lon: storm.lon,
-                    intensity: storm.intensity,
-                    distance: storm.distance,
-                    direction: storm.direction,
-                    bearing: storm.bearing || 0,
-                    category: storm.intensity >= 61 ? 'Extreme' :
-                             storm.intensity >= 55 ? 'Very Heavy' :
-                             storm.intensity >= 46 ? 'Heavy' :
-                             storm.intensity >= 35 ? 'Moderate' : 'Light',
-                    movement: storm.windsPrediction ? {
-                      direction: storm.windsPrediction.direction,
-                      speed: storm.windsPrediction.speed,
-                      eta: storm.impactAssessment?.eta,
-                      impact: storm.impactAssessment?.impactChance
-                    } : undefined
-                  }))}
-                  winds={windsAloftData.winds || []}
-                  radarSource={currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
-                  lightningCount={lightningCount}
-                />
-              </div>
-            )}
+
 
             {/* Storm Data Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mt-4 sm:mt-6">

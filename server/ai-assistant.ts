@@ -131,25 +131,39 @@ Use meteorological expertise to assess real storm threats, not generic weather a
   } catch (error) {
     console.error('AI weather assessment error:', error);
     
-    // Fallback assessment based on storm data
+    // Smart fallback assessment based on actual storm data
     const highIntensityStorms = data.storms.filter(s => s.intensity >= 55);
     const nearbyStorms = data.storms.filter(s => s.distance <= 10);
+    const closeStorms = data.storms.filter(s => s.distance <= 20);
     
     let riskLevel: 'low' | 'moderate' | 'high' | 'extreme' = 'low';
+    let summary = 'Clear weather conditions in your area.';
+    let recommendations = ['Continue normal activities', 'Monitor weather periodically'];
+    
     if (highIntensityStorms.length > 0 && nearbyStorms.length > 0) {
       riskLevel = 'extreme';
+      summary = `Severe weather detected: ${highIntensityStorms.length} intense storm${highIntensityStorms.length > 1 ? 's' : ''} within 10 miles.`;
+      recommendations = ['Seek shelter immediately', 'Monitor for tornado warnings', 'Stay indoors until storms pass'];
     } else if (nearbyStorms.length > 0) {
       riskLevel = 'high';
-    } else if (data.storms.length > 0) {
+      summary = `Active storms nearby: ${nearbyStorms.length} storm cell${nearbyStorms.length > 1 ? 's' : ''} within 10 miles of your location.`;
+      recommendations = ['Stay indoors', 'Monitor weather radar', 'Avoid outdoor activities'];
+    } else if (closeStorms.length > 0) {
       riskLevel = 'moderate';
+      summary = `Weather developing: ${closeStorms.length} storm cell${closeStorms.length > 1 ? 's' : ''} detected within 20 miles.`;
+      recommendations = ['Monitor storm movement', 'Prepare for possible weather changes', 'Stay weather aware'];
+    } else if (data.storms.length > 0) {
+      riskLevel = 'low';
+      summary = `Distant activity: ${data.storms.length} storm cell${data.storms.length > 1 ? 's' : ''} detected in the region.`;
+      recommendations = ['Monitor weather conditions', 'No immediate action needed'];
     }
 
     return {
       riskLevel,
-      summary: `${data.storms.length} storm cells detected. Analysis system temporarily unavailable.`,
-      detailedAnalysis: 'AI assessment system is currently offline. Manual storm tracking data is still available.',
-      recommendations: ['Monitor storm tracker for updates', 'Check local weather alerts'],
-      confidence: 0.5
+      summary,
+      detailedAnalysis: `Storm Analysis: ${data.storms.length} total storm cells detected within 30 miles. Radar source: ${data.radarSource}. Lightning activity: ${data.lightningCount || 0} strikes. Wind data: ${data.winds.length} atmospheric levels available. AI assessment currently unavailable due to quota limits - manual analysis provided.`,
+      recommendations,
+      confidence: 0.7
     };
   }
 }

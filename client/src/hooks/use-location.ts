@@ -65,7 +65,7 @@ export function useLocation() {
     }
   };
 
-  const setLocationFromGPS = async (): Promise<void> => {
+  const setLocationFromGPS = async (): Promise<Location | null> => {
     setIsLoading(true);
     
     try {
@@ -104,25 +104,22 @@ export function useLocation() {
       
       updateLocation(location);
       
-      // Emit location data with recommended radar source for GPS usage
-      if (locationData.recommendedRadarSource) {
-        // Add delay to ensure radar system has time to process the new location, especially NEXRAD
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('locationWithRadarSource', {
-            detail: {
-              ...location,
-              recommendedRadarSource: locationData.recommendedRadarSource,
-              isUS: locationData.isUS
-            }
-          }));
-        }, 1200); // Increased delay for NEXRAD initialization and tile loading
-      }
+      // Return location with radar source info for GPS usage
+      const locationWithRadarInfo = {
+        ...location,
+        recommendedRadarSource: locationData.recommendedRadarSource,
+        isUS: locationData.isUS
+      };
+      
+      return locationWithRadarInfo;
     } catch (error) {
       console.error('GPS location error:', error);
       throw error;
     } finally {
       setIsLoading(false);
     }
+    
+    return null;
   };
 
   const setLocationFromSearch = async (query: string): Promise<void> => {
