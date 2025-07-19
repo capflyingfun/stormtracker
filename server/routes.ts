@@ -2288,9 +2288,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required weather data" });
       }
 
+      // Fetch broader regional storm data (100-mile radius) for comprehensive analysis
+      let regionalStorms = [];
+      try {
+        console.log('AI Assistant: Fetching regional storm data (100-mile radius) for broader context');
+        const regionalResponse = await fetch(`http://localhost:5000/api/storms`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            lat: userLocation.lat,
+            lon: userLocation.lon,
+            radius: 100, // 100-mile radius for regional context
+            radarSource: radarSource || 'NEXRAD'
+          })
+        });
+
+        if (regionalResponse.ok) {
+          const regionalData = await regionalResponse.json();
+          regionalStorms = regionalData || [];
+          console.log(`AI Assistant: Found ${regionalStorms.length} storms within 100-mile regional area`);
+        }
+      } catch (regionalError) {
+        console.log('AI Assistant: Regional storm data unavailable, using 30-mile data only');
+      }
+
       const assessment = await generateWeatherAssessment({
         userLocation,
-        storms,
+        storms, // 30-mile immediate threats
+        regionalStorms, // 100-mile regional context
         winds,
         radarSource: radarSource || 'Unknown'
       });

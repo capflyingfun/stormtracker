@@ -226,15 +226,18 @@ Preferred communication style: Simple, everyday language.
 
 ### AI Weather Assistant Integration (July 19, 2025)
 - **OpenAI GPT-4o Integration**: Advanced AI weather assistant providing intelligent storm risk assessments using real-time radar and atmospheric data
-- **Comprehensive Data Analysis**: AI analyzes storm positions, intensities, movement patterns, winds aloft data, lightning activity, and user location for personalized impact predictions
+- **Dual-Radius Analysis System**: AI analyzes both immediate 30-mile threats for specific safety guidance AND broader 100-mile regional patterns for weather trend context
+- **Regional Weather Context**: 100-mile storm pattern analysis provides comprehensive understanding of approaching systems, intensity trends, and evolving conditions
 - **Professional Risk Assessment**: 4-level risk classification (Low/Moderate/High/Extreme) with detailed meteorological analysis and safety recommendations
-- **Real-time Storm Intelligence**: AI processes authentic precipitation waypoints, dBZ intensities, wind patterns from Open-Meteo, and lightning detection for accurate threat evaluation
+- **Multi-Scale Storm Intelligence**: AI processes immediate precipitation threats while evaluating regional storm development and movement patterns
+- **Enhanced Situational Awareness**: Users receive both urgent safety guidance for nearby storms and strategic awareness of broader weather evolution
+- **Comprehensive Data Analysis**: AI analyzes storm positions, intensities, movement patterns, winds aloft data, lightning activity, and user location for personalized impact predictions
 - **Personalized Impact Predictions**: Location-specific arrival time estimates, impact probability calculations, and customized safety guidance based on storm trajectories
 - **Multi-Source Data Integration**: Combines NEXRAD/RainViewer radar data, winds aloft at multiple pressure levels, storm movement vectors, and lightning strike data
 - **Interactive Analysis Interface**: Clean card-based UI with expandable detailed analysis, confidence ratings, and refresh capability for updated assessments
 - **Meteorological Accuracy**: Uses professional weather service methodologies and official NOAA/NWS data standards for reliable storm impact forecasting
 - **Enhanced Dark Theme UI**: Dark slate color scheme with improved text contrast and readability for better user experience
-- **Intelligent Fallback System**: Enhanced fallback assessments when OpenAI quota exceeded, providing meaningful analysis using actual storm data
+- **Intelligent Fallback System**: Enhanced fallback assessments when OpenAI quota exceeded, providing meaningful analysis using actual storm data with regional context
 - **Dynamic Radar Source Display**: AI assistant correctly displays active radar source (NEXRAD/RainViewer) based on current user selection
 - **Optimal Positioning**: AI assistant positioned below Storm Summary section for improved workflow and interface organization
 

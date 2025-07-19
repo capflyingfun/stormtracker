@@ -33,7 +33,8 @@ interface WeatherAssessmentRequest {
     lon: number;
     address: string;
   };
-  storms: StormData[];
+  storms: StormData[]; // 30-mile immediate threats
+  regionalStorms?: StormData[]; // 100-mile regional context
   winds: WindData[];
   radarSource: string;
 }
@@ -63,7 +64,7 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
     }
 
     // Prepare comprehensive weather context for AI analysis
-    const stormContext = data.storms.map(storm => ({
+    const immediateStormContext = data.storms.map(storm => ({
       distance: `${storm.distance.toFixed(1)} miles`,
       direction: `${storm.direction} (${storm.bearing}°)`,
       intensity: `${storm.intensity} dBZ (${storm.category})`,
@@ -71,6 +72,19 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
         `Moving ${storm.movement.direction}° at ${storm.movement.speed} mph${storm.movement.eta ? `, ETA: ${storm.movement.eta}` : ''}${storm.movement.impact ? `, Impact: ${storm.movement.impact}` : ''}` : 
         'Movement unknown'
     }));
+
+    // Prepare regional context for broader weather pattern analysis
+    const regionalContext = data.regionalStorms && data.regionalStorms.length > 0 ? {
+      totalStorms: data.regionalStorms.length,
+      intenseCells: data.regionalStorms.filter(s => s.intensity >= 55).length,
+      moderateStorms: data.regionalStorms.filter(s => s.intensity >= 45 && s.intensity < 55).length,
+      nearestIntense: data.regionalStorms
+        .filter(s => s.intensity >= 55)
+        .sort((a, b) => a.distance - b.distance)[0],
+      approachingStorms: data.regionalStorms
+        .filter(s => s.movement && s.movement.impact === 'high')
+        .length
+    } : null;
 
     const windContext = data.winds.map(wind => ({
       altitude: wind.pressure_level,
@@ -84,9 +98,20 @@ LOCATION: ${data.userLocation.address} (${data.userLocation.lat.toFixed(4)}°N, 
 
 RADAR DATA SOURCE: ${data.radarSource} (authentic weather radar)
 
-CURRENT STORM CELLS:
-${stormContext.length === 0 ? 'No active storms detected within 30 miles' : 
-  stormContext.map((storm, i) => `Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}, ${storm.movement}`).join('\n')}
+IMMEDIATE THREATS (30-MILE RADIUS):
+${immediateStormContext.length === 0 ? 'No active storms detected within 30 miles' : 
+  immediateStormContext.map((storm, i) => `Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}, ${storm.movement}`).join('\n')}
+
+REGIONAL WEATHER PATTERN (100-MILE RADIUS):
+${regionalContext ? 
+  `Total storm activity: ${regionalContext.totalStorms} cells detected regionally\n` +
+  `Intense cells (55+ dBZ): ${regionalContext.intenseCells}\n` +
+  `Moderate storms (45-54 dBZ): ${regionalContext.moderateStorms}\n` +
+  `Approaching storms: ${regionalContext.approachingStorms} systems moving toward your area\n` +
+  `${regionalContext.nearestIntense ? 
+    `Nearest severe storm: ${regionalContext.nearestIntense.intensity} dBZ at ${regionalContext.nearestIntense.distance.toFixed(1)} miles ${regionalContext.nearestIntense.direction}` : 
+    'No severe storms within regional area'}` :
+  'Regional storm data unavailable - analysis based on 30-mile immediate area only'}
 
 WINDS ALOFT:
 ${windContext.map(wind => `${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}
@@ -116,16 +141,19 @@ Based on this comprehensive meteorological data including radar, winds aloft, an
 }
 
 Focus on:
-- Actual storm positions and movement trajectories relative to ${data.userLocation.address}
-- dBZ intensity levels and their rainfall/hail implications  
+- IMMEDIATE THREATS: Analyze the 30-mile storms for specific timing, intensity, and direct impacts at ${data.userLocation.address}
+- REGIONAL CONTEXT: Use the 100-mile storm pattern to assess broader weather trends, approaching systems, and changing conditions
+- Storm intensity progression from regional patterns toward the immediate area
+- dBZ intensity levels and their rainfall/hail implications for both immediate and approaching storms
 - Wind patterns affecting storm steering from Open-Meteo pressure level data
 - Aviation weather conditions from nearby airports (ceiling, visibility, cloud coverage)
 - Lightning activity reported in METAR/aviation weather observations
-- Proximity and timing of potential impacts at ${data.userLocation.address}
+- Timing analysis: immediate impacts from 30-mile storms vs longer-term threats from regional patterns
 - Directional references using nearby airports and geographic features (e.g., "moving from Pensacola area towards Mobile")
-- Specific safety actions based on aviation weather hazards and storm intensity
+- Escalation patterns: how regional storm activity may intensify or diminish over the next few hours
+- Specific safety actions based on both immediate threats and regional weather evolution
 
-When describing storm movements and directions, reference actual nearby airports, cities, or geographic features from the aviation weather data rather than vague directional terms. Integrate radar data with professional aviation weather observations for comprehensive threat assessment.`;
+Provide a comprehensive assessment that gives users immediate safety guidance while also painting the bigger regional weather picture. When describing storm movements, reference actual nearby airports, cities, or geographic features from the aviation weather data rather than vague directional terms.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
@@ -186,10 +214,14 @@ When describing storm movements and directions, reference actual nearby airports
       recommendations = ['Monitor weather conditions', 'No immediate action needed'];
     }
 
+    const regionalInfo = data.regionalStorms ? 
+      ` Regional context: ${data.regionalStorms.length} storm cells within 100 miles, including ${data.regionalStorms.filter(s => s.intensity >= 55).length} severe cells.` : 
+      '';
+
     return {
       riskLevel,
       summary,
-      detailedAnalysis: `Storm Analysis: ${data.storms.length} total storm cells detected within 30 miles. Radar source: ${data.radarSource}. Wind data: ${data.winds.length} atmospheric levels available. AI assessment currently unavailable due to quota limits - manual analysis provided.`,
+      detailedAnalysis: `Storm Analysis: ${data.storms.length} immediate threats within 30 miles.${regionalInfo} Radar source: ${data.radarSource}. Wind data: ${data.winds.length} atmospheric levels available. AI assessment currently unavailable due to quota limits - manual analysis provided.`,
       recommendations,
       confidence: 0.7
     };
