@@ -34,7 +34,7 @@ interface WeatherAssessmentRequest {
     address: string;
   };
   storms: StormData[]; // 30-mile immediate threats
-  regionalStorms?: StormData[]; // 100-mile regional context
+  regionalStorms?: StormData[]; // 50-mile regional context
   winds: WindData[];
   radarSource: string;
 }
@@ -102,7 +102,7 @@ IMMEDIATE THREATS (30-MILE RADIUS):
 ${immediateStormContext.length === 0 ? 'No active storms detected within 30 miles' : 
   immediateStormContext.map((storm, i) => `Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}, ${storm.movement}`).join('\n')}
 
-REGIONAL WEATHER PATTERN (100-MILE RADIUS):
+REGIONAL WEATHER PATTERN (50-MILE RADIUS):
 ${regionalContext ? 
   `Total storm activity: ${regionalContext.totalStorms} cells detected regionally\n` +
   `Intense cells (55+ dBZ): ${regionalContext.intenseCells}\n` +
