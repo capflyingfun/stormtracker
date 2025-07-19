@@ -47,8 +47,8 @@ async function validateDatabaseConnection() {
 }
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: '10mb' })); // Increase limit for AI assistant payloads
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // Serve attached assets
 app.use('/attached_assets', express.static('attached_assets'));
