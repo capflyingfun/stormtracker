@@ -624,3 +624,10 @@ Preferred communication style: Simple, everyday language.
 - **Enhanced Mobile Experience**: Embedded inbox works seamlessly on mobile with touch-friendly interface
 - **Professional Message Management**: Full message functionality including read status, deletion, and detailed message viewing
 - **Consistent Wind Direction**: Storm arrows now correctly point in direction calculated by Open-Meteo winds aloft data (222° wind → 42° storm movement)
+
+### Dynamic Map-Based Weather Fetching (July 19, 2025)
+- **Auto-Fetching on Map Pan**: System automatically fetches winds aloft data for new map center when user pans or zooms the map
+- **Dynamic Arrow Direction Updates**: Storm arrows automatically update their movement direction based on winds aloft data for the current map center location
+- **Location-Aware Storm Movement**: Storm movement predictions now reflect the actual wind patterns for wherever the user has panned the map
+- **Enhanced Regional Analysis**: Users can explore different regions and see accurate storm movement patterns for each specific location
+- **Real-time Wind Pattern Mapping**: Map panning triggers immediate winds aloft API calls with debounced updates for smooth performance
