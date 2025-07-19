@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Brain, AlertTriangle, CheckCircle, Clock, MapPin, Wind, Zap, RefreshCw } from "lucide-react";
+import { Brain, AlertTriangle, CheckCircle, Clock, MapPin, Wind, Plane, RefreshCw } from "lucide-react";
 
 interface StormData {
   id: string;
@@ -57,6 +57,17 @@ export default function AIWeatherAssistant({
   radarSource
 }: AIWeatherAssistantProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Fetch aviation weather data
+  const { data: aviationData } = useQuery({
+    queryKey: ['/api/aviation-weather', userLocation.lat, userLocation.lon],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/aviation-weather?lat=${userLocation.lat}&lon=${userLocation.lon}`);
+      return response.json();
+    },
+    enabled: !!(userLocation.lat && userLocation.lon),
+    refetchInterval: 300000, // Refresh every 5 minutes
+  });
 
   // AI Assessment mutation
   const assessmentMutation = useMutation({
@@ -162,8 +173,8 @@ export default function AIWeatherAssistant({
                 <span className="text-slate-300">{winds.length} wind levels</span>
               </div>
               <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-slate-400" />
-                <span className="text-slate-300">{lightningCount} lightning strikes</span>
+                <Plane className="w-4 h-4 text-slate-400" />
+                <span className="text-slate-300">{aviationData?.stations?.length || 0} weather stations</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs bg-slate-700 text-slate-200 px-2 py-1 rounded">
