@@ -1070,13 +1070,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             transform: rotate(${movementDirection}deg);
             ${isAlertStorm ? 'animation: pulse 2s infinite;' : ''}
           ">
-            <img src="/attached_assets/arrow_06_1752947186217.png" 
-                 width="${markerSize}" 
-                 height="${markerSize}" 
-                 style="
-                   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)) hue-rotate(0deg) brightness(1) saturate(1);
-                   ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor}) hue-rotate(0deg) brightness(1) saturate(1);` : ''}
-                 "/>
+            <div style="
+              width: ${markerSize}px;
+              height: ${markerSize}px;
+              background-image: url('/attached_assets/arrow_06_1752947186217.png');
+              background-size: contain;
+              background-repeat: no-repeat;
+              background-position: center;
+              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)) hue-rotate(${point.dbz >= 55 ? '0deg' : point.dbz >= 45 ? '20deg' : point.dbz >= 35 ? '45deg' : '120deg'}) saturate(1.5);
+              ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor}) hue-rotate(0deg) saturate(2);` : ''}
+            "></div>
             <div style="
               position: absolute;
               top: 50%;
