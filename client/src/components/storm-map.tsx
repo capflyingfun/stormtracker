@@ -1056,7 +1056,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const movementDirection = getStormMovementDirection();
       
-      // Create directional arrow marker pointing in movement direction
+      // Create directional arrow marker using custom arrow image
+      // Storm arrows point in the direction they are moving (same as wind direction)
       const waypointIcon = window.L.divIcon({
         html: `
           <div style="
@@ -1069,16 +1070,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             transform: rotate(${movementDirection}deg);
             ${isAlertStorm ? 'animation: pulse 2s infinite;' : ''}
           ">
-            <svg width="${markerSize}" height="${markerSize}" viewBox="0 0 24 24" style="
-              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-              ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor});` : ''}
-            ">
-              <path d="M12 2l10 20H2L12 2z" 
-                    fill="${getDbzColor(point.dbz)}" 
-                    stroke="${isAlertStorm ? alertColor : '#ffffff'}" 
-                    stroke-width="${isAlertStorm ? '2' : '1'}"
-                    />
-            </svg>
+            <img src="/attached_assets/arrow_06_1752947186217.png" 
+                 width="${markerSize}" 
+                 height="${markerSize}" 
+                 style="
+                   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)) hue-rotate(0deg) brightness(1) saturate(1);
+                   ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor}) hue-rotate(0deg) brightness(1) saturate(1);` : ''}
+                 "/>
             <div style="
               position: absolute;
               top: 50%;
@@ -1086,9 +1084,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               transform: translate(-50%, -50%) rotate(-${movementDirection}deg);
               font-size: ${Math.max(6, markerSize * 0.35)}px;
               font-weight: bold;
-              color: ${point.dbz >= 50 ? '#ffffff' : '#000000'};
-              text-shadow: 1px 1px 2px ${point.dbz >= 50 ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)'};
+              color: #ffffff;
+              text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
               pointer-events: none;
+              background-color: ${getDbzColor(point.dbz)};
+              padding: 1px 3px;
+              border-radius: 3px;
+              border: 1px solid rgba(255,255,255,0.5);
             ">
               ${point.dbz}
             </div>

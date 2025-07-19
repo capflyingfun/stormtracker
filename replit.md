@@ -616,3 +616,11 @@ Preferred communication style: Simple, everyday language.
 - **Enhanced Mobile 3D Experience**: Touch-friendly "Higher" and "Lower" buttons positioned for easy thumb access on mobile devices
 - **Persistent AI Analysis**: Users can now view alerts and messages while keeping their AI weather assessment open for reference
 - **Improved User Workflow**: Seamless navigation between storm tracking, alert management, and message viewing without losing AI context
+
+### Custom Arrow Implementation & UI Fixes (July 19, 2025)
+- **Custom Arrow Image Integration**: Replaced SVG triangle markers with user-provided custom arrow image for storm movement visualization
+- **Fixed Messages Button Functionality**: Messages button now properly switches to Messages tab while keeping AI assistant open
+- **Enhanced Mobile Controls**: Added Messages button to mobile interface for complete tab navigation capability
+- **Professional Arrow Display**: Custom arrow image displays with proper meteorological color-coded dBZ overlays and drop shadows
+- **Consistent Tab Navigation**: All navigation buttons (desktop and mobile) now use tab switching instead of modal popups
+- **MessageInbox Integration**: Full message inbox functionality accessible through tab navigation system
