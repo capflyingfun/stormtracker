@@ -63,15 +63,110 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       console.log('AI Assistant: Could not fetch aviation weather:', aviationError.message);
     }
 
-    // Prepare comprehensive weather context for AI analysis
-    const immediateStormContext = data.storms.map(storm => ({
-      distance: `${storm.distance.toFixed(1)} miles`,
-      direction: `${storm.direction} (${storm.bearing}°)`,
-      intensity: `${storm.intensity} dBZ (${storm.category})`,
-      movement: storm.movement ? 
-        `Moving ${storm.movement.direction}° at ${storm.movement.speed} mph${storm.movement.eta ? `, ETA: ${storm.movement.eta}` : ''}${storm.movement.impact ? `, Impact: ${storm.movement.impact}` : ''}` : 
-        'Movement unknown'
-    }));
+    // Calculate storm track intersections with user location
+    function calculateStormTrackIntersection(storm: any, userLat: number, userLon: number) {
+      if (!storm.movement || !storm.movement.direction || storm.movement.speed <= 0) {
+        return { intersects: false, status: 'No movement data' };
+      }
+
+      // Calculate storm movement vector (30-degree cone, 15 miles forward projection)
+      const stormMovementRad = (storm.movement.direction * Math.PI) / 180;
+      const projectionDistance = 15; // miles forward projection
+      
+      // Future storm position
+      const futureStormLat = storm.lat + (projectionDistance / 69.0) * Math.cos(stormMovementRad);
+      const futureStormLon = storm.lon + (projectionDistance / 69.0) * Math.sin(stormMovementRad);
+      
+      // Calculate if user location falls within the 30-degree storm track cone
+      const distanceToStormPath = calculatePointToLineDistance(
+        userLat, userLon,
+        storm.lat, storm.lon,
+        futureStormLat, futureStormLon
+      );
+      
+      // 30-degree cone = ±15 degrees, roughly 4 miles wide at 15 miles distance
+      const coneWidth = 4; // miles
+      const directHit = distanceToStormPath <= coneWidth;
+      
+      // Check if user is in forward path
+      const bearingToUser = calculateBearing(storm.lat, storm.lon, userLat, userLon);
+      const stormDirection = storm.movement.direction;
+      const angleDiff = Math.abs(((bearingToUser - stormDirection + 180) % 360) - 180);
+      const inForwardPath = angleDiff <= 15; // Within 30-degree cone
+      
+      if (directHit && inForwardPath) {
+        return { 
+          intersects: true, 
+          status: 'DIRECT PATH - Storm track crosses user location',
+          pathWidth: distanceToStormPath.toFixed(1),
+          eta: storm.movement.eta || 'Unknown'
+        };
+      } else if (storm.distance <= 5) {
+        return { 
+          intersects: true, 
+          status: 'IMMEDIATE VICINITY - Storm very close to location',
+          pathWidth: storm.distance.toFixed(1),
+          eta: 'Now'
+        };
+      }
+      
+      return { intersects: false, status: 'Storm path does not intersect location' };
+    }
+
+    function calculatePointToLineDistance(px: number, py: number, x1: number, y1: number, x2: number, y2: number) {
+      const A = px - x1;
+      const B = py - y1;
+      const C = x2 - x1;
+      const D = y2 - y1;
+      
+      const dot = A * C + B * D;
+      const lenSq = C * C + D * D;
+      
+      if (lenSq === 0) return Math.sqrt(A * A + B * B);
+      
+      const param = dot / lenSq;
+      let xx, yy;
+      
+      if (param < 0) {
+        xx = x1;
+        yy = y1;
+      } else if (param > 1) {
+        xx = x2;
+        yy = y2;
+      } else {
+        xx = x1 + param * C;
+        yy = y1 + param * D;
+      }
+      
+      const dx = px - xx;
+      const dy = py - yy;
+      return Math.sqrt(dx * dx + dy * dy) * 69.0; // Convert to miles
+    }
+
+    function calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
+      const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
+                Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
+      const bearing = Math.atan2(y, x) * 180 / Math.PI;
+      return (bearing + 360) % 360;
+    }
+
+    // Enhanced storm analysis with track intersection detection
+    const immediateStormContext = data.storms.map(storm => {
+      const trackIntersection = calculateStormTrackIntersection(storm, data.userLocation.lat, data.userLocation.lon);
+      
+      return {
+        distance: `${storm.distance.toFixed(1)} miles`,
+        direction: `${storm.direction} (${storm.bearing}°)`,
+        intensity: `${storm.intensity} dBZ (${storm.category})`,
+        movement: storm.movement ? 
+          `Moving ${storm.movement.direction}° at ${storm.movement.speed} mph${storm.movement.eta ? `, ETA: ${storm.movement.eta}` : ''}${storm.movement.impact ? `, Impact: ${storm.movement.impact}` : ''}` : 
+          'Movement unknown',
+        trackStatus: trackIntersection.status,
+        directThreat: trackIntersection.intersects
+      };
+    });
 
     // Prepare regional context for broader weather pattern analysis
     const regionalContext = data.regionalStorms && data.regionalStorms.length > 0 ? {
@@ -100,7 +195,10 @@ RADAR DATA SOURCE: ${data.radarSource} (authentic weather radar)
 
 IMMEDIATE THREATS (30-MILE RADIUS):
 ${immediateStormContext.length === 0 ? 'No active storms detected within 30 miles' : 
-  immediateStormContext.map((storm, i) => `Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}, ${storm.movement}`).join('\n')}
+  immediateStormContext.map((storm, i) => 
+    `Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}, ${storm.movement}\n` +
+    `  TRACK ANALYSIS: ${storm.trackStatus}${storm.directThreat ? ' ⚠️ DIRECT THREAT' : ''}`
+  ).join('\n')}
 
 REGIONAL WEATHER PATTERN (50-MILE RADIUS):
 ${regionalContext ? 
@@ -141,17 +239,19 @@ Based on this comprehensive meteorological data including radar, winds aloft, an
 }
 
 Focus on:
+- STORM TRACK INTERSECTIONS: CRITICAL - Check for storms with tracks/cones crossing directly over user location (marked "DIRECT THREAT")
 - IMMEDIATE THREATS: Analyze the 30-mile storms for specific timing, intensity, and direct impacts at ${data.userLocation.address}
-- REGIONAL CONTEXT: Use the 100-mile storm pattern to assess broader weather trends, approaching systems, and changing conditions
+- TRACK ANALYSIS: Pay special attention to "DIRECT PATH" and "IMMEDIATE VICINITY" storm track statuses - these indicate storms affecting the exact user location
+- REGIONAL CONTEXT: Use the 50-mile storm pattern to assess broader weather trends, approaching systems, and changing conditions
 - Storm intensity progression from regional patterns toward the immediate area
 - dBZ intensity levels and their rainfall/hail implications for both immediate and approaching storms
 - Wind patterns affecting storm steering from Open-Meteo pressure level data
 - Aviation weather conditions from nearby airports (ceiling, visibility, cloud coverage)
 - Lightning activity reported in METAR/aviation weather observations
 - Timing analysis: immediate impacts from 30-mile storms vs longer-term threats from regional patterns
-- Directional references using nearby airports and geographic features (e.g., "moving from Pensacola area towards Mobile")
+- Directional references using nearby airports and geographic features
 - Escalation patterns: how regional storm activity may intensify or diminish over the next few hours
-- Specific safety actions based on both immediate threats and regional weather evolution
+- PRIORITY: If any storms show "DIRECT PATH" or user is in "IMMEDIATE VICINITY", upgrade risk level significantly regardless of distance
 
 Provide a comprehensive assessment that gives users immediate safety guidance while also painting the bigger regional weather picture. When describing storm movements, reference actual nearby airports, cities, or geographic features from the aviation weather data rather than vague directional terms.`;
 
