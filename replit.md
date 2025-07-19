@@ -608,3 +608,11 @@ Preferred communication style: Simple, everyday language.
 - **50-Mile Storm Radius Maintained**: Kept storm detection within 50-mile system limit while expanding aviation weather coverage to 100 miles
 - **AI Regional Context Updated**: AI assistant now correctly references 50-mile regional storm analysis with expanded aviation weather data
 - **Improved Meteorological Accuracy**: Storm movement predictions now align with actual wind patterns using proper meteorological wind direction conventions
+
+### AI Assistant State Persistence & Mobile 3D Controls (July 19, 2025)
+- **Fixed AI Assistant Tab Navigation**: AI weather assistant now remains open and preserves its state when switching between Storm Tracker, Alerts, and Messages tabs
+- **Tab-Based Navigation System**: Replaced page routing with in-app tab switching to maintain AI assistant continuity and analysis context
+- **Mobile 3D Camera Height Controls**: Added dedicated mobile controls for raising/lowering camera height in 3D storm visualization mode
+- **Enhanced Mobile 3D Experience**: Touch-friendly "Higher" and "Lower" buttons positioned for easy thumb access on mobile devices
+- **Persistent AI Analysis**: Users can now view alerts and messages while keeping their AI weather assessment open for reference
+- **Improved User Workflow**: Seamless navigation between storm tracking, alert management, and message viewing without losing AI context

@@ -477,6 +477,28 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         </Button>
       </div>
 
+      {/* Mobile Height Controls */}
+      <div className="absolute bottom-20 right-4 z-10 flex flex-col gap-1 sm:hidden">
+        <Button
+          onClick={() => setCameraHeight(prev => Math.min(prev + 2, 20))}
+          variant="outline"
+          size="sm"
+          className="bg-slate-700 border-slate-600 text-white px-2 py-1 text-xs"
+          disabled={cameraHeight >= 20}
+        >
+          ↑ Higher
+        </Button>
+        <Button
+          onClick={() => setCameraHeight(prev => Math.max(prev - 2, -2))}
+          variant="outline"
+          size="sm"
+          className="bg-slate-700 border-slate-600 text-white px-2 py-1 text-xs"
+          disabled={cameraHeight <= -2}
+        >
+          ↓ Lower
+        </Button>
+      </div>
+
       {/* Heading Display */}
       <div className="absolute top-16 right-4 z-10 bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-slate-700/50">
         <div className="text-center">
