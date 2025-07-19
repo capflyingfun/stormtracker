@@ -44,13 +44,32 @@ export default function MessageInboxPage() {
 
   // Delete message
   const deleteMutation = useMutation({
-    mutationFn: (messageId: number) => 
-      apiRequest(`/api/messages/${messageId}`, { method: "DELETE" }),
+    mutationFn: async (messageId: number) => {
+      console.log(`Deleting message ${messageId}`);
+      const response = await apiRequest(`/api/messages/${messageId}`, { method: "DELETE" });
+      console.log(`Delete response:`, response.status);
+      return response;
+    },
     onSuccess: () => {
+      console.log(`Delete successful, invalidating queries`);
       queryClient.invalidateQueries({ queryKey: ["/api/messages/all"] });
       setSelectedMessage(null);
     },
+    onError: (error) => {
+      console.error(`Delete failed:`, error);
+    },
   });
+
+  // Auto-mark message as read when selected
+  const handleMessageSelect = (message: MessageInbox) => {
+    setSelectedMessage(message);
+    
+    // Automatically mark as read if unread
+    if (!message.isRead) {
+      console.log(`Auto-marking message ${message.id} as read`);
+      markAsReadMutation.mutate(message.id);
+    }
+  };
 
   // Filter messages by search email
   const filteredMessages = messages.filter((msg: MessageInbox) => 
@@ -157,7 +176,7 @@ export default function MessageInboxPage() {
                       <MessageItem 
                         key={message.id} 
                         message={message} 
-                        onSelect={setSelectedMessage}
+                        onSelect={handleMessageSelect}
                         isSelected={selectedMessage?.id === message.id}
                       />
                     ))
@@ -174,7 +193,7 @@ export default function MessageInboxPage() {
                       <MessageItem 
                         key={message.id} 
                         message={message} 
-                        onSelect={setSelectedMessage}
+                        onSelect={handleMessageSelect}
                         isSelected={selectedMessage?.id === message.id}
                       />
                     ))
@@ -191,7 +210,7 @@ export default function MessageInboxPage() {
                       <MessageItem 
                         key={message.id} 
                         message={message} 
-                        onSelect={setSelectedMessage}
+                        onSelect={handleMessageSelect}
                         isSelected={selectedMessage?.id === message.id}
                       />
                     ))
@@ -203,7 +222,7 @@ export default function MessageInboxPage() {
                     <MessageItem 
                       key={message.id} 
                       message={message} 
-                      onSelect={setSelectedMessage}
+                      onSelect={handleMessageSelect}
                       isSelected={selectedMessage?.id === message.id}
                     />
                   ))}
@@ -214,7 +233,7 @@ export default function MessageInboxPage() {
                     <MessageItem 
                       key={message.id} 
                       message={message} 
-                      onSelect={setSelectedMessage}
+                      onSelect={handleMessageSelect}
                       isSelected={selectedMessage?.id === message.id}
                     />
                   ))}
@@ -234,7 +253,10 @@ export default function MessageInboxPage() {
                 markAsReadMutation.mutate(selectedMessage.id);
                 // Don't clear selection immediately, let the mutation handle the refresh
               }}
-              onDelete={() => deleteMutation.mutate(selectedMessage.id)}
+              onDelete={() => {
+                console.log(`Calling delete for message ${selectedMessage.id}`);
+                deleteMutation.mutate(selectedMessage.id);
+              }}
             />
           ) : (
             <Card>
