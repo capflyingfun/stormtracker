@@ -718,12 +718,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Latitude and longitude required" });
       }
       
-      // Use Blitzortung.org's lightning data
-      // Try multiple endpoints for better reliability
+      const userLat = parseFloat(lat as string);
+      const userLon = parseFloat(lon as string);
       let lightningData = null;
+      let dataSource = 'none';
       
-      // Try multiple lightning data sources for better reliability
-      const lightningAPIs = [
+      // Try Weatherbit Lightning API first (premium quality)
+      if (process.env.WEATHERBIT_API_KEY) {
+        try {
+          console.log('🌩️ Fetching Weatherbit lightning data...');
+          const weatherbitUrl = `https://api.weatherbit.io/v2.0/current/lightning?lat=${userLat}&lon=${userLon}&key=${process.env.WEATHERBIT_API_KEY}`;
+          
+          const response = await fetch(weatherbitUrl, {
+            timeout: 8000,
+            headers: {
+              'Accept': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Weatherbit lightning response:', JSON.stringify(data, null, 2));
+            
+            if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+              lightningData = data.data.map((strike: any) => ({
+                lat: parseFloat(strike.lat),
+                lon: parseFloat(strike.lon),
+                timestamp: new Date(strike.timestamp).getTime() / 1000, // Convert to Unix timestamp
+                intensity: strike.distance || 1 // Use distance as intensity indicator
+              }));
+              dataSource = 'weatherbit';
+              console.log(`✅ Weatherbit: Found ${lightningData.length} lightning strikes`);
+            } else {
+              console.log('Weatherbit: No lightning data available');
+            }
+          } else {
+            console.log(`Weatherbit API returned ${response.status}: ${response.statusText}`);
+          }
+        } catch (error) {
+          console.log('Weatherbit Lightning API error:', error.message);
+        }
+      }
+      
+      // Fallback to free lightning APIs if Weatherbit fails or no data
+      if (!lightningData || lightningData.length === 0) {
+        console.log('🔄 Trying fallback lightning APIs...');
+        
+        const lightningAPIs = [
         // Blitzortung.org API attempt 1 - JSON format
         {
           url: `https://www.blitzortung.org/en/api/live/strokes?time=20&region=1`,
@@ -766,6 +807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             
             if (lightningData && lightningData.length > 0) {
+              dataSource = api.parser;
               console.log(`✅ Found ${lightningData.length} lightning strikes from ${api.parser}`);
               break;
             }
@@ -777,6 +819,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           continue;
         }
       }
+      }
       
       // If no real data available, return empty result
       if (!lightningData) {
@@ -784,8 +827,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Filter strikes within radius of user location
-      const userLat = parseFloat(lat as string);
-      const userLon = parseFloat(lon as string);
       const maxRadius = parseFloat(radius as string);
       
       const nearbyStrikes = lightningData
@@ -817,7 +858,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         strikes: nearbyStrikes,
         count: nearbyStrikes.length,
         radius: maxRadius,
-        center: { lat: userLat, lon: userLon }
+        center: { lat: userLat, lon: userLon },
+        dataSource: dataSource
       });
       
     } catch (error) {
