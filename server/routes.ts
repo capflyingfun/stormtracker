@@ -112,31 +112,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // First try Nominatim (OpenStreetMap) - most reliable and supports detailed addresses
       console.log('Trying Nominatim for address search');
       try {
-        const nominatimResponse = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`,
-          {
-            headers: {
-              'User-Agent': 'StormTracker/1.0 (Weather Application)'
-            },
-            signal: AbortSignal.timeout(3000) // 3 second timeout for faster response
-          }
-        );
+        // Add retry logic for improved reliability
+        let nominatimResponse;
+        let retryCount = 0;
+        const maxRetries = 2;
         
-        if (nominatimResponse.ok) {
-          const nominatimData = await nominatimResponse.json();
-          console.log('Nominatim response:', nominatimData);
-          locations = nominatimData.map((loc: any) => ({
-            lat: parseFloat(loc.lat),
-            lon: parseFloat(loc.lon),
-            name: loc.address?.house_number && loc.address?.road 
-              ? `${loc.address.house_number} ${loc.address.road}`
-              : loc.address?.city || loc.address?.town || loc.address?.village || loc.display_name.split(',')[0],
-            state: loc.address?.state || '',
-            country: loc.address?.country || '',
-            countryCode: loc.address?.country_code?.toUpperCase() || ''
-          }));
-        } else {
-          console.log('Nominatim API failed:', nominatimResponse.status);
+        while (retryCount <= maxRetries && !nominatimResponse?.ok) {
+          try {
+            nominatimResponse = await fetch(
+              `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`,
+              {
+                headers: {
+                  'User-Agent': 'StormTracker/1.0 (Weather Application)'
+                },
+                signal: AbortSignal.timeout(4000) // Increased to 4 second timeout
+              }
+            );
+            
+            if (nominatimResponse.ok) {
+              const nominatimData = await nominatimResponse.json();
+              console.log('Nominatim response:', nominatimData);
+              
+              if (nominatimData && nominatimData.length > 0) {
+                locations = nominatimData.map((loc: any) => ({
+                  lat: parseFloat(loc.lat),
+                  lon: parseFloat(loc.lon),
+                  name: loc.address?.house_number && loc.address?.road 
+                    ? `${loc.address.house_number} ${loc.address.road}`
+                    : loc.address?.city || loc.address?.town || loc.address?.village || loc.display_name.split(',')[0],
+                  state: loc.address?.state || '',
+                  country: loc.address?.country || '',
+                  countryCode: loc.address?.country_code?.toUpperCase() || ''
+                }));
+                break; // Success, exit retry loop
+              }
+            }
+          } catch (retryError) {
+            console.log(`Nominatim attempt ${retryCount + 1} failed:`, retryError);
+            retryCount++;
+            if (retryCount <= maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay before retry
+            }
+          }
+        }
+        
+        if (!nominatimResponse?.ok) {
+          console.log('Nominatim API failed after retries:', nominatimResponse?.status);
         }
       } catch (nominatimError) {
         console.log('Nominatim fallback failed:', nominatimError);
