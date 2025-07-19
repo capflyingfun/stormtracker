@@ -1959,27 +1959,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
 
-      {/* Storm Tracks Toggle */}
-      <div className="mt-3 bg-slate-800/50 rounded-lg border border-slate-700 p-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="font-semibold text-white text-sm flex items-center gap-2">
-            🎯 Storm Movement Tracks
-          </div>
-          <Button
-            onClick={() => setShowAllStormTracks(!showAllStormTracks)}
-            variant="outline"
-            size="sm"
-            className={`text-xs px-3 py-1 ${showAllStormTracks ? 'bg-orange-600 border-orange-500' : 'bg-slate-700 border-slate-600'}`}
-          >
-            {showAllStormTracks ? 'Hide All' : 'Show All'}
-          </Button>
-        </div>
-        <div className="text-xs text-slate-400">
-          {showAllStormTracks 
-            ? `Showing 30° movement cones for moderate+ storms (30+ dBZ)` 
-            : `Click storms individually or use toggle to show all tracks`}
-        </div>
-      </div>
+
 
 
 
