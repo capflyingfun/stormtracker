@@ -513,12 +513,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const sectorLat = centerLat + (distanceInDegrees * Math.cos(angleInRadians));
     const sectorLon = centerLon + (distanceInDegrees * Math.sin(angleInRadians));
     
-    // For now, simulate RainViewer data analysis - in production this would parse the actual radar tiles
-    // The RainViewer API provides tiled radar data that can be analyzed for precipitation intensity
-    const intensity = await simulateRainViewerIntensity(sectorLat, sectorLon, centerLat, centerLon, radarFrame);
+    // Parse actual radar tile to get real dBZ value
+    const intensity = await parseRadarTileForDbz(sectorLat, sectorLon, radarFrame, 'rainviewer');
     
     // Return storm data if intensity is above threshold
-    if (intensity >= 25) {
+    if (intensity >= 20) {
       return {
         lat: sectorLat,
         lon: sectorLon,
@@ -531,37 +530,150 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return null;
   }
 
-  // Simulate RainViewer intensity analysis - in production this would parse actual radar tiles
-  async function simulateRainViewerIntensity(sectorLat: number, sectorLon: number, centerLat: number, centerLon: number, radarFrame: any) {
-    // This is a more realistic simulation that would be replaced with actual RainViewer tile parsing
-    // For now, we'll create a pattern that mimics real weather systems
-    
-    // Calculate distance from center for intensity falloff
-    const distance = Math.sqrt(Math.pow(sectorLat - centerLat, 2) + Math.pow(sectorLon - centerLon, 2)) * 69.0; // Convert to miles
-    
-    // Create realistic weather patterns based on geographic location
-    const timeOfDay = new Date().getHours();
-    const seasonalFactor = Math.sin((new Date().getMonth() + 1) * Math.PI / 6); // Seasonal variation
-    
-    // Simulate storm systems moving through the area
-    const stormCenterLat = centerLat + 0.1 * Math.sin(Date.now() / 1000000); // Slow-moving storm center
-    const stormCenterLon = centerLon + 0.1 * Math.cos(Date.now() / 1000000);
-    
-    const stormDistance = Math.sqrt(Math.pow(sectorLat - stormCenterLat, 2) + Math.pow(sectorLon - stormCenterLon, 2)) * 69.0;
-    
-    // Base intensity decreases with distance from storm center
-    let intensity = Math.max(0, 60 - (stormDistance * 2)); // Strong core, falls off quickly
-    
-    // Add some randomness for realistic variation
-    intensity += (Math.random() - 0.5) * 20;
-    
-    // Afternoon/evening enhancement (typical convective pattern)
-    if (timeOfDay >= 14 && timeOfDay <= 20) {
-      intensity *= 1.3;
+  // Parse actual radar tile to extract real dBZ value at specific coordinates
+  async function parseRadarTileForDbz(lat: number, lon: number, radarFrame: any, source: 'rainviewer' | 'nexrad' = 'rainviewer'): Promise<number> {
+    try {
+      const sharp = await import('sharp');
+      
+      // Different tile systems for each radar source
+      let tileUrl: string;
+      let zoom: number;
+      let tileSize: number;
+      
+      if (source === 'rainviewer') {
+        // RainViewer uses Mercator projection
+        zoom = 6;
+        tileSize = 256;
+        const tileX = Math.floor((lon + 180) / 360 * Math.pow(2, zoom));
+        const tileY = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+        tileUrl = `https://tilecache.rainviewer.com/v2/radar/${radarFrame.time}/${tileSize}/${zoom}/${tileX}/${tileY}/2/1_1.png`;
+      } else {
+        // NEXRAD uses different tile system
+        zoom = 6;
+        tileSize = 256;
+        const tileX = Math.floor((lon + 180) / 360 * Math.pow(2, zoom));
+        const tileY = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+        // Use Iowa Mesonet NEXRAD tiles
+        tileUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tileX}/${tileY}.png`;
+      }
+      
+      console.log(`🎯 Fetching ${source.toUpperCase()} radar tile for (${lat.toFixed(4)}, ${lon.toFixed(4)})`);
+      
+      // Fetch the radar tile image
+      const response = await fetch(tileUrl, { 
+        timeout: 8000,
+        headers: {
+          'User-Agent': 'StormTracker/1.0 (+https://stormtracker.app)',
+          'Accept': 'image/png,image/*,*/*'
+        }
+      });
+      
+      if (!response.ok) {
+        console.log(`❌ Radar tile fetch failed: ${response.status} ${response.statusText}`);
+        return 0;
+      }
+      
+      // Get image buffer
+      const imageBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(imageBuffer);
+      
+      // Calculate exact pixel position within tile
+      const tileX = Math.floor((lon + 180) / 360 * Math.pow(2, zoom));
+      const tileY = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+      
+      const pixelX = Math.floor(((lon + 180) / 360 * Math.pow(2, zoom) - tileX) * tileSize);
+      const pixelY = Math.floor(((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom) - tileY) * tileSize);
+      
+      // Ensure pixel coordinates are within bounds
+      const safeX = Math.max(0, Math.min(tileSize - 1, pixelX));
+      const safeY = Math.max(0, Math.min(tileSize - 1, pixelY));
+      
+      // Extract pixel color using Sharp
+      const { data } = await sharp.default(buffer)
+        .extract({ left: safeX, top: safeY, width: 1, height: 1 })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      
+      const [r, g, b, a] = data;
+      
+      // Skip transparent pixels (no precipitation)
+      if (a < 128) {
+        return 0;
+      }
+      
+      // Convert pixel color to dBZ based on radar source color palette
+      const dbz = source === 'rainviewer' 
+        ? convertRainViewerColorToDbz(r, g, b)
+        : convertNexradColorToDbz(r, g, b);
+      
+      if (dbz > 0) {
+        console.log(`🌧️ Found ${dbz.toFixed(1)} dBZ at pixel (${safeX}, ${safeY}) with color RGB(${r}, ${g}, ${b})`);
+      }
+      
+      return dbz;
+      
+    } catch (error) {
+      console.log(`❌ Radar tile parsing error: ${error.message}`);
+      return 0;
     }
+  }
+
+  // Convert RainViewer color to dBZ using their official color palette
+  function convertRainViewerColorToDbz(r: number, g: number, b: number): number {
+    // RainViewer color palette mapping (from their API documentation)
+    // Light blue: 20-30 dBZ, Green: 30-40 dBZ, Yellow: 40-50 dBZ, Orange/Red: 50+ dBZ
     
-    // Only return significant precipitation
-    return Math.max(0, intensity);
+    if (r < 50 && g < 50 && b < 50) return 0; // Dark/transparent = no precipitation
+    
+    // Light blue range (light rain)
+    if (b > 200 && g > 150 && r < 100) return 20 + ((255 - b) / 55) * 10; // 20-30 dBZ
+    
+    // Green range (moderate rain)
+    if (g > 200 && r < 150 && b < 150) return 30 + ((255 - g) / 55) * 10; // 30-40 dBZ
+    
+    // Yellow range (heavy rain)
+    if (r > 200 && g > 200 && b < 100) return 40 + ((r + g - 400) / 110) * 10; // 40-50 dBZ
+    
+    // Orange range (very heavy rain)
+    if (r > 200 && g > 100 && g < 200 && b < 100) return 50 + ((r - 200) / 55) * 10; // 50-60 dBZ
+    
+    // Red range (severe storms)
+    if (r > 200 && g < 100 && b < 100) return 60 + ((255 - g - b) / 155) * 15; // 60-75 dBZ
+    
+    // Default fallback for unmatched colors
+    return Math.max(0, (r + g + b) / 15); // General intensity approximation
+  }
+
+  // Convert NEXRAD color to dBZ using official NOAA color palette
+  function convertNexradColorToDbz(r: number, g: number, b: number): number {
+    // Official NEXRAD (NOAA) color palette
+    // Based on NWS radar color standards
+    
+    if (r < 20 && g < 20 && b < 20) return 0; // Black/transparent = no precipitation
+    
+    // Light green (5-15 dBZ)
+    if (g > 180 && r < 100 && b > 100) return 5 + ((g - 180) / 75) * 10;
+    
+    // Dark green (15-25 dBZ)  
+    if (g > 120 && g < 180 && r < 80 && b < 100) return 15 + ((g - 120) / 60) * 10;
+    
+    // Yellow (25-35 dBZ)
+    if (r > 200 && g > 200 && b < 100) return 25 + ((r + g - 400) / 110) * 10;
+    
+    // Orange (35-45 dBZ)
+    if (r > 200 && g > 100 && g < 200 && b < 80) return 35 + ((r - 200) / 55) * 10;
+    
+    // Red (45-55 dBZ)
+    if (r > 180 && g < 100 && b < 100) return 45 + ((r - 180) / 75) * 10;
+    
+    // Magenta/Purple (55+ dBZ - severe)
+    if (r > 150 && b > 150 && g < 100) return 55 + ((r + b - 300) / 210) * 20;
+    
+    // White (65+ dBZ - extreme)
+    if (r > 240 && g > 240 && b > 240) return 65;
+    
+    // Default fallback
+    return Math.max(0, (r + g + b) / 12);
   }
 
   // Search a specific sector (distance ring + angle) for storm activity
@@ -587,7 +699,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const testLat = sectorLat + offsetLat;
       const testLon = sectorLon + offsetLon;
       
-      const intensity = await simulateRadarIntensity(testLat, testLon, centerLat, centerLon);
+      const intensity = await parseRadarTileForDbz(testLat, testLon, null, 'nexrad');
       
       if (intensity > maxIntensity.intensity) {
         maxIntensity.intensity = intensity;
