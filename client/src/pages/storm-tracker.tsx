@@ -892,6 +892,14 @@ export default function StormTracker() {
                     🌩️ 3D View
                   </Button>
                   <Button
+                    onClick={() => setShowStormTracks(!showStormTracks)}
+                    variant="outline"
+                    size="sm"
+                    className={`${showStormTracks ? 'bg-orange-600/20 border-orange-500 text-orange-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
+                  >
+                    🎯 {showStormTracks ? 'Hide Tracks' : 'Show Tracks'}
+                  </Button>
+                  <Button
                     onClick={() => setShowStormFilteringSettings(true)}
                     variant="outline"
                     size="sm"
