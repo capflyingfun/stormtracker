@@ -924,19 +924,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             transform: rotate(${movementDirection}deg);
             ${isAlertStorm ? 'animation: pulse 2s infinite;' : ''}
           ">
-            <div style="
-              width: 0;
-              height: 0;
-              border-left: ${markerSize * 0.4}px solid transparent;
-              border-right: ${markerSize * 0.4}px solid transparent;
-              border-bottom: ${markerSize}px solid ${getDbzColor(point.dbz)};
-              border: ${isAlertStorm ? `2px solid ${alertColor}` : '1px solid #ffffff'};
-              border-radius: 2px;
-              box-shadow: 0 0 ${isAlertStorm ? `8px ${alertColor}80` : '4px rgba(0,0,0,0.5)'};
-              background-color: ${getDbzColor(point.dbz)};
-              clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+            <svg width="${markerSize}" height="${markerSize}" viewBox="0 0 24 24" style="
+              filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+              ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor});` : ''}
             ">
-            </div>
+              <path d="M12 2l10 20H2L12 2z" 
+                    fill="${getDbzColor(point.dbz)}" 
+                    stroke="${isAlertStorm ? alertColor : '#ffffff'}" 
+                    stroke-width="${isAlertStorm ? '2' : '1'}"
+                    />
+            </svg>
             <div style="
               position: absolute;
               top: 50%;
@@ -944,8 +941,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               transform: translate(-50%, -50%) rotate(-${movementDirection}deg);
               font-size: ${Math.max(6, markerSize * 0.35)}px;
               font-weight: bold;
-              color: #000;
-              text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+              color: ${point.dbz >= 50 ? '#ffffff' : '#000000'};
+              text-shadow: 1px 1px 2px ${point.dbz >= 50 ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)'};
               pointer-events: none;
             ">
               ${point.dbz}
