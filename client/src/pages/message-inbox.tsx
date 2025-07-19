@@ -27,10 +27,18 @@ export default function MessageInboxPage() {
 
   // Mark message as read
   const markAsReadMutation = useMutation({
-    mutationFn: (messageId: number) => 
-      apiRequest(`/api/messages/${messageId}/read`, { method: "POST" }),
+    mutationFn: async (messageId: number) => {
+      console.log(`Marking message ${messageId} as read`);
+      const response = await apiRequest(`/api/messages/${messageId}/read`, { method: "POST" });
+      console.log(`Mark as read response:`, response.status);
+      return response;
+    },
     onSuccess: () => {
+      console.log(`Mark as read successful, invalidating queries`);
       queryClient.invalidateQueries({ queryKey: ["/api/messages/all"] });
+    },
+    onError: (error) => {
+      console.error(`Mark as read failed:`, error);
     },
   });
 
@@ -222,8 +230,9 @@ export default function MessageInboxPage() {
             <MessageDetail 
               message={selectedMessage}
               onMarkAsRead={() => {
+                console.log(`Calling markAsRead for message ${selectedMessage.id}`);
                 markAsReadMutation.mutate(selectedMessage.id);
-                setSelectedMessage(null); // Clear selection to refresh view
+                // Don't clear selection immediately, let the mutation handle the refresh
               }}
               onDelete={() => deleteMutation.mutate(selectedMessage.id)}
             />
