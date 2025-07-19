@@ -212,6 +212,15 @@ Preferred communication style: Simple, everyday language.
 - **Nearest Radar Detection**: Automatically finds closest NEXRAD site for authentic local radar animation
 - **Animation Safeguards**: "Sample dBZ" button disabled during animation to prevent waypoint lag and unrealistic storm movement calculations
 
+### Real-Time Weather Enhancement & METAR Timestamps (July 19, 2025)
+- **OpenWeatherMap Real-Time Integration**: Added live weather data for immediate area including temperature, humidity, pressure, wind speed/direction, visibility, and cloud cover
+- **METAR Timestamp Display**: Enhanced airport weather reports with "X minutes ago" timestamps and stale data warnings for reports over 90 minutes old
+- **Comprehensive Weather Context**: AI assistant now analyzes both real-time local conditions AND timestamped airport METAR data for enhanced accuracy
+- **Live Data Priority**: Real-time OpenWeatherMap data labeled as "Live Data" vs hourly METAR reports with clear age indicators
+- **Enhanced Aviation Weather Display**: Airport weather stations now show observation time with stale data flagging for improved data reliability
+- **Dual-Source Weather Analysis**: System provides immediate local conditions plus regional airport context for comprehensive atmospheric assessment
+- **Improved Data Freshness**: Clear distinction between current conditions (live) and historical airport reports (timestamped) for better decision making
+
 ### Open-Meteo Winds Aloft Integration (July 19, 2025)
 - **Superior Real-Time Wind Data**: Integrated Open-Meteo API for current and forecasted upper atmospheric winds at specific pressure levels
 - **Professional Pressure Level Data**: Direct access to 500mb (~18,000 ft), 700mb (~10,000 ft), and 850mb (~5,000 ft) wind data for accurate storm steering calculations
