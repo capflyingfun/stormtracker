@@ -273,14 +273,6 @@ export default function StormTracker() {
                 
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    onClick={() => setShowStormFilteringSettings(true)}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs sm:text-sm"
-                  >
-                    🌩️ Storm Filtering
-                  </Button>
-                  <Button
                     onClick={resetLocation}
                     variant="outline"
                     size="sm"
