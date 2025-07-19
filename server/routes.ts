@@ -1,7 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
-import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema, riskAssessmentSchema, userAlertPreferences, riskAlerts, insertRiskAlertSchema, insertUserAlertPreferencesSchema, updateUserAlertPreferencesSchema } from "@shared/schema";
+import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema, riskAssessmentSchema, userAlertPreferences, riskAlerts, insertRiskAlertSchema, insertUserAlertPreferencesSchema, updateUserAlertPreferencesSchema, insertAlertSubscriptionSchema } from "@shared/schema";
+import { storage } from "./storage";
+import { sendStormAlert, sendTestAlert } from "./email";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -1765,6 +1767,212 @@ export async function registerRoutes(app: Express): Promise<Server> {
               Math.sin(dLon/2) * Math.sin(dLon/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
+  }
+
+  // Helper function to calculate bearing between two points
+  function calculateDirection(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
+    const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
+              Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
+    const bearing = Math.atan2(y, x) * 180 / Math.PI;
+    return (bearing + 360) % 360;
+  }
+
+  // Alert Subscription Routes
+  
+  // Subscribe to storm alerts
+  app.post('/api/alerts/subscribe', async (req, res) => {
+    try {
+      const subscriptionData = insertAlertSubscriptionSchema.parse(req.body);
+      
+      // Check if email already exists
+      const existingSubscription = await storage.getAlertSubscription(subscriptionData.email);
+      
+      if (existingSubscription) {
+        return res.status(400).json({ 
+          error: 'Email address already subscribed',
+          subscription: existingSubscription 
+        });
+      }
+      
+      // Create new subscription
+      const subscription = await storage.createAlertSubscription(subscriptionData);
+      
+      // Send welcome/test email
+      const testEmailSent = await sendTestAlert({
+        to: subscription.email,
+        name: subscription.name,
+        locationName: subscription.locationName
+      });
+      
+      res.json({ 
+        message: 'Successfully subscribed to storm alerts',
+        subscription,
+        testEmailSent
+      });
+      
+    } catch (error) {
+      console.error('Alert subscription error:', error);
+      res.status(500).json({ error: 'Failed to create alert subscription' });
+    }
+  });
+  
+  // Get subscription status
+  app.get('/api/alerts/subscription/:email', async (req, res) => {
+    try {
+      const { email } = req.params;
+      const subscription = await storage.getAlertSubscription(email);
+      
+      if (!subscription) {
+        return res.status(404).json({ error: 'Subscription not found' });
+      }
+      
+      res.json(subscription);
+      
+    } catch (error) {
+      console.error('Get subscription error:', error);
+      res.status(500).json({ error: 'Failed to get subscription' });
+    }
+  });
+  
+  // Send test alert
+  app.post('/api/alerts/test', async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ error: 'Email address required' });
+      }
+      
+      const subscription = await storage.getAlertSubscription(email);
+      
+      if (!subscription) {
+        return res.status(404).json({ error: 'Subscription not found' });
+      }
+      
+      const testSent = await sendTestAlert({
+        to: subscription.email,
+        name: subscription.name,
+        locationName: subscription.locationName
+      });
+      
+      res.json({ 
+        message: 'Test alert sent',
+        emailSent: testSent 
+      });
+      
+    } catch (error) {
+      console.error('Test alert error:', error);
+      res.status(500).json({ error: 'Failed to send test alert' });
+    }
+  });
+  
+  // Check storms and send alerts (this would be called by a background job)
+  app.post('/api/alerts/check', async (req, res) => {
+    try {
+      const { storms } = req.body;
+      
+      if (!storms || !Array.isArray(storms)) {
+        return res.status(400).json({ error: 'Storms data required' });
+      }
+      
+      const subscriptions = await storage.getAllActiveSubscriptions();
+      let alertsSent = 0;
+      
+      for (const subscription of subscriptions) {
+        // Check if cooldown period has passed
+        if (subscription.lastAlertSent) {
+          const minutesSinceLastAlert = (Date.now() - subscription.lastAlertSent.getTime()) / (1000 * 60);
+          if (minutesSinceLastAlert < subscription.alertCooldown) {
+            continue; // Skip this subscription
+          }
+        }
+        
+        // Find storms near this subscription's location
+        const nearbyStorms = storms.filter((storm: any) => {
+          const distance = calculateDistance(
+            subscription.lat, 
+            subscription.lon, 
+            storm.lat, 
+            storm.lon
+          );
+          return distance <= subscription.alertRadius && storm.intensity >= subscription.minimumDbz;
+        });
+        
+        if (nearbyStorms.length > 0) {
+          // Find closest/strongest storm
+          const closestStorm = nearbyStorms.reduce((closest, storm) => {
+            const distance = calculateDistance(
+              subscription.lat, 
+              subscription.lon, 
+              storm.lat, 
+              storm.lon
+            );
+            storm.distance = distance;
+            
+            return !closest || distance < closest.distance ? storm : closest;
+          }, null);
+          
+          if (closestStorm) {
+            // Calculate direction and impact assessment
+            const direction = calculateDirection(
+              subscription.lat, 
+              subscription.lon, 
+              closestStorm.lat, 
+              closestStorm.lon
+            );
+            
+            const directionName = getDirectionName(direction);
+            
+            // Send alert email
+            const alertSent = await sendStormAlert({
+              to: subscription.email,
+              name: subscription.name,
+              locationName: subscription.locationName,
+              stormIntensity: closestStorm.intensity,
+              stormDistance: closestStorm.distance,
+              stormDirection: directionName,
+              eta: 'Approaching', // You could calculate actual ETA here
+              impactChance: closestStorm.intensity >= 55 ? 'High' : closestStorm.intensity >= 45 ? 'Medium' : 'Low',
+              severity: closestStorm.intensity >= 55 ? 'High' : closestStorm.intensity >= 45 ? 'Medium' : 'Low'
+            });
+            
+            if (alertSent) {
+              // Update last alert sent time
+              await storage.updateLastAlertSent(subscription.id);
+              
+              // Log alert history
+              await storage.createAlertHistory({
+                subscriptionId: subscription.id,
+                stormIntensity: closestStorm.intensity,
+                stormDistance: closestStorm.distance,
+                alertType: 'email',
+                message: `Storm alert sent: ${closestStorm.intensity}dBZ storm ${closestStorm.distance.toFixed(1)} miles away`
+              });
+              
+              alertsSent++;
+            }
+          }
+        }
+      }
+      
+      res.json({ 
+        message: `Checked ${subscriptions.length} subscriptions`,
+        alertsSent 
+      });
+      
+    } catch (error) {
+      console.error('Alert check error:', error);
+      res.status(500).json({ error: 'Failed to check alerts' });
+    }
+  });
+  
+  // Helper function to get direction name
+  function getDirectionName(degrees: number): string {
+    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const index = Math.round(degrees / 22.5) % 16;
+    return directions[index];
   }
 
   const httpServer = createServer(app);

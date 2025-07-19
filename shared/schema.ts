@@ -100,6 +100,40 @@ export const riskAlerts = pgTable("risk_alerts", {
   expiresAt: timestamp("expires_at"),
 });
 
+// Alert subscriptions for push notifications via email
+export const alertSubscriptions = pgTable("alert_subscriptions", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  lat: real("lat").notNull(),
+  lon: real("lon").notNull(),
+  locationName: text("location_name").notNull(),
+  
+  // Alert preferences
+  minimumDbz: integer("minimum_dbz").default(45), // minimum storm intensity
+  alertRadius: real("alert_radius").default(30), // miles
+  emailEnabled: boolean("email_enabled").default(true),
+  
+  // Last alert tracking to prevent spam
+  lastAlertSent: timestamp("last_alert_sent"),
+  alertCooldown: integer("alert_cooldown").default(30), // minutes between alerts
+  
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Alert history for tracking sent notifications
+export const alertHistory = pgTable("alert_history", {
+  id: serial("id").primaryKey(),
+  subscriptionId: integer("subscription_id").references(() => alertSubscriptions.id),
+  stormIntensity: real("storm_intensity").notNull(),
+  stormDistance: real("storm_distance").notNull(),
+  alertType: text("alert_type").notNull(), // 'email'
+  message: text("message").notNull(),
+  sentAt: timestamp("sent_at").defaultNow(),
+});
+
 // Zod schemas for validation
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -137,6 +171,18 @@ export const updateUserAlertPreferencesSchema = createInsertSchema(userAlertPref
   locationId: true,
   createdAt: true,
 }).partial();
+
+export const insertAlertSubscriptionSchema = createInsertSchema(alertSubscriptions).omit({
+  id: true,
+  lastAlertSent: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAlertHistorySchema = createInsertSchema(alertHistory).omit({
+  id: true,
+  sentAt: true,
+});
 
 // Risk assessment schema
 export const riskAssessmentSchema = z.object({
@@ -186,3 +232,9 @@ export type InsertWeatherAlert = z.infer<typeof insertWeatherAlertSchema>;
 
 export type LocationSearchRequest = z.infer<typeof locationSearchSchema>;
 export type WeatherDataRequest = z.infer<typeof weatherDataRequestSchema>;
+
+export type AlertSubscription = typeof alertSubscriptions.$inferSelect;
+export type InsertAlertSubscription = typeof alertSubscriptions.$inferInsert;
+
+export type AlertHistory = typeof alertHistory.$inferSelect;
+export type InsertAlertHistory = typeof alertHistory.$inferInsert;

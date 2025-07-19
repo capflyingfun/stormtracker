@@ -43,6 +43,7 @@
     "@radix-ui/react-tooltip": "^1.2.0",
     "@react-three/drei": "^9.105.6",
     "@react-three/fiber": "^8.16.8",
+    "@sendgrid/mail": "^8.1.5",
     "@tanstack/react-query": "^5.60.5",
     "@types/leaflet": "^1.9.20",
     "@types/three": "^0.178.1",
