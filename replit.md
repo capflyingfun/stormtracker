@@ -617,10 +617,10 @@ Preferred communication style: Simple, everyday language.
 - **Persistent AI Analysis**: Users can now view alerts and messages while keeping their AI weather assessment open for reference
 - **Improved User Workflow**: Seamless navigation between storm tracking, alert management, and message viewing without losing AI context
 
-### Clean Arrow Display & Modal Navigation Fix (July 19, 2025)
-- **Clean Storm Arrow Display**: Removed colored dBZ box overlay from storm arrows to prevent "square box" appearance when zoomed out
-- **Right-Pointing Arrow Shape**: Changed arrow SVG from triangle to ">" pointer style (M6 12 L18 6 L15 12 L18 18 Z) for clearer directional indication
-- **Fixed Messages Modal Navigation**: Messages button now opens in modal popup like Alerts instead of new browser tab
-- **Consistent Modal Interface**: Both Alerts and Messages use identical modal overlay system for unified user experience
-- **Enhanced Mobile Interface**: Both desktop and mobile buttons now use clean modal pop-ups with proper close functionality
-- **Improved Visual Clarity**: Storm arrows now display as clean colored pointers without confusing overlay elements
+### Arrow Direction & Embedded Messages Fix (July 19, 2025)
+- **Fixed Arrow Direction Accuracy**: Corrected storm arrow rotation to match server wind calculation (removed +90° adjustment causing direction mismatch)
+- **Embedded Message Inbox**: Created complete self-contained message inbox within modal popup with view/read/delete functionality
+- **Eliminated External Navigation**: Messages modal now stays completely within app instead of opening new browser tabs
+- **Enhanced Mobile Experience**: Embedded inbox works seamlessly on mobile with touch-friendly interface
+- **Professional Message Management**: Full message functionality including read status, deletion, and detailed message viewing
+- **Consistent Wind Direction**: Storm arrows now correctly point in direction calculated by Open-Meteo winds aloft data (222° wind → 42° storm movement)
