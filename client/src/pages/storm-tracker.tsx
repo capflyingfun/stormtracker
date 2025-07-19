@@ -13,6 +13,7 @@ import AlertSubscription from "@/components/alert-subscription";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
+import AIWeatherAssistant from "@/components/ai-weather-assistant";
 
 export default function StormTracker() {
   const queryClient = useQueryClient();
@@ -35,6 +36,7 @@ export default function StormTracker() {
   const [lightningCount, setLightningCount] = useState(0);
   const [showStormFilteringSettings, setShowStormFilteringSettings] = useState(false);
   const [showAlertSubscription, setShowAlertSubscription] = useState(false);
+  const [windsData, setWindsData] = useState<any[]>([]);
   
   const {
     location,
@@ -56,6 +58,21 @@ export default function StormTracker() {
   const { data: preferences } = useQuery({
     queryKey: ['/api/alerts/preferences'],
     staleTime: 5 * 60 * 1000,
+  });
+
+  // Get winds aloft data for AI assistant
+  const { data: windsAloftData } = useQuery({
+    queryKey: ['/api/winds-aloft', location?.lat, location?.lon],
+    enabled: !!location,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    queryFn: async () => {
+      if (!location) return null;
+      
+      const response = await fetch(`/api/winds-aloft?lat=${location.lat}&lon=${location.lon}`);
+      if (!response.ok) return null;
+      
+      return response.json();
+    },
   });
   
   const activeStorms = precipitationStorms;
@@ -559,6 +576,41 @@ export default function StormTracker() {
                     <>🌩️ View 3D Terrain</>
                   )}
                 </Button>
+              </div>
+            )}
+
+            {/* AI Weather Assistant */}
+            {location && windsAloftData && (
+              <div className="mb-4 sm:mb-6">
+                <AIWeatherAssistant
+                  userLocation={{
+                    lat: location.lat,
+                    lon: location.lon,
+                    address: location.name
+                  }}
+                  storms={filteredStorms.map(storm => ({
+                    id: storm.id,
+                    lat: storm.lat,
+                    lon: storm.lon,
+                    intensity: storm.intensity,
+                    distance: storm.distance,
+                    direction: storm.direction,
+                    bearing: storm.bearing || 0,
+                    category: storm.intensity >= 61 ? 'Extreme' :
+                             storm.intensity >= 55 ? 'Very Heavy' :
+                             storm.intensity >= 46 ? 'Heavy' :
+                             storm.intensity >= 35 ? 'Moderate' : 'Light',
+                    movement: storm.windsPrediction ? {
+                      direction: storm.windsPrediction.direction,
+                      speed: storm.windsPrediction.speed,
+                      eta: storm.impactAssessment?.eta,
+                      impact: storm.impactAssessment?.impactChance
+                    } : undefined
+                  }))}
+                  winds={windsAloftData.winds || []}
+                  radarSource={currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
+                  lightningCount={lightningCount}
+                />
               </div>
             )}
 

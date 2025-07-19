@@ -1,0 +1,155 @@
+import OpenAI from "openai";
+
+const openai = new OpenAI({ 
+  apiKey: process.env.OPENAI_API_KEY 
+});
+
+interface StormData {
+  id: string;
+  lat: number;
+  lon: number;
+  intensity: number;
+  distance: number;
+  direction: string;
+  bearing: number;
+  category: string;
+  movement?: {
+    direction: number;
+    speed: number;
+    eta?: string;
+    impact?: string;
+  };
+}
+
+interface WindData {
+  speed: number;
+  direction: number;
+  pressure_level: string;
+}
+
+interface WeatherAssessmentRequest {
+  userLocation: {
+    lat: number;
+    lon: number;
+    address: string;
+  };
+  storms: StormData[];
+  winds: WindData[];
+  radarSource: string;
+  lightningCount?: number;
+}
+
+export async function generateWeatherAssessment(data: WeatherAssessmentRequest): Promise<{
+  riskLevel: 'low' | 'moderate' | 'high' | 'extreme';
+  summary: string;
+  detailedAnalysis: string;
+  recommendations: string[];
+  timeToImpact?: string;
+  confidence: number;
+}> {
+  try {
+    // Prepare comprehensive weather context for AI analysis
+    const stormContext = data.storms.map(storm => ({
+      distance: `${storm.distance.toFixed(1)} miles`,
+      direction: `${storm.direction} (${storm.bearing}°)`,
+      intensity: `${storm.intensity} dBZ (${storm.category})`,
+      movement: storm.movement ? 
+        `Moving ${storm.movement.direction}° at ${storm.movement.speed} mph${storm.movement.eta ? `, ETA: ${storm.movement.eta}` : ''}${storm.movement.impact ? `, Impact: ${storm.movement.impact}` : ''}` : 
+        'Movement unknown'
+    }));
+
+    const windContext = data.winds.map(wind => ({
+      altitude: wind.pressure_level,
+      speed: `${wind.speed} mph`,
+      direction: `${wind.direction}°`
+    }));
+
+    const prompt = `You are a professional meteorologist analyzing real-time weather data for storm impact assessment.
+
+LOCATION: ${data.userLocation.address} (${data.userLocation.lat.toFixed(4)}°N, ${data.userLocation.lon.toFixed(4)}°W)
+
+RADAR DATA SOURCE: ${data.radarSource} (authentic weather radar)
+
+CURRENT STORM CELLS:
+${stormContext.length === 0 ? 'No active storms detected within 30 miles' : 
+  stormContext.map((storm, i) => `Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}, ${storm.movement}`).join('\n')}
+
+WINDS ALOFT:
+${windContext.map(wind => `${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}
+
+LIGHTNING ACTIVITY: ${data.lightningCount || 0} strikes detected in area
+
+Based on this authentic meteorological data, provide a comprehensive weather impact assessment in JSON format:
+
+{
+  "riskLevel": "low|moderate|high|extreme",
+  "summary": "Brief 2-sentence overview of current weather threat",
+  "detailedAnalysis": "Detailed analysis covering storm positions, intensities, movement patterns, wind influence, and timeline",
+  "recommendations": ["Array of 3-4 specific safety recommendations"],
+  "timeToImpact": "Estimated time until weather impacts (if applicable)",
+  "confidence": 0.85
+}
+
+Focus on:
+- Actual storm positions and movement trajectories
+- dBZ intensity levels and their rainfall/hail implications  
+- Wind patterns affecting storm steering
+- Proximity and timing of potential impacts
+- Specific safety actions for the identified risk level
+
+Use meteorological expertise to assess real storm threats, not generic weather advice.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert meteorologist providing precise weather impact assessments based on real radar and atmospheric data. Respond only with valid JSON."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.3, // Lower temperature for more consistent, factual responses
+      max_tokens: 1000
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || '{}');
+    
+    // Validate and ensure required fields
+    return {
+      riskLevel: result.riskLevel || 'low',
+      summary: result.summary || 'Weather conditions are currently being analyzed.',
+      detailedAnalysis: result.detailedAnalysis || 'Detailed analysis is being processed.',
+      recommendations: result.recommendations || ['Monitor weather conditions regularly.'],
+      timeToImpact: result.timeToImpact,
+      confidence: Math.min(Math.max(result.confidence || 0.7, 0), 1)
+    };
+
+  } catch (error) {
+    console.error('AI weather assessment error:', error);
+    
+    // Fallback assessment based on storm data
+    const highIntensityStorms = data.storms.filter(s => s.intensity >= 55);
+    const nearbyStorms = data.storms.filter(s => s.distance <= 10);
+    
+    let riskLevel: 'low' | 'moderate' | 'high' | 'extreme' = 'low';
+    if (highIntensityStorms.length > 0 && nearbyStorms.length > 0) {
+      riskLevel = 'extreme';
+    } else if (nearbyStorms.length > 0) {
+      riskLevel = 'high';
+    } else if (data.storms.length > 0) {
+      riskLevel = 'moderate';
+    }
+
+    return {
+      riskLevel,
+      summary: `${data.storms.length} storm cells detected. Analysis system temporarily unavailable.`,
+      detailedAnalysis: 'AI assessment system is currently offline. Manual storm tracking data is still available.',
+      recommendations: ['Monitor storm tracker for updates', 'Check local weather alerts'],
+      confidence: 0.5
+    };
+  }
+}
