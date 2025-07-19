@@ -1124,72 +1124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Weatherbit government alerts endpoint
-  app.get("/api/weatherbit-alerts", async (req, res) => {
-    try {
-      const { lat, lon } = req.query;
-      
-      if (!lat || !lon) {
-        return res.status(400).json({ error: "Latitude and longitude required" });
-      }
-      
-      const userLat = parseFloat(lat as string);
-      const userLon = parseFloat(lon as string);
-      
-      // Try Weatherbit Alerts API (included in free plan)
-      if (process.env.WEATHERBIT_API_KEY) {
-        try {
-          console.log('🚨 Fetching Weatherbit government alerts...');
-          const weatherbitUrl = `https://api.weatherbit.io/v2.0/alerts?lat=${userLat}&lon=${userLon}&key=${process.env.WEATHERBIT_API_KEY}`;
-          
-          const response = await fetch(weatherbitUrl, {
-            timeout: 8000,
-            headers: {
-              'Accept': 'application/json'
-            }
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log(`✅ Weatherbit: Found ${data.alerts?.length || 0} government alerts`);
-            
-            const alerts = (data.alerts || []).map((alert: any) => ({
-              title: alert.title,
-              description: alert.description,
-              severity: alert.severity,
-              urgency: alert.urgency,
-              certainty: alert.certainty,
-              effective: alert.effective,
-              expires: alert.expires,
-              regions: alert.regions,
-              areas: alert.areas
-            }));
-            
-            return res.json({
-              alerts,
-              count: alerts.length,
-              source: 'weatherbit'
-            });
-          } else {
-            console.log(`Weatherbit API returned ${response.status}: ${response.statusText}`);
-            return res.json({ alerts: [], count: 0, source: 'none', error: 'API unavailable' });
-          }
-        } catch (error) {
-          console.log('Weatherbit Alerts API error:', error.message);
-          return res.json({ alerts: [], count: 0, source: 'none', error: error.message });
-        }
-      } else {
-        return res.json({ alerts: [], count: 0, source: 'none', error: 'No API key configured' });
-      }
-    } catch (error) {
-      console.error("Weatherbit alerts error:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch weather alerts",
-        alerts: [],
-        count: 0
-      });
-    }
-  });
+
 
   // Risk Assessment and Personalized Alert Endpoints
   
@@ -1854,6 +1789,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const bearing = Math.atan2(y, x) * 180 / Math.PI;
     return (bearing + 360) % 360;
   }
+
+  // Calculate bearing between two points (alias for calculateDirection)
+  function calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    return calculateDirection(lat1, lon1, lat2, lon2);
+  }
+
+  // Helper function for aviation weather
+  function getDirectionFromBearing(bearing: number): string {
+    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const index = Math.round(bearing / 22.5) % 16;
+    return directions[index];
+  }
+
+  // Aviation weather data from nearby airports (METAR/AWOS/ATIS)
+  app.get("/api/aviation-weather", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      const userLat = parseFloat(lat as string);
+      const userLon = parseFloat(lon as string);
+      
+      console.log(`✈️ Fetching aviation weather data for location: ${userLat}, ${userLon}`);
+      
+      // Major airports in the Gulf Coast region with AWOS/METAR data
+      const nearbyAirports = [
+        { icao: 'KMOB', name: 'Mobile Regional Airport', lat: 30.691, lon: -88.243 },
+        { icao: 'KPNS', name: 'Pensacola Regional Airport', lat: 30.473, lon: -87.187 },
+        { icao: 'KBFM', name: 'Mobile Downtown Airport', lat: 30.627, lon: -88.068 },
+        { icao: 'KCEW', name: 'Crestview Bob Sikes Airport', lat: 30.779, lon: -86.522 },
+        { icao: 'KDHN', name: 'Dothan Regional Airport', lat: 31.321, lon: -85.450 },
+        { icao: 'KTLH', name: 'Tallahassee Regional Airport', lat: 30.396, lon: -84.350 },
+        { icao: 'KMSY', name: 'New Orleans Louis Armstrong', lat: 29.993, lon: -90.258 },
+        { icao: 'KBTR', name: 'Baton Rouge Metropolitan', lat: 30.533, lon: -91.150 },
+        { icao: 'KLFT', name: 'Lafayette Regional Airport', lat: 30.205, lon: -91.988 }
+      ];
+      
+      // Find 3 nearest airports
+      console.log('🔍 Calculating airport distances...');
+      const airportsWithDistance = nearbyAirports.map(airport => {
+        const distance = calculateDistance(userLat, userLon, airport.lat, airport.lon);
+        const bearing = calculateBearing(userLat, userLon, airport.lat, airport.lon);
+        return { ...airport, distance, bearing };
+      }).sort((a, b) => a.distance - b.distance).slice(0, 3);
+      
+      console.log(`📍 Found ${airportsWithDistance.length} nearest airports:`, 
+        airportsWithDistance.map(a => `${a.icao} (${a.distance.toFixed(1)}mi)`));
+      
+      const weatherData = [];
+      
+      // Fetch METAR data for nearest airports
+      for (const airport of airportsWithDistance) {
+        try {
+          const metarUrl = `https://aviationweather.gov/cgi-bin/data/metar.php?ids=${airport.icao}&format=json`;
+          const response = await fetch(metarUrl, {
+            timeout: 5000,
+            headers: {
+              'User-Agent': 'StormTracker/1.0 Weather Research'
+            }
+          });
+          
+          if (response.ok) {
+            const metarData = await response.json();
+            if (metarData && metarData.length > 0) {
+              const metar = metarData[0];
+              
+              // Parse METAR for key weather info
+              const direction = getDirectionFromBearing(airport.bearing);
+              
+              weatherData.push({
+                airport: airport.name,
+                icao: airport.icao,
+                distance: airport.distance,
+                direction: direction,
+                bearing: airport.bearing,
+                metar: metar.rawOb,
+                conditions: {
+                  visibility: metar.visib || 'Unknown',
+                  ceiling: metar.cig || 'Clear',
+                  clouds: metar.cldCvg1 || 'None',
+                  temperature: metar.temp || 'Unknown',
+                  dewpoint: metar.dewp || 'Unknown',
+                  altimeter: metar.altim || 'Unknown',
+                  wind: `${metar.wdir || '000'}° at ${metar.wspd || '0'} kts`,
+                  weather: metar.wx || 'Clear'
+                }
+              });
+              
+              console.log(`✅ METAR data fetched for ${airport.icao}: ${metar.rawOb?.substring(0, 50)}...`);
+            }
+          }
+        } catch (error) {
+          console.log(`Failed to fetch METAR for ${airport.icao}: ${error.message}`);
+        }
+      }
+      
+      res.json({
+        stations: weatherData,
+        count: weatherData.length,
+        source: 'aviation_weather'
+      });
+      
+    } catch (error) {
+      console.error("Aviation weather error:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch aviation weather data",
+        stations: [],
+        count: 0
+      });
+    }
+  });
 
   // Message Inbox Routes (Built-in Email/Text System)
   

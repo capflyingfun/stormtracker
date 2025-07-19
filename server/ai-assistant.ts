@@ -48,19 +48,19 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
   confidence: number;
 }> {
   try {
-    // Fetch government weather alerts for enhanced analysis
-    let weatherbitAlerts: any[] = [];
+    // Fetch aviation weather data from nearby airports
+    let aviationWeather: any[] = [];
     try {
-      const alertsResponse = await fetch(
-        `http://localhost:5000/api/weatherbit-alerts?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
+      const aviationResponse = await fetch(
+        `http://localhost:5000/api/aviation-weather?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
       );
-      if (alertsResponse.ok) {
-        const alertsData = await alertsResponse.json();
-        weatherbitAlerts = alertsData.alerts || [];
-        console.log(`AI Assistant: Found ${weatherbitAlerts.length} government weather alerts`);
+      if (aviationResponse.ok) {
+        const aviationData = await aviationResponse.json();
+        aviationWeather = aviationData.stations || [];
+        console.log(`AI Assistant: Found ${aviationWeather.length} nearby airport weather stations`);
       }
-    } catch (alertError) {
-      console.log('AI Assistant: Could not fetch government alerts:', alertError.message);
+    } catch (aviationError) {
+      console.log('AI Assistant: Could not fetch aviation weather:', aviationError.message);
     }
 
     // Prepare comprehensive weather context for AI analysis
@@ -94,11 +94,18 @@ ${windContext.map(wind => `${wind.altitude}: ${wind.speed} from ${wind.direction
 
 LIGHTNING ACTIVITY: ${data.lightningCount || 0} strikes detected in area
 
-GOVERNMENT WEATHER ALERTS: ${weatherbitAlerts.length > 0 ? 
-  weatherbitAlerts.map(alert => `${alert.severity} - ${alert.title}: ${alert.description?.substring(0, 100)}...`).join('\n') : 
-  'No active government weather alerts'}
+AVIATION WEATHER (NEARBY AIRPORTS):
+${aviationWeather.length > 0 ? 
+  aviationWeather.map(station => 
+    `${station.airport} (${station.icao}) - ${station.distance.toFixed(1)} miles ${station.direction}:\n` +
+    `  Ceiling: ${station.conditions.ceiling}  Visibility: ${station.conditions.visibility}\n` +
+    `  Clouds: ${station.conditions.clouds}  Weather: ${station.conditions.weather}\n` +
+    `  Wind: ${station.conditions.wind}  Temp/Dewpoint: ${station.conditions.temperature}°/${station.conditions.dewpoint}°\n` +
+    `  METAR: ${station.metar}`
+  ).join('\n\n') : 
+  'No aviation weather data available'}
 
-Based on this authentic meteorological data including official government weather alerts, provide a comprehensive weather impact assessment in JSON format:
+Based on this comprehensive meteorological data including radar, winds aloft, and aviation weather conditions, provide a detailed weather impact assessment in JSON format:
 
 {
   "riskLevel": "low|moderate|high|extreme",
@@ -112,13 +119,14 @@ Based on this authentic meteorological data including official government weathe
 Focus on:
 - Actual storm positions and movement trajectories relative to ${data.userLocation.address}
 - dBZ intensity levels and their rainfall/hail implications  
-- Wind patterns affecting storm steering
-- Government weather alerts and their specific impacts for ${data.userLocation.address}
+- Wind patterns affecting storm steering from Open-Meteo pressure level data
+- Aviation weather conditions from nearby airports (ceiling, visibility, cloud coverage)
+- Lightning activity reported in METAR/aviation weather observations
 - Proximity and timing of potential impacts at ${data.userLocation.address}
-- Specific safety actions for the identified risk level
-- Use specific location names and geographic features when describing storm movements (never use generic terms like "towards the city")
+- Directional references using nearby airports and geographic features (e.g., "moving from Pensacola area towards Mobile")
+- Specific safety actions based on aviation weather hazards and storm intensity
 
-When describing storm movements, reference actual nearby cities, counties, or geographic features rather than vague directional terms. Use meteorological expertise to assess real storm threats, integrating both radar data and official government weather alerts.`;
+When describing storm movements and directions, reference actual nearby airports, cities, or geographic features from the aviation weather data rather than vague directional terms. Integrate radar data with professional aviation weather observations for comprehensive threat assessment.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
