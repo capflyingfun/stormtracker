@@ -235,14 +235,14 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
                 )}
                 
                 {storm.windsPrediction && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-300">Upperlevel Storm Movement Speed & Direction:</span>
-                    <span className="text-xs text-blue-300">
+                  <div>
+                    <div className="text-xs text-slate-300 mb-1">Upperlevel Storm Movement Speed & Direction:</div>
+                    <div className="text-right text-xs text-blue-300">
                       {storm.windsPrediction.speed > 0 ? `${storm.windsPrediction.speed} mph ${getCompassDirection(storm.windsPrediction.direction)} (${String(Math.round(storm.windsPrediction.direction)).padStart(3, '0')}°)` : 'Stationary'}
                       {storm.windsPrediction.confidence && storm.windsPrediction.confidence !== 'low' && (
                         <span className="ml-1 text-slate-400">({storm.windsPrediction.confidence})</span>
                       )}
-                    </span>
+                    </div>
                   </div>
                 )}
       </div>
