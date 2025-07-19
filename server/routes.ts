@@ -1819,8 +1819,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`✈️ Fetching aviation weather data for location: ${userLat}, ${userLon}`);
       
-      // Comprehensive airports across broader regional area (Gulf Coast + SE US) with AWOS/METAR data
+      // Comprehensive airports across United States with AWOS/METAR data
       const nearbyAirports = [
+        // North Carolina airports
+        { icao: 'KCLT', name: 'Charlotte Douglas International', lat: 35.214, lon: -80.943 },
+        { icao: 'KRDU', name: 'Raleigh-Durham International', lat: 35.877, lon: -78.787 },
+        { icao: 'KGSO', name: 'Piedmont Triad International', lat: 36.098, lon: -79.937 },
+        { icao: 'KAVL', name: 'Asheville Regional Airport', lat: 35.436, lon: -82.542 },
+        { icao: 'KFAY', name: 'Fayetteville Regional Airport', lat: 34.991, lon: -78.880 },
+        { icao: 'KWIL', name: 'Wilmington International Airport', lat: 34.267, lon: -77.903 },
+        { icao: 'KINT', name: 'Smith Reynolds Airport', lat: 36.134, lon: -80.222 },
+        
+        // South Carolina airports  
+        { icao: 'KCHS', name: 'Charleston International Airport', lat: 32.899, lon: -80.041 },
+        { icao: 'KCAE', name: 'Columbia Metropolitan Airport', lat: 33.939, lon: -81.120 },
+        { icao: 'KGSP', name: 'Greenville-Spartanburg Intl', lat: 34.896, lon: -82.219 },
+        { icao: 'KMYR', name: 'Myrtle Beach International', lat: 33.679, lon: -78.928 },
+        { icao: 'KFLO', name: 'Florence Regional Airport', lat: 34.185, lon: -79.724 },
+        
+        // Virginia airports
+        { icao: 'KIAD', name: 'Washington Dulles International', lat: 38.944, lon: -77.456 },
+        { icao: 'KRIC', name: 'Richmond International Airport', lat: 37.505, lon: -77.320 },
+        { icao: 'KNFW', name: 'Norfolk International Airport', lat: 36.894, lon: -76.201 },
+        { icao: 'KROA', name: 'Roanoke-Blacksburg Regional', lat: 37.325, lon: -79.975 },
+        { icao: 'KCHO', name: 'Charlottesville-Albemarle Airport', lat: 38.139, lon: -78.453 },
+        
+        // Tennessee airports
+        { icao: 'KBNA', name: 'Nashville International Airport', lat: 36.124, lon: -86.678 },
+        { icao: 'KMEM', name: 'Memphis International Airport', lat: 35.042, lon: -89.977 },
+        { icao: 'KTYS', name: 'McGhee Tyson Airport', lat: 35.811, lon: -83.994 },
+        { icao: 'KCHA', name: 'Chattanooga Metropolitan Airport', lat: 35.035, lon: -85.204 },
+        { icao: 'KTRI', name: 'Tri-Cities Airport', lat: 36.475, lon: -82.407 },
+        
+        // Kentucky airports
+        { icao: 'KSDF', name: 'Louisville Muhammad Ali Intl', lat: 38.174, lon: -85.736 },
+        { icao: 'KLEX', name: 'Blue Grass Airport', lat: 38.037, lon: -84.606 },
+        { icao: 'KBWG', name: 'Bowling Green-Warren County', lat: 36.965, lon: -86.420 },
+        
+        // West Virginia airports
+        { icao: 'KCRW', name: 'Yeager Airport', lat: 38.373, lon: -81.593 },
+        { icao: 'KMGW', name: 'Morgantown Municipal Airport', lat: 39.643, lon: -79.916 },
+        
         // Alabama airports
         { icao: 'KMOB', name: 'Mobile Regional Airport', lat: 30.691, lon: -88.243 },
         { icao: 'KBFM', name: 'Mobile Downtown Airport', lat: 30.627, lon: -88.068 },
@@ -1835,6 +1874,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { icao: 'KTLH', name: 'Tallahassee Regional Airport', lat: 30.396, lon: -84.350 },
         { icao: 'KPAM', name: 'Tyndall Air Force Base', lat: 30.070, lon: -85.575 },
         { icao: 'KVPS', name: 'Destin-Fort Walton Beach', lat: 30.483, lon: -86.525 },
+        { icao: 'KJAX', name: 'Jacksonville International', lat: 30.494, lon: -81.688 },
+        { icao: 'KTPA', name: 'Tampa International Airport', lat: 27.976, lon: -82.533 },
+        { icao: 'KMCO', name: 'Orlando International Airport', lat: 28.429, lon: -81.309 },
+        { icao: 'KMIA', name: 'Miami International Airport', lat: 25.793, lon: -80.291 },
         
         // Louisiana airports
         { icao: 'KMSY', name: 'New Orleans Louis Armstrong', lat: 29.993, lon: -90.258 },
@@ -1851,7 +1894,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Georgia airports
         { icao: 'KATL', name: 'Hartsfield-Jackson Atlanta Intl', lat: 33.636, lon: -84.428 },
         { icao: 'KSAV', name: 'Savannah/Hilton Head Intl', lat: 32.128, lon: -81.202 },
-        { icao: 'KABY', name: 'Southwest Georgia Regional', lat: 31.536, lon: -84.195 }
+        { icao: 'KABY', name: 'Southwest Georgia Regional', lat: 31.536, lon: -84.195 },
+        { icao: 'KAGS', name: 'Augusta Regional Airport', lat: 33.370, lon: -81.964 }
       ];
       
       // Find 5 nearest airports within 100-mile regional area
@@ -1860,54 +1904,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const distance = calculateDistance(userLat, userLon, airport.lat, airport.lon);
         const bearing = calculateBearing(userLat, userLon, airport.lat, airport.lon);
         return { ...airport, distance, bearing };
-      }).filter(airport => airport.distance <= 100) // 100-mile regional filter
-        .sort((a, b) => a.distance - b.distance).slice(0, 5);
+      });
       
-      console.log(`📍 Found ${airportsWithDistance.length} nearest airports:`, 
-        airportsWithDistance.map(a => `${a.icao} (${a.distance.toFixed(1)}mi)`));
+      // Log first few airports for debugging
+      console.log('Sample airport distances:');
+      airportsWithDistance.slice(0, 5).forEach(airport => {
+        console.log(`  ${airport.icao}: ${airport.distance.toFixed(1)} miles`);
+      });
+      
+      const filteredAirports = airportsWithDistance
+        .filter(airport => airport.distance <= 100) // 100-mile regional filter
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 5);
+      
+      console.log(`📍 Found ${filteredAirports.length} nearest airports:`, 
+        filteredAirports.map(a => `${a.icao} (${a.distance.toFixed(1)}mi)`));
       
       const weatherData = [];
       
       // Fetch METAR data for nearest airports
-      for (const airport of airportsWithDistance) {
+      for (const airport of filteredAirports) {
         try {
-          const metarUrl = `https://aviationweather.gov/cgi-bin/data/metar.php?ids=${airport.icao}&format=json`;
-          const response = await fetch(metarUrl, {
-            timeout: 5000,
-            headers: {
-              'User-Agent': 'StormTracker/1.0 Weather Research'
-            }
-          });
+          // Try multiple aviation weather sources for reliability
+          let metarData = null;
           
-          if (response.ok) {
-            const metarData = await response.json();
-            if (metarData && metarData.length > 0) {
-              const metar = metarData[0];
-              
-              // Parse METAR for key weather info
-              const direction = getDirectionFromBearing(airport.bearing);
-              
-              weatherData.push({
-                airport: airport.name,
-                icao: airport.icao,
-                distance: airport.distance,
-                direction: direction,
-                bearing: airport.bearing,
-                metar: metar.rawOb,
-                conditions: {
-                  visibility: metar.visib || 'Unknown',
-                  ceiling: metar.cig || 'Clear',
-                  clouds: metar.cldCvg1 || 'None',
-                  temperature: metar.temp || 'Unknown',
-                  dewpoint: metar.dewp || 'Unknown',
-                  altimeter: metar.altim || 'Unknown',
-                  wind: `${metar.wdir || '000'}° at ${metar.wspd || '0'} kts`,
-                  weather: metar.wx || 'Clear'
+          // Primary: Aviation Weather Center API (official government source)
+          try {
+            const awcUrl = `https://aviationweather.gov/api/data/metar?ids=${airport.icao}&format=json`;
+            const awcResponse = await fetch(awcUrl, {
+              timeout: 4000,
+              headers: {
+                'User-Agent': 'StormTracker/1.0 Weather Research'
+              }
+            });
+            
+            if (awcResponse.ok) {
+              const awcData = await awcResponse.json();
+              if (awcData && awcData.length > 0) {
+                metarData = awcData[0];
+                console.log(`✅ AWC METAR data fetched for ${airport.icao}`);
+              }
+            }
+          } catch (error) {
+            console.log(`AWC API failed for ${airport.icao}: ${error.message}`);
+          }
+          
+          // Fallback: CheckWX API for additional coverage
+          if (!metarData) {
+            try {
+              const checkwxUrl = `https://api.checkwx.com/metar/${airport.icao}/decoded`;
+              const checkwxResponse = await fetch(checkwxUrl, {
+                timeout: 3000,
+                headers: {
+                  'User-Agent': 'StormTracker/1.0 Weather Research',
+                  'X-API-Key': 'demo' // Use demo key for testing
                 }
               });
               
-              console.log(`✅ METAR data fetched for ${airport.icao}: ${metar.rawOb?.substring(0, 50)}...`);
+              if (checkwxResponse.ok) {
+                const checkwxData = await checkwxResponse.json();
+                if (checkwxData && checkwxData.data && checkwxData.data.length > 0) {
+                  const decoded = checkwxData.data[0];
+                  // Convert CheckWX format to our standard format
+                  metarData = {
+                    rawOb: decoded.raw_text || '',
+                    temp: decoded.temperature?.celsius || 'Unknown',
+                    dewp: decoded.dewpoint?.celsius || 'Unknown',
+                    wdir: decoded.wind?.degrees || '000',
+                    wspd: decoded.wind?.speed_kts || '0',
+                    visib: decoded.visibility?.meters_float ? (decoded.visibility.meters_float / 1609.34).toFixed(1) : 'Unknown',
+                    altim: decoded.barometer?.hpa ? (decoded.barometer.hpa / 33.8639).toFixed(2) : 'Unknown',
+                    cig: decoded.ceiling?.feet || 'Clear',
+                    cldCvg1: decoded.clouds?.[0]?.text || 'None',
+                    wx: decoded.conditions?.join(', ') || 'Clear'
+                  };
+                  console.log(`✅ CheckWX METAR data fetched for ${airport.icao}`);
+                }
+              }
+            } catch (error) {
+              console.log(`CheckWX API failed for ${airport.icao}: ${error.message}`);
             }
+          }
+          
+          // Final fallback: Original AWC legacy endpoint
+          if (!metarData) {
+            const metarUrl = `https://aviationweather.gov/cgi-bin/data/metar.php?ids=${airport.icao}&format=json`;
+            const response = await fetch(metarUrl, {
+              timeout: 3000,
+              headers: {
+                'User-Agent': 'StormTracker/1.0 Weather Research'
+              }
+            });
+            
+            if (response.ok) {
+              const legacyData = await response.json();
+              if (legacyData && legacyData.length > 0) {
+                metarData = legacyData[0];
+                console.log(`✅ Legacy AWC METAR data fetched for ${airport.icao}`);
+              }
+            }
+          }
+          
+          if (metarData) {
+            // Parse METAR for key weather info
+            const direction = getDirectionFromBearing(airport.bearing);
+            
+            weatherData.push({
+              airport: airport.name,
+              icao: airport.icao,
+              distance: airport.distance,
+              direction: direction,
+              bearing: airport.bearing,
+              metar: metarData.rawOb || metarData.raw_text || '',
+              conditions: {
+                visibility: metarData.visib || 'Unknown',
+                ceiling: metarData.cig || 'Clear',
+                clouds: metarData.cldCvg1 || 'None',
+                temperature: metarData.temp || 'Unknown',
+                dewpoint: metarData.dewp || 'Unknown',
+                altimeter: metarData.altim || 'Unknown',
+                wind: `${metarData.wdir || '000'}° at ${metarData.wspd || '0'} kts`,
+                weather: metarData.wx || 'Clear'
+              }
+            });
           }
         } catch (error) {
           console.log(`Failed to fetch METAR for ${airport.icao}: ${error.message}`);
