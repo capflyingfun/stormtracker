@@ -375,7 +375,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         zoomControl: true,
         attributionControl: true,
         preferCanvas: true
-      }).setView([location.lat, location.lon], 8);
+      }).setView([location.lat, location.lon], 10);
 
       // Add dark base tile layer
       window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -413,7 +413,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const map = mapInstanceRef.current;
     if (!map || !window.L) return;
 
-    map.setView([location.lat, location.lon], 8);
+    map.setView([location.lat, location.lon], 10);
 
     // Remove existing range circle
     if (rangeCircleRef.current) {
