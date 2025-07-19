@@ -38,6 +38,7 @@ interface StormMapProps {
   radarSource?: 'rainviewer' | 'nexrad';
   isDisabled?: boolean;
   alertPreferences?: any;
+  showAllStormTracks?: boolean;
 }
 
 declare global {
@@ -46,7 +47,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -111,6 +112,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [selectedStormId, setSelectedStormId] = useState<string | null>(null);
   const stormConeLayerRef = useRef<any>(null);
   const allStormConesLayerRef = useRef<any>(null);
+
+  // Sync with external storm tracks toggle
+  useEffect(() => {
+    if (typeof externalShowAllStormTracks === 'boolean') {
+      setShowAllStormTracks(externalShowAllStormTracks);
+    }
+  }, [externalShowAllStormTracks]);
 
   // Auto-sampling functionality (silent background operation)
   const triggerAutoSample = useCallback(() => {

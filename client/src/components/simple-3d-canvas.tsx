@@ -103,12 +103,12 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         case 'a':
         case 'arrowleft':
           e.preventDefault();
-          setRotationY(prev => prev - 0.1); // Rotate left
+          setRotationY(prev => prev + 0.1); // Rotate left (reversed)
           break;
         case 'd':
         case 'arrowright':
           e.preventDefault();
-          setRotationY(prev => prev + 0.1); // Rotate right
+          setRotationY(prev => prev - 0.1); // Rotate right (reversed)
           break;
         case 'w':
         case 'arrowup':
