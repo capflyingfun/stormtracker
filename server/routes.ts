@@ -2280,7 +2280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Weather Assistant endpoint
   app.post("/api/ai-assessment", async (req, res) => {
     try {
-      const { userLocation, storms, winds, radarSource, lightningCount } = req.body;
+      const { userLocation, storms, winds, radarSource } = req.body;
       
       if (!userLocation || !Array.isArray(storms) || !Array.isArray(winds)) {
         return res.status(400).json({ error: "Missing required weather data" });
@@ -2290,8 +2290,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userLocation,
         storms,
         winds,
-        radarSource: radarSource || 'Unknown',
-        lightningCount: lightningCount || 0
+        radarSource: radarSource || 'Unknown'
       });
 
       console.log(`AI assessment generated: ${assessment.riskLevel} risk level with ${assessment.confidence} confidence`);

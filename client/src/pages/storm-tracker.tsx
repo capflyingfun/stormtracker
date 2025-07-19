@@ -33,8 +33,6 @@ export default function StormTracker() {
   
   const [currentRadarSource, setCurrentRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer');
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
-  const [lightningCount, setLightningCount] = useState(0);
-  const [lightningDataSource, setLightningDataSource] = useState<string>('none');
   const [showStormFilteringSettings, setShowStormFilteringSettings] = useState(false);
   const [showAlertSubscription, setShowAlertSubscription] = useState(false);
   const [windsData, setWindsData] = useState<any[]>([]);
@@ -109,18 +107,7 @@ export default function StormTracker() {
     };
   }, [location, preferences]);
 
-  // Listen for lightning data
-  useEffect(() => {
-    const handleLightningData = (event: any) => {
-      setLightningCount(event.detail?.count || 0);
-      setLightningDataSource(event.detail?.dataSource || 'none');
-    };
 
-    window.addEventListener('lightningData', handleLightningData);
-    return () => {
-      window.removeEventListener('lightningData', handleLightningData);
-    };
-  }, []);
 
   // Listen for location with radar source
   useEffect(() => {
@@ -596,46 +583,142 @@ export default function StormTracker() {
                   }))}
                   winds={windsAloftData.winds || []}
                   radarSource={currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
-                  lightningCount={lightningCount}
                 />
               </div>
             )}
 
-            {/* Interactive Radar Map */}
+            {/* Interactive Radar Map with Side Controls */}
             {!show3D && (
-              <StormMap
-                location={location}
-                storms={storms || []}
-                radarRange={radarRange}
-                useMetric={useMetric}
-                formatDistance={formatDistance}
-                formatSpeed={formatSpeed}
-                stormFilters={stormFilters}
-                onRadarSourceChange={setCurrentRadarSource}
-                radarSource={currentRadarSource}
-                isDisabled={showStormFilteringSettings || showAlertSubscription}
-                alertPreferences={preferences}
-              />
-            )}
+              <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+                {/* Left Side Controls - Desktop Only */}
+                <div className="hidden lg:flex lg:flex-col lg:w-48 space-y-3">
+                  <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                    <h3 className="text-sm font-semibold mb-3 text-slate-300">Map Controls</h3>
+                    <div className="space-y-2">
+                      <Button
+                        onClick={() => setShow3D(true)}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs bg-purple-600/20 border-purple-500 text-purple-300"
+                        disabled={!storms || storms.length === 0}
+                      >
+                        🌩️ 3D View
+                      </Button>
+                      <Button
+                        onClick={() => setShowStormFilteringSettings(true)}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs"
+                      >
+                        ⚙️ Settings
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                    <h3 className="text-sm font-semibold mb-3 text-slate-300">Radar Info</h3>
+                    <div className="space-y-2 text-xs">
+                      <div className="text-slate-400">
+                        Source: <span className="text-white">{currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}</span>
+                      </div>
+                      <div className="text-slate-400">
+                        Range: <span className="text-white">{formatDistance(30)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-            {/* 3D Toggle Button */}
-            {!show3D && (
-              <div className="flex justify-center my-4 sm:my-6">
-                <Button
-                  onClick={() => setShow3D(true)}
-                  variant="outline"
-                  size="sm"
-                  className="bg-purple-600/20 border-purple-500 hover:bg-purple-600/30"
-                  disabled={!storms || storms.length === 0}
-                >
-                  {!storms || storms.length === 0 ? (
-                    <>⏳ Loading Storm Data...</>
-                  ) : (
-                    <>🌩️ View 3D Terrain</>
-                  )}
-                </Button>
+                {/* Radar Map - 30% smaller */}
+                <div className="flex-1 lg:max-w-[70%] mx-auto">
+                  <StormMap
+                    location={location}
+                    storms={storms || []}
+                    radarRange={radarRange}
+                    useMetric={useMetric}
+                    formatDistance={formatDistance}
+                    formatSpeed={formatSpeed}
+                    stormFilters={stormFilters}
+                    onRadarSourceChange={setCurrentRadarSource}
+                    radarSource={currentRadarSource}
+                    isDisabled={showStormFilteringSettings || showAlertSubscription}
+                    alertPreferences={preferences}
+                  />
+                </div>
+
+                {/* Right Side Controls - Desktop Only */}
+                <div className="hidden lg:flex lg:flex-col lg:w-48 space-y-3">
+                  <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                    <h3 className="text-sm font-semibold mb-3 text-slate-300">Storm Stats</h3>
+                    <div className="space-y-2 text-xs">
+                      <div className="text-slate-400">
+                        Detected: <span className="text-white">{filteredStorms.length}</span>
+                      </div>
+                      <div className="text-slate-400">
+                        Closest: <span className="text-white">
+                          {filteredStorms.length > 0 ? 
+                            formatDistance([...filteredStorms].sort((a, b) => a.distance - b.distance)[0].distance) : 
+                            'None'
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                    <h3 className="text-sm font-semibold mb-3 text-slate-300">Quick Actions</h3>
+                    <div className="space-y-2">
+                      <Button
+                        onClick={() => setShowAlertSubscription(true)}
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs bg-blue-600/20 border-blue-500 text-blue-300"
+                      >
+                        🔔 Alerts
+                      </Button>
+                      <Link href="/messages">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-xs bg-green-600/20 border-green-500 text-green-300"
+                        >
+                          📧 Messages
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mobile Controls - Stacked Below Map */}
+                <div className="lg:hidden flex flex-wrap gap-2 justify-center mt-4">
+                  <Button
+                    onClick={() => setShow3D(true)}
+                    variant="outline"
+                    size="sm"
+                    className="bg-purple-600/20 border-purple-500 text-purple-300"
+                    disabled={!storms || storms.length === 0}
+                  >
+                    🌩️ 3D View
+                  </Button>
+                  <Button
+                    onClick={() => setShowStormFilteringSettings(true)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    ⚙️ Settings
+                  </Button>
+                  <Button
+                    onClick={() => setShowAlertSubscription(true)}
+                    variant="outline"
+                    size="sm"
+                    className="bg-blue-600/20 border-blue-500 text-blue-300"
+                  >
+                    🔔 Alerts
+                  </Button>
+                </div>
               </div>
             )}
+
+
 
 
 
