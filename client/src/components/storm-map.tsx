@@ -119,8 +119,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [currentWindsData, setCurrentWindsData] = useState<any>(null);
   
   // Storm cone visualization state
+  const [showAllStormTracks, setShowAllStormTracks] = useState(false);
   const [selectedStormId, setSelectedStormId] = useState<string | null>(null);
   const stormConeLayerRef = useRef<any>(null);
+  const allStormConesLayerRef = useRef<any>(null);
 
   // Auto-sampling functionality (silent background operation)
   const triggerAutoSample = useCallback(() => {
@@ -923,8 +925,118 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   };
 
-  // Add map click handler to hide cone when clicking elsewhere
+  // Show all storm tracks at once
+  const showAllStormCones = () => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.L || precipitationPoints.length === 0) return;
+
+    // Remove existing all-cones layer
+    hideAllStormCones();
+
+    const allConesGroup = window.L.layerGroup();
+
+    // Get movement direction from winds data
+    const getStormMovementDirection = () => {
+      if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
+        return currentWindsData.stormMovement.direction;
+      }
+      return 0; // Default to north
+    };
+
+    const movementDirection = getStormMovementDirection();
+
+    // Create cones for all visible precipitation points
+    precipitationPoints.forEach(point => {
+      // Only show cones for storms above light intensity
+      if (point.dbz < 30) return;
+
+      const coneDistance = 15; // 15 miles
+      const coneAngle = 30; // 30° total cone (±15°)
+      const halfCone = coneAngle / 2;
+
+      // Calculate cone vertices
+      const leftBearing = (movementDirection - halfCone + 360) % 360;
+      const rightBearing = (movementDirection + halfCone) % 360;
+      const centerBearing = movementDirection;
+
+      // Calculate end points of the cone
+      const leftPoint = calculateDestination(point.lat, point.lon, leftBearing, coneDistance);
+      const rightPoint = calculateDestination(point.lat, point.lon, rightBearing, coneDistance);
+      const centerPoint = calculateDestination(point.lat, point.lon, centerBearing, coneDistance);
+
+      // Create cone polygon
+      const conePoints = [
+        [point.lat, point.lon], // Storm position (apex)
+        [leftPoint.lat, leftPoint.lon], // Left edge
+        [centerPoint.lat, centerPoint.lon], // Center tip
+        [rightPoint.lat, rightPoint.lon], // Right edge
+        [point.lat, point.lon] // Back to start
+      ];
+
+      // Get color based on storm intensity
+      const getConeColor = (dbz: number) => {
+        if (dbz >= 55) return '#EF4444'; // Red for severe
+        if (dbz >= 45) return '#F97316'; // Orange for heavy
+        if (dbz >= 35) return '#EAB308'; // Yellow for moderate
+        return '#22C55E'; // Green for light
+      };
+
+      const coneColor = getConeColor(point.dbz);
+
+      // Create the cone polygon with reduced opacity for multiple cones
+      const cone = window.L.polygon(conePoints, {
+        color: coneColor,
+        weight: 1,
+        opacity: 0.6,
+        fillColor: coneColor,
+        fillOpacity: 0.1,
+        dashArray: '3, 3'
+      });
+
+      // Add center line showing movement direction with reduced opacity
+      const centerLine = window.L.polyline([
+        [point.lat, point.lon],
+        [centerPoint.lat, centerPoint.lon]
+      ], {
+        color: coneColor,
+        weight: 2,
+        opacity: 0.5,
+        dashArray: '8, 4'
+      });
+
+      allConesGroup.addLayer(cone);
+      allConesGroup.addLayer(centerLine);
+    });
+
+    allStormConesLayerRef.current = allConesGroup;
+    allStormConesLayerRef.current.addTo(map);
+  };
+
+  // Hide all storm cones
+  const hideAllStormCones = () => {
+    const map = mapInstanceRef.current;
+    if (map && allStormConesLayerRef.current) {
+      map.removeLayer(allStormConesLayerRef.current);
+      allStormConesLayerRef.current = null;
+    }
+  };
+
+  // Handle show all storm tracks toggle
   useEffect(() => {
+    if (showAllStormTracks) {
+      showAllStormCones();
+      // Hide individual cone when showing all
+      hideStormCone();
+      setSelectedStormId(null);
+    } else {
+      hideAllStormCones();
+    }
+  }, [showAllStormTracks, precipitationPoints, currentWindsData]);
+
+  // Add map click handler to hide cone when clicking elsewhere (only for individual cones)
+  useEffect(() => {
+    if (showAllStormTracks) return; // Don't handle clicks when showing all tracks
+    
     const map = mapInstanceRef.current;
     if (map) {
       const handleMapClick = () => {
@@ -940,12 +1052,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         map.off('click', handleMapClick);
       };
     }
-  }, [selectedStormId]);
+  }, [selectedStormId, showAllStormTracks]);
 
-  // Cleanup cone on unmount
+  // Cleanup cones on unmount
   useEffect(() => {
     return () => {
       hideStormCone();
+      hideAllStormCones();
     };
   }, []);
 
@@ -1160,9 +1273,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       waypointMarker.bindPopup(popupContent);
       
-      // Add click handler to show/hide storm cone
+      // Add click handler to show/hide storm cone (only when not showing all tracks)
       waypointMarker.on('click', (e: any) => {
         e.originalEvent.stopPropagation();
+        
+        // Don't handle individual clicks when showing all tracks
+        if (showAllStormTracks) return;
+        
         const stormId = point.id || `storm_${point.lat}_${point.lon}`;
         
         if (selectedStormId === stormId) {
@@ -1938,6 +2055,28 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           <div className="mt-1 text-xs text-slate-400">
             Range: {radarRange} miles | {radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD Radar (NWS/NOAA)'}
           </div>
+        </div>
+      </div>
+
+      {/* Storm Tracks Toggle */}
+      <div className="mt-3 bg-slate-800/50 rounded-lg border border-slate-700 p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="font-semibold text-white text-sm flex items-center gap-2">
+            🎯 Storm Movement Tracks
+          </div>
+          <Button
+            onClick={() => setShowAllStormTracks(!showAllStormTracks)}
+            variant="outline"
+            size="sm"
+            className={`text-xs px-3 py-1 ${showAllStormTracks ? 'bg-orange-600 border-orange-500' : 'bg-slate-700 border-slate-600'}`}
+          >
+            {showAllStormTracks ? 'Hide All' : 'Show All'}
+          </Button>
+        </div>
+        <div className="text-xs text-slate-400">
+          {showAllStormTracks 
+            ? `Showing 30° movement cones for moderate+ storms (30+ dBZ)` 
+            : `Click storms individually or use toggle to show all tracks`}
         </div>
       </div>
 
