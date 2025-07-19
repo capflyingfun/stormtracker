@@ -72,9 +72,26 @@ export default function AIWeatherAssistant({
   // AI Assessment mutation
   const assessmentMutation = useMutation({
     mutationFn: async () => {
+      // Optimize payload by sending only essential storm data
+      const optimizedStorms = storms.slice(0, 50).map(storm => ({
+        lat: storm.lat,
+        lon: storm.lon,
+        intensity: storm.intensity,
+        distance: storm.distance,
+        direction: storm.direction,
+        type: storm.type,
+        movement: storm.movement ? {
+          direction: storm.movement.direction,
+          speed: storm.movement.speed,
+          eta: storm.movement.eta,
+          impact: storm.movement.impact
+        } : null
+      }));
+      
       const response = await apiRequest("POST", "/api/ai-assessment", {
         userLocation,
-        storms,
+        storms: optimizedStorms,
+        stormCount: storms.length,
         winds,
         radarSource
       });
@@ -138,7 +155,7 @@ export default function AIWeatherAssistant({
           <div className="text-center py-6">
             <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-400" />
             <p className="text-sm text-slate-300">
-              AI is analyzing {storms.length} storms, wind patterns, and your location...
+              AI is analyzing {Math.min(storms.length, 50)} closest storms{storms.length > 50 ? ` (of ${storms.length} total)` : ''}, wind patterns, and your location...
             </p>
           </div>
         )}

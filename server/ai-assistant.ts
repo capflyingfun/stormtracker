@@ -33,7 +33,8 @@ interface WeatherAssessmentRequest {
     lon: number;
     address: string;
   };
-  storms: StormData[]; // 30-mile immediate threats
+  storms: StormData[]; // Top 50 closest storms (optimized payload)
+  stormCount?: number; // Total storm count in area
   regionalStorms?: StormData[]; // 50-mile regional context
   winds: WindData[];
   radarSource: string;
