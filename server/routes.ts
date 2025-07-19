@@ -1416,7 +1416,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const avgSpeed = totalSpeed / totalWeight;
 
     // Convert from wind direction (where wind comes FROM) to storm movement direction (where storm moves TO)
-    const stormMovementDirection = (avgWindDirection - 180 + 360) % 360;
+    // Wind direction tells us where wind comes from, storms move WITH the wind (same direction)
+    const stormMovementDirection = avgWindDirection % 360;
 
     console.log(`Open-Meteo wind conversion: ${Math.round(avgWindDirection)}° wind → ${Math.round(stormMovementDirection)}° storm movement`);
 
@@ -1648,8 +1649,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const avgSpeed = totalSpeed / totalWeight;
     
     // Convert from wind direction (where wind comes FROM) to storm movement direction (where storm moves TO)
-    // Subtract 180° to convert wind direction to storm movement direction
-    const stormMovementDirection = (avgWindDirection - 180 + 360) % 360;
+    // Wind direction tells us where wind comes from, storms move WITH the wind (same direction)
+    // So storm movement direction equals wind direction (no subtraction needed)
+    const stormMovementDirection = avgWindDirection % 360;
     
     console.log(`Wind direction conversion: ${avgWindDirection}° wind → ${stormMovementDirection}° storm movement`);
     
