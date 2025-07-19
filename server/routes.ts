@@ -1416,8 +1416,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const avgSpeed = totalSpeed / totalWeight;
 
     // Convert from wind direction (where wind comes FROM) to storm movement direction (where storm moves TO)
-    // Wind direction tells us where wind comes from, storms move WITH the wind (same direction)
-    const stormMovementDirection = avgWindDirection % 360;
+    // Wind direction = where wind comes from, storm movement = where wind flows to (same direction as wind flow)
+    // A 215° wind (from SW) pushes storms toward NE (215° + 180° = 35°)
+    const stormMovementDirection = (avgWindDirection + 180) % 360;
 
     console.log(`Open-Meteo wind conversion: ${Math.round(avgWindDirection)}° wind → ${Math.round(stormMovementDirection)}° storm movement`);
 
@@ -1649,9 +1650,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const avgSpeed = totalSpeed / totalWeight;
     
     // Convert from wind direction (where wind comes FROM) to storm movement direction (where storm moves TO)
-    // Wind direction tells us where wind comes from, storms move WITH the wind (same direction)
-    // So storm movement direction equals wind direction (no subtraction needed)
-    const stormMovementDirection = avgWindDirection % 360;
+    // Wind direction = where wind comes from, storm movement = where wind flows to (same direction as wind flow)
+    // A 215° wind (from SW) pushes storms toward NE (215° + 180° = 35°)
+    const stormMovementDirection = (avgWindDirection + 180) % 360;
     
     console.log(`Wind direction conversion: ${avgWindDirection}° wind → ${stormMovementDirection}° storm movement`);
     
@@ -1818,26 +1819,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`✈️ Fetching aviation weather data for location: ${userLat}, ${userLon}`);
       
-      // Major airports in the Gulf Coast region with AWOS/METAR data
+      // Comprehensive airports across broader regional area (Gulf Coast + SE US) with AWOS/METAR data
       const nearbyAirports = [
+        // Alabama airports
         { icao: 'KMOB', name: 'Mobile Regional Airport', lat: 30.691, lon: -88.243 },
-        { icao: 'KPNS', name: 'Pensacola Regional Airport', lat: 30.473, lon: -87.187 },
         { icao: 'KBFM', name: 'Mobile Downtown Airport', lat: 30.627, lon: -88.068 },
-        { icao: 'KCEW', name: 'Crestview Bob Sikes Airport', lat: 30.779, lon: -86.522 },
         { icao: 'KDHN', name: 'Dothan Regional Airport', lat: 31.321, lon: -85.450 },
+        { icao: 'KBHM', name: 'Birmingham-Shuttlesworth Intl', lat: 33.563, lon: -86.754 },
+        { icao: 'KHSV', name: 'Huntsville International Airport', lat: 34.637, lon: -86.775 },
+        { icao: 'KMGM', name: 'Montgomery Regional Airport', lat: 32.301, lon: -86.394 },
+        
+        // Florida airports
+        { icao: 'KPNS', name: 'Pensacola Regional Airport', lat: 30.473, lon: -87.187 },
+        { icao: 'KCEW', name: 'Crestview Bob Sikes Airport', lat: 30.779, lon: -86.522 },
         { icao: 'KTLH', name: 'Tallahassee Regional Airport', lat: 30.396, lon: -84.350 },
+        { icao: 'KPAM', name: 'Tyndall Air Force Base', lat: 30.070, lon: -85.575 },
+        { icao: 'KVPS', name: 'Destin-Fort Walton Beach', lat: 30.483, lon: -86.525 },
+        
+        // Louisiana airports
         { icao: 'KMSY', name: 'New Orleans Louis Armstrong', lat: 29.993, lon: -90.258 },
         { icao: 'KBTR', name: 'Baton Rouge Metropolitan', lat: 30.533, lon: -91.150 },
-        { icao: 'KLFT', name: 'Lafayette Regional Airport', lat: 30.205, lon: -91.988 }
+        { icao: 'KLFT', name: 'Lafayette Regional Airport', lat: 30.205, lon: -91.988 },
+        { icao: 'KLCH', name: 'Lake Charles Regional Airport', lat: 30.126, lon: -93.223 },
+        { icao: 'KSHV', name: 'Shreveport Regional Airport', lat: 32.447, lon: -93.826 },
+        
+        // Mississippi airports
+        { icao: 'KGPT', name: 'Gulfport-Biloxi International', lat: 30.407, lon: -89.070 },
+        { icao: 'KJAN', name: 'Jackson-Medgar Wiley Evers', lat: 32.312, lon: -90.076 },
+        { icao: 'KMEL', name: 'Meridian Regional Airport', lat: 32.333, lon: -88.752 },
+        
+        // Georgia airports
+        { icao: 'KATL', name: 'Hartsfield-Jackson Atlanta Intl', lat: 33.636, lon: -84.428 },
+        { icao: 'KSAV', name: 'Savannah/Hilton Head Intl', lat: 32.128, lon: -81.202 },
+        { icao: 'KABY', name: 'Southwest Georgia Regional', lat: 31.536, lon: -84.195 }
       ];
       
-      // Find 3 nearest airports
+      // Find 5 nearest airports within 100-mile regional area
       console.log('🔍 Calculating airport distances...');
       const airportsWithDistance = nearbyAirports.map(airport => {
         const distance = calculateDistance(userLat, userLon, airport.lat, airport.lon);
         const bearing = calculateBearing(userLat, userLon, airport.lat, airport.lon);
         return { ...airport, distance, bearing };
-      }).sort((a, b) => a.distance - b.distance).slice(0, 3);
+      }).filter(airport => airport.distance <= 100) // 100-mile regional filter
+        .sort((a, b) => a.distance - b.distance).slice(0, 5);
       
       console.log(`📍 Found ${airportsWithDistance.length} nearest airports:`, 
         airportsWithDistance.map(a => `${a.icao} (${a.distance.toFixed(1)}mi)`));
@@ -2288,10 +2312,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required weather data" });
       }
 
-      // Fetch broader regional storm data (100-mile radius) for comprehensive analysis
+      // Fetch broader regional storm data (50-mile radius) for comprehensive analysis
       let regionalStorms = [];
       try {
-        console.log('AI Assistant: Fetching regional storm data (100-mile radius) for broader context');
+        console.log('AI Assistant: Fetching regional storm data (50-mile radius) for broader context');
         const regionalResponse = await fetch(`http://localhost:5000/api/storms`, {
           method: 'POST',
           headers: {
@@ -2300,7 +2324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           body: JSON.stringify({
             lat: userLocation.lat,
             lon: userLocation.lon,
-            radius: 100, // 100-mile radius for regional context
+            radius: 50, // 50-mile radius for regional context (system maximum)
             radarSource: radarSource || 'NEXRAD'
           })
         });
@@ -2308,7 +2332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (regionalResponse.ok) {
           const regionalData = await regionalResponse.json();
           regionalStorms = regionalData || [];
-          console.log(`AI Assistant: Found ${regionalStorms.length} storms within 100-mile regional area`);
+          console.log(`AI Assistant: Found ${regionalStorms.length} storms within 50-mile regional area`);
         }
       } catch (regionalError) {
         console.log('AI Assistant: Regional storm data unavailable, using 30-mile data only');

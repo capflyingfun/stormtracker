@@ -599,3 +599,12 @@ Preferred communication style: Simple, everyday language.
 - **Center Movement Lines**: Each cone includes center line showing predicted storm movement direction based on NOAA winds aloft data
 - **Conflict Resolution**: Individual storm clicks disabled when showing all tracks to prevent popup interference
 - **Clean Integration**: Storm tracks work seamlessly with existing directional arrow markers and professional radar interface
+
+### Wind Direction Fix & Aviation Weather Expansion (July 19, 2025)
+- **Critical Wind Direction Fix**: Corrected wind direction conversion formula from `(wind - 180)` to `(wind + 180)` for accurate storm movement prediction
+- **Fixed Storm Movement Direction**: 215° southwest wind now correctly shows storms moving northeast (035°) instead of southwest
+- **Expanded Aviation Weather Coverage**: Increased from 3 to 5 nearest airports within 100-mile regional area for comprehensive AI analysis
+- **Enhanced Regional Airport Network**: Added 21 airports across Alabama, Florida, Louisiana, Mississippi, and Georgia for broader meteorological data
+- **50-Mile Storm Radius Maintained**: Kept storm detection within 50-mile system limit while expanding aviation weather coverage to 100 miles
+- **AI Regional Context Updated**: AI assistant now correctly references 50-mile regional storm analysis with expanded aviation weather data
+- **Improved Meteorological Accuracy**: Storm movement predictions now align with actual wind patterns using proper meteorological wind direction conventions
