@@ -1790,9 +1790,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingSubscription = await storage.getAlertSubscription(subscriptionData.email);
       
       if (existingSubscription) {
-        return res.status(400).json({ 
-          error: 'Email address already subscribed',
-          subscription: existingSubscription 
+        // Update existing subscription instead of creating new one
+        const updatedSubscription = await storage.updateAlertSubscription(existingSubscription.id, subscriptionData);
+        
+        // Send test alerts to confirm update
+        const testEmailSent = await sendTestAlert({
+          to: updatedSubscription.email,
+          name: updatedSubscription.name,
+          locationName: updatedSubscription.locationName
+        });
+        
+        // Send test SMS if SMS is enabled
+        let testSMSSent = false;
+        if (updatedSubscription.smsEnabled && updatedSubscription.phoneNumber && updatedSubscription.carrier) {
+          testSMSSent = await sendTestSMS(
+            updatedSubscription.phoneNumber,
+            updatedSubscription.carrier,
+            updatedSubscription.name,
+            updatedSubscription.locationName
+          );
+        }
+        
+        return res.json({ 
+          message: 'Successfully updated storm alert subscription',
+          subscription: updatedSubscription,
+          testEmailSent,
+          testSMSSent
         });
       }
       

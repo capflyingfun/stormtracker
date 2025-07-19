@@ -24,6 +24,7 @@ export interface IStorage {
   createAlertSubscription(subscription: InsertAlertSubscription): Promise<AlertSubscription>;
   getAlertSubscription(email: string): Promise<AlertSubscription | undefined>;
   getAllActiveSubscriptions(): Promise<AlertSubscription[]>;
+  updateAlertSubscription(id: number, subscription: InsertAlertSubscription): Promise<AlertSubscription>;
   updateLastAlertSent(subscriptionId: number): Promise<void>;
   
   // Alert history methods
@@ -72,6 +73,15 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(alertSubscriptions)
       .where(eq(alertSubscriptions.isActive, true));
+  }
+
+  async updateAlertSubscription(id: number, subscription: InsertAlertSubscription): Promise<AlertSubscription> {
+    const [result] = await db
+      .update(alertSubscriptions)
+      .set(subscription)
+      .where(eq(alertSubscriptions.id, id))
+      .returning();
+    return result;
   }
 
   async updateLastAlertSent(subscriptionId: number): Promise<void> {
