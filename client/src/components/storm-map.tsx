@@ -386,10 +386,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
       mapInstanceRef.current = map;
       
-      // Add map event listeners for auto-sampling with debouncing
+      // Add map event listeners for auto-sampling and winds aloft with debouncing
       const debouncedTrigger = () => {
-        console.log('Map movement detected, triggering auto-sample');
+        console.log('Map movement detected, triggering auto-sample and winds aloft update');
         triggerAutoSample();
+        
+        // Update winds aloft data for new map center
+        const center = map.getCenter();
+        updateWindsAloftForCenter(center.lat, center.lng);
       };
       
       map.on('moveend', debouncedTrigger);
@@ -657,6 +661,20 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     } catch (error) {
       console.warn('Failed to fetch winds aloft:', error);
       return null;
+    }
+  };
+
+  // Update winds aloft data when map center changes
+  const updateWindsAloftForCenter = async (lat: number, lon: number) => {
+    try {
+      console.log(`Fetching winds aloft for new map center: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+      const windsData = await fetchWindsAloft(lat, lon);
+      if (windsData) {
+        setCurrentWindsData(windsData);
+        console.log(`Updated winds aloft for map center: ${windsData.stormMovement?.direction}° @ ${windsData.stormMovement?.speed} mph`);
+      }
+    } catch (error) {
+      console.warn('Failed to update winds aloft for map center:', error);
     }
   };
 
@@ -1045,9 +1063,19 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const alertColor = alertPreferences ? getAlertThresholdColor(alertPreferences.minimumDbz) : '#ffff00';
       
-      // All arrows point in same direction based on current winds aloft (43° northeast)  
-      // SVG arrow points east, rotate by 43° - 90° + 180° to get correct northeast direction
-      const movementDirection = 43 - 90 + 180;
+      // Get dynamic storm movement direction from current winds aloft data
+      const getStormMovementDirection = () => {
+        if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
+          // Use actual calculated direction from Open-Meteo winds aloft
+          const windDirection = currentWindsData.stormMovement.direction;
+          // SVG arrow points east, adjust for compass direction: windDirection - 90° + 180°
+          return windDirection - 90 + 180;
+        }
+        // Fallback to last known direction (43° northeast)
+        return 43 - 90 + 180;
+      };
+      
+      const movementDirection = getStormMovementDirection();
       
       // Create directional arrow marker using custom arrow image
       // Storm arrows point in the direction they are moving (same as wind direction)
