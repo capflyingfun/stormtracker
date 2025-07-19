@@ -117,6 +117,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   
   // Winds aloft data for arrow directions
   const [currentWindsData, setCurrentWindsData] = useState<any>(null);
+  
+  // Storm cone visualization state
+  const [selectedStormId, setSelectedStormId] = useState<string | null>(null);
+  const stormConeLayerRef = useRef<any>(null);
 
   // Auto-sampling functionality (silent background operation)
   const triggerAutoSample = useCallback(() => {
@@ -818,6 +822,133 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return (bearing + 360) % 360;
   };
 
+  // Calculate destination point given start point, bearing, and distance
+  const calculateDestination = (lat: number, lon: number, bearing: number, distance: number): {lat: number, lon: number} => {
+    const R = 3959; // Earth's radius in miles
+    const bearingRad = bearing * Math.PI / 180;
+    const latRad = lat * Math.PI / 180;
+    const lonRad = lon * Math.PI / 180;
+    
+    const newLatRad = Math.asin(Math.sin(latRad) * Math.cos(distance / R) + 
+                                Math.cos(latRad) * Math.sin(distance / R) * Math.cos(bearingRad));
+    
+    const newLonRad = lonRad + Math.atan2(Math.sin(bearingRad) * Math.sin(distance / R) * Math.cos(latRad),
+                                          Math.cos(distance / R) - Math.sin(latRad) * Math.sin(newLatRad));
+    
+    return {
+      lat: newLatRad * 180 / Math.PI,
+      lon: newLonRad * 180 / Math.PI
+    };
+  };
+
+  // Show storm cone visualization (30° cone extending 15 miles)
+  const showStormCone = (stormLat: number, stormLon: number, movementDirection: number, intensity: number) => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.L) return;
+
+    // Remove existing cone
+    hideStormCone();
+
+    const coneDistance = 15; // 15 miles like StormScope
+    const coneAngle = 30; // 30° total cone (±15°)
+    const halfCone = coneAngle / 2;
+
+    // Calculate cone vertices
+    const leftBearing = (movementDirection - halfCone + 360) % 360;
+    const rightBearing = (movementDirection + halfCone) % 360;
+    const centerBearing = movementDirection;
+
+    // Calculate end points of the cone
+    const leftPoint = calculateDestination(stormLat, stormLon, leftBearing, coneDistance);
+    const rightPoint = calculateDestination(stormLat, stormLon, rightBearing, coneDistance);
+    const centerPoint = calculateDestination(stormLat, stormLon, centerBearing, coneDistance);
+
+    // Create cone polygon
+    const conePoints = [
+      [stormLat, stormLon], // Storm position (apex)
+      [leftPoint.lat, leftPoint.lon], // Left edge
+      [centerPoint.lat, centerPoint.lon], // Center tip
+      [rightPoint.lat, rightPoint.lon], // Right edge
+      [stormLat, stormLon] // Back to start
+    ];
+
+    // Get color based on storm intensity
+    const getConeColor = (dbz: number) => {
+      if (dbz >= 55) return '#EF4444'; // Red for severe
+      if (dbz >= 45) return '#F97316'; // Orange for heavy
+      if (dbz >= 35) return '#EAB308'; // Yellow for moderate
+      return '#22C55E'; // Green for light
+    };
+
+    const coneColor = getConeColor(intensity);
+
+    // Create the cone polygon
+    const cone = window.L.polygon(conePoints, {
+      color: coneColor,
+      weight: 2,
+      opacity: 0.8,
+      fillColor: coneColor,
+      fillOpacity: 0.2,
+      dashArray: '5, 5'
+    });
+
+    // Add center line showing movement direction
+    const centerLine = window.L.polyline([
+      [stormLat, stormLon],
+      [centerPoint.lat, centerPoint.lon]
+    ], {
+      color: coneColor,
+      weight: 3,
+      opacity: 0.9,
+      dashArray: '10, 5'
+    });
+
+    // Create layer group for the cone
+    stormConeLayerRef.current = window.L.layerGroup([cone, centerLine]);
+    stormConeLayerRef.current.addTo(map);
+
+    // Add tooltip to cone
+    cone.bindTooltip(`Storm Movement Cone<br>Direction: ${movementDirection.toFixed(0)}°<br>15-mile projection<br>±15° uncertainty`, {
+      permanent: false,
+      direction: 'top'
+    });
+  };
+
+  // Hide storm cone visualization
+  const hideStormCone = () => {
+    const map = mapInstanceRef.current;
+    if (map && stormConeLayerRef.current) {
+      map.removeLayer(stormConeLayerRef.current);
+      stormConeLayerRef.current = null;
+    }
+  };
+
+  // Add map click handler to hide cone when clicking elsewhere
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (map) {
+      const handleMapClick = () => {
+        if (selectedStormId) {
+          hideStormCone();
+          setSelectedStormId(null);
+        }
+      };
+      
+      map.on('click', handleMapClick);
+      
+      return () => {
+        map.off('click', handleMapClick);
+      };
+    }
+  }, [selectedStormId]);
+
+  // Cleanup cone on unmount
+  useEffect(() => {
+    return () => {
+      hideStormCone();
+    };
+  }, []);
+
   // Add waypoint markers for detected precipitation areas with dynamic sizing
   const addDbzWaypoints = () => {
     const map = mapInstanceRef.current;
@@ -1029,7 +1160,21 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       waypointMarker.bindPopup(popupContent);
       
-
+      // Add click handler to show/hide storm cone
+      waypointMarker.on('click', (e: any) => {
+        e.originalEvent.stopPropagation();
+        const stormId = point.id || `storm_${point.lat}_${point.lon}`;
+        
+        if (selectedStormId === stormId) {
+          // Hide cone if same storm clicked
+          hideStormCone();
+          setSelectedStormId(null);
+        } else {
+          // Show cone for new storm
+          showStormCone(point.lat, point.lon, movementDirection, point.dbz);
+          setSelectedStormId(stormId);
+        }
+      });
       
       waypointGroup.addLayer(waypointMarker);
     }
