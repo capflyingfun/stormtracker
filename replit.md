@@ -534,6 +534,17 @@ Preferred communication style: Simple, everyday language.
 - **Improved Error Handling**: Better handling of network timeouts and API failures for more consistent location search results
 - **Consistent UI Experience**: Interface now properly matches the arrow-based storm visualization without outdated control elements
 
+### Professional Storm Impact Assessment System (July 19, 2025)
+- **Enhanced Storm Summary Boxes**: Added comprehensive impact assessment to both Closest Storm and Strongest Storm displays
+- **Movement Direction & Speed**: Real-time storm movement predictions using Open-Meteo winds aloft data with direction and speed display
+- **ETA Calculations**: Precise arrival time estimates for storms approaching within 30° directional cone toward user location
+- **Three-Level Impact Assessment**: High/Medium/Low impact chance based on storm trajectory analysis and proximity calculations
+- **Severity Rating System**: Dynamic severity assessment (High/Medium/Low) combining storm intensity (dBZ) with distance factors
+- **Color-Coded Risk Indicators**: Visual color coding (red/yellow/green) for instant threat level recognition across all assessment metrics
+- **Professional Weather Service Standards**: Impact assessment methodology follows National Weather Service storm tracking principles
+- **Repositioned GPS Control**: Moved GPS button next to Change Location for improved workflow and cleaner search interface
+- **Clean Search Input**: Streamlined location search to single input field without separate GPS input section
+
 ### Professional Storm Cone Visualization System (July 19, 2025)
 - **StormScope-Style Movement Cones**: Implemented 30° storm movement cones extending 15 miles from storm position
 - **Global Storm Tracks Toggle**: Added "Storm Movement Tracks" control above radar for showing/hiding all storm cones simultaneously
