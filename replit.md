@@ -406,6 +406,20 @@ Preferred communication style: Simple, everyday language.
 - **GPS Loading Indicators**: Added "Getting GPS..." status display during location requests for better user feedback
 - **Radar Disable Overlay**: Map automatically disables with overlay when settings panels are open to prevent interference
 
+### Directional Storm Movement Visualization (July 19, 2025)
+- **SVG Arrow Markers**: Replaced circular precipitation markers with triangular SVG arrows pointing in storm movement direction
+- **NOAA Winds Aloft Integration**: Arrow direction calculated from authentic NOAA Aviation Weather winds aloft data for meteorological accuracy
+- **Real-time Movement Display**: Arrows dynamically rotate to show predicted storm movement based on upper-level wind patterns
+- **Enhanced Visual Feedback**: Storm movement direction clearly visible on map with proper meteorological color coding
+- **Professional Arrow Design**: Clean triangular markers with drop shadows and intensity-based coloring for clear visual identification
+
+### ETA Impact Assessment System (July 19, 2025)  
+- **30° Cone Impact Analysis**: Storm ETA calculations use 30° directional cone (±15°) to assess likelihood of impact at user location
+- **Comprehensive Impact Assessment**: Storm panels display high/medium/low impact chance based on movement direction and distance
+- **Arrival Time Calculations**: Precise ETA display showing estimated arrival time for storms on collision course with user location
+- **Risk-Based Classification**: Impact probability categorized as high (direct path), medium (close approach), or low (divergent path)
+- **Professional Storm Forecasting**: Uses same meteorological principles as National Weather Service for storm track prediction
+
 ### GPS Reliability Improvements (July 18, 2025)
 - **Automatic GPS Retry Logic**: Implements 3-attempt retry system with exponential backoff for failed GPS requests
 - **Progressive Timeout Strategy**: First attempt uses 8-second timeout with high accuracy, subsequent attempts use 15-second timeout with cached locations
