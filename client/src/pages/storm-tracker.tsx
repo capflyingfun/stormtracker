@@ -253,8 +253,9 @@ export default function StormTracker() {
       {/* Alert Subscription Modal */}
       {showAlertSubscription && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+          <div className="bg-slate-900 rounded-xl max-w-lg w-full max-h-[85vh] flex flex-col">
+            {/* Fixed Header */}
+            <div className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">Storm Alert Notifications</h2>
               <Button
                 onClick={() => setShowAlertSubscription(false)}
@@ -265,7 +266,8 @@ export default function StormTracker() {
                 ✕
               </Button>
             </div>
-            <div className="p-4">
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-4">
               <AlertSubscription 
                 location={location}
               />
