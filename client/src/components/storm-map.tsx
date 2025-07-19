@@ -963,6 +963,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     };
   }, []);
 
+
+
   // Add waypoint markers for detected precipitation areas with dynamic sizing
   const addDbzWaypoints = () => {
     const map = mapInstanceRef.current;
@@ -1043,18 +1045,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const alertColor = alertPreferences ? getAlertThresholdColor(alertPreferences.minimumDbz) : '#ffff00';
       
-      // Get storm movement direction from current winds aloft data
-      const getStormMovementDirection = () => {
-        // Use the stored winds aloft data
-        if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
-          return currentWindsData.stormMovement.direction;
-        }
-        
-        // Fallback to north if no prediction available
-        return 0;
-      };
-      
-      const movementDirection = getStormMovementDirection();
+      // All arrows point in same direction based on current winds aloft (42° northeast)
+      // This ensures consistent arrow directions for all storms
+      const movementDirection = 42;
       
       // Create directional arrow marker using custom arrow image
       // Storm arrows point in the direction they are moving (same as wind direction)
