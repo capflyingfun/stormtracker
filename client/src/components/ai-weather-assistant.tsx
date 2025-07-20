@@ -63,6 +63,8 @@ export default function AIWeatherAssistant({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
+  const [isDataReady, setIsDataReady] = useState(false);
+  const [loadingTimer, setLoadingTimer] = useState(5); // 5-second countdown
 
   // Fetch aviation weather data
   const { data: aviationData } = useQuery({
@@ -161,6 +163,38 @@ export default function AIWeatherAssistant({
     return () => clearInterval(interval);
   }, [isMonitoring, refetchThreats]);
 
+  // Loading timer and data readiness logic
+  useEffect(() => {
+    // Reset timer when location changes
+    setIsDataReady(false);
+    setLoadingTimer(5);
+    
+    // Start countdown timer
+    const timer = setInterval(() => {
+      setLoadingTimer(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setIsDataReady(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [userLocation.lat, userLocation.lon]);
+
+  // Check if storms have loaded and enable early if ready
+  useEffect(() => {
+    if (storms && storms.length >= 0 && winds && winds.length >= 0 && aviationData) {
+      // Data is ready - enable early if timer is under 2 seconds
+      if (loadingTimer <= 2) {
+        setIsDataReady(true);
+        setLoadingTimer(0);
+      }
+    }
+  }, [storms, winds, aviationData, loadingTimer]);
+
   const assessment = assessmentMutation.data as WeatherAssessment | undefined;
 
   const getRiskColor = (level: string) => {
@@ -215,11 +249,16 @@ export default function AIWeatherAssistant({
               assessmentMutation.mutate();
               handleManualCheck();
             }}
-            disabled={assessmentMutation.isPending || !userLocation}
+            disabled={assessmentMutation.isPending || !userLocation || !isDataReady}
             size="sm"
             className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:flex-1"
           >
-            {assessmentMutation.isPending ? 'Analyzing...' : 'Analyze Weather & Alerts'}
+            {assessmentMutation.isPending 
+              ? 'Analyzing...' 
+              : !isDataReady 
+                ? `Loading data... (${loadingTimer}s)`
+                : 'Analyze Weather & Alerts'
+            }
           </Button>
           {isMonitoring ? (
             <Button
@@ -274,9 +313,21 @@ export default function AIWeatherAssistant({
 
         {!assessment && !assessmentMutation.isPending && !threatData && (
           <div className="text-center">
-            <p className="text-slate-300 mb-4">
-              Get comprehensive AI analysis of weather risks, storm threats, and active alerts/advisories
-            </p>
+            {!isDataReady ? (
+              <div className="py-4">
+                <Clock className="w-6 h-6 animate-pulse mx-auto mb-2 text-blue-400" />
+                <p className="text-slate-300 mb-2">
+                  Loading storm data and weather information...
+                </p>
+                <p className="text-slate-400 text-sm">
+                  {loadingTimer > 0 ? `Ready in ${loadingTimer} seconds` : 'Almost ready...'}
+                </p>
+              </div>
+            ) : (
+              <p className="text-slate-300 mb-4">
+                Get comprehensive AI analysis of weather risks, storm threats, and active alerts/advisories
+              </p>
+            )}
           </div>
         )}
 
