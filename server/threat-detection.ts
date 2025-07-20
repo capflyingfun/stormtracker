@@ -765,24 +765,20 @@ Keep response under 200 words and professional.`;
 
       // Use the existing AI assistant infrastructure with proper data structure
       const analysis = await generateWeatherAssessment({
-        location: {
+        userLocation: {
           lat: userLocation.lat,
           lon: userLocation.lon,
           address: userLocation.address
         },
         storms: [],
+        regionalStorms: [],
+        winds: [],
+        radarSource: 'NEXRAD',
         lightningCount: threat.lightningCount || 0,
-        preferences: {
-          minimumDbz: 45,
-          alertRadius: 30,
-          alertFrequency: 15,
-          soundEnabled: true,
-          pushEnabled: true,
-          emailEnabled: false
-        }
-      }, analysisPrompt);
+        useMetric: false
+      });
       
-      return analysis.assessment || 'AI analysis unavailable';
+      return analysis.detailedAnalysis || 'AI analysis unavailable';
       
     } catch (error) {
       console.error('Failed to generate AI threat analysis:', error);
