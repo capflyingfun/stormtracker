@@ -97,7 +97,9 @@ export default function AIWeatherAssistant({
         storms: optimizedStorms,
         stormCount: storms.length,
         winds,
-        radarSource
+        radarSource,
+        includeAlerts: true, // Enhanced to include alert analysis
+        lightningCount
       });
       return response.json();
     },
@@ -181,44 +183,43 @@ export default function AIWeatherAssistant({
   return (
     <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-white">
-          <Brain className="w-5 h-5 text-blue-400" />
-          AI Weather Assistant
-          {isMonitoring && (
-            <Badge variant="default" className="bg-green-100 text-green-800">
-              Monitoring Active
-            </Badge>
-          )}
-          {assessment && (
-            <Badge className={`ml-auto ${getRiskColor(assessment.riskLevel)}`}>
-              {getRiskIcon(assessment.riskLevel)}
-              {assessment.riskLevel.toUpperCase()} RISK
-            </Badge>
-          )}
+        <CardTitle className="text-white">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Brain className="w-5 h-5 text-blue-400" />
+              AI Weather Assistant
+              {isMonitoring && (
+                <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
+                  Monitoring
+                </Badge>
+              )}
+            </div>
+            {assessment && (
+              <Badge className={`w-fit ${getRiskColor(assessment.riskLevel)}`}>
+                {getRiskIcon(assessment.riskLevel)}
+                {assessment.riskLevel.toUpperCase()} RISK
+              </Badge>
+            )}
+          </div>
         </CardTitle>
-        <div className="flex gap-2 mt-2">
+        <div className="flex flex-col sm:flex-row gap-2 mt-2">
           <Button
-            onClick={() => assessmentMutation.mutate()}
-            disabled={assessmentMutation.isPending}
+            onClick={() => {
+              assessmentMutation.mutate();
+              handleManualCheck();
+            }}
+            disabled={assessmentMutation.isPending || !userLocation}
             size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:flex-1"
           >
-            {assessmentMutation.isPending ? 'Analyzing...' : 'Check Weather Risk'}
-          </Button>
-          <Button
-            onClick={handleManualCheck}
-            disabled={!userLocation}
-            size="sm"
-            variant="outline"
-            className="border-slate-600 text-slate-300 hover:bg-slate-700"
-          >
-            Check Threats
+            {assessmentMutation.isPending ? 'Analyzing...' : 'Analyze Weather & Alerts'}
           </Button>
           {isMonitoring ? (
             <Button
               onClick={handleStopMonitoring}
               size="sm"
               variant="destructive"
+              className="w-full sm:flex-1"
             >
               Stop Monitoring
             </Button>
@@ -227,7 +228,7 @@ export default function AIWeatherAssistant({
               onClick={handleStartMonitoring}
               disabled={!userLocation}
               size="sm"
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-green-600 hover:bg-green-700 text-white w-full sm:flex-1"
             >
               Start Monitoring
             </Button>
@@ -267,7 +268,7 @@ export default function AIWeatherAssistant({
         {!assessment && !assessmentMutation.isPending && !threatData && (
           <div className="text-center">
             <p className="text-slate-300 mb-4">
-              Get AI-powered weather impact analysis and automated threat monitoring
+              Get comprehensive AI analysis of weather risks, storm threats, and active alerts/advisories
             </p>
           </div>
         )}

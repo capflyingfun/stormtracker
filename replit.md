@@ -293,6 +293,16 @@ Preferred communication style: Simple, everyday language.
 - **OpenWeather-Only Integration**: Streamlined weather data fetching to use /api/weather endpoint exclusively for reliable single-source weather information
 - **Verified Timezone Accuracy**: Confirmed duration calculations work correctly across different timezones (server EST vs user CDT)
 
+### Consolidated AI Weather Assistant (July 20, 2025)
+- **Unified AI Analysis**: Merged separate AI risk assessment and threat monitoring into single comprehensive "AI Weather Assistant" 
+- **Integrated Alert Detection**: AI assistant now automatically analyzes both weather risks AND active alerts/advisories in single operation
+- **Enhanced Token Limit**: Increased AI response tokens by 1000 (to 2500) for comprehensive alert summaries and detailed analysis
+- **Mobile UI Optimization**: Fixed mobile interface layout with responsive button arrangement and improved badge positioning
+- **Streamlined Interface**: Replaced separate "Check Weather Risk" and "Check Threats" buttons with unified "Analyze Weather & Alerts" button
+- **Automated Alert Triggering**: AI can now trigger existing alert section and messaging system when significant advisories are detected
+- **Enhanced Threat Integration**: Server-side integration of threat detection with AI assessment for faster comprehensive analysis
+- **Improved User Experience**: Single analysis operation provides both immediate weather assessment and threat monitoring status
+
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
 - **Simplified Storm Display**: Removed speed and direction information for cleaner interface focusing on distance and intensity
