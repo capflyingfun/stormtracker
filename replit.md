@@ -334,6 +334,14 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Variable Reference Error Fix**: Resolved undefined `dynamicTone` variable preventing OpenAI API calls from executing properly
 - **Improved Prompt Structure**: Adopted weather briefing format similar to aviation weather podcasts with clear section organization and professional tone adjustment
 
+### AI Unit Preference Integration & Natural Analysis Format (July 20, 2025)
+- **Complete Unit Preference Integration**: AI assistant now respects metric/imperial setting from app header for all temperature displays
+- **Temperature Display Consistency**: Airport weather reports and live weather data show preferred units (°F or °C) based on user selection
+- **Enhanced User Preference Support**: AI weather analysis automatically adapts to user's unit preference without manual configuration
+- **Natural Analysis Format**: Replaced numbered section format with flowing, conversational prose for more readable detailed analysis
+- **Improved Writing Style**: AI assistant provides natural, narrative-style weather analysis instead of rigid "1. 2. 3." structured reports
+- **Professional Communication**: Maintains meteorological accuracy while delivering information in conversational, easy-to-read format
+
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
 - **Simplified Storm Display**: Removed speed and direction information for cleaner interface focusing on distance and intensity
