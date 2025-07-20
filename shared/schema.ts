@@ -255,6 +255,8 @@ export const threatDetection = pgTable("threat_detection", {
   riskToPublic: text("risk_to_public"), // 'minimal', 'moderate', 'significant', 'extreme'
   recommendedActions: text("recommended_actions"), // AI-generated safety recommendations
   estimatedDuration: text("estimated_duration"), // How long threat will persist
+  timeToExpiration: text("time_to_expiration"), // Dynamic remaining time until expiration
+  activationStatus: text("activation_status"), // "Active now" or time until activation
   
   // Alert tracking
   alertSent: boolean("alert_sent").default(false),

@@ -250,9 +250,23 @@ export function ThreatMonitor({ userLocation, storms = [], lightningCount = 0 }:
                             </ul>
                           </div>
                         )}
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Duration: {threat.duration}
-                        </p>
+                        <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                          <div>Duration: {threat.duration}</div>
+                          {threat.timeToExpiration && (
+                            <div className="font-medium text-blue-600">
+                              {threat.timeToExpiration}
+                            </div>
+                          )}
+                          {threat.activationStatus && (
+                            <div className={`font-medium ${
+                              threat.activationStatus === 'Active now' 
+                                ? 'text-green-600' 
+                                : 'text-orange-600'
+                            }`}>
+                              {threat.activationStatus}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </AlertDescription>
