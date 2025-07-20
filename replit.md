@@ -342,6 +342,8 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Comprehensive Movement Analysis**: Server-side calculation of storm approach direction, speed, ETA, and impact likelihood before AI processing
 - **Fixed Track Intersection Detection**: AI assistant now properly recognizes and communicates when storms show "Impact: High" and collision course trajectories
 - **Clear Severity Communication**: AI responses distinguish between "Light storm with HIGH impact potential" vs "Severe storm with Low impact likelihood"
+- **Enhanced Distance Context**: AI analysis includes specific distances for each storm to aid personal decision-making and planning
+- **Comprehensive Storm Details**: Each storm displays intensity (dBZ), distance (miles), direction, severity classification, and impact rating
 - **Meteorological Accuracy**: Storm severity based on official NOAA dBZ thresholds (Light 20-34, Moderate 35-45, Heavy 46-54, Severe 55-60, Extreme 61+ dBZ)
 
 ### AI Unit Preference Integration & Natural Analysis Format (July 20, 2025)
