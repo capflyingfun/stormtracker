@@ -10,6 +10,7 @@ import AlertsPanel from "@/components/alerts-panel";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
+import { ThreatMonitor } from "@/components/threat-monitor";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -732,9 +733,9 @@ export default function StormTracker() {
               </div>
             )}
 
-            {/* AI Weather Assistant */}
+            {/* AI Weather Assistant and Threat Monitor */}
             {location && windsAloftData && (
-              <div className="mb-4 sm:mb-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
                 <AIWeatherAssistant
                   userLocation={{
                     lat: location.lat,
@@ -762,6 +763,16 @@ export default function StormTracker() {
                   }))}
                   winds={windsAloftData.winds || []}
                   radarSource={currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
+                />
+                
+                <ThreatMonitor
+                  userLocation={location ? {
+                    lat: location.lat,
+                    lon: location.lon,
+                    address: location.name
+                  } : undefined}
+                  storms={filteredStorms}
+                  lightningCount={lightningData?.count || 0}
                 />
               </div>
             )}

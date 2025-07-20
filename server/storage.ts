@@ -3,6 +3,7 @@ import {
   alertSubscriptions, 
   alertHistory,
   messageInbox,
+  threatDetection,
   type User, 
   type InsertUser,
   type AlertSubscription,
@@ -10,7 +11,9 @@ import {
   type AlertHistory,
   type InsertAlertHistory,
   type MessageInbox,
-  type InsertMessageInbox
+  type InsertMessageInbox,
+  type ThreatDetection,
+  type InsertThreatDetection
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, sql } from "drizzle-orm";
@@ -41,6 +44,12 @@ export interface IStorage {
   getAllMessages(limit?: number): Promise<MessageInbox[]>;
   markMessageAsRead(messageId: number): Promise<void>;
   deleteMessage(messageId: number): Promise<void>;
+  
+  // Threat detection methods
+  createThreatDetection(threat: InsertThreatDetection): Promise<ThreatDetection>;
+  getActiveThreatsBySubscription(subscriptionId: number): Promise<ThreatDetection[]>;
+  getAllAlertSubscriptions(): Promise<AlertSubscription[]>;
+  updateThreatDetection(id: number, updates: Partial<InsertThreatDetection>): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -177,6 +186,42 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(messageInbox)
       .where(eq(messageInbox.id, messageId));
+  }
+
+  // Threat detection methods
+  async createThreatDetection(threat: InsertThreatDetection): Promise<ThreatDetection> {
+    const [result] = await db
+      .insert(threatDetection)
+      .values(threat)
+      .returning();
+    return result;
+  }
+
+  async getActiveThreatsBySubscription(subscriptionId: number): Promise<ThreatDetection[]> {
+    return await db
+      .select()
+      .from(threatDetection)
+      .where(
+        and(
+          eq(threatDetection.subscriptionId, subscriptionId),
+          eq(threatDetection.threatStatus, 'active')
+        )
+      )
+      .orderBy(sql`${threatDetection.detectedAt} DESC`);
+  }
+
+  async getAllAlertSubscriptions(): Promise<AlertSubscription[]> {
+    return await db
+      .select()
+      .from(alertSubscriptions)
+      .where(eq(alertSubscriptions.isActive, true));
+  }
+
+  async updateThreatDetection(id: number, updates: Partial<InsertThreatDetection>): Promise<void> {
+    await db
+      .update(threatDetection)
+      .set(updates)
+      .where(eq(threatDetection.id, id));
   }
 }
 

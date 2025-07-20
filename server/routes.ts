@@ -526,6 +526,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Automated threat detection and alert system
+  app.post("/api/threat-detection", async (req, res) => {
+    try {
+      const { threatDetector } = await import("./threat-detection");
+      
+      const schema = z.object({
+        lat: z.number().min(-90).max(90),
+        lon: z.number().min(-180).max(180),
+        address: z.string(),
+        storms: z.array(z.any()).default([]),
+        lightningCount: z.number().default(0)
+      });
+      
+      const { lat, lon, address, storms, lightningCount } = schema.parse(req.body);
+      
+      console.log(`🔍 Starting automated threat detection for ${address} (${lat}, ${lon})`);
+      
+      // Get comprehensive weather data from multiple sources
+      let weatherData: any = {};
+      let enhancedData: any = {};
+      
+      // Fetch WeatherAPI.com data if available
+      try {
+        const weatherApiUrl = `/api/weatherapi?lat=${lat}&lon=${lon}`;
+        const weatherApiResponse = await fetch(`http://localhost:5000${weatherApiUrl}`);
+        
+        if (weatherApiResponse.ok) {
+          const weatherApiData = await weatherApiResponse.json();
+          if (weatherApiData.source === 'weatherapi') {
+            enhancedData = weatherApiData;
+            console.log('✅ Enhanced weather data retrieved from WeatherAPI.com');
+          }
+        }
+      } catch (error) {
+        console.log('WeatherAPI.com not available, using OpenWeather data only');
+      }
+      
+      // Get enhanced weather data with multi-source validation
+      try {
+        const enhancedUrl = `/api/weather-enhanced?lat=${lat}&lon=${lon}`;
+        const enhancedResponse = await fetch(`http://localhost:5000${enhancedUrl}`);
+        
+        if (enhancedResponse.ok) {
+          const enhanced = await enhancedResponse.json();
+          weatherData = {
+            temperature: enhanced.temperature || 70,
+            heatIndex: enhanced.heat_index || enhanced.temperature || 70,
+            humidity: enhanced.humidity || 50,
+            windSpeed: enhanced.wind_speed || 0,
+            conditions: enhanced.weather_description || 'Clear',
+            uvIndex: enhancedData.current?.uv || null,
+            airQuality: enhancedData.current?.air_quality || null
+          };
+          console.log('✅ Multi-source weather data compiled for threat analysis');
+        }
+      } catch (error) {
+        console.log('Using fallback weather data for threat analysis');
+        weatherData = {
+          temperature: 75,
+          humidity: 60,
+          windSpeed: 5,
+          conditions: 'Variable',
+          uvIndex: null,
+          airQuality: null
+        };
+      }
+      
+      // Run automated threat detection analysis
+      const userLocation = { lat, lon, address };
+      const threats = await threatDetector.detectThreats(
+        userLocation,
+        storms,
+        weatherData,
+        lightningCount
+      );
+      
+      console.log(`🚨 Detected ${threats.length} active threats for ${address}`);
+      
+      // Process threats and send automated alerts
+      if (threats.length > 0) {
+        await threatDetector.processThreatsAndSendAlerts(threats, userLocation);
+        console.log(`✅ Processed and sent ${threats.length} automated threat alerts`);
+      }
+      
+      // Return threat summary
+      const threatSummary = threats.map(threat => ({
+        type: threat.threatType,
+        level: threat.threatLevel,
+        status: threat.threatStatus,
+        title: threat.title,
+        description: threat.description,
+        priority: threat.priority,
+        recommendations: threat.recommendedActions.slice(0, 3), // Top 3 recommendations
+        duration: threat.estimatedDuration
+      }));
+      
+      res.json({
+        location: address,
+        coordinates: { lat, lon },
+        threatCount: threats.length,
+        threats: threatSummary,
+        weatherConditions: {
+          temperature: weatherData.temperature,
+          humidity: weatherData.humidity,
+          conditions: weatherData.conditions,
+          windSpeed: weatherData.windSpeed
+        },
+        dataQuality: {
+          weatherapi_available: !!enhancedData.source,
+          openweather_available: true,
+          radar_storms: storms.length,
+          lightning_detected: lightningCount
+        },
+        alertsGenerated: threats.length,
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (error) {
+      console.error("Automated threat detection error:", error);
+      res.status(500).json({ 
+        error: "Failed to perform threat detection",
+        message: error.message,
+        alertsGenerated: 0
+      });
+    }
+  });
+
   // Function to analyze RainViewer radar data using sector-based search
   async function analyzeRainViewerData(centerLat: number, centerLon: number, radius: number) {
     const storms = [];

@@ -222,10 +222,60 @@ export const insertAlertHistorySchema = createInsertSchema(alertHistory).omit({
   sentAt: true,
 });
 
+// Enhanced threat detection for automated AI-driven alerts
+export const threatDetection = pgTable("threat_detection", {
+  id: serial("id").primaryKey(),
+  subscriptionId: integer("subscription_id").references(() => alertSubscriptions.id),
+  
+  // Threat classification
+  threatType: text("threat_type").notNull(), // 'thunderstorm', 'heat', 'air_quality', 'lightning', 'severe_weather'
+  threatLevel: text("threat_level").notNull(), // 'low', 'moderate', 'high', 'extreme'
+  threatStatus: text("threat_status").notNull(), // 'developing', 'active', 'imminent', 'passed'
+  
+  // Location and timing
+  lat: real("lat").notNull(),
+  lon: real("lon").notNull(),
+  locationName: text("location_name").notNull(),
+  
+  // Threat details
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  aiAnalysis: text("ai_analysis"), // Full AI assessment text
+  
+  // Meteorological data
+  temperature: real("temperature"), // For heat warnings
+  heatIndex: real("heat_index"), // For heat warnings
+  airQualityIndex: integer("air_quality_index"), // For air quality alerts
+  uvIndex: real("uv_index"), // For UV warnings
+  windSpeed: real("wind_speed"), // For wind advisories
+  stormIntensity: real("storm_intensity"), // dBZ for thunderstorms
+  lightningCount: integer("lightning_count"), // For lightning alerts
+  
+  // Impact assessment
+  riskToPublic: text("risk_to_public"), // 'minimal', 'moderate', 'significant', 'extreme'
+  recommendedActions: text("recommended_actions"), // AI-generated safety recommendations
+  estimatedDuration: text("estimated_duration"), // How long threat will persist
+  
+  // Alert tracking
+  alertSent: boolean("alert_sent").default(false),
+  messageId: integer("message_id").references(() => messageInbox.id),
+  
+  // Timestamps
+  detectedAt: timestamp("detected_at").defaultNow(),
+  alertSentAt: timestamp("alert_sent_at"),
+  threatEndsAt: timestamp("threat_ends_at"), // Estimated end time
+});
+
 export const insertMessageInboxSchema = createInsertSchema(messageInbox).omit({
   id: true,
   sentAt: true,
   readAt: true,
+});
+
+export const insertThreatDetectionSchema = createInsertSchema(threatDetection).omit({
+  id: true,
+  detectedAt: true,
+  alertSentAt: true,
 });
 
 // Risk assessment schema
@@ -285,3 +335,6 @@ export type InsertAlertHistory = typeof alertHistory.$inferInsert;
 
 export type MessageInbox = typeof messageInbox.$inferSelect;
 export type InsertMessageInbox = z.infer<typeof insertMessageInboxSchema>;
+
+export type ThreatDetection = typeof threatDetection.$inferSelect;
+export type InsertThreatDetection = z.infer<typeof insertThreatDetectionSchema>;
