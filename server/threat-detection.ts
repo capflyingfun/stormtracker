@@ -176,6 +176,17 @@ class ThreatDetectionService {
       // Heat advisories typically run from 10 AM to 7 PM CDT (FIXED 9-hour duration)
       if (expires.includes('09:45') || expiryDate.getHours() < 12) {
         console.log(`⚠️ Heat Advisory detected - using fixed 9-hour duration (10 AM to 7 PM CDT)`);
+        
+        // Determine which day this Heat Advisory is for based on expiry date
+        const alertDate = new Date(expiryDate);
+        alertDate.setHours(19, 0, 0, 0); // Set to 7 PM CDT for that day
+        const nowCDT = new Date(nowUTC.getTime() - (5 * 60 * 60 * 1000)); // Current CDT time
+        
+        // If the alert is for today and it's past 7 PM CDT, it should be expired
+        if (alertDate.toDateString() === nowCDT.toDateString() && nowCDT.getHours() >= 19) {
+          return 'Expired';
+        }
+        
         return '9 hours'; // Fixed duration for Heat Advisory: 10 AM to 7 PM = 9 hours
       }
       
@@ -220,12 +231,14 @@ class ThreatDetectionService {
       let millisRemaining: number;
       
       if (expires.includes('09:45') || expiryDate.getHours() < 12) {
-        // Heat Advisory: Set to 7:00 PM CDT today, then convert to UTC for comparison
+        // Heat Advisory: Set to 7:00 PM CDT on the correct day based on original expiry date
         const nowCDT = new Date(nowUTC.getTime() - (5 * 60 * 60 * 1000)); // Current CDT time
-        const expiryCDT = new Date(nowCDT);
-        expiryCDT.setHours(19, 0, 0, 0); // 7:00 PM CDT today
+        const expiryCDT = new Date(expiryDate); // Use the actual alert date, not today
+        expiryCDT.setHours(19, 0, 0, 0); // 7:00 PM CDT on the alert's date
         const expiryUTC = new Date(expiryCDT.getTime() + (5 * 60 * 60 * 1000)); // Convert CDT to UTC
         millisRemaining = expiryUTC.getTime() - nowUTC.getTime();
+        
+        console.log(`🗓️ Heat Advisory expiry corrected to ${expiryCDT.toDateString()} at 7:00 PM CDT`);
       } else {
         // Other alerts: use actual expiry time
         millisRemaining = expiryDate.getTime() - nowUTC.getTime();
@@ -274,21 +287,21 @@ class ThreatDetectionService {
       if (alertType && alertType.toLowerCase().includes('heat')) {
         console.log(`🚨 Heat Advisory detected by type "${alertType}" - correcting start time to 10:00 AM local time`);
         
-        // Get current date in user's timezone and set to 10 AM
-        const today = new Date();
-        const todayLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 10, 0, 0, 0);
+        // Use the actual effective date from the alert, not always today
+        const alertDate = new Date(effectiveDate);
+        const alertLocal = new Date(alertDate.getFullYear(), alertDate.getMonth(), alertDate.getDate(), 10, 0, 0, 0);
         
-        console.log(`⚠️ Heat Advisory start corrected to 10:00 AM local time (${todayLocal.toLocaleString()})`);
+        console.log(`⚠️ Heat Advisory start corrected to 10:00 AM local time on ${alertLocal.toDateString()}`);
         
-        if (nowUTC >= todayLocal) {
-          console.log(`🟢 Heat Advisory is ACTIVE NOW (after 10:00 AM local time)`);
+        if (nowUTC >= alertLocal) {
+          console.log(`🟢 Heat Advisory is ACTIVE NOW (after 10:00 AM local time on ${alertLocal.toDateString()})`);
           return 'Active now';
         } else {
-          const millisUntilActive = todayLocal.getTime() - nowUTC.getTime();
+          const millisUntilActive = alertLocal.getTime() - nowUTC.getTime();
           const hoursUntilActive = Math.floor(millisUntilActive / (1000 * 60 * 60));
           const minutesUntilActive = Math.floor((millisUntilActive % (1000 * 60 * 60)) / (1000 * 60));
           
-          console.log(`🕒 Heat Advisory starts in ${hoursUntilActive}h ${minutesUntilActive}m (at 10:00 AM local time)`);
+          console.log(`🕒 Heat Advisory starts in ${hoursUntilActive}h ${minutesUntilActive}m (at 10:00 AM on ${alertLocal.toDateString()})`);
           
           if (hoursUntilActive === 0) {
             return minutesUntilActive <= 1 ? 'Activates in 1 minute' : `Activates in ${minutesUntilActive} minutes`;
