@@ -474,7 +474,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const centerLon = location.lon;
 
     // Draw distance rings (every 10 miles for cleaner look)
-    const distanceRings = [10, 20, 30];
+    const distanceRings = [10, 20, 30, 40, 50];
     distanceRings.forEach(distance => {
       const ring = window.L.circle([centerLat, centerLon], {
         color: '#64748b',
@@ -491,7 +491,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     // Draw angular sectors (every 30 degrees) - ensure complete circle
     for (let angle = 0; angle < 360; angle += 30) {
       const angleInRadians = (angle * Math.PI) / 180;
-      const maxDistance = 30; // 30 miles
+      const maxDistance = 50; // 50 miles
       const distanceInDegrees = maxDistance / 69.0; // Rough conversion
       
       const endLat = centerLat + (distanceInDegrees * Math.cos(angleInRadians));
@@ -1079,7 +1079,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       // Determine if this storm meets the user's alert threshold
       const meetsAlertThreshold = alertPreferences && point.dbz >= alertPreferences.minimumDbz;
-      const isAlertStorm = meetsAlertThreshold && pointDistance <= (alertPreferences?.alertRadius || 30);
+      const isAlertStorm = meetsAlertThreshold && pointDistance <= (alertPreferences?.alertRadius || 50);
       
       // Check if this is the nearest or strongest storm for special highlighting
       const isNearestStorm = nearestStorm && point.lat === nearestStorm.lat && point.lon === nearestStorm.lon;
@@ -1579,14 +1579,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const zoom = map.getZoom();
       const bounds = map.getBounds();
 
-      // Calculate the 30-mile radius boundary
-      const radiusInDegrees = 30 / 69.0; // 30 miles in degrees
+      // Calculate the 50-mile radius boundary
+      const radiusInDegrees = 50 / 69.0; // 50 miles in degrees
       const northLat = center.lat + radiusInDegrees;
       const southLat = center.lat - radiusInDegrees;
       const eastLng = center.lng + radiusInDegrees / Math.cos(center.lat * Math.PI / 180);
       const westLng = center.lng - radiusInDegrees / Math.cos(center.lat * Math.PI / 180);
 
-      // Find all tiles that overlap with our 30-mile radius
+      // Find all tiles that overlap with our 50-mile radius
       const tilesToCheck = [];
       const minTileX = Math.floor((westLng + 180) / 360 * Math.pow(2, zoom));
       const maxTileX = Math.floor((eastLng + 180) / 360 * Math.pow(2, zoom));
@@ -1652,9 +1652,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                   const pixelLatRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * (tile.y + y / tileSize) / Math.pow(2, zoom))));
                   const pixelLat = pixelLatRad * 180 / Math.PI;
                   
-                  // Check if this point is within our 30-mile radius
+                  // Check if this point is within our 50-mile radius
                   const distance = calculateDistance(center.lat, center.lng, pixelLat, pixelLng);
-                  if (distance <= 30) {
+                  if (distance <= 50) {
                     // Allow closer spacing for higher intensity precipitation
                     let shouldAdd = true;
                     
@@ -1757,14 +1757,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const center = map.getCenter();
       const zoom = map.getZoom();
 
-      // Calculate the 30-mile radius boundary
-      const radiusInDegrees = 30 / 69.0; // 30 miles in degrees
+      // Calculate the 50-mile radius boundary
+      const radiusInDegrees = 50 / 69.0; // 50 miles in degrees
       const northLat = center.lat + radiusInDegrees;
       const southLat = center.lat - radiusInDegrees;
       const eastLng = center.lng + radiusInDegrees / Math.cos(center.lat * Math.PI / 180);
       const westLng = center.lng - radiusInDegrees / Math.cos(center.lat * Math.PI / 180);
 
-      // Find all tiles that overlap with our 30-mile radius
+      // Find all tiles that overlap with our 50-mile radius
       const tilesToCheck = [];
       const minTileX = Math.floor((westLng + 180) / 360 * Math.pow(2, zoom));
       const maxTileX = Math.floor((eastLng + 180) / 360 * Math.pow(2, zoom));
@@ -1837,9 +1837,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                   const pixelLatRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * (tile.y + y / tileSize) / Math.pow(2, zoom))));
                   const pixelLat = pixelLatRad * 180 / Math.PI;
                   
-                  // Check if this point is within our 30-mile radius
+                  // Check if this point is within our 50-mile radius
                   const distance = calculateDistance(center.lat, center.lng, pixelLat, pixelLng);
-                  if (distance <= 30) {
+                  if (distance <= 50) {
                     // Allow closer spacing for higher intensity precipitation
                     let shouldAdd = true;
                     
