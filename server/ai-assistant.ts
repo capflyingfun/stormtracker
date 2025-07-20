@@ -200,8 +200,14 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
 
     // Calculate storm track intersections with user location
     function calculateStormTrackIntersection(storm: any, userLat: number, userLon: number) {
+      // DEBUG: Log storm movement data to identify the actual structure
+      if (storm.movement) {
+        console.log('AI Assistant: Storm movement data:', JSON.stringify(storm.movement, null, 2));
+      }
+      
       // CRITICAL: Check if storm already has "High" impact rating from system analysis
-      if (storm.movement && storm.movement.impact === 'high') {
+      if (storm.movement && (storm.movement.impact === 'high' || storm.movement.impact === 'High')) {
+        console.log('AI Assistant: HIGH IMPACT STORM DETECTED - Direct collision course');
         return { 
           intersects: true, 
           status: 'HIGH IMPACT STORM - System detected collision course',
@@ -211,7 +217,8 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       }
       
       // CRITICAL: Check if storm has ETA indicating approach toward user location
-      if (storm.movement && storm.movement.eta && storm.movement.eta !== 'Unknown') {
+      if (storm.movement && storm.movement.eta && storm.movement.eta !== 'Unknown' && storm.movement.eta !== null) {
+        console.log('AI Assistant: STORM WITH ETA DETECTED - Approaching user location');
         return { 
           intersects: true, 
           status: 'APPROACHING STORM - ETA indicates potential contact',
