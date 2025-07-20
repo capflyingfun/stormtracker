@@ -190,17 +190,38 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
           `Last Check: ${data.threatData.lastCheck || 'Recent'}\n` +
           `Temperature: ${data.threatData.temperature || 'Unknown'}°F`;
         
-        // Fetch NWS alerts for comprehensive advisory information
-        const alertsResponse = await fetch(
-          `http://localhost:5000/api/nws-alerts?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
-        );
-        if (alertsResponse.ok) {
-          const alertsData = await alertsResponse.json();
-          activeAlerts = alertsData.alerts || [];
-          console.log(`AI Assistant: Found ${activeAlerts.length} active NWS alerts/advisories`);
+        // Use threat data's alert information instead of fetching NWS alerts separately to avoid duplicates
+        if (data.threatData.threats && Array.isArray(data.threatData.threats)) {
+          // Extract NWS alerts from threat data to avoid duplication
+          const nwsThreats = data.threatData.threats.filter((threat: any) => threat.type === 'nws_alert');
+          if (nwsThreats.length > 0) {
+            console.log(`AI Assistant: Using ${nwsThreats.length} NWS alerts from threat data (avoiding duplication)`);
+            // Convert threat format to alert format for compatibility
+            activeAlerts = nwsThreats.map((threat: any) => ({
+              headline: threat.title,
+              description: threat.description,
+              severity: threat.level,
+              type: 'Weather Advisory',
+              effective: new Date().toISOString(),
+              expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              instruction: threat.recommendations?.join('. ') || 'Follow official weather service guidance'
+            }));
+            // Clear the separate NWS alerts to prevent duplication
+            console.log('AI Assistant: Cleared separate NWS alerts to prevent duplication');
+          } else {
+            // No NWS threats in threat data, still fetch separately for completeness
+            const alertsResponse = await fetch(
+              `http://localhost:5000/api/nws-alerts?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
+            );
+            if (alertsResponse.ok) {
+              const alertsData = await alertsResponse.json();
+              activeAlerts = alertsData.alerts || [];
+              console.log(`AI Assistant: Found ${activeAlerts.length} active NWS alerts (no threats detected)`);
+            }
+          }
         }
       } catch (alertError) {
-        console.log('AI Assistant: Could not fetch active alerts:', alertError);
+        console.log('AI Assistant: Could not process threat/alert data:', alertError);
       }
     }
 
