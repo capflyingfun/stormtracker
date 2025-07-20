@@ -568,7 +568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Legacy NWS alerts endpoint (for backward compatibility)
   app.post("/api/alerts", async (req, res) => {
     try {
-      const { lat, lon, radius = 30 } = weatherDataRequestSchema.parse(req.body);
+      const { lat, lon, radius = 50 } = weatherDataRequestSchema.parse(req.body);
       
       const response = await fetch(
         `https://api.weather.gov/alerts/active?point=${lat},${lon}&radius=${radius}`,
@@ -597,7 +597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Storm detection endpoint - analyzes real radar data from RainViewer API
   app.post("/api/storms", async (req, res) => {
     try {
-      const { lat, lon, radius = 30 } = weatherDataRequestSchema.parse(req.body);
+      const { lat, lon, radius = 50 } = weatherDataRequestSchema.parse(req.body);
       
       // Query RainViewer API for real precipitation data
       const storms = await analyzeRainViewerData(lat, lon, radius);
@@ -1706,7 +1706,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // In a real app, this would fetch from database based on user ID
       const defaultPreferences = {
         minimumDbz: 45, // Default to heavy rain (45+ dBZ)
-        alertRadius: 30,
+        alertRadius: 50,
         alertFrequency: 15,
         soundEnabled: true,
         pushEnabled: true,

@@ -59,7 +59,7 @@ export const userAlertPreferences = pgTable("user_alert_preferences", {
   extremeStormEnabled: boolean("extreme_storm_enabled").default(true),
   
   // Distance thresholds (miles)
-  alertRadius: real("alert_radius").default(30),
+  alertRadius: real("alert_radius").default(50),
   
   // Alert types
   emailEnabled: boolean("email_enabled").default(false),
