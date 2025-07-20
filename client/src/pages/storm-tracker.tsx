@@ -6,7 +6,6 @@ import Header from "@/components/header";
 import LocationSetup from "@/components/location-setup";
 import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
-import AlertsPanel from "@/components/alerts-panel";
 import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
@@ -220,30 +219,7 @@ export default function StormTracker() {
     },
   });
 
-  // Get storm threats for Safety Alerts panel
-  const { data: threatData } = useQuery({
-    queryKey: ['/api/threat-detection', location?.lat, location?.lon, precipitationStorms.length],
-    enabled: !!location && precipitationStorms.length > 0,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    queryFn: async () => {
-      if (!location || precipitationStorms.length === 0) return null;
-      
-      const response = await fetch('/api/threat-detection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lat: location.lat,
-          lon: location.lon,
-          address: location.name,
-          storms: precipitationStorms.slice(0, 10), // Limit to 10 storms for processing
-          lightningCount: 0 // Can be updated when lightning integration is added
-        })
-      });
-      
-      if (!response.ok) return null;
-      return response.json();
-    },
-  });
+
   
   const activeStorms = precipitationStorms;
   
@@ -994,13 +970,7 @@ export default function StormTracker() {
 
             {/* Tab Content */}
             {activeTab === 'tracker' && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mt-4 sm:mt-6">
-              <AlertsPanel
-                alerts={alerts || []}
-                stormThreats={threatData?.threats || []}
-                isLoading={stormDataLoading}
-              />
-              
+              <div className="max-w-4xl mx-auto mt-4 sm:mt-6">
               <StormPanel
                 storms={precipitationStorms}
                 useMetric={useMetric}
