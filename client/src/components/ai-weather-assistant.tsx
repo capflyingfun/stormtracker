@@ -49,6 +49,7 @@ interface AIWeatherAssistantProps {
   winds: WindData[];
   radarSource: string;
   lightningCount?: number;
+  useMetric?: boolean;
 }
 
 export default function AIWeatherAssistant({
@@ -56,7 +57,8 @@ export default function AIWeatherAssistant({
   storms,
   winds,
   radarSource,
-  lightningCount = 0
+  lightningCount = 0,
+  useMetric = false
 }: AIWeatherAssistantProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMonitoring, setIsMonitoring] = useState(false);
@@ -99,7 +101,8 @@ export default function AIWeatherAssistant({
         winds,
         radarSource,
         includeAlerts: true, // Enhanced to include alert analysis
-        lightningCount
+        lightningCount,
+        useMetric
       });
       return response.json();
     },
