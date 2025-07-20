@@ -747,6 +747,18 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Enhanced Regional Analysis**: Users can explore different regions and see accurate storm movement patterns for each specific location
 - **Real-time Wind Pattern Mapping**: Map panning triggers immediate winds aloft API calls with debounced updates for smooth performance
 
+### Enhanced AI Time & Date Calculation System (July 20, 2025)
+- **Comprehensive Time Calculation Enhancement**: Enhanced AI assistant with specific time and date calculation capabilities per user request
+- **Heat Advisory Timing Fix**: AI now correctly displays "National Weather Service alert" instead of "radar indicated" in detailed analysis
+- **UTC Timestamp Integration**: Added current UTC timestamp reference and timezone conversion instructions to AI prompt
+- **Duration Calculation Guidance**: AI receives specific instructions for calculating alert durations from effective to expiry times
+- **Timezone Awareness Enhancement**: Added Central Daylight Time (UTC-5) handling and timezone conversion guidance
+- **Heat Advisory Specific Logic**: Enhanced AI with Heat Advisory timing calculations (10 AM to 7 PM = 9 hours duration)
+- **Time Mathematics Verification**: Added double-checking requirements for time calculations and individual alert timing
+- **Professional Time Standards**: AI now uses meteorological time standards for alert duration calculations
+- **Enhanced Alert Descriptions**: Heat Advisories now properly show as "National Weather Service alert" in AI detailed analysis
+- **Verified System Operation**: Confirmed AI assistant correctly displays Heat Advisory timing ("7:00 PM CDT") with proper safety guidance
+
 ### Comprehensive Aviation Weather System (July 19, 2025)
 - **Nationwide Airport Coverage**: Expanded airport database to include comprehensive coverage across United States with 50+ major airports
 - **Multi-Source METAR Data**: Implemented multiple aviation weather APIs with intelligent fallback (Aviation Weather Center, CheckWX, legacy AWC)
