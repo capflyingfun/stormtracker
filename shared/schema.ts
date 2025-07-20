@@ -241,6 +241,7 @@ export const threatDetection = pgTable("threat_detection", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   aiAnalysis: text("ai_analysis"), // Full AI assessment text
+  metadata: text("metadata"), // JSON metadata for enhanced threat information
   
   // Meteorological data
   temperature: real("temperature"), // For heat warnings
