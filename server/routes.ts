@@ -11,6 +11,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // API Keys - these would normally come from environment variables
   const API_KEYS = {
     openweather: process.env.OPENWEATHER_API_KEY || '49f87b43ad1ddba1821a5cdac7d6965e',
+    weatherapi: process.env.WEATHERAPI_KEY || null, // WeatherAPI.com free tier: 1M calls/month
   };
 
   // Area Forecast Discussion endpoint for US locations
@@ -2842,6 +2843,243 @@ export async function registerRoutes(app: Express): Promise<Server> {
           confidence: 0.3
         }
       });
+    }
+  });
+
+  // WeatherAPI.com integration endpoint - 1M free calls/month
+  app.get("/api/weatherapi", async (req, res) => {
+    try {
+      const { lat, lon, days = 3 } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      if (!API_KEYS.weatherapi) {
+        return res.status(503).json({ 
+          error: "WeatherAPI.com key not configured", 
+          message: "Add WEATHERAPI_KEY environment variable for enhanced weather data" 
+        });
+      }
+      
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lon as string);
+      const forecastDays = Math.min(14, Math.max(1, parseInt(days as string))); // 1-14 days
+      
+      try {
+        // WeatherAPI.com provides current + forecast in single call
+        const weatherApiUrl = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEYS.weatherapi}&q=${latitude},${longitude}&days=${forecastDays}&aqi=yes&alerts=yes`;
+        
+        const response = await fetch(weatherApiUrl, {
+          headers: {
+            'User-Agent': 'StormTracker/1.0 (weather analysis application)',
+          },
+          signal: AbortSignal.timeout(8000)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`WeatherAPI.com error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Transform WeatherAPI.com data to standardized format
+        const weatherData = {
+          source: "WeatherAPI.com",
+          location: {
+            name: data.location.name,
+            region: data.location.region,
+            country: data.location.country,
+            lat: data.location.lat,
+            lon: data.location.lon,
+            timezone: data.location.tz_id,
+            localtime: data.location.localtime
+          },
+          current: {
+            temp_c: data.current.temp_c,
+            temp_f: data.current.temp_f,
+            condition: data.current.condition.text,
+            condition_icon: data.current.condition.icon,
+            wind_mph: data.current.wind_mph,
+            wind_kph: data.current.wind_kph,
+            wind_degree: data.current.wind_degree,
+            wind_dir: data.current.wind_dir,
+            pressure_mb: data.current.pressure_mb,
+            pressure_in: data.current.pressure_in,
+            precip_mm: data.current.precip_mm,
+            precip_in: data.current.precip_in,
+            humidity: data.current.humidity,
+            cloud: data.current.cloud,
+            feelslike_c: data.current.feelslike_c,
+            feelslike_f: data.current.feelslike_f,
+            visibility_km: data.current.vis_km,
+            visibility_miles: data.current.vis_miles,
+            uv: data.current.uv,
+            gust_mph: data.current.gust_mph,
+            gust_kph: data.current.gust_kph
+          },
+          forecast: data.forecast.forecastday.map((day: any) => ({
+            date: day.date,
+            date_epoch: day.date_epoch,
+            day: {
+              maxtemp_c: day.day.maxtemp_c,
+              maxtemp_f: day.day.maxtemp_f,
+              mintemp_c: day.day.mintemp_c,
+              mintemp_f: day.day.mintemp_f,
+              avgtemp_c: day.day.avgtemp_c,
+              avgtemp_f: day.day.avgtemp_f,
+              maxwind_mph: day.day.maxwind_mph,
+              maxwind_kph: day.day.maxwind_kph,
+              totalprecip_mm: day.day.totalprecip_mm,
+              totalprecip_in: day.day.totalprecip_in,
+              totalsnow_cm: day.day.totalsnow_cm,
+              avgvis_km: data.day?.avgvis_km || 10,
+              avgvis_miles: data.day?.avgvis_miles || 6,
+              avghumidity: day.day.avghumidity,
+              daily_will_it_rain: day.day.daily_will_it_rain,
+              daily_chance_of_rain: day.day.daily_chance_of_rain,
+              daily_will_it_snow: day.day.daily_will_it_snow,
+              daily_chance_of_snow: day.day.daily_chance_of_snow,
+              condition: day.day.condition.text,
+              condition_icon: day.day.condition.icon,
+              uv: day.day.uv
+            },
+            astro: {
+              sunrise: day.astro.sunrise,
+              sunset: day.astro.sunset,
+              moonrise: day.astro.moonrise,
+              moonset: day.astro.moonset,
+              moon_phase: day.astro.moon_phase,
+              moon_illumination: day.astro.moon_illumination
+            }
+          })),
+          alerts: data.alerts ? data.alerts.alert.map((alert: any) => ({
+            headline: alert.headline,
+            msgtype: alert.msgtype,
+            severity: alert.severity,
+            urgency: alert.urgency,
+            areas: alert.areas,
+            category: alert.category,
+            certainty: alert.certainty,
+            event: alert.event,
+            note: alert.note,
+            effective: alert.effective,
+            expires: alert.expires,
+            description: alert.desc,
+            instruction: alert.instruction
+          })) : [],
+          air_quality: data.current.air_quality ? {
+            co: data.current.air_quality.co,
+            no2: data.current.air_quality.no2,
+            o3: data.current.air_quality.o3,
+            so2: data.current.air_quality.so2,
+            pm2_5: data.current.air_quality.pm2_5,
+            pm10: data.current.air_quality.pm10,
+            us_epa_index: data.current.air_quality['us-epa-index'],
+            gb_defra_index: data.current.air_quality['gb-defra-index']
+          } : null
+        };
+        
+        return res.json(weatherData);
+        
+      } catch (fetchError) {
+        console.error('WeatherAPI.com fetch error:', fetchError);
+        return res.status(503).json({ 
+          error: "WeatherAPI.com service unavailable", 
+          message: "Unable to fetch enhanced weather data",
+          fallback: "Using primary weather sources" 
+        });
+      }
+      
+    } catch (error) {
+      console.error('WeatherAPI endpoint error:', error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Enhanced weather comparison endpoint combining multiple sources
+  app.get("/api/weather-enhanced", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lon as string);
+      
+      // Fetch from multiple sources simultaneously
+      const sources = await Promise.allSettled([
+        // OpenWeather (primary)
+        fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${API_KEYS.openweather}&units=metric`, {
+          signal: AbortSignal.timeout(5000)
+        }).then(r => r.ok ? r.json() : null),
+        
+        // WeatherAPI.com (enhanced) - only if key available
+        API_KEYS.weatherapi ? fetch(`https://api.weatherapi.com/v1/current.json?key=${API_KEYS.weatherapi}&q=${latitude},${longitude}&aqi=yes`, {
+          signal: AbortSignal.timeout(5000)
+        }).then(r => r.ok ? r.json() : null) : Promise.resolve(null)
+      ]);
+      
+      const openWeatherData = sources[0].status === 'fulfilled' ? sources[0].value : null;
+      const weatherApiData = sources[1].status === 'fulfilled' ? sources[1].value : null;
+      
+      // Combine data from multiple sources
+      const enhancedWeather = {
+        location: {
+          lat: latitude,
+          lon: longitude,
+          name: openWeatherData?.name || weatherApiData?.location?.name || "Unknown"
+        },
+        sources: {
+          openweather: openWeatherData ? {
+            temperature: openWeatherData.main.temp,
+            humidity: openWeatherData.main.humidity,
+            pressure: openWeatherData.main.pressure,
+            wind_speed: openWeatherData.wind.speed,
+            wind_direction: openWeatherData.wind.deg,
+            visibility: openWeatherData.visibility,
+            description: openWeatherData.weather[0].description,
+            clouds: openWeatherData.clouds.all
+          } : null,
+          weatherapi: weatherApiData ? {
+            temperature: weatherApiData.current.temp_c,
+            humidity: weatherApiData.current.humidity,
+            pressure: weatherApiData.current.pressure_mb,
+            wind_speed: weatherApiData.current.wind_kph,
+            wind_direction: weatherApiData.current.wind_degree,
+            visibility: weatherApiData.current.vis_km,
+            description: weatherApiData.current.condition.text,
+            clouds: weatherApiData.current.cloud,
+            uv_index: weatherApiData.current.uv,
+            air_quality: weatherApiData.current.air_quality
+          } : null
+        },
+        consensus: {
+          // Average values where both sources agree
+          temperature: openWeatherData && weatherApiData ? 
+            (openWeatherData.main.temp + weatherApiData.current.temp_c) / 2 : 
+            openWeatherData?.main.temp || weatherApiData?.current.temp_c,
+          humidity: openWeatherData && weatherApiData ?
+            (openWeatherData.main.humidity + weatherApiData.current.humidity) / 2 :
+            openWeatherData?.main.humidity || weatherApiData?.current.humidity,
+          pressure: openWeatherData && weatherApiData ?
+            (openWeatherData.main.pressure + weatherApiData.current.pressure_mb) / 2 :
+            openWeatherData?.main.pressure || weatherApiData?.current.pressure_mb
+        },
+        data_quality: {
+          sources_available: [openWeatherData ? 'OpenWeather' : null, weatherApiData ? 'WeatherAPI' : null].filter(Boolean),
+          primary_source: openWeatherData ? 'OpenWeather' : 'WeatherAPI',
+          enhanced_features: weatherApiData ? ['Air Quality', 'UV Index', 'Enhanced Hourly'] : []
+        }
+      };
+      
+      return res.json(enhancedWeather);
+      
+    } catch (error) {
+      console.error('Enhanced weather endpoint error:', error);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
