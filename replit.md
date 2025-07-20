@@ -346,6 +346,12 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Comprehensive Storm Details**: Each storm displays intensity (dBZ), distance (miles), direction, severity classification, and impact rating
 - **Meteorological Accuracy**: Storm severity based on official NOAA dBZ thresholds (Light 20-34, Moderate 35-45, Heavy 46-54, Severe 55-60, Extreme 61+ dBZ)
 
+### Unified 50-Mile Search Radius System (July 20, 2025)
+- **Consistent Regional Analysis**: Updated all storm detection and alert systems to use 50-mile radius to match AI assistant regional analysis standards
+- **Updated Default Alert Radius**: Changed default alert radius from 30 miles to 50 miles in database schema, API endpoints, and preferences
+- **Enhanced Storm Detection Range**: Expanded storm detection endpoints (/api/storms, /api/alerts) to use 50-mile default radius for comprehensive coverage
+- **Improved Regional Context**: All systems now use consistent 50-mile radius for storm detection, threat analysis, and AI weather assessment
+
 ### AI Unit Preference Integration & Natural Analysis Format (July 20, 2025)
 - **Complete Unit Preference Integration**: AI assistant now respects metric/imperial setting from app header for all temperature displays
 - **Temperature Display Consistency**: Airport weather reports and live weather data show preferred units (°F or °C) based on user selection
