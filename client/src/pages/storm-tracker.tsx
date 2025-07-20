@@ -24,7 +24,7 @@ function EmbeddedMessageInbox() {
   const queryClient = useQueryClient();
 
   // Get all messages
-  const { data: messages = [], isLoading } = useQuery({
+  const { data: messages = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/messages/all"],
   });
 

@@ -31,6 +31,50 @@ html {
   animation: storm-pulse 1s ease-in-out infinite;
 }
 
+/* Animated loading transitions for weather alerts */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInScale {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.animate-slideInUp {
+  animation: slideInUp 0.6s ease-out;
+}
+
+.animate-slideInScale {
+  animation: slideInScale 0.4s ease-out;
+}
+
 :root {
   --background: hsl(222, 84%, 4.9%);
   --foreground: hsl(210, 40%, 98%);

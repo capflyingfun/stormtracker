@@ -65,12 +65,16 @@ const getIntensityCategory = (dBZ: number): string => {
 
 export default function ImmediateSafetyAlerts({ location, storms, isLoading }: ImmediateSafetyAlertsProps) {
   const [showAlerts, setShowAlerts] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [alertsLoaded, setAlertsLoaded] = useState(false);
 
   // Delay showing alerts for 3 seconds to allow storm calculations to complete
   useEffect(() => {
     if (location && storms.length >= 0) {
+      setIsAnimating(true);
       const timer = setTimeout(() => {
         setShowAlerts(true);
+        setIsAnimating(false);
       }, 3000); // 3 second delay
       
       return () => clearTimeout(timer);
@@ -78,7 +82,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
   }, [location, storms.length]);
 
   // Get NWS alerts after delay
-  const { data: nwsAlerts = [] } = useQuery({
+  const { data: nwsAlerts = [], isLoading: alertsLoading } = useQuery({
     queryKey: ['/api/nws-alerts', location?.lat, location?.lon],
     enabled: !!location && showAlerts,
     queryFn: async () => {
@@ -90,6 +94,9 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
     refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
+    onSuccess: () => {
+      setTimeout(() => setAlertsLoaded(true), 300); // Small delay for smooth transition
+    }
   });
 
   // Identify immediate storm threats (high impact or severe proximity)
@@ -114,31 +121,74 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
 
   const totalAlerts = nwsAlerts.length + uniqueThreats.length;
 
-  if (!location || !showAlerts) return null;
+  // Skeleton loader component
+  const SkeletonLoader = () => (
+    <div className="animate-pulse space-y-3">
+      <div className="bg-slate-700/50 rounded-lg p-3 border border-slate-600/30">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-6 h-6 bg-slate-600 rounded-full"></div>
+          <div className="w-3 h-3 bg-slate-600 rounded-full"></div>
+          <div className="w-24 h-4 bg-slate-600 rounded"></div>
+        </div>
+        <div className="w-full h-4 bg-slate-600 rounded mb-2"></div>
+        <div className="w-2/3 h-3 bg-slate-600 rounded"></div>
+      </div>
+      <div className="bg-slate-700/50 rounded-lg p-3 border border-slate-600/30">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-6 h-6 bg-slate-600 rounded-full"></div>
+          <div className="w-3 h-3 bg-slate-600 rounded-full"></div>
+          <div className="w-32 h-4 bg-slate-600 rounded"></div>
+        </div>
+        <div className="w-4/5 h-4 bg-slate-600 rounded mb-2"></div>
+        <div className="w-1/2 h-3 bg-slate-600 rounded"></div>
+      </div>
+    </div>
+  );
+
+  if (!location) return null;
 
   return (
-    <div className="bg-red-900/30 rounded-xl p-3 sm:p-4 border border-red-600/30 mb-4 sm:mb-6">
+    <div className={`bg-red-900/30 rounded-xl p-3 sm:p-4 border border-red-600/30 mb-4 sm:mb-6 transition-all duration-500 ${
+      showAlerts ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform translate-y-2'
+    }`}>
       <div className="flex items-center gap-2 mb-3">
-        <AlertTriangle className="h-5 w-5 text-red-400" />
+        {isAnimating ? (
+          <Loader2 className="h-5 w-5 text-red-400 animate-spin" />
+        ) : (
+          <AlertTriangle className="h-5 w-5 text-red-400" />
+        )}
         <h3 className="text-lg font-semibold text-red-200">
           Immediate Safety Alerts
         </h3>
-        {totalAlerts > 0 && (
-          <span className="bg-red-600 text-white px-2 py-1 rounded-full text-xs font-bold">
+        {!isAnimating && totalAlerts > 0 && (
+          <span className="bg-red-600 text-white px-2 py-1 rounded-full text-xs font-bold animate-fadeIn">
             {totalAlerts}
+          </span>
+        )}
+        {isAnimating && (
+          <span className="bg-slate-600/50 text-slate-400 px-2 py-1 rounded-full text-xs">
+            Loading...
           </span>
         )}
       </div>
 
-      {totalAlerts === 0 ? (
-        <div className="text-center py-2">
+      {isAnimating || alertsLoading ? (
+        <SkeletonLoader />
+      ) : totalAlerts === 0 ? (
+        <div className="text-center py-2 animate-fadeIn">
           <p className="text-slate-300 text-sm">No immediate weather threats detected</p>
         </div>
       ) : (
         <div className="space-y-3">
           {/* NWS Alerts */}
           {nwsAlerts.map((alert: NWSAlert, index: number) => (
-            <div key={`nws-${index}`} className="bg-red-900/40 rounded-lg p-3 border border-red-600/30">
+            <div 
+              key={`nws-${index}`} 
+              className="bg-red-900/40 rounded-lg p-3 border border-red-600/30 animate-slideInUp"
+              style={{
+                animationDelay: `${index * 150}ms`,
+                animationFillMode: 'both'
+              }}>
               <div className="flex items-center gap-2 mb-2">
                 <div className="text-lg">🚨</div>
                 <div className={`w-3 h-3 rounded-full ${getSeverityColor(alert.severity || '')}`}></div>
@@ -309,7 +359,13 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
 
           {/* Collision Course / Severe Proximity Storms */}
           {uniqueThreats.map((storm, index) => (
-            <div key={`storm-${index}`} className="bg-orange-900/40 rounded-lg p-3 border border-orange-600/30">
+            <div 
+              key={`storm-${index}`} 
+              className="bg-orange-900/40 rounded-lg p-3 border border-orange-600/30 animate-slideInUp"
+              style={{
+                animationDelay: `${(nwsAlerts.length + index) * 150}ms`,
+                animationFillMode: 'both'
+              }}>
               <div className="flex items-center gap-2 mb-2">
                 <div className="text-lg">⚡</div>
                 <div className={`w-3 h-3 rounded-full ${
