@@ -764,6 +764,7 @@ export default function StormTracker() {
                   winds={windsAloftData.winds || []}
                   radarSource={currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
                   lightningCount={0}
+                  useMetric={useMetric}
                 />
               </div>
             )}

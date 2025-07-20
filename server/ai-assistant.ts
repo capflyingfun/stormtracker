@@ -98,6 +98,7 @@ interface WeatherAssessmentRequest {
   winds: WindData[];
   radarSource: string;
   threatData?: any; // Optional threat detection data for enhanced analysis
+  useMetric?: boolean; // Unit preference for temperature display
   userSettings?: {
     aiTone: string;
     detailLevel: string;
@@ -391,14 +392,14 @@ ${regionalContext ?
 === 4. AIRPORT WEATHER (METAR/TAF) ===
 ${aviationWeather.length > 0 ? 
   aviationWeather.map(station => 
-    `• ${station.airport} (${station.icao}) - ${station.distance.toFixed(1)} miles:\n  Conditions: ${station.conditions.clouds} | Temp: ${Math.round((station.conditions.temperature * 9/5) + 32)}°F (${station.conditions.temperature.toFixed(1)}°C)\n  Wind: ${station.conditions.wind} | Visibility: ${station.conditions.visibility}\n  Data: ${station.timeAgo}${station.isStale ? ' - STALE' : ''}`
+    `• ${station.airport} (${station.icao}) - ${station.distance.toFixed(1)} miles:\n  Conditions: ${station.conditions.clouds} | Temp: ${data.useMetric ? `${station.conditions.temperature.toFixed(1)}°C` : `${Math.round((station.conditions.temperature * 9/5) + 32)}°F`}\n  Wind: ${station.conditions.wind} | Visibility: ${station.conditions.visibility}\n  Data: ${station.timeAgo}${station.isStale ? ' - STALE' : ''}`
   ).join('\n') : 
   '• Aviation weather data unavailable'}
 
 Current Local Conditions:
 ${currentWeather ? 
   `• ${currentWeather.location}: ${currentWeather.conditions.weather}\n` +
-  `• Temperature: ${Math.round((currentWeather.conditions.temperature * 9/5) + 32)}°F (${currentWeather.conditions.temperature}°C) | Humidity: ${currentWeather.conditions.humidity}%\n` +
+  `• Temperature: ${data.useMetric ? `${currentWeather.conditions.temperature.toFixed(1)}°C` : `${Math.round((currentWeather.conditions.temperature * 9/5) + 32)}°F`} | Humidity: ${currentWeather.conditions.humidity}%\n` +
   `• Wind: ${currentWeather.conditions.windDirection}° at ${currentWeather.conditions.windSpeed} mph\n` +
   `• Pressure: ${currentWeather.conditions.pressure} hPa | Visibility: ${currentWeather.conditions.visibility}\n` +
   `• Source: ${currentWeather.source} (Live Data)` : 
