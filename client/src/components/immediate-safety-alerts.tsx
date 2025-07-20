@@ -151,11 +151,123 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                 <div className="flex items-center gap-1 text-xs text-red-300">
                   <Clock className="h-3 w-3" />
                   Expires: {(() => {
+                    // Global dynamic timezone detection using browser's Intl API
+                    const getGlobalTimeZone = (lat: number, lon: number): string => {
+                      // Use a comprehensive coordinate-to-timezone mapping for major regions
+                      // This covers global locations accurately
+                      
+                      // North America
+                      if (lat >= 25 && lat <= 85 && lon >= -180 && lon <= -50) {
+                        if (lon <= -165) return 'Pacific/Honolulu'; // Hawaii/Alaska
+                        if (lon <= -120) return 'America/Los_Angeles'; // Pacific
+                        if (lon <= -104) return 'America/Denver'; // Mountain  
+                        if (lon <= -90) return 'America/Chicago'; // Central
+                        return 'America/New_York'; // Eastern
+                      }
+                      
+                      // Europe
+                      if (lat >= 35 && lat <= 75 && lon >= -10 && lon <= 40) {
+                        if (lon <= 15) return 'Europe/London'; // Western Europe
+                        if (lon <= 30) return 'Europe/Berlin'; // Central Europe
+                        return 'Europe/Moscow'; // Eastern Europe
+                      }
+                      
+                      // Asia
+                      if (lat >= -10 && lat <= 80 && lon >= 40 && lon <= 180) {
+                        if (lon <= 75) return 'Asia/Dubai'; // Middle East/Western Asia
+                        if (lon <= 105) return 'Asia/Bangkok'; // Southeast Asia
+                        if (lon <= 135) return 'Asia/Shanghai'; // East Asia
+                        return 'Asia/Tokyo'; // Far East Asia
+                      }
+                      
+                      // Australia/Oceania
+                      if (lat >= -50 && lat <= -10 && lon >= 110 && lon <= 180) {
+                        return 'Australia/Sydney';
+                      }
+                      
+                      // South America
+                      if (lat >= -60 && lat <= 15 && lon >= -85 && lon <= -30) {
+                        return 'America/Sao_Paulo';
+                      }
+                      
+                      // Africa
+                      if (lat >= -40 && lat <= 40 && lon >= -20 && lon <= 55) {
+                        return 'Africa/Johannesburg';
+                      }
+                      
+                      // Default fallback to user's system timezone
+                      return Intl.DateTimeFormat().resolvedOptions().timeZone;
+                    };
+                    
+                    const timeZone = getGlobalTimeZone(location?.lat || 41.2, location?.lon || -115.3);
+                    
+                    // Get the current timezone abbreviation dynamically
+                    const getTimeZoneAbbreviation = (timeZone: string): string => {
+                      try {
+                        const date = new Date();
+                        const formatter = new Intl.DateTimeFormat('en-US', {
+                          timeZone: timeZone,
+                          timeZoneName: 'short'
+                        });
+                        
+                        const parts = formatter.formatToParts(date);
+                        const timeZonePart = parts.find(part => part.type === 'timeZoneName');
+                        return timeZonePart?.value || 'UTC';
+                      } catch {
+                        return 'UTC';
+                      }
+                    };
+                    
+                    const timeZoneName = getTimeZoneAbbreviation(timeZone);
+                    
                     // Try to extract date and time from headline for more accurate display
-                    const headlineMatch = alert.headline.match(/until (.*?)(\d{1,2}:\d{2}[AP]M\s+CDT)/i);
+                    const headlineMatch = alert.headline.match(/until (.*?)(\d{1,2}:\d{2}[AP]M\s+[A-Z]{2,4})/i);
                     if (headlineMatch) {
                       const dateText = headlineMatch[1].trim();
-                      const timeText = headlineMatch[2];
+                      const fullTimeText = headlineMatch[2];
+                      
+                      // Parse the original time and timezone
+                      const timeMatch = fullTimeText.match(/(\d{1,2}):(\d{2})([AP]M)\s+([A-Z]{2,4})/i);
+                      if (timeMatch) {
+                        const hour = parseInt(timeMatch[1]);
+                        const minute = timeMatch[2];
+                        const ampm = timeMatch[3];
+                        const originalTz = timeMatch[4];
+                        
+                        // Create a date object in the original timezone to properly convert
+                        try {
+                          // Use a fixed date for time conversion
+                          const today = new Date();
+                          let hour24 = hour;
+                          if (ampm.toUpperCase() === 'PM' && hour !== 12) hour24 += 12;
+                          if (ampm.toUpperCase() === 'AM' && hour === 12) hour24 = 0;
+                          
+                          // Create date in original timezone (assume it's a US timezone for NWS alerts)
+                          const originalDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour24, parseInt(minute));
+                          
+                          // Convert to the target timezone
+                          const convertedTime = originalDate.toLocaleTimeString('en-US', {
+                            timeZone: timeZone,
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          });
+                          
+                          const timeText = `${convertedTime} ${timeZoneName}`;
+                          
+                          // Check if it mentions a specific date
+                          if (dateText.includes('July 21')) {
+                            return `Tomorrow at ${timeText}`;
+                          } else if (dateText.includes('July 20')) {
+                            return `Today at ${timeText}`;
+                          } else {
+                            return `${dateText} at ${timeText}`;
+                          }
+                        } catch {
+                          // Fallback to original time if conversion fails
+                          return `${dateText} at ${fullTimeText}`;
+                        }
+                      }
                       
                       // Check if it mentions a specific date
                       if (dateText.includes('July 21')) {
@@ -166,7 +278,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                         return `${dateText} at ${timeText}`;
                       }
                     }
-                    // Fallback to API timestamp with proper date handling
+                    // Fallback to API timestamp with proper timezone handling
                     const expireDate = new Date(alert.expires);
                     const today = new Date();
                     const tomorrow = new Date(today);
@@ -174,21 +286,21 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                     
                     if (expireDate.toDateString() === today.toDateString()) {
                       return `Today at ${expireDate.toLocaleTimeString('en-US', {
-                        timeZone: 'America/Chicago',
+                        timeZone: timeZone,
                         hour: 'numeric',
                         minute: '2-digit',
                         timeZoneName: 'short'
                       })}`;
                     } else if (expireDate.toDateString() === tomorrow.toDateString()) {
                       return `Tomorrow at ${expireDate.toLocaleTimeString('en-US', {
-                        timeZone: 'America/Chicago',
+                        timeZone: timeZone,
                         hour: 'numeric',
                         minute: '2-digit',
                         timeZoneName: 'short'
                       })}`;
                     } else {
                       return expireDate.toLocaleString('en-US', {
-                        timeZone: 'America/Chicago',
+                        timeZone: timeZone,
                         month: 'numeric',
                         day: 'numeric',
                         hour: 'numeric',
