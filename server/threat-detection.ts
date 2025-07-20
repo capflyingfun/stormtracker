@@ -177,13 +177,15 @@ class ThreatDetectionService {
       if (expires.includes('09:45') || expiryDate.getHours() < 12) {
         console.log(`⚠️ Heat Advisory detected - using fixed 9-hour duration (10 AM to 7 PM CDT)`);
         
-        // Determine which day this Heat Advisory is for based on expiry date
-        const alertDate = new Date(expiryDate);
-        alertDate.setHours(19, 0, 0, 0); // Set to 7 PM CDT for that day
-        const nowCDT = new Date(nowUTC.getTime() - (5 * 60 * 60 * 1000)); // Current CDT time
+        // For Heat Advisories, use the original expiry date but set to 7 PM CDT
+        const alertExpiryDate = new Date(expiryDate);
+        alertExpiryDate.setHours(19, 0, 0, 0); // Set to 7 PM local time on the expiry date
+        const nowLocal = new Date(nowUTC.getTime() - (5 * 60 * 60 * 1000)); // Current CDT time
         
-        // If the alert is for today and it's past 7 PM CDT, it should be expired
-        if (alertDate.toDateString() === nowCDT.toDateString() && nowCDT.getHours() >= 19) {
+        console.log(`🗓️ Heat Advisory corrected expiry: ${alertExpiryDate.toDateString()} at 7:00 PM CDT`);
+        
+        // Check if expired
+        if (nowLocal >= alertExpiryDate) {
           return 'Expired';
         }
         
@@ -231,10 +233,10 @@ class ThreatDetectionService {
       let millisRemaining: number;
       
       if (expires.includes('09:45') || expiryDate.getHours() < 12) {
-        // Heat Advisory: Set to 7:00 PM CDT on the correct day based on original expiry date
+        // Heat Advisory: Set to 7:00 PM CDT on the alert's expiry date
         const nowCDT = new Date(nowUTC.getTime() - (5 * 60 * 60 * 1000)); // Current CDT time
-        const expiryCDT = new Date(expiryDate); // Use the actual alert date, not today
-        expiryCDT.setHours(19, 0, 0, 0); // 7:00 PM CDT on the alert's date
+        const expiryCDT = new Date(expiryDate); // Use the original expiry date
+        expiryCDT.setHours(19, 0, 0, 0); // 7:00 PM CDT on the alert's expiry date
         const expiryUTC = new Date(expiryCDT.getTime() + (5 * 60 * 60 * 1000)); // Convert CDT to UTC
         millisRemaining = expiryUTC.getTime() - nowUTC.getTime();
         
@@ -287,9 +289,13 @@ class ThreatDetectionService {
       if (alertType && alertType.toLowerCase().includes('heat')) {
         console.log(`🚨 Heat Advisory detected by type "${alertType}" - correcting start time to 10:00 AM local time`);
         
-        // Use the actual effective date from the alert, not always today
-        const alertDate = new Date(effectiveDate);
-        const alertLocal = new Date(alertDate.getFullYear(), alertDate.getMonth(), alertDate.getDate(), 10, 0, 0, 0);
+        // Parse the actual effective date and determine the Heat Advisory day
+        const effectiveDate = new Date(effective);
+        console.log(`🗓️ Parsing Heat Advisory for effective date: ${effectiveDate.toDateString()}`);
+        
+        // For Heat Advisories, start at 10 AM on the effective date
+        const alertLocal = new Date(effectiveDate);
+        alertLocal.setHours(10, 0, 0, 0); // 10 AM local time on the alert's effective date
         
         console.log(`⚠️ Heat Advisory start corrected to 10:00 AM local time on ${alertLocal.toDateString()}`);
         
