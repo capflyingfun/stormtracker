@@ -214,6 +214,31 @@ export default function StormTracker() {
       return response.json();
     },
   });
+
+  // Get storm threats for Safety Alerts panel
+  const { data: threatData } = useQuery({
+    queryKey: ['/api/threat-detection', location?.lat, location?.lon, precipitationStorms.length],
+    enabled: !!location && precipitationStorms.length > 0,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: async () => {
+      if (!location || precipitationStorms.length === 0) return null;
+      
+      const response = await fetch('/api/threat-detection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lat: location.lat,
+          lon: location.lon,
+          address: location.name,
+          storms: precipitationStorms.slice(0, 10), // Limit to 10 storms for processing
+          lightningCount: 0 // Can be updated when lightning integration is added
+        })
+      });
+      
+      if (!response.ok) return null;
+      return response.json();
+    },
+  });
   
   const activeStorms = precipitationStorms;
   
@@ -950,6 +975,7 @@ export default function StormTracker() {
               
               <AlertsPanel
                 alerts={alerts || []}
+                stormThreats={threatData?.threats || []}
                 isLoading={stormDataLoading}
               />
               </div>
