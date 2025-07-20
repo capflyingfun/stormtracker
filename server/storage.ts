@@ -53,6 +53,7 @@ export interface IStorage {
   getActiveThreatsBySubscription(subscriptionId: number): Promise<ThreatDetection[]>;
   getAllAlertSubscriptions(): Promise<AlertSubscription[]>;
   updateThreatDetection(id: number, updates: Partial<InsertThreatDetection>): Promise<void>;
+  getThreatByTypeAndLocation(threatType: string, locationName: string, title: string): Promise<ThreatDetection | undefined>;
   
   // User settings methods
   getUserSettings(sessionId: string): Promise<UserSettings | null>;
@@ -229,6 +230,22 @@ export class DatabaseStorage implements IStorage {
       .update(threatDetection)
       .set(updates)
       .where(eq(threatDetection.id, id));
+  }
+
+  async getThreatByTypeAndLocation(threatType: string, locationName: string, title: string): Promise<ThreatDetection | undefined> {
+    const [threat] = await db
+      .select()
+      .from(threatDetection)
+      .where(
+        and(
+          eq(threatDetection.threatType, threatType),
+          eq(threatDetection.locationName, locationName),
+          eq(threatDetection.title, title),
+          gt(threatDetection.detectedAt, sql`NOW() - INTERVAL '4 hours'`) // Only check recent threats (last 4 hours)
+        )
+      )
+      .limit(1);
+    return threat || undefined;
   }
 
   async getUserSettings(sessionId: string): Promise<UserSettings | null> {
