@@ -209,9 +209,9 @@ export function ThreatMonitor({ userLocation, storms = [], lightningCount = 0 }:
             </div>
             <div className="text-center">
               <div className="font-semibold text-lg">
-                {threatData.dataQuality.weatherapi_available ? '✅' : '⚠️'}
+                {threatData.dataQuality.openweather_available ? '✅' : '⚠️'}
               </div>
-              <div className="text-muted-foreground">WeatherAPI</div>
+              <div className="text-muted-foreground">OpenWeather</div>
             </div>
           </div>
         )}
