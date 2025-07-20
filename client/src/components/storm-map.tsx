@@ -39,6 +39,7 @@ interface StormMapProps {
   isDisabled?: boolean;
   alertPreferences?: any;
   showAllStormTracks?: boolean;
+  showTimeLabels?: boolean;
   onMapInstanceReady?: (mapInstance: any) => void;
 }
 
@@ -48,7 +49,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks, onMapInstanceReady }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks, showTimeLabels = true, onMapInstanceReady }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -847,63 +848,66 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     // Add time tick markers along the center line (like weather radar apps)
     const timeMarkers: any[] = [];
-    const currentTime = new Date();
     
-    // Create time ticks at fixed distances along the 40-mile cone
-    const timeDistances = [10, 20, 30, 40]; // Every 10 miles
-    const stormSpeed = currentWindsData?.stormMovement?.speed || 30; // Default 30 mph
-    
-    timeDistances.forEach((distanceInMiles, index) => {
-      // Calculate time required to reach this distance
-      const timeInHours = distanceInMiles / stormSpeed;
-      const timeInMinutes = Math.round(timeInHours * 60);
+    if (showTimeLabels) {
+      const currentTime = new Date();
       
-      const timePosition = calculateDestination(stormLat, stormLon, movementDirection, distanceInMiles);
+      // Create time ticks at fixed distances along the 40-mile cone
+      const timeDistances = [10, 20, 30, 40]; // Every 10 miles
+      const stormSpeed = currentWindsData?.stormMovement?.speed || 30; // Default 30 mph
       
-      // Calculate future time for display
-      const futureTime = new Date(currentTime.getTime() + timeInMinutes * 60 * 1000);
-      const timeString = futureTime.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        hour12: false 
+      timeDistances.forEach((distanceInMiles, index) => {
+        // Calculate time required to reach this distance
+        const timeInHours = distanceInMiles / stormSpeed;
+        const timeInMinutes = Math.round(timeInHours * 60);
+        
+        const timePosition = calculateDestination(stormLat, stormLon, movementDirection, distanceInMiles);
+        
+        // Calculate future time for display
+        const futureTime = new Date(currentTime.getTime() + timeInMinutes * 60 * 1000);
+        const timeString = futureTime.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          hour12: false 
+        });
+        
+        // Create time tick marker with different sizes for visibility
+        const timeMarker = window.L.circleMarker([timePosition.lat, timePosition.lon], {
+          radius: 4,
+          fillColor: '#ffffff',
+          color: coneColor,
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 1
+        });
+        
+        // Create time label with professional styling and time interval info
+        const timeLabel = window.L.divIcon({
+          className: 'time-tick-label',
+          html: `<div style="
+            background-color: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+            white-space: nowrap;
+            border: 1px solid ${coneColor};
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            line-height: 1.2;
+          ">${timeString}<br><small style="font-size: 9px; opacity: 0.8;">+${timeInMinutes}min</small></div>`,
+          iconSize: [50, 24],
+          iconAnchor: [25, 12]
+        });
+        
+        const timeLabelMarker = window.L.marker([timePosition.lat, timePosition.lon], {
+          icon: timeLabel
+        });
+        
+        timeMarkers.push(timeMarker, timeLabelMarker);
       });
-      
-      // Create time tick marker with different sizes for visibility
-      const timeMarker = window.L.circleMarker([timePosition.lat, timePosition.lon], {
-        radius: 4,
-        fillColor: '#ffffff',
-        color: coneColor,
-        weight: 2,
-        opacity: 1,
-        fillOpacity: 1
-      });
-      
-      // Create time label with professional styling and time interval info
-      const timeLabel = window.L.divIcon({
-        className: 'time-tick-label',
-        html: `<div style="
-          background-color: rgba(0, 0, 0, 0.85);
-          color: white;
-          padding: 3px 8px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: bold;
-          text-align: center;
-          white-space: nowrap;
-          border: 1px solid ${coneColor};
-          box-shadow: 0 2px 4px rgba(0,0,0,0.4);
-          line-height: 1.2;
-        ">${timeString}<br><small style="font-size: 9px; opacity: 0.8;">+${timeInMinutes}min</small></div>`,
-        iconSize: [50, 24],
-        iconAnchor: [25, 12]
-      });
-      
-      const timeLabelMarker = window.L.marker([timePosition.lat, timePosition.lon], {
-        icon: timeLabel
-      });
-      
-      timeMarkers.push(timeMarker, timeLabelMarker);
-    });
+    }
 
     // Create layer group for the cone with time ticks
     stormConeLayerRef.current = window.L.layerGroup([cone, centerLine, ...timeMarkers]);
@@ -997,59 +1001,61 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       });
 
       // Add time tick markers for all storm tracks (reduced visibility)
-      const timeDistances = [15, 30, 40]; // Simplified for all-tracks view (3 markers)
-      const stormSpeed = currentWindsData?.stormMovement?.speed || 30; // Default 30 mph
-      const currentTime = new Date();
-      
-      timeDistances.forEach((distanceInMiles) => {
-        const timeInHours = distanceInMiles / stormSpeed;
-        const timeInMinutes = Math.round(timeInHours * 60);
+      if (showTimeLabels) {
+        const timeDistances = [15, 30, 40]; // Simplified for all-tracks view (3 markers)
+        const stormSpeed = currentWindsData?.stormMovement?.speed || 30; // Default 30 mph
+        const currentTime = new Date();
         
-        const timePosition = calculateDestination(storm.lat, storm.lon, movementDirection, distanceInMiles);
-        
-        const futureTime = new Date(currentTime.getTime() + timeInMinutes * 60 * 1000);
-        const timeString = futureTime.toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit', 
-          hour12: false 
+        timeDistances.forEach((distanceInMiles) => {
+          const timeInHours = distanceInMiles / stormSpeed;
+          const timeInMinutes = Math.round(timeInHours * 60);
+          
+          const timePosition = calculateDestination(storm.lat, storm.lon, movementDirection, distanceInMiles);
+          
+          const futureTime = new Date(currentTime.getTime() + timeInMinutes * 60 * 1000);
+          const timeString = futureTime.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: false 
+          });
+          
+          // Smaller time markers for all-tracks view
+          const timeMarker = window.L.circleMarker([timePosition.lat, timePosition.lon], {
+            radius: 2,
+            fillColor: '#ffffff',
+            color: coneColor,
+            weight: 1,
+            opacity: 0.7,
+            fillOpacity: 0.8
+          });
+          
+          // Smaller time labels for all-tracks view
+          const timeLabel = window.L.divIcon({
+            className: 'time-tick-label-small',
+            html: `<div style="
+              background-color: rgba(0, 0, 0, 0.7);
+              color: white;
+              padding: 1px 4px;
+              border-radius: 2px;
+              font-size: 9px;
+              font-weight: bold;
+              text-align: center;
+              white-space: nowrap;
+              border: 1px solid ${coneColor};
+              box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            ">${timeString}</div>`,
+            iconSize: [32, 12],
+            iconAnchor: [16, 6]
+          });
+          
+          const timeLabelMarker = window.L.marker([timePosition.lat, timePosition.lon], {
+            icon: timeLabel
+          });
+          
+          allConesGroup.addLayer(timeMarker);
+          allConesGroup.addLayer(timeLabelMarker);
         });
-        
-        // Smaller time markers for all-tracks view
-        const timeMarker = window.L.circleMarker([timePosition.lat, timePosition.lon], {
-          radius: 2,
-          fillColor: '#ffffff',
-          color: coneColor,
-          weight: 1,
-          opacity: 0.7,
-          fillOpacity: 0.8
-        });
-        
-        // Smaller time labels for all-tracks view
-        const timeLabel = window.L.divIcon({
-          className: 'time-tick-label-small',
-          html: `<div style="
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 1px 4px;
-            border-radius: 2px;
-            font-size: 9px;
-            font-weight: bold;
-            text-align: center;
-            white-space: nowrap;
-            border: 1px solid ${coneColor};
-            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-          ">${timeString}</div>`,
-          iconSize: [32, 12],
-          iconAnchor: [16, 6]
-        });
-        
-        const timeLabelMarker = window.L.marker([timePosition.lat, timePosition.lon], {
-          icon: timeLabel
-        });
-        
-        allConesGroup.addLayer(timeMarker);
-        allConesGroup.addLayer(timeLabelMarker);
-      });
+      }
 
       allConesGroup.addLayer(cone);
       allConesGroup.addLayer(centerLine);

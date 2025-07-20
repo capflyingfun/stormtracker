@@ -173,6 +173,7 @@ export default function StormTracker() {
   
   const [currentRadarSource, setCurrentRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer');
   const [showStormTracks, setShowStormTracks] = useState(false);
+  const [showTimeLabels, setShowTimeLabels] = useState(true);
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
   const [showStormFilteringSettings, setShowStormFilteringSettings] = useState(false);
   const [showAlertSubscription, setShowAlertSubscription] = useState(false);
@@ -845,6 +846,15 @@ export default function StormTracker() {
                       🎯 {showStormTracks ? 'Hide Tracks' : 'Show Tracks'}
                     </Button>
                     <Button
+                      onClick={() => setShowTimeLabels(!showTimeLabels)}
+                      variant="outline"
+                      size="sm"
+                      className={`w-full text-xs mb-2 ${showTimeLabels ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
+                      disabled={!showStormTracks}
+                    >
+                      🕐 {showTimeLabels ? 'Hide Time Labels' : 'Show Time Labels'}
+                    </Button>
+                    <Button
                       onClick={() => setShowStormPathPredictor(!showStormPathPredictor)}
                       variant="outline"
                       size="sm"
@@ -883,6 +893,7 @@ export default function StormTracker() {
                     isDisabled={showStormFilteringSettings || showAlertSubscription}
                     alertPreferences={preferences}
                     showAllStormTracks={showStormTracks}
+                    showTimeLabels={showTimeLabels}
                     onMapInstanceReady={setMapInstance}
                   />
                 </div>
