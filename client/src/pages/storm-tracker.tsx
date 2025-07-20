@@ -11,7 +11,7 @@ import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
-import StormPathPredictor from "@/components/storm-path-predictor";
+
 // import { ThreatMonitor } from "@/components/threat-monitor"; // Consolidated into AI Weather Assistant
 
 import { Button } from "@/components/ui/button";
@@ -180,7 +180,7 @@ export default function StormTracker() {
   const [showMessages, setShowMessages] = useState(false);
   const [windsData, setWindsData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages'>('tracker');
-  const [showStormPathPredictor, setShowStormPathPredictor] = useState(false);
+
   const [mapInstance, setMapInstance] = useState<any>(null);
   
   const {
@@ -849,19 +849,10 @@ export default function StormTracker() {
                       onClick={() => setShowTimeLabels(!showTimeLabels)}
                       variant="outline"
                       size="sm"
-                      className={`w-full text-xs mb-2 ${showTimeLabels ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
+                      className={`w-full text-xs ${showTimeLabels ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                       disabled={!showStormTracks}
                     >
                       🕐 {showTimeLabels ? 'Hide Time Labels' : 'Show Time Labels'}
-                    </Button>
-                    <Button
-                      onClick={() => setShowStormPathPredictor(!showStormPathPredictor)}
-                      variant="outline"
-                      size="sm"
-                      className={`w-full text-xs ${showStormPathPredictor ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
-                      disabled={!precipitationStorms || precipitationStorms.length === 0}
-                    >
-                      🛤️ {showStormPathPredictor ? 'Hide Predictor' : 'Path Predictor'}
                     </Button>
                   </div>
                   
@@ -900,17 +891,7 @@ export default function StormTracker() {
 
                 {/* Right Side Controls - Desktop Only */}
                 <div className="hidden lg:flex lg:flex-col lg:w-64 space-y-3">
-                  {/* Storm Path Predictor */}
-                  {showStormPathPredictor && (
-                    <StormPathPredictor
-                      location={location}
-                      precipitationStorms={precipitationStorms}
-                      windsData={windsAloftData?.winds}
-                      mapInstance={mapInstance}
-                      isVisible={showStormPathPredictor}
-                      onVisibilityChange={setShowStormPathPredictor}
-                    />
-                  )}
+
                   
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                     <h3 className="text-sm font-semibold mb-3 text-slate-300">Storm Stats</h3>
