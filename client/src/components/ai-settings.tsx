@@ -74,13 +74,13 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-md bg-white dark:bg-slate-800">
+      <Card className="w-full max-w-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
             <Settings className="w-5 h-5" />
             AI Assistant Settings
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-slate-600 dark:text-slate-300">
             Customize your AI weather assistant tone and style (like Carrot Weather)
           </CardDescription>
         </CardHeader>
@@ -88,7 +88,7 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
         <CardContent className="space-y-6">
           {/* AI Tone Selection */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium">Assistant Personality</Label>
+            <Label className="text-sm font-medium text-slate-900 dark:text-white">Assistant Personality</Label>
             <RadioGroup 
               value={settings.aiTone} 
               onValueChange={(value) => setSettings({...settings, aiTone: value as any})}
@@ -96,21 +96,21 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
             >
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="professional" id="professional" />
-                <Label htmlFor="professional" className="flex items-center gap-2">
+                <Label htmlFor="professional" className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
                   <Zap className="w-4 h-4" />
                   Professional - Scientific weather analysis
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="friendly" id="friendly" />
-                <Label htmlFor="friendly" className="flex items-center gap-2">
+                <Label htmlFor="friendly" className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
                   <MessageCircle className="w-4 h-4" />
                   Friendly - Conversational and easy to understand
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="humorous" id="humorous" />
-                <Label htmlFor="humorous" className="flex items-center gap-2">
+                <Label htmlFor="humorous" className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
                   <Smile className="w-4 h-4" />
                   Humorous - Weather updates with personality
                 </Label>
@@ -120,7 +120,7 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
 
           {/* Detail Level */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium">Detail Level</Label>
+            <Label className="text-sm font-medium text-slate-900 dark:text-white">Detail Level</Label>
             <RadioGroup 
               value={settings.detailLevel} 
               onValueChange={(value) => setSettings({...settings, detailLevel: value as any})}
@@ -128,15 +128,15 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
             >
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="minimal" id="minimal" />
-                <Label htmlFor="minimal">Minimal - Essential safety info only</Label>
+                <Label htmlFor="minimal" className="text-slate-700 dark:text-slate-200">Minimal - Essential safety info only</Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="standard" id="standard" />
-                <Label htmlFor="standard">Standard - Balanced weather information</Label>
+                <Label htmlFor="standard" className="text-slate-700 dark:text-slate-200">Standard - Balanced weather information</Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="technical" id="technical" />
-                <Label htmlFor="technical">Technical - Detailed meteorological analysis</Label>
+                <Label htmlFor="technical" className="text-slate-700 dark:text-slate-200">Technical - Detailed meteorological analysis</Label>
               </div>
             </RadioGroup>
           </div>
@@ -144,7 +144,7 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
           {/* Additional Options */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <Label htmlFor="simplified" className="text-sm">Simplified Language</Label>
+              <Label htmlFor="simplified" className="text-sm text-slate-700 dark:text-slate-200">Simplified Language</Label>
               <Switch
                 id="simplified"
                 checked={settings.simplifiedLanguage}
@@ -154,7 +154,7 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
             
             {settings.aiTone === 'humorous' && (
               <div className="flex items-center justify-between">
-                <Label htmlFor="humor" className="text-sm">Include Weather Humor</Label>
+                <Label htmlFor="humor" className="text-sm text-slate-700 dark:text-slate-200">Include Weather Humor</Label>
                 <Switch
                   id="humor"
                   checked={settings.includeHumor}

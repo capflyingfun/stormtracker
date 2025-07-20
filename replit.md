@@ -293,6 +293,19 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **OpenWeather-Only Integration**: Streamlined weather data fetching to use /api/weather endpoint exclusively for reliable single-source weather information
 - **Verified Timezone Accuracy**: Confirmed duration calculations work correctly across different timezones (server EST vs user CDT)
 
+### AI Tone Customization System (July 20, 2025)
+- **Carrot Weather Style Personality Options**: Implemented comprehensive AI tone customization with three distinct personality modes
+- **Professional Mode**: Technical meteorological analysis with scientific terminology and precise weather data interpretation
+- **Friendly Mode**: Conversational weather updates that are easy to understand with approachable language
+- **Humorous Mode**: Weather personality with wit, charm, and entertaining weather commentary similar to Carrot Weather
+- **Database-Driven User Settings**: Created user_settings table with session-based preference storage for persistent customization
+- **Detail Level Controls**: Minimal (essential safety only), Standard (balanced information), Technical (detailed meteorological analysis)
+- **Accessibility Features**: Simplified language toggle and humor controls for inclusive weather communication
+- **Modal Settings Interface**: Clean, accessible settings modal integrated into AI assistant with proper dark/light theme support
+- **Session-Based Persistence**: User preferences automatically saved and restored using unique session identifiers
+- **API Integration**: Complete backend API endpoints for settings management with proper validation and error handling
+- **Enhanced User Experience**: Settings button integrated directly into AI assistant header for easy access and customization
+
 ### Consolidated AI Weather Assistant (July 20, 2025)
 - **Unified AI Analysis**: Merged separate AI risk assessment and threat monitoring into single comprehensive "AI Weather Assistant" 
 - **Integrated Alert Detection**: AI assistant now automatically analyzes both weather risks AND active alerts/advisories in single operation
