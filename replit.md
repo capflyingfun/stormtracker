@@ -2,7 +2,7 @@
 
 ## Overview
 
-StormTracker is a real-time storm detection web application built with React, Express, and TypeScript. It provides users with live weather radar maps, storm tracking, and weather alerts based on their location. The application uses GPS location detection or manual location search to monitor storm activity within a customizable radius.
+StormTracker is a real-time storm detection web application built with React, Express, and TypeScript. It provides users with live weather radar maps, storm tracking, and weather alerts based on their location. The application uses GPS location detection or manual location search to monitor storm activity within a customizable radius. Enhanced with AI-powered weather analysis that integrates National Weather Service Area Forecast Discussions for comprehensive meteorological assessments.
 
 ## User Preferences
 
@@ -684,3 +684,15 @@ Preferred communication style: Simple, everyday language.
 - **Enhanced Click Experience**: Storm clicks combine movement cone display, detailed popups, and smooth zoom for comprehensive interaction
 - **Visual Reference System**: Pulsing effects directly correlate to Storm Summary boxes showing closest and strongest storm data
 - **Real-Time Validation**: System confirmed working with 5 detected storms (40 dBZ strongest, nearest at 67.7 miles) displaying proper highlighting
+
+### National Weather Service Area Forecast Discussion Integration (July 20, 2025)
+- **Professional Meteorologist Insights**: Integrated NWS Area Forecast Discussion (AFD) data for US locations to enhance AI weather analysis
+- **30+ NWS Office Coverage**: Added comprehensive coverage of National Weather Service offices across Southeast US including Mobile AL, Birmingham AL, Atlanta GA, etc.
+- **Web Scraping AFD Parser**: Implemented `/api/area-forecast-discussion` endpoint to fetch and parse AFD text from forecast.weather.gov using automated text extraction
+- **Nearest Office Detection**: Automatic detection of closest NWS office based on user coordinates for location-specific AFD retrieval
+- **Enhanced AI Analysis**: AI assistant now incorporates professional forecaster insights including synoptic patterns, heat index concerns, convective potential, and atmospheric stability
+- **Multi-Hazard Assessment**: AFD integration provides comprehensive weather analysis beyond thunderstorms including heat advisories, marine conditions, and air quality concerns
+- **Increased AI Detail**: Enhanced AI response depth with 1500 token limit and expanded analysis covering pressure systems, temperature trends, humidity levels, and forecaster confidence
+- **Professional Context**: AI responses now reference actual meteorological terms and patterns identified by National Weather Service forecasters for enhanced accuracy
+- **Heat Index Integration**: AFD successfully identifies non-thunderstorm hazards like heat advisories and high temperature concerns as demonstrated in Mobile Alabama example
+- **Synoptic Weather Patterns**: AI analysis now includes upper-level ridge positioning, surface pressure patterns, and atmospheric stability assessments from professional forecasters

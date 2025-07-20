@@ -295,7 +295,7 @@ Based on this comprehensive meteorological data including radar, winds aloft, av
 {
   "riskLevel": "low|moderate|high|extreme",
   "summary": "Brief 2-sentence overview of current weather threat",
-  "detailedAnalysis": "Detailed analysis covering storm positions, intensities, movement patterns, wind influence, and timeline",
+  "detailedAnalysis": "Comprehensive analysis covering current storm positions and intensities, movement patterns with wind influence, regional weather patterns, synoptic conditions, timing expectations, heat index concerns, aviation impacts, and integration of NWS forecaster insights when available",
   "recommendations": ["Array of 3-4 specific safety recommendations"],
   "timeToImpact": "Estimated time until weather impacts (if applicable)",
   "confidence": 0.85
@@ -316,7 +316,9 @@ Focus on:
 - Timing analysis: immediate impacts from 30-mile storms vs longer-term threats from regional patterns
 - Directional references using nearby airports and geographic features
 - Escalation patterns: how regional storm activity may intensify or diminish over the next few hours
-- PRIORITY: If regional analysis shows overlapping cones or direct path storms, upgrade to HIGH or EXTREME risk regardless of individual storm distances${areaForecastDiscussion ? '\n- NWS AREA FORECAST DISCUSSION: Integrate professional meteorologist insights from the Area Forecast Discussion to enhance risk assessment accuracy and provide context on regional weather patterns, synoptic conditions, and forecaster confidence levels' : ''}
+- PRIORITY: If regional analysis shows overlapping cones or direct path storms, upgrade to HIGH or EXTREME risk regardless of individual storm distances${areaForecastDiscussion ? '\n- NWS AREA FORECAST DISCUSSION: Integrate professional meteorologist insights from the Area Forecast Discussion to enhance risk assessment accuracy and provide context on regional weather patterns, synoptic conditions, forecaster confidence levels, heat index concerns, and broader atmospheric patterns affecting storm development
+- COMPREHENSIVE DETAILS: Provide thorough analysis including synoptic weather patterns, pressure systems, temperature trends, humidity levels, atmospheric stability, convective potential, and any non-thunderstorm hazards like heat advisories mentioned in the AFD
+- MULTI-HAZARD ASSESSMENT: Consider all weather hazards including thunderstorms, heat index values, air quality, marine conditions, and any other meteorological concerns identified in the professional forecast discussion' : ''}
 
 Provide a comprehensive assessment that gives users immediate safety guidance while also painting the bigger regional weather picture. When describing storm movements, reference actual nearby airports, cities, or geographic features from the aviation weather data rather than vague directional terms.`;
 
@@ -334,7 +336,7 @@ Provide a comprehensive assessment that gives users immediate safety guidance wh
       ],
       response_format: { type: "json_object" },
       temperature: 0.3, // Lower temperature for more consistent, factual responses
-      max_tokens: 1000
+      max_tokens: 1500
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
