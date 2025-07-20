@@ -737,6 +737,26 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Southeast Regional Coverage**: Complete airport coverage across Virginia, Tennessee, Kentucky, West Virginia, and Carolinas
 - **Distance-Based Prioritization**: Airports sorted by proximity to user location with accurate distance calculations using Haversine formula
 
+### International Aviation Weather Enhancement (July 20, 2025)
+- **Global Airport Database**: Added comprehensive international airport coverage with 150+ major airports worldwide
+- **Enhanced CheckWX Integration**: Improved CheckWX API implementation for superior international METAR/TAF data access
+- **European Airport Coverage**: Added major European hubs including Paris Charles de Gaulle, Frankfurt, London Heathrow, Amsterdam Schiphol, and regional airports
+- **Asia-Pacific Aviation Network**: Integrated Tokyo, Singapore, Hong Kong, Sydney, and other major Asia-Pacific aviation weather stations
+- **Middle East & Africa Coverage**: Added Dubai, Doha, Jeddah, Cape Town, and Johannesburg airports for comprehensive global coverage
+- **South American Integration**: Included São Paulo, Buenos Aires, Santiago, and other major South American airport weather stations
+- **Canadian Airport Support**: Added Toronto Pearson, Vancouver, and Montréal-Trudeau for North American coverage completion
+- **Multi-Source International Fallback**: Enhanced fallback system specifically designed for international locations with limited US weather service coverage
+- **CheckWX Professional Integration**: Implemented proper CheckWX API key support for enhanced international weather data reliability
+
+### Threat Detection System Optimization (July 20, 2025)
+- **Intelligent International Thresholds**: Enhanced threat detection with location-aware thresholds for US vs international locations
+- **Consolidated Storm Assessment**: Threat monitoring correctly consolidates multiple storm detections into single comprehensive threat assessments
+- **Geographic Context Awareness**: Higher severity thresholds for international locations where intense weather patterns may be more common
+- **Data Consistency Fix**: Resolved discrepancy between AI assistant reporting "no active weather alerts" (NWS alerts) and threat monitor showing "1 Active Threats" (storm-based threats)
+- **Professional Threat Classification**: Threat system appropriately distinguishes between official government alerts and radar-detected storm threats
+- **Distance-Based Filtering**: Optimized threat detection to focus on storms within 20 miles with intensity thresholds of 55+ dBZ (US) or 60+ dBZ (international)
+- **Enhanced Logging**: Added detailed logging to clarify threat detection logic and location-specific threshold application
+
 ### Enhanced Storm Highlighting & Micro-Interaction System (July 19, 2025)
 - **Special Storm Highlighting**: Nearest and strongest storm cells display pulsing colored rings (green for nearest, gold for strongest)
 - **Enhanced Visual Effects**: Special storms show thicker borders, glowing effects, and animated pulsing rings for immediate identification

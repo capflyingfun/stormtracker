@@ -342,61 +342,69 @@ class ThreatDetectionService {
   private async detectThunderstormThreats(userLocation: UserLocation, storms: any[]): Promise<DetectedThreat[]> {
     const threats: DetectedThreat[] = [];
     
-    // Filter storms within 30 miles with significant intensity
-    const nearbyStorms = storms.filter(storm => storm.distance <= 30 && storm.intensity >= 45);
+    // More selective filtering for international locations - only truly severe storms
+    const nearbyStorms = storms.filter(storm => storm.distance <= 20 && storm.intensity >= 55);
     
     if (nearbyStorms.length > 0) {
       // Sort by severity (highest intensity first)
       nearbyStorms.sort((a, b) => b.intensity - a.intensity);
       const strongestStorm = nearbyStorms[0];
       
+      // Check for location context - different thresholds for international vs US
+      const isUSLocation = userLocation.lat >= 24.5 && userLocation.lat <= 49.5 && 
+                          userLocation.lon >= -125 && userLocation.lon <= -66.5;
+      
       let threatLevel = 'moderate';
       let riskToPublic = 'moderate';
       let priority = 3;
       
-      if (strongestStorm.intensity >= 61) {
+      // Higher thresholds for international locations where storms might be more common
+      const severeThreshold = isUSLocation ? 55 : 60;
+      const extremeThreshold = isUSLocation ? 61 : 65;
+      
+      if (strongestStorm.intensity >= extremeThreshold) {
         threatLevel = 'extreme';
         riskToPublic = 'extreme';
         priority = 1;
-      } else if (strongestStorm.intensity >= 55) {
+      } else if (strongestStorm.intensity >= severeThreshold) {
         threatLevel = 'high';
         riskToPublic = 'significant';
         priority = 2;
-      } else if (strongestStorm.intensity >= 50) {
-        threatLevel = 'moderate';
-        riskToPublic = 'moderate';
-        priority = 3;
       }
       
-      const recommendations = [
-        'Monitor weather conditions closely',
-        'Avoid outdoor activities',
-        'Stay indoors during storm passage',
-        'Have emergency supplies ready',
-        'Check on neighbors and family'
-      ];
-      
-      if (strongestStorm.intensity >= 55) {
-        recommendations.unshift('Seek immediate shelter indoors');
-        recommendations.push('Stay away from windows');
-        recommendations.push('Avoid electrical equipment');
+      // Only create threat if it meets the severe threshold
+      if (strongestStorm.intensity >= severeThreshold) {
+        const recommendations = [
+          'Monitor weather conditions closely',
+          'Avoid outdoor activities',
+          'Stay indoors during storm passage',
+          'Have emergency supplies ready'
+        ];
+        
+        if (strongestStorm.intensity >= severeThreshold) {
+          recommendations.unshift('Seek immediate shelter indoors');
+          recommendations.push('Stay away from windows');
+          recommendations.push('Avoid electrical equipment');
+        }
+        
+        threats.push({
+          threatType: 'thunderstorm',
+          threatLevel,
+          threatStatus: 'active',
+          lat: userLocation.lat,
+          lon: userLocation.lon,
+          locationName: userLocation.address,
+          title: `${threatLevel.charAt(0).toUpperCase() + threatLevel.slice(1)} Thunderstorm Alert`,
+          description: `Severe thunderstorm with ${strongestStorm.intensity} dBZ intensity detected ${strongestStorm.distance.toFixed(1)} miles away. ${nearbyStorms.length} significant storm cells within 20 miles.`,
+          stormIntensity: strongestStorm.intensity,
+          riskToPublic,
+          recommendedActions: recommendations,
+          estimatedDuration: strongestStorm.intensity >= extremeThreshold ? '2-4 hours' : '1-3 hours',
+          priority
+        });
+        
+        console.log(`🌩️ Thunderstorm threat created for ${isUSLocation ? 'US' : 'international'} location with ${strongestStorm.intensity} dBZ intensity`);
       }
-      
-      threats.push({
-        threatType: 'thunderstorm',
-        threatLevel,
-        threatStatus: 'active',
-        lat: userLocation.lat,
-        lon: userLocation.lon,
-        locationName: userLocation.address,
-        title: `${threatLevel.charAt(0).toUpperCase() + threatLevel.slice(1)} Thunderstorm Alert`,
-        description: `Thunderstorm with ${strongestStorm.intensity} dBZ intensity detected ${strongestStorm.distance.toFixed(1)} miles away. ${nearbyStorms.length} storm cells within 30 miles.`,
-        stormIntensity: strongestStorm.intensity,
-        riskToPublic,
-        recommendedActions: recommendations,
-        estimatedDuration: strongestStorm.intensity >= 55 ? '2-4 hours' : '1-3 hours',
-        priority
-      });
     }
     
     return threats;
