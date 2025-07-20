@@ -299,7 +299,7 @@ export default function AIWeatherAssistant({
               <div className="text-slate-400">Alerts Sent</div>
             </div>
             <div className="text-center">
-              <div className="font-semibold text-lg text-white">{threatData.weatherConditions.temperature}°F</div>
+              <div className="font-semibold text-lg text-white">{threatData.weatherConditions.temperature.toFixed(1)}°F</div>
               <div className="text-slate-400">Temperature</div>
             </div>
             <div className="text-center">
