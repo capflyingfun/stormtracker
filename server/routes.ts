@@ -2651,40 +2651,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Add real-time weather data for immediate area
+      // Add real-time weather data for immediate area using NWS API (free, no API key needed)
       let currentWeather = null;
       try {
-        console.log('🌤️ Fetching real-time weather for immediate area...');
-        const owmResponse = await fetch(
-          `https://api.openweathermap.org/data/2.5/weather?lat=${userLat}&lon=${userLon}&appid=${API_KEYS.openweather}&units=metric`
+        console.log('🌤️ Fetching real-time weather from National Weather Service...');
+        
+        // First, get the NWS grid point for the location
+        const nwsPointsResponse = await fetch(
+          `https://api.weather.gov/points/${userLat.toFixed(4)},${userLon.toFixed(4)}`,
+          {
+            headers: {
+              'User-Agent': 'StormTracker/1.0 (weather app for storm tracking)'
+            }
+          }
         );
         
-        if (owmResponse.ok) {
-          const owmData = await owmResponse.json();
-          currentWeather = {
-            location: `${owmData.name || 'Local Area'}`,
-            coordinates: `${userLat.toFixed(3)}, ${userLon.toFixed(3)}`,
-            source: 'OpenWeatherMap',
-            timestamp: new Date().toISOString(),
-            timeAgo: 'Live data',
-            isStale: false,
-            conditions: {
-              temperature: Math.round(owmData.main?.temp || 0),
-              humidity: owmData.main?.humidity || 'Unknown',
-              pressure: owmData.main?.pressure || 'Unknown',
-              visibility: owmData.visibility ? (owmData.visibility / 1000).toFixed(1) + ' km' : 'Unknown',
-              windSpeed: Math.round((owmData.wind?.speed || 0) * 2.237), // Convert m/s to mph
-              windDirection: owmData.wind?.deg || 0,
-              windGust: owmData.wind?.gust ? Math.round(owmData.wind.gust * 2.237) : null,
-              weather: owmData.weather?.[0]?.description || 'Clear',
-              cloudCover: owmData.clouds?.all || 0,
-              dewPoint: Math.round(owmData.main?.temp - ((100 - owmData.main?.humidity) / 5)) || 'Unknown'
+        if (nwsPointsResponse.ok) {
+          const pointsData = await nwsPointsResponse.json();
+          const forecastHourlyUrl = pointsData.properties?.forecastHourly;
+          const observationStationsUrl = pointsData.properties?.observationStations;
+          
+          if (observationStationsUrl) {
+            // Get nearest observation station
+            const stationsResponse = await fetch(observationStationsUrl, {
+              headers: {
+                'User-Agent': 'StormTracker/1.0 (weather app for storm tracking)'
+              }
+            });
+            
+            if (stationsResponse.ok) {
+              const stationsData = await stationsResponse.json();
+              const nearestStation = stationsData.features?.[0]?.id;
+              
+              if (nearestStation) {
+                // Get current observations from nearest station
+                const obsResponse = await fetch(
+                  `https://api.weather.gov/stations/${nearestStation}/observations/latest`,
+                  {
+                    headers: {
+                      'User-Agent': 'StormTracker/1.0 (weather app for storm tracking)'
+                    }
+                  }
+                );
+                
+                if (obsResponse.ok) {
+                  const obsData = await obsResponse.json();
+                  const props = obsData.properties;
+                  
+                  if (props) {
+                    // Convert Celsius to Fahrenheit if needed, or use direct value
+                    const tempC = props.temperature?.value;
+                    const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
+                    
+                    currentWeather = {
+                      location: props.station || 'National Weather Service',
+                      coordinates: `${userLat.toFixed(3)}, ${userLon.toFixed(3)}`,
+                      source: 'National Weather Service',
+                      timestamp: props.timestamp || new Date().toISOString(),
+                      timeAgo: 'Live NWS data',
+                      isStale: false,
+                      conditions: {
+                        temperature: tempF || Math.round(tempC || 0),
+                        humidity: props.relativeHumidity?.value ? Math.round(props.relativeHumidity.value) : 'Unknown',
+                        pressure: props.barometricPressure?.value ? Math.round(props.barometricPressure.value / 100) : 'Unknown', // Convert Pa to hPa
+                        visibility: props.visibility?.value ? (props.visibility.value / 1000).toFixed(1) + ' km' : 'Unknown',
+                        windSpeed: props.windSpeed?.value ? Math.round(props.windSpeed.value * 2.237) : 0, // Convert m/s to mph
+                        windDirection: props.windDirection?.value || 0,
+                        windGust: props.windGust?.value ? Math.round(props.windGust.value * 2.237) : null,
+                        weather: props.textDescription || 'Clear',
+                        cloudCover: props.cloudLayers?.[0]?.amount || 'Unknown',
+                        dewPoint: props.dewpoint?.value ? Math.round((props.dewpoint.value * 9/5) + 32) : 'Unknown'
+                      }
+                    };
+                    console.log('✅ Real-time NWS weather data fetched successfully');
+                  }
+                }
+              }
             }
-          };
-          console.log('✅ Real-time weather data fetched successfully');
+          }
         }
-      } catch (owmError) {
-        console.log('Real-time weather fetch failed:', owmError.message);
+        
+        // Fallback to OpenWeather if NWS fails and we have a key
+        if (!currentWeather && API_KEYS.openweather && API_KEYS.openweather !== 'a8f3a8e5a1a3b3d5e9a8f3a8e5a1a3b3') {
+          console.log('🌤️ Falling back to OpenWeather API...');
+          const owmResponse = await fetch(
+            `https://api.openweathermap.org/data/2.5/weather?lat=${userLat}&lon=${userLon}&appid=${API_KEYS.openweather}&units=metric`
+          );
+          
+          if (owmResponse.ok) {
+            const owmData = await owmResponse.json();
+            currentWeather = {
+              location: `${owmData.name || 'Local Area'}`,
+              coordinates: `${userLat.toFixed(3)}, ${userLon.toFixed(3)}`,
+              source: 'OpenWeatherMap',
+              timestamp: new Date().toISOString(),
+              timeAgo: 'Live data',
+              isStale: false,
+              conditions: {
+                temperature: Math.round((owmData.main?.temp || 0) * 9/5 + 32), // Convert C to F
+                humidity: owmData.main?.humidity || 'Unknown',
+                pressure: owmData.main?.pressure || 'Unknown',
+                visibility: owmData.visibility ? (owmData.visibility / 1000).toFixed(1) + ' km' : 'Unknown',
+                windSpeed: Math.round((owmData.wind?.speed || 0) * 2.237), // Convert m/s to mph
+                windDirection: owmData.wind?.deg || 0,
+                windGust: owmData.wind?.gust ? Math.round(owmData.wind.gust * 2.237) : null,
+                weather: owmData.weather?.[0]?.description || 'Clear',
+                cloudCover: owmData.clouds?.all || 0,
+                dewPoint: Math.round(((owmData.main?.temp || 0) - ((100 - (owmData.main?.humidity || 50)) / 5)) * 9/5 + 32) || 'Unknown'
+              }
+            };
+            console.log('✅ OpenWeather fallback data fetched successfully');
+          }
+        }
+        
+      } catch (nwsError) {
+        console.log('NWS weather fetch failed:', nwsError.message);
       }
 
       res.json({
