@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Brain, AlertTriangle, CheckCircle, Clock, MapPin, Wind, Plane, RefreshCw, Settings } from "lucide-react";
-import { AISettings } from './ai-settings';
+import { Brain, AlertTriangle, CheckCircle, Clock, MapPin, Wind, Plane, RefreshCw } from "lucide-react";
 
 interface StormData {
   id: string;
@@ -62,8 +61,6 @@ export default function AIWeatherAssistant({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
 
   // Fetch aviation weather data
   const { data: aviationData } = useQuery({
@@ -206,15 +203,10 @@ export default function AIWeatherAssistant({
           </div>
         </CardTitle>
         <div className="flex flex-col sm:flex-row gap-2 mt-2">
-          <Button
-            onClick={() => setShowSettings(true)}
-            size="sm"
-            variant="outline"
-            className="h-8 w-8 p-0 sm:w-auto sm:px-3"
-          >
-            <Settings className="w-4 h-4" />
-            <span className="hidden sm:inline ml-2">Settings</span>
-          </Button>
+          <div className="flex items-center gap-2 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-md">
+            <Brain className="w-4 h-4 text-blue-400" />
+            <span className="text-xs text-blue-300">Dynamic Tone Active</span>
+          </div>
           <Button
             onClick={() => {
               assessmentMutation.mutate();
@@ -408,12 +400,6 @@ export default function AIWeatherAssistant({
           </div>
         )}
       </CardContent>
-      
-      <AISettings 
-        isOpen={showSettings} 
-        onClose={() => setShowSettings(false)}
-        sessionId={sessionId}
-      />
     </Card>
   );
 }

@@ -2032,12 +2032,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
       
-      <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[400px] md:h-[600px] lg:h-[700px] xl:h-[800px] ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
-        <div ref={mapRef} className="w-full h-full"></div>
+      <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[400px] md:h-[600px] lg:h-[700px] xl:h-[800px] z-0 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
+        <div ref={mapRef} className="w-full h-full" style={{ zIndex: 0 }}></div>
         
         {/* Disabled overlay */}
         {isDisabled && (
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-[100]">
             <div className="text-white text-center">
               <div className="text-lg font-semibold">Map Disabled</div>
               <div className="text-sm text-slate-300">Close settings to interact with map</div>
