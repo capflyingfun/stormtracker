@@ -105,8 +105,28 @@ export default function AIWeatherAssistant({
   // AI Assessment mutation
   const assessmentMutation = useMutation({
     mutationFn: async () => {
-      // First get latest threat data
-      const currentThreatData = await refetchThreats();
+      // First fetch fresh threat data directly
+      let currentThreatData = null;
+      try {
+        const threatResponse = await fetch('/api/threat-detection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lat: userLocation.lat,
+            lon: userLocation.lon,
+            address: userLocation.address,
+            storms,
+            lightningCount
+          })
+        });
+        
+        if (threatResponse.ok) {
+          currentThreatData = await threatResponse.json();
+          console.log('AI Assessment: Fresh threat data fetched for AI analysis');
+        }
+      } catch (error) {
+        console.log('AI Assessment: Could not fetch threat data:', error);
+      }
       
       // Optimize payload by sending only essential storm data
       const optimizedStorms = storms.slice(0, 200).map(storm => ({
@@ -124,7 +144,7 @@ export default function AIWeatherAssistant({
         } : null
       }));
       
-      const response = await apiRequest("POST", "/api/ai-assessment", {
+      const response = await apiRequest("POST", "/ai-assessment", {
         userLocation,
         storms: optimizedStorms,
         stormCount: storms.length,
@@ -133,7 +153,7 @@ export default function AIWeatherAssistant({
         includeAlerts: true, // Enhanced to include alert analysis
         lightningCount,
         useMetric,
-        threatData: currentThreatData.data // Pass fresh threat data to prevent duplicate NWS alert fetching
+        threatData: currentThreatData // Pass fresh threat data to prevent duplicate NWS alert fetching
       });
       return response.json();
     },
