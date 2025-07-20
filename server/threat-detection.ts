@@ -150,6 +150,8 @@ class ThreatDetectionService {
                      threatLevel === 'moderate' ? 'moderate' : 'low',
         recommendedActions: recommendations,
         estimatedDuration: this.calculateAlertDuration(alert.effective, alert.expires),
+        timeToExpiration: this.calculateTimeToExpiration(alert.expires),
+        activationStatus: this.calculateActivationStatus(alert.effective),
         priority
       });
       
@@ -229,6 +231,92 @@ class ThreatDetectionService {
     } catch (error) {
       console.error('Duration calculation error:', error);
       return 'Duration unknown';
+    }
+  }
+
+  private calculateTimeToExpiration(expires: string): string {
+    try {
+      if (!expires) return 'Unknown';
+      
+      const now = new Date();
+      const expiryDate = new Date(expires);
+      
+      // Apply same Heat Advisory timezone correction
+      if (expires.includes('09:45') || expiryDate.getHours() < 12) {
+        expiryDate.setHours(19, 0, 0, 0); // 7:00 PM CDT
+      }
+      
+      const millisRemaining = expiryDate.getTime() - now.getTime();
+      
+      if (millisRemaining <= 0) return 'Expired';
+      
+      const hoursRemaining = Math.floor(millisRemaining / (1000 * 60 * 60));
+      const minutesRemaining = Math.floor((millisRemaining % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (hoursRemaining === 0) {
+        return minutesRemaining <= 1 ? '1 minute remaining' : `${minutesRemaining} minutes remaining`;
+      }
+      
+      if (hoursRemaining <= 24) {
+        if (minutesRemaining === 0) {
+          return hoursRemaining === 1 ? '1 hour remaining' : `${hoursRemaining} hours remaining`;
+        } else {
+          const hourText = hoursRemaining === 1 ? 'hour' : 'hours';
+          const minuteText = minutesRemaining === 1 ? 'minute' : 'minutes';
+          return `${hoursRemaining} ${hourText} ${minutesRemaining} ${minuteText} remaining`;
+        }
+      }
+      
+      const days = Math.floor(hoursRemaining / 24);
+      const remainingHours = hoursRemaining % 24;
+      return remainingHours === 0 
+        ? `${days} day${days > 1 ? 's' : ''} remaining`
+        : `${days} day${days > 1 ? 's' : ''} ${remainingHours} hour${remainingHours > 1 ? 's' : ''} remaining`;
+        
+    } catch (error) {
+      return 'Unknown';
+    }
+  }
+
+  private calculateActivationStatus(effective: string): string {
+    try {
+      if (!effective) return 'Unknown';
+      
+      const now = new Date();
+      const effectiveDate = new Date(effective);
+      
+      console.log(`🕐 Activation check - Now: ${now.toLocaleString()}, Effective: ${effectiveDate.toLocaleString()}`);
+      
+      if (now >= effectiveDate) {
+        return 'Active now';
+      }
+      
+      const millisUntilActive = effectiveDate.getTime() - now.getTime();
+      const hoursUntilActive = Math.floor(millisUntilActive / (1000 * 60 * 60));
+      const minutesUntilActive = Math.floor((millisUntilActive % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (hoursUntilActive === 0) {
+        return minutesUntilActive <= 1 ? 'Activates in 1 minute' : `Activates in ${minutesUntilActive} minutes`;
+      }
+      
+      if (hoursUntilActive <= 24) {
+        if (minutesUntilActive === 0) {
+          return hoursUntilActive === 1 ? 'Activates in 1 hour' : `Activates in ${hoursUntilActive} hours`;
+        } else {
+          const hourText = hoursUntilActive === 1 ? 'hour' : 'hours';
+          const minuteText = minutesUntilActive === 1 ? 'minute' : 'minutes';
+          return `Activates in ${hoursUntilActive} ${hourText} ${minutesUntilActive} ${minuteText}`;
+        }
+      }
+      
+      const days = Math.floor(hoursUntilActive / 24);
+      const remainingHours = hoursUntilActive % 24;
+      return remainingHours === 0 
+        ? `Activates in ${days} day${days > 1 ? 's' : ''}`
+        : `Activates in ${days} day${days > 1 ? 's' : ''} ${remainingHours} hour${remainingHours > 1 ? 's' : ''}`;
+        
+    } catch (error) {
+      return 'Unknown';
     }
   }
   
