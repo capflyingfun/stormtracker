@@ -4,42 +4,54 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY 
 });
 
-// Dynamic AI tone based on weather severity
+// Dynamic AI tone based on weather severity - prioritize alerts first
 function getDynamicTone(storms: StormData[], threatData: any, activeAlerts: any[]) {
-  // Determine severity level
+  // PRIORITY 1: Check for active alerts first (Heat Advisories, Warnings, etc.)
+  const hasActiveAlert = activeAlerts && activeAlerts.length > 0;
+  const hasHeatAdvisory = activeAlerts?.some(a => a.event && (
+    a.event.toLowerCase().includes('heat') ||
+    a.event.toLowerCase().includes('excessive heat') ||
+    a.event.toLowerCase().includes('extreme heat')
+  ));
+  
+  // PRIORITY 2: Check for extreme weather threats
   const hasExtremeThreat = storms.some(s => s.intensity >= 65) || 
-                          activeAlerts.some(a => a.severity === 'Extreme') ||
-                          threatData?.threatCount > 0;
+                          activeAlerts?.some(a => a.severity === 'Extreme') ||
+                          threatData?.threatCount > 2;
   
+  // PRIORITY 3: Check for high threats
   const hasHighThreat = storms.some(s => s.intensity >= 55) || 
-                       activeAlerts.some(a => a.severity === 'Severe') ||
-                       storms.length > 0;
+                       activeAlerts?.some(a => a.severity === 'Severe') ||
+                       threatData?.threatCount > 0;
   
+  // PRIORITY 4: Check for moderate threats
   const hasModerateThreat = storms.some(s => s.intensity >= 35) || 
-                           activeAlerts.some(a => a.severity === 'Moderate');
+                           activeAlerts?.some(a => a.severity === 'Moderate') ||
+                           hasActiveAlert;
   
+  // Tone determination with alert prioritization
   if (hasExtremeThreat) {
     return {
       prefix: "URGENT WEATHER ALERT:",
-      style: "Use direct, urgent, life-safety focused language. Be concise and clear about immediate threats. No humor.",
+      style: "Use direct, urgent, life-safety focused language. Be concise and clear about immediate threats. No humor. Start with active alerts.",
       recommendations: "Provide immediate action steps for safety. Use imperative language."
     };
-  } else if (hasHighThreat) {
+  } else if (hasHighThreat || hasHeatAdvisory) {
     return {
       prefix: "Weather Advisory:",
-      style: "Use professional, clear language with focus on safety guidance. Be direct but not alarming.",
-      recommendations: "Provide specific safety recommendations and monitoring advice."
+      style: "Use professional, clear language with focus on safety guidance. Be direct but not alarming. Prioritize discussing active alerts and advisories.",
+      recommendations: "Provide specific safety recommendations and monitoring advice. Address heat advisory concerns first."
     };
-  } else if (hasModerateThreat) {
+  } else if (hasModerateThreat || hasActiveAlert) {
     return {
       prefix: "Weather Update:",
-      style: "Use balanced professional tone with clear explanations. Maintain awareness without alarm.",
-      recommendations: "Provide situational awareness and preparedness guidance."
+      style: "Use balanced professional tone with clear explanations. Maintain awareness without alarm. Discuss active weather alerts before other conditions.",
+      recommendations: "Provide situational awareness and preparedness guidance. Address active alerts first."
     };
   } else {
     return {
       prefix: "Weather looks good:",
-      style: "Use relaxed, conversational tone. Can include light humor if user allows it.",
+      style: "Use relaxed, conversational tone. Can include light humor if appropriate.",
       recommendations: "Provide general awareness and can include positive observations."
     };
   }
@@ -324,7 +336,18 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
 
 LOCATION: ${data.userLocation.address} (${data.userLocation.lat.toFixed(4)}°N, ${data.userLocation.lon.toFixed(4)}°W)
 
-RADAR DATA SOURCE: ${data.radarSource} (authentic weather radar)
+⚠️ ACTIVE WEATHER ALERTS & ADVISORIES (HIGHEST PRIORITY):
+${activeAlerts.length > 0 ? 
+  activeAlerts.map(alert => 
+    `🚨 ${alert.event}: ${alert.headline}\n` +
+    `   Severity: ${alert.severity || 'Moderate'} | Areas: ${alert.areaDesc}\n` +
+    `   Effective: ${alert.effective} | Expires: ${alert.expires}\n` +
+    `   Instructions: ${alert.instruction || 'Follow local guidance'}\n`
+  ).join('\n') : 
+  '✅ No active weather alerts or advisories\n'}
+
+WINDS ALOFT DATA (STORM STEERING):
+${windContext.map(wind => `${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}
 
 IMMEDIATE THREATS (30-MILE RADIUS):
 ${immediateStormContext.length === 0 ? 'No active storms detected within 30 miles' : 
@@ -351,10 +374,14 @@ ${regionalContext ?
   `Overlapping movement cones detected: ${regionalContext.overlappingCones.length}` :
   'Regional storm data unavailable - analysis based on 30-mile immediate area only'}
 
-WINDS ALOFT:
-${windContext.map(wind => `${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}
-
-LIGHTNING ACTIVITY: Analyzed from METAR reports (when available)
+AVIATION WEATHER (NEARBY AIRPORTS):
+${aviationData?.stations ? 
+  aviationData.stations.map(station => 
+    `${station.identifier} (${station.distance}): ${station.skyCondition} | ` +
+    `Temp: ${station.temperature}°F | Wind: ${station.windDirection}°@${station.windSpeed}kt | ` +
+    `Visibility: ${station.visibility} | ${station.timeAgo}`
+  ).join('\n') : 
+  'Aviation weather data unavailable'}
 
 CURRENT WEATHER (IMMEDIATE AREA):
 ${currentWeather ? 
@@ -366,73 +393,37 @@ ${currentWeather ?
   `  Source: ${currentWeather.source} (Live Data)\n` : 
   'No real-time weather data available\n'}
 
+RADAR DATA SOURCE: ${data.radarSource} (authentic weather radar)
+
 ${threatSummary ? `
 ACTIVE THREAT MONITORING STATUS:
 ${threatSummary}
-
-ACTIVE WEATHER ALERTS & ADVISORIES:
-${activeAlerts.length > 0 ? 
-  activeAlerts.map(alert => 
-    `• ${alert.event || alert.headline}: ${alert.severity || 'Advisory'} level\n` +
-    `  Effective: ${alert.effective || 'Current'} | Expires: ${alert.expires || 'Unknown'}\n` +
-    `  Areas: ${alert.areas || alert.areaDesc || 'Local area'}\n` +
-    `  Description: ${(alert.description || alert.instruction || 'Monitor conditions').substring(0, 200)}...`
-  ).join('\n\n') : 
-  'No active NWS alerts or advisories found for this area'}
 ` : ''}
 
-AVIATION WEATHER (NEARBY AIRPORTS):
-${aviationWeather.length > 0 ? 
-  aviationWeather.map(station => 
-    `${station.airport} (${station.icao}) - ${station.distance.toFixed(1)} miles ${station.direction} [${station.timeAgo}${station.isStale ? ' - STALE' : ''}]:\n` +
-    `  Ceiling: ${station.conditions.ceiling}  Visibility: ${station.conditions.visibility}\n` +
-    `  Clouds: ${station.conditions.clouds}  Weather: ${station.conditions.weather}\n` +
-    `  Wind: ${station.conditions.wind}  Temp/Dewpoint: ${station.conditions.temperature}°/${station.conditions.dewpoint}°\n` +
-    `  METAR: ${station.metar}`
-  ).join('\n\n') : 
-  'No aviation weather data available'}
+AREA FORECAST DISCUSSION:
+${areaForecastDiscussion ? 
+  `From ${areaForecastDiscussion.office} (issued ${areaForecastDiscussion.issuedTime}):\n${areaForecastDiscussion.discussion.substring(0, 800)}${areaForecastDiscussion.discussion.length > 800 ? '...' : ''}` : 
+  'Area Forecast Discussion unavailable'}
 
-${areaForecastDiscussion ? `
-NWS AREA FORECAST DISCUSSION:
-Source: National Weather Service
-${areaForecastDiscussion}
-` : ''}
+LIGHTNING ACTIVITY: ${data.lightningCount || 0} recent strikes detected
 
-Based on this comprehensive meteorological data including radar, winds aloft, aviation weather conditions${threatSummary ? ', active threat monitoring status, and official weather alerts/advisories' : ''}${areaForecastDiscussion ? ', and professional meteorological analysis from the National Weather Service' : ''}, provide a detailed weather impact assessment in JSON format:
+ANALYSIS INSTRUCTIONS:
+${dynamicTone.style}
 
+COMMUNICATION STYLE: ${dynamicTone.prefix}
+${dynamicTone.recommendations}
+
+Analyze current weather conditions and provide a comprehensive risk assessment. Focus on immediate safety concerns and provide specific recommendations based on active alerts, storm activity, and current conditions. Use the specified communication style based on threat level.
+
+Respond with exactly this JSON format:
 {
   "riskLevel": "low|moderate|high|extreme",
-  "summary": "Brief 2-sentence overview of current weather threat",
-  "detailedAnalysis": "Comprehensive analysis covering current storm positions and intensities, movement patterns with wind influence, regional weather patterns, synoptic conditions, timing expectations, heat index concerns, aviation impacts${threatSummary ? ', active threat monitoring results, current alert status' : ''}${activeAlerts.length > 0 ? ', and detailed discussion of active NWS alerts/advisories including their implications for the user location' : ''}, and integration of NWS forecaster insights when available",
-  "recommendations": ["Array of 3-4 specific safety recommendations"],
-  "timeToImpact": "Estimated time until weather impacts (if applicable)",
-  "confidence": 0.85
-}
-
-Focus on:
-- CRITICAL REGIONAL TRACK ANALYSIS: If regional storms show track intersections crossing user location, this is HIGHEST PRIORITY threat
-- OVERLAPPING STORM CONES: Multiple storm movement cones crossing the same location create EXTREME risk conditions
-- STORM TRACK INTERSECTIONS: Check for storms with tracks/cones crossing directly over user location (marked "DIRECT THREAT")
-- IMMEDIATE THREATS: Analyze the 30-mile storms for specific timing, intensity, and direct impacts at ${data.userLocation.address}
-- TRACK ANALYSIS: Pay special attention to "DIRECT PATH" and "IMMEDIATE VICINITY" storm track statuses - these indicate storms affecting the exact user location
-- REGIONAL CONTEXT: Use the 50-mile storm pattern to assess broader weather trends, approaching systems, and changing conditions
-- Storm intensity progression from regional patterns toward the immediate area
-- dBZ intensity levels and their rainfall/hail implications for both immediate and approaching storms
-- Wind patterns affecting storm steering from Open-Meteo pressure level data
-- Aviation weather conditions from nearby airports (ceiling, visibility, cloud coverage)
-- Lightning activity reported in METAR/aviation weather observations
-- Timing analysis: immediate impacts from 30-mile storms vs longer-term threats from regional patterns
-- Directional references using nearby airports and geographic features
-- Escalation patterns: how regional storm activity may intensify or diminish over the next few hours
-- PRIORITY: If regional analysis shows overlapping cones or direct path storms, upgrade to HIGH or EXTREME risk regardless of individual storm distances${threatSummary ? `
-- ACTIVE THREAT MONITORING: When threat monitoring data is provided, discuss the detected threat count, alert status, and current monitoring status in your detailed analysis
-- ALERT INTEGRATION: If active weather alerts/advisories are present, provide detailed discussion of their implications, timing, and safety recommendations specific to the user's location
-- COMPREHENSIVE ALERT ANALYSIS: Include specific details about heat advisories, air quality alerts, or other weather warnings and how they affect local conditions` : ''}${areaForecastDiscussion ? `
-- NWS AREA FORECAST DISCUSSION: Integrate professional meteorologist insights from the Area Forecast Discussion to enhance risk assessment accuracy and provide context on regional weather patterns, synoptic conditions, forecaster confidence levels, heat index concerns, and broader atmospheric patterns affecting storm development
-- COMPREHENSIVE DETAILS: Provide thorough analysis including synoptic weather patterns, pressure systems, temperature trends, humidity levels, atmospheric stability, convective potential, and any non-thunderstorm hazards like heat advisories mentioned in the AFD
-- MULTI-HAZARD ASSESSMENT: Consider all weather hazards including thunderstorms, heat index values, air quality, marine conditions, and any other meteorological concerns identified in the professional forecast discussion` : ''}
-
-Provide a comprehensive assessment that gives users immediate safety guidance while also painting the bigger regional weather picture. When describing storm movements, reference actual nearby airports, cities, or geographic features from the aviation weather data rather than vague directional terms.`;
+  "summary": "Brief 2-3 sentence overview focusing on key risks",
+  "timeToImpact": "Estimated timing if threats approaching or null",
+  "recommendations": ["Specific action item 1", "Specific action item 2"],
+  "confidence": 0.0-1.0,
+  "detailedAnalysis": "Comprehensive analysis including all data sources and meteorological context"
+}`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
