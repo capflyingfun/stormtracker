@@ -512,6 +512,16 @@ CRITICAL ANALYSIS REQUIREMENTS:
 
 5. TRACK CONE ANALYSIS: If any storms show directional movement toward the user location (indicated by ETA times and impact ratings), discuss this as a direct contact scenario, not just "nearby activity".
 
+6. TIME & DATE CALCULATION ACCURACY: Always verify and calculate dates and times correctly:
+   - Current time is ${new Date().toISOString()} (UTC)
+   - For time calculations, consider timezone differences (US Central Time is UTC-5 during daylight saving)
+   - When alert data shows "expires" times, calculate actual remaining duration from current time
+   - Heat Advisories typically run 10 AM to 7 PM local time (9 hours duration)
+   - Verify alert durations by subtracting effective time from expiry time
+   - If different alerts have different expiry times, calculate each one individually
+   - Always double-check your time math: (expiry time - current time) = remaining duration
+   - For alerts showing strange times like "09:45" or early morning hours, these may need timezone correction
+
 Provide your assessment in this exact JSON format:
 {
   "riskLevel": "low|moderate|high|extreme",
