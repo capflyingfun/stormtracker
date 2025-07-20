@@ -165,14 +165,12 @@ class ThreatDetectionService {
     try {
       if (!expires || !effective) return 'Duration unknown';
       
-      // Convert to CDT timezone (UTC-5)
       const nowUTC = new Date();
-      const nowCDT = new Date(nowUTC.getTime() - (5 * 60 * 60 * 1000)); // UTC-5 for CDT
       const effectiveDate = new Date(effective);
       const expiryDate = new Date(expires);
       
       console.log(`🕒 Alert times - Effective: ${effectiveDate.toLocaleString()}, Expires: ${expiryDate.toLocaleString()}`);
-      console.log(`🕒 Current time CDT: ${nowCDT.toLocaleString()}, UTC: ${nowUTC.toLocaleString()}`);
+      console.log(`🕒 Current time UTC: ${nowUTC.toLocaleString()}`);
       
       // WORKAROUND: For Heat Advisories, NWS API often shows wrong expiry times
       // Heat advisories typically run from 10 AM to 7 PM CDT (FIXED 9-hour duration)
@@ -268,17 +266,41 @@ class ThreatDetectionService {
       if (!effective) return 'Unknown';
       
       const nowUTC = new Date();
-      const nowCDT = new Date(nowUTC.getTime() - (5 * 60 * 60 * 1000)); // UTC-5 for CDT
       const effectiveDate = new Date(effective);
       
-      console.log(`🕐 Activation check - Now CDT: ${nowCDT.toLocaleString()}, UTC: ${nowUTC.toLocaleString()}, Effective: ${effectiveDate.toLocaleString()}`);
+      console.log(`🕐 Activation check - Now UTC: ${nowUTC.toLocaleString()}, Effective: ${effectiveDate.toLocaleString()}`);
       
-      // For Heat Advisories, use 10 AM CDT as the actual start time (detect by alert type)
+      // For Heat Advisories, use 10 AM local time as the actual start time (detect by alert type)
       if (alertType && alertType.toLowerCase().includes('heat')) {
-        console.log(`🚨 Heat Advisory detected by type "${alertType}" - correcting start time to 10:00 AM CDT`);
-        const todayCDT = new Date(nowCDT);
-        todayCDT.setHours(10, 0, 0, 0); // 10:00 AM CDT
-        const actualStartUTC = new Date(todayCDT.getTime() + (5 * 60 * 60 * 1000)); // Convert to UTC
+        console.log(`🚨 Heat Advisory detected by type "${alertType}" - correcting start time to 10:00 AM local time`);
+        
+        // Get current date in user's timezone and set to 10 AM
+        const today = new Date();
+        const todayLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 10, 0, 0, 0);
+        
+        console.log(`⚠️ Heat Advisory start corrected to 10:00 AM local time (${todayLocal.toLocaleString()})`);
+        
+        if (nowUTC >= todayLocal) {
+          console.log(`🟢 Heat Advisory is ACTIVE NOW (after 10:00 AM local time)`);
+          return 'Active now';
+        } else {
+          const millisUntilActive = todayLocal.getTime() - nowUTC.getTime();
+          const hoursUntilActive = Math.floor(millisUntilActive / (1000 * 60 * 60));
+          const minutesUntilActive = Math.floor((millisUntilActive % (1000 * 60 * 60)) / (1000 * 60));
+          
+          console.log(`🕒 Heat Advisory starts in ${hoursUntilActive}h ${minutesUntilActive}m (at 10:00 AM local time)`);
+          
+          if (hoursUntilActive === 0) {
+            return minutesUntilActive <= 1 ? 'Activates in 1 minute' : `Activates in ${minutesUntilActive} minutes`;
+          } else if (minutesUntilActive === 0) {
+            return hoursUntilActive === 1 ? 'Activates in 1 hour' : `Activates in ${hoursUntilActive} hours`;
+          } else {
+            const hourText = hoursUntilActive === 1 ? 'hour' : 'hours';
+            const minuteText = minutesUntilActive === 1 ? 'minute' : 'minutes';
+            return `Activates in ${hoursUntilActive} ${hourText} ${minutesUntilActive} ${minuteText}`;
+          }
+        }
+      }
         
         console.log(`⚠️ Heat Advisory start corrected to 10:00 AM CDT (${actualStartUTC.toLocaleString()} UTC)`);
         
