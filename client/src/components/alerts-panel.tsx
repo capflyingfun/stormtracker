@@ -56,7 +56,9 @@ const getAlertIcon = (type: string): string => {
 };
 
 export default function AlertsPanel({ alerts, stormThreats = [], isLoading }: AlertsPanelProps) {
-  const totalAlerts = alerts.length + stormThreats.length;
+  // Filter out NWS alerts from stormThreats since AI Weather Assistant handles NWS alerts directly
+  const filteredStormThreats = stormThreats.filter(threat => threat.type !== 'nws_alert');
+  const totalAlerts = alerts.length + filteredStormThreats.length;
 
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
@@ -74,7 +76,7 @@ export default function AlertsPanel({ alerts, stormThreats = [], isLoading }: Al
         ) : (
           <>
             {/* Storm Threats (Radar-based alerts) */}
-            {stormThreats.map((threat, index) => {
+            {filteredStormThreats.map((threat, index) => {
               // Helper function to get direction name from degrees
               const getDirectionName = (degrees: number): string => {
                 const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
