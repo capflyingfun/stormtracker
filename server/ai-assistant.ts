@@ -200,6 +200,26 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
 
     // Calculate storm track intersections with user location
     function calculateStormTrackIntersection(storm: any, userLat: number, userLon: number) {
+      // CRITICAL: Check if storm already has "High" impact rating from system analysis
+      if (storm.movement && storm.movement.impact === 'high') {
+        return { 
+          intersects: true, 
+          status: 'HIGH IMPACT STORM - System detected collision course',
+          pathWidth: 'Direct track',
+          eta: storm.movement.eta || 'Within 2 hours'
+        };
+      }
+      
+      // CRITICAL: Check if storm has ETA indicating approach toward user location
+      if (storm.movement && storm.movement.eta && storm.movement.eta !== 'Unknown') {
+        return { 
+          intersects: true, 
+          status: 'APPROACHING STORM - ETA indicates potential contact',
+          pathWidth: 'Track intersection likely',
+          eta: storm.movement.eta
+        };
+      }
+      
       if (!storm.movement || !storm.movement.direction || storm.movement.speed <= 0) {
         return { intersects: false, status: 'No movement data' };
       }
@@ -433,11 +453,13 @@ ${areaForecastDiscussion && areaForecastDiscussion.discussion ?
 CRITICAL ANALYSIS REQUIREMENTS:
 1. If there are active weather alerts (Heat Advisories, Warnings, etc.), discuss them FIRST and prominently in your analysis. Heat advisories and weather warnings are the highest priority safety information.
 
-2. STORM TRACK INTERSECTION ANALYSIS: Pay special attention to storm track analysis marked as "DIRECT PATH POTENTIAL" or "TRACK INTERSECTION DETECTED". Even if storms are light intensity (20-40 dBZ), if they show "POSSIBLE CONTACT WITH YOUR LOCATION" or "HIGH impact", clearly communicate this possibility in your analysis. Do NOT dismiss light storms if they have direct path potential.
+2. STORM TRACK INTERSECTION ANALYSIS: Pay special attention to storm track analysis marked as "DIRECT PATH POTENTIAL", "HIGH IMPACT STORM", "APPROACHING STORM", or "TRACK INTERSECTION DETECTED". Even if storms are light intensity (20-40 dBZ), if they show "POSSIBLE CONTACT WITH YOUR LOCATION", "HIGH impact", or any ETA time, clearly communicate this possibility in your analysis. Do NOT dismiss light storms if they have direct path potential.
 
-3. MOVEMENT PATTERNS: When storms show "High" impact ratings or ETAs, this indicates the storm track may intersect the user's location. Explain this possibility even for light rain, as it could still affect outdoor activities or travel plans.
+3. HIGH IMPACT RECOGNITION: When storms show "High" impact ratings, this ALWAYS means the storm track intersects the user's location. State this clearly: "This storm is on a collision course with your location." When storms have ETAs (like "1.2hr"), this indicates approaching contact. Explain this explicitly.
 
-4. TRACK CONE ANALYSIS: If any storms show directional movement toward the user location (indicated by ETA times and impact ratings), discuss this as a potential contact scenario regardless of storm intensity.
+4. ETA ANALYSIS: Any storm with an ETA time (1.2hr, 2hr, etc.) indicates potential contact with the user's location. Clearly state: "This storm is expected to reach your area in [ETA time]" regardless of intensity.
+
+5. TRACK CONE ANALYSIS: If any storms show directional movement toward the user location (indicated by ETA times and impact ratings), discuss this as a direct contact scenario, not just "nearby activity".
 
 Provide your assessment in this exact JSON format:
 {
