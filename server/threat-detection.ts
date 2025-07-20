@@ -150,7 +150,7 @@ class ThreatDetectionService {
         lat: userLocation.lat,
         lon: userLocation.lon,
         locationName: userLocation.address,
-        title: alert.headline || `${alert.type} Alert`,
+        title: alert.headline || `${alert.type} until ${new Date(alert.expires).toLocaleDateString()}`,
         description: alert.description || `Official ${alert.type} alert issued by ${alert.senderName || 'National Weather Service'}`,
         riskToPublic: threatLevel === 'extreme' ? 'extreme' : 
                      threatLevel === 'high' ? 'significant' : 
