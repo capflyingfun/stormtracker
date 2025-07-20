@@ -39,6 +39,7 @@ interface StormMapProps {
   isDisabled?: boolean;
   alertPreferences?: any;
   showAllStormTracks?: boolean;
+  onMapInstanceReady?: (mapInstance: any) => void;
 }
 
 declare global {
@@ -47,7 +48,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks, onMapInstanceReady }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -400,6 +401,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       }).addTo(map);
 
       mapInstanceRef.current = map;
+      
+      // Notify parent component that map is ready
+      if (onMapInstanceReady) {
+        onMapInstanceReady(map);
+      }
       
       // Add map event listeners for auto-sampling and winds aloft with debouncing
       const debouncedTrigger = () => {
