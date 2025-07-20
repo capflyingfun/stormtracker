@@ -351,6 +351,9 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Updated Default Alert Radius**: Changed default alert radius from 30 miles to 50 miles in database schema, API endpoints, and preferences
 - **Enhanced Storm Detection Range**: Expanded storm detection endpoints (/api/storms, /api/alerts) to use 50-mile default radius for comprehensive coverage
 - **Improved Regional Context**: All systems now use consistent 50-mile radius for storm detection, threat analysis, and AI weather assessment
+- **Frontend Radar Range Update**: Updated radarRange display from 30 to 50 miles in both storm-tracker.tsx and storm-tracker-minimal.tsx
+- **Visual Range Circle Fix**: Blue range circle and radar info now correctly display "Range: 50 miles" matching backend unified system
+- **Complete System Consistency**: All components from frontend display to backend APIs now use identical 50-mile regional analysis radius
 
 ### AI Unit Preference Integration & Natural Analysis Format (July 20, 2025)
 - **Complete Unit Preference Integration**: AI assistant now respects metric/imperial setting from app header for all temperature displays

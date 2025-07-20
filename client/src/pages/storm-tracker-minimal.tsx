@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 export default function StormTracker() {
   const [useMetric, setUseMetric] = useState(false);
   const [isTracking, setIsTracking] = useState(true);
-  const radarRange = 30;
+  const radarRange = 50;
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [show3D, setShow3D] = useState(false);
   
