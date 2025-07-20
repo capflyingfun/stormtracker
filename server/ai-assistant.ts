@@ -318,15 +318,25 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
     const immediateStormContext = data.storms.map(storm => {
       const trackIntersection = calculateStormTrackIntersection(storm, data.userLocation.lat, data.userLocation.lon);
       
+      // Calculate storm severity based on dBZ intensity
+      let stormSeverity = 'Light';
+      if (storm.intensity >= 61) stormSeverity = 'Extreme';
+      else if (storm.intensity >= 55) stormSeverity = 'Severe';
+      else if (storm.intensity >= 46) stormSeverity = 'Heavy';
+      else if (storm.intensity >= 35) stormSeverity = 'Moderate';
+      else if (storm.intensity >= 20) stormSeverity = 'Light';
+      
       return {
         distance: `${storm.distance.toFixed(1)} miles`,
         direction: `${storm.direction} (${storm.bearing}°)`,
         intensity: `${storm.intensity} dBZ (${storm.category})`,
+        stormSeverity: stormSeverity, // Storm intensity classification
         movement: storm.movement ? 
           `Moving ${storm.movement.direction}° at ${storm.movement.speed} mph${storm.movement.eta ? `, ETA: ${storm.movement.eta}` : ''}${storm.movement.impact ? `, Impact: ${storm.movement.impact}` : ''}` : 
           'Movement unknown',
         trackStatus: trackIntersection.status,
-        directThreat: trackIntersection.intersects
+        directThreat: trackIntersection.intersects,
+        impactRating: storm.movement?.impact || 'unknown' // Impact likelihood
       };
     });
 
@@ -381,6 +391,11 @@ Behavior:
 Always be factual, readable, and brief—aim for value, not verbosity.
 Format the response like a helpful briefing or weather podcast script.
 
+IMPORTANT: When discussing storms, always distinguish between:
+- STORM SEVERITY: Based on intensity (Light/Moderate/Heavy/Severe/Extreme based on dBZ)
+- IMPACT SEVERITY: Based on collision probability (High/Medium/Low impact chance)
+Example: "A Light storm with HIGH impact potential" or "A Severe storm with Low impact likelihood"
+
 === WEATHER DATA FOR ${data.userLocation.address} ===
 
 === 1. WEATHER ALERTS & ADVISORIES ===
@@ -412,7 +427,7 @@ ${immediateStormContext.length === 0 ? '• No active storms detected within 30 
     if (directThreats.length > 0) {
       analysis += `🚨 STORMS WITH DIRECT PATH POTENTIAL:\n`;
       analysis += directThreats.map((storm, i) => 
-        `• Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}\n  Movement: ${storm.movement}\n  ⚠️ ${storm.trackStatus} - POSSIBLE CONTACT WITH YOUR LOCATION`
+        `• Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}\n  Storm Severity: ${storm.stormSeverity} | Impact Rating: ${storm.impactRating}\n  Movement: ${storm.movement}\n  ⚠️ ${storm.trackStatus} - POSSIBLE CONTACT WITH YOUR LOCATION`
       ).join('\n');
       analysis += '\n\n';
     }
@@ -420,7 +435,7 @@ ${immediateStormContext.length === 0 ? '• No active storms detected within 30 
     if (nonDirectThreats.length > 0) {
       analysis += `Other nearby storms:\n`;
       analysis += nonDirectThreats.map((storm, i) => 
-        `• Storm ${directThreats.length + i + 1}: ${storm.intensity} at ${storm.distance} ${storm.direction}\n  Movement: ${storm.movement}\n  Track Status: ${storm.trackStatus}`
+        `• Storm ${directThreats.length + i + 1}: ${storm.intensity} at ${storm.distance} ${storm.direction}\n  Storm Severity: ${storm.stormSeverity} | Impact Rating: ${storm.impactRating}\n  Movement: ${storm.movement}\n  Track Status: ${storm.trackStatus}`
       ).join('\n');
     }
     

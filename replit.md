@@ -334,6 +334,16 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Variable Reference Error Fix**: Resolved undefined `dynamicTone` variable preventing OpenAI API calls from executing properly
 - **Improved Prompt Structure**: Adopted weather briefing format similar to aviation weather podcasts with clear section organization and professional tone adjustment
 
+### Dual Severity Analysis System (July 20, 2025)
+- **Enhanced Storm Track Intersection Analysis**: Implemented comprehensive server-side impact calculations for accurate storm threat assessment
+- **Dual Severity Classification**: AI assistant now distinguishes between Storm Severity (dBZ-based intensity) and Impact Severity (collision probability)
+- **Professional Impact Calculations**: Added bearing calculations, ETA estimates, and 30° approach cone analysis for precise storm track intersection detection
+- **Enhanced AI Storm Data**: Storm data passed to AI includes calculated impact ratings ('high', 'medium', 'low') matching frontend displays
+- **Comprehensive Movement Analysis**: Server-side calculation of storm approach direction, speed, ETA, and impact likelihood before AI processing
+- **Fixed Track Intersection Detection**: AI assistant now properly recognizes and communicates when storms show "Impact: High" and collision course trajectories
+- **Clear Severity Communication**: AI responses distinguish between "Light storm with HIGH impact potential" vs "Severe storm with Low impact likelihood"
+- **Meteorological Accuracy**: Storm severity based on official NOAA dBZ thresholds (Light 20-34, Moderate 35-45, Heavy 46-54, Severe 55-60, Extreme 61+ dBZ)
+
 ### AI Unit Preference Integration & Natural Analysis Format (July 20, 2025)
 - **Complete Unit Preference Integration**: AI assistant now respects metric/imperial setting from app header for all temperature displays
 - **Temperature Display Consistency**: Airport weather reports and live weather data show preferred units (°F or °C) based on user selection
