@@ -123,17 +123,18 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 20, 2025
 
-### Animated Storm Path Prediction Visualizer (July 20, 2025)
-- **Complete Storm Path Prediction System**: Implemented comprehensive animated storm path prediction with visualization trails, prediction algorithms, and interactive controls
-- **StormPathPredictor Component**: Created dedicated storm-path-predictor.tsx component with advanced prediction engine using winds aloft data and historical storm movement patterns
-- **Visual Path Trails**: Animated dotted trail lines showing predicted storm paths with opacity fading and configurable prediction distances (5-30 miles)
-- **Multi-Algorithm Prediction Engine**: Integrated winds aloft predictions, radar-based historical movement, and hybrid consensus algorithms for accurate storm trajectory forecasting
-- **Interactive Map Integration**: Enhanced storm-map.tsx with onMapInstanceReady callback for seamless map instance sharing between components
-- **Desktop & Mobile Controls**: Added Storm Path Predictor toggle controls to both desktop and mobile interfaces in storm-tracker.tsx
-- **Real-Time Path Updates**: Storm path predictions automatically update with new storm data and winds aloft information
-- **Professional Visualization**: Clean animated trail display with meteorological color coding and distance-based opacity transitions
-- **Performance Optimized**: Efficient animation system with configurable frame rates and automatic cleanup for smooth user experience
-- **Enhanced Storm Analysis**: Path predictions integrate with existing storm tracking for comprehensive movement analysis and impact assessment
+### Professional Storm Track Time Ticks System (July 20, 2025)
+- **Extended 40-Mile Forecast Range**: Enhanced storm movement cones extending 40 miles out with professional time markers at 10-mile intervals (10, 20, 30, 40 miles)
+- **Weather Radar App-Style Time Ticks**: Professional time markers showing actual arrival times based on storm speed calculations from winds aloft data
+- **Authentic Time Calculations**: Time positions calculated using real winds aloft storm speed data from Open-Meteo API for accurate arrival time predictions
+- **Professional Time Labels**: Black background time labels with storm intensity color borders matching meteorological radar standards and professional weather service presentations
+- **Individual Storm Click Integration**: Time ticks automatically appear when clicking on any storm cell marker, showing detailed movement cone with forecast timeline
+- **All Storm Tracks Mode**: Time ticks included in "Show All Storm Tracks" view with reduced-opacity markers at 15, 30, and 40-mile intervals
+- **Dynamic Time Display**: Time labels show actual future arrival times based on current local timezone with proper 24-hour format plus minutes elapsed
+- **Storm Speed Integration**: Time tick spacing dynamically adjusts based on authentic storm movement speed from winds aloft data for accurate ETA calculations
+- **Professional Styling**: Time markers use white circles with colored borders, black background labels with drop shadows matching weather radar app standards
+- **Meteorological Accuracy**: Time positions calculated using proper bearing calculations and storm movement vectors from atmospheric pressure level wind data
+- **Extended Track Visualization**: 40-mile cone system provides comprehensive extended-range storm trajectory forecasting for better planning
 
 # Recent Changes - July 17, 2025
 
