@@ -93,6 +93,31 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       console.log('AI Assistant: Could not fetch Area Forecast Discussion:', afdError.message);
     }
 
+    // Fetch active alerts and advisories when threat data is provided
+    let activeAlerts: any[] = [];
+    let threatSummary: string | null = null;
+    if (data.threatData) {
+      try {
+        threatSummary = `Active Threats: ${data.threatData.threatCount} detected\n` +
+          `Alert Summary: ${data.threatData.alertsSent} alerts sent\n` +
+          `Status: ${data.threatData.status || 'Monitoring active'}\n` +
+          `Last Check: ${data.threatData.lastCheck || 'Recent'}\n` +
+          `Temperature: ${data.threatData.temperature || 'Unknown'}°F`;
+        
+        // Fetch NWS alerts for comprehensive advisory information
+        const alertsResponse = await fetch(
+          `http://localhost:5000/api/nws-alerts?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
+        );
+        if (alertsResponse.ok) {
+          const alertsData = await alertsResponse.json();
+          activeAlerts = alertsData.alerts || [];
+          console.log(`AI Assistant: Found ${activeAlerts.length} active NWS alerts/advisories`);
+        }
+      } catch (alertError) {
+        console.log('AI Assistant: Could not fetch active alerts:', alertError);
+      }
+    }
+
     // Calculate storm track intersections with user location
     function calculateStormTrackIntersection(storm: any, userLat: number, userLon: number) {
       if (!storm.movement || !storm.movement.direction || storm.movement.speed <= 0) {
@@ -274,6 +299,21 @@ ${currentWeather ?
   `  Source: ${currentWeather.source} (Live Data)\n` : 
   'No real-time weather data available\n'}
 
+${threatSummary ? `
+ACTIVE THREAT MONITORING STATUS:
+${threatSummary}
+
+ACTIVE WEATHER ALERTS & ADVISORIES:
+${activeAlerts.length > 0 ? 
+  activeAlerts.map(alert => 
+    `• ${alert.event || alert.headline}: ${alert.severity || 'Advisory'} level\n` +
+    `  Effective: ${alert.effective || 'Current'} | Expires: ${alert.expires || 'Unknown'}\n` +
+    `  Areas: ${alert.areas || alert.areaDesc || 'Local area'}\n` +
+    `  Description: ${(alert.description || alert.instruction || 'Monitor conditions').substring(0, 200)}...`
+  ).join('\n\n') : 
+  'No active NWS alerts or advisories found for this area'}
+` : ''}
+
 AVIATION WEATHER (NEARBY AIRPORTS):
 ${aviationWeather.length > 0 ? 
   aviationWeather.map(station => 
@@ -291,12 +331,12 @@ Source: National Weather Service
 ${areaForecastDiscussion}
 ` : ''}
 
-Based on this comprehensive meteorological data including radar, winds aloft, aviation weather conditions${areaForecastDiscussion ? ', and professional meteorological analysis from the National Weather Service' : ''}, provide a detailed weather impact assessment in JSON format:
+Based on this comprehensive meteorological data including radar, winds aloft, aviation weather conditions${threatSummary ? ', active threat monitoring status, and official weather alerts/advisories' : ''}${areaForecastDiscussion ? ', and professional meteorological analysis from the National Weather Service' : ''}, provide a detailed weather impact assessment in JSON format:
 
 {
   "riskLevel": "low|moderate|high|extreme",
   "summary": "Brief 2-sentence overview of current weather threat",
-  "detailedAnalysis": "Comprehensive analysis covering current storm positions and intensities, movement patterns with wind influence, regional weather patterns, synoptic conditions, timing expectations, heat index concerns, aviation impacts, and integration of NWS forecaster insights when available",
+  "detailedAnalysis": "Comprehensive analysis covering current storm positions and intensities, movement patterns with wind influence, regional weather patterns, synoptic conditions, timing expectations, heat index concerns, aviation impacts${threatSummary ? ', active threat monitoring results, current alert status' : ''}${activeAlerts.length > 0 ? ', and detailed discussion of active NWS alerts/advisories including their implications for the user location' : ''}, and integration of NWS forecaster insights when available",
   "recommendations": ["Array of 3-4 specific safety recommendations"],
   "timeToImpact": "Estimated time until weather impacts (if applicable)",
   "confidence": 0.85
@@ -317,7 +357,10 @@ Focus on:
 - Timing analysis: immediate impacts from 30-mile storms vs longer-term threats from regional patterns
 - Directional references using nearby airports and geographic features
 - Escalation patterns: how regional storm activity may intensify or diminish over the next few hours
-- PRIORITY: If regional analysis shows overlapping cones or direct path storms, upgrade to HIGH or EXTREME risk regardless of individual storm distances${areaForecastDiscussion ? `
+- PRIORITY: If regional analysis shows overlapping cones or direct path storms, upgrade to HIGH or EXTREME risk regardless of individual storm distances${threatSummary ? `
+- ACTIVE THREAT MONITORING: When threat monitoring data is provided, discuss the detected threat count, alert status, and current monitoring status in your detailed analysis
+- ALERT INTEGRATION: If active weather alerts/advisories are present, provide detailed discussion of their implications, timing, and safety recommendations specific to the user's location
+- COMPREHENSIVE ALERT ANALYSIS: Include specific details about heat advisories, air quality alerts, or other weather warnings and how they affect local conditions` : ''}${areaForecastDiscussion ? `
 - NWS AREA FORECAST DISCUSSION: Integrate professional meteorologist insights from the Area Forecast Discussion to enhance risk assessment accuracy and provide context on regional weather patterns, synoptic conditions, forecaster confidence levels, heat index concerns, and broader atmospheric patterns affecting storm development
 - COMPREHENSIVE DETAILS: Provide thorough analysis including synoptic weather patterns, pressure systems, temperature trends, humidity levels, atmospheric stability, convective potential, and any non-thunderstorm hazards like heat advisories mentioned in the AFD
 - MULTI-HAZARD ASSESSMENT: Consider all weather hazards including thunderstorms, heat index values, air quality, marine conditions, and any other meteorological concerns identified in the professional forecast discussion` : ''}
