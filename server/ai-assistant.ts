@@ -374,11 +374,31 @@ ${windContext.map(wind => `• ${wind.altitude}: ${wind.speed} from ${wind.direc
 Radar Source: ${data.radarSource} (authentic weather radar)
 Lightning Activity: ${data.lightningCount || 0} recent strikes
 
-Immediate Area (30-mile radius):
+**CRITICAL TRACK ANALYSIS:**
 ${immediateStormContext.length === 0 ? '• No active storms detected within 30 miles' : 
-  immediateStormContext.map((storm, i) => 
-    `• Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}\n  Movement: ${storm.movement}\n  Track Status: ${storm.trackStatus}${storm.directThreat ? ' ⚠️ DIRECT THREAT' : ''}`
-  ).join('\n')}
+  (() => {
+    const directThreats = immediateStormContext.filter(s => s.directThreat);
+    const nonDirectThreats = immediateStormContext.filter(s => !s.directThreat);
+    
+    let analysis = '';
+    
+    if (directThreats.length > 0) {
+      analysis += `🚨 STORMS WITH DIRECT PATH POTENTIAL:\n`;
+      analysis += directThreats.map((storm, i) => 
+        `• Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}\n  Movement: ${storm.movement}\n  ⚠️ ${storm.trackStatus} - POSSIBLE CONTACT WITH YOUR LOCATION`
+      ).join('\n');
+      analysis += '\n\n';
+    }
+    
+    if (nonDirectThreats.length > 0) {
+      analysis += `Other nearby storms:\n`;
+      analysis += nonDirectThreats.map((storm, i) => 
+        `• Storm ${directThreats.length + i + 1}: ${storm.intensity} at ${storm.distance} ${storm.direction}\n  Movement: ${storm.movement}\n  Track Status: ${storm.trackStatus}`
+      ).join('\n');
+    }
+    
+    return analysis;
+  })()}
 
 Regional Pattern (50-mile radius):
 ${regionalContext ? 
@@ -386,7 +406,7 @@ ${regionalContext ?
   `• Intense storms (55+ dBZ): ${regionalContext.intenseCells}\n` +
   `• Moderate storms (45-54 dBZ): ${regionalContext.moderateStorms}\n` +
   `• Systems approaching your area: ${regionalContext.approachingStorms}\n` +
-  `• Storm tracks crossing location: ${regionalContext.directPathStorms.length}` :
+  `• Storm tracks potentially crossing location: ${regionalContext.directPathStorms.length}${regionalContext.directPathStorms.length > 0 ? ' ⚠️ TRACK INTERSECTION DETECTED' : ''}` :
   '• Regional storm data unavailable'}
 
 === 4. AIRPORT WEATHER (METAR/TAF) ===
@@ -410,16 +430,23 @@ ${areaForecastDiscussion && areaForecastDiscussion.discussion ?
   `NWS ${areaForecastDiscussion.office} (${areaForecastDiscussion.officeCode}):\n${areaForecastDiscussion.discussion.substring(0, 400)}...` : 
   'Area Forecast Discussion unavailable'}
 
-CRITICAL: If there are active weather alerts (Heat Advisories, Warnings, etc.), discuss them FIRST and prominently in your analysis. Heat advisories and weather warnings are the highest priority safety information.
+CRITICAL ANALYSIS REQUIREMENTS:
+1. If there are active weather alerts (Heat Advisories, Warnings, etc.), discuss them FIRST and prominently in your analysis. Heat advisories and weather warnings are the highest priority safety information.
+
+2. STORM TRACK INTERSECTION ANALYSIS: Pay special attention to storm track analysis marked as "DIRECT PATH POTENTIAL" or "TRACK INTERSECTION DETECTED". Even if storms are light intensity (20-40 dBZ), if they show "POSSIBLE CONTACT WITH YOUR LOCATION" or "HIGH impact", clearly communicate this possibility in your analysis. Do NOT dismiss light storms if they have direct path potential.
+
+3. MOVEMENT PATTERNS: When storms show "High" impact ratings or ETAs, this indicates the storm track may intersect the user's location. Explain this possibility even for light rain, as it could still affect outdoor activities or travel plans.
+
+4. TRACK CONE ANALYSIS: If any storms show directional movement toward the user location (indicated by ETA times and impact ratings), discuss this as a potential contact scenario regardless of storm intensity.
 
 Provide your assessment in this exact JSON format:
 {
   "riskLevel": "low|moderate|high|extreme",
-  "summary": "Start with any active alerts, then brief overview of conditions",
+  "summary": "Start with any active alerts, then brief overview of conditions including storm track intersections",
   "timeToImpact": "Timing if threats approaching or null",
-  "recommendations": ["Specific action based on alerts and conditions"],
+  "recommendations": ["Specific action based on alerts, conditions, and storm track analysis"],
   "confidence": 0.0-1.0,
-  "detailedAnalysis": "Write a flowing, natural analysis without numbered sections. Start with active weather alerts if present, then discuss winds aloft patterns, current storm activity, airport conditions, and forecaster insights. Use the dynamic tone based on threat level."
+  "detailedAnalysis": "Write a flowing, natural analysis without numbered sections. Start with active weather alerts if present, then discuss storm track intersections (especially any storms with direct path potential regardless of intensity), winds aloft patterns, current storm activity, airport conditions, and forecaster insights. If storms show potential to make contact with the user location, clearly state this possibility even for light intensity storms. Use the dynamic tone based on threat level."
 }`;
 
     const response = await openai.chat.completions.create({
