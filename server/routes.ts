@@ -6,6 +6,50 @@ import { storage } from "./storage";
 import { sendStormAlert, sendTestAlert, sendSMSAlert, sendTestSMS } from "./email";
 import { generateWeatherAssessment } from "./ai-assistant";
 
+// NWS Alerts API integration
+async function fetchNWSAlerts(lat: number, lon: number) {
+  try {
+    // NWS API requires specific user agent
+    const response = await fetch(`https://api.weather.gov/alerts/active?point=${lat},${lon}`, {
+      headers: {
+        'User-Agent': 'StormTracker Weather App (contact@stormtracker.app)'
+      },
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (!response.ok) {
+      console.log(`NWS Alerts API returned ${response.status}: ${response.statusText}`);
+      return { alerts: [], error: `API returned ${response.status}` };
+    }
+
+    const data = await response.json();
+    const alerts = data.features || [];
+    
+    console.log(`🚨 Found ${alerts.length} active NWS alerts for location`);
+    
+    return {
+      alerts: alerts.map((alert: any) => ({
+        id: alert.id,
+        type: alert.properties.event,
+        severity: alert.properties.severity,
+        urgency: alert.properties.urgency,
+        certainty: alert.properties.certainty,
+        headline: alert.properties.headline,
+        description: alert.properties.description,
+        instruction: alert.properties.instruction,
+        areas: alert.properties.areaDesc,
+        effective: alert.properties.effective,
+        expires: alert.properties.expires,
+        senderName: alert.properties.senderName
+      })),
+      error: null
+    };
+  } catch (error) {
+    console.error('NWS Alerts API error:', error);
+    return { alerts: [], error: error.message };
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
   // API Keys - these would normally come from environment variables
@@ -488,13 +532,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // NWS alerts endpoint
+  // NWS alerts endpoint - comprehensive weather alerts from National Weather Service
+  app.get("/api/nws-alerts", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lon as string);
+      
+      const alertsData = await fetchNWSAlerts(latitude, longitude);
+      
+      res.json({
+        location: `${latitude}, ${longitude}`,
+        alerts: alertsData.alerts,
+        alertCount: alertsData.alerts.length,
+        lastUpdate: new Date().toISOString(),
+        source: 'National Weather Service',
+        error: alertsData.error
+      });
+      
+    } catch (error) {
+      console.error("NWS alerts endpoint error:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch NWS alerts",
+        alerts: [],
+        alertCount: 0
+      });
+    }
+  });
+
+  // Legacy NWS alerts endpoint (for backward compatibility)
   app.post("/api/alerts", async (req, res) => {
     try {
       const { lat, lon, radius = 30 } = weatherDataRequestSchema.parse(req.body);
       
       const response = await fetch(
-        `https://api.weather.gov/alerts/active?point=${lat},${lon}&radius=${radius}`
+        `https://api.weather.gov/alerts/active?point=${lat},${lon}&radius=${radius}`,
+        {
+          headers: {
+            'User-Agent': 'StormTracker Weather App (contact@stormtracker.app)'
+          },
+          signal: AbortSignal.timeout(5000)
+        }
       );
       
       if (!response.ok) {
@@ -542,6 +625,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { lat, lon, address, storms, lightningCount } = schema.parse(req.body);
       
       console.log(`🔍 Starting automated threat detection for ${address} (${lat}, ${lon})`);
+      
+      // Get NWS alerts for the location
+      const nwsAlertsData = await fetchNWSAlerts(lat, lon);
+      console.log(`🚨 Found ${nwsAlertsData.alerts.length} active NWS alerts`);
       
       // Get comprehensive weather data from multiple sources
       let weatherData: any = {};
@@ -593,13 +680,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
       
-      // Run automated threat detection analysis
+      // Run automated threat detection analysis with NWS alerts
       const userLocation = { lat, lon, address };
       const threats = await threatDetector.detectThreats(
         userLocation,
         storms,
         weatherData,
-        lightningCount
+        lightningCount,
+        nwsAlertsData.alerts
       );
       
       console.log(`🚨 Detected ${threats.length} active threats for ${address}`);
@@ -633,7 +721,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           conditions: weatherData.conditions,
           windSpeed: weatherData.windSpeed
         },
+        nwsAlerts: nwsAlertsData.alerts.map(alert => ({
+          type: alert.type,
+          severity: alert.severity,
+          headline: alert.headline,
+          expires: alert.expires
+        })),
         dataQuality: {
+          nws_alerts: nwsAlertsData.alerts.length,
           weatherapi_available: !!enhancedData.source,
           openweather_available: true,
           radar_storms: storms.length,
