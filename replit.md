@@ -293,18 +293,22 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **OpenWeather-Only Integration**: Streamlined weather data fetching to use /api/weather endpoint exclusively for reliable single-source weather information
 - **Verified Timezone Accuracy**: Confirmed duration calculations work correctly across different timezones (server EST vs user CDT)
 
-### AI Tone Customization System (July 20, 2025)
-- **Carrot Weather Style Personality Options**: Implemented comprehensive AI tone customization with three distinct personality modes
-- **Professional Mode**: Technical meteorological analysis with scientific terminology and precise weather data interpretation
-- **Friendly Mode**: Conversational weather updates that are easy to understand with approachable language
-- **Humorous Mode**: Weather personality with wit, charm, and entertaining weather commentary similar to Carrot Weather
-- **Database-Driven User Settings**: Created user_settings table with session-based preference storage for persistent customization
-- **Detail Level Controls**: Minimal (essential safety only), Standard (balanced information), Technical (detailed meteorological analysis)
-- **Accessibility Features**: Simplified language toggle and humor controls for inclusive weather communication
-- **Modal Settings Interface**: Clean, accessible settings modal integrated into AI assistant with proper dark/light theme support
-- **Session-Based Persistence**: User preferences automatically saved and restored using unique session identifiers
-- **API Integration**: Complete backend API endpoints for settings management with proper validation and error handling
-- **Enhanced User Experience**: Settings button integrated directly into AI assistant header for easy access and customization
+### Map Z-Index Fix & Modal Improvements (July 20, 2025)
+- **Fixed Map Overlay Issues**: Corrected z-index conflicts where radar map appeared over modal dialogs and settings panels
+- **Proper Modal Layering**: Modal components now consistently appear above map container for improved user interaction
+- **Enhanced Disabled Overlay**: Improved visual feedback when map is disabled during settings panel usage
+- **UI Layer Hierarchy**: Established proper z-index hierarchy with map at lowest level (z-0) and modals at highest (z-[9999]+)
+- **Improved Navigation Experience**: All navigation (Alerts, Messages, Settings) now properly overlays map without visual conflicts
+
+### Dynamic AI Tone System (July 20, 2025)
+- **Weather Severity-Based Tone**: Implemented fully dynamic AI tone adjustment based on current weather conditions and threat levels
+- **Life-Threatening Weather Mode**: Serious, direct, professional tone for severe thunderstorms, tornadoes, flash floods, and extreme weather events
+- **Calm Weather Mode**: Conversational, humorous, Carrot Weather-style personality for light rain, clear skies, and routine conditions
+- **Automatic Tone Detection**: AI assistant automatically analyzes threat level, storm intensity, and active alerts to determine appropriate communication style
+- **Removed Manual Settings**: Eliminated AI settings modal interface in favor of fully automated tone adjustment system
+- **Dynamic Tone Indicator**: Added "Dynamic Tone Active" badge in AI assistant header to show automated tone adjustment is working
+- **Professional Emergency Response**: Ensures critical weather information is communicated clearly during dangerous conditions
+- **Enhanced User Experience**: Personality adjusts naturally to weather conditions without manual configuration required
 
 ### Consolidated AI Weather Assistant (July 20, 2025)
 - **Unified AI Analysis**: Merged separate AI risk assessment and threat monitoring into single comprehensive "AI Weather Assistant" 

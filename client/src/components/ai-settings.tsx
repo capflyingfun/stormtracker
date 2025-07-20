@@ -73,7 +73,7 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
       <Card className="w-full max-w-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
@@ -86,36 +86,23 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
         </CardHeader>
         
         <CardContent className="space-y-6">
-          {/* AI Tone Selection */}
+          {/* Dynamic AI Tone */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium text-slate-900 dark:text-white">Assistant Personality</Label>
-            <RadioGroup 
-              value={settings.aiTone} 
-              onValueChange={(value) => setSettings({...settings, aiTone: value as any})}
-              className="space-y-2"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="professional" id="professional" />
-                <Label htmlFor="professional" className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
-                  <Zap className="w-4 h-4" />
-                  Professional - Scientific weather analysis
-                </Label>
+            <Label className="text-sm font-medium text-slate-900 dark:text-white">Assistant Tone</Label>
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Brain className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-800 dark:text-blue-200">Dynamic Tone Active</span>
               </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="friendly" id="friendly" />
-                <Label htmlFor="friendly" className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
-                  <MessageCircle className="w-4 h-4" />
-                  Friendly - Conversational and easy to understand
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="humorous" id="humorous" />
-                <Label htmlFor="humorous" className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
-                  <Smile className="w-4 h-4" />
-                  Humorous - Weather updates with personality
-                </Label>
-              </div>
-            </RadioGroup>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                AI automatically adjusts tone based on weather severity:
+              </p>
+              <ul className="text-xs text-blue-600 dark:text-blue-400 mt-1 space-y-1">
+                <li>• <strong>Severe weather:</strong> Direct, urgent, life-safety focused</li>
+                <li>• <strong>Moderate conditions:</strong> Professional, clear guidance</li>
+                <li>• <strong>Clear weather:</strong> Relaxed, conversational, with humor</li>
+              </ul>
+            </div>
           </div>
 
           {/* Detail Level */}
@@ -152,16 +139,14 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
               />
             </div>
             
-            {settings.aiTone === 'humorous' && (
-              <div className="flex items-center justify-between">
-                <Label htmlFor="humor" className="text-sm text-slate-700 dark:text-slate-200">Include Weather Humor</Label>
-                <Switch
-                  id="humor"
-                  checked={settings.includeHumor}
-                  onCheckedChange={(checked) => setSettings({...settings, includeHumor: checked})}
-                />
-              </div>
-            )}
+            <div className="flex items-center justify-between">
+              <Label htmlFor="humor" className="text-sm text-slate-700 dark:text-slate-200">Allow Humor (Clear Weather)</Label>
+              <Switch
+                id="humor"
+                checked={settings.includeHumor}
+                onCheckedChange={(checked) => setSettings({...settings, includeHumor: checked})}
+              />
+            </div>
           </div>
 
           {/* Action Buttons */}

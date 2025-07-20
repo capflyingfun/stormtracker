@@ -4,24 +4,46 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY 
 });
 
-// AI tone templates for personalized responses (Carrot Weather style)
-const AI_TONE_TEMPLATES = {
-  professional: {
-    prefix: "Professional meteorological assessment:",
-    style: "Use professional weather terminology and provide detailed scientific analysis.",
-    recommendations: "Provide specific safety recommendations based on meteorological standards."
-  },
-  friendly: {
-    prefix: "Here's your weather update:",
-    style: "Use conversational, friendly language while maintaining accuracy. Explain weather terms in simple language.",
-    recommendations: "Give practical, easy-to-understand advice for staying safe."
-  },
-  humorous: {
-    prefix: "Your weather report with a smile:",
-    style: "Use gentle humor and personality while keeping safety information serious. Make weather fun but not scary.",
-    recommendations: "Provide safety advice with a light touch and occasional weather-related wit."
+// Dynamic AI tone based on weather severity
+function getDynamicTone(storms: StormData[], threatData: any, activeAlerts: any[]) {
+  // Determine severity level
+  const hasExtremeThreat = storms.some(s => s.intensity >= 65) || 
+                          activeAlerts.some(a => a.severity === 'Extreme') ||
+                          threatData?.threatCount > 0;
+  
+  const hasHighThreat = storms.some(s => s.intensity >= 55) || 
+                       activeAlerts.some(a => a.severity === 'Severe') ||
+                       storms.length > 0;
+  
+  const hasModerateThreat = storms.some(s => s.intensity >= 35) || 
+                           activeAlerts.some(a => a.severity === 'Moderate');
+  
+  if (hasExtremeThreat) {
+    return {
+      prefix: "URGENT WEATHER ALERT:",
+      style: "Use direct, urgent, life-safety focused language. Be concise and clear about immediate threats. No humor.",
+      recommendations: "Provide immediate action steps for safety. Use imperative language."
+    };
+  } else if (hasHighThreat) {
+    return {
+      prefix: "Weather Advisory:",
+      style: "Use professional, clear language with focus on safety guidance. Be direct but not alarming.",
+      recommendations: "Provide specific safety recommendations and monitoring advice."
+    };
+  } else if (hasModerateThreat) {
+    return {
+      prefix: "Weather Update:",
+      style: "Use balanced professional tone with clear explanations. Maintain awareness without alarm.",
+      recommendations: "Provide situational awareness and preparedness guidance."
+    };
+  } else {
+    return {
+      prefix: "Weather looks good:",
+      style: "Use relaxed, conversational tone. Can include light humor if user allows it.",
+      recommendations: "Provide general awareness and can include positive observations."
+    };
   }
-};
+}
 
 const DETAIL_LEVEL_TEMPLATES = {
   minimal: "Keep response very brief and focused on essential safety information only.",
@@ -64,6 +86,12 @@ interface WeatherAssessmentRequest {
   winds: WindData[];
   radarSource: string;
   threatData?: any; // Optional threat detection data for enhanced analysis
+  userSettings?: {
+    aiTone: string;
+    detailLevel: string;
+    includeHumor: boolean;
+    simplifiedLanguage: boolean;
+  };
 }
 
 export async function generateWeatherAssessment(data: WeatherAssessmentRequest): Promise<{
@@ -118,9 +146,23 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       console.log('AI Assistant: Could not fetch Area Forecast Discussion:', afdError.message);
     }
 
-    // Fetch active alerts and advisories when threat data is provided
+    // Fetch active NWS alerts first (priority over AFD)
     let activeAlerts: any[] = [];
     let threatSummary: string | null = null;
+    try {
+      const alertsResponse = await fetch(
+        `http://localhost:5000/api/nws-alerts?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
+      );
+      if (alertsResponse.ok) {
+        const alertsData = await alertsResponse.json();
+        activeAlerts = alertsData.alerts || [];
+        console.log(`AI Assistant: Found ${activeAlerts.length} active NWS alerts`);
+      }
+    } catch (alertError) {
+      console.log('AI Assistant: Could not fetch NWS alerts:', alertError.message);
+    }
+
+    // Fetch threat data when provided
     if (data.threatData) {
       try {
         threatSummary = `Active Threats: ${data.threatData.threatCount} detected\n` +
