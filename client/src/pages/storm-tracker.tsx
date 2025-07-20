@@ -7,6 +7,7 @@ import LocationSetup from "@/components/location-setup";
 import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
+import OfficialAlertsPanel from "@/components/official-alerts-panel";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
@@ -176,7 +177,7 @@ export default function StormTracker() {
   const [showAlertSubscription, setShowAlertSubscription] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [windsData, setWindsData] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages'>('tracker');
+  const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages' | 'official-alerts'>('tracker');
   
   const {
     location,
@@ -518,6 +519,14 @@ export default function StormTracker() {
                 </div>
                 
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => setActiveTab('official-alerts')}
+                    variant="outline"
+                    size="sm"
+                    className={`text-xs sm:text-sm ${activeTab === 'official-alerts' ? 'bg-orange-600/50 border-orange-400' : 'bg-orange-600/20 border-orange-500'} text-orange-300 hover:bg-orange-600/30`}
+                  >
+                    🏛️ Official Alerts
+                  </Button>
                   <Button
                     onClick={() => setActiveTab('alerts')}
                     variant="outline"
@@ -935,6 +944,14 @@ export default function StormTracker() {
                     ⚙️ Settings
                   </Button>
                   <Button
+                    onClick={() => setActiveTab('official-alerts')}
+                    variant="outline"
+                    size="sm"
+                    className="bg-orange-600/20 border-orange-500 text-orange-300 hover:bg-orange-600/30"
+                  >
+                    🏛️ Official Alerts
+                  </Button>
+                  <Button
                     onClick={() => setShowAlertSubscription(true)}
                     variant="outline"
                     size="sm"
@@ -978,6 +995,15 @@ export default function StormTracker() {
                 stormFilters={stormFilters}
                 alertPreferences={preferences}
               />
+              </div>
+            )}
+
+            {activeTab === 'official-alerts' && (
+              <div className="mt-4 sm:mt-6">
+                <OfficialAlertsPanel
+                  userLocation={location}
+                  storms={precipitationStorms}
+                />
               </div>
             )}
 
