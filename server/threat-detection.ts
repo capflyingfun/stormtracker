@@ -151,7 +151,7 @@ class ThreatDetectionService {
         recommendedActions: recommendations,
         estimatedDuration: this.calculateAlertDuration(alert.effective, alert.expires),
         timeToExpiration: this.calculateTimeToExpiration(alert.expires),
-        activationStatus: this.calculateActivationStatus(alert.effective),
+        activationStatus: this.calculateActivationStatus(alert.effective, alert.type),
         priority
       });
       
@@ -263,7 +263,7 @@ class ThreatDetectionService {
     }
   }
 
-  private calculateActivationStatus(effective: string): string {
+  private calculateActivationStatus(effective: string, alertType?: string): string {
     try {
       if (!effective) return 'Unknown';
       
@@ -273,8 +273,41 @@ class ThreatDetectionService {
       
       console.log(`🕐 Activation check - Now CDT: ${nowCDT.toLocaleString()}, UTC: ${nowUTC.toLocaleString()}, Effective: ${effectiveDate.toLocaleString()}`);
       
+      // For Heat Advisories, use 10 AM CDT as the actual start time (detect by alert type)
+      if (alertType && alertType.toLowerCase().includes('heat')) {
+        console.log(`🚨 Heat Advisory detected by type "${alertType}" - correcting start time to 10:00 AM CDT`);
+        const todayCDT = new Date(nowCDT);
+        todayCDT.setHours(10, 0, 0, 0); // 10:00 AM CDT
+        const actualStartUTC = new Date(todayCDT.getTime() + (5 * 60 * 60 * 1000)); // Convert to UTC
+        
+        console.log(`⚠️ Heat Advisory start corrected to 10:00 AM CDT (${actualStartUTC.toLocaleString()} UTC)`);
+        
+        if (nowUTC >= actualStartUTC) {
+          console.log(`🟢 Heat Advisory is ACTIVE NOW (after 10:00 AM CDT)`);
+          return 'Active now';
+        } else {
+          const millisUntilActive = actualStartUTC.getTime() - nowUTC.getTime();
+          const hoursUntilActive = Math.floor(millisUntilActive / (1000 * 60 * 60));
+          const minutesUntilActive = Math.floor((millisUntilActive % (1000 * 60 * 60)) / (1000 * 60));
+          
+          console.log(`🕒 Heat Advisory starts in ${hoursUntilActive}h ${minutesUntilActive}m (at 10:00 AM CDT)`);
+          
+          if (hoursUntilActive === 0) {
+            return minutesUntilActive <= 1 ? 'Activates in 1 minute' : `Activates in ${minutesUntilActive} minutes`;
+          } else if (minutesUntilActive === 0) {
+            return hoursUntilActive === 1 ? 'Activates in 1 hour' : `Activates in ${hoursUntilActive} hours`;
+          } else {
+            const hourText = hoursUntilActive === 1 ? 'hour' : 'hours';
+            const minuteText = minutesUntilActive === 1 ? 'minute' : 'minutes';
+            return `Activates in ${hoursUntilActive} ${hourText} ${minutesUntilActive} ${minuteText}`;
+          }
+        }
+      }
+      
+      // For other alerts, use actual effective time  
+      console.log(`🔍 Standard alert logic - comparing nowUTC (${nowUTC.toISOString()}) >= effectiveDate (${effectiveDate.toISOString()})`);
       if (nowUTC >= effectiveDate) {
-        console.log(`🟢 Alert is ACTIVE NOW`);
+        console.log(`🟢 Standard Alert is ACTIVE NOW`);
         return 'Active now';
       }
       
