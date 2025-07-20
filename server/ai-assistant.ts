@@ -316,9 +316,10 @@ Focus on:
 - Timing analysis: immediate impacts from 30-mile storms vs longer-term threats from regional patterns
 - Directional references using nearby airports and geographic features
 - Escalation patterns: how regional storm activity may intensify or diminish over the next few hours
-- PRIORITY: If regional analysis shows overlapping cones or direct path storms, upgrade to HIGH or EXTREME risk regardless of individual storm distances${areaForecastDiscussion ? '\n- NWS AREA FORECAST DISCUSSION: Integrate professional meteorologist insights from the Area Forecast Discussion to enhance risk assessment accuracy and provide context on regional weather patterns, synoptic conditions, forecaster confidence levels, heat index concerns, and broader atmospheric patterns affecting storm development
+- PRIORITY: If regional analysis shows overlapping cones or direct path storms, upgrade to HIGH or EXTREME risk regardless of individual storm distances${areaForecastDiscussion ? `
+- NWS AREA FORECAST DISCUSSION: Integrate professional meteorologist insights from the Area Forecast Discussion to enhance risk assessment accuracy and provide context on regional weather patterns, synoptic conditions, forecaster confidence levels, heat index concerns, and broader atmospheric patterns affecting storm development
 - COMPREHENSIVE DETAILS: Provide thorough analysis including synoptic weather patterns, pressure systems, temperature trends, humidity levels, atmospheric stability, convective potential, and any non-thunderstorm hazards like heat advisories mentioned in the AFD
-- MULTI-HAZARD ASSESSMENT: Consider all weather hazards including thunderstorms, heat index values, air quality, marine conditions, and any other meteorological concerns identified in the professional forecast discussion' : ''}
+- MULTI-HAZARD ASSESSMENT: Consider all weather hazards including thunderstorms, heat index values, air quality, marine conditions, and any other meteorological concerns identified in the professional forecast discussion` : ''}
 
 Provide a comprehensive assessment that gives users immediate safety guidance while also painting the bigger regional weather picture. When describing storm movements, reference actual nearby airports, cities, or geographic features from the aviation weather data rather than vague directional terms.`;
 
