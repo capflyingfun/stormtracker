@@ -2495,12 +2495,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`  ${airport.icao}: ${airport.distance.toFixed(1)} miles`);
       });
       
+      // Check if location is in US for radius adjustment
+      const isUSLocation = userLat >= 24.5 && userLat <= 49.5 && 
+                          userLon >= -125 && userLon <= -66.5;
+      
+      // Use larger radius for international locations where airports are farther apart
+      const searchRadius = isUSLocation ? 100 : 200; // miles
+      
       const filteredAirports = airportsWithDistance
-        .filter(airport => airport.distance <= 100) // 100-mile regional filter
+        .filter(airport => airport.distance <= searchRadius)
         .sort((a, b) => a.distance - b.distance)
         .slice(0, 5);
       
-      console.log(`📍 Found ${filteredAirports.length} nearest airports:`, 
+      console.log(`📍 Found ${filteredAirports.length} nearest airports within ${searchRadius} miles for ${isUSLocation ? 'US' : 'international'} location:`, 
         filteredAirports.map(a => `${a.icao} (${a.distance.toFixed(1)}mi)`));
       
       const weatherData = [];
