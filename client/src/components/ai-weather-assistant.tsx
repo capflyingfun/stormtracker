@@ -144,7 +144,7 @@ export default function AIWeatherAssistant({
         } : null
       }));
       
-      const response = await apiRequest("POST", "/ai-assessment", {
+      const response = await apiRequest("POST", "/api/ai-assessment", {
         userLocation,
         storms: optimizedStorms,
         stormCount: storms.length,
