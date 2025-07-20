@@ -634,39 +634,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let weatherData: any = {};
       let enhancedData: any = {};
       
-      // Fetch WeatherAPI.com data if available
+      // Get basic weather data from OpenWeather only
       try {
-        const weatherApiUrl = `/api/weatherapi?lat=${lat}&lon=${lon}`;
-        const weatherApiResponse = await fetch(`http://localhost:5000${weatherApiUrl}`);
+        const weatherUrl = `/api/weather?lat=${lat}&lon=${lon}`;
+        const weatherResponse = await fetch(`http://localhost:5000${weatherUrl}`);
         
-        if (weatherApiResponse.ok) {
-          const weatherApiData = await weatherApiResponse.json();
-          if (weatherApiData.source === 'weatherapi') {
-            enhancedData = weatherApiData;
-            console.log('✅ Enhanced weather data retrieved from WeatherAPI.com');
-          }
-        }
-      } catch (error) {
-        console.log('WeatherAPI.com not available, using OpenWeather data only');
-      }
-      
-      // Get enhanced weather data with multi-source validation
-      try {
-        const enhancedUrl = `/api/weather-enhanced?lat=${lat}&lon=${lon}`;
-        const enhancedResponse = await fetch(`http://localhost:5000${enhancedUrl}`);
-        
-        if (enhancedResponse.ok) {
-          const enhanced = await enhancedResponse.json();
+        if (weatherResponse.ok) {
+          const weather = await weatherResponse.json();
           weatherData = {
-            temperature: enhanced.temperature || 70,
-            heatIndex: enhanced.heat_index || enhanced.temperature || 70,
-            humidity: enhanced.humidity || 50,
-            windSpeed: enhanced.wind_speed || 0,
-            conditions: enhanced.weather_description || 'Clear',
-            uvIndex: enhancedData.current?.uv || null,
-            airQuality: enhancedData.current?.air_quality || null
+            temperature: weather.temperature || 70,
+            heatIndex: weather.heatIndex || weather.temperature || 70,
+            humidity: weather.humidity || 50,
+            windSpeed: weather.windSpeed || 0,
+            conditions: weather.conditions || 'Clear',
+            uvIndex: null,
+            airQuality: null
           };
-          console.log('✅ Multi-source weather data compiled for threat analysis');
+          console.log('✅ OpenWeather data compiled for threat analysis');
         }
       } catch (error) {
         console.log('Using fallback weather data for threat analysis');
@@ -729,7 +713,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })),
         dataQuality: {
           nws_alerts: nwsAlertsData.alerts.length,
-          weatherapi_available: !!enhancedData.source,
           openweather_available: true,
           radar_storms: storms.length,
           lightning_detected: lightningCount
