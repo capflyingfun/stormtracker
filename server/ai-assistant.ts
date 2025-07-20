@@ -163,25 +163,11 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       }
     }
 
-    // Fetch active NWS alerts first (priority over AFD)
+    // Initialize alerts and threat summary
     let activeAlerts: any[] = [];
     let threatSummary: string | null = null;
-    if (data.userLocation && data.userLocation.lat && data.userLocation.lon) {
-      try {
-        const alertsResponse = await fetch(
-          `http://localhost:5000/api/nws-alerts?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
-        );
-        if (alertsResponse.ok) {
-          const alertsData = await alertsResponse.json();
-          activeAlerts = alertsData.alerts || [];
-          console.log(`AI Assistant: Found ${activeAlerts.length} active NWS alerts`);
-        }
-      } catch (alertError) {
-        console.log('AI Assistant: Could not fetch NWS alerts:', alertError.message);
-      }
-    }
 
-    // Fetch threat data when provided
+    // Fetch threat data when provided, otherwise get NWS alerts directly
     if (data.threatData) {
       try {
         threatSummary = `Active Threats: ${data.threatData.threatCount} detected\n` +
@@ -224,19 +210,27 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
             }));
             console.log(`AI Assistant: Final deduplicated alerts count: ${activeAlerts.length}`);
           } else {
-            // No NWS threats in threat data, still fetch separately for completeness
-            const alertsResponse = await fetch(
-              `http://localhost:5000/api/nws-alerts?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
-            );
-            if (alertsResponse.ok) {
-              const alertsData = await alertsResponse.json();
-              activeAlerts = alertsData.alerts || [];
-              console.log(`AI Assistant: Found ${activeAlerts.length} active NWS alerts (no threats detected)`);
-            }
+            console.log('AI Assistant: No NWS alerts found in threat data');
           }
         }
       } catch (alertError) {
         console.log('AI Assistant: Could not process threat/alert data:', alertError);
+      }
+    } else {
+      // No threat data provided, fetch NWS alerts directly (fallback mode)
+      if (data.userLocation && data.userLocation.lat && data.userLocation.lon) {
+        try {
+          const alertsResponse = await fetch(
+            `http://localhost:5000/api/nws-alerts?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
+          );
+          if (alertsResponse.ok) {
+            const alertsData = await alertsResponse.json();
+            activeAlerts = alertsData.alerts || [];
+            console.log(`AI Assistant: Found ${activeAlerts.length} active NWS alerts (fallback mode - no threat data)`);
+          }
+        } catch (alertError) {
+          console.log('AI Assistant: Could not fetch NWS alerts in fallback mode:', alertError.message);
+        }
       }
     }
 
