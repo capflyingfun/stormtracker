@@ -7,6 +7,7 @@ import LocationSetup from "@/components/location-setup";
 import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import AlertsPanel from "@/components/alerts-panel";
+import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
@@ -585,6 +586,13 @@ export default function StormTracker() {
                 </p>
               )}
             </div>
+
+            {/* Immediate Safety Alerts */}
+            <ImmediateSafetyAlerts 
+              location={location}
+              storms={filteredStorms}
+              isLoading={stormDataLoading}
+            />
 
             {/* Storm Summary Section */}
             {filteredStorms.length > 0 && (
