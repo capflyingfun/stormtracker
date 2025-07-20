@@ -772,7 +772,7 @@ export default function StormTracker() {
                     address: location.name
                   } : undefined}
                   storms={filteredStorms}
-                  lightningCount={lightningData?.count || 0}
+                  lightningCount={0}
                 />
               </div>
             )}
