@@ -136,7 +136,7 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
     }
 
     // Fetch Area Forecast Discussion for US locations
-    let areaForecastDiscussion: string | null = null;
+    let areaForecastDiscussion: any = null;
     try {
       // Check if this is a US location
       const isUSLocation = data.userLocation.lat >= 24.5 && data.userLocation.lat <= 49.5 && 
@@ -148,8 +148,8 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
         );
         if (afdResponse.ok) {
           const afdData = await afdResponse.json();
-          areaForecastDiscussion = afdData.discussion;
-          if (areaForecastDiscussion) {
+          areaForecastDiscussion = afdData;
+          if (areaForecastDiscussion && areaForecastDiscussion.discussion) {
             console.log(`AI Assistant: Found Area Forecast Discussion from ${afdData.office || 'NWS office'}`);
           }
         }
@@ -332,97 +332,86 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       direction: `${wind.direction}°`
     }));
 
-    const prompt = `You are a professional meteorologist analyzing real-time weather data for storm impact assessment.
+    const prompt = `You are a professional weather assistant providing comprehensive meteorological analysis for ${data.userLocation.address}.
 
-LOCATION: ${data.userLocation.address} (${data.userLocation.lat.toFixed(4)}°N, ${data.userLocation.lon.toFixed(4)}°W)
+ANALYSIS ORDER PRIORITY (analyze in this exact order):
+1. Weather Alerts (most critical - mention first)
+2. Winds Aloft (storm steering)
+3. Active Storms/Radar
+4. Airport Info (METAR/TAF)
+5. Area Forecast Discussion
+6. Additional context
 
-⚠️ ACTIVE WEATHER ALERTS & ADVISORIES (HIGHEST PRIORITY):
+=== 1. WEATHER ALERTS & ADVISORIES (HIGHEST PRIORITY) ===
 ${activeAlerts.length > 0 ? 
   activeAlerts.map(alert => 
-    `🚨 ${alert.event}: ${alert.headline}\n` +
-    `   Severity: ${alert.severity || 'Moderate'} | Areas: ${alert.areaDesc}\n` +
-    `   Effective: ${alert.effective} | Expires: ${alert.expires}\n` +
-    `   Instructions: ${alert.instruction || 'Follow local guidance'}\n`
-  ).join('\n') : 
-  '✅ No active weather alerts or advisories\n'}
+    `🚨 ACTIVE ALERT: ${alert.event}\n` +
+    `   Headline: ${alert.headline}\n` +
+    `   Severity: ${alert.severity || 'Moderate'} | Expires: ${alert.expires}\n` +
+    `   Areas: ${alert.areaDesc}\n` +
+    `   Action: ${alert.instruction || 'Monitor conditions'}`
+  ).join('\n\n') : 
+  '✅ No active weather alerts or advisories'}
 
-WINDS ALOFT DATA (STORM STEERING):
-${windContext.map(wind => `${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}
+=== 2. WINDS ALOFT (STORM STEERING) ===
+${windContext.map(wind => `• ${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}
 
-IMMEDIATE THREATS (30-MILE RADIUS):
-${immediateStormContext.length === 0 ? 'No active storms detected within 30 miles' : 
+=== 3. ACTIVE STORMS & RADAR ===
+Radar Source: ${data.radarSource} (authentic weather radar)
+Lightning Activity: ${data.lightningCount || 0} recent strikes
+
+Immediate Area (30-mile radius):
+${immediateStormContext.length === 0 ? '• No active storms detected within 30 miles' : 
   immediateStormContext.map((storm, i) => 
-    `Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}, ${storm.movement}\n` +
-    `  TRACK ANALYSIS: ${storm.trackStatus}${storm.directThreat ? ' ⚠️ DIRECT THREAT' : ''}`
+    `• Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}\n  Movement: ${storm.movement}\n  Track Status: ${storm.trackStatus}${storm.directThreat ? ' ⚠️ DIRECT THREAT' : ''}`
   ).join('\n')}
 
-REGIONAL WEATHER PATTERN (50-MILE RADIUS):
+Regional Pattern (50-mile radius):
 ${regionalContext ? 
-  `Total storm activity: ${regionalContext.totalStorms} cells detected regionally\n` +
-  `Intense cells (55+ dBZ): ${regionalContext.intenseCells}\n` +
-  `Moderate storms (45-54 dBZ): ${regionalContext.moderateStorms}\n` +
-  `Approaching storms: ${regionalContext.approachingStorms} systems moving toward your area\n` +
-  `${regionalContext.nearestIntense ? 
-    `Nearest severe storm: ${regionalContext.nearestIntense.intensity} dBZ at ${regionalContext.nearestIntense.distance.toFixed(1)} miles ${regionalContext.nearestIntense.direction}` : 
-    'No severe storms within regional area'}\n` +
-  `\n⚠️ CRITICAL STORM TRACK ANALYSIS:\n` +
-  `Regional storms with paths crossing user location: ${regionalContext.directPathStorms.length}\n` +
-  `${regionalContext.directPathStorms.length > 0 ? 
-    regionalContext.directPathStorms.map(storm => 
-      `- ${storm.intensity} dBZ storm at ${storm.distance.toFixed(1)} miles: ${storm.trackIntersection.status}`
-    ).join('\n') : 'No regional storm tracks crossing user location'}\n` +
-  `Overlapping movement cones detected: ${regionalContext.overlappingCones.length}` :
-  'Regional storm data unavailable - analysis based on 30-mile immediate area only'}
+  `• Total storm cells: ${regionalContext.totalStorms}\n` +
+  `• Intense storms (55+ dBZ): ${regionalContext.intenseCells}\n` +
+  `• Moderate storms (45-54 dBZ): ${regionalContext.moderateStorms}\n` +
+  `• Systems approaching your area: ${regionalContext.approachingStorms}\n` +
+  `• Storm tracks crossing location: ${regionalContext.directPathStorms.length}` :
+  '• Regional storm data unavailable'}
 
-AVIATION WEATHER (NEARBY AIRPORTS):
-${aviationData?.stations ? 
-  aviationData.stations.map(station => 
-    `${station.identifier} (${station.distance}): ${station.skyCondition} | ` +
-    `Temp: ${station.temperature}°F | Wind: ${station.windDirection}°@${station.windSpeed}kt | ` +
-    `Visibility: ${station.visibility} | ${station.timeAgo}`
+=== 4. AIRPORT WEATHER (METAR/TAF) ===
+${aviationWeather.length > 0 ? 
+  aviationWeather.map(station => 
+    `• ${station.airport} (${station.icao}) - ${station.distance.toFixed(1)} miles:\n  Conditions: ${station.conditions.clouds} | Temp: ${station.conditions.temperature}°F\n  Wind: ${station.conditions.wind} | Visibility: ${station.conditions.visibility}\n  Data: ${station.timeAgo}${station.isStale ? ' - STALE' : ''}`
   ).join('\n') : 
-  'Aviation weather data unavailable'}
+  '• Aviation weather data unavailable'}
 
-CURRENT WEATHER (IMMEDIATE AREA):
+Current Local Conditions:
 ${currentWeather ? 
-  `${currentWeather.location} (${currentWeather.coordinates}) - ${currentWeather.timeAgo}:\n` +
-  `  Temperature: ${currentWeather.conditions.temperature}°C  Humidity: ${currentWeather.conditions.humidity}%\n` +
-  `  Wind: ${currentWeather.conditions.windDirection}° at ${currentWeather.conditions.windSpeed} mph${currentWeather.conditions.windGust ? ` gusting ${currentWeather.conditions.windGust} mph` : ''}\n` +
-  `  Pressure: ${currentWeather.conditions.pressure} hPa  Visibility: ${currentWeather.conditions.visibility}\n` +
-  `  Weather: ${currentWeather.conditions.weather}  Cloud Cover: ${currentWeather.conditions.cloudCover}%\n` +
-  `  Source: ${currentWeather.source} (Live Data)\n` : 
-  'No real-time weather data available\n'}
+  `• ${currentWeather.location}: ${currentWeather.conditions.weather}\n` +
+  `• Temperature: ${currentWeather.conditions.temperature}°C | Humidity: ${currentWeather.conditions.humidity}%\n` +
+  `• Wind: ${currentWeather.conditions.windDirection}° at ${currentWeather.conditions.windSpeed} mph\n` +
+  `• Pressure: ${currentWeather.conditions.pressure} hPa | Visibility: ${currentWeather.conditions.visibility}\n` +
+  `• Source: ${currentWeather.source} (Live Data)` : 
+  '• No real-time weather data available'}
 
-RADAR DATA SOURCE: ${data.radarSource} (authentic weather radar)
-
-${threatSummary ? `
-ACTIVE THREAT MONITORING STATUS:
-${threatSummary}
-` : ''}
-
-AREA FORECAST DISCUSSION:
-${areaForecastDiscussion ? 
-  `From ${areaForecastDiscussion.office} (issued ${areaForecastDiscussion.issuedTime}):\n${areaForecastDiscussion.discussion.substring(0, 800)}${areaForecastDiscussion.discussion.length > 800 ? '...' : ''}` : 
+=== 5. AREA FORECAST DISCUSSION ===
+${areaForecastDiscussion && areaForecastDiscussion.discussion ? 
+  `NWS ${areaForecastDiscussion.office} (${areaForecastDiscussion.officeCode}):\n${areaForecastDiscussion.discussion.substring(0, 400)}...` : 
   'Area Forecast Discussion unavailable'}
 
-LIGHTNING ACTIVITY: ${data.lightningCount || 0} recent strikes detected
+=== IMPORTANT ANALYSIS REQUIREMENTS ===
+Analyze the weather data systematically following the priority order above.
 
-ANALYSIS INSTRUCTIONS:
-${dynamicTone.style}
+COMMUNICATION STYLE: Professional and direct for any active alerts or warnings.
+Use clear, actionable language when weather threats are present.
 
-COMMUNICATION STYLE: ${dynamicTone.prefix}
-${dynamicTone.recommendations}
+CRITICAL: If there are active weather alerts (Heat Advisories, Warnings, etc.), discuss them FIRST and prominently in your analysis. Heat advisories and weather warnings are the highest priority safety information.
 
-Analyze current weather conditions and provide a comprehensive risk assessment. Focus on immediate safety concerns and provide specific recommendations based on active alerts, storm activity, and current conditions. Use the specified communication style based on threat level.
-
-Respond with exactly this JSON format:
+Provide your assessment in this exact JSON format:
 {
   "riskLevel": "low|moderate|high|extreme",
-  "summary": "Brief 2-3 sentence overview focusing on key risks",
-  "timeToImpact": "Estimated timing if threats approaching or null",
-  "recommendations": ["Specific action item 1", "Specific action item 2"],
+  "summary": "Start with any active alerts, then brief overview of conditions",
+  "timeToImpact": "Timing if threats approaching or null",
+  "recommendations": ["Specific action based on alerts and conditions"],
   "confidence": 0.0-1.0,
-  "detailedAnalysis": "Comprehensive analysis including all data sources and meteorological context"
+  "detailedAnalysis": "Follow the 1-5 priority order above. Start with weather alerts if present, then winds aloft, then storms, then airports, then AFD insights. Use the dynamic tone based on threat level."
 }`;
 
     const response = await openai.chat.completions.create({
@@ -456,6 +445,8 @@ Respond with exactly this JSON format:
 
   } catch (error) {
     console.error('AI weather assessment error:', error);
+    console.error('Error details:', error.message);
+    console.error('Prompt length:', prompt.length);
     
     // Smart fallback assessment based on actual storm data
     const highIntensityStorms = data.storms.filter(s => s.intensity >= 55);
