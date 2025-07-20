@@ -159,7 +159,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                       // North America
                       if (lat >= 25 && lat <= 85 && lon >= -180 && lon <= -50) {
                         if (lon <= -165) return 'Pacific/Honolulu'; // Hawaii/Alaska
-                        if (lon <= -120) return 'America/Los_Angeles'; // Pacific
+                        if (lon <= -114) return 'America/Los_Angeles'; // Pacific (includes Nevada)
                         if (lon <= -104) return 'America/Denver'; // Mountain  
                         if (lon <= -90) return 'America/Chicago'; // Central
                         return 'America/New_York'; // Eastern
@@ -234,26 +234,9 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                         const ampm = timeMatch[3];
                         const originalTz = timeMatch[4];
                         
-                        // Create a date object in the original timezone to properly convert
-                        try {
-                          // Use a fixed date for time conversion
-                          const today = new Date();
-                          let hour24 = hour;
-                          if (ampm.toUpperCase() === 'PM' && hour !== 12) hour24 += 12;
-                          if (ampm.toUpperCase() === 'AM' && hour === 12) hour24 = 0;
-                          
-                          // Create date in original timezone (assume it's a US timezone for NWS alerts)
-                          const originalDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour24, parseInt(minute));
-                          
-                          // Convert to the target timezone
-                          const convertedTime = originalDate.toLocaleTimeString('en-US', {
-                            timeZone: timeZone,
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true
-                          });
-                          
-                          const timeText = `${convertedTime} ${timeZoneName}`;
+                        // If the headline already shows the correct timezone, use it directly
+                        if (originalTz === timeZoneName) {
+                          const timeText = `${hour}:${minute} ${ampm} ${timeZoneName}`;
                           
                           // Check if it mentions a specific date
                           if (dateText.includes('July 21')) {
@@ -263,19 +246,19 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                           } else {
                             return `${dateText} at ${timeText}`;
                           }
-                        } catch {
-                          // Fallback to original time if conversion fails
-                          return `${dateText} at ${fullTimeText}`;
+                        } else {
+                          // Use the original time from headline since it's from NWS and should be authoritative
+                          const timeText = fullTimeText;
+                          
+                          // Check if it mentions a specific date
+                          if (dateText.includes('July 21')) {
+                            return `Tomorrow at ${timeText}`;
+                          } else if (dateText.includes('July 20')) {
+                            return `Today at ${timeText}`;
+                          } else {
+                            return `${dateText} at ${timeText}`;
+                          }
                         }
-                      }
-                      
-                      // Check if it mentions a specific date
-                      if (dateText.includes('July 21')) {
-                        return `Tomorrow at ${timeText}`;
-                      } else if (dateText.includes('July 20')) {
-                        return `Today at ${timeText}`;
-                      } else {
-                        return `${dateText} at ${timeText}`;
                       }
                     }
                     // Fallback to API timestamp with proper timezone handling
