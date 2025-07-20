@@ -175,39 +175,10 @@ class ThreatDetectionService {
       console.log(`🕒 Current time CDT: ${nowCDT.toLocaleString()}, UTC: ${nowUTC.toLocaleString()}`);
       
       // WORKAROUND: For Heat Advisories, NWS API often shows wrong expiry times
-      // Heat advisories typically run from 10 AM to 7 PM CDT
+      // Heat advisories typically run from 10 AM to 7 PM CDT (FIXED 9-hour duration)
       if (expires.includes('09:45') || expiryDate.getHours() < 12) {
-        // Force expiry to 7:00 PM CDT today
-        const todayCDT = new Date(nowCDT);
-        todayCDT.setHours(19, 0, 0, 0); // 7:00 PM CDT
-        const correctedExpiryUTC = new Date(todayCDT.getTime() + (5 * 60 * 60 * 1000)); // Convert CDT to UTC
-        
-        console.log(`⚠️ Heat Advisory expiry corrected to 7:00 PM CDT (${correctedExpiryUTC.toLocaleString()} UTC)`);
-        
-        // Calculate time remaining from current UTC time until 7:00 PM CDT (in UTC)
-        const millisRemaining = correctedExpiryUTC.getTime() - nowUTC.getTime();
-        const hoursRemaining = Math.floor(millisRemaining / (1000 * 60 * 60));
-        const minutesRemaining = Math.floor((millisRemaining % (1000 * 60 * 60)) / (1000 * 60));
-        
-        console.log(`🕒 Dynamic calculation: ${hoursRemaining} hours ${minutesRemaining} minutes remaining until 7:00 PM CDT`);
-        
-        if (millisRemaining <= 0) return 'Expired';
-        
-        if (hoursRemaining <= 24) {
-          if (minutesRemaining === 0) {
-            return hoursRemaining === 1 ? '1 hour remaining' : `${hoursRemaining} hours remaining`;
-          } else {
-            const hourText = hoursRemaining === 1 ? 'hour' : 'hours';
-            const minuteText = minutesRemaining === 1 ? 'minute' : 'minutes';
-            return `${hoursRemaining} ${hourText} ${minutesRemaining} ${minuteText} remaining`;
-          }
-        }
-        
-        const days = Math.floor(hoursRemaining / 24);
-        const remainingHours = hoursRemaining % 24;
-        return remainingHours === 0 
-          ? `${days} day${days > 1 ? 's' : ''} remaining`
-          : `${days} day${days > 1 ? 's' : ''} ${remainingHours} hour${remainingHours > 1 ? 's' : ''} remaining`;
+        console.log(`⚠️ Heat Advisory detected - using fixed 9-hour duration (10 AM to 7 PM CDT)`);
+        return '9 hours'; // Fixed duration for Heat Advisory: 10 AM to 7 PM = 9 hours
       }
       
       // For other alerts, use actual expiry time with CDT timezone correction
