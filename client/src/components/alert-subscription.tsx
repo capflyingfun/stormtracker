@@ -26,7 +26,7 @@ export default function AlertSubscription({ location }: AlertSubscriptionProps) 
     carrier: "",
     smsEnabled: false,
     minimumDbz: 45,
-    alertRadius: 30,
+    alertRadius: 50,
   });
   const { toast } = useToast();
 
