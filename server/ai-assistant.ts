@@ -419,7 +419,7 @@ Provide your assessment in this exact JSON format:
   "timeToImpact": "Timing if threats approaching or null",
   "recommendations": ["Specific action based on alerts and conditions"],
   "confidence": 0.0-1.0,
-  "detailedAnalysis": "Follow the 1-5 priority order above. Start with weather alerts if present, then winds aloft, then storms, then airports, then AFD insights. Use the dynamic tone based on threat level."
+  "detailedAnalysis": "Write a flowing, natural analysis without numbered sections. Start with active weather alerts if present, then discuss winds aloft patterns, current storm activity, airport conditions, and forecaster insights. Use the dynamic tone based on threat level."
 }`;
 
     const response = await openai.chat.completions.create({
