@@ -119,60 +119,66 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
     // Fetch aviation weather data from nearby airports
     let aviationWeather: any[] = [];
     let currentWeather: any = null;
-    try {
-      const aviationResponse = await fetch(
-        `http://localhost:5000/api/aviation-weather?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
-      );
-      if (aviationResponse.ok) {
-        const aviationData = await aviationResponse.json();
-        aviationWeather = aviationData.stations || [];
-        currentWeather = aviationData.currentWeather || null;
-        console.log(`AI Assistant: Found ${aviationWeather.length} nearby airport weather stations`);
-        if (currentWeather) {
-          console.log('AI Assistant: Found real-time weather data for immediate area');
+    if (data.userLocation && data.userLocation.lat && data.userLocation.lon) {
+      try {
+        const aviationResponse = await fetch(
+          `http://localhost:5000/api/aviation-weather?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
+        );
+        if (aviationResponse.ok) {
+          const aviationData = await aviationResponse.json();
+          aviationWeather = aviationData.stations || [];
+          currentWeather = aviationData.currentWeather || null;
+          console.log(`AI Assistant: Found ${aviationWeather.length} nearby airport weather stations`);
+          if (currentWeather) {
+            console.log('AI Assistant: Found real-time weather data for immediate area');
+          }
         }
+      } catch (aviationError) {
+        console.log('AI Assistant: Could not fetch aviation weather:', aviationError.message);
       }
-    } catch (aviationError) {
-      console.log('AI Assistant: Could not fetch aviation weather:', aviationError.message);
     }
 
     // Fetch Area Forecast Discussion for US locations
     let areaForecastDiscussion: any = null;
-    try {
-      // Check if this is a US location
-      const isUSLocation = data.userLocation.lat >= 24.5 && data.userLocation.lat <= 49.5 && 
-                          data.userLocation.lon >= -125 && data.userLocation.lon <= -66.5;
-      
-      if (isUSLocation) {
-        const afdResponse = await fetch(
-          `http://localhost:5000/api/area-forecast-discussion?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
-        );
-        if (afdResponse.ok) {
-          const afdData = await afdResponse.json();
-          areaForecastDiscussion = afdData;
-          if (areaForecastDiscussion && areaForecastDiscussion.discussion) {
-            console.log(`AI Assistant: Found Area Forecast Discussion from ${afdData.office || 'NWS office'}`);
+    if (data.userLocation && data.userLocation.lat && data.userLocation.lon) {
+      try {
+        // Check if this is a US location
+        const isUSLocation = data.userLocation.lat >= 24.5 && data.userLocation.lat <= 49.5 && 
+                            data.userLocation.lon >= -125 && data.userLocation.lon <= -66.5;
+        
+        if (isUSLocation) {
+          const afdResponse = await fetch(
+            `http://localhost:5000/api/area-forecast-discussion?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
+          );
+          if (afdResponse.ok) {
+            const afdData = await afdResponse.json();
+            areaForecastDiscussion = afdData;
+            if (areaForecastDiscussion && areaForecastDiscussion.discussion) {
+              console.log(`AI Assistant: Found Area Forecast Discussion from ${afdData.office || 'NWS office'}`);
+            }
           }
         }
+      } catch (afdError) {
+        console.log('AI Assistant: Could not fetch Area Forecast Discussion:', afdError.message);
       }
-    } catch (afdError) {
-      console.log('AI Assistant: Could not fetch Area Forecast Discussion:', afdError.message);
     }
 
     // Fetch active NWS alerts first (priority over AFD)
     let activeAlerts: any[] = [];
     let threatSummary: string | null = null;
-    try {
-      const alertsResponse = await fetch(
-        `http://localhost:5000/api/nws-alerts?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
-      );
-      if (alertsResponse.ok) {
-        const alertsData = await alertsResponse.json();
-        activeAlerts = alertsData.alerts || [];
-        console.log(`AI Assistant: Found ${activeAlerts.length} active NWS alerts`);
+    if (data.userLocation && data.userLocation.lat && data.userLocation.lon) {
+      try {
+        const alertsResponse = await fetch(
+          `http://localhost:5000/api/nws-alerts?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
+        );
+        if (alertsResponse.ok) {
+          const alertsData = await alertsResponse.json();
+          activeAlerts = alertsData.alerts || [];
+          console.log(`AI Assistant: Found ${activeAlerts.length} active NWS alerts`);
+        }
+      } catch (alertError) {
+        console.log('AI Assistant: Could not fetch NWS alerts:', alertError.message);
       }
-    } catch (alertError) {
-      console.log('AI Assistant: Could not fetch NWS alerts:', alertError.message);
     }
 
     // Fetch threat data when provided
@@ -352,19 +358,19 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
         .filter(s => s.movement && s.movement.impact === 'high')
         .length,
       // CRITICAL: Check regional storms for track intersections over user location
-      directPathStorms: data.regionalStorms
+      directPathStorms: data.userLocation ? data.regionalStorms
         .map(storm => {
           const trackIntersection = calculateStormTrackIntersection(storm, data.userLocation.lat, data.userLocation.lon);
           return { ...storm, trackIntersection };
         })
-        .filter(s => s.trackIntersection.intersects),
-      overlappingCones: data.regionalStorms
+        .filter(s => s.trackIntersection.intersects) : [],
+      overlappingCones: data.userLocation ? data.regionalStorms
         .filter(s => s.movement && s.distance <= 20) // Within 20 miles for cone analysis
         .map(storm => calculateStormTrackIntersection(storm, data.userLocation.lat, data.userLocation.lon))
-        .filter(analysis => analysis.intersects)
+        .filter(analysis => analysis.intersects) : []
     } : null;
 
-    const windContext = data.winds.map(wind => ({
+    const windContext = (data.winds || []).map(wind => ({
       altitude: wind.pressure_level,
       speed: `${wind.speed} mph`,
       direction: `${wind.direction}°`
@@ -397,7 +403,7 @@ IMPORTANT: When discussing storms, always distinguish between:
 - DISTANCE CONTEXT: Always mention how far each storm is from the user for personal planning
 Example: "A Light storm 37 miles away with HIGH impact potential" or "A Severe storm 58 miles away with Low impact likelihood"
 
-=== WEATHER DATA FOR ${data.userLocation.address} ===
+=== WEATHER DATA FOR ${data.userLocation?.address || 'User Location'} ===
 
 === 1. WEATHER ALERTS & ADVISORIES ===
 ${activeAlerts.length > 0 ? 
@@ -526,7 +532,6 @@ Provide your assessment in this exact JSON format:
   } catch (error) {
     console.error('AI weather assessment error:', error);
     console.error('Error details:', error.message);
-    console.error('Prompt length:', prompt.length);
     
     // Smart fallback assessment based on actual storm data
     const highIntensityStorms = data.storms.filter(s => s.intensity >= 55);
@@ -566,7 +571,7 @@ Provide your assessment in this exact JSON format:
       ' Storm movement data available from winds aloft analysis.';
 
     // Enhanced detailed analysis using authentic radar data
-    const detailedAnalysis = `AUTHENTIC RADAR ANALYSIS: ${data.storms.length} active precipitation areas detected within 30 miles using ${data.radarSource} radar imagery.${regionalInfo}${movementInfo} Atmospheric data: ${data.winds.length} pressure levels analyzed. Storm intensities extracted from real radar tile RGB pixel data with meteorological accuracy. Professional fallback assessment provided due to temporary AI service limitations.`;
+    const detailedAnalysis = `AUTHENTIC RADAR ANALYSIS: ${data.storms.length} active precipitation areas detected within 30 miles using ${data.radarSource} radar imagery.${regionalInfo}${movementInfo} Atmospheric data: ${(data.winds || []).length} pressure levels analyzed. Storm intensities extracted from real radar tile RGB pixel data with meteorological accuracy. Professional fallback assessment provided due to temporary AI service limitations.`;
 
     return {
       riskLevel,
