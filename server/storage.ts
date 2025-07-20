@@ -233,6 +233,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getThreatByTypeAndLocation(threatType: string, locationName: string, title: string): Promise<ThreatDetection | undefined> {
+    // For NWS alerts, check for similar alert types in the same timeframe instead of exact title match
+    if (threatType === 'nws_alert') {
+      // Extract alert type from title (e.g., "Heat Advisory", "Tornado Warning")
+      const alertType = title.match(/^([^:]+):/)?.[1] || title.split(' issued')[0] || title;
+      
+      const [threat] = await db
+        .select()
+        .from(threatDetection)
+        .where(
+          and(
+            eq(threatDetection.threatType, threatType),
+            eq(threatDetection.locationName, locationName),
+            sql`${threatDetection.title} LIKE ${`%${alertType}%`}`, // Match similar alert types
+            gt(threatDetection.detectedAt, sql`NOW() - INTERVAL '6 hours'`) // Check last 6 hours for NWS alerts
+          )
+        )
+        .limit(1);
+      return threat || undefined;
+    }
+    
+    // For other threats, use exact matching
     const [threat] = await db
       .select()
       .from(threatDetection)

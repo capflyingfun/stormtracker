@@ -196,8 +196,24 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
           const nwsThreats = data.threatData.threats.filter((threat: any) => threat.type === 'nws_alert');
           if (nwsThreats.length > 0) {
             console.log(`AI Assistant: Using ${nwsThreats.length} NWS alerts from threat data (avoiding duplication)`);
-            // Convert threat format to alert format for compatibility
-            activeAlerts = nwsThreats.map((threat: any) => ({
+            
+            // Deduplicate NWS alerts by alert type and time period
+            const uniqueAlerts = new Map();
+            nwsThreats.forEach((threat: any) => {
+              // Extract alert type from title (e.g., "Heat Advisory", "Tornado Warning")
+              const alertType = threat.title.match(/^([^:]+):/)?.[1] || threat.title.split(' issued')[0] || threat.title;
+              const key = `${alertType}-${threat.level}`;
+              
+              if (!uniqueAlerts.has(key)) {
+                uniqueAlerts.set(key, threat);
+                console.log(`AI Assistant: Including unique alert: ${alertType} (${threat.level})`);
+              } else {
+                console.log(`AI Assistant: Skipping duplicate alert: ${alertType} (${threat.level})`);
+              }
+            });
+            
+            // Convert deduplicated threat format to alert format for compatibility
+            activeAlerts = Array.from(uniqueAlerts.values()).map((threat: any) => ({
               headline: threat.title,
               description: threat.description,
               severity: threat.level,
@@ -206,8 +222,7 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
               expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
               instruction: threat.recommendations?.join('. ') || 'Follow official weather service guidance'
             }));
-            // Clear the separate NWS alerts to prevent duplication
-            console.log('AI Assistant: Cleared separate NWS alerts to prevent duplication');
+            console.log(`AI Assistant: Final deduplicated alerts count: ${activeAlerts.length}`);
           } else {
             // No NWS threats in threat data, still fetch separately for completeness
             const alertsResponse = await fetch(
