@@ -1086,6 +1086,21 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   }, [showAllStormTracks, precipitationStorms, currentWindsData]);
 
+  // Handle time labels toggle - regenerate storm cones when showTimeLabels changes
+  useEffect(() => {
+    // If storm tracks are showing, regenerate them to reflect time label visibility
+    if (showAllStormTracks) {
+      showAllStormCones();
+    } else if (selectedStormId) {
+      // If individual storm is selected, regenerate its cone
+      const selectedStorm = precipitationStorms.find(s => s.id === selectedStormId);
+      if (selectedStorm) {
+        hideStormCone();
+        showStormCone(selectedStorm.lat, selectedStorm.lon, selectedStorm.intensity);
+      }
+    }
+  }, [showTimeLabels]);
+
   // Add map click handler to hide cone when clicking elsewhere (only for individual cones)
   useEffect(() => {
     if (showAllStormTracks) return; // Don't handle clicks when showing all tracks
