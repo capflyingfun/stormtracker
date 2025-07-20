@@ -387,6 +387,32 @@ class ThreatDetectionService {
           recommendations.push('Avoid electrical equipment');
         }
         
+        // Calculate danger cone assessment
+        const calculateDangerLevel = (storm: any) => {
+          if (storm.distance <= 5) return 'direct_path';
+          
+          // Calculate if storm is moving toward user (simplified)
+          if (storm.windsPrediction?.direction) {
+            const stormDirection = storm.windsPrediction.direction;
+            const bearingToUser = (storm.direction + 180) % 360;
+            const directionDifference = Math.abs(((stormDirection - bearingToUser + 180) % 360) - 180);
+            
+            if (directionDifference <= 30 && storm.distance <= 15) return 'direct_path';
+            if (directionDifference <= 45 && storm.distance <= 10) return 'close_approach';
+          }
+          
+          return 'safe_distance';
+        };
+
+        const dangerLevel = calculateDangerLevel(strongestStorm);
+        
+        // Calculate movement direction name
+        const getDirectionName = (degrees: number): string => {
+          const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+          const index = Math.round(degrees / 22.5) % 16;
+          return directions[index];
+        };
+
         threats.push({
           threatType: 'thunderstorm',
           threatLevel,
@@ -400,7 +426,23 @@ class ThreatDetectionService {
           riskToPublic,
           recommendedActions: recommendations,
           estimatedDuration: strongestStorm.intensity >= extremeThreshold ? '2-4 hours' : '1-3 hours',
-          priority
+          priority,
+          metadata: {
+            nearestStorm: {
+              distance: strongestStorm.distance,
+              bearing: strongestStorm.direction,
+              intensity: strongestStorm.intensity,
+              movementDirection: strongestStorm.windsPrediction?.direction,
+              movementSpeed: strongestStorm.windsPrediction?.speed,
+              coordinates: {
+                lat: strongestStorm.lat,
+                lon: strongestStorm.lon
+              }
+            },
+            dangerLevel,
+            stormCount: nearbyStorms.length,
+            maxIntensity: Math.max(...nearbyStorms.map(s => s.intensity))
+          }
         });
         
         console.log(`🌩️ Thunderstorm threat created for ${isUSLocation ? 'US' : 'international'} location with ${strongestStorm.intensity} dBZ intensity`);
@@ -676,6 +718,7 @@ class ThreatDetectionService {
           title: threat.title,
           description: threat.description,
           aiAnalysis: threat.aiAnalysis,
+          metadata: threat.metadata ? JSON.stringify(threat.metadata) : null,
           temperature: threat.temperature,
           heatIndex: threat.heatIndex,
           airQualityIndex: threat.airQualityIndex,

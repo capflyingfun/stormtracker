@@ -693,7 +693,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recommendations: threat.recommendedActions.slice(0, 3), // Top 3 recommendations
         duration: threat.estimatedDuration,
         timeToExpiration: threat.timeToExpiration,
-        activationStatus: threat.activationStatus
+        activationStatus: threat.activationStatus,
+        metadata: threat.metadata || null // Include enhanced storm information
       }));
       
       res.json({

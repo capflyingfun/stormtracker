@@ -961,6 +961,12 @@ export default function StormTracker() {
             {/* Tab Content */}
             {activeTab === 'tracker' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mt-4 sm:mt-6">
+              <AlertsPanel
+                alerts={alerts || []}
+                stormThreats={threatData?.threats || []}
+                isLoading={stormDataLoading}
+              />
+              
               <StormPanel
                 storms={precipitationStorms}
                 useMetric={useMetric}
@@ -971,12 +977,6 @@ export default function StormTracker() {
                 userLocation={location}
                 stormFilters={stormFilters}
                 alertPreferences={preferences}
-              />
-              
-              <AlertsPanel
-                alerts={alerts || []}
-                stormThreats={threatData?.threats || []}
-                isLoading={stormDataLoading}
               />
               </div>
             )}
