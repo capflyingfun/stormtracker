@@ -2995,10 +2995,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Weather Assistant endpoint
   app.post("/api/ai-assessment", async (req, res) => {
     try {
-      const { userLocation, storms, winds, radarSource } = req.body;
+      const { userLocation, storms, winds, radarSource, includeAlerts = false, lightningCount = 0 } = req.body;
       
       if (!userLocation || !Array.isArray(storms) || !Array.isArray(winds)) {
         return res.status(400).json({ error: "Missing required weather data" });
+      }
+
+      // Enhanced assessment with integrated threat detection when includeAlerts is true
+      if (includeAlerts) {
+        try {
+          const { threatDetector } = await import("./threat-detection");
+          
+          const threatResult = await threatDetector.performThreatDetection({
+            lat: userLocation.lat,
+            lon: userLocation.lon,
+            address: userLocation.address,
+            storms,
+            lightningCount
+          });
+          
+          // If significant threats are detected, return comprehensive assessment
+          if (threatResult.threatCount > 0) {
+            const assessment = await generateWeatherAssessment({
+              userLocation,
+              storms, // 30-mile immediate threats  
+              regionalStorms: [], // Skip regional fetch for faster threat response
+              winds,
+              radarSource: radarSource || 'Unknown',
+              threatData: threatResult // Include threat data for enhanced analysis
+            });
+            
+            console.log(`Enhanced AI assessment with ${threatResult.threatCount} threats: ${assessment.riskLevel} risk`);
+            return res.json({
+              ...assessment,
+              threatData: threatResult // Include threat monitoring data
+            });
+          }
+        } catch (threatError) {
+          console.log('Threat detection failed, proceeding with standard weather assessment:', threatError);
+        }
       }
 
       // Fetch broader regional storm data (50-mile radius) for comprehensive analysis
@@ -3030,7 +3065,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const assessment = await generateWeatherAssessment({
         userLocation,
         storms, // 30-mile immediate threats
-        regionalStorms, // 100-mile regional context
+        regionalStorms, // 50-mile regional context
         winds,
         radarSource: radarSource || 'Unknown'
       });

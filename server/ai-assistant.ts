@@ -38,6 +38,7 @@ interface WeatherAssessmentRequest {
   regionalStorms?: StormData[]; // 50-mile regional context
   winds: WindData[];
   radarSource: string;
+  threatData?: any; // Optional threat detection data for enhanced analysis
 }
 
 export async function generateWeatherAssessment(data: WeatherAssessmentRequest): Promise<{
@@ -337,7 +338,7 @@ Provide a comprehensive assessment that gives users immediate safety guidance wh
       ],
       response_format: { type: "json_object" },
       temperature: 0.3, // Lower temperature for more consistent, factual responses
-      max_tokens: 1500
+      max_tokens: 2500 // Increased by 1000 tokens for comprehensive alert summaries
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
