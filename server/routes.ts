@@ -890,7 +890,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Fetch the radar tile image
       const response = await fetch(tileUrl, { 
-        timeout: 8000,
         headers: {
           'User-Agent': 'StormTracker/1.0 (+https://stormtracker.app)',
           'Accept': 'image/png,image/*,*/*'
@@ -1218,8 +1217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
               'Accept': 'application/json, text/plain, */*',
               'Referer': 'https://www.blitzortung.org/'
-            },
-            timeout: 8000
+            }
           });
           
           if (response.ok) {
@@ -1512,7 +1510,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           console.log(`Attempting NEXRAD API: ${apiUrl}`);
           const response = await fetch(apiUrl, {
-            timeout: 5000,
             headers: {
               'User-Agent': 'StormTracker/1.0'
             }
@@ -1908,8 +1905,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const response = await fetch(`https://aviationweather.gov/api/data/windtemp?ids=${stationId}&format=json`, {
         headers: {
           'User-Agent': 'StormTracker/1.0 (weather app for storm movement prediction)'
-        },
-        timeout: 8000
+        }
       });
 
       if (!response.ok) {
@@ -2142,8 +2138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const response = await fetch(`https://aviationweather.gov/api/data/metar?bbox=${lat-0.5},${lon-0.5},${lat+0.5},${lon+0.5}&format=json&taf=false&hours=1`, {
         headers: {
           'User-Agent': 'StormTracker/1.0 (weather app for storm movement prediction)'
-        },
-        timeout: 5000
+        }
       });
 
       if (!response.ok) {
@@ -2185,9 +2180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const apiKey = process.env.OPENWEATHER_API_KEY || 'a8f3a8e5a1a3b3d5e9a8f3a8e5a1a3b3';
     
     try {
-      const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`, {
-        timeout: 5000
-      });
+      const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`);
 
       if (!response.ok) {
         throw new Error(`OpenWeather API returned ${response.status}`);
@@ -2523,7 +2516,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           try {
             const awcUrl = `https://aviationweather.gov/api/data/metar?ids=${airport.icao}&format=json`;
             const awcResponse = await fetch(awcUrl, {
-              timeout: 4000,
               headers: {
                 'User-Agent': 'StormTracker/1.0 Weather Research'
               }
@@ -2545,7 +2537,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             try {
               const checkwxUrl = `https://api.checkwx.com/metar/${airport.icao}/decoded`;
               const checkwxResponse = await fetch(checkwxUrl, {
-                timeout: 3000,
                 headers: {
                   'User-Agent': 'StormTracker/1.0 Weather Research',
                   'X-API-Key': process.env.CHECKWX_API_KEY || 'demo' // Enhanced international support
@@ -2581,7 +2572,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (!metarData) {
             const metarUrl = `https://aviationweather.gov/cgi-bin/data/metar.php?ids=${airport.icao}&format=json`;
             const response = await fetch(metarUrl, {
-              timeout: 3000,
               headers: {
                 'User-Agent': 'StormTracker/1.0 Weather Research'
               }
@@ -2666,8 +2656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         console.log('🌤️ Fetching real-time weather for immediate area...');
         const owmResponse = await fetch(
-          `https://api.openweathermap.org/data/2.5/weather?lat=${userLat}&lon=${userLon}&appid=${API_KEYS.openweather}&units=metric`,
-          { timeout: 3000 }
+          `https://api.openweathermap.org/data/2.5/weather?lat=${userLat}&lon=${userLon}&appid=${API_KEYS.openweather}&units=metric`
         );
         
         if (owmResponse.ok) {
