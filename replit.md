@@ -6,7 +6,7 @@ StormTracker is a real-time storm detection web application built with React, Ex
 
 ## User Preferences
 
-Preferred communication style: Simple, everyday language.
+Preferred communication style: Simple, everyday language with customizable AI assistant tone options (Professional, Friendly, Humorous) similar to Carrot Weather app for personalized user experience.
 
 ## System Architecture
 

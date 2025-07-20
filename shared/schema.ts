@@ -340,3 +340,30 @@ export type InsertMessageInbox = z.infer<typeof insertMessageInboxSchema>;
 
 export type ThreatDetection = typeof threatDetection.$inferSelect;
 export type InsertThreatDetection = z.infer<typeof insertThreatDetectionSchema>;
+
+// AI assistant preferences for personalized communication style
+export const userSettings = pgTable("user_settings", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull().unique(),
+  
+  // AI tone customization (like Carrot Weather app)
+  aiTone: text("ai_tone").default("professional"), // professional, friendly, humorous
+  detailLevel: text("detail_level").default("standard"), // minimal, standard, technical
+  
+  // User preferences
+  includeHumor: boolean("include_humor").default(false),
+  simplifiedLanguage: boolean("simplified_language").default(false),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertUserSettingsSchema = createInsertSchema(userSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type UserSettings = typeof userSettings.$inferSelect;
+export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;

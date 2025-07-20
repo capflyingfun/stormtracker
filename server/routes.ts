@@ -3325,6 +3325,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI Assistant Settings API
+  app.get("/api/user-settings/:sessionId", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      
+      const settings = await storage.getUserSettings(sessionId);
+      if (!settings) {
+        // Return default settings if none exist
+        return res.json({
+          aiTone: 'professional',
+          detailLevel: 'standard',
+          includeHumor: false,
+          simplifiedLanguage: false
+        });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error('Error fetching user settings:', error);
+      res.status(500).json({ error: 'Failed to fetch user settings' });
+    }
+  });
+
+  app.post("/api/user-settings", async (req, res) => {
+    try {
+      const { sessionId, aiTone, detailLevel, includeHumor, simplifiedLanguage } = req.body;
+      
+      if (!sessionId) {
+        return res.status(400).json({ error: 'Session ID is required' });
+      }
+
+      const settings = await storage.saveUserSettings({
+        sessionId,
+        aiTone: aiTone || 'professional',
+        detailLevel: detailLevel || 'standard',
+        includeHumor: includeHumor || false,
+        simplifiedLanguage: simplifiedLanguage || false
+      });
+      
+      res.json(settings);
+    } catch (error) {
+      console.error('Error saving user settings:', error);
+      res.status(500).json({ error: 'Failed to save user settings' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
