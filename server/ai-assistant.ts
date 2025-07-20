@@ -394,7 +394,8 @@ Format the response like a helpful briefing or weather podcast script.
 IMPORTANT: When discussing storms, always distinguish between:
 - STORM SEVERITY: Based on intensity (Light/Moderate/Heavy/Severe/Extreme based on dBZ)
 - IMPACT SEVERITY: Based on collision probability (High/Medium/Low impact chance)
-Example: "A Light storm with HIGH impact potential" or "A Severe storm with Low impact likelihood"
+- DISTANCE CONTEXT: Always mention how far each storm is from the user for personal planning
+Example: "A Light storm 37 miles away with HIGH impact potential" or "A Severe storm 58 miles away with Low impact likelihood"
 
 === WEATHER DATA FOR ${data.userLocation.address} ===
 
@@ -427,7 +428,7 @@ ${immediateStormContext.length === 0 ? '• No active storms detected within 30 
     if (directThreats.length > 0) {
       analysis += `🚨 STORMS WITH DIRECT PATH POTENTIAL:\n`;
       analysis += directThreats.map((storm, i) => 
-        `• Storm ${i+1}: ${storm.intensity} at ${storm.distance} ${storm.direction}\n  Storm Severity: ${storm.stormSeverity} | Impact Rating: ${storm.impactRating}\n  Movement: ${storm.movement}\n  ⚠️ ${storm.trackStatus} - POSSIBLE CONTACT WITH YOUR LOCATION`
+        `• Storm ${i+1}: ${storm.intensity} | Distance: ${storm.distance} ${storm.direction}\n  Storm Severity: ${storm.stormSeverity} | Impact Rating: ${storm.impactRating}\n  Movement: ${storm.movement}\n  ⚠️ ${storm.trackStatus} - POSSIBLE CONTACT WITH YOUR LOCATION`
       ).join('\n');
       analysis += '\n\n';
     }
@@ -435,7 +436,7 @@ ${immediateStormContext.length === 0 ? '• No active storms detected within 30 
     if (nonDirectThreats.length > 0) {
       analysis += `Other nearby storms:\n`;
       analysis += nonDirectThreats.map((storm, i) => 
-        `• Storm ${directThreats.length + i + 1}: ${storm.intensity} at ${storm.distance} ${storm.direction}\n  Storm Severity: ${storm.stormSeverity} | Impact Rating: ${storm.impactRating}\n  Movement: ${storm.movement}\n  Track Status: ${storm.trackStatus}`
+        `• Storm ${directThreats.length + i + 1}: ${storm.intensity} | Distance: ${storm.distance} ${storm.direction}\n  Storm Severity: ${storm.stormSeverity} | Impact Rating: ${storm.impactRating}\n  Movement: ${storm.movement}\n  Track Status: ${storm.trackStatus}`
       ).join('\n');
     }
     
