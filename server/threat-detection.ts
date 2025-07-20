@@ -301,30 +301,6 @@ class ThreatDetectionService {
           }
         }
       }
-        
-        console.log(`⚠️ Heat Advisory start corrected to 10:00 AM CDT (${actualStartUTC.toLocaleString()} UTC)`);
-        
-        if (nowUTC >= actualStartUTC) {
-          console.log(`🟢 Heat Advisory is ACTIVE NOW (after 10:00 AM CDT)`);
-          return 'Active now';
-        } else {
-          const millisUntilActive = actualStartUTC.getTime() - nowUTC.getTime();
-          const hoursUntilActive = Math.floor(millisUntilActive / (1000 * 60 * 60));
-          const minutesUntilActive = Math.floor((millisUntilActive % (1000 * 60 * 60)) / (1000 * 60));
-          
-          console.log(`🕒 Heat Advisory starts in ${hoursUntilActive}h ${minutesUntilActive}m (at 10:00 AM CDT)`);
-          
-          if (hoursUntilActive === 0) {
-            return minutesUntilActive <= 1 ? 'Activates in 1 minute' : `Activates in ${minutesUntilActive} minutes`;
-          } else if (minutesUntilActive === 0) {
-            return hoursUntilActive === 1 ? 'Activates in 1 hour' : `Activates in ${hoursUntilActive} hours`;
-          } else {
-            const hourText = hoursUntilActive === 1 ? 'hour' : 'hours';
-            const minuteText = minutesUntilActive === 1 ? 'minute' : 'minutes';
-            return `Activates in ${hoursUntilActive} ${hourText} ${minutesUntilActive} ${minuteText}`;
-          }
-        }
-      }
       
       // For other alerts, use actual effective time  
       console.log(`🔍 Standard alert logic - comparing nowUTC (${nowUTC.toISOString()}) >= effectiveDate (${effectiveDate.toISOString()})`);
@@ -358,6 +334,7 @@ class ThreatDetectionService {
         : `Activates in ${days} day${days > 1 ? 's' : ''} ${remainingHours} hour${remainingHours > 1 ? 's' : ''}`;
         
     } catch (error) {
+      console.error('Error calculating activation status:', error);
       return 'Unknown';
     }
   }

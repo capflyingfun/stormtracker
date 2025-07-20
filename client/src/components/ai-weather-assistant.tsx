@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -48,15 +48,19 @@ interface AIWeatherAssistantProps {
   storms: StormData[];
   winds: WindData[];
   radarSource: string;
+  lightningCount?: number;
 }
 
 export default function AIWeatherAssistant({
   userLocation,
   storms,
   winds,
-  radarSource
+  radarSource,
+  lightningCount = 0
 }: AIWeatherAssistantProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMonitoring, setIsMonitoring] = useState(false);
+  const [lastCheck, setLastCheck] = useState<Date | null>(null);
 
   // Fetch aviation weather data
   const { data: aviationData } = useQuery({
@@ -99,6 +103,59 @@ export default function AIWeatherAssistant({
     },
   });
 
+  // Threat detection query for monitoring
+  const { data: threatData, refetch: refetchThreats } = useQuery({
+    queryKey: ['/api/threat-detection', userLocation.lat, userLocation.lon],
+    queryFn: async () => {
+      const response = await fetch('/api/threat-detection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lat: userLocation.lat,
+          lon: userLocation.lon,
+          address: userLocation.address,
+          storms,
+          lightningCount
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to perform threat detection');
+      }
+      
+      return response.json();
+    },
+    enabled: false, // Only run when manually triggered
+  });
+
+  // Start/Stop monitoring functionality
+  const handleStartMonitoring = () => {
+    setIsMonitoring(true);
+    setLastCheck(new Date());
+    refetchThreats();
+  };
+
+  const handleStopMonitoring = () => {
+    setIsMonitoring(false);
+  };
+
+  const handleManualCheck = () => {
+    setLastCheck(new Date());
+    refetchThreats();
+  };
+
+  // Auto-monitor every 10 minutes when monitoring is active
+  useEffect(() => {
+    if (!isMonitoring) return;
+    
+    const interval = setInterval(() => {
+      setLastCheck(new Date());
+      refetchThreats();
+    }, 10 * 60 * 1000); // 10 minutes
+    
+    return () => clearInterval(interval);
+  }, [isMonitoring, refetchThreats]);
+
   const assessment = assessmentMutation.data as WeatherAssessment | undefined;
 
   const getRiskColor = (level: string) => {
@@ -127,6 +184,11 @@ export default function AIWeatherAssistant({
         <CardTitle className="flex items-center gap-2 text-white">
           <Brain className="w-5 h-5 text-blue-400" />
           AI Weather Assistant
+          {isMonitoring && (
+            <Badge variant="default" className="bg-green-100 text-green-800">
+              Monitoring Active
+            </Badge>
+          )}
           {assessment && (
             <Badge className={`ml-auto ${getRiskColor(assessment.riskLevel)}`}>
               {getRiskIcon(assessment.riskLevel)}
@@ -134,20 +196,79 @@ export default function AIWeatherAssistant({
             </Badge>
           )}
         </CardTitle>
+        <div className="flex gap-2 mt-2">
+          <Button
+            onClick={() => assessmentMutation.mutate()}
+            disabled={assessmentMutation.isPending}
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {assessmentMutation.isPending ? 'Analyzing...' : 'Check Weather Risk'}
+          </Button>
+          <Button
+            onClick={handleManualCheck}
+            disabled={!userLocation}
+            size="sm"
+            variant="outline"
+            className="border-slate-600 text-slate-300 hover:bg-slate-700"
+          >
+            Check Threats
+          </Button>
+          {isMonitoring ? (
+            <Button
+              onClick={handleStopMonitoring}
+              size="sm"
+              variant="destructive"
+            >
+              Stop Monitoring
+            </Button>
+          ) : (
+            <Button
+              onClick={handleStartMonitoring}
+              disabled={!userLocation}
+              size="sm"
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              Start Monitoring
+            </Button>
+          )}
+        </div>
+        {lastCheck && (
+          <p className="text-xs text-slate-400 mt-1">
+            Last check: {lastCheck.toLocaleTimeString()}
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
-        {!assessment && !assessmentMutation.isPending && (
+        {/* Threat Detection Status */}
+        {threatData && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm border-b border-slate-600 pb-4">
+            <div className="text-center">
+              <div className="font-semibold text-lg text-white">{threatData.threatCount}</div>
+              <div className="text-slate-400">Active Threats</div>
+            </div>
+            <div className="text-center">
+              <div className="font-semibold text-lg text-white">{threatData.alertsGenerated}</div>
+              <div className="text-slate-400">Alerts Sent</div>
+            </div>
+            <div className="text-center">
+              <div className="font-semibold text-lg text-white">{threatData.weatherConditions.temperature}°F</div>
+              <div className="text-slate-400">Temperature</div>
+            </div>
+            <div className="text-center">
+              <div className="font-semibold text-lg">
+                {threatData.dataQuality.openweather_available ? '✅' : '⚠️'}
+              </div>
+              <div className="text-slate-400">Data Status</div>
+            </div>
+          </div>
+        )}
+
+        {!assessment && !assessmentMutation.isPending && !threatData && (
           <div className="text-center">
             <p className="text-slate-300 mb-4">
-              Get AI-powered weather impact analysis based on your current storm data
+              Get AI-powered weather impact analysis and automated threat monitoring
             </p>
-            <Button 
-              onClick={() => assessmentMutation.mutate()}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <Brain className="w-4 h-4 mr-2" />
-              Analyze Weather Risk
-            </Button>
           </div>
         )}
 
