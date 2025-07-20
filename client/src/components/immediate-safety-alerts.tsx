@@ -150,7 +150,23 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
               {alert.expires && (
                 <div className="flex items-center gap-1 text-xs text-red-300">
                   <Clock className="h-3 w-3" />
-                  Expires: {new Date(alert.expires).toLocaleString()}
+                  Expires: {(() => {
+                    // Try to extract time from headline for more accurate display
+                    const headlineMatch = alert.headline.match(/until .*?(\d{1,2}:\d{2}[AP]M\s+CDT)/i);
+                    if (headlineMatch) {
+                      return `Today at ${headlineMatch[1]}`;
+                    }
+                    // Fallback to API timestamp
+                    return new Date(alert.expires).toLocaleString('en-US', {
+                      timeZone: 'America/Chicago',
+                      month: 'numeric',
+                      day: 'numeric', 
+                      year: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      timeZoneName: 'short'
+                    });
+                  })()}
                 </div>
               )}
               
