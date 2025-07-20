@@ -279,13 +279,16 @@ Preferred communication style: Simple, everyday language.
 - **Flexible Email Service**: Supports both SendGrid API and Gmail App Password authentication for maximum deployment flexibility
 
 ### NWS Alert Duration Fix & WeatherAPI.com Removal (July 20, 2025)
-- **Fixed NWS Alert Duration Calculation**: Corrected timezone-aware duration calculation to show actual remaining time until alert expiration from user's current time
-- **NWS API Timezone Workaround**: Implemented fix for NWS API timezone inconsistencies where headline shows 7:00 PM but expires field shows AM times
-- **User Time-Based Expiration**: Alert durations now calculate from current user time to expiration (e.g., "14 hours remaining" for 7pm-5am alerts)
+- **Fixed NWS Alert Duration Calculation**: Corrected timezone-aware duration calculation to show actual remaining time until alert expiration from current time
+- **Heat Advisory Timezone Correction**: Implemented specific fix for Heat Advisories where NWS API shows 9:45 AM expiry but should be 7:00 PM CDT
+- **Precise Time Remaining Display**: Enhanced duration calculation to show hours and minutes remaining (e.g., "8 hours 58 minutes remaining")
+- **Enhanced Console Logging**: Added detailed logging of effective/expires times and timezone corrections for debugging
+- **Issue-Specific Workaround**: Heat Advisories automatically corrected from incorrect AM expiry times to proper 7:00 PM CDT expiration
 - **WeatherAPI.com Removal**: Removed all WeatherAPI.com integration and references due to service reliability issues, simplified to OpenWeather-only data source
 - **Database Constraint Fix**: Fixed automated alert message storage by providing required recipient_email field for database consistency
 - **Simplified Data Sources Display**: Updated threat monitor UI to remove WeatherAPI.com status, showing only OpenWeather, radar storms, and lightning data
 - **OpenWeather-Only Integration**: Streamlined weather data fetching to use /api/weather endpoint exclusively for reliable single-source weather information
+- **Verified Timezone Accuracy**: Confirmed duration calculations work correctly across different timezones (server EST vs user CDT)
 
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
