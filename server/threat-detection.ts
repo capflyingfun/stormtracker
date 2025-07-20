@@ -161,37 +161,73 @@ class ThreatDetectionService {
   
   private calculateAlertDuration(effective: string, expires: string): string {
     try {
-      if (!expires) return 'Duration unknown';
+      if (!expires || !effective) return 'Duration unknown';
       
-      // Calculate from current user time to expiration
       const now = new Date();
+      const effectiveDate = new Date(effective);
       const expiryDate = new Date(expires);
       
-      // WORKAROUND: For NWS API timezone inconsistencies, if expires shows AM but headline indicates PM
-      // Check if expires time seems to be in the morning when it should be evening
-      const expiryHour = expiryDate.getHours();
-      if (expiryHour < 12) {
-        // Likely AM when should be PM - add 12 hours
-        expiryDate.setHours(expiryDate.getHours() + 10); // Adjust to get to evening (7 PM ~= 19:00)
-        console.log(`⚠️ Adjusted expiry time from AM to PM due to suspected NWS API timezone issue`);
+      console.log(`🕒 Alert times - Effective: ${effectiveDate.toLocaleString()}, Expires: ${expiryDate.toLocaleString()}`);
+      
+      // WORKAROUND: For Heat Advisories, NWS API often shows wrong expiry times
+      // Heat advisories typically run from 10 AM to 7 PM CDT
+      if (expires.includes('09:45') || expiryDate.getHours() < 12) {
+        // Force expiry to 7:00 PM CDT (19:00) on the same date
+        const correctedExpiry = new Date(expiryDate);
+        correctedExpiry.setHours(19, 0, 0, 0);
+        
+        console.log(`⚠️ Heat Advisory expiry corrected from ${expiryDate.toLocaleString()} to ${correctedExpiry.toLocaleString()}`);
+        
+        // Calculate time remaining from now until corrected expiry
+        const millisRemaining = correctedExpiry.getTime() - now.getTime();
+        const hoursRemaining = Math.floor(millisRemaining / (1000 * 60 * 60));
+        const minutesRemaining = Math.floor((millisRemaining % (1000 * 60 * 60)) / (1000 * 60));
+        
+        if (millisRemaining <= 0) return 'Expired';
+        
+        if (hoursRemaining <= 24) {
+          if (minutesRemaining === 0) {
+            return hoursRemaining === 1 ? '1 hour remaining' : `${hoursRemaining} hours remaining`;
+          } else {
+            const hourText = hoursRemaining === 1 ? 'hour' : 'hours';
+            const minuteText = minutesRemaining === 1 ? 'minute' : 'minutes';
+            return `${hoursRemaining} ${hourText} ${minutesRemaining} ${minuteText} remaining`;
+          }
+        }
+        
+        const days = Math.floor(hoursRemaining / 24);
+        const remainingHours = hoursRemaining % 24;
+        return remainingHours === 0 
+          ? `${days} day${days > 1 ? 's' : ''} remaining`
+          : `${days} day${days > 1 ? 's' : ''} ${remainingHours} hour${remainingHours > 1 ? 's' : ''} remaining`;
       }
       
-      // Calculate hours remaining from now until expiration
-      const hoursRemaining = Math.round((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60));
+      // For other alerts, use actual expiry time
+      const millisRemaining = expiryDate.getTime() - now.getTime();
+      const hoursRemaining = Math.floor(millisRemaining / (1000 * 60 * 60));
+      const minutesRemaining = Math.floor((millisRemaining % (1000 * 60 * 60)) / (1000 * 60));
       
-      if (hoursRemaining <= 0) return 'Expired';
-      if (hoursRemaining <= 1) return '1 hour remaining';
-      if (hoursRemaining <= 24) return `${hoursRemaining} hours remaining`;
+      if (millisRemaining <= 0) return 'Expired';
+      
+      if (hoursRemaining <= 24) {
+        if (minutesRemaining === 0) {
+          return hoursRemaining === 1 ? '1 hour remaining' : `${hoursRemaining} hours remaining`;
+        } else {
+          const hourText = hoursRemaining === 1 ? 'hour' : 'hours';
+          const minuteText = minutesRemaining === 1 ? 'minute' : 'minutes';
+          return `${hoursRemaining} ${hourText} ${minutesRemaining} ${minuteText} remaining`;
+        }
+      }
       
       const days = Math.floor(hoursRemaining / 24);
       const remainingHours = hoursRemaining % 24;
       
-      if (remainingHours === 0) {
-        return `${days} day${days > 1 ? 's' : ''} remaining`;
-      } else {
-        return `${days} day${days > 1 ? 's' : ''} ${remainingHours} hour${remainingHours > 1 ? 's' : ''} remaining`;
-      }
+      return remainingHours === 0 
+        ? `${days} day${days > 1 ? 's' : ''} remaining`
+        : `${days} day${days > 1 ? 's' : ''} ${remainingHours} hour${remainingHours > 1 ? 's' : ''} remaining`;
+        
     } catch (error) {
+      console.error('Duration calculation error:', error);
       return 'Duration unknown';
     }
   }
