@@ -953,13 +953,13 @@ export default function StormTracker() {
                     🎯 {showStormTracks ? 'Hide Tracks' : 'Show Tracks'}
                   </Button>
                   <Button
-                    onClick={() => setShowStormPathPredictor(!showStormPathPredictor)}
+                    onClick={() => setShowTimeLabels(!showTimeLabels)}
                     variant="outline"
                     size="sm"
-                    className={`${showStormPathPredictor ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
-                    disabled={!precipitationStorms || precipitationStorms.length === 0}
+                    className={`${showTimeLabels ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
+                    disabled={!showStormTracks}
                   >
-                    🛤️ {showStormPathPredictor ? 'Hide Predictor' : 'Path Predictor'}
+                    🕐 {showTimeLabels ? 'Hide Time Labels' : 'Show Time Labels'}
                   </Button>
                   <Button
                     onClick={() => setShowStormFilteringSettings(true)}
