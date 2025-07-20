@@ -3159,9 +3159,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('AI Assistant: Regional storm data unavailable, using 30-mile data only');
       }
 
+      // Calculate impact assessments for storms before passing to AI
+      const enhancedStorms = storms.map(storm => {
+        if (!storm.movement || !storm.movement.direction || storm.movement.speed <= 0) {
+          return storm; // Return unchanged if no movement data
+        }
+        
+        // Calculate bearing from storm to user
+        const stormToUserBearing = calculateBearing(storm.lat, storm.lon, userLocation.lat, userLocation.lon);
+        const stormMovementDirection = storm.movement.direction;
+        
+        // Calculate difference between storm movement direction and direction to user
+        let angleDifference = Math.abs(stormMovementDirection - stormToUserBearing);
+        if (angleDifference > 180) {
+          angleDifference = 360 - angleDifference;
+        }
+        
+        // Define impact cone: 30° left/right of storm movement direction
+        const impactConeAngle = 30;
+        const isApproaching = angleDifference <= impactConeAngle;
+        
+        if (!isApproaching) {
+          return { ...storm, movement: { ...storm.movement, impact: 'low', eta: null } };
+        }
+        
+        // Calculate ETA if storm is headed toward user
+        const distanceToUser = storm.distance;
+        const stormSpeedMph = storm.movement.speed;
+        
+        if (stormSpeedMph <= 0) {
+          return { ...storm, movement: { ...storm.movement, impact: 'medium', eta: 'Stationary' } };
+        }
+        
+        // Calculate time to arrival
+        const hoursToArrival = distanceToUser / stormSpeedMph;
+        
+        // Determine impact chance based on angle difference
+        let impact: 'high' | 'medium' | 'low' = 'medium';
+        if (angleDifference <= 10) impact = 'high';
+        else if (angleDifference <= 20) impact = 'medium';
+        else impact = 'low';
+        
+        // Format ETA
+        let eta: string | null = null;
+        if (hoursToArrival < 1) {
+          const minutes = Math.round(hoursToArrival * 60);
+          eta = `${minutes}min`;
+        } else if (hoursToArrival < 24) {
+          eta = `${hoursToArrival.toFixed(1)}hr`;
+        }
+        
+        return { 
+          ...storm, 
+          movement: { 
+            ...storm.movement, 
+            impact, 
+            eta 
+          } 
+        };
+      });
+      
+      // Helper function to calculate bearing
+      function calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
+        const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
+                  Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
+        const bearing = Math.atan2(y, x) * 180 / Math.PI;
+        return (bearing + 360) % 360;
+      }
+
       const assessment = await generateWeatherAssessment({
         userLocation,
-        storms, // 30-mile immediate threats
+        storms: enhancedStorms, // Enhanced storms with impact calculations
         regionalStorms, // 50-mile regional context
         winds,
         radarSource: radarSource || 'Unknown',
