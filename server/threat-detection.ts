@@ -702,6 +702,18 @@ class ThreatDetectionService {
     
     for (const threat of threats) {
       try {
+        // Check if this threat already exists to prevent duplicates
+        const existingThreat = await storage.getThreatByTypeAndLocation(
+          threat.threatType,
+          threat.locationName,
+          threat.title
+        );
+        
+        if (existingThreat) {
+          console.log(`⚠️ Skipping duplicate ${threat.threatType} threat: ${threat.title}`);
+          continue; // Skip processing this duplicate threat
+        }
+        
         // Enhanced AI analysis for threat
         const aiAnalysis = await this.generateThreatAnalysis(threat, userLocation);
         threat.aiAnalysis = aiAnalysis;
