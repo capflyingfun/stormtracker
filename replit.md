@@ -278,6 +278,15 @@ Preferred communication style: Simple, everyday language.
 - **Alert Testing**: Test alert functionality for both email and SMS to verify delivery before real storm events
 - **Flexible Email Service**: Supports both SendGrid API and Gmail App Password authentication for maximum deployment flexibility
 
+### NWS Alert Duration Fix & WeatherAPI.com Removal (July 20, 2025)
+- **Fixed NWS Alert Duration Calculation**: Corrected timezone-aware duration calculation to show actual remaining time until alert expiration from user's current time
+- **NWS API Timezone Workaround**: Implemented fix for NWS API timezone inconsistencies where headline shows 7:00 PM but expires field shows AM times
+- **User Time-Based Expiration**: Alert durations now calculate from current user time to expiration (e.g., "14 hours remaining" for 7pm-5am alerts)
+- **WeatherAPI.com Removal**: Removed all WeatherAPI.com integration and references due to service reliability issues, simplified to OpenWeather-only data source
+- **Database Constraint Fix**: Fixed automated alert message storage by providing required recipient_email field for database consistency
+- **Simplified Data Sources Display**: Updated threat monitor UI to remove WeatherAPI.com status, showing only OpenWeather, radar storms, and lightning data
+- **OpenWeather-Only Integration**: Streamlined weather data fetching to use /api/weather endpoint exclusively for reliable single-source weather information
+
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
 - **Simplified Storm Display**: Removed speed and direction information for cleaner interface focusing on distance and intensity

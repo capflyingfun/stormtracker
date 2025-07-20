@@ -292,7 +292,6 @@ export function ThreatMonitor({ userLocation, storms = [], lightningCount = 0 }:
             <div className="font-medium mb-1">Data Sources:</div>
             <div className="space-y-1">
               <div>OpenWeather: {threatData.dataQuality.openweather_available ? '✅ Active' : '❌ Unavailable'}</div>
-              <div>WeatherAPI.com: {threatData.dataQuality.weatherapi_available ? '✅ Active' : '⚠️ Unavailable'}</div>
               <div>Radar Storms: {threatData.dataQuality.radar_storms} detected</div>
               <div>Lightning: {threatData.dataQuality.lightning_detected} strikes</div>
             </div>
