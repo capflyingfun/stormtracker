@@ -499,32 +499,7 @@ export default function StormTracker() {
                 </div>
                 
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    onClick={() => setActiveTab('alerts')}
-                    variant="outline"
-                    size="sm"
-                    className={`text-xs sm:text-sm ${activeTab === 'alerts' ? 'bg-blue-600/50 border-blue-400' : 'bg-blue-600/20 border-blue-500'} text-blue-300 hover:bg-blue-600/30`}
-                  >
-                    🔔 Storm Alerts
-                  </Button>
-                  <Button
-                    onClick={() => setActiveTab('messages')}
-                    variant="outline"
-                    size="sm"
-                    className={`text-xs sm:text-sm ${activeTab === 'messages' ? 'bg-green-600/50 border-green-400' : 'bg-green-600/20 border-green-500'} text-green-300 hover:bg-green-600/30`}
-                  >
-                    📧 View Messages
-                  </Button>
-                  {activeTab !== 'tracker' && (
-                    <Button
-                      onClick={() => setActiveTab('tracker')}
-                      variant="outline"
-                      size="sm"
-                      className="text-xs sm:text-sm bg-slate-600/20 border-slate-500 text-slate-300 hover:bg-slate-600/30"
-                    >
-                      🏠 Back to Tracker
-                    </Button>
-                  )}
+                  {/* Messages and Alerts tabs temporarily disabled */}
                   <Button
                     onClick={resetLocation}
                     variant="outline"
@@ -889,22 +864,27 @@ export default function StormTracker() {
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                     <h3 className="text-sm font-semibold mb-3 text-slate-300">Quick Actions</h3>
                     <div className="space-y-2">
-                      <Button
-                        onClick={() => setShowAlertSubscription(true)}
-                        variant="outline"
-                        size="sm"
-                        className="w-full text-xs bg-blue-600/20 border-blue-500 text-blue-300 hover:bg-blue-600/30"
-                      >
-                        🔔 Alerts
-                      </Button>
-                      <Button
-                        onClick={() => setShowMessages(true)}
-                        variant="outline"
-                        size="sm"
-                        className="w-full text-xs bg-green-600/20 border-green-500 text-green-300 hover:bg-green-600/30"
-                      >
-                        📧 Messages
-                      </Button>
+                      {/* Alerts and Messages temporarily disabled */}
+                      {false && (
+                        <>
+                          <Button
+                            onClick={() => setShowAlertSubscription(true)}
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-xs bg-blue-600/20 border-blue-500 text-blue-300 hover:bg-blue-600/30"
+                          >
+                            🔔 Alerts
+                          </Button>
+                          <Button
+                            onClick={() => setShowMessages(true)}
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-xs bg-green-600/20 border-green-500 text-green-300 hover:bg-green-600/30"
+                          >
+                            📧 Messages
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -944,22 +924,27 @@ export default function StormTracker() {
                   >
                     ⚙️ Settings
                   </Button>
-                  <Button
-                    onClick={() => setShowAlertSubscription(true)}
-                    variant="outline"
-                    size="sm"
-                    className="bg-blue-600/20 border-blue-500 text-blue-300 hover:bg-blue-600/30"
-                  >
-                    🔔 Alerts
-                  </Button>
-                  <Button
-                    onClick={() => setShowMessages(true)}
-                    variant="outline"
-                    size="sm"
-                    className="bg-green-600/20 border-green-500 text-green-300 hover:bg-green-600/30"
-                  >
-                    📧 Messages
-                  </Button>
+                  {/* Alerts and Messages temporarily disabled */}
+                  {false && (
+                    <>
+                      <Button
+                        onClick={() => setShowAlertSubscription(true)}
+                        variant="outline"
+                        size="sm"
+                        className="bg-blue-600/20 border-blue-500 text-blue-300 hover:bg-blue-600/30"
+                      >
+                        🔔 Alerts
+                      </Button>
+                      <Button
+                        onClick={() => setShowMessages(true)}
+                        variant="outline"
+                        size="sm"
+                        className="bg-green-600/20 border-green-500 text-green-300 hover:bg-green-600/30"
+                      >
+                        📧 Messages
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -968,9 +953,8 @@ export default function StormTracker() {
 
 
 
-            {/* Tab Content */}
-            {activeTab === 'tracker' && (
-              <div className="max-w-4xl mx-auto mt-4 sm:mt-6">
+            {/* Main Tracker Content - Always Show */}
+            <div className="max-w-4xl mx-auto mt-4 sm:mt-6">
               <StormPanel
                 storms={precipitationStorms}
                 useMetric={useMetric}
@@ -982,8 +966,7 @@ export default function StormTracker() {
                 stormFilters={stormFilters}
                 alertPreferences={preferences}
               />
-              </div>
-            )}
+            </div>
 
 
           </>
