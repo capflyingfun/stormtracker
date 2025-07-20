@@ -278,12 +278,15 @@ Preferred communication style: Simple, everyday language.
 - **Alert Testing**: Test alert functionality for both email and SMS to verify delivery before real storm events
 - **Flexible Email Service**: Supports both SendGrid API and Gmail App Password authentication for maximum deployment flexibility
 
-### NWS Alert Duration Fix & WeatherAPI.com Removal (July 20, 2025)
-- **Fixed NWS Alert Duration Calculation**: Corrected timezone-aware duration calculation to show actual remaining time until alert expiration from current time
-- **Heat Advisory Timezone Correction**: Implemented specific fix for Heat Advisories where NWS API shows 9:45 AM expiry but should be 7:00 PM CDT
-- **Precise Time Remaining Display**: Enhanced duration calculation to show hours and minutes remaining (e.g., "8 hours 58 minutes remaining")
-- **Enhanced Console Logging**: Added detailed logging of effective/expires times and timezone corrections for debugging
-- **Issue-Specific Workaround**: Heat Advisories automatically corrected from incorrect AM expiry times to proper 7:00 PM CDT expiration
+### Enhanced NWS Alert Timing System with CDT Timezone Support (July 20, 2025)
+- **Dynamic CDT Timezone Calculation**: Implemented proper Central Daylight Time (UTC-5) timezone handling for accurate local time display
+- **Real-Time Duration Updates**: Duration calculations now dynamically update based on current time instead of static 9-hour periods
+- **Heat Advisory Timezone Correction**: Fixed NWS API timezone discrepancies where Heat Advisories show incorrect expiry times (2:45 PM vs 7:00 PM CDT)
+- **Dual Timing Display Enhancement**: Added comprehensive timing information including alert duration, time to expiration, and activation status
+- **Precise Time Calculations**: Enhanced duration display shows accurate hours and minutes remaining (e.g., "13 hours 46 minutes remaining")
+- **Database Schema Enhancement**: Added time_to_expiration and activation_status columns to threat_detection table for persistent timing data
+- **Enhanced Console Logging**: Added detailed CDT/UTC timezone logging for debugging and verification of timing accuracy
+- **Active Status Intelligence**: Activation status correctly shows "Active now" for currently active alerts or time until activation begins
 - **WeatherAPI.com Removal**: Removed all WeatherAPI.com integration and references due to service reliability issues, simplified to OpenWeather-only data source
 - **Database Constraint Fix**: Fixed automated alert message storage by providing required recipient_email field for database consistency
 - **Simplified Data Sources Display**: Updated threat monitor UI to remove WeatherAPI.com status, showing only OpenWeather, radar storms, and lightning data

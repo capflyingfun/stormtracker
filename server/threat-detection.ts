@@ -165,25 +165,31 @@ class ThreatDetectionService {
     try {
       if (!expires || !effective) return 'Duration unknown';
       
-      const now = new Date();
+      // Convert to CDT timezone (UTC-5)
+      const nowUTC = new Date();
+      const nowCDT = new Date(nowUTC.getTime() - (5 * 60 * 60 * 1000)); // UTC-5 for CDT
       const effectiveDate = new Date(effective);
       const expiryDate = new Date(expires);
       
       console.log(`🕒 Alert times - Effective: ${effectiveDate.toLocaleString()}, Expires: ${expiryDate.toLocaleString()}`);
+      console.log(`🕒 Current time CDT: ${nowCDT.toLocaleString()}, UTC: ${nowUTC.toLocaleString()}`);
       
       // WORKAROUND: For Heat Advisories, NWS API often shows wrong expiry times
       // Heat advisories typically run from 10 AM to 7 PM CDT
       if (expires.includes('09:45') || expiryDate.getHours() < 12) {
-        // Force expiry to 7:00 PM CDT (19:00) on the same date
-        const correctedExpiry = new Date(expiryDate);
-        correctedExpiry.setHours(19, 0, 0, 0);
+        // Force expiry to 7:00 PM CDT today
+        const todayCDT = new Date(nowCDT);
+        todayCDT.setHours(19, 0, 0, 0); // 7:00 PM CDT
+        const correctedExpiryUTC = new Date(todayCDT.getTime() + (5 * 60 * 60 * 1000)); // Convert CDT to UTC
         
-        console.log(`⚠️ Heat Advisory expiry corrected from ${expiryDate.toLocaleString()} to ${correctedExpiry.toLocaleString()}`);
+        console.log(`⚠️ Heat Advisory expiry corrected to 7:00 PM CDT (${correctedExpiryUTC.toLocaleString()} UTC)`);
         
-        // Calculate time remaining from now until corrected expiry
-        const millisRemaining = correctedExpiry.getTime() - now.getTime();
+        // Calculate time remaining from current UTC time until 7:00 PM CDT (in UTC)
+        const millisRemaining = correctedExpiryUTC.getTime() - nowUTC.getTime();
         const hoursRemaining = Math.floor(millisRemaining / (1000 * 60 * 60));
         const minutesRemaining = Math.floor((millisRemaining % (1000 * 60 * 60)) / (1000 * 60));
+        
+        console.log(`🕒 Dynamic calculation: ${hoursRemaining} hours ${minutesRemaining} minutes remaining until 7:00 PM CDT`);
         
         if (millisRemaining <= 0) return 'Expired';
         
@@ -204,8 +210,8 @@ class ThreatDetectionService {
           : `${days} day${days > 1 ? 's' : ''} ${remainingHours} hour${remainingHours > 1 ? 's' : ''} remaining`;
       }
       
-      // For other alerts, use actual expiry time
-      const millisRemaining = expiryDate.getTime() - now.getTime();
+      // For other alerts, use actual expiry time with CDT timezone correction
+      const millisRemaining = expiryDate.getTime() - nowUTC.getTime();
       const hoursRemaining = Math.floor(millisRemaining / (1000 * 60 * 60));
       const minutesRemaining = Math.floor((millisRemaining % (1000 * 60 * 60)) / (1000 * 60));
       
@@ -238,15 +244,23 @@ class ThreatDetectionService {
     try {
       if (!expires) return 'Unknown';
       
-      const now = new Date();
+      const nowUTC = new Date();
       const expiryDate = new Date(expires);
       
-      // Apply same Heat Advisory timezone correction
-      if (expires.includes('09:45') || expiryDate.getHours() < 12) {
-        expiryDate.setHours(19, 0, 0, 0); // 7:00 PM CDT
-      }
+      // Calculate millisRemaining with timezone correction for Heat Advisories
+      let millisRemaining: number;
       
-      const millisRemaining = expiryDate.getTime() - now.getTime();
+      if (expires.includes('09:45') || expiryDate.getHours() < 12) {
+        // Heat Advisory: Set to 7:00 PM CDT today, then convert to UTC for comparison
+        const nowCDT = new Date(nowUTC.getTime() - (5 * 60 * 60 * 1000)); // Current CDT time
+        const expiryCDT = new Date(nowCDT);
+        expiryCDT.setHours(19, 0, 0, 0); // 7:00 PM CDT today
+        const expiryUTC = new Date(expiryCDT.getTime() + (5 * 60 * 60 * 1000)); // Convert CDT to UTC
+        millisRemaining = expiryUTC.getTime() - nowUTC.getTime();
+      } else {
+        // Other alerts: use actual expiry time
+        millisRemaining = expiryDate.getTime() - nowUTC.getTime();
+      }
       
       if (millisRemaining <= 0) return 'Expired';
       
@@ -282,16 +296,18 @@ class ThreatDetectionService {
     try {
       if (!effective) return 'Unknown';
       
-      const now = new Date();
+      const nowUTC = new Date();
+      const nowCDT = new Date(nowUTC.getTime() - (5 * 60 * 60 * 1000)); // UTC-5 for CDT
       const effectiveDate = new Date(effective);
       
-      console.log(`🕐 Activation check - Now: ${now.toLocaleString()}, Effective: ${effectiveDate.toLocaleString()}`);
+      console.log(`🕐 Activation check - Now CDT: ${nowCDT.toLocaleString()}, UTC: ${nowUTC.toLocaleString()}, Effective: ${effectiveDate.toLocaleString()}`);
       
-      if (now >= effectiveDate) {
+      if (nowUTC >= effectiveDate) {
+        console.log(`🟢 Alert is ACTIVE NOW`);
         return 'Active now';
       }
       
-      const millisUntilActive = effectiveDate.getTime() - now.getTime();
+      const millisUntilActive = effectiveDate.getTime() - nowUTC.getTime();
       const hoursUntilActive = Math.floor(millisUntilActive / (1000 * 60 * 60));
       const minutesUntilActive = Math.floor((millisUntilActive % (1000 * 60 * 60)) / (1000 * 60));
       
