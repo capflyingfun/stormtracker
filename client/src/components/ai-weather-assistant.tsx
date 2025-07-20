@@ -104,7 +104,8 @@ export default function AIWeatherAssistant({
         radarSource,
         includeAlerts: true, // Enhanced to include alert analysis
         lightningCount,
-        useMetric
+        useMetric,
+        threatData // Pass threat data to prevent duplicate NWS alert fetching
       });
       return response.json();
     },
