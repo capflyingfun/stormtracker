@@ -69,6 +69,29 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       console.log('AI Assistant: Could not fetch aviation weather:', aviationError.message);
     }
 
+    // Fetch Area Forecast Discussion for US locations
+    let areaForecastDiscussion: string | null = null;
+    try {
+      // Check if this is a US location
+      const isUSLocation = data.userLocation.lat >= 24.5 && data.userLocation.lat <= 49.5 && 
+                          data.userLocation.lon >= -125 && data.userLocation.lon <= -66.5;
+      
+      if (isUSLocation) {
+        const afdResponse = await fetch(
+          `http://localhost:5000/api/area-forecast-discussion?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`
+        );
+        if (afdResponse.ok) {
+          const afdData = await afdResponse.json();
+          areaForecastDiscussion = afdData.discussion;
+          if (areaForecastDiscussion) {
+            console.log(`AI Assistant: Found Area Forecast Discussion from ${afdData.office || 'NWS office'}`);
+          }
+        }
+      }
+    } catch (afdError) {
+      console.log('AI Assistant: Could not fetch Area Forecast Discussion:', afdError.message);
+    }
+
     // Calculate storm track intersections with user location
     function calculateStormTrackIntersection(storm: any, userLat: number, userLon: number) {
       if (!storm.movement || !storm.movement.direction || storm.movement.speed <= 0) {
@@ -261,7 +284,13 @@ ${aviationWeather.length > 0 ?
   ).join('\n\n') : 
   'No aviation weather data available'}
 
-Based on this comprehensive meteorological data including radar, winds aloft, and aviation weather conditions, provide a detailed weather impact assessment in JSON format:
+${areaForecastDiscussion ? `
+NWS AREA FORECAST DISCUSSION:
+Source: National Weather Service
+${areaForecastDiscussion}
+` : ''}
+
+Based on this comprehensive meteorological data including radar, winds aloft, aviation weather conditions${areaForecastDiscussion ? ', and professional meteorological analysis from the National Weather Service' : ''}, provide a detailed weather impact assessment in JSON format:
 
 {
   "riskLevel": "low|moderate|high|extreme",
@@ -287,7 +316,7 @@ Focus on:
 - Timing analysis: immediate impacts from 30-mile storms vs longer-term threats from regional patterns
 - Directional references using nearby airports and geographic features
 - Escalation patterns: how regional storm activity may intensify or diminish over the next few hours
-- PRIORITY: If regional analysis shows overlapping cones or direct path storms, upgrade to HIGH or EXTREME risk regardless of individual storm distances
+- PRIORITY: If regional analysis shows overlapping cones or direct path storms, upgrade to HIGH or EXTREME risk regardless of individual storm distances${areaForecastDiscussion ? '\n- NWS AREA FORECAST DISCUSSION: Integrate professional meteorologist insights from the Area Forecast Discussion to enhance risk assessment accuracy and provide context on regional weather patterns, synoptic conditions, and forecaster confidence levels' : ''}
 
 Provide a comprehensive assessment that gives users immediate safety guidance while also painting the bigger regional weather picture. When describing storm movements, reference actual nearby airports, cities, or geographic features from the aviation weather data rather than vague directional terms.`;
 

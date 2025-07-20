@@ -13,6 +13,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     openweather: process.env.OPENWEATHER_API_KEY || '49f87b43ad1ddba1821a5cdac7d6965e',
   };
 
+  // Area Forecast Discussion endpoint for US locations
+  app.get("/api/area-forecast-discussion", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lon as string);
+      
+      // Check if this is a US location
+      const isUSLocation = latitude >= 24.5 && latitude <= 49.5 && 
+                          longitude >= -125 && longitude <= -66.5;
+      
+      if (!isUSLocation) {
+        return res.json({ discussion: null, office: null, message: "Area Forecast Discussion only available for US locations" });
+      }
+      
+      // Find nearest NWS office
+      const nearestOffice = findNearestNWSOffice(latitude, longitude);
+      
+      if (!nearestOffice) {
+        return res.json({ discussion: null, office: null, message: "No NWS office found for location" });
+      }
+      
+      try {
+        // Fetch Area Forecast Discussion from NWS
+        const afdUrl = `https://forecast.weather.gov/product.php?site=NWS&issuedby=${nearestOffice.code}&product=AFD&format=txt&version=1&glossary=0`;
+        const afdResponse = await fetch(afdUrl, {
+          headers: {
+            'User-Agent': 'StormTracker/1.0 (weather analysis application)',
+          },
+          signal: AbortSignal.timeout(8000)
+        });
+        
+        if (afdResponse.ok) {
+          const afdText = await afdResponse.text();
+          
+          // Extract the discussion section from the AFD
+          const discussionMatch = afdText.match(/\.DISCUSSION\.\.\.(.*?)(?=\n\.|$)/s);
+          const discussion = discussionMatch ? discussionMatch[1].trim() : null;
+          
+          if (discussion && discussion.length > 50) {
+            return res.json({ 
+              discussion,
+              office: nearestOffice.name,
+              officeCode: nearestOffice.code,
+              lastUpdate: new Date().toISOString(),
+              source: 'NWS Area Forecast Discussion'
+            });
+          }
+        }
+      } catch (fetchError) {
+        console.log('AFD fetch error:', fetchError.message);
+      }
+      
+      return res.json({ 
+        discussion: null, 
+        office: nearestOffice.name,
+        message: "Area Forecast Discussion not currently available" 
+      });
+      
+    } catch (error) {
+      console.error("Area Forecast Discussion error:", error);
+      res.status(500).json({ error: "Failed to fetch Area Forecast Discussion" });
+    }
+  });
+
+  // Find nearest NWS office for Area Forecast Discussion
+  function findNearestNWSOffice(lat: number, lon: number) {
+    const offices = [
+      { code: 'MOB', name: 'Mobile, AL', lat: 30.6, lon: -88.0 },
+      { code: 'BMX', name: 'Birmingham, AL', lat: 33.2, lon: -86.8 },
+      { code: 'HUN', name: 'Huntsville, AL', lat: 34.7, lon: -86.6 },
+      { code: 'TAE', name: 'Tallahassee, FL', lat: 30.4, lon: -84.3 },
+      { code: 'TBW', name: 'Tampa Bay, FL', lat: 27.9, lon: -82.5 },
+      { code: 'MFL', name: 'Miami, FL', lat: 25.8, lon: -80.2 },
+      { code: 'JAX', name: 'Jacksonville, FL', lat: 30.3, lon: -81.7 },
+      { code: 'MLB', name: 'Melbourne, FL', lat: 28.1, lon: -80.6 },
+      { code: 'KEY', name: 'Key West, FL', lat: 24.6, lon: -81.8 },
+      { code: 'JAN', name: 'Jackson, MS', lat: 32.3, lon: -90.2 },
+      { code: 'LIX', name: 'New Orleans, LA', lat: 30.3, lon: -89.8 },
+      { code: 'SHV', name: 'Shreveport, LA', lat: 32.5, lon: -93.7 },
+      { code: 'LCH', name: 'Lake Charles, LA', lat: 30.1, lon: -93.2 },
+      { code: 'MEG', name: 'Memphis, TN', lat: 35.1, lon: -90.0 },
+      { code: 'NAS', name: 'Nashville, TN', lat: 36.2, lon: -86.8 },
+      { code: 'MRX', name: 'Morristown, TN', lat: 36.2, lon: -83.4 },
+      { code: 'RNK', name: 'Roanoke, VA', lat: 37.2, lon: -80.0 },
+      { code: 'AKQ', name: 'Norfolk, VA', lat: 36.9, lon: -76.2 },
+      { code: 'LWX', name: 'Sterling, VA', lat: 39.0, lon: -77.5 },
+      { code: 'CHS', name: 'Charleston, SC', lat: 32.9, lon: -80.0 },
+      { code: 'GSP', name: 'Greenville-Spartanburg, SC', lat: 34.9, lon: -82.2 },
+      { code: 'CAE', name: 'Columbia, SC', lat: 33.9, lon: -81.1 },
+      { code: 'ILM', name: 'Wilmington, NC', lat: 34.3, lon: -77.9 },
+      { code: 'RAH', name: 'Raleigh, NC', lat: 35.8, lon: -78.7 },
+      { code: 'MHX', name: 'Newport/Morehead City, NC', lat: 34.8, lon: -76.9 },
+      { code: 'GSO', name: 'Greensboro, NC', lat: 36.1, lon: -79.9 },
+      { code: 'ATL', name: 'Atlanta, GA', lat: 33.4, lon: -84.4 },
+      { code: 'FFC', name: 'Peachtree City, GA', lat: 33.4, lon: -84.6 }
+    ];
+    
+    let nearestOffice = null;
+    let minDistance = Infinity;
+    
+    for (const office of offices) {
+      const distance = Math.sqrt(
+        Math.pow(lat - office.lat, 2) + Math.pow(lon - office.lon, 2)
+      );
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestOffice = office;
+      }
+    }
+    
+    return nearestOffice;
+  }
+
   // Address auto-suggest endpoint for smart search
   app.get("/api/address-suggest", async (req, res) => {
     try {
