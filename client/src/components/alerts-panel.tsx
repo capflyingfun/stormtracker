@@ -158,7 +158,9 @@ export default function AlertsPanel({ alerts, stormThreats = [], isLoading }: Al
                     {threat.timeToExpiration && (
                       <div>Status: {threat.timeToExpiration}</div>
                     )}
-                    <div className="text-xs text-orange-400 mt-1">📡 Radar-detected storm threat</div>
+                    <div className="text-xs text-orange-400 mt-1">
+                      {threat.threatType === 'nws_alert' ? '🏛️ National Weather Service alert' : '📡 Radar-detected storm threat'}
+                    </div>
                   </div>
                 </div>
               );
