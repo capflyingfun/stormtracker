@@ -4,6 +4,7 @@ import {
   alertHistory,
   messageInbox,
   threatDetection,
+  userSettings,
   type User, 
   type InsertUser,
   type AlertSubscription,
@@ -13,7 +14,9 @@ import {
   type MessageInbox,
   type InsertMessageInbox,
   type ThreatDetection,
-  type InsertThreatDetection
+  type InsertThreatDetection,
+  type UserSettings,
+  type InsertUserSettings
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, sql } from "drizzle-orm";
@@ -50,6 +53,10 @@ export interface IStorage {
   getActiveThreatsBySubscription(subscriptionId: number): Promise<ThreatDetection[]>;
   getAllAlertSubscriptions(): Promise<AlertSubscription[]>;
   updateThreatDetection(id: number, updates: Partial<InsertThreatDetection>): Promise<void>;
+  
+  // User settings methods
+  getUserSettings(sessionId: string): Promise<UserSettings | null>;
+  saveUserSettings(settings: InsertUserSettings): Promise<UserSettings>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -222,6 +229,52 @@ export class DatabaseStorage implements IStorage {
       .update(threatDetection)
       .set(updates)
       .where(eq(threatDetection.id, id));
+  }
+
+  async getUserSettings(sessionId: string): Promise<UserSettings | null> {
+    try {
+      const [settings] = await db
+        .select()
+        .from(userSettings)
+        .where(eq(userSettings.sessionId, sessionId))
+        .limit(1);
+      return settings || null;
+    } catch (error) {
+      console.error('Error fetching user settings:', error);
+      return null;
+    }
+  }
+
+  async saveUserSettings(data: InsertUserSettings): Promise<UserSettings> {
+    try {
+      // Try to update existing settings first
+      const existing = await this.getUserSettings(data.sessionId);
+      
+      if (existing) {
+        const [updated] = await db
+          .update(userSettings)
+          .set({
+            aiTone: data.aiTone,
+            detailLevel: data.detailLevel,
+            includeHumor: data.includeHumor,
+            simplifiedLanguage: data.simplifiedLanguage,
+            updatedAt: new Date()
+          })
+          .where(eq(userSettings.sessionId, data.sessionId))
+          .returning();
+        return updated;
+      } else {
+        // Insert new settings
+        const [created] = await db
+          .insert(userSettings)
+          .values(data)
+          .returning();
+        return created;
+      }
+    } catch (error) {
+      console.error('Error saving user settings:', error);
+      throw error;
+    }
   }
 }
 

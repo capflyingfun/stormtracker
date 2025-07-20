@@ -4,6 +4,31 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY 
 });
 
+// AI tone templates for personalized responses (Carrot Weather style)
+const AI_TONE_TEMPLATES = {
+  professional: {
+    prefix: "Professional meteorological assessment:",
+    style: "Use professional weather terminology and provide detailed scientific analysis.",
+    recommendations: "Provide specific safety recommendations based on meteorological standards."
+  },
+  friendly: {
+    prefix: "Here's your weather update:",
+    style: "Use conversational, friendly language while maintaining accuracy. Explain weather terms in simple language.",
+    recommendations: "Give practical, easy-to-understand advice for staying safe."
+  },
+  humorous: {
+    prefix: "Your weather report with a smile:",
+    style: "Use gentle humor and personality while keeping safety information serious. Make weather fun but not scary.",
+    recommendations: "Provide safety advice with a light touch and occasional weather-related wit."
+  }
+};
+
+const DETAIL_LEVEL_TEMPLATES = {
+  minimal: "Keep response very brief and focused on essential safety information only.",
+  standard: "Provide balanced detail level with key weather information and safety guidance.",
+  technical: "Include detailed meteorological analysis with specific measurements, wind data, and professional terminology."
+};
+
 interface StormData {
   id: string;
   lat: number;
