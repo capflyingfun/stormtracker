@@ -151,21 +151,51 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                 <div className="flex items-center gap-1 text-xs text-red-300">
                   <Clock className="h-3 w-3" />
                   Expires: {(() => {
-                    // Try to extract time from headline for more accurate display
-                    const headlineMatch = alert.headline.match(/until .*?(\d{1,2}:\d{2}[AP]M\s+CDT)/i);
+                    // Try to extract date and time from headline for more accurate display
+                    const headlineMatch = alert.headline.match(/until (.*?)(\d{1,2}:\d{2}[AP]M\s+CDT)/i);
                     if (headlineMatch) {
-                      return `Today at ${headlineMatch[1]}`;
+                      const dateText = headlineMatch[1].trim();
+                      const timeText = headlineMatch[2];
+                      
+                      // Check if it mentions a specific date
+                      if (dateText.includes('July 21')) {
+                        return `Tomorrow at ${timeText}`;
+                      } else if (dateText.includes('July 20')) {
+                        return `Today at ${timeText}`;
+                      } else {
+                        return `${dateText} at ${timeText}`;
+                      }
                     }
-                    // Fallback to API timestamp
-                    return new Date(alert.expires).toLocaleString('en-US', {
-                      timeZone: 'America/Chicago',
-                      month: 'numeric',
-                      day: 'numeric', 
-                      year: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      timeZoneName: 'short'
-                    });
+                    // Fallback to API timestamp with proper date handling
+                    const expireDate = new Date(alert.expires);
+                    const today = new Date();
+                    const tomorrow = new Date(today);
+                    tomorrow.setDate(today.getDate() + 1);
+                    
+                    if (expireDate.toDateString() === today.toDateString()) {
+                      return `Today at ${expireDate.toLocaleTimeString('en-US', {
+                        timeZone: 'America/Chicago',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        timeZoneName: 'short'
+                      })}`;
+                    } else if (expireDate.toDateString() === tomorrow.toDateString()) {
+                      return `Tomorrow at ${expireDate.toLocaleTimeString('en-US', {
+                        timeZone: 'America/Chicago',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        timeZoneName: 'short'
+                      })}`;
+                    } else {
+                      return expireDate.toLocaleString('en-US', {
+                        timeZone: 'America/Chicago',
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        timeZoneName: 'short'
+                      });
+                    }
                   })()}
                 </div>
               )}

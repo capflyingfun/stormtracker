@@ -759,6 +759,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Enhanced Visual Hierarchy**: Red-themed alert styling ensures critical safety information stands out prominently
 - **Storm Movement Display**: Shows storm direction, speed, ETA, and impact probability for collision course threats
 - **NWS API Time Discrepancy Fix**: Fixed Heat Advisory time display by parsing headline text when API timestamps don't match official alert times (e.g., headline shows "7:00PM CDT" but API shows 7:30 PM)
+- **Fixed Date Parsing Logic**: Corrected date parsing to correctly distinguish between "Today" and "Tomorrow" for multi-day Heat Advisories
 
 ### Enhanced AI Time & Date Calculation System (July 20, 2025)
 - **Comprehensive Time Calculation Enhancement**: Enhanced AI assistant with specific time and date calculation capabilities per user request
