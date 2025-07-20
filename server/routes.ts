@@ -2314,8 +2314,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`✈️ Fetching aviation weather data for location: ${userLat}, ${userLon}`);
       
-      // Comprehensive airports across United States with AWOS/METAR data
-      const nearbyAirports = [
+      // Comprehensive global airports with METAR/TAF data - prioritizes international coverage
+      const globalAirports = [
         // North Carolina airports
         { icao: 'KCLT', name: 'Charlotte Douglas International', lat: 35.214, lon: -80.943 },
         { icao: 'KRDU', name: 'Raleigh-Durham International', lat: 35.877, lon: -78.787 },
@@ -2369,7 +2369,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { icao: 'KTLH', name: 'Tallahassee Regional Airport', lat: 30.396, lon: -84.350 },
         { icao: 'KPAM', name: 'Tyndall Air Force Base', lat: 30.070, lon: -85.575 },
         { icao: 'KVPS', name: 'Destin-Fort Walton Beach', lat: 30.483, lon: -86.525 },
-        { icao: 'KJAX', name: 'Jacksonville International', lat: 30.494, lon: -81.688 },
+        { icao: 'KJAX', name: 'Jacksonville International', lat: 30.494, lon: -81.686 },
+        
+        // Major European airports (France, Germany, UK, etc.)
+        { icao: 'LFPG', name: 'Charles de Gaulle Airport (Paris)', lat: 49.013, lon: 2.550 },
+        { icao: 'LFPO', name: 'Paris Orly Airport', lat: 48.725, lon: 2.365 },
+        { icao: 'LFPB', name: 'Paris Le Bourget Airport', lat: 48.969, lon: 2.441 },
+        { icao: 'LFML', name: 'Marseille Provence Airport', lat: 43.436, lon: 5.215 },
+        { icao: 'LFLL', name: 'Lyon Saint-Exupéry Airport', lat: 45.726, lon: 5.081 },
+        { icao: 'LFSB', name: 'EuroAirport Basel-Mulhouse-Freiburg', lat: 47.596, lon: 7.529 },
+        { icao: 'LFST', name: 'Strasbourg Airport', lat: 48.538, lon: 7.628 },
+        { icao: 'LFRN', name: 'Rennes–Saint-Jacques Airport', lat: 48.069, lon: -1.734 },
+        { icao: 'LFRS', name: 'Nantes Atlantique Airport', lat: 47.153, lon: -1.611 },
+        { icao: 'LFMN', name: 'Nice Côte d\'Azur Airport', lat: 43.658, lon: 7.216 },
+        
+        // Germany
+        { icao: 'EDDF', name: 'Frankfurt Airport', lat: 50.026, lon: 8.543 },
+        { icao: 'EDDM', name: 'Munich Airport', lat: 48.354, lon: 11.786 },
+        { icao: 'EDDB', name: 'Berlin Brandenburg Airport', lat: 52.362, lon: 13.501 },
+        { icao: 'EDDH', name: 'Hamburg Airport', lat: 53.630, lon: 9.988 },
+        { icao: 'EDDL', name: 'Düsseldorf Airport', lat: 51.289, lon: 6.767 },
+        { icao: 'EDDS', name: 'Stuttgart Airport', lat: 48.690, lon: 9.222 },
+        
+        // United Kingdom
+        { icao: 'EGLL', name: 'London Heathrow Airport', lat: 51.470, lon: -0.462 },
+        { icao: 'EGKK', name: 'London Gatwick Airport', lat: 51.148, lon: -0.190 },
+        { icao: 'EGSS', name: 'London Stansted Airport', lat: 51.885, lon: 0.235 },
+        { icao: 'EGGW', name: 'London Luton Airport', lat: 51.875, lon: -0.368 },
+        { icao: 'EGCC', name: 'Manchester Airport', lat: 53.354, lon: -2.275 },
+        { icao: 'EGPH', name: 'Edinburgh Airport', lat: 55.950, lon: -3.373 },
+        
+        // Netherlands & Belgium
+        { icao: 'EHAM', name: 'Amsterdam Schiphol Airport', lat: 52.308, lon: 4.764 },
+        { icao: 'EBBR', name: 'Brussels Airport', lat: 50.902, lon: 4.485 },
+        { icao: 'EHRD', name: 'Rotterdam The Hague Airport', lat: 51.957, lon: 4.437 },
+        
+        // Switzerland & Austria
+        { icao: 'LSZH', name: 'Zurich Airport', lat: 47.458, lon: 8.548 },
+        { icao: 'LSGG', name: 'Geneva Airport', lat: 46.238, lon: 6.109 },
+        { icao: 'LOWW', name: 'Vienna International Airport', lat: 48.110, lon: 16.570 },
+        
+        // Italy & Spain
+        { icao: 'LIRF', name: 'Rome Fiumicino Airport', lat: 41.800, lon: 12.239 },
+        { icao: 'LIMC', name: 'Milan Malpensa Airport', lat: 45.630, lon: 8.728 },
+        { icao: 'LEMD', name: 'Madrid-Barajas Airport', lat: 40.472, lon: -3.561 },
+        { icao: 'LEBL', name: 'Barcelona Airport', lat: 41.297, lon: 2.079 },
+        
+        // Scandinavia
+        { icao: 'ESSA', name: 'Stockholm Arlanda Airport', lat: 59.652, lon: 17.919 },
+        { icao: 'EKCH', name: 'Copenhagen Airport', lat: 55.618, lon: 12.656 },
+        { icao: 'ENGM', name: 'Oslo Airport', lat: 60.193, lon: 11.100 },
+        { icao: 'EFHK', name: 'Helsinki Airport', lat: 60.317, lon: 24.963 },
+        
+        // Eastern Europe
+        { icao: 'EPWA', name: 'Warsaw Chopin Airport', lat: 52.166, lon: 20.967 },
+        { icao: 'LKPR', name: 'Prague Airport', lat: 50.101, lon: 14.260 },
+        { icao: 'LHBP', name: 'Budapest Airport', lat: 47.437, lon: 19.255 },
+        
+        // Asia Major Hubs
+        { icao: 'RJAA', name: 'Tokyo Narita International', lat: 35.765, lon: 140.386 },
+        { icao: 'RJTT', name: 'Tokyo Haneda Airport', lat: 35.553, lon: 139.781 },
+        { icao: 'RKSI', name: 'Seoul Incheon International', lat: 37.463, lon: 126.440 },
+        { icao: 'ZBAA', name: 'Beijing Capital International', lat: 40.080, lon: 116.585 },
+        { icao: 'ZSPD', name: 'Shanghai Pudong International', lat: 31.144, lon: 121.805 },
+        { icao: 'VHHH', name: 'Hong Kong International', lat: 22.309, lon: 113.915 },
+        { icao: 'WSSS', name: 'Singapore Changi Airport', lat: 1.350, lon: 103.994 },
+        { icao: 'VTBS', name: 'Bangkok Suvarnabhumi Airport', lat: 13.681, lon: 100.747 },
+        
+        // Middle East & Africa
+        { icao: 'OMDB', name: 'Dubai International Airport', lat: 25.253, lon: 55.365 },
+        { icao: 'OTHH', name: 'Hamad International Airport (Doha)', lat: 25.273, lon: 51.608 },
+        { icao: 'OEJN', name: 'King Abdulaziz International (Jeddah)', lat: 21.680, lon: 39.157 },
+        { icao: 'FACT', name: 'Cape Town International', lat: -33.965, lon: 18.602 },
+        { icao: 'FAOR', name: 'O.R. Tambo International (Johannesburg)', lat: -26.139, lon: 28.246 },
+        
+        // Australia & Pacific
+        { icao: 'YSSY', name: 'Sydney Kingsford Smith Airport', lat: -33.946, lon: 151.177 },
+        { icao: 'YMML', name: 'Melbourne Airport', lat: -37.673, lon: 144.843 },
+        { icao: 'YBBN', name: 'Brisbane Airport', lat: -27.384, lon: 153.117 },
+        { icao: 'NZAA', name: 'Auckland Airport', lat: -37.008, lon: 174.792 },
+        
+        // South America
+        { icao: 'SBGR', name: 'São Paulo–Guarulhos International', lat: -23.432, lon: -46.469 },
+        { icao: 'SAEZ', name: 'Ezeiza International Airport (Buenos Aires)', lat: -34.822, lon: -58.536 },
+        { icao: 'SCEL', name: 'Santiago International Airport', lat: -33.393, lon: -70.786 },
+        
+        // Canada
+        { icao: 'CYYZ', name: 'Toronto Pearson International', lat: 43.677, lon: -79.631 },
+        { icao: 'CYVR', name: 'Vancouver International', lat: 49.195, lon: -123.184 },
+        { icao: 'CYUL', name: 'Montréal–Trudeau International', lat: 45.471, lon: -73.741 },
         { icao: 'KTPA', name: 'Tampa International Airport', lat: 27.976, lon: -82.533 },
         { icao: 'KMCO', name: 'Orlando International Airport', lat: 28.429, lon: -81.309 },
         { icao: 'KMIA', name: 'Miami International Airport', lat: 25.793, lon: -80.291 },
@@ -2395,7 +2483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Find 5 nearest airports within 100-mile regional area
       console.log('🔍 Calculating airport distances...');
-      const airportsWithDistance = nearbyAirports.map(airport => {
+      const airportsWithDistance = globalAirports.map(airport => {
         const distance = calculateDistance(userLat, userLon, airport.lat, airport.lon);
         const bearing = calculateBearing(userLat, userLon, airport.lat, airport.lon);
         return { ...airport, distance, bearing };
@@ -2452,7 +2540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 timeout: 3000,
                 headers: {
                   'User-Agent': 'StormTracker/1.0 Weather Research',
-                  'X-API-Key': 'demo' // Use demo key for testing
+                  'X-API-Key': process.env.CHECKWX_API_KEY || 'demo' // Enhanced international support
                 }
               });
               
@@ -2473,7 +2561,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     cldCvg1: decoded.clouds?.[0]?.text || 'None',
                     wx: decoded.conditions?.join(', ') || 'Clear'
                   };
-                  console.log(`✅ CheckWX METAR data fetched for ${airport.icao}`);
+                  console.log(`✅ CheckWX international METAR data fetched for ${airport.icao} (${airport.name})`);
                 }
               }
             } catch (error) {
