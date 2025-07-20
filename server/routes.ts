@@ -2731,7 +2731,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        // Fallback to OpenWeather if NWS fails and we have a key
+        // Try Open-Meteo API (completely free, no API key needed) - PRIORITIZED
+        if (!currentWeather) {
+          console.log('🌤️ Trying Open-Meteo API (free, no API key)...');
+          try {
+            const openMeteoResponse = await fetch(
+              `https://api.open-meteo.com/v1/forecast?latitude=${userLat}&longitude=${userLon}&current=temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph`
+            );
+            
+            console.log(`Open-Meteo response status: ${openMeteoResponse.status}`);
+            if (openMeteoResponse.ok) {
+              const meteoData = await openMeteoResponse.json();
+              console.log('Open-Meteo response structure:', Object.keys(meteoData));
+              const current = meteoData.current;
+              
+              if (current) {
+                console.log(`🌡️ Open-Meteo current temp: ${current.temperature_2m}°F`);
+                currentWeather = {
+                  location: 'Open-Meteo Weather',
+                  coordinates: `${userLat.toFixed(3)}, ${userLon.toFixed(3)}`,
+                  source: 'Open-Meteo',
+                  timestamp: current.time || new Date().toISOString(),
+                  timeAgo: 'Live data',
+                  isStale: false,
+                  conditions: {
+                    temperature: Math.round(current.temperature_2m || 0),
+                    humidity: Math.round(current.relative_humidity_2m || 0),
+                    pressure: Math.round(current.pressure_msl || 0),
+                    visibility: 'Unknown',
+                    windSpeed: Math.round(current.wind_speed_10m || 0),
+                    windDirection: current.wind_direction_10m || 0,
+                    windGust: null,
+                    weather: current.weather_code ? `Code ${current.weather_code}` : 'Clear',
+                    cloudCover: 'Unknown',
+                    dewPoint: 'Unknown'
+                  }
+                };
+                console.log('✅ Open-Meteo data fetched successfully');
+              } else {
+                console.log('Open-Meteo: No current weather data in response');
+              }
+            } else {
+              console.log(`Open-Meteo API returned status ${openMeteoResponse.status}`);
+            }
+          } catch (meteoError) {
+            console.log('Open-Meteo fetch failed:', meteoError.message);
+          }
+        }
+
+        // Fallback to OpenWeather if other APIs fail and we have a key
         if (!currentWeather && API_KEYS.openweather && API_KEYS.openweather !== 'a8f3a8e5a1a3b3d5e9a8f3a8e5a1a3b3') {
           console.log('🌤️ Falling back to OpenWeather API...');
           const owmResponse = await fetch(
@@ -2740,6 +2788,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           if (owmResponse.ok) {
             const owmData = await owmResponse.json();
+            const tempC = owmData.main?.temp || 0;
+            const tempF = Math.round((tempC * 9/5) + 32);
+            console.log(`🌡️ OpenWeather temp conversion: ${tempC}°C → ${tempF}°F`);
+            
             currentWeather = {
               location: `${owmData.name || 'Local Area'}`,
               coordinates: `${userLat.toFixed(3)}, ${userLon.toFixed(3)}`,
@@ -2748,7 +2800,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               timeAgo: 'Live data',
               isStale: false,
               conditions: {
-                temperature: Math.round((owmData.main?.temp || 0) * 9/5 + 32), // Convert C to F
+                temperature: tempF,
                 humidity: owmData.main?.humidity || 'Unknown',
                 pressure: owmData.main?.pressure || 'Unknown',
                 visibility: owmData.visibility ? (owmData.visibility / 1000).toFixed(1) + ' km' : 'Unknown',
@@ -2766,6 +2818,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
       } catch (nwsError) {
         console.log('NWS weather fetch failed:', nwsError.message);
+      }
+
+      // If no current weather from APIs, use nearest airport as fallback
+      if (!currentWeather && weatherData.length > 0) {
+        const nearestAirport = weatherData[0]; // Already sorted by distance
+        const tempC = nearestAirport.conditions.temperature;
+        const tempF = Math.round((tempC * 9/5) + 32);
+        console.log(`📍 Using nearest airport (${nearestAirport.icao}) temp: ${tempC}°C → ${tempF}°F`);
+        
+        currentWeather = {
+          location: `${nearestAirport.airport} (nearest)`,
+          coordinates: `${userLat.toFixed(3)}, ${userLon.toFixed(3)}`,
+          source: `METAR ${nearestAirport.icao}`,
+          timestamp: new Date(nearestAirport.observationTime * 1000).toISOString(),
+          timeAgo: nearestAirport.timeAgo,
+          isStale: nearestAirport.isStale,
+          conditions: {
+            temperature: tempF,
+            humidity: 'Unknown',
+            pressure: nearestAirport.conditions.altimeter ? Math.round(nearestAirport.conditions.altimeter) : 'Unknown',
+            visibility: nearestAirport.conditions.visibility,
+            windSpeed: nearestAirport.conditions.wind ? parseInt(nearestAirport.conditions.wind.match(/(\d+)/)?.[1] || '0') : 0,
+            windDirection: nearestAirport.conditions.wind ? parseInt(nearestAirport.conditions.wind.match(/(\d+)°/)?.[1] || '0') : 0,
+            windGust: null,
+            weather: nearestAirport.conditions.weather || 'Clear',
+            cloudCover: nearestAirport.conditions.clouds || 'Unknown',
+            dewPoint: nearestAirport.conditions.dewpoint ? Math.round((nearestAirport.conditions.dewpoint * 9/5) + 32) : 'Unknown'
+          }
+        };
+        console.log('✅ Using nearest airport weather as current conditions');
       }
 
       res.json({
