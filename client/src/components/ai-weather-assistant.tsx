@@ -77,9 +77,37 @@ export default function AIWeatherAssistant({
     refetchInterval: 300000, // Refresh every 5 minutes
   });
 
+  // Threat detection query for monitoring
+  const { data: threatData, refetch: refetchThreats } = useQuery({
+    queryKey: ['/api/threat-detection', userLocation.lat, userLocation.lon],
+    queryFn: async () => {
+      const response = await fetch('/api/threat-detection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lat: userLocation.lat,
+          lon: userLocation.lon,
+          address: userLocation.address,
+          storms,
+          lightningCount
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to perform threat detection');
+      }
+      
+      return response.json();
+    },
+    enabled: false, // Only run when manually triggered
+  });
+
   // AI Assessment mutation
   const assessmentMutation = useMutation({
     mutationFn: async () => {
+      // First get latest threat data
+      const currentThreatData = await refetchThreats();
+      
       // Optimize payload by sending only essential storm data
       const optimizedStorms = storms.slice(0, 200).map(storm => ({
         lat: storm.lat,
@@ -105,35 +133,10 @@ export default function AIWeatherAssistant({
         includeAlerts: true, // Enhanced to include alert analysis
         lightningCount,
         useMetric,
-        threatData // Pass threat data to prevent duplicate NWS alert fetching
+        threatData: currentThreatData.data // Pass fresh threat data to prevent duplicate NWS alert fetching
       });
       return response.json();
     },
-  });
-
-  // Threat detection query for monitoring
-  const { data: threatData, refetch: refetchThreats } = useQuery({
-    queryKey: ['/api/threat-detection', userLocation.lat, userLocation.lon],
-    queryFn: async () => {
-      const response = await fetch('/api/threat-detection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lat: userLocation.lat,
-          lon: userLocation.lon,
-          address: userLocation.address,
-          storms,
-          lightningCount
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to perform threat detection');
-      }
-      
-      return response.json();
-    },
-    enabled: false, // Only run when manually triggered
   });
 
   // Start/Stop monitoring functionality

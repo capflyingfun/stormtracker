@@ -167,6 +167,13 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
     let activeAlerts: any[] = [];
     let threatSummary: string | null = null;
 
+    // Debug: Log received data structure
+    console.log('AI Assistant: Received data keys:', Object.keys(data));
+    console.log('AI Assistant: threatData received?', !!data.threatData);
+    if (data.threatData) {
+      console.log('AI Assistant: threatData keys:', Object.keys(data.threatData));
+    }
+
     // Fetch threat data when provided, otherwise get NWS alerts directly
     if (data.threatData) {
       try {
