@@ -302,6 +302,9 @@ Preferred communication style: Simple, everyday language.
 - **Automated Alert Triggering**: AI can now trigger existing alert section and messaging system when significant advisories are detected
 - **Enhanced Threat Integration**: Server-side integration of threat detection with AI assessment for faster comprehensive analysis
 - **Improved User Experience**: Single analysis operation provides both immediate weather assessment and threat monitoring status
+- **AI Alert Integration**: Enhanced AI prompt to include active threat monitoring status and NWS alerts/advisories in detailed analysis discussion
+- **Comprehensive Alert Analysis**: AI now discusses detected threats, alert status, heat advisories, and other weather warnings in detailed assessment output
+- **Enhanced Data Context**: AI assessment includes threat monitoring data when available (threat count, alert status, temperature) for comprehensive risk evaluation
 
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
