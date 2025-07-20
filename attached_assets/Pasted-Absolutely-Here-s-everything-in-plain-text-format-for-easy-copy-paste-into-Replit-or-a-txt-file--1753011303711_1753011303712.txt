@@ -1,0 +1,130 @@
+Absolutely! Here’s everything in plain text format for easy copy-paste into Replit or a .txt file.
+
+⸻
+
+🔹 WEATHER ASSISTANT PROMPT (Paste into your AI call or system message)
+
+You are a helpful, knowledgeable weather assistant that provides real-time weather briefings for both aviation users and the general public.
+
+When given a location (city, coordinates, or ICAO airport code), gather and present weather information in this order:
+
+1. Weather Alerts – Report any current warnings, watches, advisories, or hazards from the NWS or other relevant agencies.
+2. Winds Aloft – Include wind direction and speed at multiple altitudes (3,000 ft, 6,000 ft, 9,000 ft, etc.), especially useful for pilots or balloonists.
+3. Active Storms / Radar Summary – Describe any thunderstorm activity, reflectivity values (dBZ), movement, lightning presence, or storm cells nearby.
+4. Airport Info (METAR/TAF) – Include current weather, visibility, wind, and short-term forecast from nearby airports. Clarify technical terms for public users.
+5. AFD (Area Forecast Discussion) – Briefly summarize the official forecast discussion and highlight key weather impacts.
+6. Optional Notes – Include NOTAMs, icing/turbulence (aviation), or comfort impacts (humidity, heat index, air quality) if available.
+
+Behavior:
+- Always start with a clear, one-sentence summary of the overall conditions.
+- Then present each section in the above order.
+- Adjust the tone based on severity:
+  - Serious and professional if storms, alerts, or hazards are active
+  - Friendly and casual if weather is mild or uneventful
+
+Always be factual, readable, and brief—aim for value, not verbosity.
+Format the response like a helpful briefing or weather podcast script.
+
+Sample Inputs:
+- “Give me a weather overview for KPNS.”
+- “What’s the weather around Dallas, TX?”
+- “Forecast for the general public near 30.42, -87.21.”
+
+
+⸻
+
+🔹 server.js – Your Replit Express Server (Backend)
+
+const express = require("express");
+const cors = require("cors");
+const fetch = require("node-fetch");
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+const OPENAI_API_KEY = "sk-xxxxx"; // Replace with your real key
+
+app.post("/ask-weather", async (req, res) => {
+  const { location } = req.body;
+
+  const prompt = `You are a helpful, knowledgeable weather assistant that provides real-time weather briefings for both aviation users and the general public.
+
+When given a location (city, coordinates, or ICAO airport code), gather and present weather information in this order:
+
+1. Weather Alerts
+2. Winds Aloft
+3. Active Storms
+4. Airport Info
+5. AFD
+6. Optional Notes
+
+Now generate a weather briefing for: ${location}`;
+
+  const result = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${OPENAI_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "gpt-4",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7
+    })
+  });
+
+  const json = await result.json();
+  res.json({ reply: json.choices[0].message.content });
+});
+
+app.listen(3000, () => console.log("✅ Weather Assistant running on port 3000"));
+
+
+⸻
+
+🔹 index.html – Simple Frontend for User Input
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Weather Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white p-6">
+  <h1 class="text-xl font-bold mb-4">🌤️ AI Weather Assistant</h1>
+
+  <input type="text" id="loc" placeholder="Enter city or ICAO (e.g., KPNS)" class="p-3 rounded bg-slate-700 w-full mb-4" />
+  <button onclick="ask()" class="bg-blue-600 px-4 py-2 rounded hover:bg-blue-500">Get Forecast</button>
+
+  <pre id="output" class="mt-6 text-sm bg-slate-800 p-4 rounded max-h-[500px] overflow-auto"></pre>
+
+  <script>
+    async function ask() {
+      const location = document.getElementById("loc").value;
+      const res = await fetch("http://localhost:3000/ask-weather", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ location })
+      });
+      const data = await res.json();
+      document.getElementById("output").textContent = data.reply;
+    }
+  </script>
+</body>
+</html>
+
+
+⸻
+
+You can copy these directly into Replit as:
+	•	server.js (backend code)
+	•	index.html (frontend with weather request input)
+
+Let me know when you’re ready to:
+	•	Add radar overlays 🌩️
+	•	Use Leaflet or Godot 2D to render the storm location map
+	•	Add voice narration or alerts (text-to-speech)
+
+Let’s build this storm tracker together! 🌪️

@@ -332,17 +332,30 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       direction: `${wind.direction}°`
     }));
 
-    const prompt = `You are a professional weather assistant providing comprehensive meteorological analysis for ${data.userLocation.address}.
+    const prompt = `You are a helpful, knowledgeable weather assistant that provides real-time weather briefings for both aviation users and the general public.
 
-ANALYSIS ORDER PRIORITY (analyze in this exact order):
-1. Weather Alerts (most critical - mention first)
-2. Winds Aloft (storm steering)
-3. Active Storms/Radar
-4. Airport Info (METAR/TAF)
-5. Area Forecast Discussion
-6. Additional context
+When given a location, gather and present weather information in this order:
 
-=== 1. WEATHER ALERTS & ADVISORIES (HIGHEST PRIORITY) ===
+1. Weather Alerts – Report any current warnings, watches, advisories, or hazards from the NWS or other relevant agencies.
+2. Winds Aloft – Include wind direction and speed at multiple altitudes (3,000 ft, 6,000 ft, 9,000 ft, etc.), especially useful for pilots or balloonists.
+3. Active Storms / Radar Summary – Describe any thunderstorm activity, reflectivity values (dBZ), movement, lightning presence, or storm cells nearby.
+4. Airport Info (METAR/TAF) – Include current weather, visibility, wind, and short-term forecast from nearby airports. Clarify technical terms for public users.
+5. AFD (Area Forecast Discussion) – Briefly summarize the official forecast discussion and highlight key weather impacts.
+6. Optional Notes – Include NOTAMs, icing/turbulence (aviation), or comfort impacts (humidity, heat index, air quality) if available.
+
+Behavior:
+- Always start with a clear, one-sentence summary of the overall conditions.
+- Then present each section in the above order.
+- Adjust the tone based on severity:
+  - Serious and professional if storms, alerts, or hazards are active
+  - Friendly and casual if weather is mild or uneventful
+
+Always be factual, readable, and brief—aim for value, not verbosity.
+Format the response like a helpful briefing or weather podcast script.
+
+=== WEATHER DATA FOR ${data.userLocation.address} ===
+
+=== 1. WEATHER ALERTS & ADVISORIES ===
 ${activeAlerts.length > 0 ? 
   activeAlerts.map(alert => 
     `🚨 ACTIVE ALERT: ${alert.event}\n` +
@@ -378,14 +391,14 @@ ${regionalContext ?
 === 4. AIRPORT WEATHER (METAR/TAF) ===
 ${aviationWeather.length > 0 ? 
   aviationWeather.map(station => 
-    `• ${station.airport} (${station.icao}) - ${station.distance.toFixed(1)} miles:\n  Conditions: ${station.conditions.clouds} | Temp: ${station.conditions.temperature}°F\n  Wind: ${station.conditions.wind} | Visibility: ${station.conditions.visibility}\n  Data: ${station.timeAgo}${station.isStale ? ' - STALE' : ''}`
+    `• ${station.airport} (${station.icao}) - ${station.distance.toFixed(1)} miles:\n  Conditions: ${station.conditions.clouds} | Temp: ${Math.round((station.conditions.temperature * 9/5) + 32)}°F (${station.conditions.temperature.toFixed(1)}°C)\n  Wind: ${station.conditions.wind} | Visibility: ${station.conditions.visibility}\n  Data: ${station.timeAgo}${station.isStale ? ' - STALE' : ''}`
   ).join('\n') : 
   '• Aviation weather data unavailable'}
 
 Current Local Conditions:
 ${currentWeather ? 
   `• ${currentWeather.location}: ${currentWeather.conditions.weather}\n` +
-  `• Temperature: ${currentWeather.conditions.temperature}°C | Humidity: ${currentWeather.conditions.humidity}%\n` +
+  `• Temperature: ${Math.round((currentWeather.conditions.temperature * 9/5) + 32)}°F (${currentWeather.conditions.temperature}°C) | Humidity: ${currentWeather.conditions.humidity}%\n` +
   `• Wind: ${currentWeather.conditions.windDirection}° at ${currentWeather.conditions.windSpeed} mph\n` +
   `• Pressure: ${currentWeather.conditions.pressure} hPa | Visibility: ${currentWeather.conditions.visibility}\n` +
   `• Source: ${currentWeather.source} (Live Data)` : 
@@ -395,12 +408,6 @@ ${currentWeather ?
 ${areaForecastDiscussion && areaForecastDiscussion.discussion ? 
   `NWS ${areaForecastDiscussion.office} (${areaForecastDiscussion.officeCode}):\n${areaForecastDiscussion.discussion.substring(0, 400)}...` : 
   'Area Forecast Discussion unavailable'}
-
-=== IMPORTANT ANALYSIS REQUIREMENTS ===
-Analyze the weather data systematically following the priority order above.
-
-COMMUNICATION STYLE: Professional and direct for any active alerts or warnings.
-Use clear, actionable language when weather threats are present.
 
 CRITICAL: If there are active weather alerts (Heat Advisories, Warnings, etc.), discuss them FIRST and prominently in your analysis. Heat advisories and weather warnings are the highest priority safety information.
 

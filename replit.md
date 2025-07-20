@@ -330,6 +330,9 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Improved Dynamic Tone Logic**: Fixed tone detection to ensure professional response to weather advisories and life-threatening conditions
 - **Cleaner Data Presentation**: Structured prompt with clear section headers and priority-based analysis requirements
 - **Enhanced Alert Integration**: Active weather alerts now prominently featured at top of analysis with clear formatting and action guidance
+- **Temperature Conversion Fix**: Fixed Celsius to Fahrenheit conversion for airport weather data (°C × 9/5 + 32) showing accurate temperatures like 77°F instead of 27°F
+- **Variable Reference Error Fix**: Resolved undefined `dynamicTone` variable preventing OpenAI API calls from executing properly
+- **Improved Prompt Structure**: Adopted weather briefing format similar to aviation weather podcasts with clear section organization and professional tone adjustment
 
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
