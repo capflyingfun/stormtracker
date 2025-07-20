@@ -49,13 +49,15 @@ class ThreatDetectionService {
     userLocation: UserLocation,
     storms: any[],
     weatherData: WeatherConditions,
-    lightningCount: number
+    lightningCount: number,
+    nwsAlerts: any[] = []
   ): Promise<DetectedThreat[]> {
     const threats: DetectedThreat[] = [];
     
     console.log(`🔍 Analyzing threats for ${userLocation.address}`);
     console.log(`Weather: ${weatherData.temperature}°F, ${weatherData.humidity}% humidity, ${weatherData.conditions}`);
     console.log(`Storms: ${storms.length} detected, Lightning: ${lightningCount} strikes`);
+    console.log(`NWS Alerts: ${nwsAlerts.length} active alerts`);
     
     // 1. Thunderstorm Threat Detection
     const thunderstormThreats = await this.detectThunderstormThreats(userLocation, storms);
@@ -81,9 +83,99 @@ class ThreatDetectionService {
     const severeWeatherThreats = await this.detectSevereWeatherThreats(userLocation, storms, weatherData);
     threats.push(...severeWeatherThreats);
     
-    console.log(`🚨 Detected ${threats.length} total threats`);
+    // 7. NWS Official Alert Integration
+    const nwsThreats = await this.processNWSAlerts(userLocation, nwsAlerts);
+    threats.push(...nwsThreats);
+    
+    console.log(`🚨 Detected ${threats.length} total threats (including ${nwsThreats.length} from NWS alerts)`);
     
     return threats;
+  }
+  
+  private async processNWSAlerts(userLocation: UserLocation, nwsAlerts: any[]): Promise<DetectedThreat[]> {
+    const threats: DetectedThreat[] = [];
+    
+    for (const alert of nwsAlerts) {
+      // Map NWS severity to our threat levels
+      let threatLevel = 'moderate';
+      let priority = 3;
+      
+      switch (alert.severity?.toLowerCase()) {
+        case 'extreme':
+          threatLevel = 'extreme';
+          priority = 1;
+          break;
+        case 'severe':
+          threatLevel = 'high';
+          priority = 2;
+          break;
+        case 'moderate':
+          threatLevel = 'moderate';
+          priority = 3;
+          break;
+        case 'minor':
+          threatLevel = 'low';
+          priority = 4;
+          break;
+        default:
+          threatLevel = 'moderate';
+          priority = 3;
+      }
+      
+      // Extract recommendations from NWS instructions
+      const recommendations = [];
+      if (alert.instruction) {
+        const instructionParts = alert.instruction.split('.').filter((part: string) => part.trim().length > 10);
+        recommendations.push(...instructionParts.slice(0, 5).map((part: string) => part.trim()));
+      }
+      
+      if (recommendations.length === 0) {
+        recommendations.push('Follow all official weather service guidance');
+        recommendations.push('Monitor conditions closely');
+        recommendations.push('Take appropriate safety precautions');
+      }
+      
+      // Create threat from NWS alert
+      threats.push({
+        threatType: 'nws_alert',
+        threatLevel,
+        threatStatus: 'active',
+        lat: userLocation.lat,
+        lon: userLocation.lon,
+        locationName: userLocation.address,
+        title: alert.headline || `${alert.type} Alert`,
+        description: alert.description || `Official ${alert.type} alert issued by ${alert.senderName || 'National Weather Service'}`,
+        riskToPublic: threatLevel === 'extreme' ? 'extreme' : 
+                     threatLevel === 'high' ? 'significant' : 
+                     threatLevel === 'moderate' ? 'moderate' : 'low',
+        recommendedActions: recommendations,
+        estimatedDuration: this.calculateAlertDuration(alert.effective, alert.expires),
+        priority
+      });
+      
+      console.log(`🚨 Added NWS ${alert.type} alert as ${threatLevel} threat`);
+    }
+    
+    return threats;
+  }
+  
+  private calculateAlertDuration(effective: string, expires: string): string {
+    try {
+      if (!expires) return 'Duration unknown';
+      
+      const now = new Date();
+      const expiry = new Date(expires);
+      const diffHours = Math.round((expiry.getTime() - now.getTime()) / (1000 * 60 * 60));
+      
+      if (diffHours <= 0) return 'Expiring soon';
+      if (diffHours <= 6) return `${diffHours} hours`;
+      if (diffHours <= 24) return `${Math.round(diffHours / 6) * 6} hours`;
+      
+      const days = Math.round(diffHours / 24);
+      return `${days} day${days > 1 ? 's' : ''}`;
+    } catch (error) {
+      return 'Duration unknown';
+    }
   }
   
   private async detectThunderstormThreats(userLocation: UserLocation, storms: any[]): Promise<DetectedThreat[]> {
@@ -459,10 +551,13 @@ Provide a brief analysis focusing on:
 
 Keep response under 200 words and professional.`;
 
-      // Use the existing AI assistant infrastructure
+      // Use the existing AI assistant infrastructure with proper data structure
       const analysis = await generateWeatherAssessment({
-        lat: userLocation.lat,
-        lon: userLocation.lon,
+        location: {
+          lat: userLocation.lat,
+          lon: userLocation.lon,
+          address: userLocation.address
+        },
         storms: [],
         lightningCount: threat.lightningCount || 0,
         preferences: {
@@ -500,9 +595,10 @@ Keep response under 200 words and professional.`;
       // Store alert in message inbox
       const message = await storage.createMessage({
         recipient: alertMessage.recipient,
+        content: alertMessage.emailBody, // Use content field instead of htmlBody
+        messageType: alertMessage.messageType,
         subject: alertMessage.subject,
         htmlBody: alertMessage.emailBody,
-        messageType: alertMessage.messageType,
         stormIntensity: alertMessage.stormIntensity,
         stormDistance: alertMessage.stormDistance,
         alertLevel: alertMessage.alertLevel,

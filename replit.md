@@ -719,3 +719,15 @@ Preferred communication style: Simple, everyday language.
 - **Intelligent Threshold Logic**: Smart detection algorithms for heat index calculations, storm intensity analysis, and environmental hazard assessment
 - **Professional Alert Formatting**: Rich HTML email-style alerts with color-coded severity levels, detailed recommendations, and AI analysis integration
 - **Real-Time Monitoring**: Configurable 10-minute automated monitoring cycles with immediate threat notification capabilities
+
+### NWS Alerts Integration (July 20, 2025)
+- **Official Weather Service Alerts**: Integrated National Weather Service alerts API for authoritative government weather warnings
+- **Comprehensive Alert Coverage**: Heat advisories, tornado warnings, severe thunderstorm warnings, flood warnings, and other official NWS alerts
+- **Dual API Endpoints**: `/api/nws-alerts` GET endpoint for direct NWS alert queries and enhanced threat detection integration
+- **Alert Priority System**: NWS alerts automatically prioritized in threat detection with official severity mapping (Extreme/Severe/Moderate/Minor)
+- **Professional Alert Processing**: NWS alert headlines, descriptions, and instructions properly parsed into threat detection system
+- **Multi-Source Validation**: Combined NWS official alerts with WeatherAPI.com and OpenWeather data for comprehensive threat assessment
+- **Enhanced User Experience**: Fixed lightningData variable error and improved ThreatMonitor component integration
+- **Alert Duration Calculation**: Intelligent alert duration estimation based on NWS effective and expiration timestamps
+- **Government Authority**: NWS alerts take precedence as official government warnings complementing AI-powered threat analysis
+- **Network Resilience**: Proper error handling and fallback systems when NWS API unavailable
