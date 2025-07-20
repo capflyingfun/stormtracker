@@ -728,24 +728,6 @@ class ThreatDetectionService {
     
     for (const threat of threats) {
       try {
-        // Check if this threat already exists to prevent duplicates
-        const existingThreat = await storage.getThreatByTypeAndLocation(
-          threat.threatType,
-          threat.locationName,
-          threat.title
-        );
-        
-        if (existingThreat) {
-          // For NWS alerts, log the time difference to show these are legitimate updates
-          if (threat.threatType === 'nws_alert') {
-            const timeDiff = new Date().getTime() - new Date(existingThreat.detectedAt).getTime();
-            const hoursDiff = Math.round(timeDiff / (1000 * 60 * 60) * 10) / 10;
-            console.log(`⚠️ Skipping duplicate ${threat.threatType} threat: ${threat.title} (previous alert ${hoursDiff}h ago)`);
-          } else {
-            console.log(`⚠️ Skipping duplicate ${threat.threatType} threat: ${threat.title}`);
-          }
-          continue; // Skip processing this duplicate threat
-        }
         
         // Enhanced AI analysis for threat
         const aiAnalysis = await this.generateThreatAnalysis(threat, userLocation);
