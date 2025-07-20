@@ -292,20 +292,19 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Alert Testing**: Test alert functionality for both email and SMS to verify delivery before real storm events
 - **Flexible Email Service**: Supports both SendGrid API and Gmail App Password authentication for maximum deployment flexibility
 
-### Enhanced NWS Alert Timing System with CDT Timezone Support (July 20, 2025)
-- **Dynamic CDT Timezone Calculation**: Implemented proper Central Daylight Time (UTC-5) timezone handling for accurate local time display
-- **Real-Time Duration Updates**: Duration calculations now dynamically update based on current time instead of static 9-hour periods
-- **Heat Advisory Timezone Correction**: Fixed NWS API timezone discrepancies where Heat Advisories show incorrect expiry times (2:45 PM vs 7:00 PM CDT)
-- **Dual Timing Display Enhancement**: Added comprehensive timing information including alert duration, time to expiration, and activation status
-- **Precise Time Calculations**: Enhanced duration display shows accurate hours and minutes remaining (e.g., "13 hours 46 minutes remaining")
-- **Database Schema Enhancement**: Added time_to_expiration and activation_status columns to threat_detection table for persistent timing data
-- **Enhanced Console Logging**: Added detailed CDT/UTC timezone logging for debugging and verification of timing accuracy
-- **Active Status Intelligence**: Activation status correctly shows "Active now" for currently active alerts or time until activation begins
-- **WeatherAPI.com Removal**: Removed all WeatherAPI.com integration and references due to service reliability issues, simplified to OpenWeather-only data source
-- **Database Constraint Fix**: Fixed automated alert message storage by providing required recipient_email field for database consistency
-- **Simplified Data Sources Display**: Updated threat monitor UI to remove WeatherAPI.com status, showing only OpenWeather, radar storms, and lightning data
-- **OpenWeather-Only Integration**: Streamlined weather data fetching to use /api/weather endpoint exclusively for reliable single-source weather information
-- **Verified Timezone Accuracy**: Confirmed duration calculations work correctly across different timezones (server EST vs user CDT)
+### Global Dynamic Timezone System (July 20, 2025)
+- **Comprehensive Global Timezone Detection**: Implemented worldwide timezone detection using browser's Intl API for accurate local time display globally
+- **Coordinate-Based Timezone Mapping**: Advanced geographic coordinate system covering North America, Europe, Asia, Australia, South America, and Africa
+- **Browser Intl API Integration**: Uses native browser timezone detection for accurate timezone abbreviations and conversions worldwide
+- **Fixed Nevada Timezone Issue**: Resolved incorrect CDT display for Nevada locations (Elko, NV) now correctly shows PDT for Pacific Time
+- **Dynamic Timezone Conversion**: Intelligent timezone conversion system that handles any global timezone conversion using proper offset calculations
+- **Regional Timezone Boundaries**: Accurate longitude-based timezone boundaries for US (Pacific/Mountain/Central/Eastern) and global regions
+- **Automatic Fallback System**: Falls back to user's system timezone when coordinates don't match predefined regions
+- **Real-Time Timezone Abbreviations**: Dynamic timezone abbreviation generation using Intl.DateTimeFormat for current daylight/standard time display
+- **Enhanced NWS Alert Display**: Weather alerts now show proper local timezone regardless of original alert timezone (CDT/PDT/MDT/EDT conversion)
+- **Global Time Conversion**: Supports timezone conversion between any global timezones for international weather alert display
+- **Professional Time Standards**: Uses official timezone identifiers (America/Los_Angeles, Europe/London, Asia/Tokyo, etc.) for maximum accuracy
+- **Verified Global Coverage**: Tested timezone detection for major global cities including Nevada (PDT), Europe (GMT/CET), Asia (JST/CST), and Australia (AEDT)
 
 ### Map Z-Index Fix & Modal Improvements (July 20, 2025)
 - **Fixed Map Overlay Issues**: Corrected z-index conflicts where radar map appeared over modal dialogs and settings panels
