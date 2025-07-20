@@ -96,6 +96,13 @@ class ThreatDetectionService {
     const threats: DetectedThreat[] = [];
     
     for (const alert of nwsAlerts) {
+      console.log(`🔍 Processing NWS Alert:`, {
+        type: alert.type,
+        headline: alert.headline,
+        effective: alert.effective,
+        expires: alert.expires,
+        severity: alert.severity
+      });
       // Map NWS severity to our threat levels
       let threatLevel = 'moderate';
       let priority = 3;
