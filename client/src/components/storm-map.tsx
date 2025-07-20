@@ -845,8 +845,69 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       dashArray: '10, 5'
     });
 
-    // Create layer group for the cone
-    stormConeLayerRef.current = window.L.layerGroup([cone, centerLine]);
+    // Add time tick markers along the center line (like weather radar apps)
+    const timeMarkers: any[] = [];
+    const currentTime = new Date();
+    
+    // Create time ticks every 15 minutes for 1 hour forecast
+    const timeIntervals = [15, 30, 45, 60]; // minutes
+    
+    timeIntervals.forEach((minutes) => {
+      // Calculate position along center line based on storm speed from winds data
+      const stormSpeed = currentWindsData?.stormMovement?.speed || 30; // Default 30 mph
+      const distanceInMiles = (stormSpeed * minutes) / 60; // Distance traveled in given time
+      
+      // Only show time ticks if they're within the 15-mile cone projection
+      if (distanceInMiles <= 15) {
+        const timePosition = calculateDestination(stormLat, stormLon, movementDirection, distanceInMiles);
+        
+        // Calculate future time for display
+        const futureTime = new Date(currentTime.getTime() + minutes * 60 * 1000);
+        const timeString = futureTime.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          hour12: false 
+        });
+        
+        // Create time tick marker
+        const timeMarker = window.L.circleMarker([timePosition.lat, timePosition.lon], {
+          radius: 3,
+          fillColor: '#ffffff',
+          color: coneColor,
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 1
+        });
+        
+        // Create time label with professional styling
+        const timeLabel = window.L.divIcon({
+          className: 'time-tick-label',
+          html: `<div style="
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+            white-space: nowrap;
+            border: 1px solid ${coneColor};
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+          ">${timeString}</div>`,
+          iconSize: [40, 16],
+          iconAnchor: [20, 8]
+        });
+        
+        const timeLabelMarker = window.L.marker([timePosition.lat, timePosition.lon], {
+          icon: timeLabel
+        });
+        
+        timeMarkers.push(timeMarker, timeLabelMarker);
+      }
+    });
+
+    // Create layer group for the cone with time ticks
+    stormConeLayerRef.current = window.L.layerGroup([cone, centerLine, ...timeMarkers]);
     stormConeLayerRef.current.addTo(map);
 
     // Add tooltip to cone
@@ -934,6 +995,62 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         weight: 2,
         opacity: 0.5,
         dashArray: '8, 4'
+      });
+
+      // Add time tick markers for all storm tracks (reduced visibility)
+      const timeIntervals = [15, 30, 45, 60]; // minutes
+      const currentTime = new Date();
+      
+      timeIntervals.forEach((minutes) => {
+        const stormSpeed = currentWindsData?.stormMovement?.speed || 30; // Default 30 mph
+        const distanceInMiles = (stormSpeed * minutes) / 60;
+        
+        if (distanceInMiles <= 15) {
+          const timePosition = calculateDestination(storm.lat, storm.lon, movementDirection, distanceInMiles);
+          
+          const futureTime = new Date(currentTime.getTime() + minutes * 60 * 1000);
+          const timeString = futureTime.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: false 
+          });
+          
+          // Smaller time markers for all-tracks view
+          const timeMarker = window.L.circleMarker([timePosition.lat, timePosition.lon], {
+            radius: 2,
+            fillColor: '#ffffff',
+            color: coneColor,
+            weight: 1,
+            opacity: 0.7,
+            fillOpacity: 0.8
+          });
+          
+          // Smaller time labels for all-tracks view
+          const timeLabel = window.L.divIcon({
+            className: 'time-tick-label-small',
+            html: `<div style="
+              background-color: rgba(0, 0, 0, 0.7);
+              color: white;
+              padding: 1px 4px;
+              border-radius: 2px;
+              font-size: 9px;
+              font-weight: bold;
+              text-align: center;
+              white-space: nowrap;
+              border: 1px solid ${coneColor};
+              box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            ">${timeString}</div>`,
+            iconSize: [32, 12],
+            iconAnchor: [16, 6]
+          });
+          
+          const timeLabelMarker = window.L.marker([timePosition.lat, timePosition.lon], {
+            icon: timeLabel
+          });
+          
+          allConesGroup.addLayer(timeMarker);
+          allConesGroup.addLayer(timeLabelMarker);
+        }
       });
 
       allConesGroup.addLayer(cone);

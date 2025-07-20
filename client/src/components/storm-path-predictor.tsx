@@ -50,8 +50,8 @@ export default function StormPathPredictor({
   const confidenceLayersRef = useRef<any[]>([]);
   const currentPositionLayersRef = useRef<any[]>([]);
   
-  // Time steps for prediction (every 30 minutes for 6 hours = 12 steps)
-  const timeSteps = Array.from({ length: predictionHours[0] * 2 }, (_, i) => i * 30); // minutes
+  // Time steps for prediction (every 15 minutes for 1 hour = 4 steps)
+  const timeSteps = Array.from({ length: 4 }, (_, i) => (i + 1) * 15); // 15, 30, 45, 60 minutes
 
   // Calculate storm movement based on winds aloft data
   const calculateStormMovement = (windDirection: number, windSpeed: number) => {
@@ -63,12 +63,11 @@ export default function StormPathPredictor({
     return { direction: stormDirection, speed: stormSpeed };
   };
 
-  // Predict future storm positions
+  // Predict future storm positions with time ticks
   const predictStormPath = (
     currentLat: number, 
     currentLon: number, 
-    movementVector: { direction: number; speed: number },
-    hours: number
+    movementVector: { direction: number; speed: number }
   ): PredictedPosition[] => {
     const predictions: PredictedPosition[] = [];
     const { direction, speed } = movementVector;
@@ -76,21 +75,20 @@ export default function StormPathPredictor({
     // Convert direction to radians
     const directionRad = (direction * Math.PI) / 180;
     
-    // Distance per time step (30 minutes)
-    const distancePerStep = (speed * 0.5) / 69; // Convert mph to degrees (approximate)
-    
-    timeSteps.forEach((minutes, index) => {
-      const steps = index + 1;
+    timeSteps.forEach((minutes) => {
+      // Distance calculation: speed in mph for given time
+      const distanceInMiles = (speed * minutes) / 60; // Convert minutes to hours
+      const distanceInDegrees = distanceInMiles / 69; // Rough conversion to degrees
       
       // Calculate new position
-      const deltaLat = Math.cos(directionRad) * distancePerStep * steps;
-      const deltaLon = Math.sin(directionRad) * distancePerStep * steps;
+      const deltaLat = Math.cos(directionRad) * distanceInDegrees;
+      const deltaLon = Math.sin(directionRad) * distanceInDegrees;
       
       const newLat = currentLat + deltaLat;
       const newLon = currentLon + deltaLon;
       
       // Calculate confidence (decreases over time)
-      const confidence = Math.max(0.3, 1 - (minutes / (hours * 60)) * 0.7);
+      const confidence = Math.max(0.5, 1 - (minutes / 60) * 0.5);
       
       predictions.push({
         lat: newLat,
@@ -116,8 +114,7 @@ export default function StormPathPredictor({
       const predictedPath = predictStormPath(
         storm.lat,
         storm.lon,
-        movementVector,
-        predictionHours[0]
+        movementVector
       );
       
       return {
@@ -145,14 +142,25 @@ export default function StormPathPredictor({
     currentPositionLayersRef.current = [];
   };
 
-  // Render storm predictions on map
+  // Format time for display (e.g., "18:07")
+  const formatTimeForDisplay = (minutes: number) => {
+    const now = new Date();
+    const futureTime = new Date(now.getTime() + minutes * 60 * 1000);
+    return futureTime.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      hour12: false 
+    });
+  };
+
+  // Render storm predictions on map with professional trajectory lines
   const renderPredictions = () => {
     if (!mapInstance || !isVisible) return;
     
     clearPredictionLayers();
     
     stormPredictions.forEach((prediction, stormIndex) => {
-      const { predictedPath, currentPosition, intensity, movementVector } = prediction;
+      const { predictedPath, currentPosition, intensity } = prediction;
       
       // Get storm color based on intensity
       const getStormColor = (dbz: number) => {
@@ -165,84 +173,87 @@ export default function StormPathPredictor({
       
       const stormColor = getStormColor(intensity);
       
-      // Draw current position
-      if (window.L) {
+      if (window.L && predictedPath.length > 0) {
+        // Create path coordinates including current position
+        const pathCoordinates = [
+          [currentPosition.lat, currentPosition.lon],
+          ...predictedPath.map(pos => [pos.lat, pos.lon])
+        ];
+        
+        // Draw the main trajectory line
+        const trajectoryLine = window.L.polyline(pathCoordinates, {
+          color: stormColor,
+          weight: 3,
+          opacity: 0.8,
+          dashArray: '10, 5'
+        });
+        
+        trajectoryLine.addTo(mapInstance);
+        pathLayersRef.current.push(trajectoryLine);
+        
+        // Add time tick markers along the trajectory line
+        predictedPath.forEach((position, index) => {
+          const minutes = timeSteps[index];
+          const timeString = formatTimeForDisplay(minutes);
+          
+          // Create time tick marker
+          const timeMarker = window.L.circleMarker([position.lat, position.lon], {
+            radius: 4,
+            fillColor: '#ffffff',
+            color: stormColor,
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 1
+          });
+          
+          // Create time label with professional styling like weather radar apps
+          const timeLabel = window.L.divIcon({
+            className: 'time-tick-label',
+            html: `<div style="
+              background-color: rgba(0, 0, 0, 0.8);
+              color: white;
+              padding: 2px 6px;
+              border-radius: 4px;
+              font-size: 12px;
+              font-weight: bold;
+              text-align: center;
+              white-space: nowrap;
+              border: 1px solid ${stormColor};
+              box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            ">${timeString}</div>`,
+            iconSize: [45, 20],
+            iconAnchor: [22, 10]
+          });
+          
+          const timeLabelMarker = window.L.marker([position.lat, position.lon], {
+            icon: timeLabel
+          });
+          
+          timeMarker.addTo(mapInstance);
+          timeLabelMarker.addTo(mapInstance);
+          
+          pathLayersRef.current.push(timeMarker);
+          pathLayersRef.current.push(timeLabelMarker);
+        });
+        
+        // Draw current storm position with special styling
         const currentMarker = window.L.circleMarker([currentPosition.lat, currentPosition.lon], {
           radius: 8,
           fillColor: stormColor,
           color: '#ffffff',
-          weight: 2,
+          weight: 3,
           opacity: 1,
-          fillOpacity: 0.8
+          fillOpacity: 0.9
         }).bindPopup(`
-          <div class="font-semibold">Current Storm Position</div>
-          <div>Intensity: ${intensity} dBZ</div>
-          <div>Movement: ${movementVector.direction.toFixed(0)}° @ ${movementVector.speed.toFixed(1)} mph</div>
+          <div class="font-semibold text-white bg-slate-800 p-2 rounded">
+            <div>Storm Cell</div>
+            <div>Intensity: ${intensity} dBZ</div>
+            <div>Forecast Track (1 hour)</div>
+          </div>
         `);
         
-        mapInstance.addLayer(currentMarker);
+        currentMarker.addTo(mapInstance);
         currentPositionLayersRef.current.push(currentMarker);
-        
-        // Draw prediction path
-        if (predictedPath.length > 0) {
-          const pathCoords = [
-            [currentPosition.lat, currentPosition.lon],
-            ...predictedPath.map(p => [p.lat, p.lon])
-          ];
-          
-          const pathLine = window.L.polyline(pathCoords, {
-            color: stormColor,
-            weight: 3,
-            opacity: 0.7,
-            dashArray: '10, 5'
-          }).bindPopup(`
-            <div class="font-semibold">Predicted Storm Path</div>
-            <div>Duration: ${predictionHours[0]} hours</div>
-            <div>Movement: ${movementVector.direction.toFixed(0)}° @ ${movementVector.speed.toFixed(1)} mph</div>
-          `);
-          
-          mapInstance.addLayer(pathLine);
-          pathLayersRef.current.push(pathLine);
-          
-          // Draw time-based position markers
-          predictedPath.forEach((position, index) => {
-            if (index < currentTimeIndex || !isAnimating) {
-              const timeMarker = window.L.circleMarker([position.lat, position.lon], {
-                radius: 6 * position.confidence,
-                fillColor: stormColor,
-                color: '#ffffff',
-                weight: 1,
-                opacity: position.confidence,
-                fillOpacity: 0.6 * position.confidence
-              }).bindPopup(`
-                <div class="font-semibold">Predicted Position</div>
-                <div>Time: +${((index + 1) * 30)} minutes</div>
-                <div>Confidence: ${(position.confidence * 100).toFixed(0)}%</div>
-              `);
-              
-              mapInstance.addLayer(timeMarker);
-              pathLayersRef.current.push(timeMarker);
-            }
-          });
-          
-          // Draw confidence zones if enabled
-          if (showConfidenceZones) {
-            predictedPath.forEach((position, index) => {
-              const radius = (1 - position.confidence) * 2000; // Meters
-              const confidenceCircle = window.L.circle([position.lat, position.lon], {
-                radius: radius,
-                fillColor: stormColor,
-                color: stormColor,
-                weight: 1,
-                opacity: 0.2 * position.confidence,
-                fillOpacity: 0.1 * position.confidence
-              });
-              
-              mapInstance.addLayer(confidenceCircle);
-              confidenceLayersRef.current.push(confidenceCircle);
-            });
-          }
-        }
       }
     });
   };
