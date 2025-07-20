@@ -323,6 +323,14 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Comprehensive Alert Analysis**: AI now discusses detected threats, alert status, heat advisories, and other weather warnings in detailed assessment output
 - **Enhanced Data Context**: AI assessment includes threat monitoring data when available (threat count, alert status, temperature) for comprehensive risk evaluation
 
+### AI Alert Prioritization System (July 20, 2025)
+- **Restructured AI Prompt Template**: Completely rewrote AI assistant prompt following user's ChatGPT template for clear data priority order
+- **Fixed Alert Priority Order**: Weather Alerts → Winds Aloft → Active Storms → Airport Info → Area Forecast Discussion → Additional Context
+- **Enhanced Heat Advisory Detection**: AI now properly prioritizes Heat Advisories and NWS alerts as highest priority safety information
+- **Improved Dynamic Tone Logic**: Fixed tone detection to ensure professional response to weather advisories and life-threatening conditions
+- **Cleaner Data Presentation**: Structured prompt with clear section headers and priority-based analysis requirements
+- **Enhanced Alert Integration**: Active weather alerts now prominently featured at top of analysis with clear formatting and action guidance
+
 ### Enhanced Storm Management (July 17, 2025)
 - **Distance-Based Sorting**: Storm cells now sorted by proximity to user (closest first) instead of speed/direction
 - **Simplified Storm Display**: Removed speed and direction information for cleaner interface focusing on distance and intensity
