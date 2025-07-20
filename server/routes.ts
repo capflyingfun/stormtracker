@@ -634,26 +634,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let weatherData: any = {};
       let enhancedData: any = {};
       
-      // Get basic weather data from OpenWeather only
+      // Get real-time weather data from aviation weather endpoint (uses NWS + Open-Meteo + OpenWeather fallback)
       try {
-        const weatherUrl = `/api/weather?lat=${lat}&lon=${lon}`;
+        const weatherUrl = `/api/aviation-weather?lat=${lat}&lon=${lon}`;
         const weatherResponse = await fetch(`http://localhost:5000${weatherUrl}`);
         
         if (weatherResponse.ok) {
-          const weather = await weatherResponse.json();
-          weatherData = {
-            temperature: weather.temperature || 70,
-            heatIndex: weather.heatIndex || weather.temperature || 70,
-            humidity: weather.humidity || 50,
-            windSpeed: weather.windSpeed || 0,
-            conditions: weather.conditions || 'Clear',
-            uvIndex: null,
-            airQuality: null
-          };
-          console.log('✅ OpenWeather data compiled for threat analysis');
+          const aviationData = await weatherResponse.json();
+          console.log('🔍 Aviation data structure:', Object.keys(aviationData));
+          const currentWeather = aviationData.currentWeather;
+          
+          if (currentWeather) {
+            console.log('🔍 Current weather keys:', Object.keys(currentWeather));
+            if (currentWeather.conditions) {
+              console.log('🔍 Conditions keys:', Object.keys(currentWeather.conditions));
+              console.log(`🌡️ Threat detection using ${currentWeather.source} temp: ${currentWeather.conditions.temperature}°F`);
+              weatherData = {
+                temperature: currentWeather.conditions.temperature || 75,
+                heatIndex: (currentWeather.conditions.temperature || 75) + 5, // Rough estimate
+                humidity: (typeof currentWeather.conditions.humidity === 'number') ? currentWeather.conditions.humidity : 50,
+                windSpeed: currentWeather.conditions.windSpeed || 0,
+                conditions: currentWeather.conditions.weather || 'Clear',
+                uvIndex: null,
+                airQuality: null
+              };
+              console.log('✅ Real-time aviation weather data used for threat analysis');
+            } else {
+              console.log('❌ No conditions in currentWeather');
+              throw new Error('No conditions in aviation data');
+            }
+          } else {
+            console.log('❌ No currentWeather in aviationData');
+            throw new Error('No current weather in aviation data');
+          }
+        } else {
+          console.log('❌ Aviation weather response not ok:', weatherResponse.status);
+          throw new Error('Aviation weather request failed');
         }
       } catch (error) {
-        console.log('Using fallback weather data for threat analysis');
+        console.log('Aviation weather failed, using fallback data for threat analysis');
         weatherData = {
           temperature: 75,
           humidity: 60,
