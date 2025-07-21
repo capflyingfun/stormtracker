@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, AlertTriangle, Navigation, Clock } from "lucide-react";
+import { Loader2, AlertTriangle, Navigation, Clock, ArrowUpDown } from "lucide-react";
 
 interface Storm {
   lat: number;
@@ -67,6 +67,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
   const [showAlerts, setShowAlerts] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
   // Delay showing alerts for 3 seconds to allow storm calculations to complete
   useEffect(() => {
@@ -93,10 +94,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
       return data.alerts || [];
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
-    refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
-    onSuccess: () => {
-      setTimeout(() => setAlertsLoaded(true), 300); // Small delay for smooth transition
-    }
+    refetchInterval: 5 * 60 * 1000 // Refresh every 5 minutes
   });
 
   // Identify immediate storm threats (high impact or severe proximity)
@@ -118,6 +116,13 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
   const uniqueThreats = immediateThreats.filter((storm, index, arr) => 
     arr.findIndex(s => Math.abs(s.lat - storm.lat) < 0.01 && Math.abs(s.lon - storm.lon) < 0.01) === index
   );
+
+  // Sort NWS alerts by effective date
+  const sortedNwsAlerts = [...nwsAlerts].sort((a, b) => {
+    const dateA = new Date(a.effective).getTime();
+    const dateB = new Date(b.effective).getTime();
+    return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+  });
 
   const totalAlerts = nwsAlerts.length + uniqueThreats.length;
 
@@ -151,24 +156,38 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
     <div className={`bg-red-900/30 rounded-xl p-3 sm:p-4 border border-red-600/30 mb-4 sm:mb-6 transition-all duration-500 ${
       showAlerts ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform translate-y-2'
     }`}>
-      <div className="flex items-center gap-2 mb-3">
-        {isAnimating ? (
-          <Loader2 className="h-5 w-5 text-red-400 animate-spin" />
-        ) : (
-          <AlertTriangle className="h-5 w-5 text-red-400" />
-        )}
-        <h3 className="text-lg font-semibold text-red-200">
-          Immediate Safety Alerts
-        </h3>
-        {!isAnimating && totalAlerts > 0 && (
-          <span className="bg-red-600 text-white px-2 py-1 rounded-full text-xs font-bold animate-fadeIn">
-            {totalAlerts}
-          </span>
-        )}
-        {isAnimating && (
-          <span className="bg-slate-600/50 text-slate-400 px-2 py-1 rounded-full text-xs">
-            Loading...
-          </span>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          {isAnimating ? (
+            <Loader2 className="h-5 w-5 text-red-400 animate-spin" />
+          ) : (
+            <AlertTriangle className="h-5 w-5 text-red-400" />
+          )}
+          <h3 className="text-lg font-semibold text-red-200">
+            Immediate Safety Alerts
+          </h3>
+          {!isAnimating && totalAlerts > 0 && (
+            <span className="bg-red-600 text-white px-2 py-1 rounded-full text-xs font-bold animate-fadeIn">
+              {totalAlerts}
+            </span>
+          )}
+          {isAnimating && (
+            <span className="bg-slate-600/50 text-slate-400 px-2 py-1 rounded-full text-xs">
+              Loading...
+            </span>
+          )}
+        </div>
+        
+        {/* Sort button for NWS alerts */}
+        {!isAnimating && nwsAlerts.length > 1 && (
+          <button
+            onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 hover:text-red-100 bg-red-900/30 hover:bg-red-900/50 rounded transition-colors"
+            title={`Sort ${sortOrder === 'newest' ? 'oldest first' : 'newest first'}`}
+          >
+            <ArrowUpDown className="h-3 w-3" />
+            {sortOrder === 'newest' ? 'Newest' : 'Oldest'}
+          </button>
         )}
       </div>
 
@@ -181,7 +200,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
       ) : (
         <div className="space-y-3">
           {/* NWS Alerts */}
-          {nwsAlerts.map((alert: NWSAlert, index: number) => (
+          {sortedNwsAlerts.map((alert: NWSAlert, index: number) => (
             <div 
               key={`nws-${index}`} 
               className="bg-red-900/40 rounded-lg p-3 border border-red-600/30 animate-slideInUp"
@@ -379,7 +398,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
               key={`storm-${index}`} 
               className="bg-orange-900/40 rounded-lg p-3 border border-orange-600/30 animate-slideInUp"
               style={{
-                animationDelay: `${(nwsAlerts.length + index) * 150}ms`,
+                animationDelay: `${(sortedNwsAlerts.length + index) * 150}ms`,
                 animationFillMode: 'both'
               }}>
               <div className="flex items-center gap-2 mb-2">
