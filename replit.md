@@ -366,6 +366,8 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Consistent Direction Mapping**: All storm directional references now use proper 16-point compass conversion (N, NNE, NE, ENE, E, ESE, SE, SSE, S, SSW, SW, WSW, W, WNW, NW, NNW)
 - **Data Pipeline Fix**: Corrected storm data processing to convert bearings to direction names before passing to AI assistant template
 - **Enhanced Storm Analysis**: AI assistant now accurately communicates storm positions relative to user location using proper compass directions
+- **AI Chat Direction Fix**: Fixed AI chat endpoint to properly convert storm bearings to direction names (E, NE, etc.) instead of displaying raw bearing numbers (84°, 91°)
+- **Unified Direction System**: Both AI assistant and AI chat now use identical direction conversion system for consistent storm location communication
 
 ### NWS Alerts Sorting Feature (July 21, 2025)
 - **Smart Sort Button**: Added chronological sorting toggle for NWS alerts in Immediate Safety Alerts section
