@@ -166,13 +166,25 @@ export default function AIWeatherAssistant({
   // Chat mutation for conversational questions
   const chatMutation = useMutation({
     mutationFn: async (question: string) => {
+      // Include real-time storm data in chat context
+      const optimizedStorms = storms.slice(0, 50).map(storm => ({
+        lat: storm.lat,
+        lon: storm.lon,
+        intensity: storm.intensity,
+        distance: storm.distance,
+        direction: storm.direction,
+        category: storm.category
+      }));
+      
       const response = await apiRequest("POST", "/api/ai-chat", {
         question,
         userLocation,
-        useMetric
+        useMetric,
+        storms: optimizedStorms,
+        stormCount: storms.length
       });
       const result = await response.json();
-      console.log('Chat API response:', result);
+      console.log('Chat API response with live storm data:', result);
       return result as { response: string; contextUsed: any };
     },
     onSuccess: (data) => {

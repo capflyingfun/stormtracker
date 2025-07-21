@@ -731,7 +731,7 @@ export default function StormTracker() {
                     lon: location.lon,
                     address: location.name
                   }}
-                  storms={filteredStorms.map(storm => ({
+                  storms={precipitationStorms.map(storm => ({
                     id: storm.id,
                     lat: storm.lat,
                     lon: storm.lon,
