@@ -367,6 +367,16 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Data Pipeline Fix**: Corrected storm data processing to convert bearings to direction names before passing to AI assistant template
 - **Enhanced Storm Analysis**: AI assistant now accurately communicates storm positions relative to user location using proper compass directions
 
+### NWS Alerts Sorting Feature (July 21, 2025)
+- **Smart Sort Button**: Added chronological sorting toggle for NWS alerts in Immediate Safety Alerts section
+- **Newest/Oldest Toggle**: Click button to switch between "Newest" (default) and "Oldest" first ordering
+- **Date-Based Sorting**: Sorts alerts by their effective date (when alert was issued) for proper chronological organization
+- **Conditional Display**: Sort button only appears when there are 2 or more NWS alerts to prevent interface clutter
+- **Visual Feedback**: Button shows current sort state with hover effects and tooltip for clear user interaction
+- **Responsive Integration**: Positioned in header without disrupting existing layout or alert display animations
+- **Enhanced User Experience**: Makes it easier to prioritize recent threats or track timeline of weather events
+- **Consistent Styling**: Uses existing red theme colors and maintains professional weather app appearance
+
 ### AI Chat Real-Time Storm Data Integration & Enhanced Context (July 21, 2025)
 - **Fixed AI Chat Storm Data Bug**: Resolved critical issue where AI chat was using outdated storm API endpoints instead of real-time precipitation data
 - **Live Storm Data Integration**: AI chat now receives actual live precipitation storm data (174+ storms) from radar detection system instead of old API calls
