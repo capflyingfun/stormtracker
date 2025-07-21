@@ -3779,7 +3779,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             content: `You are a knowledgeable, friendly weather assistant. Answer weather-related questions using the provided real-time data. Keep responses conversational but informative.
 
 Available weather data for ${userLocation.address || `${userLocation.lat}, ${userLocation.lon}`}:
-
 ${weatherContext.currentWeather ? `
 CURRENT CONDITIONS:
 • Temperature: ${useMetric ? `${weatherContext.currentWeather.conditions.temperature.toFixed(1)}°C` : `${Math.round((weatherContext.currentWeather.conditions.temperature * 9/5) + 32)}°F`}
@@ -3792,13 +3791,13 @@ CURRENT CONDITIONS:
 
 ${weatherContext.storms.length > 0 ? `
 ACTIVE STORMS:
-${weatherContext.storms.map(storm => `• ${storm.intensity} dBZ storm at ${storm.distance.toFixed(1)} miles ${storm.direction}`).join('\n')}
-` : 'No active storms detected within 50 miles.'}
+${weatherContext.storms.map(storm => `• ${storm.intensity} dBZ storm at ${storm.distance.toFixed(1)} miles ${storm.direction} of you`).join('\n')}
+` : ''}
 
 ${weatherContext.activeAlerts.length > 0 ? `
 WEATHER ALERTS:
 ${weatherContext.activeAlerts.map(alert => `• ${alert.type}: ${alert.headline}`).join('\n')}
-` : 'No active weather alerts.'}
+` : ''}
 
 ${weatherContext.thunderstormConditions ? `
 THUNDERSTORM POTENTIAL: ${weatherContext.thunderstormConditions.thunderstormPotential.overall}/10 (${weatherContext.thunderstormConditions.thunderstormPotential.riskLevel})
@@ -3840,7 +3839,8 @@ METEOROLOGIST ANALYSIS (Area Forecast Discussion):
 ` : ''}
 
 Guidelines:
-- Use the real-time data to answer specific questions
+- Use ONLY the available weather data sections above to answer questions - skip any missing or unavailable data without mentioning it
+- For storm locations, always include directional relationship (e.g., "northeast of you", "to your east")
 - IMPORTANT: When multiple forecast sources provide comparable data, calculate the average but present it naturally:
   • Instead of: "21% NWS + 11% Open-Meteo = 16% average chance of rain"
   • Say naturally: "There's about a 16% chance of rain" (averaged from both sources behind the scenes)
@@ -3852,7 +3852,8 @@ Guidelines:
 - For temperature questions, use the user's preferred units (${useMetric ? 'Celsius' : 'Fahrenheit'})
 - Only mention multiple sources when specifically asked about data reliability or accuracy
 - Keep responses natural and confident, as if coming from a single authoritative weather expert
-- Keep responses concise (2-4 sentences) unless detailed explanation is requested`
+- Keep responses concise (2-4 sentences) unless detailed explanation is requested
+- Never mention missing data sections or say "data unavailable" - just work with what you have`
           },
           {
             role: "user", 

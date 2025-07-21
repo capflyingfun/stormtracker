@@ -483,7 +483,8 @@ Available sections (only discuss if data exists):
 
 Behavior:
 - Always start with a clear, one-sentence summary of the overall conditions.
-- Only mention sections that have actual data - completely skip sections with "unavailable" or "no data" messages.
+- CRITICAL: Only discuss sections that have meaningful data - completely skip any sections marked as unavailable, no data, or empty. Never mention missing data sections.
+- For storm locations, always include directional context (e.g., "northeast of you", "to your southeast")
 - Present information in a natural, conversational flow rather than rigid numbered sections.
 - Adjust the tone based on severity:
   - Serious and professional if storms, alerts, or hazards are active
@@ -530,7 +531,7 @@ ${immediateStormContext.length === 0 ? '• No active storms detected within 30 
     if (directThreats.length > 0) {
       analysis += `🚨 STORMS WITH DIRECT PATH POTENTIAL:\n`;
       analysis += directThreats.map((storm, i) => 
-        `• Storm ${i+1}: ${storm.intensity} | Distance: ${storm.distance} ${storm.direction}\n  Storm Severity: ${storm.stormSeverity} | Impact Rating: ${storm.impactRating}\n  Movement: ${storm.movement}\n  ⚠️ ${storm.trackStatus} - POSSIBLE CONTACT WITH YOUR LOCATION`
+        `• Storm ${i+1}: ${storm.intensity} | Distance: ${storm.distance} ${storm.direction} of you\n  Storm Severity: ${storm.stormSeverity} | Impact Rating: ${storm.impactRating}\n  Movement: ${storm.movement}\n  ⚠️ ${storm.trackStatus} - POSSIBLE CONTACT WITH YOUR LOCATION`
       ).join('\n');
       analysis += '\n\n';
     }
@@ -538,7 +539,7 @@ ${immediateStormContext.length === 0 ? '• No active storms detected within 30 
     if (nonDirectThreats.length > 0) {
       analysis += `Other nearby storms:\n`;
       analysis += nonDirectThreats.map((storm, i) => 
-        `• Storm ${directThreats.length + i + 1}: ${storm.intensity} | Distance: ${storm.distance} ${storm.direction}\n  Storm Severity: ${storm.stormSeverity} | Impact Rating: ${storm.impactRating}\n  Movement: ${storm.movement}\n  Track Status: ${storm.trackStatus}`
+        `• Storm ${directThreats.length + i + 1}: ${storm.intensity} | Distance: ${storm.distance} ${storm.direction} of you\n  Storm Severity: ${storm.stormSeverity} | Impact Rating: ${storm.impactRating}\n  Movement: ${storm.movement}\n  Track Status: ${storm.trackStatus}`
       ).join('\n');
     }
     

@@ -358,6 +358,16 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Professional Weather Expertise**: Uses same comprehensive weather data as main AI weather assistant for consistent, authoritative responses
 - **Seamless User Experience**: Chat functionality integrated into existing AI assistant rather than separate floating window for better usability
 
+### AI Chat Real-Time Storm Data Integration & Enhanced Context (July 21, 2025)
+- **Fixed AI Chat Storm Data Bug**: Resolved critical issue where AI chat was using outdated storm API endpoints instead of real-time precipitation data
+- **Live Storm Data Integration**: AI chat now receives actual live precipitation storm data (174+ storms) from radar detection system instead of old API calls
+- **Enhanced Directional Context**: Both AI assistant and chat now include directional relationship context (e.g., "northeast of you", "to your southeast") when describing storm locations
+- **Improved Data Handling**: AI systems now skip missing or unavailable weather data sections instead of mentioning data gaps, providing cleaner responses
+- **Server-Side Storm Data Optimization**: Updated chat endpoint to use live storm data parameter when available, falling back to API calls only when needed
+- **Real-Time Storm Context**: Chat responses now accurately identify nearest and strongest storms using authentic radar-detected precipitation data
+- **Enhanced Storm Location Communication**: Storm distances always include directional relationship for better spatial understanding
+- **Streamlined Weather Analysis**: AI responses focus only on available data sections, eliminating "data unavailable" messages for cleaner user experience
+
 ### Advanced Multi-Source Forecast Integration & AFD Analysis (July 21, 2025)
 - **Comprehensive Forecast Data Integration**: Enhanced AI chat with NWS and Open-Meteo forecast data for accurate future weather predictions
 - **Natural Forecast Averaging**: AI seamlessly averages ALL weather parameters (precipitation, temperatures, wind speeds) from multiple sources behind the scenes
