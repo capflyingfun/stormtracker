@@ -83,7 +83,10 @@ interface StormData {
 interface WindData {
   speed: number;
   direction: number;
-  pressure_level: string;
+  altitude?: number;
+  level?: string;
+  pressure?: number;
+  pressure_level?: string;
 }
 
 interface WeatherAssessmentRequest {
@@ -392,11 +395,30 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
         .filter(analysis => analysis.intersects) : []
     } : null;
 
-    const windContext = (data.winds || []).map(wind => ({
-      altitude: wind.pressure_level,
-      speed: `${wind.speed} mph`,
-      direction: `${wind.direction}°`
-    }));
+    const windContext = (data.winds || []).map(wind => {
+      // Handle different wind data formats from various sources
+      let altitudeDisplay = 'Unknown altitude';
+      
+      if (wind.level) {
+        // Format like "500mb", "700mb", "850mb"
+        altitudeDisplay = wind.level;
+      } else if (wind.altitude && wind.altitude > 0) {
+        // Format altitude in feet
+        altitudeDisplay = `${Math.round(wind.altitude).toLocaleString()} ft`;
+      } else if (wind.pressure) {
+        // Format pressure levels
+        altitudeDisplay = `${wind.pressure}mb`;
+      } else if (wind.pressure_level) {
+        // Fallback to pressure_level if available
+        altitudeDisplay = wind.pressure_level;
+      }
+      
+      return {
+        altitude: altitudeDisplay,
+        speed: `${wind.speed} mph`,
+        direction: `${wind.direction}°`
+      };
+    });
 
     const prompt = `You are a helpful, knowledgeable weather assistant that provides real-time weather briefings for both aviation users and the general public.
 
