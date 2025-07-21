@@ -134,17 +134,12 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
       return sortOrder === 'newest' ? expiresB - expiresA : expiresA - expiresB;
     }
     
-    // Extract date from headline for more granular sorting
+    // Extract expiration date from headline for more granular sorting
     const extractHeadlineDate = (headline: string) => {
-      const match = headline.match(/until (.*?) by NWS/);
-      if (match) {
-        try {
-          // Parse date like "July 22 at 7:00PM CDT"
-          const dateStr = match[1].replace(/CDT|CST|EDT|EST|PDT|PST|MDT|MST/g, '').trim();
-          return new Date(dateStr + ' 2025').getTime(); // Add year for proper parsing
-        } catch {
-          return 0;
-        }
+      // Extract day number from expiration dates like "until July 21" vs "until July 22"
+      const dayMatch = headline.match(/until July (\d{1,2})/);
+      if (dayMatch) {
+        return parseInt(dayMatch[1]);
       }
       return 0;
     };

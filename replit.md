@@ -370,7 +370,8 @@ Preferred communication style: Simple, everyday language with customizable AI as
 ### NWS Alerts Sorting Feature (July 21, 2025)
 - **Smart Sort Button**: Added chronological sorting toggle for NWS alerts in Immediate Safety Alerts section
 - **Newest/Oldest Toggle**: Click button to switch between "Newest" (default) and "Oldest" first ordering
-- **Date-Based Sorting**: Sorts alerts by their effective date (when alert was issued) for proper chronological organization
+- **Dynamic Data Sorting**: Multi-level sorting using effective date, expires date, headline expiration date, and alert type
+- **Expiration Date Parsing**: Extracts actual expiration dates from alert headlines (e.g., "until July 21" vs "until July 22")
 - **Conditional Display**: Sort button only appears when there are 2 or more NWS alerts to prevent interface clutter
 - **Visual Feedback**: Button shows current sort state with hover effects and tooltip for clear user interaction
 - **Responsive Integration**: Positioned in header without disrupting existing layout or alert display animations
