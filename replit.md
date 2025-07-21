@@ -837,6 +837,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Storm Movement Display**: Shows storm direction, speed, ETA, and impact probability for collision course threats
 - **NWS API Time Discrepancy Fix**: Fixed Heat Advisory time display by parsing headline text when API timestamps don't match official alert times (e.g., headline shows "7:00PM CDT" but API shows 7:30 PM)
 - **Fixed Date Parsing Logic**: Corrected date parsing to correctly distinguish between "Today" and "Tomorrow" for multi-day Heat Advisories
+- **Dynamic Date Calculation Fix**: Replaced hardcoded date checks with dynamic date calculations to properly show "Today at 7:00 PM CDT" when alert expires on current date
 
 ### Enhanced AI Time & Date Calculation System (July 20, 2025)
 - **Comprehensive Time Calculation Enhancement**: Enhanced AI assistant with specific time and date calculation capabilities per user request

@@ -288,11 +288,19 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                         if (originalTz === timeZoneName) {
                           const timeText = `${hour}:${minute} ${ampm} ${timeZoneName}`;
                           
-                          // Check if it mentions a specific date
-                          if (dateText.includes('July 21')) {
-                            return `Tomorrow at ${timeText}`;
-                          } else if (dateText.includes('July 20')) {
+                          // Dynamic date calculation using current date
+                          const today = new Date();
+                          const tomorrow = new Date(today);
+                          tomorrow.setDate(today.getDate() + 1);
+                          
+                          const todayStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+                          const tomorrowStr = tomorrow.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+                          
+                          // Check if it mentions today's or tomorrow's date
+                          if (dateText.includes(todayStr) || dateText.includes(today.getDate().toString())) {
                             return `Today at ${timeText}`;
+                          } else if (dateText.includes(tomorrowStr) || dateText.includes(tomorrow.getDate().toString())) {
+                            return `Tomorrow at ${timeText}`;
                           } else {
                             return `${dateText} at ${timeText}`;
                           }
@@ -300,11 +308,19 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                           // Use the original time from headline since it's from NWS and should be authoritative
                           const timeText = fullTimeText;
                           
-                          // Check if it mentions a specific date
-                          if (dateText.includes('July 21')) {
-                            return `Tomorrow at ${timeText}`;
-                          } else if (dateText.includes('July 20')) {
+                          // Dynamic date calculation using current date
+                          const today = new Date();
+                          const tomorrow = new Date(today);
+                          tomorrow.setDate(today.getDate() + 1);
+                          
+                          const todayStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+                          const tomorrowStr = tomorrow.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+                          
+                          // Check if it mentions today's or tomorrow's date
+                          if (dateText.includes(todayStr) || dateText.includes(today.getDate().toString())) {
                             return `Today at ${timeText}`;
+                          } else if (dateText.includes(tomorrowStr) || dateText.includes(tomorrow.getDate().toString())) {
+                            return `Tomorrow at ${timeText}`;
                           } else {
                             return `${dateText} at ${timeText}`;
                           }
