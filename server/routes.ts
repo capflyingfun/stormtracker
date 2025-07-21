@@ -3804,7 +3804,7 @@ CURRENT CONDITIONS:
 
 ${weatherContext.storms.length > 0 ? `
 ACTIVE STORMS:
-${weatherContext.storms.map(storm => `• ${storm.intensity} dBZ storm at ${storm.distance.toFixed(1)} miles ${storm.directionName} of you`).join('\n')}
+${weatherContext.storms.map(storm => `• ${storm.intensity} dBZ storm ${storm.directionName} (${Math.round(storm.direction || storm.bearing || 0)}°) @ ${storm.distance.toFixed(1)} miles`).join('\n')}
 ` : ''}
 
 ${weatherContext.activeAlerts.length > 0 ? `
