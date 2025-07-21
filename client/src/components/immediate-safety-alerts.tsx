@@ -117,11 +117,47 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
     arr.findIndex(s => Math.abs(s.lat - storm.lat) < 0.01 && Math.abs(s.lon - storm.lon) < 0.01) === index
   );
 
-  // Sort NWS alerts by effective date
+  // Sort NWS alerts by effective date and headline content
   const sortedNwsAlerts = [...nwsAlerts].sort((a, b) => {
     const dateA = new Date(a.effective).getTime();
     const dateB = new Date(b.effective).getTime();
-    return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+    
+    // Primary sort by effective date
+    if (dateA !== dateB) {
+      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+    }
+    
+    // Secondary sort by expires date if effective dates are identical
+    const expiresA = new Date(a.expires).getTime();
+    const expiresB = new Date(b.expires).getTime();
+    if (expiresA !== expiresB) {
+      return sortOrder === 'newest' ? expiresB - expiresA : expiresA - expiresB;
+    }
+    
+    // Extract date from headline for more granular sorting
+    const extractHeadlineDate = (headline: string) => {
+      const match = headline.match(/until (.*?) by NWS/);
+      if (match) {
+        try {
+          // Parse date like "July 22 at 7:00PM CDT"
+          const dateStr = match[1].replace(/CDT|CST|EDT|EST|PDT|PST|MDT|MST/g, '').trim();
+          return new Date(dateStr + ' 2025').getTime(); // Add year for proper parsing
+        } catch {
+          return 0;
+        }
+      }
+      return 0;
+    };
+    
+    const headlineDateA = extractHeadlineDate(a.headline);
+    const headlineDateB = extractHeadlineDate(b.headline);
+    
+    if (headlineDateA !== headlineDateB) {
+      return sortOrder === 'newest' ? headlineDateB - headlineDateA : headlineDateA - headlineDateB;
+    }
+    
+    // Final sort by alert type for consistent ordering
+    return sortOrder === 'newest' ? b.type.localeCompare(a.type) : a.type.localeCompare(b.type);
   });
 
   const totalAlerts = nwsAlerts.length + uniqueThreats.length;
