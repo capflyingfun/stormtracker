@@ -3866,6 +3866,9 @@ Guidelines:
 - Use ONLY the available weather data sections above to answer questions - skip any missing or unavailable data without mentioning it
 - For storm locations, ALWAYS use the exact format provided in the ACTIVE STORMS section (e.g., "NW (315°) @ 19.7 miles") - never convert to "northwest of you" or similar phrases
 - When referencing storms, use the precise location format: "Direction (bearing°) @ distance miles"
+- ANSWER DIRECTLY: When asked about storm effects or rain likelihood, give clear YES/NO answers first, then explain
+  • "Will it rain?" → "Yes, storms at NW (315°) @ 15 miles are moving toward you" OR "No, storms are moving away from your location"
+  • "Will storms affect me?" → "Yes, the 55 dBZ storm NW (315°) @ 18 miles could reach you in 30 minutes" OR "No, all storms are moving away"
 - IMPORTANT: When multiple forecast sources provide comparable data, calculate the average but present it naturally:
   • Instead of: "21% NWS + 11% Open-Meteo = 16% average chance of rain"
   • Say naturally: "There's about a 16% chance of rain" (averaged from both sources behind the scenes)
