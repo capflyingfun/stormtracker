@@ -812,6 +812,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 ### Arrow Direction & Embedded Messages Fix (July 19, 2025)
 - **Fixed Arrow Direction Accuracy**: Corrected storm arrow rotation to match server wind calculation (removed +90° adjustment causing direction mismatch)
 - **Fixed Zoom-Dependent Arrow Angles**: Removed unnecessary coordinate conversion that caused storm track arrows to change angles slightly when zooming in/out
+- **Redesigned SVG Arrow Path**: Fixed arrow SVG to naturally point north instead of east, eliminating need for coordinate system conversion and ensuring consistent directional display
 - **Embedded Message Inbox**: Created complete self-contained message inbox within modal popup with view/read/delete functionality
 - **Eliminated External Navigation**: Messages modal now stays completely within app instead of opening new browser tabs
 - **Enhanced Mobile Experience**: Embedded inbox works seamlessly on mobile with touch-friendly interface

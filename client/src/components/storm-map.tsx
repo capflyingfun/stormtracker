@@ -1243,7 +1243,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const getStormMovementDirection = () => {
         if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
           // Use actual calculated direction from Open-Meteo winds aloft
-          // The direction is already correctly calculated on the server - no conversion needed
+          // Arrow now naturally points north, so we can use the direction directly
           return currentWindsData.stormMovement.direction;
         }
         // Fallback to last known direction (43° northeast)
@@ -1283,7 +1283,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor});` : ''}
               ${isSpecialStorm ? `filter: drop-shadow(0 0 8px ${isNearestStorm ? '#00FF00' : '#FFD700'});` : ''}
             ">
-              <path d="M6 12 L18 6 L15 12 L18 18 Z" 
+              <path d="M12 6 L18 18 L12 15 L6 18 Z" 
                     fill="${getDbzColor(point.dbz)}" 
                     stroke="${isSpecialStorm ? (isNearestStorm ? '#00FF00' : '#FFD700') : (isAlertStorm ? alertColor : '#ffffff')}" 
                     stroke-width="${isSpecialStorm || isAlertStorm ? '3' : '1'}"
