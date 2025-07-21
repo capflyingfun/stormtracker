@@ -171,9 +171,12 @@ export default function AIWeatherAssistant({
         userLocation,
         useMetric
       });
-      return response as { response: string; contextUsed: any };
+      const result = await response.json();
+      console.log('Chat API response:', result);
+      return result as { response: string; contextUsed: any };
     },
     onSuccess: (data) => {
+      console.log('Chat response data:', data);
       setChatResponse(data.response);
     }
   });
