@@ -58,6 +58,279 @@ export async function registerRoutes(app: Express): Promise<Server> {
     weatherapi: process.env.WEATHERAPI_KEY || null, // WeatherAPI.com free tier: 1M calls/month
   };
 
+  // Thunderstorm formation analysis endpoint
+  app.get("/api/thunderstorm-conditions", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lon as string);
+      
+      console.log(`🌩️ Analyzing thunderstorm formation conditions for ${latitude}, ${longitude}`);
+      
+      // Fetch atmospheric data from Open-Meteo for thunderstorm analysis
+      try {
+        const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,surface_pressure,cloud_cover,visibility,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,surface_pressure,cloud_cover,visibility,wind_speed_10m,wind_direction_10m,temperature_80m,temperature_120m,temperature_180m,wind_speed_80m,wind_speed_120m,wind_speed_180m,cape,lifted_index,convective_inhibition&forecast_days=1&models=best_match`;
+        
+        const response = await fetch(openMeteoUrl, {
+          signal: AbortSignal.timeout(8000)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Open-Meteo API error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const current = data.current;
+        const hourly = data.hourly;
+        
+        // Get current hour index
+        const currentTime = new Date();
+        const currentHourIndex = hourly.time.findIndex((time: string) => 
+          new Date(time).getHours() === currentTime.getHours()
+        );
+        
+        if (currentHourIndex === -1) {
+          throw new Error('Current hour data not found');
+        }
+        
+        // Extract thunderstorm formation data
+        const thunderstormConditions = {
+          // 1. Moisture Analysis
+          moisture: {
+            relativeHumidity: current.relative_humidity_2m,
+            dewPoint: hourly.dew_point_2m[currentHourIndex],
+            temperature: current.temperature_2m,
+            dewPointSpread: current.temperature_2m - hourly.dew_point_2m[currentHourIndex],
+            moistureRating: getMoistureRating(current.relative_humidity_2m, current.temperature_2m - hourly.dew_point_2m[currentHourIndex])
+          },
+          
+          // 2. Atmospheric Stability Analysis
+          stability: {
+            cape: hourly.cape[currentHourIndex], // Convective Available Potential Energy
+            liftedIndex: hourly.lifted_index[currentHourIndex], // Stability indicator
+            cin: hourly.convective_inhibition[currentHourIndex], // Convective Inhibition
+            surfacePressure: current.surface_pressure,
+            temperatureLapse: calculateTemperatureLapse(
+              current.temperature_2m,
+              hourly.temperature_80m[currentHourIndex],
+              hourly.temperature_120m[currentHourIndex],
+              hourly.temperature_180m[currentHourIndex]
+            ),
+            stabilityRating: getStabilityRating(
+              hourly.cape[currentHourIndex],
+              hourly.lifted_index[currentHourIndex],
+              hourly.convective_inhibition[currentHourIndex]
+            )
+          },
+          
+          // 3. Lifting Mechanisms
+          lifting: {
+            surfaceWind: {
+              speed: current.wind_speed_10m,
+              direction: current.wind_direction_10m
+            },
+            windShear: calculateWindShear(
+              current.wind_speed_10m,
+              hourly.wind_speed_80m[currentHourIndex],
+              hourly.wind_speed_120m[currentHourIndex],
+              hourly.wind_speed_180m[currentHourIndex]
+            ),
+            cloudCover: current.cloud_cover,
+            liftingRating: getLiftingRating(
+              current.wind_speed_10m,
+              hourly.wind_speed_80m[currentHourIndex] || 0,
+              current.cloud_cover
+            )
+          },
+          
+          // Overall thunderstorm potential
+          thunderstormPotential: calculateThunderstormPotential(
+            getMoistureRating(current.relative_humidity_2m, current.temperature_2m - hourly.dew_point_2m[currentHourIndex]),
+            getStabilityRating(
+              hourly.cape[currentHourIndex],
+              hourly.lifted_index[currentHourIndex],
+              hourly.convective_inhibition[currentHourIndex]
+            ),
+            getLiftingRating(
+              current.wind_speed_10m,
+              hourly.wind_speed_80m[currentHourIndex] || 0,
+              current.cloud_cover
+            )
+          ),
+          
+          location: {
+            lat: latitude,
+            lon: longitude,
+            timestamp: new Date().toISOString()
+          },
+          
+          dataSource: "Open-Meteo (Free Atmospheric Analysis)"
+        };
+        
+        console.log(`⚡ Thunderstorm potential: ${thunderstormConditions.thunderstormPotential.overall}/10`);
+        
+        res.json(thunderstormConditions);
+        
+      } catch (error) {
+        console.error('Error fetching thunderstorm conditions:', error);
+        res.status(500).json({ 
+          error: 'Failed to fetch atmospheric data',
+          message: error.message 
+        });
+      }
+      
+    } catch (error) {
+      console.error('Thunderstorm conditions endpoint error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Helper functions for thunderstorm analysis
+  function getMoistureRating(humidity: number, dewPointSpread: number): { rating: number; description: string } {
+    if (humidity >= 70 && dewPointSpread <= 3) {
+      return { rating: 9, description: "Excellent moisture - very favorable for thunderstorm development" };
+    } else if (humidity >= 60 && dewPointSpread <= 5) {
+      return { rating: 7, description: "Good moisture - favorable for thunderstorm development" };
+    } else if (humidity >= 50 && dewPointSpread <= 8) {
+      return { rating: 5, description: "Moderate moisture - some potential for development" };
+    } else if (humidity >= 40 && dewPointSpread <= 12) {
+      return { rating: 3, description: "Limited moisture - low thunderstorm potential" };
+    } else {
+      return { rating: 1, description: "Insufficient moisture - very low thunderstorm potential" };
+    }
+  }
+  
+  function getStabilityRating(cape: number, liftedIndex: number, cin: number): { rating: number; description: string } {
+    // CAPE (Convective Available Potential Energy) analysis
+    let capeRating = 0;
+    if (cape >= 2500) capeRating = 9; // Extreme instability
+    else if (cape >= 1500) capeRating = 7; // Strong instability
+    else if (cape >= 1000) capeRating = 5; // Moderate instability
+    else if (cape >= 500) capeRating = 3; // Weak instability
+    else capeRating = 1; // Stable
+    
+    // Lifted Index analysis (negative = unstable)
+    let liRating = 0;
+    if (liftedIndex <= -6) liRating = 9; // Very unstable
+    else if (liftedIndex <= -3) liRating = 7; // Unstable
+    else if (liftedIndex <= 0) liRating = 5; // Slightly unstable
+    else if (liftedIndex <= 3) liRating = 3; // Slightly stable
+    else liRating = 1; // Very stable
+    
+    // Convective Inhibition analysis (lower = better for storms)
+    let cinRating = 0;
+    if (cin <= 25) cinRating = 9; // Minimal inhibition
+    else if (cin <= 75) cinRating = 7; // Low inhibition
+    else if (cin <= 150) cinRating = 5; // Moderate inhibition
+    else if (cin <= 250) cinRating = 3; // High inhibition
+    else cinRating = 1; // Very high inhibition
+    
+    const averageRating = Math.round((capeRating + liRating + cinRating) / 3);
+    
+    let description = "";
+    if (averageRating >= 8) description = "Extremely unstable atmosphere - high thunderstorm potential";
+    else if (averageRating >= 6) description = "Unstable atmosphere - good thunderstorm potential";
+    else if (averageRating >= 4) description = "Marginally unstable - some thunderstorm potential";
+    else if (averageRating >= 2) description = "Stable atmosphere - low thunderstorm potential";
+    else description = "Very stable atmosphere - minimal thunderstorm potential";
+    
+    return { rating: averageRating, description };
+  }
+  
+  function getLiftingRating(surfaceWind: number, upperWind: number, cloudCover: number): { rating: number; description: string } {
+    let windRating = 0;
+    if (surfaceWind >= 15) windRating = 7; // Strong surface heating/convergence
+    else if (surfaceWind >= 10) windRating = 5; // Moderate lifting
+    else if (surfaceWind >= 5) windRating = 3; // Light lifting
+    else windRating = 1; // Minimal lifting
+    
+    let shearRating = 0;
+    const windShearMagnitude = Math.abs(upperWind - surfaceWind);
+    if (windShearMagnitude >= 20) shearRating = 8; // Strong shear - favorable for storms
+    else if (windShearMagnitude >= 10) shearRating = 6; // Moderate shear
+    else if (windShearMagnitude >= 5) shearRating = 4; // Light shear
+    else shearRating = 2; // Minimal shear
+    
+    let cloudRating = 0;
+    if (cloudCover >= 70) cloudRating = 7; // Active convection likely
+    else if (cloudCover >= 40) cloudRating = 5; // Some convective activity
+    else if (cloudCover >= 20) cloudRating = 3; // Limited convection
+    else cloudRating = 1; // Clear skies
+    
+    const averageRating = Math.round((windRating + shearRating + cloudRating) / 3);
+    
+    let description = "";
+    if (averageRating >= 7) description = "Strong lifting mechanisms present - high potential for storm initiation";
+    else if (averageRating >= 5) description = "Moderate lifting present - good potential for storm development";
+    else if (averageRating >= 3) description = "Some lifting mechanisms - limited storm potential";
+    else description = "Weak lifting mechanisms - low storm initiation potential";
+    
+    return { rating: averageRating, description };
+  }
+  
+  function calculateTemperatureLapse(surface: number, t80: number, t120: number, t180: number) {
+    // Calculate temperature lapse rate (°C per 100m)
+    const lapse80 = (surface - t80) / 0.8; // 80m = 0.08km
+    const lapse120 = (surface - t120) / 1.2;
+    const lapse180 = (surface - t180) / 1.8;
+    
+    return {
+      surface_to_80m: lapse80,
+      surface_to_120m: lapse120,
+      surface_to_180m: lapse180,
+      average: (lapse80 + lapse120 + lapse180) / 3
+    };
+  }
+  
+  function calculateWindShear(surface: number, w80: number, w120: number, w180: number) {
+    return {
+      surface_to_80m: Math.abs((w80 || surface) - surface),
+      surface_to_120m: Math.abs((w120 || surface) - surface),
+      surface_to_180m: Math.abs((w180 || surface) - surface),
+      total: Math.abs((w180 || surface) - surface)
+    };
+  }
+  
+  function calculateThunderstormPotential(moisture: any, stability: any, lifting: any) {
+    const overallRating = Math.round((moisture.rating + stability.rating + lifting.rating) / 3);
+    
+    let riskLevel = "";
+    let description = "";
+    
+    if (overallRating >= 8) {
+      riskLevel = "EXTREME";
+      description = "All three conditions strongly favor thunderstorm development";
+    } else if (overallRating >= 6) {
+      riskLevel = "HIGH";
+      description = "Favorable conditions present for thunderstorm formation";
+    } else if (overallRating >= 4) {
+      riskLevel = "MODERATE";
+      description = "Some favorable conditions - possible thunderstorm development";
+    } else if (overallRating >= 2) {
+      riskLevel = "LOW";
+      description = "Limited favorable conditions - unlikely thunderstorm development";
+    } else {
+      riskLevel = "MINIMAL";
+      description = "Unfavorable conditions - thunderstorm development very unlikely";
+    }
+    
+    return {
+      overall: overallRating,
+      riskLevel,
+      description,
+      conditions: {
+        moisture: moisture.rating >= 6,
+        instability: stability.rating >= 6,
+        lifting: lifting.rating >= 6
+      }
+    };
+  }
+
   // Area Forecast Discussion endpoint for US locations
   app.get("/api/area-forecast-discussion", async (req, res) => {
     try {
