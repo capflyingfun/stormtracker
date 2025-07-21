@@ -2202,7 +2202,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             className="text-xs px-2 py-2 bg-slate-800/90 border-slate-600 hover:bg-slate-700/90"
             disabled={isAnimating}
           >
-            🔄 Refresh
+            🔁 Radar
           </Button>
           <Button
             onClick={sampleRadarDbz}
