@@ -3611,6 +3611,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // Helper function to fetch Area Forecast Discussion (AFD)
+  async function fetchAreaForecastDiscussion(lat: number, lon: number) {
+    try {
+      // Get NWS grid point first
+      const gridResponse = await fetch(`https://api.weather.gov/points/${lat},${lon}`, {
+        headers: { 'User-Agent': 'StormTracker/1.0 (contact@example.com)' },
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (!gridResponse.ok) return null;
+      
+      const gridData = await gridResponse.json();
+      const forecastOffice = gridData.properties?.cwa;
+      
+      if (!forecastOffice) return null;
+      
+      // Get Area Forecast Discussion from NWS office
+      const afdResponse = await fetch(`https://api.weather.gov/products/types/AFD/locations/${forecastOffice}`, {
+        headers: { 'User-Agent': 'StormTracker/1.0 (contact@example.com)' },
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (!afdResponse.ok) return null;
+      
+      const afdData = await afdResponse.json();
+      const latestAfd = afdData.features?.[0];
+      
+      if (!latestAfd) return null;
+      
+      // Get the full AFD content
+      const afdContentResponse = await fetch(latestAfd.id, {
+        headers: { 'User-Agent': 'StormTracker/1.0 (contact@example.com)' },
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (!afdContentResponse.ok) return null;
+      
+      const afdContent = await afdContentResponse.json();
+      const productText = afdContent.productText;
+      
+      // Extract relevant sections (first 2000 characters for context)
+      const summary = productText?.substring(0, 2000) || '';
+      
+      return {
+        source: 'NWS Area Forecast Discussion',
+        office: forecastOffice,
+        issuedTime: afdContent.issuanceTime,
+        summary: summary,
+        fullText: productText
+      };
+    } catch (error) {
+      console.log('AFD fetch error:', error.message);
+      return null;
+    }
+  }
+
   // Interactive AI Weather Chat endpoint
   app.post("/api/ai-chat", async (req, res) => {
     try {
@@ -3670,10 +3726,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fetchOpenMeteoForecast(userLocation.lat, userLocation.lon).catch(err => {
           console.log('Open-Meteo forecast fetch failed:', err.message);
           return null;
+        }),
+        
+        // Area Forecast Discussion for detailed meteorologist analysis
+        fetchAreaForecastDiscussion(userLocation.lat, userLocation.lon).catch(err => {
+          console.log('AFD fetch failed:', err.message);
+          return null;
         })
       ]);
       
-      const [aviationResult, thunderstormResult, stormsResult, alertsResult, windsResult, nwsForecastResult, openMeteoForecastResult] = weatherData;
+      const [aviationResult, thunderstormResult, stormsResult, alertsResult, windsResult, nwsForecastResult, openMeteoForecastResult, afdResult] = weatherData;
       
       const aviation = aviationResult.status === 'fulfilled' ? aviationResult.value : null;
       const thunderstorm = thunderstormResult.status === 'fulfilled' ? thunderstormResult.value : null;
@@ -3682,6 +3744,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const winds = windsResult.status === 'fulfilled' ? windsResult.value : null;
       const nwsForecast = nwsForecastResult.status === 'fulfilled' ? nwsForecastResult.value : null;
       const openMeteoForecast = openMeteoForecastResult.status === 'fulfilled' ? openMeteoForecastResult.value : null;
+      const afd = afdResult.status === 'fulfilled' ? afdResult.value : null;
       
       // Prepare context for AI
       const weatherContext = {
@@ -3694,6 +3757,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         winds: winds,
         nwsForecast: nwsForecast,
         openMeteoForecast: openMeteoForecast,
+        afd: afd,
         useMetric: useMetric || false
       };
       
@@ -3763,12 +3827,21 @@ ${weatherContext.openMeteoForecast.daily.map(day => {
 }).join('\n')}
 ` : ''}
 
+${weatherContext.afd ? `
+METEOROLOGIST ANALYSIS (Area Forecast Discussion):
+• Office: ${weatherContext.afd.office}
+• Issued: ${new Date(weatherContext.afd.issuedTime).toLocaleString()}
+• Summary: ${weatherContext.afd.summary}
+` : ''}
+
 Guidelines:
 - Use the real-time data to answer specific questions
-- Explain weather concepts in simple terms
-- Be conversational and helpful
-- If asked about data not available, mention what data you do have
+- IMPORTANT: When multiple forecast sources show precipitation probabilities, average them mathematically and state the average (e.g., "21% from NWS and 11% from Open-Meteo averages to 16% chance of rain")
+- Incorporate meteorologist insights from Area Forecast Discussion when available to provide professional context
+- Explain weather concepts in simple terms while referencing professional analysis
+- Be conversational and helpful, combining multiple data sources for comprehensive answers
 - For temperature questions, use the user's preferred units (${useMetric ? 'Celsius' : 'Fahrenheit'})
+- Always mention data source reliability and explain why multiple sources provide better accuracy
 - Keep responses concise (2-4 sentences) unless detailed explanation is requested`
           },
           {
@@ -3792,7 +3865,8 @@ Guidelines:
           alertCount: weatherContext.activeAlerts.length,
           hasThunderstormData: !!weatherContext.thunderstormConditions,
           hasWindsData: !!weatherContext.winds,
-          hasForecastData: !!(weatherContext.nwsForecast || weatherContext.openMeteoForecast)
+          hasForecastData: !!(weatherContext.nwsForecast || weatherContext.openMeteoForecast),
+          hasAFD: !!weatherContext.afd
         }
       });
       
