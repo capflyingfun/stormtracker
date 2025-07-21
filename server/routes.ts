@@ -3836,16 +3836,17 @@ METEOROLOGIST ANALYSIS (Area Forecast Discussion):
 
 Guidelines:
 - Use the real-time data to answer specific questions
-- IMPORTANT: When multiple forecast sources provide comparable data, average ALL values mathematically and state the averages:
-  • Precipitation probabilities: "21% NWS + 11% Open-Meteo = 16% average chance of rain"
-  • Temperatures: "High 85°F NWS + 87°F Open-Meteo = 86°F average high"
-  • Wind speeds: "15 mph NWS + 18 mph Open-Meteo = 16.5 mph average wind"
-  • Any other numerical weather parameters where averaging makes meteorological sense
+- IMPORTANT: When multiple forecast sources provide comparable data, calculate the average but present it naturally:
+  • Instead of: "21% NWS + 11% Open-Meteo = 16% average chance of rain"
+  • Say naturally: "There's about a 16% chance of rain" (averaged from both sources behind the scenes)
+  • For temperatures, present averaged values naturally: "Highs around 86°F" instead of showing the math
+  • Present all averaged values as single, confident predictions without exposing the calculation process
 - Incorporate meteorologist insights from Area Forecast Discussion when available to provide professional context
 - Explain weather concepts in simple terms while referencing professional analysis
-- Be conversational and helpful, combining multiple data sources for comprehensive answers
+- Be conversational and helpful, combining multiple data sources seamlessly for authoritative answers
 - For temperature questions, use the user's preferred units (${useMetric ? 'Celsius' : 'Fahrenheit'})
-- Always mention data source reliability and explain why multiple sources provide better accuracy
+- Only mention multiple sources when specifically asked about data reliability or accuracy
+- Keep responses natural and confident, as if coming from a single authoritative weather expert
 - Keep responses concise (2-4 sentences) unless detailed explanation is requested`
           },
           {

@@ -360,14 +360,14 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ### Advanced Multi-Source Forecast Integration & AFD Analysis (July 21, 2025)
 - **Comprehensive Forecast Data Integration**: Enhanced AI chat with NWS and Open-Meteo forecast data for accurate future weather predictions
-- **Intelligent Forecast Averaging**: AI automatically averages precipitation probabilities from multiple sources (e.g., "21% NWS + 11% Open-Meteo = 16% average chance of rain")
+- **Natural Forecast Averaging**: AI seamlessly averages ALL weather parameters (precipitation, temperatures, wind speeds) from multiple sources behind the scenes
+- **Professional Presentation**: Presents averaged forecasts naturally (e.g., "16% chance of rain") without exposing mathematical calculations for confident, authoritative responses
 - **Area Forecast Discussion (AFD) Integration**: Added authentic meteorologist analysis from NWS Area Forecast Discussions for professional weather insights
-- **Multi-Source Reliability**: AI explains data source reliability and why multiple forecasts provide better accuracy than single sources
 - **Enhanced Forecast Context**: Chat responses include both quantitative forecasts and qualitative meteorologist analysis for comprehensive weather understanding
 - **Professional Weather Standards**: Uses official NWS grid points and forecast office products for authentic meteorological data
 - **Global + Regional Coverage**: NWS forecasts for US locations, Open-Meteo for international, with AFD providing detailed professional analysis
 - **Future Weather Intelligence**: AI can now accurately answer questions about tomorrow's weather, weekend forecasts, and multi-day precipitation patterns
-- **Data Source Transparency**: AI clearly identifies data sources and explains forecast methodology for user confidence
+- **Seamless Multi-Source Integration**: AI combines data sources transparently, only mentioning reliability when specifically asked
 - **Enhanced Weather Briefings**: Combines real-time conditions, forecast data, and professional meteorologist insights for comprehensive weather analysis
 
 ### Map Z-Index Fix & Modal Improvements (July 20, 2025)
