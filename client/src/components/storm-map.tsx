@@ -1243,13 +1243,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const getStormMovementDirection = () => {
         if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
           // Use actual calculated direction from Open-Meteo winds aloft
-          const stormDirection = currentWindsData.stormMovement.direction;
-          // Convert compass direction to CSS rotation: compass North=0° → CSS East=0°
-          // Add 90° to rotate from compass coordinates to CSS coordinates
-          return stormDirection + 90;
+          // The direction is already correctly calculated on the server - no conversion needed
+          return currentWindsData.stormMovement.direction;
         }
         // Fallback to last known direction (43° northeast)
-        return 43 + 90;
+        return 43;
       };
       
       const movementDirection = getStormMovementDirection();
