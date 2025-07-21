@@ -109,6 +109,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   // Winds aloft data for arrow directions
   const [currentWindsData, setCurrentWindsData] = useState<any>(null);
   
+  // Stable direction cache to prevent arrow jitter during map movement
+  const [stableWindDirection, setStableWindDirection] = useState<number | null>(null);
+  
   // Storm cone visualization state
   const [showAllStormTracks, setShowAllStormTracks] = useState(false);
   const [selectedStormId, setSelectedStormId] = useState<string | null>(null);
@@ -1239,15 +1242,32 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const alertColor = alertPreferences ? getAlertThresholdColor(alertPreferences.minimumDbz) : '#ffff00';
       
-      // Get dynamic storm movement direction from current winds aloft data
+      // Use storm-specific movement direction if available, otherwise use stable regional direction
       const getStormMovementDirection = () => {
-        if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
-          // Use actual calculated direction from Open-Meteo winds aloft
-          // Arrow now naturally points north, so we can use the direction directly
-          return currentWindsData.stormMovement.direction;
+        // First check if this specific storm has movement data from radar analysis
+        const matchingStorm = precipitationStorms.find(storm => 
+          Math.abs(storm.lat - point.lat) < 0.001 && 
+          Math.abs(storm.lon - point.lon) < 0.001
+        );
+        
+        if (matchingStorm && matchingStorm.movement && matchingStorm.movement.direction) {
+          return matchingStorm.movement.direction;
         }
-        // Fallback to last known direction (43° northeast)
-        return 43;
+        
+        // Use stable cached direction to prevent arrow jitter during map movement
+        if (stableWindDirection !== null) {
+          return stableWindDirection;
+        }
+        
+        // Cache the initial wind direction for stability
+        if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
+          const direction = currentWindsData.stormMovement.direction;
+          setStableWindDirection(direction);
+          return direction;
+        }
+        
+        // Fallback to southeast direction
+        return 135;
       };
       
       const movementDirection = getStormMovementDirection();
