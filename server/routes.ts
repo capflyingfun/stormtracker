@@ -3532,6 +3532,165 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return directions[index];
   }
 
+  // Interactive AI Weather Chat endpoint
+  app.post("/api/ai-chat", async (req, res) => {
+    try {
+      const { question, userLocation, useMetric } = req.body;
+      
+      if (!question || typeof question !== 'string') {
+        return res.status(400).json({ error: 'Question is required' });
+      }
+      
+      if (!userLocation || !userLocation.lat || !userLocation.lon) {
+        return res.status(400).json({ error: 'User location is required' });
+      }
+      
+      console.log(`🤖 AI Weather Chat: "${question}" for location ${userLocation.lat}, ${userLocation.lon}`);
+      
+      // Fetch comprehensive weather data for context
+      const weatherData = await Promise.allSettled([
+        // Current weather conditions
+        fetch(`http://localhost:5000/api/aviation-weather?lat=${userLocation.lat}&lon=${userLocation.lon}`, {
+          signal: AbortSignal.timeout(5000)
+        }).then(r => r.ok ? r.json() : null),
+        
+        // Thunderstorm formation analysis
+        fetch(`http://localhost:5000/api/thunderstorm-conditions?lat=${userLocation.lat}&lon=${userLocation.lon}`, {
+          signal: AbortSignal.timeout(5000)
+        }).then(r => r.ok ? r.json() : null),
+        
+        // Current storms
+        fetch(`http://localhost:5000/api/storms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            lat: userLocation.lat, 
+            lon: userLocation.lon, 
+            radius: 50 
+          }),
+          signal: AbortSignal.timeout(5000)
+        }).then(r => r.ok ? r.json() : []),
+        
+        // Active alerts
+        fetch(`http://localhost:5000/api/nws-alerts?lat=${userLocation.lat}&lon=${userLocation.lon}`, {
+          signal: AbortSignal.timeout(5000)
+        }).then(r => r.ok ? r.json() : { alerts: [] }),
+        
+        // Winds aloft
+        fetch(`http://localhost:5000/api/winds-aloft?lat=${userLocation.lat}&lon=${userLocation.lon}`, {
+          signal: AbortSignal.timeout(5000)
+        }).then(r => r.ok ? r.json() : null)
+      ]);
+      
+      const [aviationResult, thunderstormResult, stormsResult, alertsResult, windsResult] = weatherData;
+      
+      const aviation = aviationResult.status === 'fulfilled' ? aviationResult.value : null;
+      const thunderstorm = thunderstormResult.status === 'fulfilled' ? thunderstormResult.value : null;
+      const storms = stormsResult.status === 'fulfilled' ? stormsResult.value : [];
+      const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : { alerts: [] };
+      const winds = windsResult.status === 'fulfilled' ? windsResult.value : null;
+      
+      // Prepare context for AI
+      const weatherContext = {
+        location: userLocation,
+        currentWeather: aviation?.currentWeather || null,
+        airportWeather: aviation?.airports || [],
+        storms: storms.slice(0, 10), // Limit for context
+        thunderstormConditions: thunderstorm,
+        activeAlerts: alerts.alerts || [],
+        winds: winds,
+        useMetric: useMetric || false
+      };
+      
+      // Generate AI response using OpenAI
+      const openai = new (await import('openai')).default({ 
+        apiKey: process.env.OPENAI_API_KEY 
+      });
+      
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+        messages: [
+          {
+            role: "system",
+            content: `You are a knowledgeable, friendly weather assistant. Answer weather-related questions using the provided real-time data. Keep responses conversational but informative.
+
+Available weather data for ${userLocation.address || `${userLocation.lat}, ${userLocation.lon}`}:
+
+${weatherContext.currentWeather ? `
+CURRENT CONDITIONS:
+• Temperature: ${useMetric ? `${weatherContext.currentWeather.conditions.temperature.toFixed(1)}°C` : `${Math.round((weatherContext.currentWeather.conditions.temperature * 9/5) + 32)}°F`}
+• Conditions: ${weatherContext.currentWeather.conditions.weather}
+• Humidity: ${weatherContext.currentWeather.conditions.humidity}%
+• Wind: ${weatherContext.currentWeather.conditions.windDirection}° at ${weatherContext.currentWeather.conditions.windSpeed} mph
+• Pressure: ${weatherContext.currentWeather.conditions.pressure} hPa
+• Visibility: ${weatherContext.currentWeather.conditions.visibility}
+` : ''}
+
+${weatherContext.storms.length > 0 ? `
+ACTIVE STORMS:
+${weatherContext.storms.map(storm => `• ${storm.intensity} dBZ storm at ${storm.distance.toFixed(1)} miles ${storm.direction}`).join('\n')}
+` : 'No active storms detected within 50 miles.'}
+
+${weatherContext.activeAlerts.length > 0 ? `
+WEATHER ALERTS:
+${weatherContext.activeAlerts.map(alert => `• ${alert.type}: ${alert.headline}`).join('\n')}
+` : 'No active weather alerts.'}
+
+${weatherContext.thunderstormConditions ? `
+THUNDERSTORM POTENTIAL: ${weatherContext.thunderstormConditions.thunderstormPotential.overall}/10 (${weatherContext.thunderstormConditions.thunderstormPotential.riskLevel})
+• Moisture: ${weatherContext.thunderstormConditions.moisture.relativeHumidity}% humidity
+• Stability: CAPE ${weatherContext.thunderstormConditions.stability.cape} J/kg
+• Conditions: ${weatherContext.thunderstormConditions.thunderstormPotential.description}
+` : ''}
+
+${weatherContext.winds ? `
+WINDS ALOFT:
+• Direction: ${weatherContext.winds.direction}°
+• Speed: ${weatherContext.winds.speed} mph
+• Confidence: ${weatherContext.winds.confidence}
+` : ''}
+
+Guidelines:
+- Use the real-time data to answer specific questions
+- Explain weather concepts in simple terms
+- Be conversational and helpful
+- If asked about data not available, mention what data you do have
+- For temperature questions, use the user's preferred units (${useMetric ? 'Celsius' : 'Fahrenheit'})
+- Keep responses concise (2-4 sentences) unless detailed explanation is requested`
+          },
+          {
+            role: "user", 
+            content: question
+          }
+        ],
+        max_tokens: 800,
+        temperature: 0.7
+      });
+      
+      const aiResponse = response.choices[0].message.content;
+      
+      console.log(`🤖 AI Chat Response generated for: "${question.substring(0, 50)}..."`);
+      
+      res.json({
+        response: aiResponse,
+        contextUsed: {
+          hasCurrentWeather: !!weatherContext.currentWeather,
+          stormCount: weatherContext.storms.length,
+          alertCount: weatherContext.activeAlerts.length,
+          hasThunderstormData: !!weatherContext.thunderstormConditions,
+          hasWindsData: !!weatherContext.winds
+        }
+      });
+      
+    } catch (error) {
+      console.error('AI Chat error:', error);
+      res.status(500).json({ 
+        error: 'Failed to process weather question',
+        message: 'Please try asking your question again.' 
+      });
+    }
+  });
+
   // AI Weather Assistant endpoint
   app.post("/api/ai-assessment", async (req, res) => {
     try {

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIWeatherAssistant from "@/components/ai-weather-assistant";
+import { AIWeatherChat } from "@/components/ai-weather-chat";
 
 // Embedded Message Inbox Component for Modal
 function EmbeddedMessageInbox() {
@@ -179,6 +180,7 @@ export default function StormTracker() {
   const [showMessages, setShowMessages] = useState(false);
   const [windsData, setWindsData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages'>('tracker');
+  const [showAIChat, setShowAIChat] = useState(false);
 
   const [mapInstance, setMapInstance] = useState<any>(null);
   
@@ -979,6 +981,20 @@ export default function StormTracker() {
           location={location} 
           precipitationStorms={precipitationStorms}
           onClose={() => setShow3D(false)}
+        />
+      )}
+      
+      {/* AI Weather Chat - Fixed Position */}
+      {location && (
+        <AIWeatherChat
+          userLocation={{
+            lat: location.lat,
+            lon: location.lon,
+            address: location.name
+          }}
+          useMetric={useMetric}
+          isOpen={showAIChat}
+          onToggle={() => setShowAIChat(!showAIChat)}
         />
       )}
     </div>
