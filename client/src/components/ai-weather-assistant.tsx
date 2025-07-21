@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Brain, AlertTriangle, CheckCircle, Clock, MapPin, Wind, Plane, RefreshCw } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Brain, AlertTriangle, CheckCircle, Clock, MapPin, Wind, Plane, RefreshCw, Send, MessageCircle } from "lucide-react";
 
 interface StormData {
   id: string;
@@ -65,6 +66,9 @@ export default function AIWeatherAssistant({
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
   const [isDataReady, setIsDataReady] = useState(false);
   const [loadingTimer, setLoadingTimer] = useState(5); // 5-second countdown
+  const [chatQuestion, setChatQuestion] = useState('');
+  const [chatResponse, setChatResponse] = useState('');
+  const [showChatMode, setShowChatMode] = useState(false);
 
   // Fetch aviation weather data
   const { data: aviationData } = useQuery({
@@ -158,6 +162,30 @@ export default function AIWeatherAssistant({
       return response.json();
     },
   });
+
+  // Chat mutation for conversational questions
+  const chatMutation = useMutation({
+    mutationFn: async (question: string) => {
+      const response = await apiRequest("POST", "/api/ai-chat", {
+        question,
+        userLocation,
+        useMetric
+      });
+      return response as { response: string; contextUsed: any };
+    },
+    onSuccess: (data) => {
+      setChatResponse(data.response);
+    }
+  });
+
+  // Handle chat form submission
+  const handleChatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (chatQuestion.trim()) {
+      chatMutation.mutate(chatQuestion.trim());
+      setChatQuestion('');
+    }
+  };
 
   // Start/Stop monitoring functionality
   const handleStartMonitoring = () => {
@@ -458,6 +486,93 @@ export default function AIWeatherAssistant({
             >
               {isExpanded ? 'Show Less' : 'Show Detailed Analysis'}
             </Button>
+
+            <Separator />
+
+            {/* Chat Interface */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-semibold text-white flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4" />
+                  Ask Weather Questions
+                </h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowChatMode(!showChatMode)}
+                  className="text-xs text-slate-300 hover:bg-slate-700"
+                >
+                  {showChatMode ? 'Hide Chat' : 'Show Chat'}
+                </Button>
+              </div>
+
+              {showChatMode && (
+                <div className="space-y-3">
+                  {/* Quick Questions */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      "What's the temperature?",
+                      "Will it rain today?",
+                      "How likely are thunderstorms?",
+                      "What's the wind speed?"
+                    ].map((question) => (
+                      <Button
+                        key={question}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setChatQuestion(question);
+                          chatMutation.mutate(question);
+                        }}
+                        disabled={chatMutation.isPending}
+                        className="text-xs border-slate-600 text-slate-300 hover:bg-slate-700 h-auto py-2 px-2"
+                      >
+                        {question}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {/* Chat Input */}
+                  <form onSubmit={handleChatSubmit} className="flex gap-2">
+                    <Input
+                      value={chatQuestion}
+                      onChange={(e) => setChatQuestion(e.target.value)}
+                      placeholder="Ask about weather conditions..."
+                      disabled={chatMutation.isPending}
+                      className="bg-slate-800 border-slate-600 text-slate-200 placeholder-slate-400"
+                    />
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={!chatQuestion.trim() || chatMutation.isPending}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Send className="w-4 h-4" />
+                    </Button>
+                  </form>
+
+                  {/* Chat Response */}
+                  {chatMutation.isPending && (
+                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-400"></div>
+                      Analyzing weather data...
+                    </div>
+                  )}
+
+                  {chatResponse && (
+                    <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-600/50">
+                      <p className="text-sm text-slate-200 whitespace-pre-line">{chatResponse}</p>
+                    </div>
+                  )}
+
+                  {chatMutation.isError && (
+                    <div className="text-sm text-red-400">
+                      Unable to process question. Please try again.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
