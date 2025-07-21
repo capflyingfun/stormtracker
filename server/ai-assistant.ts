@@ -395,30 +395,57 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
         .filter(analysis => analysis.intersects) : []
     } : null;
 
-    const windContext = (data.winds || []).map(wind => {
+    const windContext = (data.winds || []).filter(wind => {
+      // Only include winds with valid data
+      return wind.speed > 0 && wind.direction >= 0 && wind.direction <= 360;
+    }).map(wind => {
       // Handle different wind data formats from various sources
-      let altitudeDisplay = 'Unknown altitude';
+      let altitudeDisplay = null;
       
       if (wind.level) {
-        // Format like "500mb", "700mb", "850mb"
-        altitudeDisplay = wind.level;
+        // Convert pressure levels to user-friendly descriptions
+        const pressureToAltitude = {
+          '500mb': '500mb (~18,000 ft)',
+          '700mb': '700mb (~10,000 ft)', 
+          '850mb': '850mb (~5,000 ft)',
+          '925mb': '925mb (~2,500 ft)',
+          '1000mb': '1000mb (surface)'
+        };
+        altitudeDisplay = pressureToAltitude[wind.level] || wind.level;
       } else if (wind.altitude && wind.altitude > 0) {
-        // Format altitude in feet
-        altitudeDisplay = `${Math.round(wind.altitude).toLocaleString()} ft`;
+        // Format altitude in feet with pressure level if available
+        const altFeet = Math.round(wind.altitude);
+        if (wind.pressure) {
+          altitudeDisplay = `${wind.pressure}mb (~${altFeet.toLocaleString()} ft)`;
+        } else {
+          altitudeDisplay = `${altFeet.toLocaleString()} ft`;
+        }
       } else if (wind.pressure) {
-        // Format pressure levels
-        altitudeDisplay = `${wind.pressure}mb`;
+        // Convert pressure to approximate altitude
+        const pressureToFeet = {
+          500: '~18,000 ft',
+          700: '~10,000 ft',
+          850: '~5,000 ft',
+          925: '~2,500 ft',
+          1000: 'surface'
+        };
+        const approxAlt = pressureToFeet[wind.pressure] || '';
+        altitudeDisplay = approxAlt ? `${wind.pressure}mb (${approxAlt})` : `${wind.pressure}mb`;
       } else if (wind.pressure_level) {
-        // Fallback to pressure_level if available
         altitudeDisplay = wind.pressure_level;
       }
       
-      return {
-        altitude: altitudeDisplay,
-        speed: `${wind.speed} mph`,
-        direction: `${wind.direction}°`
-      };
-    });
+      // Only return wind data if we have a valid altitude display
+      if (altitudeDisplay) {
+        return {
+          altitude: altitudeDisplay,
+          speed: `${wind.speed} mph`,
+          direction: `${wind.direction}°`
+        };
+      }
+      
+      return null;
+    }).filter(wind => wind !== null); // Remove any null entries
 
     const prompt = `You are a helpful, knowledgeable weather assistant that provides real-time weather briefings for both aviation users and the general public.
 
@@ -461,7 +488,9 @@ ${activeAlerts.length > 0 ?
   '✅ No active weather alerts or advisories'}
 
 === 2. WINDS ALOFT (STORM STEERING) ===
-${windContext.map(wind => `• ${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}
+${windContext.length > 0 ? 
+  windContext.map(wind => `• ${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n') :
+  '• Wind data currently unavailable'}
 
 === 3. ACTIVE STORMS & RADAR ===
 Radar Source: ${data.radarSource} (authentic weather radar)
