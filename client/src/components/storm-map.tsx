@@ -2186,16 +2186,57 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         <div className="absolute top-3 right-3 z-[1000] flex gap-2">
           <Button
             onClick={() => {
-              // Refresh radar by clearing cache and reloading
+              // Refresh radar by clearing and reloading latest frame
               if (radarLayerRef.current && mapInstanceRef.current) {
                 mapInstanceRef.current.removeLayer(radarLayerRef.current);
                 radarLayerRef.current = null;
               }
-              // Clear existing data and reload
+              
+              // Clear existing data
               setPrecipitationPoints([]);
               setRadarFrameHistory([]);
-              loadRadarFrames();
-              setTimeout(() => sampleRadarDbz(), 1000);
+              
+              // Load fresh radar layer immediately
+              const map = mapInstanceRef.current;
+              if (map && window.L && location) {
+                if (radarSource === 'rainviewer') {
+                  // Get fresh RainViewer data
+                  fetch('/api/rainviewer')
+                    .then(res => res.json())
+                    .then(data => {
+                      if (data.radar && data.radar.past && data.radar.past.length > 0) {
+                        const latestFrame = data.radar.past[data.radar.past.length - 1];
+                        const tileUrl = `/api/rainviewer/tile/${latestFrame.time}/256/{z}/{x}/{y}/2/1_1.png`;
+                        
+                        radarLayerRef.current = window.L.tileLayer(tileUrl, {
+                          opacity: 0.6,
+                          zIndex: 200,
+                          attribution: 'RainViewer'
+                        });
+                        radarLayerRef.current.addTo(map);
+                        
+                        // Sample after radar loads
+                        setTimeout(() => sampleRadarDbz(), 1500);
+                      }
+                    })
+                    .catch(err => console.error('Radar refresh failed:', err));
+                } else {
+                  // NEXRAD refresh with cache-busting
+                  const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
+                  
+                  radarLayerRef.current = window.L.tileLayer(nexradUrl, {
+                    opacity: 0.7,
+                    zIndex: 200,
+                    attribution: `NEXRAD (${nexradSite})`,
+                    updateWhenIdle: true,
+                    updateWhenZooming: false
+                  });
+                  radarLayerRef.current.addTo(map);
+                  
+                  // Sample after radar loads
+                  setTimeout(() => sampleRadarDbz(), 1500);
+                }
+              }
             }}
             variant="outline"
             size="sm"
