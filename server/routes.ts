@@ -3532,6 +3532,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return directions[index];
   }
 
+  // Helper function to fetch NWS forecast data
+  async function fetchNWSForecast(lat: number, lon: number) {
+    try {
+      // Get NWS grid point
+      const gridResponse = await fetch(`https://api.weather.gov/points/${lat},${lon}`, {
+        headers: { 'User-Agent': 'StormTracker/1.0 (contact@example.com)' },
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (!gridResponse.ok) return null;
+      
+      const gridData = await gridResponse.json();
+      const forecastUrl = gridData.properties?.forecast;
+      
+      if (!forecastUrl) return null;
+      
+      // Get detailed forecast
+      const forecastResponse = await fetch(forecastUrl, {
+        headers: { 'User-Agent': 'StormTracker/1.0 (contact@example.com)' },
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (!forecastResponse.ok) return null;
+      
+      const forecastData = await forecastResponse.json();
+      const periods = forecastData.properties?.periods || [];
+      
+      // Get next 3 days of forecast
+      return {
+        source: 'NWS',
+        location: `${lat}, ${lon}`,
+        periods: periods.slice(0, 6).map((period: any) => ({
+          name: period.name,
+          temperature: period.temperature,
+          temperatureUnit: period.temperatureUnit,
+          windSpeed: period.windSpeed,
+          windDirection: period.windDirection,
+          shortForecast: period.shortForecast,
+          detailedForecast: period.detailedForecast,
+          precipitationProbability: period.probabilityOfPrecipitation?.value || 0
+        }))
+      };
+    } catch (error) {
+      console.log('NWS forecast error:', error.message);
+      return null;
+    }
+  }
+
+  // Helper function to fetch Open-Meteo forecast for international locations
+  async function fetchOpenMeteoForecast(lat: number, lon: number) {
+    try {
+      const response = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum&timezone=auto&forecast_days=3`,
+        { signal: AbortSignal.timeout(5000) }
+      );
+      
+      if (!response.ok) return null;
+      
+      const data = await response.json();
+      
+      return {
+        source: 'Open-Meteo',
+        location: `${lat}, ${lon}`,
+        timezone: data.timezone,
+        daily: data.daily?.time?.map((date: string, index: number) => ({
+          date: date,
+          weatherCode: data.daily.weather_code[index],
+          tempMax: data.daily.temperature_2m_max[index],
+          tempMin: data.daily.temperature_2m_min[index],
+          precipitationProbability: data.daily.precipitation_probability_max[index] || 0,
+          precipitationSum: data.daily.precipitation_sum[index] || 0
+        })) || []
+      };
+    } catch (error) {
+      console.log('Open-Meteo forecast error:', error.message);
+      return null;
+    }
+  }
+
   // Interactive AI Weather Chat endpoint
   app.post("/api/ai-chat", async (req, res) => {
     try {
@@ -3579,16 +3658,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Winds aloft
         fetch(`http://localhost:5000/api/winds-aloft?lat=${userLocation.lat}&lon=${userLocation.lon}`, {
           signal: AbortSignal.timeout(5000)
-        }).then(r => r.ok ? r.json() : null)
+        }).then(r => r.ok ? r.json() : null),
+        
+        // NWS Forecast data for future weather predictions
+        fetchNWSForecast(userLocation.lat, userLocation.lon).catch(err => {
+          console.log('NWS forecast fetch failed:', err.message);
+          return null;
+        }),
+        
+        // Open-Meteo hourly forecast for international locations
+        fetchOpenMeteoForecast(userLocation.lat, userLocation.lon).catch(err => {
+          console.log('Open-Meteo forecast fetch failed:', err.message);
+          return null;
+        })
       ]);
       
-      const [aviationResult, thunderstormResult, stormsResult, alertsResult, windsResult] = weatherData;
+      const [aviationResult, thunderstormResult, stormsResult, alertsResult, windsResult, nwsForecastResult, openMeteoForecastResult] = weatherData;
       
       const aviation = aviationResult.status === 'fulfilled' ? aviationResult.value : null;
       const thunderstorm = thunderstormResult.status === 'fulfilled' ? thunderstormResult.value : null;
       const storms = stormsResult.status === 'fulfilled' ? stormsResult.value : [];
       const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : { alerts: [] };
       const winds = windsResult.status === 'fulfilled' ? windsResult.value : null;
+      const nwsForecast = nwsForecastResult.status === 'fulfilled' ? nwsForecastResult.value : null;
+      const openMeteoForecast = openMeteoForecastResult.status === 'fulfilled' ? openMeteoForecastResult.value : null;
       
       // Prepare context for AI
       const weatherContext = {
@@ -3599,6 +3692,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         thunderstormConditions: thunderstorm,
         activeAlerts: alerts.alerts || [],
         winds: winds,
+        nwsForecast: nwsForecast,
+        openMeteoForecast: openMeteoForecast,
         useMetric: useMetric || false
       };
       
@@ -3650,6 +3745,24 @@ WINDS ALOFT:
 • Confidence: ${weatherContext.winds.confidence}
 ` : ''}
 
+${weatherContext.nwsForecast ? `
+FORECAST (National Weather Service):
+${weatherContext.nwsForecast.periods.map(period => 
+  `• ${period.name}: ${period.shortForecast}, ${useMetric ? period.temperature + '°C' : period.temperature + '°F'}, ${period.precipitationProbability}% chance of rain`
+).join('\n')}
+` : ''}
+
+${weatherContext.openMeteoForecast ? `
+FORECAST (Open-Meteo):
+${weatherContext.openMeteoForecast.daily.map(day => {
+  const date = new Date(day.date);
+  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+  const tempMax = useMetric ? `${day.tempMax}°C` : `${Math.round((day.tempMax * 9/5) + 32)}°F`;
+  const tempMin = useMetric ? `${day.tempMin}°C` : `${Math.round((day.tempMin * 9/5) + 32)}°F`;
+  return `• ${dayName}: High ${tempMax}, Low ${tempMin}, ${day.precipitationProbability}% chance of rain`;
+}).join('\n')}
+` : ''}
+
 Guidelines:
 - Use the real-time data to answer specific questions
 - Explain weather concepts in simple terms
@@ -3678,7 +3791,8 @@ Guidelines:
           stormCount: weatherContext.storms.length,
           alertCount: weatherContext.activeAlerts.length,
           hasThunderstormData: !!weatherContext.thunderstormConditions,
-          hasWindsData: !!weatherContext.winds
+          hasWindsData: !!weatherContext.winds,
+          hasForecastData: !!(weatherContext.nwsForecast || weatherContext.openMeteoForecast)
         }
       });
       
