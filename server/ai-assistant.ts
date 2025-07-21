@@ -264,15 +264,36 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
         };
       }
       
-      // CRITICAL: Check if storm has ETA indicating approach toward user location
+      // CRITICAL: Check if storm has ETA AND is moving toward user location
       if (storm.movement && storm.movement.eta && storm.movement.eta !== 'Unknown' && storm.movement.eta !== null) {
-        console.log('AI Assistant: STORM WITH ETA DETECTED - Approaching user location');
-        return { 
-          intersects: true, 
-          status: 'APPROACHING STORM - ETA indicates potential contact',
-          pathWidth: 'Track intersection likely',
-          eta: storm.movement.eta
-        };
+        // Only consider it approaching if storm direction is toward user
+        const bearingToUser = calculateBearing(storm.lat, storm.lon, userLat, userLon);
+        const stormDirection = storm.movement.direction;
+        const angleDiff = Math.abs(((bearingToUser - stormDirection + 180) % 360) - 180);
+        
+        console.log('AI Assistant: Storm direction analysis:', {
+          stormLat: storm.lat,
+          stormLon: storm.lon,
+          userLat,
+          userLon,
+          bearingToUser,
+          stormDirection,
+          angleDiff,
+          isApproaching: angleDiff <= 15
+        });
+        
+        if (angleDiff <= 15) { // Within 30-degree approach cone
+          console.log('AI Assistant: STORM WITH ETA DETECTED - Approaching user location');
+          return { 
+            intersects: true, 
+            status: 'APPROACHING STORM - ETA indicates potential contact',
+            pathWidth: 'Track intersection likely',
+            eta: storm.movement.eta
+          };
+        } else {
+          console.log('AI Assistant: Storm has ETA but moving away from user location');
+          return { intersects: false, status: 'Storm moving away from location' };
+        }
       }
       
       if (!storm.movement || !storm.movement.direction || storm.movement.speed <= 0) {
