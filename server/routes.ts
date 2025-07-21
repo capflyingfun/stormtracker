@@ -3670,7 +3670,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Interactive AI Weather Chat endpoint
   app.post("/api/ai-chat", async (req, res) => {
     try {
-      const { question, userLocation, useMetric } = req.body;
+      const { question, userLocation, useMetric, storms, stormCount } = req.body;
       
       if (!question || typeof question !== 'string') {
         return res.status(400).json({ error: 'Question is required' });
@@ -3681,6 +3681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       console.log(`🤖 AI Weather Chat: "${question}" for location ${userLocation.lat}, ${userLocation.lon}`);
+      console.log(`🌩️ Live storm data: ${storms ? storms.length : 0} storms provided, total count: ${stormCount || 0}`);
       
       // Fetch comprehensive weather data for context
       const weatherData = await Promise.allSettled([
@@ -3694,17 +3695,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           signal: AbortSignal.timeout(5000)
         }).then(r => r.ok ? r.json() : null),
         
-        // Current storms
-        fetch(`http://localhost:5000/api/storms`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            lat: userLocation.lat, 
-            lon: userLocation.lon, 
-            radius: 50 
-          }),
-          signal: AbortSignal.timeout(5000)
-        }).then(r => r.ok ? r.json() : []),
+        // Use live storm data if provided, otherwise fetch from API
+        storms && storms.length > 0 
+          ? Promise.resolve(storms)
+          : fetch(`http://localhost:5000/api/storms`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                lat: userLocation.lat, 
+                lon: userLocation.lon, 
+                radius: 50 
+              }),
+              signal: AbortSignal.timeout(5000)
+            }).then(r => r.ok ? r.json() : []),
         
         // Active alerts
         fetch(`http://localhost:5000/api/nws-alerts?lat=${userLocation.lat}&lon=${userLocation.lon}`, {
@@ -3739,7 +3742,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const aviation = aviationResult.status === 'fulfilled' ? aviationResult.value : null;
       const thunderstorm = thunderstormResult.status === 'fulfilled' ? thunderstormResult.value : null;
-      const storms = stormsResult.status === 'fulfilled' ? stormsResult.value : [];
+      const fetchedStorms = stormsResult.status === 'fulfilled' ? stormsResult.value : [];
+      // Use live storm data from client if available, otherwise use fetched data
+      const stormData = storms && storms.length > 0 ? storms : fetchedStorms;
       const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : { alerts: [] };
       const winds = windsResult.status === 'fulfilled' ? windsResult.value : null;
       const nwsForecast = nwsForecastResult.status === 'fulfilled' ? nwsForecastResult.value : null;
@@ -3751,7 +3756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         location: userLocation,
         currentWeather: aviation?.currentWeather || null,
         airportWeather: aviation?.airports || [],
-        storms: storms.slice(0, 10), // Limit for context
+        storms: stormData.slice(0, 10), // Limit for context
         thunderstormConditions: thunderstorm,
         activeAlerts: alerts.alerts || [],
         winds: winds,
