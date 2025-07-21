@@ -119,6 +119,23 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
   confidence: number;
 }> {
   try {
+    // Fetch thunderstorm formation conditions
+    let thunderstormConditions: any = null;
+    try {
+      console.log('AI Assistant: Fetching thunderstorm formation analysis...');
+      const thunderstormResponse = await fetch(
+        `http://localhost:5000/api/thunderstorm-conditions?lat=${data.userLocation.lat}&lon=${data.userLocation.lon}`,
+        { signal: AbortSignal.timeout(8000) }
+      );
+      
+      if (thunderstormResponse.ok) {
+        thunderstormConditions = await thunderstormResponse.json();
+        console.log(`AI Assistant: Thunderstorm potential: ${thunderstormConditions.thunderstormPotential.overall}/10`);
+      }
+    } catch (error) {
+      console.log('AI Assistant: Thunderstorm analysis unavailable:', error.message);
+    }
+
     // Fetch aviation weather data from nearby airports
     let aviationWeather: any[] = [];
     let currentWeather: any = null;
@@ -457,7 +474,12 @@ Available sections (only discuss if data exists):
 3. Active Storms / Radar Summary – Describe any thunderstorm activity, reflectivity values (dBZ), movement, lightning presence, or storm cells nearby.
 4. Airport Info (METAR/TAF) – Include current weather, visibility, wind, and short-term forecast from nearby airports. Clarify technical terms for public users.
 5. Area Forecast Discussion – Briefly summarize the official forecast discussion and highlight key weather impacts.
-6. Optional Notes – Include NOTAMs, icing/turbulence (aviation), or comfort impacts (humidity, heat index, air quality) if available.
+6. Thunderstorm Formation Analysis – When available, analyze the three essential conditions for thunderstorm development:
+   - MOISTURE: Sufficient water vapor (humidity, dew point spread)
+   - ATMOSPHERIC STABILITY: Unstable lapse rate (CAPE, Lifted Index, temperature profiles)
+   - LIFTING MECHANISMS: Initial upward motion (wind shear, surface heating, convergence)
+   Explain each condition in simple terms and assess overall thunderstorm potential.
+7. Optional Notes – Include NOTAMs, icing/turbulence (aviation), or comfort impacts (humidity, heat index, air quality) if available.
 
 Behavior:
 - Always start with a clear, one-sentence summary of the overall conditions.
@@ -547,6 +569,34 @@ ${aviationWeather.length > 0 ?
 
 ${areaForecastDiscussion && areaForecastDiscussion.discussion ? 
   `=== AREA FORECAST DISCUSSION ===\nNWS ${areaForecastDiscussion.office} (${areaForecastDiscussion.officeCode}):\n${areaForecastDiscussion.discussion.substring(0, 400)}...` : 
+  ''}
+
+${thunderstormConditions ? 
+  `=== THUNDERSTORM FORMATION ANALYSIS ===
+**The Three Essential Conditions for Thunderstorm Development:**
+
+1. **MOISTURE ANALYSIS** (${thunderstormConditions.moisture.moistureRating.rating}/10)
+   • Relative Humidity: ${thunderstormConditions.moisture.relativeHumidity}%
+   • Dew Point: ${thunderstormConditions.moisture.dewPoint.toFixed(1)}°C (${Math.round((thunderstormConditions.moisture.dewPoint * 9/5) + 32)}°F)
+   • Temperature-Dew Point Spread: ${thunderstormConditions.moisture.dewPointSpread.toFixed(1)}°C
+   • Assessment: ${thunderstormConditions.moisture.moistureRating.description}
+
+2. **ATMOSPHERIC STABILITY** (${thunderstormConditions.stability.stabilityRating.rating}/10)
+   • CAPE (Convective Available Potential Energy): ${thunderstormConditions.stability.cape || 0} J/kg
+   • Lifted Index: ${thunderstormConditions.stability.liftedIndex || 0}°C (negative = unstable)
+   • Convective Inhibition (CIN): ${thunderstormConditions.stability.cin || 0} J/kg
+   • Assessment: ${thunderstormConditions.stability.stabilityRating.description}
+
+3. **LIFTING MECHANISMS** (${thunderstormConditions.lifting.liftingRating.rating}/10)
+   • Surface Wind: ${thunderstormConditions.lifting.surfaceWind.speed} m/s from ${thunderstormConditions.lifting.surfaceWind.direction}°
+   • Wind Shear: ${thunderstormConditions.lifting.windShear.total.toFixed(1)} m/s (surface to 180m)
+   • Cloud Cover: ${thunderstormConditions.lifting.cloudCover}%
+   • Assessment: ${thunderstormConditions.lifting.liftingRating.description}
+
+**OVERALL THUNDERSTORM POTENTIAL: ${thunderstormConditions.thunderstormPotential.overall}/10 (${thunderstormConditions.thunderstormPotential.riskLevel})**
+${thunderstormConditions.thunderstormPotential.description}
+
+Conditions Met: Moisture (${thunderstormConditions.thunderstormPotential.conditions.moisture ? 'YES' : 'NO'}), Instability (${thunderstormConditions.thunderstormPotential.conditions.instability ? 'YES' : 'NO'}), Lifting (${thunderstormConditions.thunderstormPotential.conditions.lifting ? 'YES' : 'NO'})` : 
   ''}
 
 CRITICAL ANALYSIS REQUIREMENTS:
