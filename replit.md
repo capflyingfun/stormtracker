@@ -323,11 +323,13 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ### User-Friendly Wind Data Enhancement (July 20, 2025)
 - **Enhanced Altitude Display**: Transformed technical pressure levels (500mb, 700mb, 850mb) into user-friendly descriptions with approximate altitudes
-- **Intelligent Data Filtering**: Added validation to exclude invalid or missing wind data from AI weather analysis
+- **Comprehensive Data Filtering**: Enhanced AI assistant to exclude ANY section with unavailable data, not just wind information
 - **Pressure Level Translation**: Converted meteorological pressure levels to readable format: "500mb (~18,000 ft)", "700mb (~10,000 ft)", "850mb (~5,000 ft)"
-- **Graceful Degradation**: System now excludes missing wind data instead of displaying "undefined altitude" errors
+- **Graceful Degradation**: System now completely omits missing data sections instead of displaying "unavailable" messages
+- **Clean Weather Analysis**: AI only discusses sections with meaningful data - no mention of missing winds, airport info, forecasts, or regional data
+- **Natural Flow**: Weather analysis now flows naturally between available data sections without rigid numbering or empty placeholders
 - **Professional Meteorological Standards**: Maintained accurate pressure-to-altitude conversions following aviation weather standards
-- **Comprehensive Error Handling**: Enhanced wind data processing to handle multiple data source formats and missing information
+- **Enhanced User Experience**: Users only see relevant, available weather information for cleaner, more focused analysis
 
 ### Map Z-Index Fix & Modal Improvements (July 20, 2025)
 - **Fixed Map Overlay Issues**: Corrected z-index conflicts where radar map appeared over modal dialogs and settings panels

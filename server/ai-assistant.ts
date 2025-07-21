@@ -449,18 +449,20 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
 
     const prompt = `You are a helpful, knowledgeable weather assistant that provides real-time weather briefings for both aviation users and the general public.
 
-When given a location, gather and present weather information in this order:
+When given a location, present weather information in a natural, flowing analysis. Only discuss sections that have meaningful data available - skip any sections marked as "unavailable" or "no data".
 
+Available sections (only discuss if data exists):
 1. Weather Alerts – Report any current warnings, watches, advisories, or hazards from the NWS or other relevant agencies.
-2. Winds Aloft – Include wind direction and speed at multiple altitudes (3,000 ft, 6,000 ft, 9,000 ft, etc.), especially useful for pilots or balloonists.
+2. Winds Aloft – Include wind direction and speed at multiple altitudes, especially useful for pilots or balloonists.
 3. Active Storms / Radar Summary – Describe any thunderstorm activity, reflectivity values (dBZ), movement, lightning presence, or storm cells nearby.
 4. Airport Info (METAR/TAF) – Include current weather, visibility, wind, and short-term forecast from nearby airports. Clarify technical terms for public users.
-5. AFD (Area Forecast Discussion) – Briefly summarize the official forecast discussion and highlight key weather impacts.
+5. Area Forecast Discussion – Briefly summarize the official forecast discussion and highlight key weather impacts.
 6. Optional Notes – Include NOTAMs, icing/turbulence (aviation), or comfort impacts (humidity, heat index, air quality) if available.
 
 Behavior:
 - Always start with a clear, one-sentence summary of the overall conditions.
-- Then present each section in the above order.
+- Only mention sections that have actual data - completely skip sections with "unavailable" or "no data" messages.
+- Present information in a natural, conversational flow rather than rigid numbered sections.
 - Adjust the tone based on severity:
   - Serious and professional if storms, alerts, or hazards are active
   - Friendly and casual if weather is mild or uneventful
@@ -487,12 +489,11 @@ ${activeAlerts.length > 0 ?
   ).join('\n\n') : 
   '✅ No active weather alerts or advisories'}
 
-=== 2. WINDS ALOFT (STORM STEERING) ===
 ${windContext.length > 0 ? 
-  windContext.map(wind => `• ${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n') :
-  '• Wind data currently unavailable'}
+  `=== WINDS ALOFT (STORM STEERING) ===\n${windContext.map(wind => `• ${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}` :
+  ''}
 
-=== 3. ACTIVE STORMS & RADAR ===
+=== ACTIVE STORMS & RADAR ===
 Radar Source: ${data.radarSource} (authentic weather radar)
 Lightning Activity: ${data.lightningCount || 0} recent strikes
 
@@ -522,35 +523,31 @@ ${immediateStormContext.length === 0 ? '• No active storms detected within 30 
     return analysis;
   })()}
 
-Regional Pattern (50-mile radius):
-${regionalContext ? 
+${regionalContext && (regionalContext.totalStorms > 0 || regionalContext.approachingStorms > 0) ? 
+  `Regional Pattern (50-mile radius):\n` +
   `• Total storm cells: ${regionalContext.totalStorms}\n` +
   `• Intense storms (55+ dBZ): ${regionalContext.intenseCells}\n` +
   `• Moderate storms (45-54 dBZ): ${regionalContext.moderateStorms}\n` +
   `• Systems approaching your area: ${regionalContext.approachingStorms}\n` +
   `• Storm tracks potentially crossing location: ${regionalContext.directPathStorms.length}${regionalContext.directPathStorms.length > 0 ? ' ⚠️ TRACK INTERSECTION DETECTED' : ''}` :
-  '• Regional storm data unavailable'}
+  ''}
 
-=== 4. AIRPORT WEATHER (METAR/TAF) ===
+${(aviationWeather.length > 0 || currentWeather) ? 
+  `=== AIRPORT & LOCAL WEATHER ===` : ''}
 ${aviationWeather.length > 0 ? 
-  aviationWeather.map(station => 
+  `Airport Weather (METAR):\n${aviationWeather.map(station => 
     `• ${station.airport} (${station.icao}) - ${station.distance.toFixed(1)} miles:\n  Conditions: ${station.conditions.clouds} | Temp: ${data.useMetric ? `${station.conditions.temperature.toFixed(1)}°C` : `${Math.round((station.conditions.temperature * 9/5) + 32)}°F`}\n  Wind: ${station.conditions.wind} | Visibility: ${station.conditions.visibility}\n  Data: ${station.timeAgo}${station.isStale ? ' - STALE' : ''}`
-  ).join('\n') : 
-  '• Aviation weather data unavailable'}
-
-Current Local Conditions:
-${currentWeather ? 
+  ).join('\n')}\n` : ''}${currentWeather ? 
+  `Current Local Conditions:\n` +
   `• ${currentWeather.location}: ${currentWeather.conditions.weather}\n` +
   `• Temperature: ${data.useMetric ? `${currentWeather.conditions.temperature.toFixed(1)}°C` : `${Math.round((currentWeather.conditions.temperature * 9/5) + 32)}°F`} | Humidity: ${currentWeather.conditions.humidity}%\n` +
   `• Wind: ${currentWeather.conditions.windDirection}° at ${currentWeather.conditions.windSpeed} mph\n` +
   `• Pressure: ${currentWeather.conditions.pressure} hPa | Visibility: ${currentWeather.conditions.visibility}\n` +
-  `• Source: ${currentWeather.source} (Live Data)` : 
-  '• No real-time weather data available'}
+  `• Source: ${currentWeather.source} (Live Data)` : ''}
 
-=== 5. AREA FORECAST DISCUSSION ===
 ${areaForecastDiscussion && areaForecastDiscussion.discussion ? 
-  `NWS ${areaForecastDiscussion.office} (${areaForecastDiscussion.officeCode}):\n${areaForecastDiscussion.discussion.substring(0, 400)}...` : 
-  'Area Forecast Discussion unavailable'}
+  `=== AREA FORECAST DISCUSSION ===\nNWS ${areaForecastDiscussion.office} (${areaForecastDiscussion.officeCode}):\n${areaForecastDiscussion.discussion.substring(0, 400)}...` : 
+  ''}
 
 CRITICAL ANALYSIS REQUIREMENTS:
 1. If there are active weather alerts (Heat Advisories, Warnings, etc.), discuss them FIRST and prominently in your analysis. Heat advisories and weather warnings are the highest priority safety information.
