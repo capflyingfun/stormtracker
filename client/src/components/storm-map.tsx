@@ -109,9 +109,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   // Winds aloft data for arrow directions
   const [currentWindsData, setCurrentWindsData] = useState<any>(null);
   
-  // Stable direction cache to prevent arrow jitter during map movement
-  const [stableWindDirection, setStableWindDirection] = useState<number | null>(null);
-  
   // Storm cone visualization state
   const [showAllStormTracks, setShowAllStormTracks] = useState(false);
   const [selectedStormId, setSelectedStormId] = useState<string | null>(null);
@@ -1242,7 +1239,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const alertColor = alertPreferences ? getAlertThresholdColor(alertPreferences.minimumDbz) : '#ffff00';
       
-      // Use storm-specific movement direction if available, otherwise use stable regional direction
+      // Use storm-specific movement direction if available, otherwise use dynamic regional direction
       const getStormMovementDirection = () => {
         // First check if this specific storm has movement data from radar analysis
         const matchingStorm = precipitationStorms.find(storm => 
@@ -1254,16 +1251,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           return matchingStorm.movement.direction;
         }
         
-        // Use stable cached direction to prevent arrow jitter during map movement
-        if (stableWindDirection !== null) {
-          return stableWindDirection;
-        }
-        
-        // Cache the initial wind direction for stability
+        // Use current winds aloft data for authentic regional wind patterns
         if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
-          const direction = currentWindsData.stormMovement.direction;
-          setStableWindDirection(direction);
-          return direction;
+          return currentWindsData.stormMovement.direction;
         }
         
         // Fallback to southeast direction
