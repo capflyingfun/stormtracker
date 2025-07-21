@@ -3758,6 +3758,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...storm,
         directionName: getDirectionName(storm.direction || storm.bearing || 0)
       }));
+      
+      // Debug logging for storm data format
+      if (stormData.length > 0) {
+        console.log('🌩️ AI Chat: Sample storm data for template:', {
+          intensity: stormData[0].intensity,
+          directionName: stormData[0].directionName,
+          direction: stormData[0].direction,
+          bearing: stormData[0].bearing,
+          distance: stormData[0].distance
+        });
+      }
       const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : { alerts: [] };
       const winds = windsResult.status === 'fulfilled' ? windsResult.value : null;
       const nwsForecast = nwsForecastResult.status === 'fulfilled' ? nwsForecastResult.value : null;
@@ -3853,7 +3864,8 @@ METEOROLOGIST ANALYSIS (Area Forecast Discussion):
 
 Guidelines:
 - Use ONLY the available weather data sections above to answer questions - skip any missing or unavailable data without mentioning it
-- For storm locations, always include directional relationship (e.g., "northeast of you", "to your east")
+- For storm locations, ALWAYS use the exact format provided in the ACTIVE STORMS section (e.g., "NW (315°) @ 19.7 miles") - never convert to "northwest of you" or similar phrases
+- When referencing storms, use the precise location format: "Direction (bearing°) @ distance miles"
 - IMPORTANT: When multiple forecast sources provide comparable data, calculate the average but present it naturally:
   • Instead of: "21% NWS + 11% Open-Meteo = 16% average chance of rain"
   • Say naturally: "There's about a 16% chance of rain" (averaged from both sources behind the scenes)
