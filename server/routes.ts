@@ -3667,6 +3667,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
+  // Helper function to convert bearing to direction name
+  function getDirectionName(bearing: number): string {
+    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const index = Math.round(bearing / 22.5) % 16;
+    return directions[index];
+  }
+
   // Interactive AI Weather Chat endpoint
   app.post("/api/ai-chat", async (req, res) => {
     try {
@@ -3744,7 +3751,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const thunderstorm = thunderstormResult.status === 'fulfilled' ? thunderstormResult.value : null;
       const fetchedStorms = stormsResult.status === 'fulfilled' ? stormsResult.value : [];
       // Use live storm data from client if available, otherwise use fetched data
-      const stormData = storms && storms.length > 0 ? storms : fetchedStorms;
+      const rawStormData = storms && storms.length > 0 ? storms : fetchedStorms;
+      
+      // Convert storm bearings to direction names for better user understanding
+      const stormData = rawStormData.map(storm => ({
+        ...storm,
+        directionName: getDirectionName(storm.direction || storm.bearing || 0)
+      }));
       const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : { alerts: [] };
       const winds = windsResult.status === 'fulfilled' ? windsResult.value : null;
       const nwsForecast = nwsForecastResult.status === 'fulfilled' ? nwsForecastResult.value : null;
@@ -3791,7 +3804,7 @@ CURRENT CONDITIONS:
 
 ${weatherContext.storms.length > 0 ? `
 ACTIVE STORMS:
-${weatherContext.storms.map(storm => `• ${storm.intensity} dBZ storm at ${storm.distance.toFixed(1)} miles ${storm.direction} of you`).join('\n')}
+${weatherContext.storms.map(storm => `• ${storm.intensity} dBZ storm at ${storm.distance.toFixed(1)} miles ${storm.directionName} of you`).join('\n')}
 ` : ''}
 
 ${weatherContext.activeAlerts.length > 0 ? `
