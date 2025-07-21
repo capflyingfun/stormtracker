@@ -358,6 +358,15 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Professional Weather Expertise**: Uses same comprehensive weather data as main AI weather assistant for consistent, authoritative responses
 - **Seamless User Experience**: Chat functionality integrated into existing AI assistant rather than separate floating window for better usability
 
+### AI Direction Conversion Bug Fix (July 21, 2025)
+- **Fixed Bearing-to-Direction Conversion**: Resolved critical bug where AI assistant displayed "northwest" instead of "east" for 84° and 91° storm bearings
+- **Added Direction Name Conversion**: Implemented `getDirectionName()` function in AI assistant to properly convert numerical bearings to compass directions
+- **Enhanced Spatial Context**: Storm location descriptions now correctly show "East of you" instead of raw bearing numbers or incorrect directions
+- **Improved User Experience**: AI responses now provide accurate directional relationships like "northeast of you" and "southeast of you" for better spatial awareness
+- **Consistent Direction Mapping**: All storm directional references now use proper 16-point compass conversion (N, NNE, NE, ENE, E, ESE, SE, SSE, S, SSW, SW, WSW, W, WNW, NW, NNW)
+- **Data Pipeline Fix**: Corrected storm data processing to convert bearings to direction names before passing to AI assistant template
+- **Enhanced Storm Analysis**: AI assistant now accurately communicates storm positions relative to user location using proper compass directions
+
 ### AI Chat Real-Time Storm Data Integration & Enhanced Context (July 21, 2025)
 - **Fixed AI Chat Storm Data Bug**: Resolved critical issue where AI chat was using outdated storm API endpoints instead of real-time precipitation data
 - **Live Storm Data Integration**: AI chat now receives actual live precipitation storm data (174+ storms) from radar detection system instead of old API calls

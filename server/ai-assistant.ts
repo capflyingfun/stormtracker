@@ -362,6 +362,12 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       return (bearing + 360) % 360;
     }
 
+    function getDirectionName(degrees: number): string {
+      const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+      const index = Math.round(degrees / 22.5) % 16;
+      return directions[index];
+    }
+
     // Enhanced storm analysis with track intersection detection
     const immediateStormContext = data.storms.map(storm => {
       const trackIntersection = calculateStormTrackIntersection(storm, data.userLocation.lat, data.userLocation.lon);
@@ -374,9 +380,12 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       else if (storm.intensity >= 35) stormSeverity = 'Moderate';
       else if (storm.intensity >= 20) stormSeverity = 'Light';
       
+      // Convert bearing to direction name for spatial context
+      const directionName = getDirectionName(storm.direction || storm.bearing || 0);
+      
       return {
         distance: `${storm.distance.toFixed(1)} miles`,
-        direction: `${storm.direction} (${storm.bearing}°)`,
+        direction: `${directionName} of you`,
         intensity: `${storm.intensity} dBZ (${storm.category})`,
         stormSeverity: stormSeverity, // Storm intensity classification
         movement: storm.movement ? 
