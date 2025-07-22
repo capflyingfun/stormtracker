@@ -568,6 +568,14 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Timestamp Validation**: Added timestamp validation in NEXRAD animation to ensure proper 2025 dates instead of invalid 1970 timestamps
 - **Improved Radar Animation**: Animation now generates proper timestamps (202507211920 format) for authentic historical frame loading
 
+### NEXRAD Simplification & UI Improvements (July 22, 2025)
+- **Disabled Animation System**: Removed NEXRAD animation controls due to persistent page refresh and timestamp issues
+- **Latest Frame Only**: NEXRAD now displays only the latest radar image for maximum stability and reliability
+- **Simplified Interface**: Removed Play/Stop animation buttons and frame counters to focus on current weather conditions
+- **Repositioned Refresh Button**: Moved AI Assistant refresh button to bottom of modal between AI Analysis and chat sections
+- **Enhanced Manual Controls**: Refresh button now clearly labeled "🔄 Refresh Weather Data" for better user understanding
+- **Stability Focus**: Eliminated all animation-related refresh triggers to ensure stable page navigation and radar access
+
 ### Radar Source-Specific dBZ Calibration (July 18, 2025)
 - **Separate Threshold Systems**: Implemented radar source-specific dBZ thresholds to account for calibration differences
 - **RainViewer Calibration**: Adjusted thresholds 5-10 dBZ lower (e.g., 47 dBZ for severe vs 55 dBZ NEXRAD) due to higher readings

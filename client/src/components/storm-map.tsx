@@ -194,7 +194,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           setRadarSource('nexrad');
         }
       } else {
-        // For NEXRAD, generate historical timestamps for animation
+        // For NEXRAD, load only the latest radar image (no animation)
         try {
           if (!location) {
             console.log('NEXRAD: Waiting for location...');
@@ -215,11 +215,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const { site } = await nearbyResponse.json();
           setNexradSite(site);
           
-          // Generate historical timestamps for NEXRAD animation (last 2 hours)
-          const timestamps = generateNEXRADTimestamps();
-          setRadarFrames(timestamps);
-          setCurrentFrame(timestamps.length - 1); // Start with most recent
-          setCurrentFrameIndex(timestamps.length - 1);
+          // Set single current frame (no historical animation)
+          setRadarFrames([Date.now()]); // Single current timestamp
+          setCurrentFrame(0);
+          setCurrentFrameIndex(0);
           
           console.log(`NEXRAD: Generated ${timestamps.length} historical timestamps for animation (site ${site})`);
           
@@ -2249,25 +2248,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             {showSectorGrid ? "Hide" : "Show"} Grid
           </Button>
 
-          <Button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              toggleAnimation();
-            }}
-            type="button"
-            variant={isAnimating ? "destructive" : "default"}
-            size="sm"
-            className="text-xs px-2"
-            disabled={radarFrames.length < 2}
-          >
-            {isAnimating ? 'Stop' : 'Play'}
-          </Button>
-          {radarFrames.length > 1 && (
-            <span className="text-xs text-slate-400">
-              {currentFrameIndex >= 0 ? `${currentFrameIndex + 1}/${radarFrames.length}` : 'Live'}
-            </span>
-          )}
+          {/* Animation controls disabled - showing latest frame only */}
         </div>
       </div>
 

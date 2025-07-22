@@ -328,20 +328,7 @@ export default function AIWeatherAssistant({
                 : 'Analyze Weather & Alerts'
             }
           </Button>
-          <Button
-            onClick={() => {
-              // Force refresh aviation weather data
-              queryClient.invalidateQueries({ queryKey: ['/api/aviation-weather'] });
-              console.log('Manual refresh: Aviation weather data updated');
-            }}
-            disabled={!userLocation}
-            size="sm"
-            variant="outline"
-            className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600"
-            title="Refresh weather data"
-          >
-            🔄
-          </Button>
+
           {isMonitoring ? (
             <Button
               onClick={handleStopMonitoring}
@@ -605,6 +592,24 @@ export default function AIWeatherAssistant({
             </div>
           </div>
         )}
+
+        {/* Manual Refresh Button - Positioned between AI Analysis and Chat */}
+        <div className="flex justify-center py-2 border-t border-b border-slate-700/50">
+          <Button
+            onClick={() => {
+              // Force refresh aviation weather data
+              queryClient.invalidateQueries({ queryKey: ['/api/aviation-weather'] });
+              console.log('Manual refresh: Aviation weather data updated');
+            }}
+            disabled={!userLocation}
+            size="sm"
+            variant="outline"
+            className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600"
+            title="Refresh weather data"
+          >
+            🔄 Refresh Weather Data
+          </Button>
+        </div>
 
         {assessmentMutation.isError && (
           <div className="text-center py-4">
