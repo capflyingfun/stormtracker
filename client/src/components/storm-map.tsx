@@ -2158,47 +2158,43 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={sampleRadarDbz}
             variant="outline"
             size="sm"
-            className="text-xs px-1 sm:px-2 min-w-0"
+            className="text-xs px-2 bg-blue-600/20 border-blue-500 hover:bg-blue-600/30 text-blue-300"
           >
-            <span className="hidden sm:inline">🔄 Update Storms</span>
-            <span className="sm:hidden">🔄</span>
+            🔄 Update Storms
           </Button>
           <Button
             onClick={() => setRadarSource(radarSource === 'rainviewer' ? 'nexrad' : 'rainviewer')}
             variant="outline"
             size="sm"
-            className="text-xs px-1 sm:px-2 min-w-0"
+            className="text-xs px-2"
           >
-            <span className="hidden sm:inline">Switch to {radarSource === 'rainviewer' ? 'NEXRAD' : 'RainViewer'}</span>
-            <span className="sm:hidden">{radarSource === 'rainviewer' ? 'NEXR' : 'RAIN'}</span>
+            Switch to {radarSource === 'rainviewer' ? 'NEXRAD' : 'RainViewer'}
           </Button>
           <Button
             onClick={() => setShowSectorGrid(!showSectorGrid)}
             variant={showSectorGrid ? "default" : "outline"}
             size="sm"
-            className="text-xs px-1 sm:px-2 min-w-0"
+            className="text-xs px-2"
           >
-            <span className="hidden sm:inline">{showSectorGrid ? "Hide" : "Show"} Grid</span>
-            <span className="sm:hidden">Grid</span>
+            {showSectorGrid ? "Hide" : "Show"} Grid
           </Button>
 
           <Button
             onClick={toggleRadarAnimation}
             variant={isAnimating ? "destructive" : "default"}
             size="sm"
-            className="text-xs px-1 sm:px-2 min-w-0"
+            className="text-xs px-2"
             disabled={radarSource === 'nexrad' || radarFrames.length < 2}
           >
-            <span className="hidden sm:inline">{isAnimating ? 'Stop' : 'Play'}</span>
-            <span className="sm:hidden">{isAnimating ? '⏸' : '▶'}</span>
+            {isAnimating ? 'Stop' : 'Play'}
           </Button>
           {radarFrames.length > 1 && (
-            <span className="text-xs text-slate-400 hidden sm:inline">
+            <span className="text-xs text-slate-400">
               {currentFrameIndex >= 0 ? `${currentFrameIndex + 1}/${radarFrames.length}` : 'Live'}
             </span>
           )}
