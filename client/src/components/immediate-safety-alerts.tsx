@@ -37,6 +37,71 @@ interface ImmediateSafetyAlertsProps {
   isLoading: boolean;
 }
 
+// Get timezone from coordinates
+const getTimezoneFromCoordinates = (lat: number, lon: number): string => {
+  // US timezone boundaries based on longitude
+  if (lat >= 24.5 && lat <= 49.5 && lon >= -125 && lon <= -66.5) {
+    if (lon >= -125 && lon <= -120) return 'America/Los_Angeles'; // Pacific
+    if (lon >= -120 && lon <= -104) return 'America/Denver'; // Mountain
+    if (lon >= -104 && lon <= -87) return 'America/Chicago'; // Central
+    if (lon >= -87 && lon <= -66.5) return 'America/New_York'; // Eastern
+  }
+  
+  // Default to browser timezone for international locations
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+};
+
+// Convert timezone references in alert text
+const convertTimezonesInText = (text: string, targetTimezone: string): string => {
+  // Match time patterns like "1:30 PM EDT", "12:30PM CDT", etc.
+  const timePattern = /(\d{1,2}):?(\d{2})?\s?(AM|PM)\s?(EDT|EST|CDT|CST|MDT|MST|PDT|PST)/gi;
+  
+  return text.replace(timePattern, (match, hour, minute = '00', ampm, timezone) => {
+    try {
+      // Create a date object for the original time
+      const originalHour = parseInt(hour);
+      const originalMinute = parseInt(minute);
+      
+      // Convert 12-hour to 24-hour format
+      let hour24 = originalHour;
+      if (ampm.toUpperCase() === 'PM' && originalHour !== 12) hour24 += 12;
+      if (ampm.toUpperCase() === 'AM' && originalHour === 12) hour24 = 0;
+      
+      // Create date with original timezone
+      const today = new Date();
+      const originalDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour24, originalMinute);
+      
+      // Get timezone offsets
+      const timezoneOffsets: { [key: string]: number } = {
+        'EST': -5, 'EDT': -4,
+        'CST': -6, 'CDT': -5,
+        'MST': -7, 'MDT': -6,
+        'PST': -8, 'PDT': -7
+      };
+      
+      const originalOffset = timezoneOffsets[timezone.toUpperCase()];
+      if (originalOffset === undefined) return match; // Keep original if timezone not found
+      
+      // Convert to UTC first, then to target timezone
+      const utcTime = originalDate.getTime() - (originalOffset * 60 * 60 * 1000);
+      const targetDate = new Date(utcTime);
+      
+      // Format in target timezone
+      const localTime = targetDate.toLocaleString('en-US', {
+        timeZone: targetTimezone,
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZoneName: 'short'
+      });
+      
+      return localTime;
+    } catch (error) {
+      console.log('Time conversion error:', error);
+      return match; // Return original if conversion fails
+    }
+  });
+};
+
 const getSeverityColor = (severity: string): string => {
   switch (severity?.toLowerCase()) {
     case 'extreme': return 'bg-red-600';
@@ -245,7 +310,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                 <span className="font-semibold text-red-200">{alert.type}</span>
               </div>
               
-              <p className="text-sm text-red-100 mb-2">{alert.headline}</p>
+              <p className="text-sm text-red-100 mb-2">{convertTimezonesInText(alert.headline, getTimezoneFromCoordinates(location.lat, location.lon))}</p>
               
               {alert.expires && (
                 <div className="flex items-center gap-1 text-xs text-red-300">
