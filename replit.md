@@ -121,6 +121,20 @@ Preferred communication style: Simple, everyday language with customizable AI as
 5. **Performance**: Optimized map rendering with conditional layer loading
 6. **Accessibility**: Radix UI components ensure WCAG compliance
 
+## Recent Changes - July 22, 2025
+
+### Adaptive Intelligent Sampling System (July 22, 2025)
+- **Smart Two-Phase Sampling**: Implemented intelligent radar tile processing that dynamically adjusts sampling density based on precipitation detection
+- **Coarse-to-Fine Strategy**: Initial 32-pixel coarse scan to identify precipitation areas, followed by 8-pixel fine sampling around detected storms
+- **Performance + Accuracy Balance**: Maintains storm detection accuracy while dramatically reducing waypoint processing overhead
+- **Intelligent Area Detection**: System focuses fine sampling only around detected precipitation, avoiding unnecessary processing of clear areas
+- **Duplicate Prevention**: Advanced pixel processing tracking prevents duplicate sampling of the same coordinates during fine-resolution passes
+- **Storm Peak Preservation**: Fine sampling ensures strong storm cells aren't missed between coarse sample points, addressing critical accuracy concerns
+- **Dual Radar Source Support**: Adaptive sampling works with both NEXRAD (US) and RainViewer (global) radar sources with appropriate thresholds
+- **Performance Logging**: Detailed console feedback showing precipitation areas found and pixels processed for performance monitoring
+- **Mobile Optimization Maintained**: Preserves 3-second mobile auto-sampling delay for slower network connections
+- **Dynamic Processing Load**: System automatically processes fewer pixels in clear weather, more pixels around active storms for optimal resource utilization
+
 ## Recent Changes - July 20, 2025
 
 ### Streamlined Interface Implementation (July 20, 2025)
