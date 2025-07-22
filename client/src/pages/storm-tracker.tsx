@@ -166,6 +166,7 @@ export default function StormTracker() {
     light: true,
     moderate: true,
     heavy: true,
+    severe: true,
     veryHeavy: true,
     extreme: true,
   });
@@ -242,10 +243,10 @@ export default function StormTracker() {
       
       // Log for visual highlighting (no popup alerts)
       if (location && preferences) {
-        const qualifyingStorms = newPrecipitationStorms.filter(storm => 
-          storm.intensity >= preferences.minimumDbz
+        const qualifyingStorms = newPrecipitationStorms.filter((storm: any) => 
+          storm.intensity >= (preferences as any).minimumDbz
         );
-        console.log(`Visual Alert System: Found ${qualifyingStorms.length} storms meeting ${preferences.minimumDbz}+ dBZ threshold for visual highlighting`);
+        console.log(`Visual Alert System: Found ${qualifyingStorms.length} storms meeting ${(preferences as any).minimumDbz}+ dBZ threshold for visual highlighting`);
       }
     };
 
@@ -349,7 +350,7 @@ export default function StormTracker() {
     try {
       const result = await setLocationFromGPS();
       // Auto-switch to NEXRAD for US GPS locations
-      if (result && (result.isUS || result.recommendedRadarSource === 'nexrad')) {
+      if (result && ((result as any).isUS || (result as any).recommendedRadarSource === 'nexrad')) {
         setCurrentRadarSource('nexrad');
         console.log('Auto-switched to NEXRAD for US GPS location:', result.name);
       }
@@ -421,10 +422,10 @@ export default function StormTracker() {
         <AlertSettings
           isOpen={showStormFilteringSettings}
           onClose={() => setShowStormFilteringSettings(false)}
-          preferences={preferences}
+          preferences={preferences as any}
           onSave={handleStormFilteringSettingsSave}
         />
-      )}
+      ) as any}
 
       {/* Alert Subscription Modal */}
       {showAlertSubscription && (
