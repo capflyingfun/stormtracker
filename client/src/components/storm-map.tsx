@@ -312,19 +312,22 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           let nexradUrl;
           
           if (timestampStr.startsWith('current') || !nexradSite) {
-            // Fallback to current composite radar
-            nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
+            // Fallback to current composite radar with enhanced parameters
+            nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?_cache=${Math.floor(Date.now()/60000)}`;
           } else {
             // Use RIDGE API for historical site-specific data
             nexradUrl = `/api/nexrad/tile/${nexradSite}/${timestamp}/{z}/{x}/{y}.png`;
           }
           
           radarLayerRef.current = window.L.tileLayer(nexradUrl, {
-            opacity: 0.7,
+            opacity: 0.8,
             zIndex: 200,
             attribution: `NEXRAD ${nexradSite ? `(${nexradSite})` : ''}`,
-            updateWhenIdle: true,
-            updateWhenZooming: false
+            updateWhenIdle: false,
+            updateWhenZooming: true,
+            keepBuffer: 2,
+            maxNativeZoom: 12,
+            maxZoom: 15
           });
         }
         
@@ -1516,17 +1519,20 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           maxZoom: 12
         });
       } else {
-        // NEXRAD radar overlay
+        // NEXRAD radar overlay with enhanced parameters
         radarLayerRef.current = window.L.tileLayer(
-          'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
+          `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?_cache=${Math.floor(Date.now()/60000)}`,
           {
             tileSize: 256,
-            opacity: 0.7,
+            opacity: 0.8,
             transparent: true,
             attribution: 'NEXRAD Radar © Iowa Environmental Mesonet',
-            maxZoom: 12,
-            updateWhenIdle: true,
-            updateWhenZooming: false
+            maxZoom: 15,
+            maxNativeZoom: 12,
+            updateWhenIdle: false,
+            updateWhenZooming: true,
+            keepBuffer: 2,
+            crossOrigin: true
           }
         );
       }
