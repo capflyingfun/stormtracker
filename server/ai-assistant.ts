@@ -50,7 +50,7 @@ function getStormPersonality(intensity: number): {
       personality: "A gentle sprinkle",
       description: "quietly misting the area with light moisture",
       simpleName: "Light Rain",
-      educationalNote: `(${intensity} dBZ - barely enough to wet the ground)`
+      educationalNote: `(${intensity} dBZ - light but trackable precipitation)`
     };
   }
 }
