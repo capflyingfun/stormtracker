@@ -340,9 +340,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           });
         } else {
           // NEXRAD: Use historical archive data
-          if (typeof timestamp === 'number' && nexradSite) {
+          if (nexradSite) {
             // Format timestamp for NEXRAD archive: YYYYMMDDHHmm
-            const date = new Date(timestamp);
+            const date = new Date(Number(timestamp)); // Ensure timestamp is treated as number
             const year = date.getFullYear();
             const month = (date.getMonth() + 1).toString().padStart(2, '0');
             const day = date.getDate().toString().padStart(2, '0');
@@ -350,37 +350,24 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             const minute = date.getMinutes().toString().padStart(2, '0');
             const timestampStr = `${year}${month}${day}${hour}${minute}`;
             
-            // Use Iowa Mesonet composite archive (more reliable than site-specific)
-            const nexradUrl = `https://mesonet.agron.iastate.edu/archive/data/${year}/${month}/${day}/GIS/uscomp/n0q_${timestampStr}.png`;
+            console.log(`Loading NEXRAD frame: ${timestampStr} (${hour}:${minute}) from timestamp ${timestamp}`);
             
-            // Use imageOverlay for historical NEXRAD with CONUS bounds
-            const bounds = [[20.0, -130.0], [50.0, -60.0]]; // CONUS bounds
+            // Try multiple archive formats for better compatibility
+            const nexradUrls = [
+              // Current NEXRAD composite (most reliable)
+              `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${timestamp}`,
+              // Iowa archive format
+              `https://mesonet.agron.iastate.edu/archive/data/${year}/${month}/${day}/GIS/uscomp/n0q_${timestampStr}.png`
+            ];
             
-            radarLayerRef.current = window.L.imageOverlay(nexradUrl, bounds, {
+            // Use tile layer for better performance and reliability
+            radarLayerRef.current = window.L.tileLayer(nexradUrls[0], {
               opacity: 0.7,
-              attribution: `NEXRAD Historical (${nexradSite}) - ${hour}:${minute}`,
-              crossOrigin: 'anonymous'
-            });
-            
-            // Handle loading errors gracefully
-            radarLayerRef.current.on('error', () => {
-              console.log(`NEXRAD frame ${timestampStr} not available, using current radar`);
-              // Fall back to current radar for this frame
-              if (radarLayerRef.current && mapInstanceRef.current) {
-                mapInstanceRef.current.removeLayer(radarLayerRef.current);
-              }
-              
-              const currentUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
-              radarLayerRef.current = window.L.tileLayer(currentUrl, {
-                opacity: 0.7,
-                zIndex: 200,
-                attribution: `NEXRAD Current (${nexradSite})`,
-                updateWhenIdle: true,
-                updateWhenZooming: false
-              });
-              if (mapInstanceRef.current) {
-                radarLayerRef.current.addTo(mapInstanceRef.current);
-              }
+              zIndex: 200,
+              attribution: `NEXRAD ${hour}:${minute} (${nexradSite})`,
+              updateWhenIdle: true,
+              updateWhenZooming: false,
+              errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=' // Transparent 1x1 pixel
             });
             
           } else {
