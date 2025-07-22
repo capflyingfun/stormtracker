@@ -2230,20 +2230,20 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           <Button
             onClick={() => setRadarSource(radarSource === 'rainviewer' ? 'nexrad' : 'rainviewer')}
             variant="outline"
             size="sm"
-            className="text-xs px-2"
+            className="text-xs px-2 whitespace-nowrap"
           >
-            Switch to {radarSource === 'rainviewer' ? 'NEXRAD' : 'RainViewer'}
+            {radarSource === 'rainviewer' ? 'NEXRAD' : 'RainViewer'}
           </Button>
           <Button
             onClick={() => setShowSectorGrid(!showSectorGrid)}
             variant={showSectorGrid ? "default" : "outline"}
             size="sm"
-            className="text-xs px-2"
+            className="text-xs px-2 whitespace-nowrap"
           >
             {showSectorGrid ? "Hide" : "Show"} Grid
           </Button>
