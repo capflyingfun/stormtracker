@@ -1053,7 +1053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const distance of distanceRings) {
         for (const angle of angleSectors) {
           const sectorStorm = await searchSectorForRainViewer(centerLat, centerLon, distance, angle, latestFrame);
-          if (sectorStorm && sectorStorm.intensity >= 30) { // 30+ dBZ threshold
+          if (sectorStorm && sectorStorm.intensity >= 25) { // 25+ dBZ threshold
             sectorStorms.push(sectorStorm);
           }
         }
@@ -1264,47 +1264,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return Math.max(0, (r + g + b) / 15); // General intensity approximation
   }
 
-  // Convert NEXRAD color to dBZ using official NWS La Crosse palette
+  // Convert NEXRAD color to dBZ using official NOAA color palette
   function convertNexradColorToDbz(r: number, g: number, b: number): number {
-    // Official NWS La Crosse NEXRAD color palette (from attached .pal file)
-    // Updated to match the 30+ dBZ detection threshold
+    // Official NEXRAD (NOAA) color palette
+    // Based on NWS radar color standards
     
     if (r < 20 && g < 20 && b < 20) return 0; // Black/transparent = no precipitation
     
-    // Skip very light precipitation (5-25 dBZ range) - below our detection threshold
-    // Only detect precipitation ≥30 dBZ to match server threshold
+    // Light green (5-15 dBZ)
+    if (g > 180 && r < 100 && b > 100) return 5 + ((g - 180) / 75) * 10;
     
-    // Green (30-35 dBZ) - using palette color: 16 64 13 
-    if (r >= 6 && r <= 26 && g >= 35 && g <= 65 && b >= 2 && b <= 22) return 30 + ((g - 35) / 30) * 5;
+    // Dark green (15-25 dBZ)  
+    if (g > 120 && g < 180 && r < 80 && b < 100) return 15 + ((g - 120) / 60) * 10;
     
-    // Yellow (35-45 dBZ) - using palette color: 255 255 0
-    if (r > 200 && g > 200 && b < 50) return 35 + ((r + g - 400) / 110) * 10;
+    // Yellow (25-35 dBZ)
+    if (r > 200 && g > 200 && b < 100) return 25 + ((r + g - 400) / 110) * 10;
     
-    // Orange (45-50 dBZ) - using palette color: 254 118 27
-    if (r > 200 && g > 80 && g < 150 && b < 80) return 45 + ((r - 200) / 55) * 5;
+    // Orange (35-45 dBZ)
+    if (r > 200 && g > 100 && g < 200 && b < 80) return 35 + ((r - 200) / 55) * 10;
     
-    // Red (50-55 dBZ) - using palette color: 255 0 0
-    if (r > 200 && g < 50 && b < 50) return 50 + ((255 - g - b) / 205) * 5;
+    // Red (45-55 dBZ)
+    if (r > 180 && g < 100 && b < 100) return 45 + ((r - 180) / 75) * 10;
     
-    // Dark Red (55-60 dBZ) - using palette color: 140 0 0
-    if (r >= 90 && r <= 180 && g < 30 && b < 30) return 55 + ((r - 90) / 90) * 5;
+    // Magenta/Purple (55+ dBZ - severe)
+    if (r > 150 && b > 150 && g < 100) return 55 + ((r + b - 300) / 210) * 20;
     
-    // Magenta/Purple (60-65 dBZ) - using palette color: 255 0 255
-    if (r > 200 && b > 200 && g < 50) return 60 + ((r + b - 400) / 110) * 5;
+    // White (65+ dBZ - extreme)
+    if (r > 240 && g > 240 && b > 240) return 65;
     
-    // White (65-70 dBZ) - using palette color: 255 255 255
-    if (r > 240 && g > 240 && b > 240) return 65 + ((r + g + b - 720) / 45) * 5;
-    
-    // Gray scales (70+ dBZ) - using palette colors for extreme values
-    if (r > 150 && g > 150 && b > 150 && r == g && g == b) {
-      if (r >= 200) return 70; // Light gray
-      if (r >= 175) return 75; // Medium gray  
-      if (r >= 125) return 80; // Dark gray
-      return 85; // Very dark gray
-    }
-    
-    // Return 0 for colors that don't match our 30+ dBZ threshold
-    return 0;
+    // Default fallback
+    return Math.max(0, (r + g + b) / 12);
   }
 
   // Search a specific sector (distance ring + angle) for storm activity
@@ -1340,7 +1329,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     // Return storm data if intensity is above threshold
-    if (maxIntensity.intensity >= 30) {
+    if (maxIntensity.intensity >= 25) {
       return {
         lat: maxIntensity.lat,
         lon: maxIntensity.lon,
