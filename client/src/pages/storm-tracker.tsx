@@ -233,31 +233,34 @@ export default function StormTracker() {
     return stormFilters[category as keyof typeof stormFilters];
   });
 
-  // Listen for precipitation storm data
+  // Listen for precipitation storm data - only update when modal is not open
   useEffect(() => {
     const handlePrecipitationStormData = (event: any) => {
+      // Don't update storm data if any modal is open to prevent layout shifts
+      if (showMessages || showAlertSubscription || showStormFilteringSettings) {
+        console.log('Modal open - skipping storm data update to prevent movement');
+        return;
+      }
+      
       const newPrecipitationStorms = event.detail || [];
       console.log(`Storm Panel Data: Updated precipitation storms: ${newPrecipitationStorms.length} storms detected`);
       
-      // Use requestAnimationFrame to prevent layout shifts during modal display
-      requestAnimationFrame(() => {
-        setPrecipitationStorms(newPrecipitationStorms);
-        
-        // Log for visual highlighting (no popup alerts)
-        if (location && preferences) {
-          const qualifyingStorms = newPrecipitationStorms.filter(storm => 
-            storm.intensity >= preferences.minimumDbz
-          );
-          console.log(`Visual Alert System: Found ${qualifyingStorms.length} storms meeting ${preferences.minimumDbz}+ dBZ threshold for visual highlighting`);
-        }
-      });
+      setPrecipitationStorms(newPrecipitationStorms);
+      
+      // Log for visual highlighting (no popup alerts)
+      if (location && preferences) {
+        const qualifyingStorms = newPrecipitationStorms.filter(storm => 
+          storm.intensity >= preferences.minimumDbz
+        );
+        console.log(`Visual Alert System: Found ${qualifyingStorms.length} storms meeting ${preferences.minimumDbz}+ dBZ threshold for visual highlighting`);
+      }
     };
 
     window.addEventListener('precipitationStormData', handlePrecipitationStormData);
     return () => {
       window.removeEventListener('precipitationStormData', handlePrecipitationStormData);
     };
-  }, [location, preferences]);
+  }, [location, preferences, showMessages, showAlertSubscription, showStormFilteringSettings]);
 
 
 
