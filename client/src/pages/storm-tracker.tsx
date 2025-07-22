@@ -758,13 +758,6 @@ export default function StormTracker() {
               </div>
             )}
 
-            {/* Auto-update indicator */}
-            <div className="flex justify-center mb-4">
-              <div className="text-xs text-emerald-400 bg-emerald-900/30 px-3 py-2 rounded-lg border border-emerald-700/50">
-                ⚡ Auto-updates on map movement
-              </div>
-            </div>
-
             {/* Interactive Radar Map with Side Controls */}
             {!show3D && (
               <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
