@@ -4,6 +4,110 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY 
 });
 
+// Emoji-based weather alert storytelling system
+function getStormPersonality(intensity: number): {
+  emoji: string;
+  personality: string;
+  description: string;
+  simpleName: string;
+  educationalNote: string;
+} {
+  if (intensity >= 65) {
+    return {
+      emoji: "🌪️💀",
+      personality: "A DANGEROUS monster storm",
+      description: "raging with extreme fury and destructive power",
+      simpleName: "Extreme Thunderstorm",
+      educationalNote: `(${intensity} dBZ - this is severe weather that can produce large hail and damaging winds)`
+    };
+  } else if (intensity >= 55) {
+    return {
+      emoji: "⛈️😠",
+      personality: "An angry thunderstorm",
+      description: "crackling with lightning and throwing heavy rain",
+      simpleName: "Severe Thunderstorm", 
+      educationalNote: `(${intensity} dBZ - strong enough to produce quarter-size hail and gusty winds)`
+    };
+  } else if (intensity >= 46) {
+    return {
+      emoji: "🌧️💪",
+      personality: "A robust storm system",
+      description: "steadily marching with heavy rainfall",
+      simpleName: "Heavy Rain",
+      educationalNote: `(${intensity} dBZ - expect heavy downpours that could cause flooding)`
+    };
+  } else if (intensity >= 35) {
+    return {
+      emoji: "🌦️😊",
+      personality: "A moderate rain shower",
+      description: "peacefully drifting along with steady precipitation",
+      simpleName: "Moderate Rain",
+      educationalNote: `(${intensity} dBZ - noticeable rain but generally manageable)`
+    };
+  } else {
+    return {
+      emoji: "🌤️😌",
+      personality: "A gentle sprinkle",
+      description: "quietly misting the area with light moisture",
+      simpleName: "Light Rain",
+      educationalNote: `(${intensity} dBZ - barely enough to wet the ground)`
+    };
+  }
+}
+
+// Generate emoji-based weather story narratives
+function generateWeatherStory(storms: StormData[]): string {
+  if (!storms || storms.length === 0) {
+    return "🌤️ The weather stage is peaceful today - no significant storms are performing in your area! ✨";
+  }
+
+  const closestStorm = storms[0]; // storms are sorted by distance
+  const stormPersonality = getStormPersonality(closestStorm.intensity);
+  
+  let story = `${stormPersonality.emoji} ${stormPersonality.personality} is ${stormPersonality.description} `;
+  
+  // Add distance and direction context
+  const directionName = getDirectionName(closestStorm.bearing);
+  story += `about ${closestStorm.distance.toFixed(1)} miles ${directionName.toLowerCase()} of you. `;
+  
+  // Add movement context if available
+  if (closestStorm.movement) {
+    const movementDir = getDirectionName(closestStorm.movement.direction || 0);
+    story += `This ${stormPersonality.simpleName.toLowerCase()} is traveling ${movementDir.toLowerCase()} at ${closestStorm.movement.speed} mph. `;
+    
+    // Add ETA if approaching
+    if (closestStorm.movement.eta && closestStorm.movement.eta !== 'N/A') {
+      story += `🕒 It will arrive around ${closestStorm.movement.eta}. `;
+    }
+  }
+  
+  // Add educational note about dBZ
+  story += `\n\n📚 ${stormPersonality.educationalNote}`;
+  
+  // Add multiple storms context
+  if (storms.length > 1) {
+    const secondStorm = storms[1];
+    const secondPersonality = getStormPersonality(secondStorm.intensity);
+    story += `\n\n🌦️ There's also ${secondPersonality.personality.toLowerCase()} ${secondStorm.distance.toFixed(1)} miles away`;
+    if (storms.length > 2) {
+      story += ` and ${storms.length - 2} other weather system${storms.length > 3 ? 's' : ''} in the region`;
+    }
+    story += ".";
+  }
+  
+  return story;
+}
+
+// Convert bearing to direction name
+function getDirectionName(bearing: number): string {
+  const directions = [
+    "North", "NNE", "NE", "ENE", "East", "ESE", "SE", "SSE",
+    "South", "SSW", "SW", "WSW", "West", "WNW", "NW", "NNW"
+  ];
+  const index = Math.round(bearing / 22.5) % 16;
+  return directions[index];
+}
+
 // Dynamic AI tone based on weather severity - prioritize alerts first
 function getDynamicTone(storms: StormData[], threatData: any, activeAlerts: any[]) {
   // PRIORITY 1: Check for active alerts first (Heat Advisories, Warnings, etc.)
@@ -550,8 +654,11 @@ ${windContext.length > 0 ?
 Radar Source: ${data.radarSource} (authentic weather radar)
 Lightning Activity: ${data.lightningCount || 0} recent strikes
 
-**CRITICAL TRACK ANALYSIS:**
-${immediateStormContext.length === 0 ? '• No active storms detected within 30 miles' : 
+**EMOJI-BASED WEATHER STORY:**
+${generateWeatherStory(immediateStormContext)}
+
+**TECHNICAL STORM ANALYSIS:**
+${immediateStormContext.length === 0 ? '• No active storms detected within 50 miles' : 
   (() => {
     const directThreats = immediateStormContext.filter(s => s.directThreat);
     const nonDirectThreats = immediateStormContext.filter(s => !s.directThreat);
