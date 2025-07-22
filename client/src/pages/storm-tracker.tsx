@@ -126,12 +126,36 @@ function WeatherStoryInline({ storms, userLocation }: { storms: any[], userLocat
         story += ` with ${details.join(', ')}`;
       }
       
+      // Add detailed forecast if available
+      if (todayForecast.detailedForecast) {
+        story += `\n${todayForecast.detailedForecast}`;
+      }
+      
       // Tonight's forecast
       if (tonightForecast) {
         const tonightTemp = tonightForecast.temperature ? `low ${tonightForecast.temperature}°F` : '';
+        const tonightWind = tonightForecast.windSpeed && tonightForecast.windDirection ? 
+          `winds ${tonightForecast.windDirection} @ ${tonightForecast.windSpeed.toLowerCase()}` : '';
+        
         story += `\n\n🌙 ${tonightForecast.name || 'Tonight'}: ${tonightForecast.shortForecast || 'Conditions updating'}`;
-        if (tonightTemp) {
-          story += ` with ${tonightTemp}`;
+        
+        const tonightDetails = [tonightTemp, tonightWind].filter(Boolean);
+        if (tonightDetails.length > 0) {
+          story += ` with ${tonightDetails.join(', ')}`;
+        }
+        
+        if (tonightForecast.detailedForecast) {
+          story += `\n${tonightForecast.detailedForecast}`;
+        }
+      }
+      
+      // Extended forecast if available
+      if (weatherData.forecast.periods.length > 2) {
+        story += '\n\n📅 Extended Forecast:';
+        for (let i = 2; i < Math.min(6, weatherData.forecast.periods.length); i++) {
+          const period = weatherData.forecast.periods[i];
+          const temp = period.temperature ? `${period.temperature}°F` : '';
+          story += `\n${period.name}: ${period.shortForecast}${temp ? ` - ${temp}` : ''}`;
         }
       }
     }
@@ -151,9 +175,46 @@ function WeatherStoryInline({ storms, userLocation }: { storms: any[], userLocat
         const windDir = getDirectionName(weather.conditions.windDirection);
         conditionsParts.push(`winds ${windDir} @ ${Math.round(weather.conditions.windSpeed)} mph`);
       }
+      if (weather.conditions?.pressure) {
+        conditionsParts.push(`${weather.conditions.pressure} inHg pressure`);
+      }
+      if (weather.conditions?.visibility) {
+        conditionsParts.push(`${weather.conditions.visibility} mi visibility`);
+      }
+      if (weather.conditions?.cloudCover !== undefined) {
+        conditionsParts.push(`${weather.conditions.cloudCover}% clouds`);
+      }
       
       if (conditionsParts.length > 0) {
         story += `\n\n🌡️ Current conditions: ${conditionsParts.join(', ')}`;
+      }
+    }
+    
+    // Aviation weather section
+    if (weatherData?.aviation && weatherData.aviation.airports && weatherData.aviation.airports.length > 0) {
+      story += '\n\n✈️ Nearby Airport Weather:';
+      weatherData.aviation.airports.slice(0, 3).forEach(airport => {
+        if (airport.weather && airport.weather.temperature !== 'Unknown') {
+          const airportData = [];
+          if (airport.weather.temperature) airportData.push(`${Math.round(airport.weather.temperature)}°F`);
+          if (airport.weather.windSpeed && airport.weather.windDirection) {
+            const windDir = getDirectionName(airport.weather.windDirection);
+            airportData.push(`winds ${windDir} @ ${Math.round(airport.weather.windSpeed)} mph`);
+          }
+          if (airport.weather.visibility) airportData.push(`${airport.weather.visibility} mi vis`);
+          
+          if (airportData.length > 0) {
+            story += `\n${airport.code} (${airport.distance?.toFixed(1)}mi): ${airportData.join(', ')}`;
+          }
+        }
+      });
+    }
+    
+    // Heat index warning
+    if (weatherData?.conditions?.temperature && weatherData.conditions.temperature > 90 && weatherData?.conditions?.humidity && weatherData.conditions.humidity > 60) {
+      const heatIndex = Math.round(weatherData.conditions.temperature + ((weatherData.conditions.humidity / 100) * 15));
+      if (heatIndex > 105) {
+        story += `\n\n🔥 Heat Advisory: Heat index around ${heatIndex}°F - dangerous heat conditions. Stay hydrated and avoid prolonged outdoor exposure.`;
       }
     }
     
