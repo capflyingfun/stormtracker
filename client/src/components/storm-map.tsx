@@ -71,7 +71,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   
   // Auto-sampling state
   const autoSampleTimeoutRef = useRef<NodeJS.Timeout>();
-  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Sync with external radar source changes
   useEffect(() => {
@@ -138,23 +137,21 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return () => window.removeEventListener('precipitationStormData', handlePrecipitationStormData as EventListener);
   }, []);
 
-  // Auto-sampling functionality (with delay for radar loading)
+  // Auto-sampling functionality (silent background operation)
   const triggerAutoSample = useCallback(() => {
     // Clear any existing timeout
     if (autoSampleTimeoutRef.current) {
       clearTimeout(autoSampleTimeoutRef.current);
     }
     
-    // Add a short delay to ensure radar tiles are loaded after winds aloft update
+    // Set timeout for 0.75 seconds - sample silently in background
     autoSampleTimeoutRef.current = setTimeout(async () => {
-      if (mapInstanceRef.current && location) {
-        console.log('Auto-sampling triggered by map movement (delayed for radar loading)');
+      if (mapInstanceRef.current && location && radarFrames.length > 0) {
+        console.log('Auto-sampling triggered by map movement');
         await sampleRadarDbz();
       }
-    }, 750); // 750ms delay to ensure radar tiles load after winds aloft
-  }, [location, radarSource]);
-
-
+    }, 750);
+  }, [location, radarFrames.length]);
 
 
 
@@ -412,15 +409,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       }
       
       // Add map event listeners for auto-sampling and winds aloft with debouncing
-      const debouncedTrigger = async () => {
+      const debouncedTrigger = () => {
         console.log('Map movement detected, triggering auto-sample and winds aloft update');
-        
-        // Update winds aloft data for new map center first
-        const center = map.getCenter();
-        await updateWindsAloftForCenter(center.lat, center.lng);
-        
-        // Then trigger auto-sampling with delay for radar loading
         triggerAutoSample();
+        
+        // Update winds aloft data for new map center
+        const center = map.getCenter();
+        updateWindsAloftForCenter(center.lat, center.lng);
       };
       
       map.on('moveend', debouncedTrigger);
@@ -1714,18 +1709,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const map = mapInstanceRef.current;
     if (!map || !window.L || !location) return;
 
-    setIsRefreshing(true);
     console.log(`Starting precipitation sampling...`);
     
-    try {
-      if (radarSource === 'nexrad') {
-        await sampleNexradData();
-      } else {
-        await sampleRainViewerData();
-      }
-    } finally {
-      // Add a small delay to show the loading state
-      setTimeout(() => setIsRefreshing(false), 500);
+    if (radarSource === 'nexrad') {
+      await sampleNexradData();
+    } else {
+      await sampleRainViewerData();
     }
   };
 
@@ -2129,23 +2118,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return 'Live';
   };
 
-  // Listen for external update storms events
-  useEffect(() => {
-    const mapContainer = document.querySelector('[data-storm-map]');
-    if (!mapContainer) return;
-
-    const handleUpdateStorms = () => {
-      console.log("External update storms event received");
-      sampleRadarDbz();
-    };
-
-    mapContainer.addEventListener('updateStorms', handleUpdateStorms);
-    
-    return () => {
-      mapContainer.removeEventListener('updateStorms', handleUpdateStorms);
-    };
-  }, []);
-
   return (
     <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50">
 
@@ -2159,29 +2131,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             <div className="text-slate-400 text-xs sm:text-sm">
               Range: {radarRange} miles
             </div>
-            <div className="text-slate-500 text-xs">
-              • {radarSource === 'rainviewer' ? 'RainViewer Global' : 'NEXRAD US'}
-            </div>
           </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            onClick={sampleRadarDbz}
-            variant="outline"
-            size="sm"
-            className="text-xs px-3 py-1.5 bg-emerald-600/20 border-emerald-500 hover:bg-emerald-600/30 text-emerald-300 font-medium transition-all duration-200 hover:scale-105 relative overflow-hidden"
-            disabled={isRefreshing}
-          >
-            <div className="flex flex-col items-center">
-              <span>{isRefreshing ? '⏳ Refreshing...' : '⚡ Refresh Data'}</span>
-              {isRefreshing && (
-                <div className="w-full bg-slate-700/50 rounded-full h-0.5 mt-1">
-                  <div className="bg-emerald-400 h-0.5 rounded-full animate-pulse" style={{width: '100%'}}></div>
-                </div>
-              )}
-            </div>
-          </Button>
           <Button
             onClick={() => setRadarSource(radarSource === 'rainviewer' ? 'nexrad' : 'rainviewer')}
             variant="outline"
@@ -2216,12 +2169,20 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
 
-
+      {/* Radar Info */}
+      <div className="bg-slate-800/50 rounded-lg p-2 sm:p-3 mb-4 border border-slate-700">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-0">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="text-xs sm:text-sm text-slate-300">Radar Source:</span>
+            <div className="text-xs sm:text-sm text-white">{radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'}</div>
+          </div>
+          <div className="text-xs text-slate-400">
+            {radarSource === 'rainviewer' ? 'Global Coverage (Animated)' : 'US High-Resolution (Static)'}
+          </div>
+        </div>
+      </div>
       
-      <div 
-        data-storm-map
-        className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[400px] md:h-[600px] lg:h-[700px] xl:h-[800px] z-0 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}
-      >
+      <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[400px] md:h-[600px] lg:h-[700px] xl:h-[800px] z-0 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
         <div ref={mapRef} className="w-full h-full" style={{ zIndex: 0 }}></div>
         
         {/* Disabled overlay */}
@@ -2234,8 +2195,28 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </div>
         )}
         
-
-
+        {/* Update Storms Button - Top Right */}
+        <div className="absolute top-3 right-3 z-[1000]">
+          <Button
+            onClick={sampleRadarDbz}
+            variant="outline"
+            size="sm"
+            className="text-xs px-3 py-2 bg-slate-800/90 border-slate-600 hover:bg-slate-700/90"
+            disabled={isAnimating}
+          >
+            Update Storms
+          </Button>
+        </div>
+        
+        {/* Radar Info */}
+        <div className="radar-controls">
+          <div className="flex items-center gap-2 text-xs text-slate-300">
+            <span>Radar: {getTimeDisplay()}</span>
+          </div>
+          <div className="mt-1 text-xs text-slate-400">
+            Range: {radarRange} miles | {radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD Radar (NWS/NOAA)'}
+          </div>
+        </div>
       </div>
 
 
