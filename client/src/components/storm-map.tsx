@@ -153,22 +153,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }, 750);
   }, [location, radarFrames.length]);
 
-  // Listen for external update storms events
-  useEffect(() => {
-    const mapContainer = document.querySelector('[data-storm-map]');
-    if (!mapContainer) return;
 
-    const handleUpdateStorms = () => {
-      console.log("External update storms event received");
-      sampleRadarDbz();
-    };
-
-    mapContainer.addEventListener('updateStorms', handleUpdateStorms);
-    
-    return () => {
-      mapContainer.removeEventListener('updateStorms', handleUpdateStorms);
-    };
-  }, [sampleRadarDbz]);
 
 
 
@@ -2134,6 +2119,23 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const getTimeDisplay = (): string => {
     return 'Live';
   };
+
+  // Listen for external update storms events
+  useEffect(() => {
+    const mapContainer = document.querySelector('[data-storm-map]');
+    if (!mapContainer) return;
+
+    const handleUpdateStorms = () => {
+      console.log("External update storms event received");
+      sampleRadarDbz();
+    };
+
+    mapContainer.addEventListener('updateStorms', handleUpdateStorms);
+    
+    return () => {
+      mapContainer.removeEventListener('updateStorms', handleUpdateStorms);
+    };
+  }, []);
 
   return (
     <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50">
