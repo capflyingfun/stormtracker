@@ -2160,6 +2160,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         
         <div className="flex flex-wrap items-center gap-2">
           <Button
+            onClick={sampleRadarDbz}
+            variant="outline"
+            size="sm"
+            className="text-xs px-2 bg-blue-600/20 border-blue-500 hover:bg-blue-600/30 text-blue-300"
+          >
+            🔄 Update Storms
+          </Button>
+          <Button
             onClick={() => setRadarSource(radarSource === 'rainviewer' ? 'nexrad' : 'rainviewer')}
             variant="outline"
             size="sm"
