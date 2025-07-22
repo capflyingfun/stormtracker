@@ -1680,54 +1680,46 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return 0;
   };
 
-  // RainViewer color to dBZ mapping (RainViewer's color scheme)
+  // RainViewer color to dBZ mapping - realistic ranges starting at 30 dBZ  
   const rainviewerColorToDbz = (r: number, g: number, b: number): number => {
-    // RainViewer uses a different color scheme - more blue-based
-    const colorMap: {[key: string]: number} = {
-      // Light precipitation (blue tones)
-      '#000080': 15,  // Dark blue - light
-      '#0000ff': 20,  // Blue - light rain
-      '#4080ff': 25,  // Light blue
-      '#80c0ff': 30,  // Lighter blue
-      
-      // Moderate precipitation (green/yellow)
-      '#00ff00': 35,  // Green - moderate
-      '#80ff00': 40,  // Yellow-green
-      '#ffff00': 45,  // Yellow - heavy
-      '#ffc000': 50,  // Orange-yellow
-      
-      // Heavy precipitation (orange/red)
-      '#ff8000': 55,  // Orange - very heavy
-      '#ff4000': 60,  // Red-orange
-      '#ff0000': 65,  // Red - severe
-      '#c00000': 70,  // Dark red
-      '#800080': 75,  // Purple - extreme
-      '#ff00ff': 80   // Magenta - extreme
-    };
+    // Skip black/transparent pixels
+    if (r < 20 && g < 20 && b < 20) return 0;
     
-    // Find closest color match with more tolerance for RainViewer's smoother gradients
-    let bestMatch = 0;
-    let minDistance = Infinity;
+    // RainViewer uses blue-to-red gradient - updated for realistic meteorological ranges
+    // Only detect ≥30 dBZ precipitation to match server threshold
     
-    for (const [color, dbz] of Object.entries(colorMap)) {
-      const targetR = parseInt(color.slice(1, 3), 16);
-      const targetG = parseInt(color.slice(3, 5), 16);
-      const targetB = parseInt(color.slice(5, 7), 16);
-      
-      const distance = Math.sqrt(
-        Math.pow(r - targetR, 2) + 
-        Math.pow(g - targetG, 2) + 
-        Math.pow(b - targetB, 2)
-      );
-      
-      if (distance < minDistance) {
-        minDistance = distance;
-        bestMatch = dbz;
-      }
+    // Light Blue (30-35 dBZ) - RainViewer light precipitation 
+    if (b > 150 && r < 100 && g < 150) {
+      return 30 + ((b - 150) / 105) * 5;
     }
     
-    // Use a higher tolerance for RainViewer's smoother color transitions
-    return minDistance < 80 ? bestMatch : 0;
+    // Green (35-40 dBZ) - RainViewer moderate precipitation
+    if (g > 150 && r < 100 && b < 150) {
+      return 35 + ((g - 150) / 105) * 5;
+    }
+    
+    // Yellow (40-45 dBZ) - RainViewer moderate-heavy precipitation  
+    if (r > 200 && g > 200 && b < 100) {
+      return 40 + ((r - 200) / 55) * 5;
+    }
+    
+    // Orange (45-50 dBZ) - RainViewer heavy precipitation
+    if (r > 200 && g > 100 && g < 200 && b < 100) {
+      return 45 + ((r - 200) / 55) * 5;
+    }
+    
+    // Red (50-55 dBZ) - RainViewer very heavy precipitation  
+    if (r > 200 && g < 100 && b < 100) {
+      return 50 + ((255 - g - b) / 155) * 5;
+    }
+    
+    // Purple/Magenta (55+ dBZ) - RainViewer extreme precipitation
+    if (r > 150 && b > 150 && g < 150) {
+      return Math.min(60, 55 + ((r + b - 300) / 110) * 5);
+    }
+    
+    // No match or below 30 dBZ threshold
+    return 0;
   };
 
   // Sample radar dBZ values from both NEXRAD and RainViewer
