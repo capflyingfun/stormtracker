@@ -456,18 +456,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
           <p className="text-sm text-slate-300 leading-relaxed">
             {generateStormStory(sortedStorms)}
           </p>
-          {sortedStorms.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-slate-600/50">
-              <div className="text-xs text-slate-400 mb-1">📚 Learning About Weather Radar:</div>
-              <div className="text-xs text-slate-400 italic">
-                {(() => {
-                  const closestStorm = sortedStorms[0];
-                  const personality = getStormPersonality(closestStorm.intensity);
-                  return personality.educationalNote;
-                })()}
-              </div>
-            </div>
-          )}
+
         </div>
       )}
 
