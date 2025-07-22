@@ -852,17 +852,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🌤️ Fetching weather story data for ${latitude}, ${longitude}`);
       
-      // Fetch both forecast and current weather data
-      const [nwsForecast, currentWeatherResult] = await Promise.allSettled([
+      // Fetch forecast, current weather, and alerts data
+      const [nwsForecast, currentWeatherResult, alertsResult] = await Promise.allSettled([
         fetchNWSForecast(latitude, longitude),
         // Use the existing aviation weather endpoint that includes current conditions
         fetch(`http://localhost:5000/api/aviation-weather?lat=${latitude}&lon=${longitude}`)
-          .then(r => r.ok ? r.json() : null)
+          .then(r => r.ok ? r.json() : null),
+        // Fetch NWS alerts for the location
+        fetchNWSAlerts(latitude, longitude)
       ]);
       
       const result = {
         forecast: nwsForecast.status === 'fulfilled' ? nwsForecast.value : null,
         currentWeather: currentWeatherResult.status === 'fulfilled' ? currentWeatherResult.value?.currentWeather : null,
+        alerts: alertsResult.status === 'fulfilled' ? alertsResult.value?.alerts || [] : [],
         location: { lat: latitude, lon: longitude }
       };
       
