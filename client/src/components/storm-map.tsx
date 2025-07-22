@@ -2126,6 +2126,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           >
             {showSectorGrid ? "Hide" : "Show"} Grid
           </Button>
+          <Button
+            onClick={sampleRadarDbz}
+            variant="outline"
+            size="sm"
+            className="text-xs px-2 whitespace-nowrap"
+            disabled={isAnimating}
+          >
+            Update Storms
+          </Button>
 
           {/* Animation controls disabled - showing latest frame only */}
         </div>
@@ -2144,18 +2153,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </div>
         )}
         
-        {/* Radar Controls - Top Right */}
-        <div className="absolute top-3 right-3 z-[1000] flex gap-2">
-          <Button
-            onClick={sampleRadarDbz}
-            variant="outline"
-            size="sm"
-            className="text-xs px-3 py-2 bg-slate-800/90 border-slate-600 hover:bg-slate-700/90"
-            disabled={isAnimating}
-          >
-            Update Storms
-          </Button>
-        </div>
+
       </div>
       
       {/* Radar Info - Moved to Bottom */}
