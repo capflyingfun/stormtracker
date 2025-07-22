@@ -137,18 +137,20 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return () => window.removeEventListener('precipitationStormData', handlePrecipitationStormData as EventListener);
   }, []);
 
-  // Auto-sampling functionality (immediate on map movement)
+  // Auto-sampling functionality (with delay for radar loading)
   const triggerAutoSample = useCallback(() => {
     // Clear any existing timeout
     if (autoSampleTimeoutRef.current) {
       clearTimeout(autoSampleTimeoutRef.current);
     }
     
-    // Immediate sampling when map moves (like Wind Aloft)
-    if (mapInstanceRef.current && location && radarFrames.length > 0) {
-      console.log('Auto-sampling triggered by map movement');
-      sampleRadarDbz();
-    }
+    // Add a short delay to ensure radar tiles are loaded after winds aloft update
+    autoSampleTimeoutRef.current = setTimeout(async () => {
+      if (mapInstanceRef.current && location && radarFrames.length > 0) {
+        console.log('Auto-sampling triggered by map movement (delayed for radar loading)');
+        await sampleRadarDbz();
+      }
+    }, 750); // 750ms delay to ensure radar tiles load after winds aloft
   }, [location, radarFrames.length]);
 
 
@@ -409,13 +411,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       }
       
       // Add map event listeners for auto-sampling and winds aloft with debouncing
-      const debouncedTrigger = () => {
+      const debouncedTrigger = async () => {
         console.log('Map movement detected, triggering auto-sample and winds aloft update');
-        triggerAutoSample();
         
-        // Update winds aloft data for new map center
+        // Update winds aloft data for new map center first
         const center = map.getCenter();
-        updateWindsAloftForCenter(center.lat, center.lng);
+        await updateWindsAloftForCenter(center.lat, center.lng);
+        
+        // Then trigger auto-sampling with delay for radar loading
+        triggerAutoSample();
       };
       
       map.on('moveend', debouncedTrigger);
