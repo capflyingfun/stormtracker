@@ -96,12 +96,22 @@ function WeatherStoryInline({ storms, userLocation }: { storms: any[], userLocat
       const todayWind = todayForecast.windSpeed && todayForecast.windDirection ? 
         `winds ${todayForecast.windDirection} @ ${todayForecast.windSpeed.toLowerCase()}` : '';
       
-      // Extract precipitation chance from detailed forecast if not in probabilityOfPrecipitation
+      // Extract precipitation chance from multiple sources
       let precipChance = '';
+      
+      // First, try probabilityOfPrecipitation field
       if (todayForecast.probabilityOfPrecipitation?.value) {
         precipChance = `${todayForecast.probabilityOfPrecipitation.value}% chance of rain`;
-      } else if (todayForecast.detailedForecast) {
-        // Try to extract percentage from detailed forecast
+      }
+      // Second, try extracting from shortForecast
+      else if (todayForecast.shortForecast) {
+        const shortMatch = todayForecast.shortForecast.match(/(\d+)\s*%/);
+        if (shortMatch) {
+          precipChance = `${shortMatch[1]}% chance of rain`;
+        }
+      }
+      // Third, try extracting from detailedForecast
+      else if (todayForecast.detailedForecast) {
         const precipMatch = todayForecast.detailedForecast.match(/(\d+)\s*percent/i);
         if (precipMatch) {
           precipChance = `${precipMatch[1]}% chance of rain`;
