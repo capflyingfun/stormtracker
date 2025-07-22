@@ -98,8 +98,13 @@ function getStormPersonality(intensity: number): {
   }
 }
 
-function generateStormStory(storms: any[], weatherStoryData?: any): string {
+function generateStormStory(storms: any[], weatherStoryData?: any, isLoading?: boolean): string {
   let story = "";
+  
+  // Show loading message while storms are being detected
+  if (isLoading) {
+    return "🔍 Scanning for storm activity... Please wait while we analyze weather radar data.";
+  }
   
   // Storm analysis section
   if (!storms || storms.length === 0) {
