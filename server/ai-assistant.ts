@@ -55,6 +55,63 @@ function getStormPersonality(intensity: number): {
   }
 }
 
+// Build simplified prompt without emoji storytelling for fallback
+function buildBasicPrompt(data: WeatherAssessmentData, dynamicTone: any): string {
+  const immediateStormContext = data.storms.map(storm => ({
+    distance: typeof storm.distance === 'number' ? `${storm.distance.toFixed(1)} miles` : `${storm.distance}`,
+    direction: `${getDirectionName(storm.direction || storm.bearing || 0)} of you`,
+    intensity: `${storm.intensity} dBZ`,
+    movement: storm.movement ? 
+      `Moving ${storm.movement.direction}° at ${storm.movement.speed} mph${storm.movement.eta ? `, ETA: ${storm.movement.eta}` : ''}` : 
+      'Movement unknown'
+  }));
+
+  const regionalContext = data.regionalStorms ? {
+    totalStorms: data.regionalStorms.length,
+    severeCount: data.regionalStorms.filter(s => s.intensity >= 55).length,
+    moderateCount: data.regionalStorms.filter(s => s.intensity >= 35 && s.intensity < 55).length
+  } : { totalStorms: 0, severeCount: 0, moderateCount: 0 };
+
+  return `Analyze this weather data and provide detailed assessment in JSON format:
+
+=== LOCATION ===
+Location: ${data.userLocation.address || 'Unknown location'}
+Coordinates: ${data.userLocation.lat}, ${data.userLocation.lon}
+
+=== ACTIVE STORMS & RADAR ===
+Radar Source: ${data.radarSource} (authentic weather radar)
+Lightning Activity: ${data.lightningCount || 0} recent strikes
+
+Immediate Storm Context (30 miles):
+${immediateStormContext.length === 0 ? '• No active storms detected within 30 miles' : 
+  immediateStormContext.map((storm, index) => 
+    `• Storm ${index + 1}: ${storm.intensity} at ${storm.distance} ${storm.direction}, ${storm.movement}`
+  ).join('\n')
+}
+
+Regional Context (50 miles):
+• Total regional storms: ${regionalContext.totalStorms}
+• Severe storms (55+ dBZ): ${regionalContext.severeCount}  
+• Moderate storms (35-54 dBZ): ${regionalContext.moderateCount}
+
+=== WINDS ALOFT DATA ===
+${(data.winds || []).length === 0 ? 'Wind data not available' : 
+  (data.winds || []).map(wind => 
+    `• ${wind.altitude}: ${wind.speed} from ${wind.direction}`
+  ).join('\n')
+}
+
+=== THREAT MONITORING ===
+${data.threatData ? 
+  `Active threats detected: ${data.threatData.threatCount} systems
+Temperature: ${data.threatData.temperature}°${data.useMetric ? 'C' : 'F'}
+Alert status: ${data.threatData.alertStatus}` : 
+  'Threat data not available'
+}
+
+Please provide comprehensive analysis including alerts, winds aloft, airport data, and forecast discussion.`;
+}
+
 // Generate emoji-based weather story narratives
 function generateWeatherStory(storms: StormData[]): string {
   if (!storms || storms.length === 0) {
@@ -62,19 +119,23 @@ function generateWeatherStory(storms: StormData[]): string {
   }
 
   const closestStorm = storms[0]; // storms are sorted by distance
+  console.log('generateWeatherStory: closestStorm data:', JSON.stringify(closestStorm));
+  
   const stormPersonality = getStormPersonality(closestStorm.intensity);
   
   let story = `${stormPersonality.emoji} ${stormPersonality.personality} is ${stormPersonality.description} `;
   
   // Add distance and direction context
-  const directionName = getDirectionName(closestStorm.bearing);
+  console.log('generateWeatherStory: closestStorm.bearing =', closestStorm.bearing);
+  const directionName = getDirectionName(closestStorm.bearing || 0);
+  console.log('generateWeatherStory: directionName =', directionName);
   const distance = typeof closestStorm.distance === 'number' ? closestStorm.distance.toFixed(1) : closestStorm.distance;
-  story += `about ${distance} miles ${directionName.toLowerCase()} of you. `;
+  story += `about ${distance} miles ${directionName ? directionName.toLowerCase() : 'unknown direction'} of you. `;
   
   // Add movement context if available
   if (closestStorm.movement) {
     const movementDir = getDirectionName(closestStorm.movement.direction || 0);
-    story += `This ${stormPersonality.simpleName.toLowerCase()} is traveling ${movementDir.toLowerCase()} at ${closestStorm.movement.speed} mph. `;
+    story += `This ${stormPersonality.simpleName.toLowerCase()} is traveling ${movementDir ? movementDir.toLowerCase() : 'in an unknown direction'} at ${closestStorm.movement.speed || 0} mph. `;
     
     // Add ETA if approaching
     if (closestStorm.movement.eta && closestStorm.movement.eta !== 'N/A') {
@@ -102,12 +163,24 @@ function generateWeatherStory(storms: StormData[]): string {
 
 // Convert bearing to direction name
 function getDirectionName(bearing: number): string {
+  if (typeof bearing !== 'number' || isNaN(bearing)) {
+    console.log('Invalid bearing provided to getDirectionName:', bearing);
+    return "unknown";
+  }
+  
   const directions = [
     "North", "NNE", "NE", "ENE", "East", "ESE", "SE", "SSE",
     "South", "SSW", "SW", "WSW", "West", "WNW", "NW", "NNW"
   ];
   const index = Math.round(bearing / 22.5) % 16;
-  return directions[index];
+  const result = directions[index];
+  
+  if (!result) {
+    console.log('Direction lookup failed for bearing:', bearing, 'index:', index);
+    return "unknown";
+  }
+  
+  return result;
 }
 
 // Dynamic AI tone based on weather severity - prioritize alerts first
@@ -511,7 +584,7 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       const directionName = getDirectionName(storm.direction || storm.bearing || 0);
       
       return {
-        distance: `${storm.distance.toFixed(1)} miles`,
+        distance: typeof storm.distance === 'number' ? `${storm.distance.toFixed(1)} miles` : `${storm.distance}`,
         direction: `${directionName} of you`,
         intensity: `${storm.intensity} dBZ (${storm.category})`,
         stormSeverity: stormSeverity, // Storm intensity classification
@@ -657,7 +730,22 @@ Radar Source: ${data.radarSource} (authentic weather radar)
 Lightning Activity: ${data.lightningCount || 0} recent strikes
 
 **EMOJI-BASED WEATHER STORY:**
-${generateWeatherStory(immediateStormContext)}
+${immediateStormContext.length === 0 ? '🌤️ Clear skies with no significant storms in your area! ✨' : 
+  (() => {
+    try {
+      const storm = immediateStormContext[0];
+      if (!storm) return '🌤️ No storm data available for storytelling.';
+      
+      const personality = getStormPersonality(storm.intensity || 0);
+      const distance = storm.distance || 'unknown distance';
+      const direction = storm.direction ? getDirectionName(storm.direction) : 'unknown direction';
+      
+      return `${personality.emoji} ${personality.personality} is ${personality.description} about ${distance} miles ${direction.toLowerCase()} of you. ${personality.educationalNote}`;
+    } catch (error) {
+      console.log('Weather story generation error:', error.message);
+      return '🌤️ Weather story temporarily unavailable - see technical analysis below.';
+    }
+  })()}
 
 **TECHNICAL STORM ANALYSIS:**
 ${immediateStormContext.length === 0 ? '• No active storms detected within 50 miles' : 
@@ -802,6 +890,41 @@ Provide your assessment in this exact JSON format:
   } catch (error) {
     console.error('AI weather assessment error:', error);
     console.error('Error details:', error.message);
+    
+    // If it's a specific issue with emoji storytelling, try to provide comprehensive analysis without it
+    if (error.message && (error.message.includes('toLowerCase') || error.message.includes('toFixed'))) {
+      console.log('Attempting fallback with comprehensive analysis but simplified storytelling...');
+      
+      // Try again with a simplified prompt that still includes all the comprehensive data
+      try {
+        const simplifiedPrompt = buildBasicPrompt(data, dynamicTone); // Use simplified prompt without emoji storytelling
+        
+        const fallbackResponse = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: "You are an expert meteorologist providing precise weather impact assessments based on real radar and atmospheric data. Respond only with valid JSON." },
+            { role: "user", content: simplifiedPrompt }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.3,
+          max_tokens: 2500
+        });
+        
+        const fallbackResult = JSON.parse(fallbackResponse.choices[0].message.content || '{}');
+        console.log('Successfully generated comprehensive analysis with fallback storytelling');
+        
+        return {
+          riskLevel: fallbackResult.riskLevel || 'low',
+          summary: fallbackResult.summary || 'Weather conditions analyzed.',
+          detailedAnalysis: fallbackResult.detailedAnalysis || 'Comprehensive weather analysis provided.',
+          recommendations: fallbackResult.recommendations || ['Monitor weather conditions.'],
+          timeToImpact: fallbackResult.timeToImpact,
+          confidence: Math.min(Math.max(fallbackResult.confidence || 0.7, 0), 1)
+        };
+      } catch (fallbackError) {
+        console.log('Fallback comprehensive analysis also failed, using authentic radar fallback');
+      }
+    }
     
     // Smart fallback assessment based on actual storm data
     const highIntensityStorms = data.storms.filter(s => s.intensity >= 55);
