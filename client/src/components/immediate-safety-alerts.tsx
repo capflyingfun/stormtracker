@@ -58,7 +58,7 @@ const convertTimezonesInText = (text: string, targetTimezone: string): string =>
   
   return text.replace(timePattern, (match, hour, minute = '00', ampm, timezone) => {
     try {
-      // Create a date object for the original time
+      // Parse the time components
       const originalHour = parseInt(hour);
       const originalMinute = parseInt(minute);
       
@@ -67,34 +67,38 @@ const convertTimezonesInText = (text: string, targetTimezone: string): string =>
       if (ampm.toUpperCase() === 'PM' && originalHour !== 12) hour24 += 12;
       if (ampm.toUpperCase() === 'AM' && originalHour === 12) hour24 = 0;
       
-      // Create date with original timezone
-      const today = new Date();
-      const originalDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour24, originalMinute);
-      
-      // Get timezone offsets
+      // UTC offset hours for each timezone
       const timezoneOffsets: { [key: string]: number } = {
-        'EST': -5, 'EDT': -4,
-        'CST': -6, 'CDT': -5,
-        'MST': -7, 'MDT': -6,
-        'PST': -8, 'PDT': -7
+        'EST': -5, 'EDT': -4,  // Eastern
+        'CST': -6, 'CDT': -5,  // Central
+        'MST': -7, 'MDT': -6,  // Mountain
+        'PST': -8, 'PDT': -7   // Pacific
       };
       
-      const originalOffset = timezoneOffsets[timezone.toUpperCase()];
-      if (originalOffset === undefined) return match; // Keep original if timezone not found
+      const sourceOffset = timezoneOffsets[timezone.toUpperCase()];
+      if (sourceOffset === undefined) return match; // Keep original if timezone not found
       
-      // Convert to UTC first, then to target timezone
-      const utcTime = originalDate.getTime() - (originalOffset * 60 * 60 * 1000);
-      const targetDate = new Date(utcTime);
+      // Get current date for context
+      const today = new Date();
+      
+      // Create date in UTC representing the source time
+      const utcDate = new Date(Date.UTC(
+        today.getUTCFullYear(),
+        today.getUTCMonth(),
+        today.getUTCDate(),
+        hour24 - sourceOffset, // Convert to UTC
+        originalMinute
+      ));
       
       // Format in target timezone
-      const localTime = targetDate.toLocaleString('en-US', {
+      const convertedTime = utcDate.toLocaleString('en-US', {
         timeZone: targetTimezone,
         hour: 'numeric',
         minute: '2-digit',
         timeZoneName: 'short'
       });
       
-      return localTime;
+      return convertedTime;
     } catch (error) {
       console.log('Time conversion error:', error);
       return match; // Return original if conversion fails
