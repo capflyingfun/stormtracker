@@ -121,6 +121,24 @@ Preferred communication style: Simple, everyday language with customizable AI as
 5. **Performance**: Optimized map rendering with conditional layer loading
 6. **Accessibility**: Radix UI components ensure WCAG compliance
 
+## Recent Changes - July 22, 2025
+
+### Manual Refresh Loading Indicator Enhancement (July 22, 2025)
+- **Enhanced Visual Feedback**: Added comprehensive loading state to manual "Refresh Data" button with hourglass icon and "Refreshing..." text
+- **Animated Progress Bar**: Gray progress bar appears under button text during refresh with pulsing animation for clear visual feedback
+- **Button State Management**: Button becomes disabled during refresh operations to prevent multiple simultaneous requests and user confusion
+- **Professional Loading Experience**: 500ms loading state duration ensures users see clear feedback when manually triggering storm data updates
+- **Emerald Green Styling**: Button uses professional weather app color scheme with hover animations and scaling effects
+- **50-Mile Radius Limitation Solution**: Manual refresh button provides essential fallback when auto-sampling fails due to geographic distance limitations
+- **User Experience Improvement**: Eliminates user confusion from clicking button multiple times when no visual feedback was provided
+
+### 25 dBZ Meteorological Threshold Rationale (July 22, 2025)
+- **False Positive Filtering**: 25 dBZ minimum threshold intentionally filters out atmospheric noise, light moisture, and ground clutter
+- **Meteorological Standards**: Threshold based on professional weather service practices for distinguishing trackable precipitation from background noise
+- **Authentic Storm Detection**: System focuses only on meaningful weather systems rather than displaying insignificant moisture or false radar returns
+- **Ground Clutter Elimination**: Prevents tracking of non-meteorological radar returns from buildings, mountains, or other ground features
+- **Professional Weather App Accuracy**: Maintains data integrity by only displaying precipitation worth monitoring for safety and planning purposes
+
 ## Recent Changes - July 20, 2025
 
 ### Streamlined Interface Implementation (July 20, 2025)
@@ -644,6 +662,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Cleared Stale Data**: Precipitation storms are properly cleared when switching locations or radar sources
 - **Zero-Storm Accuracy**: When no precipitation is detected (like London with 0 points), Storm Cells correctly shows "No storms detected"
 - **Consistent Data Source**: Both precipitation waypoints and Storm Cells now use identical real radar data for 100% accuracy
+- **Meteorological Threshold**: System only tracks precipitation ≥25 dBZ to filter out atmospheric noise, light moisture, and ground clutter for accurate storm detection
 
 ### Enhanced Storm Direction Alerts (July 18, 2025)
 - **Alert Direction Integration**: Weather alerts now include nearest storm direction in format "N(000°) @ 2.6 miles" for clear positioning
