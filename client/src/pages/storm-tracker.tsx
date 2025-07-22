@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIWeatherAssistant from "@/components/ai-weather-assistant";
+import DeviceDiagnostics from "@/components/device-diagnostics";
 
 // Removed duplicate WeatherStoryInline component - Weather Story now handled by StormPanel
 
@@ -182,6 +183,7 @@ export default function StormTracker() {
   const [showMessages, setShowMessages] = useState(false);
   const [windsData, setWindsData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages'>('tracker');
+  const [showDeviceDiagnostics, setShowDeviceDiagnostics] = useState(false);
 
 
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -520,6 +522,14 @@ export default function StormTracker() {
                     className="text-xs sm:text-sm"
                   >
                     🌐 GPS
+                  </Button>
+                  <Button
+                    onClick={() => setShowDeviceDiagnostics(true)}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs sm:text-sm bg-blue-600/20 border-blue-500/50 text-blue-400 hover:bg-blue-600/30"
+                  >
+                    🔧 Device Debug
                   </Button>
                 </div>
               </div>
@@ -1000,6 +1010,11 @@ export default function StormTracker() {
         />
       )}
       
+      {/* Device Diagnostics */}
+      <DeviceDiagnostics 
+        isOpen={showDeviceDiagnostics}
+        onClose={() => setShowDeviceDiagnostics(false)}
+      />
 
     </div>
   );

@@ -4454,6 +4454,30 @@ Guidelines:
     }
   });
 
+  // Speed test endpoint for device diagnostics
+  app.get('/api/speed-test', (req, res) => {
+    const { ping } = req.query;
+    
+    if (ping === 'true') {
+      // Simple ping response
+      res.json({ pong: true, timestamp: Date.now() });
+    } else {
+      // Return 1KB of data for download speed testing
+      const testData = 'x'.repeat(1024);
+      res.json({ data: testData, size: 1024, timestamp: Date.now() });
+    }
+  });
+
+  app.post('/api/speed-test', (req, res) => {
+    // Echo back received data for upload speed testing
+    const receivedSize = JSON.stringify(req.body).length;
+    res.json({ 
+      received: true, 
+      size: receivedSize, 
+      timestamp: Date.now() 
+    });
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
