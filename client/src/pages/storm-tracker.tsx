@@ -18,6 +18,145 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIWeatherAssistant from "@/components/ai-weather-assistant";
 
+// Weather Story Component for Modal
+function WeatherStoryInline({ storms, userLocation }: { storms: any[], userLocation: any }) {
+  // Fetch weather story data
+  const { data: weatherStoryData } = useQuery({
+    queryKey: ['/api/weather-story-data', userLocation?.lat, userLocation?.lon],
+    queryFn: async () => {
+      const response = await fetch(`/api/weather-story-data?lat=${userLocation?.lat}&lon=${userLocation?.lon}`);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return response.json();
+    },
+    enabled: !!userLocation?.lat && !!userLocation?.lon,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    refetchInterval: 15 * 60 * 1000, // Refresh every 15 minutes
+  });
+
+  const getDirectionName = (degrees: number): string => {
+    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const index = Math.round(degrees / 22.5) % 16;
+    return directions[index];
+  };
+
+  const generateStormStory = (sortedStorms: any[], weatherData?: any): string => {
+    if (!sortedStorms || sortedStorms.length === 0) {
+      return "🌤️ Clear skies ahead! No active storms detected in your area. It's a perfect time to enjoy the peaceful weather.";
+    }
+
+    // Get closest and strongest storms
+    const closestStorm = [...sortedStorms].sort((a, b) => a.distance - b.distance)[0];
+    const strongestStorm = [...sortedStorms].sort((a, b) => b.intensity - a.intensity)[0];
+    
+    let story = '';
+    
+    const getStormPersonality = (intensity: number) => {
+      if (intensity >= 61) return { emoji: '🌪️💀', personality: 'dangerous monster storm', description: 'raging with extreme fury', educationalNote: '61+ dBZ indicates extreme thunderstorms with large hail and destructive winds' };
+      if (intensity >= 55) return { emoji: '⛈️🔥', personality: 'severe thunderstorm', description: 'crackling with intense energy', educationalNote: '55+ dBZ can produce quarter-size hail and damaging winds' };
+      if (intensity >= 46) return { emoji: '🌧️⚡', personality: 'heavy rain shower', description: 'pouring steadily with occasional rumbles', educationalNote: '46-54 dBZ produces heavy rainfall that can cause localized flooding' };
+      if (intensity >= 35) return { emoji: '🌦️☔', personality: 'moderate rain', description: 'pattering gently but persistently', educationalNote: '35-45 dBZ creates moderate rainfall suitable for watering gardens' };
+      return { emoji: '🌤️💧', personality: 'gentle sprinkle', description: 'quietly misting the area', educationalNote: '20-34 dBZ produces light rain or drizzle' };
+    };
+
+    // Closest storm analysis
+    const closestPersonality = getStormPersonality(closestStorm.intensity);
+    const directionName = getDirectionName(closestStorm.direction || 0);
+    const distance = closestStorm.distance?.toFixed(1) || 'unknown';
+    
+    story += `${closestPersonality.emoji} The nearest storm is a ${closestPersonality.personality} ${closestPersonality.description} ${directionName} at ${distance} miles away`;
+    
+    // Movement context if available
+    if (closestStorm.windsPrediction && closestStorm.windsPrediction.speed > 0) {
+      const movementDir = getDirectionName(closestStorm.windsPrediction.direction || 0);
+      story += `, moving ${movementDir} at ${closestStorm.windsPrediction.speed} mph`;
+    }
+    story += '. ';
+    
+    // Strongest storm information (if different from closest)
+    if (strongestStorm.id !== closestStorm.id) {
+      const strongestPersonality = getStormPersonality(strongestStorm.intensity);
+      const strongestDirection = getDirectionName(strongestStorm.direction || 0);
+      const strongestDistance = strongestStorm.distance?.toFixed(1) || 'unknown';
+      story += `The strongest storm in the area is ${strongestPersonality.emoji} ${strongestPersonality.personality} with ${strongestStorm.intensity} dBZ intensity ${strongestDirection} at ${strongestDistance} miles away. `;
+    }
+    
+    // Educational component
+    if (closestStorm) {
+      const personality = getStormPersonality(closestStorm.intensity);
+      story += `\n\n💡 ${personality.educationalNote}.`;
+    }
+    
+    // Weather forecast section
+    if (weatherData?.forecast && weatherData.forecast.periods && weatherData.forecast.periods.length > 0) {
+      const todayForecast = weatherData.forecast.periods[0];
+      const tonightForecast = weatherData.forecast.periods.length > 1 ? weatherData.forecast.periods[1] : null;
+      
+      // Extract key forecast details
+      const todayTemp = todayForecast.temperature ? `${todayForecast.temperature}°F` : '';
+      const todayWind = todayForecast.windSpeed && todayForecast.windDirection ? 
+        `winds ${todayForecast.windDirection} @ ${todayForecast.windSpeed.toLowerCase()}` : '';
+      
+      // Extract precipitation chance from detailed forecast if not in probabilityOfPrecipitation
+      let precipChance = '';
+      if (todayForecast.probabilityOfPrecipitation?.value) {
+        precipChance = `${todayForecast.probabilityOfPrecipitation.value}% chance of rain`;
+      } else if (todayForecast.detailedForecast) {
+        // Try to extract percentage from detailed forecast
+        const precipMatch = todayForecast.detailedForecast.match(/(\d+)\s*percent/i);
+        if (precipMatch) {
+          precipChance = `${precipMatch[1]}% chance of rain`;
+        }
+      }
+      
+      story += `\n\n🌤️ Today: ${todayForecast.name || 'Today'} - ${todayForecast.shortForecast || 'Conditions updating'}`;
+      
+      // Add temperature, precipitation, and wind info
+      const details = [todayTemp, precipChance, todayWind].filter(Boolean);
+      if (details.length > 0) {
+        story += ` with ${details.join(', ')}`;
+      }
+      
+      // Tonight's forecast
+      if (tonightForecast) {
+        const tonightTemp = tonightForecast.temperature ? `low ${tonightForecast.temperature}°F` : '';
+        story += `\n\n🌙 ${tonightForecast.name || 'Tonight'}: ${tonightForecast.shortForecast || 'Conditions updating'}`;
+        if (tonightTemp) {
+          story += ` with ${tonightTemp}`;
+        }
+      }
+    }
+    
+    // Current conditions section
+    if (weatherData?.conditions) {
+      const weather = weatherData;
+      const conditionsParts = [];
+      
+      if (weather.conditions?.temperature && weather.conditions.temperature !== 'Unknown') {
+        conditionsParts.push(`${Math.round(weather.conditions.temperature)}°F`);
+      }
+      if (weather.conditions?.humidity && weather.conditions.humidity !== 'Unknown') {
+        conditionsParts.push(`${weather.conditions.humidity}% humidity`);
+      }
+      if (weather.conditions?.windSpeed && weather.conditions.windDirection) {
+        const windDir = getDirectionName(weather.conditions.windDirection);
+        conditionsParts.push(`winds ${windDir} @ ${Math.round(weather.conditions.windSpeed)} mph`);
+      }
+      
+      if (conditionsParts.length > 0) {
+        story += `\n\n🌡️ Current conditions: ${conditionsParts.join(', ')}`;
+      }
+    }
+    
+    return story;
+  };
+
+  return (
+    <div>
+      {generateStormStory(storms, weatherStoryData)}
+    </div>
+  );
+}
+
 // Embedded Message Inbox Component for Modal
 function EmbeddedMessageInbox() {
   const [selectedMessage, setSelectedMessage] = useState<any | null>(null);
@@ -718,6 +857,25 @@ export default function StormTracker() {
                       </div>
                     );
                   })()}
+                </div>
+              </div>
+            )}
+
+            {/* Weather Story Modal */}
+            {location && precipitationStorms && (
+              <div className="mb-4 sm:mb-6 max-w-4xl mx-auto">
+                <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="text-2xl">📖</div>
+                    <h2 className="text-xl font-semibold">Weather Story</h2>
+                  </div>
+                  <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
+                    {/* Weather Story Content - Inline for now */}
+                    <WeatherStoryInline 
+                      storms={precipitationStorms} 
+                      userLocation={location}
+                    />
+                  </div>
                 </div>
               </div>
             )}
