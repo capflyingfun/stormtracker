@@ -123,6 +123,14 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 22, 2025
 
+### Weather Story UI Improvements & Learning Section Removal (July 22, 2025)
+- **Enhanced Weather Story Formatting**: Fixed directional information display to show proper "SE at 70.3 miles" format instead of "about 70.3 miles away"
+- **Removed "Weather Systems" Language**: Eliminated references to "weather systems" in multi-storm descriptions, now displays cleaner "plus X more" format with dBZ ranges
+- **Learning Section Removal Complete**: Successfully removed "Learning About Weather Radar" section from storm panel interface for cleaner user experience
+- **Enhanced Multi-Storm Context**: Improved contextual information for multiple storms with directional positioning and intensity range summaries
+- **Radar Quality Improvements**: Enhanced NEXRAD radar tile caching and visual quality with optimized opacity and zoom capabilities
+- **Weather Story Error Handling**: Fixed comprehensive fallback system ensuring detailed weather analysis always available regardless of storytelling status
+
 ### Emoji-Based Weather Alert Storytelling System with Comprehensive Analysis Integration (July 22, 2025)
 - **AI Weather Storytelling**: Implemented comprehensive emoji-based weather narratives in AI assistant that translate technical dBZ values into engaging, accessible stories
 - **Storm Personality System**: Created personality-based storm descriptions (e.g., "🌪️💀 DANGEROUS monster storm raging with extreme fury" vs "🌤️😌 gentle sprinkle quietly misting the area")
