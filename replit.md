@@ -547,13 +547,13 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Data Source Verification**: System validates against professional lightning tracking apps (Lightning Tracker Pro) for accuracy assessment
 - **NWS Partnership Opportunity**: Professional presentation prepared for National Weather Service collaboration on lightning data integration
 
-### Static NEXRAD Implementation (July 17, 2025)
-- **Static Radar Display**: NEXRAD configured for stable, current radar visualization without animation
-- **Disabled Animation Controls**: Play button disabled for NEXRAD to prevent animation attempts
-- **Simplified Frame Loading**: Removed complex timestamp fetching for streamlined static operation  
-- **Clear UI Indicators**: Interface clearly shows NEXRAD as "Static" vs RainViewer as "Animated"
-- **Reliable Operation**: Static NEXRAD provides consistent radar overlay and precipitation detection
-- **Authentic Data Focus**: Maintained authentic Iowa Mesonet NEXRAD tiles for precipitation waypoint detection
+### NEXRAD Animation Implementation (July 22, 2025)
+- **30-Minute Historical Animation**: NEXRAD configured for 30-minute historical animation (6 frames at 5-minute intervals) for optimal reliability
+- **Enabled Animation Controls**: Play button functionality restored for NEXRAD historical frame cycling
+- **Enhanced Timestamp Generation**: Fixed timestamp formatting bug that was generating invalid 1970-era dates
+- **Optimized Timeframe**: Reduced from 2-hour to 30-minute historical window for better Iowa Environmental Mesonet archive availability
+- **Improved Frame Loading**: Enhanced error handling and fallback mechanisms for more reliable frame loading
+- **Authentic Historical Data**: Uses Iowa Environmental Mesonet NEXRAD archive for authentic historical radar data
 
 ### Radar Source-Specific dBZ Calibration (July 18, 2025)
 - **Separate Threshold Systems**: Implemented radar source-specific dBZ thresholds to account for calibration differences
