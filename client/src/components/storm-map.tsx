@@ -1786,11 +1786,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
           const data = imageData.data;
           
-          // Sample every 20th pixel for mobile performance (reduces waypoints by 96%)
-          const sampleStep = 20;
+          // Adaptive sampling: Start with coarse scan, then fine-tune around precipitation
+          const coarseSampleStep = 32; // Initial coarse scan
+          const fineSampleStep = 8; // Fine sampling around detected precipitation
+          const precipitationAreas: {x: number, y: number, dbz: number}[] = [];
           
-          for (let x = 0; x < tileSize; x += sampleStep) {
-            for (let y = 0; y < tileSize; y += sampleStep) {
+          // Phase 1: Coarse scan to find precipitation areas
+          for (let x = 0; x < tileSize; x += coarseSampleStep) {
+            for (let y = 0; y < tileSize; y += coarseSampleStep) {
               const pixelIndex = (y * tileSize + x) * 4;
               const r = data[pixelIndex];
               const g = data[pixelIndex + 1];
@@ -1800,53 +1803,84 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               if (alpha > 0) {
                 const dbz = nexradColorToDbz(r, g, b);
                 if (dbz >= 25) {
-                  // Convert pixel position back to lat/lon
-                  const pixelLng = (tile.x + x / tileSize) * 360 / Math.pow(2, zoom) - 180;
-                  const pixelLatRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * (tile.y + y / tileSize) / Math.pow(2, zoom))));
-                  const pixelLat = pixelLatRad * 180 / Math.PI;
-                  
-                  // Check if this point is within our 50-mile radius
-                  const distance = calculateDistance(center.lat, center.lng, pixelLat, pixelLng);
-                  if (distance <= 50) {
-                    // Allow closer spacing for higher intensity precipitation
-                    let shouldAdd = true;
+                  precipitationAreas.push({x, y, dbz});
+                }
+              }
+            }
+          }
+          
+          // Phase 2: Fine sampling around detected precipitation areas
+          const processedPixels = new Set<string>();
+          
+          precipitationAreas.forEach(area => {
+            const startX = Math.max(0, area.x - coarseSampleStep);
+            const endX = Math.min(tileSize, area.x + coarseSampleStep);
+            const startY = Math.max(0, area.y - coarseSampleStep);
+            const endY = Math.min(tileSize, area.y + coarseSampleStep);
+            
+            for (let x = startX; x < endX; x += fineSampleStep) {
+              for (let y = startY; y < endY; y += fineSampleStep) {
+                const pixelKey = `${x}-${y}`;
+                if (processedPixels.has(pixelKey)) continue;
+                processedPixels.add(pixelKey);
+                
+                const pixelIndex = (y * tileSize + x) * 4;
+                const r = data[pixelIndex];
+                const g = data[pixelIndex + 1];
+                const b = data[pixelIndex + 2];
+                const alpha = data[pixelIndex + 3];
+                
+                if (alpha > 0) {
+                  const dbz = nexradColorToDbz(r, g, b);
+                  if (dbz >= 25) {
+                    // Convert pixel position back to lat/lon
+                    const pixelLng = (tile.x + x / tileSize) * 360 / Math.pow(2, zoom) - 180;
+                    const pixelLatRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * (tile.y + y / tileSize) / Math.pow(2, zoom))));
+                    const pixelLat = pixelLatRad * 180 / Math.PI;
                     
-                    // Check if there's already a nearby point with lower intensity
-                    for (const existingPoint of precipitationPoints) {
-                      const existingDistance = calculateDistance(pixelLat, pixelLng, existingPoint.lat, existingPoint.lon);
+                    // Check if this point is within our 50-mile radius
+                    const distance = calculateDistance(center.lat, center.lng, pixelLat, pixelLng);
+                    if (distance <= 50) {
+                      // Allow closer spacing for higher intensity precipitation
+                      let shouldAdd = true;
                       
-                      // Dynamic spacing based on intensity (increased for mobile performance)
-                      let minSpacing = 2.0; // Default minimum spacing in miles
-                      if (dbz >= 45) minSpacing = 1.0; // Allow closer spacing for heavy precipitation
-                      else if (dbz >= 35) minSpacing = 1.5; // Moderate spacing for moderate precipitation
-                      
-                      if (existingDistance < minSpacing) {
-                        // If new point has higher intensity, replace the existing one
-                        if (dbz > existingPoint.dbz) {
-                          const index = precipitationPoints.indexOf(existingPoint);
-                          precipitationPoints.splice(index, 1);
-                          shouldAdd = true;
-                          break;
-                        } else {
-                          shouldAdd = false;
-                          break;
+                      // Check if there's already a nearby point with lower intensity
+                      for (const existingPoint of precipitationPoints) {
+                        const existingDistance = calculateDistance(pixelLat, pixelLng, existingPoint.lat, existingPoint.lon);
+                        
+                        // Dynamic spacing based on intensity (increased for mobile performance)
+                        let minSpacing = 2.0; // Default minimum spacing in miles
+                        if (dbz >= 45) minSpacing = 1.0; // Allow closer spacing for heavy precipitation
+                        else if (dbz >= 35) minSpacing = 1.5; // Moderate spacing for moderate precipitation
+                        
+                        if (existingDistance < minSpacing) {
+                          // If new point has higher intensity, replace the existing one
+                          if (dbz > existingPoint.dbz) {
+                            const index = precipitationPoints.indexOf(existingPoint);
+                            precipitationPoints.splice(index, 1);
+                            shouldAdd = true;
+                            break;
+                          } else {
+                            shouldAdd = false;
+                            break;
+                          }
                         }
                       }
-                    }
-                    
-                    if (shouldAdd) {
-                      precipitationPoints.push({
-                        lat: pixelLat,
-                        lon: pixelLng,
-                        dbz: dbz,
-                        id: `${tile.x}-${tile.y}-${x}-${y}`
-                      });
+                      
+                      if (shouldAdd) {
+                        precipitationPoints.push({
+                          lat: pixelLat,
+                          lon: pixelLng,
+                          dbz: dbz,
+                          id: `${tile.x}-${tile.y}-${x}-${y}`
+                        });
+                      }
                     }
                   }
                 }
               }
             }
-          }
+          });
         } catch (error) {
           // Skip this tile on error
           continue;
@@ -1866,7 +1900,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       });
       setSectorDbzData(newSectorData);
       
-      console.log(`Found ${precipitationPoints.length} raw points, clustered to ${clusteredPoints.length} waypoints:`, clusteredPoints);
+      console.log(`NEXRAD Adaptive Sampling: Found ${precipitationAreas.length} precipitation areas, processed ${processedPixels.size} fine-sampled pixels`);
+      console.log(`NEXRAD: Found ${precipitationPoints.length} raw points, clustered to ${clusteredPoints.length} waypoints`);
       
       // Store radar frame history for accurate movement calculation
       if (precipitationPoints.length > 0) {
@@ -1971,11 +2006,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
           const data = imageData.data;
           
-          // Sample every 20th pixel for mobile performance (reduces waypoints by 96%)
-          const sampleStep = 20;
+          // Adaptive sampling: Start with coarse scan, then fine-tune around precipitation
+          const coarseSampleStep = 32; // Initial coarse scan
+          const fineSampleStep = 8; // Fine sampling around detected precipitation
+          const precipitationAreas: {x: number, y: number, dbz: number}[] = [];
           
-          for (let x = 0; x < tileSize; x += sampleStep) {
-            for (let y = 0; y < tileSize; y += sampleStep) {
+          // Phase 1: Coarse scan to find precipitation areas
+          for (let x = 0; x < tileSize; x += coarseSampleStep) {
+            for (let y = 0; y < tileSize; y += coarseSampleStep) {
               const pixelIndex = (y * tileSize + x) * 4;
               const r = data[pixelIndex];
               const g = data[pixelIndex + 1];
@@ -1985,53 +2023,84 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               if (alpha > 0) {
                 const dbz = rainviewerColorToDbz(r, g, b);
                 if (dbz >= 20) { // Lower threshold for RainViewer to catch more precipitation
-                  // Convert pixel position back to lat/lon
-                  const pixelLng = (tile.x + x / tileSize) * 360 / Math.pow(2, zoom) - 180;
-                  const pixelLatRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * (tile.y + y / tileSize) / Math.pow(2, zoom))));
-                  const pixelLat = pixelLatRad * 180 / Math.PI;
-                  
-                  // Check if this point is within our 50-mile radius
-                  const distance = calculateDistance(center.lat, center.lng, pixelLat, pixelLng);
-                  if (distance <= 50) {
-                    // Allow closer spacing for higher intensity precipitation
-                    let shouldAdd = true;
+                  precipitationAreas.push({x, y, dbz});
+                }
+              }
+            }
+          }
+          
+          // Phase 2: Fine sampling around detected precipitation areas
+          const processedPixels = new Set<string>();
+          
+          precipitationAreas.forEach(area => {
+            const startX = Math.max(0, area.x - coarseSampleStep);
+            const endX = Math.min(tileSize, area.x + coarseSampleStep);
+            const startY = Math.max(0, area.y - coarseSampleStep);
+            const endY = Math.min(tileSize, area.y + coarseSampleStep);
+            
+            for (let x = startX; x < endX; x += fineSampleStep) {
+              for (let y = startY; y < endY; y += fineSampleStep) {
+                const pixelKey = `${x}-${y}`;
+                if (processedPixels.has(pixelKey)) continue;
+                processedPixels.add(pixelKey);
+                
+                const pixelIndex = (y * tileSize + x) * 4;
+                const r = data[pixelIndex];
+                const g = data[pixelIndex + 1];
+                const b = data[pixelIndex + 2];
+                const alpha = data[pixelIndex + 3];
+                
+                if (alpha > 0) {
+                  const dbz = rainviewerColorToDbz(r, g, b);
+                  if (dbz >= 20) { // Lower threshold for RainViewer to catch more precipitation
+                    // Convert pixel position back to lat/lon
+                    const pixelLng = (tile.x + x / tileSize) * 360 / Math.pow(2, zoom) - 180;
+                    const pixelLatRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * (tile.y + y / tileSize) / Math.pow(2, zoom))));
+                    const pixelLat = pixelLatRad * 180 / Math.PI;
                     
-                    // Check if there's already a nearby point with lower intensity
-                    for (const existingPoint of precipitationPoints) {
-                      const existingDistance = calculateDistance(pixelLat, pixelLng, existingPoint.lat, existingPoint.lon);
+                    // Check if this point is within our 50-mile radius
+                    const distance = calculateDistance(center.lat, center.lng, pixelLat, pixelLng);
+                    if (distance <= 50) {
+                      // Allow closer spacing for higher intensity precipitation
+                      let shouldAdd = true;
                       
-                      // Dynamic spacing based on intensity (increased for mobile performance)
-                      let minSpacing = 2.0; // Default minimum spacing in miles
-                      if (dbz >= 45) minSpacing = 1.0; // Allow closer spacing for heavy precipitation
-                      else if (dbz >= 35) minSpacing = 1.5; // Moderate spacing for moderate precipitation
-                      
-                      if (existingDistance < minSpacing) {
-                        // If new point has higher intensity, replace the existing one
-                        if (dbz > existingPoint.dbz) {
-                          const index = precipitationPoints.indexOf(existingPoint);
-                          precipitationPoints.splice(index, 1);
-                          shouldAdd = true;
-                          break;
-                        } else {
-                          shouldAdd = false;
-                          break;
+                      // Check if there's already a nearby point with lower intensity
+                      for (const existingPoint of precipitationPoints) {
+                        const existingDistance = calculateDistance(pixelLat, pixelLng, existingPoint.lat, existingPoint.lon);
+                        
+                        // Dynamic spacing based on intensity (increased for mobile performance)
+                        let minSpacing = 2.0; // Default minimum spacing in miles
+                        if (dbz >= 45) minSpacing = 1.0; // Allow closer spacing for heavy precipitation
+                        else if (dbz >= 35) minSpacing = 1.5; // Moderate spacing for moderate precipitation
+                        
+                        if (existingDistance < minSpacing) {
+                          // If new point has higher intensity, replace the existing one
+                          if (dbz > existingPoint.dbz) {
+                            const index = precipitationPoints.indexOf(existingPoint);
+                            precipitationPoints.splice(index, 1);
+                            shouldAdd = true;
+                            break;
+                          } else {
+                            shouldAdd = false;
+                            break;
+                          }
                         }
                       }
-                    }
-                    
-                    if (shouldAdd) {
-                      precipitationPoints.push({
-                        lat: pixelLat,
-                        lon: pixelLng,
-                        dbz: dbz,
-                        id: `${tile.x}-${tile.y}-${x}-${y}`
-                      });
+                      
+                      if (shouldAdd) {
+                        precipitationPoints.push({
+                          lat: pixelLat,
+                          lon: pixelLng,
+                          dbz: dbz,
+                          id: `${tile.x}-${tile.y}-${x}-${y}`
+                        });
+                      }
                     }
                   }
                 }
               }
             }
-          }
+          });
         } catch (error) {
           // Skip this tile on error
           continue;
@@ -2051,6 +2120,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       });
       setSectorDbzData(newSectorData);
       
+      console.log(`RainViewer Adaptive Sampling: Found ${precipitationAreas.length} precipitation areas, processed ${processedPixels.size} fine-sampled pixels`);
       console.log(`RainViewer: Found ${precipitationPoints.length} raw points, clustered to ${clusteredPoints.length} waypoints`);
       
       // Store radar frame history for accurate movement calculation
