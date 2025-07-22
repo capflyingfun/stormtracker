@@ -69,6 +69,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
   const [isAnimating, setIsAnimating] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Delay showing alerts for 3 seconds to allow storm calculations to complete
   useEffect(() => {
@@ -214,14 +215,27 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
         <div className="flex items-center gap-2">
           {/* Manual refresh button */}
           <button
-            onClick={() => {
-              queryClient.invalidateQueries({ queryKey: ['/api/nws-alerts'] });
-              console.log('Manual refresh: NWS alerts updated');
+            onClick={async () => {
+              setIsRefreshing(true);
+              console.log('🔄 Refreshing NWS alerts...');
+              try {
+                await queryClient.invalidateQueries({ queryKey: ['/api/nws-alerts'] });
+                console.log('✅ NWS alerts refreshed successfully');
+              } catch (error) {
+                console.log('❌ Failed to refresh NWS alerts:', error);
+              } finally {
+                setTimeout(() => setIsRefreshing(false), 1000); // Show refresh state for 1 second
+              }
             }}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 hover:text-red-100 bg-red-900/30 hover:bg-red-900/50 rounded transition-colors"
-            title="Refresh alerts"
+            disabled={isRefreshing}
+            className={`flex items-center gap-1 px-2 py-1 text-xs ${
+              isRefreshing 
+                ? 'text-red-400 bg-red-900/50 cursor-not-allowed' 
+                : 'text-red-300 hover:text-red-100 bg-red-900/30 hover:bg-red-900/50'
+            } rounded transition-colors`}
+            title={isRefreshing ? "Refreshing..." : "Refresh alerts"}
           >
-            🔄
+            <span className={isRefreshing ? 'animate-spin' : ''}>{isRefreshing ? '⟳' : '🔄'}</span>
           </button>
           
           {/* Sort button for NWS alerts */}

@@ -596,10 +596,14 @@ export default function AIWeatherAssistant({
         {/* Manual Refresh Button - Positioned between AI Analysis and Chat */}
         <div className="flex justify-center py-2 border-t border-b border-slate-700/50">
           <Button
-            onClick={() => {
-              // Force refresh aviation weather data
-              queryClient.invalidateQueries({ queryKey: ['/api/aviation-weather'] });
-              console.log('Manual refresh: Aviation weather data updated');
+            onClick={async () => {
+              console.log('🔄 Refreshing aviation weather data...');
+              try {
+                await queryClient.invalidateQueries({ queryKey: ['/api/aviation-weather'] });
+                console.log('✅ Aviation weather data refreshed successfully');
+              } catch (error) {
+                console.log('❌ Failed to refresh aviation weather data:', error);
+              }
             }}
             disabled={!userLocation}
             size="sm"
