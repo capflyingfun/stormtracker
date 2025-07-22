@@ -115,12 +115,12 @@ function generateStormStory(storms: any[], weatherStoryData?: any): string {
     const directionName = getDirectionName(closestStorm.direction || 0);
     const distance = closestStorm.distance?.toFixed(1) || 'unknown';
     
-    story += `${closestPersonality.emoji} The nearest storm is a ${closestPersonality.personality} ${closestPersonality.description} ${directionName.toLowerCase()} at ${distance} miles away`;
+    story += `${closestPersonality.emoji} The nearest storm is a ${closestPersonality.personality} ${closestPersonality.description} ${directionName} at ${distance} miles away`;
     
     // Movement context if available
     if (closestStorm.windsPrediction && closestStorm.windsPrediction.speed > 0) {
       const movementDir = getDirectionName(closestStorm.windsPrediction.direction || 0);
-      story += `, moving ${movementDir.toLowerCase()} at ${closestStorm.windsPrediction.speed} mph`;
+      story += `, moving ${movementDir} at ${closestStorm.windsPrediction.speed} mph`;
     }
     story += `. `;
     
@@ -129,7 +129,7 @@ function generateStormStory(storms: any[], weatherStoryData?: any): string {
       const strongestPersonality = getStormPersonality(strongestStorm.intensity);
       const strongestDirection = getDirectionName(strongestStorm.direction || 0);
       const strongestDistance = strongestStorm.distance?.toFixed(1) || 'unknown';
-      story += `The strongest storm in the area is ${strongestPersonality.emoji} ${strongestPersonality.personality} with ${strongestStorm.intensity} dBZ intensity ${strongestDirection.toLowerCase()} at ${strongestDistance} miles away. `;
+      story += `The strongest storm in the area is ${strongestPersonality.emoji} ${strongestPersonality.personality} with ${strongestStorm.intensity} dBZ intensity ${strongestDirection} at ${strongestDistance} miles away. `;
     }
     
     // Additional storms summary
@@ -153,7 +153,7 @@ function generateStormStory(storms: any[], weatherStoryData?: any): string {
     // Extract key forecast details
     const todayTemp = todayForecast.temperature ? `${todayForecast.temperature}°F` : '';
     const todayWind = todayForecast.windSpeed && todayForecast.windDirection ? 
-      `${todayForecast.windDirection.toLowerCase()} winds ${todayForecast.windSpeed.toLowerCase()}` : '';
+      `${todayForecast.windDirection} winds ${todayForecast.windSpeed.toLowerCase()}` : '';
     
     // Extract precipitation chance from detailed forecast if not in probabilityOfPrecipitation
     let precipChance = '';
@@ -214,7 +214,7 @@ function generateStormStory(storms: any[], weatherStoryData?: any): string {
     }
     if (weather.conditions?.windSpeed && weather.conditions.windDirection) {
       const windDir = getDirectionName(weather.conditions.windDirection);
-      conditionsParts.push(`${windDir.toLowerCase()} winds at ${Math.round(weather.conditions.windSpeed)} mph`);
+      conditionsParts.push(`${windDir} winds at ${Math.round(weather.conditions.windSpeed)} mph`);
     }
     
     if (conditionsParts.length > 0) {
