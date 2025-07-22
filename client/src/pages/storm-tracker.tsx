@@ -238,15 +238,19 @@ export default function StormTracker() {
     const handlePrecipitationStormData = (event: any) => {
       const newPrecipitationStorms = event.detail || [];
       console.log(`Storm Panel Data: Updated precipitation storms: ${newPrecipitationStorms.length} storms detected`);
-      setPrecipitationStorms(newPrecipitationStorms);
       
-      // Log for visual highlighting (no popup alerts)
-      if (location && preferences) {
-        const qualifyingStorms = newPrecipitationStorms.filter(storm => 
-          storm.intensity >= preferences.minimumDbz
-        );
-        console.log(`Visual Alert System: Found ${qualifyingStorms.length} storms meeting ${preferences.minimumDbz}+ dBZ threshold for visual highlighting`);
-      }
+      // Use requestAnimationFrame to prevent layout shifts during modal display
+      requestAnimationFrame(() => {
+        setPrecipitationStorms(newPrecipitationStorms);
+        
+        // Log for visual highlighting (no popup alerts)
+        if (location && preferences) {
+          const qualifyingStorms = newPrecipitationStorms.filter(storm => 
+            storm.intensity >= preferences.minimumDbz
+          );
+          console.log(`Visual Alert System: Found ${qualifyingStorms.length} storms meeting ${preferences.minimumDbz}+ dBZ threshold for visual highlighting`);
+        }
+      });
     };
 
     window.addEventListener('precipitationStormData', handlePrecipitationStormData);
@@ -428,8 +432,14 @@ export default function StormTracker() {
 
       {/* Alert Subscription Modal */}
       {showAlertSubscription && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 rounded-xl max-w-lg w-full max-h-[85vh] flex flex-col">
+        <div 
+          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
+          style={{ position: 'fixed', top: '0', left: '0', width: '100%', height: '100%' }}
+        >
+          <div 
+            className="bg-slate-900 rounded-xl max-w-lg w-full max-h-[85vh] flex flex-col"
+            style={{ position: 'relative', transform: 'none' }}
+          >
             {/* Fixed Header */}
             <div className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">Storm Alert Notifications</h2>
