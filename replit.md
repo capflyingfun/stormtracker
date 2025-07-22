@@ -123,13 +123,16 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 22, 2025
 
-### Weather Story UI Improvements & Learning Section Removal (July 22, 2025)
-- **Enhanced Weather Story Formatting**: Fixed directional information display to show proper "SE at 70.3 miles" format instead of "about 70.3 miles away"
-- **Removed "Weather Systems" Language**: Eliminated references to "weather systems" in multi-storm descriptions, now displays cleaner "plus X more" format with dBZ ranges
-- **Learning Section Removal Complete**: Successfully removed "Learning About Weather Radar" section from storm panel interface for cleaner user experience
-- **Enhanced Multi-Storm Context**: Improved contextual information for multiple storms with directional positioning and intensity range summaries
-- **Radar Quality Improvements**: Enhanced NEXRAD radar tile caching and visual quality with optimized opacity and zoom capabilities
-- **Weather Story Error Handling**: Fixed comprehensive fallback system ensuring detailed weather analysis always available regardless of storytelling status
+### Enhanced Weather Story with Forecast Integration (July 22, 2025)
+- **Comprehensive Storm Analysis**: Weather Story now identifies both nearest and strongest storms with detailed directional information and personality-driven descriptions
+- **NWS Forecast Integration**: Added official National Weather Service forecast data including today's weather and tonight's forecast directly in Weather Story
+- **Current Conditions Display**: Integrated live weather conditions (temperature, humidity, wind) from aviation weather sources for complete weather picture  
+- **Natural Language Flow**: Improved story formatting to remove asterisks and section headers, creating smooth conversational narrative about weather conditions
+- **Enhanced API Integration**: Created dedicated `/api/weather-story-data` endpoint that efficiently fetches NWS forecasts and current weather data with 3-9ms response times
+- **Storm Movement Context**: Stories include storm movement direction and speed when wind prediction data is available from Open-Meteo atmospheric analysis
+- **Educational Weather Information**: Each story includes educational notes explaining dBZ values in simple terms for user weather literacy
+- **Professional Weather Integration**: Stories seamlessly blend radar-detected storms with official NWS forecasts for comprehensive weather awareness
+- **Optimized Data Fetching**: Weather story data refreshes every 15 minutes with 10-minute stale time for optimal performance and data freshness
 
 ### Emoji-Based Weather Alert Storytelling System with Comprehensive Analysis Integration (July 22, 2025)
 - **AI Weather Storytelling**: Implemented comprehensive emoji-based weather narratives in AI assistant that translate technical dBZ values into engaging, accessible stories
