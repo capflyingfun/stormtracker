@@ -1684,7 +1684,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const map = mapInstanceRef.current;
     if (!map || !window.L || !location) return;
 
-    console.log(`Starting precipitation sampling...`);
+    // Clear any pending auto-sample timeouts to prevent conflicts
+    if (autoSampleTimeoutRef.current) {
+      clearTimeout(autoSampleTimeoutRef.current);
+      autoSampleTimeoutRef.current = null;
+    }
+
+    console.log(`Manual storm update triggered`);
     
     if (radarSource === 'nexrad') {
       await sampleNexradData();
@@ -2127,11 +2133,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             {showSectorGrid ? "Hide" : "Show"} Grid
           </Button>
           <Button
-            onClick={sampleRadarDbz}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              sampleRadarDbz();
+            }}
             variant="outline"
             size="sm"
             className="text-xs px-2 whitespace-nowrap"
             disabled={isAnimating}
+            type="button"
           >
             Update Storms
           </Button>
