@@ -94,7 +94,8 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
       return data.alerts || [];
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
-    refetchInterval: 5 * 60 * 1000 // Refresh every 5 minutes
+    // Disabled automatic refresh to prevent page reloading issues
+    // refetchInterval: 5 * 60 * 1000 // Refresh every 5 minutes
   });
 
   // Identify immediate storm threats (high impact or severe proximity)

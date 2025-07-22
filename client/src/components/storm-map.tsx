@@ -286,7 +286,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     };
 
     loadRadarFrames();
-  }, [radarSource, location]); // Added location dependency
+  }, [radarSource, location?.lat, location?.lon]); // Use specific location properties to avoid object recreation issues
 
   // Animation functions
   const startAnimation = () => {

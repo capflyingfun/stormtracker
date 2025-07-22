@@ -78,7 +78,8 @@ export default function AIWeatherAssistant({
       return response.json();
     },
     enabled: !!(userLocation.lat && userLocation.lon),
-    refetchInterval: 300000, // Refresh every 5 minutes
+    // Disabled automatic refresh to prevent page reloading issues
+    // refetchInterval: 300000, // Refresh every 5 minutes
   });
 
   // Threat detection query for monitoring
@@ -218,17 +219,17 @@ export default function AIWeatherAssistant({
     refetchThreats();
   };
 
-  // Auto-monitor every 10 minutes when monitoring is active
-  useEffect(() => {
-    if (!isMonitoring) return;
-    
-    const interval = setInterval(() => {
-      setLastCheck(new Date());
-      refetchThreats();
-    }, 10 * 60 * 1000); // 10 minutes
-    
-    return () => clearInterval(interval);
-  }, [isMonitoring, refetchThreats]);
+  // Auto-monitor disabled to prevent page refresh issues
+  // useEffect(() => {
+  //   if (!isMonitoring) return;
+  //   
+  //   const interval = setInterval(() => {
+  //     setLastCheck(new Date());
+  //     refetchThreats();
+  //   }, 10 * 60 * 1000); // 10 minutes
+  //   
+  //   return () => clearInterval(interval);
+  // }, [isMonitoring, refetchThreats]);
 
   // Loading timer and data readiness logic
   useEffect(() => {
