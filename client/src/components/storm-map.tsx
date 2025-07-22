@@ -2163,9 +2163,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             onClick={sampleRadarDbz}
             variant="outline"
             size="sm"
-            className="text-xs px-2 bg-blue-600/20 border-blue-500 hover:bg-blue-600/30 text-blue-300"
+            className="text-xs px-3 py-1.5 bg-emerald-600/20 border-emerald-500 hover:bg-emerald-600/30 text-emerald-300 font-medium transition-all duration-200 hover:scale-105"
           >
-            🔄 Update Storms
+            ⚡ Refresh Data
           </Button>
           <Button
             onClick={() => setRadarSource(radarSource === 'rainviewer' ? 'nexrad' : 'rainviewer')}
