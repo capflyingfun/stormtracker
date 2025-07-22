@@ -910,10 +910,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Storm detection endpoint - analyzes real radar data from RainViewer API
   app.post("/api/storms", async (req, res) => {
     try {
-      const { lat, lon, radius = 50 } = weatherDataRequestSchema.parse(req.body);
+      const { lat, lon, radius = 50, radarSource = 'nexrad' } = req.body;
+      console.log(`🌧️ Storm detection using ${radarSource.toUpperCase()} radar source`);
       
-      // Query RainViewer API for real precipitation data
-      const storms = await analyzeRainViewerData(lat, lon, radius);
+      let storms;
+      if (radarSource === 'rainviewer') {
+        // Query RainViewer API for global precipitation data
+        storms = await analyzeRainViewerData(lat, lon, radius);
+      } else {
+        // Query NEXRAD for US locations - use RainViewer as fallback for now
+        console.log(`NEXRAD precipitation analysis not yet implemented, using RainViewer fallback`);
+        storms = await analyzeRainViewerData(lat, lon, radius);
+      }
       
       res.json(storms);
     } catch (error) {
