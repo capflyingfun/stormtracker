@@ -1786,8 +1786,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
           const data = imageData.data;
           
-          // Sample every 4th pixel to find precipitation (finer grid)
-          const sampleStep = 4;
+          // Sample every 20th pixel for mobile performance (reduces waypoints by 96%)
+          const sampleStep = 20;
           
           for (let x = 0; x < tileSize; x += sampleStep) {
             for (let y = 0; y < tileSize; y += sampleStep) {
@@ -1815,10 +1815,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                     for (const existingPoint of precipitationPoints) {
                       const existingDistance = calculateDistance(pixelLat, pixelLng, existingPoint.lat, existingPoint.lon);
                       
-                      // Dynamic spacing based on intensity
-                      let minSpacing = 0.5; // Default minimum spacing in miles
-                      if (dbz >= 45) minSpacing = 0.2; // Allow very close spacing for heavy precipitation
-                      else if (dbz >= 35) minSpacing = 0.3; // Closer spacing for moderate precipitation
+                      // Dynamic spacing based on intensity (increased for mobile performance)
+                      let minSpacing = 2.0; // Default minimum spacing in miles
+                      if (dbz >= 45) minSpacing = 1.0; // Allow closer spacing for heavy precipitation
+                      else if (dbz >= 35) minSpacing = 1.5; // Moderate spacing for moderate precipitation
                       
                       if (existingDistance < minSpacing) {
                         // If new point has higher intensity, replace the existing one
@@ -1971,8 +1971,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
           const data = imageData.data;
           
-          // Sample every 4th pixel to find precipitation (finer grid)
-          const sampleStep = 4;
+          // Sample every 20th pixel for mobile performance (reduces waypoints by 96%)
+          const sampleStep = 20;
           
           for (let x = 0; x < tileSize; x += sampleStep) {
             for (let y = 0; y < tileSize; y += sampleStep) {
@@ -2000,10 +2000,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                     for (const existingPoint of precipitationPoints) {
                       const existingDistance = calculateDistance(pixelLat, pixelLng, existingPoint.lat, existingPoint.lon);
                       
-                      // Dynamic spacing based on intensity
-                      let minSpacing = 0.5; // Default minimum spacing in miles
-                      if (dbz >= 45) minSpacing = 0.2; // Allow very close spacing for heavy precipitation
-                      else if (dbz >= 35) minSpacing = 0.3; // Closer spacing for moderate precipitation
+                      // Dynamic spacing based on intensity (increased for mobile performance)
+                      let minSpacing = 2.0; // Default minimum spacing in miles
+                      if (dbz >= 45) minSpacing = 1.0; // Allow closer spacing for heavy precipitation
+                      else if (dbz >= 35) minSpacing = 1.5; // Moderate spacing for moderate precipitation
                       
                       if (existingDistance < minSpacing) {
                         // If new point has higher intensity, replace the existing one
