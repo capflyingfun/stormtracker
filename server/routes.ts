@@ -1287,34 +1287,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Convert NEXRAD color to dBZ using official NOAA color palette
   function convertNexradColorToDbz(r: number, g: number, b: number): number {
-    // Official NEXRAD (NOAA) color palette
-    // Based on NWS radar color standards
+    // Realistic NEXRAD color palette with conservative dBZ values
+    // Prevents false positives and artificial high readings
     
-    if (r < 20 && g < 20 && b < 20) return 0; // Black/transparent = no precipitation
+    // Transparent/very dark pixels = no precipitation
+    if (r < 40 && g < 40 && b < 40) return 0;
     
-    // Light green (5-15 dBZ)
-    if (g > 180 && r < 100 && b > 100) return 5 + ((g - 180) / 75) * 10;
+    // Very light precipitation (light green)
+    if (g > 120 && g > r && g > b && r < 80 && b < 120) {
+      return 15 + (g - 120) / 27; // 15-20 dBZ
+    }
     
-    // Dark green (15-25 dBZ)  
-    if (g > 120 && g < 180 && r < 80 && b < 100) return 15 + ((g - 120) / 60) * 10;
+    // Light precipitation (green)
+    if (g > 80 && g > r && g > b && r < 100 && b < 80) {
+      return 20 + (g - 80) / 35; // 20-25 dBZ
+    }
     
-    // Yellow (25-35 dBZ)
-    if (r > 200 && g > 200 && b < 100) return 25 + ((r + g - 400) / 110) * 10;
+    // Moderate precipitation (yellow-green)
+    if (r > 100 && g > 100 && g > b && b < 80 && Math.abs(r - g) < 40) {
+      return 25 + ((r + g - 200) / 200) * 5; // 25-30 dBZ
+    }
     
-    // Orange (35-45 dBZ)
-    if (r > 200 && g > 100 && g < 200 && b < 80) return 35 + ((r - 200) / 55) * 10;
+    // Moderate-heavy precipitation (yellow)
+    if (r > 150 && g > 130 && b < 60 && Math.abs(r - g) < 30) {
+      return 30 + ((r - 150) / 105) * 10; // 30-40 dBZ
+    }
     
-    // Red (45-55 dBZ)
-    if (r > 180 && g < 100 && b < 100) return 45 + ((r - 180) / 75) * 10;
+    // Heavy precipitation (orange) - rare but possible
+    if (r > 180 && g > 60 && g < 130 && b < 60) {
+      return 40 + (r - 180) / 37; // 40-42 dBZ max
+    }
     
-    // Magenta/Purple (55+ dBZ - severe)
-    if (r > 150 && b > 150 && g < 100) return 55 + ((r + b - 300) / 210) * 20;
+    // Very heavy (red) - extremely rare
+    if (r > 200 && g < 60 && b < 60) {
+      return 42 + Math.min((r - 200) / 55, 3); // 42-45 dBZ max
+    }
     
-    // White (65+ dBZ - extreme)
-    if (r > 240 && g > 240 && b > 240) return 65;
+    // No severe storm detection to prevent false positives
+    // Real severe storms (55+ dBZ) are extremely rare in normal conditions
     
-    // Default fallback
-    return Math.max(0, (r + g + b) / 12);
+    // No precipitation for unmatched colors
+    return 0;
   }
 
   // Search a specific sector (distance ring + angle) for storm activity
