@@ -2215,7 +2215,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   };
 
   return (
-    <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50">
+    <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50 max-w-4xl mx-auto">
 
       
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
