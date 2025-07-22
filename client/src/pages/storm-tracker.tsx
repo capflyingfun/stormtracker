@@ -218,6 +218,26 @@ function WeatherStoryInline({ storms, userLocation }: { storms: any[], userLocat
       }
     }
     
+    // Special weather alerts and warnings
+    if (weatherData?.alerts && weatherData.alerts.length > 0) {
+      story += '\n\n🚨 Active Weather Alerts:';
+      weatherData.alerts.slice(0, 3).forEach(alert => {
+        const severity = alert.severity === 'Extreme' ? '🔴' : 
+                        alert.severity === 'Severe' ? '🟠' : 
+                        alert.severity === 'Moderate' ? '🟡' : '🔵';
+        const alertType = alert.event || 'Weather Alert';
+        const headline = alert.headline || alert.description || 'Weather alert in effect';
+        
+        // Format alert for display
+        let alertText = `${severity} ${alertType}`;
+        if (headline && headline !== alertType) {
+          alertText += `: ${headline}`;
+        }
+        
+        story += `\n${alertText}`;
+      });
+    }
+    
     return story;
   };
 
