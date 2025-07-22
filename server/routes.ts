@@ -1240,28 +1240,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Convert RainViewer color to dBZ using their official color palette
   function convertRainViewerColorToDbz(r: number, g: number, b: number): number {
-    // RainViewer color palette mapping (from their API documentation)
-    // Light blue: 20-30 dBZ, Green: 30-40 dBZ, Yellow: 40-50 dBZ, Orange/Red: 50+ dBZ
+    // Improved RainViewer color palette with realistic dBZ ranges
+    // Based on official Weather Channel color scheme used by RainViewer
     
-    if (r < 50 && g < 50 && b < 50) return 0; // Dark/transparent = no precipitation
+    // Transparent/very dark pixels = no precipitation
+    if (r < 30 && g < 30 && b < 30) return 0;
     
-    // Light blue range (light rain)
-    if (b > 200 && g > 150 && r < 100) return 20 + ((255 - b) / 55) * 10; // 20-30 dBZ
+    // Very light precipitation (light blue/cyan)
+    if (b > 180 && (b - r) > 50 && (b - g) > 30) {
+      return 15 + (b - 180) / 15; // 15-20 dBZ
+    }
     
-    // Green range (moderate rain)
-    if (g > 200 && r < 150 && b < 150) return 30 + ((255 - g) / 55) * 10; // 30-40 dBZ
+    // Light precipitation (green)
+    if (g > 150 && g > r && g > b && r < 120) {
+      return 20 + (g - 150) / 21; // 20-25 dBZ
+    }
     
-    // Yellow range (heavy rain)
-    if (r > 200 && g > 200 && b < 100) return 40 + ((r + g - 400) / 110) * 10; // 40-50 dBZ
+    // Moderate precipitation (darker green)
+    if (g > 120 && g > r && g > b && r < 100 && b < 100) {
+      return 25 + (g - 120) / 27; // 25-30 dBZ
+    }
     
-    // Orange range (very heavy rain)
-    if (r > 200 && g > 100 && g < 200 && b < 100) return 50 + ((r - 200) / 55) * 10; // 50-60 dBZ
+    // Moderate-heavy precipitation (yellow)
+    if (r > 150 && g > 150 && b < 100 && Math.abs(r - g) < 50) {
+      return 30 + ((r + g - 300) / 110) * 10; // 30-40 dBZ
+    }
     
-    // Red range (severe storms)
-    if (r > 200 && g < 100 && b < 100) return 60 + ((255 - g - b) / 155) * 15; // 60-75 dBZ
+    // Heavy precipitation (orange)
+    if (r > 180 && g > 80 && g < 150 && b < 80) {
+      return 40 + (r - 180) / 15; // 40-45 dBZ
+    }
     
-    // Default fallback for unmatched colors
-    return Math.max(0, (r + g + b) / 15); // General intensity approximation
+    // Very heavy precipitation (red)
+    if (r > 160 && g < 80 && b < 80) {
+      return 45 + (r - 160) / 19; // 45-50 dBZ
+    }
+    
+    // Severe storms (magenta/purple)
+    if (r > 120 && b > 120 && g < 80 && Math.abs(r - b) < 60) {
+      return 50 + ((r + b - 240) / 150) * 10; // 50-60 dBZ
+    }
+    
+    // No precipitation for unmatched colors
+    return 0;
   }
 
   // Convert NEXRAD color to dBZ using official NOAA color palette
