@@ -224,10 +224,10 @@ function getDynamicTone(storms: StormData[], threatData: any, activeAlerts: any[
   // PRIORITY 1: Check for active alerts first (Heat Advisories, Warnings, etc.)
   const hasActiveAlert = activeAlerts && activeAlerts.length > 0;
   const hasHeatAdvisory = activeAlerts?.some(a => a.event && (
-    a.event.toLowerCase().includes('heat') ||
-    a.event.toLowerCase().includes('excessive heat') ||
-    a.event.toLowerCase().includes('extreme heat')
-  ));
+    a.event.toLowerCase?.().includes('heat') ||
+    a.event.toLowerCase?.().includes('excessive heat') ||
+    a.event.toLowerCase?.().includes('extreme heat')
+  )) || activeAlerts?.some(a => a.headline && a.headline.toLowerCase?.().includes('heat'));
   
   // PRIORITY 2: Check for extreme weather threats
   const hasExtremeThreat = storms.some(s => s.intensity >= 65) || 
@@ -748,13 +748,15 @@ Example: "A Light storm 37 miles away with HIGH impact potential" or "A Severe s
 
 === 1. WEATHER ALERTS & ADVISORIES ===
 ${activeAlerts.length > 0 ? 
-  activeAlerts.map(alert => 
-    `🚨 ACTIVE ALERT: ${alert.event}\n` +
-    `   Headline: ${alert.headline}\n` +
-    `   Severity: ${alert.severity || 'Moderate'} | Expires: ${alert.expires}\n` +
-    `   Areas: ${alert.areaDesc}\n` +
-    `   Action: ${alert.instruction || 'Monitor conditions'}`
-  ).join('\n\n') : 
+  activeAlerts.map(alert => {
+    const alertType = alert.event || (alert.headline?.includes('Tsunami') ? 'Tsunami Warning' : 
+                                     alert.headline?.includes('Heat') ? 'Heat Advisory' : 'Weather Alert');
+    return `🚨 ACTIVE ALERT: ${alertType}\n` +
+           `   Headline: ${alert.headline}\n` +
+           `   Severity: ${alert.severity || 'Moderate'} | Expires: ${alert.expires}\n` +
+           `   Areas: ${alert.areaDesc}\n` +
+           `   Action: ${alert.instruction || 'Monitor conditions'}`;
+  }).join('\n\n') : 
   '✅ No active weather alerts or advisories'}
 
 ${windContext.length > 0 ? 
@@ -776,7 +778,8 @@ ${immediateStormContext.length === 0 ? '🌤️ Clear skies with no significant 
       const distance = storm.distance || 'unknown distance';
       const direction = storm.direction ? getDirectionName(storm.direction) : 'unknown direction';
       
-      return `${personality.emoji} ${personality.personality} is ${personality.description} about ${distance} miles ${direction.toLowerCase()} of you. ${personality.educationalNote}`;
+      const safeDirection = direction && direction !== 'unknown' ? direction.toLowerCase() : 'in an unknown direction';
+      return `${personality.emoji} ${personality.personality} is ${personality.description} about ${distance} miles ${safeDirection} of you. ${personality.educationalNote}`;
     } catch (error) {
       console.log('Weather story generation error:', error.message);
       return '🌤️ Weather story temporarily unavailable - see technical analysis below.';
