@@ -115,20 +115,21 @@ function generateStormStory(storms: any[], weatherStoryData?: any): string {
     const directionName = getDirectionName(closestStorm.direction || 0);
     const distance = closestStorm.distance?.toFixed(1) || 'unknown';
     
-    story += `🎯 **Nearest Storm**: ${closestPersonality.emoji} ${closestPersonality.personality} is ${closestPersonality.description} ${directionName} at ${distance} miles away.`;
+    story += `${closestPersonality.emoji} The nearest storm is a ${closestPersonality.personality} ${closestPersonality.description} ${directionName.toLowerCase()} at ${distance} miles away`;
+    
+    // Movement context if available
+    if (closestStorm.windsPrediction && closestStorm.windsPrediction.speed > 0) {
+      const movementDir = getDirectionName(closestStorm.windsPrediction.direction || 0);
+      story += `, moving ${movementDir.toLowerCase()} at ${closestStorm.windsPrediction.speed} mph`;
+    }
+    story += `. `;
     
     // Strongest storm information (if different from closest)
     if (strongestStorm.id !== closestStorm.id) {
       const strongestPersonality = getStormPersonality(strongestStorm.intensity);
       const strongestDirection = getDirectionName(strongestStorm.direction || 0);
       const strongestDistance = strongestStorm.distance?.toFixed(1) || 'unknown';
-      story += `\n\n⚡ **Strongest Storm**: ${strongestPersonality.emoji} ${strongestPersonality.personality} (${strongestStorm.intensity} dBZ) is ${strongestDirection} at ${strongestDistance} miles away.`;
-    }
-    
-    // Movement context if available
-    if (closestStorm.windsPrediction && closestStorm.windsPrediction.speed > 0) {
-      const movementDir = getDirectionName(closestStorm.windsPrediction.direction || 0);
-      story += `\n\n🧭 The nearest storm is moving ${movementDir.toLowerCase()} at ${closestStorm.windsPrediction.speed} mph.`;
+      story += `The strongest storm in the area is ${strongestPersonality.emoji} ${strongestPersonality.personality} with ${strongestStorm.intensity} dBZ intensity ${strongestDirection.toLowerCase()} at ${strongestDistance} miles away. `;
     }
     
     // Additional storms summary
@@ -136,12 +137,12 @@ function generateStormStory(storms: any[], weatherStoryData?: any): string {
       const intensities = storms.map(s => s.intensity).sort((a, b) => a - b);
       const minDbz = intensities[0];
       const maxDbz = intensities[intensities.length - 1];
-      story += `\n\n📊 **Area Overview**: ${storms.length} total storms detected with intensity ranging from ${minDbz}-${maxDbz} dBZ.`;
+      story += `In total, there are ${storms.length} storms in your area with intensities ranging from ${minDbz} to ${maxDbz} dBZ. `;
     }
     
     // Educational note
     const personality = getStormPersonality(closestStorm.intensity);
-    story += `\n\n📚 ${personality.educationalNote}`;
+    story += `\n\n💡 ${personality.educationalNote}.`;
   }
   
   // Weather forecast section
@@ -149,17 +150,16 @@ function generateStormStory(storms: any[], weatherStoryData?: any): string {
     const todayForecast = weatherStoryData.forecast.periods[0];
     const tonightForecast = weatherStoryData.forecast.periods.length > 1 ? weatherStoryData.forecast.periods[1] : null;
     
-    story += `\n\n🌤️ **Today's Forecast**: ${todayForecast.name} - ${todayForecast.detailedForecast}`;
+    story += `\n\n🌤️ For today, the National Weather Service forecasts: ${todayForecast.detailedForecast}`;
     
     if (tonightForecast) {
-      story += `\n\n🌙 **Tonight**: ${tonightForecast.detailedForecast}`;
+      story += ` Tonight: ${tonightForecast.detailedForecast}`;
     }
   }
   
   // Current conditions section
   if (weatherStoryData?.currentWeather) {
     const weather = weatherStoryData.currentWeather;
-    story += `\n\n🌡️ **Current Conditions**: `;
     
     const conditionsParts = [];
     if (weather.conditions?.temperature) {
@@ -170,10 +170,12 @@ function generateStormStory(storms: any[], weatherStoryData?: any): string {
     }
     if (weather.conditions?.windSpeed && weather.conditions.windDirection) {
       const windDir = getDirectionName(weather.conditions.windDirection);
-      conditionsParts.push(`winds ${windDir} at ${Math.round(weather.conditions.windSpeed)} mph`);
+      conditionsParts.push(`${windDir.toLowerCase()} winds at ${Math.round(weather.conditions.windSpeed)} mph`);
     }
     
-    story += conditionsParts.join(', ');
+    if (conditionsParts.length > 0) {
+      story += `\n\n🌡️ Current conditions show ${conditionsParts.join(', ')}.`;
+    }
   }
   
   return story;
