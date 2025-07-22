@@ -123,6 +123,18 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 22, 2025
 
+### Emoji-Based Weather Alert Storytelling System (July 22, 2025)
+- **AI Weather Storytelling**: Implemented comprehensive emoji-based weather narratives in AI assistant that translate technical dBZ values into engaging, accessible stories
+- **Storm Personality System**: Created personality-based storm descriptions (e.g., "🌪️💀 DANGEROUS monster storm raging with extreme fury" vs "🌤️😌 gentle sprinkle quietly misting the area")
+- **Educational dBZ Translation**: Each storm story includes educational notes explaining dBZ values in simple terms (e.g., "55 dBZ - strong enough to produce quarter-size hail and gusty winds")
+- **Frontend Storm Panel Integration**: Added dedicated "Weather Story" section to Storm Cells panel with emoji-rich narratives and learning components
+- **Multi-Storm Context**: Stories intelligently describe multiple storms in area with contextual relationships and distance information
+- **Gradual Learning Approach**: System gradually teaches users about meteorological concepts through engaging storytelling rather than technical jargon
+- **Simplified Weather Communication**: Converts complex radar data into friendly, understandable narratives while maintaining scientific accuracy
+- **Five-Tier Personality System**: Complete storm personality classification from gentle sprinkles to dangerous monster storms based on intensity thresholds
+- **Server-Side Story Generation**: Backend AI assistant generates comprehensive weather stories with emoji characters, movement context, and educational components
+- **Enhanced User Engagement**: Weather becomes more accessible and engaging through personality-driven storytelling approach
+
 ### Manual Refresh Loading Indicator Enhancement (July 22, 2025)
 - **Enhanced Visual Feedback**: Added comprehensive loading state to manual "Refresh Data" button with hourglass icon and "Refreshing..." text
 - **Animated Progress Bar**: Gray progress bar appears under button text during refresh with pulsing animation for clear visual feedback

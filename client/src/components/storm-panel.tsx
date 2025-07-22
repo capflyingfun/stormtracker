@@ -46,6 +46,81 @@ const formatDirectionWithBearing = (distance: number, bearing: number, formatDis
   return `${direction} (${formattedBearing}°) @ ${formatDistance(distance)}`;
 };
 
+// Emoji-based weather storytelling utilities
+function getStormPersonality(intensity: number): {
+  emoji: string;
+  personality: string;
+  description: string;
+  simpleName: string;
+  educationalNote: string;
+} {
+  if (intensity >= 65) {
+    return {
+      emoji: "🌪️💀",
+      personality: "DANGEROUS monster storm",
+      description: "raging with extreme fury and destructive power",
+      simpleName: "Extreme Thunderstorm",
+      educationalNote: `${intensity} dBZ - severe weather that can produce large hail and damaging winds`
+    };
+  } else if (intensity >= 55) {
+    return {
+      emoji: "⛈️😠",
+      personality: "angry thunderstorm",
+      description: "crackling with lightning and throwing heavy rain",
+      simpleName: "Severe Thunderstorm", 
+      educationalNote: `${intensity} dBZ - strong enough to produce quarter-size hail and gusty winds`
+    };
+  } else if (intensity >= 46) {
+    return {
+      emoji: "🌧️💪",
+      personality: "robust storm system",
+      description: "steadily marching with heavy rainfall",
+      simpleName: "Heavy Rain",
+      educationalNote: `${intensity} dBZ - expect heavy downpours that could cause flooding`
+    };
+  } else if (intensity >= 35) {
+    return {
+      emoji: "🌦️😊",
+      personality: "moderate rain shower",
+      description: "peacefully drifting along with steady precipitation",
+      simpleName: "Moderate Rain",
+      educationalNote: `${intensity} dBZ - noticeable rain but generally manageable`
+    };
+  } else {
+    return {
+      emoji: "🌤️😌",
+      personality: "gentle sprinkle",
+      description: "quietly misting the area with light moisture",
+      simpleName: "Light Rain",
+      educationalNote: `${intensity} dBZ - barely enough to wet the ground`
+    };
+  }
+}
+
+function generateStormStory(storms: any[]): string {
+  if (!storms || storms.length === 0) {
+    return "🌤️ The weather stage is peaceful today - no significant storms are performing in your area! ✨";
+  }
+
+  const closestStorm = storms[0]; // storms are sorted by distance
+  const stormPersonality = getStormPersonality(closestStorm.intensity);
+  
+  let story = `${stormPersonality.emoji} A ${stormPersonality.personality} is ${stormPersonality.description} `;
+  story += `about ${closestStorm.distance?.toFixed(1)} miles away. `;
+  
+  if (storms.length > 1) {
+    const secondStorm = storms[1];
+    const secondPersonality = getStormPersonality(secondStorm.intensity);
+    story += `There's also a ${secondPersonality.personality} ${secondStorm.distance?.toFixed(1)} miles away`;
+    if (storms.length > 2) {
+      story += ` and ${storms.length - 2} other weather system${storms.length > 3 ? 's' : ''} in the region`;
+    }
+    story += ".";
+  }
+  
+  return story;
+}
+
 const getStormIntensityName = (intensity: number): string => {
   if (intensity >= 65) return 'Extreme Thunderstorms';
   if (intensity >= 60) return 'Severe Thunderstorms';  
@@ -371,6 +446,31 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
         {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-400" />}
       </div>
       
+      {/* Emoji-based Weather Story */}
+      {!isLoading && (
+        <div className="bg-slate-700/30 rounded-lg p-4 mb-4 border border-slate-600/50">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg">📖</span>
+            <h3 className="text-sm font-medium text-slate-200">Weather Story</h3>
+          </div>
+          <p className="text-sm text-slate-300 leading-relaxed">
+            {generateStormStory(sortedStorms)}
+          </p>
+          {sortedStorms.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-600/50">
+              <div className="text-xs text-slate-400 mb-1">📚 Learning About Weather Radar:</div>
+              <div className="text-xs text-slate-400 italic">
+                {(() => {
+                  const closestStorm = sortedStorms[0];
+                  const personality = getStormPersonality(closestStorm.intensity);
+                  return personality.educationalNote;
+                })()}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {sortedStorms.length === 0 ? (
         <p className="text-slate-400 text-center py-8">
           {isLoading ? 'Detecting storms...' : 'No storms detected in your area'}
