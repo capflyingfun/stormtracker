@@ -541,3 +541,5 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
     </div>
   );
 }
+
+export { convertTimezonesInText, getTimezoneFromCoordinates };

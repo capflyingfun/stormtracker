@@ -10,6 +10,7 @@ import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
+import { convertTimezonesInText, getTimezoneFromCoordinates } from "@/components/immediate-safety-alerts";
 
 // import { ThreatMonitor } from "@/components/threat-monitor"; // Consolidated into AI Weather Assistant
 
