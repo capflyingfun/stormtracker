@@ -203,10 +203,21 @@ export default function StormTracker() {
   } = useStormData(location, radarRange);
 
   // Get alert preferences for visual highlighting only
-  const { data: preferences } = useQuery({
+  const { data: preferencesData } = useQuery({
     queryKey: ['/api/alerts/preferences'],
     staleTime: 5 * 60 * 1000,
   });
+
+  // Provide safe defaults for preferences to prevent type errors
+  const preferences = (preferencesData && typeof preferencesData === 'object' && 'minimumDbz' in preferencesData) 
+    ? preferencesData as any : {
+    minimumDbz: 45,
+    alertRadius: 50,
+    alertFrequency: 15,
+    soundEnabled: true,
+    emailEnabled: false,
+    smsEnabled: false
+  };
 
   // Get winds aloft data for AI assistant
   const { data: windsAloftData } = useQuery({
@@ -244,8 +255,8 @@ export default function StormTracker() {
       setPrecipitationStorms(newPrecipitationStorms);
       
       // Log for visual highlighting (no popup alerts)
-      if (location && preferences) {
-        const qualifyingStorms = newPrecipitationStorms.filter(storm => 
+      if (location && preferences.minimumDbz) {
+        const qualifyingStorms = newPrecipitationStorms.filter((storm: any) => 
           storm.intensity >= preferences.minimumDbz
         );
         console.log(`Visual Alert System: Found ${qualifyingStorms.length} storms meeting ${preferences.minimumDbz}+ dBZ threshold for visual highlighting`);
@@ -351,8 +362,8 @@ export default function StormTracker() {
   const handleGPSLocation = async () => {
     try {
       const result = await setLocationFromGPS();
-      // Auto-switch to NEXRAD for US GPS locations
-      if (result && (result.isUS || result.recommendedRadarSource === 'nexrad')) {
+      // Auto-switch to NEXRAD for US GPS locations 
+      if (result && result.name?.includes('United States')) {
         setCurrentRadarSource('nexrad');
         console.log('Auto-switched to NEXRAD for US GPS location:', result.name);
       }
@@ -420,7 +431,7 @@ export default function StormTracker() {
       />
       
       {/* Storm Filtering Settings Modal */}
-      {preferences && (
+      {preferences.minimumDbz && (
         <AlertSettings
           isOpen={showStormFilteringSettings}
           onClose={() => setShowStormFilteringSettings(false)}
@@ -842,7 +853,12 @@ export default function StormTracker() {
                     useMetric={useMetric}
                     formatDistance={formatDistance}
                     formatSpeed={formatSpeed}
-                    stormFilters={stormFilters}
+                    stormFilters={{
+                      light: stormFilters.light,
+                      moderate: stormFilters.moderate,
+                      heavy: stormFilters.heavy,
+                      severe: stormFilters.veryHeavy
+                    }}
                     onRadarSourceChange={setCurrentRadarSource}
                     radarSource={currentRadarSource}
                     isDisabled={showStormFilteringSettings || showAlertSubscription}
