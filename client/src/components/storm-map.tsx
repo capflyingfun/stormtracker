@@ -146,12 +146,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     
     // Add a short delay to ensure radar tiles are loaded after winds aloft update
     autoSampleTimeoutRef.current = setTimeout(async () => {
-      if (mapInstanceRef.current && location && radarFrames.length > 0) {
+      if (mapInstanceRef.current && location) {
         console.log('Auto-sampling triggered by map movement (delayed for radar loading)');
         await sampleRadarDbz();
       }
     }, 750); // 750ms delay to ensure radar tiles load after winds aloft
-  }, [location, radarFrames.length]);
+  }, [location, radarSource]);
 
 
 
