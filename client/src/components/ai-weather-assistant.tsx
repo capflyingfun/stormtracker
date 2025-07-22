@@ -328,6 +328,20 @@ export default function AIWeatherAssistant({
                 : 'Analyze Weather & Alerts'
             }
           </Button>
+          <Button
+            onClick={() => {
+              // Force refresh aviation weather data
+              queryClient.invalidateQueries({ queryKey: ['/api/aviation-weather'] });
+              console.log('Manual refresh: Aviation weather data updated');
+            }}
+            disabled={!userLocation}
+            size="sm"
+            variant="outline"
+            className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600"
+            title="Refresh weather data"
+          >
+            🔄
+          </Button>
           {isMonitoring ? (
             <Button
               onClick={handleStopMonitoring}

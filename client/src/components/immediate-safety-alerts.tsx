@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from '@/lib/queryClient';
 import { Loader2, AlertTriangle, Navigation, Clock, ArrowUpDown } from "lucide-react";
 
 interface Storm {
@@ -210,17 +211,31 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
           )}
         </div>
         
-        {/* Sort button for NWS alerts */}
-        {!isAnimating && nwsAlerts.length > 1 && (
+        <div className="flex items-center gap-2">
+          {/* Manual refresh button */}
           <button
-            onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/nws-alerts'] });
+              console.log('Manual refresh: NWS alerts updated');
+            }}
             className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 hover:text-red-100 bg-red-900/30 hover:bg-red-900/50 rounded transition-colors"
-            title={`Sort ${sortOrder === 'newest' ? 'oldest first' : 'newest first'}`}
+            title="Refresh alerts"
           >
-            <ArrowUpDown className="h-3 w-3" />
-            {sortOrder === 'newest' ? 'Newest' : 'Oldest'}
+            🔄
           </button>
-        )}
+          
+          {/* Sort button for NWS alerts */}
+          {!isAnimating && nwsAlerts.length > 1 && (
+            <button
+              onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 hover:text-red-100 bg-red-900/30 hover:bg-red-900/50 rounded transition-colors"
+              title={`Sort ${sortOrder === 'newest' ? 'oldest first' : 'newest first'}`}
+            >
+              <ArrowUpDown className="h-3 w-3" />
+              {sortOrder === 'newest' ? 'Newest' : 'Oldest'}
+            </button>
+          )}
+        </div>
       </div>
 
       {isAnimating || alertsLoading ? (

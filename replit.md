@@ -559,6 +559,15 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Precipitation Sampling Integration**: Storm detection only occurs on current frame when animation stopped
 - **Successful Implementation**: Animation now properly cycles through all 6 historical frames showing actual storm movement over time
 
+### Page Refresh Fix & Manual Controls (July 22, 2025)
+- **RESOLVED: Page Refresh Issue**: Completely fixed automatic page refreshing by disabling refetchInterval in AI assistant aviation weather query and alert components
+- **NEXRAD Timestamp Fix**: Fixed animation timestamp conversion to prevent 1970-era dates causing "last frame flashing" during animation
+- **Manual Refresh Buttons**: Added manual refresh controls to AI Weather Assistant and Immediate Safety Alerts to replace disabled automatic updates
+- **Stable Page Navigation**: Users can now access radar controls, animation buttons, and settings without page automatically refreshing and scrolling to top
+- **Enhanced User Control**: Manual refresh buttons (🔄) allow users to update weather data and alerts on demand rather than automatic 5-minute intervals
+- **Timestamp Validation**: Added timestamp validation in NEXRAD animation to ensure proper 2025 dates instead of invalid 1970 timestamps
+- **Improved Radar Animation**: Animation now generates proper timestamps (202507211920 format) for authentic historical frame loading
+
 ### Radar Source-Specific dBZ Calibration (July 18, 2025)
 - **Separate Threshold Systems**: Implemented radar source-specific dBZ thresholds to account for calibration differences
 - **RainViewer Calibration**: Adjusted thresholds 5-10 dBZ lower (e.g., 47 dBZ for severe vs 55 dBZ NEXRAD) due to higher readings
