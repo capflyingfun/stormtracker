@@ -68,7 +68,8 @@ function generateWeatherStory(storms: StormData[]): string {
   
   // Add distance and direction context
   const directionName = getDirectionName(closestStorm.bearing);
-  story += `about ${closestStorm.distance.toFixed(1)} miles ${directionName.toLowerCase()} of you. `;
+  const distance = typeof closestStorm.distance === 'number' ? closestStorm.distance.toFixed(1) : closestStorm.distance;
+  story += `about ${distance} miles ${directionName.toLowerCase()} of you. `;
   
   // Add movement context if available
   if (closestStorm.movement) {
@@ -88,7 +89,8 @@ function generateWeatherStory(storms: StormData[]): string {
   if (storms.length > 1) {
     const secondStorm = storms[1];
     const secondPersonality = getStormPersonality(secondStorm.intensity);
-    story += `\n\n🌦️ There's also ${secondPersonality.personality.toLowerCase()} ${secondStorm.distance.toFixed(1)} miles away`;
+    const secondDistance = typeof secondStorm.distance === 'number' ? secondStorm.distance.toFixed(1) : secondStorm.distance;
+    story += `\n\n🌦️ There's also ${secondPersonality.personality.toLowerCase()} ${secondDistance} miles away`;
     if (storms.length > 2) {
       story += ` and ${storms.length - 2} other weather system${storms.length > 3 ? 's' : ''} in the region`;
     }
