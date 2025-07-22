@@ -225,14 +225,14 @@ function WeatherStoryInline({ storms, userLocation }: { storms: any[], userLocat
         const severity = alert.severity === 'Extreme' ? '🔴' : 
                         alert.severity === 'Severe' ? '🟠' : 
                         alert.severity === 'Moderate' ? '🟡' : '🔵';
-        const alertType = alert.event || 'Weather Alert';
-        const headline = alert.headline || alert.description || 'Weather alert in effect';
         
-        // Format alert for display
-        let alertText = `${severity} ${alertType}`;
-        if (headline && headline !== alertType) {
-          alertText += `: ${headline}`;
-        }
+        // Use headline as primary source since event field can be null
+        const headline = alert.headline || alert.description || 'Weather alert in effect';
+        const alertType = alert.event || (headline.includes('Tsunami') ? 'Tsunami Warning' : 
+                                           headline.includes('Heat') ? 'Heat Advisory' : 'Weather Alert');
+        
+        // Format alert for display - prefer headline over event type
+        let alertText = `${severity} ${headline}`;
         
         story += `\n${alertText}`;
       });
