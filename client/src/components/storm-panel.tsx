@@ -28,6 +28,15 @@ interface StormPanelProps {
   isLoading: boolean;
   radarSource?: 'rainviewer' | 'nexrad';
   userLocation?: { lat: number; lon: number; name: string };
+  stormFilters?: {
+    light: boolean;
+    moderate: boolean;
+    heavy: boolean;
+    severe: boolean;
+    veryHeavy: boolean;
+    extreme: boolean;
+  };
+  alertPreferences?: any;
 }
 
 const getDirectionName = (degrees: number): string => {

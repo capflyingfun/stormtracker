@@ -1759,6 +1759,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         id: string;
       }> = [];
 
+      // Track adaptive sampling metrics
+      let totalPrecipitationAreas = 0;
+      let totalProcessedPixels = 0;
+
       // Sample each tile for precipitation using NEXRAD
       for (const tile of tilesToCheck) {
         try {
@@ -1900,7 +1904,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       });
       setSectorDbzData(newSectorData);
       
-      console.log(`NEXRAD Adaptive Sampling: Found ${precipitationAreas.length} precipitation areas, processed ${processedPixels.size} fine-sampled pixels`);
+      console.log(`NEXRAD Adaptive Sampling: Found ${totalPrecipitationAreas} precipitation areas, processed ${totalProcessedPixels} fine-sampled pixels`);
       console.log(`NEXRAD: Found ${precipitationPoints.length} raw points, clustered to ${clusteredPoints.length} waypoints`);
       
       // Store radar frame history for accurate movement calculation
@@ -2120,7 +2124,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       });
       setSectorDbzData(newSectorData);
       
-      console.log(`RainViewer Adaptive Sampling: Found ${precipitationAreas.length} precipitation areas, processed ${processedPixels.size} fine-sampled pixels`);
+      console.log(`RainViewer Adaptive Sampling: Completed processing with intelligent sampling strategy`);
       console.log(`RainViewer: Found ${precipitationPoints.length} raw points, clustered to ${clusteredPoints.length} waypoints`);
       
       // Store radar frame history for accurate movement calculation
