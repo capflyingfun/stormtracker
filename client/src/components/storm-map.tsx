@@ -347,7 +347,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           // NEXRAD: Use historical archive data with proper frame-by-frame animation
           if (nexradSite) {
             // Format timestamp for NEXRAD archive: YYYYMMDDHHmm
-            const date = new Date(Number(timestamp)); // Ensure timestamp is treated as number
+            const date = new Date(timestamp); // Use timestamp directly as Date constructor handles milliseconds
+            
+            // Validate the date to prevent 1970 era timestamps
+            if (date.getFullYear() < 2020) {
+              console.log(`Invalid timestamp detected: ${timestamp}, using current time`);
+              const now = new Date();
+              date.setTime(now.getTime());
+            }
+            
             const year = date.getFullYear();
             const month = (date.getMonth() + 1).toString().padStart(2, '0');
             const day = date.getDate().toString().padStart(2, '0');
