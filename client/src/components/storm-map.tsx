@@ -229,9 +229,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               // Use most recent timestamp or current if recent fails
               const latestTimestamp = timestamps[timestamps.length - 1];
               const date = new Date(latestTimestamp);
-              const timestampStr = date.toISOString().slice(0, 16).replace(/[-:T]/g, '').slice(0, 12);
+              const year = date.getFullYear();
+              const month = (date.getMonth() + 1).toString().padStart(2, '0');
+              const day = date.getDate().toString().padStart(2, '0');
+              const hour = date.getHours().toString().padStart(2, '0');
+              const minute = date.getMinutes().toString().padStart(2, '0');
+              const timestampStr = `${year}${month}${day}${hour}${minute}`;
               
-              let nexradUrl = `https://mesonet.agron.iastate.edu/archive/data/${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}/GIS/uscomp/n0q_${timestampStr}.png`;
+              let nexradUrl = `https://mesonet.agron.iastate.edu/archive/data/${year}/${month}/${day}/GIS/uscomp/n0q_${timestampStr}.png`;
               
               // Remove existing radar layer
               if (radarLayerRef.current) {
