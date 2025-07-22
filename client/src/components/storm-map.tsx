@@ -71,6 +71,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   
   // Auto-sampling state
   const autoSampleTimeoutRef = useRef<NodeJS.Timeout>();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Sync with external radar source changes
   useEffect(() => {
@@ -1713,12 +1714,18 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const map = mapInstanceRef.current;
     if (!map || !window.L || !location) return;
 
+    setIsRefreshing(true);
     console.log(`Starting precipitation sampling...`);
     
-    if (radarSource === 'nexrad') {
-      await sampleNexradData();
-    } else {
-      await sampleRainViewerData();
+    try {
+      if (radarSource === 'nexrad') {
+        await sampleNexradData();
+      } else {
+        await sampleRainViewerData();
+      }
+    } finally {
+      // Add a small delay to show the loading state
+      setTimeout(() => setIsRefreshing(false), 500);
     }
   };
 
@@ -2163,9 +2170,17 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             onClick={sampleRadarDbz}
             variant="outline"
             size="sm"
-            className="text-xs px-3 py-1.5 bg-emerald-600/20 border-emerald-500 hover:bg-emerald-600/30 text-emerald-300 font-medium transition-all duration-200 hover:scale-105"
+            className="text-xs px-3 py-1.5 bg-emerald-600/20 border-emerald-500 hover:bg-emerald-600/30 text-emerald-300 font-medium transition-all duration-200 hover:scale-105 relative overflow-hidden"
+            disabled={isRefreshing}
           >
-            ⚡ Refresh Data
+            <div className="flex flex-col items-center">
+              <span>{isRefreshing ? '⏳ Refreshing...' : '⚡ Refresh Data'}</span>
+              {isRefreshing && (
+                <div className="w-full bg-slate-700/50 rounded-full h-0.5 mt-1">
+                  <div className="bg-emerald-400 h-0.5 rounded-full animate-pulse" style={{width: '100%'}}></div>
+                </div>
+              )}
+            </div>
           </Button>
           <Button
             onClick={() => setRadarSource(radarSource === 'rainviewer' ? 'nexrad' : 'rainviewer')}
