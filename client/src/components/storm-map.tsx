@@ -2252,7 +2252,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
 
-      <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[400px] md:h-[600px] lg:h-[700px] xl:h-[800px] z-0 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
+      <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[500px] z-0 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
         <div ref={mapRef} className="w-full h-full" style={{ zIndex: 0 }}></div>
         
         {/* Disabled overlay */}
