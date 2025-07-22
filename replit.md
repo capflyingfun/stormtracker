@@ -1,5 +1,16 @@
 # StormTracker - Real-Time Storm Detection Application
 
+## Latest Update - July 22, 2025
+
+### Manual Storm Update Button & Mobile Optimization (July 22, 2025)
+- **Fixed 50-Mile Radius Limitation**: Added manual "🔄 Update Storms" button to radar window controls for geographic area changes beyond auto-sampling range
+- **Mobile-Optimized Button Layout**: Implemented responsive button design with compact mobile versions (🔄, NEXR/RAIN, Grid, ▶/⏸) and full desktop text
+- **Enhanced Mobile Interface**: Reduced button padding, tighter spacing, and hidden non-essential elements on mobile for optimal touch interaction
+- **Resolved Auto-Sampling Geographic Issue**: Auto-sampling works for local movement, manual button handles distant location changes (e.g., Pensacola to New Orleans)
+- **Consistent Button Styling**: Manual update button matches other radar controls with standard outline variant styling
+- **Touch-Friendly Mobile Controls**: Smaller gaps, compact text, and icon-based mobile buttons for improved usability on small screens
+- **Professional Fallback Solution**: When auto-sampling fails to detect storms in new areas due to 50-mile search radius, manual update provides reliable storm data refresh
+
 ## Overview
 
 StormTracker is a real-time storm detection web application built with React, Express, and TypeScript. It provides users with live weather radar maps, storm tracking, and weather alerts based on their location. The application uses GPS location detection or manual location search to monitor storm activity within a customizable radius. Enhanced with AI-powered weather analysis that integrates National Weather Service Area Forecast Discussions for comprehensive meteorological assessments.
