@@ -55,8 +55,8 @@ function getStormPersonality(intensity: number): {
   }
 }
 
-// Build simplified prompt without emoji storytelling for fallback
-function buildBasicPrompt(data: WeatherAssessmentData, dynamicTone: any): string {
+// Build simplified prompt without emoji storytelling for fallback  
+function buildBasicPrompt(data: any, tone: any): string {
   const immediateStormContext = data.storms.map(storm => ({
     distance: typeof storm.distance === 'number' ? `${storm.distance.toFixed(1)} miles` : `${storm.distance}`,
     direction: `${getDirectionName(storm.direction || storm.bearing || 0)} of you`,
@@ -125,12 +125,12 @@ function generateWeatherStory(storms: StormData[]): string {
   
   let story = `${stormPersonality.emoji} ${stormPersonality.personality} is ${stormPersonality.description} `;
   
-  // Add distance and direction context
+  // Add distance and direction context with proper formatting like "SE at 70.3 miles"
   console.log('generateWeatherStory: closestStorm.bearing =', closestStorm.bearing);
   const directionName = getDirectionName(closestStorm.bearing || 0);
   console.log('generateWeatherStory: directionName =', directionName);
   const distance = typeof closestStorm.distance === 'number' ? closestStorm.distance.toFixed(1) : closestStorm.distance;
-  story += `about ${distance} miles ${directionName ? directionName.toLowerCase() : 'unknown direction'} of you. `;
+  story += `${directionName} at ${distance} miles away. `;
   
   // Add movement context if available
   if (closestStorm.movement) {
@@ -146,14 +146,19 @@ function generateWeatherStory(storms: StormData[]): string {
   // Add educational note about dBZ
   story += `\n\n📚 ${stormPersonality.educationalNote}`;
   
-  // Add multiple storms context
+  // Add multiple storms context with directional information
   if (storms.length > 1) {
     const secondStorm = storms[1];
     const secondPersonality = getStormPersonality(secondStorm.intensity);
     const secondDistance = typeof secondStorm.distance === 'number' ? secondStorm.distance.toFixed(1) : secondStorm.distance;
-    story += `\n\n🌦️ There's also ${secondPersonality.personality.toLowerCase()} ${secondDistance} miles away`;
+    const secondDirection = getDirectionName(secondStorm.bearing || 0);
+    story += `\n\n🌦️ There's also ${secondPersonality.personality.toLowerCase()} ${secondDirection} at ${secondDistance} miles`;
     if (storms.length > 2) {
-      story += ` and ${storms.length - 2} other weather system${storms.length > 3 ? 's' : ''} in the region`;
+      // Get dBZ range summary without mentioning "weather systems"
+      const intensities = storms.map(s => s.intensity).sort((a, b) => a - b);
+      const minDbz = intensities[0];
+      const maxDbz = intensities[intensities.length - 1];
+      story += ` and ${storms.length - 2} additional storm${storms.length > 3 ? 's' : ''} (${minDbz}-${maxDbz} dBZ range)`;
     }
     story += ".";
   }
@@ -897,7 +902,7 @@ Provide your assessment in this exact JSON format:
       
       // Try again with a simplified prompt that still includes all the comprehensive data
       try {
-        const simplifiedPrompt = buildBasicPrompt(data, dynamicTone); // Use simplified prompt without emoji storytelling
+        const simplifiedPrompt = buildBasicPrompt(data, tone); // Use simplified prompt without emoji storytelling
         
         const fallbackResponse = await openai.chat.completions.create({
           model: "gpt-4o",
