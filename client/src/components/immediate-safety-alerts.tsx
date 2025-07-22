@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { queryClient } from '@/lib/queryClient';
 import { Loader2, AlertTriangle, Navigation, Clock, ArrowUpDown } from "lucide-react";
 
 interface Storm {
@@ -69,7 +68,6 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
   const [isAnimating, setIsAnimating] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Delay showing alerts for 3 seconds to allow storm calculations to complete
   useEffect(() => {
@@ -96,8 +94,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
       return data.alerts || [];
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
-    // Disabled automatic refresh to prevent page reloading issues
-    // refetchInterval: 5 * 60 * 1000 // Refresh every 5 minutes
+    refetchInterval: 5 * 60 * 1000 // Refresh every 5 minutes
   });
 
   // Identify immediate storm threats (high impact or severe proximity)
@@ -212,44 +209,17 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
           )}
         </div>
         
-        <div className="flex items-center gap-2">
-          {/* Manual refresh button */}
+        {/* Sort button for NWS alerts */}
+        {!isAnimating && nwsAlerts.length > 1 && (
           <button
-            onClick={async () => {
-              setIsRefreshing(true);
-              console.log('🔄 Refreshing NWS alerts...');
-              try {
-                await queryClient.invalidateQueries({ queryKey: ['/api/nws-alerts'] });
-                console.log('✅ NWS alerts refreshed successfully');
-              } catch (error) {
-                console.log('❌ Failed to refresh NWS alerts:', error);
-              } finally {
-                setTimeout(() => setIsRefreshing(false), 1000); // Show refresh state for 1 second
-              }
-            }}
-            disabled={isRefreshing}
-            className={`flex items-center gap-1 px-2 py-1 text-xs ${
-              isRefreshing 
-                ? 'text-red-400 bg-red-900/50 cursor-not-allowed' 
-                : 'text-red-300 hover:text-red-100 bg-red-900/30 hover:bg-red-900/50'
-            } rounded transition-colors`}
-            title={isRefreshing ? "Refreshing..." : "Refresh alerts"}
+            onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 hover:text-red-100 bg-red-900/30 hover:bg-red-900/50 rounded transition-colors"
+            title={`Sort ${sortOrder === 'newest' ? 'oldest first' : 'newest first'}`}
           >
-            <span className={isRefreshing ? 'animate-spin' : ''}>{isRefreshing ? '⟳' : '🔄'}</span>
+            <ArrowUpDown className="h-3 w-3" />
+            {sortOrder === 'newest' ? 'Newest' : 'Oldest'}
           </button>
-          
-          {/* Sort button for NWS alerts */}
-          {!isAnimating && nwsAlerts.length > 1 && (
-            <button
-              onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 hover:text-red-100 bg-red-900/30 hover:bg-red-900/50 rounded transition-colors"
-              title={`Sort ${sortOrder === 'newest' ? 'oldest first' : 'newest first'}`}
-            >
-              <ArrowUpDown className="h-3 w-3" />
-              {sortOrder === 'newest' ? 'Newest' : 'Oldest'}
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {isAnimating || alertsLoading ? (

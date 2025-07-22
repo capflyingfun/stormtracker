@@ -4,7 +4,7 @@ import { useStormData } from "@/hooks/use-storm-data";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import Header from "@/components/header";
 import LocationSetup from "@/components/location-setup";
-import StormMap from "@/components/storm-map-clean";
+import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
@@ -233,18 +233,11 @@ export default function StormTracker() {
     return stormFilters[category as keyof typeof stormFilters];
   });
 
-  // Listen for precipitation storm data - only update when modal is not open
+  // Listen for precipitation storm data
   useEffect(() => {
     const handlePrecipitationStormData = (event: any) => {
-      // Don't update storm data if any modal is open to prevent layout shifts
-      if (showMessages || showAlertSubscription || showStormFilteringSettings) {
-        console.log('Modal open - skipping storm data update to prevent movement');
-        return;
-      }
-      
       const newPrecipitationStorms = event.detail || [];
       console.log(`Storm Panel Data: Updated precipitation storms: ${newPrecipitationStorms.length} storms detected`);
-      
       setPrecipitationStorms(newPrecipitationStorms);
       
       // Log for visual highlighting (no popup alerts)
@@ -260,7 +253,7 @@ export default function StormTracker() {
     return () => {
       window.removeEventListener('precipitationStormData', handlePrecipitationStormData);
     };
-  }, [location, preferences, showMessages, showAlertSubscription, showStormFilteringSettings]);
+  }, [location, preferences]);
 
 
 
@@ -435,14 +428,8 @@ export default function StormTracker() {
 
       {/* Alert Subscription Modal */}
       {showAlertSubscription && (
-        <div 
-          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
-          style={{ position: 'fixed', top: '0', left: '0', width: '100%', height: '100%' }}
-        >
-          <div 
-            className="bg-slate-900 rounded-xl max-w-lg w-full max-h-[85vh] flex flex-col"
-            style={{ position: 'relative', transform: 'none' }}
-          >
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 rounded-xl max-w-lg w-full max-h-[85vh] flex flex-col">
             {/* Fixed Header */}
             <div className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">Storm Alert Notifications</h2>
