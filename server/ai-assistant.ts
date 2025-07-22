@@ -454,6 +454,7 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
             const alertsData = await alertsResponse.json();
             activeAlerts = alertsData.alerts || [];
             console.log(`AI Assistant: Found ${activeAlerts.length} active NWS alerts (fallback mode - no threat data)`);
+      console.log('AI Assistant: Alert details:', activeAlerts.map(a => ({headline: a.headline, event: a.event, severity: a.severity})));
           }
         } catch (alertError) {
           console.log('AI Assistant: Could not fetch NWS alerts in fallback mode:', alertError.message);
@@ -867,7 +868,7 @@ Conditions Met: Moisture (${thunderstormConditions.thunderstormPotential.conditi
   ''}
 
 CRITICAL ANALYSIS REQUIREMENTS:
-1. If there are active weather alerts (Heat Advisories, Warnings, etc.), discuss them FIRST and prominently in your analysis. Heat advisories and weather warnings are the highest priority safety information.
+1. If there are active weather alerts (TSUNAMI WARNINGS, Heat Advisories, Warnings, etc.), discuss ALL of them FIRST and prominently in your analysis. TSUNAMI WARNINGS have EXTREME priority, even if marked as "TEST". Any tsunami-related alert must be discussed regardless of test status. Heat advisories and all weather warnings are highest priority safety information.
 
 2. STORM TRACK INTERSECTION ANALYSIS: Pay special attention to storm track analysis marked as "DIRECT PATH POTENTIAL", "HIGH IMPACT STORM", "APPROACHING STORM", or "TRACK INTERSECTION DETECTED". Even if storms are light intensity (20-40 dBZ), if they show "POSSIBLE CONTACT WITH YOUR LOCATION", "HIGH impact", or any ETA time, clearly communicate this possibility in your analysis. Do NOT dismiss light storms if they have direct path potential.
 
