@@ -568,6 +568,15 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Timestamp Validation**: Added timestamp validation in NEXRAD animation to ensure proper 2025 dates instead of invalid 1970 timestamps
 - **Improved Radar Animation**: Animation now generates proper timestamps (202507211920 format) for authentic historical frame loading
 
+### Update Storms Button Fix & Zoom Independence (July 22, 2025)
+- **Fixed Button Behavior**: Completely resolved "Update Storms" button causing page refresh and modal movement issues
+- **Enhanced Event Handling**: Added preventDefault(), stopPropagation(), and blur() to prevent any UI shifts or form submission behavior
+- **Replaced Shadcn Button**: Switched from shadcn Button component to native HTML button with custom styling for better control
+- **Auto-Sample Conflict Prevention**: Added timeout clearing to prevent conflicts between manual updates and auto-sampling
+- **Zoom-Independent Sampling**: Implemented fixed zoom level 8 for consistent storm detection regardless of current map zoom level
+- **Consistent Storm Detection**: Storm sampling now works identically at all zoom levels (zoom 6-16) for reliable precipitation detection
+- **Enhanced Reliability**: Manual storm updates now work without causing view movement or interface glitches at any zoom level
+
 ### NEXRAD Simplification & UI Improvements (July 22, 2025)
 - **Disabled Animation System**: Removed NEXRAD animation controls due to persistent page refresh and timestamp issues
 - **Latest Frame Only**: NEXRAD now displays only the latest radar image for maximum stability and reliability

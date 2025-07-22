@@ -1687,7 +1687,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     // Clear any pending auto-sample timeouts to prevent conflicts
     if (autoSampleTimeoutRef.current) {
       clearTimeout(autoSampleTimeoutRef.current);
-      autoSampleTimeoutRef.current = null;
+      autoSampleTimeoutRef.current = undefined;
     }
 
     console.log(`Manual storm update triggered`);
@@ -1707,8 +1707,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     try {
       // Get map bounds and center
       const center = map.getCenter();
-      const zoom = map.getZoom();
-      const bounds = map.getBounds();
+      const currentZoom = map.getZoom();
+      
+      // Use fixed zoom level 8 for consistent tile sampling regardless of map zoom
+      const zoom = 8;
+      console.log(`NEXRAD: Using fixed zoom level ${zoom} for consistent sampling (current map zoom: ${currentZoom})`);
 
       // Calculate the 50-mile radius boundary
       const radiusInDegrees = 50 / 69.0; // 50 miles in degrees
@@ -1886,7 +1889,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     try {
       // Get map bounds and center
       const center = map.getCenter();
-      const zoom = map.getZoom();
+      const currentZoom = map.getZoom();
+      
+      // Use fixed zoom level 8 for consistent tile sampling regardless of map zoom
+      const zoom = 8;
+      console.log(`RainViewer: Using fixed zoom level ${zoom} for consistent sampling (current map zoom: ${currentZoom})`);
 
       // Calculate the 50-mile radius boundary
       const radiusInDegrees = 50 / 69.0; // 50 miles in degrees
@@ -2132,20 +2139,19 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           >
             {showSectorGrid ? "Hide" : "Show"} Grid
           </Button>
-          <Button
+          <button
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              e.currentTarget.blur(); // Remove focus to prevent any UI shifts
               sampleRadarDbz();
             }}
-            variant="outline"
-            size="sm"
-            className="text-xs px-2 whitespace-nowrap"
+            className="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 rounded-md disabled:opacity-50 whitespace-nowrap"
             disabled={isAnimating}
             type="button"
           >
             Update Storms
-          </Button>
+          </button>
 
           {/* Animation controls disabled - showing latest frame only */}
         </div>
