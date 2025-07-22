@@ -58,9 +58,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const sectorGridRef = useRef<any>(null);
   const sectorHighlightsRef = useRef<any>(null);
   
+  const [isAnimating, setIsAnimating] = useState(false);
   const [showSectorGrid, setShowSectorGrid] = useState(true);
+  const [currentFrame, setCurrentFrame] = useState(10);
+  const [radarFrames, setRadarFrames] = useState<(string | number)[]>([]);
   const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>(externalRadarSource || 'rainviewer'); // RainViewer primary
+  const [currentFrameIndex, setCurrentFrameIndex] = useState<number>(-1);
   const [nexradSite, setNexradSite] = useState<string>('');
+  const animationIntervalRef = useRef<NodeJS.Timeout>();
+  const animationSpeedRef = useRef<number>(800); // ms between frames
   const [sectorDbzData, setSectorDbzData] = useState<{[key: string]: number}>({});
   
   // Auto-sampling state
@@ -149,24 +155,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
 
 
-  // Generate timestamps for NEXRAD historical data (last 30 minutes, 5-minute intervals)
-  const generateNEXRADTimestamps = () => {
-    const timestamps = [];
-    const now = new Date();
-    
-    // Generate 6 timestamps (30 minutes in 5-minute intervals)
-    for (let i = 5; i >= 0; i--) {
-      const timestamp = new Date(now.getTime() - (i * 5 * 60 * 1000));
-      // Round to nearest 5-minute mark
-      const minutes = timestamp.getMinutes();
-      const roundedMinutes = Math.floor(minutes / 5) * 5;
-      timestamp.setMinutes(roundedMinutes, 0, 0);
-      timestamps.push(timestamp.getTime());
-    }
-    
-    return timestamps;
-  };
-
   // Initialize radar frames based on source
   useEffect(() => {
     const loadRadarFrames = async () => {
@@ -188,34 +176,69 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           setRadarSource('nexrad');
         }
       } else {
-        // For NEXRAD, load only the current composite radar (simplified)
+        // For NEXRAD, use static current radar display
         try {
           if (!location) {
             console.log('NEXRAD: Waiting for location...');
-            return;
+            return; // Wait for location before loading NEXRAD
           }
           
-          // Find nearest radar site for attribution
+          // Find nearest radar site for proper attribution
           const nearbyResponse = await fetch('/api/nexrad/nearby', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ lat: location.lat, lon: location.lon })
           });
           
-          if (nearbyResponse.ok) {
-            const { site } = await nearbyResponse.json();
-            setNexradSite(site);
+          if (!nearbyResponse.ok) {
+            throw new Error('Failed to find nearby radar');
           }
           
-          // Set single current frame
-          setRadarFrames([Date.now()]);
+          const { site } = await nearbyResponse.json();
+          setNexradSite(site);
+          
+          // Use static current NEXRAD radar (no animation)
+          const frames = ['current'];
+          setRadarFrames(frames);
           setCurrentFrame(0);
           setCurrentFrameIndex(0);
           
-          console.log('NEXRAD: Loading current composite radar');
+          console.log(`NEXRAD: Using static current radar for site ${site}`);
+          
+          // Immediately load the radar layer for better initial display
+          setTimeout(() => {
+            if (mapInstanceRef.current && window.L) {
+              const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
+              
+              // Remove existing radar layer
+              if (radarLayerRef.current) {
+                mapInstanceRef.current.removeLayer(radarLayerRef.current);
+              }
+              
+              // Add NEXRAD layer immediately
+              radarLayerRef.current = window.L.tileLayer(nexradUrl, {
+                opacity: 0.7,
+                zIndex: 200,
+                attribution: `NEXRAD (${site})`,
+                updateWhenIdle: true,
+                updateWhenZooming: false,
+                // Force reload to ensure fresh tiles
+                updateInterval: 0
+              });
+              
+              radarLayerRef.current.addTo(mapInstanceRef.current);
+              console.log(`NEXRAD radar layer loaded for site ${site}`);
+              
+              // Give additional time for tiles to load before enabling sampling
+              setTimeout(() => {
+                console.log('NEXRAD radar tiles should be loaded now');
+              }, 1000);
+            }
+          }, 1000); // Increased delay to 1 second for slower connections
           
         } catch (error) {
           console.error('Failed to load NEXRAD radar:', error);
+          // Fall back to RainViewer
           console.log('Switching to RainViewer due to NEXRAD issues');
           setRadarSource('rainviewer');
         }
@@ -223,7 +246,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     };
 
     loadRadarFrames();
-  }, [radarSource, location?.lat, location?.lon]); // Use specific location properties to avoid object recreation issues
+  }, [radarSource, location]); // Added location dependency
 
   // Animation functions
   const startAnimation = () => {
@@ -281,25 +304,33 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             attribution: 'RainViewer'
           });
         } else {
-          // Simplified NEXRAD - always use current composite tiles
-          const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
+          // NEXRAD: Use RIDGE API for site-specific historical data
+          const timestampStr = String(timestamp);
+          let nexradUrl;
+          
+          if (timestampStr.startsWith('current') || !nexradSite) {
+            // Fallback to current composite radar
+            nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
+          } else {
+            // Use RIDGE API for historical site-specific data
+            nexradUrl = `/api/nexrad/tile/${nexradSite}/${timestamp}/{z}/{x}/{y}.png`;
+          }
+          
           radarLayerRef.current = window.L.tileLayer(nexradUrl, {
             opacity: 0.7,
             zIndex: 200,
-            attribution: `NEXRAD (${nexradSite || 'Current'})`,
+            attribution: `NEXRAD ${nexradSite ? `(${nexradSite})` : ''}`,
             updateWhenIdle: true,
             updateWhenZooming: false
           });
-          
-          console.log('NEXRAD: Loading current composite radar tiles');
         }
         
         radarLayerRef.current.addTo(map);
       }
       
-      // Sample precipitation data for this frame only when not animating and on the most recent frame
-      if (!isAnimating && currentFrameIndex === radarFrames.length - 1) {
-        setTimeout(() => sampleRadarDbz(), 1500); // Allow more time for frame to load
+      // Sample precipitation data for this frame only when not animating
+      if (!isAnimating) {
+        setTimeout(() => sampleRadarDbz(), 1000);
       }
     }
   }, [currentFrameIndex, radarFrames, radarSource]);
@@ -1065,7 +1096,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const selectedStorm = precipitationStorms.find(s => s.id === selectedStormId);
       if (selectedStorm) {
         hideStormCone();
-        showStormCone(selectedStorm.lat, selectedStorm.lon, selectedStorm.intensity, selectedStorm.id);
+        showStormCone(selectedStorm.lat, selectedStorm.lon, selectedStorm.intensity);
       }
     }
   }, [showTimeLabels]);
@@ -1183,7 +1214,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         return Math.round(baseSize);
       };
       
-      const markerSize = getMarkerSize(point.dbz, (point as any).count);
+      const markerSize = getMarkerSize(point.dbz, point.count);
       
       // Add popup with precipitation info including rainfall rate
       const pointDistance = calculateDistance(centerLat, centerLon, point.lat, point.lon);
@@ -1345,14 +1376,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
       const hailWarning = getHailInfo(point.dbz);
       
-      const popupContent = (point as any).count && (point as any).count > 1 
+      const popupContent = point.count && point.count > 1 
         ? `<b>Storm Cell Cluster</b><br>
            Distance: ${displayDistance.toFixed(1)} miles<br>
            Max Intensity: ${point.dbz} dBZ<br>
            ${point.dbz >= 55 ? 'Rain/Hail Rate:' : 'Rain Rate:'} ${rainfallData.mmh} mm/h (${rainfallData.inh} in/h)<br>
            Type: ${precipType}<br>
            ${hailWarning ? `<span style="color: orange;">${hailWarning}</span><br>` : ''}
-           Cells: ${(point as any).count}<br>
+           Cells: ${point.count}<br>
            <small>Real-time ${radarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'} data</small>`
         : `<b>Precipitation Cell</b><br>
            Distance: ${displayDistance.toFixed(1)} miles<br>
@@ -1678,13 +1709,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const map = mapInstanceRef.current;
     if (!map || !window.L || !location) return;
 
-    // Clear any pending auto-sample timeouts to prevent conflicts
-    if (autoSampleTimeoutRef.current) {
-      clearTimeout(autoSampleTimeoutRef.current);
-      autoSampleTimeoutRef.current = undefined;
-    }
-
-    console.log(`Manual storm update triggered`);
+    console.log(`Starting precipitation sampling...`);
     
     if (radarSource === 'nexrad') {
       await sampleNexradData();
@@ -1701,11 +1726,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     try {
       // Get map bounds and center
       const center = map.getCenter();
-      const currentZoom = map.getZoom();
-      
-      // Use fixed zoom level 8 for consistent tile sampling regardless of map zoom
-      const zoom = 8;
-      console.log(`NEXRAD: Using fixed zoom level ${zoom} for consistent sampling (current map zoom: ${currentZoom})`);
+      const zoom = map.getZoom();
+      const bounds = map.getBounds();
 
       // Calculate the 50-mile radius boundary
       const radiusInDegrees = 50 / 69.0; // 50 miles in degrees
@@ -1883,11 +1905,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     try {
       // Get map bounds and center
       const center = map.getCenter();
-      const currentZoom = map.getZoom();
-      
-      // Use fixed zoom level 8 for consistent tile sampling regardless of map zoom
-      const zoom = 8;
-      console.log(`RainViewer: Using fixed zoom level ${zoom} for consistent sampling (current map zoom: ${currentZoom})`);
+      const zoom = map.getZoom();
 
       // Calculate the 50-mile radius boundary
       const radiusInDegrees = 50 / 69.0; // 50 miles in degrees
@@ -2101,7 +2119,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   };
 
   return (
-    <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50 w-full max-w-4xl mx-auto min-w-0">
+    <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50">
 
       
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
@@ -2116,42 +2134,42 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={() => setRadarSource(radarSource === 'rainviewer' ? 'nexrad' : 'rainviewer')}
             variant="outline"
             size="sm"
-            className="text-xs px-2 whitespace-nowrap"
+            className="text-xs px-2"
           >
-            {radarSource === 'rainviewer' ? 'NEXRAD' : 'RainViewer'}
+            Switch to {radarSource === 'rainviewer' ? 'NEXRAD' : 'RainViewer'}
           </Button>
           <Button
             onClick={() => setShowSectorGrid(!showSectorGrid)}
             variant={showSectorGrid ? "default" : "outline"}
             size="sm"
-            className="text-xs px-2 whitespace-nowrap"
+            className="text-xs px-2"
           >
             {showSectorGrid ? "Hide" : "Show"} Grid
           </Button>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              e.currentTarget.blur(); // Remove focus to prevent any UI shifts
-              sampleRadarDbz();
-            }}
-            className="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 rounded-md disabled:opacity-50 whitespace-nowrap"
-            disabled={isAnimating}
-            type="button"
-          >
-            Update Storms
-          </button>
 
-          {/* Animation controls disabled - showing latest frame only */}
+          <Button
+            onClick={toggleRadarAnimation}
+            variant={isAnimating ? "destructive" : "default"}
+            size="sm"
+            className="text-xs px-2"
+            disabled={radarSource === 'nexrad' || radarFrames.length < 2}
+          >
+            {isAnimating ? 'Stop' : 'Play'}
+          </Button>
+          {radarFrames.length > 1 && (
+            <span className="text-xs text-slate-400">
+              {currentFrameIndex >= 0 ? `${currentFrameIndex + 1}/${radarFrames.length}` : 'Live'}
+            </span>
+          )}
         </div>
       </div>
 
-      <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden aspect-square max-h-[500px] z-0 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
+      <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[400px] md:h-[600px] lg:h-[700px] xl:h-[800px] z-0 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
         <div ref={mapRef} className="w-full h-full" style={{ zIndex: 0 }}></div>
         
         {/* Disabled overlay */}
@@ -2164,7 +2182,38 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </div>
         )}
         
-
+        {/* Radar Controls - Top Right */}
+        <div className="absolute top-3 right-3 z-[1000] flex gap-2">
+          <Button
+            onClick={() => {
+              // Refresh radar by clearing cache and reloading
+              if (radarLayerRef.current && mapInstanceRef.current) {
+                mapInstanceRef.current.removeLayer(radarLayerRef.current);
+                radarLayerRef.current = null;
+              }
+              // Clear existing data and reload
+              setPrecipitationPoints([]);
+              setRadarFrameHistory([]);
+              loadRadarFrames();
+              setTimeout(() => sampleRadarDbz(), 1000);
+            }}
+            variant="outline"
+            size="sm"
+            className="text-xs px-2 py-2 bg-slate-800/90 border-slate-600 hover:bg-slate-700/90"
+            disabled={isAnimating}
+          >
+            🔄 Refresh
+          </Button>
+          <Button
+            onClick={sampleRadarDbz}
+            variant="outline"
+            size="sm"
+            className="text-xs px-3 py-2 bg-slate-800/90 border-slate-600 hover:bg-slate-700/90"
+            disabled={isAnimating}
+          >
+            Update Storms
+          </Button>
+        </div>
       </div>
       
       {/* Radar Info - Moved to Bottom */}
@@ -2175,7 +2224,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             <div className="text-xs sm:text-sm text-white">{radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'}</div>
           </div>
           <div className="text-xs text-slate-400">
-            Range: {radarRange} miles | {radarSource === 'rainviewer' ? 'Global Coverage (Animated)' : 'US High-Resolution (30-Min Historical)'}
+            Range: {radarRange} miles | {radarSource === 'rainviewer' ? 'Global Coverage (Animated)' : 'US High-Resolution (Static)'}
           </div>
         </div>
       </div>

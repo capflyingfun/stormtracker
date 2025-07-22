@@ -256,24 +256,3 @@ input[type="range"]::-moz-range-thumb {
 .animate-spin {
   animation: spin 1s linear infinite;
 }
-
-/* Prevent modal movement during storm data updates */
-.fixed[style*="position: fixed"] {
-  position: fixed !important;
-  transform: none !important;
-}
-
-/* Prevent layout shifts during data updates */
-[data-updating="true"] {
-  transition: none !important;
-}
-
-/* Stabilize modal positioning */
-.modal-container {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  transform: none !important;
-}

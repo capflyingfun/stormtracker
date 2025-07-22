@@ -78,8 +78,7 @@ export default function AIWeatherAssistant({
       return response.json();
     },
     enabled: !!(userLocation.lat && userLocation.lon),
-    // Disabled automatic refresh to prevent page reloading issues
-    // refetchInterval: 300000, // Refresh every 5 minutes
+    refetchInterval: 300000, // Refresh every 5 minutes
   });
 
   // Threat detection query for monitoring
@@ -219,17 +218,17 @@ export default function AIWeatherAssistant({
     refetchThreats();
   };
 
-  // Auto-monitor disabled to prevent page refresh issues
-  // useEffect(() => {
-  //   if (!isMonitoring) return;
-  //   
-  //   const interval = setInterval(() => {
-  //     setLastCheck(new Date());
-  //     refetchThreats();
-  //   }, 10 * 60 * 1000); // 10 minutes
-  //   
-  //   return () => clearInterval(interval);
-  // }, [isMonitoring, refetchThreats]);
+  // Auto-monitor every 10 minutes when monitoring is active
+  useEffect(() => {
+    if (!isMonitoring) return;
+    
+    const interval = setInterval(() => {
+      setLastCheck(new Date());
+      refetchThreats();
+    }, 10 * 60 * 1000); // 10 minutes
+    
+    return () => clearInterval(interval);
+  }, [isMonitoring, refetchThreats]);
 
   // Loading timer and data readiness logic
   useEffect(() => {
@@ -328,7 +327,6 @@ export default function AIWeatherAssistant({
                 : 'Analyze Weather & Alerts'
             }
           </Button>
-
           {isMonitoring ? (
             <Button
               onClick={handleStopMonitoring}
@@ -592,28 +590,6 @@ export default function AIWeatherAssistant({
             </div>
           </div>
         )}
-
-        {/* Manual Refresh Button - Positioned between AI Analysis and Chat */}
-        <div className="flex justify-center py-2 border-t border-b border-slate-700/50">
-          <Button
-            onClick={async () => {
-              console.log('🔄 Refreshing aviation weather data...');
-              try {
-                await queryClient.invalidateQueries({ queryKey: ['/api/aviation-weather'] });
-                console.log('✅ Aviation weather data refreshed successfully');
-              } catch (error) {
-                console.log('❌ Failed to refresh aviation weather data:', error);
-              }
-            }}
-            disabled={!userLocation}
-            size="sm"
-            variant="outline"
-            className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600"
-            title="Refresh weather data"
-          >
-            🔄 Refresh Weather Data
-          </Button>
-        </div>
 
         {assessmentMutation.isError && (
           <div className="text-center py-4">

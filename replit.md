@@ -547,48 +547,13 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Data Source Verification**: System validates against professional lightning tracking apps (Lightning Tracker Pro) for accuracy assessment
 - **NWS Partnership Opportunity**: Professional presentation prepared for National Weather Service collaboration on lightning data integration
 
-### NEXRAD Animation Implementation (July 22, 2025)
-- **30-Minute Historical Animation**: NEXRAD configured for 30-minute historical animation (6 frames at 5-minute intervals) for optimal reliability
-- **Enabled Animation Controls**: Play button functionality restored for NEXRAD historical frame cycling
-- **Enhanced Timestamp Generation**: Fixed timestamp formatting bug that was generating invalid 1970-era dates
-- **Optimized Timeframe**: Reduced from 2-hour to 30-minute historical window for better Iowa Environmental Mesonet archive availability
-- **Improved Frame Loading**: Enhanced error handling and fallback mechanisms for more reliable frame loading
-- **Authentic Historical Data**: Uses Iowa Environmental Mesonet NEXRAD archive for authentic historical radar data
-- **Frame-by-Frame Display**: Switched from tile layers to imageOverlay system for proper historical frame cycling
-- **Error Handling with Fallback**: Automatic fallback to current radar when historical frames unavailable
-- **Precipitation Sampling Integration**: Storm detection only occurs on current frame when animation stopped
-- **Successful Implementation**: Animation now properly cycles through all 6 historical frames showing actual storm movement over time
-
-### Page Refresh Fix & Manual Controls (July 22, 2025)
-- **RESOLVED: Page Refresh Issue**: Completely fixed automatic page refreshing by disabling refetchInterval in AI assistant aviation weather query and alert components
-- **NEXRAD Timestamp Fix**: Fixed animation timestamp conversion to prevent 1970-era dates causing "last frame flashing" during animation
-- **Manual Refresh Buttons**: Added manual refresh controls to AI Weather Assistant and Immediate Safety Alerts to replace disabled automatic updates
-- **Stable Page Navigation**: Users can now access radar controls, animation buttons, and settings without page automatically refreshing and scrolling to top
-- **Enhanced User Control**: Manual refresh buttons (🔄) allow users to update weather data and alerts on demand rather than automatic 5-minute intervals
-- **Timestamp Validation**: Added timestamp validation in NEXRAD animation to ensure proper 2025 dates instead of invalid 1970 timestamps
-- **Improved Radar Animation**: Animation now generates proper timestamps (202507211920 format) for authentic historical frame loading
-
-### Update Storms Button Fix & Zoom Independence (July 22, 2025)
-- **Fixed Button Behavior**: Completely resolved "Update Storms" button causing page refresh and modal movement issues
-- **Enhanced Event Handling**: Added preventDefault(), stopPropagation(), and blur() to prevent any UI shifts or form submission behavior
-- **Replaced Shadcn Button**: Switched from shadcn Button component to native HTML button with custom styling for better control
-- **Auto-Sample Conflict Prevention**: Added timeout clearing to prevent conflicts between manual updates and auto-sampling
-- **Zoom-Independent Sampling**: Implemented fixed zoom level 8 for consistent storm detection regardless of current map zoom level
-- **Consistent Storm Detection**: Storm sampling now works identically at all zoom levels (zoom 6-16) for reliable precipitation detection
-- **Enhanced Reliability**: Manual storm updates now work without causing view movement or interface glitches at any zoom level
-
-### NEXRAD Simplification & UI Improvements (July 22, 2025)
-- **Disabled Animation System**: Removed NEXRAD animation controls due to persistent page refresh and timestamp issues
-- **Latest Frame Only**: NEXRAD now displays only the latest radar image for maximum stability and reliability
-- **Simplified Interface**: Removed Play/Stop animation buttons and frame counters to focus on current weather conditions
-- **Repositioned Refresh Button**: Moved AI Assistant refresh button to bottom of modal between AI Analysis and chat sections
-- **Enhanced Manual Controls**: Refresh button now clearly labeled "🔄 Refresh Weather Data" for better user understanding
-- **Stability Focus**: Eliminated all animation-related refresh triggers to ensure stable page navigation and radar access
-- **Fixed Mobile Radar Size**: Set consistent 500px height for radar container across all devices to prevent size switching on mobile
-- **Fixed Radar Container Width**: Added width constraints (w-full max-w-4xl min-w-0) with center alignment to prevent horizontal size fluctuations
-- **Removed Radar Refresh Button**: Eliminated radar refresh button that was potentially causing width fluctuation issues
-- **Fixed Button Layout**: Removed flex-wrap and added whitespace-nowrap to prevent button text wrapping that could cause width changes
-- **Enhanced Refresh Feedback**: Added visual spinning animations and console logging to show refresh button activity status
+### Static NEXRAD Implementation (July 17, 2025)
+- **Static Radar Display**: NEXRAD configured for stable, current radar visualization without animation
+- **Disabled Animation Controls**: Play button disabled for NEXRAD to prevent animation attempts
+- **Simplified Frame Loading**: Removed complex timestamp fetching for streamlined static operation  
+- **Clear UI Indicators**: Interface clearly shows NEXRAD as "Static" vs RainViewer as "Animated"
+- **Reliable Operation**: Static NEXRAD provides consistent radar overlay and precipitation detection
+- **Authentic Data Focus**: Maintained authentic Iowa Mesonet NEXRAD tiles for precipitation waypoint detection
 
 ### Radar Source-Specific dBZ Calibration (July 18, 2025)
 - **Separate Threshold Systems**: Implemented radar source-specific dBZ thresholds to account for calibration differences
