@@ -158,7 +158,7 @@ function generateWeatherStory(storms: StormData[]): string {
       const intensities = storms.map(s => s.intensity).sort((a, b) => a - b);
       const minDbz = intensities[0];
       const maxDbz = intensities[intensities.length - 1];
-      story += ` and ${storms.length - 2} additional storm${storms.length > 3 ? 's' : ''} (${minDbz}-${maxDbz} dBZ range)`;
+      story += ` plus ${storms.length - 2} more (${minDbz}-${maxDbz} dBZ range)`;
     }
     story += ".";
   }
