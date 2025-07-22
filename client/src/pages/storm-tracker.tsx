@@ -239,8 +239,10 @@ export default function StormTracker() {
   // Use storms from API when available, otherwise fall back to precipitation storms
   const activeStorms = storms && storms.length > 0 ? storms : precipitationStorms;
   
-  // Debug logging for storm data flow
-  console.log(`STORM TRACKER DEBUG: API storms: ${storms?.length || 0}, Precipitation storms: ${precipitationStorms.length}, Active storms: ${activeStorms.length}`);
+  // Debug logging for storm data flow (temporary)
+  if (storms?.length || precipitationStorms.length) {
+    console.log(`STORM TRACKER DEBUG: API storms: ${storms?.length || 0}, Precipitation storms: ${precipitationStorms.length}, Active storms: ${activeStorms.length}`);
+  }
   
   const filteredStorms = activeStorms.filter(storm => {
     const category = storm.intensity >= 61 ? 'extreme' :
@@ -751,7 +753,7 @@ export default function StormTracker() {
                     lon: location.lon,
                     address: location.name
                   }}
-                  storms={precipitationStorms.map(storm => ({
+                  storms={activeStorms.map(storm => ({
                     id: storm.id,
                     lat: storm.lat,
                     lon: storm.lon,
@@ -852,7 +854,7 @@ export default function StormTracker() {
                 <div className="flex-1 lg:max-w-[70%] mx-auto">
                   <StormMap
                     location={location}
-                    storms={storms || []}
+                    storms={activeStorms}
                     radarRange={radarRange}
                     useMetric={useMetric}
                     formatDistance={formatDistance}
@@ -989,7 +991,7 @@ export default function StormTracker() {
             {/* Main Tracker Content - Always Show */}
             <div className="max-w-4xl mx-auto mt-4 sm:mt-6">
               <StormPanel
-                storms={precipitationStorms}
+                storms={activeStorms}
                 useMetric={useMetric}
                 formatDistance={formatDistance}
                 formatSpeed={formatSpeed}
