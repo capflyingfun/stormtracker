@@ -10,7 +10,6 @@ import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
-import { convertTimezonesInText, getTimezoneFromCoordinates } from "@/components/immediate-safety-alerts";
 
 // import { ThreatMonitor } from "@/components/threat-monitor"; // Consolidated into AI Weather Assistant
 
@@ -18,9 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIWeatherAssistant from "@/components/ai-weather-assistant";
-import DeviceDiagnostics from "@/components/device-diagnostics";
-
-// Removed duplicate WeatherStoryInline component - Weather Story now handled by StormPanel
 
 // Embedded Message Inbox Component for Modal
 function EmbeddedMessageInbox() {
@@ -183,7 +179,6 @@ export default function StormTracker() {
   const [showMessages, setShowMessages] = useState(false);
   const [windsData, setWindsData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages'>('tracker');
-  const [showDeviceDiagnostics, setShowDeviceDiagnostics] = useState(false);
 
 
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -202,24 +197,13 @@ export default function StormTracker() {
     alerts,
     refetch: refetchStormData,
     isLoading: stormDataLoading,
-  } = useStormData(location, radarRange, currentRadarSource);
+  } = useStormData(location, radarRange);
 
   // Get alert preferences for visual highlighting only
-  const { data: preferencesData } = useQuery({
+  const { data: preferences } = useQuery({
     queryKey: ['/api/alerts/preferences'],
     staleTime: 5 * 60 * 1000,
   });
-
-  // Provide safe defaults for preferences to prevent type errors
-  const preferences = (preferencesData && typeof preferencesData === 'object' && 'minimumDbz' in preferencesData) 
-    ? preferencesData as any : {
-    minimumDbz: 45,
-    alertRadius: 50,
-    alertFrequency: 15,
-    soundEnabled: true,
-    emailEnabled: false,
-    smsEnabled: false
-  };
 
   // Get winds aloft data for AI assistant
   const { data: windsAloftData } = useQuery({
@@ -238,13 +222,7 @@ export default function StormTracker() {
 
 
   
-  // Use storms from API when available, otherwise fall back to precipitation storms
-  const activeStorms = storms && storms.length > 0 ? storms : precipitationStorms;
-  
-  // Debug logging for storm data flow (temporary)
-  if (storms?.length || precipitationStorms.length) {
-    console.log(`STORM TRACKER DEBUG: API storms: ${storms?.length || 0}, Precipitation storms: ${precipitationStorms.length}, Active storms: ${activeStorms.length}`);
-  }
+  const activeStorms = precipitationStorms;
   
   const filteredStorms = activeStorms.filter(storm => {
     const category = storm.intensity >= 61 ? 'extreme' :
@@ -263,8 +241,8 @@ export default function StormTracker() {
       setPrecipitationStorms(newPrecipitationStorms);
       
       // Log for visual highlighting (no popup alerts)
-      if (location && preferences.minimumDbz) {
-        const qualifyingStorms = newPrecipitationStorms.filter((storm: any) => 
+      if (location && preferences) {
+        const qualifyingStorms = newPrecipitationStorms.filter(storm => 
           storm.intensity >= preferences.minimumDbz
         );
         console.log(`Visual Alert System: Found ${qualifyingStorms.length} storms meeting ${preferences.minimumDbz}+ dBZ threshold for visual highlighting`);
@@ -279,8 +257,21 @@ export default function StormTracker() {
 
 
 
-  // Listen for location with radar source (disabled to prevent conflicts)
-  // Radar source switching is now handled by the consolidated useEffect above
+  // Listen for location with radar source
+  useEffect(() => {
+    const handleLocationWithRadarSource = (event: any) => {
+      const locationData = event.detail;
+      if (locationData?.recommendedRadarSource) {
+        setCurrentRadarSource(locationData.recommendedRadarSource);
+        console.log(`Auto-switched to ${locationData.recommendedRadarSource} for location: ${locationData.name}`);
+      }
+    };
+
+    window.addEventListener('locationWithRadarSource', handleLocationWithRadarSource);
+    return () => {
+      window.removeEventListener('locationWithRadarSource', handleLocationWithRadarSource);
+    };
+  }, []);
 
   // Handle storm filtering settings save
   const handleStormFilteringSettingsSave = async (newPreferences: any) => {
@@ -310,21 +301,21 @@ export default function StormTracker() {
     }
   }, [location]);
 
-  // Auto-switch radar source for US locations (simplified and consolidated)
+  // Auto-switch to NEXRAD for US locations on app load
   useEffect(() => {
-    if (location) {
-      // Detect US locations by coordinates 
+    if (location && currentRadarSource === 'rainviewer') {
+      // Detect US locations by coordinates or common US indicators
       const isUSLocation = location.lat >= 24.5 && location.lat <= 49.5 && location.lon >= -125 && location.lon <= -66.5;
+      const hasUSIndicators = location.name.includes(', FL') || location.name.includes(', TX') || location.name.includes(', CA') || 
+                             location.name.includes(', NY') || location.name.includes('Florida') || location.name.includes('Texas') ||
+                             location.name.includes('California') || location.name.includes('Alaska') || location.name.includes('Hawaii');
       
-      if (isUSLocation && currentRadarSource !== 'nexrad') {
+      if (isUSLocation || hasUSIndicators) {
         setCurrentRadarSource('nexrad');
         console.log('Auto-switched to NEXRAD for US location:', location.name);
-      } else if (!isUSLocation && currentRadarSource !== 'rainviewer') {
-        setCurrentRadarSource('rainviewer');
-        console.log('Auto-switched to RainViewer for international location:', location.name);
       }
     }
-  }, [location]); // Remove currentRadarSource dependency to prevent loops
+  }, [location, currentRadarSource]);
 
   // Auto-refresh when tracking is enabled
   useEffect(() => {
@@ -357,7 +348,11 @@ export default function StormTracker() {
   const handleGPSLocation = async () => {
     try {
       const result = await setLocationFromGPS();
-      // Radar source will be auto-switched by the location useEffect above
+      // Auto-switch to NEXRAD for US GPS locations
+      if (result && (result.isUS || result.recommendedRadarSource === 'nexrad')) {
+        setCurrentRadarSource('nexrad');
+        console.log('Auto-switched to NEXRAD for US GPS location:', result.name);
+      }
       if (isTracking) {
         refetchStormData();
         setLastUpdate(new Date());
@@ -422,7 +417,7 @@ export default function StormTracker() {
       />
       
       {/* Storm Filtering Settings Modal */}
-      {preferences.minimumDbz && (
+      {preferences && (
         <AlertSettings
           isOpen={showStormFilteringSettings}
           onClose={() => setShowStormFilteringSettings(false)}
@@ -522,14 +517,6 @@ export default function StormTracker() {
                     className="text-xs sm:text-sm"
                   >
                     🌐 GPS
-                  </Button>
-                  <Button
-                    onClick={() => setShowDeviceDiagnostics(true)}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs sm:text-sm bg-blue-600/20 border-blue-500/50 text-blue-400 hover:bg-blue-600/30"
-                  >
-                    🔧 Device Debug
                   </Button>
                 </div>
               </div>
@@ -735,8 +722,6 @@ export default function StormTracker() {
               </div>
             )}
 
-
-
             {/* AI Weather Assistant with Integrated Threat Monitoring */}
             {location && windsAloftData && (
               <div className="mb-4 sm:mb-6">
@@ -746,7 +731,7 @@ export default function StormTracker() {
                     lon: location.lon,
                     address: location.name
                   }}
-                  storms={activeStorms.map(storm => ({
+                  storms={precipitationStorms.map(storm => ({
                     id: storm.id,
                     lat: storm.lat,
                     lon: storm.lon,
@@ -847,17 +832,12 @@ export default function StormTracker() {
                 <div className="flex-1 lg:max-w-[70%] mx-auto">
                   <StormMap
                     location={location}
-                    storms={activeStorms}
+                    storms={storms || []}
                     radarRange={radarRange}
                     useMetric={useMetric}
                     formatDistance={formatDistance}
                     formatSpeed={formatSpeed}
-                    stormFilters={{
-                      light: stormFilters.light,
-                      moderate: stormFilters.moderate,
-                      heavy: stormFilters.heavy,
-                      severe: stormFilters.veryHeavy
-                    }}
+                    stormFilters={stormFilters}
                     onRadarSourceChange={setCurrentRadarSource}
                     radarSource={currentRadarSource}
                     isDisabled={showStormFilteringSettings || showAlertSubscription}
@@ -984,7 +964,7 @@ export default function StormTracker() {
             {/* Main Tracker Content - Always Show */}
             <div className="max-w-4xl mx-auto mt-4 sm:mt-6">
               <StormPanel
-                storms={activeStorms}
+                storms={precipitationStorms}
                 useMetric={useMetric}
                 formatDistance={formatDistance}
                 formatSpeed={formatSpeed}
@@ -1010,11 +990,6 @@ export default function StormTracker() {
         />
       )}
       
-      {/* Device Diagnostics */}
-      <DeviceDiagnostics 
-        isOpen={showDeviceDiagnostics}
-        onClose={() => setShowDeviceDiagnostics(false)}
-      />
 
     </div>
   );
