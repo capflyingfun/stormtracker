@@ -576,6 +576,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Enhanced Manual Controls**: Refresh button now clearly labeled "🔄 Refresh Weather Data" for better user understanding
 - **Stability Focus**: Eliminated all animation-related refresh triggers to ensure stable page navigation and radar access
 - **Fixed Mobile Radar Size**: Set consistent 500px height for radar container across all devices to prevent size switching on mobile
+- **Fixed Radar Container Width**: Added max-width constraint (max-w-4xl) with center alignment to match AI assistant modal width and prevent horizontal size variations
 - **Enhanced Refresh Feedback**: Added visual spinning animations and console logging to show refresh button activity status
 
 ### Radar Source-Specific dBZ Calibration (July 18, 2025)
