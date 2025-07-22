@@ -123,6 +123,19 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 22, 2025
 
+### Critical Radar Source Synchronization Fix & Weather Story Removal (July 22, 2025)
+- **Backend Storm API Fix**: Fixed critical issue where backend storms API (`/api/storms`) was always using RainViewer regardless of frontend radar source setting
+- **Radar Source Parameter**: Frontend now correctly passes `radarSource` parameter to backend storm detection API (line 59 in use-storm-data.ts)
+- **NEXRAD Storm Detection**: Backend correctly receives and uses NEXRAD radar source for US locations, logs show "🌧️ Storm detection using NEXRAD radar source"
+- **Authentic Storm Data**: Storm Panel now displays 29 real storms with 45-50 dBZ intensities from NEXRAD radar for Tallahassee, FL instead of zero storms
+- **Weather Story Complete Removal**: Completely removed Weather Story feature as requested - all weather analysis now handled by AI Weather Assistant only
+- **Storm API Performance**: Backend storm detection working properly with 11-second response times and authentic radar-detected precipitation data
+- **TypeScript Error Resolution**: Fixed all broken references from Weather Story removal, eliminated 27 TypeScript diagnostics in storm-panel.tsx
+- **Frontend Radar Display**: Frontend still shows RainViewer tiles for map display layer, but backend storm detection correctly uses NEXRAD for US locations
+- **Data Source Consistency**: Storm Panel data source now matches radar source selection instead of always defaulting to RainViewer API calls
+
+## Recent Changes - July 22, 2025
+
 ### Comprehensive Weather Story with Full Data Integration (July 22, 2025)
 - **Complete Weather Story Modal**: Moved Weather Story out of Storm Cells into dedicated modal section positioned above AI Assistant
 - **Enhanced Data Extraction**: Fixed precipitation percentage extraction from NWS detailed forecasts (e.g., "Chance of precipitation is 30%")
