@@ -150,10 +150,54 @@ function generateStormStory(storms: any[], weatherStoryData?: any): string {
     const todayForecast = weatherStoryData.forecast.periods[0];
     const tonightForecast = weatherStoryData.forecast.periods.length > 1 ? weatherStoryData.forecast.periods[1] : null;
     
-    story += `\n\n🌤️ For today, the National Weather Service forecasts: ${todayForecast.detailedForecast}`;
+    // Extract key forecast details
+    const todayTemp = todayForecast.temperature ? `${todayForecast.temperature}°F` : '';
+    const todayWind = todayForecast.windSpeed && todayForecast.windDirection ? 
+      `${todayForecast.windDirection.toLowerCase()} winds ${todayForecast.windSpeed.toLowerCase()}` : '';
     
+    // Extract precipitation chance from detailed forecast if not in probabilityOfPrecipitation
+    let precipChance = '';
+    if (todayForecast.probabilityOfPrecipitation) {
+      precipChance = `${todayForecast.probabilityOfPrecipitation}% chance of rain`;
+    } else if (todayForecast.detailedForecast && todayForecast.detailedForecast.match(/chance of precipitation is (\d+)%/i)) {
+      const match = todayForecast.detailedForecast.match(/chance of precipitation is (\d+)%/i);
+      precipChance = `${match[1]}% chance of rain`;
+    }
+    
+    // Build today's forecast summary
+    let todayDetails = [];
+    if (todayTemp) todayDetails.push(`high ${todayTemp}`);
+    if (precipChance) todayDetails.push(precipChance);
+    if (todayWind) todayDetails.push(todayWind);
+    
+    story += `\n\n🌤️ Today's forecast: ${todayForecast.shortForecast || 'partly cloudy'}`;
+    if (todayDetails.length > 0) {
+      story += ` with ${todayDetails.join(', ')}`;
+    }
+    story += `.`;
+    
+    // Tonight's forecast
     if (tonightForecast) {
-      story += ` Tonight: ${tonightForecast.detailedForecast}`;
+      const tonightTemp = tonightForecast.temperature ? `${tonightForecast.temperature}°F` : '';
+      
+      // Extract precipitation chance for tonight
+      let tonightPrecipChance = '';
+      if (tonightForecast.probabilityOfPrecipitation) {
+        tonightPrecipChance = `${tonightForecast.probabilityOfPrecipitation}% chance of rain`;
+      } else if (tonightForecast.detailedForecast && tonightForecast.detailedForecast.match(/chance of precipitation is (\d+)%/i)) {
+        const match = tonightForecast.detailedForecast.match(/chance of precipitation is (\d+)%/i);
+        tonightPrecipChance = `${match[1]}% chance of rain`;
+      }
+      
+      let tonightDetails = [];
+      if (tonightTemp) tonightDetails.push(`low ${tonightTemp}`);
+      if (tonightPrecipChance) tonightDetails.push(tonightPrecipChance);
+      
+      story += ` Tonight: ${tonightForecast.shortForecast || 'partly cloudy'}`;
+      if (tonightDetails.length > 0) {
+        story += ` with ${tonightDetails.join(', ')}`;
+      }
+      story += `.`;
     }
   }
   
