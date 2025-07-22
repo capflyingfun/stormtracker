@@ -55,8 +55,8 @@ function getStormPersonality(intensity: number): {
   }
 }
 
-// Build simplified prompt without emoji storytelling for fallback  
-function buildBasicPrompt(data: any, tone: any): string {
+// Build simplified prompt without emoji storytelling for fallback
+function buildBasicPrompt(data: WeatherAssessmentData, dynamicTone: any): string {
   const immediateStormContext = data.storms.map(storm => ({
     distance: typeof storm.distance === 'number' ? `${storm.distance.toFixed(1)} miles` : `${storm.distance}`,
     direction: `${getDirectionName(storm.direction || storm.bearing || 0)} of you`,
@@ -112,86 +112,50 @@ Alert status: ${data.threatData.alertStatus}` :
 Please provide comprehensive analysis including alerts, winds aloft, airport data, and forecast discussion.`;
 }
 
-// Generate emoji-based weather story narratives with storm analysis and forecast integration
-function generateWeatherStory(storms: StormData[], forecastData?: any, currentWeather?: any): string {
-  let story = "";
-  
-  // Storm analysis section
+// Generate emoji-based weather story narratives
+function generateWeatherStory(storms: StormData[]): string {
   if (!storms || storms.length === 0) {
-    story = "🌤️ The weather stage is peaceful today - no significant storms are performing in your area!";
-  } else {
-    // Find closest and strongest storms
-    const closestStorm = storms[0]; // storms are sorted by distance
-    const strongestStorm = storms.reduce((strongest, current) => 
-      current.intensity > strongest.intensity ? current : strongest, storms[0]);
-    
-    console.log('generateWeatherStory: closestStorm data:', JSON.stringify(closestStorm));
-    
-    // Closest storm information
-    const closestPersonality = getStormPersonality(closestStorm.intensity);
-    const directionName = getDirectionName(closestStorm.bearing || 0);
-    const distance = typeof closestStorm.distance === 'number' ? closestStorm.distance.toFixed(1) : closestStorm.distance;
-    
-    story += `🎯 **Nearest Storm**: ${closestPersonality.emoji} ${closestPersonality.personality} is ${closestPersonality.description} ${directionName} at ${distance} miles away.`;
-    
-    // Strongest storm information (if different from closest)
-    if (strongestStorm.id !== closestStorm.id) {
-      const strongestPersonality = getStormPersonality(strongestStorm.intensity);
-      const strongestDirection = getDirectionName(strongestStorm.bearing || 0);
-      const strongestDistance = typeof strongestStorm.distance === 'number' ? strongestStorm.distance.toFixed(1) : strongestStorm.distance;
-      story += `\n\n⚡ **Strongest Storm**: ${strongestPersonality.emoji} ${strongestPersonality.personality} (${strongestStorm.intensity} dBZ) is ${strongestDirection} at ${strongestDistance} miles away.`;
-    }
-    
-    // Movement context if available
-    if (closestStorm.movement) {
-      const movementDir = getDirectionName(closestStorm.movement.direction || 0);
-      const directionText = movementDir && movementDir !== 'unknown' ? movementDir.toLowerCase() : 'in an unknown direction';
-      story += `\n\n🧭 The nearest storm is moving ${directionText} at ${closestStorm.movement.speed || 0} mph`;
-      
-      // Add ETA if approaching
-      if (closestStorm.movement.eta && closestStorm.movement.eta !== 'N/A') {
-        story += ` and will arrive around ${closestStorm.movement.eta}`;
-      }
-      story += ".";
-    }
-    
-    // Additional storms summary
-    if (storms.length > 1) {
-      const intensities = storms.map(s => s.intensity).sort((a, b) => a - b);
-      const minDbz = intensities[0];
-      const maxDbz = intensities[intensities.length - 1];
-      story += `\n\n📊 **Area Overview**: ${storms.length} total storms detected with intensity ranging from ${minDbz}-${maxDbz} dBZ.`;
-    }
-    
-    // Educational note
-    const personality = getStormPersonality(closestStorm.intensity);
-    story += `\n\n📚 ${personality.educationalNote}`;
+    return "🌤️ The weather stage is peaceful today - no significant storms are performing in your area! ✨";
   }
+
+  const closestStorm = storms[0]; // storms are sorted by distance
+  console.log('generateWeatherStory: closestStorm data:', JSON.stringify(closestStorm));
   
-  // Weather forecast section
-  if (forecastData && forecastData.periods && forecastData.periods.length > 0) {
-    const todayForecast = forecastData.periods[0];
-    const tonightForecast = forecastData.periods.length > 1 ? forecastData.periods[1] : null;
+  const stormPersonality = getStormPersonality(closestStorm.intensity);
+  
+  let story = `${stormPersonality.emoji} ${stormPersonality.personality} is ${stormPersonality.description} `;
+  
+  // Add distance and direction context
+  console.log('generateWeatherStory: closestStorm.bearing =', closestStorm.bearing);
+  const directionName = getDirectionName(closestStorm.bearing || 0);
+  console.log('generateWeatherStory: directionName =', directionName);
+  const distance = typeof closestStorm.distance === 'number' ? closestStorm.distance.toFixed(1) : closestStorm.distance;
+  story += `about ${distance} miles ${directionName ? directionName.toLowerCase() : 'unknown direction'} of you. `;
+  
+  // Add movement context if available
+  if (closestStorm.movement) {
+    const movementDir = getDirectionName(closestStorm.movement.direction || 0);
+    story += `This ${stormPersonality.simpleName.toLowerCase()} is traveling ${movementDir ? movementDir.toLowerCase() : 'in an unknown direction'} at ${closestStorm.movement.speed || 0} mph. `;
     
-    story += `\n\n🌤️ **Today's Forecast**: ${todayForecast.name} - ${todayForecast.detailedForecast}`;
-    
-    if (tonightForecast) {
-      story += `\n\n🌙 **Tonight**: ${tonightForecast.detailedForecast}`;
+    // Add ETA if approaching
+    if (closestStorm.movement.eta && closestStorm.movement.eta !== 'N/A') {
+      story += `🕒 It will arrive around ${closestStorm.movement.eta}. `;
     }
   }
   
-  // Current conditions section
-  if (currentWeather) {
-    story += `\n\n🌡️ **Current Conditions**: `;
-    if (currentWeather.temperature) {
-      story += `${Math.round(currentWeather.temperature)}°F, `;
+  // Add educational note about dBZ
+  story += `\n\n📚 ${stormPersonality.educationalNote}`;
+  
+  // Add multiple storms context
+  if (storms.length > 1) {
+    const secondStorm = storms[1];
+    const secondPersonality = getStormPersonality(secondStorm.intensity);
+    const secondDistance = typeof secondStorm.distance === 'number' ? secondStorm.distance.toFixed(1) : secondStorm.distance;
+    story += `\n\n🌦️ There's also ${secondPersonality.personality.toLowerCase()} ${secondDistance} miles away`;
+    if (storms.length > 2) {
+      story += ` and ${storms.length - 2} other weather system${storms.length > 3 ? 's' : ''} in the region`;
     }
-    if (currentWeather.humidity) {
-      story += `${currentWeather.humidity}% humidity, `;
-    }
-    if (currentWeather.wind_speed && currentWeather.wind_direction) {
-      story += `winds ${getDirectionName(currentWeather.wind_direction)} at ${Math.round(currentWeather.wind_speed)} mph`;
-    }
+    story += ".";
   }
   
   return story;
@@ -219,118 +183,15 @@ function getDirectionName(bearing: number): string {
   return result;
 }
 
-// Convert alert times to user's local timezone
-function convertAlertTimesToLocalTimezone(alert: any, userLat: number, userLon: number): any {
-  try {
-    // Get user's timezone based on coordinates
-    const userTimezone = getTimezoneFromCoordinates(userLat, userLon);
-    console.log(`Converting alert times for coordinates (${userLat}, ${userLon}) to timezone: ${userTimezone}`);
-    
-    // Create a copy to avoid modifying the original
-    const convertedAlert = { ...alert };
-    
-    // Convert headline times
-    if (convertedAlert.headline) {
-      const originalHeadline = convertedAlert.headline;
-      convertedAlert.headline = convertTimezonesInText(convertedAlert.headline, userTimezone);
-      console.log(`Headline conversion: "${originalHeadline}" → "${convertedAlert.headline}"`);
-    }
-    
-    // Convert expires time if present
-    if (convertedAlert.expires) {
-      const expiresDate = new Date(convertedAlert.expires);
-      const localTime = expiresDate.toLocaleString('en-US', {
-        timeZone: userTimezone,
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        timeZoneName: 'short'
-      });
-      convertedAlert.expiresLocal = localTime;
-    }
-    
-    return convertedAlert;
-  } catch (error) {
-    console.log('Timezone conversion error:', error);
-    return alert; // Return original if conversion fails
-  }
-}
-
-// Get timezone from coordinates
-function getTimezoneFromCoordinates(lat: number, lon: number): string {
-  // US timezone boundaries based on longitude
-  if (lat >= 24.5 && lat <= 49.5 && lon >= -125 && lon <= -66.5) {
-    if (lon >= -125 && lon <= -120) return 'America/Los_Angeles'; // Pacific
-    if (lon >= -120 && lon <= -104) return 'America/Denver'; // Mountain
-    if (lon >= -104 && lon <= -87) return 'America/Chicago'; // Central
-    if (lon >= -87 && lon <= -66.5) return 'America/New_York'; // Eastern
-  }
-  
-  // Default to browser timezone for international locations
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
-}
-
-// Convert timezone references in text (e.g., "1:30 PM EDT" to "12:30 PM CST")
-function convertTimezonesInText(text: string, targetTimezone: string): string {
-  // Match time patterns like "1:30 PM EDT", "12:30PM CDT", etc.
-  const timePattern = /(\d{1,2}):?(\d{2})?\s?(AM|PM)\s?(EDT|EST|CDT|CST|MDT|MST|PDT|PST)/gi;
-  
-  return text.replace(timePattern, (match, hour, minute = '00', ampm, timezone) => {
-    try {
-      // Create a date object for the original time
-      const originalHour = parseInt(hour);
-      const originalMinute = parseInt(minute);
-      
-      // Convert 12-hour to 24-hour format
-      let hour24 = originalHour;
-      if (ampm.toUpperCase() === 'PM' && originalHour !== 12) hour24 += 12;
-      if (ampm.toUpperCase() === 'AM' && originalHour === 12) hour24 = 0;
-      
-      // Create date with original timezone
-      const today = new Date();
-      const originalDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour24, originalMinute);
-      
-      // Get timezone offsets
-      const timezoneOffsets: { [key: string]: number } = {
-        'EST': -5, 'EDT': -4,
-        'CST': -6, 'CDT': -5,
-        'MST': -7, 'MDT': -6,
-        'PST': -8, 'PDT': -7
-      };
-      
-      const originalOffset = timezoneOffsets[timezone.toUpperCase()];
-      if (originalOffset === undefined) return match; // Keep original if timezone not found
-      
-      // Convert to UTC first, then to target timezone
-      const utcTime = originalDate.getTime() - (originalOffset * 60 * 60 * 1000);
-      const targetDate = new Date(utcTime);
-      
-      // Format in target timezone
-      const localTime = targetDate.toLocaleString('en-US', {
-        timeZone: targetTimezone,
-        hour: 'numeric',
-        minute: '2-digit',
-        timeZoneName: 'short'
-      });
-      
-      return localTime;
-    } catch (error) {
-      console.log('Time conversion error:', error);
-      return match; // Return original if conversion fails
-    }
-  });
-}
-
 // Dynamic AI tone based on weather severity - prioritize alerts first
 function getDynamicTone(storms: StormData[], threatData: any, activeAlerts: any[]) {
   // PRIORITY 1: Check for active alerts first (Heat Advisories, Warnings, etc.)
   const hasActiveAlert = activeAlerts && activeAlerts.length > 0;
   const hasHeatAdvisory = activeAlerts?.some(a => a.event && (
-    a.event.toLowerCase?.().includes('heat') ||
-    a.event.toLowerCase?.().includes('excessive heat') ||
-    a.event.toLowerCase?.().includes('extreme heat')
-  )) || activeAlerts?.some(a => a.headline && a.headline.toLowerCase?.().includes('heat'));
+    a.event.toLowerCase().includes('heat') ||
+    a.event.toLowerCase().includes('excessive heat') ||
+    a.event.toLowerCase().includes('extreme heat')
+  ));
   
   // PRIORITY 2: Check for extreme weather threats
   const hasExtremeThreat = storms.some(s => s.intensity >= 65) || 
@@ -557,7 +418,6 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
             const alertsData = await alertsResponse.json();
             activeAlerts = alertsData.alerts || [];
             console.log(`AI Assistant: Found ${activeAlerts.length} active NWS alerts (fallback mode - no threat data)`);
-      console.log('AI Assistant: Alert details:', activeAlerts.map(a => ({headline: a.headline, event: a.event, severity: a.severity})));
           }
         } catch (alertError) {
           console.log('AI Assistant: Could not fetch NWS alerts in fallback mode:', alertError.message);
@@ -852,17 +712,13 @@ Example: "A Light storm 37 miles away with HIGH impact potential" or "A Severe s
 
 === 1. WEATHER ALERTS & ADVISORIES ===
 ${activeAlerts.length > 0 ? 
-  activeAlerts.map(alert => {
-    // Convert alert times to user's local timezone
-    const localAlert = convertAlertTimesToLocalTimezone(alert, data.userLocation?.lat || 0, data.userLocation?.lon || 0);
-    const alertType = localAlert.event || (localAlert.headline?.includes('Tsunami') ? 'Tsunami Warning' : 
-                                     localAlert.headline?.includes('Heat') ? 'Heat Advisory' : 'Weather Alert');
-    return `🚨 ACTIVE ALERT: ${alertType}\n` +
-           `   Headline: ${localAlert.headline}\n` +
-           `   Severity: ${localAlert.severity || 'Moderate'} | Expires: ${localAlert.expiresLocal || localAlert.expires}\n` +
-           `   Areas: ${localAlert.areaDesc}\n` +
-           `   Action: ${localAlert.instruction || 'Monitor conditions'}`;
-  }).join('\n\n') : 
+  activeAlerts.map(alert => 
+    `🚨 ACTIVE ALERT: ${alert.event}\n` +
+    `   Headline: ${alert.headline}\n` +
+    `   Severity: ${alert.severity || 'Moderate'} | Expires: ${alert.expires}\n` +
+    `   Areas: ${alert.areaDesc}\n` +
+    `   Action: ${alert.instruction || 'Monitor conditions'}`
+  ).join('\n\n') : 
   '✅ No active weather alerts or advisories'}
 
 ${windContext.length > 0 ? 
@@ -884,8 +740,7 @@ ${immediateStormContext.length === 0 ? '🌤️ Clear skies with no significant 
       const distance = storm.distance || 'unknown distance';
       const direction = storm.direction ? getDirectionName(storm.direction) : 'unknown direction';
       
-      const safeDirection = direction && direction !== 'unknown' ? direction.toLowerCase() : 'in an unknown direction';
-      return `${personality.emoji} ${personality.personality} is ${personality.description} about ${distance} miles ${safeDirection} of you. ${personality.educationalNote}`;
+      return `${personality.emoji} ${personality.personality} is ${personality.description} about ${distance} miles ${direction.toLowerCase()} of you. ${personality.educationalNote}`;
     } catch (error) {
       console.log('Weather story generation error:', error.message);
       return '🌤️ Weather story temporarily unavailable - see technical analysis below.';
@@ -973,7 +828,7 @@ Conditions Met: Moisture (${thunderstormConditions.thunderstormPotential.conditi
   ''}
 
 CRITICAL ANALYSIS REQUIREMENTS:
-1. If there are active weather alerts (TSUNAMI WARNINGS, Heat Advisories, Warnings, etc.), discuss ALL of them FIRST and prominently in your analysis. TSUNAMI WARNINGS have EXTREME priority, even if marked as "TEST". Any tsunami-related alert must be discussed regardless of test status. Heat advisories and all weather warnings are highest priority safety information.
+1. If there are active weather alerts (Heat Advisories, Warnings, etc.), discuss them FIRST and prominently in your analysis. Heat advisories and weather warnings are the highest priority safety information.
 
 2. STORM TRACK INTERSECTION ANALYSIS: Pay special attention to storm track analysis marked as "DIRECT PATH POTENTIAL", "HIGH IMPACT STORM", "APPROACHING STORM", or "TRACK INTERSECTION DETECTED". Even if storms are light intensity (20-40 dBZ), if they show "POSSIBLE CONTACT WITH YOUR LOCATION", "HIGH impact", or any ETA time, clearly communicate this possibility in your analysis. Do NOT dismiss light storms if they have direct path potential.
 

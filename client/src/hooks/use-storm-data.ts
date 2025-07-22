@@ -31,7 +31,7 @@ interface WeatherAlert {
   };
 }
 
-export function useStormData(location: Location | null, radius: number, radarSource: 'nexrad' | 'rainviewer' = 'nexrad') {
+export function useStormData(location: Location | null, radius: number) {
   const [precipitationStorms, setPrecipitationStorms] = useState<Storm[]>([]);
 
   // Listen for precipitation storm data from radar sampling
@@ -45,7 +45,7 @@ export function useStormData(location: Location | null, radius: number, radarSou
   }, []);
 
   const stormsQuery = useQuery({
-    queryKey: ['/api/storms', location?.lat, location?.lon, radius, radarSource],
+    queryKey: ['/api/storms', location?.lat, location?.lon, radius],
     enabled: !!location,
     refetchInterval: false,
     queryFn: async () => {
@@ -55,7 +55,6 @@ export function useStormData(location: Location | null, radius: number, radarSou
         lat: location.lat,
         lon: location.lon,
         radius,
-        radarSource,
       });
       
       return response.json() as Promise<Storm[]>;

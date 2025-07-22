@@ -838,46 +838,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Fetch NWS and current weather data for weather story
-  app.get("/api/weather-story-data", async (req, res) => {
-    try {
-      const { lat, lon } = req.query;
-      
-      if (!lat || !lon) {
-        return res.status(400).json({ error: "Latitude and longitude required" });
-      }
-      
-      const latitude = parseFloat(lat as string);
-      const longitude = parseFloat(lon as string);
-      
-      console.log(`🌤️ Fetching weather story data for ${latitude}, ${longitude}`);
-      
-      // Fetch forecast, current weather, and alerts data
-      const [nwsForecast, currentWeatherResult, alertsResult] = await Promise.allSettled([
-        fetchNWSForecast(latitude, longitude),
-        // Use the existing aviation weather endpoint that includes current conditions
-        fetch(`http://localhost:5000/api/aviation-weather?lat=${latitude}&lon=${longitude}`)
-          .then(r => r.ok ? r.json() : null),
-        // Fetch NWS alerts for the location
-        fetchNWSAlerts(latitude, longitude)
-      ]);
-      
-      const result = {
-        forecast: nwsForecast.status === 'fulfilled' ? nwsForecast.value : null,
-        currentWeather: currentWeatherResult.status === 'fulfilled' ? currentWeatherResult.value?.currentWeather : null,
-        alerts: alertsResult.status === 'fulfilled' ? alertsResult.value?.alerts || [] : [],
-        location: { lat: latitude, lon: longitude }
-      };
-      
-      console.log('Weather story data fetched - forecast:', !!result.forecast, 'current:', !!result.currentWeather);
-      res.json(result);
-      
-    } catch (error) {
-      console.error('Weather story data error:', error);
-      res.status(500).json({ error: 'Failed to fetch weather story data' });
-    }
-  });
-
   // Legacy NWS alerts endpoint (for backward compatibility)
   app.post("/api/alerts", async (req, res) => {
     try {
@@ -910,18 +870,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Storm detection endpoint - analyzes real radar data from RainViewer API
   app.post("/api/storms", async (req, res) => {
     try {
-      const { lat, lon, radius = 50, radarSource = 'nexrad' } = req.body;
-      console.log(`🌧️ Storm detection using ${radarSource.toUpperCase()} radar source`);
+      const { lat, lon, radius = 50 } = weatherDataRequestSchema.parse(req.body);
       
-      let storms;
-      if (radarSource === 'rainviewer') {
-        // Query RainViewer API for global precipitation data
-        storms = await analyzeRainViewerData(lat, lon, radius);
-      } else {
-        // Query NEXRAD for US locations - use RainViewer as fallback for now
-        console.log(`NEXRAD precipitation analysis not yet implemented, using RainViewer fallback`);
-        storms = await analyzeRainViewerData(lat, lon, radius);
-      }
+      // Query RainViewer API for real precipitation data
+      const storms = await analyzeRainViewerData(lat, lon, radius);
       
       res.json(storms);
     } catch (error) {
@@ -1288,94 +1240,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Convert RainViewer color to dBZ using their official color palette
   function convertRainViewerColorToDbz(r: number, g: number, b: number): number {
-    // Improved RainViewer color palette with realistic dBZ ranges
-    // Based on official Weather Channel color scheme used by RainViewer
+    // RainViewer color palette mapping (from their API documentation)
+    // Light blue: 20-30 dBZ, Green: 30-40 dBZ, Yellow: 40-50 dBZ, Orange/Red: 50+ dBZ
     
-    // Transparent/very dark pixels = no precipitation
-    if (r < 30 && g < 30 && b < 30) return 0;
+    if (r < 50 && g < 50 && b < 50) return 0; // Dark/transparent = no precipitation
     
-    // Very light precipitation (light blue/cyan)
-    if (b > 180 && (b - r) > 50 && (b - g) > 30) {
-      return 15 + (b - 180) / 15; // 15-20 dBZ
-    }
+    // Light blue range (light rain)
+    if (b > 200 && g > 150 && r < 100) return 20 + ((255 - b) / 55) * 10; // 20-30 dBZ
     
-    // Light precipitation (green)
-    if (g > 150 && g > r && g > b && r < 120) {
-      return 20 + (g - 150) / 21; // 20-25 dBZ
-    }
+    // Green range (moderate rain)
+    if (g > 200 && r < 150 && b < 150) return 30 + ((255 - g) / 55) * 10; // 30-40 dBZ
     
-    // Moderate precipitation (darker green)
-    if (g > 120 && g > r && g > b && r < 100 && b < 100) {
-      return 25 + (g - 120) / 27; // 25-30 dBZ
-    }
+    // Yellow range (heavy rain)
+    if (r > 200 && g > 200 && b < 100) return 40 + ((r + g - 400) / 110) * 10; // 40-50 dBZ
     
-    // Moderate-heavy precipitation (yellow)
-    if (r > 150 && g > 150 && b < 100 && Math.abs(r - g) < 50) {
-      return 30 + ((r + g - 300) / 110) * 10; // 30-40 dBZ
-    }
+    // Orange range (very heavy rain)
+    if (r > 200 && g > 100 && g < 200 && b < 100) return 50 + ((r - 200) / 55) * 10; // 50-60 dBZ
     
-    // Heavy precipitation (orange)
-    if (r > 180 && g > 80 && g < 150 && b < 80) {
-      return 40 + (r - 180) / 15; // 40-45 dBZ
-    }
+    // Red range (severe storms)
+    if (r > 200 && g < 100 && b < 100) return 60 + ((255 - g - b) / 155) * 15; // 60-75 dBZ
     
-    // Very heavy precipitation (red)
-    if (r > 160 && g < 80 && b < 80) {
-      return 45 + (r - 160) / 19; // 45-50 dBZ
-    }
-    
-    // Severe storms (magenta/purple)
-    if (r > 120 && b > 120 && g < 80 && Math.abs(r - b) < 60) {
-      return 50 + ((r + b - 240) / 150) * 10; // 50-60 dBZ
-    }
-    
-    // No precipitation for unmatched colors
-    return 0;
+    // Default fallback for unmatched colors
+    return Math.max(0, (r + g + b) / 15); // General intensity approximation
   }
 
   // Convert NEXRAD color to dBZ using official NOAA color palette
   function convertNexradColorToDbz(r: number, g: number, b: number): number {
-    // Realistic NEXRAD color palette with conservative dBZ values
-    // Prevents false positives and artificial high readings
+    // Official NEXRAD (NOAA) color palette
+    // Based on NWS radar color standards
     
-    // Transparent/very dark pixels = no precipitation
-    if (r < 40 && g < 40 && b < 40) return 0;
+    if (r < 20 && g < 20 && b < 20) return 0; // Black/transparent = no precipitation
     
-    // Very light precipitation (light green)
-    if (g > 120 && g > r && g > b && r < 80 && b < 120) {
-      return 15 + (g - 120) / 27; // 15-20 dBZ
-    }
+    // Light green (5-15 dBZ)
+    if (g > 180 && r < 100 && b > 100) return 5 + ((g - 180) / 75) * 10;
     
-    // Light precipitation (green)
-    if (g > 80 && g > r && g > b && r < 100 && b < 80) {
-      return 20 + (g - 80) / 35; // 20-25 dBZ
-    }
+    // Dark green (15-25 dBZ)  
+    if (g > 120 && g < 180 && r < 80 && b < 100) return 15 + ((g - 120) / 60) * 10;
     
-    // Moderate precipitation (yellow-green)
-    if (r > 100 && g > 100 && g > b && b < 80 && Math.abs(r - g) < 40) {
-      return 25 + ((r + g - 200) / 200) * 5; // 25-30 dBZ
-    }
+    // Yellow (25-35 dBZ)
+    if (r > 200 && g > 200 && b < 100) return 25 + ((r + g - 400) / 110) * 10;
     
-    // Moderate-heavy precipitation (yellow)
-    if (r > 150 && g > 130 && b < 60 && Math.abs(r - g) < 30) {
-      return 30 + ((r - 150) / 105) * 10; // 30-40 dBZ
-    }
+    // Orange (35-45 dBZ)
+    if (r > 200 && g > 100 && g < 200 && b < 80) return 35 + ((r - 200) / 55) * 10;
     
-    // Heavy precipitation (orange) - rare but possible
-    if (r > 180 && g > 60 && g < 130 && b < 60) {
-      return 40 + (r - 180) / 37; // 40-42 dBZ max
-    }
+    // Red (45-55 dBZ)
+    if (r > 180 && g < 100 && b < 100) return 45 + ((r - 180) / 75) * 10;
     
-    // Very heavy (red) - extremely rare
-    if (r > 200 && g < 60 && b < 60) {
-      return 42 + Math.min((r - 200) / 55, 3); // 42-45 dBZ max
-    }
+    // Magenta/Purple (55+ dBZ - severe)
+    if (r > 150 && b > 150 && g < 100) return 55 + ((r + b - 300) / 210) * 20;
     
-    // No severe storm detection to prevent false positives
-    // Real severe storms (55+ dBZ) are extremely rare in normal conditions
+    // White (65+ dBZ - extreme)
+    if (r > 240 && g > 240 && b > 240) return 65;
     
-    // No precipitation for unmatched colors
-    return 0;
+    // Default fallback
+    return Math.max(0, (r + g + b) / 12);
   }
 
   // Search a specific sector (distance ring + angle) for storm activity
@@ -4452,30 +4370,6 @@ Guidelines:
       console.error('Error saving user settings:', error);
       res.status(500).json({ error: 'Failed to save user settings' });
     }
-  });
-
-  // Speed test endpoint for device diagnostics
-  app.get('/api/speed-test', (req, res) => {
-    const { ping } = req.query;
-    
-    if (ping === 'true') {
-      // Simple ping response
-      res.json({ pong: true, timestamp: Date.now() });
-    } else {
-      // Return 1KB of data for download speed testing
-      const testData = 'x'.repeat(1024);
-      res.json({ data: testData, size: 1024, timestamp: Date.now() });
-    }
-  });
-
-  app.post('/api/speed-test', (req, res) => {
-    // Echo back received data for upload speed testing
-    const receivedSize = JSON.stringify(req.body).length;
-    res.json({ 
-      received: true, 
-      size: receivedSize, 
-      timestamp: Date.now() 
-    });
   });
 
   const httpServer = createServer(app);

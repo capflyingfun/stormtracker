@@ -123,42 +123,6 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 22, 2025
 
-### Critical Radar Source Synchronization Fix & Weather Story Removal (July 22, 2025)
-- **Backend Storm API Fix**: Fixed critical issue where backend storms API (`/api/storms`) was always using RainViewer regardless of frontend radar source setting
-- **Radar Source Parameter**: Frontend now correctly passes `radarSource` parameter to backend storm detection API (line 59 in use-storm-data.ts)
-- **NEXRAD Storm Detection**: Backend correctly receives and uses NEXRAD radar source for US locations, logs show "🌧️ Storm detection using NEXRAD radar source"
-- **Authentic Storm Data**: Storm Panel now displays 29 real storms with 45-50 dBZ intensities from NEXRAD radar for Tallahassee, FL instead of zero storms
-- **Weather Story Complete Removal**: Completely removed Weather Story feature as requested - all weather analysis now handled by AI Weather Assistant only
-- **Storm API Performance**: Backend storm detection working properly with 11-second response times and authentic radar-detected precipitation data
-- **TypeScript Error Resolution**: Fixed all broken references from Weather Story removal, eliminated 27 TypeScript diagnostics in storm-panel.tsx
-- **Frontend Radar Display**: Frontend still shows RainViewer tiles for map display layer, but backend storm detection correctly uses NEXRAD for US locations
-- **Data Source Consistency**: Storm Panel data source now matches radar source selection instead of always defaulting to RainViewer API calls
-
-## Recent Changes - July 22, 2025
-
-### Comprehensive Weather Story with Full Data Integration (July 22, 2025)
-- **Complete Weather Story Modal**: Moved Weather Story out of Storm Cells into dedicated modal section positioned above AI Assistant
-- **Enhanced Data Extraction**: Fixed precipitation percentage extraction from NWS detailed forecasts (e.g., "Chance of precipitation is 30%")
-- **Comprehensive Weather Display**: Added all available weather data including detailed forecasts, extended outlook, aviation weather, current conditions with pressure/visibility/cloud cover
-- **Professional Meteorological Format**: Cardinal directions properly capitalized (SSE), wind format standardized to "winds W @ 5 mph" style
-- **Aviation Weather Integration**: Displays weather from 3 nearest airports with temperatures, winds, and visibility data
-- **Extended Forecast**: Shows 4-day extended forecast with temperatures and conditions for planning purposes
-- **Heat Index Warnings**: Automatic heat advisories when conditions exceed 105°F heat index for safety
-- **Complete Current Conditions**: Temperature, humidity, winds, barometric pressure, visibility, and cloud cover percentage
-- **Enhanced Tonight Forecast**: Detailed tonight's forecast with temperatures, winds, and full descriptive text
-- **Real-Time Data Integration**: All data refreshes every 15 minutes with 10-minute stale time for optimal performance
-
-### Enhanced Weather Story with Forecast Integration (July 22, 2025)
-- **Comprehensive Storm Analysis**: Weather Story now identifies both nearest and strongest storms with detailed directional information and personality-driven descriptions
-- **NWS Forecast Integration**: Added official National Weather Service forecast data including today's weather and tonight's forecast directly in Weather Story
-- **Current Conditions Display**: Integrated live weather conditions (temperature, humidity, wind) from aviation weather sources for complete weather picture  
-- **Natural Language Flow**: Improved story formatting to remove asterisks and section headers, creating smooth conversational narrative about weather conditions
-- **Enhanced API Integration**: Created dedicated `/api/weather-story-data` endpoint that efficiently fetches NWS forecasts and current weather data with 3-9ms response times
-- **Storm Movement Context**: Stories include storm movement direction and speed when wind prediction data is available from Open-Meteo atmospheric analysis
-- **Educational Weather Information**: Each story includes educational notes explaining dBZ values in simple terms for user weather literacy
-- **Professional Weather Integration**: Stories seamlessly blend radar-detected storms with official NWS forecasts for comprehensive weather awareness
-- **Optimized Data Fetching**: Weather story data refreshes every 15 minutes with 10-minute stale time for optimal performance and data freshness
-
 ### Emoji-Based Weather Alert Storytelling System with Comprehensive Analysis Integration (July 22, 2025)
 - **AI Weather Storytelling**: Implemented comprehensive emoji-based weather narratives in AI assistant that translate technical dBZ values into engaging, accessible stories
 - **Storm Personality System**: Created personality-based storm descriptions (e.g., "🌪️💀 DANGEROUS monster storm raging with extreme fury" vs "🌤️😌 gentle sprinkle quietly misting the area")

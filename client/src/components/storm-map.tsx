@@ -312,22 +312,19 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           let nexradUrl;
           
           if (timestampStr.startsWith('current') || !nexradSite) {
-            // Fallback to current composite radar with enhanced parameters
-            nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?_cache=${Math.floor(Date.now()/60000)}`;
+            // Fallback to current composite radar
+            nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
           } else {
             // Use RIDGE API for historical site-specific data
             nexradUrl = `/api/nexrad/tile/${nexradSite}/${timestamp}/{z}/{x}/{y}.png`;
           }
           
           radarLayerRef.current = window.L.tileLayer(nexradUrl, {
-            opacity: 0.8,
+            opacity: 0.7,
             zIndex: 200,
             attribution: `NEXRAD ${nexradSite ? `(${nexradSite})` : ''}`,
-            updateWhenIdle: false,
-            updateWhenZooming: true,
-            keepBuffer: 2,
-            maxNativeZoom: 12,
-            maxZoom: 15
+            updateWhenIdle: true,
+            updateWhenZooming: false
           });
         }
         
@@ -414,29 +411,28 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         onMapInstanceReady(map);
       }
       
-      // Auto-sampling disabled for performance - use manual "Update Storms" button instead
-      // const debouncedTrigger = async () => {
-      //   console.log('Map movement detected, triggering auto-sample and winds aloft update');
-      //   
-      //   // Update winds aloft data for new map center first
-      //   const center = map.getCenter();
-      //   await updateWindsAloftForCenter(center.lat, center.lng);
-      //   
-      //   // Then trigger auto-sampling with delay for radar loading
-      //   triggerAutoSample();
-      // };
-      // 
-      // map.on('moveend', debouncedTrigger);
-      // map.on('zoomend', debouncedTrigger);
+      // Add map event listeners for auto-sampling and winds aloft with debouncing
+      const debouncedTrigger = async () => {
+        console.log('Map movement detected, triggering auto-sample and winds aloft update');
+        
+        // Update winds aloft data for new map center first
+        const center = map.getCenter();
+        await updateWindsAloftForCenter(center.lat, center.lng);
+        
+        // Then trigger auto-sampling with delay for radar loading
+        triggerAutoSample();
+      };
+      
+      map.on('moveend', debouncedTrigger);
+      map.on('zoomend', debouncedTrigger);
     };
 
     initMap();
 
     return () => {
       if (mapInstanceRef.current) {
-        // Event listeners removed since auto-sampling is disabled
-        // mapInstanceRef.current.off('moveend');
-        // mapInstanceRef.current.off('zoomend');
+        mapInstanceRef.current.off('moveend');
+        mapInstanceRef.current.off('zoomend');
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
@@ -1105,7 +1101,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const selectedStorm = precipitationStorms.find(s => s.id === selectedStormId);
       if (selectedStorm) {
         hideStormCone();
-        showStormCone(selectedStorm.lat, selectedStorm.lon, selectedStorm.intensity, selectedStorm.direction);
+        showStormCone(selectedStorm.lat, selectedStorm.lon, selectedStorm.intensity);
       }
     }
   }, [showTimeLabels]);
@@ -1223,7 +1219,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         return Math.round(baseSize);
       };
       
-      const markerSize = getMarkerSize(point.dbz, (point as any).count);
+      const markerSize = getMarkerSize(point.dbz, point.count);
       
       // Add popup with precipitation info including rainfall rate
       const pointDistance = calculateDistance(centerLat, centerLon, point.lat, point.lon);
@@ -1385,14 +1381,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
       const hailWarning = getHailInfo(point.dbz);
       
-      const popupContent = (point as any).count && (point as any).count > 1 
+      const popupContent = point.count && point.count > 1 
         ? `<b>Storm Cell Cluster</b><br>
            Distance: ${displayDistance.toFixed(1)} miles<br>
            Max Intensity: ${point.dbz} dBZ<br>
            ${point.dbz >= 55 ? 'Rain/Hail Rate:' : 'Rain Rate:'} ${rainfallData.mmh} mm/h (${rainfallData.inh} in/h)<br>
            Type: ${precipType}<br>
            ${hailWarning ? `<span style="color: orange;">${hailWarning}</span><br>` : ''}
-           Cells: ${(point as any).count}<br>
+           Cells: ${point.count}<br>
            <small>Real-time ${radarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'} data</small>`
         : `<b>Precipitation Cell</b><br>
            Distance: ${displayDistance.toFixed(1)} miles<br>
@@ -1520,20 +1516,17 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           maxZoom: 12
         });
       } else {
-        // NEXRAD radar overlay with enhanced parameters
+        // NEXRAD radar overlay
         radarLayerRef.current = window.L.tileLayer(
-          `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?_cache=${Math.floor(Date.now()/60000)}`,
+          'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png',
           {
             tileSize: 256,
-            opacity: 0.8,
+            opacity: 0.7,
             transparent: true,
             attribution: 'NEXRAD Radar © Iowa Environmental Mesonet',
-            maxZoom: 15,
-            maxNativeZoom: 12,
-            updateWhenIdle: false,
-            updateWhenZooming: true,
-            keepBuffer: 2,
-            crossOrigin: true
+            maxZoom: 12,
+            updateWhenIdle: true,
+            updateWhenZooming: false
           }
         );
       }
