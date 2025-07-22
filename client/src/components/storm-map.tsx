@@ -118,6 +118,21 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   
   // Authentic precipitation storms from backend API
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
+  
+  // Clear cached precipitation data when radar source or location changes
+  useEffect(() => {
+    console.log('Clearing cached precipitation data due to radar source or location change');
+    setPrecipitationPoints([]);
+    setPreviousPrecipitationPoints([]);
+    setRadarFrameHistory([]);
+    setPrecipitationStorms([]);
+    
+    // Dispatch empty storm data to clear other components
+    const clearDataEvent = new CustomEvent('precipitationStormData', { 
+      detail: [] 
+    });
+    window.dispatchEvent(clearDataEvent);
+  }, [radarSource, location?.lat, location?.lon]);
 
   // Sync with external storm tracks toggle
   useEffect(() => {
@@ -709,12 +724,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const updateStormDataFromPrecipitation = async (clusters: Array<{lat: number; lon: number; dbz: number; id: string; count?: number}>) => {
     if (!location) return;
 
+    // Filter out storms below 30 dBZ threshold to match server filtering
+    const filteredClusters = clusters.filter(cluster => cluster.dbz >= 30);
+    console.log(`Filtered precipitation data: ${clusters.length} raw clusters → ${filteredClusters.length} clusters ≥30 dBZ`);
+
     // Fetch winds aloft data for movement prediction (only once per update)
     const windsData = await fetchWindsAloft(location.lat, location.lon);
     setCurrentWindsData(windsData); // Store for arrow directions
 
     // Convert precipitation clusters to storm format with movement data
-    const stormCells = clusters.map((cluster, index) => {
+    const stormCells = filteredClusters.map((cluster, index) => {
       const distance = calculateDistance(location.lat, location.lon, cluster.lat, cluster.lon);
       const bearing = calculateBearing(location.lat, location.lon, cluster.lat, cluster.lon);
       const observedMovement = calculateStormMovement(cluster);
@@ -1171,14 +1190,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     // Create waypoint markers for each actual precipitation point
     for (const point of precipitationPoints) {
-      // Get radar source-specific thresholds
+      // Get radar source-specific thresholds - updated to match 30 dBZ detection minimum
       const getIntensityThresholds = (radarSource: string = 'nexrad') => {
         if (radarSource === 'rainviewer') {
           // RainViewer adjusted thresholds (5-10 dBZ lower to account for higher readings)
-          return { extreme: 53, veryHeavy: 47, heavy: 38, moderate: 27, light: 15 };
+          return { extreme: 53, veryHeavy: 47, heavy: 38, moderate: 27, light: 23 };
         }
-        // NEXRAD standard thresholds
-        return { extreme: 61, veryHeavy: 55, heavy: 46, moderate: 35, light: 20 };
+        // NEXRAD standard thresholds - aligned with 30 dBZ server detection threshold
+        return { extreme: 61, veryHeavy: 55, heavy: 46, moderate: 35, light: 30 };
       };
       
       const thresholds = getIntensityThresholds(radarSource);
@@ -1614,49 +1633,51 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     setTimeout(() => sampleRadarDbz(), 2000);
   };
 
-  // NEXRAD color to dBZ mapping (standard NOAA colormap)
+  // NEXRAD color to dBZ mapping using official NWS La Crosse palette - starts at 30 dBZ
   const nexradColorToDbz = (r: number, g: number, b: number): number => {
-    const colorMap: {[key: string]: number} = {
-      '#40ffff': 5,   // Light blue - very light
-      '#36c5ff': 10,  // Blue - light
-      '#0099ff': 15,  // Medium blue
-      '#00ff00': 20,  // Green - light rain
-      '#00c800': 25,  // Dark green
-      '#009600': 30,  // Darker green
-      '#ffff00': 35,  // Yellow - moderate
-      '#e6c300': 40,  // Dark yellow
-      '#ff9600': 45,  // Orange - heavy
-      '#ff0000': 50,  // Red - very heavy
-      '#c80000': 55,  // Dark red - severe
-      '#960000': 60,  // Darker red
-      '#ff00ff': 65,  // Magenta - extreme
-      '#9632cc': 70,  // Purple - extreme
-      '#ffffff': 75   // White - extreme
-    };
+    // Skip black/transparent pixels (no precipitation)
+    if (r < 20 && g < 20 && b < 20) return 0;
     
-    // Find closest color match
-    let bestMatch = 0;
-    let minDistance = Infinity;
+    // Official NWS La Crosse NEXRAD color palette (from attached .pal file)
+    // Updated to match 30+ dBZ detection threshold - eliminates scattered light rain
     
-    for (const [color, dbz] of Object.entries(colorMap)) {
-      const targetR = parseInt(color.slice(1, 3), 16);
-      const targetG = parseInt(color.slice(3, 5), 16);
-      const targetB = parseInt(color.slice(5, 7), 16);
-      
-      const distance = Math.sqrt(
-        Math.pow(r - targetR, 2) + 
-        Math.pow(g - targetG, 2) + 
-        Math.pow(b - targetB, 2)
-      );
-      
-      if (distance < minDistance) {
-        minDistance = distance;
-        bestMatch = dbz;
-      }
+    // Green (30-35 dBZ) - palette color: 16 64 13 to 6 35 2
+    if (r >= 6 && r <= 26 && g >= 35 && g <= 65 && b >= 2 && b <= 22) {
+      return 30 + ((g - 35) / 30) * 5;
     }
     
-    // Only return dBZ if color match is reasonably close
-    return minDistance < 50 ? bestMatch : 0;
+    // Yellow (35-45 dBZ) - palette color: 255 255 0 to 255 140 0
+    if (r > 200 && g > 140 && b < 50) {
+      return 35 + ((255 - g) / 115) * 10;
+    }
+    
+    // Orange (45-50 dBZ) - palette color: 254 118 27 to 255 49 26
+    if (r > 200 && g > 49 && g < 150 && b < 80) {
+      return 45 + ((r - 200) / 55) * 5;
+    }
+    
+    // Red (50-55 dBZ) - palette color: 255 0 0 to 180 0 0
+    if (r > 180 && g < 30 && b < 30) {
+      return 50 + ((255 - r) / 75) * 5;
+    }
+    
+    // Dark Red (55-60 dBZ) - palette color: 140 0 0 to 90 0 0
+    if (r >= 90 && r <= 180 && g < 20 && b < 20) {
+      return 55 + ((180 - r) / 90) * 5;
+    }
+    
+    // Magenta/Purple (60-65 dBZ) - palette color: 255 0 255 to 242 134 216
+    if (r > 200 && b > 200 && g < 150) {
+      return 60 + ((r + b - 400) / 110) * 5;
+    }
+    
+    // White/Gray (65+ dBZ) - palette color: 255 255 255 to 75 75 75
+    if (r > 150 && g > 150 && b > 150) {
+      return 65 + ((255 - Math.min(r, g, b)) / 180) * 10;
+    }
+    
+    // No match or below 30 dBZ threshold
+    return 0;
   };
 
   // RainViewer color to dBZ mapping (RainViewer's color scheme)

@@ -123,6 +123,17 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 22, 2025
 
+### Enhanced 30 dBZ NEXRAD Color Calibration & Cache Clearing (July 22, 2025)
+- **NWS La Crosse Color Palette Integration**: Updated NEXRAD color conversion to use official NWS palette for accurate dBZ detection matching other radar apps
+- **Enhanced Precipitation Detection**: Color mapping now only detects ≥30 dBZ precipitation, filtering out atmospheric noise and weak radar returns
+- **Automatic Cache Clearing**: Added system to clear cached precipitation data when location or radar source changes to prevent stale data display
+- **Official NOAA Color Standards**: Implemented exact color-to-dBZ conversion from NWS La Crosse palette (.pal file) for professional meteorological accuracy
+- **Eliminated False Light Rain**: System now properly ignores very light precipitation (5-29 dBZ) that appears scattered in other apps but isn't meteorologically significant
+- **Frontend-Backend Consistency**: Fixed disconnect where frontend showed cached 25 dBZ storms while server correctly filtered to 30+ dBZ
+- **Authentic Radar Calibration**: Enhanced color detection for Green (30-35 dBZ), Yellow (35-45 dBZ), Orange/Red (45-60 dBZ), and Purple/White (60+ dBZ) ranges
+
+## Recent Changes - July 22, 2025
+
 ### Emoji-Based Weather Alert Storytelling System with Comprehensive Analysis Integration (July 22, 2025)
 - **AI Weather Storytelling**: Implemented comprehensive emoji-based weather narratives in AI assistant that translate technical dBZ values into engaging, accessible stories
 - **Storm Personality System**: Created personality-based storm descriptions (e.g., "🌪️💀 DANGEROUS monster storm raging with extreme fury" vs "🌤️😌 gentle sprinkle quietly misting the area")
