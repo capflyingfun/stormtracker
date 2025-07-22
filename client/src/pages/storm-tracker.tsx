@@ -277,21 +277,8 @@ export default function StormTracker() {
 
 
 
-  // Listen for location with radar source
-  useEffect(() => {
-    const handleLocationWithRadarSource = (event: any) => {
-      const locationData = event.detail;
-      if (locationData?.recommendedRadarSource) {
-        setCurrentRadarSource(locationData.recommendedRadarSource);
-        console.log(`Auto-switched to ${locationData.recommendedRadarSource} for location: ${locationData.name}`);
-      }
-    };
-
-    window.addEventListener('locationWithRadarSource', handleLocationWithRadarSource);
-    return () => {
-      window.removeEventListener('locationWithRadarSource', handleLocationWithRadarSource);
-    };
-  }, []);
+  // Listen for location with radar source (disabled to prevent conflicts)
+  // Radar source switching is now handled by the consolidated useEffect above
 
   // Handle storm filtering settings save
   const handleStormFilteringSettingsSave = async (newPreferences: any) => {
@@ -321,21 +308,21 @@ export default function StormTracker() {
     }
   }, [location]);
 
-  // Auto-switch to NEXRAD for US locations on app load
+  // Auto-switch radar source for US locations (simplified and consolidated)
   useEffect(() => {
-    if (location && currentRadarSource === 'rainviewer') {
-      // Detect US locations by coordinates or common US indicators
+    if (location) {
+      // Detect US locations by coordinates 
       const isUSLocation = location.lat >= 24.5 && location.lat <= 49.5 && location.lon >= -125 && location.lon <= -66.5;
-      const hasUSIndicators = location.name.includes(', FL') || location.name.includes(', TX') || location.name.includes(', CA') || 
-                             location.name.includes(', NY') || location.name.includes('Florida') || location.name.includes('Texas') ||
-                             location.name.includes('California') || location.name.includes('Alaska') || location.name.includes('Hawaii');
       
-      if (isUSLocation || hasUSIndicators) {
+      if (isUSLocation && currentRadarSource !== 'nexrad') {
         setCurrentRadarSource('nexrad');
         console.log('Auto-switched to NEXRAD for US location:', location.name);
+      } else if (!isUSLocation && currentRadarSource !== 'rainviewer') {
+        setCurrentRadarSource('rainviewer');
+        console.log('Auto-switched to RainViewer for international location:', location.name);
       }
     }
-  }, [location, currentRadarSource]);
+  }, [location]); // Remove currentRadarSource dependency to prevent loops
 
   // Auto-refresh when tracking is enabled
   useEffect(() => {
@@ -368,11 +355,7 @@ export default function StormTracker() {
   const handleGPSLocation = async () => {
     try {
       const result = await setLocationFromGPS();
-      // Auto-switch to NEXRAD for US GPS locations 
-      if (result && result.name?.includes('United States')) {
-        setCurrentRadarSource('nexrad');
-        console.log('Auto-switched to NEXRAD for US GPS location:', result.name);
-      }
+      // Radar source will be auto-switched by the location useEffect above
       if (isTracking) {
         refetchStormData();
         setLastUpdate(new Date());
