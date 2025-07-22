@@ -838,6 +838,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Fetch NWS and current weather data for weather story
+  app.get("/api/weather-story-data", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lon as string);
+      
+      console.log(`🌤️ Fetching weather story data for ${latitude}, ${longitude}`);
+      
+      // Fetch both forecast and current weather data
+      const [nwsForecast, currentWeatherResult] = await Promise.allSettled([
+        fetchNWSForecast(latitude, longitude),
+        // Use the existing aviation weather endpoint that includes current conditions
+        fetch(`http://localhost:5000/api/aviation-weather?lat=${latitude}&lon=${longitude}`)
+          .then(r => r.ok ? r.json() : null)
+      ]);
+      
+      const result = {
+        forecast: nwsForecast.status === 'fulfilled' ? nwsForecast.value : null,
+        currentWeather: currentWeatherResult.status === 'fulfilled' ? currentWeatherResult.value?.currentWeather : null,
+        location: { lat: latitude, lon: longitude }
+      };
+      
+      console.log('Weather story data fetched - forecast:', !!result.forecast, 'current:', !!result.currentWeather);
+      res.json(result);
+      
+    } catch (error) {
+      console.error('Weather story data error:', error);
+      res.status(500).json({ error: 'Failed to fetch weather story data' });
+    }
+  });
+
   // Legacy NWS alerts endpoint (for backward compatibility)
   app.post("/api/alerts", async (req, res) => {
     try {
