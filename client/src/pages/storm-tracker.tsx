@@ -758,23 +758,11 @@ export default function StormTracker() {
               </div>
             )}
 
-            {/* Update Storms Button - Above Map */}
+            {/* Auto-update indicator */}
             <div className="flex justify-center mb-4">
-              <Button
-                onClick={() => {
-                  // Trigger storm update by dispatching event to map
-                  const mapContainer = document.querySelector('[data-storm-map]');
-                  if (mapContainer) {
-                    const event = new CustomEvent('updateStorms');
-                    mapContainer.dispatchEvent(event);
-                  }
-                }}
-                variant="default"
-                size="sm"
-                className="text-xs px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-              >
-                Update Storms
-              </Button>
+              <div className="text-xs text-emerald-400 bg-emerald-900/30 px-3 py-2 rounded-lg border border-emerald-700/50">
+                ⚡ Auto-updates on map movement
+              </div>
             </div>
 
             {/* Interactive Radar Map with Side Controls */}

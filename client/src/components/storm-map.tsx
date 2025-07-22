@@ -137,20 +137,18 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return () => window.removeEventListener('precipitationStormData', handlePrecipitationStormData as EventListener);
   }, []);
 
-  // Auto-sampling functionality (silent background operation)
+  // Auto-sampling functionality (immediate on map movement)
   const triggerAutoSample = useCallback(() => {
     // Clear any existing timeout
     if (autoSampleTimeoutRef.current) {
       clearTimeout(autoSampleTimeoutRef.current);
     }
     
-    // Set timeout for 0.75 seconds - sample silently in background
-    autoSampleTimeoutRef.current = setTimeout(async () => {
-      if (mapInstanceRef.current && location && radarFrames.length > 0) {
-        console.log('Auto-sampling triggered by map movement');
-        await sampleRadarDbz();
-      }
-    }, 750);
+    // Immediate sampling when map moves (like Wind Aloft)
+    if (mapInstanceRef.current && location && radarFrames.length > 0) {
+      console.log('Auto-sampling triggered by map movement');
+      sampleRadarDbz();
+    }
   }, [location, radarFrames.length]);
 
 
