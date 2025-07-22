@@ -145,7 +145,8 @@ function generateWeatherStory(storms: StormData[], forecastData?: any, currentWe
     // Movement context if available
     if (closestStorm.movement) {
       const movementDir = getDirectionName(closestStorm.movement.direction || 0);
-      story += `\n\n🧭 The nearest storm is moving ${movementDir ? movementDir.toLowerCase() : 'in an unknown direction'} at ${closestStorm.movement.speed || 0} mph`;
+      const directionText = movementDir && movementDir !== 'unknown' ? movementDir.toLowerCase() : 'in an unknown direction';
+      story += `\n\n🧭 The nearest storm is moving ${directionText} at ${closestStorm.movement.speed || 0} mph`;
       
       // Add ETA if approaching
       if (closestStorm.movement.eta && closestStorm.movement.eta !== 'N/A') {
@@ -932,7 +933,7 @@ Provide your assessment in this exact JSON format:
       
       // Try again with a simplified prompt that still includes all the comprehensive data
       try {
-        const simplifiedPrompt = buildBasicPrompt(data, tone); // Use simplified prompt without emoji storytelling
+        const simplifiedPrompt = buildBasicPrompt(data, dynamicTone); // Use simplified prompt without emoji storytelling
         
         const fallbackResponse = await openai.chat.completions.create({
           model: "gpt-4o",
