@@ -312,8 +312,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           let nexradUrl;
           
           if (timestampStr.startsWith('current') || !nexradSite) {
-            // Fallback to current composite radar with enhanced parameters
-            nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?_cache=${Math.floor(Date.now()/60000)}`;
+            // Use Super-Resolution NEXRAD radar for cleaner imagery
+            nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0s-900913/{z}/{x}/{y}.png?_cache=${Math.floor(Date.now()/60000)}`;
           } else {
             // Use RIDGE API for historical site-specific data
             nexradUrl = `/api/nexrad/tile/${nexradSite}/${timestamp}/{z}/{x}/{y}.png`;
@@ -1519,9 +1519,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           maxZoom: 12
         });
       } else {
-        // NEXRAD radar overlay with enhanced parameters
+        // NEXRAD Super-Resolution radar overlay for cleaner imagery
         radarLayerRef.current = window.L.tileLayer(
-          `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?_cache=${Math.floor(Date.now()/60000)}`,
+          `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0s-900913/{z}/{x}/{y}.png?_cache=${Math.floor(Date.now()/60000)}`,
           {
             tileSize: 256,
             opacity: 0.8,
