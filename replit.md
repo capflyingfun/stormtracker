@@ -123,17 +123,6 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 22, 2025
 
-### Enhanced 30 dBZ NEXRAD Color Calibration & Cache Clearing (July 22, 2025)
-- **NWS La Crosse Color Palette Integration**: Updated NEXRAD color conversion to use official NWS palette for accurate dBZ detection matching other radar apps
-- **Enhanced Precipitation Detection**: Color mapping now only detects ≥30 dBZ precipitation, filtering out atmospheric noise and weak radar returns
-- **Automatic Cache Clearing**: Added system to clear cached precipitation data when location or radar source changes to prevent stale data display
-- **Official NOAA Color Standards**: Implemented exact color-to-dBZ conversion from NWS La Crosse palette (.pal file) for professional meteorological accuracy
-- **Eliminated False Light Rain**: System now properly ignores very light precipitation (5-29 dBZ) that appears scattered in other apps but isn't meteorologically significant
-- **Frontend-Backend Consistency**: Fixed disconnect where frontend showed cached 25 dBZ storms while server correctly filtered to 30+ dBZ
-- **Authentic Radar Calibration**: Enhanced color detection for Green (30-35 dBZ), Yellow (35-45 dBZ), Orange/Red (45-60 dBZ), and Purple/White (60+ dBZ) ranges
-
-## Recent Changes - July 22, 2025
-
 ### Emoji-Based Weather Alert Storytelling System with Comprehensive Analysis Integration (July 22, 2025)
 - **AI Weather Storytelling**: Implemented comprehensive emoji-based weather narratives in AI assistant that translate technical dBZ values into engaging, accessible stories
 - **Storm Personality System**: Created personality-based storm descriptions (e.g., "🌪️💀 DANGEROUS monster storm raging with extreme fury" vs "🌤️😌 gentle sprinkle quietly misting the area")
@@ -158,13 +147,12 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **50-Mile Radius Limitation Solution**: Manual refresh button provides essential fallback when auto-sampling fails due to geographic distance limitations
 - **User Experience Improvement**: Eliminates user confusion from clicking button multiple times when no visual feedback was provided
 
-### 30 dBZ Meteorological Threshold Update (July 22, 2025)
-- **Enhanced False Positive Filtering**: Raised minimum threshold from 25 to 30 dBZ to eliminate weak radar echoes and random atmospheric returns
-- **Improved Storm Detection Accuracy**: 30 dBZ threshold provides better discrimination between meaningful precipitation and background noise
-- **Meteorological Standards**: Threshold aligns with professional weather service practices for reliable storm tracking and reduces false detections
-- **Authentic Storm Detection**: System focuses exclusively on significant weather systems worth monitoring for safety and planning purposes
-- **Ground Clutter Elimination**: Enhanced filtering prevents tracking of non-meteorological radar returns from buildings, terrain, and atmospheric artifacts
-- **User-Requested Improvement**: Threshold raised based on user feedback to reduce radar echo false positives converting as storm cells
+### 25 dBZ Meteorological Threshold Rationale (July 22, 2025)
+- **False Positive Filtering**: 25 dBZ minimum threshold intentionally filters out atmospheric noise, light moisture, and ground clutter
+- **Meteorological Standards**: Threshold based on professional weather service practices for distinguishing trackable precipitation from background noise
+- **Authentic Storm Detection**: System focuses only on meaningful weather systems rather than displaying insignificant moisture or false radar returns
+- **Ground Clutter Elimination**: Prevents tracking of non-meteorological radar returns from buildings, mountains, or other ground features
+- **Professional Weather App Accuracy**: Maintains data integrity by only displaying precipitation worth monitoring for safety and planning purposes
 
 ## Recent Changes - July 20, 2025
 
