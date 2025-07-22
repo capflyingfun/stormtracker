@@ -353,6 +353,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             if (date.getFullYear() < 2020) {
               console.log(`Invalid timestamp detected: ${timestamp}, using current time`);
               const now = new Date();
+              // Round to nearest 5-minute mark for NEXRAD compatibility
+              const minutes = now.getMinutes();
+              const roundedMinutes = Math.floor(minutes / 5) * 5;
+              now.setMinutes(roundedMinutes, 0, 0);
               date.setTime(now.getTime());
             }
             
@@ -2246,7 +2250,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </Button>
 
           <Button
-            onClick={toggleRadarAnimation}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleAnimation();
+            }}
+            type="button"
             variant={isAnimating ? "destructive" : "default"}
             size="sm"
             className="text-xs px-2"
