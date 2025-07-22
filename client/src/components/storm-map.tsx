@@ -153,6 +153,23 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }, 750);
   }, [location, radarFrames.length]);
 
+  // Listen for external update storms events
+  useEffect(() => {
+    const mapContainer = document.querySelector('[data-storm-map]');
+    if (!mapContainer) return;
+
+    const handleUpdateStorms = () => {
+      console.log("External update storms event received");
+      sampleRadarDbz();
+    };
+
+    mapContainer.addEventListener('updateStorms', handleUpdateStorms);
+    
+    return () => {
+      mapContainer.removeEventListener('updateStorms', handleUpdateStorms);
+    };
+  }, [sampleRadarDbz]);
+
 
 
   // Initialize radar frames based on source
@@ -2139,15 +2156,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         
         <div className="flex flex-wrap items-center gap-2">
           <Button
-            onClick={sampleRadarDbz}
-            variant="default"
-            size="sm"
-            className="text-xs px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-            disabled={isAnimating}
-          >
-            Update Storms
-          </Button>
-          <Button
             onClick={() => setRadarSource(radarSource === 'rainviewer' ? 'nexrad' : 'rainviewer')}
             variant="outline"
             size="sm"
@@ -2183,7 +2191,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
 
       
-      <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[400px] md:h-[600px] lg:h-[700px] xl:h-[800px] z-0 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
+      <div 
+        data-storm-map
+        className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[400px] md:h-[600px] lg:h-[700px] xl:h-[800px] z-0 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}
+      >
         <div ref={mapRef} className="w-full h-full" style={{ zIndex: 0 }}></div>
         
         {/* Disabled overlay */}
