@@ -2131,10 +2131,22 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             <div className="text-slate-400 text-xs sm:text-sm">
               Range: {radarRange} miles
             </div>
+            <div className="text-slate-500 text-xs">
+              • {radarSource === 'rainviewer' ? 'RainViewer Global' : 'NEXRAD US'}
+            </div>
           </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={sampleRadarDbz}
+            variant="default"
+            size="sm"
+            className="text-xs px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+            disabled={isAnimating}
+          >
+            Update Storms
+          </Button>
           <Button
             onClick={() => setRadarSource(radarSource === 'rainviewer' ? 'nexrad' : 'rainviewer')}
             variant="outline"
@@ -2169,18 +2181,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         </div>
       </div>
 
-      {/* Radar Info */}
-      <div className="bg-slate-800/50 rounded-lg p-2 sm:p-3 mb-4 border border-slate-700">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-0">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <span className="text-xs sm:text-sm text-slate-300">Radar Source:</span>
-            <div className="text-xs sm:text-sm text-white">{radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD'}</div>
-          </div>
-          <div className="text-xs text-slate-400">
-            {radarSource === 'rainviewer' ? 'Global Coverage (Animated)' : 'US High-Resolution (Static)'}
-          </div>
-        </div>
-      </div>
+
       
       <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[400px] md:h-[600px] lg:h-[700px] xl:h-[800px] z-0 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
         <div ref={mapRef} className="w-full h-full" style={{ zIndex: 0 }}></div>
@@ -2195,28 +2196,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           </div>
         )}
         
-        {/* Update Storms Button - Top Right */}
-        <div className="absolute top-3 right-3 z-[1000]">
-          <Button
-            onClick={sampleRadarDbz}
-            variant="outline"
-            size="sm"
-            className="text-xs px-3 py-2 bg-slate-800/90 border-slate-600 hover:bg-slate-700/90"
-            disabled={isAnimating}
-          >
-            Update Storms
-          </Button>
-        </div>
-        
-        {/* Radar Info */}
-        <div className="radar-controls">
-          <div className="flex items-center gap-2 text-xs text-slate-300">
-            <span>Radar: {getTimeDisplay()}</span>
-          </div>
-          <div className="mt-1 text-xs text-slate-400">
-            Range: {radarRange} miles | {radarSource === 'rainviewer' ? 'RainViewer' : 'NEXRAD Radar (NWS/NOAA)'}
-          </div>
-        </div>
+
+
       </div>
 
 
