@@ -231,8 +231,9 @@ function WeatherStoryInline({ storms, userLocation }: { storms: any[], userLocat
         const alertType = alert.event || (headline.includes('Tsunami') ? 'Tsunami Warning' : 
                                            headline.includes('Heat') ? 'Heat Advisory' : 'Weather Alert');
         
-        // Format alert for display - prefer headline over event type
-        let alertText = `${severity} ${headline}`;
+        // Convert timezone in headline and format alert for display
+        const convertedHeadline = convertTimezonesInText(headline, getTimezoneFromCoordinates(userLocation?.lat || 30.5, userLocation?.lon || -87.4));
+        let alertText = `${severity} ${convertedHeadline}`;
         
         story += `\n${alertText}`;
       });

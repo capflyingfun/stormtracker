@@ -364,7 +364,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                       return Intl.DateTimeFormat().resolvedOptions().timeZone;
                     };
                     
-                    const timeZone = getGlobalTimeZone(location?.lat || 41.2, location?.lon || -115.3);
+                    const timeZone = getTimezoneFromCoordinates(location?.lat || 30.5, location?.lon || -87.4);
                     
                     // Get the current timezone abbreviation dynamically
                     const getTimeZoneAbbreviation = (timeZone: string): string => {
