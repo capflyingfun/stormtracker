@@ -92,7 +92,7 @@ function getStormPersonality(intensity: number): {
       personality: "gentle sprinkle",
       description: "quietly misting the area with light moisture",
       simpleName: "Light Rain",
-      educationalNote: `${intensity} dBZ - barely enough to wet the ground`
+      educationalNote: `${intensity} dBZ - light but trackable precipitation`
     };
   }
 }
@@ -127,7 +127,7 @@ const getStormIntensityName = (intensity: number): string => {
   if (intensity >= 55) return 'Very Heavy Rain/Hail';
   if (intensity >= 46) return 'Heavy Rain';
   if (intensity >= 35) return 'Moderate Rain';
-  if (intensity >= 20) return 'Light Rain';
+  if (intensity >= 30) return 'Light Rain';
   return 'Weak Storm';
 };
 
@@ -137,7 +137,7 @@ const getStormIcon = (intensity: number) => {
   if (intensity >= 55) return <CloudSnow className="w-5 h-5 text-red-400" />; // Very Heavy/Hail
   if (intensity >= 46) return <CloudRain className="w-5 h-5 text-orange-400" />; // Heavy Rain
   if (intensity >= 35) return <CloudRain className="w-5 h-5 text-yellow-400" />; // Moderate Rain
-  if (intensity >= 20) return <CloudDrizzle className="w-5 h-5 text-green-400" />; // Light Rain
+  if (intensity >= 30) return <CloudDrizzle className="w-5 h-5 text-green-400" />; // Light Rain
   return <Cloud className="w-5 h-5 text-gray-400" />; // Weak
 };
 
@@ -146,7 +146,7 @@ const getStormColor = (intensity: number): string => {
   if (intensity >= 55) return 'bg-red-500';
   if (intensity >= 46) return 'bg-orange-500';
   if (intensity >= 35) return 'bg-yellow-500';
-  if (intensity >= 20) return 'bg-green-500';
+  if (intensity >= 30) return 'bg-green-500';
   return 'bg-blue-500';
 };
 
@@ -231,10 +231,10 @@ const calculateBearing = (lat1: number, lon1: number, lat2: number, lon2: number
 const getIntensityThresholds = (radarSource: string = 'nexrad') => {
   if (radarSource === 'rainviewer') {
     // RainViewer adjusted thresholds (5-10 dBZ lower to account for higher readings)
-    return { extreme: 53, veryHeavy: 47, heavy: 38, moderate: 27, light: 15 };
+    return { extreme: 53, veryHeavy: 47, heavy: 38, moderate: 27, light: 23 };
   }
-  // NEXRAD standard thresholds
-  return { extreme: 61, veryHeavy: 55, heavy: 46, moderate: 35, light: 20 };
+  // NEXRAD standard thresholds - updated to match 30 dBZ detection threshold
+  return { extreme: 61, veryHeavy: 55, heavy: 46, moderate: 35, light: 30 };
 };
 
 // Official NOAA/NWS dBZ to rainfall rate conversion table
