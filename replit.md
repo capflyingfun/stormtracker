@@ -147,12 +147,13 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **50-Mile Radius Limitation Solution**: Manual refresh button provides essential fallback when auto-sampling fails due to geographic distance limitations
 - **User Experience Improvement**: Eliminates user confusion from clicking button multiple times when no visual feedback was provided
 
-### 25 dBZ Meteorological Threshold Rationale (July 22, 2025)
-- **False Positive Filtering**: 25 dBZ minimum threshold intentionally filters out atmospheric noise, light moisture, and ground clutter
-- **Meteorological Standards**: Threshold based on professional weather service practices for distinguishing trackable precipitation from background noise
-- **Authentic Storm Detection**: System focuses only on meaningful weather systems rather than displaying insignificant moisture or false radar returns
-- **Ground Clutter Elimination**: Prevents tracking of non-meteorological radar returns from buildings, mountains, or other ground features
-- **Professional Weather App Accuracy**: Maintains data integrity by only displaying precipitation worth monitoring for safety and planning purposes
+### 30 dBZ Meteorological Threshold Update (July 22, 2025)
+- **Enhanced False Positive Filtering**: Raised minimum threshold from 25 to 30 dBZ to eliminate weak radar echoes and random atmospheric returns
+- **Improved Storm Detection Accuracy**: 30 dBZ threshold provides better discrimination between meaningful precipitation and background noise
+- **Meteorological Standards**: Threshold aligns with professional weather service practices for reliable storm tracking and reduces false detections
+- **Authentic Storm Detection**: System focuses exclusively on significant weather systems worth monitoring for safety and planning purposes
+- **Ground Clutter Elimination**: Enhanced filtering prevents tracking of non-meteorological radar returns from buildings, terrain, and atmospheric artifacts
+- **User-Requested Improvement**: Threshold raised based on user feedback to reduce radar echo false positives converting as storm cells
 
 ## Recent Changes - July 20, 2025
 

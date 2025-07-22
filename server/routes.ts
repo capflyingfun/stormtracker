@@ -1053,7 +1053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const distance of distanceRings) {
         for (const angle of angleSectors) {
           const sectorStorm = await searchSectorForRainViewer(centerLat, centerLon, distance, angle, latestFrame);
-          if (sectorStorm && sectorStorm.intensity >= 25) { // 25+ dBZ threshold
+          if (sectorStorm && sectorStorm.intensity >= 30) { // 30+ dBZ threshold
             sectorStorms.push(sectorStorm);
           }
         }
@@ -1329,7 +1329,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     // Return storm data if intensity is above threshold
-    if (maxIntensity.intensity >= 25) {
+    if (maxIntensity.intensity >= 30) {
       return {
         lat: maxIntensity.lat,
         lon: maxIntensity.lon,
