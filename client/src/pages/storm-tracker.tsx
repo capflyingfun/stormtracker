@@ -200,7 +200,7 @@ export default function StormTracker() {
     alerts,
     refetch: refetchStormData,
     isLoading: stormDataLoading,
-  } = useStormData(location, radarRange);
+  } = useStormData(location, radarRange, currentRadarSource);
 
   // Get alert preferences for visual highlighting only
   const { data: preferencesData } = useQuery({
