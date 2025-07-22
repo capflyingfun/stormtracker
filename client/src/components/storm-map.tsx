@@ -339,7 +339,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             attribution: 'RainViewer'
           });
         } else {
-          // NEXRAD: Use historical archive data
+          // NEXRAD: Use historical archive data with proper frame-by-frame animation
           if (nexradSite) {
             // Format timestamp for NEXRAD archive: YYYYMMDDHHmm
             const date = new Date(Number(timestamp)); // Ensure timestamp is treated as number
@@ -352,22 +352,44 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             
             console.log(`Loading NEXRAD frame: ${timestampStr} (${hour}:${minute}) from timestamp ${timestamp}`);
             
-            // Try multiple archive formats for better compatibility
-            const nexradUrls = [
-              // Current NEXRAD composite (most reliable)
-              `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${timestamp}`,
-              // Iowa archive format
-              `https://mesonet.agron.iastate.edu/archive/data/${year}/${month}/${day}/GIS/uscomp/n0q_${timestampStr}.png`
-            ];
+            // Use imageOverlay for proper historical frame display
+            const nexradUrl = `https://mesonet.agron.iastate.edu/archive/data/${year}/${month}/${day}/GIS/uscomp/n0q_${timestampStr}.png`;
             
-            // Use tile layer for better performance and reliability
-            radarLayerRef.current = window.L.tileLayer(nexradUrls[0], {
+            // CONUS bounds for NEXRAD composite imagery
+            const bounds = [[20.0, -130.0], [50.0, -60.0]];
+            
+            radarLayerRef.current = window.L.imageOverlay(nexradUrl, bounds, {
               opacity: 0.7,
-              zIndex: 200,
               attribution: `NEXRAD ${hour}:${minute} (${nexradSite})`,
-              updateWhenIdle: true,
-              updateWhenZooming: false,
-              errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=' // Transparent 1x1 pixel
+              crossOrigin: 'anonymous'
+            });
+            
+            // Handle loading errors and fallback to current radar
+            radarLayerRef.current.on('error', () => {
+              console.log(`NEXRAD frame ${timestampStr} not available, using current composite`);
+              
+              // Remove failed layer
+              if (radarLayerRef.current && mapInstanceRef.current) {
+                mapInstanceRef.current.removeLayer(radarLayerRef.current);
+              }
+              
+              // Use current NEXRAD composite as fallback
+              const currentUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
+              radarLayerRef.current = window.L.tileLayer(currentUrl, {
+                opacity: 0.7,
+                zIndex: 200,
+                attribution: `NEXRAD Current (${nexradSite})`,
+                updateWhenIdle: true,
+                updateWhenZooming: false
+              });
+              
+              if (mapInstanceRef.current) {
+                radarLayerRef.current.addTo(mapInstanceRef.current);
+              }
+            });
+            
+            radarLayerRef.current.on('load', () => {
+              console.log(`NEXRAD frame ${timestampStr} loaded successfully`);
             });
             
           } else {
@@ -386,9 +408,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         radarLayerRef.current.addTo(map);
       }
       
-      // Sample precipitation data for this frame only when not animating
-      if (!isAnimating) {
-        setTimeout(() => sampleRadarDbz(), 1000);
+      // Sample precipitation data for this frame only when not animating and on the most recent frame
+      if (!isAnimating && currentFrameIndex === radarFrames.length - 1) {
+        setTimeout(() => sampleRadarDbz(), 1500); // Allow more time for frame to load
       }
     }
   }, [currentFrameIndex, radarFrames, radarSource]);

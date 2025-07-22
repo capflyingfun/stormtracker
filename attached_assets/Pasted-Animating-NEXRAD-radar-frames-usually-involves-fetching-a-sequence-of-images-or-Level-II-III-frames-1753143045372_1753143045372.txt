@@ -1,0 +1,101 @@
+Animating NEXRAD radar frames usually involves fetching a sequence of images (or Level-II/III frames), assembling them properly, and using a tool (e.g., Python + Pillow/FFmpeg or specialized viewer) to render them in sequence. If you’re only getting the last frame flashing, it often means only one image is being loaded or the playback loop isn’t working as intended.
+
+⸻
+
+🔍 1. Fetch and arrange multiple frames
+
+You’re likely working with a list of radar images named by timestamp (e.g., frame_001.png, frame_002.png, …). Make sure to:
+	•	Download a batch of recent frames
+	•	Sort them chronologically
+	•	Ensure they’re all valid and non-corrupted
+
+Example (Python + PIL):
+
+from PIL import Image
+
+# Assume frames are named frame_001.png ... frame_N.png
+filenames = sorted(glob('frame_*.png'))
+frames = [Image.open(f) for f in filenames]
+frames[0].save('radar.gif',
+               save_all=True,
+               append_images=frames[1:],
+               duration=200,  # ms per frame
+               loop=0)        # 0 → infinite loop
+
+This ensures all frames are included and loop properly.
+
+⸻
+
+2. Use FFmpeg for more control
+
+If you want MP4 or GIF with precise control:
+
+ffmpeg -framerate 5 -i frame_%03d.png \
+  -vf "scale=800:-1" -c:v libx264 -pix_fmt yuv420p \
+  radar.mp4
+
+	•	-framerate 5 → 5 fps
+	•	frame_%03d.png → matches sequential filenames
+	•	-vf → scaling if needed
+
+⸻
+
+3. Common gotchas causing only last frame to flash
+	•	Single-frame input: double-check you’re loading all images.
+	•	Blitting/display timing issues: frameworks like Matplotlib’s FuncAnimation or Pygame may only update the last frame if the update or initialization functions aren’t set up properly 
+	•	Sorting order: filenames like frame_1.png, frame_10.png, frame_2.png often sort wrong. Use zero-padding (e.g., %03d).
+
+⸻
+
+4. Using radar-specific tools (e.g., NOAA Toolkit, Java viewer)
+
+If working with NEXRAD Level-III files locally:
+	•	NOAA Java NEXRAD Viewer includes an “Animator” tool under Tools → NEXRAD Animator that can export an animated loop or video  ￼ ￼ ￼.
+	•	NCEI’s Weather & Climate Toolkit supports extracting and animating Level-III frames with PRC support, and exporting sequences as GeoTIFF/KMZ  ￼.
+
+⸻
+
+✅ Quick Checklist
+
+Step	Action
+✅	Download multiple radar frames
+✅	Sort filenames chronologically with leading zeros
+✅	Load all frames into sequence
+✅	Use Python + Pillow (or FFmpeg) to assemble with duration & loop
+✅	Or use NOAA/Java toolkit’s animator module
+
+
+⸻
+
+Conceptual flow in Python:
+
+import glob
+from PIL import Image
+
+# 1. Fetch and sort
+files = sorted(glob('radar_*.png'))
+frames = [Image.open(f) for f in files]
+
+# 2. Save as animated GIF
+frames[0].save('radar_loop.gif',
+               save_all=True,
+               append_images=frames[1:],
+               duration=100,
+               loop=0)
+
+For MP4:
+
+ffmpeg -framerate 10 -pattern_type glob \
+  -i 'radar_*.png' -c:v libx264 radar_loop.mp4
+
+
+⸻
+
+TL;DR 🎯
+
+You’re likely only loading the last frame or missing the playback loop. Ensure:
+	1.	All frames are loaded properly and in order
+	2.	Use proper animation routines—like Pillow’s save(…, loop=0) or FFmpeg with correct framerate
+	3.	Or use NOAA’s dedicated tools with built‑in animation exports ￼ ￼ ￼ ￼
+
+Let me know what format you’re working with (PNGs, Level‑III files, etc.), and I can tailor a snippet specifically for your case!
