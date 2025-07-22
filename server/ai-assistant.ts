@@ -112,55 +112,85 @@ Alert status: ${data.threatData.alertStatus}` :
 Please provide comprehensive analysis including alerts, winds aloft, airport data, and forecast discussion.`;
 }
 
-// Generate emoji-based weather story narratives
-function generateWeatherStory(storms: StormData[]): string {
+// Generate emoji-based weather story narratives with storm analysis and forecast integration
+function generateWeatherStory(storms: StormData[], forecastData?: any, currentWeather?: any): string {
+  let story = "";
+  
+  // Storm analysis section
   if (!storms || storms.length === 0) {
-    return "🌤️ The weather stage is peaceful today - no significant storms are performing in your area! ✨";
-  }
-
-  const closestStorm = storms[0]; // storms are sorted by distance
-  console.log('generateWeatherStory: closestStorm data:', JSON.stringify(closestStorm));
-  
-  const stormPersonality = getStormPersonality(closestStorm.intensity);
-  
-  let story = `${stormPersonality.emoji} ${stormPersonality.personality} is ${stormPersonality.description} `;
-  
-  // Add distance and direction context with proper formatting like "SE at 70.3 miles"
-  console.log('generateWeatherStory: closestStorm.bearing =', closestStorm.bearing);
-  const directionName = getDirectionName(closestStorm.bearing || 0);
-  console.log('generateWeatherStory: directionName =', directionName);
-  const distance = typeof closestStorm.distance === 'number' ? closestStorm.distance.toFixed(1) : closestStorm.distance;
-  story += `${directionName} at ${distance} miles away. `;
-  
-  // Add movement context if available
-  if (closestStorm.movement) {
-    const movementDir = getDirectionName(closestStorm.movement.direction || 0);
-    story += `This ${stormPersonality.simpleName.toLowerCase()} is traveling ${movementDir ? movementDir.toLowerCase() : 'in an unknown direction'} at ${closestStorm.movement.speed || 0} mph. `;
+    story = "🌤️ The weather stage is peaceful today - no significant storms are performing in your area!";
+  } else {
+    // Find closest and strongest storms
+    const closestStorm = storms[0]; // storms are sorted by distance
+    const strongestStorm = storms.reduce((strongest, current) => 
+      current.intensity > strongest.intensity ? current : strongest, storms[0]);
     
-    // Add ETA if approaching
-    if (closestStorm.movement.eta && closestStorm.movement.eta !== 'N/A') {
-      story += `🕒 It will arrive around ${closestStorm.movement.eta}. `;
+    console.log('generateWeatherStory: closestStorm data:', JSON.stringify(closestStorm));
+    
+    // Closest storm information
+    const closestPersonality = getStormPersonality(closestStorm.intensity);
+    const directionName = getDirectionName(closestStorm.bearing || 0);
+    const distance = typeof closestStorm.distance === 'number' ? closestStorm.distance.toFixed(1) : closestStorm.distance;
+    
+    story += `🎯 **Nearest Storm**: ${closestPersonality.emoji} ${closestPersonality.personality} is ${closestPersonality.description} ${directionName} at ${distance} miles away.`;
+    
+    // Strongest storm information (if different from closest)
+    if (strongestStorm.id !== closestStorm.id) {
+      const strongestPersonality = getStormPersonality(strongestStorm.intensity);
+      const strongestDirection = getDirectionName(strongestStorm.bearing || 0);
+      const strongestDistance = typeof strongestStorm.distance === 'number' ? strongestStorm.distance.toFixed(1) : strongestStorm.distance;
+      story += `\n\n⚡ **Strongest Storm**: ${strongestPersonality.emoji} ${strongestPersonality.personality} (${strongestStorm.intensity} dBZ) is ${strongestDirection} at ${strongestDistance} miles away.`;
     }
-  }
-  
-  // Add educational note about dBZ
-  story += `\n\n📚 ${stormPersonality.educationalNote}`;
-  
-  // Add multiple storms context with directional information
-  if (storms.length > 1) {
-    const secondStorm = storms[1];
-    const secondPersonality = getStormPersonality(secondStorm.intensity);
-    const secondDistance = typeof secondStorm.distance === 'number' ? secondStorm.distance.toFixed(1) : secondStorm.distance;
-    const secondDirection = getDirectionName(secondStorm.bearing || 0);
-    story += `\n\n🌦️ There's also ${secondPersonality.personality.toLowerCase()} ${secondDirection} at ${secondDistance} miles`;
-    if (storms.length > 2) {
-      // Get dBZ range summary without mentioning "weather systems"
+    
+    // Movement context if available
+    if (closestStorm.movement) {
+      const movementDir = getDirectionName(closestStorm.movement.direction || 0);
+      story += `\n\n🧭 The nearest storm is moving ${movementDir ? movementDir.toLowerCase() : 'in an unknown direction'} at ${closestStorm.movement.speed || 0} mph`;
+      
+      // Add ETA if approaching
+      if (closestStorm.movement.eta && closestStorm.movement.eta !== 'N/A') {
+        story += ` and will arrive around ${closestStorm.movement.eta}`;
+      }
+      story += ".";
+    }
+    
+    // Additional storms summary
+    if (storms.length > 1) {
       const intensities = storms.map(s => s.intensity).sort((a, b) => a - b);
       const minDbz = intensities[0];
       const maxDbz = intensities[intensities.length - 1];
-      story += ` plus ${storms.length - 2} more (${minDbz}-${maxDbz} dBZ range)`;
+      story += `\n\n📊 **Area Overview**: ${storms.length} total storms detected with intensity ranging from ${minDbz}-${maxDbz} dBZ.`;
     }
-    story += ".";
+    
+    // Educational note
+    const personality = getStormPersonality(closestStorm.intensity);
+    story += `\n\n📚 ${personality.educationalNote}`;
+  }
+  
+  // Weather forecast section
+  if (forecastData && forecastData.periods && forecastData.periods.length > 0) {
+    const todayForecast = forecastData.periods[0];
+    const tonightForecast = forecastData.periods.length > 1 ? forecastData.periods[1] : null;
+    
+    story += `\n\n🌤️ **Today's Forecast**: ${todayForecast.name} - ${todayForecast.detailedForecast}`;
+    
+    if (tonightForecast) {
+      story += `\n\n🌙 **Tonight**: ${tonightForecast.detailedForecast}`;
+    }
+  }
+  
+  // Current conditions section
+  if (currentWeather) {
+    story += `\n\n🌡️ **Current Conditions**: `;
+    if (currentWeather.temperature) {
+      story += `${Math.round(currentWeather.temperature)}°F, `;
+    }
+    if (currentWeather.humidity) {
+      story += `${currentWeather.humidity}% humidity, `;
+    }
+    if (currentWeather.wind_speed && currentWeather.wind_direction) {
+      story += `winds ${getDirectionName(currentWeather.wind_direction)} at ${Math.round(currentWeather.wind_speed)} mph`;
+    }
   }
   
   return story;

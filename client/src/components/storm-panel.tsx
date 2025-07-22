@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Cloud, CloudRain, CloudDrizzle, Zap, CloudSnow } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useQuery } from "@tanstack/react-query";
 
 interface Storm {
   id: string;
@@ -97,25 +98,82 @@ function getStormPersonality(intensity: number): {
   }
 }
 
-function generateStormStory(storms: any[]): string {
+function generateStormStory(storms: any[], weatherStoryData?: any): string {
+  let story = "";
+  
+  // Storm analysis section
   if (!storms || storms.length === 0) {
-    return "🌤️ The weather stage is peaceful today - no significant storms are performing in your area! ✨";
-  }
-
-  const closestStorm = storms[0]; // storms are sorted by distance
-  const stormPersonality = getStormPersonality(closestStorm.intensity);
-  
-  let story = `${stormPersonality.emoji} A ${stormPersonality.personality} is ${stormPersonality.description} `;
-  story += `about ${closestStorm.distance?.toFixed(1)} miles away. `;
-  
-  if (storms.length > 1) {
-    const secondStorm = storms[1];
-    const secondPersonality = getStormPersonality(secondStorm.intensity);
-    story += `There's also a ${secondPersonality.personality} ${secondStorm.distance?.toFixed(1)} miles away`;
-    if (storms.length > 2) {
-      story += ` and ${storms.length - 2} other weather system${storms.length > 3 ? 's' : ''} in the region`;
+    story = "🌤️ The weather stage is peaceful today - no significant storms are performing in your area!";
+  } else {
+    // Find closest and strongest storms
+    const closestStorm = storms[0]; // storms are sorted by distance
+    const strongestStorm = storms.reduce((strongest, current) => 
+      current.intensity > strongest.intensity ? current : strongest, storms[0]);
+    
+    // Closest storm information
+    const closestPersonality = getStormPersonality(closestStorm.intensity);
+    const directionName = getDirectionName(closestStorm.direction || 0);
+    const distance = closestStorm.distance?.toFixed(1) || 'unknown';
+    
+    story += `🎯 **Nearest Storm**: ${closestPersonality.emoji} ${closestPersonality.personality} is ${closestPersonality.description} ${directionName} at ${distance} miles away.`;
+    
+    // Strongest storm information (if different from closest)
+    if (strongestStorm.id !== closestStorm.id) {
+      const strongestPersonality = getStormPersonality(strongestStorm.intensity);
+      const strongestDirection = getDirectionName(strongestStorm.direction || 0);
+      const strongestDistance = strongestStorm.distance?.toFixed(1) || 'unknown';
+      story += `\n\n⚡ **Strongest Storm**: ${strongestPersonality.emoji} ${strongestPersonality.personality} (${strongestStorm.intensity} dBZ) is ${strongestDirection} at ${strongestDistance} miles away.`;
     }
-    story += ".";
+    
+    // Movement context if available
+    if (closestStorm.windsPrediction && closestStorm.windsPrediction.speed > 0) {
+      const movementDir = getDirectionName(closestStorm.windsPrediction.direction || 0);
+      story += `\n\n🧭 The nearest storm is moving ${movementDir.toLowerCase()} at ${closestStorm.windsPrediction.speed} mph.`;
+    }
+    
+    // Additional storms summary
+    if (storms.length > 1) {
+      const intensities = storms.map(s => s.intensity).sort((a, b) => a - b);
+      const minDbz = intensities[0];
+      const maxDbz = intensities[intensities.length - 1];
+      story += `\n\n📊 **Area Overview**: ${storms.length} total storms detected with intensity ranging from ${minDbz}-${maxDbz} dBZ.`;
+    }
+    
+    // Educational note
+    const personality = getStormPersonality(closestStorm.intensity);
+    story += `\n\n📚 ${personality.educationalNote}`;
+  }
+  
+  // Weather forecast section
+  if (weatherStoryData?.forecast && weatherStoryData.forecast.periods && weatherStoryData.forecast.periods.length > 0) {
+    const todayForecast = weatherStoryData.forecast.periods[0];
+    const tonightForecast = weatherStoryData.forecast.periods.length > 1 ? weatherStoryData.forecast.periods[1] : null;
+    
+    story += `\n\n🌤️ **Today's Forecast**: ${todayForecast.name} - ${todayForecast.detailedForecast}`;
+    
+    if (tonightForecast) {
+      story += `\n\n🌙 **Tonight**: ${tonightForecast.detailedForecast}`;
+    }
+  }
+  
+  // Current conditions section
+  if (weatherStoryData?.currentWeather) {
+    const weather = weatherStoryData.currentWeather;
+    story += `\n\n🌡️ **Current Conditions**: `;
+    
+    const conditionsParts = [];
+    if (weather.conditions?.temperature) {
+      conditionsParts.push(`${Math.round(weather.conditions.temperature)}°F`);
+    }
+    if (weather.conditions?.humidity && weather.conditions.humidity !== 'Unknown') {
+      conditionsParts.push(`${weather.conditions.humidity}% humidity`);
+    }
+    if (weather.conditions?.windSpeed && weather.conditions.windDirection) {
+      const windDir = getDirectionName(weather.conditions.windDirection);
+      conditionsParts.push(`winds ${windDir} at ${Math.round(weather.conditions.windSpeed)} mph`);
+    }
+    
+    story += conditionsParts.join(', ');
   }
   
   return story;
@@ -254,6 +312,14 @@ const getRainfallRate = (dbz: number): { mmh: number; inh: number } => {
 };
 
 export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource, userLocation, stormFilters, alertPreferences }: StormPanelProps & { stormFilters?: any; alertPreferences?: any }) {
+  // Fetch weather story data (forecast and current conditions)
+  const { data: weatherStoryData } = useQuery({
+    queryKey: ['/api/weather-story-data', userLocation?.lat, userLocation?.lon],
+    enabled: !!userLocation?.lat && !!userLocation?.lon,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    refetchInterval: 15 * 60 * 1000, // Refresh every 15 minutes
+  });
+
   // Local filter state that syncs with the map's precipitation waypoints legend
   const [currentFilters, setCurrentFilters] = useState({
     light: true, moderate: true, heavy: true, veryHeavy: true, extreme: true
@@ -453,8 +519,8 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
             <span className="text-lg">📖</span>
             <h3 className="text-sm font-medium text-slate-200">Weather Story</h3>
           </div>
-          <p className="text-sm text-slate-300 leading-relaxed">
-            {generateStormStory(sortedStorms)}
+          <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
+            {generateStormStory(sortedStorms, weatherStoryData)}
           </p>
 
         </div>
