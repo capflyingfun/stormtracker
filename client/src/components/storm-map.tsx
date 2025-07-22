@@ -144,13 +144,16 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       clearTimeout(autoSampleTimeoutRef.current);
     }
     
-    // Set timeout for 0.75 seconds - sample silently in background
+    // Set timeout with mobile-friendly delay - sample silently in background
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const sampleDelay = isMobile ? 3000 : 1500; // 3s for mobile, 1.5s for desktop
+    
     autoSampleTimeoutRef.current = setTimeout(async () => {
       if (mapInstanceRef.current && location && radarFrames.length > 0) {
-        console.log('Auto-sampling triggered by map movement');
+        console.log(`Auto-sampling triggered by map movement (${isMobile ? 'mobile' : 'desktop'} delay: ${sampleDelay}ms)`);
         await sampleRadarDbz();
       }
-    }, 750);
+    }, sampleDelay);
   }, [location, radarFrames.length]);
 
 
