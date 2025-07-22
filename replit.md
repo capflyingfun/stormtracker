@@ -554,6 +554,10 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Optimized Timeframe**: Reduced from 2-hour to 30-minute historical window for better Iowa Environmental Mesonet archive availability
 - **Improved Frame Loading**: Enhanced error handling and fallback mechanisms for more reliable frame loading
 - **Authentic Historical Data**: Uses Iowa Environmental Mesonet NEXRAD archive for authentic historical radar data
+- **Frame-by-Frame Display**: Switched from tile layers to imageOverlay system for proper historical frame cycling
+- **Error Handling with Fallback**: Automatic fallback to current radar when historical frames unavailable
+- **Precipitation Sampling Integration**: Storm detection only occurs on current frame when animation stopped
+- **Successful Implementation**: Animation now properly cycles through all 6 historical frames showing actual storm movement over time
 
 ### Radar Source-Specific dBZ Calibration (July 18, 2025)
 - **Separate Threshold Systems**: Implemented radar source-specific dBZ thresholds to account for calibration differences
