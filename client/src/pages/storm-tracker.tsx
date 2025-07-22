@@ -4,7 +4,7 @@ import { useStormData } from "@/hooks/use-storm-data";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import Header from "@/components/header";
 import LocationSetup from "@/components/location-setup";
-import StormMap from "@/components/storm-map";
+import StormMap from "@/components/storm-map-clean";
 import StormPanel from "@/components/storm-panel";
 import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
 import Simple3DCanvas from "@/components/simple-3d-canvas";

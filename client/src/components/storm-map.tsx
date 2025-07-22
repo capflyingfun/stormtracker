@@ -58,15 +58,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const sectorGridRef = useRef<any>(null);
   const sectorHighlightsRef = useRef<any>(null);
   
-  const [isAnimating, setIsAnimating] = useState(false);
   const [showSectorGrid, setShowSectorGrid] = useState(true);
-  const [currentFrame, setCurrentFrame] = useState(10);
-  const [radarFrames, setRadarFrames] = useState<(string | number)[]>([]);
   const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>(externalRadarSource || 'rainviewer'); // RainViewer primary
-  const [currentFrameIndex, setCurrentFrameIndex] = useState<number>(-1);
   const [nexradSite, setNexradSite] = useState<string>('');
-  const animationIntervalRef = useRef<NodeJS.Timeout>();
-  const animationSpeedRef = useRef<number>(800); // ms between frames
   const [sectorDbzData, setSectorDbzData] = useState<{[key: string]: number}>({});
   
   // Auto-sampling state
