@@ -359,13 +359,18 @@ const getRainfallRate = (dbz: number): { mmh: number; inh: number } => {
 
 export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource, userLocation, stormFilters, alertPreferences }: StormPanelProps & { stormFilters?: any; alertPreferences?: any }) {
   // Fetch weather story data (forecast and current conditions)
-  const { data: weatherStoryData } = useQuery({
+  const { data: weatherStoryData, error: weatherStoryError, isLoading: weatherStoryLoading } = useQuery({
     queryKey: ['/api/weather-story-data', userLocation?.lat, userLocation?.lon],
+    queryFn: async () => {
+      const response = await fetch(`/api/weather-story-data?lat=${userLocation?.lat}&lon=${userLocation?.lon}`);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return response.json();
+    },
     enabled: !!userLocation?.lat && !!userLocation?.lon,
     staleTime: 10 * 60 * 1000, // 10 minutes
     refetchInterval: 15 * 60 * 1000, // Refresh every 15 minutes
   });
-
+  
   // Local filter state that syncs with the map's precipitation waypoints legend
   const [currentFilters, setCurrentFilters] = useState({
     light: true, moderate: true, heavy: true, veryHeavy: true, extreme: true
