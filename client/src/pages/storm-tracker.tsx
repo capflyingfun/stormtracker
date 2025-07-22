@@ -236,7 +236,11 @@ export default function StormTracker() {
 
 
   
-  const activeStorms = precipitationStorms;
+  // Use storms from API when available, otherwise fall back to precipitation storms
+  const activeStorms = storms && storms.length > 0 ? storms : precipitationStorms;
+  
+  // Debug logging for storm data flow
+  console.log(`STORM TRACKER DEBUG: API storms: ${storms?.length || 0}, Precipitation storms: ${precipitationStorms.length}, Active storms: ${activeStorms.length}`);
   
   const filteredStorms = activeStorms.filter(storm => {
     const category = storm.intensity >= 61 ? 'extreme' :
