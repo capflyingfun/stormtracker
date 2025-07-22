@@ -1176,7 +1176,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const selectedStorm = precipitationStorms.find(s => s.id === selectedStormId);
       if (selectedStorm) {
         hideStormCone();
-        showStormCone(selectedStorm.lat, selectedStorm.lon, selectedStorm.intensity);
+        showStormCone(selectedStorm.lat, selectedStorm.lon, selectedStorm.intensity, selectedStorm.id);
       }
     }
   }, [showTimeLabels]);
@@ -1294,7 +1294,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         return Math.round(baseSize);
       };
       
-      const markerSize = getMarkerSize(point.dbz, point.count);
+      const markerSize = getMarkerSize(point.dbz, (point as any).count);
       
       // Add popup with precipitation info including rainfall rate
       const pointDistance = calculateDistance(centerLat, centerLon, point.lat, point.lon);
@@ -1456,14 +1456,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
       const hailWarning = getHailInfo(point.dbz);
       
-      const popupContent = point.count && point.count > 1 
+      const popupContent = (point as any).count && (point as any).count > 1 
         ? `<b>Storm Cell Cluster</b><br>
            Distance: ${displayDistance.toFixed(1)} miles<br>
            Max Intensity: ${point.dbz} dBZ<br>
            ${point.dbz >= 55 ? 'Rain/Hail Rate:' : 'Rain Rate:'} ${rainfallData.mmh} mm/h (${rainfallData.inh} in/h)<br>
            Type: ${precipType}<br>
            ${hailWarning ? `<span style="color: orange;">${hailWarning}</span><br>` : ''}
-           Cells: ${point.count}<br>
+           Cells: ${(point as any).count}<br>
            <small>Real-time ${radarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'} data</small>`
         : `<b>Precipitation Cell</b><br>
            Distance: ${displayDistance.toFixed(1)} miles<br>
