@@ -153,7 +153,7 @@ function generateStormStory(storms: any[], weatherStoryData?: any): string {
     // Extract key forecast details
     const todayTemp = todayForecast.temperature ? `${todayForecast.temperature}°F` : '';
     const todayWind = todayForecast.windSpeed && todayForecast.windDirection ? 
-      `${todayForecast.windDirection} winds ${todayForecast.windSpeed.toLowerCase()}` : '';
+      `winds ${todayForecast.windDirection} @ ${todayForecast.windSpeed.toLowerCase()}` : '';
     
     // Extract precipitation chance from detailed forecast if not in probabilityOfPrecipitation
     let precipChance = '';
@@ -214,7 +214,7 @@ function generateStormStory(storms: any[], weatherStoryData?: any): string {
     }
     if (weather.conditions?.windSpeed && weather.conditions.windDirection) {
       const windDir = getDirectionName(weather.conditions.windDirection);
-      conditionsParts.push(`${windDir} winds at ${Math.round(weather.conditions.windSpeed)} mph`);
+      conditionsParts.push(`winds ${windDir} @ ${Math.round(weather.conditions.windSpeed)} mph`);
     }
     
     if (conditionsParts.length > 0) {
