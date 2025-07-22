@@ -123,6 +123,18 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 22, 2025
 
+### Comprehensive Weather Story with Full Data Integration (July 22, 2025)
+- **Complete Weather Story Modal**: Moved Weather Story out of Storm Cells into dedicated modal section positioned above AI Assistant
+- **Enhanced Data Extraction**: Fixed precipitation percentage extraction from NWS detailed forecasts (e.g., "Chance of precipitation is 30%")
+- **Comprehensive Weather Display**: Added all available weather data including detailed forecasts, extended outlook, aviation weather, current conditions with pressure/visibility/cloud cover
+- **Professional Meteorological Format**: Cardinal directions properly capitalized (SSE), wind format standardized to "winds W @ 5 mph" style
+- **Aviation Weather Integration**: Displays weather from 3 nearest airports with temperatures, winds, and visibility data
+- **Extended Forecast**: Shows 4-day extended forecast with temperatures and conditions for planning purposes
+- **Heat Index Warnings**: Automatic heat advisories when conditions exceed 105°F heat index for safety
+- **Complete Current Conditions**: Temperature, humidity, winds, barometric pressure, visibility, and cloud cover percentage
+- **Enhanced Tonight Forecast**: Detailed tonight's forecast with temperatures, winds, and full descriptive text
+- **Real-Time Data Integration**: All data refreshes every 15 minutes with 10-minute stale time for optimal performance
+
 ### Enhanced Weather Story with Forecast Integration (July 22, 2025)
 - **Comprehensive Storm Analysis**: Weather Story now identifies both nearest and strongest storms with detailed directional information and personality-driven descriptions
 - **NWS Forecast Integration**: Added official National Weather Service forecast data including today's weather and tonight's forecast directly in Weather Story
