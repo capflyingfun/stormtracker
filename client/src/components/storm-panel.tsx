@@ -563,19 +563,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
         {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-400" />}
       </div>
       
-      {/* Emoji-based Weather Story */}
-      {!isLoading && (
-        <div className="bg-slate-700/30 rounded-lg p-4 mb-4 border border-slate-600/50">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-lg">📖</span>
-            <h3 className="text-sm font-medium text-slate-200">Weather Story</h3>
-          </div>
-          <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
-            {generateStormStory(sortedStorms, weatherStoryData)}
-          </p>
 
-        </div>
-      )}
 
       {sortedStorms.length === 0 ? (
         <p className="text-slate-400 text-center py-8">
