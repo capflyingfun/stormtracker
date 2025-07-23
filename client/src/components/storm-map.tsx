@@ -1329,6 +1329,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const isNearestStorm = nearestStorm && point.lat === nearestStorm.lat && point.lon === nearestStorm.lon;
       const isStrongestStorm = strongestStorm && point.lat === strongestStorm.lat && point.lon === strongestStorm.lon;
       const isSpecialStorm = isNearestStorm || isStrongestStorm;
+      const isSevereStorm = point.dbz >= 55; // Severe storm threshold for purple ring debug
       
       // Get alert threshold color (color that matches the minimum dBZ setting)
       const getAlertThresholdColor = (minimumDbz: number) => {
@@ -1389,6 +1390,20 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               "></div>
             ` : ''}
             
+            ${isSevereStorm ? `
+              <!-- Purple ring for severe storms (55+ dBZ) for debug visualization -->
+              <div style="
+                position: absolute;
+                width: ${markerSize + 30}px;
+                height: ${markerSize + 30}px;
+                border: 3px solid #8B5CF6;
+                border-radius: 50%;
+                animation: severeStormRingPulse 2s infinite;
+                z-index: -2;
+                box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
+              "></div>
+            ` : ''}
+            
             <svg width="${markerSize}" height="${markerSize}" viewBox="0 0 24 24" data-arrow-fixed="true" style="
               filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
               ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor});` : ''}
@@ -1422,6 +1437,24 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               100% { 
                 transform: scale(0.8); 
                 opacity: 0.8; 
+              }
+            }
+            
+            @keyframes severeStormRingPulse {
+              0% { 
+                transform: scale(0.9); 
+                opacity: 0.8;
+                box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
+              }
+              50% { 
+                transform: scale(1.3); 
+                opacity: 0.4;
+                box-shadow: 0 0 25px rgba(139, 92, 246, 0.8);
+              }
+              100% { 
+                transform: scale(0.9); 
+                opacity: 0.8;
+                box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
               }
             }
           </style>
