@@ -1260,13 +1260,17 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           return currentWindsData.stormMovement.direction;
         }
         
-        // Fallback to southeast direction
-        return 135;
+        // Return null if winds aloft data is not yet available - don't render arrows
+        return null;
       };
       
       const movementDirection = getStormMovementDirection();
       
-
+      // Skip arrow rendering if winds aloft data is not yet available
+      if (movementDirection === null) {
+        console.log('Skipping storm arrow rendering - winds aloft data not yet loaded');
+        return; // Don't render arrows until winds data is available
+      }
       
       // Create directional arrow marker with special effects for nearest/strongest storms
       // Add cache-busting mechanism to ensure correct SVG path is always used

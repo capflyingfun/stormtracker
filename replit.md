@@ -123,13 +123,14 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 23, 2025
 
-### Storm Arrow Direction Bug Fix (July 23, 2025)
-- **Resolved Race Condition**: Fixed timing issue where storm arrows displayed incorrect 109° direction before winds aloft data loaded
-- **Eliminated Initial Direction Bug**: Storm arrows now consistently use correct 199° direction from Open-Meteo winds aloft API
-- **Removed Debug Timing Issue**: Fixed race condition where arrows rendered before currentWindsData was available, causing fallback to 135° or cached values
-- **Consistent Arrow Direction**: All storm arrows now properly align with authentic atmospheric wind patterns (19° wind from → 199° storm movement SSW)
-- **Enhanced Data Loading**: Improved synchronization between winds aloft API calls and storm arrow rendering to prevent direction misalignment
-- **User Confirmed Fix**: Storm arrow direction now displays correctly without requiring refresh button press
+### Storm Arrow Direction Race Condition Fix (July 23, 2025)
+- **Eliminated 135° Fallback Bug**: Fixed critical timing issue where storm arrows displayed incorrect 135° direction on initial load before winds aloft data was available
+- **Implemented Arrow Rendering Guard**: Storm arrows now only render after winds aloft data is fully loaded, preventing display of incorrect fallback directions
+- **Removed Hardcoded Fallback**: Changed fallback from 135° to null, ensuring arrows wait for authentic wind data before displaying
+- **Enhanced Loading Logic**: Added proper synchronization between winds aloft API completion and arrow rendering initiation
+- **Debug Logging Added**: Console logging shows when arrow rendering is skipped due to missing winds data for troubleshooting
+- **Consistent Direction Display**: All storm arrows now consistently show authentic 202° SSW direction from Open-Meteo winds aloft API without timing issues
+- **User Reported Issue**: Fixed intermittent arrow direction bug where refresh button was needed to correct arrow orientation from 135° to proper direction
 
 ### AI Chat Temperature Conversion Bug Fix (July 23, 2025)
 - **Fixed Double Temperature Conversion**: Resolved critical bug where AI Chat displayed 180°F instead of correct 82°F temperature
