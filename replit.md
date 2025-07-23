@@ -289,6 +289,14 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Universal Application**: Optimization system works with both NEXRAD and RainViewer radar sources
 - **Performance Logging**: Comprehensive console feedback showing waypoint reduction statistics for monitoring effectiveness
 
+### Sonar UI & Arrow Loading Enhancements (July 23, 2025)
+- **Sonar Z-Index Layering**: Implemented intensity-based storm rendering in sonar view with higher dBZ storms displayed on top for better visibility
+- **Storm Arrow Loading Indicators**: Added animated loading circles with question marks while winds aloft data loads, preventing direction confusion
+- **Enhanced Loading States**: Storm arrows show rotating dashed circle (⭕) with "?" during 30-second wind data fetch period
+- **Smooth Loading Transition**: Seamless transition from loading indicator to authentic directional arrow once atmospheric data arrives
+- **User Experience Improvement**: Eliminates confusion from temporary fallback directions during wind data loading process
+- **Professional Visual Feedback**: Clear indication of data loading status with color-coded animated indicators matching storm intensity
+
 ### Storm Tracking System Fully Operational (July 23, 2025)
 - **Complete System Integration**: Successfully resolved all compilation errors and connected adaptive sampling to storm visualization
 - **Variable Scoping Fixed**: Properly scoped precipitation detection metrics tracking in both NEXRAD and RainViewer functions

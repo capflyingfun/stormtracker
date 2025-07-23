@@ -188,8 +188,10 @@ export default function SonarRadar({
       ctx.stroke();
     }
 
-    // Draw storms as blips with fading animation
-    storms.forEach((storm) => {
+    // Draw storms as blips sorted by intensity (highest dBZ on top)
+    const sortedStorms = [...storms].sort((a, b) => a.intensity - b.intensity);
+    
+    sortedStorms.forEach((storm) => {
       if (storm.distance > radarRange) return;
 
       const stormRadians = ((storm.direction - 90) * Math.PI) / 180;
