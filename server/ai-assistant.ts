@@ -602,7 +602,7 @@ ${aviationWeather.length > 0 ?
   ).join('\n')}\n` : ''}${currentWeather ? 
   `Current Local Conditions:\n` +
   `• ${currentWeather.location}: ${currentWeather.conditions.weather}\n` +
-  `• Temperature: ${data.useMetric ? `${currentWeather.conditions.temperature.toFixed(1)}°C` : `${Math.round((currentWeather.conditions.temperature * 9/5) + 32)}°F`} | Humidity: ${currentWeather.conditions.humidity}%\n` +
+  `• Temperature: ${data.useMetric ? `${Math.round((currentWeather.conditions.temperature - 32) * 5/9)}°C` : `${currentWeather.conditions.temperature}°F`} | Humidity: ${currentWeather.conditions.humidity}%\n` +
   `• Wind: ${currentWeather.conditions.windDirection}° at ${currentWeather.conditions.windSpeed} mph\n` +
   `• Pressure: ${currentWeather.conditions.pressure} hPa | Visibility: ${currentWeather.conditions.visibility}\n` +
   `• Source: ${currentWeather.source} (Live Data)` : ''}
