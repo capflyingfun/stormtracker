@@ -1608,9 +1608,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     sectorHighlightsRef.current = waypointGroup;
     sectorHighlightsRef.current.addTo(map);
-    
-    // Add purple rings to visualize detected storms (for debugging direction issues)
-    addStormVisualizationRings();
   };
 
   // Update waypoint markers based on dBZ data and filters
@@ -1629,10 +1626,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     }
   }, [precipitationPoints, showSectorGrid, location, stormFilters]);
 
-  // Add storm visualization rings when storms change
+  // Add storm visualization rings when storms change (separate from normal arrows)
   useEffect(() => {
     if (mapInstanceRef.current && storms.length > 0) {
-      addStormVisualizationRings();
+      // Add rings after a short delay to ensure normal arrows are rendered first
+      setTimeout(() => {
+        addStormVisualizationRings();
+      }, 500);
     }
   }, [storms]);
 
