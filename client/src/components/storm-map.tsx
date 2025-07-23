@@ -1288,7 +1288,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             display: flex;
             align-items: center;
             justify-content: center;
-            transform: rotate(${movementDirection}deg);
+            transform: rotate(${movementDirection - 90}deg);
             ${isAlertStorm || isSpecialStorm ? 'animation: specialStormPulse 2s infinite;' : ''}
           ">
             ${isSpecialStorm ? `
