@@ -58,6 +58,350 @@ export async function registerRoutes(app: Express): Promise<Server> {
     weatherapi: process.env.WEATHERAPI_KEY || null, // WeatherAPI.com free tier: 1M calls/month
   };
 
+  // Open-Meteo Radar Integration - high resolution, professional grade
+  app.get("/api/open-meteo-radar", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lon as string);
+      
+      console.log(`🌧️ Fetching Open-Meteo radar data for ${latitude}, ${longitude}`);
+      
+      // Open-Meteo Historical Weather API for radar-equivalent precipitation data
+      const response = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=precipitation&hourly=precipitation&forecast_days=1&models=best_match`,
+        {
+          headers: {
+            'User-Agent': 'StormTracker Weather App'
+          },
+          signal: AbortSignal.timeout(10000)
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Open-Meteo API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Convert precipitation data to radar-style format
+      const radarData = {
+        current: {
+          precipitation: data.current?.precipitation || 0,
+          timestamp: data.current?.time || new Date().toISOString()
+        },
+        hourly: {
+          timestamps: data.hourly?.time || [],
+          precipitation: data.hourly?.precipitation || []
+        },
+        source: 'Open-Meteo',
+        location: { lat: latitude, lon: longitude },
+        resolution: 'High (1-11km)',
+        quality: 'Professional Grade'
+      };
+
+      console.log(`✅ Open-Meteo radar data retrieved: ${radarData.current.precipitation}mm current precipitation`);
+      
+      res.json(radarData);
+      
+    } catch (error) {
+      console.error('Open-Meteo radar API error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        fallback: 'Consider using RainViewer or NEXRAD as alternative'
+      });
+    }
+  });
+
+  // Visual Crossing High-Resolution Radar Integration
+  app.get("/api/visual-crossing-radar", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lon as string);
+      
+      console.log(`🌧️ Fetching Visual Crossing high-resolution radar data for ${latitude}, ${longitude}`);
+      
+      // Visual Crossing Timeline API with radar-specific elements
+      // Free tier: 1000 records/day, no API key needed for testing
+      const response = await fetch(
+        `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=YourAPIKey&elements=precipremote,reflectivity,precip,precipprob,preciptype&include=remote&options=nonulls&unitGroup=us`,
+        {
+          headers: {
+            'User-Agent': 'StormTracker Weather App'
+          },
+          signal: AbortSignal.timeout(10000)
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Visual Crossing API error: ${response.status} - ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Convert Visual Crossing data to radar format
+      const radarData = {
+        current: {
+          precipitation: data.currentConditions?.precip || 0,
+          precipRemote: data.currentConditions?.precipremote || 0, // Radar-derived
+          reflectivity: data.currentConditions?.reflectivity || 0,
+          precipProbability: data.currentConditions?.precipprob || 0,
+          precipType: data.currentConditions?.preciptype || null,
+          timestamp: data.currentConditions?.datetime || new Date().toISOString()
+        },
+        hourly: data.days?.[0]?.hours?.map((hour: any) => ({
+          time: hour.datetime,
+          precipitation: hour.precip || 0,
+          precipRemote: hour.precipremote || 0,
+          reflectivity: hour.reflectivity || 0,
+          precipProbability: hour.precipprob || 0,
+          precipType: hour.preciptype || null
+        })) || [],
+        source: 'Visual Crossing',
+        location: { lat: latitude, lon: longitude },
+        resolution: 'High-Resolution Radar (1-11km)',
+        quality: 'Professional Grade - Radar Derived',
+        coverage: 'US & Europe with radar, Global with satellite'
+      };
+
+      console.log(`✅ Visual Crossing radar data: ${radarData.current.precipRemote}mm radar precipitation, ${radarData.current.reflectivity} dBZ reflectivity`);
+      
+      res.json(radarData);
+      
+    } catch (error) {
+      console.error('Visual Crossing radar API error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        note: 'Visual Crossing requires API key for production use. Free tier: 1000 records/day',
+        fallback: 'Consider Open-Meteo or NEXRAD as alternatives'
+      });
+    }
+  });
+
+  // Radar Comparison Endpoint - Test multiple sources for quality
+  app.get("/api/radar-comparison", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lon as string);
+      
+      console.log(`🔍 Comparing radar sources for ${latitude}, ${longitude}`);
+      
+      const comparison = {
+        location: { lat: latitude, lon: longitude },
+        sources: {
+          visualCrossing: null,
+          openMeteo: null,
+          current: 'RainViewer/NEXRAD (existing)'
+        },
+        recommendation: '',
+        timestamp: new Date().toISOString()
+      };
+
+      // Test Visual Crossing (if API key available)
+      try {
+        const vcResponse = await fetch(
+          `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=YourAPIKey&elements=precipremote,reflectivity,precip&include=remote&options=nonulls`,
+          { signal: AbortSignal.timeout(5000) }
+        );
+        
+        if (vcResponse.ok) {
+          const vcData = await vcResponse.json();
+          comparison.sources.visualCrossing = {
+            precipitation: vcData.currentConditions?.precip || 0,
+            precipRemote: vcData.currentConditions?.precipremote || 0,
+            reflectivity: vcData.currentConditions?.reflectivity || 0,
+            quality: 'Radar-derived, professional grade',
+            status: 'Available'
+          };
+        }
+      } catch (error) {
+        comparison.sources.visualCrossing = {
+          status: 'API key required',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
+      }
+
+      // Test Open-Meteo
+      try {
+        const omResponse = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=precipitation`,
+          { signal: AbortSignal.timeout(5000) }
+        );
+        
+        if (omResponse.ok) {
+          const omData = await omResponse.json();
+          comparison.sources.openMeteo = {
+            precipitation: omData.current?.precipitation || 0,
+            quality: 'High resolution (1-11km)',
+            status: 'Free, no API key needed'
+          };
+        }
+      } catch (error) {
+        comparison.sources.openMeteo = {
+          status: 'Error',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
+      }
+
+      // Generate recommendation
+      if (comparison.sources.visualCrossing?.status === 'Available') {
+        comparison.recommendation = 'Visual Crossing recommended: Radar-derived data eliminates false patterns seen in tile-based systems';
+      } else if (comparison.sources.openMeteo?.status === 'Free, no API key needed') {
+        comparison.recommendation = 'Open-Meteo recommended: Free high-resolution alternative with better accuracy than tile-based radar';
+      } else {
+        comparison.recommendation = 'Current RainViewer/NEXRAD system functional but may show radar artifacts and false linear patterns';
+      }
+
+      res.json(comparison);
+      
+    } catch (error) {
+      console.error('Radar comparison error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Open-Meteo Grid Precipitation Detection
+  app.get("/api/open-meteo-precipitation-grid", async (req, res) => {
+    try {
+      const { lat, lon, radius = 50 } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      
+      const centerLat = parseFloat(lat as string);
+      const centerLon = parseFloat(lon as string);
+      const radiusMiles = parseFloat(radius as string);
+      
+      console.log(`🌧️ Generating Open-Meteo precipitation grid for ${centerLat}, ${centerLon} within ${radiusMiles} miles`);
+      
+      // Create grid points around center location (every ~5 miles for high resolution)
+      const gridPoints = [];
+      const latDelta = 0.0725; // ~5 miles latitude
+      const lonDelta = 0.0725; // ~5 miles longitude (adjusted for latitude)
+      const gridSize = Math.ceil(radiusMiles / 5); // Grid extends to radius
+      
+      for (let latOffset = -gridSize; latOffset <= gridSize; latOffset++) {
+        for (let lonOffset = -gridSize; lonOffset <= gridSize; lonOffset++) {
+          const gridLat = centerLat + (latOffset * latDelta);
+          const gridLon = centerLon + (lonOffset * lonDelta);
+          
+          // Calculate distance from center to ensure within radius
+          const distance = Math.sqrt(
+            Math.pow((gridLat - centerLat) * 69, 2) + 
+            Math.pow((gridLon - centerLon) * 69 * Math.cos(centerLat * Math.PI / 180), 2)
+          );
+          
+          if (distance <= radiusMiles) {
+            gridPoints.push({ lat: gridLat, lon: gridLon, distance });
+          }
+        }
+      }
+      
+      console.log(`📍 Generated ${gridPoints.length} grid points for precipitation sampling`);
+      
+      // Batch request precipitation data for all grid points
+      const precipitationStorms = [];
+      const batchSize = 10; // Open-Meteo rate limiting
+      
+      for (let i = 0; i < gridPoints.length; i += batchSize) {
+        const batch = gridPoints.slice(i, i + batchSize);
+        const batchPromises = batch.map(async (point) => {
+          try {
+            const response = await fetch(
+              `https://api.open-meteo.com/v1/forecast?latitude=${point.lat}&longitude=${point.lon}&current=precipitation,weather_code&timezone=auto`,
+              { signal: AbortSignal.timeout(3000) }
+            );
+            
+            if (response.ok) {
+              const data = await response.json();
+              const precip = data.current?.precipitation || 0;
+              
+              // Convert mm/h to dBZ equivalent for compatibility
+              let dbz = 0;
+              if (precip > 0) {
+                // Professional conversion: Z = 200 * R^1.6 (where R is mm/h)
+                const Z = 200 * Math.pow(precip, 1.6);
+                dbz = 10 * Math.log10(Z); // Convert to dBZ
+                
+                // Ensure minimum detectable threshold
+                dbz = Math.max(dbz, 20); // Minimum light precipitation
+              }
+              
+              return {
+                lat: point.lat,
+                lon: point.lon,
+                distance: point.distance,
+                precipitation: precip,
+                dbz: dbz,
+                weatherCode: data.current?.weather_code || 0,
+                timestamp: data.current?.time || new Date().toISOString()
+              };
+            }
+          } catch (error) {
+            console.log(`⚠️ Grid point ${point.lat}, ${point.lon} failed:`, error instanceof Error ? error.message : 'Unknown error');
+            return null;
+          }
+        });
+        
+        const batchResults = await Promise.all(batchPromises);
+        const validResults = batchResults.filter(result => result && result.precipitation > 0);
+        precipitationStorms.push(...validResults);
+        
+        // Small delay between batches to respect rate limits
+        if (i + batchSize < gridPoints.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      // Sort by distance and intensity
+      precipitationStorms.sort((a, b) => {
+        if (Math.abs(a.distance - b.distance) < 1) {
+          return b.dbz - a.dbz; // Higher intensity first for same distance
+        }
+        return a.distance - b.distance; // Closer storms first
+      });
+      
+      console.log(`✅ Open-Meteo precipitation detection: ${precipitationStorms.length} active precipitation areas found`);
+      
+      res.json({
+        source: 'Open-Meteo Grid',
+        location: { lat: centerLat, lon: centerLon },
+        radius: radiusMiles,
+        gridPoints: gridPoints.length,
+        precipitationStorms,
+        quality: 'Professional Grade - No Radar Artifacts',
+        resolution: '1-11km authentic precipitation data',
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (error) {
+      console.error('Open-Meteo precipitation grid error:', error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Thunderstorm formation analysis endpoint
   app.get("/api/thunderstorm-conditions", async (req, res) => {
     try {

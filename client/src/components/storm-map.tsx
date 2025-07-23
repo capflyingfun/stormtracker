@@ -34,8 +34,8 @@ interface StormMapProps {
     severe: boolean;
   };
 
-  onRadarSourceChange?: (source: 'rainviewer' | 'nexrad') => void;
-  radarSource?: 'rainviewer' | 'nexrad';
+  onRadarSourceChange?: (source: 'rainviewer' | 'nexrad' | 'visual-crossing') => void;
+  radarSource?: 'rainviewer' | 'nexrad' | 'visual-crossing';
   isDisabled?: boolean;
   alertPreferences?: any;
   showAllStormTracks?: boolean;
@@ -62,7 +62,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [showSectorGrid, setShowSectorGrid] = useState(true);
   const [currentFrame, setCurrentFrame] = useState(10);
   const [radarFrames, setRadarFrames] = useState<(string | number)[]>([]);
-  const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad'>(externalRadarSource || 'rainviewer'); // RainViewer primary
+  const [radarSource, setRadarSource] = useState<'rainviewer' | 'nexrad' | 'visual-crossing'>(externalRadarSource || 'rainviewer'); // RainViewer primary
   const [currentFrameIndex, setCurrentFrameIndex] = useState<number>(-1);
   const [nexradSite, setNexradSite] = useState<string>('');
   const animationIntervalRef = useRef<NodeJS.Timeout>();
