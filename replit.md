@@ -296,6 +296,9 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Smooth Loading Transition**: Seamless transition from loading indicator to authentic directional arrow once atmospheric data arrives
 - **User Experience Improvement**: Eliminates confusion from temporary fallback directions during wind data loading process
 - **Professional Visual Feedback**: Clear indication of data loading status with color-coded animated indicators matching storm intensity
+- **Storm Transparency Layering**: Implemented intensity-based transparency in sonar view - Green (solid), Yellow (20% transparent), Orange (40% transparent), Red (60% transparent), Purple (80% transparent) for layered storm visualization
+- **Enhanced Sonar Visibility**: Users can now see storm layers underneath stronger storms, improving situational awareness of complex weather patterns
+- **Professional Radar Standards**: Transparency levels follow meteorological conventions allowing weaker storms to remain visible beneath severe weather systems
 
 ### Storm Tracking System Fully Operational (July 23, 2025)
 - **Complete System Integration**: Successfully resolved all compilation errors and connected adaptive sampling to storm visualization

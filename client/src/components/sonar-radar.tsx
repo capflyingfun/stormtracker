@@ -73,6 +73,15 @@ export default function SonarRadar({
     return 'Very Light';
   };
 
+  const getStormTransparency = (intensity: number): number => {
+    if (intensity >= 65) return 0.2; // Purple - 80% transparent
+    if (intensity >= 55) return 0.4; // Red - 60% transparent
+    if (intensity >= 46) return 0.6; // Orange - 40% transparent
+    if (intensity >= 35) return 0.8; // Yellow - 20% transparent
+    if (intensity >= 20) return 1.0; // Green - 0% transparent (solid)
+    return 1.0; // Very light - solid
+  };
+
   // Removed fading-related functions - keeping storm dots solid
 
   const drawSonarDisplay = () => {
@@ -165,6 +174,9 @@ export default function SonarRadar({
 
     // Draw sweep line if scanning (starts from north/0° and goes clockwise)
     if (isScanning) {
+      // Reset transparency for sweep line
+      ctx.globalAlpha = 1.0;
+      
       // Convert to proper compass bearing: 0° = North, 90° = East, etc.
       const sweepRadians = ((sweepAngle - 90) * Math.PI) / 180;
       const gradient = ctx.createLinearGradient(
@@ -201,9 +213,10 @@ export default function SonarRadar({
 
       const color = getStormColor(storm.intensity);
       const size = getStormSize(storm.intensity);
+      const transparency = getStormTransparency(storm.intensity);
 
-      // Keep storm blips solid (no fading)
-      ctx.globalAlpha = 1.0;
+      // Apply intensity-based transparency for layered visualization
+      ctx.globalAlpha = transparency;
       
       // Draw storm blip with glow effect
       ctx.shadowColor = color;
@@ -214,16 +227,15 @@ export default function SonarRadar({
       ctx.arc(x, y, size, 0, 2 * Math.PI);
       ctx.fill();
 
-      // Add pulse effect for severe storms
+      // Add pulse effect for severe storms (respect transparency)
       if (storm.intensity >= 55) {
         const pulseSize = size + Math.sin(Date.now() / 200) * 2;
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.5;
+        ctx.globalAlpha = transparency * 0.5; // Pulse at half the storm's transparency
         ctx.beginPath();
         ctx.arc(x, y, pulseSize, 0, 2 * Math.PI);
         ctx.stroke();
-        ctx.globalAlpha = 1.0;
       }
 
       ctx.shadowBlur = 0;
