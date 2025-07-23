@@ -476,7 +476,9 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
             <div 
               key={`storm-${index}`} 
               className={`bg-orange-900/40 rounded-lg p-3 border border-orange-600/30 animate-slideInUp ${
-                storm.intensity >= 55 ? 'severe-storm-ring' : ''
+                storm.intensity >= 63 ? 'extreme-rain-ring' : 
+                storm.intensity >= 58 ? 'severe-rain-ring' : 
+                storm.intensity >= 49 ? 'heavy-rain-ring' : ''
               }`}
               style={{
                 animationDelay: `${(sortedNwsAlerts.length + index) * 150}ms`,
