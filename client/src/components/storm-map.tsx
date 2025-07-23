@@ -1440,23 +1440,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               }
             }
             
-            @keyframes severeStormRingPulse {
-              0% { 
-                transform: scale(0.9); 
-                opacity: 0.8;
-                box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
-              }
-              50% { 
-                transform: scale(1.3); 
-                opacity: 0.4;
-                box-shadow: 0 0 25px rgba(139, 92, 246, 0.8);
-              }
-              100% { 
-                transform: scale(0.9); 
-                opacity: 0.8;
-                box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
-              }
-            }
+
           </style>
         `,
         className: `dbz-waypoint dbz-waypoint-${cacheKey} ${isAlertStorm ? 'alert-storm' : ''} ${isSpecialStorm ? 'special-storm' : ''}`,
