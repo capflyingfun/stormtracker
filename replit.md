@@ -123,7 +123,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 23, 2025
 
-### Enhanced Storm Arrow Timing & Reliability Improvements (July 23, 2025)
+### Enhanced Storm Arrow Timing & Alert Direction Improvements (July 23, 2025)
 - **AI Assistant Timing Sync**: Implemented 2.5-second delay for storm arrow appearance to synchronize with AI Assistant loading timing
 - **Smart Arrow Display Logic**: Storm arrows now show immediately when winds aloft data arrives quickly (under 800ms), or after 2.5 seconds with fallback direction
 - **Backup Timer Failsafe**: Added 8-second backup timer to ensure arrows always appear eventually, eliminating random start-up failures
@@ -134,6 +134,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Enhanced Console Logging**: Added detailed timing logs to track arrow enablement, data load times, and synchronization status
 - **Memory Leak Prevention**: Proper cleanup of all timing mechanisms on component unmount and location changes to prevent memory leaks
 - **Reliability Enhancement**: Eliminates random arrow display failures and ensures consistent user experience across all scenarios
+- **Alert Arrow Direction Fix**: Modified Severe Storm Alert arrows to point toward storm's bearing/location relative to user for intuitive visual reference
 
 ### AI Wind Shear Integration & Comprehensive Weather Analysis Enhancement (July 23, 2025)
 - **Complete AI Wind Shear Integration**: Enhanced both AI Assistant and AI Chat to include comprehensive wind shear analysis for aviation safety and atmospheric understanding
