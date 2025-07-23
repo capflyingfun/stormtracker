@@ -1253,19 +1253,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const alertColor = alertPreferences ? getAlertThresholdColor(alertPreferences.minimumDbz) : '#ffff00';
       
-      // Use storm-specific movement direction if available, otherwise use dynamic regional direction
+      // Use consistent regional movement direction for ALL storms 
       const getStormMovementDirection = () => {
-        // First check if this specific storm has movement data from radar analysis
-        const matchingStorm = precipitationStorms.find(storm => 
-          Math.abs(storm.lat - point.lat) < 0.001 && 
-          Math.abs(storm.lon - point.lon) < 0.001
-        );
-        
-        if (matchingStorm && matchingStorm.movement && matchingStorm.movement.direction) {
-          return matchingStorm.movement.direction;
-        }
-        
-        // Use current winds aloft data for authentic regional wind patterns
+        // Use current winds aloft data for authentic regional wind patterns (all storms move together)
         if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
           return currentWindsData.stormMovement.direction;
         }
@@ -1275,6 +1265,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       };
       
       const movementDirection = getStormMovementDirection();
+      
+      // Debug logging for first few storms to verify direction consistency
+      const stormIndex = visiblePoints.findIndex(p => p.lat === point.lat && p.lon === point.lon);
+      if (stormIndex < 3 && stormIndex >= 0) {
+        console.log(`Storm ${stormIndex}: Using direction ${movementDirection}° (winds aloft: ${currentWindsData?.stormMovement?.direction}°)`);
+      }
       
       // Create directional arrow marker with special effects for nearest/strongest storms
       // Add cache-busting mechanism to ensure correct SVG path is always used
