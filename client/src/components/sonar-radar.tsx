@@ -81,7 +81,7 @@ export default function SonarRadar({
 
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
-    const maxRadius = Math.min(centerX, centerY) - 50; // More margin for compass labels
+    const maxRadius = Math.min(centerX, centerY) - 80; // Much more margin for compass labels
 
     // Clear canvas
     ctx.fillStyle = '#0f172a';
@@ -121,8 +121,8 @@ export default function SonarRadar({
     for (let i = 0; i < 8; i++) {
       const angle = i * 45;
       const radians = ((angle - 90) * Math.PI) / 180;
-      const x = centerX + Math.cos(radians) * (maxRadius + 25);
-      const y = centerY + Math.sin(radians) * (maxRadius + 25);
+      const x = centerX + Math.cos(radians) * (maxRadius + 35);
+      const y = centerY + Math.sin(radians) * (maxRadius + 35);
       ctx.fillStyle = '#94a3b8';
       ctx.font = '12px monospace';
       ctx.fillText(majorDirections[i], x, y);
@@ -135,8 +135,8 @@ export default function SonarRadar({
       // Skip major directions (multiples of 45°)
       if (angle % 45 !== 0) {
         const radians = ((angle - 90) * Math.PI) / 180;
-        const x = centerX + Math.cos(radians) * (maxRadius + 18);
-        const y = centerY + Math.sin(radians) * (maxRadius + 18);
+        const x = centerX + Math.cos(radians) * (maxRadius + 28);
+        const y = centerY + Math.sin(radians) * (maxRadius + 28);
         ctx.fillText(angle.toString().padStart(3, '0'), x, y);
       }
     }
@@ -343,19 +343,13 @@ export default function SonarRadar({
         const containerRect = container.getBoundingClientRect();
         const size = Math.min(containerRect.width, containerRect.height);
         
-        // Set actual canvas resolution (high resolution for crisp rendering)
-        canvas.width = size * 2; // 2x for high DPI
-        canvas.height = size * 2;
+        // Set actual canvas resolution to match display size
+        canvas.width = size;
+        canvas.height = size;
         
-        // Scale down display for crisp rendering
+        // Set display size
         canvas.style.width = `${size}px`;
         canvas.style.height = `${size}px`;
-        
-        // Scale context for high DPI
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.scale(2, 2);
-        }
         
         drawSonarDisplay();
       }
@@ -391,7 +385,7 @@ export default function SonarRadar({
 
       {/* Radar Display */}
       <div className="relative p-4 flex justify-center items-center">
-        <div className="relative" style={{ width: '650px', height: '650px', maxWidth: '100%', maxHeight: '100%' }}>
+        <div className="relative" style={{ width: '700px', height: '700px', maxWidth: '100%', maxHeight: '100%' }}>
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
