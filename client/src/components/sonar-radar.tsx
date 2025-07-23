@@ -110,17 +110,35 @@ export default function SonarRadar({
       ctx.stroke();
     }
 
-    // Draw compass labels
+    // Draw compass labels - Full 360° coverage
     ctx.fillStyle = '#64748b';
-    ctx.font = '12px monospace';
+    ctx.font = '11px monospace';
     ctx.textAlign = 'center';
-    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    ctx.textBaseline = 'middle';
+    
+    // Major compass directions (every 45°)
+    const majorDirections = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     for (let i = 0; i < 8; i++) {
       const angle = i * 45;
       const radians = ((angle - 90) * Math.PI) / 180;
-      const x = centerX + Math.cos(radians) * (maxRadius + 15);
-      const y = centerY + Math.sin(radians) * (maxRadius + 15);
-      ctx.fillText(directions[i], x, y + 4);
+      const x = centerX + Math.cos(radians) * (maxRadius + 18);
+      const y = centerY + Math.sin(radians) * (maxRadius + 18);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '12px monospace';
+      ctx.fillText(majorDirections[i], x, y);
+    }
+    
+    // Minor compass directions (every 30°)
+    ctx.fillStyle = '#475569';
+    ctx.font = '9px monospace';
+    for (let angle = 0; angle < 360; angle += 30) {
+      // Skip major directions (multiples of 45°)
+      if (angle % 45 !== 0) {
+        const radians = ((angle - 90) * Math.PI) / 180;
+        const x = centerX + Math.cos(radians) * (maxRadius + 12);
+        const y = centerY + Math.sin(radians) * (maxRadius + 12);
+        ctx.fillText(angle.toString().padStart(3, '0'), x, y);
+      }
     }
 
     // Draw range labels
