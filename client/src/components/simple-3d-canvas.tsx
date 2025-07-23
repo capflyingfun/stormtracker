@@ -442,8 +442,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         </div>
       </div>
 
-      {/* Top-Left Controls for Mobile - Repositioned to avoid height display overlap */}
-      <div className="absolute top-40 left-4 z-10 flex gap-2">
+      {/* Top-Left Controls for Mobile - Aligned with top navigation */}
+      <div className="absolute top-4 left-4 z-10 flex gap-2">
         <Button onClick={onClose} variant="outline" size="sm">
           Exit 3D
         </Button>
