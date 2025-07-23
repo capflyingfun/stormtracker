@@ -44,6 +44,7 @@ export default function SonarRadar({
   const [isScanning, setIsScanning] = useState(true);
   const [selectedStorm, setSelectedStorm] = useState<Storm | null>(null);
   const [hoveredStorm, setHoveredStorm] = useState<Storm | null>(null);
+  const [waypointLastScan, setWaypointLastScan] = useState<Map<string, number>>(new Map());
 
   const getStormColor = (intensity: number): string => {
     if (intensity >= 65) return '#ff00ff'; // Purple - Extreme
@@ -72,6 +73,31 @@ export default function SonarRadar({
     return 'Very Light';
   };
 
+  const calculateWaypointOpacity = (stormId: string): number => {
+    const lastScan = waypointLastScan.get(stormId);
+    if (!lastScan) return 0.3; // Minimum opacity for unscanned waypoints
+    
+    const timeSinceLastScan = Date.now() - lastScan;
+    const fadeTime = 8000; // 8 seconds to fade completely
+    
+    // Calculate opacity: 1.0 at scan time, fading to 0.3 over fadeTime
+    const opacity = Math.max(0.3, 1.0 - (timeSinceLastScan / fadeTime) * 0.7);
+    return opacity;
+  };
+
+  const isStormInSweepPath = (storm: Storm, sweepAngle: number): boolean => {
+    // Calculate storm bearing from center
+    const dx = storm.lon - location.lon;
+    const dy = storm.lat - location.lat;
+    const stormBearing = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
+    
+    // Check if sweep line is within 5 degrees of storm
+    const angleDiff = Math.abs(sweepAngle - stormBearing);
+    const minAngleDiff = Math.min(angleDiff, 360 - angleDiff);
+    
+    return minAngleDiff <= 5;
+  };
+
   const drawSonarDisplay = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -81,7 +107,7 @@ export default function SonarRadar({
 
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
-    const maxRadius = Math.min(centerX, centerY) - 40; // Balanced margin for compass labels
+    const maxRadius = Math.min(centerX, centerY) - 50; // More margin for compass labels
 
     // Clear canvas
     ctx.fillStyle = '#0f172a';
@@ -121,8 +147,8 @@ export default function SonarRadar({
     for (let i = 0; i < 8; i++) {
       const angle = i * 45;
       const radians = ((angle - 90) * Math.PI) / 180;
-      const x = centerX + Math.cos(radians) * (maxRadius + 20);
-      const y = centerY + Math.sin(radians) * (maxRadius + 20);
+      const x = centerX + Math.cos(radians) * (maxRadius + 30);
+      const y = centerY + Math.sin(radians) * (maxRadius + 30);
       ctx.fillStyle = '#94a3b8';
       ctx.font = '12px monospace';
       ctx.fillText(majorDirections[i], x, y);
@@ -135,8 +161,8 @@ export default function SonarRadar({
       // Skip major directions (multiples of 45°)
       if (angle % 45 !== 0) {
         const radians = ((angle - 90) * Math.PI) / 180;
-        const x = centerX + Math.cos(radians) * (maxRadius + 18);
-        const y = centerY + Math.sin(radians) * (maxRadius + 18);
+        const x = centerX + Math.cos(radians) * (maxRadius + 25);
+        const y = centerY + Math.sin(radians) * (maxRadius + 25);
         ctx.fillText(angle.toString().padStart(3, '0'), x, y);
       }
     }
@@ -176,7 +202,7 @@ export default function SonarRadar({
       ctx.stroke();
     }
 
-    // Draw storms as blips
+    // Draw storms as blips with fading animation
     storms.forEach((storm) => {
       if (storm.distance > radarRange) return;
 
@@ -187,7 +213,11 @@ export default function SonarRadar({
 
       const color = getStormColor(storm.intensity);
       const size = getStormSize(storm.intensity);
+      const opacity = calculateWaypointOpacity(storm.id);
 
+      // Apply opacity to storm blip
+      ctx.globalAlpha = opacity;
+      
       // Draw storm blip with glow effect
       ctx.shadowColor = color;
       ctx.shadowBlur = hoveredStorm?.id === storm.id ? 15 : 8;
@@ -202,11 +232,10 @@ export default function SonarRadar({
         const pulseSize = size + Math.sin(Date.now() / 200) * 2;
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.5;
+        ctx.globalAlpha = opacity * 0.5;
         ctx.beginPath();
         ctx.arc(x, y, pulseSize, 0, 2 * Math.PI);
         ctx.stroke();
-        ctx.globalAlpha = 1;
       }
 
       ctx.shadowBlur = 0;
@@ -215,10 +244,14 @@ export default function SonarRadar({
       if (selectedStorm?.id === storm.id) {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
+        ctx.globalAlpha = 1; // Full opacity for selection
         ctx.beginPath();
         ctx.arc(x, y, size + 4, 0, 2 * Math.PI);
         ctx.stroke();
       }
+
+      // Reset opacity
+      ctx.globalAlpha = 1;
     });
 
     // Draw center point (user location)
@@ -314,7 +347,22 @@ export default function SonarRadar({
     if (!isScanning) return;
 
     const animate = () => {
-      setSweepAngle((prev) => (prev + 2) % 360);
+      setSweepAngle((prev) => {
+        const newAngle = (prev + 2) % 360;
+        
+        // Check which storms are being scanned at this angle
+        storms.forEach((storm) => {
+          if (isStormInSweepPath(storm, newAngle)) {
+            setWaypointLastScan(prevMap => {
+              const newMap = new Map(prevMap);
+              newMap.set(storm.id, Date.now());
+              return newMap;
+            });
+          }
+        });
+        
+        return newAngle;
+      });
       animationFrameRef.current = requestAnimationFrame(animate);
     };
 
@@ -330,7 +378,7 @@ export default function SonarRadar({
   // Redraw canvas
   useEffect(() => {
     drawSonarDisplay();
-  }, [sweepAngle, storms, selectedStorm, hoveredStorm, radarRange, useMetric]);
+  }, [sweepAngle, storms, selectedStorm, hoveredStorm, radarRange, useMetric, waypointLastScan]);
 
   // Resize canvas
   useEffect(() => {
@@ -341,8 +389,8 @@ export default function SonarRadar({
       const container = canvas.parentElement;
       if (container) {
         const containerRect = container.getBoundingClientRect();
-        // Use container width as base size to maintain square radar circle
-        const size = Math.min(containerRect.width, 600); // Fixed at 600px max
+        // Force perfect square - use container width as base
+        const size = Math.min(containerRect.width, containerRect.height, 600);
         
         // Set canvas resolution  
         canvas.width = size;
@@ -387,7 +435,7 @@ export default function SonarRadar({
 
       {/* Radar Display */}
       <div className="relative p-4 flex justify-center items-center">
-        <div className="relative" style={{ width: '600px', height: '630px', maxWidth: '100%' }}>
+        <div className="relative aspect-square" style={{ width: '600px', maxWidth: '100%' }}>
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
