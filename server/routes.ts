@@ -1078,6 +1078,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const direction = calculateDirection(centerLat, centerLon, storm.lat, storm.lon);
         const bearing = calculateBearing(centerLat, centerLon, storm.lat, storm.lon);
         
+        // Debug bearing calculations for Pensacola, FL area
+        console.log(`🧭 Storm ${index + 1}: (${storm.lat.toFixed(4)}, ${storm.lon.toFixed(4)}) from user (${centerLat.toFixed(4)}, ${centerLon.toFixed(4)}) - Bearing: ${bearing.toFixed(1)}° - Distance: ${storm.distance.toFixed(1)}mi - Intensity: ${storm.intensity}dBZ`);
+        
         storms.push({
           id: `storm_${Date.now()}_${index}`,
           lat: storm.lat,
