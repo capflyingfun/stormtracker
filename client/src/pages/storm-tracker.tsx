@@ -173,7 +173,7 @@ export default function StormTracker() {
   
   const [currentRadarSource, setCurrentRadarSource] = useState<'rainviewer' | 'nexrad'>('rainviewer');
   const [showStormTracks, setShowStormTracks] = useState(false);
-  const [showTimeLabels, setShowTimeLabels] = useState(true);
+  const [showTimeLabels, setShowTimeLabels] = useState(false);
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
   const [showStormFilteringSettings, setShowStormFilteringSettings] = useState(false);
   const [showAlertSubscription, setShowAlertSubscription] = useState(false);
