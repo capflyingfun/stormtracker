@@ -131,6 +131,14 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Enhanced Data Loading**: Improved synchronization between winds aloft API calls and storm arrow rendering to prevent direction misalignment
 - **User Confirmed Fix**: Storm arrow direction now displays correctly without requiring refresh button press
 
+### AI Chat Temperature Conversion Bug Fix (July 23, 2025)
+- **Fixed Double Temperature Conversion**: Resolved critical bug where AI Chat displayed 180°F instead of correct 82°F temperature
+- **Corrected Unit Handling**: Open-Meteo API already returns temperatures in Fahrenheit (configured with temperature_unit=fahrenheit parameter)
+- **Eliminated Celsius-to-Fahrenheit Error**: Removed incorrect conversion that treated Fahrenheit data as Celsius (82°F * 9/5 + 32 = 180°F)
+- **Proper Unit Logic**: AI Chat now displays Fahrenheit temperatures directly, converts to Celsius only when user selects metric units
+- **Accurate Temperature Display**: Temperature responses now show correct values matching actual weather conditions
+- **User Confirmed Issue**: Fixed AI Chat showing unrealistic "scorching 180°F" temperatures instead of actual 82°F conditions
+
 ### Storm Movement Bearing Enhancement (July 23, 2025)
 - **Enhanced Movement Display Format**: Updated all storm movement displays to show bearing format "S (191°) @ 31 mph" for better directional clarity
 - **Storm Panel Update**: Modified `windsPrediction` display in storm-panel.tsx to include compass bearing in parentheses
