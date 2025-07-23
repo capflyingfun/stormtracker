@@ -123,15 +123,6 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 23, 2025
 
-### Per-Storm Winds Aloft Implementation (July 23, 2025)
-- **Individual Storm Movement Accuracy**: Implemented per-storm winds aloft sampling where each storm cell gets its own movement direction from atmospheric conditions at its specific location
-- **Eliminated Map Center Dependency**: Fixed glitching issue where storm tracks would change direction when user panned the map by removing dependence on map center winds aloft data
-- **Authentic Storm-Specific Movement**: Each storm now displays unique movement direction (244°, 63°, 68°, 250°) based on real atmospheric conditions at that storm's coordinates
-- **Enhanced Movement Prediction System**: Backend and frontend both updated to fetch winds aloft data individually for each detected storm cluster instead of using single map center reading
-- **Fixed Track Intersection Detection**: Storm movement cones and ETA calculations now use accurate per-storm movement data for precise impact assessment
-- **Parallel Processing**: All per-storm winds aloft requests processed simultaneously using Promise.all for optimal performance
-- **Improved User Experience**: Storm tracks now remain stable and accurate regardless of map panning or zooming activities
-
 ### AI Assistant & Display Optimization (July 23, 2025)
 - **Concise Storm Movement Display**: Updated AI assistant to lead with concise storm movement statements like "Storms are moving W (261°) at 30 mph based on upper level winds"
 - **Time Labels Default Disabled**: Changed storm track time labels to disabled by default to improve initial loading performance

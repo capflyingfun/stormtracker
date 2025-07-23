@@ -719,26 +719,25 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const updateStormDataFromPrecipitation = async (clusters: Array<{lat: number; lon: number; dbz: number; id: string; count?: number}>) => {
     if (!location) return;
 
-    // Fetch winds aloft data for each individual storm cluster
-    const stormCellPromises = clusters.map(async (cluster, index) => {
+    // Fetch winds aloft data for movement prediction (only once per update)
+    const windsData = await fetchWindsAloft(location.lat, location.lon);
+    setCurrentWindsData(windsData); // Store for arrow directions
+
+    // Convert precipitation clusters to storm format with movement data
+    const stormCells = clusters.map((cluster, index) => {
       const distance = calculateDistance(location.lat, location.lon, cluster.lat, cluster.lon);
       const bearing = calculateBearing(location.lat, location.lon, cluster.lat, cluster.lon);
       const observedMovement = calculateStormMovement(cluster);
       
-      // Fetch winds aloft data specifically for this storm's location
+      // Enhanced movement prediction using winds aloft data
       let windsPrediction = null;
-      try {
-        const stormWindsData = await fetchWindsAloft(cluster.lat, cluster.lon);
-        if (stormWindsData && stormWindsData.stormMovement && stormWindsData.stormMovement.speed > 0) {
-          windsPrediction = {
-            direction: stormWindsData.stormMovement.direction,
-            speed: stormWindsData.stormMovement.speed,
-            confidence: stormWindsData.stormMovement.confidence || 'medium',
-            source: stormWindsData.source || 'Open-Meteo'
-          };
-        }
-      } catch (error) {
-        console.warn(`Failed to fetch winds aloft for storm at ${cluster.lat.toFixed(4)}, ${cluster.lon.toFixed(4)}:`, error);
+      if (windsData && windsData.stormMovement && windsData.stormMovement.speed > 0) {
+        windsPrediction = {
+          direction: windsData.stormMovement.direction,
+          speed: windsData.stormMovement.speed,
+          confidence: windsData.stormMovement.confidence || 'medium',
+          source: windsData.source || 'NOAA Aviation Weather'
+        };
       }
       
       return {
@@ -752,33 +751,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         type: cluster.dbz >= 45 ? 'Heavy' : cluster.dbz >= 35 ? 'Moderate' : 'Light',
         description: `${cluster.dbz} dBZ precipitation ${cluster.count ? `(${cluster.count} cells)` : ''}`,
         movementDirection: observedMovement.direction,
-        windsPrediction: windsPrediction, // Add per-storm winds aloft prediction
-        movement: windsPrediction ? {
-          direction: windsPrediction.direction,
-          speed: windsPrediction.speed,
-          confidence: windsPrediction.confidence,
-          eta: calculateETA(distance, windsPrediction.speed),
-          impact: calculateImpactLevel(distance, windsPrediction.direction, bearing)
-        } : null
+        windsPrediction: windsPrediction // Add winds aloft prediction
       };
     });
-
-    // Wait for all per-storm winds aloft data to be fetched
-    const stormCells = await Promise.all(stormCellPromises);
-
-    // Also fetch winds aloft for the map center to maintain arrow directions
-    try {
-      const centerWindsData = await fetchWindsAloft(location.lat, location.lon);
-      setCurrentWindsData(centerWindsData);
-    } catch (error) {
-      console.warn('Failed to fetch center winds aloft for arrows:', error);
-    }
 
     // Trigger custom event to update storm data
     console.log(`DISPATCH EVENT: Dispatching precipitationStormData event with ${stormCells.length} storm cells for alert system`);
     console.log('DISPATCH EVENT: Storm cells being sent:', stormCells.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
-    if (centerWindsData) {
-      console.log('WINDS ALOFT: Movement prediction available:', centerWindsData.stormMovement);
+    if (windsData) {
+      console.log('WINDS ALOFT: Movement prediction available:', windsData.stormMovement);
     }
     window.dispatchEvent(new CustomEvent('precipitationStormData', {
       detail: stormCells
@@ -797,31 +778,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     
     let bearing = Math.atan2(y, x) * 180 / Math.PI;
     return (bearing + 360) % 360;
-  }
-
-  // Helper function to calculate ETA
-  const calculateETA = (distanceMiles: number, speedMph: number): string | null => {
-    if (speedMph <= 0) return null;
-    const etaHours = distanceMiles / speedMph;
-    if (etaHours < 1) {
-      return `${Math.round(etaHours * 60)} min`;
-    } else if (etaHours < 24) {
-      return `${etaHours.toFixed(1)} hr`;
-    }
-    return null;
   };
-
-  // Helper function to calculate impact level
-  const calculateImpactLevel = (distance: number, stormDirection: number, bearingToStorm: number): string => {
-    // Calculate if storm is moving toward user location
-    const directionToUser = (bearingToStorm + 180) % 360;
-    const angleDiff = Math.abs(((stormDirection - directionToUser + 180) % 360) - 180);
-    
-    if (distance <= 5) return 'high';
-    if (angleDiff <= 15 && distance <= 15) return 'high';
-    if (angleDiff <= 30 && distance <= 10) return 'medium';
-    return 'low';
-  };;
 
   // Calculate destination point given start point, bearing, and distance
   const calculateDestination = (lat: number, lon: number, bearing: number, distance: number): {lat: number, lon: number} => {
@@ -1330,7 +1287,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             display: flex;
             align-items: center;
             justify-content: center;
-            transform: rotate(${movementDirection - 90}deg);
+            transform: rotate(${movementDirection}deg);
             ${isAlertStorm || isSpecialStorm ? 'animation: specialStormPulse 2s infinite;' : ''}
           ">
             ${isSpecialStorm ? `
@@ -1361,9 +1318,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           
           <style>
             @keyframes specialStormPulse {
-              0% { transform: rotate(${movementDirection - 90}deg) scale(1); opacity: 1; }
-              50% { transform: rotate(${movementDirection - 90}deg) scale(1.15); opacity: 0.8; }
-              100% { transform: rotate(${movementDirection - 90}deg) scale(1); opacity: 1; }
+              0% { transform: rotate(${movementDirection}deg) scale(1); opacity: 1; }
+              50% { transform: rotate(${movementDirection}deg) scale(1.15); opacity: 0.8; }
+              100% { transform: rotate(${movementDirection}deg) scale(1); opacity: 1; }
             }
             
             @keyframes specialRingPulse {
