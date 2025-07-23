@@ -1,0 +1,44 @@
+Here are some options for free high-resolution weather radar APIs that you can consider:
+
+### 1. **Open-Meteo**
+- **Description**: Open-Meteo is an open-source weather API that provides free access for non-commercial use. It offers high-resolution weather data with models ranging from 1 to 11 kilometers.
+- **Features**: 
+  - Accurate weather forecasts and current conditions.
+  - Localized weather models updated every hour.
+  - Historical weather data available.
+- **Access**: No API key is required, making it easy to start using.
+- **Website**: [Open-Meteo](https://open-meteo.com)
+
+### 2. **Visual Crossing Weather API**
+- **Description**: This API provides global weather data, including historical weather data, current conditions, and forecasts.
+- **Features**:
+  - Access to high-resolution radar data.
+  - Sub-hourly, hourly, and daily data available.
+  - Historical data spanning over 50 years.
+- **Access**: Free tier available, with a straightforward API for integration.
+- **Website**: [Visual Crossing](https://www.visualcrossing.com)
+
+### 3. **Windy API**
+- **Description**: The Windy API offers high-resolution weather forecasts and real-time data.
+- **Features**:
+  - Access to over 100 weather variables.
+  - Historical and real-time data available.
+  - Designed for easy integration with applications.
+- **Access**: Offers a free tier with various plans available.
+- **Website**: [Windy API](https://api.windy.com)
+
+### 4. **Weather Company API**
+- **Description**: The Weather Company provides a range of weather data APIs, including radar data.
+- **Features**:
+  - High-resolution weather data and alerts.
+  - Historical and forecast data available.
+- **Access**: Free trial available, but may require an API key.
+- **Website**: [Weather Company](https://www.weather.com)
+
+### Considerations
+When choosing an API, consider the following:
+- **Resolution**: Ensure the API provides the resolution you need for your application.
+- **Data Types**: Check if the API includes the specific types of data you require (e.g., radar, historical, forecasts).
+- **Usage Limits**: Review the free tier limits to ensure they meet your needs.
+
+These options should help you find a suitable high-resolution weather radar API for your project.
