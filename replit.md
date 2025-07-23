@@ -123,6 +123,18 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 23, 2025
 
+### Multi-Level Wind Vector Calculation System (July 23, 2025)
+- **Implemented Aviation-Style Vector Mathematics**: Enhanced Open-Meteo integration to collect surface winds (wind_speed_10m, wind_direction_10m) alongside upper level winds for comprehensive storm movement calculations
+- **Four-Level Wind Data Collection**: Now gathers wind data from Surface (10m/33ft), 850mb (~5,000ft), 700mb (~10,000ft), and 500mb (~18,000ft) pressure levels
+- **Professional Vector Mathematics**: Replaced simple averaging with true vector addition using cartesian components (x=east, y=north) and weighted pressure level importance
+- **Enhanced Movement Accuracy**: Surface winds (1.0 weight) + 850mb (1.5 weight) + 700mb (2.0 weight) + 500mb (3.0 weight) combined using proper aviation wind vector calculations
+- **Wind Shear Detection**: Calculates directional differences between surface and upper level winds, categorizing shear severity (low/moderate/high/extreme)
+- **Professional Meteorological Standards**: Uses proper wind-to-storm direction conversion (wind direction + 180°) and storm movement factor (70% of wind speed)
+- **Real-Time Vector Calculations**: Live calculations showing "Surface 83°@3kt + Upper 22°@17kt → 203° @ 11mph (Shear: 61°)" for accurate storm movement prediction
+- **Enhanced Storm Movement Confidence**: Multi-level data provides higher confidence ratings and more accurate storm track projections compared to single-level calculations
+- **Aviation Weather Integration**: Follows aviation meteorology principles for combining wind vectors at different altitudes similar to airspeed/groundspeed calculations
+- **User Confirmed Working**: System successfully generating authentic multi-level wind calculations with method "multi_level_vector_math" replacing legacy "pressure_level_winds"
+
 ### Storm Arrow Direction Race Condition Fix (July 23, 2025)
 - **Eliminated 135° Fallback Bug**: Fixed critical timing issue where storm arrows displayed incorrect 135° direction on initial load before winds aloft data was available
 - **Implemented Arrow Rendering Guard**: Storm arrows now only render after winds aloft data is fully loaded, preventing display of incorrect fallback directions
