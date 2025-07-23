@@ -759,55 +759,27 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const updateStormDataFromPrecipitation = async (clusters: Array<{lat: number; lon: number; dbz: number; id: string; count?: number}>) => {
     if (!location) return;
 
-    // Start arrow timing (2.5 second delay to sync with AI Assistant)
+    // Enable arrows immediately when storms are detected
     if (clusters.length > 0) {
-      // Clear any existing timer
+      setShowArrows(true);
+      console.log(`Storm detection: Enabling arrows immediately for ${clusters.length} clusters`);
+      
+      // Clear any existing timers since arrows are now enabled
       if (arrowTimerRef.current) {
         clearTimeout(arrowTimerRef.current);
+        arrowTimerRef.current = null;
       }
-      
-      // Always set timer for 2.5 seconds to ensure arrows show
-      arrowTimerRef.current = setTimeout(() => {
-        setShowArrows(true);
-        console.log('Arrow timer: Enabling arrows after 2.5 second delay (synced with AI Assistant)');
-      }, 2500);
-      
-      // Clear any existing backup timer
       if (backupTimerRef.current) {
         clearTimeout(backupTimerRef.current);
+        backupTimerRef.current = null;
       }
-      
-      // Backup timer to ensure arrows always show eventually (8 seconds max)
-      backupTimerRef.current = setTimeout(() => {
-        setShowArrows(true);
-        console.log('Backup timer: Enabling arrows after 8 seconds (failsafe)');
-      }, 8000);
     }
 
-    // Track storm detection start time for arrow timing
-    const detectionStartTime = Date.now();
-    
     // Fetch winds aloft data for movement prediction (only once per update)
     const windsData = await fetchWindsAloft(location.lat, location.lon);
     if (windsData) {
       setCurrentWindsData(windsData); // Store for arrow directions
-      // If winds data arrives quickly (within 800ms), show arrows immediately
-      const dataLoadTime = Date.now() - detectionStartTime;
-      if (dataLoadTime < 800) {
-        setShowArrows(true);
-        console.log(`Winds aloft: Enabling arrows immediately (data loaded in ${dataLoadTime}ms)`);
-        // Clear both timers since we're showing arrows immediately
-        if (arrowTimerRef.current) {
-          clearTimeout(arrowTimerRef.current);
-          arrowTimerRef.current = null;
-        }
-        if (backupTimerRef.current) {
-          clearTimeout(backupTimerRef.current);
-          backupTimerRef.current = null;
-        }
-      } else {
-        console.log(`Winds aloft: Data received in ${dataLoadTime}ms, waiting for timer sync`);
-      }
+      console.log(`Winds aloft: Data received, arrows already enabled`);
     }
 
     // Convert precipitation clusters to storm format with movement data
@@ -1390,19 +1362,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               "></div>
             ` : ''}
             
-            ${isSevereStorm ? `
-              <!-- Purple ring for severe storms (55+ dBZ) for debug visualization -->
-              <div style="
-                position: absolute;
-                width: ${markerSize + 30}px;
-                height: ${markerSize + 30}px;
-                border: 3px solid #8B5CF6;
-                border-radius: 50%;
-                animation: severeStormRingPulse 2s infinite;
-                z-index: -2;
-                box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
-              "></div>
-            ` : ''}
+
             
             <svg width="${markerSize}" height="${markerSize}" viewBox="0 0 24 24" data-arrow-fixed="true" style="
               filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
