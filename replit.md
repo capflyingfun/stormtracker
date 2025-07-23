@@ -135,9 +135,9 @@ Preferred communication style: Simple, everyday language with customizable AI as
 ## Recent Changes - July 23, 2025
 
 ### Storm Arrow Direction Fix & Map Movement Optimization (July 23, 2025)
-- **Fixed Storm Arrow Direction**: Removed incorrect 180° rotation offset that was causing arrows to point opposite to storm movement direction
-- **Corrected SVG Arrow Orientation**: Storm arrows now use movement direction directly (195° SSW) instead of adding 180° which caused 15° ENE incorrect display
-- **Arrow Calculation Bug Resolved**: Fixed issue where 195° + 180° = 375° = 15° caused arrows to point east-southeast instead of south-southwest
+- **Fixed Storm Arrow Direction**: Rotated SVG arrow path by 180° to permanently correct arrow orientation (changed from upward to downward pointing path)
+- **Permanent SVG Solution**: Modified arrow path from `M12 18 L18 6 L12 9 L6 6 Z` to `M12 6 L6 18 L12 15 L18 18 Z` ensuring correct directional display
+- **Eliminated Rotation Calculation Issues**: SVG-level fix prevents future direction bugs by having arrow point correctly with movement direction rotation
 - **Removed Winds Aloft Map Movement Updates**: Winds aloft data now stays stable based on user location only, preventing changes when panning/zooming map  
 - **Map Movement Event Optimization**: Auto-sampling continues on map movement but winds aloft updates removed for performance and consistency
 - **Direction Accuracy Achieved**: Storm arrows now properly align with storm track cones (both pointing SSW at 196° for current conditions)
