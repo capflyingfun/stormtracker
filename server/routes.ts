@@ -3805,7 +3805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 Available weather data for ${userLocation.address || `${userLocation.lat}, ${userLocation.lon}`}:
 ${weatherContext.currentWeather ? `
 CURRENT CONDITIONS:
-• Temperature: ${useMetric ? `${weatherContext.currentWeather.conditions.temperature.toFixed(1)}°C` : `${Math.round((weatherContext.currentWeather.conditions.temperature * 9/5) + 32)}°F`}
+• Temperature: ${useMetric ? `${Math.round((weatherContext.currentWeather.conditions.temperature - 32) * 5/9)}°C` : `${weatherContext.currentWeather.conditions.temperature}°F`}
 • Conditions: ${weatherContext.currentWeather.conditions.weather}
 • Humidity: ${weatherContext.currentWeather.conditions.humidity}%
 • Wind: ${weatherContext.currentWeather.conditions.windDirection}° at ${weatherContext.currentWeather.conditions.windSpeed} mph
