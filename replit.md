@@ -144,6 +144,13 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Map Movement Event Optimization**: Auto-sampling continues on map movement but winds aloft updates removed for performance and consistency
 - **Direction Accuracy Achieved**: Storm arrows now properly align with storm track cones (both pointing SSW at 196° for current conditions)
 
+### 3D Mode UI Layout Optimization (July 23, 2025)
+- **Fixed Height Section Overlap**: Moved height display from top-right to top-left to prevent overlap with compass heading display
+- **Disabled Text Selection**: Added comprehensive text selection disabling across entire 3D mode interface for better user experience
+- **Repositioned Controls**: Moved top-left buttons lower to avoid conflict with relocated height section
+- **Enhanced UI Spacing**: Proper spacing between compass, height, and control elements for clean mobile interface
+- **Text Selection Prevention**: Implemented CSS user-select: none across all browsers (WebKit, Mozilla, IE) for non-copyable 3D interface
+
 ### AI Assistant & Display Optimization (July 23, 2025)
 - **Concise Storm Movement Display**: Updated AI assistant to lead with concise storm movement statements like "Storms are moving W (261°) at 30 mph based on upper level winds"
 - **Time Labels Default Disabled**: Changed storm track time labels to disabled by default to improve initial loading performance
