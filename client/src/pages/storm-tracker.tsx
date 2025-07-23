@@ -533,7 +533,7 @@ export default function StormTracker() {
                   <div>
                     <h2 className="text-lg sm:text-xl font-semibold">{location.name}</h2>
                     <p className="text-slate-300 text-sm sm:text-base">
-                      Detection Radius: {formatDistance(30)} (Fixed)
+                      Detection Radius: {formatDistance(50)} (Unified System)
                     </p>
                   </div>
                 </div>
@@ -856,7 +856,7 @@ export default function StormTracker() {
                         Source: <span className="text-white">{currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}</span>
                       </div>
                       <div className="text-slate-400">
-                        Range: <span className="text-white">{formatDistance(30)}</span>
+                        Range: <span className="text-white">{formatDistance(radarRange)}</span>
                       </div>
                     </div>
                   </div>

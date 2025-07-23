@@ -264,7 +264,7 @@ export default function StormTracker() {
                   <div>
                     <h2 className="text-lg sm:text-xl font-semibold">{location.name}</h2>
                     <p className="text-slate-300 text-sm sm:text-base">
-                      Detection Radius: {formatDistance(30)} (Fixed)
+                      Detection Radius: {formatDistance(radarRange)} (Unified System)
                     </p>
                   </div>
                 </div>
