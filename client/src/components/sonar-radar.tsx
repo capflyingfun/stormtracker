@@ -341,10 +341,10 @@ export default function SonarRadar({
       const container = canvas.parentElement;
       if (container) {
         const containerRect = container.getBoundingClientRect();
-        // Force perfect square - use the smaller dimension
-        const size = Math.min(containerRect.width, containerRect.height);
+        // Use container width as base size to maintain square radar circle
+        const size = Math.min(containerRect.width, 600); // Fixed at 600px max
         
-        // Set canvas resolution
+        // Set canvas resolution  
         canvas.width = size;
         canvas.height = size;
         
@@ -387,7 +387,7 @@ export default function SonarRadar({
 
       {/* Radar Display */}
       <div className="relative p-4 flex justify-center items-center">
-        <div className="relative aspect-square" style={{ width: '600px', maxWidth: '100%' }}>
+        <div className="relative" style={{ width: '600px', height: '630px', maxWidth: '100%' }}>
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
