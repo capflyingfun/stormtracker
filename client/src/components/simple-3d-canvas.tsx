@@ -415,7 +415,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
   }
 
   return (
-    <div className="fixed inset-0 bg-black z-50">
+    <div className="fixed inset-0 bg-black z-50 select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}>
       {/* Full-Width Legend - Bottom */}
       <div className="absolute bottom-4 left-4 right-4 bg-slate-800/90 backdrop-blur-sm rounded-lg p-3 border border-slate-700/50 z-10">
         <div className="flex justify-between items-center text-xs text-slate-300">
@@ -442,8 +442,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         </div>
       </div>
 
-      {/* Top-Left Controls for Mobile */}
-      <div className="absolute top-4 left-4 z-10 flex gap-2">
+      {/* Top-Left Controls for Mobile - Repositioned to avoid height display overlap */}
+      <div className="absolute top-32 left-4 z-10 flex gap-2">
         <Button onClick={onClose} variant="outline" size="sm">
           Exit 3D
         </Button>
@@ -512,8 +512,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         </div>
       </div>
 
-      {/* Height and Controls Display */}
-      <div className="absolute top-32 right-4 z-10 bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-slate-700/50">
+      {/* Height and Controls Display - Moved to left to avoid compass overlap */}
+      <div className="absolute top-16 left-4 z-10 bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-slate-700/50">
         <div className="text-center">
           <div className="text-xs text-slate-400 mb-1">Height</div>
           <div className="text-lg font-bold text-white">
