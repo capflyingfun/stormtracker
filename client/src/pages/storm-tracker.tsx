@@ -425,7 +425,7 @@ export default function StormTracker() {
           preferences={preferences as any}
           onSave={handleStormFilteringSettingsSave}
         />
-      ) as any}
+      )}
 
       {/* Alert Subscription Modal */}
       {showAlertSubscription && (
@@ -760,8 +760,7 @@ export default function StormTracker() {
             )}
 
             {/* Interactive Radar Map with Side Controls */}
-            {!show3D && (
-              <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+            <div className={`flex flex-col lg:flex-row gap-4 lg:gap-6 ${show3D ? 'hidden' : ''}`}>
                 {/* Left Side Controls - Desktop Only */}
                 <div className="hidden lg:flex lg:flex-col lg:w-48 space-y-3">
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
@@ -949,7 +948,6 @@ export default function StormTracker() {
                   )}
                 </div>
               </div>
-            )}
 
 
 
