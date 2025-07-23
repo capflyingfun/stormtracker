@@ -1286,7 +1286,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             display: flex;
             align-items: center;
             justify-content: center;
-            transform: rotate(${movementDirection}deg);
+            transform: rotate(${movementDirection - 90}deg);
             ${isAlertStorm || isSpecialStorm ? 'animation: specialStormPulse 2s infinite;' : ''}
           ">
             ${isSpecialStorm ? `
@@ -1317,9 +1317,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           
           <style>
             @keyframes specialStormPulse {
-              0% { transform: rotate(${movementDirection}deg) scale(1); opacity: 1; }
-              50% { transform: rotate(${movementDirection}deg) scale(1.15); opacity: 0.8; }
-              100% { transform: rotate(${movementDirection}deg) scale(1); opacity: 1; }
+              0% { transform: rotate(${movementDirection - 90}deg) scale(1); opacity: 1; }
+              50% { transform: rotate(${movementDirection - 90}deg) scale(1.15); opacity: 0.8; }
+              100% { transform: rotate(${movementDirection - 90}deg) scale(1); opacity: 1; }
             }
             
             @keyframes specialRingPulse {
