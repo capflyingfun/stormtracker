@@ -123,15 +123,17 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 23, 2025
 
-### AI Wind Shear Integration & Aviation Safety Enhancement (July 23, 2025)
+### AI Wind Shear Integration & Comprehensive Weather Analysis Enhancement (July 23, 2025)
 - **Complete AI Wind Shear Integration**: Enhanced both AI Assistant and AI Chat to include comprehensive wind shear analysis for aviation safety and atmospheric understanding
 - **Multi-Level Wind Shear Calculation**: AI systems now automatically calculate directional differences between surface and upper level winds with meteorological accuracy
 - **Aviation Safety Context**: Wind shear information includes severity classification (minimal/low/moderate/high/extreme) and aviation impact assessments
 - **Pilot-Friendly Analysis**: Wind shear data presented in clear format: "61° directional difference (moderate shear)" with specific aviation safety implications
 - **Real-Time Shear Detection**: AI systems process live multi-level wind data to identify atmospheric turbulence and stability conditions critical for flight operations
-- **Enhanced Weather Briefings**: Both AI Assistant and AI Chat now include wind shear analysis in their comprehensive weather discussions for complete atmospheric assessment
-- **Professional Standards**: Uses aviation meteorology standards for wind shear classification and impact determination
-- **User-Friendly Presentation**: Complex atmospheric data explained in accessible terms for both pilots and general users interested in atmospheric conditions
+- **Enhanced Token Capacity**: Increased AI Assistant tokens to 4000 (+1500) and AI Chat tokens to 2300 (+1500) for comprehensive weather analysis
+- **Simplified Multi-Purpose Prompts**: Streamlined AI prompts to provide weather analysis for pilots, boaters, and general public in single comprehensive briefings
+- **All-Resource Integration**: AI systems now automatically include ALL available weather data sources for complete atmospheric assessment
+- **Professional Multi-Domain Analysis**: Weather briefings now address aviation conditions, marine weather, and general safety guidance simultaneously
+- **Enhanced Weather Briefings**: Both AI systems provide comprehensive analysis using all atmospheric data for complete situational awareness
 
 ### Multi-Level Wind Vector Calculation System (July 23, 2025)
 - **Implemented Aviation-Style Vector Mathematics**: Enhanced Open-Meteo integration to collect surface winds (wind_speed_10m, wind_direction_10m) alongside upper level winds for comprehensive storm movement calculations

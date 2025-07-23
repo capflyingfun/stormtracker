@@ -3903,9 +3903,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messages: [
           {
             role: "system",
-            content: `You are a knowledgeable, friendly weather assistant. Answer weather-related questions using the provided real-time data. Keep responses conversational but informative.
+            content: `You are an expert meteorologist providing comprehensive weather analysis for pilots, boaters, and the general public. Use ALL available weather data to answer questions with detailed insights for aviation, marine, and general safety.
 
-Available weather data for ${userLocation.address || `${userLocation.lat}, ${userLocation.lon}`}:
+Complete weather briefing data for ${userLocation.address || `${userLocation.lat}, ${userLocation.lon}`}:
 ${weatherContext.currentWeather ? `
 CURRENT CONDITIONS:
 • Temperature: ${useMetric ? `${Math.round((weatherContext.currentWeather.conditions.temperature - 32) * 5/9)}°C` : `${weatherContext.currentWeather.conditions.temperature}°F`}
@@ -4027,7 +4027,7 @@ Guidelines:
             content: question
           }
         ],
-        max_tokens: 800,
+        max_tokens: 2300, // Increased by 1500 tokens for comprehensive weather analysis
         temperature: 0.7
       });
       

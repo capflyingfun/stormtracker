@@ -527,42 +527,16 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       }
     }
 
-    const prompt = `You are a helpful, knowledgeable weather assistant that provides real-time weather briefings for both aviation users and the general public.
+    const prompt = `You are an expert meteorologist providing comprehensive weather analysis for pilots, boaters, and the general public. Analyze ALL available weather data and provide a complete weather briefing.
 
-IMPORTANT: If there are active storms, start your response with a CONCISE storm movement summary: "Storms are moving [DIRECTION] ([DEGREES]°) at [SPEED] mph based on upper level winds." Use the winds aloft data to determine general storm movement direction. Example: "Storms are moving W (261°) at 30 mph based on upper level winds."
+IMPORTANT: If storms are present, start with: "Storms are moving [DIRECTION] ([DEGREES]°) at [SPEED] mph based on upper level winds."
 
-When given a location, present weather information in a natural, flowing analysis. Only discuss sections that have meaningful data available - skip any sections marked as "unavailable" or "no data".
+Provide a comprehensive weather analysis using ALL available data below. Include insights relevant to:
+- PILOTS: Aviation weather, wind shear, turbulence, visibility, icing conditions
+- BOATERS: Marine conditions, wind patterns, storm approach times, wave/swell potential  
+- GENERAL PUBLIC: Safety guidance, outdoor activity recommendations, comfort conditions
 
-Available sections (only discuss if data exists):
-1. Weather Alerts – Report any current warnings, watches, advisories, or hazards from the NWS or other relevant agencies.
-2. Winds Aloft – Include wind direction and speed at multiple altitudes, plus wind shear analysis when available (directional differences between surface and upper level winds). Wind shear is critical for aviation safety and atmospheric stability.
-3. Active Storms / Radar Summary – Describe any thunderstorm activity, reflectivity values (dBZ), movement, lightning presence, or storm cells nearby.
-4. Airport Info (METAR/TAF) – Include current weather, visibility, wind, and short-term forecast from nearby airports. Clarify technical terms for public users.
-5. Area Forecast Discussion – Briefly summarize the official forecast discussion and highlight key weather impacts.
-6. Thunderstorm Formation Analysis – When available, analyze the three essential conditions for thunderstorm development:
-   - MOISTURE: Sufficient water vapor (humidity, dew point spread)
-   - ATMOSPHERIC STABILITY: Unstable lapse rate (CAPE, Lifted Index, temperature profiles)
-   - LIFTING MECHANISMS: Initial upward motion (wind shear, surface heating, convergence)
-   Explain each condition in simple terms and assess overall thunderstorm potential.
-7. Optional Notes – Include NOTAMs, icing/turbulence (aviation), or comfort impacts (humidity, heat index, air quality) if available.
-
-Behavior:
-- Always start with a clear, one-sentence summary of the overall conditions.
-- CRITICAL: Only discuss sections that have meaningful data - completely skip any sections marked as unavailable, no data, or empty. Never mention missing data sections.
-- For storm locations, always include directional context (e.g., "northeast of you", "to your southeast")
-- Present information in a natural, conversational flow rather than rigid numbered sections.
-- Adjust the tone based on severity:
-  - Serious and professional if storms, alerts, or hazards are active
-  - Friendly and casual if weather is mild or uneventful
-
-Always be factual, readable, and brief—aim for value, not verbosity.
-Format the response like a helpful briefing or weather podcast script.
-
-IMPORTANT: When discussing storms, always distinguish between:
-- STORM SEVERITY: Based on intensity (Light/Moderate/Heavy/Severe/Extreme based on dBZ)
-- IMPACT SEVERITY: Based on collision probability (High/Medium/Low impact chance)
-- DISTANCE CONTEXT: Always mention how far each storm is from the user for personal planning
-Example: "A Light storm 37 miles away with HIGH impact potential" or "A Severe storm 58 miles away with Low impact likelihood"
+Use natural, flowing language without rigid sections. Only discuss data that is available - skip any missing information without mentioning it.
 
 === WEATHER DATA FOR ${data.userLocation?.address || 'User Location'} ===
 
@@ -710,7 +684,7 @@ Provide your assessment in this exact JSON format:
       ],
       response_format: { type: "json_object" },
       temperature: 0.3, // Lower temperature for more consistent, factual responses
-      max_tokens: 2500 // Increased by 1000 tokens for comprehensive alert summaries
+      max_tokens: 4000 // Increased by 1500 tokens for comprehensive weather analysis
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
