@@ -475,7 +475,9 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
           {uniqueThreats.map((storm, index) => (
             <div 
               key={`storm-${index}`} 
-              className="bg-orange-900/40 rounded-lg p-3 border border-orange-600/30 animate-slideInUp"
+              className={`bg-orange-900/40 rounded-lg p-3 border border-orange-600/30 animate-slideInUp ${
+                storm.intensity >= 55 ? 'severe-storm-ring' : ''
+              }`}
               style={{
                 animationDelay: `${(sortedNwsAlerts.length + index) * 150}ms`,
                 animationFillMode: 'both'
