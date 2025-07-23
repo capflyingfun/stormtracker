@@ -57,7 +57,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const stormMarkersRef = useRef<any[]>([]);
   const sectorGridRef = useRef<any>(null);
   const sectorHighlightsRef = useRef<any>(null);
-  const stormRingsRef = useRef<any>(null);
   
   const [isAnimating, setIsAnimating] = useState(false);
   const [showSectorGrid, setShowSectorGrid] = useState(true);
@@ -1235,52 +1234,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
 
 
-  // Add purple rings to visualize storms being passed to immediate safety alerts
-  const addStormVisualizationRings = () => {
-    const map = mapInstanceRef.current;
-    if (!map || !window.L || !storms.length) return;
-    
-    console.log('🟣 STORM VISUALIZATION: Adding purple rings for', storms.length, 'storms');
-    
-    // Remove existing rings if any
-    if (stormRingsRef.current) {
-      map.removeLayer(stormRingsRef.current);
-    }
-    
-    const ringsGroup = window.L.layerGroup();
-    
-    storms.forEach((storm, index) => {
-      console.log(`🟣 Storm ${index + 1}: ${storm.intensity?.toFixed(1)}dBZ @ ${storm.distance?.toFixed(1)}mi, bearing: ${storm.direction?.toFixed(1)}°`);
-      
-      // Create purple ring around each storm
-      const ring = window.L.circle([storm.lat, storm.lon], {
-        radius: 800, // 800 meter radius
-        color: '#8B5CF6', // Purple color
-        weight: 3,
-        opacity: 0.8,
-        fillColor: '#8B5CF6',
-        fillOpacity: 0.2
-      });
-      
-      // Add storm info popup
-      const direction = getDirectionName((storm.direction + 180) % 360);
-      ring.bindPopup(`
-        <div style="font-size: 12px;">
-          <strong>🟣 STORM VISUALIZATION</strong><br>
-          Distance: ${storm.distance?.toFixed(1)} miles<br>
-          Direction: ${direction} (${storm.direction?.toFixed(1)}°)<br>
-          Intensity: ${storm.intensity?.toFixed(1)} dBZ<br>
-          <small>This is debug visualization for direction testing</small>
-        </div>
-      `);
-      
-      ringsGroup.addLayer(ring);
-    });
-    
-    map.addLayer(ringsGroup);
-    stormRingsRef.current = ringsGroup;
-  };
-
   // Add waypoint markers for detected precipitation areas with dynamic sizing
   const addDbzWaypoints = () => {
     const map = mapInstanceRef.current;
@@ -1625,16 +1578,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       }
     }
   }, [precipitationPoints, showSectorGrid, location, stormFilters]);
-
-  // Add storm visualization rings when storms change (separate from normal arrows)
-  useEffect(() => {
-    if (mapInstanceRef.current && storms.length > 0) {
-      // Add rings after a short delay to ensure normal arrows are rendered first
-      setTimeout(() => {
-        addStormVisualizationRings();
-      }, 500);
-    }
-  }, [storms]);
 
 
 
