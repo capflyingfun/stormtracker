@@ -136,8 +136,24 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
       return true;
     }
     
-    // Severe storms within 20 miles
-    if (storm.intensity >= 55 && storm.distance <= 20) {
+    // Check if storm is approaching using 30-degree cone logic
+    if (storm.movement && storm.movement.direction !== undefined && storm.movement.speed > 0) {
+      // Calculate if storm is moving toward user (within 30° cone)
+      const directionToUser = (storm.direction + 180) % 360; // Direction from storm to user
+      const stormMovementDirection = storm.movement.direction;
+      const angleDifference = Math.abs(((stormMovementDirection - directionToUser + 180) % 360) - 180);
+      const isApproaching = angleDifference <= 15; // 30° cone = ±15°
+      
+      // Only alert for severe storms that are actually approaching
+      if (storm.intensity >= 55 && storm.distance <= 30 && isApproaching) {
+        console.log(`🎯 APPROACHING SEVERE STORM: ${storm.intensity.toFixed(1)}dBZ @ ${storm.distance.toFixed(1)}mi, moving ${stormMovementDirection}° toward user direction ${directionToUser.toFixed(0)}° (angle diff: ${angleDifference.toFixed(1)}°)`);
+        return true;
+      }
+    }
+    
+    // Immediate vicinity storms (within 5 miles regardless of direction)
+    if (storm.intensity >= 55 && storm.distance <= 5) {
+      console.log(`⚠️ IMMEDIATE VICINITY: ${storm.intensity.toFixed(1)}dBZ @ ${storm.distance.toFixed(1)}mi - too close to ignore`);
       return true;
     }
     
