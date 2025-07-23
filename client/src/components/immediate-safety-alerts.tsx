@@ -443,21 +443,20 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
               </div>
               
               <div className="text-sm text-orange-100 space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <span>Storm is located {storm.distance.toFixed(1)} miles ({getDirectionName(storm.direction)})</span>
                   <div 
-                    className="h-3 w-3 flex items-center justify-center text-orange-300"
+                    className="h-3 w-3 flex items-center justify-center text-orange-300 mx-1"
                     style={{ transform: `rotate(${(storm.direction + 180) % 360}deg)` }}
                   >
                     ↑
                   </div>
-                  <span>
-                    {getDirectionName(storm.direction)} ({storm.direction.toFixed(0)}°) at {storm.distance.toFixed(1)} miles
-                  </span>
+                  <span>of you</span>
+                  {storm.movement && storm.movement.direction !== undefined && storm.movement.speed !== undefined && (
+                    <span> moving to the {getDirectionName(storm.movement.direction)} ({storm.movement.direction.toFixed(0)}°) @ {storm.movement.speed.toFixed(0)} mph</span>
+                  )}
                 </div>
                 <div>Intensity: {storm.intensity} dBZ</div>
-                {storm.movement && storm.movement.direction !== undefined && storm.movement.speed !== undefined && (
-                  <div>Movement: {getDirectionName(storm.movement.direction)} ({storm.movement.direction.toFixed(0)}°) @ {storm.movement.speed.toFixed(0)} mph</div>
-                )}
                 
                 {storm.movement && (
                   <div className="mt-2 p-2 bg-orange-950/50 rounded text-xs">

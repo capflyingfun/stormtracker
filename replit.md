@@ -135,7 +135,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Memory Leak Prevention**: Proper cleanup of all timing mechanisms on component unmount and location changes to prevent memory leaks
 - **Reliability Enhancement**: Eliminates random arrow display failures and ensures consistent user experience across all scenarios
 - **Alert Arrow Direction Fix**: Modified Severe Storm Alert arrows to point toward storm's bearing/location relative to user for intuitive visual reference, using simple upward arrow (↑) rotated by (storm bearing + 180°) for accurate compass-style direction display
-- **Added Storm Movement Display**: Enhanced alerts to show storm movement information like "SSW (191°) @ 12 mph" when movement data is available
+- **Enhanced Storm Alert Descriptions**: Improved storm alert text to natural language format: "Storm is located 8.9 miles (NNE) ↑ of you moving to the SSW (191°) @ 12 mph" for better readability and context
 
 ### AI Wind Shear Integration & Comprehensive Weather Analysis Enhancement (July 23, 2025)
 - **Complete AI Wind Shear Integration**: Enhanced both AI Assistant and AI Chat to include comprehensive wind shear analysis for aviation safety and atmospheric understanding
