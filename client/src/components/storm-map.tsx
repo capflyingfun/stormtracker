@@ -1307,7 +1307,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor});` : ''}
               ${isSpecialStorm ? `filter: drop-shadow(0 0 8px ${isNearestStorm ? '#00FF00' : '#FFD700'});` : ''}
             ">
-              <path d="M12 6 L18 18 L12 15 L6 18 Z" 
+              <path d="M12 18 L18 6 L12 9 L6 6 Z" 
                     fill="${getDbzColor(point.dbz)}" 
                     stroke="${isSpecialStorm ? (isNearestStorm ? '#00FF00' : '#FFD700') : (isAlertStorm ? alertColor : '#ffffff')}" 
                     stroke-width="${isSpecialStorm || isAlertStorm ? '3' : '1'}"
