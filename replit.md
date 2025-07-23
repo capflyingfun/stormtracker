@@ -123,6 +123,17 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 23, 2025
 
+### Storm Movement Bearing Enhancement (July 23, 2025)
+- **Enhanced Movement Display Format**: Updated all storm movement displays to show bearing format "S (191°) @ 31 mph" for better directional clarity
+- **Storm Panel Update**: Modified `windsPrediction` display in storm-panel.tsx to include compass bearing in parentheses
+- **Storm Summary Enhancement**: Updated both closest and strongest storm movement displays in storm-tracker.tsx with bearing information
+- **Alerts Panel Integration**: Enhanced movement display in alerts-panel.tsx to include zero-padded bearing format
+- **Consistent Formatting**: All storm movement information now uses standardized format: "Direction (000°) @ Speed mph"
+- **LSP Errors Resolved**: Fixed TypeScript errors in alerts-panel.tsx related to metadata and threatType properties
+- **User Confirmation**: Enhancement confirmed working with proper bearing format display across all storm components
+
+## Recent Changes - July 23, 2025
+
 ### Storm Arrow Direction Fix & Map Movement Optimization (July 23, 2025)
 - **Fixed Storm Arrow Direction**: Applied 180° rotation offset to align arrows with storm movement tracks (subtracted 90° from movement direction)
 - **Corrected SVG Arrow Orientation**: Modified arrow path and rotation calculation to properly show storm movement direction matching track cones

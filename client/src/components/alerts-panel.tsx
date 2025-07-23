@@ -83,7 +83,7 @@ export default function AlertsPanel({ alerts, stormThreats = [], isLoading }: Al
               };
 
               // Extract storm location and movement data if available
-              const stormData = threat.metadata || {};
+              const stormData = (threat as any).metadata || {};
               const nearestStorm = stormData.nearestStorm;
               const dangerIndicator = stormData.dangerLevel || 'unknown';
               
@@ -120,7 +120,7 @@ export default function AlertsPanel({ alerts, stormThreats = [], isLoading }: Al
                         </div>
                         <div className="text-slate-400">
                           Movement: <span className="text-white">
-                            {nearestStorm.movementDirection ? `${getDirectionName(nearestStorm.movementDirection)} @ ${nearestStorm.movementSpeed?.toFixed(0)} mph` : 'Stationary'}
+                            {nearestStorm.movementDirection ? `${getDirectionName(nearestStorm.movementDirection)} (${nearestStorm.movementDirection.toFixed(0).padStart(3, '0')}°) @ ${nearestStorm.movementSpeed?.toFixed(0)} mph` : 'Stationary'}
                           </span>
                         </div>
                       </div>
@@ -159,7 +159,7 @@ export default function AlertsPanel({ alerts, stormThreats = [], isLoading }: Al
                       <div>Status: {threat.timeToExpiration}</div>
                     )}
                     <div className="text-xs text-orange-400 mt-1">
-                      {threat.threatType === 'nws_alert' ? '🏛️ National Weather Service alert' : '📡 Radar-detected storm threat'}
+                      {(threat as any).threatType === 'nws_alert' ? '🏛️ National Weather Service alert' : '📡 Radar-detected storm threat'}
                     </div>
                   </div>
                 </div>
