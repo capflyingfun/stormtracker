@@ -123,6 +123,18 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 23, 2025
 
+### Storm Direction & Approach Detection Fix (July 23, 2025)
+- **Fixed Critical Direction Bug**: Resolved incorrect bearing calculation where storms displayed opposite directions (SSW storms showing as "NNE of you")
+- **Removed Incorrect +180° Offset**: Eliminated erroneous bearing conversion that was adding 180° to storm directions in immediate safety alerts
+- **Restored 30-Degree Cone Logic**: Re-implemented approach detection to only trigger alerts for storms actually moving toward user location (±15° from storm-to-user direction)
+- **Enhanced Approach Calculations**: Added proper directional analysis using storm movement direction vs user bearing to prevent false collision course alerts
+- **Immediate Vicinity Exception**: Storms within 5 miles still trigger alerts regardless of movement direction for safety
+- **Debug Console Logging**: Added detailed approach calculation logging showing storm movement vs user direction with angle differences
+- **False Alert Prevention**: System now correctly filters out storms moving parallel or away from user location
+- **Direction Accuracy Verified**: Storm at 206° bearing now correctly displays as "SSW of you" matching visual radar position
+- **Purple Ring Removal**: Removed temporary purple ring visual debugging effect from severe storm waypoints after successful testing
+- **User Confirmed Working**: Direction display and approach detection verified accurate with no false alerts for non-approaching storms
+
 ### Enhanced Storm Arrow Timing & Alert Direction Improvements (July 23, 2025)
 - **AI Assistant Timing Sync**: Implemented 2.5-second delay for storm arrow appearance to synchronize with AI Assistant loading timing
 - **Smart Arrow Display Logic**: Storm arrows now show immediately when winds aloft data arrives quickly (under 800ms), or after 2.5 seconds with fallback direction
