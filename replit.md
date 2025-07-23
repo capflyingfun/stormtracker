@@ -123,6 +123,14 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 23, 2025
 
+### AI Assistant Temperature Conversion Bug Fix (July 23, 2025)
+- **Fixed Critical Double Temperature Conversion**: Resolved bug in AI assistant where current weather temperatures were incorrectly converted from Fahrenheit to Fahrenheit, causing erroneous 176°F readings instead of correct 82°F
+- **Corrected Data Flow Logic**: Open-Meteo API configured with temperature_unit=fahrenheit returns Fahrenheit temperatures, but AI assistant was treating them as Celsius and converting again
+- **Enhanced Temperature Accuracy**: AI assistant now displays Fahrenheit temperatures directly and only converts to Celsius when user selects metric units
+- **METAR vs Current Weather Distinction**: Airport METAR temperatures (Celsius from CheckWX API) correctly converted to Fahrenheit, while current weather temperatures (already Fahrenheit from Open-Meteo) displayed directly
+- **Professional Weather Standards**: Maintains authentic temperature reporting matching meteorological standards for reliable weather decision-making
+- **User Confirmed Working**: Temperature display bug resolved with accurate readings matching actual weather conditions
+
 ### Mobile-Optimized Sonar Radar with Simplified Animation (July 23, 2025)
 - **Mobile-Responsive Design**: Optimized sonar radar container for mobile devices with responsive sizing (max-width: 320px on small screens)
 - **Simplified Storm Display**: Removed complex waypoint fading animations in favor of solid, consistently visible storm dots for better performance and clarity
