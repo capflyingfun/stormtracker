@@ -10,6 +10,7 @@ import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
+import SonarRadar from "@/components/sonar-radar";
 
 // import { ThreatMonitor } from "@/components/threat-monitor"; // Consolidated into AI Weather Assistant
 
@@ -161,6 +162,7 @@ export default function StormTracker() {
   const radarRange = 50;
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [show3D, setShow3D] = useState(false);
+  const [viewMode, setViewMode] = useState<'map' | 'sonar' | '3d'>('map');
   
   const [stormFilters, setStormFilters] = useState({
     light: true,
@@ -801,17 +803,33 @@ export default function StormTracker() {
             )}
 
             {/* Interactive Radar Map with Side Controls */}
-            <div className={`flex flex-col lg:flex-row gap-4 lg:gap-6 ${show3D ? 'hidden' : ''}`}>
+            <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
                 {/* Left Side Controls - Desktop Only */}
                 <div className="hidden lg:flex lg:flex-col lg:w-48 space-y-3">
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                    <h3 className="text-sm font-semibold mb-3 text-slate-300">Map Controls</h3>
+                    <h3 className="text-sm font-semibold mb-3 text-slate-300">View Mode</h3>
                     <div className="space-y-2">
                       <Button
-                        onClick={() => setShow3D(true)}
+                        onClick={() => setViewMode('map')}
                         variant="outline"
                         size="sm"
-                        className="w-full text-xs bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50"
+                        className={`w-full text-xs ${viewMode === 'map' ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
+                      >
+                        🗺️ Map View
+                      </Button>
+                      <Button
+                        onClick={() => setViewMode('sonar')}
+                        variant="outline"
+                        size="sm"
+                        className={`w-full text-xs ${viewMode === 'sonar' ? 'bg-green-600/20 border-green-500 text-green-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
+                      >
+                        📡 Sonar View
+                      </Button>
+                      <Button
+                        onClick={() => setViewMode('3d')}
+                        variant="outline"
+                        size="sm"
+                        className={`w-full text-xs ${viewMode === '3d' ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                         disabled={!storms || storms.length === 0}
                       >
                         🌩️ 3D View
@@ -862,24 +880,51 @@ export default function StormTracker() {
                   </div>
                 </div>
 
-                {/* Radar Map - 30% smaller */}
+                {/* Radar Display - Conditional based on view mode */}
                 <div className="flex-1 lg:max-w-[70%] mx-auto">
-                  <StormMap
-                    location={location}
-                    storms={storms || []}
-                    radarRange={radarRange}
-                    useMetric={useMetric}
-                    formatDistance={formatDistance}
-                    formatSpeed={formatSpeed}
-                    stormFilters={stormFilters}
-                    onRadarSourceChange={setCurrentRadarSource}
-                    radarSource={currentRadarSource}
-                    isDisabled={showStormFilteringSettings || showAlertSubscription}
-                    alertPreferences={preferences}
-                    showAllStormTracks={showStormTracks}
-                    showTimeLabels={showTimeLabels}
-                    onMapInstanceReady={setMapInstance}
-                  />
+                  {viewMode === 'map' && (
+                    <StormMap
+                      location={location}
+                      storms={storms || []}
+                      radarRange={radarRange}
+                      useMetric={useMetric}
+                      formatDistance={formatDistance}
+                      formatSpeed={formatSpeed}
+                      stormFilters={stormFilters}
+                      onRadarSourceChange={setCurrentRadarSource}
+                      radarSource={currentRadarSource}
+                      isDisabled={showStormFilteringSettings || showAlertSubscription}
+                      alertPreferences={preferences}
+                      showAllStormTracks={showStormTracks}
+                      showTimeLabels={showTimeLabels}
+                      onMapInstanceReady={setMapInstance}
+                    />
+                  )}
+                  
+                  {viewMode === 'sonar' && (
+                    <SonarRadar
+                      location={location}
+                      storms={precipitationStorms}
+                      radarRange={radarRange}
+                      formatDistance={formatDistance}
+                      useMetric={useMetric}
+                      onStormClick={(storm) => {
+                        console.log('Storm clicked in sonar:', storm);
+                      }}
+                      className="h-[600px]"
+                    />
+                  )}
+                  
+                  {viewMode === '3d' && (
+                    <Simple3DCanvas 
+                      location={location} 
+                      precipitationStorms={precipitationStorms}
+                      useMetric={useMetric}
+                      formatDistance={formatDistance}
+                      formatSpeed={formatSpeed}
+                      stormFilters={stormFilters}
+                    />
+                  )}
                 </div>
 
                 {/* Right Side Controls - Desktop Only */}
@@ -934,13 +979,29 @@ export default function StormTracker() {
                 {/* Mobile Controls - Stacked Below Map */}
                 <div className="lg:hidden flex flex-wrap gap-2 justify-center mt-4">
                   <Button
-                    onClick={() => setShow3D(true)}
+                    onClick={() => setViewMode('map')}
                     variant="outline"
                     size="sm"
-                    className="bg-purple-600/20 border-purple-500 text-purple-300"
+                    className={`${viewMode === 'map' ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
+                  >
+                    🗺️ Map
+                  </Button>
+                  <Button
+                    onClick={() => setViewMode('sonar')}
+                    variant="outline"
+                    size="sm"
+                    className={`${viewMode === 'sonar' ? 'bg-green-600/20 border-green-500 text-green-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
+                  >
+                    📡 Sonar
+                  </Button>
+                  <Button
+                    onClick={() => setViewMode('3d')}
+                    variant="outline"
+                    size="sm"
+                    className={`${viewMode === '3d' ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                     disabled={!storms || storms.length === 0}
                   >
-                    🌩️ 3D View
+                    🌩️ 3D
                   </Button>
                   <Button
                     onClick={() => setShowStormTracks(!showStormTracks)}
@@ -1014,14 +1075,7 @@ export default function StormTracker() {
         )}
       </div>
       
-      {/* 3D Storm Visualization */}
-      {show3D && (
-        <Simple3DCanvas 
-          location={location} 
-          precipitationStorms={precipitationStorms}
-          onClose={() => setShow3D(false)}
-        />
-      )}
+
       
 
     </div>
