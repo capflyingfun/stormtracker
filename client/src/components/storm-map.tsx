@@ -1266,11 +1266,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const movementDirection = getStormMovementDirection();
       
-      // Debug logging for first few storms to verify direction consistency
-      const stormIndex = visiblePoints.findIndex(p => p.lat === point.lat && p.lon === point.lon);
-      if (stormIndex < 3 && stormIndex >= 0) {
-        console.log(`Storm ${stormIndex}: Using direction ${movementDirection}° (winds aloft: ${currentWindsData?.stormMovement?.direction}°)`);
-      }
+
       
       // Create directional arrow marker with special effects for nearest/strongest storms
       // Add cache-busting mechanism to ensure correct SVG path is always used
@@ -1284,7 +1280,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             display: flex;
             align-items: center;
             justify-content: center;
-            transform: rotate(${movementDirection - 90}deg);
+            transform: rotate(${movementDirection}deg);
             ${isAlertStorm || isSpecialStorm ? 'animation: specialStormPulse 2s infinite;' : ''}
           ">
             ${isSpecialStorm ? `

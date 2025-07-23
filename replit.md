@@ -152,10 +152,11 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Text Selection Prevention**: Implemented CSS user-select: none across all browsers (WebKit, Mozilla, IE) for non-copyable 3D interface
 
 ### Storm Arrow Direction Consistency Fix (July 23, 2025)
-- **Fixed CSS Rotation Offset**: Added -90° CSS rotation adjustment to correct arrow direction display (meteorological 0° = north vs CSS 0° = east)
+- **Removed Incorrect CSS Rotation**: Eliminated erroneous -90° CSS rotation that was causing misaligned arrow directions
 - **Unified Regional Direction**: All storm arrows now use consistent regional winds aloft direction instead of individual storm movement data
 - **Eliminated Direction Conflicts**: Removed individual storm movement direction usage that was causing inconsistent arrow orientations
-- **Current Movement**: Winds from 24° → Storm movement toward 204° (SSW) → CSS rotation 114° → Arrows point SSW consistently
+- **Current Movement**: Winds from 24° → Storm movement toward 204° (SSW) → Arrows point directly at 204° SSW
+- **Fixed visiblePoints Error**: Corrected JavaScript error by using precipitationPoints array for debug logging
 - **Debug Logging**: Added direction verification logging to confirm all storms use same regional movement direction
 - **Cache-Busting Maintained**: Preserved existing cache-busting mechanisms to prevent reloading orientation issues
 
