@@ -572,11 +572,23 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
   // Simple clustering to reduce clutter while preserving highest intensities
   const clusterPrecipitationPoints = (points: Array<{lat: number; lon: number; dbz: number; id: string}>) => {
+    // Device-based waypoint limits for performance optimization
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    const waypointLimit = isMobile ? 750 : 1500; // Mobile: 750, PC: 1500
+    
+    console.log(`Device detection: ${isMobile ? 'Mobile' : 'PC'} - Waypoint limit: ${waypointLimit}`);
+    
     const clustered: Array<{lat: number; lon: number; dbz: number; id: string; count?: number}> = [];
     const processed = new Set<string>();
 
     // Sort points by intensity (highest first) to prioritize strong storms
-    const sortedPoints = [...points].sort((a, b) => b.dbz - a.dbz);
+    let sortedPoints = [...points].sort((a, b) => b.dbz - a.dbz);
+    
+    // Apply waypoint limit - keep highest intensity points
+    if (sortedPoints.length > waypointLimit) {
+      console.log(`Limiting waypoints: ${sortedPoints.length} → ${waypointLimit} (${isMobile ? 'Mobile' : 'PC'} optimization)`);
+      sortedPoints = sortedPoints.slice(0, waypointLimit);
+    }
 
     for (const point of sortedPoints) {
       if (processed.has(point.id)) continue;
@@ -1099,7 +1111,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const selectedStorm = precipitationStorms.find(s => s.id === selectedStormId);
       if (selectedStorm) {
         hideStormCone();
-        showStormCone(selectedStorm.lat, selectedStorm.lon, selectedStorm.intensity);
+        showStormCone(selectedStorm.lat, selectedStorm.lon, selectedStorm.intensity, selectedStorm.id);
       }
     }
   }, [showTimeLabels]);
@@ -1217,7 +1229,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         return Math.round(baseSize);
       };
       
-      const markerSize = getMarkerSize(point.dbz, point.count);
+      const markerSize = getMarkerSize(point.dbz, (point as any).count);
       
       // Add popup with precipitation info including rainfall rate
       const pointDistance = calculateDistance(centerLat, centerLon, point.lat, point.lon);
@@ -1379,14 +1391,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
       const hailWarning = getHailInfo(point.dbz);
       
-      const popupContent = point.count && point.count > 1 
+      const popupContent = (point as any).count && (point as any).count > 1 
         ? `<b>Storm Cell Cluster</b><br>
            Distance: ${displayDistance.toFixed(1)} miles<br>
            Max Intensity: ${point.dbz} dBZ<br>
            ${point.dbz >= 55 ? 'Rain/Hail Rate:' : 'Rain Rate:'} ${rainfallData.mmh} mm/h (${rainfallData.inh} in/h)<br>
            Type: ${precipType}<br>
            ${hailWarning ? `<span style="color: orange;">${hailWarning}</span><br>` : ''}
-           Cells: ${point.count}<br>
+           Cells: ${(point as any).count}<br>
            <small>Real-time ${radarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'} data</small>`
         : `<b>Precipitation Cell</b><br>
            Distance: ${displayDistance.toFixed(1)} miles<br>
@@ -1891,8 +1903,21 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         }
       }
 
+      // Apply device-based waypoint limits before clustering for maximum performance
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+      const rawWaypointLimit = isMobile ? 1000 : 2000; // Higher limit for raw points before clustering
+      
+      let limitedPrecipitationPoints = precipitationPoints;
+      if (precipitationPoints.length > rawWaypointLimit) {
+        // Sort by intensity (highest first) and apply limit
+        limitedPrecipitationPoints = [...precipitationPoints]
+          .sort((a, b) => b.dbz - a.dbz)
+          .slice(0, rawWaypointLimit);
+        console.log(`NEXRAD: Applied raw waypoint limit: ${precipitationPoints.length} → ${limitedPrecipitationPoints.length} (${isMobile ? 'Mobile' : 'PC'} optimization)`);
+      }
+
       // Cluster nearby precipitation points for cleaner display
-      const clusteredPoints = clusterPrecipitationPoints(precipitationPoints);
+      const clusteredPoints = clusterPrecipitationPoints(limitedPrecipitationPoints);
       
       // Store clustered points
       setPrecipitationPoints(clusteredPoints);
@@ -2111,8 +2136,21 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         }
       }
 
+      // Apply device-based waypoint limits before clustering for maximum performance
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+      const rawWaypointLimit = isMobile ? 1000 : 2000; // Higher limit for raw points before clustering
+      
+      let limitedPrecipitationPoints = precipitationPoints;
+      if (precipitationPoints.length > rawWaypointLimit) {
+        // Sort by intensity (highest first) and apply limit
+        limitedPrecipitationPoints = [...precipitationPoints]
+          .sort((a, b) => b.dbz - a.dbz)
+          .slice(0, rawWaypointLimit);
+        console.log(`RainViewer: Applied raw waypoint limit: ${precipitationPoints.length} → ${limitedPrecipitationPoints.length} (${isMobile ? 'Mobile' : 'PC'} optimization)`);
+      }
+
       // Cluster nearby precipitation points for cleaner display
-      const clusteredPoints = clusterPrecipitationPoints(precipitationPoints);
+      const clusteredPoints = clusterPrecipitationPoints(limitedPrecipitationPoints);
       
       // Store clustered points
       setPrecipitationPoints(clusteredPoints);
