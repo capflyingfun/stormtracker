@@ -446,7 +446,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                 <div className="flex items-center gap-2">
                   <div 
                     className="h-3 w-3 flex items-center justify-center text-orange-300"
-                    style={{ transform: `rotate(${storm.direction}deg)` }}
+                    style={{ transform: `rotate(${(storm.direction + 180) % 360}deg)` }}
                   >
                     ↑
                   </div>
@@ -455,6 +455,9 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                   </span>
                 </div>
                 <div>Intensity: {storm.intensity} dBZ</div>
+                {storm.movement && storm.movement.direction !== undefined && storm.movement.speed !== undefined && (
+                  <div>Movement: {getDirectionName(storm.movement.direction)} ({storm.movement.direction.toFixed(0)}°) @ {storm.movement.speed.toFixed(0)} mph</div>
+                )}
                 
                 {storm.movement && (
                   <div className="mt-2 p-2 bg-orange-950/50 rounded text-xs">
