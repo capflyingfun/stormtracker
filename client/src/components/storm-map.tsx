@@ -411,14 +411,13 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         onMapInstanceReady(map);
       }
       
-      // Add map event listeners for auto-sampling and winds aloft with debouncing
+      // Add map event listeners for auto-sampling with debouncing
       const debouncedTrigger = () => {
-        console.log('Map movement detected, triggering auto-sample and winds aloft update');
+        console.log('Map movement detected, triggering auto-sample');
         triggerAutoSample();
         
-        // Update winds aloft data for new map center
-        const center = map.getCenter();
-        updateWindsAloftForCenter(center.lat, center.lng);
+        // Do NOT update winds aloft on map movement - keep winds based on user location only
+        // This prevents winds aloft from changing when user pans/zooms the map
       };
       
       map.on('moveend', debouncedTrigger);
