@@ -443,18 +443,20 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
               </div>
               
               <div className="text-sm text-orange-100 space-y-1">
-                <div className="flex flex-wrap items-center gap-1">
-                  <span>Storm is located {storm.distance.toFixed(1)} miles ({getDirectionName(storm.direction)})</span>
-                  <div 
-                    className="h-3 w-3 flex items-center justify-center text-orange-300 mx-1"
-                    style={{ transform: `rotate(${(storm.direction + 180) % 360}deg)` }}
-                  >
-                    ↑
+                <div className="w-full">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span>Storm is located {storm.distance.toFixed(1)} miles ({getDirectionName(storm.direction)})</span>
+                    <div 
+                      className="h-3 w-3 flex items-center justify-center text-orange-300 mx-1 flex-shrink-0"
+                      style={{ transform: `rotate(${(storm.direction + 180) % 360}deg)` }}
+                    >
+                      ↑
+                    </div>
+                    <span>of you</span>
+                    {storm.movement && storm.movement.direction !== undefined && storm.movement.speed !== undefined && (
+                      <span> heading {getDirectionName(storm.movement.direction)} ({storm.movement.direction.toFixed(0)}°) @ {storm.movement.speed.toFixed(1)} mph</span>
+                    )}
                   </div>
-                  <span>of you</span>
-                  {storm.movement && storm.movement.direction !== undefined && storm.movement.speed !== undefined && (
-                    <span className="whitespace-nowrap"> moving to the {getDirectionName(storm.movement.direction)} ({storm.movement.direction.toFixed(0)}°) @ {storm.movement.speed.toFixed(0)} mph</span>
-                  )}
                 </div>
                 <div>Intensity: {storm.intensity} dBZ</div>
                 
