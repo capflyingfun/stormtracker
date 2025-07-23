@@ -409,12 +409,12 @@ export default function SonarRadar({
   }, []);
 
   return (
-    <div className={`bg-slate-900 rounded-xl border border-slate-700 overflow-hidden ${className}`}>
+    <div className={`bg-slate-900 rounded-xl border border-slate-700 overflow-hidden select-none ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between p-3 md:p-4 border-b border-slate-700">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 md:w-3 md:h-3 bg-green-500 rounded-full animate-pulse"></div>
-          <h3 className="text-base md:text-lg font-semibold text-white">Sonar Radar</h3>
+      <div className="flex items-center justify-between p-3 md:p-4 border-b border-slate-700 select-none">
+        <div className="flex items-center gap-2 select-none">
+          <div className="w-2 h-2 md:w-3 md:h-3 bg-green-500 rounded-full animate-pulse select-none"></div>
+          <h3 className="text-base md:text-lg font-semibold text-white select-none">Sonar Radar</h3>
         </div>
         <div className="flex items-center gap-1 md:gap-2">
           <Button
@@ -447,7 +447,7 @@ export default function SonarRadar({
 
         {/* Storm Info Tooltip */}
         {hoveredStorm && (
-          <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-slate-800/90 border border-slate-600 rounded-lg p-2 md:p-3 text-xs text-white backdrop-blur-sm max-w-[200px]">
+          <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-slate-800/90 border border-slate-600 rounded-lg p-2 md:p-3 text-xs text-white backdrop-blur-sm max-w-[200px] select-none">
             <div className="font-semibold">{getStormCategory(hoveredStorm.intensity)} Storm</div>
             <div className="text-slate-300">
               <div>Intensity: {hoveredStorm.intensity.toFixed(1)} dBZ</div>

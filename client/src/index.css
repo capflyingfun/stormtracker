@@ -2,6 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Comprehensive text selection prevention */
+/* Global prevention for all buttons, menus, and interactive elements */
+button, 
+[role="button"],
+.btn,
+[type="button"],
+[type="submit"],
+[type="reset"] {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+/* Prevent text selection in modals and dialogs */
+[role="dialog"],
+[role="alertdialog"],
+.modal,
+.dialog,
+.popover,
+.dropdown-menu,
+.menu {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+/* Mobile-specific text selection prevention */
+@media (max-width: 768px) {
+  /* Prevent selection on all interactive elements on mobile */
+  nav,
+  header,
+  .header,
+  .navigation,
+  .controls,
+  .panel,
+  .sidebar,
+  .toolbar,
+  .tab,
+  .badge,
+  .chip,
+  .tag,
+  .alert {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    -webkit-touch-callout: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+}
+
+/* PC-specific rules - allow text selection in content areas but prevent in buttons */
+@media (min-width: 769px) {
+  /* Ensure buttons remain non-selectable on PC */
+  button,
+  [role="button"],
+  .btn,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  .button {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+  }
+}
+
 /* Mobile safe area support */
 html {
   /* Support for devices with notches and rounded corners */
