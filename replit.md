@@ -279,10 +279,10 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Enhanced User Experience**: Storm tracking now starts with clean interface, users can enable time labels when needed
 - **AI Template Optimization**: Modified AI assistant prompt to prioritize clear, concise storm movement direction information
 
-### Device-Based Performance Optimization System (July 23, 2025)
-- **Smart Device Detection**: Implemented automatic device detection using user agent and screen width for mobile vs PC optimization
-- **Intelligent Waypoint Limits**: Mobile devices limited to 750 clustered waypoints, PC devices to 1500 for optimal performance
-- **Multi-Stage Limits**: Applied limits at both initial sampling (1000/2000 raw points) and final clustering (750/1500 waypoints) for maximum optimization
+### Enhanced Performance for Large Storm Systems (July 23, 2025)
+- **Caribbean Deployment Success**: Successfully deployed and tested in St. Lucia with 500+ storm waypoints, confirming system handles massive tropical weather events
+- **Increased Waypoint Limits**: Mobile devices enhanced to 900 clustered waypoints, PC devices to 1800 for Caribbean-scale storm systems
+- **Enhanced Raw Sampling**: Mobile devices process 1300 raw points, desktop 2600 points for comprehensive storm detection
 - **Priority-Based Processing**: Higher intensity storms prioritized during limit application to preserve important weather data
 - **TypeScript Errors Resolved**: Fixed all count property and function call issues using proper type assertions
 - **Real-Time Detection**: Console logging shows device type and active limits for performance monitoring

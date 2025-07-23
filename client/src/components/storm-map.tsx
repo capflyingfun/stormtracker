@@ -612,9 +612,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
   // Simple clustering to reduce clutter while preserving highest intensities
   const clusterPrecipitationPoints = (points: Array<{lat: number; lon: number; dbz: number; id: string}>) => {
-    // Device-based waypoint limits for performance optimization
+    // Enhanced device-based waypoint limits for large storm systems (like Caribbean events)
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
-    const waypointLimit = isMobile ? 750 : 1500; // Mobile: 750, PC: 1500
+    const waypointLimit = isMobile ? 900 : 1800; // Increased limits for massive storm systems
     
     console.log(`Device detection: ${isMobile ? 'Mobile' : 'PC'} - Waypoint limit: ${waypointLimit}`);
     
@@ -1967,9 +1967,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         }
       }
 
-      // Apply device-based waypoint limits before clustering for maximum performance
+      // Enhanced device-based waypoint limits for large storm systems (Caribbean-scale events)
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
-      const rawWaypointLimit = isMobile ? 1000 : 2000; // Higher limit for raw points before clustering
+      const rawWaypointLimit = isMobile ? 1300 : 2600; // Enhanced limits for massive storm systems
       
       let limitedPrecipitationPoints = precipitationPoints;
       if (precipitationPoints.length > rawWaypointLimit) {
@@ -2200,9 +2200,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         }
       }
 
-      // Apply device-based waypoint limits before clustering for maximum performance
+      // Enhanced device-based waypoint limits for large storm systems (Caribbean-scale events)
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
-      const rawWaypointLimit = isMobile ? 1000 : 2000; // Higher limit for raw points before clustering
+      const rawWaypointLimit = isMobile ? 1300 : 2600; // Enhanced limits for massive storm systems
       
       let limitedPrecipitationPoints = precipitationPoints;
       if (precipitationPoints.length > rawWaypointLimit) {
