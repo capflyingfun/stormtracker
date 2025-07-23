@@ -82,9 +82,12 @@ export default function SonarRadar({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const maxRadius = Math.min(centerX, centerY) - 50; // More margin for compass labels
+    // Account for device pixel ratio scaling
+    const displayWidth = canvas.clientWidth;
+    const displayHeight = canvas.clientHeight;
+    const centerX = displayWidth / 2;
+    const centerY = displayHeight / 2;
+    const maxRadius = Math.min(centerX, centerY) - 30; // Reduced margin for mobile
 
     // Clear canvas
     ctx.fillStyle = '#0f172a';
@@ -113,34 +116,39 @@ export default function SonarRadar({
       ctx.stroke();
     }
 
-    // Draw compass labels - Full 360° coverage
-    ctx.fillStyle = '#64748b';
-    ctx.font = '11px monospace';
+    // Draw compass labels - optimized for mobile
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
-    // Major compass directions (every 45°)
+    // Major compass directions (every 45°) - responsive font size
     const majorDirections = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const isMobile = displayWidth < 400;
+    const majorFontSize = isMobile ? '10px' : '12px';
+    const minorFontSize = isMobile ? '7px' : '9px';
+    const labelOffset = isMobile ? 20 : 30;
+    
     for (let i = 0; i < 8; i++) {
       const angle = i * 45;
       const radians = ((angle - 90) * Math.PI) / 180;
-      const x = centerX + Math.cos(radians) * (maxRadius + 30);
-      const y = centerY + Math.sin(radians) * (maxRadius + 30);
+      const x = centerX + Math.cos(radians) * (maxRadius + labelOffset);
+      const y = centerY + Math.sin(radians) * (maxRadius + labelOffset);
       ctx.fillStyle = '#94a3b8';
-      ctx.font = '12px monospace';
+      ctx.font = `${majorFontSize} monospace`;
       ctx.fillText(majorDirections[i], x, y);
     }
     
-    // Minor compass directions (every 30°)
-    ctx.fillStyle = '#475569';
-    ctx.font = '9px monospace';
-    for (let angle = 0; angle < 360; angle += 30) {
-      // Skip major directions (multiples of 45°)
-      if (angle % 45 !== 0) {
-        const radians = ((angle - 90) * Math.PI) / 180;
-        const x = centerX + Math.cos(radians) * (maxRadius + 25);
-        const y = centerY + Math.sin(radians) * (maxRadius + 25);
-        ctx.fillText(angle.toString().padStart(3, '0'), x, y);
+    // Minor compass directions - show fewer on mobile
+    if (!isMobile) {
+      ctx.fillStyle = '#475569';
+      ctx.font = `${minorFontSize} monospace`;
+      for (let angle = 0; angle < 360; angle += 30) {
+        // Skip major directions (multiples of 45°)
+        if (angle % 45 !== 0) {
+          const radians = ((angle - 90) * Math.PI) / 180;
+          const x = centerX + Math.cos(radians) * (maxRadius + labelOffset - 5);
+          const y = centerY + Math.sin(radians) * (maxRadius + labelOffset - 5);
+          ctx.fillText(angle.toString().padStart(3, '0'), x, y);
+        }
       }
     }
 
@@ -250,9 +258,9 @@ export default function SonarRadar({
     const clickX = event.clientX - rect.left;
     const clickY = event.clientY - rect.top;
     
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const maxRadius = Math.min(centerX, centerY) - 20;
+    const centerX = canvas.clientWidth / 2;
+    const centerY = canvas.clientHeight / 2;
+    const maxRadius = Math.min(centerX, centerY) - 30;
 
     // Check if click is on a storm
     let clickedStorm: Storm | null = null;
@@ -291,9 +299,9 @@ export default function SonarRadar({
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
     
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const maxRadius = Math.min(centerX, centerY) - 20;
+    const centerX = canvas.clientWidth / 2;
+    const centerY = canvas.clientHeight / 2;
+    const maxRadius = Math.min(centerX, centerY) - 30;
 
     // Check if mouse is over a storm
     let hoveredStormFound: Storm | null = null;
@@ -359,17 +367,23 @@ export default function SonarRadar({
       const container = canvas.parentElement;
       if (container) {
         const containerRect = container.getBoundingClientRect();
-        // Force perfect square - use container width as base
-        const size = Math.min(containerRect.width, containerRect.height, 600);
+        // Use container dimensions for responsive sizing
+        const size = Math.min(containerRect.width, containerRect.height);
         
-        // Set canvas resolution  
-        canvas.width = size;
-        canvas.height = size;
+        // Set canvas resolution with device pixel ratio for crisp display
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = size * dpr;
+        canvas.height = size * dpr;
         
-        // Force square display size explicitly
+        // Scale canvas back down for display
         canvas.style.width = `${size}px`;
         canvas.style.height = `${size}px`;
-        canvas.style.display = 'block';
+        
+        // Scale drawing context for crisp rendering
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.scale(dpr, dpr);
+        }
         
         drawSonarDisplay();
       }
@@ -383,45 +397,43 @@ export default function SonarRadar({
   return (
     <div className={`bg-slate-900 rounded-xl border border-slate-700 overflow-hidden ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-700">
-        <div className="flex items-center gap-3">
-          <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-          <h3 className="text-lg font-semibold text-white">Sonar Radar</h3>
-        </div>
+      <div className="flex items-center justify-between p-3 md:p-4 border-b border-slate-700">
         <div className="flex items-center gap-2">
+          <div className="w-2 h-2 md:w-3 md:h-3 bg-green-500 rounded-full animate-pulse"></div>
+          <h3 className="text-base md:text-lg font-semibold text-white">Sonar Radar</h3>
+        </div>
+        <div className="flex items-center gap-1 md:gap-2">
           <Button
             onClick={() => setIsScanning(!isScanning)}
             variant="outline"
             size="sm"
-            className={`text-xs ${isScanning ? 'bg-green-600/20 border-green-500 text-green-300' : 'bg-slate-600/20 border-slate-500 text-slate-300'}`}
+            className={`text-xs px-2 py-1 ${isScanning ? 'bg-green-600/20 border-green-500 text-green-300' : 'bg-slate-600/20 border-slate-500 text-slate-300'}`}
           >
-            {isScanning ? '⏸️ Pause' : '▶️ Scan'}
+            {isScanning ? 'Pause' : 'Scan'}
           </Button>
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-slate-400 hidden sm:block">
             Range: {formatDistance(radarRange)}
           </div>
         </div>
       </div>
 
       {/* Radar Display */}
-      <div className="relative p-4 flex justify-center items-center">
-        <div className="relative aspect-square" style={{ width: '600px', maxWidth: '100%' }}>
+      <div className="relative p-2 md:p-4 flex justify-center items-center">
+        <div className="relative aspect-square w-full max-w-sm md:max-w-lg">
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
             onMouseMove={handleCanvasMouseMove}
-            className="block border border-slate-700/30 rounded-lg"
+            className="block border border-slate-700/30 rounded-lg w-full h-full"
             style={{ 
-              imageRendering: 'pixelated',
-              width: '100%',
-              height: '100%'
+              imageRendering: 'pixelated'
             }}
           />
         </div>
 
         {/* Storm Info Tooltip */}
         {hoveredStorm && (
-          <div className="absolute top-4 right-4 bg-slate-800/90 border border-slate-600 rounded-lg p-3 text-xs text-white backdrop-blur-sm">
+          <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-slate-800/90 border border-slate-600 rounded-lg p-2 md:p-3 text-xs text-white backdrop-blur-sm max-w-[200px]">
             <div className="font-semibold">{getStormCategory(hoveredStorm.intensity)} Storm</div>
             <div className="text-slate-300">
               <div>Intensity: {hoveredStorm.intensity.toFixed(1)} dBZ</div>
