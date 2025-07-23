@@ -1277,9 +1277,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const movementDirection = getStormMovementDirection();
       
       // Create directional arrow marker with special effects for nearest/strongest storms
+      // Add cache-busting mechanism to ensure correct SVG path is always used
+      const cacheKey = Date.now() + Math.random();
       const waypointIcon = window.L.divIcon({
         html: `
-          <div style="
+          <div data-cache="${cacheKey}" style="
             width: ${markerSize + 8}px;
             height: ${markerSize + 8}px;
             position: relative;
@@ -1302,11 +1304,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               "></div>
             ` : ''}
             
-            <svg width="${markerSize}" height="${markerSize}" viewBox="0 0 24 24" style="
+            <svg width="${markerSize}" height="${markerSize}" viewBox="0 0 24 24" data-arrow-fixed="true" style="
               filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
               ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor});` : ''}
               ${isSpecialStorm ? `filter: drop-shadow(0 0 8px ${isNearestStorm ? '#00FF00' : '#FFD700'});` : ''}
             ">
+              <!-- Fixed downward-pointing arrow path (rotated 180° from original) -->
               <path d="M12 6 L6 18 L12 15 L18 18 Z" 
                     fill="${getDbzColor(point.dbz)}" 
                     stroke="${isSpecialStorm ? (isNearestStorm ? '#00FF00' : '#FFD700') : (isAlertStorm ? alertColor : '#ffffff')}" 
@@ -1338,7 +1341,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             }
           </style>
         `,
-        className: `dbz-waypoint ${isAlertStorm ? 'alert-storm' : ''} ${isSpecialStorm ? 'special-storm' : ''}`,
+        className: `dbz-waypoint dbz-waypoint-${cacheKey} ${isAlertStorm ? 'alert-storm' : ''} ${isSpecialStorm ? 'special-storm' : ''}`,
         iconSize: [markerSize, markerSize],
         iconAnchor: [markerSize / 2, markerSize / 2]
       });

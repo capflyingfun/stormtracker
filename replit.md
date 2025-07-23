@@ -139,6 +139,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Permanent SVG Solution**: Modified arrow path from `M12 18 L18 6 L12 9 L6 6 Z` to `M12 6 L6 18 L12 15 L18 18 Z` ensuring correct directional display
 - **Eliminated Rotation Calculation Issues**: SVG-level fix prevents future direction bugs by having arrow point correctly with movement direction rotation
 - **User Testing Confirmed**: Arrow direction fix verified working correctly and ready for deployment testing across multiple locations
+- **Cache-Busting Implementation**: Added unique cache keys and data attributes to prevent arrow orientation caching issues on subsequent page loads
 - **Removed Winds Aloft Map Movement Updates**: Winds aloft data now stays stable based on user location only, preventing changes when panning/zooming map  
 - **Map Movement Event Optimization**: Auto-sampling continues on map movement but winds aloft updates removed for performance and consistency
 - **Direction Accuracy Achieved**: Storm arrows now properly align with storm track cones (both pointing SSW at 196° for current conditions)
