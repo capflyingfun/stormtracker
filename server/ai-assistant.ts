@@ -496,6 +496,8 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
 
     const prompt = `You are a helpful, knowledgeable weather assistant that provides real-time weather briefings for both aviation users and the general public.
 
+IMPORTANT: If there are active storms, start your response with a CONCISE storm movement summary: "Storms are moving [DIRECTION] ([DEGREES]°) at [SPEED] mph based on upper level winds." Use the winds aloft data to determine general storm movement direction. Example: "Storms are moving W (261°) at 30 mph based on upper level winds."
+
 When given a location, present weather information in a natural, flowing analysis. Only discuss sections that have meaningful data available - skip any sections marked as "unavailable" or "no data".
 
 Available sections (only discuss if data exists):

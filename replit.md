@@ -123,6 +123,12 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 23, 2025
 
+### AI Assistant & Display Optimization (July 23, 2025)
+- **Concise Storm Movement Display**: Updated AI assistant to lead with concise storm movement statements like "Storms are moving W (261°) at 30 mph based on upper level winds"
+- **Time Labels Default Disabled**: Changed storm track time labels to disabled by default to improve initial loading performance
+- **Enhanced User Experience**: Storm tracking now starts with clean interface, users can enable time labels when needed
+- **AI Template Optimization**: Modified AI assistant prompt to prioritize clear, concise storm movement direction information
+
 ### Device-Based Performance Optimization System (July 23, 2025)
 - **Smart Device Detection**: Implemented automatic device detection using user agent and screen width for mobile vs PC optimization
 - **Intelligent Waypoint Limits**: Mobile devices limited to 750 clustered waypoints, PC devices to 1500 for optimal performance
