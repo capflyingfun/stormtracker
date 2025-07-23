@@ -132,7 +132,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
   // Identify immediate storm threats (high impact or severe proximity)
   const immediateThreats = stormsWithMovement.filter(storm => {
     // High impact storms on collision course
-    if (storm.movement?.impact === 'high' && storm.movement?.eta) {
+    if (storm.movement?.impact === 'high' && 'eta' in storm.movement && storm.movement.eta) {
       return true;
     }
     
@@ -232,17 +232,17 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
   if (!location) return null;
 
   return (
-    <div className={`bg-red-900/30 rounded-xl p-3 sm:p-4 border border-red-600/30 mb-4 sm:mb-6 transition-all duration-500 ${
+    <div className={`bg-red-900/30 rounded-xl p-3 sm:p-4 border border-red-600/30 mb-4 sm:mb-6 transition-all duration-500 select-none ${
       showAlerts ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform translate-y-2'
     }`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between mb-3 select-none">
+        <div className="flex items-center gap-2 select-none">
           {isAnimating ? (
-            <Loader2 className="h-5 w-5 text-red-400 animate-spin" />
+            <Loader2 className="h-5 w-5 text-red-400 animate-spin select-none" />
           ) : (
-            <AlertTriangle className="h-5 w-5 text-red-400" />
+            <AlertTriangle className="h-5 w-5 text-red-400 select-none" />
           )}
-          <h3 className="text-lg font-semibold text-red-200">
+          <h3 className="text-lg font-semibold text-red-200 select-none">
             Immediate Safety Alerts
           </h3>
           {!isAnimating && totalAlerts > 0 && (
@@ -517,7 +517,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
                     {storm.movement.impact === 'high' ? (
                       <div className="text-red-300">
                         <strong>🎯 COLLISION COURSE:</strong> Storm moving toward your location
-                        {storm.movement.eta && <div>ETA: {storm.movement.eta}</div>}
+                        {'eta' in storm.movement && storm.movement.eta && <div>ETA: {storm.movement.eta}</div>}
                       </div>
                     ) : (
                       <div className="text-orange-300">

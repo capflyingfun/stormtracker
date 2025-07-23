@@ -10,13 +10,13 @@ export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
   const [showConfig, setShowConfig] = useState(false);
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 p-4">
+    <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 p-4 select-none">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 text-yellow-400">⚡</div>
-          <div>
-            <h1 className="text-2xl font-bold">StormTracker</h1>
-            <p className="text-sm text-slate-300">Real-time storm cell detection with live radar</p>
+          <div className="w-8 h-8 text-yellow-400 select-none">⚡</div>
+          <div className="select-none">
+            <h1 className="text-2xl font-bold select-none">StormTracker</h1>
+            <p className="text-sm text-slate-300 select-none">Real-time storm cell detection with live radar</p>
           </div>
         </div>
         
@@ -39,8 +39,8 @@ export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
 
       {/* API Status Panel */}
       {showConfig && (
-        <div className="mt-4 p-4 bg-slate-700/30 rounded-lg border border-slate-600/30">
-          <h3 className="text-lg font-semibold mb-3">Settings & API Status</h3>
+        <div className="mt-4 p-4 bg-slate-700/30 rounded-lg border border-slate-600/30 select-none">
+          <h3 className="text-lg font-semibold mb-3 select-none">Settings & API Status</h3>
           
           {/* Units Toggle */}
           <div className="mb-4">

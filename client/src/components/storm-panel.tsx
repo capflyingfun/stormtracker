@@ -264,7 +264,7 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
     return (
       <div 
         key={storm.id} 
-        className={`bg-slate-700/50 rounded-lg p-3 mb-3 border-2 ${
+        className={`bg-slate-700/50 rounded-lg p-3 mb-3 border-2 select-none ${
           meetsAlertThreshold 
             ? `${alertBorderClass}` 
             : 'border-slate-600/50'
@@ -373,11 +373,11 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
   };
 
   return (
-    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="text-2xl">⚡</div>
-        <h2 className="text-xl font-semibold">Storm Cells ({sortedStorms.length})</h2>
-        {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-400" />}
+    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 select-none">
+      <div className="flex items-center gap-3 mb-4 select-none">
+        <div className="text-2xl select-none">⚡</div>
+        <h2 className="text-xl font-semibold select-none">Storm Cells ({sortedStorms.length})</h2>
+        {isLoading && <Loader2 className="h-4 w-4 animate-spin text-blue-400 select-none" />}
       </div>
       
       {sortedStorms.length === 0 ? (
