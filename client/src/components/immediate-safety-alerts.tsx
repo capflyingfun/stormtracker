@@ -109,6 +109,11 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
     refetchInterval: 5 * 60 * 1000 // Refresh every 5 minutes
   });
 
+  // Debug log to see what storms we're receiving
+  console.log('🚨 IMMEDIATE SAFETY ALERTS: Received storms:', storms.map(s => 
+    `${s.intensity?.toFixed(1)}dBZ @ ${s.distance?.toFixed(1)}mi, bearing: ${s.direction?.toFixed(1)}°`
+  ));
+
   // Add movement data from winds aloft to storms
   const stormsWithMovement = storms.map(storm => {
     if (windsAloftData?.stormMovement) {
@@ -472,7 +477,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
               <div className="text-sm text-orange-100 space-y-1">
                 <div className="w-full">
                   <div className="flex items-center gap-1 flex-wrap">
-                    <span>Storm is located {storm.distance.toFixed(1)} miles ({getDirectionName((storm.direction + 180) % 360)}) [Debug: {storm.direction.toFixed(1)}° + 180° = {((storm.direction + 180) % 360).toFixed(1)}°]</span>
+                    <span>Storm is located {storm.distance.toFixed(1)} miles ({getDirectionName((storm.direction + 180) % 360)}) of you</span>
                     <div 
                       className="h-3 w-3 flex items-center justify-center text-orange-300 mx-1 flex-shrink-0"
                       style={{ transform: `rotate(${(storm.direction + 180) % 360}deg)` }}
