@@ -472,10 +472,10 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
               <div className="text-sm text-orange-100 space-y-1">
                 <div className="w-full">
                   <div className="flex items-center gap-1 flex-wrap">
-                    <span>Storm is located {storm.distance.toFixed(1)} miles ({getDirectionName(storm.direction)})</span>
+                    <span>Storm is located {storm.distance.toFixed(1)} miles ({getDirectionName((storm.direction + 180) % 360)})</span>
                     <div 
                       className="h-3 w-3 flex items-center justify-center text-orange-300 mx-1 flex-shrink-0"
-                      style={{ transform: `rotate(${(storm.direction + 180) % 360}deg)` }}
+                      style={{ transform: `rotate(${storm.direction}deg)` }}
                     >
                       ↑
                     </div>
