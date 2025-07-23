@@ -40,7 +40,7 @@ export default function SonarRadar({
 }: SonarRadarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number>();
-  const [sweepAngle, setSweepAngle] = useState(0);
+  const [sweepAngle, setSweepAngle] = useState(0); // Start from north (0°)
   const [isScanning, setIsScanning] = useState(true);
   const [selectedStorm, setSelectedStorm] = useState<Storm | null>(null);
   const [hoveredStorm, setHoveredStorm] = useState<Storm | null>(null);
@@ -78,7 +78,7 @@ export default function SonarRadar({
     if (!lastScan) return 0.3; // Minimum opacity for unscanned waypoints
     
     const timeSinceLastScan = Date.now() - lastScan;
-    const fadeTime = 20000; // 20 seconds to fade completely (2.5x longer)
+    const fadeTime = 12000; // 12 seconds to fade completely (matches radar sweep rotation)
     
     // Calculate opacity: 1.0 at scan time, fading to 0.3 over fadeTime
     const opacity = Math.max(0.3, 1.0 - (timeSinceLastScan / fadeTime) * 0.7);
@@ -176,9 +176,10 @@ export default function SonarRadar({
       ctx.fillText(label, centerX + radius - 15, centerY - 5);
     }
 
-    // Draw sweep line if scanning
+    // Draw sweep line if scanning (starts from north/0° and goes clockwise)
     if (isScanning) {
-      const sweepRadians = (sweepAngle * Math.PI) / 180;
+      // Convert to proper compass bearing: 0° = North, 90° = East, etc.
+      const sweepRadians = ((sweepAngle - 90) * Math.PI) / 180;
       const gradient = ctx.createLinearGradient(
         centerX,
         centerY,
@@ -346,7 +347,8 @@ export default function SonarRadar({
 
     const animate = () => {
       setSweepAngle((prev) => {
-        const newAngle = (prev + 2) % 360;
+        // 12 seconds for full rotation = 360°/12s = 0.5° per frame at 60fps
+        const newAngle = (prev + 0.5) % 360;
         
         // Check which storms are being scanned at this angle
         storms.forEach((storm) => {
