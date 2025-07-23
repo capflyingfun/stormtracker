@@ -341,15 +341,17 @@ export default function SonarRadar({
       const container = canvas.parentElement;
       if (container) {
         const containerRect = container.getBoundingClientRect();
+        // Force perfect square - use the smaller dimension
         const size = Math.min(containerRect.width, containerRect.height);
         
-        // Set actual canvas resolution to match display size
+        // Set canvas resolution
         canvas.width = size;
         canvas.height = size;
         
-        // Set display size
+        // Force square display size explicitly
         canvas.style.width = `${size}px`;
         canvas.style.height = `${size}px`;
+        canvas.style.display = 'block';
         
         drawSonarDisplay();
       }
@@ -385,7 +387,7 @@ export default function SonarRadar({
 
       {/* Radar Display */}
       <div className="relative p-4 flex justify-center items-center">
-        <div className="relative" style={{ width: '700px', height: '700px', maxWidth: '100%', maxHeight: '100%' }}>
+        <div className="relative aspect-square" style={{ width: '700px', maxWidth: '100%' }}>
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
@@ -394,8 +396,7 @@ export default function SonarRadar({
             style={{ 
               imageRendering: 'pixelated',
               width: '100%',
-              height: '100%',
-              aspectRatio: '1/1'
+              height: '100%'
             }}
           />
         </div>
