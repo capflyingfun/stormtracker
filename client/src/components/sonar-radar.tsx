@@ -86,10 +86,8 @@ export default function SonarRadar({
   };
 
   const isStormInSweepPath = (storm: Storm, sweepAngle: number): boolean => {
-    // Calculate storm bearing from center
-    const dx = storm.lon - location.lon;
-    const dy = storm.lat - location.lat;
-    const stormBearing = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
+    // Use the storm's direction property directly (already calculated bearing from user)
+    const stormBearing = storm.direction; // This is already the correct bearing
     
     // Check if sweep line is within 5 degrees of storm
     const angleDiff = Math.abs(sweepAngle - stormBearing);
