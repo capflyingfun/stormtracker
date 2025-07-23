@@ -132,6 +132,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Verified Against Professional Sources**: User confirmed radar patterns now match Windy weather radar for same geographic area and time
 - **Removed Debug Interface**: Cleaned up radar testing buttons and comparison displays after successful implementation
 - **Production-Ready Quality**: Radar system now provides professional-grade accuracy suitable for real weather decision-making
+- **Fixed Radar Range Display**: Updated hardcoded 30-mile range displays to properly show 50-mile unified system range in both storm tracker interfaces
 
 ### Storm Arrow Display & Visual Effects Fix (July 23, 2025)
 - **Immediate Arrow Display**: Fixed critical arrow timing issue where 200+ storms detected but arrows didn't show on initial load
