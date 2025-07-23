@@ -557,22 +557,7 @@ export default function StormTracker() {
                   >
                     🌐 GPS
                   </Button>
-                  <Button
-                    onClick={testRadarSources}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs sm:text-sm bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30"
-                  >
-                    🔍 Test Radar
-                  </Button>
-                  <Button
-                    onClick={testOpenMeteoGrid}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs sm:text-sm bg-green-600/20 border-green-500/50 text-green-300 hover:bg-green-600/30"
-                  >
-                    🌧️ Open-Meteo Grid
-                  </Button>
+
                 </div>
               </div>
 
@@ -598,45 +583,7 @@ export default function StormTracker() {
               )}
             </div>
 
-            {/* Radar Comparison Results */}
-            {radarComparison && (
-              <div className="bg-slate-800/50 rounded-xl p-3 sm:p-6 border border-slate-700/50 mb-4 sm:mb-6">
-                <h3 className="text-lg font-semibold mb-3 text-white flex items-center gap-2">
-                  🔍 Radar Source Comparison
-                </h3>
-                <div className="space-y-3">
-                  <div className="text-sm text-slate-300">
-                    <strong>Current System:</strong> {radarComparison.sources.current}
-                  </div>
-                  
-                  {radarComparison.sources.openMeteo && (
-                    <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
-                      <h4 className="text-green-300 font-medium mb-2">✅ Open-Meteo Available</h4>
-                      <div className="text-sm space-y-1">
-                        <div>Precipitation: {radarComparison.sources.openMeteo.precipitation}mm</div>
-                        <div>Quality: {radarComparison.sources.openMeteo.quality}</div>
-                        <div>Status: {radarComparison.sources.openMeteo.status}</div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {radarComparison.sources.visualCrossing && (
-                    <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3">
-                      <h4 className="text-blue-300 font-medium mb-2">⭐ Visual Crossing Available</h4>
-                      <div className="text-sm space-y-1">
-                        <div>Radar Precipitation: {radarComparison.sources.visualCrossing.precipRemote}mm</div>
-                        <div>Reflectivity: {radarComparison.sources.visualCrossing.reflectivity} dBZ</div>
-                        <div>Quality: {radarComparison.sources.visualCrossing.quality}</div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="text-sm text-blue-300 bg-blue-900/10 border border-blue-500/20 rounded-lg p-3">
-                    <strong>Recommendation:</strong> {radarComparison.recommendation}
-                  </div>
-                </div>
-              </div>
-            )}
+
 
             {/* Immediate Safety Alerts */}
             <ImmediateSafetyAlerts 
