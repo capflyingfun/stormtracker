@@ -64,6 +64,18 @@ const getIntensityCategory = (dBZ: number): string => {
 };
 
 export default function ImmediateSafetyAlerts({ location, storms, isLoading }: ImmediateSafetyAlertsProps) {
+  // Get winds aloft data for storm movement information
+  const { data: windsAloftData } = useQuery({
+    queryKey: ['/api/winds-aloft', location?.lat, location?.lon],
+    enabled: !!location,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    queryFn: async () => {
+      if (!location) return null;
+      const response = await fetch(`/api/winds-aloft?lat=${location.lat}&lon=${location.lon}`);
+      if (!response.ok) return null;
+      return response.json();
+    },
+  });
   const [showAlerts, setShowAlerts] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
@@ -97,8 +109,23 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
     refetchInterval: 5 * 60 * 1000 // Refresh every 5 minutes
   });
 
+  // Add movement data from winds aloft to storms
+  const stormsWithMovement = storms.map(storm => {
+    if (windsAloftData?.stormMovement) {
+      return {
+        ...storm,
+        movement: {
+          direction: windsAloftData.stormMovement.direction,
+          speed: windsAloftData.stormMovement.speed,
+          impact: 'low', // Default, can be enhanced later
+        }
+      };
+    }
+    return storm;
+  });
+
   // Identify immediate storm threats (high impact or severe proximity)
-  const immediateThreats = storms.filter(storm => {
+  const immediateThreats = stormsWithMovement.filter(storm => {
     // High impact storms on collision course
     if (storm.movement?.impact === 'high' && storm.movement?.eta) {
       return true;
