@@ -1314,6 +1314,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const alertColor = alertPreferences ? getAlertThresholdColor(alertPreferences.minimumDbz) : '#ffff00';
       
+      // Check if winds aloft data is still loading
+      const isWindsDataLoading = !currentWindsData || !currentWindsData.stormMovement || currentWindsData.stormMovement.speed === 0;
+      
       // Use consistent regional movement direction for ALL storms 
       const getStormMovementDirection = () => {
         // Use current winds aloft data for authentic regional wind patterns (all storms move together)
@@ -1321,8 +1324,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           return currentWindsData.stormMovement.direction;
         }
         
-        // Fallback direction if winds aloft not available yet
-        return 225; // SW to NE movement (common storm pattern)
+        // Return null if winds data not available yet (triggers loading indicator)
+        return null;
       };
       
       const movementDirection = getStormMovementDirection();
@@ -1346,7 +1349,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             display: flex;
             align-items: center;
             justify-content: center;
-            transform: rotate(${movementDirection}deg);
+            transform: rotate(${movementDirection || 0}deg);
             ${isAlertStorm || isSpecialStorm ? 'animation: specialStormPulse 2s infinite;' : ''}
           ">
             ${isSpecialStorm ? `
@@ -1369,12 +1372,35 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor});` : ''}
               ${isSpecialStorm ? `filter: drop-shadow(0 0 8px ${isNearestStorm ? '#00FF00' : '#FFD700'});` : ''}
             ">
-              <!-- Fixed downward-pointing arrow path (rotated 180° from original) -->
-              <path d="M12 6 L6 18 L12 15 L18 18 Z" 
-                    fill="${getDbzColor(point.dbz)}" 
-                    stroke="${isSpecialStorm ? (isNearestStorm ? '#00FF00' : '#FFD700') : (isAlertStorm ? alertColor : '#ffffff')}" 
-                    stroke-width="${isSpecialStorm || isAlertStorm ? '3' : '1'}"
-                    />
+              ${movementDirection === null ? `
+                <!-- Loading indicator: Circle while winds data loading -->
+                <circle cx="12" cy="12" r="8" 
+                        fill="none" 
+                        stroke="${getDbzColor(point.dbz)}" 
+                        stroke-width="3"
+                        stroke-dasharray="6 6"
+                        opacity="0.8">
+                  <animateTransform attributeName="transform" 
+                                    attributeType="XML" 
+                                    type="rotate" 
+                                    from="0 12 12" 
+                                    to="360 12 12" 
+                                    dur="2s" 
+                                    repeatCount="indefinite"/>
+                </circle>
+                <!-- Question mark in center -->
+                <text x="12" y="16" text-anchor="middle" 
+                      fill="${getDbzColor(point.dbz)}" 
+                      font-size="10" 
+                      font-weight="bold">?</text>
+              ` : `
+                <!-- Fixed downward-pointing arrow path (rotated 180° from original) -->
+                <path d="M12 6 L6 18 L12 15 L18 18 Z" 
+                      fill="${getDbzColor(point.dbz)}" 
+                      stroke="${isSpecialStorm ? (isNearestStorm ? '#00FF00' : '#FFD700') : (isAlertStorm ? alertColor : '#ffffff')}" 
+                      stroke-width="${isSpecialStorm || isAlertStorm ? '3' : '1'}"
+                      />
+              `}
             </svg>
           </div>
           
