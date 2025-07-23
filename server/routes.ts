@@ -3935,9 +3935,41 @@ THUNDERSTORM POTENTIAL: ${weatherContext.thunderstormConditions.thunderstormPote
 
 ${weatherContext.winds ? `
 WINDS ALOFT:
-• Direction: ${weatherContext.winds.direction}°
-• Speed: ${weatherContext.winds.speed} mph
-• Confidence: ${weatherContext.winds.confidence}
+${(() => {
+  const windsData = Array.isArray(weatherContext.winds) ? weatherContext.winds : [weatherContext.winds];
+  const validWinds = windsData.filter(w => w && w.speed > 0);
+  
+  if (validWinds.length === 0) return '• No wind data available';
+  
+  let windInfo = validWinds.map(wind => {
+    const altitude = wind.level || (wind.pressure ? `${wind.pressure}mb` : 'Unknown altitude');
+    return `• ${altitude}: ${wind.direction}° at ${wind.speed} mph`;
+  }).join('\n');
+  
+  // Calculate wind shear if multiple levels available
+  if (validWinds.length >= 2) {
+    const surfaceWind = validWinds.find(w => w.level === 'Surface' || w.isSurface);
+    const upperWind = validWinds.find(w => w.level !== 'Surface' && !w.isSurface);
+    
+    if (surfaceWind && upperWind) {
+      const shearMagnitude = Math.abs(((upperWind.direction - surfaceWind.direction + 180) % 360) - 180);
+      let shearSeverity = 'minimal';
+      if (shearMagnitude >= 80) shearSeverity = 'extreme';
+      else if (shearMagnitude >= 60) shearSeverity = 'high';
+      else if (shearMagnitude >= 40) shearSeverity = 'moderate';
+      else if (shearMagnitude >= 20) shearSeverity = 'low';
+      
+      windInfo += `\n🌪️ WIND SHEAR: ${shearMagnitude}° directional difference (${shearSeverity} shear)`;
+      if (shearMagnitude >= 40) {
+        windInfo += '\n   ⚠️ Significant for aviation operations and atmospheric turbulence';
+      } else if (shearMagnitude >= 20) {
+        windInfo += '\n   Moderate turbulence possible';
+      }
+    }
+  }
+  
+  return windInfo;
+})()}
 ` : ''}
 
 ${weatherContext.nwsForecast ? `
@@ -3973,6 +4005,7 @@ Guidelines:
   • If storms are within 20 miles: Base answer on storm proximity and movement, not forecast percentages
   • Only use forecast data if no active storms are detected nearby
 - ANSWER DIRECTLY: When asked about storm effects or rain likelihood, give clear YES/NO answers first, then explain
+- WIND SHEAR AWARENESS: When discussing winds or aviation conditions, include wind shear information if available. Wind shear indicates atmospheric instability and turbulence potential that affects flight safety and storm development
   • "Will it rain?" → "Yes, storms at NW (315°) @ 15 miles are moving toward you" OR "No, storms are moving away from your location"
   • "Will storms affect me?" → "Yes, the 55 dBZ storm NW (315°) @ 18 miles could reach you in 30 minutes" OR "No, all storms are moving away"
 - IMPORTANT: When multiple forecast sources provide comparable data, calculate the average but present it naturally:

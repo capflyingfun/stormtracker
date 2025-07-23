@@ -123,6 +123,16 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 23, 2025
 
+### AI Wind Shear Integration & Aviation Safety Enhancement (July 23, 2025)
+- **Complete AI Wind Shear Integration**: Enhanced both AI Assistant and AI Chat to include comprehensive wind shear analysis for aviation safety and atmospheric understanding
+- **Multi-Level Wind Shear Calculation**: AI systems now automatically calculate directional differences between surface and upper level winds with meteorological accuracy
+- **Aviation Safety Context**: Wind shear information includes severity classification (minimal/low/moderate/high/extreme) and aviation impact assessments
+- **Pilot-Friendly Analysis**: Wind shear data presented in clear format: "61° directional difference (moderate shear)" with specific aviation safety implications
+- **Real-Time Shear Detection**: AI systems process live multi-level wind data to identify atmospheric turbulence and stability conditions critical for flight operations
+- **Enhanced Weather Briefings**: Both AI Assistant and AI Chat now include wind shear analysis in their comprehensive weather discussions for complete atmospheric assessment
+- **Professional Standards**: Uses aviation meteorology standards for wind shear classification and impact determination
+- **User-Friendly Presentation**: Complex atmospheric data explained in accessible terms for both pilots and general users interested in atmospheric conditions
+
 ### Multi-Level Wind Vector Calculation System (July 23, 2025)
 - **Implemented Aviation-Style Vector Mathematics**: Enhanced Open-Meteo integration to collect surface winds (wind_speed_10m, wind_direction_10m) alongside upper level winds for comprehensive storm movement calculations
 - **Four-Level Wind Data Collection**: Now gathers wind data from Surface (10m/33ft), 850mb (~5,000ft), 700mb (~10,000ft), and 500mb (~18,000ft) pressure levels

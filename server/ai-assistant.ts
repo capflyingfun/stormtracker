@@ -442,6 +442,7 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
         .filter(analysis => analysis.intersects) : []
     } : null;
 
+    // Enhanced wind data processing with wind shear analysis
     const windContext = (data.winds || []).filter(wind => {
       // Only include winds with valid data
       return wind.speed > 0 && wind.direction >= 0 && wind.direction <= 360;
@@ -452,6 +453,7 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       if (wind.level) {
         // Convert pressure levels to user-friendly descriptions
         const pressureToAltitude = {
+          'Surface': 'Surface (33 ft)',
           '500mb': '500mb (~18,000 ft)',
           '700mb': '700mb (~10,000 ft)', 
           '850mb': '850mb (~5,000 ft)',
@@ -474,7 +476,8 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
           700: '~10,000 ft',
           850: '~5,000 ft',
           925: '~2,500 ft',
-          1000: 'surface'
+          1000: 'surface',
+          1013: 'surface'
         };
         const approxAlt = pressureToFeet[wind.pressure] || '';
         altitudeDisplay = approxAlt ? `${wind.pressure}mb (${approxAlt})` : `${wind.pressure}mb`;
@@ -487,12 +490,42 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
         return {
           altitude: altitudeDisplay,
           speed: `${wind.speed} mph`,
-          direction: `${wind.direction}°`
+          direction: `${wind.direction}°`,
+          isSurface: wind.isSurface || wind.level === 'Surface'
         };
       }
       
       return null;
     }).filter(wind => wind !== null); // Remove any null entries
+
+    // Calculate wind shear information from multi-level wind data
+    let windShearAnalysis = null;
+    if (windContext.length >= 2) {
+      const surfaceWind = windContext.find(w => w.isSurface);
+      const upperWind = windContext.find(w => !w.isSurface);
+      
+      if (surfaceWind && upperWind) {
+        const surfaceDir = parseInt(surfaceWind.direction);
+        const upperDir = parseInt(upperWind.direction);
+        const shearMagnitude = Math.abs(((upperDir - surfaceDir + 180) % 360) - 180);
+        
+        let shearSeverity = 'low';
+        if (shearMagnitude >= 80) shearSeverity = 'extreme';
+        else if (shearMagnitude >= 60) shearSeverity = 'high';
+        else if (shearMagnitude >= 40) shearSeverity = 'moderate';
+        else if (shearMagnitude >= 20) shearSeverity = 'low';
+        else shearSeverity = 'minimal';
+
+        windShearAnalysis = {
+          magnitude: shearMagnitude,
+          severity: shearSeverity,
+          surfaceWind: `${surfaceDir}° at ${surfaceWind.speed}`,
+          upperWind: `${upperDir}° at ${upperWind.speed}`,
+          aviationImpact: shearMagnitude >= 40 ? 'Significant for aviation operations' : 
+                         shearMagnitude >= 20 ? 'Moderate turbulence possible' : 'Minimal aviation impact'
+        };
+      }
+    }
 
     const prompt = `You are a helpful, knowledgeable weather assistant that provides real-time weather briefings for both aviation users and the general public.
 
@@ -502,7 +535,7 @@ When given a location, present weather information in a natural, flowing analysi
 
 Available sections (only discuss if data exists):
 1. Weather Alerts – Report any current warnings, watches, advisories, or hazards from the NWS or other relevant agencies.
-2. Winds Aloft – Include wind direction and speed at multiple altitudes, especially useful for pilots or balloonists.
+2. Winds Aloft – Include wind direction and speed at multiple altitudes, plus wind shear analysis when available (directional differences between surface and upper level winds). Wind shear is critical for aviation safety and atmospheric stability.
 3. Active Storms / Radar Summary – Describe any thunderstorm activity, reflectivity values (dBZ), movement, lightning presence, or storm cells nearby.
 4. Airport Info (METAR/TAF) – Include current weather, visibility, wind, and short-term forecast from nearby airports. Clarify technical terms for public users.
 5. Area Forecast Discussion – Briefly summarize the official forecast discussion and highlight key weather impacts.
@@ -545,7 +578,7 @@ ${activeAlerts.length > 0 ?
   '✅ No active weather alerts or advisories'}
 
 ${windContext.length > 0 ? 
-  `=== WINDS ALOFT (STORM STEERING) ===\n${windContext.map(wind => `• ${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}` :
+  `=== WINDS ALOFT (STORM STEERING) ===\n${windContext.map(wind => `• ${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}${windShearAnalysis ? `\n\n🌪️ WIND SHEAR ANALYSIS:\n• Directional difference: ${windShearAnalysis.magnitude}° (${windShearAnalysis.severity} shear)\n• Surface: ${windShearAnalysis.surfaceWind}\n• Upper level: ${windShearAnalysis.upperWind}\n• Aviation impact: ${windShearAnalysis.aviationImpact}` : ''}` :
   ''}
 
 === ACTIVE STORMS & RADAR ===
