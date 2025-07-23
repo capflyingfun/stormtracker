@@ -340,18 +340,22 @@ export default function SonarRadar({
     const resizeCanvas = () => {
       const container = canvas.parentElement;
       if (container) {
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
-        const size = Math.min(containerWidth, containerHeight, 600); // Square size, max 600px
+        const containerRect = container.getBoundingClientRect();
+        const size = Math.min(containerRect.width, containerRect.height);
         
-        // Set actual canvas dimensions
-        canvas.width = size;
-        canvas.height = size;
+        // Set actual canvas resolution (high resolution for crisp rendering)
+        canvas.width = size * 2; // 2x for high DPI
+        canvas.height = size * 2;
         
-        // Set display size to maintain square
+        // Scale down display for crisp rendering
         canvas.style.width = `${size}px`;
         canvas.style.height = `${size}px`;
-        canvas.style.display = 'block';
+        
+        // Scale context for high DPI
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.scale(2, 2);
+        }
         
         drawSonarDisplay();
       }
@@ -386,14 +390,19 @@ export default function SonarRadar({
       </div>
 
       {/* Radar Display */}
-      <div className="relative p-4">
-        <div className="aspect-square w-full max-w-[600px] mx-auto">
+      <div className="relative p-4 flex justify-center items-center">
+        <div className="relative" style={{ width: '600px', height: '600px', maxWidth: '100%', maxHeight: '100%' }}>
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
             onMouseMove={handleCanvasMouseMove}
-            className="w-full h-full block"
-            style={{ imageRendering: 'pixelated', aspectRatio: '1/1' }}
+            className="block border border-slate-700/30 rounded-lg"
+            style={{ 
+              imageRendering: 'pixelated',
+              width: '100%',
+              height: '100%',
+              aspectRatio: '1/1'
+            }}
           />
         </div>
 

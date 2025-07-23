@@ -919,10 +919,7 @@ export default function StormTracker() {
                     <Simple3DCanvas 
                       location={location} 
                       precipitationStorms={precipitationStorms}
-                      useMetric={useMetric}
-                      formatDistance={formatDistance}
-                      formatSpeed={formatSpeed}
-                      stormFilters={stormFilters}
+                      setViewMode={setViewMode}
                     />
                   )}
                 </div>
