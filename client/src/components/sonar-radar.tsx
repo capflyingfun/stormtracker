@@ -44,7 +44,7 @@ export default function SonarRadar({
   const [isScanning, setIsScanning] = useState(true);
   const [selectedStorm, setSelectedStorm] = useState<Storm | null>(null);
   const [hoveredStorm, setHoveredStorm] = useState<Storm | null>(null);
-  const [waypointLastScan, setWaypointLastScan] = useState<Map<string, number>>(new Map());
+  // Removed waypoint fading state - keeping storm dots solid
 
   const getStormColor = (intensity: number): string => {
     if (intensity >= 65) return '#ff00ff'; // Purple - Extreme
@@ -73,28 +73,7 @@ export default function SonarRadar({
     return 'Very Light';
   };
 
-  const calculateWaypointOpacity = (stormId: string): number => {
-    const lastScan = waypointLastScan.get(stormId);
-    if (!lastScan) return 0.3; // Minimum opacity for unscanned waypoints
-    
-    const timeSinceLastScan = Date.now() - lastScan;
-    const fadeTime = 12000; // 12 seconds to fade completely (matches radar sweep rotation)
-    
-    // Calculate opacity: 1.0 at scan time, fading to 0.3 over fadeTime
-    const opacity = Math.max(0.3, 1.0 - (timeSinceLastScan / fadeTime) * 0.7);
-    return opacity;
-  };
-
-  const isStormInSweepPath = (storm: Storm, sweepAngle: number): boolean => {
-    // Use the storm's direction property directly (already calculated bearing from user)
-    const stormBearing = storm.direction; // This is already the correct bearing
-    
-    // Check if sweep line is within 5 degrees of storm
-    const angleDiff = Math.abs(sweepAngle - stormBearing);
-    const minAngleDiff = Math.min(angleDiff, 360 - angleDiff);
-    
-    return minAngleDiff <= 5;
-  };
+  // Removed fading-related functions - keeping storm dots solid
 
   const drawSonarDisplay = () => {
     const canvas = canvasRef.current;
@@ -212,10 +191,9 @@ export default function SonarRadar({
 
       const color = getStormColor(storm.intensity);
       const size = getStormSize(storm.intensity);
-      const opacity = calculateWaypointOpacity(storm.id);
 
-      // Apply opacity to storm blip
-      ctx.globalAlpha = opacity;
+      // Keep storm blips solid (no fading)
+      ctx.globalAlpha = 1.0;
       
       // Draw storm blip with glow effect
       ctx.shadowColor = color;
@@ -231,10 +209,11 @@ export default function SonarRadar({
         const pulseSize = size + Math.sin(Date.now() / 200) * 2;
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
-        ctx.globalAlpha = opacity * 0.5;
+        ctx.globalAlpha = 0.5;
         ctx.beginPath();
         ctx.arc(x, y, pulseSize, 0, 2 * Math.PI);
         ctx.stroke();
+        ctx.globalAlpha = 1.0;
       }
 
       ctx.shadowBlur = 0;
@@ -350,16 +329,7 @@ export default function SonarRadar({
         // 12 seconds for full rotation = 360°/12s = 0.5° per frame at 60fps
         const newAngle = (prev + 0.5) % 360;
         
-        // Check which storms are being scanned at this angle
-        storms.forEach((storm) => {
-          if (isStormInSweepPath(storm, newAngle)) {
-            setWaypointLastScan(prevMap => {
-              const newMap = new Map(prevMap);
-              newMap.set(storm.id, Date.now());
-              return newMap;
-            });
-          }
-        });
+        // No need to track storm scanning for solid waypoints
         
         return newAngle;
       });
@@ -378,7 +348,7 @@ export default function SonarRadar({
   // Redraw canvas
   useEffect(() => {
     drawSonarDisplay();
-  }, [sweepAngle, storms, selectedStorm, hoveredStorm, radarRange, useMetric, waypointLastScan]);
+  }, [sweepAngle, storms, selectedStorm, hoveredStorm, radarRange, useMetric]);
 
   // Resize canvas
   useEffect(() => {
