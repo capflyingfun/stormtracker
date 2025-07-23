@@ -81,7 +81,7 @@ export default function SonarRadar({
 
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
-    const maxRadius = Math.min(centerX, centerY) - 80; // Much more margin for compass labels
+    const maxRadius = Math.min(centerX, centerY) - 40; // Balanced margin for compass labels
 
     // Clear canvas
     ctx.fillStyle = '#0f172a';
@@ -121,8 +121,8 @@ export default function SonarRadar({
     for (let i = 0; i < 8; i++) {
       const angle = i * 45;
       const radians = ((angle - 90) * Math.PI) / 180;
-      const x = centerX + Math.cos(radians) * (maxRadius + 35);
-      const y = centerY + Math.sin(radians) * (maxRadius + 35);
+      const x = centerX + Math.cos(radians) * (maxRadius + 20);
+      const y = centerY + Math.sin(radians) * (maxRadius + 20);
       ctx.fillStyle = '#94a3b8';
       ctx.font = '12px monospace';
       ctx.fillText(majorDirections[i], x, y);
@@ -135,8 +135,8 @@ export default function SonarRadar({
       // Skip major directions (multiples of 45°)
       if (angle % 45 !== 0) {
         const radians = ((angle - 90) * Math.PI) / 180;
-        const x = centerX + Math.cos(radians) * (maxRadius + 28);
-        const y = centerY + Math.sin(radians) * (maxRadius + 28);
+        const x = centerX + Math.cos(radians) * (maxRadius + 18);
+        const y = centerY + Math.sin(radians) * (maxRadius + 18);
         ctx.fillText(angle.toString().padStart(3, '0'), x, y);
       }
     }
@@ -387,7 +387,7 @@ export default function SonarRadar({
 
       {/* Radar Display */}
       <div className="relative p-4 flex justify-center items-center">
-        <div className="relative aspect-square" style={{ width: '700px', maxWidth: '100%' }}>
+        <div className="relative aspect-square" style={{ width: '600px', maxWidth: '100%' }}>
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
