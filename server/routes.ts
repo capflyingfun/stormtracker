@@ -2042,14 +2042,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get Winds Aloft data from Open-Meteo API (current + forecast)
   async function getOpenMeteoWindsAloft(lat: number, lon: number) {
     try {
-      // Open-Meteo pressure level API for winds aloft
+      // Open-Meteo pressure level API for winds aloft + surface winds for vector calculations
       const params = new URLSearchParams({
         latitude: lat.toString(),
         longitude: lon.toString(),
-        current: 'wind_speed_500hPa,wind_direction_500hPa,wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa',
-        hourly: 'wind_speed_500hPa,wind_direction_500hPa,wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa',
+        current: 'wind_speed_10m,wind_direction_10m,wind_speed_500hPa,wind_direction_500hPa,wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa',
+        hourly: 'wind_speed_10m,wind_direction_10m,wind_speed_500hPa,wind_direction_500hPa,wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa',
         forecast_days: '1',
-        timezone: 'auto'
+        timezone: 'auto',
+        wind_speed_unit: 'ms'
       });
 
       const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
@@ -2066,17 +2067,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const data = await response.json();
       
-      // Extract current winds aloft data
+      // Debug: Check what data we received
+      console.log('Open-Meteo wind data received:', {
+        surface: { speed: data.current.wind_speed_10m, direction: data.current.wind_direction_10m },
+        upper: { 
+          '500mb': { speed: data.current.wind_speed_500hPa, direction: data.current.wind_direction_500hPa },
+          '700mb': { speed: data.current.wind_speed_700hPa, direction: data.current.wind_direction_700hPa },
+          '850mb': { speed: data.current.wind_speed_850hPa, direction: data.current.wind_direction_850hPa }
+        }
+      });
+      
+      // Extract current winds aloft data + surface winds for multi-level calculations
       const windsAloft = [];
       
-      // 500mb level (~18,000 ft) - primary storm steering level
-      if (data.current.wind_speed_500hPa && data.current.wind_direction_500hPa) {
+      // Surface winds (10m) - important for low-level storm interaction
+      if (data.current.wind_speed_10m && data.current.wind_direction_10m) {
+        const surfaceWind = {
+          altitude: 33, // 10 meters = 33 feet
+          direction: data.current.wind_direction_10m,
+          speed: Math.round(data.current.wind_speed_10m * 1.944), // m/s to knots
+          level: 'Surface',
+          pressure: 1013, // Sea level pressure for surface
+          isSurface: true
+        };
+        windsAloft.push(surfaceWind);
+        console.log('Added surface wind:', surfaceWind);
+      } else {
+        console.log('No surface wind data available');
+      }
+
+      // 850mb level (~5,000 ft) - low-level steering
+      if (data.current.wind_speed_850hPa && data.current.wind_direction_850hPa) {
         windsAloft.push({
-          altitude: 18000,
-          direction: data.current.wind_direction_500hPa,
-          speed: Math.round(data.current.wind_speed_500hPa * 1.944), // m/s to knots
-          level: '500mb',
-          pressure: 500
+          altitude: 5000,
+          direction: data.current.wind_direction_850hPa,
+          speed: Math.round(data.current.wind_speed_850hPa * 1.944), // m/s to knots
+          level: '850mb',
+          pressure: 850
         });
       }
 
@@ -2091,14 +2118,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // 850mb level (~5,000 ft) - low-level steering
-      if (data.current.wind_speed_850hPa && data.current.wind_direction_850hPa) {
+      // 500mb level (~18,000 ft) - primary storm steering level
+      if (data.current.wind_speed_500hPa && data.current.wind_direction_500hPa) {
         windsAloft.push({
-          altitude: 5000,
-          direction: data.current.wind_direction_850hPa,
-          speed: Math.round(data.current.wind_speed_850hPa * 1.944), // m/s to knots
-          level: '850mb',
-          pressure: 850
+          altitude: 18000,
+          direction: data.current.wind_direction_500hPa,
+          speed: Math.round(data.current.wind_speed_500hPa * 1.944), // m/s to knots
+          level: '500mb',
+          pressure: 500
         });
       }
 
@@ -2106,8 +2133,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return null;
       }
 
-      // Calculate storm movement based on pressure level winds
-      const stormMovement = calculateStormMovementFromPressureLevels(windsAloft);
+      // Calculate storm movement using multi-level wind vector calculations
+      const stormMovement = calculateStormMovementWithVectorMath(windsAloft);
 
       return {
         location: { lat, lon },
@@ -2124,9 +2151,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  // Calculate storm movement from pressure level winds (Open-Meteo format)
-  function calculateStormMovementFromPressureLevels(pressureLevelWinds: any[]) {
-    if (!pressureLevelWinds || pressureLevelWinds.length === 0) {
+  // Calculate storm movement using multi-level wind vector mathematics
+  function calculateStormMovementWithVectorMath(allWinds: any[]) {
+    if (!allWinds || allWinds.length === 0) {
       return {
         direction: 0,
         speed: 0,
@@ -2135,25 +2162,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
     }
 
-    // Weight pressure levels by their importance for storm steering
-    let totalDirection = 0;
-    let totalSpeed = 0;
-    let totalWeight = 0;
-
-    for (const wind of pressureLevelWinds) {
-      // 500mb is primary storm steering level (highest weight)
-      // 700mb is secondary steering level (medium weight)
-      // 850mb is low-level influence (lower weight)
-      const weight = wind.pressure === 500 ? 3.0 :  // 500mb - primary steering
-                     wind.pressure === 700 ? 2.0 :  // 700mb - secondary steering
-                     wind.pressure === 850 ? 1.0 :  // 850mb - low-level
-                     1.0;
-
-      totalDirection += wind.direction * weight;
-      totalSpeed += wind.speed * weight;
-      totalWeight += weight;
+    // Convert all wind vectors to cartesian components for vector addition
+    const windVectors = [];
+    
+    for (const wind of allWinds) {
+      // Convert wind direction to storm movement direction (add 180°)
+      const stormDirection = (wind.direction + 180) % 360;
+      
+      // Convert direction to radians
+      const directionRadians = (stormDirection * Math.PI) / 180;
+      
+      // Calculate cartesian components (x = east, y = north)
+      const speedKnots = wind.speed;
+      const xComponent = speedKnots * Math.sin(directionRadians);  // East component
+      const yComponent = speedKnots * Math.cos(directionRadians);  // North component
+      
+      // Assign weights based on meteorological importance
+      let weight;
+      if (wind.isSurface) {
+        weight = 1.0;  // Surface winds - important for low-level interaction
+      } else if (wind.pressure === 850) {
+        weight = 1.5;  // 850mb - low-level steering
+      } else if (wind.pressure === 700) {
+        weight = 2.0;  // 700mb - mid-level steering  
+      } else if (wind.pressure === 500) {
+        weight = 3.0;  // 500mb - primary storm steering level
+      } else {
+        weight = 1.0;  // Default weight
+      }
+      
+      windVectors.push({
+        x: xComponent * weight,
+        y: yComponent * weight,
+        weight: weight,
+        level: wind.level,
+        originalSpeed: speedKnots,
+        originalDirection: wind.direction
+      });
     }
 
+    // Calculate total vector components
+    let totalX = 0;
+    let totalY = 0;
+    let totalWeight = 0;
+    
+    for (const vector of windVectors) {
+      totalX += vector.x;
+      totalY += vector.y;
+      totalWeight += vector.weight;
+    }
+    
     if (totalWeight === 0) {
       return {
         direction: 0,
@@ -2163,28 +2221,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
     }
 
-    const avgWindDirection = (totalDirection / totalWeight) % 360;
-    const avgSpeed = totalSpeed / totalWeight;
-
-    // Convert from wind direction (where wind comes FROM) to storm movement direction (where storm moves TO)
-    // Wind direction = where wind comes from, storm movement = where wind flows to (same direction as wind flow)
-    // A 215° wind (from SW) pushes storms toward NE (215° + 180° = 35°)
-    const stormMovementDirection = (avgWindDirection + 180) % 360;
-
-    console.log(`Open-Meteo wind conversion: ${Math.round(avgWindDirection)}° wind → ${Math.round(stormMovementDirection)}° storm movement`);
+    // Calculate weighted average vector components
+    const avgX = totalX / totalWeight;
+    const avgY = totalY / totalWeight;
+    
+    // Convert back to direction and speed
+    const resultantSpeed = Math.sqrt(avgX * avgX + avgY * avgY);
+    let resultantDirection = (Math.atan2(avgX, avgY) * 180) / Math.PI;
+    
+    // Ensure direction is 0-360°
+    if (resultantDirection < 0) {
+      resultantDirection += 360;
+    }
 
     // Convert from knots to mph and apply storm factor (storms move ~70% of wind speed)
-    const stormSpeedMph = Math.round(avgSpeed * 1.151 * 0.7);
+    const stormSpeedMph = Math.round(resultantSpeed * 1.151 * 0.7);
+
+    // Calculate wind shear (difference between surface and upper level winds)
+    const surfaceWind = allWinds.find(w => w.isSurface);
+    const upperWind = allWinds.find(w => w.pressure === 500) || allWinds.find(w => w.pressure === 700);
+    let windShear = 0;
+    let shearSeverity = 'low';
+    
+    if (surfaceWind && upperWind) {
+      const directionDiff = Math.abs(surfaceWind.direction - upperWind.direction);
+      windShear = Math.min(directionDiff, 360 - directionDiff); // Use smaller angle
+      
+      if (windShear > 120) {
+        shearSeverity = 'extreme'; // 180° difference indicates severe weather
+      } else if (windShear > 90) {
+        shearSeverity = 'high';
+      } else if (windShear > 45) {
+        shearSeverity = 'moderate';
+      }
+    }
+
+    const confidence = allWinds.length >= 3 ? 'high' : 
+                      allWinds.length >= 2 ? 'medium' : 'low';
+
+    console.log(`Multi-level wind vector: Surface ${surfaceWind?.direction || 'N/A'}°@${surfaceWind?.speed || 0}kt + Upper ${upperWind?.direction || 'N/A'}°@${upperWind?.speed || 0}kt → ${Math.round(resultantDirection)}° @ ${stormSpeedMph}mph (Shear: ${windShear}°)`);
 
     return {
-      direction: Math.round(stormMovementDirection),
+      direction: Math.round(resultantDirection),
       speed: stormSpeedMph,
-      confidence: pressureLevelWinds.length >= 2 ? 'high' : 'medium',
-      method: 'pressure_level_winds',
-      sourceWinds: pressureLevelWinds.length,
-      steeringLevel: pressureLevelWinds.find(w => w.pressure === 500) ? '500mb' : 
-                     pressureLevelWinds.find(w => w.pressure === 700) ? '700mb' : '850mb'
+      confidence: confidence,
+      method: 'multi_level_vector_math',
+      sourceWinds: allWinds.length,
+      windShear: Math.round(windShear),
+      shearSeverity: shearSeverity,
+      components: {
+        surface: surfaceWind ? {
+          direction: surfaceWind.direction,
+          speed: surfaceWind.speed,
+          level: surfaceWind.level
+        } : null,
+        upperLevel: upperWind ? {
+          direction: upperWind.direction,
+          speed: upperWind.speed,
+          level: upperWind.level
+        } : null
+      }
     };
+  }
+
+  // Keep legacy function for fallback compatibility
+  function calculateStormMovementFromPressureLevels(pressureLevelWinds: any[]) {
+    // Use new vector math function
+    return calculateStormMovementWithVectorMath(pressureLevelWinds);
   }
 
   // Get Winds Aloft data from NOAA Aviation Weather API
