@@ -111,7 +111,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   
   // Arrow timing sync with AI Assistant (2.5 second delay)
   const [showArrows, setShowArrows] = useState(false);
-  const arrowTimerRef = useRef<NodeJS.Timeout>();
+  const arrowTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const backupTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Storm cone visualization state
   const [showAllStormTracks, setShowAllStormTracks] = useState(false);
@@ -148,12 +149,17 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       setShowArrows(false);
       setCurrentWindsData(null);
       
-      // Clear any existing arrow timer
+      // Clear any existing arrow timers
       if (arrowTimerRef.current) {
         clearTimeout(arrowTimerRef.current);
+        arrowTimerRef.current = null;
+      }
+      if (backupTimerRef.current) {
+        clearTimeout(backupTimerRef.current);
+        backupTimerRef.current = null;
       }
       
-      console.log('Location changed: Reset arrow timing for new area');
+      console.log('Location changed: Reset arrow timing and cleared all timers for new area');
     }
   }, [location?.lat, location?.lon]);
 
@@ -162,6 +168,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return () => {
       if (arrowTimerRef.current) {
         clearTimeout(arrowTimerRef.current);
+      }
+      if (backupTimerRef.current) {
+        clearTimeout(backupTimerRef.current);
       }
       if (autoSampleTimeoutRef.current) {
         clearTimeout(autoSampleTimeoutRef.current);
@@ -757,20 +766,48 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         clearTimeout(arrowTimerRef.current);
       }
       
-      // Set timer for 2.5 seconds to sync with AI Assistant timing
+      // Always set timer for 2.5 seconds to ensure arrows show
       arrowTimerRef.current = setTimeout(() => {
         setShowArrows(true);
         console.log('Arrow timer: Enabling arrows after 2.5 second delay (synced with AI Assistant)');
       }, 2500);
+      
+      // Clear any existing backup timer
+      if (backupTimerRef.current) {
+        clearTimeout(backupTimerRef.current);
+      }
+      
+      // Backup timer to ensure arrows always show eventually (8 seconds max)
+      backupTimerRef.current = setTimeout(() => {
+        setShowArrows(true);
+        console.log('Backup timer: Enabling arrows after 8 seconds (failsafe)');
+      }, 8000);
     }
 
+    // Track storm detection start time for arrow timing
+    const detectionStartTime = Date.now();
+    
     // Fetch winds aloft data for movement prediction (only once per update)
     const windsData = await fetchWindsAloft(location.lat, location.lon);
     if (windsData) {
       setCurrentWindsData(windsData); // Store for arrow directions
-      // If winds data arrives quickly, show arrows immediately
-      setShowArrows(true);
-      console.log('Winds aloft: Enabling arrows immediately (data available)');
+      // If winds data arrives quickly (within 800ms), show arrows immediately
+      const dataLoadTime = Date.now() - detectionStartTime;
+      if (dataLoadTime < 800) {
+        setShowArrows(true);
+        console.log(`Winds aloft: Enabling arrows immediately (data loaded in ${dataLoadTime}ms)`);
+        // Clear both timers since we're showing arrows immediately
+        if (arrowTimerRef.current) {
+          clearTimeout(arrowTimerRef.current);
+          arrowTimerRef.current = null;
+        }
+        if (backupTimerRef.current) {
+          clearTimeout(backupTimerRef.current);
+          backupTimerRef.current = null;
+        }
+      } else {
+        console.log(`Winds aloft: Data received in ${dataLoadTime}ms, waiting for timer sync`);
+      }
     }
 
     // Convert precipitation clusters to storm format with movement data
