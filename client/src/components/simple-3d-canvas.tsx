@@ -76,12 +76,12 @@ const project3D = (point: Point3D, cameraDistance: number, canvasWidth: number, 
 const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number): Point3D => {
   // Simple flat projection for local area (30-mile radius)
   const x = (lon - centerLon) * 111320 * Math.cos(centerLat * Math.PI / 180) / 1000; // km
-  const z = (lat - centerLat) * 110540 / 1000; // km
+  const z = -(lat - centerLat) * 110540 / 1000; // km - Inverted Z for correct orientation
   
   return {
     x: x * 0.3,  // Slightly larger scale for better spread
     y: 0,        // Ground level
-    z: z * 0.3   // Normal Z orientation
+    z: z * 0.3   // Inverted Z orientation to fix north/south display
   };
 };
 
