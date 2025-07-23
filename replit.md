@@ -123,6 +123,16 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 23, 2025
 
+### Storm Arrow Display & Visual Effects Fix (July 23, 2025)
+- **Immediate Arrow Display**: Fixed critical arrow timing issue where 200+ storms detected but arrows didn't show on initial load
+- **Eliminated Purple Ring from Map**: Completely removed purple ring effects from map storm markers while preserving them exclusively in modal alerts for severe storms (55+ dBZ)
+- **Instant Arrow Enablement**: Storm arrows now appear immediately when precipitation is detected instead of waiting for 2.5-second timing sync delays
+- **Simplified Arrow Logic**: Removed complex timing coordination, arrows display immediately upon storm detection for responsive user experience
+- **Enhanced Border Effects**: Confirmed intensity-based border effects working correctly - Heavy (Orange), Severe (Red), Extreme (Purple) precipitation levels in modal alerts only
+- **Clean Map Display**: Map markers now show pure storm data without visual distractions while alerts modal provides enhanced severity visualization
+- **Performance Optimization**: Eliminated timer-based delays that caused arrows to not appear, ensuring consistent storm visualization across all scenarios
+- **User-Confirmed Working**: System now consistently shows arrows immediately when storms are detected with proper directional accuracy
+
 ### Storm Direction & Approach Detection Fix (July 23, 2025)
 - **Fixed Critical Direction Bug**: Resolved incorrect bearing calculation where storms displayed opposite directions (SSW storms showing as "NNE of you")
 - **Removed Incorrect +180° Offset**: Eliminated erroneous bearing conversion that was adding 180° to storm directions in immediate safety alerts
