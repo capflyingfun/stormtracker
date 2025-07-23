@@ -78,7 +78,7 @@ export default function SonarRadar({
     if (!lastScan) return 0.3; // Minimum opacity for unscanned waypoints
     
     const timeSinceLastScan = Date.now() - lastScan;
-    const fadeTime = 8000; // 8 seconds to fade completely
+    const fadeTime = 20000; // 20 seconds to fade completely (2.5x longer)
     
     // Calculate opacity: 1.0 at scan time, fading to 0.3 over fadeTime
     const opacity = Math.max(0.3, 1.0 - (timeSinceLastScan / fadeTime) * 0.7);
