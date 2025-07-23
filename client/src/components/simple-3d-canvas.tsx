@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 interface Simple3DCanvasProps {
   location: { lat: number; lon: number; city?: string; } | null;
   precipitationStorms: any[];
-  onClose: () => void;
+  setViewMode: (mode: 'map' | 'sonar' | '3d') => void;
 }
 
 // 3D perspective transformation
@@ -85,7 +85,7 @@ const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number)
   };
 };
 
-export default function Simple3DCanvas({ location, precipitationStorms, onClose }: Simple3DCanvasProps) {
+export default function Simple3DCanvas({ location, precipitationStorms, setViewMode }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(false); // Default to hidden for better performance
   const [rotationY, setRotationY] = useState(0); // Start facing North (0°)
@@ -408,7 +408,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
         <div className="bg-slate-800 p-6 rounded-lg border border-slate-700">
           <h2 className="text-xl font-semibold mb-4">3D Storm View</h2>
           <p className="text-slate-300 mb-4">Location required for 3D visualization</p>
-          <Button onClick={onClose}>Close</Button>
+          <Button onClick={() => setViewMode('map')}>Close</Button>
         </div>
       </div>
     );
@@ -444,7 +444,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, onClose 
 
       {/* Top-Left Controls for Mobile - Aligned with top navigation */}
       <div className="absolute top-4 left-4 z-10 flex gap-2">
-        <Button onClick={onClose} variant="outline" size="sm">
+        <Button onClick={() => setViewMode('map')} variant="outline" size="sm">
           Exit 3D
         </Button>
         <Button
