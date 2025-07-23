@@ -1062,23 +1062,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Group nearby sector storms and keep only the strongest in each area
       const consolidatedStorms = consolidateSectorStorms(sectorStorms);
       
-      // Get winds aloft data for storm movement prediction
-      let stormMovement = { direction: 0, speed: 0, confidence: 'low' };
-      try {
-        const windsData = await getOpenMeteoWindsAloft(centerLat, centerLon);
-        if (windsData && windsData.stormMovement) {
-          stormMovement = windsData.stormMovement;
-        }
-      } catch (error) {
-        console.log('Failed to fetch winds aloft for storm movement, using defaults');
-      }
-
-      // Convert to storm objects with proper formatting including movement data
-      consolidatedStorms.forEach((storm, index) => {
+      // Get winds aloft data for each individual storm location
+      const stormPromises = consolidatedStorms.map(async (storm, index) => {
         const direction = calculateDirection(centerLat, centerLon, storm.lat, storm.lon);
         const bearing = calculateBearing(centerLat, centerLon, storm.lat, storm.lon);
         
-        storms.push({
+        // Fetch winds aloft data specifically for this storm's location
+        let stormMovement = { direction: 0, speed: 0, confidence: 'low' };
+        try {
+          const windsData = await getOpenMeteoWindsAloft(storm.lat, storm.lon);
+          if (windsData && windsData.stormMovement) {
+            stormMovement = windsData.stormMovement;
+          }
+        } catch (error) {
+          console.log(`Failed to fetch winds aloft for storm at ${storm.lat.toFixed(4)}, ${storm.lon.toFixed(4)}, using defaults`);
+        }
+        
+        return {
           id: `storm_${Date.now()}_${index}`,
           lat: storm.lat,
           lon: storm.lon,
@@ -1099,8 +1099,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             eta: calculateETA(storm.distance, stormMovement.speed),
             impact: calculateImpactLevel(storm.distance, stormMovement.direction, bearing)
           } : null
-        });
+        };
       });
+      
+      // Wait for all per-storm winds aloft data to be fetched
+      const stormResults = await Promise.all(stormPromises);
+      storms.push(...stormResults);
       
     } catch (error) {
       console.error("RainViewer analysis error:", error);
