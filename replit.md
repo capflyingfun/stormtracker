@@ -123,6 +123,14 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Recent Changes - July 23, 2025
 
+### Storm Arrow Direction Bug Fix (July 23, 2025)
+- **Resolved Race Condition**: Fixed timing issue where storm arrows displayed incorrect 109° direction before winds aloft data loaded
+- **Eliminated Initial Direction Bug**: Storm arrows now consistently use correct 199° direction from Open-Meteo winds aloft API
+- **Removed Debug Timing Issue**: Fixed race condition where arrows rendered before currentWindsData was available, causing fallback to 135° or cached values
+- **Consistent Arrow Direction**: All storm arrows now properly align with authentic atmospheric wind patterns (19° wind from → 199° storm movement SSW)
+- **Enhanced Data Loading**: Improved synchronization between winds aloft API calls and storm arrow rendering to prevent direction misalignment
+- **User Confirmed Fix**: Storm arrow direction now displays correctly without requiring refresh button press
+
 ### Storm Movement Bearing Enhancement (July 23, 2025)
 - **Enhanced Movement Display Format**: Updated all storm movement displays to show bearing format "S (191°) @ 31 mph" for better directional clarity
 - **Storm Panel Update**: Modified `windsPrediction` display in storm-panel.tsx to include compass bearing in parentheses
