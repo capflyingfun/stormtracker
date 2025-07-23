@@ -777,8 +777,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     // Trigger custom event to update storm data
     console.log(`DISPATCH EVENT: Dispatching precipitationStormData event with ${stormCells.length} storm cells for alert system`);
     console.log('DISPATCH EVENT: Storm cells being sent:', stormCells.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
-    if (windsData) {
-      console.log('WINDS ALOFT: Movement prediction available:', windsData.stormMovement);
+    if (centerWindsData) {
+      console.log('WINDS ALOFT: Movement prediction available:', centerWindsData.stormMovement);
     }
     window.dispatchEvent(new CustomEvent('precipitationStormData', {
       detail: stormCells
