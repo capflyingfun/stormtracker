@@ -626,7 +626,7 @@ export default function StormTracker() {
                         </div>
                         {closestStorm.windsPrediction && (
                           <div className="text-xs text-slate-300 space-y-1">
-                            <div>Movement: {getDirectionName(impact.stormDirection)} @ {formatSpeed(impact.movementSpeed)}</div>
+                            <div>Movement: {getDirectionName(impact.stormDirection)} ({impact.stormDirection.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
                             <div className="flex justify-between">
                               <span>Impact: <span className={`${impact.impactChance === 'High' ? 'text-red-400' : impact.impactChance === 'Medium' ? 'text-yellow-400' : 'text-green-400'}`}>{impact.impactChance}</span></span>
                               <span>ETA: {impact.eta}</span>
@@ -708,7 +708,7 @@ export default function StormTracker() {
                         </div>
                         {strongestStorm.windsPrediction && (
                           <div className="text-xs text-slate-300 space-y-1">
-                            <div>Movement: {getDirectionName(impact.stormDirection)} @ {formatSpeed(impact.movementSpeed)}</div>
+                            <div>Movement: {getDirectionName(impact.stormDirection)} ({impact.stormDirection.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
                             <div className="flex justify-between">
                               <span>Impact: <span className={`${impact.impactChance === 'High' ? 'text-red-400' : impact.impactChance === 'Medium' ? 'text-yellow-400' : 'text-green-400'}`}>{impact.impactChance}</span></span>
                               <span>ETA: {impact.eta}</span>
