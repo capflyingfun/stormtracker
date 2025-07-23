@@ -31,8 +31,38 @@ html {
   animation: storm-pulse 1s ease-in-out infinite;
 }
 
-/* Severe storm purple ring animation for modal alerts */
-@keyframes severe-storm-ring {
+/* Intensity-based border effects for modal alerts */
+@keyframes heavy-rain-ring {
+  0% {
+    border-color: rgba(249, 115, 22, 0.8);
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.8), 0 0 15px rgba(249, 115, 22, 0.4);
+  }
+  50% {
+    border-color: rgba(249, 115, 22, 1);
+    box-shadow: 0 0 0 8px rgba(249, 115, 22, 0.3), 0 0 30px rgba(249, 115, 22, 0.6);
+  }
+  100% {
+    border-color: rgba(249, 115, 22, 0.8);
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.8), 0 0 15px rgba(249, 115, 22, 0.4);
+  }
+}
+
+@keyframes severe-rain-ring {
+  0% {
+    border-color: rgba(239, 68, 68, 0.8);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8), 0 0 15px rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    border-color: rgba(239, 68, 68, 1);
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.3), 0 0 30px rgba(239, 68, 68, 0.6);
+  }
+  100% {
+    border-color: rgba(239, 68, 68, 0.8);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8), 0 0 15px rgba(239, 68, 68, 0.4);
+  }
+}
+
+@keyframes extreme-rain-ring {
   0% {
     border-color: rgba(168, 85, 247, 0.8);
     box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.8), 0 0 15px rgba(168, 85, 247, 0.4);
@@ -47,17 +77,47 @@ html {
   }
 }
 
-.severe-storm-ring {
+.heavy-rain-ring {
   position: relative;
 }
 
-.severe-storm-ring::before {
+.heavy-rain-ring::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 2px solid rgba(249, 115, 22, 0.8);
+  border-radius: 0.5rem;
+  animation: heavy-rain-ring 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.severe-rain-ring {
+  position: relative;
+}
+
+.severe-rain-ring::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 2px solid rgba(239, 68, 68, 0.8);
+  border-radius: 0.5rem;
+  animation: severe-rain-ring 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.extreme-rain-ring {
+  position: relative;
+}
+
+.extreme-rain-ring::before {
   content: '';
   position: absolute;
   inset: -3px;
   border: 2px solid rgba(168, 85, 247, 0.8);
   border-radius: 0.5rem;
-  animation: severe-storm-ring 2s ease-in-out infinite;
+  animation: extreme-rain-ring 2s ease-in-out infinite;
   pointer-events: none;
   z-index: 1;
 }
