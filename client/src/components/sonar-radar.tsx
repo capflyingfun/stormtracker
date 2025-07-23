@@ -97,11 +97,11 @@ export default function SonarRadar({
       ctx.stroke();
     }
 
-    // Draw compass lines
+    // Draw compass lines (North at top)
     ctx.strokeStyle = '#334155';
     ctx.lineWidth = 1;
     for (let angle = 0; angle < 360; angle += 30) {
-      const radians = (angle * Math.PI) / 180;
+      const radians = ((angle - 90) * Math.PI) / 180; // -90 to put North at top
       const x1 = centerX + Math.cos(radians) * maxRadius * 0.9;
       const y1 = centerY + Math.sin(radians) * maxRadius * 0.9;
       ctx.beginPath();
@@ -340,8 +340,19 @@ export default function SonarRadar({
     const resizeCanvas = () => {
       const container = canvas.parentElement;
       if (container) {
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientWidth; // Square aspect ratio
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        const size = Math.min(containerWidth, containerHeight, 600); // Square size, max 600px
+        
+        // Set actual canvas dimensions
+        canvas.width = size;
+        canvas.height = size;
+        
+        // Set display size to maintain square
+        canvas.style.width = `${size}px`;
+        canvas.style.height = `${size}px`;
+        canvas.style.display = 'block';
+        
         drawSonarDisplay();
       }
     };
@@ -376,13 +387,13 @@ export default function SonarRadar({
 
       {/* Radar Display */}
       <div className="relative p-4">
-        <div className="aspect-square w-full">
+        <div className="aspect-square w-full max-w-[600px] mx-auto">
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
             onMouseMove={handleCanvasMouseMove}
-            className="w-full h-full"
-            style={{ imageRendering: 'pixelated' }}
+            className="w-full h-full block"
+            style={{ imageRendering: 'pixelated', aspectRatio: '1/1' }}
           />
         </div>
 
