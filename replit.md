@@ -124,11 +124,11 @@ Preferred communication style: Simple, everyday language with customizable AI as
 ## Recent Changes - July 23, 2025
 
 ### Storm Arrow Direction Fix & Map Movement Optimization (July 23, 2025)
-- **Fixed Storm Arrow Direction**: Applied 90° counterclockwise rotation offset to align arrows with storm movement tracks (subtracted 90° from movement direction)
+- **Fixed Storm Arrow Direction**: Applied 90° clockwise rotation offset to align arrows with storm movement tracks (added 90° to movement direction)
 - **Corrected SVG Arrow Orientation**: Modified arrow path and rotation calculation to properly show storm movement direction matching track cones
 - **Removed Winds Aloft Map Movement Updates**: Winds aloft data now stays stable based on user location only, preventing changes when panning/zooming map  
 - **Map Movement Event Optimization**: Auto-sampling continues on map movement but winds aloft updates removed for performance and consistency
-- **Direction Accuracy Achieved**: Storm arrows now properly align with storm track cones (both pointing WSW at 249° for current conditions)
+- **Direction Accuracy Achieved**: Storm arrows now properly align with storm track cones (both pointing SSW at 249° for current conditions)
 
 ### AI Assistant & Display Optimization (July 23, 2025)
 - **Concise Storm Movement Display**: Updated AI assistant to lead with concise storm movement statements like "Storms are moving W (261°) at 30 mph based on upper level winds"
