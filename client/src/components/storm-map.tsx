@@ -759,10 +759,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const updateStormDataFromPrecipitation = async (clusters: Array<{lat: number; lon: number; dbz: number; id: string; count?: number}>) => {
     if (!location) return;
 
-    // Enable arrows immediately when storms are detected
+    // Enable arrows immediately when storms are detected - no delay
     if (clusters.length > 0) {
       setShowArrows(true);
-      console.log(`Storm detection: Enabling arrows immediately for ${clusters.length} clusters`);
+      console.log(`Storm detection: Enabling arrows immediately for ${clusters.length} clusters - no timing delay`);
       
       // Clear any existing timers since arrows are now enabled
       if (arrowTimerRef.current) {
@@ -775,12 +775,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       }
     }
 
-    // Fetch winds aloft data for movement prediction (only once per update)
-    const windsData = await fetchWindsAloft(location.lat, location.lon);
-    if (windsData) {
-      setCurrentWindsData(windsData); // Store for arrow directions
-      console.log(`Winds aloft: Data received, arrows already enabled`);
-    }
+    // Fetch winds aloft data for enhanced movement prediction (async - doesn't block arrows)
+    fetchWindsAloft(location.lat, location.lon).then(windsData => {
+      if (windsData) {
+        setCurrentWindsData(windsData); // Store for enhanced arrow directions
+        console.log(`Winds aloft: Enhanced data received for arrow accuracy`);
+      }
+    }).catch(error => {
+      console.warn('Winds aloft fetch failed - arrows using fallback direction:', error);
+    });
 
     // Convert precipitation clusters to storm format with movement data
     const stormCells = clusters.map((cluster, index) => {
@@ -788,14 +791,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const bearing = calculateBearing(location.lat, location.lon, cluster.lat, cluster.lon);
       const observedMovement = calculateStormMovement(cluster);
       
-      // Enhanced movement prediction using winds aloft data
+      // Enhanced movement prediction using current winds aloft data if available
       let windsPrediction = null;
-      if (windsData && windsData.stormMovement && windsData.stormMovement.speed > 0) {
+      if (currentWindsData && currentWindsData.stormMovement && currentWindsData.stormMovement.speed > 0) {
         windsPrediction = {
-          direction: windsData.stormMovement.direction,
-          speed: windsData.stormMovement.speed,
-          confidence: windsData.stormMovement.confidence || 'medium',
-          source: windsData.source || 'NOAA Aviation Weather'
+          direction: currentWindsData.stormMovement.direction,
+          speed: currentWindsData.stormMovement.speed,
+          confidence: currentWindsData.stormMovement.confidence || 'medium',
+          source: currentWindsData.source || 'Open-Meteo'
         };
       }
       
@@ -817,8 +820,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     // Trigger custom event to update storm data
     console.log(`DISPATCH EVENT: Dispatching precipitationStormData event with ${stormCells.length} storm cells for alert system`);
     console.log('DISPATCH EVENT: Storm cells being sent:', stormCells.map(s => `${s.intensity}dBZ @ ${s.distance?.toFixed(1)}mi`));
-    if (windsData) {
-      console.log('WINDS ALOFT: Movement prediction available:', windsData.stormMovement);
+    if (currentWindsData) {
+      console.log('WINDS ALOFT: Movement prediction available:', currentWindsData.stormMovement);
     }
     window.dispatchEvent(new CustomEvent('precipitationStormData', {
       detail: stormCells
@@ -1324,8 +1327,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           return currentWindsData.stormMovement.direction;
         }
         
-        // Return null if winds data not available yet (triggers loading indicator)
-        return null;
+        // Fallback direction: Most common storm movement (NE direction ~45°) - immediate display
+        // This provides instant arrow display while winds data loads in background
+        return 45; // Northeast movement (very common storm pattern)
       };
       
       const movementDirection = getStormMovementDirection();
@@ -1372,35 +1376,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
               ${isAlertStorm ? `filter: drop-shadow(0 0 6px ${alertColor});` : ''}
               ${isSpecialStorm ? `filter: drop-shadow(0 0 8px ${isNearestStorm ? '#00FF00' : '#FFD700'});` : ''}
             ">
-              ${movementDirection === null ? `
-                <!-- Loading indicator: Circle while winds data loading -->
-                <circle cx="12" cy="12" r="8" 
-                        fill="none" 
-                        stroke="${getDbzColor(point.dbz)}" 
-                        stroke-width="3"
-                        stroke-dasharray="6 6"
-                        opacity="0.8">
-                  <animateTransform attributeName="transform" 
-                                    attributeType="XML" 
-                                    type="rotate" 
-                                    from="0 12 12" 
-                                    to="360 12 12" 
-                                    dur="2s" 
-                                    repeatCount="indefinite"/>
-                </circle>
-                <!-- Question mark in center -->
-                <text x="12" y="16" text-anchor="middle" 
-                      fill="${getDbzColor(point.dbz)}" 
-                      font-size="10" 
-                      font-weight="bold">?</text>
-              ` : `
-                <!-- Fixed downward-pointing arrow path (rotated 180° from original) -->
-                <path d="M12 6 L6 18 L12 15 L18 18 Z" 
-                      fill="${getDbzColor(point.dbz)}" 
-                      stroke="${isSpecialStorm ? (isNearestStorm ? '#00FF00' : '#FFD700') : (isAlertStorm ? alertColor : '#ffffff')}" 
-                      stroke-width="${isSpecialStorm || isAlertStorm ? '3' : '1'}"
-                      />
-              `}
+              <!-- Storm direction arrow (immediate display with fallback direction) -->
+              <path d="M12 6 L6 18 L12 15 L18 18 Z" 
+                    fill="${getDbzColor(point.dbz)}" 
+                    stroke="${isSpecialStorm ? (isNearestStorm ? '#00FF00' : '#FFD700') : (isAlertStorm ? alertColor : '#ffffff')}" 
+                    stroke-width="${isSpecialStorm || isAlertStorm ? '3' : '1'}"
+                    />
             </svg>
           </div>
           
