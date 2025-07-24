@@ -109,7 +109,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   // Winds aloft data for arrow directions
   const [currentWindsData, setCurrentWindsData] = useState<any>(null);
   
-  // Storm arrows controlled by Storm Tracks toggle (same as cones)
+  // Arrow timing sync with AI Assistant (2.5 second delay)
+  const [showArrows, setShowArrows] = useState(false);
+  const arrowTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const backupTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Storm cone visualization state
   const [showAllStormTracks, setShowAllStormTracks] = useState(false);
@@ -139,17 +142,36 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return () => window.removeEventListener('precipitationStormData', handlePrecipitationStormData as EventListener);
   }, []);
 
-  // Reset winds data when location changes
+  // Reset arrow timing when location changes
   useEffect(() => {
     if (location) {
+      // Reset arrows for new location
+      setShowArrows(false);
       setCurrentWindsData(null);
-      console.log('Location changed: Reset winds data for new area');
+      
+      // Clear any existing arrow timers
+      if (arrowTimerRef.current) {
+        clearTimeout(arrowTimerRef.current);
+        arrowTimerRef.current = null;
+      }
+      if (backupTimerRef.current) {
+        clearTimeout(backupTimerRef.current);
+        backupTimerRef.current = null;
+      }
+      
+      console.log('Location changed: Reset arrow timing and cleared all timers for new area');
     }
   }, [location?.lat, location?.lon]);
 
   // Cleanup timers on unmount
   useEffect(() => {
     return () => {
+      if (arrowTimerRef.current) {
+        clearTimeout(arrowTimerRef.current);
+      }
+      if (backupTimerRef.current) {
+        clearTimeout(backupTimerRef.current);
+      }
       if (autoSampleTimeoutRef.current) {
         clearTimeout(autoSampleTimeoutRef.current);
       }
@@ -739,7 +761,18 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     // Enable arrows immediately when storms are detected - no delay
     if (clusters.length > 0) {
-      console.log(`Storm detection: Found ${clusters.length} precipitation clusters`);
+      setShowArrows(true);
+      console.log(`Storm detection: Enabling arrows immediately for ${clusters.length} clusters - no timing delay`);
+      
+      // Clear any existing timers since arrows are now enabled
+      if (arrowTimerRef.current) {
+        clearTimeout(arrowTimerRef.current);
+        arrowTimerRef.current = null;
+      }
+      if (backupTimerRef.current) {
+        clearTimeout(backupTimerRef.current);
+        backupTimerRef.current = null;
+      }
     }
 
     // Fetch winds aloft data for enhanced movement prediction (async - doesn't block arrows)
@@ -1301,10 +1334,11 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       const movementDirection = getStormMovementDirection();
       
-      // Skip arrow rendering unless storm tracks are enabled
-      // This matches the cone visibility logic - arrows only show when user toggles Storm Tracks
-      if (!showAllStormTracks) {
-        return; // Don't render arrows unless Storm Tracks toggle is enabled
+      // Skip arrow rendering until timing sync is complete
+      // This syncs arrow appearance with AI Assistant timing (2.5 second delay)
+      if (!showArrows) {
+        console.log('Skipping storm arrow rendering - waiting for timing sync with AI Assistant');
+        return; // Don't render arrows until timer/winds data enables them
       }
       
       // Create directional arrow marker with special effects for nearest/strongest storms
