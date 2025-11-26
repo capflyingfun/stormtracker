@@ -542,49 +542,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           }
         });
         
-        // Second pass: Draw labels on priority storms (after all clouds, so labels are on top)
-        priorityList.forEach((storm) => {
-          const { pos3D, color, rotatedPos, distMiles, height } = storm;
-          
-          // Skip if behind camera
-          if (rotatedPos.z >= 0) return;
-          
-          // Calculate screen position
-          const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-          const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-          const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
-          const cloudRadius = Math.max(8, 35 * scale) * 1.2;
-          
-          // Calculate bearing from user to storm
-          const bearingRad = Math.atan2(pos3D.x, -pos3D.z);
-          const bearingDeg = ((bearingRad * 180 / Math.PI) + 360) % 360;
-          const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-          const bearing = dirs[Math.round(bearingDeg / 45) % 8];
-          
-          const labelText = `${bearing} · ${Math.round(distMiles)}mi`;
-          const labelY = top.y - cloudRadius * 0.5 - 14;
-          
-          ctx.font = 'bold 11px sans-serif';
-          const textWidth = ctx.measureText(labelText).width;
-          
-          // Background pill
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-          ctx.beginPath();
-          ctx.roundRect(base.x - textWidth / 2 - 6, labelY - 8, textWidth + 12, 16, 4);
-          ctx.fill();
-          
-          // Border matching storm color
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          
-          // Text
-          ctx.fillStyle = '#FFFFFF';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(labelText, base.x, labelY);
-        });
-        
         // Helper to format ETA as HH:MM
         const formatETA = (minutes: number): string => {
           const hrs = Math.floor(minutes / 60);
@@ -733,10 +690,16 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const etaMins = Math.round(etaMinutes % 60);
           const etaStr = `${etaHrs.toString().padStart(2, '0')}:${etaMins.toString().padStart(2, '0')}`;
           
+          // Calculate bearing from user to storm
+          const bearingRad = Math.atan2(storm.pos3D.x, -storm.pos3D.z);
+          const bearingDeg = ((bearingRad * 180 / Math.PI) + 360) % 360;
+          const bearingDirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+          const bearing = bearingDirs[Math.round(bearingDeg / 45) % 8];
+          
           const catNames: Record<string, string> = { light: 'LT', moderate: 'MD', heavy: 'HV', vheavy: 'VH', extreme: 'EX' };
           const catName = catNames[storm.category] || '??';
           
-          const hudText = `${catName}: ${storm.distMiles.toFixed(1)}mi • ${storm.approachPct}% • ETA ${etaStr}`;
+          const hudText = `${catName}: ${bearing} ${storm.distMiles.toFixed(1)}mi • ${storm.approachPct}% • ETA ${etaStr}`;
           const textWidth = ctx.measureText(hudText).width;
           
           // Background
