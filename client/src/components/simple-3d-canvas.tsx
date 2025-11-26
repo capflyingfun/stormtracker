@@ -101,6 +101,7 @@ interface StormInfo {
 export default function Simple3DCanvas({ location, precipitationStorms, setViewMode }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(false);
+  const [showLegend, setShowLegend] = useState(false); // Collapsible legend
   const rotationRef = useRef(0); // Use ref for animation - no re-renders
   const [displayRotation, setDisplayRotation] = useState(0); // Only for UI display
   const cameraHeight = 8;
@@ -866,45 +867,49 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
 
   return (
     <div className="fixed inset-0 bg-black z-50 select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}>
-      {/* Vertical Legend - Left Side (higher up) */}
-      <div className="absolute bottom-36 left-4 bg-slate-800/90 backdrop-blur-sm rounded-lg p-2 border border-slate-700/50 z-10">
-        <div className="flex flex-col gap-1 text-xs text-slate-300">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#22C55E' }}></div>
-            <span>Light</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EAB308' }}></div>
-            <span>Moderate</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#F97316' }}></div>
-            <span>Heavy</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EF4444' }}></div>
-            <span>V.Heavy</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#8B5CF6' }}></div>
-            <span>Extreme</span>
-          </div>
-        </div>
-      </div>
-
       {/* Top-Left Controls for Mobile - Aligned with top navigation */}
-      <div className="absolute top-4 left-4 z-10 flex gap-2">
+      <div className="absolute top-4 left-4 z-10 flex gap-2 items-start">
         <Button onClick={() => setViewMode('map')} variant="outline" size="sm">
           Exit 3D
         </Button>
-        <Button
-          onClick={() => setShowWaypoints(!showWaypoints)}
-          variant="outline"
-          size="sm"
-          className={`${showWaypoints ? 'bg-blue-600 border-blue-500' : 'bg-slate-700 border-slate-600'}`}
-        >
-          {showWaypoints ? 'Hide' : 'Show'} Dots
-        </Button>
+        {/* Collapsible Legend Button */}
+        <div className="relative">
+          <Button
+            onClick={() => setShowLegend(!showLegend)}
+            variant="outline"
+            size="sm"
+            className={`${showLegend ? 'bg-slate-600 border-slate-500' : 'bg-slate-700 border-slate-600'}`}
+          >
+            {showLegend ? '▲ Legend' : '▼ Legend'}
+          </Button>
+          {/* Expanded Legend Dropdown */}
+          {showLegend && (
+            <div className="absolute top-full left-0 mt-1 bg-slate-800/95 backdrop-blur-sm rounded-lg p-2 border border-slate-600 z-20 min-w-[100px]">
+              <div className="flex flex-col gap-1.5 text-xs text-slate-300">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: '#22C55E' }}></div>
+                  <span>Light</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EAB308' }}></div>
+                  <span>Moderate</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: '#F97316' }}></div>
+                  <span>Heavy</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EF4444' }}></div>
+                  <span>V.Heavy</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: '#8B5CF6' }}></div>
+                  <span>Extreme</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Top-Right Controls for Mobile */}
