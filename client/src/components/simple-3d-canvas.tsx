@@ -561,96 +561,43 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           return dirs[Math.round(((degrees % 360) + 360) % 360 / 22.5) % 16];
         };
         
-        // Draw threat tracks for ALL priority storms with 70%+ probability
-        // Use unified priorityList (already sorted by severity: extreme → light)
-        const threatPriorityStorms = priorityList.filter(s => 
-          s.approachPct >= 70 && s.windsPrediction?.direction && s.windsPrediction?.speed
-        );
+        // Draw ping highlight effect on priority storms (one per category)
+        // Uses pulsing ring animation with category color
+        const pingTime = (Date.now() % 2000) / 2000; // 0-1 cycle over 2 seconds
+        const pingScale = 0.5 + pingTime * 1.5; // Expand from 0.5x to 2x
+        const pingOpacity = Math.max(0, 1 - pingTime); // Fade out as it expands
         
-        // Draw track for EACH priority threat storm (one per category)
-        threatPriorityStorms.forEach((storm, trackIndex) => {
+        priorityList.forEach((storm) => {
           const { pos3D, color } = storm;
           
           // Check if storm is visible (in front of camera after rotation)
           const stormRotated = rotateY({ x: pos3D.x, y: 0.03, z: pos3D.z }, currentRotation);
-          if (stormRotated.z >= 0) {
-            // Storm is behind camera, skip drawing track
-            return;
-          }
+          if (stormRotated.z >= 0) return; // Behind camera
           
-          // Calculate direction FROM storm TO user (opposite of storm movement toward user)
-          // The storm is at pos3D, user is at (0,0,0)
-          const dirToUser = Math.atan2(-pos3D.x, -pos3D.z);
+          // Project storm position to screen
+          const scale = -cameraDistance / stormRotated.z;
+          const baseRadius = 15 * scale; // Base ping size
+          const pingRadius = baseRadius * pingScale;
           
-          // Draw cone from storm position to user position
-          // Cone widens as it approaches user (uncertainty grows)
-          const coneWidth = 0.03;
-          const numSegments = 4; // Storm, 1/3, 2/3, User
-          
-          const conePoints: Point2D[] = [];
-          let allPointsVisible = true;
-          
-          // Left edge of cone (from storm toward user)
-          for (let i = 0; i <= numSegments; i++) {
-            const t = i / numSegments; // 0 = storm, 1 = user
-            const interpX = pos3D.x * (1 - t);
-            const interpZ = pos3D.z * (1 - t);
-            // Spread increases toward user (uncertainty grows with time)
-            const spread = t * coneWidth * Math.sqrt(pos3D.x * pos3D.x + pos3D.z * pos3D.z) * 0.4;
-            const perpAngle = dirToUser + Math.PI / 2;
-            const worldX = interpX + Math.sin(perpAngle) * spread;
-            const worldZ = interpZ + Math.cos(perpAngle) * spread;
-            const rotated = rotateY({ x: worldX, y: 0.03, z: worldZ }, currentRotation);
-            // Check if this point is behind camera
-            if (rotated.z >= -0.1) allPointsVisible = false;
-            conePoints.push(project3D({ ...rotated, y: rotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height));
-          }
-          // Right edge of cone (reverse, from user back to storm)
-          for (let i = numSegments; i >= 0; i--) {
-            const t = i / numSegments;
-            const interpX = pos3D.x * (1 - t);
-            const interpZ = pos3D.z * (1 - t);
-            const spread = t * coneWidth * Math.sqrt(pos3D.x * pos3D.x + pos3D.z * pos3D.z) * 0.4;
-            const perpAngle = dirToUser - Math.PI / 2;
-            const worldX = interpX + Math.sin(perpAngle) * spread;
-            const worldZ = interpZ + Math.cos(perpAngle) * spread;
-            const rotated = rotateY({ x: worldX, y: 0.03, z: worldZ }, currentRotation);
-            // Check if this point is behind camera
-            if (rotated.z >= -0.1) allPointsVisible = false;
-            conePoints.push(project3D({ ...rotated, y: rotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height));
-          }
-          
-          // Only draw if all cone points are in front of camera
-          if (!allPointsVisible) return;
-          
-          // Draw filled cone (use storm color with transparency)
-          ctx.fillStyle = color + '25'; // 15% opacity
-          ctx.beginPath();
-          if (conePoints.length > 0) {
-            ctx.moveTo(conePoints[0].x, conePoints[0].y);
-            conePoints.forEach((p) => ctx.lineTo(p.x, p.y));
-            ctx.closePath();
-            ctx.fill();
-          }
-          
-          // Draw cone outline
-          ctx.strokeStyle = color + '88'; // 53% opacity
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          
-          // Draw center line from storm to user (dashed)
-          // stormRotated already calculated above for visibility check
+          // Get screen position
           const stormProj = project3D({ ...stormRotated, y: stormRotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-          const userProj = project3D({ x: 0, y: 0.03 - cameraHeight, z: 0 }, cameraDistance, canvas.width, canvas.height);
           
-          ctx.strokeStyle = color + 'AA';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([8, 4]);
+          // Draw expanding ping ring
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 3;
+          ctx.globalAlpha = pingOpacity * 0.8;
           ctx.beginPath();
-          ctx.moveTo(stormProj.x, stormProj.y);
-          ctx.lineTo(userProj.x, userProj.y);
+          ctx.arc(stormProj.x, stormProj.y, pingRadius, 0, Math.PI * 2);
           ctx.stroke();
-          ctx.setLineDash([]);
+          
+          // Draw inner solid ring (always visible)
+          ctx.globalAlpha = 0.6;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(stormProj.x, stormProj.y, baseRadius * 0.5, 0, Math.PI * 2);
+          ctx.stroke();
+          
+          ctx.globalAlpha = 1;
         });
         
         // Draw scrolling news-style ticker banner with dynamic multi-storm segments
