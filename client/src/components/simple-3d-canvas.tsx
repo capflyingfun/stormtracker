@@ -114,6 +114,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
   const lastUIUpdate = useRef(0);
   const starPositionsRef = useRef<{x: number; y: number; size: number; speed: number}[]>([]);
   const tickerStartTime = useRef(Date.now()); // Track when ticker started for clean scroll
+  const aiTickerMessagesRef = useRef<Record<string, string[]>>({}); // AI-generated messages cache
+  const messageIndexRef = useRef<Record<string, number>>({}); // Track which message to show per storm
+  const lastFetchSignatureRef = useRef<string>(''); // Track when to refetch
 
   // Keyboard controls for PC - only rotation, height is locked
   useEffect(() => {
@@ -135,6 +138,77 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Fetch AI-generated ticker messages when storms change
+  useEffect(() => {
+    if (!precipitationStorms || precipitationStorms.length === 0 || !location) return;
+    
+    // Build priority storm list for API request
+    const dbzToCategory = (dbz: number) => {
+      if (dbz >= 61) return 'extreme';
+      if (dbz >= 55) return 'vheavy';
+      if (dbz >= 46) return 'heavy';
+      if (dbz >= 35) return 'moderate';
+      return 'light';
+    };
+    
+    // Get one priority storm per category
+    const categoryMap: Record<string, any> = {};
+    precipitationStorms.forEach(storm => {
+      const cat = dbzToCategory(storm.dbz || storm.intensity || 25);
+      const dist = storm.distance || 50;
+      if (!categoryMap[cat] || dist < categoryMap[cat].distance) {
+        categoryMap[cat] = { ...storm, category: cat };
+      }
+    });
+    
+    const priorityStorms = Object.values(categoryMap);
+    if (priorityStorms.length === 0) return;
+    
+    // Create signature to check if we need to refetch
+    const signature = priorityStorms.map((s: any) => {
+      const speed = s.windsPrediction?.speed || 15;
+      const etaMin = speed > 0 ? (s.distance / speed) * 60 : 999;
+      const bucket = etaMin < 45 ? 'U' : etaMin < 90 ? 'P' : 'M';
+      return `${s.category}-${bucket}-${Math.round(s.distance / 10)}`;
+    }).join('|');
+    
+    if (signature === lastFetchSignatureRef.current) return;
+    lastFetchSignatureRef.current = signature;
+    
+    // Build request data
+    const stormRequests = priorityStorms.map((storm: any) => {
+      const speed = storm.windsPrediction?.speed || 15;
+      const dir = storm.windsPrediction?.direction || 0;
+      const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+      const movementDir = dirs[Math.round(dir / 45) % 8];
+      const etaMin = speed > 0 ? (storm.distance / speed) * 60 : 999;
+      
+      return {
+        category: storm.category,
+        etaMinutes: etaMin,
+        distance: storm.distance,
+        direction: storm.direction || 'nearby',
+        movementDir,
+        speed
+      };
+    });
+    
+    // Fetch AI messages
+    fetch('/api/ticker-messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storms: stormRequests })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.messages) {
+          aiTickerMessagesRef.current = data.messages;
+          console.log('🤖 Loaded AI ticker messages:', Object.keys(data.messages).length, 'categories');
+        }
+      })
+      .catch(err => console.error('Failed to fetch ticker messages:', err));
+  }, [precipitationStorms, location]);
 
   // Removed storm calculation functions - not needed without storm selection
 
@@ -601,17 +675,34 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           light: 'Light', moderate: 'Moderate', heavy: 'Heavy', vheavy: 'V.Heavy', extreme: 'Extreme'
         };
         
-        // ETA-aware tips: urgent if <45 min, preparatory if >45 min
-        const getIntensityTip = (category: string, etaMinutes: number): string => {
-          const isUrgent = etaMinutes < 45;
-          const tips: Record<string, { urgent: string; later: string }> = {
-            light: { urgent: "☔ Grab an umbrella!", later: "☔ Light rain approaching" },
-            moderate: { urgent: "🌧️ Check those wipers!", later: "🌧️ Prepare for rain" },
-            heavy: { urgent: "⛈️ Delay outdoor plans!", later: "⛈️ Heavy rain expected" },
-            vheavy: { urgent: "🌩️ Seek shelter now!", later: "🌩️ Prepare to shelter soon" },
-            extreme: { urgent: "⚠️ TAKE COVER!", later: "⚠️ Severe storm approaching" }
+        // Get AI-generated tip or fallback
+        const getAITip = (category: string, etaMinutes: number, distMiles: number): string => {
+          const urgencyBucket = etaMinutes < 45 ? 'urgent' : etaMinutes < 90 ? 'prepare' : 'monitor';
+          const cacheKey = `${category}-${urgencyBucket}-${Math.round(distMiles / 10) * 10}`;
+          
+          const messages = aiTickerMessagesRef.current[cacheKey];
+          if (messages && messages.length > 0) {
+            // Rotate through messages - use time-based rotation for variety
+            const msgIndex = Math.floor(Date.now() / 8000) % messages.length; // Change every 8 seconds
+            return messages[msgIndex];
+          }
+          
+          // Fallback to static tips
+          const fallbackTips: Record<string, Record<string, string>> = {
+            urgent: {
+              extreme: "⚠️ TAKE COVER!", vheavy: "🌩️ Seek shelter now!", heavy: "⛈️ Head indoors!",
+              moderate: "🌧️ Get inside soon!", light: "☔ Grab an umbrella!"
+            },
+            prepare: {
+              extreme: "⚠️ Prepare for severe!", vheavy: "🌩️ Prepare to shelter soon", heavy: "⛈️ Plan to be indoors",
+              moderate: "🌧️ Rain coming later", light: "☔ Light rain expected"
+            },
+            monitor: {
+              extreme: "⚠️ Watch conditions!", vheavy: "🌩️ Keep an eye out", heavy: "⛈️ Storms developing",
+              moderate: "🌧️ Check forecast later", light: "☔ Might sprinkle later"
+            }
           };
-          return tips[category]?.[isUrgent ? 'urgent' : 'later'] || "Stay aware!";
+          return fallbackTips[urgencyBucket]?.[category] || "🌤️ Stay weather aware!";
         };
         
         // Use priorityList - include ALL info in ticker now
@@ -633,7 +724,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const stormBearing = bearingDirs[Math.round(stormBearingDeg / 45) % 8];
           
           const catName = categoryNames[storm.category] || 'Storm';
-          const tip = getIntensityTip(storm.category, etaMinutes);
+          const tip = getAITip(storm.category, etaMinutes, storm.distMiles);
           
           // Full ticker format with all info
           tickerSegments.push({
