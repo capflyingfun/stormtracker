@@ -1005,27 +1005,37 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
 
       {/* Impact Badge - Top Right under controls */}
       {precipitationStorms && precipitationStorms.length > 0 && (() => {
-        // Calculate highest impact from storms
+        // Calculate highest impact from storms - ONLY for storms genuinely approaching
         const impacts = precipitationStorms.map((storm: any) => {
-          const speed = storm.windsPrediction?.speed || 15;
+          const speed = storm.windsPrediction?.speed || 0;
           const movementDir = storm.windsPrediction?.direction || 0;
           const bearing = storm.bearing || 0;
-          const angleDiff = Math.abs(bearing - movementDir);
+          
+          // Storm is approaching if movement direction is roughly OPPOSITE to bearing
+          // (bearing is FROM user TO storm, so approaching storm moves toward user = ~180° from bearing)
+          const reverseBearing = (bearing + 180) % 360;
+          const angleDiff = Math.abs(reverseBearing - movementDir);
           const approachAngle = Math.min(angleDiff, 360 - angleDiff);
-          const isApproaching = approachAngle < 90;
+          
+          // Only count as approaching if within 30° of direct approach (matching track cones)
+          const isApproaching = approachAngle <= 30 && speed > 5;
           const etaMin = speed > 0 ? (storm.distance / speed) * 60 : 999;
           
           let score = 0;
           if (isApproaching && etaMin < 180) {
             const urgency = Math.max(0, 1 - (etaMin / 180));
             const intensity = (storm.dbz || storm.intensity || 35) / 70;
-            score = Math.round(urgency * 40 + intensity * 40 + (100 - approachAngle / 1.8) / 100 * 20);
+            score = Math.round(urgency * 40 + intensity * 40 + (30 - approachAngle) / 30 * 20);
           }
-          return { score, etaMin };
+          return { score, etaMin, isApproaching };
         });
         
-        const highest = impacts.reduce((a: any, b: any) => a.score > b.score ? a : b, { score: 0, etaMin: 999 });
-        if (highest.score < 10) return null;
+        // Only show badge if at least one storm is genuinely approaching
+        const approachingStorms = impacts.filter((i: any) => i.isApproaching && i.score > 0);
+        if (approachingStorms.length === 0) return null;
+        
+        const highest = approachingStorms.reduce((a: any, b: any) => a.score > b.score ? a : b, { score: 0, etaMin: 999 });
+        if (highest.score < 15) return null;
         
         const tier = highest.score >= 80 ? 'extreme' : highest.score >= 60 ? 'severe' : highest.score >= 40 ? 'high' : highest.score >= 20 ? 'moderate' : 'low';
         const tierColors: Record<string, string> = { low: '#22C55E', moderate: '#EAB308', high: '#F97316', severe: '#EF4444', extreme: '#8B5CF6' };
