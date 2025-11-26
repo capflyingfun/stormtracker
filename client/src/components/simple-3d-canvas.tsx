@@ -375,14 +375,64 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const color = dbzToColor(intensity);
           const rotatedPos = rotateY(pos3D, currentRotation);
           const windsPrediction = storm.windsPrediction;
+          
+          // Calculate distance from user (in miles)
+          const dLat = storm.lat - location.lat;
+          const dLon = storm.lon - location.lon;
+          const distMiles = Math.sqrt(
+            Math.pow(dLat * 69, 2) + Math.pow(dLon * 69 * Math.cos(location.lat * Math.PI / 180), 2)
+          );
+          
+          // Calculate approach probability based on storm movement direction
+          let approachPct = 0;
+          if (windsPrediction?.direction && windsPrediction?.speed) {
+            // Direction storm is moving (in radians)
+            const movementDir = windsPrediction.direction * Math.PI / 180;
+            // Direction from storm TO user
+            const toUserAngle = Math.atan2(-dLon, -dLat);
+            // Difference between movement direction and direction to user
+            let angleDiff = Math.abs(movementDir - toUserAngle);
+            if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+            // If storm is moving toward user (within 60 degrees), calculate probability
+            if (angleDiff < Math.PI / 3) { // Within 60 degrees
+              approachPct = Math.round((1 - angleDiff / (Math.PI / 3)) * 100);
+              // Boost probability if very close
+              if (distMiles < 10) approachPct = Math.min(100, approachPct + 20);
+            } else if (angleDiff < Math.PI / 2) { // Within 90 degrees
+              approachPct = Math.round((1 - angleDiff / (Math.PI / 2)) * 50);
+            }
+          }
+          
+          // Get category for grouping
+          let category = 'light';
+          if (intensity >= 61) category = 'extreme';
+          else if (intensity >= 55) category = 'vheavy';
+          else if (intensity >= 46) category = 'heavy';
+          else if (intensity >= 35) category = 'moderate';
 
-          return { pos3D, intensity, height, color, rotatedPos, windsPrediction, originalStorm: storm };
+          return { pos3D, intensity, height, color, rotatedPos, windsPrediction, originalStorm: storm, distMiles, approachPct, category };
         });
+        
+        // Find closest storm of each category
+        const closestByCategory: Record<string, typeof stormData[0] | null> = {
+          light: null, moderate: null, heavy: null, vheavy: null, extreme: null
+        };
+        stormData.forEach(storm => {
+          const current = closestByCategory[storm.category];
+          if (!current || storm.distMiles < current.distMiles) {
+            closestByCategory[storm.category] = storm;
+          }
+        });
+        // Create a Set of closest storm references for quick lookup
+        const closestStorms = new Set(Object.values(closestByCategory).filter(s => s !== null));
 
         // Sort by z-distance for proper depth rendering
         stormData.sort((a, b) => b.rotatedPos.z - a.rotatedPos.z);
 
-        stormData.forEach(({ pos3D, intensity, height, color, rotatedPos, windsPrediction, originalStorm }) => {
+        stormData.forEach((stormItem) => {
+          const { pos3D, intensity, height, color, rotatedPos, windsPrediction, originalStorm, distMiles, approachPct } = stormItem;
+          const isClosestOfCategory = closestStorms.has(stormItem);
+          
           // Project to screen - simple columns from ground up
           const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
           const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
@@ -412,6 +462,33 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.beginPath();
           ctx.ellipse(base.x - cloudRadius * 0.2, top.y - cloudRadius * 0.1, cloudRadius * 0.4, cloudRadius * 0.2, 0, 0, 2 * Math.PI);
           ctx.fill();
+          
+          // Draw distance/approach label for closest storm of each category
+          if (isClosestOfCategory) {
+            const labelY = top.y - 15; // Above the storm
+            const labelText = `${distMiles.toFixed(1)}mi / ${approachPct}%`;
+            
+            // Background pill for readability
+            ctx.font = 'bold 10px sans-serif';
+            const textWidth = ctx.measureText(labelText).width;
+            const padding = 4;
+            
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.beginPath();
+            ctx.roundRect(base.x - textWidth / 2 - padding, labelY - 8, textWidth + padding * 2, 14, 4);
+            ctx.fill();
+            
+            // Border matching storm color
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
+            // Text
+            ctx.fillStyle = '#FFFFFF';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(labelText, base.x, labelY);
+          }
 
           // Animated rain effect - rain streaks falling from storm (reduced for performance)
           const numRainDrops = Math.min(6, Math.floor(intensity / 12)); // Fewer rain drops
