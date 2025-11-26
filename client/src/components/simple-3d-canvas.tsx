@@ -339,6 +339,30 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.fillStyle = columnGradient;
           ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
 
+          // Animated rain effect - rain streaks falling from storm
+          const numRainDrops = Math.min(12, Math.floor(intensity / 8)); // More rain for stronger storms
+          const time = Date.now() * 0.003; // Animation speed
+          
+          for (let r = 0; r < numRainDrops; r++) {
+            // Create pseudo-random but consistent positions for each drop
+            const seed = r * 137.5 + intensity;
+            const xOffset = (Math.sin(seed) * 0.8) * radius;
+            const dropSpeed = 0.5 + (r % 3) * 0.2; // Varying speeds
+            
+            // Animate drop position (loops from top to bottom)
+            const dropProgress = ((time * dropSpeed + seed) % 1);
+            const dropY = top.y + (base.y - top.y) * dropProgress;
+            
+            // Rain streak
+            const streakLength = Math.min(15, (base.y - top.y) * 0.1);
+            ctx.strokeStyle = `rgba(150, 200, 255, ${0.4 - dropProgress * 0.3})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(base.x + xOffset, dropY);
+            ctx.lineTo(base.x + xOffset, dropY + streakLength);
+            ctx.stroke();
+          }
+
           // Waypoint dots on TOP of columns if enabled
           if (showWaypoints) {
             ctx.fillStyle = color;
