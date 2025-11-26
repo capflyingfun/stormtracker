@@ -191,18 +191,51 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       };
     });
     
-    // Fetch AI conversational messages (loaded in background, used on next scroll cycle)
+    // Calculate impact predictions for each storm
+    const impactPredictions = stormRequests.map((storm: any, i: number) => {
+      const origStorm = priorityStorms[i] as any;
+      const speed = origStorm.windsPrediction?.speed || 15;
+      const movementDir = origStorm.windsPrediction?.direction || 0;
+      const bearingToUser = origStorm.bearing || 0;
+      const angleDiff = Math.abs(bearingToUser - movementDir);
+      const approachAngle = Math.min(angleDiff, 360 - angleDiff);
+      const isApproaching = approachAngle < 90;
+      const approachProbability = Math.max(0, Math.round(100 - (approachAngle / 180) * 100));
+      
+      let impactScore = 0;
+      if (isApproaching && storm.etaMinutes < 180) {
+        const urgencyFactor = Math.max(0, 1 - (storm.etaMinutes / 180));
+        const intensityFactor = (origStorm.dbz || origStorm.intensity || 35) / 70;
+        impactScore = Math.round(urgencyFactor * 40 + intensityFactor * 40 + approachProbability / 100 * 20);
+      }
+      
+      return {
+        category: storm.category,
+        impactScore,
+        approachProbability,
+        etaFormatted: storm.etaMinutes < 999 
+          ? `${Math.floor(storm.etaMinutes / 60)}h ${Math.round(storm.etaMinutes % 60)}m` 
+          : 'N/A',
+        recommendedAction: impactScore >= 60 ? 'Prepare to shelter' : impactScore >= 40 ? 'Wrap up outdoor activities' : 'Monitor conditions'
+      };
+    });
+    
+    // Fetch AI conversational messages with personalized context
     fetch('/api/ticker-messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storms: stormRequests })
+      body: JSON.stringify({ 
+        storms: stormRequests, 
+        locationName: location.name,
+        impactPredictions 
+      })
     })
       .then(res => res.json())
       .then(data => {
         if (data.messages && Array.isArray(data.messages)) {
           // Store for next cycle - don't interrupt current scroll
           aiTickerMessagesRef.current = data.messages;
-          console.log('🤖 Loaded AI ticker messages:', data.messages.length, 'variations (ready for next cycle)');
+          console.log('🤖 Loaded personalized AI ticker messages:', data.messages.length, 'variations');
         }
       })
       .catch(err => console.error('Failed to fetch ticker messages:', err));
@@ -969,6 +1002,59 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           </div>
         </div>
       </div>
+
+      {/* Impact Badge - Top Right under controls */}
+      {precipitationStorms && precipitationStorms.length > 0 && (() => {
+        // Calculate highest impact from storms
+        const impacts = precipitationStorms.map((storm: any) => {
+          const speed = storm.windsPrediction?.speed || 15;
+          const movementDir = storm.windsPrediction?.direction || 0;
+          const bearing = storm.bearing || 0;
+          const angleDiff = Math.abs(bearing - movementDir);
+          const approachAngle = Math.min(angleDiff, 360 - angleDiff);
+          const isApproaching = approachAngle < 90;
+          const etaMin = speed > 0 ? (storm.distance / speed) * 60 : 999;
+          
+          let score = 0;
+          if (isApproaching && etaMin < 180) {
+            const urgency = Math.max(0, 1 - (etaMin / 180));
+            const intensity = (storm.dbz || storm.intensity || 35) / 70;
+            score = Math.round(urgency * 40 + intensity * 40 + (100 - approachAngle / 1.8) / 100 * 20);
+          }
+          return { score, etaMin };
+        });
+        
+        const highest = impacts.reduce((a: any, b: any) => a.score > b.score ? a : b, { score: 0, etaMin: 999 });
+        if (highest.score < 10) return null;
+        
+        const tier = highest.score >= 80 ? 'extreme' : highest.score >= 60 ? 'severe' : highest.score >= 40 ? 'high' : highest.score >= 20 ? 'moderate' : 'low';
+        const tierColors: Record<string, string> = { low: '#22C55E', moderate: '#EAB308', high: '#F97316', severe: '#EF4444', extreme: '#8B5CF6' };
+        const etaText = highest.etaMin < 60 ? `${Math.round(highest.etaMin)}m` : `${Math.floor(highest.etaMin / 60)}h`;
+        
+        return (
+          <div 
+            className="absolute top-16 right-4 z-10 rounded-lg px-3 py-2 border"
+            style={{ 
+              backgroundColor: `${tierColors[tier]}20`, 
+              borderColor: tierColors[tier],
+              boxShadow: `0 0 10px ${tierColors[tier]}40`
+            }}
+            data-testid="impact-badge"
+          >
+            <div className="text-center">
+              <div className="text-xs text-slate-300 mb-0.5">Impact</div>
+              <div className="text-lg font-bold" style={{ color: tierColors[tier] }}>
+                {tier.toUpperCase()}
+              </div>
+              {highest.etaMin < 999 && (
+                <div className="text-xs text-white/80 mt-0.5">
+                  ETA {etaText}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
 
       {/* Canvas */}

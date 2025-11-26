@@ -6,6 +6,7 @@ import Header from "@/components/header";
 import LocationSetup from "@/components/location-setup";
 import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
+import ImpactPanel from "@/components/impact-panel";
 import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
@@ -1053,7 +1054,14 @@ export default function StormTracker() {
 
 
             {/* Main Tracker Content - Always Show */}
-            <div className="max-w-4xl mx-auto mt-4 sm:mt-6">
+            <div className="max-w-4xl mx-auto mt-4 sm:mt-6 space-y-4">
+              {/* Personalized Impact Predictions */}
+              <ImpactPanel 
+                storms={precipitationStorms}
+                userLocation={location ? { lat: location.lat, lon: location.lon } : null}
+                locationName={location?.name}
+              />
+              
               <StormPanel
                 storms={precipitationStorms}
                 useMetric={useMetric}
