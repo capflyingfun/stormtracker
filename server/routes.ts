@@ -62,20 +62,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     weatherapi: process.env.WEATHERAPI_KEY || null, // WeatherAPI.com free tier: 1M calls/month
   };
 
-  // AI-powered ticker messages endpoint - generates conversational weather updates
+  // AI-powered ticker messages endpoint - generates personalized conversational weather updates
   app.post("/api/ticker-messages", async (req, res) => {
     try {
-      const { storms } = req.body;
+      const { storms, locationName, impactPredictions } = req.body;
       
       if (!storms || !Array.isArray(storms) || storms.length === 0) {
         return res.json({ messages: [] });
       }
       
-      // Create cache key from all storms signature
+      // Create cache key from storms + location signature
       const signature = storms.map((s: any) => {
         const bucket = s.etaMinutes < 45 ? 'U' : s.etaMinutes < 90 ? 'P' : 'M';
         return `${s.category}-${bucket}-${Math.round(s.distance / 10)}`;
-      }).sort().join('|');
+      }).sort().join('|') + (locationName ? `-${locationName.slice(0,10)}` : '');
       
       // Check cache first
       const cached = tickerMessageCache.get(signature);
@@ -86,36 +86,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const OpenAI = (await import("openai")).default;
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       
-      // Build storm summary for prompt
-      const stormSummary = storms.map((s: any) => {
+      // Build personalized storm summary with impact data
+      const stormSummary = storms.map((s: any, i: number) => {
         const intensity = s.category === 'extreme' ? 'extreme' : s.category === 'vheavy' ? 'very heavy' : s.category;
         const urgency = s.etaMinutes < 45 ? 'arriving soon' : s.etaMinutes < 90 ? 'approaching' : 'on the horizon';
-        return `${intensity} rain ${s.direction} (${Math.round(s.distance)}mi, ${urgency}, ETA ~${Math.round(s.etaMinutes)}min)`;
+        // Include impact prediction if available
+        const impact = impactPredictions?.[i];
+        const impactInfo = impact ? `, impact score ${impact.impactScore}/100, ${impact.recommendedAction}` : '';
+        return `${intensity} rain from ${s.direction} (${Math.round(s.distance)}mi, ${urgency}, ETA ~${Math.round(s.etaMinutes)}min${impactInfo})`;
       }).join('; ');
       
-      // Determine overall urgency
+      // Determine overall urgency and personalization
       const mostUrgent = Math.min(...storms.map((s: any) => s.etaMinutes));
       const urgencyLevel = mostUrgent < 45 ? 'URGENT' : mostUrgent < 90 ? 'PREPARE' : 'MONITOR';
+      const highestImpact = impactPredictions?.reduce((max: any, p: any) => (!max || p.impactScore > max.impactScore) ? p : max, null);
+      const personalContext = locationName ? `for ${locationName}` : 'for your location';
       
-      const prompt = `You're a witty weather broadcaster. Write 5 varied ticker messages about these storms:
+      const prompt = `You're a witty, personalized weather broadcaster speaking directly to someone ${personalContext}. Write 5 varied ticker messages about these storms:
 
 ${stormSummary}
 
 Overall urgency: ${urgencyLevel}
+${highestImpact ? `Primary threat: ${highestImpact.category} with ${highestImpact.approachProbability}% chance of impact, arriving in ${highestImpact.etaFormatted}` : ''}
 
 Rules:
-- Each message should be a natural, conversational sentence about ALL the storms
+- Each message should be a natural, PERSONALIZED sentence speaking directly to the user
+- Reference their location naturally when relevant: "Heads up ${locationName?.split(',')[0] || 'folks'}..."
 - Add clean, appropriate humor when storms are far away (91+ min)
-- Be more serious and safety-focused when storms are close (<45 min)
+- Be more serious and safety-focused when storms are close (<45 min) or high impact
 - Keep each message 60-100 characters
 - Start each with a weather emoji
-- Make each message unique and creative
-- Sound like a friendly meteorologist chatting with viewers
+- Make messages feel like a personal weather update, not generic broadcast
+- Include action recommendations when impact score is high
 
-Examples of good tone:
-- "🌧️ Got a light drizzle to the west and heavier stuff brewing north - umbrella day for sure!"
-- "⛈️ Heads up! Multiple cells converging your way - might want to wrap up that BBQ early."
-- "☔ Some sprinkles dancing around the area, nothing too serious yet but keep an eye out!"
+Examples of good personalized tone:
+- "🌧️ Hey ${locationName?.split(',')[0] || 'there'}, that drizzle west of you is getting closer - umbrella time!"
+- "⛈️ Looks like you've got about an hour before things get interesting - good time to prep!"
+- "☔ Light stuff to your north, nothing major for you yet but we're watching it."
+- "⚡ That system heading your way packs a punch - might want to head inside soon."
 
 Return ONLY a JSON array of 5 strings.`;
 
@@ -139,18 +147,163 @@ Return ONLY a JSON array of 5 strings.`;
         console.error('OpenAI ticker error:', aiError);
       }
       
-      // Fallback conversational messages
+      // Fallback personalized messages
+      const loc = locationName?.split(',')[0] || 'there';
       const fallbacks = [
-        "🌧️ Weather's getting interesting out there - keep those umbrellas handy!",
-        "⛈️ Storm activity in the area - stay weather aware today!",
-        "☔ Some rain moving through - nothing we can't handle!",
-        "🌩️ Nature's putting on a show - enjoy it safely from indoors!",
-        "📡 Tracking some cells nearby - we'll keep you posted!"
+        `🌧️ Hey ${loc}, weather's getting interesting - keep those umbrellas handy!`,
+        `⛈️ Storm activity in your area ${loc} - stay weather aware today!`,
+        `☔ Some rain moving through - nothing ${loc} can't handle!`,
+        `🌩️ Nature's putting on a show for ${loc} - enjoy it safely from indoors!`,
+        `📡 Tracking some cells near you - we'll keep you posted!`
       ];
       res.json({ messages: fallbacks });
     } catch (error) {
       console.error('Ticker messages error:', error);
       res.status(500).json({ error: 'Failed to generate ticker messages' });
+    }
+  });
+
+  // Personalized Storm Impact Predictions endpoint
+  app.post("/api/impact-predictions", async (req, res) => {
+    try {
+      const { storms, userLocation, locationName } = req.body;
+      
+      if (!storms || !Array.isArray(storms) || !userLocation) {
+        return res.json({ predictions: [], summary: null });
+      }
+      
+      const { lat, lon } = userLocation;
+      
+      // Calculate personalized impact for each storm
+      const predictions = storms.map((storm: any) => {
+        const stormLat = storm.lat;
+        const stormLon = storm.lon;
+        const intensity = storm.dbz || storm.intensity || 25;
+        const distance = storm.distance || 50;
+        const movementSpeed = storm.windsPrediction?.speed || 15; // mph
+        const movementDir = storm.windsPrediction?.direction || 0; // degrees
+        
+        // Calculate if storm is approaching user
+        const bearingToUser = Math.atan2(lon - stormLon, lat - stormLat) * 180 / Math.PI;
+        const normalizedBearing = ((bearingToUser % 360) + 360) % 360;
+        const normalizedMovement = ((movementDir % 360) + 360) % 360;
+        const angleDiff = Math.abs(normalizedBearing - normalizedMovement);
+        const approachAngle = Math.min(angleDiff, 360 - angleDiff);
+        
+        // Approach probability (0-100%)
+        const approachProbability = Math.max(0, Math.round(100 - (approachAngle / 180) * 100));
+        const isApproaching = approachAngle < 90;
+        
+        // ETA calculation (in minutes)
+        let etaMinutes = movementSpeed > 0 ? (distance / movementSpeed) * 60 : 999;
+        if (!isApproaching) etaMinutes = 999; // Not approaching = no ETA
+        
+        // Intensity at arrival (decay with distance for far storms, maintain for close)
+        const distanceDecay = Math.max(0.5, 1 - (distance / 100) * 0.3);
+        const intensityAtArrival = Math.round(intensity * distanceDecay);
+        
+        // Estimate impact duration based on storm size and speed
+        const estimatedStormWidth = intensity > 55 ? 15 : intensity > 45 ? 10 : 5; // miles
+        const durationMinutes = movementSpeed > 0 ? Math.round((estimatedStormWidth / movementSpeed) * 60) : 30;
+        
+        // Calculate impact score (0-100)
+        let impactScore = 0;
+        if (isApproaching && etaMinutes < 180) {
+          const urgencyFactor = Math.max(0, 1 - (etaMinutes / 180)); // Closer = higher
+          const intensityFactor = intensity / 70; // Higher dBZ = higher
+          const probabilityFactor = approachProbability / 100;
+          impactScore = Math.round((urgencyFactor * 40 + intensityFactor * 40 + probabilityFactor * 20));
+        }
+        
+        // Determine threat tier
+        let threatTier: 'low' | 'moderate' | 'high' | 'severe' | 'extreme';
+        if (impactScore >= 80) threatTier = 'extreme';
+        else if (impactScore >= 60) threatTier = 'severe';
+        else if (impactScore >= 40) threatTier = 'high';
+        else if (impactScore >= 20) threatTier = 'moderate';
+        else threatTier = 'low';
+        
+        // Category name
+        const categoryNames: Record<string, string> = {
+          light: 'Light Rain', moderate: 'Moderate Rain', heavy: 'Heavy Rain',
+          vheavy: 'Very Heavy Rain', extreme: 'Extreme Storm'
+        };
+        const category = intensity >= 61 ? 'extreme' : intensity >= 55 ? 'vheavy' : 
+                        intensity >= 46 ? 'heavy' : intensity >= 35 ? 'moderate' : 'light';
+        
+        // Direction from user
+        const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        const dirIndex = Math.round(((normalizedBearing + 180) % 360) / 45) % 8;
+        const directionFromUser = dirs[dirIndex];
+        
+        // Recommended actions based on threat tier and ETA
+        let recommendedAction: string;
+        if (threatTier === 'extreme' && etaMinutes < 30) {
+          recommendedAction = 'Seek shelter immediately';
+        } else if (threatTier === 'severe' && etaMinutes < 45) {
+          recommendedAction = 'Prepare to shelter now';
+        } else if (threatTier === 'high' && etaMinutes < 60) {
+          recommendedAction = 'Wrap up outdoor activities';
+        } else if (impactScore > 20) {
+          recommendedAction = 'Monitor conditions';
+        } else {
+          recommendedAction = 'No action needed';
+        }
+        
+        return {
+          stormId: storm.id || `storm-${stormLat.toFixed(2)}-${stormLon.toFixed(2)}`,
+          category: categoryNames[category] || 'Storm',
+          categoryKey: category,
+          directionFromUser,
+          distance: Math.round(distance * 10) / 10,
+          etaMinutes: Math.round(etaMinutes),
+          etaFormatted: etaMinutes < 999 ? 
+            `${Math.floor(etaMinutes / 60)}h ${Math.round(etaMinutes % 60)}m` : 'N/A',
+          intensityNow: intensity,
+          intensityAtArrival,
+          durationMinutes,
+          approachProbability,
+          isApproaching,
+          impactScore,
+          threatTier,
+          recommendedAction,
+          lat: stormLat,
+          lon: stormLon
+        };
+      });
+      
+      // Sort by impact score (highest first)
+      predictions.sort((a: any, b: any) => b.impactScore - a.impactScore);
+      
+      // Generate summary for top threats
+      const topThreats = predictions.filter((p: any) => p.impactScore >= 20).slice(0, 3);
+      const highestThreat = predictions[0];
+      
+      let summary = null;
+      if (highestThreat && highestThreat.impactScore > 0) {
+        summary = {
+          threatLevel: highestThreat.threatTier,
+          primaryThreat: highestThreat,
+          totalThreats: topThreats.length,
+          overallMessage: topThreats.length > 1 
+            ? `${topThreats.length} storms may impact ${locationName || 'your location'}`
+            : highestThreat.isApproaching 
+              ? `${highestThreat.category} approaching from the ${highestThreat.directionFromUser}`
+              : 'Storms in area - monitoring conditions',
+          urgentAction: highestThreat.recommendedAction
+        };
+      }
+      
+      res.json({ 
+        predictions: predictions.slice(0, 5), // Top 5 storms
+        summary,
+        locationName: locationName || 'Your Location',
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (error) {
+      console.error('Impact predictions error:', error);
+      res.status(500).json({ error: 'Failed to calculate impact predictions' });
     }
   });
 
