@@ -200,6 +200,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       .then(data => {
         if (data.messages && Array.isArray(data.messages)) {
           aiTickerMessagesRef.current = data.messages;
+          // Reset ticker timing when new messages arrive to prevent mid-scroll changes
+          tickerStartTime.current = Date.now();
+          currentMessageIndexRef.current = 0;
+          lastScrollCycleRef.current = 0;
           console.log('🤖 Loaded AI ticker messages:', data.messages.length, 'variations');
         }
       })
