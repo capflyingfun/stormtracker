@@ -569,12 +569,14 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         
         // Draw track for EACH priority threat storm (one per category)
         threatPriorityStorms.forEach((storm, trackIndex) => {
-          const { pos3D, color, windsPrediction, distMiles } = storm;
-          const speedMph = windsPrediction!.speed || 15;
+          const { pos3D, color } = storm;
           
-          // Calculate ETA (time for storm to reach user)
-          const etaMinutes = speedMph > 0 ? (distMiles / speedMph) * 60 : 999;
-          const etaFormatted = formatETA(etaMinutes);
+          // Check if storm is visible (in front of camera after rotation)
+          const stormRotated = rotateY({ x: pos3D.x, y: 0.03, z: pos3D.z }, currentRotation);
+          if (stormRotated.z >= 0) {
+            // Storm is behind camera, skip drawing track
+            return;
+          }
           
           // Calculate direction FROM storm TO user (opposite of storm movement toward user)
           // The storm is at pos3D, user is at (0,0,0)
@@ -628,8 +630,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.lineWidth = 2;
           ctx.stroke();
           
-          // Draw center line from storm to user
-          const stormRotated = rotateY({ x: pos3D.x, y: 0.03, z: pos3D.z }, currentRotation);
+          // Draw center line from storm to user (dashed)
+          // stormRotated already calculated above for visibility check
           const stormProj = project3D({ ...stormRotated, y: stormRotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
           const userProj = project3D({ x: 0, y: 0.03 - cameraHeight, z: 0 }, cameraDistance, canvas.width, canvas.height);
           
@@ -641,31 +643,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.lineTo(userProj.x, userProj.y);
           ctx.stroke();
           ctx.setLineDash([]);
-          
-          // Draw ETA label at midpoint of track
-          const midX = (stormProj.x + userProj.x) / 2;
-          const midY = (stormProj.y + userProj.y) / 2;
-          
-          ctx.font = 'bold 12px sans-serif';
-          const etaText = `ETA ${etaFormatted}`;
-          const etaWidth = ctx.measureText(etaText).width;
-          
-          // Background pill
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-          ctx.beginPath();
-          ctx.roundRect(midX - etaWidth / 2 - 6, midY - 9, etaWidth + 12, 18, 4);
-          ctx.fill();
-          
-          // Border matching storm color
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          
-          // ETA text
-          ctx.fillStyle = '#FFFFFF';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(etaText, midX, midY);
         });
         
         // Draw scrolling news-style ticker banner with dynamic multi-storm segments
