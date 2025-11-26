@@ -303,11 +303,11 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.fillStyle = columnGradient;
           ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
 
-          // Waypoint dots only if enabled
+          // Waypoint dots on TOP of columns if enabled
           if (showWaypoints) {
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(base.x, base.y, Math.max(2, 4 * scale), 0, 2 * Math.PI);
+            ctx.arc(top.x, top.y, Math.max(3, 5 * scale), 0, 2 * Math.PI);
             ctx.fill();
           }
         });
@@ -481,18 +481,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         </div>
       </div>
 
-      {/* Height Display - Locked at 11,000 ft */}
-      <div className="absolute top-16 left-4 z-10 bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-slate-700/50">
-        <div className="text-center">
-          <div className="text-xs text-slate-400 mb-1">Altitude (Fixed)</div>
-          <div className="text-lg font-bold text-white">
-            11,000 ft
-          </div>
-          <div className="text-xs text-slate-300 mt-1">
-            Drag to rotate
-          </div>
-        </div>
-      </div>
 
       {/* Canvas */}
       <canvas
