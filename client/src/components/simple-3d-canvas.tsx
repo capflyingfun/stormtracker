@@ -577,10 +577,11 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         };
         
         // Track the nearest threat for the banner
-        let nearestThreat: { category: string; distance: number; eta: string; speed: number; direction: string; color: string } | null = null;
+        let threatCategory = '', threatDistance = 0, threatEta = '', threatSpeed = 0, threatDirection = '', threatColor = '';
+        let hasThreat = false;
         
         // Draw track for each threatening storm (limit to top 5 for performance)
-        threatStorms.slice(0, 5).forEach((storm) => {
+        for (const storm of threatStorms.slice(0, 5)) {
           const { pos3D, color, windsPrediction, distMiles, category } = storm;
           const speedMph = windsPrediction!.speed || 15;
           const dirDegrees = windsPrediction!.direction || 0;
@@ -591,18 +592,17 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const compassDir = getCompassDir(dirDegrees);
           
           // Track nearest threat
-          if (!nearestThreat || distMiles < nearestThreat.distance) {
+          if (!hasThreat || distMiles < threatDistance) {
             const categoryNames: Record<string, string> = {
               light: 'Light', moderate: 'Moderate', heavy: 'Heavy', vheavy: 'V.Heavy', extreme: 'Extreme'
             };
-            nearestThreat = {
-              category: categoryNames[category] || 'Storm',
-              distance: distMiles,
-              eta: etaFormatted,
-              speed: speedMph,
-              direction: compassDir,
-              color: color
-            };
+            threatCategory = categoryNames[category] || 'Storm';
+            threatDistance = distMiles;
+            threatEta = etaFormatted;
+            threatSpeed = speedMph;
+            threatDirection = compassDir;
+            threatColor = color;
+            hasThreat = true;
           }
           
           // Calculate direction FROM storm TO user (opposite of storm movement toward user)
@@ -695,12 +695,12 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(etaText, midX, midY);
-        });
+        }
         
         // Draw info banner - show threat info if 70%+ storms exist, otherwise show general info
-        if (nearestThreat) {
+        if (hasThreat) {
           // Threat banner
-          const infoText = `Threat: ${nearestThreat.category} storm, ${nearestThreat.distance.toFixed(1)} mi, ETA ${nearestThreat.eta}, moving ${nearestThreat.direction} at ${Math.round(nearestThreat.speed)} mph`;
+          const infoText = `Threat: ${threatCategory} storm, ${threatDistance.toFixed(1)} mi, ETA ${threatEta}, moving ${threatDirection} at ${Math.round(threatSpeed)} mph`;
           
           ctx.font = 'bold 14px sans-serif';
           const textWidth = ctx.measureText(infoText).width;
@@ -715,12 +715,12 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.fill();
           
           // Border matching threat color
-          ctx.strokeStyle = nearestThreat.color;
+          ctx.strokeStyle = threatColor;
           ctx.lineWidth = 2;
           ctx.stroke();
           
           // Text in threat color
-          ctx.fillStyle = nearestThreat.color;
+          ctx.fillStyle = threatColor;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(infoText, canvas.width / 2, bannerY + 14);
