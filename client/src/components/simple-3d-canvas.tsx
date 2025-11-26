@@ -85,12 +85,26 @@ const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number)
   };
 };
 
+// Storm info for popup
+interface StormInfo {
+  lat: number;
+  lon: number;
+  dbz: number;
+  distance: number;
+  bearing: number;
+  direction: string;
+  category: string;
+  speed?: number;
+  movementDir?: string;
+}
+
 export default function Simple3DCanvas({ location, precipitationStorms, setViewMode }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(false); // Default to hidden for better performance
   const [rotationY, setRotationY] = useState(0); // Start facing North (0°)
   const cameraHeight = 8; // Fixed at 11,000 feet (8 + 3 = 11 * 1000 = 11,000ft)
-  // Removed storm selection to improve performance and usability
+  const [selectedStorm, setSelectedStorm] = useState<StormInfo | null>(null);
+  const stormPositionsRef = useRef<{screenX: number; screenY: number; radius: number; storm: any}[]>([]);
   const [isRotating, setIsRotating] = useState(false);
   const [rotationSpeed, setRotationSpeed] = useState(2); // 1=slow, 2=medium, 3=fast
   const targetRotationSpeed = useRef(0);
@@ -306,6 +320,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       ctx.stroke();
 
       // Draw terrain-style polygonal storm visualization
+      const clickableStorms: {screenX: number; screenY: number; radius: number; storm: any}[] = [];
+      
       if (precipitationStorms.length > 0) {
         // Draw simple circular storm columns directly from precipitation data
         const stormData = precipitationStorms.map(storm => {
@@ -316,13 +332,13 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const rotatedPos = rotateY(pos3D, rotationY);
           const windsPrediction = storm.windsPrediction;
 
-          return { pos3D, intensity, height, color, rotatedPos, windsPrediction };
+          return { pos3D, intensity, height, color, rotatedPos, windsPrediction, originalStorm: storm };
         });
 
         // Sort by z-distance for proper depth rendering
         stormData.sort((a, b) => b.rotatedPos.z - a.rotatedPos.z);
 
-        stormData.forEach(({ pos3D, intensity, height, color, rotatedPos, windsPrediction }) => {
+        stormData.forEach(({ pos3D, intensity, height, color, rotatedPos, windsPrediction, originalStorm }) => {
           // Project to screen - simple columns from ground up
           const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
           const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
@@ -472,6 +488,14 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
             ctx.stroke();
           }
 
+          // Store position for click detection
+          clickableStorms.push({
+            screenX: base.x,
+            screenY: (top.y + base.y) / 2, // Center of column
+            radius: radius + 10, // Slightly larger hit area
+            storm: originalStorm
+          });
+
           // Waypoint dots on TOP of columns if enabled
           if (showWaypoints) {
             ctx.fillStyle = color;
@@ -481,6 +505,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           }
         });
       }
+      
+      // Store storm positions for click handling
+      stormPositionsRef.current = clickableStorms;
     };
 
     draw();
@@ -525,10 +552,71 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       handleEnd();
     };
 
+    // Click handler for storm selection
+    const handleClick = (e: MouseEvent | TouchEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      let clickX: number, clickY: number;
+      
+      if ('touches' in e) {
+        clickX = e.changedTouches[0].clientX - rect.left;
+        clickY = e.changedTouches[0].clientY - rect.top;
+      } else {
+        clickX = e.clientX - rect.left;
+        clickY = e.clientY - rect.top;
+      }
+      
+      // Check if click is on any storm
+      for (const stormPos of stormPositionsRef.current) {
+        const dx = clickX - stormPos.screenX;
+        const dy = clickY - stormPos.screenY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist < stormPos.radius * 2) { // Hit within column area
+          const storm = stormPos.storm;
+          const dbz = storm.dbz || storm.intensity || 25;
+          
+          // Calculate distance and bearing
+          const dLat = storm.lat - location.lat;
+          const dLon = storm.lon - location.lon;
+          const distMiles = Math.sqrt(
+            Math.pow(dLat * 69, 2) + Math.pow(dLon * 69 * Math.cos(location.lat * Math.PI / 180), 2)
+          );
+          const bearing = (Math.atan2(dLon, dLat) * 180 / Math.PI + 360) % 360;
+          
+          // Get direction name
+          const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+          const dirIndex = Math.round(bearing / 22.5) % 16;
+          
+          // Get category
+          let category = 'Light';
+          if (dbz >= 61) category = 'Extreme';
+          else if (dbz >= 55) category = 'Severe';
+          else if (dbz >= 46) category = 'Heavy';
+          else if (dbz >= 35) category = 'Moderate';
+          
+          setSelectedStorm({
+            lat: storm.lat,
+            lon: storm.lon,
+            dbz,
+            distance: distMiles,
+            bearing,
+            direction: directions[dirIndex],
+            category,
+            speed: storm.windsPrediction?.speed,
+            movementDir: storm.windsPrediction?.direction ? directions[Math.round(storm.windsPrediction.direction / 22.5) % 16] : undefined
+          });
+          return;
+        }
+      }
+      // Click was not on a storm - deselect
+      setSelectedStorm(null);
+    };
+
     // Add all event listeners
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mouseup', handleMouseUp);
     canvas.addEventListener('mouseleave', handleMouseUp);
+    canvas.addEventListener('click', handleClick as EventListener);
     canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
     canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
     canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
@@ -555,6 +643,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       canvas.removeEventListener('mousedown', handleMouseDown);
       canvas.removeEventListener('mouseup', handleMouseUp);
       canvas.removeEventListener('mouseleave', handleMouseUp);
+      canvas.removeEventListener('click', handleClick as EventListener);
       canvas.removeEventListener('touchstart', handleTouchStart);
       canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('touchcancel', handleTouchEnd);
@@ -655,10 +744,56 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       <canvas
         ref={canvasRef}
         className="w-full h-full touch-none"
-        style={{ cursor: 'crosshair', touchAction: 'none' }}
+        style={{ cursor: 'pointer', touchAction: 'none' }}
       />
 
-      {/* Storm Info Popup removed for better performance and usability */}
+      {/* Storm Info Popup */}
+      {selectedStorm && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 bg-slate-800/95 backdrop-blur-sm rounded-lg p-4 border border-slate-600 shadow-xl min-w-[200px]">
+          <button 
+            onClick={() => setSelectedStorm(null)}
+            className="absolute top-2 right-2 text-slate-400 hover:text-white text-lg"
+          >
+            ✕
+          </button>
+          <h3 className="text-lg font-bold mb-3" style={{ 
+            color: selectedStorm.dbz >= 61 ? '#8B5CF6' : 
+                   selectedStorm.dbz >= 55 ? '#EF4444' : 
+                   selectedStorm.dbz >= 46 ? '#F97316' : 
+                   selectedStorm.dbz >= 35 ? '#EAB308' : '#22C55E' 
+          }}>
+            {selectedStorm.category} Storm
+          </h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Intensity:</span>
+              <span className="font-medium">{selectedStorm.dbz.toFixed(1)} dBZ</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Distance:</span>
+              <span className="font-medium">{selectedStorm.distance.toFixed(1)} mi</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Direction:</span>
+              <span className="font-medium">{selectedStorm.direction} ({selectedStorm.bearing.toFixed(0)}°)</span>
+            </div>
+            {selectedStorm.speed && (
+              <div className="flex justify-between">
+                <span className="text-slate-400">Moving:</span>
+                <span className="font-medium">{selectedStorm.movementDir} @ {selectedStorm.speed.toFixed(0)} mph</span>
+              </div>
+            )}
+            <div className="flex justify-between text-xs text-slate-500 pt-2 border-t border-slate-600">
+              <span>Lat:</span>
+              <span>{selectedStorm.lat.toFixed(4)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-slate-500">
+              <span>Lon:</span>
+              <span>{selectedStorm.lon.toFixed(4)}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
