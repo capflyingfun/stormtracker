@@ -35,17 +35,25 @@ const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number)
   return [x * 0.1, z * 0.1]; // Scale down for 3D scene
 };
 
-// 3D Storm Column Component - renders as a cylinder
+// 3D Storm Column Component - renders as a cylinder from ground level up
 function StormColumn({ position, height, color }: { 
   position: [number, number, number]; 
   height: number; 
   color: string; 
 }) {
-  const radius = 0.3 + height * 0.1; // Wider columns for more visible
+  const radius = 0.35; // Fixed radius for consistent width
   return (
-    <mesh position={[position[0], height / 2, position[2]]}>
-      <cylinderGeometry args={[radius, radius, height, 8]} />
-      <meshPhongMaterial color={color} emissive={color} emissiveIntensity={0.3} transparent opacity={0.85} />
+    <mesh position={[position[0], height / 2, position[2]]} castShadow receiveShadow>
+      <cylinderGeometry args={[radius, radius, height, 12]} />
+      <meshPhongMaterial 
+        color={color} 
+        emissive={color} 
+        emissiveIntensity={0.4}
+        transparent 
+        opacity={0.9}
+        side={2} // DoubleSide
+        flatShading={false}
+      />
     </mesh>
   );
 }
@@ -67,7 +75,7 @@ function RadarDots({ storms, centerLat, centerLon, showWaypoints }: {
         return (
           <mesh key={index} position={[x, 0.05, z]}>
             <sphereGeometry args={[0.08]} />
-            <meshBasicMaterial color={color} emissive={color} />
+            <meshPhongMaterial color={color} emissive={color} emissiveIntensity={0.5} />
           </mesh>
         );
       })}
