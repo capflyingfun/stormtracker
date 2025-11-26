@@ -206,18 +206,19 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
 
       // Draw circular radar-style grid floor (like sonar view)
       const maxRadius = 50; // 50 miles
-      const ringSpacing = 10; // Ring every 10 miles
+      const ringDistances = [13, 25, 38, 50]; // Match sonar view distances
       const numRadialLines = 12; // 12 radial lines (every 30 degrees)
+      const scaleFactor = 0.35; // Larger scale for better visibility
       
-      // Draw concentric range circles
-      for (let radius = ringSpacing; radius <= maxRadius; radius += ringSpacing) {
-        const numSegments = 36; // Smooth circle with 36 segments
+      // Draw concentric range circles with distance labels
+      ringDistances.forEach((radius) => {
+        const numSegments = 48; // Smooth circle
         ctx.beginPath();
         
         for (let i = 0; i <= numSegments; i++) {
           const angle = (i / numSegments) * Math.PI * 2;
-          const worldX = Math.cos(angle) * radius * 0.15; // Scale to 3D world
-          const worldZ = Math.sin(angle) * radius * 0.15;
+          const worldX = Math.cos(angle) * radius * scaleFactor;
+          const worldZ = Math.sin(angle) * radius * scaleFactor;
           
           const point3D = rotateY({ x: worldX, y: 0, z: worldZ }, rotationY);
           const projected = project3D({ ...point3D, y: point3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
@@ -229,18 +230,30 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           }
         }
         
-        // Major rings (every 20 miles) are brighter
-        const isMajor = radius % 20 === 0;
-        ctx.strokeStyle = isMajor ? 'rgba(0, 200, 180, 0.5)' : 'rgba(0, 180, 160, 0.25)';
-        ctx.lineWidth = isMajor ? 1.5 : 0.8;
+        // Outer ring is brighter
+        const isMajor = radius === 50 || radius === 25;
+        ctx.strokeStyle = isMajor ? 'rgba(0, 200, 180, 0.5)' : 'rgba(0, 180, 160, 0.3)';
+        ctx.lineWidth = isMajor ? 1.5 : 1;
         ctx.stroke();
-      }
+        
+        // Add distance label on the east side of each ring
+        const labelAngle = Math.PI / 2; // East direction
+        const labelX = Math.cos(labelAngle) * radius * scaleFactor;
+        const labelZ = Math.sin(labelAngle) * radius * scaleFactor;
+        const label3D = rotateY({ x: labelX, y: 0.2, z: labelZ }, rotationY);
+        const labelProj = project3D({ ...label3D, y: label3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        
+        ctx.font = '10px monospace';
+        ctx.fillStyle = 'rgba(0, 220, 200, 0.7)';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${radius}mi`, labelProj.x, labelProj.y);
+      });
       
       // Draw radial lines from center outward
       for (let i = 0; i < numRadialLines; i++) {
         const angle = (i / numRadialLines) * Math.PI * 2;
-        const endX = Math.cos(angle) * maxRadius * 0.15;
-        const endZ = Math.sin(angle) * maxRadius * 0.15;
+        const endX = Math.cos(angle) * maxRadius * scaleFactor;
+        const endZ = Math.sin(angle) * maxRadius * scaleFactor;
         
         const start3D = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
         const end3D = rotateY({ x: endX, y: 0, z: endZ }, rotationY);
