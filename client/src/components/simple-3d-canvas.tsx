@@ -681,20 +681,24 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.font = 'bold 13px sans-serif';
         const messageWidth = ctx.measureText(tickerMessage).width + 40;
         
-        // Calculate scroll position
+        // Calculate scroll position with 1-second initial delay
         const scrollSpeed = 50; // pixels per second
-        const elapsedTime = (Date.now() - tickerStartTime.current) / 1000;
+        const rawElapsedTime = (Date.now() - tickerStartTime.current) / 1000;
+        const elapsedTime = Math.max(0, rawElapsedTime - 1); // 1 second delay before scrolling starts
         const totalScrollDistance = canvas.width + messageWidth;
         const scrollProgress = (elapsedTime * scrollSpeed) % totalScrollDistance;
         const drawX = canvas.width - scrollProgress;
         
         // Detect when scroll cycle completes (message fully scrolled off left side)
-        const currentCycle = Math.floor((elapsedTime * scrollSpeed) / totalScrollDistance);
-        if (currentCycle > lastScrollCycleRef.current) {
-          lastScrollCycleRef.current = currentCycle;
-          // Move to next message
-          if (messages && messages.length > 0) {
-            currentMessageIndexRef.current = (currentMessageIndexRef.current + 1) % messages.length;
+        // Only start counting cycles after the initial delay
+        if (elapsedTime > 0) {
+          const currentCycle = Math.floor((elapsedTime * scrollSpeed) / totalScrollDistance);
+          if (currentCycle > lastScrollCycleRef.current) {
+            lastScrollCycleRef.current = currentCycle;
+            // Move to next message
+            if (messages && messages.length > 0) {
+              currentMessageIndexRef.current = (currentMessageIndexRef.current + 1) % messages.length;
+            }
           }
         }
         
