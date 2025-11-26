@@ -164,6 +164,43 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       gradient.addColorStop(1, '#000010');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Twinkling stars in sky
+      const numStars = 80;
+      const time = Date.now() * 0.001;
+      for (let i = 0; i < numStars; i++) {
+        // Use consistent pseudo-random positions for each star
+        const seed1 = Math.sin(i * 127.1) * 43758.5453;
+        const seed2 = Math.sin(i * 269.5) * 43758.5453;
+        const starX = ((seed1 - Math.floor(seed1)) * canvas.width);
+        const starY = ((seed2 - Math.floor(seed2)) * canvas.height * 0.6); // Stars in upper 60% of screen
+        
+        // Twinkling effect - each star has different phase
+        const twinkleSpeed = 1 + (i % 5) * 0.5;
+        const twinkle = 0.3 + Math.sin(time * twinkleSpeed + i * 0.5) * 0.7;
+        
+        // Star size variation
+        const baseSize = 0.5 + (i % 3) * 0.5;
+        const size = baseSize * (0.8 + twinkle * 0.4);
+        
+        // Draw star with glow
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + twinkle * 0.5})`;
+        ctx.beginPath();
+        ctx.arc(starX, starY, size, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Occasional brighter stars with cross effect
+        if (i % 15 === 0 && twinkle > 0.7) {
+          ctx.strokeStyle = `rgba(255, 255, 255, ${twinkle * 0.3})`;
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(starX - 3, starY);
+          ctx.lineTo(starX + 3, starY);
+          ctx.moveTo(starX, starY - 3);
+          ctx.lineTo(starX, starY + 3);
+          ctx.stroke();
+        }
+      }
 
       // Draw North arrow compass in top right - aligned with heading display
       const compassSize = 60;
