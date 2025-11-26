@@ -649,14 +649,14 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.lineWidth = 2;
           ctx.stroke();
           
-          // Draw comprehensive storm info banner at top of screen
+          // Draw comprehensive storm info banner below controls
           const infoText = `Avg Storm Info: ${avgDistance.toFixed(1)} mi away, moving ${compassDir} (${Math.round(avgDirDegrees)}°) at ${Math.round(avgSpeed)} mph`;
           
           ctx.font = 'bold 14px sans-serif';
           const textWidth = ctx.measureText(infoText).width;
           const bannerPadding = 12;
           const bannerX = (canvas.width - textWidth) / 2 - bannerPadding;
-          const bannerY = 120; // Below the controls
+          const bannerY = 180; // Further down to avoid UI controls
           
           // Background banner
           ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
