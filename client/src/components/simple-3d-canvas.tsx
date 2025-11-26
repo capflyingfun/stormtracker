@@ -562,40 +562,39 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         };
         
         // Draw ping highlight effect on priority storms (one per category)
-        // Uses pulsing ring animation with category color
-        const pingTime = (Date.now() % 2000) / 2000; // 0-1 cycle over 2 seconds
-        const pingScale = 0.5 + pingTime * 1.5; // Expand from 0.5x to 2x
-        const pingOpacity = Math.max(0, 1 - pingTime); // Fade out as it expands
+        // Uses pulsing ring animation with category color - small and subtle
+        const pingTime = (Date.now() % 1500) / 1500; // 0-1 cycle over 1.5 seconds
+        const pingScale = 1 + pingTime * 0.8; // Expand from 1x to 1.8x
+        const pingOpacity = Math.max(0, 1 - pingTime * 0.8); // Fade out as it expands
         
         priorityList.forEach((storm) => {
-          const { pos3D, color } = storm;
+          const { pos3D, color, height } = storm;
           
           // Check if storm is visible (in front of camera after rotation)
-          const stormRotated = rotateY({ x: pos3D.x, y: 0.03, z: pos3D.z }, currentRotation);
-          if (stormRotated.z >= 0) return; // Behind camera
+          const stormRotated = rotateY({ x: pos3D.x, y: height * 0.5, z: pos3D.z }, currentRotation);
+          if (stormRotated.z >= -0.1) return; // Behind camera
           
-          // Project storm position to screen
-          const scale = -cameraDistance / stormRotated.z;
-          const baseRadius = 15 * scale; // Base ping size
-          const pingRadius = baseRadius * pingScale;
-          
-          // Get screen position
+          // Get screen position at cloud center height
           const stormProj = project3D({ ...stormRotated, y: stormRotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+          
+          // Fixed small ping size (doesn't scale with distance)
+          const baseRadius = 12;
+          const pingRadius = baseRadius * pingScale;
           
           // Draw expanding ping ring
           ctx.strokeStyle = color;
-          ctx.lineWidth = 3;
-          ctx.globalAlpha = pingOpacity * 0.8;
+          ctx.lineWidth = 2;
+          ctx.globalAlpha = pingOpacity * 0.9;
           ctx.beginPath();
           ctx.arc(stormProj.x, stormProj.y, pingRadius, 0, Math.PI * 2);
           ctx.stroke();
           
-          // Draw inner solid ring (always visible)
-          ctx.globalAlpha = 0.6;
-          ctx.lineWidth = 2;
+          // Draw inner solid dot (always visible marker)
+          ctx.globalAlpha = 0.9;
+          ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.arc(stormProj.x, stormProj.y, baseRadius * 0.5, 0, Math.PI * 2);
-          ctx.stroke();
+          ctx.arc(stormProj.x, stormProj.y, 4, 0, Math.PI * 2);
+          ctx.fill();
           
           ctx.globalAlpha = 1;
         });
