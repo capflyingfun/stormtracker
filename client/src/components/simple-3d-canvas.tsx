@@ -441,17 +441,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
           const radius = Math.max(8, 35 * scale); // Circular column radius - increased for better visibility
 
-          // Draw storm column with intensity-based transparency
-          const transparency = dbzToTransparency(intensity);
-          const columnGradient = ctx.createLinearGradient(base.x - radius, top.y, base.x + radius, base.y);
-          columnGradient.addColorStop(0, color + transparency); // Top uses intensity transparency
-          columnGradient.addColorStop(1, color + transparency); // Bottom uses same transparency for consistency
-
-          ctx.fillStyle = columnGradient;
-          ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
-          
-          // Simple cloud top - just a single ellipse (much faster than multiple gradient circles)
-          const cloudRadius = radius * 0.9;
+          // Jellybean cloud top only (no columns for cleaner look)
+          const cloudRadius = radius * 1.2; // Slightly larger since no columns
           ctx.fillStyle = color + 'DD';
           ctx.beginPath();
           ctx.ellipse(base.x, top.y, cloudRadius, cloudRadius * 0.5, 0, 0, 2 * Math.PI);
@@ -465,25 +456,25 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           
           // Draw distance/approach label for closest storm of each category
           if (isClosestOfCategory) {
-            const labelY = top.y - 15; // Above the storm
+            const labelY = top.y - 22; // Above the storm
             const labelText = `${distMiles.toFixed(1)}mi / ${approachPct}%`;
             
-            // Background pill for readability
-            ctx.font = 'bold 10px sans-serif';
+            // Background pill for readability - LARGER
+            ctx.font = 'bold 13px sans-serif';
             const textWidth = ctx.measureText(labelText).width;
-            const padding = 4;
+            const padding = 6;
             
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
             ctx.beginPath();
-            ctx.roundRect(base.x - textWidth / 2 - padding, labelY - 8, textWidth + padding * 2, 14, 4);
+            ctx.roundRect(base.x - textWidth / 2 - padding, labelY - 10, textWidth + padding * 2, 20, 5);
             ctx.fill();
             
-            // Border matching storm color
+            // Border matching storm color - thicker
             ctx.strokeStyle = color;
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 2;
             ctx.stroke();
             
-            // Text
+            // Text - white and bold
             ctx.fillStyle = '#FFFFFF';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -566,20 +557,28 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           .filter(s => s !== null && s.windsPrediction?.direction && s.windsPrediction?.speed);
         
         if (closestWithMovement.length > 0) {
-          // Average the movement vectors
-          let avgDirX = 0, avgDirZ = 0, avgSpeed = 0;
+          // Average the movement vectors and distance
+          let avgDirX = 0, avgDirZ = 0, avgSpeed = 0, avgDistance = 0;
           closestWithMovement.forEach(storm => {
             const dir = storm!.windsPrediction!.direction * Math.PI / 180;
             avgDirX += Math.sin(dir);
             avgDirZ += Math.cos(dir);
             avgSpeed += storm!.windsPrediction!.speed || 0;
+            avgDistance += storm!.distMiles || 0;
           });
           avgDirX /= closestWithMovement.length;
           avgDirZ /= closestWithMovement.length;
           avgSpeed /= closestWithMovement.length;
+          avgDistance /= closestWithMovement.length;
           
-          // Get average direction in radians
+          // Get average direction in radians and degrees
           const avgMovementDir = Math.atan2(avgDirX, avgDirZ);
+          const avgDirDegrees = ((avgMovementDir * 180 / Math.PI) + 360) % 360;
+          
+          // Convert degrees to compass direction
+          const compassDirections = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+          const compassIndex = Math.round(avgDirDegrees / 22.5) % 16;
+          const compassDir = compassDirections[compassIndex];
           const timeIntervals = [10, 20, 30]; // minutes
           const coneWidth = 0.025;
           
@@ -650,13 +649,31 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.lineWidth = 2;
           ctx.stroke();
           
-          // Add label showing average speed
-          ctx.font = 'bold 10px sans-serif';
-          ctx.fillStyle = 'rgba(0, 200, 255, 0.9)';
+          // Draw comprehensive storm info banner at top of screen
+          const infoText = `Avg Storm Info: ${avgDistance.toFixed(1)} mi away, moving ${compassDir} (${Math.round(avgDirDegrees)}°) at ${Math.round(avgSpeed)} mph`;
+          
+          ctx.font = 'bold 14px sans-serif';
+          const textWidth = ctx.measureText(infoText).width;
+          const bannerPadding = 12;
+          const bannerX = (canvas.width - textWidth) / 2 - bannerPadding;
+          const bannerY = 120; // Below the controls
+          
+          // Background banner
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+          ctx.beginPath();
+          ctx.roundRect(bannerX, bannerY, textWidth + bannerPadding * 2, 28, 8);
+          ctx.fill();
+          
+          // Cyan border
+          ctx.strokeStyle = 'rgba(0, 200, 255, 0.8)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // Text
+          ctx.fillStyle = 'rgba(0, 200, 255, 1)';
           ctx.textAlign = 'center';
-          const labelRotated = rotateY({ x: Math.sin(avgMovementDir) * 0.5, y: 0.3, z: Math.cos(avgMovementDir) * 0.5 }, currentRotation);
-          const labelPos = project3D({ ...labelRotated, y: labelRotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-          ctx.fillText(`Avg: ${avgSpeed.toFixed(0)} mph`, labelPos.x, labelPos.y);
+          ctx.textBaseline = 'middle';
+          ctx.fillText(infoText, canvas.width / 2, bannerY + 14);
         }
       }
       
