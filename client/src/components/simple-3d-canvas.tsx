@@ -588,6 +588,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const numSegments = 4; // Storm, 1/3, 2/3, User
           
           const conePoints: Point2D[] = [];
+          let allPointsVisible = true;
           
           // Left edge of cone (from storm toward user)
           for (let i = 0; i <= numSegments; i++) {
@@ -600,6 +601,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
             const worldX = interpX + Math.sin(perpAngle) * spread;
             const worldZ = interpZ + Math.cos(perpAngle) * spread;
             const rotated = rotateY({ x: worldX, y: 0.03, z: worldZ }, currentRotation);
+            // Check if this point is behind camera
+            if (rotated.z >= -0.1) allPointsVisible = false;
             conePoints.push(project3D({ ...rotated, y: rotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height));
           }
           // Right edge of cone (reverse, from user back to storm)
@@ -612,8 +615,13 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
             const worldX = interpX + Math.sin(perpAngle) * spread;
             const worldZ = interpZ + Math.cos(perpAngle) * spread;
             const rotated = rotateY({ x: worldX, y: 0.03, z: worldZ }, currentRotation);
+            // Check if this point is behind camera
+            if (rotated.z >= -0.1) allPointsVisible = false;
             conePoints.push(project3D({ ...rotated, y: rotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height));
           }
+          
+          // Only draw if all cone points are in front of camera
+          if (!allPointsVisible) return;
           
           // Draw filled cone (use storm color with transparency)
           ctx.fillStyle = color + '25'; // 15% opacity
