@@ -116,6 +116,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
   const tickerStartTime = useRef(Date.now()); // Track when ticker started for clean scroll
   const aiTickerMessagesRef = useRef<string[]>([]); // AI-generated conversational messages
   const lastFetchSignatureRef = useRef<string>(''); // Track when to refetch
+  const currentMessageIndexRef = useRef(0); // Current message being displayed
+  const lastScrollCycleRef = useRef(0); // Track scroll cycle to change message after full scroll
 
   // Keyboard controls for PC - only rotation, height is locked
   useEffect(() => {
@@ -663,23 +665,17 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Get AI conversational message or fallback
-        const getTickerMessage = (): string => {
-          const messages = aiTickerMessagesRef.current;
-          if (messages && messages.length > 0) {
-            // Rotate through messages every 10 seconds for variety
-            const msgIndex = Math.floor(Date.now() / 10000) % messages.length;
-            return messages[msgIndex];
-          }
-          
-          // Fallback conversational message
-          if (stormData.length === 0) {
-            return "✓ All clear! Perfect weather for outdoor activities. Enjoy your day!";
-          }
-          return "🌧️ Weather activity detected in your area - stay weather aware!";
-        };
+        // Get current AI message (changes only after full scroll cycle)
+        const messages = aiTickerMessagesRef.current;
+        let tickerMessage: string;
         
-        const tickerMessage = getTickerMessage();
+        if (messages && messages.length > 0) {
+          tickerMessage = messages[currentMessageIndexRef.current % messages.length];
+        } else if (stormData.length === 0) {
+          tickerMessage = "✓ All clear! Perfect weather for outdoor activities. Enjoy your day!";
+        } else {
+          tickerMessage = "🌧️ Weather activity detected in your area - stay weather aware!";
+        }
         
         // Calculate scroll for single message
         ctx.font = 'bold 13px sans-serif';
@@ -691,6 +687,16 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         const totalScrollDistance = canvas.width + messageWidth;
         const scrollProgress = (elapsedTime * scrollSpeed) % totalScrollDistance;
         const drawX = canvas.width - scrollProgress;
+        
+        // Detect when scroll cycle completes (message fully scrolled off left side)
+        const currentCycle = Math.floor((elapsedTime * scrollSpeed) / totalScrollDistance);
+        if (currentCycle > lastScrollCycleRef.current) {
+          lastScrollCycleRef.current = currentCycle;
+          // Move to next message
+          if (messages && messages.length > 0) {
+            currentMessageIndexRef.current = (currentMessageIndexRef.current + 1) % messages.length;
+          }
+        }
         
         // Clip text to banner area
         ctx.save();
