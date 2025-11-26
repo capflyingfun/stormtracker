@@ -600,12 +600,18 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         const categoryNames: Record<string, string> = {
           light: 'Light', moderate: 'Moderate', heavy: 'Heavy', vheavy: 'V.Heavy', extreme: 'Extreme'
         };
-        const intensityTips: Record<string, string> = {
-          light: "☔ Grab an umbrella!",
-          moderate: "🌧️ Check those wipers!",
-          heavy: "⛈️ Delay outdoor plans!",
-          vheavy: "🌩️ Seek shelter now!",
-          extreme: "⚠️ TAKE COVER!"
+        
+        // ETA-aware tips: urgent if <45 min, preparatory if >45 min
+        const getIntensityTip = (category: string, etaMinutes: number): string => {
+          const isUrgent = etaMinutes < 45;
+          const tips: Record<string, { urgent: string; later: string }> = {
+            light: { urgent: "☔ Grab an umbrella!", later: "☔ Light rain approaching" },
+            moderate: { urgent: "🌧️ Check those wipers!", later: "🌧️ Prepare for rain" },
+            heavy: { urgent: "⛈️ Delay outdoor plans!", later: "⛈️ Heavy rain expected" },
+            vheavy: { urgent: "🌩️ Seek shelter now!", later: "🌩️ Prepare to shelter soon" },
+            extreme: { urgent: "⚠️ TAKE COVER!", later: "⚠️ Severe storm approaching" }
+          };
+          return tips[category]?.[isUrgent ? 'urgent' : 'later'] || "Stay aware!";
         };
         
         // Use priorityList - include ALL info in ticker now
@@ -627,7 +633,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const stormBearing = bearingDirs[Math.round(stormBearingDeg / 45) % 8];
           
           const catName = categoryNames[storm.category] || 'Storm';
-          const tip = intensityTips[storm.category] || "Stay aware!";
+          const tip = getIntensityTip(storm.category, etaMinutes);
           
           // Full ticker format with all info
           tickerSegments.push({
