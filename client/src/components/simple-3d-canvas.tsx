@@ -468,8 +468,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       </div>
 
 
-      {/* Heading Display */}
-      <div className="absolute top-16 right-4 z-10 bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-slate-700/50">
+      {/* Heading Display - Top Left under buttons */}
+      <div className="absolute top-16 left-4 z-10 bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-slate-700/50">
         <div className="text-center">
           <div className="text-xs text-slate-400 mb-1">Heading</div>
           <div className="text-lg font-bold text-white">
