@@ -543,87 +543,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
             }
           }
 
-          // Storm track cone and movement arrow on ground
-          // Calculate in WORLD SPACE first, then rotate with everything else
-          if (windsPrediction?.direction && windsPrediction?.speed) {
-            const movementDir = windsPrediction.direction * Math.PI / 180;
-            const speedMph = windsPrediction.speed || 15;
-            
-            // Calculate projected positions at 10, 20, 30 minutes
-            const timeIntervals = [10, 20, 30]; // minutes
-            const coneWidth = 0.02;
-            
-            timeIntervals.forEach((minutes, idx) => {
-              const distance = (speedMph / 60) * minutes; // miles
-              const distanceScale = distance * scaleFactor;
-              
-              // Calculate future position in WORLD SPACE (unrotated)
-              const futureWorldX = pos3D.x + Math.sin(movementDir) * distanceScale;
-              const futureWorldZ = pos3D.z + Math.cos(movementDir) * distanceScale;
-              
-              // NOW rotate to screen space
-              const futureRotated = rotateY({ x: futureWorldX, y: 0.05, z: futureWorldZ }, currentRotation);
-              const futurePos = project3D({ ...futureRotated, y: futureRotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-              
-              // Draw time marker circle
-              const markerRadius = 3 + idx;
-              ctx.fillStyle = `${color}${['66', '44', '33'][idx]}`;
-              ctx.beginPath();
-              ctx.arc(futurePos.x, futurePos.y, markerRadius, 0, 2 * Math.PI);
-              ctx.fill();
-              
-              // Time label (10m, 20m, 30m)
-              ctx.font = '8px monospace';
-              ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-              ctx.textAlign = 'center';
-              ctx.fillText(`${minutes}m`, futurePos.x, futurePos.y - markerRadius - 3);
-            });
-            
-            // Draw cone outline connecting the markers
-            const conePoints: Point2D[] = [];
-            const startProj = project3D({ x: rotatedPos.x, y: 0.05 - cameraHeight, z: rotatedPos.z }, cameraDistance, canvas.width, canvas.height);
-            
-            // Left edge of cone - calculate in world space, then rotate
-            for (let i = 0; i <= 2; i++) {
-              const minutes = timeIntervals[i];
-              const distance = (speedMph / 60) * minutes * scaleFactor;
-              const spread = distance * coneWidth * 3;
-              const perpAngle = movementDir + Math.PI / 2;
-              // World space position
-              const worldX = pos3D.x + Math.sin(movementDir) * distance + Math.sin(perpAngle) * spread;
-              const worldZ = pos3D.z + Math.cos(movementDir) * distance + Math.cos(perpAngle) * spread;
-              // Rotate to view space
-              const rotated = rotateY({ x: worldX, y: 0.05, z: worldZ }, currentRotation);
-              conePoints.push(project3D({ ...rotated, y: rotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height));
-            }
-            // Right edge of cone (reverse)
-            for (let i = 2; i >= 0; i--) {
-              const minutes = timeIntervals[i];
-              const distance = (speedMph / 60) * minutes * scaleFactor;
-              const spread = distance * coneWidth * 3;
-              const perpAngle = movementDir - Math.PI / 2;
-              // World space position
-              const worldX = pos3D.x + Math.sin(movementDir) * distance + Math.sin(perpAngle) * spread;
-              const worldZ = pos3D.z + Math.cos(movementDir) * distance + Math.cos(perpAngle) * spread;
-              // Rotate to view space
-              const rotated = rotateY({ x: worldX, y: 0.05, z: worldZ }, currentRotation);
-              conePoints.push(project3D({ ...rotated, y: rotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height));
-            }
-            
-            // Draw filled cone
-            ctx.fillStyle = `${color}22`;
-            ctx.beginPath();
-            ctx.moveTo(startProj.x, startProj.y);
-            conePoints.forEach((p) => ctx.lineTo(p.x, p.y));
-            ctx.closePath();
-            ctx.fill();
-            
-            // Draw cone outline
-            ctx.strokeStyle = `${color}66`;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          }
-
           // Store position for click detection
           clickableStorms.push({
             screenX: base.x,
@@ -640,6 +559,105 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
             ctx.fill();
           }
         });
+        
+        // Draw single averaged storm track from USER's position
+        // Calculate average direction and speed from closest storms of each category
+        const closestWithMovement = Object.values(closestByCategory)
+          .filter(s => s !== null && s.windsPrediction?.direction && s.windsPrediction?.speed);
+        
+        if (closestWithMovement.length > 0) {
+          // Average the movement vectors
+          let avgDirX = 0, avgDirZ = 0, avgSpeed = 0;
+          closestWithMovement.forEach(storm => {
+            const dir = storm!.windsPrediction!.direction * Math.PI / 180;
+            avgDirX += Math.sin(dir);
+            avgDirZ += Math.cos(dir);
+            avgSpeed += storm!.windsPrediction!.speed || 0;
+          });
+          avgDirX /= closestWithMovement.length;
+          avgDirZ /= closestWithMovement.length;
+          avgSpeed /= closestWithMovement.length;
+          
+          // Get average direction in radians
+          const avgMovementDir = Math.atan2(avgDirX, avgDirZ);
+          const timeIntervals = [10, 20, 30]; // minutes
+          const coneWidth = 0.025;
+          
+          // Draw time markers from user position
+          timeIntervals.forEach((minutes, idx) => {
+            const distance = (avgSpeed / 60) * minutes; // miles
+            const distanceScale = distance * scaleFactor;
+            
+            // Calculate position in world space (from user at 0,0)
+            const futureWorldX = Math.sin(avgMovementDir) * distanceScale;
+            const futureWorldZ = Math.cos(avgMovementDir) * distanceScale;
+            
+            // Rotate to screen space
+            const futureRotated = rotateY({ x: futureWorldX, y: 0.05, z: futureWorldZ }, currentRotation);
+            const futurePos = project3D({ ...futureRotated, y: futureRotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+            
+            // Draw time marker circle
+            const markerRadius = 4 + idx * 2;
+            ctx.fillStyle = `rgba(0, 200, 255, ${0.7 - idx * 0.15})`;
+            ctx.beginPath();
+            ctx.arc(futurePos.x, futurePos.y, markerRadius, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Time label
+            ctx.font = 'bold 9px sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${minutes}m`, futurePos.x, futurePos.y - markerRadius - 5);
+          });
+          
+          // Draw cone from user position
+          const conePoints: Point2D[] = [];
+          const userProj = project3D({ x: 0, y: 0.05 - cameraHeight, z: 0 }, cameraDistance, canvas.width, canvas.height);
+          
+          // Left edge of cone
+          for (let i = 0; i <= 2; i++) {
+            const minutes = timeIntervals[i];
+            const distance = (avgSpeed / 60) * minutes * scaleFactor;
+            const spread = distance * coneWidth * 3;
+            const perpAngle = avgMovementDir + Math.PI / 2;
+            const worldX = Math.sin(avgMovementDir) * distance + Math.sin(perpAngle) * spread;
+            const worldZ = Math.cos(avgMovementDir) * distance + Math.cos(perpAngle) * spread;
+            const rotated = rotateY({ x: worldX, y: 0.05, z: worldZ }, currentRotation);
+            conePoints.push(project3D({ ...rotated, y: rotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height));
+          }
+          // Right edge of cone (reverse)
+          for (let i = 2; i >= 0; i--) {
+            const minutes = timeIntervals[i];
+            const distance = (avgSpeed / 60) * minutes * scaleFactor;
+            const spread = distance * coneWidth * 3;
+            const perpAngle = avgMovementDir - Math.PI / 2;
+            const worldX = Math.sin(avgMovementDir) * distance + Math.sin(perpAngle) * spread;
+            const worldZ = Math.cos(avgMovementDir) * distance + Math.cos(perpAngle) * spread;
+            const rotated = rotateY({ x: worldX, y: 0.05, z: worldZ }, currentRotation);
+            conePoints.push(project3D({ ...rotated, y: rotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height));
+          }
+          
+          // Draw filled cone (cyan/teal color for visibility)
+          ctx.fillStyle = 'rgba(0, 200, 255, 0.15)';
+          ctx.beginPath();
+          ctx.moveTo(userProj.x, userProj.y);
+          conePoints.forEach((p) => ctx.lineTo(p.x, p.y));
+          ctx.closePath();
+          ctx.fill();
+          
+          // Draw cone outline
+          ctx.strokeStyle = 'rgba(0, 200, 255, 0.6)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // Add label showing average speed
+          ctx.font = 'bold 10px sans-serif';
+          ctx.fillStyle = 'rgba(0, 200, 255, 0.9)';
+          ctx.textAlign = 'center';
+          const labelRotated = rotateY({ x: Math.sin(avgMovementDir) * 0.5, y: 0.3, z: Math.cos(avgMovementDir) * 0.5 }, currentRotation);
+          const labelPos = project3D({ ...labelRotated, y: labelRotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+          ctx.fillText(`Avg: ${avgSpeed.toFixed(0)} mph`, labelPos.x, labelPos.y);
+        }
       }
       
       // Store storm positions for click handling
