@@ -428,6 +428,47 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
 
           ctx.fillStyle = columnGradient;
           ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
+          
+          // Puffy cloud tops - multiple overlapping circles to create cloud-like appearance
+          const cloudPuffs = Math.min(5, Math.floor(intensity / 15) + 2); // More puffs for stronger storms
+          const cloudRadius = radius * 0.8;
+          
+          for (let p = 0; p < cloudPuffs; p++) {
+            // Create varied puff positions around the top
+            const puffAngle = (p / cloudPuffs) * Math.PI * 2;
+            const puffDist = cloudRadius * 0.3 * (0.5 + Math.sin(p * 2.5) * 0.5);
+            const puffX = base.x + Math.cos(puffAngle) * puffDist;
+            const puffY = top.y + Math.sin(puffAngle * 0.5) * (cloudRadius * 0.3);
+            const puffRadius = cloudRadius * (0.5 + (p % 3) * 0.15);
+            
+            // Draw puff with gradient for 3D effect
+            const puffGradient = ctx.createRadialGradient(
+              puffX - puffRadius * 0.2, puffY - puffRadius * 0.2, 0,
+              puffX, puffY, puffRadius
+            );
+            puffGradient.addColorStop(0, color + 'FF');
+            puffGradient.addColorStop(0.6, color + 'CC');
+            puffGradient.addColorStop(1, color + '88');
+            
+            ctx.fillStyle = puffGradient;
+            ctx.beginPath();
+            ctx.arc(puffX, puffY, puffRadius, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+          
+          // Central cloud dome on top
+          const domeGradient = ctx.createRadialGradient(
+            base.x - radius * 0.1, top.y - cloudRadius * 0.2, 0,
+            base.x, top.y, cloudRadius
+          );
+          domeGradient.addColorStop(0, '#FFFFFF88');
+          domeGradient.addColorStop(0.5, color + 'CC');
+          domeGradient.addColorStop(1, color + '66');
+          
+          ctx.fillStyle = domeGradient;
+          ctx.beginPath();
+          ctx.arc(base.x, top.y, cloudRadius, 0, 2 * Math.PI);
+          ctx.fill();
 
           // Animated rain effect - rain streaks falling from storm
           const numRainDrops = Math.min(12, Math.floor(intensity / 8)); // More rain for stronger storms
