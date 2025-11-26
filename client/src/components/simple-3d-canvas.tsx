@@ -116,8 +116,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
   const tickerStartTime = useRef(Date.now()); // Track when ticker started for clean scroll
   const aiTickerMessagesRef = useRef<string[]>([]); // AI-generated conversational messages
   const lastFetchSignatureRef = useRef<string>(''); // Track when to refetch
-  const currentMessageIndexRef = useRef(0); // Current message being displayed
+  const currentMessageIndexRef = useRef(0); // Current message index for next cycle
   const lastScrollCycleRef = useRef(0); // Track scroll cycle to change message after full scroll
+  const lockedMessageRef = useRef<string | null>(null); // Current message locked until scroll completes
 
   // Keyboard controls for PC - only rotation, height is locked
   useEffect(() => {
@@ -190,7 +191,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       };
     });
     
-    // Fetch AI conversational messages
+    // Fetch AI conversational messages (loaded in background, used on next scroll cycle)
     fetch('/api/ticker-messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -199,12 +200,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       .then(res => res.json())
       .then(data => {
         if (data.messages && Array.isArray(data.messages)) {
+          // Store for next cycle - don't interrupt current scroll
           aiTickerMessagesRef.current = data.messages;
-          // Reset ticker timing when new messages arrive to prevent mid-scroll changes
-          tickerStartTime.current = Date.now();
-          currentMessageIndexRef.current = 0;
-          lastScrollCycleRef.current = 0;
-          console.log('🤖 Loaded AI ticker messages:', data.messages.length, 'variations');
+          console.log('🤖 Loaded AI ticker messages:', data.messages.length, 'variations (ready for next cycle)');
         }
       })
       .catch(err => console.error('Failed to fetch ticker messages:', err));
@@ -669,17 +667,19 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Get current AI message (changes only after full scroll cycle)
+        // Lock current message - only changes when scroll cycle completes
         const messages = aiTickerMessagesRef.current;
-        let tickerMessage: string;
         
-        if (messages && messages.length > 0) {
-          tickerMessage = messages[currentMessageIndexRef.current % messages.length];
-        } else if (stormData.length === 0) {
-          tickerMessage = "✓ All clear! Perfect weather for outdoor activities. Enjoy your day!";
-        } else {
-          tickerMessage = "🌧️ Weather activity detected in your area - stay weather aware!";
+        // If no locked message yet, set initial one
+        if (lockedMessageRef.current === null) {
+          if (stormData.length === 0) {
+            lockedMessageRef.current = "✓ All clear! Perfect weather for outdoor activities. Enjoy your day!";
+          } else {
+            lockedMessageRef.current = "🌧️ Weather activity detected in your area - stay weather aware!";
+          }
         }
+        
+        const tickerMessage = lockedMessageRef.current;
         
         // Calculate scroll for single message
         ctx.font = 'bold 13px sans-serif';
@@ -699,9 +699,14 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const currentCycle = Math.floor((elapsedTime * scrollSpeed) / totalScrollDistance);
           if (currentCycle > lastScrollCycleRef.current) {
             lastScrollCycleRef.current = currentCycle;
-            // Move to next message
+            // Move to next message and lock it for the entire next scroll
             if (messages && messages.length > 0) {
               currentMessageIndexRef.current = (currentMessageIndexRef.current + 1) % messages.length;
+              lockedMessageRef.current = messages[currentMessageIndexRef.current];
+            } else if (stormData.length === 0) {
+              lockedMessageRef.current = "✓ All clear! Perfect weather for outdoor activities. Enjoy your day!";
+            } else {
+              lockedMessageRef.current = "🌧️ Weather activity detected in your area - stay weather aware!";
             }
           }
         }
