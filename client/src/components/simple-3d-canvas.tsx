@@ -555,10 +555,33 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           return dirs[Math.round(((degrees % 360) + 360) % 360 / 22.5) % 16];
         };
         
-        // Draw scrolling news-style ticker banner with dynamic multi-storm segments
-        const bannerY = 180;
+        // Draw "Breaking Weather News" header label above ticker
+        const headerY = 168;
+        const bannerY = 183;
         const bannerHeight = 28;
         const bannerPadding = 8;
+        
+        // Draw header label
+        ctx.font = 'bold 10px sans-serif';
+        const headerText = stormData.length > 0 ? '📡 BREAKING WEATHER NEWS' : '📡 WEATHER UPDATE';
+        const headerWidth = ctx.measureText(headerText).width;
+        
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.beginPath();
+        ctx.roundRect(bannerPadding, headerY, headerWidth + 12, 14, 3);
+        ctx.fill();
+        
+        const highestThreatColor = stormData.length > 0 
+          ? stormData.reduce((a, b) => a.intensity > b.intensity ? a : b).color 
+          : 'rgba(34, 197, 94, 0.8)';
+        ctx.strokeStyle = highestThreatColor;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        ctx.fillStyle = highestThreatColor;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(headerText, bannerPadding + 6, headerY + 7);
         
         // Draw full-width banner background
         ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
@@ -566,16 +589,12 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.roundRect(bannerPadding, bannerY, canvas.width - bannerPadding * 2, bannerHeight, 6);
         ctx.fill();
         
-        // Border color based on threat status (use highest threat color)
-        const highestThreatColor = stormData.length > 0 
-          ? stormData.reduce((a, b) => a.intensity > b.intensity ? a : b).color 
-          : 'rgba(34, 197, 94, 0.8)';
+        // Border color based on threat status
         ctx.strokeStyle = stormData.length > 0 ? highestThreatColor : 'rgba(34, 197, 94, 0.8)';
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Build ticker segments using UNIFIED priorityList (one priority storm per category)
-        // This ensures ticker matches the info boxes and tracks
+        // Build ticker segments with ALL storm info (bearing, distance, probability, ETA, tip)
         const tickerSegments: { text: string; color: string; category: string }[] = [];
         const categoryNames: Record<string, string> = {
           light: 'Light', moderate: 'Moderate', heavy: 'Heavy', vheavy: 'V.Heavy', extreme: 'Extreme'
@@ -588,24 +607,30 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           extreme: "⚠️ TAKE COVER!"
         };
         
-        // Use priorityList (already sorted by severity: extreme → light, one per category)
-        // Ticker is now shorter since ETA is on the info boxes
+        // Use priorityList - include ALL info in ticker now
         priorityList.forEach(storm => {
           const speedMph = storm.windsPrediction?.speed || 15;
           const dirDegrees = storm.windsPrediction?.direction || 0;
           const compassDir = getCompassDir(dirDegrees);
           
+          // Calculate ETA
+          const etaMinutes = speedMph > 0 ? (storm.distMiles / speedMph) * 60 : 999;
+          const etaHrs = Math.floor(etaMinutes / 60);
+          const etaMins = Math.round(etaMinutes % 60);
+          const etaStr = `${etaHrs}h${etaMins.toString().padStart(2, '0')}m`;
+          
           // Calculate bearing from user to storm
           const stormBearingRad = Math.atan2(storm.pos3D.x, -storm.pos3D.z);
           const stormBearingDeg = ((stormBearingRad * 180 / Math.PI) + 360) % 360;
-          const stormBearingCompass = getCompassDir(stormBearingDeg);
+          const bearingDirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+          const stormBearing = bearingDirs[Math.round(stormBearingDeg / 45) % 8];
           
           const catName = categoryNames[storm.category] || 'Storm';
           const tip = intensityTips[storm.category] || "Stay aware!";
           
-          // Shorter ticker format - ETA is on the info boxes now
+          // Full ticker format with all info
           tickerSegments.push({
-            text: `⚡ ${catName} ${stormBearingCompass} • Moving ${compassDir} @ ${Math.round(speedMph)}mph • ${tip}`,
+            text: `⚡ ${catName} ${stormBearing} ${storm.distMiles.toFixed(0)}mi • ${storm.approachPct}% • ETA ${etaStr} • Moving ${compassDir} @ ${Math.round(speedMph)}mph • ${tip}`,
             color: storm.color,
             category: storm.category
           });
@@ -674,53 +699,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         });
         
         ctx.restore();
-        
-        // Draw HUD panel showing priority storm info (below ticker, left side)
-        // This replaces the overlapping cloud labels
-        const hudX = 12;
-        let hudY = bannerY + bannerHeight + 12;
-        const hudRowHeight = 20;
-        
-        ctx.font = 'bold 11px sans-serif';
-        
-        priorityList.forEach(storm => {
-          const speedMph = storm.windsPrediction?.speed || 15;
-          const etaMinutes = speedMph > 0 ? (storm.distMiles / speedMph) * 60 : 999;
-          const etaHrs = Math.floor(etaMinutes / 60);
-          const etaMins = Math.round(etaMinutes % 60);
-          const etaStr = `${etaHrs.toString().padStart(2, '0')}:${etaMins.toString().padStart(2, '0')}`;
-          
-          // Calculate bearing from user to storm
-          const bearingRad = Math.atan2(storm.pos3D.x, -storm.pos3D.z);
-          const bearingDeg = ((bearingRad * 180 / Math.PI) + 360) % 360;
-          const bearingDirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-          const bearing = bearingDirs[Math.round(bearingDeg / 45) % 8];
-          
-          const catNames: Record<string, string> = { light: 'LT', moderate: 'MD', heavy: 'HV', vheavy: 'VH', extreme: 'EX' };
-          const catName = catNames[storm.category] || '??';
-          
-          const hudText = `${catName}: ${bearing} ${storm.distMiles.toFixed(1)}mi • ${storm.approachPct}% • ETA ${etaStr}`;
-          const textWidth = ctx.measureText(hudText).width;
-          
-          // Background
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-          ctx.beginPath();
-          ctx.roundRect(hudX, hudY, textWidth + 16, hudRowHeight, 4);
-          ctx.fill();
-          
-          // Border
-          ctx.strokeStyle = storm.color;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          
-          // Text
-          ctx.fillStyle = storm.color;
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(hudText, hudX + 8, hudY + hudRowHeight / 2);
-          
-          hudY += hudRowHeight + 4;
-        });
       }
       
       // Store storm positions for click handling
