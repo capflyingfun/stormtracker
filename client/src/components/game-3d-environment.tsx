@@ -105,7 +105,7 @@ function GameEnvironment({ location, precipitationStorms }: { location: { lat: n
     <>
       <Sky sunPosition={[100, 20, 100]} />
       <ambientLight intensity={0.8} />
-      <directionalLight position={[100, 50, 100]} intensity={1} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
+      <directionalLight position={[100, 50, 100]} intensity={1} castShadow />
       <pointLight position={[0, 30, 0]} intensity={0.5} />
 
       {/* Ground plane */}
