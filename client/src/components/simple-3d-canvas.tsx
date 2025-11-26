@@ -467,27 +467,26 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           }
 
           // Storm track cone and movement arrow on ground
+          // Calculate in WORLD SPACE first, then rotate with everything else
           if (windsPrediction?.direction && windsPrediction?.speed) {
             const movementDir = windsPrediction.direction * Math.PI / 180;
             const speedMph = windsPrediction.speed || 15;
             
             // Calculate projected positions at 10, 20, 30 minutes
-            // Speed in mph -> distance in miles per minute = speed / 60
             const timeIntervals = [10, 20, 30]; // minutes
-            
-            // Draw track cone (expanding cone shape)
-            const coneWidth = 0.02; // Width expansion per unit distance
+            const coneWidth = 0.02;
             
             timeIntervals.forEach((minutes, idx) => {
               const distance = (speedMph / 60) * minutes; // miles
-              const distanceScale = distance * scaleFactor; // Convert to 3D scale
+              const distanceScale = distance * scaleFactor;
               
-              // Calculate future position
-              const futureX = rotatedPos.x + Math.sin(movementDir - currentRotation) * distanceScale;
-              const futureZ = rotatedPos.z + Math.cos(movementDir - currentRotation) * distanceScale;
+              // Calculate future position in WORLD SPACE (unrotated)
+              const futureWorldX = pos3D.x + Math.sin(movementDir) * distanceScale;
+              const futureWorldZ = pos3D.z + Math.cos(movementDir) * distanceScale;
               
-              // Project to screen
-              const futurePos = project3D({ x: futureX, y: 0.05 - cameraHeight, z: futureZ }, cameraDistance, canvas.width, canvas.height);
+              // NOW rotate to screen space
+              const futureRotated = rotateY({ x: futureWorldX, y: 0.05, z: futureWorldZ }, currentRotation);
+              const futurePos = project3D({ ...futureRotated, y: futureRotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
               
               // Draw time marker circle
               const markerRadius = 3 + idx;
@@ -507,35 +506,38 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
             const conePoints: Point2D[] = [];
             const startProj = project3D({ x: rotatedPos.x, y: 0.05 - cameraHeight, z: rotatedPos.z }, cameraDistance, canvas.width, canvas.height);
             
-            // Left edge of cone
+            // Left edge of cone - calculate in world space, then rotate
             for (let i = 0; i <= 2; i++) {
               const minutes = timeIntervals[i];
               const distance = (speedMph / 60) * minutes * scaleFactor;
               const spread = distance * coneWidth * 3;
-              const perpAngle = movementDir - currentRotation + Math.PI / 2;
-              const x = rotatedPos.x + Math.sin(movementDir - currentRotation) * distance + Math.sin(perpAngle) * spread;
-              const z = rotatedPos.z + Math.cos(movementDir - currentRotation) * distance + Math.cos(perpAngle) * spread;
-              conePoints.push(project3D({ x, y: 0.05 - cameraHeight, z }, cameraDistance, canvas.width, canvas.height));
+              const perpAngle = movementDir + Math.PI / 2;
+              // World space position
+              const worldX = pos3D.x + Math.sin(movementDir) * distance + Math.sin(perpAngle) * spread;
+              const worldZ = pos3D.z + Math.cos(movementDir) * distance + Math.cos(perpAngle) * spread;
+              // Rotate to view space
+              const rotated = rotateY({ x: worldX, y: 0.05, z: worldZ }, currentRotation);
+              conePoints.push(project3D({ ...rotated, y: rotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height));
             }
             // Right edge of cone (reverse)
             for (let i = 2; i >= 0; i--) {
               const minutes = timeIntervals[i];
               const distance = (speedMph / 60) * minutes * scaleFactor;
               const spread = distance * coneWidth * 3;
-              const perpAngle = movementDir - currentRotation - Math.PI / 2;
-              const x = rotatedPos.x + Math.sin(movementDir - currentRotation) * distance + Math.sin(perpAngle) * spread;
-              const z = rotatedPos.z + Math.cos(movementDir - currentRotation) * distance + Math.cos(perpAngle) * spread;
-              conePoints.push(project3D({ x, y: 0.05 - cameraHeight, z }, cameraDistance, canvas.width, canvas.height));
+              const perpAngle = movementDir - Math.PI / 2;
+              // World space position
+              const worldX = pos3D.x + Math.sin(movementDir) * distance + Math.sin(perpAngle) * spread;
+              const worldZ = pos3D.z + Math.cos(movementDir) * distance + Math.cos(perpAngle) * spread;
+              // Rotate to view space
+              const rotated = rotateY({ x: worldX, y: 0.05, z: worldZ }, currentRotation);
+              conePoints.push(project3D({ ...rotated, y: rotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height));
             }
             
             // Draw filled cone
             ctx.fillStyle = `${color}22`;
             ctx.beginPath();
             ctx.moveTo(startProj.x, startProj.y);
-            conePoints.forEach((p, i) => {
-              if (i === 0) ctx.lineTo(p.x, p.y);
-              else ctx.lineTo(p.x, p.y);
-            });
+            conePoints.forEach((p) => ctx.lineTo(p.x, p.y));
             ctx.closePath();
             ctx.fill();
             
