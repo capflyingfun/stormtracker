@@ -413,18 +413,20 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           return { pos3D, intensity, height, color, rotatedPos, windsPrediction, originalStorm: storm, distMiles, approachPct, category };
         });
         
-        // Find closest storm of each category
-        const closestByCategory: Record<string, typeof stormData[0] | null> = {
-          light: null, moderate: null, heavy: null, vheavy: null, extreme: null
-        };
-        stormData.forEach(storm => {
-          const current = closestByCategory[storm.category];
-          if (!current || storm.distMiles < current.distMiles) {
-            closestByCategory[storm.category] = storm;
-          }
-        });
-        // Create a Set of closest storm references for quick lookup
-        const closestStorms = new Set(Object.values(closestByCategory).filter(s => s !== null));
+        // Find most threatening storm to highlight - prioritize probability first, then distance
+        // Only highlight storms with 70%+ probability (real threats)
+        const highProbStorms = stormData.filter(s => s.approachPct >= 70);
+        
+        // If we have high-probability storms, pick the closest one as the primary threat
+        // Otherwise, don't highlight any storm (they're not real threats)
+        let primaryThreatStorm: typeof stormData[0] | null = null;
+        if (highProbStorms.length > 0) {
+          // Sort by distance to find closest high-prob storm
+          primaryThreatStorm = highProbStorms.sort((a, b) => a.distMiles - b.distMiles)[0];
+        }
+        
+        // Create a Set with just the primary threat for highlighting
+        const closestStorms = new Set(primaryThreatStorm ? [primaryThreatStorm] : []);
 
         // Sort by z-distance for proper depth rendering
         stormData.sort((a, b) => b.rotatedPos.z - a.rotatedPos.z);
