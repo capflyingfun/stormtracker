@@ -285,6 +285,42 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.lineTo(endProj.x, endProj.y);
         ctx.stroke();
       }
+      
+      // Animated radar sweep line (like sonar)
+      const sweepTime = Date.now() * 0.0005; // Sweep speed
+      const sweepAngle = (sweepTime % (Math.PI * 2)); // Current sweep angle
+      const sweepEndX = Math.cos(sweepAngle) * maxRadius * scaleFactor;
+      const sweepEndZ = Math.sin(sweepAngle) * maxRadius * scaleFactor;
+      
+      const sweepStart3D = rotateY({ x: 0, y: 0.02, z: 0 }, rotationY);
+      const sweepEnd3D = rotateY({ x: sweepEndX, y: 0.02, z: sweepEndZ }, rotationY);
+      
+      const sweepStartProj = project3D({ ...sweepStart3D, y: sweepStart3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+      const sweepEndProj = project3D({ ...sweepEnd3D, y: sweepEnd3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+      
+      // Draw sweep line with glow effect
+      ctx.strokeStyle = 'rgba(0, 255, 200, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sweepStartProj.x, sweepStartProj.y);
+      ctx.lineTo(sweepEndProj.x, sweepEndProj.y);
+      ctx.stroke();
+      
+      // Sweep glow/trail effect
+      for (let trail = 1; trail <= 8; trail++) {
+        const trailAngle = sweepAngle - (trail * 0.08);
+        const trailEndX = Math.cos(trailAngle) * maxRadius * scaleFactor;
+        const trailEndZ = Math.sin(trailAngle) * maxRadius * scaleFactor;
+        const trailEnd3D = rotateY({ x: trailEndX, y: 0.02, z: trailEndZ }, rotationY);
+        const trailEndProj = project3D({ ...trailEnd3D, y: trailEnd3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+        
+        ctx.strokeStyle = `rgba(0, 255, 200, ${0.3 - trail * 0.03})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(sweepStartProj.x, sweepStartProj.y);
+        ctx.lineTo(trailEndProj.x, trailEndProj.y);
+        ctx.stroke();
+      }
 
       // Draw highly visible user location marker
       const userPos = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
