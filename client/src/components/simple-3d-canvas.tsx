@@ -227,7 +227,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       body: JSON.stringify({ 
         storms: stormRequests, 
         locationName: location.name,
-        impactPredictions 
+        impactPredictions,
+        userLocation: { lat: location.lat, lon: location.lon }
       })
     })
       .then(res => res.json())

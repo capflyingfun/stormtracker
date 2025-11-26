@@ -65,14 +65,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI-powered ticker messages endpoint - generates personalized conversational weather updates
   app.post("/api/ticker-messages", async (req, res) => {
     try {
-      const { storms, locationName, impactPredictions } = req.body;
+      const { storms, locationName, impactPredictions, userLocation } = req.body;
       
       if (!storms || !Array.isArray(storms) || storms.length === 0) {
         return res.json({ messages: [] });
       }
       
-      // Create cache key from storms + location signature
-      const signature = storms.map((s: any) => {
+      // Filter to only storms genuinely approaching (within 30° track cone)
+      const approachingStorms = storms.filter((s: any) => {
+        if (!userLocation || !s.windsPrediction) return false;
+        const movementSpeed = s.windsPrediction?.speed || 0;
+        const movementDir = s.windsPrediction?.direction || 0;
+        
+        // Calculate bearing from storm to user
+        const stormLat = s.lat;
+        const stormLon = s.lon;
+        const bearingToUser = Math.atan2(userLocation.lon - stormLon, userLocation.lat - stormLat) * 180 / Math.PI;
+        const normalizedBearing = ((bearingToUser % 360) + 360) % 360;
+        const normalizedMovement = ((movementDir % 360) + 360) % 360;
+        const angleDiff = Math.abs(normalizedBearing - normalizedMovement);
+        const approachAngle = Math.min(angleDiff, 360 - angleDiff);
+        
+        // Only approaching if within 30° and moving reasonably
+        return approachAngle <= 30 && movementSpeed > 5;
+      });
+      
+      const loc = locationName?.split(',')[0] || 'there';
+      
+      // If no storms are actually approaching, return "all clear" messages
+      if (approachingStorms.length === 0) {
+        const allClearMessages = [
+          `✓ Looking good for ${loc}! Storms nearby but none heading your way.`,
+          `☀️ You're in the clear, ${loc}! Weather's staying where it is.`,
+          `📡 Tracking cells in the area but nothing on track for your location.`,
+          `🌤️ All clear for now! The rain is missing you today, ${loc}.`,
+          `👍 No storms heading your way - enjoy the break while it lasts!`
+        ];
+        return res.json({ messages: allClearMessages });
+      }
+      
+      // Create cache key from APPROACHING storms only + location signature
+      const signature = approachingStorms.map((s: any) => {
         const bucket = s.etaMinutes < 45 ? 'U' : s.etaMinutes < 90 ? 'P' : 'M';
         return `${s.category}-${bucket}-${Math.round(s.distance / 10)}`;
       }).sort().join('|') + (locationName ? `-${locationName.slice(0,10)}` : '');
@@ -86,8 +119,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const OpenAI = (await import("openai")).default;
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       
-      // Build personalized storm summary with impact data
-      const stormSummary = storms.map((s: any, i: number) => {
+      // Build personalized storm summary with impact data - ONLY approaching storms
+      const stormSummary = approachingStorms.map((s: any, i: number) => {
         const intensity = s.category === 'extreme' ? 'extreme' : s.category === 'vheavy' ? 'very heavy' : s.category;
         const urgency = s.etaMinutes < 45 ? 'arriving soon' : s.etaMinutes < 90 ? 'approaching' : 'on the horizon';
         // Include impact prediction if available
@@ -97,12 +130,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).join('; ');
       
       // Determine overall urgency and personalization
-      const mostUrgent = Math.min(...storms.map((s: any) => s.etaMinutes));
+      const mostUrgent = Math.min(...approachingStorms.map((s: any) => s.etaMinutes));
       const urgencyLevel = mostUrgent < 45 ? 'URGENT' : mostUrgent < 90 ? 'PREPARE' : 'MONITOR';
-      const highestImpact = impactPredictions?.reduce((max: any, p: any) => (!max || p.impactScore > max.impactScore) ? p : max, null);
+      const highestImpact = impactPredictions?.filter((p: any) => p.isApproaching).reduce((max: any, p: any) => (!max || p.impactScore > max.impactScore) ? p : max, null);
       const personalContext = locationName ? `for ${locationName}` : 'for your location';
       
-      const prompt = `You're a witty, personalized weather broadcaster speaking directly to someone ${personalContext}. Write 5 varied ticker messages about these storms:
+      const prompt = `You're a witty, personalized weather broadcaster speaking directly to someone ${personalContext}. Write 5 varied ticker messages about these storms that ARE HEADING DIRECTLY TOWARD the user:
 
 ${stormSummary}
 
@@ -110,8 +143,9 @@ Overall urgency: ${urgencyLevel}
 ${highestImpact ? `Primary threat: ${highestImpact.category} with ${highestImpact.approachProbability}% chance of impact, arriving in ${highestImpact.etaFormatted}` : ''}
 
 Rules:
+- These storms ARE confirmed to be heading toward the user - speak with certainty about incoming weather
 - Each message should be a natural, PERSONALIZED sentence speaking directly to the user
-- Reference their location naturally when relevant: "Heads up ${locationName?.split(',')[0] || 'folks'}..."
+- Reference their location naturally when relevant: "Heads up ${loc}..."
 - Add clean, appropriate humor when storms are far away (91+ min)
 - Be more serious and safety-focused when storms are close (<45 min) or high impact
 - Keep each message 60-100 characters
@@ -120,9 +154,9 @@ Rules:
 - Include action recommendations when impact score is high
 
 Examples of good personalized tone:
-- "🌧️ Hey ${locationName?.split(',')[0] || 'there'}, that drizzle west of you is getting closer - umbrella time!"
+- "🌧️ Hey ${loc}, that drizzle west of you is getting closer - umbrella time!"
 - "⛈️ Looks like you've got about an hour before things get interesting - good time to prep!"
-- "☔ Light stuff to your north, nothing major for you yet but we're watching it."
+- "☔ Light stuff coming your way, should arrive in the next hour or so."
 - "⚡ That system heading your way packs a punch - might want to head inside soon."
 
 Return ONLY a JSON array of 5 strings.`;
@@ -147,8 +181,7 @@ Return ONLY a JSON array of 5 strings.`;
         console.error('OpenAI ticker error:', aiError);
       }
       
-      // Fallback personalized messages
-      const loc = locationName?.split(',')[0] || 'there';
+      // Fallback personalized messages (loc already defined above)
       const fallbacks = [
         `🌧️ Hey ${loc}, weather's getting interesting - keep those umbrellas handy!`,
         `⛈️ Storm activity in your area ${loc} - stay weather aware today!`,
