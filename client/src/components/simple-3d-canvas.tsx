@@ -551,112 +551,188 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           }
         });
         
-        // Draw single averaged storm track from USER's position
-        // Calculate average direction and speed from closest storms of each category
-        const closestWithMovement = Object.values(closestByCategory)
-          .filter(s => s !== null && s.windsPrediction?.direction && s.windsPrediction?.speed);
+        // Draw threat tracks FROM high-probability storms (70%+) TO user
+        // Find storms with 70%+ approach probability
+        const threatStorms = stormData.filter(s => 
+          s.approachPct >= 70 && s.windsPrediction?.direction && s.windsPrediction?.speed
+        );
         
-        if (closestWithMovement.length > 0) {
-          // Average the movement vectors and distance
-          let avgDirX = 0, avgDirZ = 0, avgSpeed = 0, avgDistance = 0;
-          closestWithMovement.forEach(storm => {
-            const dir = storm!.windsPrediction!.direction * Math.PI / 180;
-            avgDirX += Math.sin(dir);
-            avgDirZ += Math.cos(dir);
-            avgSpeed += storm!.windsPrediction!.speed || 0;
-            avgDistance += storm!.distMiles || 0;
-          });
-          avgDirX /= closestWithMovement.length;
-          avgDirZ /= closestWithMovement.length;
-          avgSpeed /= closestWithMovement.length;
-          avgDistance /= closestWithMovement.length;
+        // Sort by probability (highest first) then distance (closest first)
+        threatStorms.sort((a, b) => {
+          if (b.approachPct !== a.approachPct) return b.approachPct - a.approachPct;
+          return a.distMiles - b.distMiles;
+        });
+        
+        // Helper to format ETA as HH:MM
+        const formatETA = (minutes: number): string => {
+          const hrs = Math.floor(minutes / 60);
+          const mins = Math.round(minutes % 60);
+          return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+        };
+        
+        // Helper for compass direction
+        const getCompassDir = (degrees: number): string => {
+          const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+          return dirs[Math.round(((degrees % 360) + 360) % 360 / 22.5) % 16];
+        };
+        
+        // Track the nearest threat for the banner
+        let nearestThreat: { category: string; distance: number; eta: string; speed: number; direction: string; color: string } | null = null;
+        
+        // Draw track for each threatening storm (limit to top 5 for performance)
+        threatStorms.slice(0, 5).forEach((storm) => {
+          const { pos3D, color, windsPrediction, distMiles, category } = storm;
+          const speedMph = windsPrediction!.speed || 15;
+          const dirDegrees = windsPrediction!.direction || 0;
           
-          // Get average direction in radians and degrees
-          const avgMovementDir = Math.atan2(avgDirX, avgDirZ);
-          const avgDirDegrees = ((avgMovementDir * 180 / Math.PI) + 360) % 360;
+          // Calculate ETA (time for storm to reach user)
+          const etaMinutes = speedMph > 0 ? (distMiles / speedMph) * 60 : 999;
+          const etaFormatted = formatETA(etaMinutes);
+          const compassDir = getCompassDir(dirDegrees);
           
-          // Convert degrees to compass direction
-          const compassDirections = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-          const compassIndex = Math.round(avgDirDegrees / 22.5) % 16;
-          const compassDir = compassDirections[compassIndex];
-          const timeIntervals = [10, 20, 30]; // minutes
-          const coneWidth = 0.025;
+          // Track nearest threat
+          if (!nearestThreat || distMiles < nearestThreat.distance) {
+            const categoryNames: Record<string, string> = {
+              light: 'Light', moderate: 'Moderate', heavy: 'Heavy', vheavy: 'V.Heavy', extreme: 'Extreme'
+            };
+            nearestThreat = {
+              category: categoryNames[category] || 'Storm',
+              distance: distMiles,
+              eta: etaFormatted,
+              speed: speedMph,
+              direction: compassDir,
+              color: color
+            };
+          }
           
-          // Draw time markers from user position
-          timeIntervals.forEach((minutes, idx) => {
-            const distance = (avgSpeed / 60) * minutes; // miles
-            const distanceScale = distance * scaleFactor;
-            
-            // Calculate position in world space (from user at 0,0)
-            const futureWorldX = Math.sin(avgMovementDir) * distanceScale;
-            const futureWorldZ = Math.cos(avgMovementDir) * distanceScale;
-            
-            // Rotate to screen space
-            const futureRotated = rotateY({ x: futureWorldX, y: 0.05, z: futureWorldZ }, currentRotation);
-            const futurePos = project3D({ ...futureRotated, y: futureRotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-            
-            // Draw time marker circle
-            const markerRadius = 4 + idx * 2;
-            ctx.fillStyle = `rgba(0, 200, 255, ${0.7 - idx * 0.15})`;
-            ctx.beginPath();
-            ctx.arc(futurePos.x, futurePos.y, markerRadius, 0, 2 * Math.PI);
-            ctx.fill();
-            
-            // Time label
-            ctx.font = 'bold 9px sans-serif';
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-            ctx.textAlign = 'center';
-            ctx.fillText(`${minutes}m`, futurePos.x, futurePos.y - markerRadius - 5);
-          });
+          // Calculate direction FROM storm TO user (opposite of storm movement toward user)
+          // The storm is at pos3D, user is at (0,0,0)
+          const dirToUser = Math.atan2(-pos3D.x, -pos3D.z);
           
-          // Draw cone from user position
+          // Draw cone from storm position to user position
+          // Cone widens as it approaches user (uncertainty grows)
+          const coneWidth = 0.03;
+          const numSegments = 4; // Storm, 1/3, 2/3, User
+          
           const conePoints: Point2D[] = [];
-          const userProj = project3D({ x: 0, y: 0.05 - cameraHeight, z: 0 }, cameraDistance, canvas.width, canvas.height);
           
-          // Left edge of cone
-          for (let i = 0; i <= 2; i++) {
-            const minutes = timeIntervals[i];
-            const distance = (avgSpeed / 60) * minutes * scaleFactor;
-            const spread = distance * coneWidth * 3;
-            const perpAngle = avgMovementDir + Math.PI / 2;
-            const worldX = Math.sin(avgMovementDir) * distance + Math.sin(perpAngle) * spread;
-            const worldZ = Math.cos(avgMovementDir) * distance + Math.cos(perpAngle) * spread;
-            const rotated = rotateY({ x: worldX, y: 0.05, z: worldZ }, currentRotation);
+          // Left edge of cone (from storm toward user)
+          for (let i = 0; i <= numSegments; i++) {
+            const t = i / numSegments; // 0 = storm, 1 = user
+            const interpX = pos3D.x * (1 - t);
+            const interpZ = pos3D.z * (1 - t);
+            // Spread increases toward user (uncertainty grows with time)
+            const spread = t * coneWidth * Math.sqrt(pos3D.x * pos3D.x + pos3D.z * pos3D.z) * 0.4;
+            const perpAngle = dirToUser + Math.PI / 2;
+            const worldX = interpX + Math.sin(perpAngle) * spread;
+            const worldZ = interpZ + Math.cos(perpAngle) * spread;
+            const rotated = rotateY({ x: worldX, y: 0.03, z: worldZ }, currentRotation);
             conePoints.push(project3D({ ...rotated, y: rotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height));
           }
-          // Right edge of cone (reverse)
-          for (let i = 2; i >= 0; i--) {
-            const minutes = timeIntervals[i];
-            const distance = (avgSpeed / 60) * minutes * scaleFactor;
-            const spread = distance * coneWidth * 3;
-            const perpAngle = avgMovementDir - Math.PI / 2;
-            const worldX = Math.sin(avgMovementDir) * distance + Math.sin(perpAngle) * spread;
-            const worldZ = Math.cos(avgMovementDir) * distance + Math.cos(perpAngle) * spread;
-            const rotated = rotateY({ x: worldX, y: 0.05, z: worldZ }, currentRotation);
+          // Right edge of cone (reverse, from user back to storm)
+          for (let i = numSegments; i >= 0; i--) {
+            const t = i / numSegments;
+            const interpX = pos3D.x * (1 - t);
+            const interpZ = pos3D.z * (1 - t);
+            const spread = t * coneWidth * Math.sqrt(pos3D.x * pos3D.x + pos3D.z * pos3D.z) * 0.4;
+            const perpAngle = dirToUser - Math.PI / 2;
+            const worldX = interpX + Math.sin(perpAngle) * spread;
+            const worldZ = interpZ + Math.cos(perpAngle) * spread;
+            const rotated = rotateY({ x: worldX, y: 0.03, z: worldZ }, currentRotation);
             conePoints.push(project3D({ ...rotated, y: rotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height));
           }
           
-          // Draw filled cone (cyan/teal color for visibility)
-          ctx.fillStyle = 'rgba(0, 200, 255, 0.15)';
+          // Draw filled cone (use storm color with transparency)
+          ctx.fillStyle = color + '25'; // 15% opacity
           ctx.beginPath();
-          ctx.moveTo(userProj.x, userProj.y);
-          conePoints.forEach((p) => ctx.lineTo(p.x, p.y));
-          ctx.closePath();
-          ctx.fill();
+          if (conePoints.length > 0) {
+            ctx.moveTo(conePoints[0].x, conePoints[0].y);
+            conePoints.forEach((p) => ctx.lineTo(p.x, p.y));
+            ctx.closePath();
+            ctx.fill();
+          }
           
           // Draw cone outline
-          ctx.strokeStyle = 'rgba(0, 200, 255, 0.6)';
+          ctx.strokeStyle = color + '88'; // 53% opacity
           ctx.lineWidth = 2;
           ctx.stroke();
           
-          // Draw comprehensive storm info banner below controls
-          const infoText = `Avg Storm Info: ${avgDistance.toFixed(1)} mi away, moving ${compassDir} (${Math.round(avgDirDegrees)}°) at ${Math.round(avgSpeed)} mph`;
+          // Draw center line from storm to user
+          const stormRotated = rotateY({ x: pos3D.x, y: 0.03, z: pos3D.z }, currentRotation);
+          const stormProj = project3D({ ...stormRotated, y: stormRotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+          const userProj = project3D({ x: 0, y: 0.03 - cameraHeight, z: 0 }, cameraDistance, canvas.width, canvas.height);
+          
+          ctx.strokeStyle = color + 'AA';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([8, 4]);
+          ctx.beginPath();
+          ctx.moveTo(stormProj.x, stormProj.y);
+          ctx.lineTo(userProj.x, userProj.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          
+          // Draw ETA label at midpoint of track
+          const midX = (stormProj.x + userProj.x) / 2;
+          const midY = (stormProj.y + userProj.y) / 2;
+          
+          ctx.font = 'bold 12px sans-serif';
+          const etaText = `ETA ${etaFormatted}`;
+          const etaWidth = ctx.measureText(etaText).width;
+          
+          // Background pill
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+          ctx.beginPath();
+          ctx.roundRect(midX - etaWidth / 2 - 6, midY - 9, etaWidth + 12, 18, 4);
+          ctx.fill();
+          
+          // Border matching storm color
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // ETA text
+          ctx.fillStyle = '#FFFFFF';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(etaText, midX, midY);
+        });
+        
+        // Draw info banner - show threat info if 70%+ storms exist, otherwise show general info
+        if (nearestThreat) {
+          // Threat banner
+          const infoText = `Threat: ${nearestThreat.category} storm, ${nearestThreat.distance.toFixed(1)} mi, ETA ${nearestThreat.eta}, moving ${nearestThreat.direction} at ${Math.round(nearestThreat.speed)} mph`;
           
           ctx.font = 'bold 14px sans-serif';
           const textWidth = ctx.measureText(infoText).width;
           const bannerPadding = 12;
           const bannerX = (canvas.width - textWidth) / 2 - bannerPadding;
-          const bannerY = 180; // Further down to avoid UI controls
+          const bannerY = 180;
+          
+          // Background banner
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+          ctx.beginPath();
+          ctx.roundRect(bannerX, bannerY, textWidth + bannerPadding * 2, 28, 8);
+          ctx.fill();
+          
+          // Border matching threat color
+          ctx.strokeStyle = nearestThreat.color;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // Text in threat color
+          ctx.fillStyle = nearestThreat.color;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(infoText, canvas.width / 2, bannerY + 14);
+        } else {
+          // No immediate threats - show calm message
+          const infoText = 'No immediate storm threats (< 70% approach probability)';
+          
+          ctx.font = 'bold 14px sans-serif';
+          const textWidth = ctx.measureText(infoText).width;
+          const bannerPadding = 12;
+          const bannerX = (canvas.width - textWidth) / 2 - bannerPadding;
+          const bannerY = 180;
           
           // Background banner
           ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
@@ -664,13 +740,13 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.roundRect(bannerX, bannerY, textWidth + bannerPadding * 2, 28, 8);
           ctx.fill();
           
-          // Cyan border
-          ctx.strokeStyle = 'rgba(0, 200, 255, 0.8)';
+          // Green border for safety
+          ctx.strokeStyle = 'rgba(34, 197, 94, 0.8)';
           ctx.lineWidth = 2;
           ctx.stroke();
           
-          // Text
-          ctx.fillStyle = 'rgba(0, 200, 255, 1)';
+          // Green text
+          ctx.fillStyle = 'rgba(34, 197, 94, 1)';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(infoText, canvas.width / 2, bannerY + 14);
