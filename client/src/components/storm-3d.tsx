@@ -1,5 +1,6 @@
 import { Canvas } from '@react-three/fiber';
-import { useState, useRef, useMemo } from 'react';
+import { OrbitControls } from '@react-three/drei';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface Storm3DProps {
@@ -34,22 +35,23 @@ const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number)
   return [x * 0.1, z * 0.1]; // Scale down for 3D scene
 };
 
-// Simple 3D Cloud component
-function SimpleCloud({ position, height, color }: { 
+// 3D Storm Column Component - renders as a cylinder
+function StormColumn({ position, height, color }: { 
   position: [number, number, number]; 
   height: number; 
   color: string; 
 }) {
+  const radius = 0.3 + height * 0.1; // Wider columns for more visible
   return (
     <mesh position={[position[0], height / 2, position[2]]}>
-      <sphereGeometry args={[0.5, 8, 6]} />
-      <meshBasicMaterial color={color} transparent opacity={0.7} />
+      <cylinderGeometry args={[radius, radius, height, 8]} />
+      <meshPhongMaterial color={color} emissive={color} emissiveIntensity={0.3} transparent opacity={0.85} />
     </mesh>
   );
 }
 
-// Simple radar dots
-function SimpleRadarDots({ storms, centerLat, centerLon, showWaypoints }: {
+// Radar dots overlay
+function RadarDots({ storms, centerLat, centerLon, showWaypoints }: {
   storms: any[];
   centerLat: number;
   centerLon: number;
@@ -63,9 +65,9 @@ function SimpleRadarDots({ storms, centerLat, centerLon, showWaypoints }: {
         const [x, z] = geoTo3D(storm.lat, storm.lon, centerLat, centerLon);
         const color = dbzToColor(storm.dbz || storm.intensity || 25);
         return (
-          <mesh key={index} position={[x, 0.1, z]}>
-            <sphereGeometry args={[0.05]} />
-            <meshBasicMaterial color={color} />
+          <mesh key={index} position={[x, 0.05, z]}>
+            <sphereGeometry args={[0.08]} />
+            <meshBasicMaterial color={color} emissive={color} />
           </mesh>
         );
       })}
@@ -73,18 +75,72 @@ function SimpleRadarDots({ storms, centerLat, centerLon, showWaypoints }: {
   );
 }
 
-// Simple ground plane
-function SimpleGroundPlane({ location }: { location: { lat: number; lon: number; city?: string; } | null }) {
-  const backgroundColor = useMemo(() => {
-    if (!location) return '#2a2a2a';
-    return '#1a4a1a'; // Simple green ground
-  }, [location]);
-
+// Enhanced ground plane
+function GroundPlane() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-      <planeGeometry args={[50, 50]} />
-      <meshBasicMaterial color={backgroundColor} transparent opacity={0.5} />
+      <planeGeometry args={[80, 80]} />
+      <meshStandardMaterial color="#1a4a1a" roughness={0.8} metalness={0.2} />
     </mesh>
+  );
+}
+
+// User location marker
+function UserMarker() {
+  return (
+    <mesh position={[0, 0.3, 0]}>
+      <cylinderGeometry args={[0.3, 0.3, 0.6, 8]} />
+      <meshPhongMaterial color="#00FF00" emissive="#00FF00" emissiveIntensity={0.5} />
+    </mesh>
+  );
+}
+
+// 3D Scene content
+function Scene3D({ location, precipitationStorms, showWaypoints }: { 
+  location: { lat: number; lon: number; city?: string; };
+  precipitationStorms: any[];
+  showWaypoints: boolean;
+}) {
+  return (
+    <>
+      <ambientLight intensity={0.7} />
+      <directionalLight position={[10, 15, 10]} intensity={0.8} />
+      <directionalLight position={[-10, 10, -10]} intensity={0.4} />
+      <pointLight position={[0, 20, 0]} intensity={0.5} />
+      
+      <GroundPlane />
+      <UserMarker />
+      
+      {precipitationStorms.map((storm, index) => {
+        const [x, z] = geoTo3D(storm.lat, storm.lon, location.lat, location.lon);
+        const intensity = storm.dbz || storm.intensity || 25;
+        const height = dbzToHeight(intensity);
+        const color = dbzToColor(intensity);
+        
+        return (
+          <StormColumn
+            key={index}
+            position={[x, 0, z]}
+            height={height}
+            color={color}
+          />
+        );
+      })}
+      
+      <RadarDots 
+        storms={precipitationStorms} 
+        centerLat={location.lat} 
+        centerLon={location.lon}
+        showWaypoints={showWaypoints}
+      />
+      
+      <OrbitControls 
+        autoRotate={false}
+        autoRotateSpeed={0}
+        enableZoom={true}
+        enablePan={true}
+      />
+    </>
   );
 }
 
