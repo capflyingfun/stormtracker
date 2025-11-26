@@ -62,108 +62,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     weatherapi: process.env.WEATHERAPI_KEY || null, // WeatherAPI.com free tier: 1M calls/month
   };
 
-  // AI-powered ticker messages endpoint
+  // AI-powered ticker messages endpoint - generates conversational weather updates
   app.post("/api/ticker-messages", async (req, res) => {
     try {
       const { storms } = req.body;
       
       if (!storms || !Array.isArray(storms) || storms.length === 0) {
-        return res.json({ messages: {} });
+        return res.json({ messages: [] });
+      }
+      
+      // Create cache key from all storms signature
+      const signature = storms.map((s: any) => {
+        const bucket = s.etaMinutes < 45 ? 'U' : s.etaMinutes < 90 ? 'P' : 'M';
+        return `${s.category}-${bucket}-${Math.round(s.distance / 10)}`;
+      }).sort().join('|');
+      
+      // Check cache first
+      const cached = tickerMessageCache.get(signature);
+      if (cached && Date.now() - cached.timestamp < TICKER_CACHE_TTL) {
+        return res.json({ messages: cached.messages });
       }
       
       const OpenAI = (await import("openai")).default;
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       
-      const result: Record<string, string[]> = {};
+      // Build storm summary for prompt
+      const stormSummary = storms.map((s: any) => {
+        const intensity = s.category === 'extreme' ? 'extreme' : s.category === 'vheavy' ? 'very heavy' : s.category;
+        const urgency = s.etaMinutes < 45 ? 'arriving soon' : s.etaMinutes < 90 ? 'approaching' : 'on the horizon';
+        return `${intensity} rain ${s.direction} (${Math.round(s.distance)}mi, ${urgency}, ETA ~${Math.round(s.etaMinutes)}min)`;
+      }).join('; ');
       
-      for (const storm of storms) {
-        const { category, etaMinutes, distance, direction, movementDir, speed } = storm;
-        
-        // Create cache key from storm signature
-        const urgencyBucket = etaMinutes < 45 ? 'urgent' : etaMinutes < 90 ? 'prepare' : 'monitor';
-        const cacheKey = `${category}-${urgencyBucket}-${Math.round(distance / 10) * 10}`;
-        
-        // Check cache first
-        const cached = tickerMessageCache.get(cacheKey);
-        if (cached && Date.now() - cached.timestamp < TICKER_CACHE_TTL) {
-          result[cacheKey] = cached.messages;
-          continue;
-        }
-        
-        // Generate new messages with OpenAI
-        const urgencyGuidance = urgencyBucket === 'urgent' 
-          ? "URGENT: Storm arriving in under 45 minutes. Use imperative safety language like 'Seek shelter now!', 'Take cover immediately!'"
-          : urgencyBucket === 'prepare'
-          ? "PREPARE: Storm arriving in 45-90 minutes. Use preparatory language like 'Prepare to shelter soon', 'Finish outdoor activities'"
-          : "MONITOR: Storm over 90 minutes away. Use monitoring language like 'Keep an eye on conditions', 'Watch for updates'";
-        
-        const prompt = `Generate 5 varied, creative but professional weather ticker tips for a ${category} intensity storm.
-        
-Storm details:
-- Intensity: ${category} (${category === 'extreme' ? 'Very dangerous' : category === 'vheavy' ? 'Dangerous' : category === 'heavy' ? 'Significant' : category === 'moderate' ? 'Notable' : 'Light'})
-- ETA: ${Math.round(etaMinutes)} minutes
-- Distance: ${Math.round(distance)} miles ${direction}
-- Moving: ${movementDir} at ${Math.round(speed)} mph
+      // Determine overall urgency
+      const mostUrgent = Math.min(...storms.map((s: any) => s.etaMinutes));
+      const urgencyLevel = mostUrgent < 45 ? 'URGENT' : mostUrgent < 90 ? 'PREPARE' : 'MONITOR';
+      
+      const prompt = `You're a witty weather broadcaster. Write 5 varied ticker messages about these storms:
 
-${urgencyGuidance}
+${stormSummary}
+
+Overall urgency: ${urgencyLevel}
 
 Rules:
-- Each tip should be unique and creative, not repetitive
-- Include an emoji at the start of each tip
-- Keep each tip under 40 characters
-- Be professional but can include appropriate weather humor for non-urgent situations
-- Match urgency to the ETA bucket
+- Each message should be a natural, conversational sentence about ALL the storms
+- Add clean, appropriate humor when storms are far away (91+ min)
+- Be more serious and safety-focused when storms are close (<45 min)
+- Keep each message 60-100 characters
+- Start each with a weather emoji
+- Make each message unique and creative
+- Sound like a friendly meteorologist chatting with viewers
 
-Return ONLY a JSON array of 5 strings, no explanation.`;
+Examples of good tone:
+- "🌧️ Got a light drizzle to the west and heavier stuff brewing north - umbrella day for sure!"
+- "⛈️ Heads up! Multiple cells converging your way - might want to wrap up that BBQ early."
+- "☔ Some sprinkles dancing around the area, nothing too serious yet but keep an eye out!"
 
-        try {
-          const completion = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 300,
-            temperature: 0.8
-          });
-          
-          const content = completion.choices[0]?.message?.content || '[]';
-          // Parse JSON from response
-          const jsonMatch = content.match(/\[[\s\S]*\]/);
-          const messages = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
-          
-          if (Array.isArray(messages) && messages.length > 0) {
-            tickerMessageCache.set(cacheKey, { messages, timestamp: Date.now() });
-            result[cacheKey] = messages;
-          }
-        } catch (aiError) {
-          console.error('OpenAI ticker error:', aiError);
-          // Fallback messages
-          const fallbacks: Record<string, Record<string, string[]>> = {
-            urgent: {
-              extreme: ["⚠️ TAKE COVER NOW!", "🚨 Seek shelter immediately!", "⛔ Dangerous storm incoming!"],
-              vheavy: ["🌩️ Seek shelter now!", "⚡ Time to head inside!", "🏠 Get to safety!"],
-              heavy: ["⛈️ Head indoors soon!", "🌧️ Storm arriving fast!", "☔ Shelter time!"],
-              moderate: ["🌧️ Rain incoming fast!", "☔ Get those umbrellas!", "🌂 Prepare for rain!"],
-              light: ["☔ Light rain soon!", "🌧️ Drizzle approaching!", "☂️ Grab an umbrella!"]
-            },
-            prepare: {
-              extreme: ["⚠️ Prepare for severe weather!", "🌪️ Finish outdoor plans!", "⛈️ Storm coming - prepare!"],
-              vheavy: ["🌩️ Prepare to shelter soon!", "⚡ Wrap up outdoor work!", "🏠 Head home soon!"],
-              heavy: ["⛈️ Heavy rain expected!", "🌧️ Plan to be indoors!", "☔ Storm on the way!"],
-              moderate: ["🌧️ Moderate rain coming!", "☔ Check those wipers!", "🌂 Rain in your future!"],
-              light: ["☔ Light rain expected!", "🌧️ Sprinkles coming!", "☂️ Might need an umbrella!"]
-            },
-            monitor: {
-              extreme: ["⚠️ Severe storm approaching!", "🌪️ Watch conditions closely!", "📡 Monitor for updates!"],
-              vheavy: ["🌩️ Keep an eye out!", "⚡ Storm on the horizon!", "📻 Stay tuned for updates!"],
-              heavy: ["⛈️ Storms developing!", "🌧️ Weather changing!", "📡 Keep monitoring!"],
-              moderate: ["🌧️ Rain in the forecast!", "☔ Could get wet later!", "🌂 Watch the skies!"],
-              light: ["☔ Light rain possible!", "🌤️ Some clouds moving in!", "☁️ Weather looks calm!"]
-            }
-          };
-          result[cacheKey] = fallbacks[urgencyBucket]?.[category] || ["🌤️ Stay weather aware!"];
+Return ONLY a JSON array of 5 strings.`;
+
+      try {
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 400,
+          temperature: 0.85
+        });
+        
+        const content = completion.choices[0]?.message?.content || '[]';
+        const jsonMatch = content.match(/\[[\s\S]*\]/);
+        const messages = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+        
+        if (Array.isArray(messages) && messages.length > 0) {
+          tickerMessageCache.set(signature, { messages, timestamp: Date.now() });
+          return res.json({ messages });
         }
+      } catch (aiError) {
+        console.error('OpenAI ticker error:', aiError);
       }
       
-      res.json({ messages: result });
+      // Fallback conversational messages
+      const fallbacks = [
+        "🌧️ Weather's getting interesting out there - keep those umbrellas handy!",
+        "⛈️ Storm activity in the area - stay weather aware today!",
+        "☔ Some rain moving through - nothing we can't handle!",
+        "🌩️ Nature's putting on a show - enjoy it safely from indoors!",
+        "📡 Tracking some cells nearby - we'll keep you posted!"
+      ];
+      res.json({ messages: fallbacks });
     } catch (error) {
       console.error('Ticker messages error:', error);
       res.status(500).json({ error: 'Failed to generate ticker messages' });
