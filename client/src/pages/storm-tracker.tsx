@@ -7,7 +7,7 @@ import LocationSetup from "@/components/location-setup";
 import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
-import Simple3DCanvas from "@/components/simple-3d-canvas";
+import Game3D from "@/components/game-3d-environment";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
 import SonarRadar from "@/components/sonar-radar";
@@ -916,7 +916,7 @@ export default function StormTracker() {
                   )}
                   
                   {viewMode === '3d' && (
-                    <Simple3DCanvas 
+                    <Game3D 
                       location={location} 
                       precipitationStorms={precipitationStorms}
                       setViewMode={setViewMode}
