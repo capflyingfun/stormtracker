@@ -741,6 +741,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
             } else {
               lockedMessageRef.current = "🌧️ Weather activity detected in your area - stay weather aware!";
             }
+            // Reset ticker timing so new message starts fresh from right edge
+            tickerStartTime.current = Date.now();
+            lastScrollCycleRef.current = 0;
           }
         }
         
