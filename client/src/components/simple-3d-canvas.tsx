@@ -76,12 +76,12 @@ const project3D = (point: Point3D, cameraDistance: number, canvasWidth: number, 
 const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number): Point3D => {
   // Simple flat projection for local area (30-mile radius)
   const x = (lon - centerLon) * 111320 * Math.cos(centerLat * Math.PI / 180) / 1000; // km
-  const z = -(lat - centerLat) * 110540 / 1000; // km - Inverted Z for correct orientation
+  const z = (lat - centerLat) * 110540 / 1000; // km - Positive Z is north
   
   return {
     x: x * 0.3,  // Slightly larger scale for better spread
     y: 0,        // Ground level
-    z: z * 0.3   // Inverted Z orientation to fix north/south display
+    z: z * 0.3   // Correct Z orientation matching sonar view
   };
 };
 
@@ -302,7 +302,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
 
           // Calculate scale for perspective
           const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
-          const radius = Math.max(4, 20 * scale); // Circular column radius
+          const radius = Math.max(8, 35 * scale); // Circular column radius - increased for better visibility
 
           // Draw storm column with intensity-based transparency
           const transparency = dbzToTransparency(intensity);
