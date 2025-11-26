@@ -558,7 +558,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         // Draw "Breaking Weather News" header and ticker at BOTTOM of screen
         const bannerHeight = 28;
         const bannerPadding = 8;
-        const bannerY = canvas.height - bannerHeight - 50; // Above bottom edge
+        const bannerY = canvas.height - bannerHeight - 20; // Closer to bottom edge
         const headerY = bannerY - 15; // Above the ticker
         
         // Draw header label
@@ -866,8 +866,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
 
   return (
     <div className="fixed inset-0 bg-black z-50 select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}>
-      {/* Vertical Legend - Left Side */}
-      <div className="absolute bottom-20 left-4 bg-slate-800/90 backdrop-blur-sm rounded-lg p-2 border border-slate-700/50 z-10">
+      {/* Vertical Legend - Left Side (higher up) */}
+      <div className="absolute bottom-36 left-4 bg-slate-800/90 backdrop-blur-sm rounded-lg p-2 border border-slate-700/50 z-10">
         <div className="flex flex-col gap-1 text-xs text-slate-300">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded" style={{ backgroundColor: '#22C55E' }}></div>
