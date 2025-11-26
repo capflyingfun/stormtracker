@@ -414,23 +414,25 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           return { pos3D, intensity, height, color, rotatedPos, windsPrediction, originalStorm: storm, distMiles, approachPct, category };
         });
         
-        // Find most threatening storm to highlight - prioritize HIGHEST probability first, then distance
-        // Only highlight storms with 70%+ probability (real threats)
-        const highProbStorms = stormData.filter(s => s.approachPct >= 70);
+        // Find closest storm of EACH category to show labels for all present storm types
+        const closestByCategory = new Map<string, typeof stormData[0]>();
+        stormData.forEach(storm => {
+          const existing = closestByCategory.get(storm.category);
+          if (!existing || storm.distMiles < existing.distMiles) {
+            closestByCategory.set(storm.category, storm);
+          }
+        });
+        const closestStorms = new Set(closestByCategory.values());
         
-        // If we have high-probability storms, pick the HIGHEST probability one (not closest)
-        // This matches what the ticker displays
+        // Find the PRIMARY threat (highest probability storm with 70%+) for track drawing
+        const highProbStorms = stormData.filter(s => s.approachPct >= 70);
         let primaryThreatStorm: typeof stormData[0] | null = null;
         if (highProbStorms.length > 0) {
-          // Sort by probability (highest first), then by distance if tied
           primaryThreatStorm = highProbStorms.sort((a, b) => {
             if (b.approachPct !== a.approachPct) return b.approachPct - a.approachPct;
             return a.distMiles - b.distMiles;
           })[0];
         }
-        
-        // Create a Set with just the primary threat for highlighting
-        const closestStorms = new Set(primaryThreatStorm ? [primaryThreatStorm] : []);
 
         // Sort by z-distance for proper depth rendering
         stormData.sort((a, b) => b.rotatedPos.z - a.rotatedPos.z);
@@ -722,7 +724,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.fillText(etaText, midX, midY);
         }
         
-        // Draw scrolling news-style ticker banner
+        // Draw scrolling news-style ticker banner with dynamic multi-storm segments
         const bannerY = 180;
         const bannerHeight = 28;
         const bannerPadding = 8;
@@ -733,26 +735,82 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.roundRect(bannerPadding, bannerY, canvas.width - bannerPadding * 2, bannerHeight, 6);
         ctx.fill();
         
-        // Border color based on threat status
-        ctx.strokeStyle = hasThreat ? threatColor : 'rgba(34, 197, 94, 0.8)';
+        // Border color based on threat status (use highest threat color)
+        const highestThreatColor = stormData.length > 0 
+          ? stormData.reduce((a, b) => a.intensity > b.intensity ? a : b).color 
+          : 'rgba(34, 197, 94, 0.8)';
+        ctx.strokeStyle = stormData.length > 0 ? highestThreatColor : 'rgba(34, 197, 94, 0.8)';
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Prepare ticker text with detailed storm info
-        const infoText = hasThreat 
-          ? `⚠️ STORM ALERT: ${threatCategory} storm is ${threatBearingDir} (${Math.round(threatBearing)}°) of you, ${threatDistance.toFixed(1)} mi away • Moving ${threatDirection} at ${Math.round(threatSpeed)} mph • ETA ${threatEta} • ${threatApproachPct}% chance of direct impact • ${threatIntensityTip}`
-          : '✓ ALL CLEAR: No immediate storm threats detected • All storms have < 70% approach probability • Perfect conditions for outdoor activities! Enjoy your day! ✓';
+        // Build ticker segments for ALL storms, sorted by: probability desc, distance asc, intensity desc
+        const tickerSegments: { text: string; color: string; category: string }[] = [];
+        const categoryNames: Record<string, string> = {
+          light: 'Light', moderate: 'Moderate', heavy: 'Heavy', vheavy: 'V.Heavy', extreme: 'Extreme'
+        };
+        const intensityTips: Record<string, string> = {
+          light: "☔ Grab an umbrella!",
+          moderate: "🌧️ Check those wipers!",
+          heavy: "⛈️ Delay outdoor plans!",
+          vheavy: "🌩️ Seek shelter now!",
+          extreme: "⚠️ TAKE COVER!"
+        };
         
-        ctx.font = 'bold 14px sans-serif';
-        const textWidth = ctx.measureText(infoText).width;
+        // Sort storms for ticker: probability desc, then distance asc, then intensity desc
+        const sortedForTicker = [...stormData].sort((a, b) => {
+          if (b.approachPct !== a.approachPct) return b.approachPct - a.approachPct;
+          if (a.distMiles !== b.distMiles) return a.distMiles - b.distMiles;
+          return b.intensity - a.intensity;
+        });
         
-        // Calculate scroll position (moves from right to left, starting off-screen)
-        const scrollSpeed = 60; // pixels per second
-        const elapsedTime = (Date.now() - tickerStartTime.current) / 1000; // Time since component mounted
-        const totalScrollDistance = canvas.width + textWidth + 50; // Extra padding to fully exit left
-        // Start from right edge (canvas.width) and scroll left to fully off-screen (-textWidth)
+        sortedForTicker.forEach(storm => {
+          const speedMph = storm.windsPrediction?.speed || 15;
+          const dirDegrees = storm.windsPrediction?.direction || 0;
+          const etaMinutes = speedMph > 0 ? (storm.distMiles / speedMph) * 60 : 999;
+          const etaFormatted = formatETA(etaMinutes);
+          const compassDir = getCompassDir(dirDegrees);
+          
+          // Calculate bearing from user to storm
+          const stormBearingRad = Math.atan2(storm.pos3D.x, -storm.pos3D.z);
+          const stormBearingDeg = ((stormBearingRad * 180 / Math.PI) + 360) % 360;
+          const stormBearingCompass = getCompassDir(stormBearingDeg);
+          
+          const catName = categoryNames[storm.category] || 'Storm';
+          const tip = intensityTips[storm.category] || "Stay aware!";
+          
+          tickerSegments.push({
+            text: `⚡ ${catName}: ${stormBearingCompass} (${Math.round(stormBearingDeg)}°) @ ${storm.distMiles.toFixed(1)}mi • Moving ${compassDir} ${Math.round(speedMph)}mph • ETA ${etaFormatted} • ${storm.approachPct}% impact • ${tip}`,
+            color: storm.color,
+            category: storm.category
+          });
+        });
+        
+        // Add "ALL CLEAR" message if no storms
+        if (tickerSegments.length === 0) {
+          tickerSegments.push({
+            text: '✓ ALL CLEAR: No storm activity detected • Perfect conditions for outdoor activities! Enjoy your day! ✓',
+            color: 'rgba(34, 197, 94, 1)',
+            category: 'clear'
+          });
+        }
+        
+        // Calculate total content width
+        ctx.font = 'bold 13px sans-serif';
+        const segmentGap = 30; // Gap between segments
+        let totalContentWidth = 0;
+        const segmentWidths: number[] = [];
+        tickerSegments.forEach(seg => {
+          const w = ctx.measureText(seg.text).width + 24; // Padding for box
+          segmentWidths.push(w);
+          totalContentWidth += w + segmentGap;
+        });
+        
+        // Calculate scroll position
+        const scrollSpeed = 55; // pixels per second
+        const elapsedTime = (Date.now() - tickerStartTime.current) / 1000;
+        const totalScrollDistance = canvas.width + totalContentWidth;
         const scrollProgress = (elapsedTime * scrollSpeed) % totalScrollDistance;
-        const scrollX = canvas.width - scrollProgress;
+        let drawX = canvas.width - scrollProgress;
         
         // Clip text to banner area
         ctx.save();
@@ -760,11 +818,34 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.rect(bannerPadding + 4, bannerY, canvas.width - bannerPadding * 2 - 8, bannerHeight);
         ctx.clip();
         
-        // Draw scrolling text
-        ctx.fillStyle = hasThreat ? threatColor : 'rgba(34, 197, 94, 1)';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(infoText, scrollX, bannerY + bannerHeight / 2);
+        // Draw each segment as a color-coded box
+        tickerSegments.forEach((seg, i) => {
+          const segWidth = segmentWidths[i];
+          const segHeight = bannerHeight - 6;
+          const segY = bannerY + 3;
+          
+          // Only draw if visible
+          if (drawX + segWidth > bannerPadding && drawX < canvas.width - bannerPadding) {
+            // Draw rounded box background with segment color (darker for bg)
+            ctx.fillStyle = seg.color + '35'; // Translucent background
+            ctx.beginPath();
+            ctx.roundRect(drawX, segY, segWidth, segHeight, 4);
+            ctx.fill();
+            
+            // Border in segment color
+            ctx.strokeStyle = seg.color;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
+            // Draw text in segment color
+            ctx.fillStyle = seg.color;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(seg.text, drawX + 12, bannerY + bannerHeight / 2);
+          }
+          
+          drawX += segWidth + segmentGap;
+        });
         
         ctx.restore();
       }
