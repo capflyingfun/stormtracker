@@ -204,62 +204,49 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         compassY - Math.cos(northAngle) * (arrowLength + 15) + 5
       );
 
-      // Draw retro-style neon grid floor (Tron/80s synthwave style)
-      const gridSize = 15; // Denser grid for retro feel
-      const gridExtent = 120; // Extended grid for better depth perception
+      // Draw simple retro grid floor - only in the lower portion of screen
+      const gridSize = 20;
+      const gridExtent = 100;
       
-      // Draw grid lines parallel to X axis (running east-west) with distance fade
-      for (let z = -gridExtent; z <= gridExtent; z += gridSize) {
+      // Only draw grid lines that appear BELOW the horizon (positive z values when facing north)
+      // This creates a floor effect rather than a full sphere of lines
+      for (let z = 5; z <= gridExtent; z += gridSize) {
         const start3D = rotateY({ x: -gridExtent, y: 0, z }, rotationY);
         const end3D = rotateY({ x: gridExtent, y: 0, z }, rotationY);
         const startProj = project3D({ ...start3D, y: start3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
         const endProj = project3D({ ...end3D, y: end3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
         
-        // Fade opacity based on distance from center
-        const distanceFade = Math.max(0.1, 1 - Math.abs(z) / gridExtent);
-        const isMajorLine = z % (gridSize * 3) === 0;
-        
-        ctx.strokeStyle = isMajorLine 
-          ? `rgba(0, 255, 255, ${0.6 * distanceFade})` // Cyan for major lines
-          : `rgba(0, 200, 255, ${0.25 * distanceFade})`; // Lighter cyan for minor
-        ctx.lineWidth = isMajorLine ? 1.5 : 0.5;
-        
-        ctx.beginPath();
-        ctx.moveTo(startProj.x, startProj.y);
-        ctx.lineTo(endProj.x, endProj.y);
-        ctx.stroke();
+        // Only draw if below center of screen (floor area)
+        if (startProj.y > canvas.height * 0.45 || endProj.y > canvas.height * 0.45) {
+          const opacity = Math.max(0.15, 0.5 - (z / gridExtent) * 0.4);
+          ctx.strokeStyle = `rgba(0, 180, 200, ${opacity})`;
+          ctx.lineWidth = z === 5 ? 2 : 1;
+          
+          ctx.beginPath();
+          ctx.moveTo(startProj.x, startProj.y);
+          ctx.lineTo(endProj.x, endProj.y);
+          ctx.stroke();
+        }
       }
 
-      // Draw grid lines parallel to Z axis (running north-south) with distance fade
+      // Vertical grid lines going into distance
       for (let x = -gridExtent; x <= gridExtent; x += gridSize) {
-        const start3D = rotateY({ x, y: 0, z: -gridExtent }, rotationY);
+        const start3D = rotateY({ x, y: 0, z: 5 }, rotationY);
         const end3D = rotateY({ x, y: 0, z: gridExtent }, rotationY);
         const startProj = project3D({ ...start3D, y: start3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
         const endProj = project3D({ ...end3D, y: end3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
         
-        // Fade opacity based on distance from center
-        const distanceFade = Math.max(0.1, 1 - Math.abs(x) / gridExtent);
-        const isMajorLine = x % (gridSize * 3) === 0;
-        
-        ctx.strokeStyle = isMajorLine 
-          ? `rgba(0, 255, 255, ${0.6 * distanceFade})` // Cyan for major lines
-          : `rgba(0, 200, 255, ${0.25 * distanceFade})`; // Lighter cyan for minor
-        ctx.lineWidth = isMajorLine ? 1.5 : 0.5;
-        
-        ctx.beginPath();
-        ctx.moveTo(startProj.x, startProj.y);
-        ctx.lineTo(endProj.x, endProj.y);
-        ctx.stroke();
+        // Only draw if in floor area
+        if (startProj.y > canvas.height * 0.45) {
+          ctx.strokeStyle = 'rgba(0, 180, 200, 0.3)';
+          ctx.lineWidth = 1;
+          
+          ctx.beginPath();
+          ctx.moveTo(startProj.x, startProj.y);
+          ctx.lineTo(endProj.x, endProj.y);
+          ctx.stroke();
+        }
       }
-      
-      // Add horizon glow effect
-      const horizonY = canvas.height * 0.55;
-      const horizonGlow = ctx.createLinearGradient(0, horizonY - 30, 0, horizonY + 50);
-      horizonGlow.addColorStop(0, 'rgba(0, 255, 255, 0)');
-      horizonGlow.addColorStop(0.5, 'rgba(0, 255, 255, 0.08)');
-      horizonGlow.addColorStop(1, 'rgba(0, 255, 255, 0)');
-      ctx.fillStyle = horizonGlow;
-      ctx.fillRect(0, horizonY - 30, canvas.width, 80);
 
       // Draw highly visible user location marker
       const userPos = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
