@@ -114,8 +114,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
   const lastUIUpdate = useRef(0);
   const starPositionsRef = useRef<{x: number; y: number; size: number; speed: number}[]>([]);
   const tickerStartTime = useRef(Date.now()); // Track when ticker started for clean scroll
-  const aiTickerMessagesRef = useRef<Record<string, string[]>>({}); // AI-generated messages cache
-  const messageIndexRef = useRef<Record<string, number>>({}); // Track which message to show per storm
+  const aiTickerMessagesRef = useRef<string[]>([]); // AI-generated conversational messages
   const lastFetchSignatureRef = useRef<string>(''); // Track when to refetch
 
   // Keyboard controls for PC - only rotation, height is locked
@@ -139,7 +138,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Fetch AI-generated ticker messages when storms change
+  // Fetch AI-generated conversational ticker messages when storms change
   useEffect(() => {
     if (!precipitationStorms || precipitationStorms.length === 0 || !location) return;
     
@@ -176,25 +175,20 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
     if (signature === lastFetchSignatureRef.current) return;
     lastFetchSignatureRef.current = signature;
     
-    // Build request data
+    // Build request data with direction from user
     const stormRequests = priorityStorms.map((storm: any) => {
       const speed = storm.windsPrediction?.speed || 15;
-      const dir = storm.windsPrediction?.direction || 0;
-      const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-      const movementDir = dirs[Math.round(dir / 45) % 8];
       const etaMin = speed > 0 ? (storm.distance / speed) * 60 : 999;
       
       return {
         category: storm.category,
         etaMinutes: etaMin,
         distance: storm.distance,
-        direction: storm.direction || 'nearby',
-        movementDir,
-        speed
+        direction: storm.direction || 'nearby'
       };
     });
     
-    // Fetch AI messages
+    // Fetch AI conversational messages
     fetch('/api/ticker-messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -202,9 +196,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
     })
       .then(res => res.json())
       .then(data => {
-        if (data.messages) {
+        if (data.messages && Array.isArray(data.messages)) {
           aiTickerMessagesRef.current = data.messages;
-          console.log('🤖 Loaded AI ticker messages:', Object.keys(data.messages).length, 'categories');
+          console.log('🤖 Loaded AI ticker messages:', data.messages.length, 'variations');
         }
       })
       .catch(err => console.error('Failed to fetch ticker messages:', err));
@@ -669,97 +663,34 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Build ticker segments with ALL storm info (bearing, distance, probability, ETA, tip)
-        const tickerSegments: { text: string; color: string; category: string }[] = [];
-        const categoryNames: Record<string, string> = {
-          light: 'Light', moderate: 'Moderate', heavy: 'Heavy', vheavy: 'V.Heavy', extreme: 'Extreme'
-        };
-        
-        // Get AI-generated tip or fallback
-        const getAITip = (category: string, etaMinutes: number, distMiles: number): string => {
-          const urgencyBucket = etaMinutes < 45 ? 'urgent' : etaMinutes < 90 ? 'prepare' : 'monitor';
-          const cacheKey = `${category}-${urgencyBucket}-${Math.round(distMiles / 10) * 10}`;
-          
-          const messages = aiTickerMessagesRef.current[cacheKey];
+        // Get AI conversational message or fallback
+        const getTickerMessage = (): string => {
+          const messages = aiTickerMessagesRef.current;
           if (messages && messages.length > 0) {
-            // Rotate through messages - use time-based rotation for variety
-            const msgIndex = Math.floor(Date.now() / 8000) % messages.length; // Change every 8 seconds
+            // Rotate through messages every 10 seconds for variety
+            const msgIndex = Math.floor(Date.now() / 10000) % messages.length;
             return messages[msgIndex];
           }
           
-          // Fallback to static tips
-          const fallbackTips: Record<string, Record<string, string>> = {
-            urgent: {
-              extreme: "⚠️ TAKE COVER!", vheavy: "🌩️ Seek shelter now!", heavy: "⛈️ Head indoors!",
-              moderate: "🌧️ Get inside soon!", light: "☔ Grab an umbrella!"
-            },
-            prepare: {
-              extreme: "⚠️ Prepare for severe!", vheavy: "🌩️ Prepare to shelter soon", heavy: "⛈️ Plan to be indoors",
-              moderate: "🌧️ Rain coming later", light: "☔ Light rain expected"
-            },
-            monitor: {
-              extreme: "⚠️ Watch conditions!", vheavy: "🌩️ Keep an eye out", heavy: "⛈️ Storms developing",
-              moderate: "🌧️ Check forecast later", light: "☔ Might sprinkle later"
-            }
-          };
-          return fallbackTips[urgencyBucket]?.[category] || "🌤️ Stay weather aware!";
+          // Fallback conversational message
+          if (stormData.length === 0) {
+            return "✓ All clear! Perfect weather for outdoor activities. Enjoy your day!";
+          }
+          return "🌧️ Weather activity detected in your area - stay weather aware!";
         };
         
-        // Use priorityList - include ALL info in ticker now
-        priorityList.forEach(storm => {
-          const speedMph = storm.windsPrediction?.speed || 15;
-          const dirDegrees = storm.windsPrediction?.direction || 0;
-          const compassDir = getCompassDir(dirDegrees);
-          
-          // Calculate ETA
-          const etaMinutes = speedMph > 0 ? (storm.distMiles / speedMph) * 60 : 999;
-          const etaHrs = Math.floor(etaMinutes / 60);
-          const etaMins = Math.round(etaMinutes % 60);
-          const etaStr = `${etaHrs}h${etaMins.toString().padStart(2, '0')}m`;
-          
-          // Calculate bearing from user to storm
-          const stormBearingRad = Math.atan2(storm.pos3D.x, -storm.pos3D.z);
-          const stormBearingDeg = ((stormBearingRad * 180 / Math.PI) + 360) % 360;
-          const bearingDirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-          const stormBearing = bearingDirs[Math.round(stormBearingDeg / 45) % 8];
-          
-          const catName = categoryNames[storm.category] || 'Storm';
-          const tip = getAITip(storm.category, etaMinutes, storm.distMiles);
-          
-          // Full ticker format with all info
-          tickerSegments.push({
-            text: `⚡ ${catName} ${stormBearing} ${storm.distMiles.toFixed(0)}mi • ${storm.approachPct}% • ETA ${etaStr} • Moving ${compassDir} @ ${Math.round(speedMph)}mph • ${tip}`,
-            color: storm.color,
-            category: storm.category
-          });
-        });
+        const tickerMessage = getTickerMessage();
         
-        // Add "ALL CLEAR" message if no storms
-        if (tickerSegments.length === 0) {
-          tickerSegments.push({
-            text: '✓ ALL CLEAR: No storm activity detected • Perfect conditions for outdoor activities! Enjoy your day! ✓',
-            color: 'rgba(34, 197, 94, 1)',
-            category: 'clear'
-          });
-        }
-        
-        // Calculate total content width
+        // Calculate scroll for single message
         ctx.font = 'bold 13px sans-serif';
-        const segmentGap = 30; // Gap between segments
-        let totalContentWidth = 0;
-        const segmentWidths: number[] = [];
-        tickerSegments.forEach(seg => {
-          const w = ctx.measureText(seg.text).width + 24; // Padding for box
-          segmentWidths.push(w);
-          totalContentWidth += w + segmentGap;
-        });
+        const messageWidth = ctx.measureText(tickerMessage).width + 40;
         
         // Calculate scroll position
-        const scrollSpeed = 55; // pixels per second
+        const scrollSpeed = 50; // pixels per second
         const elapsedTime = (Date.now() - tickerStartTime.current) / 1000;
-        const totalScrollDistance = canvas.width + totalContentWidth;
+        const totalScrollDistance = canvas.width + messageWidth;
         const scrollProgress = (elapsedTime * scrollSpeed) % totalScrollDistance;
-        let drawX = canvas.width - scrollProgress;
+        const drawX = canvas.width - scrollProgress;
         
         // Clip text to banner area
         ctx.save();
@@ -767,34 +698,11 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.rect(bannerPadding + 4, bannerY, canvas.width - bannerPadding * 2 - 8, bannerHeight);
         ctx.clip();
         
-        // Draw each segment as a color-coded box
-        tickerSegments.forEach((seg, i) => {
-          const segWidth = segmentWidths[i];
-          const segHeight = bannerHeight - 6;
-          const segY = bannerY + 3;
-          
-          // Only draw if visible
-          if (drawX + segWidth > bannerPadding && drawX < canvas.width - bannerPadding) {
-            // Draw rounded box background with segment color (darker for bg)
-            ctx.fillStyle = seg.color + '35'; // Translucent background
-            ctx.beginPath();
-            ctx.roundRect(drawX, segY, segWidth, segHeight, 4);
-            ctx.fill();
-            
-            // Border in segment color
-            ctx.strokeStyle = seg.color;
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-            
-            // Draw text in segment color
-            ctx.fillStyle = seg.color;
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(seg.text, drawX + 12, bannerY + bannerHeight / 2);
-          }
-          
-          drawX += segWidth + segmentGap;
-        });
+        // Draw single unified message in white text
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(tickerMessage, drawX + 12, bannerY + bannerHeight / 2);
         
         ctx.restore();
       }
