@@ -561,15 +561,14 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           return dirs[Math.round(((degrees % 360) + 360) % 360 / 22.5) % 16];
         };
         
-        // Draw threat tracks for priority storms with 70%+ probability
+        // Draw threat tracks for ALL priority storms with 70%+ probability
         // Use unified priorityList (already sorted by severity: extreme → light)
         const threatPriorityStorms = priorityList.filter(s => 
           s.approachPct >= 70 && s.windsPrediction?.direction && s.windsPrediction?.speed
         );
         
-        // Draw track for the FIRST priority threat storm (highest severity with 70%+)
-        if (threatPriorityStorms.length > 0) {
-          const storm = threatPriorityStorms[0]; // Highest severity priority storm with 70%+
+        // Draw track for EACH priority threat storm (one per category)
+        threatPriorityStorms.forEach((storm, trackIndex) => {
           const { pos3D, color, windsPrediction, distMiles } = storm;
           const speedMph = windsPrediction!.speed || 15;
           
@@ -667,7 +666,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(etaText, midX, midY);
-        }
+        });
         
         // Draw scrolling news-style ticker banner with dynamic multi-storm segments
         const bannerY = 180;
