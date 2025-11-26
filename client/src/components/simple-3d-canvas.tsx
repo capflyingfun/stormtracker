@@ -456,7 +456,11 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const radius = Math.max(8, 35 * scale); // Circular column radius - increased for better visibility
 
           // Jellybean cloud top only (no columns for cleaner look)
-          const cloudRadius = radius * 1.2; // Slightly larger since no columns
+          // Priority storms pulsate - scale oscillates between 1.0 and 1.4
+          const pulseTime = (Date.now() % 1000) / 1000; // 0-1 over 1 second
+          const pulseScale = isPriorityOfCategory ? 1.0 + Math.sin(pulseTime * Math.PI * 2) * 0.2 : 1.0;
+          const cloudRadius = radius * 1.2 * pulseScale;
+          
           ctx.fillStyle = color + 'DD';
           ctx.beginPath();
           ctx.ellipse(base.x, top.y, cloudRadius, cloudRadius * 0.5, 0, 0, 2 * Math.PI);
@@ -467,16 +471,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.beginPath();
           ctx.ellipse(base.x - cloudRadius * 0.2, top.y - cloudRadius * 0.1, cloudRadius * 0.4, cloudRadius * 0.2, 0, 0, 2 * Math.PI);
           ctx.fill();
-          
-          // Priority storm indicator - just a subtle glow ring, labels drawn in HUD panel
-          if (isPriorityOfCategory) {
-            // Draw glow ring around priority storm cloud
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.ellipse(base.x, top.y, cloudRadius + 4, (cloudRadius + 4) * 0.5, 0, 0, 2 * Math.PI);
-            ctx.stroke();
-          }
 
           // Animated rain effect - rain streaks falling from storm (reduced for performance)
           const numRainDrops = Math.min(6, Math.floor(intensity / 12)); // Fewer rain drops
@@ -560,44 +554,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
           return dirs[Math.round(((degrees % 360) + 360) % 360 / 22.5) % 16];
         };
-        
-        // Draw ping highlight effect on priority storms (one per category)
-        // Uses pulsing ring animation with category color - small and subtle
-        const pingTime = (Date.now() % 1500) / 1500; // 0-1 cycle over 1.5 seconds
-        const pingScale = 1 + pingTime * 0.8; // Expand from 1x to 1.8x
-        const pingOpacity = Math.max(0, 1 - pingTime * 0.8); // Fade out as it expands
-        
-        priorityList.forEach((storm) => {
-          const { pos3D, color, height } = storm;
-          
-          // Check if storm is visible (in front of camera after rotation)
-          const stormRotated = rotateY({ x: pos3D.x, y: height * 0.5, z: pos3D.z }, currentRotation);
-          if (stormRotated.z >= -0.1) return; // Behind camera
-          
-          // Get screen position at cloud center height
-          const stormProj = project3D({ ...stormRotated, y: stormRotated.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-          
-          // Fixed small ping size (doesn't scale with distance)
-          const baseRadius = 12;
-          const pingRadius = baseRadius * pingScale;
-          
-          // Draw expanding ping ring
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
-          ctx.globalAlpha = pingOpacity * 0.9;
-          ctx.beginPath();
-          ctx.arc(stormProj.x, stormProj.y, pingRadius, 0, Math.PI * 2);
-          ctx.stroke();
-          
-          // Draw inner solid dot (always visible marker)
-          ctx.globalAlpha = 0.9;
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.arc(stormProj.x, stormProj.y, 4, 0, Math.PI * 2);
-          ctx.fill();
-          
-          ctx.globalAlpha = 1;
-        });
         
         // Draw scrolling news-style ticker banner with dynamic multi-storm segments
         const bannerY = 180;
