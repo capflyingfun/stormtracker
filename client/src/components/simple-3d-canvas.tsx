@@ -583,13 +583,14 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         
         // Track the primary threat for the banner - highest probability storm
         let threatCategory = '', threatDistance = 0, threatEta = '', threatSpeed = 0, threatDirection = '', threatColor = '', threatApproachPct = 0;
+        let threatBearing = 0, threatBearingDir = '', threatIntensityTip = '';
         let hasThreat = false;
         
         // Only draw track for the HIGHEST probability storm (first one after sorting)
         // This prevents overlapping ETA labels
         if (threatStorms.length > 0) {
           const storm = threatStorms[0]; // Highest probability storm
-          const { pos3D, color, windsPrediction, distMiles, category, approachPct } = storm;
+          const { pos3D, color, windsPrediction, distMiles, category, approachPct, intensity } = storm;
           const speedMph = windsPrediction!.speed || 15;
           const dirDegrees = windsPrediction!.direction || 0;
           
@@ -597,6 +598,20 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const etaMinutes = speedMph > 0 ? (distMiles / speedMph) * 60 : 999;
           const etaFormatted = formatETA(etaMinutes);
           const compassDir = getCompassDir(dirDegrees);
+          
+          // Calculate bearing FROM user TO storm (where the storm is located)
+          const stormBearingRad = Math.atan2(pos3D.x, -pos3D.z);
+          const stormBearingDeg = ((stormBearingRad * 180 / Math.PI) + 360) % 360;
+          const stormBearingCompass = getCompassDir(stormBearingDeg);
+          
+          // Get intensity-based tips with some personality
+          const intensityTips: Record<string, string> = {
+            light: "☔ Light rain ahead - maybe grab an umbrella, or just enjoy the drizzle!",
+            moderate: "🌧️ Moderate rain incoming - good time to check those windshield wipers!",
+            heavy: "⛈️ Heavy rain approaching - consider delaying outdoor plans!",
+            vheavy: "🌩️ Very heavy storm! Seek shelter and avoid driving if possible!",
+            extreme: "⚠️ SEVERE WEATHER! Take cover immediately - this one means business!"
+          };
           
           // Set threat info for banner
           const categoryNames: Record<string, string> = {
@@ -609,6 +624,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           threatDirection = compassDir;
           threatColor = color;
           threatApproachPct = approachPct;
+          threatBearing = stormBearingDeg;
+          threatBearingDir = stormBearingCompass;
+          threatIntensityTip = intensityTips[category] || "Stay weather aware!";
           hasThreat = true;
           
           // Calculate direction FROM storm TO user (opposite of storm movement toward user)
@@ -719,10 +737,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Prepare ticker text
+        // Prepare ticker text with detailed storm info
         const infoText = hasThreat 
-          ? `⚠️ THREAT ALERT: ${threatCategory} storm approaching • ${threatDistance.toFixed(1)} mi away • ETA ${threatEta} • Moving ${threatDirection} at ${Math.round(threatSpeed)} mph • ${threatApproachPct}% approach probability ⚠️`
-          : '✓ ALL CLEAR: No immediate storm threats detected (< 70% approach probability) • Conditions safe for outdoor activities ✓';
+          ? `⚠️ STORM ALERT: ${threatCategory} storm is ${threatBearingDir} (${Math.round(threatBearing)}°) of you, ${threatDistance.toFixed(1)} mi away • Moving ${threatDirection} at ${Math.round(threatSpeed)} mph • ETA ${threatEta} • ${threatApproachPct}% chance of direct impact • ${threatIntensityTip}`
+          : '✓ ALL CLEAR: No immediate storm threats detected • All storms have < 70% approach probability • Perfect conditions for outdoor activities! Enjoy your day! ✓';
         
         ctx.font = 'bold 14px sans-serif';
         const textWidth = ctx.measureText(infoText).width;
