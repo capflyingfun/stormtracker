@@ -89,14 +89,14 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(false); // Default to hidden for better performance
   const [rotationY, setRotationY] = useState(0); // Start facing North (0°)
-  const [cameraHeight, setCameraHeight] = useState(5); // Normal camera height
+  const cameraHeight = 8; // Fixed at 11,000 feet (8 + 3 = 11 * 1000 = 11,000ft)
   // Removed storm selection to improve performance and usability
   const [isRotating, setIsRotating] = useState(false);
   const [rotationSpeed, setRotationSpeed] = useState(2); // 1=slow, 2=medium, 3=fast
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
 
-  // Keyboard controls for PC
+  // Keyboard controls for PC - only rotation, height is locked
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key.toLowerCase()) {
@@ -109,16 +109,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         case 'arrowright':
           e.preventDefault();
           setRotationY(prev => prev - 0.1); // Rotate right (reversed)
-          break;
-        case 'w':
-        case 'arrowup':
-          e.preventDefault();
-          setCameraHeight(prev => Math.min(prev + 1, 12)); // Move camera up
-          break;
-        case 's':
-        case 'arrowdown':
-          e.preventDefault();
-          setCameraHeight(prev => Math.max(prev - 1, 1)); // Move camera down
           break;
       }
     };
@@ -400,7 +390,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [location, precipitationStorms, showWaypoints, rotationY, cameraHeight, isRotating, rotationSpeed]);
+  }, [location, precipitationStorms, showWaypoints, rotationY, isRotating, rotationSpeed]);
 
   if (!location) {
     return (
@@ -477,27 +467,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         </Button>
       </div>
 
-      {/* Mobile Height Controls */}
-      <div className="absolute bottom-20 right-4 z-10 flex flex-col gap-1 sm:hidden">
-        <Button
-          onClick={() => setCameraHeight(prev => Math.min(prev + 2, 20))}
-          variant="outline"
-          size="sm"
-          className="bg-slate-700 border-slate-600 text-white px-2 py-1 text-xs"
-          disabled={cameraHeight >= 20}
-        >
-          ↑ Higher
-        </Button>
-        <Button
-          onClick={() => setCameraHeight(prev => Math.max(prev - 2, -2))}
-          variant="outline"
-          size="sm"
-          className="bg-slate-700 border-slate-600 text-white px-2 py-1 text-xs"
-          disabled={cameraHeight <= -2}
-        >
-          ↓ Lower
-        </Button>
-      </div>
 
       {/* Heading Display */}
       <div className="absolute top-16 right-4 z-10 bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-slate-700/50">
@@ -512,15 +481,15 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         </div>
       </div>
 
-      {/* Height and Controls Display - Moved to left to avoid compass overlap */}
+      {/* Height Display - Locked at 11,000 ft */}
       <div className="absolute top-16 left-4 z-10 bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-slate-700/50">
         <div className="text-center">
-          <div className="text-xs text-slate-400 mb-1">Height</div>
+          <div className="text-xs text-slate-400 mb-1">Altitude (Fixed)</div>
           <div className="text-lg font-bold text-white">
-            {(cameraHeight + 3) * 1000}ft
+            11,000 ft
           </div>
           <div className="text-xs text-slate-300 mt-1">
-            WASD/Arrows: Navigate
+            Drag to rotate
           </div>
         </div>
       </div>
