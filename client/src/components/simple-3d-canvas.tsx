@@ -555,11 +555,11 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           return dirs[Math.round(((degrees % 360) + 360) % 360 / 22.5) % 16];
         };
         
-        // Draw "Breaking Weather News" header label above ticker
-        const headerY = 168;
-        const bannerY = 183;
+        // Draw "Breaking Weather News" header and ticker at BOTTOM of screen
         const bannerHeight = 28;
         const bannerPadding = 8;
+        const bannerY = canvas.height - bannerHeight - 50; // Above bottom edge
+        const headerY = bannerY - 15; // Above the ticker
         
         // Draw header label
         ctx.font = 'bold 10px sans-serif';
@@ -866,27 +866,27 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
 
   return (
     <div className="fixed inset-0 bg-black z-50 select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}>
-      {/* Full-Width Legend - Bottom */}
-      <div className="absolute bottom-4 left-4 right-4 bg-slate-800/90 backdrop-blur-sm rounded-lg p-3 border border-slate-700/50 z-10">
-        <div className="flex justify-between items-center text-xs text-slate-300">
+      {/* Vertical Legend - Left Side */}
+      <div className="absolute bottom-20 left-4 bg-slate-800/90 backdrop-blur-sm rounded-lg p-2 border border-slate-700/50 z-10">
+        <div className="flex flex-col gap-1 text-xs text-slate-300">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#22C55E', opacity: 0.2 }}></div>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#22C55E' }}></div>
             <span>Light</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EAB308', opacity: 0.4 }}></div>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EAB308' }}></div>
             <span>Moderate</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#F97316', opacity: 0.6 }}></div>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#F97316' }}></div>
             <span>Heavy</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EF4444', opacity: 0.8 }}></div>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#EF4444' }}></div>
             <span>V.Heavy</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#8B5CF6', opacity: 1.0 }}></div>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#8B5CF6' }}></div>
             <span>Extreme</span>
           </div>
         </div>
