@@ -204,48 +204,59 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         compassY - Math.cos(northAngle) * (arrowLength + 15) + 5
       );
 
-      // Draw simple retro grid floor - only in the lower portion of screen
-      const gridSize = 20;
-      const gridExtent = 100;
+      // Draw circular radar-style grid floor (like sonar view)
+      const maxRadius = 50; // 50 miles
+      const ringSpacing = 10; // Ring every 10 miles
+      const numRadialLines = 12; // 12 radial lines (every 30 degrees)
       
-      // Only draw grid lines that appear BELOW the horizon (positive z values when facing north)
-      // This creates a floor effect rather than a full sphere of lines
-      for (let z = 5; z <= gridExtent; z += gridSize) {
-        const start3D = rotateY({ x: -gridExtent, y: 0, z }, rotationY);
-        const end3D = rotateY({ x: gridExtent, y: 0, z }, rotationY);
-        const startProj = project3D({ ...start3D, y: start3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
-        const endProj = project3D({ ...end3D, y: end3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+      // Draw concentric range circles
+      for (let radius = ringSpacing; radius <= maxRadius; radius += ringSpacing) {
+        const numSegments = 36; // Smooth circle with 36 segments
+        ctx.beginPath();
         
-        // Only draw if below center of screen (floor area)
-        if (startProj.y > canvas.height * 0.45 || endProj.y > canvas.height * 0.45) {
-          const opacity = Math.max(0.15, 0.5 - (z / gridExtent) * 0.4);
-          ctx.strokeStyle = `rgba(0, 180, 200, ${opacity})`;
-          ctx.lineWidth = z === 5 ? 2 : 1;
+        for (let i = 0; i <= numSegments; i++) {
+          const angle = (i / numSegments) * Math.PI * 2;
+          const worldX = Math.cos(angle) * radius * 0.15; // Scale to 3D world
+          const worldZ = Math.sin(angle) * radius * 0.15;
           
-          ctx.beginPath();
-          ctx.moveTo(startProj.x, startProj.y);
-          ctx.lineTo(endProj.x, endProj.y);
-          ctx.stroke();
+          const point3D = rotateY({ x: worldX, y: 0, z: worldZ }, rotationY);
+          const projected = project3D({ ...point3D, y: point3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+          
+          if (i === 0) {
+            ctx.moveTo(projected.x, projected.y);
+          } else {
+            ctx.lineTo(projected.x, projected.y);
+          }
         }
+        
+        // Major rings (every 20 miles) are brighter
+        const isMajor = radius % 20 === 0;
+        ctx.strokeStyle = isMajor ? 'rgba(0, 200, 180, 0.5)' : 'rgba(0, 180, 160, 0.25)';
+        ctx.lineWidth = isMajor ? 1.5 : 0.8;
+        ctx.stroke();
       }
-
-      // Vertical grid lines going into distance
-      for (let x = -gridExtent; x <= gridExtent; x += gridSize) {
-        const start3D = rotateY({ x, y: 0, z: 5 }, rotationY);
-        const end3D = rotateY({ x, y: 0, z: gridExtent }, rotationY);
+      
+      // Draw radial lines from center outward
+      for (let i = 0; i < numRadialLines; i++) {
+        const angle = (i / numRadialLines) * Math.PI * 2;
+        const endX = Math.cos(angle) * maxRadius * 0.15;
+        const endZ = Math.sin(angle) * maxRadius * 0.15;
+        
+        const start3D = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
+        const end3D = rotateY({ x: endX, y: 0, z: endZ }, rotationY);
+        
         const startProj = project3D({ ...start3D, y: start3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
         const endProj = project3D({ ...end3D, y: end3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
         
-        // Only draw if in floor area
-        if (startProj.y > canvas.height * 0.45) {
-          ctx.strokeStyle = 'rgba(0, 180, 200, 0.3)';
-          ctx.lineWidth = 1;
-          
-          ctx.beginPath();
-          ctx.moveTo(startProj.x, startProj.y);
-          ctx.lineTo(endProj.x, endProj.y);
-          ctx.stroke();
-        }
+        // Cardinal directions are brighter
+        const isCardinal = i % 3 === 0;
+        ctx.strokeStyle = isCardinal ? 'rgba(0, 200, 180, 0.4)' : 'rgba(0, 180, 160, 0.2)';
+        ctx.lineWidth = isCardinal ? 1.2 : 0.6;
+        
+        ctx.beginPath();
+        ctx.moveTo(startProj.x, startProj.y);
+        ctx.lineTo(endProj.x, endProj.y);
+        ctx.stroke();
       }
 
       // Draw highly visible user location marker
