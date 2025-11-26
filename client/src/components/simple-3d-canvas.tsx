@@ -413,16 +413,19 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           return { pos3D, intensity, height, color, rotatedPos, windsPrediction, originalStorm: storm, distMiles, approachPct, category };
         });
         
-        // Find most threatening storm to highlight - prioritize probability first, then distance
+        // Find most threatening storm to highlight - prioritize HIGHEST probability first, then distance
         // Only highlight storms with 70%+ probability (real threats)
         const highProbStorms = stormData.filter(s => s.approachPct >= 70);
         
-        // If we have high-probability storms, pick the closest one as the primary threat
-        // Otherwise, don't highlight any storm (they're not real threats)
+        // If we have high-probability storms, pick the HIGHEST probability one (not closest)
+        // This matches what the ticker displays
         let primaryThreatStorm: typeof stormData[0] | null = null;
         if (highProbStorms.length > 0) {
-          // Sort by distance to find closest high-prob storm
-          primaryThreatStorm = highProbStorms.sort((a, b) => a.distMiles - b.distMiles)[0];
+          // Sort by probability (highest first), then by distance if tied
+          primaryThreatStorm = highProbStorms.sort((a, b) => {
+            if (b.approachPct !== a.approachPct) return b.approachPct - a.approachPct;
+            return a.distMiles - b.distMiles;
+          })[0];
         }
         
         // Create a Set with just the primary threat for highlighting
@@ -724,11 +727,13 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.font = 'bold 14px sans-serif';
         const textWidth = ctx.measureText(infoText).width;
         
-        // Calculate scroll position (moves from right to left)
-        const scrollSpeed = 50; // pixels per second
+        // Calculate scroll position (moves from right to left, starting off-screen)
+        const scrollSpeed = 60; // pixels per second
         const time = Date.now() / 1000;
-        const totalScrollDistance = canvas.width + textWidth;
-        const scrollX = canvas.width - ((time * scrollSpeed) % totalScrollDistance);
+        const totalScrollDistance = canvas.width + textWidth + 20; // Extra padding to fully exit left
+        // Start from right edge (canvas.width) and scroll left to fully off-screen (-textWidth)
+        const scrollProgress = (time * scrollSpeed) % totalScrollDistance;
+        const scrollX = canvas.width - scrollProgress;
         
         // Clip text to banner area
         ctx.save();
