@@ -414,32 +414,38 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           return { pos3D, intensity, height, color, rotatedPos, windsPrediction, originalStorm: storm, distMiles, approachPct, category };
         });
         
-        // Find closest storm of EACH category to show labels for all present storm types
-        const closestByCategory = new Map<string, typeof stormData[0]>();
+        // UNIFIED PRIORITY SYSTEM: Build priority storm per category
+        // Priority order: probability DESC → distance ASC → intensity DESC
+        const priorityComparator = (a: typeof stormData[0], b: typeof stormData[0]) => {
+          if (b.approachPct !== a.approachPct) return b.approachPct - a.approachPct; // Higher probability first
+          if (a.distMiles !== b.distMiles) return a.distMiles - b.distMiles; // Closer first
+          return b.intensity - a.intensity; // Higher intensity first
+        };
+        
+        // Group by category and pick priority storm for each
+        const priorityByCategory = new Map<string, typeof stormData[0]>();
         stormData.forEach(storm => {
-          const existing = closestByCategory.get(storm.category);
-          if (!existing || storm.distMiles < existing.distMiles) {
-            closestByCategory.set(storm.category, storm);
+          const existing = priorityByCategory.get(storm.category);
+          if (!existing || priorityComparator(storm, existing) < 0) {
+            priorityByCategory.set(storm.category, storm);
           }
         });
-        const closestStorms = new Set(closestByCategory.values());
         
-        // Find the PRIMARY threat (highest probability storm with 70%+) for track drawing
-        const highProbStorms = stormData.filter(s => s.approachPct >= 70);
-        let primaryThreatStorm: typeof stormData[0] | null = null;
-        if (highProbStorms.length > 0) {
-          primaryThreatStorm = highProbStorms.sort((a, b) => {
-            if (b.approachPct !== a.approachPct) return b.approachPct - a.approachPct;
-            return a.distMiles - b.distMiles;
-          })[0];
-        }
+        // Convert to Set for quick lookup (used for info box labels)
+        const priorityStorms = new Set(priorityByCategory.values());
+        
+        // Get ordered priority list by category severity (extreme → light) for ticker/tracks
+        const categoryOrder = ['extreme', 'vheavy', 'heavy', 'moderate', 'light'];
+        const priorityList = categoryOrder
+          .filter(cat => priorityByCategory.has(cat))
+          .map(cat => priorityByCategory.get(cat)!);
 
         // Sort by z-distance for proper depth rendering
         stormData.sort((a, b) => b.rotatedPos.z - a.rotatedPos.z);
 
         stormData.forEach((stormItem) => {
           const { pos3D, intensity, height, color, rotatedPos, windsPrediction, originalStorm, distMiles, approachPct } = stormItem;
-          const isClosestOfCategory = closestStorms.has(stormItem);
+          const isPriorityOfCategory = priorityStorms.has(stormItem);
           
           // Project to screen - simple columns from ground up
           const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
@@ -462,8 +468,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.ellipse(base.x - cloudRadius * 0.2, top.y - cloudRadius * 0.1, cloudRadius * 0.4, cloudRadius * 0.2, 0, 0, 2 * Math.PI);
           ctx.fill();
           
-          // Draw distance/approach label for closest storm of each category
-          if (isClosestOfCategory) {
+          // Draw distance/approach label for priority storm of each category
+          if (isPriorityOfCategory) {
             const labelY = top.y - 22; // Above the storm
             const labelText = `${distMiles.toFixed(1)}mi / ${approachPct}%`;
             
@@ -559,18 +565,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           }
         });
         
-        // Draw threat tracks FROM high-probability storms (70%+) TO user
-        // Find storms with 70%+ approach probability
-        const threatStorms = stormData.filter(s => 
-          s.approachPct >= 70 && s.windsPrediction?.direction && s.windsPrediction?.speed
-        );
-        
-        // Sort by probability (highest first) then distance (closest first)
-        threatStorms.sort((a, b) => {
-          if (b.approachPct !== a.approachPct) return b.approachPct - a.approachPct;
-          return a.distMiles - b.distMiles;
-        });
-        
         // Helper to format ETA as HH:MM
         const formatETA = (minutes: number): string => {
           const hrs = Math.floor(minutes / 60);
@@ -584,53 +578,21 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           return dirs[Math.round(((degrees % 360) + 360) % 360 / 22.5) % 16];
         };
         
-        // Track the primary threat for the banner - highest probability storm
-        let threatCategory = '', threatDistance = 0, threatEta = '', threatSpeed = 0, threatDirection = '', threatColor = '', threatApproachPct = 0;
-        let threatBearing = 0, threatBearingDir = '', threatIntensityTip = '';
-        let hasThreat = false;
+        // Draw threat tracks for priority storms with 70%+ probability
+        // Use unified priorityList (already sorted by severity: extreme → light)
+        const threatPriorityStorms = priorityList.filter(s => 
+          s.approachPct >= 70 && s.windsPrediction?.direction && s.windsPrediction?.speed
+        );
         
-        // Only draw track for the HIGHEST probability storm (first one after sorting)
-        // This prevents overlapping ETA labels
-        if (threatStorms.length > 0) {
-          const storm = threatStorms[0]; // Highest probability storm
-          const { pos3D, color, windsPrediction, distMiles, category, approachPct, intensity } = storm;
+        // Draw track for the FIRST priority threat storm (highest severity with 70%+)
+        if (threatPriorityStorms.length > 0) {
+          const storm = threatPriorityStorms[0]; // Highest severity priority storm with 70%+
+          const { pos3D, color, windsPrediction, distMiles } = storm;
           const speedMph = windsPrediction!.speed || 15;
-          const dirDegrees = windsPrediction!.direction || 0;
           
           // Calculate ETA (time for storm to reach user)
           const etaMinutes = speedMph > 0 ? (distMiles / speedMph) * 60 : 999;
           const etaFormatted = formatETA(etaMinutes);
-          const compassDir = getCompassDir(dirDegrees);
-          
-          // Calculate bearing FROM user TO storm (where the storm is located)
-          const stormBearingRad = Math.atan2(pos3D.x, -pos3D.z);
-          const stormBearingDeg = ((stormBearingRad * 180 / Math.PI) + 360) % 360;
-          const stormBearingCompass = getCompassDir(stormBearingDeg);
-          
-          // Get intensity-based tips with some personality
-          const intensityTips: Record<string, string> = {
-            light: "☔ Light rain ahead - maybe grab an umbrella, or just enjoy the drizzle!",
-            moderate: "🌧️ Moderate rain incoming - good time to check those windshield wipers!",
-            heavy: "⛈️ Heavy rain approaching - consider delaying outdoor plans!",
-            vheavy: "🌩️ Very heavy storm! Seek shelter and avoid driving if possible!",
-            extreme: "⚠️ SEVERE WEATHER! Take cover immediately - this one means business!"
-          };
-          
-          // Set threat info for banner
-          const categoryNames: Record<string, string> = {
-            light: 'Light', moderate: 'Moderate', heavy: 'Heavy', vheavy: 'V.Heavy', extreme: 'Extreme'
-          };
-          threatCategory = categoryNames[category] || 'Storm';
-          threatDistance = distMiles;
-          threatEta = etaFormatted;
-          threatSpeed = speedMph;
-          threatDirection = compassDir;
-          threatColor = color;
-          threatApproachPct = approachPct;
-          threatBearing = stormBearingDeg;
-          threatBearingDir = stormBearingCompass;
-          threatIntensityTip = intensityTips[category] || "Stay weather aware!";
-          hasThreat = true;
           
           // Calculate direction FROM storm TO user (opposite of storm movement toward user)
           // The storm is at pos3D, user is at (0,0,0)
@@ -743,7 +705,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Build ticker segments for ALL storms, sorted by: probability desc, distance asc, intensity desc
+        // Build ticker segments using UNIFIED priorityList (one priority storm per category)
+        // This ensures ticker matches the info boxes and tracks
         const tickerSegments: { text: string; color: string; category: string }[] = [];
         const categoryNames: Record<string, string> = {
           light: 'Light', moderate: 'Moderate', heavy: 'Heavy', vheavy: 'V.Heavy', extreme: 'Extreme'
@@ -756,14 +719,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           extreme: "⚠️ TAKE COVER!"
         };
         
-        // Sort storms for ticker: probability desc, then distance asc, then intensity desc
-        const sortedForTicker = [...stormData].sort((a, b) => {
-          if (b.approachPct !== a.approachPct) return b.approachPct - a.approachPct;
-          if (a.distMiles !== b.distMiles) return a.distMiles - b.distMiles;
-          return b.intensity - a.intensity;
-        });
-        
-        sortedForTicker.forEach(storm => {
+        // Use priorityList (already sorted by severity: extreme → light, one per category)
+        priorityList.forEach(storm => {
           const speedMph = storm.windsPrediction?.speed || 15;
           const dirDegrees = storm.windsPrediction?.direction || 0;
           const etaMinutes = speedMph > 0 ? (storm.distMiles / speedMph) * 60 : 999;
