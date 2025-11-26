@@ -183,42 +183,8 @@ export default function Storm3D({ location, precipitationStorms, onClose }: Stor
       </div>
 
       {/* 3D Scene */}
-      <Canvas camera={{ position: [0, 10, 15], fov: 60 }}>
-        <ambientLight intensity={0.6} />
-        
-        {/* Ground plane */}
-        <SimpleGroundPlane location={location} />
-        
-        {/* 3D Clouds */}
-        {precipitationStorms.map((storm, index) => {
-          const [x, z] = geoTo3D(storm.lat, storm.lon, location.lat, location.lon);
-          const intensity = storm.dbz || storm.intensity || 25;
-          const height = dbzToHeight(intensity);
-          const color = dbzToColor(intensity);
-          
-          return (
-            <SimpleCloud
-              key={index}
-              position={[x, 0, z]}
-              height={height}
-              color={color}
-            />
-          );
-        })}
-        
-        {/* Sonar dots */}
-        <SimpleRadarDots 
-          storms={precipitationStorms} 
-          centerLat={location.lat} 
-          centerLon={location.lon}
-          showWaypoints={showWaypoints}
-        />
-        
-        {/* Location marker */}
-        <mesh position={[0, 0.2, 0]}>
-          <sphereGeometry args={[0.2]} />
-          <meshBasicMaterial color="#00FF00" />
-        </mesh>
+      <Canvas camera={{ position: [0, 10, 20], fov: 60 }}>
+        <Scene3D location={location} precipitationStorms={precipitationStorms} showWaypoints={showWaypoints} />
       </Canvas>
       
       {/* Legend */}
