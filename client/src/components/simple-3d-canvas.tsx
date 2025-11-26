@@ -472,38 +472,6 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.ellipse(base.x - cloudRadius * 0.2, top.y - cloudRadius * 0.1, cloudRadius * 0.4, cloudRadius * 0.2, 0, 0, 2 * Math.PI);
           ctx.fill();
           
-          // Priority storm label: bearing + distance above cloud
-          if (isPriorityOfCategory && rotatedPos.z < 0) {
-            // Calculate bearing from user to storm (in original world coords)
-            const bearingRad = Math.atan2(pos3D.x, -pos3D.z);
-            const bearingDeg = ((bearingRad * 180 / Math.PI) + 360) % 360;
-            const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-            const bearing = dirs[Math.round(bearingDeg / 45) % 8];
-            
-            const labelText = `${bearing} · ${Math.round(distMiles)}mi`;
-            const labelY = top.y - cloudRadius * 0.5 - 12;
-            
-            ctx.font = 'bold 11px sans-serif';
-            const textWidth = ctx.measureText(labelText).width;
-            
-            // Background pill
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-            ctx.beginPath();
-            ctx.roundRect(base.x - textWidth / 2 - 6, labelY - 8, textWidth + 12, 16, 4);
-            ctx.fill();
-            
-            // Border matching storm color
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-            
-            // Text
-            ctx.fillStyle = '#FFFFFF';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(labelText, base.x, labelY);
-          }
-
           // Animated rain effect - rain streaks falling from storm (reduced for performance)
           const numRainDrops = Math.min(6, Math.floor(intensity / 12)); // Fewer rain drops
           const time = Date.now() * 0.003;
@@ -572,6 +540,49 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
             ctx.arc(top.x, top.y, Math.max(3, 5 * scale), 0, 2 * Math.PI);
             ctx.fill();
           }
+        });
+        
+        // Second pass: Draw labels on priority storms (after all clouds, so labels are on top)
+        priorityList.forEach((storm) => {
+          const { pos3D, color, rotatedPos, distMiles, height } = storm;
+          
+          // Skip if behind camera
+          if (rotatedPos.z >= 0) return;
+          
+          // Calculate screen position
+          const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+          const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
+          const scale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
+          const cloudRadius = Math.max(8, 35 * scale) * 1.2;
+          
+          // Calculate bearing from user to storm
+          const bearingRad = Math.atan2(pos3D.x, -pos3D.z);
+          const bearingDeg = ((bearingRad * 180 / Math.PI) + 360) % 360;
+          const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+          const bearing = dirs[Math.round(bearingDeg / 45) % 8];
+          
+          const labelText = `${bearing} · ${Math.round(distMiles)}mi`;
+          const labelY = top.y - cloudRadius * 0.5 - 14;
+          
+          ctx.font = 'bold 11px sans-serif';
+          const textWidth = ctx.measureText(labelText).width;
+          
+          // Background pill
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+          ctx.beginPath();
+          ctx.roundRect(base.x - textWidth / 2 - 6, labelY - 8, textWidth + 12, 16, 4);
+          ctx.fill();
+          
+          // Border matching storm color
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // Text
+          ctx.fillStyle = '#FFFFFF';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(labelText, base.x, labelY);
         });
         
         // Helper to format ETA as HH:MM
