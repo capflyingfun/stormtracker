@@ -154,7 +154,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       // Draw North arrow compass in top right - aligned with heading display
       const compassSize = 60;
       const compassX = canvas.width - compassSize - 20;
-      const compassY = compassSize + 30; // Aligned with top-left heading display
+      const compassY = compassSize + 55; // Center aligned with top-left heading display box
       
       // Compass background circle
       ctx.fillStyle = 'rgba(51, 51, 85, 0.3)';
