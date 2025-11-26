@@ -468,44 +468,14 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.ellipse(base.x - cloudRadius * 0.2, top.y - cloudRadius * 0.1, cloudRadius * 0.4, cloudRadius * 0.2, 0, 0, 2 * Math.PI);
           ctx.fill();
           
-          // Draw distance/approach/ETA label for priority storm of each category
+          // Priority storm indicator - just a subtle glow ring, labels drawn in HUD panel
           if (isPriorityOfCategory) {
-            // Calculate ETA for this storm
-            const speedMph = windsPrediction?.speed || 15;
-            const etaMinutes = speedMph > 0 ? (distMiles / speedMph) * 60 : 999;
-            const etaHrs = Math.floor(etaMinutes / 60);
-            const etaMins = Math.round(etaMinutes % 60);
-            const etaStr = `${etaHrs.toString().padStart(2, '0')}:${etaMins.toString().padStart(2, '0')}`;
-            
-            // Offset labels vertically by category to prevent overlap
-            const categoryOffsets: Record<string, number> = {
-              extreme: 0, vheavy: 26, heavy: 52, moderate: 78, light: 104
-            };
-            const yOffset = categoryOffsets[stormItem.category] || 0;
-            
-            const labelY = top.y - 22 - yOffset; // Above the storm with category offset
-            const labelText = `${distMiles.toFixed(1)}mi / ${approachPct}% / ${etaStr}`;
-            
-            // Background pill for readability
-            ctx.font = 'bold 12px sans-serif';
-            const textWidth = ctx.measureText(labelText).width;
-            const padding = 5;
-            
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-            ctx.beginPath();
-            ctx.roundRect(base.x - textWidth / 2 - padding, labelY - 9, textWidth + padding * 2, 18, 4);
-            ctx.fill();
-            
-            // Border matching storm color
+            // Draw glow ring around priority storm cloud
             ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.ellipse(base.x, top.y, cloudRadius + 4, (cloudRadius + 4) * 0.5, 0, 0, 2 * Math.PI);
             ctx.stroke();
-            
-            // Text - white and bold
-            ctx.fillStyle = '#FFFFFF';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(labelText, base.x, labelY);
           }
 
           // Animated rain effect - rain streaks falling from storm (reduced for performance)
@@ -818,6 +788,47 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         });
         
         ctx.restore();
+        
+        // Draw HUD panel showing priority storm info (below ticker, left side)
+        // This replaces the overlapping cloud labels
+        const hudX = 12;
+        let hudY = bannerY + bannerHeight + 12;
+        const hudRowHeight = 20;
+        
+        ctx.font = 'bold 11px sans-serif';
+        
+        priorityList.forEach(storm => {
+          const speedMph = storm.windsPrediction?.speed || 15;
+          const etaMinutes = speedMph > 0 ? (storm.distMiles / speedMph) * 60 : 999;
+          const etaHrs = Math.floor(etaMinutes / 60);
+          const etaMins = Math.round(etaMinutes % 60);
+          const etaStr = `${etaHrs.toString().padStart(2, '0')}:${etaMins.toString().padStart(2, '0')}`;
+          
+          const catNames: Record<string, string> = { light: 'LT', moderate: 'MD', heavy: 'HV', vheavy: 'VH', extreme: 'EX' };
+          const catName = catNames[storm.category] || '??';
+          
+          const hudText = `${catName}: ${storm.distMiles.toFixed(1)}mi • ${storm.approachPct}% • ETA ${etaStr}`;
+          const textWidth = ctx.measureText(hudText).width;
+          
+          // Background
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+          ctx.beginPath();
+          ctx.roundRect(hudX, hudY, textWidth + 16, hudRowHeight, 4);
+          ctx.fill();
+          
+          // Border
+          ctx.strokeStyle = storm.color;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // Text
+          ctx.fillStyle = storm.color;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(hudText, hudX + 8, hudY + hudRowHeight / 2);
+          
+          hudY += hudRowHeight + 4;
+        });
       }
       
       // Store storm positions for click handling
