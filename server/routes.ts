@@ -50,6 +50,10 @@ async function fetchNWSAlerts(lat: number, lon: number) {
   }
 }
 
+// Ticker message cache for AI-generated tips
+const tickerMessageCache: Map<string, { messages: string[]; timestamp: number }> = new Map();
+const TICKER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
   // API Keys - these would normally come from environment variables
@@ -57,6 +61,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
     openweather: process.env.OPENWEATHER_API_KEY || '49f87b43ad1ddba1821a5cdac7d6965e',
     weatherapi: process.env.WEATHERAPI_KEY || null, // WeatherAPI.com free tier: 1M calls/month
   };
+
+  // AI-powered ticker messages endpoint
+  app.post("/api/ticker-messages", async (req, res) => {
+    try {
+      const { storms } = req.body;
+      
+      if (!storms || !Array.isArray(storms) || storms.length === 0) {
+        return res.json({ messages: {} });
+      }
+      
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      
+      const result: Record<string, string[]> = {};
+      
+      for (const storm of storms) {
+        const { category, etaMinutes, distance, direction, movementDir, speed } = storm;
+        
+        // Create cache key from storm signature
+        const urgencyBucket = etaMinutes < 45 ? 'urgent' : etaMinutes < 90 ? 'prepare' : 'monitor';
+        const cacheKey = `${category}-${urgencyBucket}-${Math.round(distance / 10) * 10}`;
+        
+        // Check cache first
+        const cached = tickerMessageCache.get(cacheKey);
+        if (cached && Date.now() - cached.timestamp < TICKER_CACHE_TTL) {
+          result[cacheKey] = cached.messages;
+          continue;
+        }
+        
+        // Generate new messages with OpenAI
+        const urgencyGuidance = urgencyBucket === 'urgent' 
+          ? "URGENT: Storm arriving in under 45 minutes. Use imperative safety language like 'Seek shelter now!', 'Take cover immediately!'"
+          : urgencyBucket === 'prepare'
+          ? "PREPARE: Storm arriving in 45-90 minutes. Use preparatory language like 'Prepare to shelter soon', 'Finish outdoor activities'"
+          : "MONITOR: Storm over 90 minutes away. Use monitoring language like 'Keep an eye on conditions', 'Watch for updates'";
+        
+        const prompt = `Generate 5 varied, creative but professional weather ticker tips for a ${category} intensity storm.
+        
+Storm details:
+- Intensity: ${category} (${category === 'extreme' ? 'Very dangerous' : category === 'vheavy' ? 'Dangerous' : category === 'heavy' ? 'Significant' : category === 'moderate' ? 'Notable' : 'Light'})
+- ETA: ${Math.round(etaMinutes)} minutes
+- Distance: ${Math.round(distance)} miles ${direction}
+- Moving: ${movementDir} at ${Math.round(speed)} mph
+
+${urgencyGuidance}
+
+Rules:
+- Each tip should be unique and creative, not repetitive
+- Include an emoji at the start of each tip
+- Keep each tip under 40 characters
+- Be professional but can include appropriate weather humor for non-urgent situations
+- Match urgency to the ETA bucket
+
+Return ONLY a JSON array of 5 strings, no explanation.`;
+
+        try {
+          const completion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 300,
+            temperature: 0.8
+          });
+          
+          const content = completion.choices[0]?.message?.content || '[]';
+          // Parse JSON from response
+          const jsonMatch = content.match(/\[[\s\S]*\]/);
+          const messages = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+          
+          if (Array.isArray(messages) && messages.length > 0) {
+            tickerMessageCache.set(cacheKey, { messages, timestamp: Date.now() });
+            result[cacheKey] = messages;
+          }
+        } catch (aiError) {
+          console.error('OpenAI ticker error:', aiError);
+          // Fallback messages
+          const fallbacks: Record<string, Record<string, string[]>> = {
+            urgent: {
+              extreme: ["⚠️ TAKE COVER NOW!", "🚨 Seek shelter immediately!", "⛔ Dangerous storm incoming!"],
+              vheavy: ["🌩️ Seek shelter now!", "⚡ Time to head inside!", "🏠 Get to safety!"],
+              heavy: ["⛈️ Head indoors soon!", "🌧️ Storm arriving fast!", "☔ Shelter time!"],
+              moderate: ["🌧️ Rain incoming fast!", "☔ Get those umbrellas!", "🌂 Prepare for rain!"],
+              light: ["☔ Light rain soon!", "🌧️ Drizzle approaching!", "☂️ Grab an umbrella!"]
+            },
+            prepare: {
+              extreme: ["⚠️ Prepare for severe weather!", "🌪️ Finish outdoor plans!", "⛈️ Storm coming - prepare!"],
+              vheavy: ["🌩️ Prepare to shelter soon!", "⚡ Wrap up outdoor work!", "🏠 Head home soon!"],
+              heavy: ["⛈️ Heavy rain expected!", "🌧️ Plan to be indoors!", "☔ Storm on the way!"],
+              moderate: ["🌧️ Moderate rain coming!", "☔ Check those wipers!", "🌂 Rain in your future!"],
+              light: ["☔ Light rain expected!", "🌧️ Sprinkles coming!", "☂️ Might need an umbrella!"]
+            },
+            monitor: {
+              extreme: ["⚠️ Severe storm approaching!", "🌪️ Watch conditions closely!", "📡 Monitor for updates!"],
+              vheavy: ["🌩️ Keep an eye out!", "⚡ Storm on the horizon!", "📻 Stay tuned for updates!"],
+              heavy: ["⛈️ Storms developing!", "🌧️ Weather changing!", "📡 Keep monitoring!"],
+              moderate: ["🌧️ Rain in the forecast!", "☔ Could get wet later!", "🌂 Watch the skies!"],
+              light: ["☔ Light rain possible!", "🌤️ Some clouds moving in!", "☁️ Weather looks calm!"]
+            }
+          };
+          result[cacheKey] = fallbacks[urgencyBucket]?.[category] || ["🌤️ Stay weather aware!"];
+        }
+      }
+      
+      res.json({ messages: result });
+    } catch (error) {
+      console.error('Ticker messages error:', error);
+      res.status(500).json({ error: 'Failed to generate ticker messages' });
+    }
+  });
 
   // Open-Meteo Radar Integration - high resolution, professional grade
   app.get("/api/open-meteo-radar", async (req, res) => {
