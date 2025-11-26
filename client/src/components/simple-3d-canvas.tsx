@@ -314,14 +314,15 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const height = dbzToHeight(intensity);
           const color = dbzToColor(intensity);
           const rotatedPos = rotateY(pos3D, rotationY);
+          const windsPrediction = storm.windsPrediction;
 
-          return { pos3D, intensity, height, color, rotatedPos };
+          return { pos3D, intensity, height, color, rotatedPos, windsPrediction };
         });
 
         // Sort by z-distance for proper depth rendering
         stormData.sort((a, b) => b.rotatedPos.z - a.rotatedPos.z);
 
-        stormData.forEach(({ pos3D, intensity, height, color, rotatedPos }) => {
+        stormData.forEach(({ pos3D, intensity, height, color, rotatedPos, windsPrediction }) => {
           // Project to screen - simple columns from ground up
           const base = project3D({ ...rotatedPos, y: rotatedPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
           const top = project3D({ ...rotatedPos, y: rotatedPos.y + height - cameraHeight }, cameraDistance, canvas.width, canvas.height);
@@ -390,6 +391,40 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
               }
               ctx.stroke();
             }
+          }
+
+          // Storm movement arrow on ground showing direction
+          if (windsPrediction?.direction) {
+            const movementDir = windsPrediction.direction * Math.PI / 180;
+            const arrowLength = radius * 2.5;
+            
+            // Arrow pointing in movement direction
+            // Start from storm base, extend in movement direction
+            const arrowStartX = rotatedPos.x;
+            const arrowStartZ = rotatedPos.z;
+            const arrowEndX = arrowStartX + Math.sin(movementDir - rotationY) * arrowLength * 0.08;
+            const arrowEndZ = arrowStartZ + Math.cos(movementDir - rotationY) * arrowLength * 0.08;
+            
+            const arrowStart = project3D({ x: arrowStartX, y: 0.1 - cameraHeight, z: arrowStartZ }, cameraDistance, canvas.width, canvas.height);
+            const arrowEnd = project3D({ x: arrowEndX, y: 0.1 - cameraHeight, z: arrowEndZ }, cameraDistance, canvas.width, canvas.height);
+            
+            // Draw arrow line
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(arrowStart.x, arrowStart.y);
+            ctx.lineTo(arrowEnd.x, arrowEnd.y);
+            ctx.stroke();
+            
+            // Draw arrowhead
+            const headAngle = Math.atan2(arrowEnd.y - arrowStart.y, arrowEnd.x - arrowStart.x);
+            const headLength = 8;
+            ctx.beginPath();
+            ctx.moveTo(arrowEnd.x, arrowEnd.y);
+            ctx.lineTo(arrowEnd.x - headLength * Math.cos(headAngle - 0.4), arrowEnd.y - headLength * Math.sin(headAngle - 0.4));
+            ctx.moveTo(arrowEnd.x, arrowEnd.y);
+            ctx.lineTo(arrowEnd.x - headLength * Math.cos(headAngle + 0.4), arrowEnd.y - headLength * Math.sin(headAngle + 0.4));
+            ctx.stroke();
           }
 
           // Waypoint dots on TOP of columns if enabled
