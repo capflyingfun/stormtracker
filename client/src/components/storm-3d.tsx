@@ -103,8 +103,8 @@ function UserMarker() {
   );
 }
 
-// 3D Scene content
-function Scene3D({ location, precipitationStorms, showWaypoints }: { 
+// 3D Scene content - fixed at 11,000 feet altitude
+function Scene3DFixed({ location, precipitationStorms, showWaypoints }: { 
   location: { lat: number; lon: number; city?: string; };
   precipitationStorms: any[];
   showWaypoints: boolean;
@@ -145,8 +145,10 @@ function Scene3D({ location, precipitationStorms, showWaypoints }: {
       <OrbitControls 
         autoRotate={false}
         autoRotateSpeed={0}
-        enableZoom={true}
+        enableZoom={false}
         enablePan={true}
+        minDistance={15}
+        maxDistance={15}
       />
     </>
   );
@@ -191,13 +193,13 @@ export default function Storm3D({ location, precipitationStorms, onClose }: Stor
       </div>
 
       {/* 3D Scene */}
-      <Canvas camera={{ position: [0, 10, 20], fov: 60 }}>
-        <Scene3D location={location} precipitationStorms={precipitationStorms} showWaypoints={showWaypoints} />
+      <Canvas camera={{ position: [0, 11, 22], fov: 60 }}>
+        <Scene3DFixed location={location} precipitationStorms={precipitationStorms} showWaypoints={showWaypoints} />
       </Canvas>
       
       {/* Legend */}
       <div className="absolute bottom-4 left-4 bg-slate-800/90 backdrop-blur-sm rounded-lg p-4 border border-slate-700">
-        <h3 className="text-sm font-semibold text-white mb-2">Storm Heights & Colors</h3>
+        <h3 className="text-sm font-semibold text-white mb-1">Viewing Altitude: 11,000 ft</h3>
         <div className="space-y-1 text-xs">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded" style={{ backgroundColor: '#22C55E' }}></div>
