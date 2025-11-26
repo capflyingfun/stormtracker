@@ -578,13 +578,15 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           return dirs[Math.round(((degrees % 360) + 360) % 360 / 22.5) % 16];
         };
         
-        // Track the nearest threat for the banner
-        let threatCategory = '', threatDistance = 0, threatEta = '', threatSpeed = 0, threatDirection = '', threatColor = '';
+        // Track the primary threat for the banner - highest probability storm
+        let threatCategory = '', threatDistance = 0, threatEta = '', threatSpeed = 0, threatDirection = '', threatColor = '', threatApproachPct = 0;
         let hasThreat = false;
         
-        // Draw track for each threatening storm (limit to top 5 for performance)
-        for (const storm of threatStorms.slice(0, 5)) {
-          const { pos3D, color, windsPrediction, distMiles, category } = storm;
+        // Only draw track for the HIGHEST probability storm (first one after sorting)
+        // This prevents overlapping ETA labels
+        if (threatStorms.length > 0) {
+          const storm = threatStorms[0]; // Highest probability storm
+          const { pos3D, color, windsPrediction, distMiles, category, approachPct } = storm;
           const speedMph = windsPrediction!.speed || 15;
           const dirDegrees = windsPrediction!.direction || 0;
           
@@ -593,19 +595,18 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const etaFormatted = formatETA(etaMinutes);
           const compassDir = getCompassDir(dirDegrees);
           
-          // Track nearest threat
-          if (!hasThreat || distMiles < threatDistance) {
-            const categoryNames: Record<string, string> = {
-              light: 'Light', moderate: 'Moderate', heavy: 'Heavy', vheavy: 'V.Heavy', extreme: 'Extreme'
-            };
-            threatCategory = categoryNames[category] || 'Storm';
-            threatDistance = distMiles;
-            threatEta = etaFormatted;
-            threatSpeed = speedMph;
-            threatDirection = compassDir;
-            threatColor = color;
-            hasThreat = true;
-          }
+          // Set threat info for banner
+          const categoryNames: Record<string, string> = {
+            light: 'Light', moderate: 'Moderate', heavy: 'Heavy', vheavy: 'V.Heavy', extreme: 'Extreme'
+          };
+          threatCategory = categoryNames[category] || 'Storm';
+          threatDistance = distMiles;
+          threatEta = etaFormatted;
+          threatSpeed = speedMph;
+          threatDirection = compassDir;
+          threatColor = color;
+          threatApproachPct = approachPct;
+          hasThreat = true;
           
           // Calculate direction FROM storm TO user (opposite of storm movement toward user)
           // The storm is at pos3D, user is at (0,0,0)
@@ -699,60 +700,49 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.fillText(etaText, midX, midY);
         }
         
-        // Draw info banner - show threat info if 70%+ storms exist, otherwise show general info
-        if (hasThreat) {
-          // Threat banner
-          const infoText = `Threat: ${threatCategory} storm, ${threatDistance.toFixed(1)} mi, ETA ${threatEta}, moving ${threatDirection} at ${Math.round(threatSpeed)} mph`;
-          
-          ctx.font = 'bold 14px sans-serif';
-          const textWidth = ctx.measureText(infoText).width;
-          const bannerPadding = 12;
-          const bannerX = (canvas.width - textWidth) / 2 - bannerPadding;
-          const bannerY = 180;
-          
-          // Background banner
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-          ctx.beginPath();
-          ctx.roundRect(bannerX, bannerY, textWidth + bannerPadding * 2, 28, 8);
-          ctx.fill();
-          
-          // Border matching threat color
-          ctx.strokeStyle = threatColor;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          
-          // Text in threat color
-          ctx.fillStyle = threatColor;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(infoText, canvas.width / 2, bannerY + 14);
-        } else {
-          // No immediate threats - show calm message
-          const infoText = 'No immediate storm threats (< 70% approach probability)';
-          
-          ctx.font = 'bold 14px sans-serif';
-          const textWidth = ctx.measureText(infoText).width;
-          const bannerPadding = 12;
-          const bannerX = (canvas.width - textWidth) / 2 - bannerPadding;
-          const bannerY = 180;
-          
-          // Background banner
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-          ctx.beginPath();
-          ctx.roundRect(bannerX, bannerY, textWidth + bannerPadding * 2, 28, 8);
-          ctx.fill();
-          
-          // Green border for safety
-          ctx.strokeStyle = 'rgba(34, 197, 94, 0.8)';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          
-          // Green text
-          ctx.fillStyle = 'rgba(34, 197, 94, 1)';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(infoText, canvas.width / 2, bannerY + 14);
-        }
+        // Draw scrolling news-style ticker banner
+        const bannerY = 180;
+        const bannerHeight = 28;
+        const bannerPadding = 8;
+        
+        // Draw full-width banner background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        ctx.beginPath();
+        ctx.roundRect(bannerPadding, bannerY, canvas.width - bannerPadding * 2, bannerHeight, 6);
+        ctx.fill();
+        
+        // Border color based on threat status
+        ctx.strokeStyle = hasThreat ? threatColor : 'rgba(34, 197, 94, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Prepare ticker text
+        const infoText = hasThreat 
+          ? `⚠️ THREAT ALERT: ${threatCategory} storm approaching • ${threatDistance.toFixed(1)} mi away • ETA ${threatEta} • Moving ${threatDirection} at ${Math.round(threatSpeed)} mph • ${threatApproachPct}% approach probability ⚠️`
+          : '✓ ALL CLEAR: No immediate storm threats detected (< 70% approach probability) • Conditions safe for outdoor activities ✓';
+        
+        ctx.font = 'bold 14px sans-serif';
+        const textWidth = ctx.measureText(infoText).width;
+        
+        // Calculate scroll position (moves from right to left)
+        const scrollSpeed = 50; // pixels per second
+        const time = Date.now() / 1000;
+        const totalScrollDistance = canvas.width + textWidth;
+        const scrollX = canvas.width - ((time * scrollSpeed) % totalScrollDistance);
+        
+        // Clip text to banner area
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(bannerPadding + 4, bannerY, canvas.width - bannerPadding * 2 - 8, bannerHeight);
+        ctx.clip();
+        
+        // Draw scrolling text
+        ctx.fillStyle = hasThreat ? threatColor : 'rgba(34, 197, 94, 1)';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(infoText, scrollX, bannerY + bannerHeight / 2);
+        
+        ctx.restore();
       }
       
       // Store storm positions for click handling
