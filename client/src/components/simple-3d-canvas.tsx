@@ -393,37 +393,82 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
             }
           }
 
-          // Storm movement arrow on ground showing direction
-          if (windsPrediction?.direction) {
+          // Storm track cone and movement arrow on ground
+          if (windsPrediction?.direction && windsPrediction?.speed) {
             const movementDir = windsPrediction.direction * Math.PI / 180;
-            const arrowLength = radius * 2.5;
+            const speedMph = windsPrediction.speed || 15;
             
-            // Arrow pointing in movement direction
-            // Start from storm base, extend in movement direction
-            const arrowStartX = rotatedPos.x;
-            const arrowStartZ = rotatedPos.z;
-            const arrowEndX = arrowStartX + Math.sin(movementDir - rotationY) * arrowLength * 0.08;
-            const arrowEndZ = arrowStartZ + Math.cos(movementDir - rotationY) * arrowLength * 0.08;
+            // Calculate projected positions at 10, 20, 30 minutes
+            // Speed in mph -> distance in miles per minute = speed / 60
+            const timeIntervals = [10, 20, 30]; // minutes
             
-            const arrowStart = project3D({ x: arrowStartX, y: 0.1 - cameraHeight, z: arrowStartZ }, cameraDistance, canvas.width, canvas.height);
-            const arrowEnd = project3D({ x: arrowEndX, y: 0.1 - cameraHeight, z: arrowEndZ }, cameraDistance, canvas.width, canvas.height);
+            // Draw track cone (expanding cone shape)
+            const coneWidth = 0.02; // Width expansion per unit distance
             
-            // Draw arrow line
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
+            timeIntervals.forEach((minutes, idx) => {
+              const distance = (speedMph / 60) * minutes; // miles
+              const distanceScale = distance * scaleFactor; // Convert to 3D scale
+              
+              // Calculate future position
+              const futureX = rotatedPos.x + Math.sin(movementDir - rotationY) * distanceScale;
+              const futureZ = rotatedPos.z + Math.cos(movementDir - rotationY) * distanceScale;
+              
+              // Project to screen
+              const futurePos = project3D({ x: futureX, y: 0.05 - cameraHeight, z: futureZ }, cameraDistance, canvas.width, canvas.height);
+              
+              // Draw time marker circle
+              const markerRadius = 3 + idx;
+              ctx.fillStyle = `${color}${['66', '44', '33'][idx]}`;
+              ctx.beginPath();
+              ctx.arc(futurePos.x, futurePos.y, markerRadius, 0, 2 * Math.PI);
+              ctx.fill();
+              
+              // Time label (10m, 20m, 30m)
+              ctx.font = '8px monospace';
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+              ctx.textAlign = 'center';
+              ctx.fillText(`${minutes}m`, futurePos.x, futurePos.y - markerRadius - 3);
+            });
+            
+            // Draw cone outline connecting the markers
+            const conePoints: Point2D[] = [];
+            const startProj = project3D({ x: rotatedPos.x, y: 0.05 - cameraHeight, z: rotatedPos.z }, cameraDistance, canvas.width, canvas.height);
+            
+            // Left edge of cone
+            for (let i = 0; i <= 2; i++) {
+              const minutes = timeIntervals[i];
+              const distance = (speedMph / 60) * minutes * scaleFactor;
+              const spread = distance * coneWidth * 3;
+              const perpAngle = movementDir - rotationY + Math.PI / 2;
+              const x = rotatedPos.x + Math.sin(movementDir - rotationY) * distance + Math.sin(perpAngle) * spread;
+              const z = rotatedPos.z + Math.cos(movementDir - rotationY) * distance + Math.cos(perpAngle) * spread;
+              conePoints.push(project3D({ x, y: 0.05 - cameraHeight, z }, cameraDistance, canvas.width, canvas.height));
+            }
+            // Right edge of cone (reverse)
+            for (let i = 2; i >= 0; i--) {
+              const minutes = timeIntervals[i];
+              const distance = (speedMph / 60) * minutes * scaleFactor;
+              const spread = distance * coneWidth * 3;
+              const perpAngle = movementDir - rotationY - Math.PI / 2;
+              const x = rotatedPos.x + Math.sin(movementDir - rotationY) * distance + Math.sin(perpAngle) * spread;
+              const z = rotatedPos.z + Math.cos(movementDir - rotationY) * distance + Math.cos(perpAngle) * spread;
+              conePoints.push(project3D({ x, y: 0.05 - cameraHeight, z }, cameraDistance, canvas.width, canvas.height));
+            }
+            
+            // Draw filled cone
+            ctx.fillStyle = `${color}22`;
             ctx.beginPath();
-            ctx.moveTo(arrowStart.x, arrowStart.y);
-            ctx.lineTo(arrowEnd.x, arrowEnd.y);
-            ctx.stroke();
+            ctx.moveTo(startProj.x, startProj.y);
+            conePoints.forEach((p, i) => {
+              if (i === 0) ctx.lineTo(p.x, p.y);
+              else ctx.lineTo(p.x, p.y);
+            });
+            ctx.closePath();
+            ctx.fill();
             
-            // Draw arrowhead
-            const headAngle = Math.atan2(arrowEnd.y - arrowStart.y, arrowEnd.x - arrowStart.x);
-            const headLength = 8;
-            ctx.beginPath();
-            ctx.moveTo(arrowEnd.x, arrowEnd.y);
-            ctx.lineTo(arrowEnd.x - headLength * Math.cos(headAngle - 0.4), arrowEnd.y - headLength * Math.sin(headAngle - 0.4));
-            ctx.moveTo(arrowEnd.x, arrowEnd.y);
-            ctx.lineTo(arrowEnd.x - headLength * Math.cos(headAngle + 0.4), arrowEnd.y - headLength * Math.sin(headAngle + 0.4));
+            // Draw cone outline
+            ctx.strokeStyle = `${color}66`;
+            ctx.lineWidth = 1;
             ctx.stroke();
           }
 
