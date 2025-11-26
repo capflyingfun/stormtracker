@@ -468,22 +468,35 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.ellipse(base.x - cloudRadius * 0.2, top.y - cloudRadius * 0.1, cloudRadius * 0.4, cloudRadius * 0.2, 0, 0, 2 * Math.PI);
           ctx.fill();
           
-          // Draw distance/approach label for priority storm of each category
+          // Draw distance/approach/ETA label for priority storm of each category
           if (isPriorityOfCategory) {
-            const labelY = top.y - 22; // Above the storm
-            const labelText = `${distMiles.toFixed(1)}mi / ${approachPct}%`;
+            // Calculate ETA for this storm
+            const speedMph = windsPrediction?.speed || 15;
+            const etaMinutes = speedMph > 0 ? (distMiles / speedMph) * 60 : 999;
+            const etaHrs = Math.floor(etaMinutes / 60);
+            const etaMins = Math.round(etaMinutes % 60);
+            const etaStr = `${etaHrs.toString().padStart(2, '0')}:${etaMins.toString().padStart(2, '0')}`;
             
-            // Background pill for readability - LARGER
-            ctx.font = 'bold 13px sans-serif';
+            // Offset labels vertically by category to prevent overlap
+            const categoryOffsets: Record<string, number> = {
+              extreme: 0, vheavy: 26, heavy: 52, moderate: 78, light: 104
+            };
+            const yOffset = categoryOffsets[stormItem.category] || 0;
+            
+            const labelY = top.y - 22 - yOffset; // Above the storm with category offset
+            const labelText = `${distMiles.toFixed(1)}mi / ${approachPct}% / ${etaStr}`;
+            
+            // Background pill for readability
+            ctx.font = 'bold 12px sans-serif';
             const textWidth = ctx.measureText(labelText).width;
-            const padding = 6;
+            const padding = 5;
             
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
             ctx.beginPath();
-            ctx.roundRect(base.x - textWidth / 2 - padding, labelY - 10, textWidth + padding * 2, 20, 5);
+            ctx.roundRect(base.x - textWidth / 2 - padding, labelY - 9, textWidth + padding * 2, 18, 4);
             ctx.fill();
             
-            // Border matching storm color - thicker
+            // Border matching storm color
             ctx.strokeStyle = color;
             ctx.lineWidth = 2;
             ctx.stroke();
@@ -720,11 +733,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         };
         
         // Use priorityList (already sorted by severity: extreme → light, one per category)
+        // Ticker is now shorter since ETA is on the info boxes
         priorityList.forEach(storm => {
           const speedMph = storm.windsPrediction?.speed || 15;
           const dirDegrees = storm.windsPrediction?.direction || 0;
-          const etaMinutes = speedMph > 0 ? (storm.distMiles / speedMph) * 60 : 999;
-          const etaFormatted = formatETA(etaMinutes);
           const compassDir = getCompassDir(dirDegrees);
           
           // Calculate bearing from user to storm
@@ -735,8 +747,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const catName = categoryNames[storm.category] || 'Storm';
           const tip = intensityTips[storm.category] || "Stay aware!";
           
+          // Shorter ticker format - ETA is on the info boxes now
           tickerSegments.push({
-            text: `⚡ ${catName}: ${stormBearingCompass} (${Math.round(stormBearingDeg)}°) @ ${storm.distMiles.toFixed(1)}mi • Moving ${compassDir} ${Math.round(speedMph)}mph • ETA ${etaFormatted} • ${storm.approachPct}% impact • ${tip}`,
+            text: `⚡ ${catName} ${stormBearingCompass} • Moving ${compassDir} @ ${Math.round(speedMph)}mph • ${tip}`,
             color: storm.color,
             category: storm.category
           });
