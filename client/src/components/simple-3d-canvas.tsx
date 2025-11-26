@@ -100,15 +100,18 @@ interface StormInfo {
 
 export default function Simple3DCanvas({ location, precipitationStorms, setViewMode }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [showWaypoints, setShowWaypoints] = useState(false); // Default to hidden for better performance
-  const [rotationY, setRotationY] = useState(0); // Start facing North (0°)
-  const cameraHeight = 8; // Fixed at 11,000 feet (8 + 3 = 11 * 1000 = 11,000ft)
+  const [showWaypoints, setShowWaypoints] = useState(false);
+  const rotationRef = useRef(0); // Use ref for animation - no re-renders
+  const [displayRotation, setDisplayRotation] = useState(0); // Only for UI display
+  const cameraHeight = 8;
   const [selectedStorm, setSelectedStorm] = useState<StormInfo | null>(null);
   const stormPositionsRef = useRef<{screenX: number; screenY: number; radius: number; storm: any}[]>([]);
   const [isRotating, setIsRotating] = useState(false);
-  const [rotationSpeed, setRotationSpeed] = useState(2); // 1=slow, 2=medium, 3=fast
+  const [rotationSpeed, setRotationSpeed] = useState(2);
   const targetRotationSpeed = useRef(0);
   const currentRotationSpeed = useRef(0);
+  const lastUIUpdate = useRef(0);
+  const starPositionsRef = useRef<{x: number; y: number; size: number; speed: number}[]>([]);
 
   // Keyboard controls for PC - only rotation, height is locked
   useEffect(() => {
@@ -117,12 +120,12 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         case 'a':
         case 'arrowleft':
           e.preventDefault();
-          setRotationY(prev => prev + 0.1); // Rotate left (reversed)
+          rotationRef.current += 0.1; // Rotate left - use ref, no re-render
           break;
         case 'd':
         case 'arrowright':
           e.preventDefault();
-          setRotationY(prev => prev - 0.1); // Rotate right (reversed)
+          rotationRef.current -= 0.1; // Rotate right - use ref, no re-render
           break;
       }
     };
@@ -157,55 +160,41 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       };
     };
 
-    const draw = () => {
-      // Clear canvas with space-like background
-      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      gradient.addColorStop(0, '#000030');
-      gradient.addColorStop(1, '#000010');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Twinkling stars in sky
-      const numStars = 80;
-      const time = Date.now() * 0.001;
-      for (let i = 0; i < numStars; i++) {
-        // Use consistent pseudo-random positions for each star
+    // Initialize cached star positions once
+    if (starPositionsRef.current.length === 0) {
+      for (let i = 0; i < 50; i++) { // Reduced from 80 to 50 stars
         const seed1 = Math.sin(i * 127.1) * 43758.5453;
         const seed2 = Math.sin(i * 269.5) * 43758.5453;
-        const starX = ((seed1 - Math.floor(seed1)) * canvas.width);
-        const starY = ((seed2 - Math.floor(seed2)) * canvas.height * 0.6); // Stars in upper 60% of screen
-        
-        // Twinkling effect - each star has different phase
-        const twinkleSpeed = 1 + (i % 5) * 0.5;
-        const twinkle = 0.3 + Math.sin(time * twinkleSpeed + i * 0.5) * 0.7;
-        
-        // Star size variation
-        const baseSize = 0.5 + (i % 3) * 0.5;
-        const size = baseSize * (0.8 + twinkle * 0.4);
-        
-        // Draw star with glow
-        ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + twinkle * 0.5})`;
-        ctx.beginPath();
-        ctx.arc(starX, starY, size, 0, 2 * Math.PI);
-        ctx.fill();
-        
-        // Occasional brighter stars with cross effect
-        if (i % 15 === 0 && twinkle > 0.7) {
-          ctx.strokeStyle = `rgba(255, 255, 255, ${twinkle * 0.3})`;
-          ctx.lineWidth = 0.5;
-          ctx.beginPath();
-          ctx.moveTo(starX - 3, starY);
-          ctx.lineTo(starX + 3, starY);
-          ctx.moveTo(starX, starY - 3);
-          ctx.lineTo(starX, starY + 3);
-          ctx.stroke();
-        }
+        starPositionsRef.current.push({
+          x: (seed1 - Math.floor(seed1)) * canvas.width,
+          y: (seed2 - Math.floor(seed2)) * canvas.height * 0.5,
+          size: 0.5 + (i % 3) * 0.4,
+          speed: 1 + (i % 4) * 0.3
+        });
       }
+    }
+
+    const draw = () => {
+      const currentRotation = rotationRef.current;
+      
+      // Clear canvas with simple background (no gradient per frame)
+      ctx.fillStyle = '#000020';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Cached stars with simple twinkle
+      const time = Date.now() * 0.001;
+      starPositionsRef.current.forEach((star, i) => {
+        const twinkle = 0.4 + Math.sin(time * star.speed + i) * 0.4;
+        ctx.fillStyle = `rgba(255, 255, 255, ${twinkle})`;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, 2 * Math.PI);
+        ctx.fill();
+      });
 
       // Draw North arrow compass in top right - aligned with heading display
       const compassSize = 60;
       const compassX = canvas.width - compassSize - 20;
-      const compassY = compassSize + 55; // Center aligned with top-left heading display box
+      const compassY = compassSize + 55;
       
       // Compass background circle
       ctx.fillStyle = 'rgba(51, 51, 85, 0.3)';
@@ -214,7 +203,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       ctx.fill();
       
       // North arrow (rotates to always point North)
-      const northAngle = rotationY; // Rotate with view so it always points North (flipped direction)
+      const northAngle = currentRotation;
       const arrowLength = compassSize / 3;
       
       // Arrow shaft
@@ -271,7 +260,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const worldX = Math.cos(angle) * radius * scaleFactor;
           const worldZ = Math.sin(angle) * radius * scaleFactor;
           
-          const point3D = rotateY({ x: worldX, y: 0, z: worldZ }, rotationY);
+          const point3D = rotateY({ x: worldX, y: 0, z: worldZ }, currentRotation);
           const projected = project3D({ ...point3D, y: point3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
           
           if (i === 0) {
@@ -291,7 +280,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         const labelAngle = Math.PI / 2; // East direction
         const labelX = Math.cos(labelAngle) * radius * scaleFactor;
         const labelZ = Math.sin(labelAngle) * radius * scaleFactor;
-        const label3D = rotateY({ x: labelX, y: 0.2, z: labelZ }, rotationY);
+        const label3D = rotateY({ x: labelX, y: 0.2, z: labelZ }, currentRotation);
         const labelProj = project3D({ ...label3D, y: label3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
         
         ctx.font = '10px monospace';
@@ -306,8 +295,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         const endX = Math.cos(angle) * maxRadius * scaleFactor;
         const endZ = Math.sin(angle) * maxRadius * scaleFactor;
         
-        const start3D = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
-        const end3D = rotateY({ x: endX, y: 0, z: endZ }, rotationY);
+        const start3D = rotateY({ x: 0, y: 0, z: 0 }, currentRotation);
+        const end3D = rotateY({ x: endX, y: 0, z: endZ }, currentRotation);
         
         const startProj = project3D({ ...start3D, y: start3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
         const endProj = project3D({ ...end3D, y: end3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
@@ -329,8 +318,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       const sweepEndX = Math.cos(sweepAngle) * maxRadius * scaleFactor;
       const sweepEndZ = Math.sin(sweepAngle) * maxRadius * scaleFactor;
       
-      const sweepStart3D = rotateY({ x: 0, y: 0.02, z: 0 }, rotationY);
-      const sweepEnd3D = rotateY({ x: sweepEndX, y: 0.02, z: sweepEndZ }, rotationY);
+      const sweepStart3D = rotateY({ x: 0, y: 0.02, z: 0 }, currentRotation);
+      const sweepEnd3D = rotateY({ x: sweepEndX, y: 0.02, z: sweepEndZ }, currentRotation);
       
       const sweepStartProj = project3D({ ...sweepStart3D, y: sweepStart3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
       const sweepEndProj = project3D({ ...sweepEnd3D, y: sweepEnd3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
@@ -343,15 +332,15 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       ctx.lineTo(sweepEndProj.x, sweepEndProj.y);
       ctx.stroke();
       
-      // Sweep glow/trail effect
-      for (let trail = 1; trail <= 8; trail++) {
-        const trailAngle = sweepAngle - (trail * 0.08);
+      // Sweep glow/trail effect (reduced from 8 to 4 trails for performance)
+      for (let trail = 1; trail <= 4; trail++) {
+        const trailAngle = sweepAngle - (trail * 0.12);
         const trailEndX = Math.cos(trailAngle) * maxRadius * scaleFactor;
         const trailEndZ = Math.sin(trailAngle) * maxRadius * scaleFactor;
-        const trailEnd3D = rotateY({ x: trailEndX, y: 0.02, z: trailEndZ }, rotationY);
+        const trailEnd3D = rotateY({ x: trailEndX, y: 0.02, z: trailEndZ }, currentRotation);
         const trailEndProj = project3D({ ...trailEnd3D, y: trailEnd3D.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
         
-        ctx.strokeStyle = `rgba(0, 255, 200, ${0.3 - trail * 0.03})`;
+        ctx.strokeStyle = `rgba(0, 255, 200, ${0.25 - trail * 0.05})`;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(sweepStartProj.x, sweepStartProj.y);
@@ -359,38 +348,20 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         ctx.stroke();
       }
 
-      // Draw highly visible user location marker
-      const userPos = rotateY({ x: 0, y: 0, z: 0 }, rotationY);
+      // Draw user location marker (simplified for performance)
+      const userPos = rotateY({ x: 0, y: 0, z: 0 }, currentRotation);
       const userProjected = project3D({ ...userPos, y: userPos.y - cameraHeight }, cameraDistance, canvas.width, canvas.height);
       
-      // Large bright marker with multiple layers for visibility
-      const scale = 2.5; // Larger scale for better visibility
-      
-      // Bright background circle for contrast
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      // Simple 2-layer marker
+      ctx.fillStyle = '#FF6600';
       ctx.beginPath();
-      ctx.arc(userProjected.x, userProjected.y, 15 * scale, 0, 2 * Math.PI);
+      ctx.arc(userProjected.x, userProjected.y, 20, 0, 2 * Math.PI);
       ctx.fill();
       
-      // Bright yellow/orange center
-      ctx.fillStyle = '#FF6600'; // Bright orange
-      ctx.beginPath();
-      ctx.arc(userProjected.x, userProjected.y, 12 * scale, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      // White center dot
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
-      ctx.arc(userProjected.x, userProjected.y, 6 * scale, 0, 2 * Math.PI);
+      ctx.arc(userProjected.x, userProjected.y, 10, 0, 2 * Math.PI);
       ctx.fill();
-      
-      // Pulsing outer ring
-      const pulseRadius = 18 * scale + Math.sin(Date.now() * 0.005) * 4;
-      ctx.strokeStyle = '#FFFF00';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(userProjected.x, userProjected.y, pulseRadius, 0, 2 * Math.PI);
-      ctx.stroke();
 
       // Draw terrain-style polygonal storm visualization
       const clickableStorms: {screenX: number; screenY: number; radius: number; storm: any}[] = [];
@@ -402,7 +373,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           const intensity = storm.dbz || storm.intensity || 25;
           const height = dbzToHeight(intensity);
           const color = dbzToColor(intensity);
-          const rotatedPos = rotateY(pos3D, rotationY);
+          const rotatedPos = rotateY(pos3D, currentRotation);
           const windsPrediction = storm.windsPrediction;
 
           return { pos3D, intensity, height, color, rotatedPos, windsPrediction, originalStorm: storm };
@@ -429,50 +400,22 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           ctx.fillStyle = columnGradient;
           ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
           
-          // Puffy cloud tops - multiple overlapping circles to create cloud-like appearance
-          const cloudPuffs = Math.min(5, Math.floor(intensity / 15) + 2); // More puffs for stronger storms
-          const cloudRadius = radius * 0.8;
-          
-          for (let p = 0; p < cloudPuffs; p++) {
-            // Create varied puff positions around the top
-            const puffAngle = (p / cloudPuffs) * Math.PI * 2;
-            const puffDist = cloudRadius * 0.3 * (0.5 + Math.sin(p * 2.5) * 0.5);
-            const puffX = base.x + Math.cos(puffAngle) * puffDist;
-            const puffY = top.y + Math.sin(puffAngle * 0.5) * (cloudRadius * 0.3);
-            const puffRadius = cloudRadius * (0.5 + (p % 3) * 0.15);
-            
-            // Draw puff with gradient for 3D effect
-            const puffGradient = ctx.createRadialGradient(
-              puffX - puffRadius * 0.2, puffY - puffRadius * 0.2, 0,
-              puffX, puffY, puffRadius
-            );
-            puffGradient.addColorStop(0, color + 'FF');
-            puffGradient.addColorStop(0.6, color + 'CC');
-            puffGradient.addColorStop(1, color + '88');
-            
-            ctx.fillStyle = puffGradient;
-            ctx.beginPath();
-            ctx.arc(puffX, puffY, puffRadius, 0, 2 * Math.PI);
-            ctx.fill();
-          }
-          
-          // Central cloud dome on top
-          const domeGradient = ctx.createRadialGradient(
-            base.x - radius * 0.1, top.y - cloudRadius * 0.2, 0,
-            base.x, top.y, cloudRadius
-          );
-          domeGradient.addColorStop(0, '#FFFFFF88');
-          domeGradient.addColorStop(0.5, color + 'CC');
-          domeGradient.addColorStop(1, color + '66');
-          
-          ctx.fillStyle = domeGradient;
+          // Simple cloud top - just a single ellipse (much faster than multiple gradient circles)
+          const cloudRadius = radius * 0.9;
+          ctx.fillStyle = color + 'DD';
           ctx.beginPath();
-          ctx.arc(base.x, top.y, cloudRadius, 0, 2 * Math.PI);
+          ctx.ellipse(base.x, top.y, cloudRadius, cloudRadius * 0.5, 0, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // Light highlight on top
+          ctx.fillStyle = 'rgba(255,255,255,0.3)';
+          ctx.beginPath();
+          ctx.ellipse(base.x - cloudRadius * 0.2, top.y - cloudRadius * 0.1, cloudRadius * 0.4, cloudRadius * 0.2, 0, 0, 2 * Math.PI);
           ctx.fill();
 
-          // Animated rain effect - rain streaks falling from storm
-          const numRainDrops = Math.min(12, Math.floor(intensity / 8)); // More rain for stronger storms
-          const time = Date.now() * 0.003; // Animation speed
+          // Animated rain effect - rain streaks falling from storm (reduced for performance)
+          const numRainDrops = Math.min(6, Math.floor(intensity / 12)); // Fewer rain drops
+          const time = Date.now() * 0.003;
           
           for (let r = 0; r < numRainDrops; r++) {
             // Create pseudo-random but consistent positions for each drop
@@ -540,8 +483,8 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
               const distanceScale = distance * scaleFactor; // Convert to 3D scale
               
               // Calculate future position
-              const futureX = rotatedPos.x + Math.sin(movementDir - rotationY) * distanceScale;
-              const futureZ = rotatedPos.z + Math.cos(movementDir - rotationY) * distanceScale;
+              const futureX = rotatedPos.x + Math.sin(movementDir - currentRotation) * distanceScale;
+              const futureZ = rotatedPos.z + Math.cos(movementDir - currentRotation) * distanceScale;
               
               // Project to screen
               const futurePos = project3D({ x: futureX, y: 0.05 - cameraHeight, z: futureZ }, cameraDistance, canvas.width, canvas.height);
@@ -569,9 +512,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
               const minutes = timeIntervals[i];
               const distance = (speedMph / 60) * minutes * scaleFactor;
               const spread = distance * coneWidth * 3;
-              const perpAngle = movementDir - rotationY + Math.PI / 2;
-              const x = rotatedPos.x + Math.sin(movementDir - rotationY) * distance + Math.sin(perpAngle) * spread;
-              const z = rotatedPos.z + Math.cos(movementDir - rotationY) * distance + Math.cos(perpAngle) * spread;
+              const perpAngle = movementDir - currentRotation + Math.PI / 2;
+              const x = rotatedPos.x + Math.sin(movementDir - currentRotation) * distance + Math.sin(perpAngle) * spread;
+              const z = rotatedPos.z + Math.cos(movementDir - currentRotation) * distance + Math.cos(perpAngle) * spread;
               conePoints.push(project3D({ x, y: 0.05 - cameraHeight, z }, cameraDistance, canvas.width, canvas.height));
             }
             // Right edge of cone (reverse)
@@ -579,9 +522,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
               const minutes = timeIntervals[i];
               const distance = (speedMph / 60) * minutes * scaleFactor;
               const spread = distance * coneWidth * 3;
-              const perpAngle = movementDir - rotationY - Math.PI / 2;
-              const x = rotatedPos.x + Math.sin(movementDir - rotationY) * distance + Math.sin(perpAngle) * spread;
-              const z = rotatedPos.z + Math.cos(movementDir - rotationY) * distance + Math.cos(perpAngle) * spread;
+              const perpAngle = movementDir - currentRotation - Math.PI / 2;
+              const x = rotatedPos.x + Math.sin(movementDir - currentRotation) * distance + Math.sin(perpAngle) * spread;
+              const z = rotatedPos.z + Math.cos(movementDir - currentRotation) * distance + Math.cos(perpAngle) * spread;
               conePoints.push(project3D({ x, y: 0.05 - cameraHeight, z }, cameraDistance, canvas.width, canvas.height));
             }
             
@@ -735,15 +678,22 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
     canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
     canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 
-    // Animation loop with lerped rotation for smoothness
+    // Animation loop - uses refs, no React state updates during animation
     const animate = () => {
       // Manual rotation - Lerp rotation speed for smooth acceleration/deceleration
-      const lerpFactor = 0.1;
+      const lerpFactor = 0.15;
       currentRotationSpeed.current += (targetRotationSpeed.current - currentRotationSpeed.current) * lerpFactor;
       
-      // Apply manual rotation
+      // Apply manual rotation directly to ref (no state update)
       if (Math.abs(currentRotationSpeed.current) > 0.0001) {
-        setRotationY(prev => prev + currentRotationSpeed.current);
+        rotationRef.current += currentRotationSpeed.current;
+      }
+      
+      // Throttled UI update for heading display (10fps instead of 60fps)
+      const now = Date.now();
+      if (now - lastUIUpdate.current > 100) {
+        lastUIUpdate.current = now;
+        setDisplayRotation(rotationRef.current);
       }
       
       draw();
@@ -762,7 +712,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [location, precipitationStorms, showWaypoints, rotationY, isRotating, rotationSpeed]);
+  }, [location, precipitationStorms, showWaypoints, isRotating, rotationSpeed]);
 
   if (!location) {
     return (
@@ -822,7 +772,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       {/* Top-Right Controls for Mobile */}
       <div className="absolute top-4 right-4 z-10 flex gap-2">
         <Button
-          onClick={() => setRotationY(0)}
+          onClick={() => { rotationRef.current = 0; setDisplayRotation(0); }}
           variant="outline"
           size="sm"
           className="bg-green-600 border-green-500"
@@ -845,10 +795,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         <div className="text-center">
           <div className="text-xs text-slate-400 mb-1">Heading</div>
           <div className="text-lg font-bold text-white">
-            {getCompassHeading(rotationY).degrees}°
+            {getCompassHeading(displayRotation).degrees}°
           </div>
           <div className="text-sm text-slate-300">
-            {getCompassHeading(rotationY).direction}
+            {getCompassHeading(displayRotation).direction}
           </div>
         </div>
       </div>
