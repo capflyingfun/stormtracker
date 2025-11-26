@@ -362,6 +362,35 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
             ctx.lineTo(base.x + xOffset, dropY + streakLength);
             ctx.stroke();
           }
+          
+          // Lightning flash effect for severe storms (55+ dBZ)
+          if (intensity >= 55) {
+            const lightningTime = Date.now() * 0.001;
+            // Random flash trigger - roughly every 2-4 seconds per storm
+            const flashSeed = Math.floor(lightningTime + intensity) % 100;
+            const isFlashing = flashSeed < 3; // 3% chance per frame = occasional flashes
+            
+            if (isFlashing) {
+              // Bright white flash overlay on the storm column
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+              ctx.fillRect(base.x - radius, top.y, radius * 2, base.y - top.y);
+              
+              // Lightning bolt from cloud
+              const boltX = base.x + (Math.sin(flashSeed * 73) * radius * 0.6);
+              ctx.strokeStyle = 'rgba(255, 255, 200, 0.9)';
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(boltX, top.y);
+              // Zigzag pattern
+              const segments = 4;
+              for (let s = 1; s <= segments; s++) {
+                const segY = top.y + ((base.y - top.y) * s / segments);
+                const zigzag = (s % 2 === 0 ? 1 : -1) * (5 + Math.sin(s * flashSeed) * 8);
+                ctx.lineTo(boltX + zigzag, segY);
+              }
+              ctx.stroke();
+            }
+          }
 
           // Waypoint dots on TOP of columns if enabled
           if (showWaypoints) {
