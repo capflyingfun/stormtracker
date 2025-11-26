@@ -112,6 +112,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
   const currentRotationSpeed = useRef(0);
   const lastUIUpdate = useRef(0);
   const starPositionsRef = useRef<{x: number; y: number; size: number; speed: number}[]>([]);
+  const tickerStartTime = useRef(Date.now()); // Track when ticker started for clean scroll
 
   // Keyboard controls for PC - only rotation, height is locked
   useEffect(() => {
@@ -747,10 +748,10 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         
         // Calculate scroll position (moves from right to left, starting off-screen)
         const scrollSpeed = 60; // pixels per second
-        const time = Date.now() / 1000;
-        const totalScrollDistance = canvas.width + textWidth + 20; // Extra padding to fully exit left
+        const elapsedTime = (Date.now() - tickerStartTime.current) / 1000; // Time since component mounted
+        const totalScrollDistance = canvas.width + textWidth + 50; // Extra padding to fully exit left
         // Start from right edge (canvas.width) and scroll left to fully off-screen (-textWidth)
-        const scrollProgress = (time * scrollSpeed) % totalScrollDistance;
+        const scrollProgress = (elapsedTime * scrollSpeed) % totalScrollDistance;
         const scrollX = canvas.width - scrollProgress;
         
         // Clip text to banner area
