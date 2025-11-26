@@ -30,7 +30,7 @@ const dbzToColor = (dbz: number): string => {
 const geoTo3D = (lat: number, lon: number, centerLat: number, centerLon: number): [number, number] => {
   // Simple flat projection for local area (30-mile radius)
   const x = (lon - centerLon) * 111320 * Math.cos(centerLat * Math.PI / 180) / 1000; // km
-  const z = (lat - centerLat) * 110540 / 1000; // km
+  const z = (centerLat - lat) * 110540 / 1000; // km (inverted so North appears at top)
   return [x * 0.1, z * 0.1]; // Scale down for 3D scene
 };
 
