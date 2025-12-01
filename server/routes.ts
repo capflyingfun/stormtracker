@@ -2672,14 +2672,37 @@ Return ONLY a JSON array of 5 strings.`;
     }
   });
   // Get Winds Aloft data from Open-Meteo API (current + forecast)
+  // Enhanced with more levels for GA aviation (Cessna 172 typically flies 3,000-8,000 ft)
   async function getOpenMeteoWindsAloft(lat: number, lon: number) {
     try {
-      // Open-Meteo pressure level API for winds aloft + surface winds for vector calculations
+      // Open-Meteo pressure level API - expanded for GA aviation altitudes
+      // Pressure levels: 925mb(~2,500ft), 900mb(~3,000ft), 850mb(~5,000ft), 
+      // 800mb(~6,500ft), 750mb(~8,000ft), 700mb(~10,000ft), 600mb(~14,000ft), 500mb(~18,000ft)
       const params = new URLSearchParams({
         latitude: lat.toString(),
         longitude: lon.toString(),
-        current: 'wind_speed_10m,wind_direction_10m,wind_speed_500hPa,wind_direction_500hPa,wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa',
-        hourly: 'wind_speed_10m,wind_direction_10m,wind_speed_500hPa,wind_direction_500hPa,wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa',
+        current: [
+          'wind_speed_10m', 'wind_direction_10m',
+          'wind_speed_925hPa', 'wind_direction_925hPa',
+          'wind_speed_900hPa', 'wind_direction_900hPa',
+          'wind_speed_850hPa', 'wind_direction_850hPa',
+          'wind_speed_800hPa', 'wind_direction_800hPa',
+          'wind_speed_750hPa', 'wind_direction_750hPa',
+          'wind_speed_700hPa', 'wind_direction_700hPa',
+          'wind_speed_600hPa', 'wind_direction_600hPa',
+          'wind_speed_500hPa', 'wind_direction_500hPa'
+        ].join(','),
+        hourly: [
+          'wind_speed_10m', 'wind_direction_10m',
+          'wind_speed_925hPa', 'wind_direction_925hPa',
+          'wind_speed_900hPa', 'wind_direction_900hPa',
+          'wind_speed_850hPa', 'wind_direction_850hPa',
+          'wind_speed_800hPa', 'wind_direction_800hPa',
+          'wind_speed_750hPa', 'wind_direction_750hPa',
+          'wind_speed_700hPa', 'wind_direction_700hPa',
+          'wind_speed_600hPa', 'wind_direction_600hPa',
+          'wind_speed_500hPa', 'wind_direction_500hPa'
+        ].join(','),
         forecast_days: '1',
         timezone: 'auto',
         wind_speed_unit: 'ms'
@@ -2699,67 +2722,46 @@ Return ONLY a JSON array of 5 strings.`;
 
       const data = await response.json();
       
-      // Debug: Check what data we received
-      console.log('Open-Meteo wind data received:', {
-        surface: { speed: data.current.wind_speed_10m, direction: data.current.wind_direction_10m },
-        upper: { 
-          '500mb': { speed: data.current.wind_speed_500hPa, direction: data.current.wind_direction_500hPa },
-          '700mb': { speed: data.current.wind_speed_700hPa, direction: data.current.wind_direction_700hPa },
-          '850mb': { speed: data.current.wind_speed_850hPa, direction: data.current.wind_direction_850hPa }
+      // Extract current winds aloft data at all levels for comprehensive aviation briefing
+      const windsAloft: Array<{
+        altitude: number;
+        direction: number;
+        speed: number;
+        level: string;
+        pressure: number;
+        isSurface?: boolean;
+      }> = [];
+      
+      // Pressure level to altitude mapping (approximate standard atmosphere)
+      const pressureLevels = [
+        { pressure: 1013, hPa: '10m', altitude: 33, level: 'Surface', isSurface: true },
+        { pressure: 925, hPa: '925hPa', altitude: 2500, level: '925mb (~2,500 ft)' },
+        { pressure: 900, hPa: '900hPa', altitude: 3000, level: '900mb (~3,000 ft)' },
+        { pressure: 850, hPa: '850hPa', altitude: 5000, level: '850mb (~5,000 ft)' },
+        { pressure: 800, hPa: '800hPa', altitude: 6500, level: '800mb (~6,500 ft)' },
+        { pressure: 750, hPa: '750hPa', altitude: 8000, level: '750mb (~8,000 ft)' },
+        { pressure: 700, hPa: '700hPa', altitude: 10000, level: '700mb (~10,000 ft)' },
+        { pressure: 600, hPa: '600hPa', altitude: 14000, level: '600mb (~14,000 ft)' },
+        { pressure: 500, hPa: '500hPa', altitude: 18000, level: '500mb (~18,000 ft)' }
+      ];
+      
+      for (const level of pressureLevels) {
+        const speedKey = level.isSurface ? 'wind_speed_10m' : `wind_speed_${level.hPa}`;
+        const dirKey = level.isSurface ? 'wind_direction_10m' : `wind_direction_${level.hPa}`;
+        
+        if (data.current[speedKey] !== undefined && data.current[dirKey] !== undefined) {
+          windsAloft.push({
+            altitude: level.altitude,
+            direction: data.current[dirKey],
+            speed: Math.round(data.current[speedKey] * 1.944), // m/s to knots
+            level: level.level,
+            pressure: level.pressure,
+            ...(level.isSurface && { isSurface: true })
+          });
         }
-      });
+      }
       
-      // Extract current winds aloft data + surface winds for multi-level calculations
-      const windsAloft = [];
-      
-      // Surface winds (10m) - important for low-level storm interaction
-      if (data.current.wind_speed_10m && data.current.wind_direction_10m) {
-        const surfaceWind = {
-          altitude: 33, // 10 meters = 33 feet
-          direction: data.current.wind_direction_10m,
-          speed: Math.round(data.current.wind_speed_10m * 1.944), // m/s to knots
-          level: 'Surface',
-          pressure: 1013, // Sea level pressure for surface
-          isSurface: true
-        };
-        windsAloft.push(surfaceWind);
-        console.log('Added surface wind:', surfaceWind);
-      } else {
-        console.log('No surface wind data available');
-      }
-
-      // 850mb level (~5,000 ft) - low-level steering
-      if (data.current.wind_speed_850hPa && data.current.wind_direction_850hPa) {
-        windsAloft.push({
-          altitude: 5000,
-          direction: data.current.wind_direction_850hPa,
-          speed: Math.round(data.current.wind_speed_850hPa * 1.944), // m/s to knots
-          level: '850mb',
-          pressure: 850
-        });
-      }
-
-      // 700mb level (~10,000 ft) - mid-level steering
-      if (data.current.wind_speed_700hPa && data.current.wind_direction_700hPa) {
-        windsAloft.push({
-          altitude: 10000,
-          direction: data.current.wind_direction_700hPa,
-          speed: Math.round(data.current.wind_speed_700hPa * 1.944), // m/s to knots
-          level: '700mb',
-          pressure: 700
-        });
-      }
-
-      // 500mb level (~18,000 ft) - primary storm steering level
-      if (data.current.wind_speed_500hPa && data.current.wind_direction_500hPa) {
-        windsAloft.push({
-          altitude: 18000,
-          direction: data.current.wind_direction_500hPa,
-          speed: Math.round(data.current.wind_speed_500hPa * 1.944), // m/s to knots
-          level: '500mb',
-          pressure: 500
-        });
-      }
+      console.log(`Open-Meteo: Retrieved winds at ${windsAloft.length} levels`);
 
       if (windsAloft.length === 0) {
         return null;
@@ -2809,16 +2811,27 @@ Return ONLY a JSON array of 5 strings.`;
       const xComponent = speedKnots * Math.sin(directionRadians);  // East component
       const yComponent = speedKnots * Math.cos(directionRadians);  // North component
       
-      // Assign weights based on meteorological importance
+      // Assign weights based on meteorological importance for storm steering
+      // 700mb is the primary steering level, with decreasing importance above/below
       let weight;
       if (wind.isSurface) {
-        weight = 1.0;  // Surface winds - important for low-level interaction
+        weight = 0.5;  // Surface winds - less important for storm steering
+      } else if (wind.pressure === 925) {
+        weight = 0.8;  // ~2,500 ft - low-level
+      } else if (wind.pressure === 900) {
+        weight = 1.0;  // ~3,000 ft - low-level
       } else if (wind.pressure === 850) {
-        weight = 1.5;  // 850mb - low-level steering
+        weight = 1.5;  // ~5,000 ft - low-level steering
+      } else if (wind.pressure === 800) {
+        weight = 1.8;  // ~6,500 ft - mid-low steering
+      } else if (wind.pressure === 750) {
+        weight = 2.0;  // ~8,000 ft - mid-level
       } else if (wind.pressure === 700) {
-        weight = 2.0;  // 700mb - mid-level steering  
+        weight = 2.5;  // ~10,000 ft - PRIMARY storm steering level
+      } else if (wind.pressure === 600) {
+        weight = 2.0;  // ~14,000 ft - upper-mid level
       } else if (wind.pressure === 500) {
-        weight = 3.0;  // 500mb - primary storm steering level
+        weight = 1.5;  // ~18,000 ft - upper level (jet influence)
       } else {
         weight = 1.0;  // Default weight
       }
