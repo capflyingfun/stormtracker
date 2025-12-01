@@ -564,29 +564,50 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       ? 'Use a warm, conversational tone like chatting with a knowledgeable friend about the weather.'
       : 'Use a professional but approachable meteorological tone.';
 
-    const prompt = `You are an expert meteorologist providing comprehensive weather analysis. Your response MUST be structured in these FIVE clearly labeled sections as flowing paragraphs:
+    const prompt = `You are an expert meteorologist providing comprehensive weather analysis. Your response MUST be structured in these FIVE clearly labeled sections as flowing paragraphs.
 
-**Summary and AFD:** Start with a conversational summary of what the National Weather Service forecasters are thinking (from the Area Forecast Discussion). ${toneInstruction} Summarize the key points forecasters are watching - fronts, timing, confidence levels, any interesting meteorological notes. If no AFD available, give a friendly overview of the current weather pattern.
+CRITICAL FORMATTING RULES:
+- Use plain text section headers on their own line, followed by the paragraph content
+- Format each section like this:
+  
+  Summary and AFD:
+  [Your flowing paragraph here...]
+  
+  Relevant Storm Information:
+  [Your flowing paragraph here...]
 
-**Relevant Storm Information:** Discuss any active storms, their movement, intensity, and whether they're heading toward the user. Include ETAs if storms are approaching. Be specific about track cone analysis and direct threats.
+- Do NOT use asterisks, markdown, or any special formatting characters
+- Each section header should be on its own line, followed by a blank line, then the paragraph
+- Write naturally as if you're a meteorologist giving a verbal briefing
 
-**General:** Safety guidance and recommendations for the general public. Outdoor activity recommendations, comfort conditions, what to expect and when.
+SECTION CONTENT GUIDELINES:
 
-**Aviation:** Pilot-specific information including winds aloft, wind shear analysis, turbulence potential, visibility, ceiling heights, and any relevant METARs. Be precise with altitudes and measurements.
+Summary and AFD:
+${toneInstruction} Provide an overview of what's driving today's weather - fronts, pressure systems, atmospheric setup, timing of changes. If Area Forecast Discussion data is available, summarize the forecaster's key insights. If not, use the current conditions, winds aloft, and storm data to paint the picture. Never mention if data sources are missing - just work with what you have.
 
-**Boating:** Marine conditions including wind patterns, storm approach times, wave/swell potential, and water safety considerations.
+Relevant Storm Information:
+Discuss any active storms, their movement, intensity, and whether they're heading toward the user. Include ETAs if storms are approaching. Be specific about track cone analysis and direct threats.
+
+General:
+Safety guidance and recommendations for the general public. Outdoor activity recommendations, comfort conditions, what to expect and when.
+
+Aviation:
+Pilot-specific information including winds aloft, wind shear analysis, turbulence potential, visibility, ceiling heights, and any relevant METARs. Be precise with altitudes and measurements.
+
+Boating:
+Marine conditions including wind patterns, storm approach times, wave/swell potential, and water safety considerations.
 
 Write each section as a flowing paragraph (not bullet points). Skip sections only if there's absolutely no relevant data.
 
 === WEATHER DATA FOR ${data.userLocation?.address || 'User Location'} ===
 
 ${areaForecastDiscussion && areaForecastDiscussion.discussion ? 
-  `=== AREA FORECAST DISCUSSION (PRIORITY - SUMMARIZE THIS FIRST) ===
+  `=== AREA FORECAST DISCUSSION ===
 NWS Office: ${areaForecastDiscussion.office} (${areaForecastDiscussion.officeCode})
 Forecaster's Discussion:
 ${areaForecastDiscussion.discussion.substring(0, 1200)}
-(Use this to understand what meteorologists are watching and thinking - summarize the key insights in a ${toneStyle} tone)` : 
-  '=== NO AREA FORECAST DISCUSSION AVAILABLE ===\nProvide general weather pattern overview instead.'}
+(Summarize the key insights from this discussion in a ${toneStyle} tone)` : 
+  ''}
 
 === ACTIVE ALERTS & ADVISORIES ===
 ${activeAlerts.length > 0 ? 
