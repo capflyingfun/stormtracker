@@ -556,20 +556,39 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       }
     }
 
-    const prompt = `You are an expert meteorologist providing comprehensive weather analysis for pilots, boaters, and the general public. Analyze ALL available weather data and provide a complete weather briefing.
+    // Get user's tone preference for the AFD summary
+    const toneStyle = data.userSettings?.aiTone || 'friendly';
+    const toneInstruction = toneStyle === 'humorous' 
+      ? 'Use a light-hearted, witty tone with weather puns or playful observations - think Carrot Weather style.'
+      : toneStyle === 'friendly' 
+      ? 'Use a warm, conversational tone like chatting with a knowledgeable friend about the weather.'
+      : 'Use a professional but approachable meteorological tone.';
 
-IMPORTANT: If storms are present, start with: "Storms are moving [DIRECTION] ([DEGREES]°) at [SPEED] mph based on upper level winds."
+    const prompt = `You are an expert meteorologist providing comprehensive weather analysis. Your response MUST be structured in these FIVE clearly labeled sections as flowing paragraphs:
 
-Provide a comprehensive weather analysis using ALL available data below. Include insights relevant to:
-- PILOTS: Aviation weather, wind shear, turbulence, visibility, icing conditions
-- BOATERS: Marine conditions, wind patterns, storm approach times, wave/swell potential  
-- GENERAL PUBLIC: Safety guidance, outdoor activity recommendations, comfort conditions
+**Summary and AFD:** Start with a conversational summary of what the National Weather Service forecasters are thinking (from the Area Forecast Discussion). ${toneInstruction} Summarize the key points forecasters are watching - fronts, timing, confidence levels, any interesting meteorological notes. If no AFD available, give a friendly overview of the current weather pattern.
 
-Use natural, flowing language without rigid sections. Only discuss data that is available - skip any missing information without mentioning it.
+**Relevant Storm Information:** Discuss any active storms, their movement, intensity, and whether they're heading toward the user. Include ETAs if storms are approaching. Be specific about track cone analysis and direct threats.
+
+**General:** Safety guidance and recommendations for the general public. Outdoor activity recommendations, comfort conditions, what to expect and when.
+
+**Aviation:** Pilot-specific information including winds aloft, wind shear analysis, turbulence potential, visibility, ceiling heights, and any relevant METARs. Be precise with altitudes and measurements.
+
+**Boating:** Marine conditions including wind patterns, storm approach times, wave/swell potential, and water safety considerations.
+
+Write each section as a flowing paragraph (not bullet points). Skip sections only if there's absolutely no relevant data.
 
 === WEATHER DATA FOR ${data.userLocation?.address || 'User Location'} ===
 
-=== 1. WEATHER ALERTS & ADVISORIES ===
+${areaForecastDiscussion && areaForecastDiscussion.discussion ? 
+  `=== AREA FORECAST DISCUSSION (PRIORITY - SUMMARIZE THIS FIRST) ===
+NWS Office: ${areaForecastDiscussion.office} (${areaForecastDiscussion.officeCode})
+Forecaster's Discussion:
+${areaForecastDiscussion.discussion.substring(0, 1200)}
+(Use this to understand what meteorologists are watching and thinking - summarize the key insights in a ${toneStyle} tone)` : 
+  '=== NO AREA FORECAST DISCUSSION AVAILABLE ===\nProvide general weather pattern overview instead.'}
+
+=== ACTIVE ALERTS & ADVISORIES ===
 ${activeAlerts.length > 0 ? 
   activeAlerts.map(alert => 
     `🚨 ACTIVE ALERT: ${alert.event}\n` +
@@ -636,9 +655,6 @@ ${aviationWeather.length > 0 ?
   `• Pressure: ${currentWeather.conditions.pressure} hPa | Visibility: ${currentWeather.conditions.visibility}\n` +
   `• Source: ${currentWeather.source} (Live Data)` : ''}
 
-${areaForecastDiscussion && areaForecastDiscussion.discussion ? 
-  `=== AREA FORECAST DISCUSSION ===\nNWS ${areaForecastDiscussion.office} (${areaForecastDiscussion.officeCode}):\n${areaForecastDiscussion.discussion.substring(0, 400)}...` : 
-  ''}
 
 ${thunderstormConditions ? 
   `=== THUNDERSTORM FORMATION ANALYSIS ===
@@ -692,11 +708,11 @@ CRITICAL ANALYSIS REQUIREMENTS:
 Provide your assessment in this exact JSON format:
 {
   "riskLevel": "low|moderate|high|extreme",
-  "summary": "Start with any active alerts, then brief overview of conditions including storm track intersections",
+  "summary": "One-sentence overview of conditions including any active alerts",
   "timeToImpact": "Timing if threats approaching or null",
   "recommendations": ["Specific action based on alerts, conditions, and storm track analysis"],
   "confidence": 0.0-1.0,
-  "detailedAnalysis": "Write a flowing, natural analysis without numbered sections. Start with active weather alerts if present, then discuss storm track intersections (especially any storms with direct path potential regardless of intensity), winds aloft patterns, current storm activity, airport conditions, and forecaster insights. If storms show potential to make contact with the user location, clearly state this possibility even for light intensity storms. Use the dynamic tone based on threat level."
+  "detailedAnalysis": "Structure your response with these FIVE clearly labeled sections, each as a flowing paragraph:\n\n**Summary and AFD:**\n[Conversational summary of forecaster discussion with ${toneStyle} tone - what NWS meteorologists are watching, key weather drivers, timing, confidence. If AFD available, translate the technical jargon into accessible insights.]\n\n**Relevant Storm Information:**\n[Active storms, movement direction/speed, intensity, direct threats, ETAs, track cone analysis. Be specific about whether storms are heading toward user.]\n\n**General:**\n[Public safety guidance, outdoor activity recommendations, comfort conditions, what to expect.]\n\n**Aviation:**\n[Winds aloft, wind shear (NWS vector method), turbulence, visibility, ceilings, METAR data. Be precise with altitudes and measurements.]\n\n**Boating:**\n[Marine conditions, wind patterns, storm timing, wave potential, water safety.]\n\nWrite each section as a flowing paragraph. Include active weather alerts prominently in the relevant sections."
 }`;
 
     const response = await openai.chat.completions.create({
