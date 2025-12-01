@@ -592,7 +592,7 @@ General:
 Safety guidance and recommendations for the general public. Outdoor activity recommendations, comfort conditions, what to expect and when.
 
 Aviation:
-Pilot-specific information including winds aloft, wind shear analysis, turbulence potential, visibility, ceiling heights, and any relevant METARs. Be precise with altitudes and measurements.
+Pilot-specific information for GA and commercial pilots. IMPORTANT: List ALL available winds aloft levels from surface through 18,000 ft in a clear format (e.g., "At 3,000 ft: 180° at 12 kts, at 5,000 ft: 210° at 18 kts..."). Include wind shear analysis between levels, turbulence potential, visibility, ceiling heights, and any relevant METARs. Be precise with altitudes and measurements - pilots need specific numbers at each altitude.
 
 Boating:
 Marine conditions including wind patterns, storm approach times, wave/swell potential, and water safety considerations.
@@ -750,7 +750,7 @@ Provide your assessment in this exact JSON format:
       ],
       response_format: { type: "json_object" },
       temperature: 0.3, // Lower temperature for more consistent, factual responses
-      max_tokens: 4000 // Increased by 1500 tokens for comprehensive weather analysis
+      max_tokens: 5000 // Increased for comprehensive weather analysis with full winds aloft table
     });
 
     const result = JSON.parse(response.choices[0].message.content || '{}');
