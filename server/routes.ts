@@ -4728,7 +4728,7 @@ Guidelines:
   // AI Weather Assistant endpoint
   app.post("/api/ai-assessment", async (req, res) => {
     try {
-      const { userLocation, storms, winds, radarSource, includeAlerts = false, lightningCount = 0, useMetric = false } = req.body;
+      const { userLocation, storms, winds, radarSource, includeAlerts = false, lightningCount = 0, useMetric = false, userSettings } = req.body;
       
       if (!userLocation || !Array.isArray(storms) || !Array.isArray(winds)) {
         return res.status(400).json({ error: "Missing required weather data" });
@@ -4756,7 +4756,8 @@ Guidelines:
               winds,
               radarSource: radarSource || 'Unknown',
               threatData: threatResult, // Include threat data for enhanced analysis
-              useMetric
+              useMetric,
+              userSettings // Pass user's tone preferences for AFD summary
             });
             
             console.log(`Enhanced AI assessment with ${threatResult.threatCount} threats: ${assessment.riskLevel} risk`);
@@ -4872,7 +4873,8 @@ Guidelines:
         regionalStorms, // 50-mile regional context
         winds,
         radarSource: radarSource || 'Unknown',
-        useMetric
+        useMetric,
+        userSettings // Pass user's tone preferences for AFD summary
       });
 
       console.log(`AI assessment generated: ${assessment.riskLevel} risk level with ${assessment.confidence} confidence`);

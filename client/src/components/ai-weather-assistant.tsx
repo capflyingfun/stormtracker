@@ -40,6 +40,11 @@ interface WeatherAssessment {
   confidence: number;
 }
 
+interface UserSettings {
+  aiTone: 'professional' | 'friendly' | 'humorous';
+  detailLevel?: 'minimal' | 'standard' | 'technical';
+}
+
 interface AIWeatherAssistantProps {
   userLocation: {
     lat: number;
@@ -51,6 +56,7 @@ interface AIWeatherAssistantProps {
   radarSource: string;
   lightningCount?: number;
   useMetric?: boolean;
+  userSettings?: UserSettings;
 }
 
 export default function AIWeatherAssistant({
@@ -59,7 +65,8 @@ export default function AIWeatherAssistant({
   winds,
   radarSource,
   lightningCount = 0,
-  useMetric = false
+  useMetric = false,
+  userSettings
 }: AIWeatherAssistantProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMonitoring, setIsMonitoring] = useState(false);
@@ -157,7 +164,8 @@ export default function AIWeatherAssistant({
         includeAlerts: true, // Enhanced to include alert analysis
         lightningCount,
         useMetric,
-        threatData: currentThreatData // Pass fresh threat data to prevent duplicate NWS alert fetching
+        threatData: currentThreatData, // Pass fresh threat data to prevent duplicate NWS alert fetching
+        userSettings: userSettings || { aiTone: 'friendly' } // Pass user's tone preference for AFD summary
       });
       return response.json();
     },
