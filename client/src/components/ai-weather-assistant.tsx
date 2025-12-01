@@ -76,6 +76,9 @@ export default function AIWeatherAssistant({
   const [chatQuestion, setChatQuestion] = useState('');
   const [chatResponse, setChatResponse] = useState('');
   const [showChatMode, setShowChatMode] = useState(false);
+  const [aiTone, setAiTone] = useState<'professional' | 'friendly' | 'humorous'>(
+    userSettings?.aiTone || 'friendly'
+  );
 
   // Fetch aviation weather data
   const { data: aviationData } = useQuery({
@@ -165,7 +168,7 @@ export default function AIWeatherAssistant({
         lightningCount,
         useMetric,
         threatData: currentThreatData, // Pass fresh threat data to prevent duplicate NWS alert fetching
-        userSettings: userSettings || { aiTone: 'friendly' } // Pass user's tone preference for AFD summary
+        userSettings: { aiTone } // Pass user's tone preference for AFD summary
       });
       return response.json();
     },
@@ -315,9 +318,42 @@ export default function AIWeatherAssistant({
           </div>
         </CardTitle>
         <div className="flex flex-col sm:flex-row gap-2 mt-2">
-          <div className="flex items-center gap-2 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-md">
-            <Brain className="w-4 h-4 text-blue-400" />
-            <span className="text-xs text-blue-300">Dynamic Tone Active</span>
+          {/* AI Tone Selector */}
+          <div className="flex items-center gap-1 px-2 py-1 bg-slate-700/50 border border-slate-600 rounded-md">
+            <span className="text-xs text-slate-400 mr-1">Tone:</span>
+            <button
+              onClick={() => setAiTone('professional')}
+              className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                aiTone === 'professional' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-600'
+              }`}
+              title="Professional meteorological tone"
+            >
+              📊 Pro
+            </button>
+            <button
+              onClick={() => setAiTone('friendly')}
+              className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                aiTone === 'friendly' 
+                  ? 'bg-green-600 text-white' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-600'
+              }`}
+              title="Friendly conversational tone"
+            >
+              😊 Friendly
+            </button>
+            <button
+              onClick={() => setAiTone('humorous')}
+              className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                aiTone === 'humorous' 
+                  ? 'bg-purple-600 text-white' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-600'
+              }`}
+              title="Fun Carrot Weather style"
+            >
+              😄 Fun
+            </button>
           </div>
           <Button
             onClick={() => {
