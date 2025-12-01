@@ -2869,29 +2869,46 @@ Return ONLY a JSON array of 5 strings.`;
     // Convert from knots to mph and apply storm factor (storms move ~70% of wind speed)
     const stormSpeedMph = Math.round(resultantSpeed * 1.151 * 0.7);
 
-    // Calculate wind shear (difference between surface and upper level winds)
+    // Calculate wind shear using NWS/Aviation vector method
+    // FAA/NWS standards: Shear is the VECTOR difference in wind velocity, not just direction
     const surfaceWind = allWinds.find(w => w.isSurface);
     const upperWind = allWinds.find(w => w.pressure === 500) || allWinds.find(w => w.pressure === 700);
     let windShear = 0;
-    let shearSeverity = 'low';
+    let vectorShear = 0;
+    let shearSeverity = 'minimal';
     
     if (surfaceWind && upperWind) {
+      // Directional difference for reference
       const directionDiff = Math.abs(surfaceWind.direction - upperWind.direction);
-      windShear = Math.min(directionDiff, 360 - directionDiff); // Use smaller angle
+      windShear = Math.min(directionDiff, 360 - directionDiff);
       
-      if (windShear > 120) {
-        shearSeverity = 'extreme'; // 180° difference indicates severe weather
-      } else if (windShear > 90) {
-        shearSeverity = 'high';
-      } else if (windShear > 45) {
+      // Calculate actual vector shear magnitude (knots, then convert to mph)
+      const surfaceU = -surfaceWind.speed * Math.sin(surfaceWind.direction * Math.PI / 180);
+      const surfaceV = -surfaceWind.speed * Math.cos(surfaceWind.direction * Math.PI / 180);
+      const upperU = -upperWind.speed * Math.sin(upperWind.direction * Math.PI / 180);
+      const upperV = -upperWind.speed * Math.cos(upperWind.direction * Math.PI / 180);
+      
+      const shearU = upperU - surfaceU;
+      const shearV = upperV - surfaceV;
+      vectorShear = Math.sqrt(shearU * shearU + shearV * shearV) * 1.151; // Convert knots to mph
+      
+      // NWS/Aviation wind shear severity based on vector magnitude
+      // Minimal: < 8 mph, Light: 8-15 mph, Moderate: 15-25 mph, Severe: 25-40 mph, Extreme: > 40 mph
+      if (vectorShear >= 40) {
+        shearSeverity = 'extreme';
+      } else if (vectorShear >= 25) {
+        shearSeverity = 'severe';
+      } else if (vectorShear >= 15) {
         shearSeverity = 'moderate';
+      } else if (vectorShear >= 8) {
+        shearSeverity = 'light';
       }
     }
 
     const confidence = allWinds.length >= 3 ? 'high' : 
                       allWinds.length >= 2 ? 'medium' : 'low';
 
-    console.log(`Multi-level wind vector: Surface ${surfaceWind?.direction || 'N/A'}°@${surfaceWind?.speed || 0}kt + Upper ${upperWind?.direction || 'N/A'}°@${upperWind?.speed || 0}kt → ${Math.round(resultantDirection)}° @ ${stormSpeedMph}mph (Shear: ${windShear}°)`);
+    console.log(`Multi-level wind vector: Surface ${surfaceWind?.direction || 'N/A'}°@${surfaceWind?.speed || 0}kt + Upper ${upperWind?.direction || 'N/A'}°@${upperWind?.speed || 0}kt → ${Math.round(resultantDirection)}° @ ${stormSpeedMph}mph (Vector shear: ${Math.round(vectorShear)}mph, ${shearSeverity})`);
 
     return {
       direction: Math.round(resultantDirection),
@@ -2899,7 +2916,8 @@ Return ONLY a JSON array of 5 strings.`;
       confidence: confidence,
       method: 'multi_level_vector_math',
       sourceWinds: allWinds.length,
-      windShear: Math.round(windShear),
+      windShear: Math.round(windShear), // Directional difference in degrees (legacy)
+      vectorShear: Math.round(vectorShear), // NWS/Aviation standard: actual velocity change in mph
       shearSeverity: shearSeverity,
       components: {
         surface: surfaceWind ? {
@@ -4578,25 +4596,43 @@ ${(() => {
     return `• ${altitude}: ${wind.direction}° at ${wind.speed} mph`;
   }).join('\n');
   
-  // Calculate wind shear if multiple levels available
+  // Calculate wind shear using NWS/Aviation vector method
   if (validWinds.length >= 2) {
     const surfaceWind = validWinds.find(w => w.level === 'Surface' || w.isSurface);
     const upperWind = validWinds.find(w => w.level !== 'Surface' && !w.isSurface);
     
     if (surfaceWind && upperWind) {
-      const shearMagnitude = Math.abs(((upperWind.direction - surfaceWind.direction + 180) % 360) - 180);
-      let shearSeverity = 'minimal';
-      if (shearMagnitude >= 80) shearSeverity = 'extreme';
-      else if (shearMagnitude >= 60) shearSeverity = 'high';
-      else if (shearMagnitude >= 40) shearSeverity = 'moderate';
-      else if (shearMagnitude >= 20) shearSeverity = 'low';
+      // Directional difference for reference
+      const dirDiff = Math.abs(((upperWind.direction - surfaceWind.direction + 180) % 360) - 180);
       
-      windInfo += `\n🌪️ WIND SHEAR: ${shearMagnitude}° directional difference (${shearSeverity} shear)`;
-      if (shearMagnitude >= 40) {
-        windInfo += '\n   ⚠️ Significant for aviation operations and atmospheric turbulence';
-      } else if (shearMagnitude >= 20) {
-        windInfo += '\n   Moderate turbulence possible';
+      // Calculate vector shear magnitude (actual velocity change in mph)
+      const surfaceU = -surfaceWind.speed * Math.sin(surfaceWind.direction * Math.PI / 180);
+      const surfaceV = -surfaceWind.speed * Math.cos(surfaceWind.direction * Math.PI / 180);
+      const upperU = -upperWind.speed * Math.sin(upperWind.direction * Math.PI / 180);
+      const upperV = -upperWind.speed * Math.cos(upperWind.direction * Math.PI / 180);
+      
+      const vectorShear = Math.sqrt(
+        Math.pow(upperU - surfaceU, 2) + Math.pow(upperV - surfaceV, 2)
+      );
+      
+      // NWS/Aviation severity: Minimal <8, Light 8-15, Moderate 15-25, Severe 25-40, Extreme >40 mph
+      let shearSeverity = 'minimal';
+      let aviationNote = '';
+      if (vectorShear >= 40) {
+        shearSeverity = 'extreme';
+        aviationNote = '\n   ⚠️ SEVERE - Hazardous for all aircraft, avoid area';
+      } else if (vectorShear >= 25) {
+        shearSeverity = 'severe';
+        aviationNote = '\n   ⚠️ Significant turbulence expected, exercise caution';
+      } else if (vectorShear >= 15) {
+        shearSeverity = 'moderate';
+        aviationNote = '\n   Moderate turbulence possible during climb/descent';
+      } else if (vectorShear >= 8) {
+        shearSeverity = 'light';
+        aviationNote = '\n   Light chop possible, normal operations';
       }
+      
+      windInfo += `\n🌪️ WIND SHEAR (NWS/Aviation): ${Math.round(vectorShear)} mph vector change, ${dirDiff}° directional (${shearSeverity})${aviationNote}`;
     }
   }
   
