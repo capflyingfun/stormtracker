@@ -498,7 +498,8 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       return null;
     }).filter(wind => wind !== null); // Remove any null entries
 
-    // Calculate wind shear information from multi-level wind data
+    // Calculate wind shear information using proper NWS/Aviation vector method
+    // FAA/NWS standards: Shear is the VECTOR difference in wind velocity, not just direction
     let windShearAnalysis = null;
     if (windContext.length >= 2) {
       const surfaceWind = windContext.find(w => w.isSurface);
@@ -507,22 +508,50 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       if (surfaceWind && upperWind) {
         const surfaceDir = parseInt(surfaceWind.direction);
         const upperDir = parseInt(upperWind.direction);
-        const shearMagnitude = Math.abs(((upperDir - surfaceDir + 180) % 360) - 180);
+        const surfaceSpd = parseFloat(surfaceWind.speed) || 0;
+        const upperSpd = parseFloat(upperWind.speed) || 0;
         
-        let shearSeverity = 'low';
-        if (shearMagnitude >= 80) shearSeverity = 'extreme';
-        else if (shearMagnitude >= 60) shearSeverity = 'high';
-        else if (shearMagnitude >= 40) shearSeverity = 'moderate';
-        else if (shearMagnitude >= 20) shearSeverity = 'low';
-        else shearSeverity = 'minimal';
+        // Convert to vector components (meteorological convention: direction wind is FROM)
+        const surfaceU = -surfaceSpd * Math.sin(surfaceDir * Math.PI / 180);
+        const surfaceV = -surfaceSpd * Math.cos(surfaceDir * Math.PI / 180);
+        const upperU = -upperSpd * Math.sin(upperDir * Math.PI / 180);
+        const upperV = -upperSpd * Math.cos(upperDir * Math.PI / 180);
+        
+        // Calculate vector shear magnitude (actual velocity change in mph)
+        const shearU = upperU - surfaceU;
+        const shearV = upperV - surfaceV;
+        const vectorShear = Math.sqrt(shearU * shearU + shearV * shearV);
+        
+        // Directional difference for reference
+        const dirDiff = Math.abs(((upperDir - surfaceDir + 180) % 360) - 180);
+        
+        // NWS/Aviation wind shear severity based on vector magnitude
+        // Light: < 15 mph, Moderate: 15-25 mph, Severe: 25-40 mph, Extreme: > 40 mph
+        // These thresholds are for surface-to-5000ft typical comparison
+        let shearSeverity = 'minimal';
+        let aviationImpact = 'Minimal aviation impact';
+        
+        if (vectorShear >= 40) {
+          shearSeverity = 'extreme';
+          aviationImpact = 'SEVERE - Hazardous for all aircraft, avoid area';
+        } else if (vectorShear >= 25) {
+          shearSeverity = 'severe';
+          aviationImpact = 'Significant turbulence expected, exercise caution';
+        } else if (vectorShear >= 15) {
+          shearSeverity = 'moderate';
+          aviationImpact = 'Moderate turbulence possible during climb/descent';
+        } else if (vectorShear >= 8) {
+          shearSeverity = 'light';
+          aviationImpact = 'Light chop possible, normal operations';
+        }
 
         windShearAnalysis = {
-          magnitude: shearMagnitude,
+          vectorShear: Math.round(vectorShear),
+          directionDiff: Math.round(dirDiff),
           severity: shearSeverity,
-          surfaceWind: `${surfaceDir}° at ${surfaceWind.speed}`,
-          upperWind: `${upperDir}° at ${upperWind.speed}`,
-          aviationImpact: shearMagnitude >= 40 ? 'Significant for aviation operations' : 
-                         shearMagnitude >= 20 ? 'Moderate turbulence possible' : 'Minimal aviation impact'
+          surfaceWind: `${surfaceDir}° at ${surfaceSpd} mph`,
+          upperWind: `${upperDir}° at ${upperSpd} mph`,
+          aviationImpact
         };
       }
     }
@@ -552,7 +581,7 @@ ${activeAlerts.length > 0 ?
   '✅ No active weather alerts or advisories'}
 
 ${windContext.length > 0 ? 
-  `=== WINDS ALOFT (STORM STEERING) ===\n${windContext.map(wind => `• ${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}${windShearAnalysis ? `\n\n🌪️ WIND SHEAR ANALYSIS:\n• Directional difference: ${windShearAnalysis.magnitude}° (${windShearAnalysis.severity} shear)\n• Surface: ${windShearAnalysis.surfaceWind}\n• Upper level: ${windShearAnalysis.upperWind}\n• Aviation impact: ${windShearAnalysis.aviationImpact}` : ''}` :
+  `=== WINDS ALOFT (STORM STEERING) ===\n${windContext.map(wind => `• ${wind.altitude}: ${wind.speed} from ${wind.direction}`).join('\n')}${windShearAnalysis ? `\n\n🌪️ WIND SHEAR ANALYSIS (NWS/Aviation Standard):\n• Vector shear magnitude: ${windShearAnalysis.vectorShear} mph (${windShearAnalysis.severity})\n• Directional change: ${windShearAnalysis.directionDiff}°\n• Surface: ${windShearAnalysis.surfaceWind}\n• Upper level: ${windShearAnalysis.upperWind}\n• Aviation impact: ${windShearAnalysis.aviationImpact}` : ''}` :
   ''}
 
 === ACTIVE STORMS & RADAR ===
