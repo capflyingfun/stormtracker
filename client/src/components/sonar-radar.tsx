@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+
+interface WindsPrediction {
+  direction: number;
+  speed: number;
+  confidence?: string;
+}
 
 interface Storm {
   id: string;
@@ -11,6 +17,7 @@ interface Storm {
   speed?: number;
   type: string;
   description?: string;
+  windsPrediction?: WindsPrediction;
 }
 
 interface Location {
@@ -40,28 +47,34 @@ export default function SonarRadar({
 }: SonarRadarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number>();
-  const [sweepAngle, setSweepAngle] = useState(0); // Start from north (0°)
+  const [sweepAngle, setSweepAngle] = useState(0);
   const [isScanning, setIsScanning] = useState(true);
   const [selectedStorm, setSelectedStorm] = useState<Storm | null>(null);
   const [hoveredStorm, setHoveredStorm] = useState<Storm | null>(null);
-  // Removed waypoint fading state - keeping storm dots solid
+
+  // Ticker state
+  const [tickerMessages, setTickerMessages] = useState<string[]>([]);
+  const [tickerIndex, setTickerIndex] = useState(0);
+  const tickerRef = useRef<HTMLDivElement>(null);
+  const tickerAnimRef = useRef<Animation | null>(null);
+  const lastFetchSig = useRef('');
 
   const getStormColor = (intensity: number): string => {
-    if (intensity >= 65) return '#ff00ff'; // Purple - Extreme
-    if (intensity >= 55) return '#ff0000'; // Red - Severe  
-    if (intensity >= 46) return '#ff8c00'; // Orange - Heavy
-    if (intensity >= 35) return '#ffff00'; // Yellow - Moderate
-    if (intensity >= 20) return '#00ff00'; // Green - Light
-    return '#40c4ff'; // Light blue - Very light
+    if (intensity >= 65) return '#ff00ff';
+    if (intensity >= 55) return '#ff0000';
+    if (intensity >= 46) return '#ff8c00';
+    if (intensity >= 35) return '#ffff00';
+    if (intensity >= 20) return '#00ff00';
+    return '#40c4ff';
   };
 
   const getStormSize = (intensity: number): number => {
-    if (intensity >= 65) return 8; // Extreme
-    if (intensity >= 55) return 7; // Severe
-    if (intensity >= 46) return 6; // Heavy
-    if (intensity >= 35) return 5; // Moderate
-    if (intensity >= 20) return 4; // Light
-    return 3; // Very light
+    if (intensity >= 65) return 8;
+    if (intensity >= 55) return 7;
+    if (intensity >= 46) return 6;
+    if (intensity >= 35) return 5;
+    if (intensity >= 20) return 4;
+    return 3;
   };
 
   const getStormCategory = (intensity: number): string => {
@@ -74,35 +87,88 @@ export default function SonarRadar({
   };
 
   const getStormTransparency = (intensity: number): number => {
-    if (intensity >= 65) return 0.2; // Purple - 80% transparent
-    if (intensity >= 55) return 0.4; // Red - 60% transparent
-    if (intensity >= 46) return 0.6; // Orange - 40% transparent
-    if (intensity >= 35) return 0.8; // Yellow - 20% transparent
-    if (intensity >= 20) return 1.0; // Green - 0% transparent (solid)
-    return 1.0; // Very light - solid
+    if (intensity >= 65) return 0.2;
+    if (intensity >= 55) return 0.4;
+    if (intensity >= 46) return 0.6;
+    if (intensity >= 35) return 0.8;
+    if (intensity >= 20) return 1.0;
+    return 1.0;
   };
 
-  // Removed fading-related functions - keeping storm dots solid
+  // Draw a Windy-style movement arrow through the storm blip
+  const drawMovementArrow = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    movDir: number,
+    movSpeed: number,
+    stormColor: string
+  ) => {
+    if (movSpeed < 3) return; // Don't draw arrow for nearly stationary storms
 
-  const drawSonarDisplay = () => {
+    // Arrow length proportional to speed: 5px at 5mph → 30px at 60mph
+    const arrowLen = Math.min(30, Math.max(10, (movSpeed / 60) * 30));
+    const headLen = Math.max(5, arrowLen * 0.35);
+    const headAngle = Math.PI / 5;
+
+    // movDir is the direction the storm is MOVING TO (meteorological convention: 270 = moving west)
+    const radians = ((movDir - 90) * Math.PI) / 180;
+    const cosR = Math.cos(radians);
+    const sinR = Math.sin(radians);
+
+    // Tail starts behind storm, head is in front
+    const tailX = x - cosR * (arrowLen * 0.4);
+    const tailY = y - sinR * (arrowLen * 0.4);
+    const headX = x + cosR * (arrowLen * 0.6);
+    const headY = y + sinR * (arrowLen * 0.6);
+
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = '#ffffff';
+    ctx.fillStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    ctx.shadowBlur = 0;
+
+    // Shaft
+    ctx.beginPath();
+    ctx.moveTo(tailX, tailY);
+    ctx.lineTo(headX, headY);
+    ctx.stroke();
+
+    // Arrowhead
+    ctx.beginPath();
+    ctx.moveTo(headX, headY);
+    ctx.lineTo(
+      headX - headLen * Math.cos(radians - headAngle),
+      headY - headLen * Math.sin(radians - headAngle)
+    );
+    ctx.lineTo(
+      headX - headLen * Math.cos(radians + headAngle),
+      headY - headLen * Math.sin(radians + headAngle)
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  };
+
+  const drawSonarDisplay = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Account for device pixel ratio scaling
     const displayWidth = canvas.clientWidth;
     const displayHeight = canvas.clientHeight;
     const centerX = displayWidth / 2;
     const centerY = displayHeight / 2;
-    const maxRadius = Math.min(centerX, centerY) - 30; // Reduced margin for mobile
+    const maxRadius = Math.min(centerX, centerY) - 30;
 
-    // Clear canvas
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw range circles
+    // Range circles
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 1;
     for (let i = 1; i <= 4; i++) {
@@ -112,11 +178,11 @@ export default function SonarRadar({
       ctx.stroke();
     }
 
-    // Draw compass lines (North at top)
+    // Compass lines
     ctx.strokeStyle = '#334155';
     ctx.lineWidth = 1;
     for (let angle = 0; angle < 360; angle += 30) {
-      const radians = ((angle - 90) * Math.PI) / 180; // -90 to put North at top
+      const radians = ((angle - 90) * Math.PI) / 180;
       const x1 = centerX + Math.cos(radians) * maxRadius * 0.9;
       const y1 = centerY + Math.sin(radians) * maxRadius * 0.9;
       ctx.beginPath();
@@ -125,17 +191,14 @@ export default function SonarRadar({
       ctx.stroke();
     }
 
-    // Draw compass labels - optimized for mobile
+    // Compass labels
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    
-    // Major compass directions (every 45°) - responsive font size
     const majorDirections = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     const isMobile = displayWidth < 400;
     const majorFontSize = isMobile ? '10px' : '12px';
     const minorFontSize = isMobile ? '7px' : '9px';
     const labelOffset = isMobile ? 20 : 30;
-    
     for (let i = 0; i < 8; i++) {
       const angle = i * 45;
       const radians = ((angle - 90) * Math.PI) / 180;
@@ -145,13 +208,10 @@ export default function SonarRadar({
       ctx.font = `${majorFontSize} monospace`;
       ctx.fillText(majorDirections[i], x, y);
     }
-    
-    // Minor compass directions - show fewer on mobile
     if (!isMobile) {
       ctx.fillStyle = '#475569';
       ctx.font = `${minorFontSize} monospace`;
       for (let angle = 0; angle < 360; angle += 30) {
-        // Skip major directions (multiples of 45°)
         if (angle % 45 !== 0) {
           const radians = ((angle - 90) * Math.PI) / 180;
           const x = centerX + Math.cos(radians) * (maxRadius + labelOffset - 5);
@@ -161,7 +221,7 @@ export default function SonarRadar({
       }
     }
 
-    // Draw range labels
+    // Range labels
     ctx.fillStyle = '#475569';
     ctx.font = '10px monospace';
     ctx.textAlign = 'left';
@@ -172,23 +232,18 @@ export default function SonarRadar({
       ctx.fillText(label, centerX + radius - 15, centerY - 5);
     }
 
-    // Draw sweep line if scanning (starts from north/0° and goes clockwise)
+    // Sweep line
     if (isScanning) {
-      // Reset transparency for sweep line
       ctx.globalAlpha = 1.0;
-      
-      // Convert to proper compass bearing: 0° = North, 90° = East, etc.
       const sweepRadians = ((sweepAngle - 90) * Math.PI) / 180;
       const gradient = ctx.createLinearGradient(
-        centerX,
-        centerY,
+        centerX, centerY,
         centerX + Math.cos(sweepRadians) * maxRadius,
         centerY + Math.sin(sweepRadians) * maxRadius
       );
       gradient.addColorStop(0, 'rgba(34, 197, 94, 0.8)');
       gradient.addColorStop(0.7, 'rgba(34, 197, 94, 0.3)');
       gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
-
       ctx.strokeStyle = gradient;
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -200,9 +255,23 @@ export default function SonarRadar({
       ctx.stroke();
     }
 
-    // Draw storms as blips sorted by intensity (highest dBZ on top)
+    // Draw storms sorted by intensity (lowest first so highest renders on top)
     const sortedStorms = [...storms].sort((a, b) => a.intensity - b.intensity);
-    
+
+    // First pass: draw movement arrows (behind storm dots)
+    sortedStorms.forEach((storm) => {
+      if (storm.distance > radarRange) return;
+      if (!storm.windsPrediction || storm.windsPrediction.speed < 3) return;
+
+      const stormRadians = ((storm.direction - 90) * Math.PI) / 180;
+      const stormRadius = (storm.distance / radarRange) * maxRadius;
+      const x = centerX + Math.cos(stormRadians) * stormRadius;
+      const y = centerY + Math.sin(stormRadians) * stormRadius;
+
+      drawMovementArrow(ctx, x, y, storm.windsPrediction.direction, storm.windsPrediction.speed, getStormColor(storm.intensity));
+    });
+
+    // Second pass: draw storm dots on top of arrows
     sortedStorms.forEach((storm) => {
       if (storm.distance > radarRange) return;
 
@@ -215,24 +284,19 @@ export default function SonarRadar({
       const size = getStormSize(storm.intensity);
       const transparency = getStormTransparency(storm.intensity);
 
-      // Apply intensity-based transparency for layered visualization
       ctx.globalAlpha = transparency;
-      
-      // Draw storm blip with glow effect
       ctx.shadowColor = color;
       ctx.shadowBlur = hoveredStorm?.id === storm.id ? 15 : 8;
       ctx.fillStyle = color;
-      
       ctx.beginPath();
       ctx.arc(x, y, size, 0, 2 * Math.PI);
       ctx.fill();
 
-      // Add pulse effect for severe storms (respect transparency)
       if (storm.intensity >= 55) {
         const pulseSize = size + Math.sin(Date.now() / 200) * 2;
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
-        ctx.globalAlpha = transparency * 0.5; // Pulse at half the storm's transparency
+        ctx.globalAlpha = transparency * 0.5;
         ctx.beginPath();
         ctx.arc(x, y, pulseSize, 0, 2 * Math.PI);
         ctx.stroke();
@@ -240,21 +304,19 @@ export default function SonarRadar({
 
       ctx.shadowBlur = 0;
 
-      // Draw selection indicator
       if (selectedStorm?.id === storm.id) {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
-        ctx.globalAlpha = 1; // Full opacity for selection
+        ctx.globalAlpha = 1;
         ctx.beginPath();
         ctx.arc(x, y, size + 4, 0, 2 * Math.PI);
         ctx.stroke();
       }
 
-      // Reset opacity
       ctx.globalAlpha = 1;
     });
 
-    // Draw center point (user location)
+    // Center dot (user location)
     ctx.fillStyle = '#3b82f6';
     ctx.shadowColor = '#3b82f6';
     ctx.shadowBlur = 10;
@@ -262,41 +324,32 @@ export default function SonarRadar({
     ctx.arc(centerX, centerY, 4, 0, 2 * Math.PI);
     ctx.fill();
     ctx.shadowBlur = 0;
-  };
+  }, [sweepAngle, storms, selectedStorm, hoveredStorm, radarRange, useMetric, isScanning]);
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const rect = canvas.getBoundingClientRect();
     const clickX = event.clientX - rect.left;
     const clickY = event.clientY - rect.top;
-    
     const centerX = canvas.clientWidth / 2;
     const centerY = canvas.clientHeight / 2;
     const maxRadius = Math.min(centerX, centerY) - 30;
-
-    // Check if click is on a storm
     let clickedStorm: Storm | null = null;
     let minDistance = Infinity;
-
     storms.forEach((storm) => {
       if (storm.distance > radarRange) return;
-
       const stormRadians = ((storm.direction - 90) * Math.PI) / 180;
       const stormRadius = (storm.distance / radarRange) * maxRadius;
       const stormX = centerX + Math.cos(stormRadians) * stormRadius;
       const stormY = centerY + Math.sin(stormRadians) * stormRadius;
-
       const distance = Math.sqrt((clickX - stormX) ** 2 + (clickY - stormY) ** 2);
       const stormSize = getStormSize(storm.intensity);
-
       if (distance <= stormSize + 5 && distance < minDistance) {
         minDistance = distance;
         clickedStorm = storm;
       }
     });
-
     if (clickedStorm) {
       setSelectedStorm(clickedStorm);
       onStormClick?.(clickedStorm);
@@ -308,105 +361,121 @@ export default function SonarRadar({
   const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
-    
     const centerX = canvas.clientWidth / 2;
     const centerY = canvas.clientHeight / 2;
     const maxRadius = Math.min(centerX, centerY) - 30;
-
-    // Check if mouse is over a storm
     let hoveredStormFound: Storm | null = null;
     let minDistance = Infinity;
-
     storms.forEach((storm) => {
       if (storm.distance > radarRange) return;
-
       const stormRadians = ((storm.direction - 90) * Math.PI) / 180;
       const stormRadius = (storm.distance / radarRange) * maxRadius;
       const stormX = centerX + Math.cos(stormRadians) * stormRadius;
       const stormY = centerY + Math.sin(stormRadians) * stormRadius;
-
       const distance = Math.sqrt((mouseX - stormX) ** 2 + (mouseY - stormY) ** 2);
       const stormSize = getStormSize(storm.intensity);
-
       if (distance <= stormSize + 5 && distance < minDistance) {
         minDistance = distance;
         hoveredStormFound = storm;
       }
     });
-
     setHoveredStorm(hoveredStormFound);
     canvas.style.cursor = hoveredStormFound ? 'pointer' : 'default';
   };
 
+  // Fetch AI ticker messages when storm data changes
+  useEffect(() => {
+    if (!storms.length || !location) return;
+    const sig = `${location.lat.toFixed(3)},${location.lon.toFixed(3)},${storms.length},${Math.round(storms.reduce((s, x) => s + x.intensity, 0))}`;
+    if (sig === lastFetchSig.current) return;
+    lastFetchSig.current = sig;
+
+    const topStorms = [...storms].sort((a, b) => b.intensity - a.intensity).slice(0, 8).map(s => ({
+      intensity: s.intensity,
+      distance: s.distance,
+      direction: s.direction,
+      type: s.type,
+      windsPrediction: s.windsPrediction,
+    }));
+
+    fetch('/api/ticker-messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        storms: topStorms,
+        locationName: location.name,
+        userLocation: { lat: location.lat, lon: location.lon },
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.messages?.length) {
+          setTickerMessages(data.messages);
+          setTickerIndex(0);
+        }
+      })
+      .catch(() => {});
+  }, [storms, location]);
+
   // Animation loop
   useEffect(() => {
     if (!isScanning) return;
-
     const animate = () => {
-      setSweepAngle((prev) => {
-        // 12 seconds for full rotation = 360°/12s = 0.5° per frame at 60fps
-        const newAngle = (prev + 0.5) % 360;
-        
-        // No need to track storm scanning for solid waypoints
-        
-        return newAngle;
-      });
+      setSweepAngle((prev) => (prev + 0.5) % 360);
       animationFrameRef.current = requestAnimationFrame(animate);
     };
-
     animationFrameRef.current = requestAnimationFrame(animate);
-
     return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
   }, [isScanning]);
 
   // Redraw canvas
   useEffect(() => {
     drawSonarDisplay();
-  }, [sweepAngle, storms, selectedStorm, hoveredStorm, radarRange, useMetric]);
+  }, [drawSonarDisplay]);
 
   // Resize canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const resizeCanvas = () => {
       const container = canvas.parentElement;
       if (container) {
         const containerRect = container.getBoundingClientRect();
-        // Use container dimensions for responsive sizing
         const size = Math.min(containerRect.width, containerRect.height);
-        
-        // Set canvas resolution with device pixel ratio for crisp display
         const dpr = window.devicePixelRatio || 1;
         canvas.width = size * dpr;
         canvas.height = size * dpr;
-        
-        // Scale canvas back down for display
         canvas.style.width = `${size}px`;
         canvas.style.height = `${size}px`;
-        
-        // Scale drawing context for crisp rendering
         const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.scale(dpr, dpr);
-        }
-        
+        if (ctx) ctx.scale(dpr, dpr);
         drawSonarDisplay();
       }
     };
-
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
     return () => window.removeEventListener('resize', resizeCanvas);
   }, []);
+
+  // Get wind direction summary for display
+  const getWindDirectionLabel = (deg: number): string => {
+    const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    return dirs[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
+  };
+
+  // Find dominant wind from storms for the movement legend
+  const dominantWind = storms.find(s => s.windsPrediction?.speed && s.windsPrediction.speed > 0)?.windsPrediction;
+
+  const currentTickerMsg = tickerMessages.length > 0
+    ? tickerMessages[tickerIndex % tickerMessages.length]
+    : storms.length > 0
+      ? `🌧️ ${storms.length} precipitation cells detected within ${formatDistance(radarRange)} — stay weather aware`
+      : null;
 
   return (
     <div className={`bg-slate-900 rounded-xl border border-slate-700 overflow-hidden select-none ${className}`}>
@@ -439,13 +508,11 @@ export default function SonarRadar({
             onClick={handleCanvasClick}
             onMouseMove={handleCanvasMouseMove}
             className="block border border-slate-700/30 rounded-lg w-full h-full"
-            style={{ 
-              imageRendering: 'pixelated'
-            }}
+            style={{ imageRendering: 'pixelated' }}
           />
         </div>
 
-        {/* Storm Info Tooltip */}
+        {/* Storm hover tooltip */}
         {hoveredStorm && (
           <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-slate-800/90 border border-slate-600 rounded-lg p-2 md:p-3 text-xs text-white backdrop-blur-sm max-w-[200px] select-none">
             <div className="font-semibold">{getStormCategory(hoveredStorm.intensity)} Storm</div>
@@ -453,6 +520,9 @@ export default function SonarRadar({
               <div>Intensity: {hoveredStorm.intensity.toFixed(1)} dBZ</div>
               <div>Distance: {formatDistance(hoveredStorm.distance)}</div>
               <div>Bearing: {hoveredStorm.direction.toFixed(0)}°</div>
+              {hoveredStorm.windsPrediction && hoveredStorm.windsPrediction.speed > 0 && (
+                <div>Moving: {getWindDirectionLabel(hoveredStorm.windsPrediction.direction)} @ {Math.round(hoveredStorm.windsPrediction.speed)} mph</div>
+              )}
             </div>
           </div>
         )}
@@ -486,15 +556,63 @@ export default function SonarRadar({
             <span className="text-slate-300">You</span>
           </div>
         </div>
-        
-        {storms.length > 0 && (
+
+        {/* Storm count + movement direction summary */}
+        <div className="mt-3 pt-3 border-t border-slate-700 flex items-center justify-between gap-2 flex-wrap">
+          <div className="text-slate-400 text-xs">
+            {storms.length > 0
+              ? `${storms.length} storm${storms.length !== 1 ? 's' : ''} detected within ${formatDistance(radarRange)}`
+              : 'No storms detected'}
+          </div>
+          {dominantWind && dominantWind.speed > 3 && (
+            <div className="flex items-center gap-1.5 text-xs bg-slate-800 px-2 py-1 rounded-full border border-slate-600/50">
+              {/* Mini arrow SVG */}
+              <svg width="14" height="14" viewBox="0 0 14 14">
+                <line x1="2" y1="7" x2="10" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                <polygon points="10,4 14,7 10,10" fill="white" opacity="0.9"/>
+              </svg>
+              <span className="text-slate-300">
+                Storms moving {getWindDirectionLabel(dominantWind.direction)} · {Math.round(dominantWind.speed)} mph
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* AI Ticker */}
+        {currentTickerMsg && (
           <div className="mt-3 pt-3 border-t border-slate-700">
-            <div className="text-slate-400 text-xs">
-              {storms.length} storm{storms.length !== 1 ? 's' : ''} detected within {formatDistance(radarRange)}
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Live</span>
+              <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></div>
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider">Weather Update</span>
+            </div>
+            <div className="relative overflow-hidden rounded bg-slate-800/60 border border-slate-700/50 h-8 flex items-center">
+              {/* Fade masks */}
+              <div className="absolute left-0 top-0 bottom-0 w-6 z-10 bg-gradient-to-r from-slate-800/80 to-transparent pointer-events-none"></div>
+              <div className="absolute right-0 top-0 bottom-0 w-6 z-10 bg-gradient-to-l from-slate-800/80 to-transparent pointer-events-none"></div>
+              {/* Scrolling text */}
+              <div
+                key={currentTickerMsg}
+                className="text-xs text-slate-200 whitespace-nowrap px-2"
+                style={{
+                  animation: 'sonar-ticker-scroll 18s linear forwards',
+                }}
+                onAnimationEnd={() => setTickerIndex(i => i + 1)}
+              >
+                {currentTickerMsg}
+              </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Ticker animation keyframes */}
+      <style>{`
+        @keyframes sonar-ticker-scroll {
+          0%   { transform: translateX(100%); }
+          100% { transform: translateX(-120%); }
+        }
+      `}</style>
     </div>
   );
 }
