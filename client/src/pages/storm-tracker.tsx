@@ -4,6 +4,7 @@ import { useStormData } from "@/hooks/use-storm-data";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import Header from "@/components/header";
 import LocationSetup from "@/components/location-setup";
+import FavoriteLocations from "@/components/favorite-locations";
 import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import ImpactPanel from "@/components/impact-panel";
@@ -406,6 +407,17 @@ export default function StormTracker() {
     }
   };
 
+  const handleFavoriteSelect = (fav: { lat: number; lon: number; name: string; country?: string; isUS?: boolean; recommendedRadarSource?: 'rainviewer' | 'nexrad' }) => {
+    handleDirectLocationSelect({
+      lat: fav.lat,
+      lon: fav.lon,
+      name: fav.name,
+      country: fav.country,
+      isUS: fav.isUS,
+      recommendedRadarSource: fav.recommendedRadarSource,
+    });
+  };
+
   const handleDirectLocationSelect = (selectedLocation: { 
     lat: number; 
     lon: number; 
@@ -580,6 +592,18 @@ export default function StormTracker() {
                   id="location-search-input"
                 />
               </div>
+
+              {/* Favorites — quick-switch + save current */}
+              <FavoriteLocations
+                onSelect={handleFavoriteSelect}
+                currentLat={location.lat}
+                currentLon={location.lon}
+                currentName={location.name}
+                currentCountry={(location as any).country}
+                currentIsUS={location.lat >= 24.5 && location.lat <= 49.5 && location.lon >= -125 && location.lon <= -66.5}
+                currentRadarSource={currentRadarSource === 'nexrad' ? 'nexrad' : 'rainviewer'}
+                showAddButton={true}
+              />
 
               {lastUpdate && (
                 <p className="text-slate-400 text-xs sm:text-sm">
