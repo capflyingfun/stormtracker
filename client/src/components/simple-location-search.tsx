@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Search, Navigation, Loader2 } from "lucide-react";
+import { Search, Navigation, Loader2, Map } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import MapLocationPicker from "./map-location-picker";
 
 interface SimpleLocationSearchProps {
   onLocationSelect: (location: { 
@@ -28,6 +29,7 @@ export default function SimpleLocationSearch({
   const [isGPSLoading, setIsGPSLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState<string>('');
   const [gpsError, setGpsError] = useState<string>('');
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -117,6 +119,18 @@ export default function SimpleLocationSearch({
           )}
         </Button>
 
+        <Button
+          onClick={() => setShowMapPicker(true)}
+          disabled={isLoading || isGPSLoading}
+          variant="outline"
+          className="px-3 sm:px-4 py-3 h-12 md:h-10 touch-manipulation border-slate-600 text-slate-300 hover:text-white"
+          title="Pick location on map"
+          style={{ WebkitTapHighlightColor: 'transparent' }}
+        >
+          <Map className="h-4 w-4" />
+          <span className="ml-2 text-sm hidden sm:inline">Pick on Map</span>
+        </Button>
+
         {onUseCurrentLocation && (
           <Button
             onClick={async () => {
@@ -183,6 +197,17 @@ export default function SimpleLocationSearch({
       <div className="text-xs text-slate-400">
         Examples: "New York", "90210", "1600 Pennsylvania Ave", "Miami, FL", "London, UK"
       </div>
+
+      {/* Map Location Picker Modal */}
+      {showMapPicker && (
+        <MapLocationPicker
+          onLocationSelect={(loc) => {
+            setShowMapPicker(false);
+            onLocationSelect(loc);
+          }}
+          onClose={() => setShowMapPicker(false)}
+        />
+      )}
     </div>
   );
 }
