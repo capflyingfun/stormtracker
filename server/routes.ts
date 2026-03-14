@@ -1208,7 +1208,7 @@ Return ONLY a JSON array of 5 strings.`;
                   lat: parseFloat(loc.lat),
                   lon: parseFloat(loc.lon),
                   name: loc.address?.house_number && loc.address?.road 
-                    ? `${loc.address.house_number} ${loc.address.road}`
+                    ? `${loc.address.house_number} ${loc.address.road}${loc.address?.city || loc.address?.town || loc.address?.village ? ', ' + (loc.address?.city || loc.address?.town || loc.address?.village) : ''}`
                     : loc.address?.city || loc.address?.town || loc.address?.village || loc.display_name.split(',')[0],
                   state: loc.address?.state || '',
                   country: loc.address?.country || '',
