@@ -27,6 +27,7 @@ export default function SimpleLocationSearch({
   const [isLoading, setIsLoading] = useState(false);
   const [isGPSLoading, setIsGPSLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState<string>('');
+  const [gpsError, setGpsError] = useState<string>('');
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -121,13 +122,21 @@ export default function SimpleLocationSearch({
             onClick={async () => {
               setIsGPSLoading(true);
               setGpsStatus('Getting GPS location...');
+              setGpsError('');
               try {
                 await onUseCurrentLocation();
                 setGpsStatus('GPS location found!');
                 setTimeout(() => setGpsStatus(''), 2000);
-              } catch (error) {
-                setGpsStatus('GPS failed - try again');
-                setTimeout(() => setGpsStatus(''), 3000);
+              } catch (error: any) {
+                setGpsStatus('');
+                const msg = error?.message || '';
+                if (msg.includes('Location permission') || msg.includes('denied') || msg.includes('PERMISSION_DENIED')) {
+                  setGpsError('Location access denied. Go to your browser/app Settings → Site Permissions → allow Location for this site, then try again.');
+                } else if (msg.includes('not supported')) {
+                  setGpsError('GPS is not supported in this browser. Try searching for your city instead.');
+                } else {
+                  setGpsError('Could not get GPS location. Try searching for your city below.');
+                }
               } finally {
                 setIsGPSLoading(false);
               }
@@ -153,10 +162,16 @@ export default function SimpleLocationSearch({
       {/* GPS Status */}
       {gpsStatus && (
         <div className={`text-xs mb-2 font-medium ${
-          gpsStatus.includes('failed') ? 'text-red-400' : 
           gpsStatus.includes('found') ? 'text-green-400' : 'text-blue-400'
         }`}>
           {gpsStatus}
+        </div>
+      )}
+
+      {/* GPS Error — shown persistently so user can read the full message */}
+      {gpsError && (
+        <div className="text-xs mb-2 p-2 bg-red-900/40 border border-red-600/50 rounded text-red-300 leading-relaxed">
+          ⚠️ {gpsError}
         </div>
       )}
 
