@@ -157,12 +157,12 @@ export default function FavoriteLocations({
       {/* Emoji picker (edit mode) */}
       {showEmojiPicker === 'edit' && editingId && (
         <div className="mb-2 p-2 bg-slate-700 rounded-lg border border-slate-600">
-          <div className="grid grid-cols-10 gap-1">
+          <div className="flex flex-wrap gap-1">
             {EMOJI_OPTIONS.map(e => (
               <button
                 key={e}
                 onClick={() => { setEditEmoji(e); setShowEmojiPicker(null); }}
-                className={`text-lg w-7 h-7 flex items-center justify-center rounded hover:bg-slate-600 ${editEmoji === e ? 'bg-blue-600' : ''}`}
+                className={`text-xl w-10 h-10 flex items-center justify-center rounded touch-manipulation hover:bg-slate-600 ${editEmoji === e ? 'bg-blue-600' : ''}`}
               >
                 {e}
               </button>
@@ -214,12 +214,12 @@ export default function FavoriteLocations({
                 </div>
                 {showEmojiPicker === 'add' && (
                   <div className="mb-2 p-2 bg-slate-600 rounded-lg">
-                    <div className="grid grid-cols-10 gap-1">
+                    <div className="flex flex-wrap gap-1">
                       {EMOJI_OPTIONS.map(e => (
                         <button
                           key={e}
                           onClick={() => { setNewEmoji(e); setShowEmojiPicker(null); }}
-                          className={`text-lg w-7 h-7 flex items-center justify-center rounded hover:bg-slate-500 ${newEmoji === e ? 'bg-blue-600' : ''}`}
+                          className={`text-xl w-10 h-10 flex items-center justify-center rounded touch-manipulation hover:bg-slate-500 ${newEmoji === e ? 'bg-blue-600' : ''}`}
                         >
                           {e}
                         </button>
