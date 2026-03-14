@@ -38,108 +38,105 @@ interface SonarRadarProps {
 
 // ─── Compass Rose ────────────────────────────────────────────────────────────
 function CompassRose({ movDir, movSpeed }: { movDir?: number; movSpeed?: number }) {
-  const cx = 65;
-  const cy = 65;
-  const outerR = 58;
-  const innerR = 44;
-  const tickLongR = 52; // end of long tick
-  const tickShortR = 55; // end of short tick
-  const size = 130;
-
+  const cx = 70;
+  const cy = 70;
+  const outerR = 63;
+  const innerR = 47;
+  const size = 140;
   const toRad = (deg: number) => ((deg - 90) * Math.PI) / 180;
 
-  // 16 compass points
-  const labels16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-  const major8 = new Set([0, 2, 4, 6, 8, 10, 12, 14]); // N NE E SE S SW W NW
+  // All 16 compass points: index, label, isMajor, isCardinal
+  const all16 = [
+    { i: 0,  lbl: 'N',   major: true,  cardinal: true  },
+    { i: 1,  lbl: 'NNE', major: false, cardinal: false },
+    { i: 2,  lbl: 'NE',  major: true,  cardinal: false },
+    { i: 3,  lbl: 'ENE', major: false, cardinal: false },
+    { i: 4,  lbl: 'E',   major: true,  cardinal: true  },
+    { i: 5,  lbl: 'ESE', major: false, cardinal: false },
+    { i: 6,  lbl: 'SE',  major: true,  cardinal: false },
+    { i: 7,  lbl: 'SSE', major: false, cardinal: false },
+    { i: 8,  lbl: 'S',   major: true,  cardinal: true  },
+    { i: 9,  lbl: 'SSW', major: false, cardinal: false },
+    { i: 10, lbl: 'SW',  major: true,  cardinal: false },
+    { i: 11, lbl: 'WSW', major: false, cardinal: false },
+    { i: 12, lbl: 'W',   major: true,  cardinal: true  },
+    { i: 13, lbl: 'WNW', major: false, cardinal: false },
+    { i: 14, lbl: 'NW',  major: true,  cardinal: false },
+    { i: 15, lbl: 'NNW', major: false, cardinal: false },
+  ];
 
   const hasMovement = movDir !== undefined && movSpeed !== undefined && movSpeed > 2;
-
-  // Indicator dot position on the outer ring edge
   const indRad = hasMovement ? toRad(movDir!) : null;
   const dotX = indRad !== null ? cx + Math.cos(indRad) * outerR : null;
   const dotY = indRad !== null ? cy + Math.sin(indRad) * outerR : null;
 
-  // Sector highlight: a slim wedge ±20° behind the indicator
   const sectorPath = hasMovement
     ? (() => {
-        const spread = 20 * (Math.PI / 180);
-        const r = outerR - 2;
+        const spread = 18 * (Math.PI / 180);
+        const r = outerR - 1;
         const a1 = indRad! - spread;
         const a2 = indRad! + spread;
-        const x1 = cx + Math.cos(a1) * r;
-        const y1 = cy + Math.sin(a1) * r;
-        const x2 = cx + Math.cos(a2) * r;
-        const y2 = cy + Math.sin(a2) * r;
-        return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`;
+        return `M ${cx} ${cy} L ${cx + Math.cos(a1) * r} ${cy + Math.sin(a1) * r} A ${r} ${r} 0 0 1 ${cx + Math.cos(a2) * r} ${cy + Math.sin(a2) * r} Z`;
       })()
     : null;
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="select-none">
-      {/* Sector highlight */}
-      {sectorPath && (
-        <path d={sectorPath} fill="rgba(251,191,36,0.12)" />
-      )}
+      {/* Sector highlight wedge */}
+      {sectorPath && <path d={sectorPath} fill="rgba(251,191,36,0.13)" />}
 
       {/* Outer ring */}
       <circle cx={cx} cy={cy} r={outerR} fill="none" stroke="#334155" strokeWidth="1.5" />
-
       {/* Inner reference ring */}
       <circle cx={cx} cy={cy} r={innerR} fill="none" stroke="#1e293b" strokeWidth="1" />
 
-      {/* Tick marks at 16 points */}
-      {labels16.map((_, i) => {
+      {/* Tick marks + labels for all 16 points */}
+      {all16.map(({ i, lbl, major, cardinal }) => {
         const deg = i * 22.5;
         const rad = toRad(deg);
-        const isMajor = major8.has(i);
-        const r1 = isMajor ? tickLongR : tickShortR;
-        const x1 = cx + Math.cos(rad) * r1;
-        const y1 = cy + Math.sin(rad) * r1;
+        // Tick from inner ring to outer ring
+        const tickInner = major ? outerR - 8 : outerR - 5;
+        const x1 = cx + Math.cos(rad) * tickInner;
+        const y1 = cy + Math.sin(rad) * tickInner;
         const x2 = cx + Math.cos(rad) * outerR;
         const y2 = cy + Math.sin(rad) * outerR;
+        // Label radius: major inside innerR, minor just inside innerR
+        const labelR = major ? innerR - 9 : innerR - 4;
+        const lx = cx + Math.cos(rad) * labelR;
+        const ly = cy + Math.sin(rad) * labelR;
         return (
-          <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
-            stroke={isMajor ? '#475569' : '#334155'} strokeWidth={isMajor ? 1.5 : 1} />
+          <g key={i}>
+            <line x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={major ? '#475569' : '#2d3d52'} strokeWidth={major ? 1.5 : 1} />
+            <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
+              fill={cardinal ? '#60a5fa' : major ? '#94a3b8' : '#475569'}
+              fontSize={cardinal ? '9' : major ? '8' : '6'}
+              fontWeight={cardinal ? 'bold' : major ? 'normal' : 'normal'}
+              fontFamily="monospace">
+              {lbl}
+            </text>
+          </g>
         );
       })}
 
-      {/* Direction labels — 8 major only, inside the ring */}
-      {['N','NE','E','SE','S','SW','W','NW'].map((lbl, i) => {
-        const deg = i * 45;
-        const rad = toRad(deg);
-        const r = innerR - 8;
-        const x = cx + Math.cos(rad) * r;
-        const y = cy + Math.sin(rad) * r;
-        const isCardinal = lbl === 'N' || lbl === 'S' || lbl === 'E' || lbl === 'W';
-        return (
-          <text key={lbl} x={x} y={y} textAnchor="middle" dominantBaseline="middle"
-            fill={isCardinal ? '#60a5fa' : '#94a3b8'}
-            fontSize={isCardinal ? '9' : '8'}
-            fontWeight={isCardinal ? 'bold' : 'normal'}
-            fontFamily="monospace">
-            {lbl}
-          </text>
-        );
-      })}
-
-      {/* Needle from center to indicator */}
+      {/* Dashed needle */}
       {hasMovement && indRad !== null && (
         <line x1={cx} y1={cy}
-          x2={cx + Math.cos(indRad) * (outerR - 4)}
-          y2={cy + Math.sin(indRad) * (outerR - 4)}
-          stroke="rgba(251,191,36,0.5)" strokeWidth="1" strokeDasharray="3 2" />
+          x2={cx + Math.cos(indRad) * (outerR - 5)}
+          y2={cy + Math.sin(indRad) * (outerR - 5)}
+          stroke="rgba(251,191,36,0.55)" strokeWidth="1" strokeDasharray="3 2" />
       )}
 
-      {/* Indicator dot with glow */}
+      {/* Glowing indicator dot */}
       {hasMovement && dotX !== null && dotY !== null && (
         <>
-          <circle cx={dotX} cy={dotY} r="7" fill="rgba(251,191,36,0.2)" />
+          <circle cx={dotX} cy={dotY} r="7" fill="rgba(251,191,36,0.18)" />
           <circle cx={dotX} cy={dotY} r="4.5" fill="#f59e0b" />
-          <circle cx={dotX} cy={dotY} r="2.5" fill="#fef3c7" />
+          <circle cx={dotX} cy={dotY} r="2" fill="#fef3c7" />
         </>
       )}
 
-      {/* Center dot (user) */}
+      {/* Center: user dot */}
       <circle cx={cx} cy={cy} r="4" fill="#1e293b" stroke="#3b82f6" strokeWidth="1.5" />
       <circle cx={cx} cy={cy} r="2" fill="#3b82f6" />
     </svg>
@@ -427,9 +424,9 @@ export default function SonarRadar({
       const container = canvas.parentElement;
       if (!container) return;
       const cr = container.getBoundingClientRect();
-      // Cap at min(container width, 42vh) so the card fits without scrolling
-      const maxH = window.innerHeight * 0.42;
-      const size = Math.min(cr.width, maxH);
+      // Cap canvas so the full card fits on a phone screen without scrolling
+      const maxH = window.innerHeight * 0.30;
+      const size = Math.min(cr.width, 240, maxH);
       const dpr = window.devicePixelRatio || 1;
       canvas.width = size * dpr;
       canvas.height = size * dpr;
