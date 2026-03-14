@@ -43,9 +43,24 @@ const getLocationWithRetry = async (maxRetries = 3): Promise<GeolocationPosition
 };
 
 export function useLocation() {
-  // Initialize location from localStorage if available
+  // Initialize location from localStorage OR URL hash (hash survives reloads even
+  // when localStorage is wiped by privacy-strict browsers like DuckDuckGo app mode)
   const [location, setLocation] = useState<Location | null>(() => {
     if (typeof window !== 'undefined') {
+      // Check URL hash first — written before reload as a privacy-safe carrier
+      const hash = window.location.hash;
+      if (hash.startsWith('#loc=')) {
+        try {
+          const parsed: Location = JSON.parse(decodeURIComponent(hash.slice(5)));
+          if (parsed.lat && parsed.lon && parsed.name) {
+            // Persist to localStorage now that we're running and clean the hash
+            localStorage.setItem('stormtracker-location', JSON.stringify(parsed));
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+            return parsed;
+          }
+        } catch (e) { /* ignore malformed hash */ }
+      }
+      // Fallback: localStorage (works in normal browsers)
       const savedLocation = localStorage.getItem('stormtracker-location');
       return savedLocation ? JSON.parse(savedLocation) : null;
     }
@@ -58,14 +73,16 @@ export function useLocation() {
     setLocation(newLocation);
     if (typeof window !== 'undefined') {
       if (newLocation) {
-        localStorage.setItem('stormtracker-location', JSON.stringify(newLocation));
-        // Always reload after setting location for the first time — this ensures
-        // reliable state pickup across all browser modes including PWA/home screen
-        // apps (e.g. DuckDuckGo standalone) where React re-renders may not fire.
-        // Location is saved to localStorage so it loads instantly after reload.
+        const locationJson = JSON.stringify(newLocation);
+        localStorage.setItem('stormtracker-location', locationJson);
+        // Embed location in URL hash BEFORE reloading — this acts as a fallback
+        // carrier for privacy-strict browsers (e.g. DuckDuckGo app mode) that
+        // may wipe localStorage on navigation. Hash fragments survive reloads.
+        window.location.hash = `loc=${encodeURIComponent(locationJson)}`;
         setTimeout(() => window.location.reload(), 300);
       } else {
         localStorage.removeItem('stormtracker-location');
+        history.replaceState(null, '', window.location.pathname + window.location.search);
       }
     }
   };
