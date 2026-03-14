@@ -130,12 +130,14 @@ export default function SimpleLocationSearch({
               } catch (error: any) {
                 setGpsStatus('');
                 const msg = error?.message || '';
-                if (msg.includes('Location permission') || msg.includes('denied') || msg.includes('PERMISSION_DENIED')) {
-                  setGpsError('Location access denied. Go to your browser/app Settings → Site Permissions → allow Location for this site, then try again.');
+                if (msg === 'DUCKDUCKGO_GPS_BUG') {
+                  setGpsError('DuckDuckGo has a known GPS bug. Fix: Android Settings → Location → enable "Google Location Accuracy". Or just type your city in the search box below — that works great!');
+                } else if (msg.includes('Location permission') || msg.includes('denied') || msg.includes('PERMISSION_DENIED')) {
+                  setGpsError('Location access denied. Go to your browser Settings → Site Permissions → allow Location for this site, then try again. Or type your city below.');
                 } else if (msg.includes('not supported')) {
-                  setGpsError('GPS is not supported in this browser. Try searching for your city instead.');
+                  setGpsError('GPS is not supported in this browser. Type your city in the search box below.');
                 } else {
-                  setGpsError('Could not get GPS location. Try searching for your city below.');
+                  setGpsError('Could not get GPS location. Type your city in the search box below.');
                 }
               } finally {
                 setIsGPSLoading(false);
