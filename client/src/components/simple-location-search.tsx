@@ -20,7 +20,7 @@ interface SimpleLocationSearchProps {
 export default function SimpleLocationSearch({
   onLocationSelect,
   onUseCurrentLocation,
-  placeholder = "Enter city, state, or ZIP code...",
+  placeholder = "Enter address, city, state, or ZIP...",
   className = ""
 }: SimpleLocationSearchProps) {
   const [query, setQuery] = useState("");
