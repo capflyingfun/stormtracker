@@ -9,17 +9,26 @@ interface Location {
   country?: string;
 }
 
+// Detect DuckDuckGo browser (has a known geolocation bug when Google Location Accuracy is off)
+const isDuckDuckGo = () =>
+  typeof navigator !== 'undefined' && /DuckDuckGo/i.test(navigator.userAgent);
+
 // Helper function to get GPS location with retry logic
-const getLocationWithRetry = async (maxRetries = 3): Promise<GeolocationPosition> => {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+const getLocationWithRetry = async (maxRetries = 2): Promise<GeolocationPosition> => {
+  // DuckDuckGo hangs indefinitely on getCurrentPosition when Google Location
+  // Accuracy is disabled — use a single short attempt to fail fast
+  const isDDG = isDuckDuckGo();
+  const actualRetries = isDDG ? 1 : maxRetries;
+
+  for (let attempt = 1; attempt <= actualRetries; attempt++) {
     try {
-      console.log(`GPS attempt ${attempt}/${maxRetries}`);
+      console.log(`GPS attempt ${attempt}/${actualRetries}${isDDG ? ' (DuckDuckGo mode)' : ''}`);
       
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         const options: PositionOptions = {
-          enableHighAccuracy: attempt === 1, // Use high accuracy on first attempt only
-          timeout: attempt === 1 ? 8000 : 15000, // Shorter timeout on first attempt
-          maximumAge: attempt === 1 ? 0 : 60000 // Allow cached location on retries
+          enableHighAccuracy: !isDDG && attempt === 1,
+          timeout: isDDG ? 6000 : (attempt === 1 ? 8000 : 15000),
+          maximumAge: attempt === 1 ? 0 : 60000
         };
         
         navigator.geolocation.getCurrentPosition(resolve, reject, options);
@@ -30,11 +39,13 @@ const getLocationWithRetry = async (maxRetries = 3): Promise<GeolocationPosition
     } catch (error) {
       console.warn(`GPS attempt ${attempt} failed:`, error);
       
-      if (attempt === maxRetries) {
-        throw new Error(`GPS failed after ${maxRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (attempt === actualRetries) {
+        if (isDDG) {
+          throw new Error('DUCKDUCKGO_GPS_BUG');
+        }
+        throw new Error(`GPS failed after ${actualRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
       
-      // Wait before retry (exponential backoff)
       await new Promise(resolve => setTimeout(resolve, attempt * 1000));
     }
   }
