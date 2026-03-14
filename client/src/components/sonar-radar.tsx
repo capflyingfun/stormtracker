@@ -343,8 +343,8 @@ export default function SonarRadar({
     if (!canvas || !wrapper) return;
     const resize = () => {
       const wr = wrapper.getBoundingClientRect();
-      // The wrapper has max-width:200px in its style, so wr.width ≤ 200
-      const size = Math.max(wr.width, 60); // at least 60px
+      // Fill the card width, but cap at ~40% of viewport height so it stays proportional
+      const size = Math.max(Math.min(wr.width, window.innerHeight * 0.42), 60);
       const dpr = window.devicePixelRatio || 1;
       canvas.width = size * dpr;
       canvas.height = size * dpr;
@@ -387,14 +387,14 @@ export default function SonarRadar({
         </div>
       </div>
 
-      {/* Canvas — wrapper has fixed max-width so ResizeObserver gets reliable size */}
-      <div className="flex justify-center p-2 bg-slate-900">
-        <div ref={wrapperRef} style={{ width: '100%', maxWidth: '200px' }}>
+      {/* Canvas — wrapper fills card width; ResizeObserver watches it for reliable sizing */}
+      <div className="p-2 bg-slate-900">
+        <div ref={wrapperRef} className="w-full">
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
             onMouseMove={handleCanvasMouseMove}
-            className="block rounded-lg"
+            className="block rounded-lg mx-auto"
             style={{ imageRendering: 'pixelated' }}
           />
         </div>
