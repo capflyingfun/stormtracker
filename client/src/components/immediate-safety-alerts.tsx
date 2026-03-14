@@ -13,6 +13,7 @@ interface Storm {
     speed: number;
     impact: 'high' | 'medium' | 'low';
     eta?: string;
+    etaMinutes?: number;
   };
 }
 
@@ -114,49 +115,70 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
     `${s.intensity?.toFixed(1)}dBZ @ ${s.distance?.toFixed(1)}mi, bearing: ${s.direction?.toFixed(1)}°`
   ));
 
-  // Add movement data from winds aloft to storms
+  // Format ETA minutes into a human-readable string
+  const formatEta = (minutes: number): string => {
+    if (minutes < 1) return 'Imminent';
+    if (minutes < 60) return `~${Math.round(minutes)} min`;
+    const h = Math.floor(minutes / 60);
+    const m = Math.round(minutes % 60);
+    return m > 0 ? `~${h}h ${m}m` : `~${h}h`;
+  };
+
+  // Build enriched movement data for each storm, calculating approach angle + ETA
   const stormsWithMovement = storms.map(storm => {
-    if (windsAloftData?.stormMovement) {
-      return {
-        ...storm,
-        movement: {
-          direction: windsAloftData.stormMovement.direction,
-          speed: windsAloftData.stormMovement.speed,
-          impact: 'low', // Default, can be enhanced later
-        }
-      };
-    }
-    return storm;
+    // Prefer server-side movement data; fall back to winds aloft
+    const rawMovement = storm.movement ?? (windsAloftData?.stormMovement
+      ? { direction: windsAloftData.stormMovement.direction, speed: windsAloftData.stormMovement.speed }
+      : null);
+
+    if (!rawMovement || rawMovement.speed == null) return storm;
+
+    // Direction FROM storm TO user = opposite of bearing from user to storm
+    const directionToUser = (storm.direction + 180) % 360;
+    const angleDiff = Math.abs(((rawMovement.direction - directionToUser + 180) % 360) - 180);
+    const isApproaching = angleDiff <= 30 && rawMovement.speed > 3;
+
+    // ETA: straight-line time until storm reaches user
+    const etaMinutes = isApproaching && rawMovement.speed > 0
+      ? (storm.distance / rawMovement.speed) * 60
+      : null;
+
+    const impact: 'high' | 'medium' | 'low' =
+      isApproaching && rawMovement.speed > 5 && angleDiff <= 15 ? 'high'
+      : isApproaching ? 'medium'
+      : 'low';
+
+    return {
+      ...storm,
+      movement: {
+        direction: rawMovement.direction,
+        speed: rawMovement.speed,
+        impact,
+        eta: etaMinutes !== null ? formatEta(etaMinutes) : undefined,
+        etaMinutes: etaMinutes ?? undefined,
+      }
+    };
   });
 
-  // Identify immediate storm threats (high impact or severe proximity)
+  // Identify immediate storm threats
   const immediateThreats = stormsWithMovement.filter(storm => {
-    // High impact storms on collision course
-    if (storm.movement?.impact === 'high' && 'eta' in storm.movement && storm.movement.eta) {
+    const mov = storm.movement;
+
+    // Approaching severe storms (within 30° cone, within 35 miles)
+    if (mov && storm.intensity >= 55 && storm.distance <= 35 && (mov.impact === 'high' || mov.impact === 'medium')) {
+      console.log(`🎯 APPROACHING SEVERE STORM: ${storm.intensity.toFixed(1)}dBZ @ ${storm.distance.toFixed(1)}mi, impact=${mov.impact}, ETA=${mov.eta}`);
       return true;
     }
-    
-    // Check if storm is approaching using 30-degree cone logic
-    if (storm.movement && storm.movement.direction !== undefined && storm.movement.speed > 0) {
-      // Calculate if storm is moving toward user (within 30° cone)
-      const directionToUser = (storm.direction + 180) % 360; // Direction from storm to user
-      const stormMovementDirection = storm.movement.direction;
-      const angleDifference = Math.abs(((stormMovementDirection - directionToUser + 180) % 360) - 180);
-      const isApproaching = angleDifference <= 15; // 30° cone = ±15°
-      
-      // Only alert for severe storms that are actually approaching
-      if (storm.intensity >= 55 && storm.distance <= 30 && isApproaching) {
-        console.log(`🎯 APPROACHING SEVERE STORM: ${storm.intensity.toFixed(1)}dBZ @ ${storm.distance.toFixed(1)}mi, moving ${stormMovementDirection}° toward user direction ${directionToUser.toFixed(0)}° (angle diff: ${angleDifference.toFixed(1)}°)`);
-        return true;
-      }
-    }
-    
-    // Immediate vicinity storms (within 5 miles regardless of direction)
+
+    // Already-high-impact from server data with ETA
+    if (mov?.impact === 'high' && mov.eta) return true;
+
+    // Immediate vicinity (within 5 miles regardless of direction)
     if (storm.intensity >= 55 && storm.distance <= 5) {
       console.log(`⚠️ IMMEDIATE VICINITY: ${storm.intensity.toFixed(1)}dBZ @ ${storm.distance.toFixed(1)}mi - too close to ignore`);
       return true;
     }
-    
+
     return false;
   });
 
@@ -495,36 +517,41 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
               </div>
               
               <div className="text-sm text-orange-100 space-y-1">
-                <div className="w-full">
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <span>Storm is located {storm.distance.toFixed(1)} miles ({getDirectionName(storm.direction)}) of you</span>
-                    <div 
-                      className="h-3 w-3 flex items-center justify-center text-orange-300 mx-1 flex-shrink-0"
-                      style={{ transform: `rotate(${storm.direction}deg)` }}
-                    >
-                      ↑
-                    </div>
-                    <span>of you</span>
-                    {storm.movement && storm.movement.direction !== undefined && storm.movement.speed !== undefined && (
-                      <span> heading {getDirectionName(storm.movement.direction)} ({storm.movement.direction.toFixed(0)}°) @ {storm.movement.speed.toFixed(1)} mph</span>
-                    )}
-                  </div>
+                {/* Location + movement line */}
+                <div className="flex items-start gap-1 flex-wrap leading-snug">
+                  <span>Storm is {storm.distance.toFixed(1)} mi ({getDirectionName(storm.direction)}) of you</span>
+                  {storm.movement && storm.movement.direction !== undefined && storm.movement.speed !== undefined && (
+                    <span className="text-orange-300">
+                      · heading {getDirectionName(storm.movement.direction)} ({storm.movement.direction.toFixed(0)}°) @ {storm.movement.speed.toFixed(1)} mph
+                    </span>
+                  )}
                 </div>
                 <div>Intensity: {storm.intensity} dBZ</div>
-                
+
+                {/* ETA + threat classification box */}
                 {storm.movement && (
-                  <div className="mt-2 p-2 bg-orange-950/50 rounded text-xs">
+                  <div className="mt-2 p-2 bg-orange-950/50 rounded text-xs space-y-1">
+                    {/* ETA — shown whenever we have one, regardless of impact level */}
+                    {storm.movement.eta && (
+                      <div className="flex items-center gap-1.5 text-yellow-300 font-semibold">
+                        <span>⏱</span>
+                        <span>ETA: {storm.movement.eta}</span>
+                      </div>
+                    )}
                     {storm.movement.impact === 'high' ? (
                       <div className="text-red-300">
-                        <strong>🎯 COLLISION COURSE:</strong> Storm moving toward your location
-                        {'eta' in storm.movement && storm.movement.eta && <div>ETA: {storm.movement.eta}</div>}
+                        <strong>🎯 COLLISION COURSE:</strong> Storm on direct track to your location
+                      </div>
+                    ) : storm.movement.impact === 'medium' ? (
+                      <div className="text-orange-300">
+                        <strong>⚠️ APPROACHING:</strong> Storm moving toward your area
                       </div>
                     ) : (
                       <div className="text-orange-300">
                         <strong>⚠️ SEVERE PROXIMITY:</strong> High-intensity storm nearby
                       </div>
                     )}
-                    <div className="mt-1 text-orange-200">
+                    <div className="text-orange-200">
                       <strong>🏠 Take Shelter:</strong> Move indoors, avoid windows, stay away from metal objects.
                     </div>
                   </div>
