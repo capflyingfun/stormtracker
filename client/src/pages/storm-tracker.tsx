@@ -401,6 +401,8 @@ export default function StormTracker() {
       }
     } catch (error) {
       console.error("GPS location failed:", error);
+      // Re-throw so the location UI can show the actual error message
+      throw error;
     }
   };
 
