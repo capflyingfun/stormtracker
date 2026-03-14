@@ -53,24 +53,17 @@ export function useLocation() {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  // Detect if running as an installed PWA (standalone mode)
-  const isStandalonePWA = () =>
-    typeof window !== 'undefined' &&
-    (window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true);
-
   // Helper function to update location and persist to localStorage
   const updateLocation = (newLocation: Location | null) => {
     setLocation(newLocation);
     if (typeof window !== 'undefined') {
       if (newLocation) {
         localStorage.setItem('stormtracker-location', JSON.stringify(newLocation));
-        // In PWA standalone mode, force a reload so the app picks up the
-        // saved location reliably — React state updates can be unreliable
-        // in some standalone WebView contexts (e.g. DuckDuckGo home screen app)
-        if (isStandalonePWA()) {
-          setTimeout(() => window.location.reload(), 300);
-        }
+        // Always reload after setting location for the first time — this ensures
+        // reliable state pickup across all browser modes including PWA/home screen
+        // apps (e.g. DuckDuckGo standalone) where React re-renders may not fire.
+        // Location is saved to localStorage so it loads instantly after reload.
+        setTimeout(() => window.location.reload(), 300);
       } else {
         localStorage.removeItem('stormtracker-location');
       }
