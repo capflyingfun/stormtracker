@@ -104,31 +104,34 @@ export default function SimpleLocationSearch({
         />
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-2 mb-3">
+      {/* Search button — full width row */}
+      <div className="mb-2">
         <Button
           onClick={handleSearch}
           disabled={isLoading || !query.trim()}
-          className="flex-1 px-4 sm:px-6 py-3 h-12 md:h-10 bg-green-600 hover:bg-green-500 touch-manipulation"
+          className="w-full py-3 h-12 md:h-10 bg-green-600 hover:bg-green-500 touch-manipulation"
           style={{ WebkitTapHighlightColor: 'transparent' }}
         >
           {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
           ) : (
-            'Search Location'
+            <Search className="h-4 w-4 mr-2" />
           )}
+          Search Location
         </Button>
+      </div>
 
+      {/* Secondary buttons — Map + GPS side by side */}
+      <div className="flex gap-2 mb-3">
         <Button
           onClick={() => setShowMapPicker(true)}
           disabled={isLoading || isGPSLoading}
           variant="outline"
-          className="px-3 sm:px-4 py-3 h-12 md:h-10 touch-manipulation border-slate-600 text-slate-300 hover:text-white"
-          title="Pick location on map"
+          className="flex-1 py-3 h-11 md:h-10 touch-manipulation border-slate-600 text-slate-300 hover:text-white"
           style={{ WebkitTapHighlightColor: 'transparent' }}
         >
-          <Map className="h-4 w-4" />
-          <span className="ml-2 text-sm hidden sm:inline">Pick on Map</span>
+          <Map className="h-4 w-4 mr-2 shrink-0" />
+          <span className="text-sm">Pick on Map</span>
         </Button>
 
         {onUseCurrentLocation && (
@@ -161,18 +164,16 @@ export default function SimpleLocationSearch({
             }}
             disabled={isGPSLoading || isLoading}
             variant="outline"
-            className="px-3 sm:px-4 py-3 h-12 md:h-10 touch-manipulation"
+            className="flex-1 py-3 h-11 md:h-10 touch-manipulation"
             title="Use current location"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             {isGPSLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : (
-              <Navigation className="h-4 w-4" />
+              <Navigation className="h-4 w-4 mr-2" />
             )}
-            <span className="ml-2 text-sm hidden sm:inline">
-              {isGPSLoading ? 'Getting GPS...' : 'Use GPS'}
-            </span>
+            <span className="text-sm">{isGPSLoading ? 'Getting GPS...' : 'Use GPS'}</span>
           </Button>
         )}
       </div>
