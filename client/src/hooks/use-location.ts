@@ -9,9 +9,13 @@ interface Location {
   country?: string;
 }
 
-// Detect DuckDuckGo browser (has a known geolocation bug when Google Location Accuracy is off)
+// Detect DuckDuckGo browser (known geolocation bugs on both iOS and Android)
 const isDuckDuckGo = () =>
   typeof navigator !== 'undefined' && /DuckDuckGo/i.test(navigator.userAgent);
+
+// Detect iOS device
+const isIOS = () =>
+  typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 // Helper function to get GPS location with retry logic
 const getLocationWithRetry = async (maxRetries = 2): Promise<GeolocationPosition> => {
@@ -41,7 +45,7 @@ const getLocationWithRetry = async (maxRetries = 2): Promise<GeolocationPosition
       
       if (attempt === actualRetries) {
         if (isDDG) {
-          throw new Error('DUCKDUCKGO_GPS_BUG');
+          throw new Error(isIOS() ? 'DUCKDUCKGO_GPS_BUG_IOS' : 'DUCKDUCKGO_GPS_BUG_ANDROID');
         }
         throw new Error(`GPS failed after ${actualRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
