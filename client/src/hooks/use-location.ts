@@ -70,7 +70,30 @@ export function useLocation() {
     
     try {
       if (!navigator.geolocation) {
-        throw new Error('Geolocation not supported');
+        throw new Error('Geolocation not supported by your browser');
+      }
+
+      // Check permission state first — critical for PWA / home screen installs
+      // where the browser may not show the permission dialog automatically
+      if (navigator.permissions) {
+        try {
+          const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+          
+          if (permissionStatus.state === 'denied') {
+            throw new Error(
+              'Location permission was denied. To fix this: open your browser Settings, find StormTracker or this site, and allow Location access. Then try again.'
+            );
+          }
+          
+          // If prompt state in PWA mode, the dialog may not appear automatically
+          // Log so we can debug if needed
+          console.log('Geolocation permission state:', permissionStatus.state);
+        } catch (permErr: any) {
+          // If it's our custom error, re-throw it
+          if (permErr.message?.includes('Location permission')) throw permErr;
+          // Otherwise permissions API may not be supported — continue anyway
+          console.warn('Permissions API not available, proceeding with geolocation request');
+        }
       }
 
       // Try multiple strategies for getting GPS location
