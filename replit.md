@@ -38,7 +38,9 @@ Preferred communication style: Simple, everyday language with customizable AI as
 ### Key Architectural Decisions
 - **Monorepo Structure**: Shared types and schemas between frontend and backend.
 - **Shared Storm Utilities**: `shared/storm-utils.ts` centralizes storm category classification (dBZ thresholds), color mapping, compass directions, approach angle math, and ETA calculations. Used by both server and client.
-- **Centralized Ticker**: AI ticker messages are fetched once in `storm-tracker.tsx` and passed as props to both Sonar and 3D views (eliminating duplicate OpenAI API calls).
+- **Unified AI Client**: `server/ai-client.ts` provides `aiChat()` function that tries Groq (Llama 3.3 70B, free) first, falls back to OpenAI (GPT-4o). All 3 AI call sites (ticker, chat, assessment) use this unified client. `getProviderInfo()` exposes current provider to frontend.
+- **Comprehensive Weather Briefing**: `WeatherSummary` component (`client/src/components/weather-summary.tsx`) fetches all weather data points via `/api/ai-summary` and displays AI-generated briefing with condensed/expanded sections. Shows AI provider badge (Groq/OpenAI), source count, and timestamps.
+- **Centralized Ticker**: AI ticker messages are fetched once in `storm-tracker.tsx` and passed as props to both Sonar and 3D views (eliminating duplicate AI API calls).
 - **Single Winds-Aloft Fetch**: `storm-tracker.tsx` fetches winds-aloft data once via React Query and passes to child components (safety alerts, AI assistant) instead of duplicate fetches.
 - **Real-time Updates**: React Query with refetch intervals.
 - **Performance**: Optimized map rendering, adaptive intelligent sampling, and optimized API timeouts.
@@ -55,7 +57,8 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **NEXRAD (Iowa Mesonet RIDGE API)**: US high-resolution radar data.
 - **Government Weather Services / NWS API**: Weather alerts and warnings, Area Forecast Discussions.
 - **Open-Meteo API**: Primary global forecast data with multi-model regional blending. Queries region-specific weather models (GFS, GEM, ICON, Météo-France, UK Met Office, MET Norway, JMA, CMA, BOM) based on location coordinates, then averages temperatures, wind, and precipitation across 2-3 models for improved accuracy.
-- **OpenAI GPT-4o API**: AI weather assistant and chat functionality.
+- **Groq API (Primary AI)**: Free AI inference using Llama 3.3 70B — handles ticker, chat, risk assessment, and comprehensive weather briefing. Falls back to OpenAI if unavailable. 14,400 req/day free tier.
+- **OpenAI GPT-4o API (Fallback AI)**: AI weather assistant and chat functionality. Used when Groq is unavailable.
 - **Blitzortung.org / Lightning Maps / WWLLN**: Real-time lightning detection.
 - **CheckWX API**: International METAR/TAF data.
 - **WeatherAPI.com**: Global weather data provider (free tier: 1M calls/month). Provides 3-day forecast blended into hybrid forecast, plus air quality (AQI with 6 pollutants) and astronomy data (moon phase, illumination, moonrise/moonset).

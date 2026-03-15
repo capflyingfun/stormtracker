@@ -122,8 +122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ messages: cached.messages });
       }
       
-      const OpenAI = (await import("openai")).default;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const { aiChat: aiChatFn } = await import("./ai-client");
       
       // Build personalized storm summary with impact data - ONLY approaching storms
       const stormSummary = approachingStorms.map((s: any, i: number) => {
@@ -168,14 +167,13 @@ Examples of good personalized tone:
 Return ONLY a JSON array of 5 strings.`;
 
       try {
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o",
+        const aiResult = await aiChatFn({
           messages: [{ role: "user", content: prompt }],
           max_tokens: 400,
           temperature: 0.85
         });
         
-        const content = completion.choices[0]?.message?.content || '[]';
+        const content = aiResult.content || '[]';
         const jsonMatch = content.match(/\[[\s\S]*\]/);
         const messages = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
         
@@ -4612,17 +4610,12 @@ Return ONLY a JSON array of 5 strings.`;
         useMetric: useMetric || false
       };
       
-      // Generate AI response using OpenAI
-      const openai = new (await import('openai')).default({ 
-        apiKey: process.env.OPENAI_API_KEY 
-      });
+      // Generate AI response using Groq (free) with OpenAI fallback
+      const { aiChat: aiChatFn, getProviderInfo } = await import("./ai-client");
+      const providerInfo = getProviderInfo();
+      console.log(`🤖 AI Chat using ${providerInfo.provider} (${providerInfo.model})${providerInfo.free ? ' [FREE]' : ''}`);
       
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert meteorologist providing comprehensive weather analysis for pilots, boaters, and the general public. Use ALL available weather data to answer questions with detailed insights for aviation, marine, and general safety.
+      const systemContent = `You are an expert meteorologist providing comprehensive weather analysis for pilots, boaters, and the general public. Use ALL available weather data to answer questions with detailed insights for aviation, marine, and general safety.
 
 Complete weather briefing data for ${userLocation.address || `${userLocation.lat}, ${userLocation.lon}`}:
 ${weatherContext.currentWeather ? `
@@ -4757,18 +4750,18 @@ Guidelines:
 - Only mention multiple sources when specifically asked about data reliability or accuracy
 - Keep responses natural and confident, as if coming from a single authoritative weather expert
 - Keep responses concise (2-4 sentences) unless detailed explanation is requested
-- Never mention missing data sections or say "data unavailable" - just work with what you have`
-          },
-          {
-            role: "user", 
-            content: question
-          }
+- Never mention missing data sections or say "data unavailable" - just work with what you have`;
+
+      const aiResult = await aiChatFn({
+        messages: [
+          { role: "system", content: systemContent },
+          { role: "user", content: question }
         ],
-        max_tokens: 2300, // Increased by 1500 tokens for comprehensive weather analysis
+        max_tokens: 2300,
         temperature: 0.7
       });
       
-      const aiResponse = response.choices[0].message.content;
+      const aiResponse = aiResult.content;
       
       console.log(`🤖 AI Chat Response generated for: "${question.substring(0, 50)}..."`);
       
@@ -4791,6 +4784,199 @@ Guidelines:
         error: 'Failed to process weather question',
         message: 'Please try asking your question again.' 
       });
+    }
+  });
+
+  app.get("/api/ai-provider", async (_req, res) => {
+    const { getProviderInfo } = await import("./ai-client");
+    res.json(getProviderInfo());
+  });
+
+  app.post("/api/ai-summary", async (req, res) => {
+    try {
+      const { lat, lon, locationName, useMetric } = req.body;
+      if (lat == null || lon == null) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+
+      const { aiChat: aiChatFn, getProviderInfo } = await import("./ai-client");
+      const providerInfo = getProviderInfo();
+      console.log(`📋 Generating comprehensive weather summary via ${providerInfo.provider}${providerInfo.free ? ' [FREE]' : ''}`);
+
+      const fetchWithTimeout = (url: string, timeout = 6000) =>
+        fetch(url, { signal: AbortSignal.timeout(timeout) }).then(r => r.ok ? r.json() : null).catch(() => null);
+
+      const [forecast, storms, aviation, thunderstorm, alerts, winds] = await Promise.all([
+        fetchWithTimeout(`http://localhost:5000/api/forecast?lat=${lat}&lon=${lon}`),
+        fetch(`http://localhost:5000/api/storms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat, lon, radius: 50 }),
+          signal: AbortSignal.timeout(10000),
+        }).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetchWithTimeout(`http://localhost:5000/api/aviation-weather?lat=${lat}&lon=${lon}`),
+        fetchWithTimeout(`http://localhost:5000/api/thunderstorm-conditions?lat=${lat}&lon=${lon}`),
+        fetchWithTimeout(`http://localhost:5000/api/nws-alerts?lat=${lat}&lon=${lon}`),
+        fetchWithTimeout(`http://localhost:5000/api/winds-aloft?lat=${lat}&lon=${lon}`),
+      ]);
+
+      const unitLabel = useMetric ? '°C' : '°F';
+      const tempConvert = (f: number) => useMetric ? Math.round((f - 32) * 5 / 9) : Math.round(f);
+      const windConvert = (mph: number) => useMetric ? Math.round(mph * 1.609) : Math.round(mph);
+      const windUnit = useMetric ? 'km/h' : 'mph';
+
+      let dataContext = `COMPREHENSIVE WEATHER DATA FOR: ${locationName || `${lat}, ${lon}`}\n\n`;
+
+      if (forecast?.current) {
+        const c = forecast.current;
+        dataContext += `CURRENT CONDITIONS:\n`;
+        dataContext += `• Temperature: ${tempConvert(c.temperature_2m)}${unitLabel} (Feels like: ${tempConvert(c.apparent_temperature)}${unitLabel})\n`;
+        dataContext += `• Humidity: ${c.relative_humidity_2m}%, Dew Point: ${tempConvert(c.dew_point_2m)}${unitLabel}\n`;
+        dataContext += `• Wind: ${windConvert(c.wind_speed_10m)} ${windUnit} from ${c.wind_direction_10m}°, Gusts: ${windConvert(c.wind_gusts_10m)} ${windUnit}\n`;
+        dataContext += `• Pressure: ${c.surface_pressure} hPa, Cloud Cover: ${c.cloud_cover}%\n`;
+        dataContext += `• UV Index: ${c.uv_index}, Visibility: ${Math.round(c.visibility / 5280)} miles\n`;
+        dataContext += `• Precipitation: ${c.precipitation} in\n\n`;
+      }
+
+      if (forecast?.daily) {
+        const d = forecast.daily;
+        const sources = forecast.forecastSources?.join(' + ') || 'Open-Meteo';
+        dataContext += `7-DAY FORECAST (Blended from ${sources} — ${forecast.forecastSourceCount || 1} sources):\n`;
+        for (let i = 0; i < d.time.length; i++) {
+          const date = new Date(d.time[i] + 'T12:00:00');
+          const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : date.toLocaleDateString('en-US', { weekday: 'long' });
+          dataContext += `• ${dayName}: High ${tempConvert(d.tempMax[i])}${unitLabel}, Low ${tempConvert(d.tempMin[i])}${unitLabel}, `;
+          dataContext += `Wind: ${windConvert(d.windMax[i])} ${windUnit}, Precip: ${d.precipProbMax[i]}%, UV: ${d.uvMax[i]}\n`;
+        }
+        dataContext += '\n';
+      }
+
+      if (forecast?.nwsForecast) {
+        dataContext += `NWS DETAILED FORECAST:\n`;
+        for (const p of forecast.nwsForecast.slice(0, 8)) {
+          dataContext += `• ${p.name}: ${p.shortForecast}, ${p.temperature}°${p.temperatureUnit}, Wind: ${p.windSpeed}\n`;
+          dataContext += `  ${p.detailedForecast}\n`;
+        }
+        dataContext += '\n';
+      }
+
+      if (storms?.storms?.length > 0) {
+        dataContext += `ACTIVE STORMS (${storms.storms.length} detected within ${storms.radius || 50} miles):\n`;
+        for (const s of storms.storms.slice(0, 15)) {
+          dataContext += `• ${s.category} storm: ${s.intensity} dBZ, ${s.direction} @ ${s.distance?.toFixed(1)} miles`;
+          if (s.movement) dataContext += `, moving ${s.movement.direction}° at ${s.movement.speed} mph`;
+          if (s.movement?.eta) dataContext += `, ETA: ${s.movement.eta}`;
+          dataContext += '\n';
+        }
+        dataContext += '\n';
+      } else {
+        dataContext += `STORMS: No active storms detected within 50 miles.\n\n`;
+      }
+
+      const alertsList = alerts?.alerts || (Array.isArray(alerts) ? alerts : []);
+      if (alertsList.length > 0) {
+        dataContext += `NWS ALERTS (${alertsList.length} active):\n`;
+        for (const a of alertsList.slice(0, 5)) {
+          dataContext += `• ${a.event} (${a.severity}): ${a.headline || a.description?.substring(0, 200)}\n`;
+        }
+        dataContext += '\n';
+      }
+
+      if (aviation?.stations?.length > 0) {
+        dataContext += `AVIATION WEATHER (${aviation.stations.length} nearby airports):\n`;
+        for (const s of aviation.stations.slice(0, 3)) {
+          dataContext += `• ${s.station}: ${s.rawMETAR || `${s.conditions?.weather}, ${s.conditions?.temperature}°F, Wind: ${s.conditions?.windSpeed}kts`}\n`;
+        }
+        dataContext += '\n';
+      }
+
+      if (thunderstorm?.thunderstormPotential) {
+        const tp = thunderstorm.thunderstormPotential;
+        dataContext += `THUNDERSTORM POTENTIAL: ${tp.overall}/10\n`;
+        dataContext += `• Moisture: ${tp.moisture}/10, Instability: ${tp.instability}/10, Lift: ${tp.lift}/10\n`;
+        if (thunderstorm.cape) dataContext += `• CAPE: ${thunderstorm.cape} J/kg\n`;
+        dataContext += '\n';
+      }
+
+      if (winds?.winds?.length > 0) {
+        dataContext += `WINDS ALOFT:\n`;
+        for (const w of winds.winds) {
+          dataContext += `• ${w.level}: ${w.direction}° @ ${w.speed} kts\n`;
+        }
+        dataContext += '\n';
+      }
+
+      if (forecast?.astronomy) {
+        dataContext += `ASTRONOMY: Moon Phase: ${forecast.astronomy.moonPhase}, ${forecast.astronomy.moonIllumination}% illumination\n`;
+        dataContext += `• Moonrise: ${forecast.astronomy.moonrise}, Moonset: ${forecast.astronomy.moonset}\n\n`;
+      }
+
+      if (forecast?.airQuality) {
+        const aq = forecast.airQuality;
+        const epaLabel = aq.usEpaIndex <= 1 ? 'Good' : aq.usEpaIndex <= 2 ? 'Moderate' : aq.usEpaIndex <= 3 ? 'Unhealthy for Sensitive Groups' : 'Unhealthy';
+        dataContext += `AIR QUALITY: EPA Index ${aq.usEpaIndex} (${epaLabel})\n`;
+        dataContext += `• PM2.5: ${aq.pm25?.toFixed(1)}, PM10: ${aq.pm10?.toFixed(1)}, O3: ${aq.o3?.toFixed(1)}\n\n`;
+      }
+
+      const aiResult = await aiChatFn({
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert meteorologist writing a comprehensive weather briefing. Write in plain text (NO markdown, NO asterisks, NO bullet points with *). Use simple dashes (-) for lists if needed.
+
+Structure your briefing with these sections, each as a flowing narrative:
+
+RIGHT NOW: Current conditions summary — temperature, feels-like, humidity, wind, sky conditions, and how it feels outside right now.
+
+TODAY & TONIGHT: What to expect for the rest of today and tonight. Include timing of any changes.
+
+WEEK AHEAD: Summarize the 7-day trend — warming/cooling patterns, rain chances, any significant weather events coming.
+
+STORM WATCH: Active storm status — are storms nearby, approaching, or clear? Movement, intensity, ETAs if applicable. If no storms, say so confidently.
+
+ALERTS & WARNINGS: Any active NWS alerts or advisories. If none, skip this section entirely.
+
+AVIATION BRIEF: Ceilings, visibility, winds aloft, wind shear, turbulence potential — what pilots need to know.
+
+MARINE & OUTDOOR: Boating conditions, outdoor activity recommendations, UV exposure guidance.
+
+ATMOSPHERE: Thunderstorm potential, atmospheric stability, air quality, and moon phase for nighttime visibility.
+
+BOTTOM LINE: 2-3 sentence "what you need to know" takeaway for the average person.
+
+Write each section as a natural paragraph. Be authoritative and specific with data. Use the ${useMetric ? 'metric (°C, km/h)' : 'imperial (°F, mph)'} unit system.`
+          },
+          {
+            role: "user",
+            content: `Generate a complete weather briefing using ALL of this data:\n\n${dataContext}`
+          }
+        ],
+        max_tokens: 4000,
+        temperature: 0.4,
+      });
+
+      console.log(`📋 Weather summary generated: ${aiResult.content.length} chars via ${aiResult.provider}`);
+
+      res.json({
+        summary: aiResult.content,
+        provider: aiResult.provider,
+        model: aiResult.model,
+        free: aiResult.provider === 'groq',
+        dataPointsUsed: {
+          forecast: !!forecast,
+          storms: storms?.storms?.length || 0,
+          aviation: aviation?.stations?.length || 0,
+          thunderstorm: !!thunderstorm,
+          alerts: alertsList.length,
+          winds: winds?.winds?.length || 0,
+          astronomy: !!forecast?.astronomy,
+          airQuality: !!forecast?.airQuality,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('AI Summary error:', error.message);
+      res.status(500).json({ error: 'Failed to generate weather summary' });
     }
   });
 
