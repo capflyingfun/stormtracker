@@ -409,9 +409,23 @@ export default function WeatherDashboard({ lat, lon, locationName, useMetric }: 
                     <div className="flex items-center gap-2">
                       {warnIcon && <span className="text-sm shrink-0">{warnIcon}</span>}
                       <span className="text-sm font-medium text-slate-200 w-24 shrink-0">{p.name}</span>
-                      <span className="text-sm text-white font-medium">{p.temperature}°{p.temperatureUnit}</span>
+                      <span className="text-xs shrink-0">{p.isDaytime ? '⤴️' : '⤵️'}</span>
+                      <span className="text-sm text-white font-medium shrink-0">
+                        {p.isDaytime ? 'High' : 'Low'}: {(() => {
+                          const tempF = p.temperatureUnit === 'F' ? p.temperature : Math.round(p.temperature * 9 / 5 + 32);
+                          const tempC = p.temperatureUnit === 'F' ? Math.round(fToC(p.temperature)) : p.temperature;
+                          return useMetric ? `${tempC}°C (${tempF}°F)` : `${tempF}°F (${tempC}°C)`;
+                        })()}
+                      </span>
                       <span className={`text-xs flex-1 truncate ${isSevere ? 'text-red-300' : isCaution ? 'text-yellow-300' : 'text-slate-400'}`}>{p.shortForecast}</span>
-                      {p.windSpeed && <span className="text-xs text-slate-500 shrink-0">{p.windSpeed}</span>}
+                      {p.windSpeed && <span className="text-xs text-slate-500 shrink-0">{(() => {
+                        const m = p.windSpeed.match(/(\d+)\s*(to\s*(\d+)\s*)?mph/i);
+                        if (!m) return p.windSpeed;
+                        const lo = parseInt(m[1]);
+                        const hi = m[3] ? parseInt(m[3]) : null;
+                        if (hi) return useMetric ? `${Math.round(mphToKmh(lo))}-${Math.round(mphToKmh(hi))} km/h` : `${lo}-${hi} mph`;
+                        return useMetric ? `${Math.round(mphToKmh(lo))} km/h` : `${lo} mph`;
+                      })()}</span>}
                       {isExpanded ? <ChevronUp className="h-3 w-3 text-slate-500 shrink-0" /> : <ChevronDown className="h-3 w-3 text-slate-500 shrink-0" />}
                     </div>
                     {isExpanded && p.detailedForecast && (

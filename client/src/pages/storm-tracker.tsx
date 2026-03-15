@@ -777,6 +777,7 @@ export default function StormTracker() {
               isLoading={stormDataLoading}
               windsAloftData={windsAloftData}
               nwsForecast={forecastData?.nwsForecast || null}
+              useMetric={useMetric}
             />
 
             {/* Storm Summary Section */}
