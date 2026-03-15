@@ -65,11 +65,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI-powered ticker messages endpoint - generates personalized conversational weather updates
   app.post("/api/ticker-messages", async (req, res) => {
     try {
-      const { storms, locationName, impactPredictions, userLocation } = req.body;
+      const { storms, totalStormCount, locationName, impactPredictions, userLocation } = req.body;
       
       if (!storms || !Array.isArray(storms) || storms.length === 0) {
         return res.json({ messages: [] });
       }
+      
+      // Use totalStormCount if provided (client sends top 8 but total may be higher)
+      const stormCount = totalStormCount || storms.length;
       
       // Filter to only storms genuinely approaching (within 30° track cone)
       const approachingStorms = storms.filter((s: any) => {
@@ -94,11 +97,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If no storms are actually approaching, return status messages acknowledging activity
       if (approachingStorms.length === 0) {
-        const n = storms.length;
         const statusMessages = [
-          `📡 ${n} cells detected nearby — none currently heading your way, ${loc}.`,
+          `📡 ${stormCount} cells detected nearby — none currently heading your way, ${loc}.`,
           `✓ Storms active in the area but tracking away from ${loc}. Staying vigilant.`,
-          `🌧️ ${n} cells on radar — all moving away or parallel. You're clear for now.`,
+          `🌧️ ${stormCount} cells on radar — all moving away or parallel. You're clear for now.`,
           `📍 Active weather around ${loc}, but nothing on a direct path to you right now.`,
           `👍 Rain in the region, but it's passing by ${loc} — monitoring continues.`
         ];
