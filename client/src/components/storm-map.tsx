@@ -41,7 +41,16 @@ interface StormMapProps {
   showAllStormTracks?: boolean;
   showTimeLabels?: boolean;
   onMapInstanceReady?: (mapInstance: any) => void;
-  lightningStrikes?: Array<{ lat: number; lon: number; time: number; intensity: number; id: string }>;
+  showLightning?: boolean;
+}
+
+function getLightningCount(dbz: number): number {
+  if (dbz >= 60) return 5;
+  if (dbz >= 55) return 4;
+  if (dbz >= 50) return 3;
+  if (dbz >= 45) return 2;
+  if (dbz >= 40) return 1;
+  return 0;
 }
 
 declare global {
@@ -50,7 +59,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks, showTimeLabels = true, onMapInstanceReady, lightningStrikes = [] }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks, showTimeLabels = true, onMapInstanceReady, showLightning = true }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -120,7 +129,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [selectedStormId, setSelectedStormId] = useState<string | null>(null);
   const stormConeLayerRef = useRef<any>(null);
   const allStormConesLayerRef = useRef<any>(null);
-  const lightningLayerRef = useRef<any>(null);
   
   // Authentic precipitation storms from backend API
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
@@ -1404,6 +1412,19 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                       />
               `}
             </svg>
+            ${showLightning && getLightningCount(point.dbz) > 0 ? `
+              <div style="
+                position: absolute;
+                top: -6px;
+                right: -8px;
+                transform: rotate(${-(movementDirection || 0)}deg);
+                font-size: 11px;
+                line-height: 1;
+                filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.8));
+                pointer-events: none;
+                white-space: nowrap;
+              ">⚡${getLightningCount(point.dbz) > 1 ? `<span style="font-size:8px;color:#fff;font-weight:bold;">×${getLightningCount(point.dbz)}</span>` : ''}</div>
+            ` : ''}
           </div>
           
           <style>
@@ -1582,7 +1603,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         addDbzWaypoints();
       }
     }
-  }, [precipitationPoints, showSectorGrid, location, stormFilters]);
+  }, [precipitationPoints, showSectorGrid, location, stormFilters, showLightning]);
 
 
 
@@ -2325,50 +2346,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return 'Live';
   };
 
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map || !window.L) return;
-
-    if (lightningLayerRef.current) {
-      map.removeLayer(lightningLayerRef.current);
-      lightningLayerRef.current = null;
-    }
-
-    if (lightningStrikes.length === 0) return;
-
-    const layerGroup = window.L.layerGroup();
-    const now = Date.now();
-
-    lightningStrikes.forEach((strike: any) => {
-      const age = now - strike.time;
-      const maxAge = 10 * 60 * 1000;
-      const freshness = Math.max(0, 1 - age / maxAge);
-      const opacity = age < 3000 ? 1 : 0.3 + freshness * 0.7;
-      const size = age < 3000 ? 16 : Math.max(10, Math.round(10 + freshness * 6));
-
-      const icon = window.L.divIcon({
-        html: `<span style="font-size:${size}px;opacity:${opacity};filter:drop-shadow(0 0 ${age < 3000 ? '6' : '2'}px rgba(255,255,100,${opacity}));pointer-events:none;">⚡</span>`,
-        className: 'lightning-emoji-marker',
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2]
-      });
-
-      const marker = window.L.marker([strike.lat, strike.lon], { icon, interactive: true });
-
-      const ageStr = age < 60000 ? `${Math.round(age / 1000)}s ago` :
-        `${Math.round(age / 60000)}m ago`;
-
-      marker.bindTooltip(`⚡ Lightning strike<br>${ageStr}`, {
-        direction: 'top',
-        className: 'lightning-tooltip'
-      });
-
-      layerGroup.addLayer(marker);
-    });
-
-    layerGroup.addTo(map);
-    lightningLayerRef.current = layerGroup;
-  }, [lightningStrikes]);
 
   return (
     <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50">
