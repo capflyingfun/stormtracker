@@ -11,7 +11,6 @@ import StormPanel from "@/components/storm-panel";
 import ImpactPanel from "@/components/impact-panel";
 import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
 import WeatherDashboard from "@/components/weather-dashboard";
-import { WeatherSummary } from "@/components/weather-summary";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
@@ -887,14 +886,6 @@ export default function StormTracker() {
                 />
               </div>
             )}
-
-            {/* AI Comprehensive Weather Briefing */}
-            <WeatherSummary
-              lat={location.lat}
-              lon={location.lon}
-              locationName={location.name}
-              useMetric={useMetric}
-            />
 
             {/* Weather Dashboard — always visible, useful even without storms */}
             <WeatherDashboard
