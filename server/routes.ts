@@ -4821,10 +4821,9 @@ Guidelines:
         fetchWithTimeout(`http://localhost:5000/api/winds-aloft?lat=${lat}&lon=${lon}`),
       ]);
 
-      const toF = (c: number) => Math.round((c * 9/5) + 32);
       const toC = (f: number) => Math.round((f - 32) * 5 / 9);
       const toKmh = (mph: number) => Math.round(mph * 1.609);
-      const dualTemp = (valC: number) => `${toF(valC)}°F (${Math.round(valC)}°C)`;
+      const dualTempF = (valF: number) => `${Math.round(valF)}°F (${toC(valF)}°C)`;
       const dualWind = (mph: number) => `${Math.round(mph)} mph (${toKmh(mph)} km/h)`;
 
       let dataContext = `COMPREHENSIVE WEATHER DATA FOR: ${locationName || `${lat}, ${lon}`}\n\n`;
@@ -4832,8 +4831,8 @@ Guidelines:
       if (forecast?.current) {
         const c = forecast.current;
         dataContext += `CURRENT CONDITIONS:\n`;
-        dataContext += `• Temperature: ${dualTemp(c.temperature_2m)} (Feels like: ${dualTemp(c.apparent_temperature)})\n`;
-        dataContext += `• Humidity: ${c.relative_humidity_2m}%, Dew Point: ${dualTemp(c.dew_point_2m)}\n`;
+        dataContext += `• Temperature: ${dualTempF(c.temperature_2m)} (Feels like: ${dualTempF(c.apparent_temperature)})\n`;
+        dataContext += `• Humidity: ${c.relative_humidity_2m}%, Dew Point: ${dualTempF(c.dew_point_2m)}\n`;
         dataContext += `• Wind: ${dualWind(c.wind_speed_10m)} from ${c.wind_direction_10m}°, Gusts: ${dualWind(c.wind_gusts_10m)}\n`;
         dataContext += `• Pressure: ${c.surface_pressure} hPa, Cloud Cover: ${c.cloud_cover}%\n`;
         dataContext += `• UV Index: ${c.uv_index}, Visibility: ${Math.round(c.visibility / 5280)} mi (${Math.round(c.visibility / 1000)} km)\n`;
@@ -4847,7 +4846,7 @@ Guidelines:
         for (let i = 0; i < d.time.length; i++) {
           const date = new Date(d.time[i] + 'T12:00:00');
           const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : date.toLocaleDateString('en-US', { weekday: 'long' });
-          dataContext += `• ${dayName}: High ${dualTemp(d.tempMax[i])}, Low ${dualTemp(d.tempMin[i])}, `;
+          dataContext += `• ${dayName}: High ${dualTempF(d.tempMax[i])}, Low ${dualTempF(d.tempMin[i])}, `;
           dataContext += `Wind: ${dualWind(d.windMax[i])}, Precip: ${d.precipProbMax[i]}%, UV: ${d.uvMax[i]}\n`;
         }
         dataContext += '\n';

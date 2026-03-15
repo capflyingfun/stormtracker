@@ -230,7 +230,7 @@ export default function AIWeatherAssistant({
         temperatureUnit: p.temperatureUnit,
         windSpeed: p.windSpeed,
         shortForecast: p.shortForecast,
-        detailedForecast: p.detailedForecast?.slice(0, 300)
+        detailedForecast: p.detailedForecast
       })) || null;
 
       const response = await apiRequest("POST", "/api/ai-assessment", {
