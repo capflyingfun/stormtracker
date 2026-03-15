@@ -1,20 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 
-interface LightningStrike {
-  lat: number;
-  lon: number;
-  time: number;
-  intensity: number;
-  id: string;
-}
-
 interface Simple3DCanvasProps {
   location: { lat: number; lon: number; city?: string; name?: string; } | null;
   precipitationStorms: any[];
   setViewMode: (mode: 'map' | 'sonar' | '3d') => void;
   tickerMessages?: string[];
-  lightningStrikes?: LightningStrike[];
+  showLightning?: boolean;
+}
+
+function getLightningCount(dbz: number): number {
+  if (dbz >= 60) return 5;
+  if (dbz >= 55) return 4;
+  if (dbz >= 50) return 3;
+  if (dbz >= 45) return 2;
+  if (dbz >= 40) return 1;
+  return 0;
 }
 
 // 3D perspective transformation
@@ -108,7 +109,7 @@ interface StormInfo {
   movementDir?: string;
 }
 
-export default function Simple3DCanvas({ location, precipitationStorms, setViewMode, tickerMessages: externalTickerMessages, lightningStrikes = [] }: Simple3DCanvasProps) {
+export default function Simple3DCanvas({ location, precipitationStorms, setViewMode, tickerMessages: externalTickerMessages, showLightning = true }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(false);
   const [showLegend, setShowLegend] = useState(false); // Collapsible legend
@@ -518,7 +519,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           }
           
           // Lightning flash effect for severe storms (55+ dBZ)
-          if (intensity >= 55) {
+          if (showLightning && intensity >= 55) {
             const lightningTime = Date.now() * 0.001;
             // Random flash trigger - roughly every 2-4 seconds per storm
             const flashSeed = Math.floor(lightningTime + intensity) % 100;
@@ -563,70 +564,37 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           }
         });
         
-        // ── Real-time lightning strikes from Blitzortung ───────────────────────
-        if (location && lightningStrikes.length > 0) {
-          const centerLat = location.lat;
-          const centerLon = location.lon;
-          const now = Date.now();
+        // ── Lightning ⚡ overlay on storm cells ≥40 dBZ ───────────────────────
+        if (showLightning && location) {
+          precipitationStorms.forEach(storm => {
+            const dbz = storm.dbz || storm.intensity || 0;
+            const count = getLightningCount(dbz);
+            if (count === 0) return;
 
-          lightningStrikes.forEach(strike => {
-            const age = now - strike.time;
-            if (age > 10 * 60 * 1000) return;
+            const pos3D = geoTo3D(storm.lat, storm.lon, location.lat, location.lon);
+            const height = dbzToHeight(dbz);
+            const rotatedPos = rotateY(pos3D, currentRotation);
+            const topPt = project3D({ x: rotatedPos.x, y: height - cameraHeight, z: rotatedPos.z }, cameraDistance, canvas.width, canvas.height);
+            const boltScale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
 
-            const sx = (strike.lon - centerLon) * 111320 * Math.cos(centerLat * Math.PI / 180) / 1000;
-            const sz = (strike.lat - centerLat) * 110540 / 1000;
-
-            const cos = Math.cos(rotationRef.current);
-            const sin = Math.sin(rotationRef.current);
-            const rx = sx * cos - sz * sin;
-            const rz = sx * sin + sz * cos;
-
-            const freshness = Math.max(0, 1 - age / (10 * 60 * 1000));
-
-            if (age < 4000) {
-              const flashAlpha = Math.max(0, 1 - age / 4000);
-              const groundPt = project3D({ x: rx, y: -cameraHeight, z: rz }, cameraDistance, canvas.width, canvas.height);
-              const topPt = project3D({ x: rx, y: 4.0 - cameraHeight, z: rz }, cameraDistance, canvas.width, canvas.height);
-              const boltScale = cameraDistance / (cameraDistance + Math.abs(rz) + 1);
-
-              if (boltScale > 0.05) {
-                ctx.strokeStyle = `rgba(255, 255, 220, ${flashAlpha * 0.9})`;
-                ctx.lineWidth = 2.5 * boltScale;
-                ctx.shadowColor = '#ffffff';
-                ctx.shadowBlur = 15 * flashAlpha;
-                ctx.beginPath();
-                ctx.moveTo(topPt.x, topPt.y);
-                const segments = 5;
-                for (let s = 1; s <= segments; s++) {
-                  const segY = topPt.y + (groundPt.y - topPt.y) * s / segments;
-                  const zigzag = (s % 2 === 0 ? 1 : -1) * (4 + Math.random() * 8) * boltScale;
-                  ctx.lineTo(topPt.x + zigzag, segY);
-                }
-                ctx.stroke();
+            if (boltScale > 0.05) {
+              const fontSize = Math.max(10, Math.round(14 * boltScale));
+              ctx.globalAlpha = 0.9;
+              ctx.fillStyle = '#ffd700';
+              ctx.font = `${fontSize}px sans-serif`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.shadowColor = '#ffd700';
+              ctx.shadowBlur = 6;
+              ctx.fillText('⚡', topPt.x, topPt.y - 4 * boltScale);
+              if (count > 1) {
+                ctx.font = `bold ${Math.max(8, Math.round(10 * boltScale))}px sans-serif`;
+                ctx.fillStyle = '#ffffff';
                 ctx.shadowBlur = 0;
-
-                ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha * 0.5})`;
-                ctx.beginPath();
-                ctx.arc(groundPt.x, groundPt.y, 8 * boltScale * flashAlpha, 0, 2 * Math.PI);
-                ctx.fill();
+                ctx.fillText(`×${count}`, topPt.x + fontSize * 0.5, topPt.y - 4 * boltScale);
               }
-            } else {
-              const groundPt = project3D({ x: rx, y: -cameraHeight, z: rz }, cameraDistance, canvas.width, canvas.height);
-              const boltScale = cameraDistance / (cameraDistance + Math.abs(rz) + 1);
-
-              if (boltScale > 0.05) {
-                const alpha = 0.2 + freshness * 0.5;
-                const color = age < 30000 ? '#fffacd' : age < 120000 ? '#ffd700' : '#ff8c00';
-                ctx.fillStyle = color;
-                ctx.globalAlpha = alpha;
-                ctx.shadowColor = color;
-                ctx.shadowBlur = 6 * freshness;
-                ctx.beginPath();
-                ctx.arc(groundPt.x, groundPt.y, (2 + freshness * 3) * boltScale, 0, 2 * Math.PI);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-                ctx.globalAlpha = 1;
-              }
+              ctx.shadowBlur = 0;
+              ctx.globalAlpha = 1;
             }
           });
         }
@@ -894,7 +862,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [location, precipitationStorms, showWaypoints, isRotating, rotationSpeed]);
+  }, [location, precipitationStorms, showWaypoints, isRotating, rotationSpeed, showLightning]);
 
   if (!location) {
     return (
