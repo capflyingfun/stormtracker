@@ -5246,6 +5246,56 @@ Guidelines:
     }
   });
 
+  app.get("/api/forecast", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      if (!lat || !lon) {
+        return res.status(400).json({ error: "Latitude and longitude required" });
+      }
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lon as string);
+
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,cloud_cover,visibility,uv_index,is_day&hourly=temperature_2m,weather_code,precipitation_probability,wind_speed_10m,relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`;
+
+      const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error(`Open-Meteo error: ${response.status}`);
+      const data = await response.json();
+
+      res.json({
+        source: "Open-Meteo",
+        timezone: data.timezone,
+        timezoneAbbr: data.timezone_abbreviation,
+        elevation: data.elevation,
+        current: data.current,
+        currentUnits: data.current_units,
+        hourly: {
+          time: data.hourly.time.slice(0, 48),
+          temperature: data.hourly.temperature_2m.slice(0, 48),
+          weatherCode: data.hourly.weather_code.slice(0, 48),
+          precipProbability: data.hourly.precipitation_probability.slice(0, 48),
+          windSpeed: data.hourly.wind_speed_10m.slice(0, 48),
+          humidity: data.hourly.relative_humidity_2m.slice(0, 48),
+        },
+        daily: {
+          time: data.daily.time,
+          weatherCode: data.daily.weather_code,
+          tempMax: data.daily.temperature_2m_max,
+          tempMin: data.daily.temperature_2m_min,
+          sunrise: data.daily.sunrise,
+          sunset: data.daily.sunset,
+          uvMax: data.daily.uv_index_max,
+          precipSum: data.daily.precipitation_sum,
+          precipProbMax: data.daily.precipitation_probability_max,
+          windMax: data.daily.wind_speed_10m_max,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Forecast API error:", error);
+      res.status(500).json({ error: "Failed to fetch forecast data" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

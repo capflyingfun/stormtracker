@@ -10,6 +10,7 @@ import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import ImpactPanel from "@/components/impact-panel";
 import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
+import WeatherDashboard from "@/components/weather-dashboard";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
@@ -857,6 +858,13 @@ export default function StormTracker() {
                 />
               </div>
             )}
+
+            {/* Weather Dashboard — always visible, useful even without storms */}
+            <WeatherDashboard
+              lat={location.lat}
+              lon={location.lon}
+              locationName={location.name}
+            />
 
             {/* Interactive Radar Map with Side Controls */}
             <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
