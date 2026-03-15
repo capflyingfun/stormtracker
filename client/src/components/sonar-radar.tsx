@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { COMPASS_16, getCompassDirection, getStormCategory } from "@shared/storm-utils";
 
 interface WindsPrediction {
   direction: number;
@@ -34,9 +35,8 @@ interface SonarRadarProps {
   useMetric: boolean;
   onStormClick?: (storm: Storm) => void;
   className?: string;
+  tickerMessages?: string[];
 }
-
-const COMPASS_16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 
 export default function SonarRadar({
   location,
@@ -45,7 +45,8 @@ export default function SonarRadar({
   formatDistance,
   useMetric,
   onStormClick,
-  className = ""
+  className = "",
+  tickerMessages: externalTickerMessages,
 }: SonarRadarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -54,9 +55,8 @@ export default function SonarRadar({
   const [isScanning, setIsScanning] = useState(true);
   const [selectedStorm, setSelectedStorm] = useState<Storm | null>(null);
   const [hoveredStorm, setHoveredStorm] = useState<Storm | null>(null);
-  const [tickerMessages, setTickerMessages] = useState<string[]>([]);
+  const tickerMessages = externalTickerMessages || [];
   const [tickerIndex, setTickerIndex] = useState(0);
-  const lastFetchSig = useRef('');
 
   const getStormColor = (intensity: number) => {
     if (intensity >= 65) return '#ff00ff';
@@ -309,22 +309,7 @@ export default function SonarRadar({
     canvas.style.cursor = s ? 'pointer' : 'default';
   };
 
-  // Fetch AI ticker messages
-  useEffect(() => {
-    if (!storms.length || !location) return;
-    const sig = `${location.lat.toFixed(3)},${location.lon.toFixed(3)},${storms.length},${Math.round(storms.reduce((s, x) => s + x.intensity, 0))}`;
-    if (sig === lastFetchSig.current) return;
-    lastFetchSig.current = sig;
-    const top = [...storms].sort((a, b) => b.intensity - a.intensity).slice(0, 8).map(s => ({
-      intensity: s.intensity, distance: s.distance, direction: s.direction, type: s.type, windsPrediction: s.windsPrediction,
-    }));
-    fetch('/api/ticker-messages', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storms: top, totalStormCount: storms.length, locationName: location.name, userLocation: { lat: location.lat, lon: location.lon } }),
-    }).then(r => r.json()).then(d => {
-      if (d.messages?.length) { setTickerMessages(d.messages); setTickerIndex(0); }
-    }).catch(() => {});
-  }, [storms, location]);
+  useEffect(() => { setTickerIndex(0); }, [tickerMessages.length]);
 
   // Sweep animation
   useEffect(() => {
@@ -360,19 +345,11 @@ export default function SonarRadar({
     return () => ro.disconnect();
   }, []);
 
-  const getWindDirLabel = (deg: number) => COMPASS_16[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
-
   const dominantWind = storms.find(s => s.windsPrediction?.speed && s.windsPrediction.speed > 0)?.windsPrediction;
 
-  // Nearest storm for the hybrid info line
   const nearestStorm = storms.length > 0
     ? [...storms].sort((a, b) => a.distance - b.distance)[0]
     : null;
-  const getNearestCategory = (dBZ: number) => {
-    if (dBZ >= 65) return 'Extreme'; if (dBZ >= 55) return 'Severe';
-    if (dBZ >= 46) return 'Heavy'; if (dBZ >= 35) return 'Moderate';
-    return 'Light';
-  };
 
   const currentTickerMsg = tickerMessages.length > 0
     ? tickerMessages[tickerIndex % tickerMessages.length]
@@ -445,18 +422,18 @@ export default function SonarRadar({
             </span>
             {dominantWind && dominantWind.speed > 2 && (
               <span className="text-amber-400/90 font-medium">
-                Storm Direction: {getWindDirLabel(dominantWind.direction)} · {Math.round(dominantWind.speed)} mph
+                Storm Direction: {getCompassDirection(dominantWind.direction)} · {Math.round(dominantWind.speed)} mph
               </span>
             )}
           </div>
           {nearestStorm && (
             <div className="flex items-center justify-between text-[11px] bg-slate-800/60 rounded px-2 py-1">
               <span className="text-slate-300">
-                Nearest: <span className="text-white font-medium">{getNearestCategory(nearestStorm.intensity)}</span>
+                Nearest: <span className="text-white font-medium">{getStormCategory(nearestStorm.intensity)}</span>
                 <span className="text-slate-400 ml-1">{nearestStorm.intensity.toFixed(0)} dBZ</span>
               </span>
               <span className="text-slate-300">
-                {getWindDirLabel(nearestStorm.direction)} · {formatDistance(nearestStorm.distance)}
+                {getCompassDirection(nearestStorm.direction)} · {formatDistance(nearestStorm.distance)}
               </span>
             </div>
           )}
