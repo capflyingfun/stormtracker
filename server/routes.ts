@@ -81,22 +81,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const movementDir = s.windsPrediction?.direction || 0;
         if (movementSpeed <= 3) return false;
         
-        // Calculate bearing from storm to user
-        // Method 1: use storm.direction (bearing FROM user TO storm) — flip 180° for storm→user
-        // Method 2: use lat/lon if available
-        let bearingToUser: number;
+        let stormBearing: number;
         if (s.direction != null) {
-          bearingToUser = (s.direction + 180) % 360;
+          stormBearing = s.direction;
         } else if (s.lat != null && s.lon != null) {
-          bearingToUser = ((Math.atan2(userLocation.lon - s.lon, userLocation.lat - s.lat) * 180 / Math.PI) % 360 + 360) % 360;
+          stormBearing = ((Math.atan2(s.lon - userLocation.lon, s.lat - userLocation.lat) * 180 / Math.PI) % 360 + 360) % 360;
         } else {
           return false;
         }
         
+        const bearingToUser = (stormBearing + 180) % 360;
         const normalizedMovement = ((movementDir % 360) + 360) % 360;
         const angleDiff = Math.abs(((bearingToUser - normalizedMovement + 180) % 360) - 180);
-        
-        // Approaching if storm movement is within 30° of the storm→user bearing
         return angleDiff <= 30;
       });
       

@@ -37,6 +37,9 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ### Key Architectural Decisions
 - **Monorepo Structure**: Shared types and schemas between frontend and backend.
+- **Shared Storm Utilities**: `shared/storm-utils.ts` centralizes storm category classification (dBZ thresholds), color mapping, compass directions, approach angle math, and ETA calculations. Used by both server and client.
+- **Centralized Ticker**: AI ticker messages are fetched once in `storm-tracker.tsx` and passed as props to both Sonar and 3D views (eliminating duplicate OpenAI API calls).
+- **Single Winds-Aloft Fetch**: `storm-tracker.tsx` fetches winds-aloft data once via React Query and passes to child components (safety alerts, AI assistant) instead of duplicate fetches.
 - **Real-time Updates**: React Query with refetch intervals.
 - **Performance**: Optimized map rendering, adaptive intelligent sampling, and optimized API timeouts.
 - **Reliability**: Server-side proxy for external APIs, multi-source data integration with fallback strategies, and robust error handling.
