@@ -506,7 +506,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         iconSize: [16, 16],
         iconAnchor: [8, 8]
       })
-    }).addTo(map).bindPopup(`<b>Your Location</b><br>${location.name}`);
+    }).addTo(map).bindPopup(`<b>Your Location</b><br>${location.name}<br><span style="font-size:11px;color:#94a3b8">${location.lat.toFixed(4)}°${location.lat >= 0 ? 'N' : 'S'}, ${Math.abs(location.lon).toFixed(4)}°${location.lon >= 0 ? 'E' : 'W'}</span>`);
   }, [location, radarRange]);
 
   // Add sector grid overlay for visualization
