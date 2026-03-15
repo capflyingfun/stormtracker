@@ -4961,7 +4961,7 @@ Write each section as a natural paragraph. Be authoritative and specific with da
         summary: aiResult.content,
         provider: aiResult.provider,
         model: aiResult.model,
-        free: aiResult.provider === 'groq',
+        free: aiResult.provider === 'openrouter' || aiResult.provider === 'groq',
         dataPointsUsed: {
           forecast: !!forecast,
           storms: storms?.storms?.length || 0,
