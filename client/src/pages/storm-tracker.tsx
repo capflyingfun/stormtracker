@@ -960,6 +960,9 @@ export default function StormTracker() {
                     >
                       ⚡ {showLightning ? 'Hide Lightning' : 'Show Lightning'}
                     </Button>
+                    {showLightning && (
+                      <p className="text-[9px] text-slate-500 italic mt-1">Radar-derived, not observed</p>
+                    )}
                   </div>
                   
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
