@@ -429,3 +429,13 @@ input[type="range"]::-moz-range-thumb {
 .lightning-flash {
   animation: lightning-pulse 0.3s ease-in-out 3;
 }
+
+.lightning-emoji-marker {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

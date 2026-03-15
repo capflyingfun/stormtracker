@@ -2331,6 +2331,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
     if (lightningLayerRef.current) {
       map.removeLayer(lightningLayerRef.current);
+      lightningLayerRef.current = null;
     }
 
     if (lightningStrikes.length === 0) return;
@@ -2342,23 +2343,17 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       const age = now - strike.time;
       const maxAge = 10 * 60 * 1000;
       const freshness = Math.max(0, 1 - age / maxAge);
+      const opacity = age < 3000 ? 1 : 0.3 + freshness * 0.7;
+      const size = age < 3000 ? 16 : Math.max(10, Math.round(10 + freshness * 6));
 
-      const opacity = 0.3 + freshness * 0.7;
-      const radius = age < 5000 ? 8 : 3 + freshness * 4;
-
-      const color = age < 3000 ? '#ffffff' :
-        age < 30000 ? '#fffacd' :
-        age < 120000 ? '#ffd700' : '#ff8c00';
-
-      const marker = window.L.circleMarker([strike.lat, strike.lon], {
-        radius: radius,
-        fillColor: color,
-        fillOpacity: opacity,
-        color: color,
-        weight: age < 5000 ? 2 : 1,
-        opacity: opacity * 0.8,
-        className: age < 5000 ? 'lightning-flash' : ''
+      const icon = window.L.divIcon({
+        html: `<span style="font-size:${size}px;opacity:${opacity};filter:drop-shadow(0 0 ${age < 3000 ? '6' : '2'}px rgba(255,255,100,${opacity}));pointer-events:none;">⚡</span>`,
+        className: 'lightning-emoji-marker',
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2]
       });
+
+      const marker = window.L.marker([strike.lat, strike.lon], { icon, interactive: true });
 
       const ageStr = age < 60000 ? `${Math.round(age / 1000)}s ago` :
         `${Math.round(age / 60000)}m ago`;
