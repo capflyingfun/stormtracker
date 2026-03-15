@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "@/hooks/use-location";
 import { useStormData } from "@/hooks/use-storm-data";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
@@ -226,8 +226,25 @@ export default function StormTracker() {
     },
   });
 
+  const [tickerMessages, setTickerMessages] = useState<string[]>([]);
+  const lastTickerSig = useRef('');
 
-  
+  useEffect(() => {
+    if (!precipitationStorms.length || !location) return;
+    const sig = `${location.lat.toFixed(3)},${location.lon.toFixed(3)},${precipitationStorms.length},${Math.round(precipitationStorms.reduce((s, x) => s + (x.intensity || 0), 0))}`;
+    if (sig === lastTickerSig.current) return;
+    lastTickerSig.current = sig;
+    const top = [...precipitationStorms].sort((a, b) => (b.intensity || 0) - (a.intensity || 0)).slice(0, 8).map(s => ({
+      intensity: s.intensity, distance: s.distance, direction: s.direction, type: s.type, windsPrediction: s.windsPrediction,
+    }));
+    fetch('/api/ticker-messages', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storms: top, totalStormCount: precipitationStorms.length, locationName: location.name, userLocation: { lat: location.lat, lon: location.lon } }),
+    }).then(r => r.json()).then(d => {
+      if (d.messages?.length) setTickerMessages(d.messages);
+    }).catch(() => {});
+  }, [precipitationStorms, location]);
+
   const activeStorms = precipitationStorms;
   
   const filteredStorms = activeStorms.filter(storm => {
@@ -619,6 +636,7 @@ export default function StormTracker() {
               location={location}
               storms={filteredStorms}
               isLoading={stormDataLoading}
+              windsAloftData={windsAloftData}
             />
 
             {/* Storm Summary Section */}
@@ -939,6 +957,7 @@ export default function StormTracker() {
                         console.log('Storm clicked in sonar:', storm);
                       }}
                       className=""
+                      tickerMessages={tickerMessages}
                     />
                   )}
                   
@@ -947,6 +966,7 @@ export default function StormTracker() {
                       location={location} 
                       precipitationStorms={precipitationStorms}
                       setViewMode={setViewMode}
+                      tickerMessages={tickerMessages}
                     />
                   )}
                 </div>
