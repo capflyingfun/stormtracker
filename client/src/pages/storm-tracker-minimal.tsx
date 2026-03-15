@@ -293,7 +293,7 @@ export default function StormTracker() {
                 <div className="flex gap-2">
                   <Input
                     placeholder="Search for city, state, or address..."
-                    onKeyPress={(e) => {
+                    onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         const target = e.target as HTMLInputElement;
                         handleLocationSearch(target.value);
