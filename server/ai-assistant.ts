@@ -133,7 +133,7 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
         console.log(`AI Assistant: Thunderstorm potential: ${thunderstormConditions.thunderstormPotential.overall}/10`);
       }
     } catch (error) {
-      console.log('AI Assistant: Thunderstorm analysis unavailable:', error.message);
+      console.log('AI Assistant: Thunderstorm analysis unavailable:', (error as Error).message);
     }
 
     // Fetch aviation weather data from nearby airports
@@ -767,7 +767,7 @@ Provide your assessment in this exact JSON format:
 
   } catch (error) {
     console.error('AI weather assessment error:', error);
-    console.error('Error details:', error.message);
+    console.error('Error details:', (error as Error).message);
     
     // Smart fallback assessment based on actual storm data
     const highIntensityStorms = data.storms.filter(s => s.intensity >= 55);
