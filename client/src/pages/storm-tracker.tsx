@@ -162,6 +162,7 @@ function EmbeddedMessageInbox() {
 export default function StormTracker() {
   const queryClient = useQueryClient();
   const [useMetric, setUseMetric] = useState(false);
+  const [userUnitOverride, setUserUnitOverride] = useState<boolean | null>(null);
   const [isTracking, setIsTracking] = useState(true);
   const radarRange = 50;
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -443,6 +444,10 @@ export default function StormTracker() {
   const handleLocationSearch = async (query: string) => {
     try {
       await setLocationFromSearch(query);
+      if (userUnitOverride === null && location) {
+        const isUS = location.lat >= 24.5 && location.lat <= 49.5 && location.lon >= -125 && location.lon <= -66.5;
+        setUseMetric(!isUS);
+      }
       if (isTracking) {
         refetchStormData();
         setLastUpdate(new Date());
@@ -456,10 +461,12 @@ export default function StormTracker() {
   const handleGPSLocation = async () => {
     try {
       const result = await setLocationFromGPS();
-      // Auto-switch to NEXRAD for US GPS locations
       if (result && ((result as any).isUS || (result as any).recommendedRadarSource === 'nexrad')) {
         setCurrentRadarSource('nexrad');
-        console.log('Auto-switched to NEXRAD for US GPS location:', result.name);
+        if (userUnitOverride === null) setUseMetric(false);
+        console.log('Auto-switched to NEXRAD + Imperial for US GPS location:', result.name);
+      } else if (result && userUnitOverride === null) {
+        setUseMetric(true);
       }
       if (isTracking) {
         refetchStormData();
@@ -496,6 +503,11 @@ export default function StormTracker() {
       lon: selectedLocation.lon,
       name: selectedLocation.name,
     });
+    
+    if (userUnitOverride === null) {
+      const locIsUS = selectedLocation.isUS ?? (selectedLocation.country === 'US');
+      setUseMetric(!locIsUS);
+    }
     
     if (selectedLocation.recommendedRadarSource) {
       setCurrentRadarSource(selectedLocation.recommendedRadarSource);
@@ -560,7 +572,7 @@ export default function StormTracker() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
       <Header 
         useMetric={useMetric}
-        onUnitsChange={setUseMetric}
+        onUnitsChange={(v: boolean) => { setUseMetric(v); setUserUnitOverride(v); }}
       />
       
       {/* Storm Filtering Settings Modal */}
