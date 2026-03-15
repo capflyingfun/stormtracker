@@ -625,19 +625,42 @@ export default function StormTracker() {
                 </div>
               </div>
 
-              <div className="mb-3">
+              <div className="mb-3 flex gap-2">
                 <Input
                   placeholder="Search for city, state, or address..."
-                  onKeyPress={(e) => {
+                  onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       const target = e.target as HTMLInputElement;
-                      handleLocationSearch(target.value);
-                      target.value = '';
+                      const val = target.value.trim();
+                      if (val) {
+                        handleLocationSearch(val);
+                        target.value = '';
+                      }
                     }
                   }}
-                  className="bg-slate-700/50 border-slate-600 w-full"
+                  className="bg-slate-700/50 border-slate-600 flex-1"
+                  style={{ fontSize: '16px' }}
                   id="location-search-input"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                 />
+                <Button
+                  onClick={() => {
+                    const input = document.getElementById('location-search-input') as HTMLInputElement;
+                    const val = input?.value?.trim();
+                    if (val) {
+                      handleLocationSearch(val);
+                      input.value = '';
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="h-10 px-3 border-slate-600 text-slate-300 hover:text-white"
+                >
+                  🔍
+                </Button>
               </div>
 
               {/* Favorites — quick-switch + save current */}
