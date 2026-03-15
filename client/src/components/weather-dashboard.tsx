@@ -213,6 +213,18 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
   const [expanded, setExpanded] = useState(false);
   const [showSources, setShowSources] = useState(false);
 
+  const { data: minuteCast } = useQuery({
+    queryKey: ['/api/accuweather/minutecast', lat, lon],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/accuweather/minutecast?lat=${lat}&lon=${lon}`);
+      return res.json();
+    },
+    enabled: Number.isFinite(lat) && Number.isFinite(lon),
+    staleTime: 1000 * 60 * 15,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['/api/weather-forecast', lat, lon],
     queryFn: async () => {
@@ -307,6 +319,17 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
       </CardHeader>
 
       <CardContent className="pt-0 space-y-3 px-3 sm:px-6">
+        {minuteCast?.Summary?.Phrase && (
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-700/40 border border-slate-600/40">
+            <span className="text-sm">🕐</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-slate-200">
+                MinuteCast™: <span className={minuteCast.Summary.TypeId === 0 ? 'text-green-400' : 'text-amber-400'}>{minuteCast.Summary.Phrase}</span>
+              </p>
+            </div>
+            <Badge variant="outline" className="text-[8px] border-slate-600 text-slate-500 px-1 h-4 shrink-0">AccuWeather</Badge>
+          </div>
+        )}
         {nwsAlerts.length > 0 && (
           <div className="space-y-2">
             {nwsAlerts.map((alert: any, i: number) => (

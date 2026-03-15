@@ -30,7 +30,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
     - **Storm Detection System**: Multi-source data integration, sector-based search, direct pixel sampling, and intelligent clustering for precipitation waypoints. Features dynamic adaptive sampling and 5-category dBZ classification.
     - **Storm Tracking**: Frame-by-frame radar comparison for movement calculation, directional SVG arrows, and 30° storm movement cones with ETA impact assessment.
     - **AI Weather Assistant**: OpenAI GPT-4o integration for risk assessment, comprehensive weather analysis (including wind shear, thunderstorm formation, NWS AFD), and an integrated chat. Features dynamic tone adjustment based on weather severity and unit preference integration.
-    - **Real-Time Lightning Detection**: Blitzortung.org WebSocket feed for live lightning strike data. Renders on all three views (Leaflet map, sonar radar, 3D canvas) with age-based color coding (white→yellow→orange) and flash animations for fresh strikes. Auto-expires strikes older than 10 minutes.
+    - **Lightning Detection**: Radar-derived lightning indicators (⚡ emoji overlaid on storm cells ≥40 dBZ with randomized ×N strike counts scaling with intensity). Renders on all three views (map, sonar, 3D). Toggle to show/hide. Disclaimer: "Radar-derived, not observed." AccuWeather Lightning API endpoint available but requires enterprise plan for real strike data.
     - **Alert System**: Personalized, real-time risk alerts based on storm intensity, distance, and lightning. Includes visual storm highlighting, NWS alerts integration with chronological sorting, and an automated threat detection system.
     - **Messaging System**: Built-in, database-driven `message_inbox` for storing and managing storm alerts.
     - **Aviation Weather**: Multi-source METAR data from nearest airports, integrated with AI for comprehensive atmospheric analysis.
@@ -52,7 +52,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Government Weather Services / NWS API**: Weather alerts and warnings, Area Forecast Discussions.
 - **Open-Meteo API**: Current and forecasted upper atmospheric winds, atmospheric stability parameters.
 - **OpenAI GPT-4o API**: AI weather assistant and chat functionality.
-- **Blitzortung.org / Lightning Maps / WWLLN**: Real-time lightning detection.
+- **AccuWeather API**: MinuteCast™ minute-by-minute precipitation, current conditions, 5-day/12-hour forecasts, lightning endpoint (enterprise only). Free trial: 500 core + 50 MinuteCast + 50 lightning calls/day for 14 days.
 - **CheckWX API**: International METAR/TAF data.
 - **WeatherAPI.com**: Secondary weather data provider for forecasts, air quality, UV data, etc.
 
