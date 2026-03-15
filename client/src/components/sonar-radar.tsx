@@ -320,7 +320,7 @@ export default function SonarRadar({
     }));
     fetch('/api/ticker-messages', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storms: top, locationName: location.name, userLocation: { lat: location.lat, lon: location.lon } }),
+      body: JSON.stringify({ storms: top, totalStormCount: storms.length, locationName: location.name, userLocation: { lat: location.lat, lon: location.lon } }),
     }).then(r => r.json()).then(d => {
       if (d.messages?.length) { setTickerMessages(d.messages); setTickerIndex(0); }
     }).catch(() => {});
