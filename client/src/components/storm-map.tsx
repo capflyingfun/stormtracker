@@ -45,12 +45,13 @@ interface StormMapProps {
 }
 
 function getLightningCount(dbz: number): number {
-  if (dbz >= 60) return 5;
-  if (dbz >= 55) return 4;
-  if (dbz >= 50) return 3;
-  if (dbz >= 45) return 2;
-  if (dbz >= 40) return 1;
-  return 0;
+  if (dbz < 40) return 0;
+  const rand = Math.random();
+  if (dbz >= 60) return 3 + Math.floor(rand * 5);
+  if (dbz >= 55) return 2 + Math.floor(rand * 4);
+  if (dbz >= 50) return 1 + Math.floor(rand * 3);
+  if (dbz >= 45) return 1 + Math.floor(rand * 2);
+  return rand > 0.4 ? 1 : 0;
 }
 
 declare global {

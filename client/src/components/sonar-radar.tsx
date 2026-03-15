@@ -39,12 +39,13 @@ interface SonarRadarProps {
 }
 
 function getLightningCount(dbz: number): number {
-  if (dbz >= 60) return 5;
-  if (dbz >= 55) return 4;
-  if (dbz >= 50) return 3;
-  if (dbz >= 45) return 2;
-  if (dbz >= 40) return 1;
-  return 0;
+  if (dbz < 40) return 0;
+  const rand = Math.random();
+  if (dbz >= 60) return 3 + Math.floor(rand * 5);
+  if (dbz >= 55) return 2 + Math.floor(rand * 4);
+  if (dbz >= 50) return 1 + Math.floor(rand * 3);
+  if (dbz >= 45) return 1 + Math.floor(rand * 2);
+  return rand > 0.4 ? 1 : 0;
 }
 
 export default function SonarRadar({
@@ -446,6 +447,9 @@ export default function SonarRadar({
             <span className="text-slate-300">Lightning</span>
           </div>
         </div>
+        {showLightning && storms.some(s => s.intensity >= 40) && (
+          <p className="text-[9px] text-slate-500 italic">⚡ Lightning is radar-derived (approximate, not observed)</p>
+        )}
 
         {/* Storm count + nearest storm + movement */}
         <div className="space-y-1 text-xs">
