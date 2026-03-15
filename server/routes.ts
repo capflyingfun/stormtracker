@@ -1100,27 +1100,36 @@ Return ONLY a JSON array of 5 strings.`;
   // Address auto-suggest endpoint for smart search
   app.get("/api/address-suggest", async (req, res) => {
     try {
-      const { q: query } = req.query;
+      const { q: query, region } = req.query;
       
       if (!query || typeof query !== 'string' || query.length < 2) {
         return res.json({ suggestions: [] });
       }
+
+      const regionBias = typeof region === 'string' ? region.toUpperCase() : '';
+
+      const REGION_COUNTRIES: Record<string, string[]> = {
+        US: ['US'],
+        EU: ['GB','DE','FR','IT','ES','NL','BE','AT','CH','PL','SE','NO','DK','FI','IE','PT','GR','CZ','RO','HU','BG','HR','SK','SI','LT','LV','EE','LU','MT','CY','IS'],
+        AS: ['JP','CN','IN','KR','TW','TH','VN','PH','MY','SG','ID','BD','PK','LK','MM','KH','LA','NP','MN','KZ','UZ'],
+        OC: ['AU','NZ','FJ','PG','WS','TO','VU','SB','FM','MH','PW','KI','NR','TV'],
+        SA: ['BR','AR','CL','CO','PE','VE','EC','BO','PY','UY','GY','SR','GF'],
+        AF: ['ZA','NG','KE','EG','GH','TZ','ET','MA','TN','DZ','SN','CI','CM','UG','MZ','ZW','RW','AO','SD','LY'],
+      };
+
+      const regionCountries = regionBias && REGION_COUNTRIES[regionBias] ? REGION_COUNTRIES[regionBias] : null;
       
-      const suggestions = [];
+      const suggestions: any[] = [];
       
-      // Try OpenWeatherMap geocoding for comprehensive results
       const response = await fetch(
         `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=8&appid=${API_KEYS.openweather}`,
-        {
-          signal: AbortSignal.timeout(3000) // 3 second timeout for faster response
-        }
+        { signal: AbortSignal.timeout(3000) }
       );
       
       if (response.ok) {
         const locations = await response.json();
         
         for (const location of locations) {
-          // Format address like Google/Apple Maps
           let displayName = location.name;
           
           if (location.state && location.country === 'US') {
@@ -1130,18 +1139,21 @@ Return ONLY a JSON array of 5 strings.`;
             displayName += `, ${location.country}`;
           }
           
+          const isInRegion = !regionCountries || regionCountries.includes(location.country);
+          
           suggestions.push({
             id: `${location.lat}_${location.lon}`,
             display_name: displayName,
             lat: location.lat,
             lon: location.lon,
             type: 'place',
-            importance: 1.0 - (suggestions.length * 0.1), // Decrease importance for later results
+            importance: isInRegion ? 1.5 - (suggestions.length * 0.05) : 0.5 - (suggestions.length * 0.05),
             address: {
               city: location.name,
               state: location.state,
               country: location.country
-            }
+            },
+            _inRegion: isInRegion
           });
         }
       }
@@ -1166,18 +1178,20 @@ Return ONLY a JSON array of 5 strings.`;
                 const cc = (p.countrycode || '').toUpperCase();
                 if (cc && cc !== 'US') parts.push(cc);
                 if (parts.length === 0) continue;
+                const isInRegion = !regionCountries || regionCountries.includes(cc);
                 suggestions.push({
                   id: `${f.geometry.coordinates[1]}_${f.geometry.coordinates[0]}`,
                   display_name: parts.join(', '),
                   lat: f.geometry.coordinates[1],
                   lon: f.geometry.coordinates[0],
                   type: 'place',
-                  importance: 0.8 - (suggestions.length * 0.1),
+                  importance: isInRegion ? 1.0 : 0.4,
                   address: {
                     city: p.city || p.town || p.village || p.name || '',
                     state: p.state || '',
                     country: cc
-                  }
+                  },
+                  _inRegion: isInRegion
                 });
               }
             }
@@ -1187,34 +1201,41 @@ Return ONLY a JSON array of 5 strings.`;
 
       const zipMatch = query.match(/^\d{1,5}$/);
       if (zipMatch && query.length >= 3) {
+        const zipCountry = regionBias === 'US' || !regionBias ? 'US' : regionBias === 'EU' ? 'DE' : 'US';
         try {
           const zipResponse = await fetch(
-            `https://api.openweathermap.org/geo/1.0/zip?zip=${query},US&appid=${API_KEYS.openweather}`
+            `https://api.openweathermap.org/geo/1.0/zip?zip=${query},${zipCountry}&appid=${API_KEYS.openweather}`,
+            { signal: AbortSignal.timeout(3000) }
           );
           
           if (zipResponse.ok) {
             const zipData = await zipResponse.json();
             suggestions.unshift({
               id: `zip_${query}`,
-              display_name: `${query} - ${zipData.name}`,
+              display_name: `${query} - ${zipData.name}${zipData.country && zipData.country !== 'US' ? `, ${zipData.country}` : ''}`,
               lat: zipData.lat,
               lon: zipData.lon,
               type: 'postal_code',
-              importance: 1.1,
+              importance: 2.0,
               address: {
                 postal_code: query,
                 city: zipData.name,
-                country: 'US'
-              }
+                country: zipData.country || zipCountry
+              },
+              _inRegion: true
             });
           }
         } catch (e) {
-          // ZIP lookup failed, continue with regular suggestions
+          // ZIP lookup failed
         }
       }
       
+      suggestions.sort((a, b) => b.importance - a.importance);
+      
+      const cleaned = suggestions.map(({ _inRegion, ...rest }) => rest);
+      
       res.json({ 
-        suggestions: suggestions.slice(0, 6), // Limit to 6 suggestions like major mapping services
+        suggestions: cleaned.slice(0, 6),
         query: query 
       });
     } catch (error) {

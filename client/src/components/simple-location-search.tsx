@@ -1,8 +1,18 @@
 import { useState, useRef, useEffect } from "react";
-import { Search, Navigation, Loader2, Map } from "lucide-react";
+import { Search, Navigation, Loader2, Map, Globe } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import MapLocationPicker from "./map-location-picker";
+
+const REGION_OPTIONS = [
+  { value: 'US', label: '🇺🇸 US', short: 'US' },
+  { value: 'EU', label: '🇪🇺 Europe', short: 'EU' },
+  { value: 'AS', label: '🌏 Asia', short: 'AS' },
+  { value: 'OC', label: '🌏 Oceania', short: 'OC' },
+  { value: 'SA', label: '🌎 S. America', short: 'SA' },
+  { value: 'AF', label: '🌍 Africa', short: 'AF' },
+  { value: '', label: '🌐 Global', short: 'All' },
+];
 
 interface SimpleLocationSearchProps {
   onLocationSelect: (location: { 
@@ -32,6 +42,7 @@ export default function SimpleLocationSearch({
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [regionBias, setRegionBias] = useState('US');
   const suggestTimer = useRef<any>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -50,7 +61,9 @@ export default function SimpleLocationSearch({
     if (q.trim().length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
     suggestTimer.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(q.trim())}`);
+        const params = new URLSearchParams({ q: q.trim() });
+        if (regionBias) params.set('region', regionBias);
+        const res = await fetch(`/api/address-suggest?${params}`);
         if (res.ok) {
           const data = await res.json();
           setSuggestions(data.suggestions || []);
@@ -117,14 +130,43 @@ export default function SimpleLocationSearch({
     }
   };
 
+  const currentRegion = REGION_OPTIONS.find(r => r.value === regionBias) || REGION_OPTIONS[6];
+  const placeholderText = regionBias === 'US' 
+    ? "Enter address, city, state, or ZIP..." 
+    : regionBias 
+      ? "Enter city, address, or country..." 
+      : "Search anywhere in the world...";
+
   return (
     <div className={`${className}`}>
+      <div className="flex items-center gap-1 mb-2 flex-wrap">
+        <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+        <span className="text-xs text-slate-400 mr-1">Region:</span>
+        {REGION_OPTIONS.map(r => (
+          <button
+            key={r.value}
+            type="button"
+            onClick={() => {
+              setRegionBias(r.value);
+              setSuggestions([]);
+              setShowSuggestions(false);
+            }}
+            className={`px-2 py-0.5 text-xs rounded transition-colors ${
+              regionBias === r.value
+                ? 'bg-blue-600 text-white'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700 bg-slate-800/50'
+            }`}
+          >
+            {r.short}
+          </button>
+        ))}
+      </div>
       <div ref={wrapperRef} className="relative mb-3">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 z-10" />
         <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }}>
           <Input
             type="text"
-            placeholder={placeholder}
+            placeholder={placeholderText}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -244,7 +286,13 @@ export default function SimpleLocationSearch({
       )}
 
       <div className="text-xs text-slate-400">
-        Examples: "New York", "90210", "1600 Pennsylvania Ave", "Miami, FL", "London, UK"
+        {regionBias === 'US' 
+          ? 'Examples: "New York", "90210", "1600 Pennsylvania Ave", "Miami, FL"'
+          : regionBias === 'EU'
+            ? 'Examples: "London", "Paris", "Berlin", "Rome", "Madrid"'
+            : regionBias === 'AS'
+              ? 'Examples: "Tokyo", "Seoul", "Mumbai", "Bangkok", "Singapore"'
+              : 'Examples: "New York", "London", "Tokyo", "Sydney", "32526"'}
       </div>
 
       {showMapPicker && (
