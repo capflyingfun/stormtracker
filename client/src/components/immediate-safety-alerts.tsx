@@ -192,6 +192,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
   const [isAnimating, setIsAnimating] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [expandedForecasts, setExpandedForecasts] = useState<Set<number>>(new Set());
 
   // Delay showing alerts for 3 seconds to allow storm calculations to complete
   useEffect(() => {
@@ -710,9 +711,21 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
                   ))}
                 </div>
                 {fw.period.detailedForecast && (
-                  <p className={`text-xs leading-relaxed ${tierColors.detail}`}>
-                    {fw.period.detailedForecast.length > 200
-                      ? fw.period.detailedForecast.slice(0, 200) + '...'
+                  <p
+                    className={`text-xs leading-relaxed ${tierColors.detail} ${fw.period.detailedForecast.length > 200 ? 'cursor-pointer' : ''}`}
+                    onClick={() => {
+                      if (fw.period.detailedForecast.length > 200) {
+                        setExpandedForecasts(prev => {
+                          const next = new Set(prev);
+                          if (next.has(index)) next.delete(index);
+                          else next.add(index);
+                          return next;
+                        });
+                      }
+                    }}
+                  >
+                    {fw.period.detailedForecast.length > 200 && !expandedForecasts.has(index)
+                      ? fw.period.detailedForecast.slice(0, 200) + '... (tap to read more)'
                       : fw.period.detailedForecast}
                   </p>
                 )}
