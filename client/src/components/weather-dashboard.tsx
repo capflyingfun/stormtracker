@@ -238,6 +238,7 @@ export default function WeatherDashboard({ lat, lon, locationName, useMetric }: 
             {dewF != null && (
               <p className="text-xs text-slate-500">
                 Dew point {useMetric ? Math.round(fToC(dewF)) : Math.round(dewF)}{pTempUnit}
+                <span className="text-slate-600"> / {useMetric ? Math.round(dewF) : Math.round(fToC(dewF))}{sTempUnit}</span>
               </p>
             )}
           </div>
