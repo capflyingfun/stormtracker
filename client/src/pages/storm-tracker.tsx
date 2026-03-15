@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { getStormCategory, getCompassDirection, calculateApproachAngle, isStormApproaching, calculateETA } from "@shared/storm-utils";
 import { useLocation } from "@/hooks/use-location";
 import { useStormData } from "@/hooks/use-storm-data";
+import { useLightningData } from "@/hooks/use-lightning-data";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import Header from "@/components/header";
 import LocationSetup from "@/components/location-setup";
@@ -213,6 +214,9 @@ export default function StormTracker() {
     refetch: refetchStormData,
     isLoading: stormDataLoading,
   } = useStormData(location, radarRange);
+
+  const radiusKm = useMetric ? radarRange * 1.60934 : radarRange * 1.60934;
+  const { strikes: lightningStrikes } = useLightningData(location, radiusKm);
 
   // Get alert preferences for visual highlighting only
   const { data: preferences } = useQuery({
@@ -983,6 +987,7 @@ export default function StormTracker() {
                       showAllStormTracks={showStormTracks}
                       showTimeLabels={showTimeLabels}
                       onMapInstanceReady={setMapInstance}
+                      lightningStrikes={lightningStrikes}
                     />
                   )}
                   
@@ -997,6 +1002,7 @@ export default function StormTracker() {
                         console.log('Storm clicked in sonar:', storm);
                       }}
                       className=""
+                      lightningStrikes={lightningStrikes}
                     />
                   )}
                   
@@ -1006,6 +1012,7 @@ export default function StormTracker() {
                       precipitationStorms={precipitationStorms}
                       setViewMode={setViewMode}
                       tickerMessages={tickerMessages}
+                      lightningStrikes={lightningStrikes}
                     />
                   )}
                 </div>

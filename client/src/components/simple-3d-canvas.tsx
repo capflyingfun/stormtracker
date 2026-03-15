@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 
+interface LightningStrike {
+  lat: number;
+  lon: number;
+  time: number;
+  intensity: number;
+  id: string;
+}
+
 interface Simple3DCanvasProps {
   location: { lat: number; lon: number; city?: string; name?: string; } | null;
   precipitationStorms: any[];
   setViewMode: (mode: 'map' | 'sonar' | '3d') => void;
   tickerMessages?: string[];
+  lightningStrikes?: LightningStrike[];
 }
 
 // 3D perspective transformation
@@ -99,7 +108,7 @@ interface StormInfo {
   movementDir?: string;
 }
 
-export default function Simple3DCanvas({ location, precipitationStorms, setViewMode, tickerMessages: externalTickerMessages }: Simple3DCanvasProps) {
+export default function Simple3DCanvas({ location, precipitationStorms, setViewMode, tickerMessages: externalTickerMessages, lightningStrikes = [] }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(false);
   const [showLegend, setShowLegend] = useState(false); // Collapsible legend
@@ -554,6 +563,74 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           }
         });
         
+        // ── Real-time lightning strikes from Blitzortung ───────────────────────
+        if (location && lightningStrikes.length > 0) {
+          const centerLat = location.lat;
+          const centerLon = location.lon;
+          const now = Date.now();
+
+          lightningStrikes.forEach(strike => {
+            const age = now - strike.time;
+            if (age > 10 * 60 * 1000) return;
+
+            const sx = (strike.lon - centerLon) * 111320 * Math.cos(centerLat * Math.PI / 180) / 1000;
+            const sz = (strike.lat - centerLat) * 110540 / 1000;
+
+            const cos = Math.cos(rotationRef.current);
+            const sin = Math.sin(rotationRef.current);
+            const rx = sx * cos - sz * sin;
+            const rz = sx * sin + sz * cos;
+
+            const freshness = Math.max(0, 1 - age / (10 * 60 * 1000));
+
+            if (age < 4000) {
+              const flashAlpha = Math.max(0, 1 - age / 4000);
+              const groundPt = project3D({ x: rx, y: -cameraHeight, z: rz }, cameraDistance, canvas.width, canvas.height);
+              const topPt = project3D({ x: rx, y: 4.0 - cameraHeight, z: rz }, cameraDistance, canvas.width, canvas.height);
+              const boltScale = cameraDistance / (cameraDistance + Math.abs(rz) + 1);
+
+              if (boltScale > 0.05) {
+                ctx.strokeStyle = `rgba(255, 255, 220, ${flashAlpha * 0.9})`;
+                ctx.lineWidth = 2.5 * boltScale;
+                ctx.shadowColor = '#ffffff';
+                ctx.shadowBlur = 15 * flashAlpha;
+                ctx.beginPath();
+                ctx.moveTo(topPt.x, topPt.y);
+                const segments = 5;
+                for (let s = 1; s <= segments; s++) {
+                  const segY = topPt.y + (groundPt.y - topPt.y) * s / segments;
+                  const zigzag = (s % 2 === 0 ? 1 : -1) * (4 + Math.random() * 8) * boltScale;
+                  ctx.lineTo(topPt.x + zigzag, segY);
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha * 0.5})`;
+                ctx.beginPath();
+                ctx.arc(groundPt.x, groundPt.y, 8 * boltScale * flashAlpha, 0, 2 * Math.PI);
+                ctx.fill();
+              }
+            } else {
+              const groundPt = project3D({ x: rx, y: -cameraHeight, z: rz }, cameraDistance, canvas.width, canvas.height);
+              const boltScale = cameraDistance / (cameraDistance + Math.abs(rz) + 1);
+
+              if (boltScale > 0.05) {
+                const alpha = 0.2 + freshness * 0.5;
+                const color = age < 30000 ? '#fffacd' : age < 120000 ? '#ffd700' : '#ff8c00';
+                ctx.fillStyle = color;
+                ctx.globalAlpha = alpha;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 6 * freshness;
+                ctx.beginPath();
+                ctx.arc(groundPt.x, groundPt.y, (2 + freshness * 3) * boltScale, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+              }
+            }
+          });
+        }
+
         // Helper to format ETA as HH:MM
         const formatETA = (minutes: number): string => {
           const hrs = Math.floor(minutes / 60);
