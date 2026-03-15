@@ -198,6 +198,9 @@ export default function ImpactPanel({ storms, userLocation, locationName, minimu
                   
                   <div className="text-white font-medium mb-2">
                     {filteredSummary.primaryThreat.category}
+                    <span className="text-sm font-normal text-slate-300 ml-2">
+                      {filteredSummary.primaryThreat.intensityNow} dBZ
+                    </span>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-2 text-xs mb-3">
@@ -246,6 +249,7 @@ export default function ImpactPanel({ storms, userLocation, locationName, minimu
                         style={{ backgroundColor: threatColors[prediction.threatTier] }}
                       />
                       <span className="text-sm text-white">{prediction.category}</span>
+                      <span className="text-xs text-slate-400">{prediction.intensityNow} dBZ</span>
                     </div>
                     <div className="text-xs text-slate-400">
                       {prediction.directionFromUser} • {prediction.distance}mi
