@@ -4920,12 +4920,63 @@ Guidelines:
       }
 
       if (storms?.storms?.length > 0) {
-        dataContext += `ACTIVE STORMS (${storms.storms.length} detected within ${storms.radius || 50} miles):\n`;
-        for (const s of storms.storms.slice(0, 15)) {
-          dataContext += `• ${s.category} storm: ${s.intensity} dBZ, ${s.direction} @ ${s.distance?.toFixed(1)} mi (${(s.distance * 1.609).toFixed(1)} km)`;
-          if (s.movement) dataContext += `, moving ${s.movement.direction}° at ${dualWind(s.movement.speed)}`;
-          if (s.movement?.eta) dataContext += `, ETA: ${s.movement.eta}`;
+        const { getCompassDirection, isStormApproaching, calculateApproachAngle, calculateETA } = await import("../shared/storm-utils");
+        const computeBearing = (sLat: number, sLon: number) => {
+          const dLon = (sLon - lon) * Math.PI / 180;
+          const lat1R = lat * Math.PI / 180;
+          const lat2R = sLat * Math.PI / 180;
+          const y = Math.sin(dLon) * Math.cos(lat2R);
+          const x = Math.cos(lat1R) * Math.sin(lat2R) - Math.sin(lat1R) * Math.cos(lat2R) * Math.cos(dLon);
+          return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+        };
+        const getBearing = (s: any) => {
+          if (s.bearing != null && !isNaN(s.bearing)) return s.bearing;
+          if (s.lat != null && s.lon != null) return computeBearing(s.lat, s.lon);
+          return null;
+        };
+        const sorted = [...storms.storms].sort((a: any, b: any) => (a.distance || 999) - (b.distance || 999));
+        const approaching = sorted.filter((s: any) => {
+          const b = getBearing(s);
+          return b != null && s.movement && isStormApproaching(b, s.movement.direction, s.movement.speed);
+        });
+        dataContext += `ACTIVE STORMS (${storms.storms.length} detected within ${storms.radius || 50} miles / ${Math.round((storms.radius || 50) * 1.609)} km):\n`;
+        if (approaching.length > 0) {
+          dataContext += `⚠ ${approaching.length} storm(s) APPROACHING your location!\n`;
+        }
+        for (const s of sorted.slice(0, 20)) {
+          const stormBearing = getBearing(s);
+          const compassDir = stormBearing != null ? getCompassDirection(stormBearing) : 'unknown';
+          const dist = typeof s.distance === 'number' ? s.distance : 0;
+          dataContext += `• ${s.category} storm (${s.intensity} dBZ): Located ${compassDir} at ${dist.toFixed(1)} mi (${(dist * 1.609).toFixed(1)} km)`;
+          if (s.lat != null && s.lon != null) {
+            dataContext += ` [${s.lat.toFixed(3)}, ${s.lon.toFixed(3)}]`;
+          }
           dataContext += '\n';
+          if (s.movement && s.movement.speed > 0) {
+            const movingDir = getCompassDirection(s.movement.direction);
+            const stormApproaching = stormBearing != null && isStormApproaching(stormBearing, s.movement.direction, s.movement.speed);
+            const approachAngle = stormBearing != null ? calculateApproachAngle(stormBearing, s.movement.direction) : null;
+            const eta = stormApproaching && dist > 0 ? calculateETA(dist, s.movement.speed) : null;
+            dataContext += `  → Moving ${movingDir} at ${dualWind(s.movement.speed)}`;
+            if (stormApproaching) {
+              dataContext += ` — APPROACHING (angle: ${approachAngle?.toFixed(0)}°)`;
+              if (eta && eta < 999) {
+                dataContext += `, ETA: ${eta < 60 ? `${Math.round(eta)} min` : `${(eta / 60).toFixed(1)} hr`}`;
+              }
+            } else {
+              dataContext += ` — moving away or passing`;
+            }
+            dataContext += '\n';
+            if (stormApproaching && s.lat != null && s.lon != null && s.movement.speed > 0) {
+              const speedDegreesPerHour = s.movement.speed / 69;
+              const movRad = (s.movement.direction * Math.PI) / 180;
+              const proj30Lat = s.lat + speedDegreesPerHour * 0.5 * Math.cos(movRad);
+              const proj30Lon = s.lon + speedDegreesPerHour * 0.5 * Math.sin(movRad) / Math.cos(s.lat * Math.PI / 180);
+              const proj60Lat = s.lat + speedDegreesPerHour * 1.0 * Math.cos(movRad);
+              const proj60Lon = s.lon + speedDegreesPerHour * 1.0 * Math.sin(movRad) / Math.cos(s.lat * Math.PI / 180);
+              dataContext += `  → Projected track: 30min → [${proj30Lat.toFixed(3)}, ${proj30Lon.toFixed(3)}], 60min → [${proj60Lat.toFixed(3)}, ${proj60Lon.toFixed(3)}]\n`;
+            }
+          }
         }
         dataContext += '\n';
       } else {
@@ -5001,7 +5052,7 @@ TODAY & TONIGHT: What to expect for the rest of today and tonight. Include timin
 
 WEEK AHEAD: Summarize the 7-day trend — warming/cooling patterns, rain chances, any significant weather events coming.
 
-STORM WATCH: Active storm status — are storms nearby, approaching, or clear? Movement, intensity, ETAs if applicable. If no storms, say so confidently.
+STORM WATCH: Active storm status — report specific storm locations with coordinates, distance, direction from user, intensity (dBZ), whether approaching or moving away, movement direction and speed, projected track, and ETAs. Mention how many storms total and highlight any directly approaching. If no storms, say so confidently.
 
 ALERTS & WARNINGS: Any active NWS alerts or advisories. If none, skip this section entirely.
 

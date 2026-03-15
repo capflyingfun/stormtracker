@@ -324,15 +324,20 @@ function getForecastIcon(shortForecast: string, detailed: string): { emoji: stri
 export default function WeatherDashboard({ lat, lon, locationName, useMetric }: WeatherDashboardProps) {
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
 
-  const { data: forecast, isLoading, error } = useQuery<any>({
+  const { data: forecast, isLoading, error, refetch } = useQuery<any>({
     queryKey: ["/api/forecast", lat, lon],
     queryFn: async () => {
       const res = await fetch(`/api/forecast?lat=${lat}&lon=${lon}`);
-      if (!res.ok) throw new Error("Failed to fetch forecast");
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Forecast fetch failed (${res.status}): ${text.slice(0, 100)}`);
+      }
       return res.json();
     },
     refetchInterval: 600000,
     staleTime: 300000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
   });
 
   if (isLoading) {
@@ -348,8 +353,16 @@ export default function WeatherDashboard({ lat, lon, locationName, useMetric }: 
 
   if (error || !forecast) {
     return (
-      <div className="bg-slate-800/60 rounded-xl p-4 border border-red-700/50 text-red-400 text-sm">
-        Unable to load weather data. Please try again later.
+      <div className="bg-slate-800/60 rounded-xl p-4 border border-red-700/50">
+        <div className="flex items-center justify-between">
+          <p className="text-red-400 text-sm">Unable to load weather data.</p>
+          <button 
+            onClick={() => refetch()}
+            className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded transition-colors"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
