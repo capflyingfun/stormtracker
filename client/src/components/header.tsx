@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/use-auth";
-import { LogIn, LogOut, User } from "lucide-react";
 
 interface HeaderProps {
   useMetric: boolean;
@@ -10,7 +8,6 @@ interface HeaderProps {
 
 export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
   const [showConfig, setShowConfig] = useState(false);
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
 
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 p-4 select-none">
@@ -28,46 +25,6 @@ export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
             <span className="text-sm">Ready</span>
           </div>
-
-          {!isLoading && (
-            isAuthenticated && user ? (
-              <div className="flex items-center gap-2">
-                {user.profileImageUrl ? (
-                  <img
-                    src={user.profileImageUrl}
-                    alt={user.firstName || "User"}
-                    className="w-7 h-7 rounded-full border border-slate-500"
-                  />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-slate-600 flex items-center justify-center">
-                    <User className="w-4 h-4 text-slate-300" />
-                  </div>
-                )}
-                <span className="text-sm text-slate-300 hidden sm:inline">
-                  {user.firstName || "User"}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => logout()}
-                  className="p-1.5 rounded-lg bg-slate-700/50 hover:bg-slate-600/50"
-                  title="Sign out"
-                >
-                  <LogOut className="w-4 h-4" />
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { window.location.href = "/api/login"; }}
-                className="p-2 rounded-lg bg-blue-600/30 hover:bg-blue-500/40 text-blue-300"
-              >
-                <LogIn className="w-4 h-4 mr-1.5" />
-                <span className="text-sm">Sign in</span>
-              </Button>
-            )
-          )}
           
           <Button
             variant="ghost"
