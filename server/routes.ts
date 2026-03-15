@@ -1146,7 +1146,45 @@ Return ONLY a JSON array of 5 strings.`;
         }
       }
       
-      // Check if query looks like a ZIP code and add specific suggestion
+      if (suggestions.length === 0 && query.length >= 3) {
+        try {
+          const photonRes = await fetch(
+            `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6`,
+            { signal: AbortSignal.timeout(3000) }
+          );
+          if (photonRes.ok) {
+            const photonData = await photonRes.json();
+            if (photonData.features) {
+              for (const f of photonData.features) {
+                const p = f.properties || {};
+                const parts = [];
+                if (p.housenumber && p.street) parts.push(`${p.housenumber} ${p.street}`);
+                else if (p.street) parts.push(p.street);
+                else if (p.name) parts.push(p.name);
+                if (p.city || p.town || p.village) parts.push(p.city || p.town || p.village);
+                if (p.state) parts.push(p.state);
+                const cc = (p.countrycode || '').toUpperCase();
+                if (cc && cc !== 'US') parts.push(cc);
+                if (parts.length === 0) continue;
+                suggestions.push({
+                  id: `${f.geometry.coordinates[1]}_${f.geometry.coordinates[0]}`,
+                  display_name: parts.join(', '),
+                  lat: f.geometry.coordinates[1],
+                  lon: f.geometry.coordinates[0],
+                  type: 'place',
+                  importance: 0.8 - (suggestions.length * 0.1),
+                  address: {
+                    city: p.city || p.town || p.village || p.name || '',
+                    state: p.state || '',
+                    country: cc
+                  }
+                });
+              }
+            }
+          }
+        } catch (e) { /* Photon fallback failed, continue */ }
+      }
+
       const zipMatch = query.match(/^\d{1,5}$/);
       if (zipMatch && query.length >= 3) {
         try {
