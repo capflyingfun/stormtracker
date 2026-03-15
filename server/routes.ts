@@ -58,7 +58,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // API Keys - these would normally come from environment variables
   const API_KEYS = {
-    openweather: process.env.OPENWEATHER_API_KEY || '49f87b43ad1ddba1821a5cdac7d6965e',
+    openweather: process.env.OPENWEATHER_API_KEY || '',
     weatherapi: process.env.WEATHERAPI_KEY || null, // WeatherAPI.com free tier: 1M calls/month
   };
 
@@ -3288,7 +3288,7 @@ Return ONLY a JSON array of 5 strings.`;
 
   // Final fallback: OpenWeather surface winds
   async function getFallbackWindData(lat: number, lon: number) {
-    const apiKey = process.env.OPENWEATHER_API_KEY || 'a8f3a8e5a1a3b3d5e9a8f3a8e5a1a3b3';
+    const apiKey = process.env.OPENWEATHER_API_KEY || '';
     
     try {
       const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`);
@@ -3891,7 +3891,7 @@ Return ONLY a JSON array of 5 strings.`;
         }
 
         // Fallback to OpenWeather if other APIs fail and we have a key
-        if (!currentWeather && API_KEYS.openweather && API_KEYS.openweather !== 'a8f3a8e5a1a3b3d5e9a8f3a8e5a1a3b3') {
+        if (!currentWeather && API_KEYS.openweather) {
           console.log('🌤️ Falling back to OpenWeather API...');
           const owmResponse = await fetch(
             `https://api.openweathermap.org/data/2.5/weather?lat=${userLat}&lon=${userLon}&appid=${API_KEYS.openweather}&units=metric`
