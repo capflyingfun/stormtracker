@@ -155,13 +155,46 @@ function getDayName(iso: string, i: number) {
   return new Date(iso + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
 }
 
-const SEVERE_KW = ['severe thunderstorm', 'tornado', 'damaging wind', 'large hail', 'flash flood', 'hurricane', 'tropical storm', 'blizzard', 'ice storm', 'winter storm', 'extreme heat', 'storm warning', 'severe weather', 'dangerous', 'life-threatening', 'destructive'];
-const CAUTION_KW = ['thunderstorm', 'scattered storms', 'strong storms', 'gusty wind', 'heavy rain', 'hail possible', 'freezing rain', 'sleet', 'wintry mix', 'dense fog', 'heat advisory', 'wind chill', 'frost', 'freeze warning'];
+const HAZARD_ICONS: { keyword: string; emoji: string; tier: 'warning' | 'watch' | 'advisory' }[] = [
+  { keyword: 'tornado',             emoji: '🌪️', tier: 'warning' },
+  { keyword: 'severe thunderstorm', emoji: '⛈️',  tier: 'warning' },
+  { keyword: 'hurricane',           emoji: '🌀', tier: 'warning' },
+  { keyword: 'tropical storm',      emoji: '🌀', tier: 'warning' },
+  { keyword: 'flash flood',         emoji: '🌊', tier: 'warning' },
+  { keyword: 'blizzard',            emoji: '🌨️', tier: 'warning' },
+  { keyword: 'ice storm',           emoji: '🧊', tier: 'warning' },
+  { keyword: 'winter storm',        emoji: '❄️',  tier: 'warning' },
+  { keyword: 'excessive heat',      emoji: '🔥', tier: 'warning' },
+  { keyword: 'extreme heat',        emoji: '🔥', tier: 'warning' },
+  { keyword: 'damaging wind',       emoji: '🌬️', tier: 'warning' },
+  { keyword: 'large hail',          emoji: '🧊', tier: 'warning' },
+  { keyword: 'storm surge',         emoji: '🌊', tier: 'warning' },
+  { keyword: 'high wind',           emoji: '🌬️', tier: 'watch' },
+  { keyword: 'severe weather',      emoji: '⛈️',  tier: 'watch' },
+  { keyword: 'flooding',            emoji: '🌊', tier: 'watch' },
+  { keyword: 'heat advisory',       emoji: '🌡️', tier: 'watch' },
+  { keyword: 'freeze warning',      emoji: '🥶', tier: 'watch' },
+  { keyword: 'fire weather',        emoji: '🔥', tier: 'watch' },
+  { keyword: 'dense fog',           emoji: '🌫️', tier: 'advisory' },
+  { keyword: 'freezing rain',       emoji: '🧊', tier: 'advisory' },
+  { keyword: 'sleet',               emoji: '🧊', tier: 'advisory' },
+  { keyword: 'thunderstorm',        emoji: '⛈️',  tier: 'advisory' },
+  { keyword: 'strong storms',       emoji: '⛈️',  tier: 'advisory' },
+  { keyword: 'scattered storms',    emoji: '🌩️', tier: 'advisory' },
+  { keyword: 'gusty wind',          emoji: '💨', tier: 'advisory' },
+  { keyword: 'heavy rain',          emoji: '🌧️', tier: 'advisory' },
+  { keyword: 'hail',                emoji: '🧊', tier: 'advisory' },
+  { keyword: 'fog',                 emoji: '🌫️', tier: 'advisory' },
+  { keyword: 'frost',               emoji: '❄️',  tier: 'advisory' },
+  { keyword: 'wind chill',          emoji: '🥶', tier: 'advisory' },
+  { keyword: 'wintry mix',          emoji: '🧊', tier: 'advisory' },
+];
 
-function getForecastIcon(shortForecast: string, detailed: string): string | null {
+function getForecastIcon(shortForecast: string, detailed: string): { emoji: string; tier: 'warning' | 'watch' | 'advisory' } | null {
   const text = `${shortForecast} ${detailed}`.toLowerCase();
-  if (SEVERE_KW.some(k => text.includes(k))) return '🚨';
-  if (CAUTION_KW.some(k => text.includes(k))) return '⚠️';
+  for (const h of HAZARD_ICONS) {
+    if (text.includes(h.keyword)) return { emoji: h.emoji, tier: h.tier };
+  }
   return null;
 }
 
@@ -391,9 +424,11 @@ export default function WeatherDashboard({ lat, lon, locationName, useMetric }: 
           <div className="space-y-1">
             {forecast.nwsForecast.map((p: any, i: number) => {
               const isExpanded = expandedNws === i;
-              const warnIcon = getForecastIcon(p.shortForecast || '', p.detailedForecast || '');
-              const isSevere = warnIcon === '🚨';
-              const isCaution = warnIcon === '⚠️';
+              const hazard = getForecastIcon(p.shortForecast || '', p.detailedForecast || '');
+              const isWarning = hazard?.tier === 'warning';
+              const isWatch = hazard?.tier === 'watch';
+              const ringClass = isWarning ? 'ring-1 ring-red-500/40' : isWatch ? 'ring-1 ring-orange-500/30' : hazard ? 'ring-1 ring-yellow-500/30' : '';
+              const forecastColor = isWarning ? 'text-red-300' : isWatch ? 'text-orange-300' : hazard ? 'text-yellow-300' : 'text-slate-400';
               return (
                 <button
                   key={i}
@@ -403,11 +438,9 @@ export default function WeatherDashboard({ lat, lon, locationName, useMetric }: 
                 >
                   <div className={`rounded-lg p-2.5 transition-colors ${
                     isExpanded ? 'bg-slate-700/60' : 'bg-slate-700/30 hover:bg-slate-700/50'
-                  } ${!p.isDaytime ? 'border-l-2 border-indigo-500/40' : 'border-l-2 border-yellow-500/40'} ${
-                    isSevere ? 'ring-1 ring-red-500/40' : isCaution ? 'ring-1 ring-yellow-500/30' : ''
-                  }`}>
+                  } ${!p.isDaytime ? 'border-l-2 border-indigo-500/40' : 'border-l-2 border-yellow-500/40'} ${ringClass}`}>
                     <div className="flex items-center gap-2">
-                      {warnIcon && <span className="text-sm shrink-0">{warnIcon}</span>}
+                      {hazard && <span className="text-sm shrink-0">{hazard.emoji}</span>}
                       <span className="text-sm font-medium text-slate-200 w-24 shrink-0">{p.name}</span>
                       <span className="text-xs shrink-0">{p.isDaytime ? '⤴️' : '⤵️'}</span>
                       <span className="text-sm text-white font-medium shrink-0">
@@ -417,7 +450,7 @@ export default function WeatherDashboard({ lat, lon, locationName, useMetric }: 
                           return useMetric ? `${tempC}°C (${tempF}°F)` : `${tempF}°F (${tempC}°C)`;
                         })()}
                       </span>
-                      <span className={`text-xs flex-1 truncate ${isSevere ? 'text-red-300' : isCaution ? 'text-yellow-300' : 'text-slate-400'}`}>{p.shortForecast}</span>
+                      <span className={`text-xs flex-1 truncate ${forecastColor}`}>{p.shortForecast}</span>
                       {p.windSpeed && <span className="text-xs text-slate-500 shrink-0">{(() => {
                         const m = p.windSpeed.match(/(\d+)\s*(to\s*(\d+)\s*)?mph/i);
                         if (!m) return p.windSpeed;
