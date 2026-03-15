@@ -343,8 +343,8 @@ export default function SonarRadar({
     if (!canvas || !wrapper) return;
     const resize = () => {
       const wr = wrapper.getBoundingClientRect();
-      // Compact: fits above-the-fold on phones without dominating the screen
-      const size = Math.max(Math.min(wr.width, 180, window.innerHeight * 0.25), 60);
+      // Fill card width, cap height to keep sonar card compact on phones
+      const size = Math.max(Math.min(wr.width, window.innerHeight * 0.35), 60);
       const dpr = window.devicePixelRatio || 1;
       canvas.width = size * dpr;
       canvas.height = size * dpr;
