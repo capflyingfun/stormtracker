@@ -864,6 +864,7 @@ export default function StormTracker() {
               lat={location.lat}
               lon={location.lon}
               locationName={location.name}
+              useMetric={useMetric}
             />
 
             {/* Interactive Radar Map with Side Controls */}
