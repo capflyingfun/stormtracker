@@ -41,6 +41,7 @@ interface StormMapProps {
   showAllStormTracks?: boolean;
   showTimeLabels?: boolean;
   onMapInstanceReady?: (mapInstance: any) => void;
+  lightningStrikes?: Array<{ lat: number; lon: number; time: number; intensity: number; id: string }>;
 }
 
 declare global {
@@ -49,7 +50,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks, showTimeLabels = true, onMapInstanceReady }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks, showTimeLabels = true, onMapInstanceReady, lightningStrikes = [] }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -119,6 +120,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [selectedStormId, setSelectedStormId] = useState<string | null>(null);
   const stormConeLayerRef = useRef<any>(null);
   const allStormConesLayerRef = useRef<any>(null);
+  const lightningLayerRef = useRef<any>(null);
   
   // Authentic precipitation storms from backend API
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
@@ -2322,6 +2324,56 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const getTimeDisplay = (): string => {
     return 'Live';
   };
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.L) return;
+
+    if (lightningLayerRef.current) {
+      map.removeLayer(lightningLayerRef.current);
+    }
+
+    if (lightningStrikes.length === 0) return;
+
+    const layerGroup = window.L.layerGroup();
+    const now = Date.now();
+
+    lightningStrikes.forEach((strike: any) => {
+      const age = now - strike.time;
+      const maxAge = 10 * 60 * 1000;
+      const freshness = Math.max(0, 1 - age / maxAge);
+
+      const opacity = 0.3 + freshness * 0.7;
+      const radius = age < 5000 ? 8 : 3 + freshness * 4;
+
+      const color = age < 3000 ? '#ffffff' :
+        age < 30000 ? '#fffacd' :
+        age < 120000 ? '#ffd700' : '#ff8c00';
+
+      const marker = window.L.circleMarker([strike.lat, strike.lon], {
+        radius: radius,
+        fillColor: color,
+        fillOpacity: opacity,
+        color: color,
+        weight: age < 5000 ? 2 : 1,
+        opacity: opacity * 0.8,
+        className: age < 5000 ? 'lightning-flash' : ''
+      });
+
+      const ageStr = age < 60000 ? `${Math.round(age / 1000)}s ago` :
+        `${Math.round(age / 60000)}m ago`;
+
+      marker.bindTooltip(`⚡ Lightning strike<br>${ageStr}`, {
+        direction: 'top',
+        className: 'lightning-tooltip'
+      });
+
+      layerGroup.addLayer(marker);
+    });
+
+    layerGroup.addTo(map);
+    lightningLayerRef.current = layerGroup;
+  }, [lightningStrikes]);
 
   return (
     <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50">

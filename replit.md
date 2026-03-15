@@ -30,6 +30,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
     - **Storm Detection System**: Multi-source data integration, sector-based search, direct pixel sampling, and intelligent clustering for precipitation waypoints. Features dynamic adaptive sampling and 5-category dBZ classification.
     - **Storm Tracking**: Frame-by-frame radar comparison for movement calculation, directional SVG arrows, and 30° storm movement cones with ETA impact assessment.
     - **AI Weather Assistant**: OpenAI GPT-4o integration for risk assessment, comprehensive weather analysis (including wind shear, thunderstorm formation, NWS AFD), and an integrated chat. Features dynamic tone adjustment based on weather severity and unit preference integration.
+    - **Real-Time Lightning Detection**: Blitzortung.org WebSocket feed for live lightning strike data. Renders on all three views (Leaflet map, sonar radar, 3D canvas) with age-based color coding (white→yellow→orange) and flash animations for fresh strikes. Auto-expires strikes older than 10 minutes.
     - **Alert System**: Personalized, real-time risk alerts based on storm intensity, distance, and lightning. Includes visual storm highlighting, NWS alerts integration with chronological sorting, and an automated threat detection system.
     - **Messaging System**: Built-in, database-driven `message_inbox` for storing and managing storm alerts.
     - **Aviation Weather**: Multi-source METAR data from nearest airports, integrated with AI for comprehensive atmospheric analysis.
