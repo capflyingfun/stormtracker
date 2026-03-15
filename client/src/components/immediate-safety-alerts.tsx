@@ -139,13 +139,13 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
   const immediateThreats = stormsWithMovement.filter(storm => {
     const mov = storm.movement;
     if (!mov || mov.etaMinutes == null) return false;
-    return mov.etaMinutes <= 45;
+    return storm.intensity > 45 && mov.etaMinutes <= 45;
   });
 
   const approachingButNotImminent = stormsWithMovement.filter(storm => {
     const mov = storm.movement;
     if (!mov || mov.etaMinutes == null) return false;
-    return mov.etaMinutes > 45;
+    return storm.intensity > 45 && mov.etaMinutes > 45;
   });
 
   // Remove duplicate storms (within 0.01 degree proximity)
@@ -158,8 +158,30 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     (a.movement?.etaMinutes ?? Infinity) - (b.movement?.etaMinutes ?? Infinity)
   );
 
+  const dangerousAlertTypes = [
+    'tornado', 'severe thunderstorm', 'hurricane', 'typhoon', 'tropical storm',
+    'flash flood', 'tsunami', 'storm surge', 'extreme wind', 'blizzard',
+    'ice storm', 'dust storm', 'fire weather', 'red flag',
+    'severe weather', 'special weather'
+  ];
+
+  const filteredNwsAlerts = nwsAlerts.filter((alert: NWSAlert) => {
+    const type = (alert.type || '').toLowerCase();
+    const severity = (alert.severity || '').toLowerCase();
+    const urgency = (alert.urgency || '').toLowerCase();
+
+    const isWarningOrWatch = type.includes('warning') || type.includes('watch');
+    const isSevereLevel = severity === 'extreme' || severity === 'severe';
+    const isUrgent = urgency === 'immediate' || urgency === 'expected';
+    const isDangerousType = dangerousAlertTypes.some(dt => type.includes(dt));
+
+    return (isWarningOrWatch && (isSevereLevel || isDangerousType)) ||
+           (isSevereLevel && isUrgent) ||
+           isDangerousType;
+  });
+
   // Sort NWS alerts by effective date and headline content
-  const sortedNwsAlerts = [...nwsAlerts].sort((a, b) => {
+  const sortedNwsAlerts = [...filteredNwsAlerts].sort((a, b) => {
     const dateA = new Date(a.effective).getTime();
     const dateB = new Date(b.effective).getTime();
     
@@ -196,7 +218,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     return sortOrder === 'newest' ? b.type.localeCompare(a.type) : a.type.localeCompare(b.type);
   });
 
-  const totalAlerts = nwsAlerts.length + uniqueThreats.length;
+  const totalAlerts = filteredNwsAlerts.length + uniqueThreats.length;
 
   // Skeleton loader component
   const SkeletonLoader = () => (
@@ -251,7 +273,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
         </div>
         
         {/* Sort button for NWS alerts */}
-        {!isAnimating && nwsAlerts.length > 1 && (
+        {!isAnimating && filteredNwsAlerts.length > 1 && (
           <button
             onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
             className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 hover:text-red-100 bg-red-900/30 hover:bg-red-900/50 rounded transition-colors"
@@ -269,11 +291,14 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
         <div className="text-center py-2 animate-fadeIn">
           {approachingButNotImminent.length > 0 ? (
             <p className="text-yellow-400/80 text-sm">
-              {approachingButNotImminent.length} storm{approachingButNotImminent.length > 1 ? 's' : ''} approaching but not imminent (ETA {'>'} 45 min)
+              {approachingButNotImminent.length} strong storm{approachingButNotImminent.length > 1 ? 's' : ''} ({'>'}45 dBZ) approaching but ETA {'>'} 45 min
             </p>
           ) : (
             <p className="text-slate-300 text-sm">No immediate weather threats detected</p>
           )}
+          <p className="text-slate-500 text-[10px] mt-1">
+            Alerts trigger for storms {'>'}45 dBZ with ETA {'<'}45 min or severe NWS warnings/watches
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
