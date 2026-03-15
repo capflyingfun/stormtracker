@@ -187,6 +187,7 @@ export default function StormTracker() {
   const [radarComparison, setRadarComparison] = useState<any>(null);
   const [showStormTracks, setShowStormTracks] = useState(false);
   const [showTimeLabels, setShowTimeLabels] = useState(false);
+  const [showLightning, setShowLightning] = useState(true);
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
   const [showStormFilteringSettings, setShowStormFilteringSettings] = useState(false);
   const [sectionOrder, setSectionOrder] = useState<string[]>(getSectionOrder);
@@ -948,10 +949,18 @@ export default function StormTracker() {
                       onClick={() => setShowTimeLabels(!showTimeLabels)}
                       variant="outline"
                       size="sm"
-                      className={`w-full text-xs ${showTimeLabels ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
+                      className={`w-full text-xs mb-2 ${showTimeLabels ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                       disabled={!showStormTracks}
                     >
                       🕐 {showTimeLabels ? 'Hide Time Labels' : 'Show Time Labels'}
+                    </Button>
+                    <Button
+                      onClick={() => setShowLightning(!showLightning)}
+                      variant="outline"
+                      size="sm"
+                      className={`w-full text-xs ${showLightning ? 'bg-yellow-600/20 border-yellow-500 text-yellow-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
+                    >
+                      ⚡ {showLightning ? 'Hide Lightning' : 'Show Lightning'}
                     </Button>
                   </div>
                   
@@ -986,7 +995,7 @@ export default function StormTracker() {
                       showAllStormTracks={showStormTracks}
                       showTimeLabels={showTimeLabels}
                       onMapInstanceReady={setMapInstance}
-                      lightningStrikes={lightningStrikes}
+                      lightningStrikes={showLightning ? lightningStrikes : []}
                     />
                   )}
                   
@@ -1001,7 +1010,7 @@ export default function StormTracker() {
                         console.log('Storm clicked in sonar:', storm);
                       }}
                       className=""
-                      lightningStrikes={lightningStrikes}
+                      lightningStrikes={showLightning ? lightningStrikes : []}
                     />
                   )}
                   
@@ -1011,7 +1020,7 @@ export default function StormTracker() {
                       precipitationStorms={precipitationStorms}
                       setViewMode={setViewMode}
                       tickerMessages={tickerMessages}
-                      lightningStrikes={lightningStrikes}
+                      lightningStrikes={showLightning ? lightningStrikes : []}
                     />
                   )}
                 </div>
