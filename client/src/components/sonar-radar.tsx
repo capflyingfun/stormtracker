@@ -364,6 +364,16 @@ export default function SonarRadar({
 
   const dominantWind = storms.find(s => s.windsPrediction?.speed && s.windsPrediction.speed > 0)?.windsPrediction;
 
+  // Nearest storm for the hybrid info line
+  const nearestStorm = storms.length > 0
+    ? [...storms].sort((a, b) => a.distance - b.distance)[0]
+    : null;
+  const getNearestCategory = (dBZ: number) => {
+    if (dBZ >= 65) return 'Extreme'; if (dBZ >= 55) return 'Severe';
+    if (dBZ >= 46) return 'Heavy'; if (dBZ >= 35) return 'Moderate';
+    return 'Light';
+  };
+
   const currentTickerMsg = tickerMessages.length > 0
     ? tickerMessages[tickerIndex % tickerMessages.length]
     : storms.length > 0
@@ -427,15 +437,28 @@ export default function SonarRadar({
           ))}
         </div>
 
-        {/* Storm count + movement */}
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-slate-400">
-            {storms.length > 0 ? `${storms.length} storm${storms.length !== 1 ? 's' : ''} within ${formatDistance(radarRange)}` : 'No storms detected'}
-          </span>
-          {dominantWind && dominantWind.speed > 2 && (
-            <span className="text-amber-400/90 font-medium">
-              Storm Direction: {getWindDirLabel(dominantWind.direction)} · {Math.round(dominantWind.speed)} mph
+        {/* Storm count + nearest storm + movement */}
+        <div className="space-y-1 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">
+              {storms.length > 0 ? `${storms.length} storm${storms.length !== 1 ? 's' : ''} within ${formatDistance(radarRange)}` : 'No storms detected'}
             </span>
+            {dominantWind && dominantWind.speed > 2 && (
+              <span className="text-amber-400/90 font-medium">
+                Storm Direction: {getWindDirLabel(dominantWind.direction)} · {Math.round(dominantWind.speed)} mph
+              </span>
+            )}
+          </div>
+          {nearestStorm && (
+            <div className="flex items-center justify-between text-[11px] bg-slate-800/60 rounded px-2 py-1">
+              <span className="text-slate-300">
+                Nearest: <span className="text-white font-medium">{getNearestCategory(nearestStorm.intensity)}</span>
+                <span className="text-slate-400 ml-1">{nearestStorm.intensity.toFixed(0)} dBZ</span>
+              </span>
+              <span className="text-slate-300">
+                {getWindDirLabel(nearestStorm.direction)} · {formatDistance(nearestStorm.distance)}
+              </span>
+            </div>
           )}
         </div>
 
