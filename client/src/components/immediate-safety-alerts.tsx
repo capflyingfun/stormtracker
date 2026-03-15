@@ -37,50 +37,11 @@ interface NWSAlert {
   senderName: string;
 }
 
-interface NWSForecastPeriod {
-  name: string;
-  temperature: number;
-  temperatureUnit: string;
-  windSpeed: string;
-  shortForecast: string;
-  detailedForecast: string;
-  isDaytime: boolean;
-}
-
 interface ImmediateSafetyAlertsProps {
   location: any;
   storms: Storm[];
   isLoading: boolean;
   windsAloftData?: any;
-  nwsForecast?: NWSForecastPeriod[] | null;
-  useMetric?: boolean;
-}
-
-function fToC(f: number): number { return Math.round((f - 32) * 5 / 9); }
-function mphToKmh(mph: number): number { return Math.round(mph * 1.60934); }
-
-function dualTemp(temp: number, unit: string, useMetric?: boolean): string {
-  if (unit === 'F') {
-    const c = fToC(temp);
-    return useMetric ? `${c}°C (${temp}°F)` : `${temp}°F (${c}°C)`;
-  }
-  const f = Math.round(temp * 9 / 5 + 32);
-  return useMetric ? `${temp}°C (${f}°F)` : `${f}°F (${temp}°C)`;
-}
-
-function dualWind(windStr: string, useMetric?: boolean): string {
-  const match = windStr.match(/(\d+)\s*(to\s*(\d+)\s*)?mph/i);
-  if (!match) return windStr;
-  const lo = parseInt(match[1]);
-  const hi = match[3] ? parseInt(match[3]) : null;
-  if (hi) {
-    return useMetric
-      ? `${mphToKmh(lo)} to ${mphToKmh(hi)} km/h (${lo}-${hi} mph)`
-      : `${lo} to ${hi} mph (${mphToKmh(lo)}-${mphToKmh(hi)} km/h)`;
-  }
-  return useMetric
-    ? `${mphToKmh(lo)} km/h (${lo} mph)`
-    : `${lo} mph (${mphToKmh(lo)} km/h)`;
 }
 
 const getSeverityColor = (severity: string): string => {
@@ -98,101 +59,11 @@ const getSeverityColor = (severity: string): string => {
 const getDirectionName = getCompassDirection;
 const getIntensityCategory = getStormCategory;
 
-interface HazardEntry {
-  keyword: string;
-  emoji: string;
-  label: string;
-  tier: 'warning' | 'watch' | 'advisory';
-}
-
-const NWS_HAZARDS: HazardEntry[] = [
-  { keyword: 'tornado',              emoji: '🌪️', label: 'Tornado',              tier: 'warning' },
-  { keyword: 'severe thunderstorm',  emoji: '⛈️',  label: 'Severe Thunderstorm',  tier: 'warning' },
-  { keyword: 'hurricane',            emoji: '🌀', label: 'Hurricane',             tier: 'warning' },
-  { keyword: 'typhoon',              emoji: '🌀', label: 'Typhoon',               tier: 'warning' },
-  { keyword: 'tropical storm',       emoji: '🌀', label: 'Tropical Storm',        tier: 'warning' },
-  { keyword: 'flash flood',          emoji: '🌊', label: 'Flash Flood',           tier: 'warning' },
-  { keyword: 'flood warning',        emoji: '🌊', label: 'Flood Warning',         tier: 'warning' },
-  { keyword: 'blizzard',             emoji: '🌨️', label: 'Blizzard',              tier: 'warning' },
-  { keyword: 'ice storm',            emoji: '🧊', label: 'Ice Storm',             tier: 'warning' },
-  { keyword: 'winter storm',         emoji: '❄️',  label: 'Winter Storm',          tier: 'warning' },
-  { keyword: 'extreme cold',         emoji: '🥶', label: 'Extreme Cold',          tier: 'warning' },
-  { keyword: 'excessive heat',       emoji: '🔥', label: 'Excessive Heat',        tier: 'warning' },
-  { keyword: 'extreme heat',         emoji: '🔥', label: 'Extreme Heat',          tier: 'warning' },
-  { keyword: 'damaging wind',        emoji: '🌬️', label: 'Damaging Winds',        tier: 'warning' },
-  { keyword: 'destructive',          emoji: '💥', label: 'Destructive',           tier: 'warning' },
-  { keyword: 'life-threatening',     emoji: '☠️',  label: 'Life-Threatening',      tier: 'warning' },
-  { keyword: 'large hail',           emoji: '🧊', label: 'Large Hail',            tier: 'warning' },
-  { keyword: 'storm surge',          emoji: '🌊', label: 'Storm Surge',           tier: 'warning' },
-  { keyword: 'high wind',            emoji: '🌬️', label: 'High Wind',             tier: 'watch' },
-  { keyword: 'wind advisory',        emoji: '🌬️', label: 'Wind Advisory',         tier: 'watch' },
-  { keyword: 'gale',                 emoji: '🌬️', label: 'Gale',                  tier: 'watch' },
-  { keyword: 'severe weather',       emoji: '⛈️',  label: 'Severe Weather',        tier: 'watch' },
-  { keyword: 'flooding',             emoji: '🌊', label: 'Flooding',              tier: 'watch' },
-  { keyword: 'winter weather',       emoji: '❄️',  label: 'Winter Weather',        tier: 'watch' },
-  { keyword: 'freeze warning',       emoji: '🥶', label: 'Freeze Warning',        tier: 'watch' },
-  { keyword: 'heat advisory',        emoji: '🌡️', label: 'Heat Advisory',         tier: 'watch' },
-  { keyword: 'fire weather',         emoji: '🔥', label: 'Fire Weather',          tier: 'watch' },
-  { keyword: 'red flag',             emoji: '🔥', label: 'Red Flag',              tier: 'watch' },
-  { keyword: 'rip current',          emoji: '🌊', label: 'Rip Current',           tier: 'watch' },
-  { keyword: 'coastal flood',        emoji: '🌊', label: 'Coastal Flood',         tier: 'watch' },
-  { keyword: 'dense fog',            emoji: '🌫️', label: 'Dense Fog',             tier: 'advisory' },
-  { keyword: 'fog',                  emoji: '🌫️', label: 'Fog',                   tier: 'advisory' },
-  { keyword: 'freezing rain',        emoji: '🧊', label: 'Freezing Rain',         tier: 'advisory' },
-  { keyword: 'sleet',                emoji: '🧊', label: 'Sleet',                 tier: 'advisory' },
-  { keyword: 'wintry mix',           emoji: '🧊', label: 'Wintry Mix',            tier: 'advisory' },
-  { keyword: 'frost',                emoji: '❄️',  label: 'Frost',                 tier: 'advisory' },
-  { keyword: 'wind chill',           emoji: '🥶', label: 'Wind Chill',            tier: 'advisory' },
-  { keyword: 'thunderstorm',         emoji: '⛈️',  label: 'Thunderstorms',         tier: 'advisory' },
-  { keyword: 'strong storms',        emoji: '⛈️',  label: 'Strong Storms',         tier: 'advisory' },
-  { keyword: 'scattered storms',     emoji: '🌩️', label: 'Scattered Storms',      tier: 'advisory' },
-  { keyword: 'isolated storms',      emoji: '🌩️', label: 'Isolated Storms',       tier: 'advisory' },
-  { keyword: 'gusty wind',           emoji: '💨', label: 'Gusty Winds',           tier: 'advisory' },
-  { keyword: 'heavy rain',           emoji: '🌧️', label: 'Heavy Rain',            tier: 'advisory' },
-  { keyword: 'hail',                 emoji: '🧊', label: 'Hail',                  tier: 'advisory' },
-  { keyword: 'dust storm',           emoji: '🌪️', label: 'Dust Storm',            tier: 'advisory' },
-  { keyword: 'waterspout',           emoji: '🌪️', label: 'Waterspout',            tier: 'advisory' },
-];
-
-interface DetectedHazard {
-  emoji: string;
-  label: string;
-  tier: 'warning' | 'watch' | 'advisory';
-}
-
-interface ForecastWarning {
-  period: NWSForecastPeriod;
-  severity: 'warning' | 'watch' | 'advisory';
-  hazards: DetectedHazard[];
-}
-
-function detectForecastWarnings(periods: NWSForecastPeriod[]): ForecastWarning[] {
-  const warnings: ForecastWarning[] = [];
-  for (const p of periods) {
-    const text = `${p.shortForecast} ${p.detailedForecast}`.toLowerCase();
-    const seen = new Set<string>();
-    const hazards: DetectedHazard[] = [];
-    for (const h of NWS_HAZARDS) {
-      if (text.includes(h.keyword) && !seen.has(h.label)) {
-        seen.add(h.label);
-        hazards.push({ emoji: h.emoji, label: h.label, tier: h.tier });
-      }
-    }
-    if (hazards.length > 0) {
-      const topTier = hazards.some(h => h.tier === 'warning') ? 'warning'
-        : hazards.some(h => h.tier === 'watch') ? 'watch' : 'advisory';
-      warnings.push({ period: p, severity: topTier, hazards });
-    }
-  }
-  return warnings;
-}
-
-export default function ImmediateSafetyAlerts({ location, storms, isLoading, windsAloftData, nwsForecast, useMetric }: ImmediateSafetyAlertsProps) {
+export default function ImmediateSafetyAlerts({ location, storms, isLoading, windsAloftData }: ImmediateSafetyAlertsProps) {
   const [showAlerts, setShowAlerts] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
-  const [expandedForecasts, setExpandedForecasts] = useState<Set<number>>(new Set());
 
   // Delay showing alerts for 3 seconds to allow storm calculations to complete
   useEffect(() => {
@@ -325,8 +196,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     return sortOrder === 'newest' ? b.type.localeCompare(a.type) : a.type.localeCompare(b.type);
   });
 
-  const forecastWarnings = nwsForecast ? detectForecastWarnings(nwsForecast) : [];
-  const totalAlerts = nwsAlerts.length + uniqueThreats.length + forecastWarnings.length;
+  const totalAlerts = nwsAlerts.length + uniqueThreats.length;
 
   // Skeleton loader component
   const SkeletonLoader = () => (
@@ -666,72 +536,6 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
               </div>
             </div>
           ))}
-
-          {/* NWS Forecast-Based Warnings */}
-          {forecastWarnings.map((fw, index) => {
-            const tierColors = fw.severity === 'warning'
-              ? { bg: 'bg-red-900/30', border: 'border-red-600/30', title: 'text-red-200', text: 'text-red-100', detail: 'text-red-300/80', badge: 'bg-red-800/60 text-red-200', tierBadge: 'bg-red-700/70 text-red-100' }
-              : fw.severity === 'watch'
-              ? { bg: 'bg-orange-900/30', border: 'border-orange-600/30', title: 'text-orange-200', text: 'text-orange-100', detail: 'text-orange-300/80', badge: 'bg-orange-800/60 text-orange-200', tierBadge: 'bg-orange-700/70 text-orange-100' }
-              : { bg: 'bg-yellow-900/30', border: 'border-yellow-600/30', title: 'text-yellow-200', text: 'text-yellow-100', detail: 'text-yellow-300/80', badge: 'bg-yellow-800/60 text-yellow-200', tierBadge: 'bg-yellow-700/70 text-yellow-100' };
-            const leadEmoji = fw.hazards[0]?.emoji || '⚠️';
-            const tierLabel = fw.severity === 'warning' ? 'WARNING' : fw.severity === 'watch' ? 'WATCH' : 'ADVISORY';
-            return (
-              <div
-                key={`forecast-${index}`}
-                className={`rounded-lg p-3 border animate-slideInUp ${tierColors.bg} ${tierColors.border}`}
-                style={{
-                  animationDelay: `${(sortedNwsAlerts.length + uniqueThreats.length + index) * 150}ms`,
-                  animationFillMode: 'both'
-                }}
-              >
-                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                  <span className="text-lg">{leadEmoji}</span>
-                  <span className={`font-semibold text-sm ${tierColors.title}`}>
-                    {fw.period.name}
-                  </span>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide ${tierColors.tierBadge}`}>
-                    {tierLabel}
-                  </span>
-                  <span className={`text-xs px-1.5 py-0.5 rounded flex items-center gap-1 ${tierColors.badge}`}>
-                    {fw.period.isDaytime ? '⤴️' : '⤵️'}
-                    {fw.period.isDaytime ? 'High' : 'Low'}: {dualTemp(fw.period.temperature, fw.period.temperatureUnit, useMetric)}
-                  </span>
-                </div>
-                <p className={`text-sm mb-1.5 ${tierColors.text}`}>
-                  {fw.period.shortForecast}
-                  {fw.period.windSpeed && <span className="text-xs opacity-70"> · Wind: {dualWind(fw.period.windSpeed, useMetric)}</span>}
-                </p>
-                <div className="flex flex-wrap gap-1.5 mb-1.5">
-                  {fw.hazards.slice(0, 4).map((hz, hi) => (
-                    <span key={hi} className={`text-xs px-1.5 py-0.5 rounded flex items-center gap-1 ${tierColors.badge}`}>
-                      <span>{hz.emoji}</span>
-                      <span>{hz.label}</span>
-                    </span>
-                  ))}
-                </div>
-                {fw.period.detailedForecast && (
-                  <p
-                    className={`text-xs leading-relaxed ${tierColors.detail} ${fw.period.detailedForecast.length > 200 ? 'cursor-pointer' : ''}`}
-                    onClick={() => {
-                      if (fw.period.detailedForecast.length > 200) {
-                        setExpandedForecasts(prev => {
-                          const next = new Set(prev);
-                          if (next.has(index)) next.delete(index);
-                          else next.add(index);
-                          return next;
-                        });
-                      }
-                    }}
-                  >
-                    {fw.period.detailedForecast.length > 200 && !expandedForecasts.has(index)
-                      ? fw.period.detailedForecast.slice(0, 200) + '... (tap to read more)'
-                      : fw.period.detailedForecast}
-                  </p>
-                )}
-              </div>
-            );
-          })}
         </div>
       )}
     </div>

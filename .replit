@@ -41,8 +41,3 @@ waitForPort = 5000
 
 [agent]
 integrations = ["github:1.0.0"]
-
-[userenv]
-
-[userenv.shared]
-WEATHERAPI_KEY = "7b546adb612c48018bc55154261503"

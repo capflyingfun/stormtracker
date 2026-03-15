@@ -37,17 +37,10 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ### Key Architectural Decisions
 - **Monorepo Structure**: Shared types and schemas between frontend and backend.
-- **Shared Storm Utilities**: `shared/storm-utils.ts` centralizes storm category classification (dBZ thresholds), color mapping, compass directions, approach angle math, and ETA calculations. Used by both server and client.
-- **Unified AI Client**: `server/ai-client.ts` provides `aiChat()` function with 3-tier fallback: OpenRouter (free Llama 3.3 70B) → Groq (free) → OpenAI (GPT-4o). All 3 AI call sites (ticker, chat, assessment) use this unified client. `getProviderInfo()` exposes current provider to frontend.
-- **Comprehensive Weather Briefing**: `WeatherSummary` component (`client/src/components/weather-summary.tsx`) fetches all weather data points via `/api/ai-summary` and displays AI-generated briefing with condensed/expanded sections. Shows AI provider badge (Groq/OpenAI), source count, and timestamps.
-- **Centralized Ticker**: AI ticker messages are fetched once in `storm-tracker.tsx` and passed as props to both Sonar and 3D views (eliminating duplicate AI API calls).
-- **Single Winds-Aloft Fetch**: `storm-tracker.tsx` fetches winds-aloft data once via React Query and passes to child components (safety alerts, AI assistant) instead of duplicate fetches.
 - **Real-time Updates**: React Query with refetch intervals.
 - **Performance**: Optimized map rendering, adaptive intelligent sampling, and optimized API timeouts.
 - **Reliability**: Server-side proxy for external APIs, multi-source data integration with fallback strategies, and robust error handling.
 - **Scalability**: Designed for global coverage with support for high volumes of storm data and international weather sources.
-- **Multi-Model Regional Forecasting**: `getRegionalModels()` in `server/routes.ts` maps coordinates to the best available weather models per region (16 regions: US, Canada, Mexico, Europe, UK, Scandinavia, Japan, China, India, Australia, New Zealand, South America, Africa, Southeast Asia, plus global fallback). Forecasts are blended by averaging daily highs/lows/wind/precip across Open-Meteo base + 2 regional models (+ NWS for US), with source count and model names passed to frontend for display.
-- **Hybrid Forecast UI**: `buildHybridForecast()` in `weather-dashboard.tsx` merges NWS day/night periods with blended Open-Meteo daily data; badge shows region flag emoji, model names, and source count; expandable rows show NWS detail for US locations.
 
 ## External Dependencies
 
@@ -56,13 +49,11 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **RainViewer API**: Global weather radar tiles.
 - **NEXRAD (Iowa Mesonet RIDGE API)**: US high-resolution radar data.
 - **Government Weather Services / NWS API**: Weather alerts and warnings, Area Forecast Discussions.
-- **Open-Meteo API**: Primary global forecast data with multi-model regional blending. Queries region-specific weather models (GFS, GEM, ICON, Météo-France, UK Met Office, MET Norway, JMA, CMA, BOM) based on location coordinates, then averages temperatures, wind, and precipitation across 2-3 models for improved accuracy.
-- **OpenRouter API (Primary AI)**: Free AI inference using Llama 3.3 70B Instruct via OpenRouter — handles ticker, chat, risk assessment, and comprehensive weather briefing. Falls back to Groq then OpenAI if unavailable.
-- **Groq API (Secondary AI)**: Free AI inference using Llama 3.3 70B. Second fallback after OpenRouter. 14,400 req/day free tier.
-- **OpenAI GPT-4o API (Final Fallback)**: AI weather assistant and chat functionality. Used when both OpenRouter and Groq are unavailable.
+- **Open-Meteo API**: Current and forecasted upper atmospheric winds, atmospheric stability parameters.
+- **OpenAI GPT-4o API**: AI weather assistant and chat functionality.
 - **Blitzortung.org / Lightning Maps / WWLLN**: Real-time lightning detection.
 - **CheckWX API**: International METAR/TAF data.
-- **WeatherAPI.com**: Global weather data provider (free tier: 1M calls/month). Provides 3-day forecast blended into hybrid forecast, plus air quality (AQI with 6 pollutants) and astronomy data (moon phase, illumination, moonrise/moonset).
+- **WeatherAPI.com**: Secondary weather data provider for forecasts, air quality, UV data, etc.
 
 ### Libraries
 - **React**: Frontend framework.

@@ -10,7 +10,6 @@ import StormMap from "@/components/storm-map";
 import StormPanel from "@/components/storm-panel";
 import ImpactPanel from "@/components/impact-panel";
 import ImmediateSafetyAlerts from "@/components/immediate-safety-alerts";
-import WeatherDashboard from "@/components/weather-dashboard";
 import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
@@ -162,7 +161,6 @@ function EmbeddedMessageInbox() {
 export default function StormTracker() {
   const queryClient = useQueryClient();
   const [useMetric, setUseMetric] = useState(false);
-  const [userUnitOverride, setUserUnitOverride] = useState<boolean | null>(null);
   const [isTracking, setIsTracking] = useState(true);
   const radarRange = 50;
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -231,19 +229,6 @@ export default function StormTracker() {
       if (!response.ok) return null;
       
       return response.json();
-    },
-  });
-
-  const { data: forecastData } = useQuery<any>({
-    queryKey: ['/api/forecast', location?.lat, location?.lon],
-    enabled: !!location,
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: 10 * 60 * 1000,
-    queryFn: async () => {
-      if (!location) return null;
-      const res = await fetch(`/api/forecast?lat=${location.lat}&lon=${location.lon}`);
-      if (!res.ok) return null;
-      return res.json();
     },
   });
 
@@ -457,10 +442,6 @@ export default function StormTracker() {
   const handleLocationSearch = async (query: string) => {
     try {
       await setLocationFromSearch(query);
-      if (userUnitOverride === null && location) {
-        const isUS = location.lat >= 24.5 && location.lat <= 49.5 && location.lon >= -125 && location.lon <= -66.5;
-        setUseMetric(!isUS);
-      }
       if (isTracking) {
         refetchStormData();
         setLastUpdate(new Date());
@@ -474,12 +455,10 @@ export default function StormTracker() {
   const handleGPSLocation = async () => {
     try {
       const result = await setLocationFromGPS();
+      // Auto-switch to NEXRAD for US GPS locations
       if (result && ((result as any).isUS || (result as any).recommendedRadarSource === 'nexrad')) {
         setCurrentRadarSource('nexrad');
-        if (userUnitOverride === null) setUseMetric(false);
-        console.log('Auto-switched to NEXRAD + Imperial for US GPS location:', result.name);
-      } else if (result && userUnitOverride === null) {
-        setUseMetric(true);
+        console.log('Auto-switched to NEXRAD for US GPS location:', result.name);
       }
       if (isTracking) {
         refetchStormData();
@@ -516,11 +495,6 @@ export default function StormTracker() {
       lon: selectedLocation.lon,
       name: selectedLocation.name,
     });
-    
-    if (userUnitOverride === null) {
-      const locIsUS = selectedLocation.isUS ?? (selectedLocation.country === 'US');
-      setUseMetric(!locIsUS);
-    }
     
     if (selectedLocation.recommendedRadarSource) {
       setCurrentRadarSource(selectedLocation.recommendedRadarSource);
@@ -582,10 +556,10 @@ export default function StormTracker() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white overflow-x-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
       <Header 
         useMetric={useMetric}
-        onUnitsChange={(v: boolean) => { setUseMetric(v); setUserUnitOverride(v); }}
+        onUnitsChange={setUseMetric}
       />
       
       {/* Storm Filtering Settings Modal */}
@@ -741,7 +715,7 @@ export default function StormTracker() {
                         className="w-full text-left px-3 py-2.5 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0 flex items-center gap-2"
                         onClick={() => handleSuggestionSelect(s)}
                       >
-                        <span className="text-slate-400 text-sm shrink-0">{s.type === 'postal_code' ? '📮' : s.type === 'poi' ? '' : '📍'}</span>
+                        <span className="text-slate-400 text-sm shrink-0">{s.type === 'postal_code' ? '📮' : '📍'}</span>
                         <span className="text-white text-sm truncate">{s.display_name}</span>
                       </button>
                     ))}
@@ -776,8 +750,6 @@ export default function StormTracker() {
               storms={filteredStorms}
               isLoading={stormDataLoading}
               windsAloftData={windsAloftData}
-              nwsForecast={forecastData?.nwsForecast || null}
-              useMetric={useMetric}
             />
 
             {/* Storm Summary Section */}
@@ -882,18 +854,9 @@ export default function StormTracker() {
                   radarSource={currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
                   lightningCount={0}
                   useMetric={useMetric}
-                  nwsForecast={forecastData?.nwsForecast || null}
                 />
               </div>
             )}
-
-            {/* Weather Dashboard — always visible, useful even without storms */}
-            <WeatherDashboard
-              lat={location.lat}
-              lon={location.lon}
-              locationName={location.name}
-              useMetric={useMetric}
-            />
 
             {/* Interactive Radar Map with Side Controls */}
             <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">

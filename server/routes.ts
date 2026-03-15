@@ -58,7 +58,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // API Keys - these would normally come from environment variables
   const API_KEYS = {
-    openweather: process.env.OPENWEATHER_API_KEY || '',
+    openweather: process.env.OPENWEATHER_API_KEY || '49f87b43ad1ddba1821a5cdac7d6965e',
     weatherapi: process.env.WEATHERAPI_KEY || null, // WeatherAPI.com free tier: 1M calls/month
   };
 
@@ -122,7 +122,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ messages: cached.messages });
       }
       
-      const { aiChat: aiChatFn } = await import("./ai-client");
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       
       // Build personalized storm summary with impact data - ONLY approaching storms
       const stormSummary = approachingStorms.map((s: any, i: number) => {
@@ -167,13 +168,14 @@ Examples of good personalized tone:
 Return ONLY a JSON array of 5 strings.`;
 
       try {
-        const aiResult = await aiChatFn({
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 400,
           temperature: 0.85
         });
         
-        const content = aiResult.content || '[]';
+        const content = completion.choices[0]?.message?.content || '[]';
         const jsonMatch = content.match(/\[[\s\S]*\]/);
         const messages = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
         
@@ -1098,27 +1100,36 @@ Return ONLY a JSON array of 5 strings.`;
   // Address auto-suggest endpoint for smart search
   app.get("/api/address-suggest", async (req, res) => {
     try {
-      const { q: query } = req.query;
+      const { q: query, region } = req.query;
       
       if (!query || typeof query !== 'string' || query.length < 2) {
         return res.json({ suggestions: [] });
       }
+
+      const regionBias = typeof region === 'string' ? region.toUpperCase() : '';
+
+      const REGION_COUNTRIES: Record<string, string[]> = {
+        US: ['US'],
+        EU: ['GB','DE','FR','IT','ES','NL','BE','AT','CH','PL','SE','NO','DK','FI','IE','PT','GR','CZ','RO','HU','BG','HR','SK','SI','LT','LV','EE','LU','MT','CY','IS'],
+        AS: ['JP','CN','IN','KR','TW','TH','VN','PH','MY','SG','ID','BD','PK','LK','MM','KH','LA','NP','MN','KZ','UZ'],
+        OC: ['AU','NZ','FJ','PG','WS','TO','VU','SB','FM','MH','PW','KI','NR','TV'],
+        SA: ['BR','AR','CL','CO','PE','VE','EC','BO','PY','UY','GY','SR','GF'],
+        AF: ['ZA','NG','KE','EG','GH','TZ','ET','MA','TN','DZ','SN','CI','CM','UG','MZ','ZW','RW','AO','SD','LY'],
+      };
+
+      const regionCountries = regionBias && REGION_COUNTRIES[regionBias] ? REGION_COUNTRIES[regionBias] : null;
       
-      const suggestions = [];
+      const suggestions: any[] = [];
       
-      // Try OpenWeatherMap geocoding for comprehensive results
       const response = await fetch(
         `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=8&appid=${API_KEYS.openweather}`,
-        {
-          signal: AbortSignal.timeout(3000) // 3 second timeout for faster response
-        }
+        { signal: AbortSignal.timeout(3000) }
       );
       
       if (response.ok) {
         const locations = await response.json();
         
         for (const location of locations) {
-          // Format address like Google/Apple Maps
           let displayName = location.name;
           
           if (location.state && location.country === 'US') {
@@ -1128,79 +1139,26 @@ Return ONLY a JSON array of 5 strings.`;
             displayName += `, ${location.country}`;
           }
           
+          const isInRegion = !regionCountries || regionCountries.includes(location.country);
+          
           suggestions.push({
             id: `${location.lat}_${location.lon}`,
             display_name: displayName,
             lat: location.lat,
             lon: location.lon,
             type: 'place',
-            importance: 1.0 - (suggestions.length * 0.1), // Decrease importance for later results
+            importance: isInRegion ? 1.5 - (suggestions.length * 0.05) : 0.5 - (suggestions.length * 0.05),
             address: {
               city: location.name,
               state: location.state,
               country: location.country
-            }
+            },
+            _inRegion: isInRegion
           });
         }
       }
       
-      const poiResults: typeof suggestions = [];
-      try {
-        const nominatimRes = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=8&addressdetails=1&extratags=1`,
-          { signal: AbortSignal.timeout(3000), headers: { 'User-Agent': 'StormTracker/1.0' } }
-        );
-        if (nominatimRes.ok) {
-          const nomData = await nominatimRes.json();
-          for (const r of nomData) {
-            const poiTypes: Record<string, string> = {
-              aerodrome: '✈️', aeroway: '✈️', airport: '✈️',
-              church: '⛪', place_of_worship: '⛪', mosque: '🕌', synagogue: '🕍',
-              school: '🏫', university: '🎓', college: '🎓',
-              hospital: '🏥', clinic: '🏥',
-              restaurant: '🍽️', cafe: '☕', bar: '🍺', fast_food: '🍔',
-              hotel: '🏨', motel: '🏨',
-              shop: '🛒', supermarket: '🛒', mall: '🛍️',
-              park: '🌳', stadium: '🏟️', museum: '🏛️', library: '📚',
-              fire_station: '🚒', police: '🚔', post_office: '📮',
-              fuel: '⛽', parking: '🅿️', marina: '⚓', harbour: '⚓',
-              military: '🎖️', helipad: '🚁',
-            };
-            const rType = (r.type || '').toLowerCase();
-            const rClass = (r.class || '').toLowerCase();
-            const emoji = poiTypes[rType] || poiTypes[rClass] || '';
-            const isPoi = emoji !== '' || ['amenity', 'tourism', 'shop', 'aeroway', 'leisure', 'building'].includes(rClass);
-            const existsAlready = suggestions.some(s =>
-              Math.abs(s.lat - parseFloat(r.lat)) < 0.001 && Math.abs(s.lon - parseFloat(r.lon)) < 0.001
-            );
-            if (existsAlready) continue;
-            const displayParts = [];
-            const name = r.extratags?.name || r.display_name.split(',')[0];
-            displayParts.push(emoji ? `${emoji} ${name}` : name);
-            const addr = r.address || {};
-            if (addr.city || addr.town || addr.village) displayParts.push(addr.city || addr.town || addr.village);
-            if (addr.state && (addr.country_code || '').toUpperCase() === 'US') displayParts.push(addr.state);
-            const cc = (addr.country_code || '').toUpperCase();
-            if (cc && cc !== 'US') displayParts.push(cc);
-            const target = isPoi ? poiResults : suggestions;
-            target.push({
-              id: `nom_${r.place_id}`,
-              display_name: displayParts.join(', '),
-              lat: parseFloat(r.lat),
-              lon: parseFloat(r.lon),
-              type: isPoi ? 'poi' : 'place',
-              importance: parseFloat(r.importance || '0.5'),
-              address: {
-                city: addr.city || addr.town || addr.village || '',
-                state: addr.state || '',
-                country: cc
-              }
-            });
-          }
-        }
-      } catch (e) { /* Nominatim failed, continue */ }
-
-      if (suggestions.length === 0 && poiResults.length === 0 && query.length >= 3) {
+      if (suggestions.length === 0 && query.length >= 3) {
         try {
           const photonRes = await fetch(
             `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6`,
@@ -1220,18 +1178,20 @@ Return ONLY a JSON array of 5 strings.`;
                 const cc = (p.countrycode || '').toUpperCase();
                 if (cc && cc !== 'US') parts.push(cc);
                 if (parts.length === 0) continue;
+                const isInRegion = !regionCountries || regionCountries.includes(cc);
                 suggestions.push({
                   id: `${f.geometry.coordinates[1]}_${f.geometry.coordinates[0]}`,
                   display_name: parts.join(', '),
                   lat: f.geometry.coordinates[1],
                   lon: f.geometry.coordinates[0],
                   type: 'place',
-                  importance: 0.8 - (suggestions.length * 0.1),
+                  importance: isInRegion ? 1.0 : 0.4,
                   address: {
                     city: p.city || p.town || p.village || p.name || '',
                     state: p.state || '',
                     country: cc
-                  }
+                  },
+                  _inRegion: isInRegion
                 });
               }
             }
@@ -1239,38 +1199,43 @@ Return ONLY a JSON array of 5 strings.`;
         } catch (e) { /* Photon fallback failed, continue */ }
       }
 
-      suggestions.push(...poiResults);
-
       const zipMatch = query.match(/^\d{1,5}$/);
       if (zipMatch && query.length >= 3) {
+        const zipCountry = regionBias === 'US' || !regionBias ? 'US' : regionBias === 'EU' ? 'DE' : 'US';
         try {
           const zipResponse = await fetch(
-            `https://api.openweathermap.org/geo/1.0/zip?zip=${query},US&appid=${API_KEYS.openweather}`
+            `https://api.openweathermap.org/geo/1.0/zip?zip=${query},${zipCountry}&appid=${API_KEYS.openweather}`,
+            { signal: AbortSignal.timeout(3000) }
           );
           
           if (zipResponse.ok) {
             const zipData = await zipResponse.json();
             suggestions.unshift({
               id: `zip_${query}`,
-              display_name: `${query} - ${zipData.name}`,
+              display_name: `${query} - ${zipData.name}${zipData.country && zipData.country !== 'US' ? `, ${zipData.country}` : ''}`,
               lat: zipData.lat,
               lon: zipData.lon,
               type: 'postal_code',
-              importance: 1.1,
+              importance: 2.0,
               address: {
                 postal_code: query,
                 city: zipData.name,
-                country: 'US'
-              }
+                country: zipData.country || zipCountry
+              },
+              _inRegion: true
             });
           }
         } catch (e) {
-          // ZIP lookup failed, continue with regular suggestions
+          // ZIP lookup failed
         }
       }
       
+      suggestions.sort((a, b) => b.importance - a.importance);
+      
+      const cleaned = suggestions.map(({ _inRegion, ...rest }) => rest);
+      
       res.json({ 
-        suggestions: suggestions.slice(0, 6), // Limit to 6 suggestions like major mapping services
+        suggestions: cleaned.slice(0, 6),
         query: query 
       });
     } catch (error) {
@@ -3346,7 +3311,7 @@ Return ONLY a JSON array of 5 strings.`;
 
   // Final fallback: OpenWeather surface winds
   async function getFallbackWindData(lat: number, lon: number) {
-    const apiKey = process.env.OPENWEATHER_API_KEY || '';
+    const apiKey = process.env.OPENWEATHER_API_KEY || 'a8f3a8e5a1a3b3d5e9a8f3a8e5a1a3b3';
     
     try {
       const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`);
@@ -3949,7 +3914,7 @@ Return ONLY a JSON array of 5 strings.`;
         }
 
         // Fallback to OpenWeather if other APIs fail and we have a key
-        if (!currentWeather && API_KEYS.openweather) {
+        if (!currentWeather && API_KEYS.openweather && API_KEYS.openweather !== 'a8f3a8e5a1a3b3d5e9a8f3a8e5a1a3b3') {
           console.log('🌤️ Falling back to OpenWeather API...');
           const owmResponse = await fetch(
             `https://api.openweathermap.org/data/2.5/weather?lat=${userLat}&lon=${userLon}&appid=${API_KEYS.openweather}&units=metric`
@@ -4554,7 +4519,7 @@ Return ONLY a JSON array of 5 strings.`;
   // Interactive AI Weather Chat endpoint
   app.post("/api/ai-chat", async (req, res) => {
     try {
-      const { question, userLocation, useMetric, storms, stormCount, nwsForecast } = req.body;
+      const { question, userLocation, useMetric, storms, stormCount } = req.body;
       
       if (!question || typeof question !== 'string') {
         return res.status(400).json({ error: 'Question is required' });
@@ -4648,8 +4613,7 @@ Return ONLY a JSON array of 5 strings.`;
       }
       const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : { alerts: [] };
       const winds = windsResult.status === 'fulfilled' ? windsResult.value : null;
-      const fetchedNwsForecast = nwsForecastResult.status === 'fulfilled' ? nwsForecastResult.value : null;
-      const resolvedNwsForecast = fetchedNwsForecast || nwsForecast || null;
+      const nwsForecast = nwsForecastResult.status === 'fulfilled' ? nwsForecastResult.value : null;
       const openMeteoForecast = openMeteoForecastResult.status === 'fulfilled' ? openMeteoForecastResult.value : null;
       const afd = afdResult.status === 'fulfilled' ? afdResult.value : null;
       
@@ -4662,18 +4626,23 @@ Return ONLY a JSON array of 5 strings.`;
         thunderstormConditions: thunderstorm,
         activeAlerts: alerts.alerts || [],
         winds: winds,
-        nwsForecast: resolvedNwsForecast,
+        nwsForecast: nwsForecast,
         openMeteoForecast: openMeteoForecast,
         afd: afd,
         useMetric: useMetric || false
       };
       
-      // Generate AI response using Groq (free) with OpenAI fallback
-      const { aiChat: aiChatFn, getProviderInfo } = await import("./ai-client");
-      const providerInfo = getProviderInfo();
-      console.log(`🤖 AI Chat using ${providerInfo.provider} (${providerInfo.model})${providerInfo.free ? ' [FREE]' : ''}`);
+      // Generate AI response using OpenAI
+      const openai = new (await import('openai')).default({ 
+        apiKey: process.env.OPENAI_API_KEY 
+      });
       
-      const systemContent = `You are an expert meteorologist providing comprehensive weather analysis for pilots, boaters, and the general public. Use ALL available weather data to answer questions with detailed insights for aviation, marine, and general safety.
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert meteorologist providing comprehensive weather analysis for pilots, boaters, and the general public. Use ALL available weather data to answer questions with detailed insights for aviation, marine, and general safety.
 
 Complete weather briefing data for ${userLocation.address || `${userLocation.lat}, ${userLocation.lon}`}:
 ${weatherContext.currentWeather ? `
@@ -4762,8 +4731,8 @@ ${(() => {
 
 ${weatherContext.nwsForecast ? `
 FORECAST (National Weather Service):
-${(Array.isArray(weatherContext.nwsForecast) ? weatherContext.nwsForecast : weatherContext.nwsForecast.periods || []).map(period => 
-  `• ${period.name}: ${period.shortForecast}, ${useMetric ? period.temperature + '°C' : period.temperature + '°F'}, Wind: ${period.windSpeed || 'N/A'}`
+${weatherContext.nwsForecast.periods.map(period => 
+  `• ${period.name}: ${period.shortForecast}, ${useMetric ? period.temperature + '°C' : period.temperature + '°F'}, ${period.precipitationProbability}% chance of rain`
 ).join('\n')}
 ` : ''}
 
@@ -4808,18 +4777,18 @@ Guidelines:
 - Only mention multiple sources when specifically asked about data reliability or accuracy
 - Keep responses natural and confident, as if coming from a single authoritative weather expert
 - Keep responses concise (2-4 sentences) unless detailed explanation is requested
-- Never mention missing data sections or say "data unavailable" - just work with what you have`;
-
-      const aiResult = await aiChatFn({
-        messages: [
-          { role: "system", content: systemContent },
-          { role: "user", content: question }
+- Never mention missing data sections or say "data unavailable" - just work with what you have`
+          },
+          {
+            role: "user", 
+            content: question
+          }
         ],
-        max_tokens: 2300,
+        max_tokens: 2300, // Increased by 1500 tokens for comprehensive weather analysis
         temperature: 0.7
       });
       
-      const aiResponse = aiResult.content;
+      const aiResponse = response.choices[0].message.content;
       
       console.log(`🤖 AI Chat Response generated for: "${question.substring(0, 50)}..."`);
       
@@ -4845,265 +4814,10 @@ Guidelines:
     }
   });
 
-  app.get("/api/ai-provider", async (_req, res) => {
-    const { getProviderInfo } = await import("./ai-client");
-    res.json(getProviderInfo());
-  });
-
-  app.post("/api/ai-summary", async (req, res) => {
-    try {
-      const { lat, lon, locationName, useMetric, tone } = req.body;
-      if (lat == null || lon == null) {
-        return res.status(400).json({ error: "Latitude and longitude required" });
-      }
-
-      const { aiChat: aiChatFn, getProviderInfo } = await import("./ai-client");
-      const providerInfo = getProviderInfo();
-      const toneLabel = tone || 'friendly';
-      console.log(`📋 Generating comprehensive weather summary via ${providerInfo.provider}${providerInfo.free ? ' [FREE]' : ''} (tone: ${toneLabel})`);
-
-      const fetchWithTimeout = (url: string, timeout = 6000) =>
-        fetch(url, { signal: AbortSignal.timeout(timeout) }).then(r => r.ok ? r.json() : null).catch(() => null);
-
-      const [forecast, storms, aviation, thunderstorm, alerts, winds] = await Promise.all([
-        fetchWithTimeout(`http://localhost:5000/api/forecast?lat=${lat}&lon=${lon}`),
-        fetch(`http://localhost:5000/api/storms`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat, lon, radius: 50 }),
-          signal: AbortSignal.timeout(10000),
-        }).then(r => r.ok ? r.json() : null).catch(() => null),
-        fetchWithTimeout(`http://localhost:5000/api/aviation-weather?lat=${lat}&lon=${lon}`),
-        fetchWithTimeout(`http://localhost:5000/api/thunderstorm-conditions?lat=${lat}&lon=${lon}`),
-        fetchWithTimeout(`http://localhost:5000/api/nws-alerts?lat=${lat}&lon=${lon}`),
-        fetchWithTimeout(`http://localhost:5000/api/winds-aloft?lat=${lat}&lon=${lon}`),
-      ]);
-
-      const toC = (f: number) => Math.round((f - 32) * 5 / 9);
-      const toKmh = (mph: number) => Math.round(mph * 1.609);
-      const dualTempF = (valF: number) => `${Math.round(valF)}°F (${toC(valF)}°C)`;
-      const dualWind = (mph: number) => `${Math.round(mph)} mph (${toKmh(mph)} km/h)`;
-
-      let dataContext = `COMPREHENSIVE WEATHER DATA FOR: ${locationName || `${lat}, ${lon}`}\n\n`;
-
-      if (forecast?.current) {
-        const c = forecast.current;
-        dataContext += `CURRENT CONDITIONS:\n`;
-        dataContext += `• Temperature: ${dualTempF(c.temperature_2m)} (Feels like: ${dualTempF(c.apparent_temperature)})\n`;
-        dataContext += `• Humidity: ${c.relative_humidity_2m}%, Dew Point: ${dualTempF(c.dew_point_2m)}\n`;
-        dataContext += `• Wind: ${dualWind(c.wind_speed_10m)} from ${c.wind_direction_10m}°, Gusts: ${dualWind(c.wind_gusts_10m)}\n`;
-        dataContext += `• Pressure: ${c.surface_pressure} hPa, Cloud Cover: ${c.cloud_cover}%\n`;
-        dataContext += `• UV Index: ${c.uv_index}, Visibility: ${Math.round(c.visibility / 5280)} mi (${Math.round(c.visibility / 1000)} km)\n`;
-        dataContext += `• Precipitation: ${c.precipitation} in (${Math.round(c.precipitation * 25.4)} mm)\n\n`;
-      }
-
-      if (forecast?.daily) {
-        const d = forecast.daily;
-        const sources = forecast.forecastSources?.join(' + ') || 'Open-Meteo';
-        dataContext += `7-DAY FORECAST (Blended from ${sources} — ${forecast.forecastSourceCount || 1} sources):\n`;
-        for (let i = 0; i < d.time.length; i++) {
-          const date = new Date(d.time[i] + 'T12:00:00');
-          const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : date.toLocaleDateString('en-US', { weekday: 'long' });
-          dataContext += `• ${dayName}: High ${dualTempF(d.tempMax[i])}, Low ${dualTempF(d.tempMin[i])}, `;
-          dataContext += `Wind: ${dualWind(d.windMax[i])}, Precip: ${d.precipProbMax[i]}%, UV: ${d.uvMax[i]}\n`;
-        }
-        dataContext += '\n';
-      }
-
-      if (forecast?.nwsForecast) {
-        dataContext += `NWS DETAILED FORECAST:\n`;
-        for (const p of forecast.nwsForecast.slice(0, 8)) {
-          dataContext += `• ${p.name}: ${p.shortForecast}, ${p.temperature}°${p.temperatureUnit}, Wind: ${p.windSpeed}\n`;
-          dataContext += `  ${p.detailedForecast}\n`;
-        }
-        dataContext += '\n';
-      }
-
-      if (storms?.storms?.length > 0) {
-        const { getCompassDirection, isStormApproaching, calculateApproachAngle, calculateETA } = await import("../shared/storm-utils");
-        const computeBearing = (sLat: number, sLon: number) => {
-          const dLon = (sLon - lon) * Math.PI / 180;
-          const lat1R = lat * Math.PI / 180;
-          const lat2R = sLat * Math.PI / 180;
-          const y = Math.sin(dLon) * Math.cos(lat2R);
-          const x = Math.cos(lat1R) * Math.sin(lat2R) - Math.sin(lat1R) * Math.cos(lat2R) * Math.cos(dLon);
-          return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
-        };
-        const getBearing = (s: any) => {
-          if (s.bearing != null && !isNaN(s.bearing)) return s.bearing;
-          if (s.lat != null && s.lon != null) return computeBearing(s.lat, s.lon);
-          return null;
-        };
-        const sorted = [...storms.storms].sort((a: any, b: any) => (a.distance || 999) - (b.distance || 999));
-        const approaching = sorted.filter((s: any) => {
-          const b = getBearing(s);
-          return b != null && s.movement && isStormApproaching(b, s.movement.direction, s.movement.speed);
-        });
-        dataContext += `ACTIVE STORMS (${storms.storms.length} detected within ${storms.radius || 50} miles / ${Math.round((storms.radius || 50) * 1.609)} km):\n`;
-        if (approaching.length > 0) {
-          dataContext += `⚠ ${approaching.length} storm(s) APPROACHING your location!\n`;
-        }
-        for (const s of sorted.slice(0, 20)) {
-          const stormBearing = getBearing(s);
-          const compassDir = stormBearing != null ? getCompassDirection(stormBearing) : 'unknown';
-          const dist = typeof s.distance === 'number' ? s.distance : 0;
-          dataContext += `• ${s.category} storm (${s.intensity} dBZ): Located ${compassDir} at ${dist.toFixed(1)} mi (${(dist * 1.609).toFixed(1)} km)`;
-          if (s.lat != null && s.lon != null) {
-            dataContext += ` [${s.lat.toFixed(3)}, ${s.lon.toFixed(3)}]`;
-          }
-          dataContext += '\n';
-          if (s.movement && s.movement.speed > 0) {
-            const movingDir = getCompassDirection(s.movement.direction);
-            const stormApproaching = stormBearing != null && isStormApproaching(stormBearing, s.movement.direction, s.movement.speed);
-            const approachAngle = stormBearing != null ? calculateApproachAngle(stormBearing, s.movement.direction) : null;
-            const eta = stormApproaching && dist > 0 ? calculateETA(dist, s.movement.speed) : null;
-            dataContext += `  → Moving ${movingDir} at ${dualWind(s.movement.speed)}`;
-            if (stormApproaching) {
-              dataContext += ` — APPROACHING (angle: ${approachAngle?.toFixed(0)}°)`;
-              if (eta && eta < 999) {
-                dataContext += `, ETA: ${eta < 60 ? `${Math.round(eta)} min` : `${(eta / 60).toFixed(1)} hr`}`;
-              }
-            } else {
-              dataContext += ` — moving away or passing`;
-            }
-            dataContext += '\n';
-            if (stormApproaching && s.lat != null && s.lon != null && s.movement.speed > 0) {
-              const speedDegreesPerHour = s.movement.speed / 69;
-              const movRad = (s.movement.direction * Math.PI) / 180;
-              const proj30Lat = s.lat + speedDegreesPerHour * 0.5 * Math.cos(movRad);
-              const proj30Lon = s.lon + speedDegreesPerHour * 0.5 * Math.sin(movRad) / Math.cos(s.lat * Math.PI / 180);
-              const proj60Lat = s.lat + speedDegreesPerHour * 1.0 * Math.cos(movRad);
-              const proj60Lon = s.lon + speedDegreesPerHour * 1.0 * Math.sin(movRad) / Math.cos(s.lat * Math.PI / 180);
-              dataContext += `  → Projected track: 30min → [${proj30Lat.toFixed(3)}, ${proj30Lon.toFixed(3)}], 60min → [${proj60Lat.toFixed(3)}, ${proj60Lon.toFixed(3)}]\n`;
-            }
-          }
-        }
-        dataContext += '\n';
-      } else {
-        dataContext += `STORMS: No active storms detected within 50 miles (80 km).\n\n`;
-      }
-
-      const alertsList = alerts?.alerts || (Array.isArray(alerts) ? alerts : []);
-      if (alertsList.length > 0) {
-        dataContext += `NWS ALERTS (${alertsList.length} active):\n`;
-        for (const a of alertsList.slice(0, 5)) {
-          dataContext += `• ${a.event} (${a.severity}): ${a.headline || a.description?.substring(0, 200)}\n`;
-        }
-        dataContext += '\n';
-      }
-
-      if (aviation?.stations?.length > 0) {
-        dataContext += `AVIATION WEATHER (${aviation.stations.length} nearby airports):\n`;
-        for (const s of aviation.stations.slice(0, 3)) {
-          dataContext += `• ${s.station}: ${s.rawMETAR || `${s.conditions?.weather}, ${s.conditions?.temperature}°F, Wind: ${s.conditions?.windSpeed}kts`}\n`;
-        }
-        dataContext += '\n';
-      }
-
-      if (thunderstorm?.thunderstormPotential) {
-        const tp = thunderstorm.thunderstormPotential;
-        dataContext += `THUNDERSTORM POTENTIAL: ${tp.overall}/10\n`;
-        dataContext += `• Moisture: ${tp.moisture}/10, Instability: ${tp.instability}/10, Lift: ${tp.lift}/10\n`;
-        if (thunderstorm.cape) dataContext += `• CAPE: ${thunderstorm.cape} J/kg\n`;
-        dataContext += '\n';
-      }
-
-      if (winds?.winds?.length > 0) {
-        dataContext += `WINDS ALOFT:\n`;
-        for (const w of winds.winds) {
-          dataContext += `• ${w.level}: ${w.direction}° @ ${w.speed} kts (${Math.round(w.speed * 1.852)} km/h)\n`;
-        }
-        dataContext += '\n';
-      }
-
-      if (forecast?.astronomy) {
-        dataContext += `ASTRONOMY: Moon Phase: ${forecast.astronomy.moonPhase}, ${forecast.astronomy.moonIllumination}% illumination\n`;
-        dataContext += `• Moonrise: ${forecast.astronomy.moonrise}, Moonset: ${forecast.astronomy.moonset}\n\n`;
-      }
-
-      if (forecast?.airQuality) {
-        const aq = forecast.airQuality;
-        const epaLabel = aq.usEpaIndex <= 1 ? 'Good' : aq.usEpaIndex <= 2 ? 'Moderate' : aq.usEpaIndex <= 3 ? 'Unhealthy for Sensitive Groups' : 'Unhealthy';
-        dataContext += `AIR QUALITY: EPA Index ${aq.usEpaIndex} (${epaLabel})\n`;
-        dataContext += `• PM2.5: ${aq.pm25?.toFixed(1)}, PM10: ${aq.pm10?.toFixed(1)}, O3: ${aq.o3?.toFixed(1)}\n\n`;
-      }
-
-      const toneInstructions = toneLabel === 'professional'
-        ? 'Write in a formal meteorological briefing style. Be precise, clinical, and data-driven. Use proper meteorological terminology.'
-        : toneLabel === 'humorous'
-        ? 'Write in a fun, witty style similar to Carrot Weather — include weather-related humor, playful commentary, and personality while still being accurate. Make weather fun!'
-        : 'Write in a warm, conversational tone. Be approachable and helpful, like a friendly local weather expert explaining things to a neighbor.';
-
-      const aiResult = await aiChatFn({
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert meteorologist writing a comprehensive weather briefing. ${toneInstructions}
-
-Write in plain text (NO markdown, NO asterisks, NO bullet points with *). Use simple dashes (-) for lists if needed.
-
-IMPORTANT: Always show BOTH measurement systems together for all values — format as "imperial (metric)" like: 72°F (22°C), 15 mph (24 km/h), 10 miles (16 km).
-
-Structure your briefing with these sections, each as a flowing narrative:
-
-RIGHT NOW: Current conditions summary — temperature, feels-like, humidity, wind, sky conditions, and how it feels outside right now.
-
-TODAY & TONIGHT: What to expect for the rest of today and tonight. Include timing of any changes.
-
-WEEK AHEAD: Summarize the 7-day trend — warming/cooling patterns, rain chances, any significant weather events coming.
-
-STORM WATCH: Active storm status — report specific storm locations with coordinates, distance, direction from user, intensity (dBZ), whether approaching or moving away, movement direction and speed, projected track, and ETAs. Mention how many storms total and highlight any directly approaching. If no storms, say so confidently.
-
-ALERTS & WARNINGS: Any active NWS alerts or advisories. If none, skip this section entirely.
-
-AVIATION BRIEF: Ceilings, visibility, winds aloft, wind shear, turbulence potential — what pilots need to know.
-
-MARINE & OUTDOOR: Boating conditions, outdoor activity recommendations, UV exposure guidance.
-
-ATMOSPHERE: Thunderstorm potential, atmospheric stability, air quality, and moon phase for nighttime visibility.
-
-BOTTOM LINE: 2-3 sentence "what you need to know" takeaway for the average person.
-
-Write each section as a natural paragraph. Be authoritative and specific with data.`
-          },
-          {
-            role: "user",
-            content: `Generate a complete weather briefing using ALL of this data:\n\n${dataContext}`
-          }
-        ],
-        max_tokens: 4000,
-        temperature: toneLabel === 'humorous' ? 0.7 : toneLabel === 'professional' ? 0.3 : 0.4,
-      });
-
-      console.log(`📋 Weather summary generated: ${aiResult.content.length} chars via ${aiResult.provider}`);
-
-      res.json({
-        summary: aiResult.content,
-        provider: aiResult.provider,
-        model: aiResult.model,
-        free: aiResult.provider === 'openrouter' || aiResult.provider === 'groq',
-        dataPointsUsed: {
-          forecast: !!forecast,
-          storms: storms?.storms?.length || 0,
-          aviation: aviation?.stations?.length || 0,
-          thunderstorm: !!thunderstorm,
-          alerts: alertsList.length,
-          winds: winds?.winds?.length || 0,
-          astronomy: !!forecast?.astronomy,
-          airQuality: !!forecast?.airQuality,
-        },
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error: any) {
-      console.error('AI Summary error:', error.message);
-      res.status(500).json({ error: 'Failed to generate weather summary' });
-    }
-  });
-
   // AI Weather Assistant endpoint
   app.post("/api/ai-assessment", async (req, res) => {
     try {
-      const { userLocation, storms, winds, radarSource, includeAlerts = false, lightningCount = 0, useMetric = false, userSettings, nwsForecast } = req.body;
+      const { userLocation, storms, winds, radarSource, includeAlerts = false, lightningCount = 0, useMetric = false, userSettings } = req.body;
       
       if (!userLocation || !Array.isArray(storms) || !Array.isArray(winds)) {
         return res.status(400).json({ error: "Missing required weather data" });
@@ -5126,14 +4840,13 @@ Write each section as a natural paragraph. Be authoritative and specific with da
           if (threatResult.threatCount > 0) {
             const assessment = await generateWeatherAssessment({
               userLocation,
-              storms,
-              regionalStorms: [],
+              storms, // 30-mile immediate threats  
+              regionalStorms: [], // Skip regional fetch for faster threat response
               winds,
               radarSource: radarSource || 'Unknown',
-              threatData: threatResult,
+              threatData: threatResult, // Include threat data for enhanced analysis
               useMetric,
-              userSettings,
-              nwsForecast
+              userSettings // Pass user's tone preferences for AFD summary
             });
             
             console.log(`Enhanced AI assessment with ${threatResult.threatCount} threats: ${assessment.riskLevel} risk`);
@@ -5245,13 +4958,12 @@ Write each section as a natural paragraph. Be authoritative and specific with da
 
       const assessment = await generateWeatherAssessment({
         userLocation,
-        storms: enhancedStorms,
-        regionalStorms,
+        storms: enhancedStorms, // Enhanced storms with impact calculations
+        regionalStorms, // 50-mile regional context
         winds,
         radarSource: radarSource || 'Unknown',
         useMetric,
-        userSettings,
-        nwsForecast
+        userSettings // Pass user's tone preferences for AFD summary
       });
 
       console.log(`AI assessment generated: ${assessment.riskLevel} risk level with ${assessment.confidence} confidence`);
@@ -5552,238 +5264,6 @@ Write each section as a natural paragraph. Be authoritative and specific with da
     } catch (error) {
       console.error('Error saving user settings:', error);
       res.status(500).json({ error: 'Failed to save user settings' });
-    }
-  });
-
-  function getRegionalModels(lat: number, lon: number): { models: string[]; region: string; label: string } {
-    if (lat >= 24.5 && lat <= 49.5 && lon >= -125 && lon <= -66.5) {
-      return { models: ['gfs_seamless', 'gem_seamless'], region: 'us', label: 'GFS + GEM' };
-    }
-    if (lat >= 50 && lat <= 72 && lon >= -145 && lon <= -50) {
-      return { models: ['gem_seamless', 'gfs_seamless'], region: 'canada', label: 'GEM + GFS' };
-    }
-    if (lat >= 14 && lat <= 33 && lon >= -120 && lon <= -85) {
-      return { models: ['gfs_seamless', 'gem_seamless'], region: 'mexico', label: 'GFS + GEM' };
-    }
-    if (lat >= 50 && lat <= 62 && lon >= -12 && lon <= 3) {
-      return { models: ['ukmo_seamless', 'icon_seamless'], region: 'uk', label: 'UK Met Office + ICON' };
-    }
-    if (lat >= 55 && lat <= 72 && lon >= 4 && lon <= 32) {
-      return { models: ['icon_seamless', 'metno_seamless'], region: 'scandinavia', label: 'ICON + MET Norway' };
-    }
-    if (lat >= 35 && lat <= 72 && lon >= -12 && lon <= 45) {
-      return { models: ['icon_seamless', 'meteofrance_seamless'], region: 'europe', label: 'ICON + Météo-France' };
-    }
-    if (lat >= 24 && lat <= 46 && lon >= 122 && lon <= 146) {
-      return { models: ['jma_seamless', 'gfs_seamless'], region: 'japan', label: 'JMA + GFS' };
-    }
-    if (lat >= 18 && lat <= 54 && lon >= 73 && lon <= 135) {
-      return { models: ['cma_grapes_global', 'gfs_seamless'], region: 'china', label: 'CMA + GFS' };
-    }
-    if (lat >= 6 && lat <= 38 && lon >= 68 && lon <= 98) {
-      return { models: ['gfs_seamless', 'icon_seamless'], region: 'india', label: 'GFS + ICON' };
-    }
-    if (lat >= -47 && lat <= -10 && lon >= 112 && lon <= 155) {
-      return { models: ['bom_access_global', 'gfs_seamless'], region: 'australia', label: 'BOM + GFS' };
-    }
-    if (lat >= -48 && lat <= -34 && lon >= 165 && lon <= 180) {
-      return { models: ['gfs_seamless', 'icon_seamless'], region: 'newzealand', label: 'GFS + ICON' };
-    }
-    if (lat >= -56 && lat <= 13 && lon >= -82 && lon <= -34) {
-      return { models: ['gfs_seamless', 'icon_seamless'], region: 'southamerica', label: 'GFS + ICON' };
-    }
-    if (lat >= -35 && lat <= 38 && lon >= -20 && lon <= 55) {
-      return { models: ['gfs_seamless', 'icon_seamless'], region: 'africa', label: 'GFS + ICON' };
-    }
-    if (lat >= 1 && lat <= 21 && lon >= 98 && lon <= 145) {
-      return { models: ['gfs_seamless', 'icon_seamless'], region: 'southeast_asia', label: 'GFS + ICON' };
-    }
-    return { models: ['gfs_seamless', 'icon_seamless'], region: 'global', label: 'GFS + ICON' };
-  }
-
-  app.get("/api/forecast", async (req, res) => {
-    try {
-      const { lat, lon } = req.query;
-      if (!lat || !lon) {
-        return res.status(400).json({ error: "Latitude and longitude required" });
-      }
-      const latitude = parseFloat(lat as string);
-      const longitude = parseFloat(lon as string);
-      const isUS = latitude >= 24.5 && latitude <= 49.5 && longitude >= -125 && longitude <= -66.5;
-
-      const regional = getRegionalModels(latitude, longitude);
-      const baseParams = `latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,cloud_cover,visibility,uv_index,is_day,dew_point_2m&hourly=temperature_2m,weather_code,precipitation_probability,wind_speed_10m,relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`;
-
-      const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?${baseParams}`;
-
-      const modelUrls = regional.models.map(model =>
-        `https://api.open-meteo.com/v1/forecast?${baseParams}&models=${model}`
-      );
-
-      const fetches: Promise<any>[] = [
-        fetch(openMeteoUrl, { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null).catch(() => null),
-        ...modelUrls.map(url =>
-          fetch(url, { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null).catch(() => null)
-        ),
-      ];
-
-      const weatherApiFetchIndex = fetches.length;
-      if (API_KEYS.weatherapi) {
-        fetches.push(
-          fetch(`https://api.weatherapi.com/v1/forecast.json?key=${API_KEYS.weatherapi}&q=${latitude},${longitude}&days=3&aqi=yes&alerts=yes`, {
-            signal: AbortSignal.timeout(5000),
-          }).then(r => r.ok ? r.json() : null).catch(() => null)
-        );
-      }
-
-      const nwsFetchIndex = fetches.length;
-      if (isUS) {
-        fetches.push(
-          fetch(`https://api.weather.gov/points/${latitude},${longitude}`, {
-            headers: { 'User-Agent': 'StormTracker/1.0 (weather-app)', Accept: 'application/geo+json' },
-            signal: AbortSignal.timeout(5000),
-          })
-            .then(async r => {
-              if (!r.ok) return null;
-              const pts = await r.json();
-              const forecastUrl = pts.properties?.forecast;
-              if (!forecastUrl) return null;
-              const fRes = await fetch(forecastUrl, {
-                headers: { 'User-Agent': 'StormTracker/1.0 (weather-app)', Accept: 'application/geo+json' },
-                signal: AbortSignal.timeout(5000),
-              });
-              if (!fRes.ok) return null;
-              const fd = await fRes.json();
-              return fd.properties?.periods || null;
-            })
-            .catch(() => null)
-        );
-      }
-
-      const results = await Promise.all(fetches);
-      const data = results[0];
-      if (!data) throw new Error('Open-Meteo unavailable');
-
-      const modelResults = results.slice(1, weatherApiFetchIndex).filter(Boolean);
-      const weatherApiData = API_KEYS.weatherapi ? results[weatherApiFetchIndex] : null;
-      const nwsPeriods = isUS ? results[nwsFetchIndex] : null;
-
-      const weatherApiDays: { hiF: number; loF: number; windMph: number; precipChance: number }[] = [];
-      if (weatherApiData?.forecast?.forecastday) {
-        for (const fd of weatherApiData.forecast.forecastday) {
-          weatherApiDays.push({
-            hiF: fd.day.maxtemp_f,
-            loF: fd.day.mintemp_f,
-            windMph: fd.day.maxwind_mph,
-            precipChance: fd.day.daily_chance_of_rain || 0,
-          });
-        }
-      }
-
-      const sourceLabels: string[] = ['Open-Meteo'];
-      if (modelResults.length > 0) sourceLabels.push(regional.label);
-      if (weatherApiDays.length > 0) sourceLabels.push('WeatherAPI');
-      if (nwsPeriods) sourceLabels.push('NWS');
-      const sourceCount = sourceLabels.length;
-
-      const blendedDaily = { ...data.daily };
-      const numDays = data.daily.time.length;
-      for (let d = 0; d < numDays; d++) {
-        let hiSum = data.daily.temperature_2m_max[d];
-        let loSum = data.daily.temperature_2m_min[d];
-        let windSum = data.daily.wind_speed_10m_max[d];
-        let precipSum = data.daily.precipitation_probability_max[d];
-        let count = 1;
-        for (const m of modelResults) {
-          if (m?.daily?.temperature_2m_max?.[d] != null) {
-            hiSum += m.daily.temperature_2m_max[d];
-            loSum += m.daily.temperature_2m_min[d];
-            windSum += (m.daily.wind_speed_10m_max?.[d] ?? data.daily.wind_speed_10m_max[d]);
-            precipSum += (m.daily.precipitation_probability_max?.[d] ?? data.daily.precipitation_probability_max[d]);
-            count++;
-          }
-        }
-        if (d < weatherApiDays.length) {
-          hiSum += weatherApiDays[d].hiF;
-          loSum += weatherApiDays[d].loF;
-          windSum += weatherApiDays[d].windMph;
-          precipSum += weatherApiDays[d].precipChance;
-          count++;
-        }
-        blendedDaily.temperature_2m_max[d] = Math.round((hiSum / count) * 10) / 10;
-        blendedDaily.temperature_2m_min[d] = Math.round((loSum / count) * 10) / 10;
-        blendedDaily.wind_speed_10m_max[d] = Math.round((windSum / count) * 10) / 10;
-        blendedDaily.precipitation_probability_max[d] = Math.round(precipSum / count);
-      }
-
-      const weatherApiAstro = weatherApiData?.forecast?.forecastday?.[0]?.astro || null;
-      const weatherApiAqi = weatherApiData?.current?.air_quality || null;
-
-      console.log(`🌍 Forecast for ${latitude.toFixed(2)},${longitude.toFixed(2)} — Region: ${regional.region}, Sources: ${sourceLabels.join(' + ')} (${sourceCount} total)${weatherApiDays.length > 0 ? ` [WeatherAPI: ${weatherApiDays.length}-day blend]` : ''}`);
-
-      res.json({
-        source: "Open-Meteo",
-        timezone: data.timezone,
-        timezoneAbbr: data.timezone_abbreviation,
-        elevation: data.elevation,
-        isUS,
-        region: regional.region,
-        forecastSources: sourceLabels,
-        forecastSourceCount: sourceCount,
-        regionalModels: regional.label,
-        current: data.current,
-        currentUnits: data.current_units,
-        hourly: {
-          time: data.hourly.time.slice(0, 48),
-          temperature: data.hourly.temperature_2m.slice(0, 48),
-          weatherCode: data.hourly.weather_code.slice(0, 48),
-          precipProbability: data.hourly.precipitation_probability.slice(0, 48),
-          windSpeed: data.hourly.wind_speed_10m.slice(0, 48),
-          humidity: data.hourly.relative_humidity_2m.slice(0, 48),
-        },
-        daily: {
-          time: data.daily.time,
-          weatherCode: data.daily.weather_code,
-          tempMax: blendedDaily.temperature_2m_max,
-          tempMin: blendedDaily.temperature_2m_min,
-          sunrise: data.daily.sunrise,
-          sunset: data.daily.sunset,
-          uvMax: data.daily.uv_index_max,
-          precipSum: data.daily.precipitation_sum,
-          precipProbMax: blendedDaily.precipitation_probability_max,
-          windMax: blendedDaily.wind_speed_10m_max,
-        },
-        nwsForecast: nwsPeriods ? nwsPeriods.slice(0, 14).map((p: any) => ({
-          name: p.name,
-          temperature: p.temperature,
-          temperatureUnit: p.temperatureUnit,
-          windSpeed: p.windSpeed,
-          windDirection: p.shortForecast ? undefined : p.windDirection,
-          icon: p.icon,
-          shortForecast: p.shortForecast,
-          detailedForecast: p.detailedForecast,
-          isDaytime: p.isDaytime,
-        })) : null,
-        astronomy: weatherApiAstro ? {
-          moonPhase: weatherApiAstro.moon_phase,
-          moonIllumination: weatherApiAstro.moon_illumination,
-          moonrise: weatherApiAstro.moonrise,
-          moonset: weatherApiAstro.moonset,
-        } : null,
-        airQuality: weatherApiAqi ? {
-          usEpaIndex: weatherApiAqi['us-epa-index'],
-          pm25: weatherApiAqi.pm2_5,
-          pm10: weatherApiAqi.pm10,
-          o3: weatherApiAqi.o3,
-          no2: weatherApiAqi.no2,
-          co: weatherApiAqi.co,
-          so2: weatherApiAqi.so2,
-        } : null,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error("Forecast API error:", error);
-      res.status(500).json({ error: "Failed to fetch forecast data" });
     }
   });
 

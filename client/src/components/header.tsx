@@ -11,17 +11,17 @@ export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
 
   return (
     <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 p-4 select-none">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <div className="w-7 h-7 sm:w-8 sm:h-8 text-yellow-400 select-none shrink-0">⚡</div>
-          <div className="select-none min-w-0">
-            <h1 className="text-lg sm:text-2xl font-bold select-none">StormTracker <span className="text-xs sm:text-sm font-normal text-slate-400">v1.32</span></h1>
-            <p className="text-xs sm:text-sm text-slate-300 select-none truncate">Real-time storm cell detection with live radar</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 text-yellow-400 select-none">⚡</div>
+          <div className="select-none">
+            <h1 className="text-2xl font-bold select-none">StormTracker <span className="text-sm font-normal text-slate-400">v1.33</span></h1>
+            <p className="text-sm text-slate-300 select-none">Real-time storm cell detection with live radar</p>
           </div>
         </div>
         
-        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-          <div className="hidden sm:flex items-center gap-2 text-gray-400">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-gray-400">
             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
             <span className="text-sm">Ready</span>
           </div>
@@ -45,24 +45,20 @@ export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
           {/* Units Toggle */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-slate-300 mb-2">Units</label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2">
               <Button
                 variant={!useMetric ? "default" : "secondary"}
                 size="sm"
                 onClick={() => onUnitsChange(false)}
-                className="text-xs sm:text-sm"
               >
-                <span className="sm:hidden">Imperial</span>
-                <span className="hidden sm:inline">Imperial (mph, mi, in)</span>
+                Imperial (mph, mi, in)
               </Button>
               <Button
                 variant={useMetric ? "default" : "secondary"}
                 size="sm"
                 onClick={() => onUnitsChange(true)}
-                className="text-xs sm:text-sm"
               >
-                <span className="sm:hidden">Metric</span>
-                <span className="hidden sm:inline">Metric (km/h, km, mm)</span>
+                Metric (km/h, km, mm)
               </Button>
             </div>
           </div>
