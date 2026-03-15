@@ -9,6 +9,10 @@ interface Storm {
   intensity: number;
   distance: number;
   direction: number;
+  windsPrediction?: {
+    direction: number;
+    speed: number;
+  };
   movement?: {
     direction: number;
     speed: number;
@@ -99,9 +103,13 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
   };
 
   const stormsWithMovement = storms.map(storm => {
-    const rawMovement = storm.movement ?? (windsAloftData?.stormMovement
-      ? { direction: windsAloftData.stormMovement.direction, speed: windsAloftData.stormMovement.speed }
-      : null);
+    const rawMovement = storm.windsPrediction
+      ? { direction: storm.windsPrediction.direction, speed: storm.windsPrediction.speed }
+      : storm.movement
+        ? { direction: storm.movement.direction, speed: storm.movement.speed }
+        : windsAloftData?.stormMovement
+          ? { direction: windsAloftData.stormMovement.direction, speed: windsAloftData.stormMovement.speed }
+          : null;
 
     if (!rawMovement || rawMovement.speed == null) return storm;
 
