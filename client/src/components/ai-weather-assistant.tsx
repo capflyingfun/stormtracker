@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import { Brain, AlertTriangle, CheckCircle, Clock, MapPin, Wind, Plane, RefreshCw, Send, MessageCircle, BookOpen, ChevronDown, ChevronUp, Cpu, Zap } from "lucide-react";
+import { Brain, AlertTriangle, CheckCircle, Clock, MapPin, Wind, Plane, RefreshCw, Send, MessageCircle, ChevronDown, ChevronUp, Target, Navigation } from "lucide-react";
 
 interface StormData {
   id: string;
@@ -60,55 +60,25 @@ interface AIWeatherAssistantProps {
   nwsForecast?: any[] | null;
 }
 
-interface Section {
-  title: string;
-  content: string;
+const COMPASS_16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+function getCompassDir(deg: number) { return COMPASS_16[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16]; }
+
+function computeBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
+  const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
+            Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-function parseSections(text: string): Section[] {
-  const sections: Section[] = [];
-  const lines = text.split('\n');
-  let currentTitle = '';
-  let currentContent: string[] = [];
-
-  for (const line of lines) {
-    const headerMatch = line.match(/^(?:\*\*)?([A-Z][A-Z &/]+(?:[A-Z]))(?:\*\*)?:?\s*(.*)/);
-    if (headerMatch && line.trim().length < 60) {
-      if (currentTitle || currentContent.length > 0) {
-        sections.push({
-          title: currentTitle || 'Overview',
-          content: currentContent.join('\n').trim(),
-        });
-      }
-      currentTitle = headerMatch[1].replace(/\*\*/g, '').trim();
-      currentContent = headerMatch[2] ? [headerMatch[2]] : [];
-    } else {
-      currentContent.push(line);
-    }
-  }
-
-  if (currentTitle || currentContent.length > 0) {
-    sections.push({
-      title: currentTitle || 'Overview',
-      content: currentContent.join('\n').trim(),
-    });
-  }
-
-  return sections.filter(s => s.content.trim().length > 0);
-}
-
-function getTitleColor(title: string): string {
-  const t = title.toLowerCase();
-  if (t.includes('right now') || t.includes('current')) return 'text-cyan-400';
-  if (t.includes('today')) return 'text-blue-400';
-  if (t.includes('week') || t.includes('ahead')) return 'text-indigo-400';
-  if (t.includes('storm')) return 'text-amber-400';
-  if (t.includes('alert') || t.includes('warning')) return 'text-red-400';
-  if (t.includes('aviation')) return 'text-sky-400';
-  if (t.includes('marine') || t.includes('outdoor')) return 'text-teal-400';
-  if (t.includes('atmosphere')) return 'text-purple-400';
-  if (t.includes('bottom line') || t.includes('takeaway')) return 'text-green-400';
-  return 'text-slate-400';
+function isStormApproaching(storm: StormData, userLat: number, userLon: number): boolean {
+  if (!storm.movement || storm.movement.speed <= 3) return false;
+  if (storm.movement.impact === 'high' || storm.movement.impact === 'medium' || 
+      storm.movement.impact === 'Direct Hit') return true;
+  const stormToUser = computeBearing(storm.lat, storm.lon, userLat, userLon);
+  let angleDiff = Math.abs(storm.movement.direction - stormToUser);
+  if (angleDiff > 180) angleDiff = 360 - angleDiff;
+  return angleDiff <= 30;
 }
 
 export default function AIWeatherAssistant({
@@ -122,7 +92,6 @@ export default function AIWeatherAssistant({
   nwsForecast
 }: AIWeatherAssistantProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [briefingExpanded, setBriefingExpanded] = useState(false);
   const [cardCollapsed, setCardCollapsed] = useState(true);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
@@ -134,6 +103,16 @@ export default function AIWeatherAssistant({
   const [aiTone, setAiTone] = useState<'professional' | 'friendly' | 'humorous'>(
     userSettings?.aiTone || 'friendly'
   );
+
+  const stormSummary = useMemo(() => {
+    if (!storms || storms.length === 0) {
+      return { total: 0, approaching: [] as StormData[], closest: null as StormData | null, strongest: null as StormData | null };
+    }
+    const sorted = [...storms].sort((a, b) => a.distance - b.distance);
+    const approaching = sorted.filter(s => isStormApproaching(s, userLocation.lat, userLocation.lon));
+    const strongest = [...storms].sort((a, b) => b.intensity - a.intensity)[0];
+    return { total: storms.length, approaching, closest: sorted[0], strongest };
+  }, [storms, userLocation.lat, userLocation.lon]);
 
   const { data: aviationData } = useQuery({
     queryKey: ['/api/aviation-weather', userLocation.lat, userLocation.lon],
@@ -159,31 +138,10 @@ export default function AIWeatherAssistant({
           lightningCount
         })
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to perform threat detection');
-      }
-      
+      if (!response.ok) throw new Error('Failed to perform threat detection');
       return response.json();
     },
     enabled: false,
-  });
-
-  const { data: summaryData, isLoading: summaryLoading, refetch: refetchSummary, isFetching: summaryFetching } = useQuery({
-    queryKey: ['/api/ai-summary', userLocation.lat, userLocation.lon, aiTone],
-    queryFn: async () => {
-      const res = await apiRequest('POST', '/api/ai-summary', {
-        lat: userLocation.lat,
-        lon: userLocation.lon,
-        locationName: userLocation.address,
-        useMetric,
-        tone: aiTone,
-      });
-      return res.json();
-    },
-    staleTime: 1000 * 60 * 10,
-    refetchOnWindowFocus: false,
-    retry: 1,
   });
 
   const assessmentMutation = useMutation({
@@ -201,7 +159,6 @@ export default function AIWeatherAssistant({
             lightningCount
           })
         });
-        
         if (threatResponse.ok) {
           currentThreatData = await threatResponse.json();
         }
@@ -215,7 +172,8 @@ export default function AIWeatherAssistant({
         intensity: storm.intensity,
         distance: storm.distance,
         direction: storm.direction,
-        type: storm.type,
+        bearing: storm.bearing,
+        category: storm.category,
         movement: storm.movement ? {
           direction: storm.movement.direction,
           speed: storm.movement.speed,
@@ -310,19 +268,16 @@ export default function AIWeatherAssistant({
 
   useEffect(() => {
     if (!isMonitoring) return;
-    
     const interval = setInterval(() => {
       setLastCheck(new Date());
       refetchThreats();
     }, 10 * 60 * 1000);
-    
     return () => clearInterval(interval);
   }, [isMonitoring, refetchThreats]);
 
   useEffect(() => {
     setIsDataReady(false);
     setLoadingTimer(5);
-    
     const timer = setInterval(() => {
       setLoadingTimer(prev => {
         if (prev <= 1) {
@@ -333,7 +288,6 @@ export default function AIWeatherAssistant({
         return prev - 1;
       });
     }, 1000);
-    
     return () => clearInterval(timer);
   }, [userLocation.lat, userLocation.lon]);
 
@@ -368,16 +322,12 @@ export default function AIWeatherAssistant({
     }
   };
 
-  const summarySections = summaryData?.summary ? parseSections(summaryData.summary) : [];
-  const condensedSections = summarySections.slice(0, 3);
-  const remainingSections = summarySections.slice(3);
-  const summaryProviderLabel = summaryData?.provider === 'openrouter' ? 'OpenRouter' : summaryData?.provider === 'groq' ? 'Groq' : 'OpenAI';
-  const summaryProviderColor = summaryData?.free ? 'text-green-400' : 'text-amber-400';
-  const dataPointCount = summaryData?.dataPointsUsed ? Object.values(summaryData.dataPointsUsed).filter(v => v && v !== 0).length : 0;
+  const fmtDist = (mi: number) => useMetric ? `${(mi * 1.609).toFixed(1)} km` : `${mi.toFixed(1)} mi`;
+  const fmtSpeed = (mph: number) => useMetric ? `${Math.round(mph * 1.609)} km/h` : `${Math.round(mph)} mph`;
 
   return (
     <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600">
-      <CardHeader>
+      <CardHeader className="pb-2">
         <CardTitle className="text-white cursor-pointer" onClick={() => setCardCollapsed(!cardCollapsed)}>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="flex items-center gap-2">
@@ -401,19 +351,59 @@ export default function AIWeatherAssistant({
                   {assessment.riskLevel.toUpperCase()} RISK
                 </Badge>
               )}
-              {summaryData && (
-                <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400">
-                  <Cpu className="w-3 h-3 mr-1" />
-                  <span className={summaryProviderColor}>{summaryProviderLabel}</span>
-                  {summaryData.free && <Zap className="w-3 h-3 ml-1 text-green-400" />}
-                </Badge>
-              )}
             </div>
           </div>
         </CardTitle>
+
         {!cardCollapsed && (
-        <>
-        <div className="flex flex-col sm:flex-row gap-2 mt-2">
+          <div className="mt-2 p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/50">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Target className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Storm Status (50 mi)</span>
+            </div>
+            {stormSummary.total === 0 ? (
+              <p className="text-sm text-green-400 flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5" />
+                No storms detected within 50-mile radius
+              </p>
+            ) : (
+              <div className="space-y-1">
+                <p className="text-sm text-slate-300">
+                  <span className="text-white font-semibold">{stormSummary.total}</span> storm{stormSummary.total !== 1 ? 's' : ''} detected
+                  {stormSummary.closest && (
+                    <span className="text-slate-400"> — closest: <span className="text-amber-300">{stormSummary.closest.category}</span> ({stormSummary.closest.intensity} dBZ) {getCompassDir(stormSummary.closest.bearing)} at {fmtDist(stormSummary.closest.distance)}</span>
+                  )}
+                </p>
+                {stormSummary.approaching.length > 0 && (
+                  <div className="text-sm">
+                    <span className="text-red-400 font-semibold flex items-center gap-1">
+                      <Navigation className="w-3 h-3" />
+                      {stormSummary.approaching.length} approaching:
+                    </span>
+                    {stormSummary.approaching.slice(0, 3).map((s, i) => (
+                      <p key={i} className="text-slate-300 ml-5 text-xs">
+                        {s.category} ({s.intensity} dBZ) — {fmtDist(s.distance)} {getCompassDir(s.bearing)}, moving {getCompassDir(s.movement!.direction)} at {fmtSpeed(s.movement!.speed)}
+                        {s.movement?.eta && <span className="text-orange-400"> — ETA: {s.movement.eta}</span>}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {stormSummary.approaching.length === 0 && stormSummary.total > 0 && (
+                  <p className="text-xs text-slate-500">No storms on collision course with your location</p>
+                )}
+                {stormSummary.strongest && stormSummary.strongest.intensity >= 45 && stormSummary.strongest !== stormSummary.closest && (
+                  <p className="text-xs text-slate-400">
+                    Strongest: <span className="text-orange-300">{stormSummary.strongest.category}</span> ({stormSummary.strongest.intensity} dBZ) at {fmtDist(stormSummary.strongest.distance)}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </CardHeader>
+      {!cardCollapsed && (
+      <CardContent className="space-y-4 pt-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <div className="flex items-center gap-1 px-2 py-1 bg-slate-700/50 border border-slate-600 rounded-md">
             <span className="text-xs text-slate-400 mr-1">Tone:</span>
             <button
@@ -423,7 +413,6 @@ export default function AIWeatherAssistant({
                   ? 'bg-blue-600 text-white' 
                   : 'text-slate-400 hover:text-white hover:bg-slate-600'
               }`}
-              title="Professional meteorological tone"
             >
               📊 Pro
             </button>
@@ -434,7 +423,6 @@ export default function AIWeatherAssistant({
                   ? 'bg-green-600 text-white' 
                   : 'text-slate-400 hover:text-white hover:bg-slate-600'
               }`}
-              title="Friendly conversational tone"
             >
               😊 Friendly
             </button>
@@ -445,7 +433,6 @@ export default function AIWeatherAssistant({
                   ? 'bg-purple-600 text-white' 
                   : 'text-slate-400 hover:text-white hover:bg-slate-600'
               }`}
-              title="Fun Carrot Weather style"
             >
               😄 Fun
             </button>
@@ -463,7 +450,7 @@ export default function AIWeatherAssistant({
               ? 'Analyzing...' 
               : !isDataReady 
                 ? `Loading data... (${loadingTimer}s)`
-                : 'Analyze Weather & Alerts'
+                : '🔍 Full AI Analysis'
             }
           </Button>
           {isMonitoring ? (
@@ -487,107 +474,11 @@ export default function AIWeatherAssistant({
           )}
         </div>
         {lastCheck && (
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-400">
             Last check: {lastCheck.toLocaleTimeString()}
           </p>
         )}
-        </>
-        )}
-      </CardHeader>
-      {!cardCollapsed && (
-      <CardContent className="space-y-4">
-        {/* === WEATHER BRIEFING SECTION === */}
-        <div className="border border-cyan-500/20 rounded-lg bg-slate-900/50 p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-semibold text-cyan-400 flex items-center gap-2">
-              <BookOpen className="w-4 h-4" />
-              Weather Briefing
-            </h4>
-            <div className="flex items-center gap-2">
-              {dataPointCount > 0 && (
-                <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400">
-                  {dataPointCount} sources
-                </Badge>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 text-slate-400 hover:text-cyan-400"
-                onClick={() => refetchSummary()}
-                disabled={summaryFetching}
-              >
-                <RefreshCw className={`w-3 h-3 ${summaryFetching ? 'animate-spin' : ''}`} />
-              </Button>
-            </div>
-          </div>
 
-          {summaryLoading && (
-            <div className="space-y-2">
-              <div className="h-3 bg-slate-700 rounded animate-pulse w-full" />
-              <div className="h-3 bg-slate-700 rounded animate-pulse w-5/6" />
-              <div className="h-3 bg-slate-700 rounded animate-pulse w-4/6" />
-              <div className="h-3 bg-slate-700 rounded animate-pulse w-full" />
-              <div className="h-3 bg-slate-700 rounded animate-pulse w-3/6" />
-            </div>
-          )}
-
-          {!summaryLoading && !summaryData?.summary && (
-            <p className="text-slate-400 text-sm">Weather briefing will generate automatically...</p>
-          )}
-
-          {!summaryLoading && summarySections.length > 0 && (
-            <div className="space-y-3">
-              {condensedSections.map((section, i) => (
-                <div key={i}>
-                  <h5 className={`text-xs font-semibold uppercase tracking-wider mb-1 ${getTitleColor(section.title)}`}>
-                    {section.title}
-                  </h5>
-                  <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
-                    {section.content}
-                  </p>
-                </div>
-              ))}
-
-              {remainingSections.length > 0 && (
-                <>
-                  {briefingExpanded && remainingSections.map((section, i) => (
-                    <div key={`exp-${i}`}>
-                      <h5 className={`text-xs font-semibold uppercase tracking-wider mb-1 ${getTitleColor(section.title)}`}>
-                        {section.title}
-                      </h5>
-                      <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
-                        {section.content}
-                      </p>
-                    </div>
-                  ))}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-cyan-400 hover:text-cyan-300 hover:bg-slate-800/50 text-xs"
-                    onClick={() => setBriefingExpanded(!briefingExpanded)}
-                  >
-                    {briefingExpanded ? (
-                      <>Show Less <ChevronUp className="w-3 h-3 ml-1" /></>
-                    ) : (
-                      <>Show Full Briefing ({remainingSections.length} more sections) <ChevronDown className="w-3 h-3 ml-1" /></>
-                    )}
-                  </Button>
-                </>
-              )}
-
-              {summaryData?.timestamp && (
-                <div className="text-[10px] text-slate-500 text-right">
-                  {new Date(summaryData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  {' · '}{summaryData.model}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <Separator className="bg-slate-600" />
-
-        {/* === THREAT DETECTION STATUS === */}
         {threatData && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm border-b border-slate-600 pb-4">
             <div className="text-center">
@@ -614,18 +505,15 @@ export default function AIWeatherAssistant({
         {!assessment && !assessmentMutation.isPending && !threatData && (
           <div className="text-center">
             {!isDataReady ? (
-              <div className="py-4">
-                <Clock className="w-6 h-6 animate-pulse mx-auto mb-2 text-blue-400" />
-                <p className="text-slate-300 mb-2">
-                  Loading storm data and weather information...
-                </p>
+              <div className="py-3">
+                <Clock className="w-5 h-5 animate-pulse mx-auto mb-1 text-blue-400" />
                 <p className="text-slate-400 text-sm">
-                  {loadingTimer > 0 ? `Ready in ${loadingTimer} seconds` : 'Almost ready...'}
+                  {loadingTimer > 0 ? `Loading storm data... (${loadingTimer}s)` : 'Almost ready...'}
                 </p>
               </div>
             ) : (
-              <p className="text-slate-300 mb-4">
-                Get comprehensive AI analysis of weather risks, storm threats, and active alerts/advisories
+              <p className="text-slate-400 text-sm">
+                Tap "Full AI Analysis" for comprehensive weather & storm assessment
               </p>
             )}
           </div>
@@ -635,7 +523,7 @@ export default function AIWeatherAssistant({
           <div className="text-center py-6">
             <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-400" />
             <p className="text-sm text-slate-300">
-              AI is analyzing {Math.min(storms.length, 200)} closest storms{storms.length > 200 ? ` (of ${storms.length} total)` : ''}, wind patterns, and your location...
+              AI is analyzing {Math.min(storms.length, 200)} storms{storms.length > 200 ? ` (of ${storms.length} total)` : ''}, wind patterns, alerts, and aviation data...
             </p>
           </div>
         )}
