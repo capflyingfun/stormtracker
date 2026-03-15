@@ -222,19 +222,33 @@ Return ONLY a JSON array of 5 strings.`;
         const movementSpeed = storm.windsPrediction?.speed || 15; // mph
         const movementDir = storm.windsPrediction?.direction || 0; // degrees
         
-        // Calculate if storm is approaching user (matching 30° track cone logic)
-        const bearingToUser = Math.atan2(lon - stormLon, lat - stormLat) * 180 / Math.PI;
-        const normalizedBearing = ((bearingToUser % 360) + 360) % 360;
+        // Calculate if storm is approaching user using proper geographic bearing
+        const dLon = (lon - stormLon) * Math.PI / 180;
+        const lat1R = stormLat * Math.PI / 180;
+        const lat2R = lat * Math.PI / 180;
+        const y = Math.sin(dLon) * Math.cos(lat2R);
+        const x = Math.cos(lat1R) * Math.sin(lat2R) - Math.sin(lat1R) * Math.cos(lat2R) * Math.cos(dLon);
+        const bearingToUser = ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+        
         const normalizedMovement = ((movementDir % 360) + 360) % 360;
-        const angleDiff = Math.abs(normalizedBearing - normalizedMovement);
-        const approachAngle = Math.min(angleDiff, 360 - angleDiff);
+        const angleDiff = Math.abs(((bearingToUser - normalizedMovement + 180) % 360) - 180);
+        const approachAngle = angleDiff;
+        
+        // Also check if user falls inside the storm's projected 30° movement cone (±15°)
+        // This matches what the map visually draws
+        const coneProjectionMiles = 40;
+        const userInConeRange = distance <= coneProjectionMiles;
+        const coneHalfAngle = 15; // ±15° = 30° total cone
+        const userInConeAngle = approachAngle <= coneHalfAngle;
+        const userInsideCone = userInConeRange && userInConeAngle && movementSpeed > 3;
         
         // Approach probability (0-100%) - higher when within 30° of direct approach
-        const approachProbability = approachAngle <= 30 ? Math.round(100 - (approachAngle / 30) * 50) : 
+        const approachProbability = approachAngle <= 15 ? Math.round(100 - (approachAngle / 15) * 20) :
+                                    approachAngle <= 30 ? Math.round(80 - ((approachAngle - 15) / 15) * 30) : 
                                     approachAngle <= 60 ? Math.round(50 - ((approachAngle - 30) / 30) * 40) :
                                     Math.max(0, Math.round(10 - ((approachAngle - 60) / 120) * 10));
-        // Only consider genuinely approaching if within 30° AND moving at reasonable speed
-        const isApproaching = approachAngle <= 30 && movementSpeed > 5;
+        // Approaching if within 30° track cone OR user geometrically inside the cone
+        const isApproaching = (approachAngle <= 30 && movementSpeed > 3) || userInsideCone;
         
         // ETA calculation (in minutes)
         let etaMinutes = movementSpeed > 0 ? (distance / movementSpeed) * 60 : 999;
