@@ -268,10 +268,10 @@ Return ONLY a JSON array of 5 strings.`;
         const category = intensity >= 61 ? 'extreme' : intensity >= 55 ? 'vheavy' : 
                         intensity >= 46 ? 'heavy' : intensity >= 35 ? 'moderate' : 'light';
         
-        // Direction from user
-        const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-        const dirIndex = Math.round(((normalizedBearing + 180) % 360) / 45) % 8;
-        const directionFromUser = dirs[dirIndex];
+        // Direction from user (16-point compass)
+        const dirs16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+        const dirIndex = Math.round(((normalizedBearing + 180) % 360) / 22.5) % 16;
+        const directionFromUser = dirs16[dirIndex];
         
         // Recommended actions based on threat tier and ETA
         let recommendedAction: string;
