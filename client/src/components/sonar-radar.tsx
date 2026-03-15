@@ -35,7 +35,6 @@ interface SonarRadarProps {
   useMetric: boolean;
   onStormClick?: (storm: Storm) => void;
   className?: string;
-  tickerMessages?: string[];
 }
 
 export default function SonarRadar({
@@ -46,7 +45,6 @@ export default function SonarRadar({
   useMetric,
   onStormClick,
   className = "",
-  tickerMessages: externalTickerMessages,
 }: SonarRadarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -55,8 +53,6 @@ export default function SonarRadar({
   const [isScanning, setIsScanning] = useState(true);
   const [selectedStorm, setSelectedStorm] = useState<Storm | null>(null);
   const [hoveredStorm, setHoveredStorm] = useState<Storm | null>(null);
-  const tickerMessages = externalTickerMessages || [];
-  const [tickerIndex, setTickerIndex] = useState(0);
 
   const getStormColor = (intensity: number) => {
     if (intensity >= 65) return '#ff00ff';
@@ -309,8 +305,6 @@ export default function SonarRadar({
     canvas.style.cursor = s ? 'pointer' : 'default';
   };
 
-  useEffect(() => { setTickerIndex(0); }, [tickerMessages.length]);
-
   // Sweep animation
   useEffect(() => {
     if (!isScanning) return;
@@ -350,12 +344,6 @@ export default function SonarRadar({
   const nearestStorm = storms.length > 0
     ? [...storms].sort((a, b) => a.distance - b.distance)[0]
     : null;
-
-  const currentTickerMsg = tickerMessages.length > 0
-    ? tickerMessages[tickerIndex % tickerMessages.length]
-    : storms.length > 0
-      ? `🌧️ Tracking ${storms.length} cells within ${formatDistance(radarRange)} — monitoring conditions`
-      : null;
 
   return (
     <div className={`bg-slate-900 rounded-xl border border-slate-700 overflow-hidden select-none ${className}`}>
@@ -439,28 +427,7 @@ export default function SonarRadar({
           )}
         </div>
 
-        {/* AI Ticker */}
-        {currentTickerMsg && (
-          <div className="border-t border-slate-800 pt-2">
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Live</span>
-              <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></div>
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider">Weather Update</span>
-            </div>
-            <div className="relative overflow-hidden rounded bg-slate-800/60 border border-slate-700/50 h-7 flex items-center">
-              <div className="absolute left-0 top-0 bottom-0 w-5 z-10 bg-gradient-to-r from-slate-800 to-transparent pointer-events-none"></div>
-              <div className="absolute right-0 top-0 bottom-0 w-5 z-10 bg-gradient-to-l from-slate-800 to-transparent pointer-events-none"></div>
-              <div key={currentTickerMsg} className="text-xs text-slate-200 whitespace-nowrap px-2"
-                style={{ animation: 'sonar-ticker 18s linear forwards' }}
-                onAnimationEnd={() => setTickerIndex(i => i + 1)}>
-                {currentTickerMsg}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
-
-      <style>{`@keyframes sonar-ticker { 0% { transform: translateX(100%); } 100% { transform: translateX(-130%); } }`}</style>
     </div>
   );
 }
