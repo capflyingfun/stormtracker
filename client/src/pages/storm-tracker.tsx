@@ -15,13 +15,13 @@ import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
 import SonarRadar from "@/components/sonar-radar";
 import WeatherDashboard from "@/components/weather-dashboard";
-
-// import { ThreatMonitor } from "@/components/threat-monitor"; // Consolidated into AI Weather Assistant
+import SectionReorder, { getSectionOrder } from "@/components/section-reorder";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIWeatherAssistant from "@/components/ai-weather-assistant";
+import { LayoutList } from "lucide-react";
 
 // Embedded Message Inbox Component for Modal
 function EmbeddedMessageInbox() {
@@ -188,6 +188,8 @@ export default function StormTracker() {
   const [showTimeLabels, setShowTimeLabels] = useState(false);
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
   const [showStormFilteringSettings, setShowStormFilteringSettings] = useState(false);
+  const [sectionOrder, setSectionOrder] = useState<string[]>(getSectionOrder);
+  const [showSectionReorder, setShowSectionReorder] = useState(false);
   const [showAlertSubscription, setShowAlertSubscription] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [windsData, setWindsData] = useState<any[]>([]);
@@ -736,137 +738,155 @@ export default function StormTracker() {
                 showAddButton={true}
               />
 
-              {lastUpdate && (
-                <p className="text-slate-400 text-xs sm:text-sm">
-                  Last update: {lastUpdate.toLocaleTimeString()}
-                </p>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {lastUpdate && (
+                  <p className="text-slate-400 text-xs sm:text-sm">
+                    Last update: {lastUpdate.toLocaleTimeString()}
+                  </p>
+                )}
+                <button
+                  onClick={() => setShowSectionReorder(true)}
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] text-slate-500 hover:text-slate-300 bg-slate-800/50 hover:bg-slate-700/50 rounded-md border border-slate-700/50 transition-colors ml-auto"
+                >
+                  <LayoutList className="w-3 h-3" />
+                  Layout
+                </button>
+              </div>
             </div>
 
-
-
-            {/* Immediate Safety Alerts */}
-            <ImmediateSafetyAlerts 
-              location={location}
-              storms={filteredStorms}
-              isLoading={stormDataLoading}
-              windsAloftData={windsAloftData}
-            />
-
-            {/* Current Weather & Forecast */}
-            <WeatherDashboard
-              lat={location.lat}
-              lon={location.lon}
-              useMetric={useMetric}
-              locationName={location.name}
-            />
-
-            {/* Storm Summary Section */}
-            {filteredStorms.length > 0 && (
-              <div className="bg-slate-800/50 rounded-xl p-3 sm:p-6 border border-slate-700/50 mb-4 sm:mb-6">
-                <h3 className="text-lg font-semibold mb-3 text-white flex items-center gap-2">
-                  ⚡ Storm Summary
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Closest Storm */}
-                  {(() => {
-                    const closestStorm = [...filteredStorms].sort((a, b) => a.distance - b.distance)[0];
-                    const impact = getStormImpact(closestStorm);
-                    return (
-                      <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="text-blue-400">🎯</div>
-                          <span className="text-sm font-medium text-slate-300">Closest Storm</span>
-                        </div>
-                        <div className="text-white font-semibold">
-                          {getCompassDirection(closestStorm.direction)} ({closestStorm.direction.toFixed(0).padStart(3, '0')}°) @ {formatDistance(closestStorm.distance)}
-                        </div>
-                        <div className="text-xs text-slate-400 mb-1">
-                          {closestStorm.intensity}dBZ • {getStormCategory(closestStorm.intensity)}
-                        </div>
-                        {closestStorm.windsPrediction && (
-                          <div className="text-xs text-slate-300 space-y-1">
-                            <div>Movement: {getCompassDirection(impact.movementDir)} ({impact.movementDir.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
-                            <div className="flex justify-between">
-                              <span>Impact: <span className={impact.impactColor}>{impact.impactChance}</span></span>
-                              <span>ETA: {impact.eta}</span>
-                            </div>
-                            <div>Severity: <span className={impact.severityColor}>{impact.severity}</span></div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  
-                  {/* Strongest Storm */}
-                  {(() => {
-                    const strongestStorm = [...filteredStorms].sort((a, b) => b.intensity - a.intensity)[0];
-                    const impact = getStormImpact(strongestStorm);
-                    return (
-                      <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="text-red-400">⚡</div>
-                          <span className="text-sm font-medium text-slate-300">Strongest Storm</span>
-                        </div>
-                        <div className="text-white font-semibold">
-                          {strongestStorm.intensity}dBZ
-                        </div>
-                        <div className="text-xs text-slate-400 mb-1">
-                          {getCompassDirection(strongestStorm.direction)} ({strongestStorm.direction.toFixed(0).padStart(3, '0')}°) @ {formatDistance(strongestStorm.distance)} • {getStormCategory(strongestStorm.intensity)}
-                        </div>
-                        {strongestStorm.windsPrediction && (
-                          <div className="text-xs text-slate-300 space-y-1">
-                            <div>Movement: {getCompassDirection(impact.movementDir)} ({impact.movementDir.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
-                            <div className="flex justify-between">
-                              <span>Impact: <span className={impact.impactColor}>{impact.impactChance}</span></span>
-                              <span>ETA: {impact.eta}</span>
-                            </div>
-                            <div>Severity: <span className={impact.severityColor}>{impact.severity}</span></div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
+            {showSectionReorder && (
+              <SectionReorder
+                currentOrder={sectionOrder}
+                onOrderChange={setSectionOrder}
+                onClose={() => setShowSectionReorder(false)}
+              />
             )}
 
-            {/* AI Weather Assistant with Integrated Threat Monitoring */}
-            {location && windsAloftData && (
-              <div className="mb-4 sm:mb-6">
-                <AIWeatherAssistant
-                  userLocation={{
-                    lat: location.lat,
-                    lon: location.lon,
-                    address: location.name
-                  }}
-                  storms={precipitationStorms.map(storm => ({
-                    id: storm.id,
-                    lat: storm.lat,
-                    lon: storm.lon,
-                    intensity: storm.intensity,
-                    distance: storm.distance,
-                    direction: storm.direction,
-                    bearing: storm.bearing || 0,
-                    category: storm.intensity >= 61 ? 'Extreme' :
-                             storm.intensity >= 55 ? 'Very Heavy' :
-                             storm.intensity >= 46 ? 'Heavy' :
-                             storm.intensity >= 35 ? 'Moderate' : 'Light',
-                    movement: storm.windsPrediction ? {
-                      direction: storm.windsPrediction.direction,
-                      speed: storm.windsPrediction.speed,
-                      eta: storm.impactAssessment?.eta,
-                      impact: storm.impactAssessment?.impactChance
-                    } : undefined
-                  }))}
-                  winds={windsAloftData.winds || []}
-                  radarSource={currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
-                  lightningCount={0}
-                  useMetric={useMetric}
-                />
-              </div>
-            )}
-
+            {sectionOrder.map(sectionId => {
+              switch (sectionId) {
+                case 'isa':
+                  return (
+                    <ImmediateSafetyAlerts
+                      key="isa"
+                      location={location}
+                      storms={filteredStorms}
+                      isLoading={stormDataLoading}
+                      windsAloftData={windsAloftData}
+                    />
+                  );
+                case 'weather':
+                  return (
+                    <WeatherDashboard
+                      key="weather"
+                      lat={location.lat}
+                      lon={location.lon}
+                      useMetric={useMetric}
+                      locationName={location.name}
+                    />
+                  );
+                case 'summary':
+                  return filteredStorms.length > 0 ? (
+                    <div key="summary" className="bg-slate-800/50 rounded-xl p-3 sm:p-6 border border-slate-700/50 mb-4 sm:mb-6">
+                      <h3 className="text-lg font-semibold mb-3 text-white flex items-center gap-2">
+                        ⚡ Storm Summary
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {(() => {
+                          const closestStorm = [...filteredStorms].sort((a, b) => a.distance - b.distance)[0];
+                          const impact = getStormImpact(closestStorm);
+                          return (
+                            <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="text-blue-400">🎯</div>
+                                <span className="text-sm font-medium text-slate-300">Closest Storm</span>
+                              </div>
+                              <div className="text-white font-semibold">
+                                {getCompassDirection(closestStorm.direction)} ({closestStorm.direction.toFixed(0).padStart(3, '0')}°) @ {formatDistance(closestStorm.distance)}
+                              </div>
+                              <div className="text-xs text-slate-400 mb-1">
+                                {closestStorm.intensity}dBZ • {getStormCategory(closestStorm.intensity)}
+                              </div>
+                              {closestStorm.windsPrediction && (
+                                <div className="text-xs text-slate-300 space-y-1">
+                                  <div>Movement: {getCompassDirection(impact.movementDir)} ({impact.movementDir.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
+                                  <div className="flex justify-between">
+                                    <span>Impact: <span className={impact.impactColor}>{impact.impactChance}</span></span>
+                                    <span>ETA: {impact.eta}</span>
+                                  </div>
+                                  <div>Severity: <span className={impact.severityColor}>{impact.severity}</span></div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        {(() => {
+                          const strongestStorm = [...filteredStorms].sort((a, b) => b.intensity - a.intensity)[0];
+                          const impact = getStormImpact(strongestStorm);
+                          return (
+                            <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="text-red-400">⚡</div>
+                                <span className="text-sm font-medium text-slate-300">Strongest Storm</span>
+                              </div>
+                              <div className="text-white font-semibold">
+                                {strongestStorm.intensity}dBZ
+                              </div>
+                              <div className="text-xs text-slate-400 mb-1">
+                                {getCompassDirection(strongestStorm.direction)} ({strongestStorm.direction.toFixed(0).padStart(3, '0')}°) @ {formatDistance(strongestStorm.distance)} • {getStormCategory(strongestStorm.intensity)}
+                              </div>
+                              {strongestStorm.windsPrediction && (
+                                <div className="text-xs text-slate-300 space-y-1">
+                                  <div>Movement: {getCompassDirection(impact.movementDir)} ({impact.movementDir.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
+                                  <div className="flex justify-between">
+                                    <span>Impact: <span className={impact.impactColor}>{impact.impactChance}</span></span>
+                                    <span>ETA: {impact.eta}</span>
+                                  </div>
+                                  <div>Severity: <span className={impact.severityColor}>{impact.severity}</span></div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  ) : null;
+                case 'ai':
+                  return location && windsAloftData ? (
+                    <div key="ai" className="mb-4 sm:mb-6">
+                      <AIWeatherAssistant
+                        userLocation={{
+                          lat: location.lat,
+                          lon: location.lon,
+                          address: location.name
+                        }}
+                        storms={precipitationStorms.map(storm => ({
+                          id: storm.id,
+                          lat: storm.lat,
+                          lon: storm.lon,
+                          intensity: storm.intensity,
+                          distance: storm.distance,
+                          direction: storm.direction,
+                          bearing: storm.bearing || 0,
+                          category: storm.intensity >= 61 ? 'Extreme' :
+                                   storm.intensity >= 55 ? 'Very Heavy' :
+                                   storm.intensity >= 46 ? 'Heavy' :
+                                   storm.intensity >= 35 ? 'Moderate' : 'Light',
+                          movement: storm.windsPrediction ? {
+                            direction: storm.windsPrediction.direction,
+                            speed: storm.windsPrediction.speed,
+                            eta: storm.impactAssessment?.eta,
+                            impact: storm.impactAssessment?.impactChance
+                          } : undefined
+                        }))}
+                        winds={windsAloftData.winds || []}
+                        radarSource={currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
+                        lightningCount={0}
+                        useMetric={useMetric}
+                      />
+                    </div>
+                  ) : null;
+                case 'radar':
+                  return (<div key="radar">
             {/* Interactive Radar Map with Side Controls */}
             <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
                 {/* Left Side Controls - Desktop Only */}
@@ -1113,34 +1133,38 @@ export default function StormTracker() {
                   )}
                 </div>
               </div>
-
-
-
-
-
-            {/* Main Tracker Content - Always Show */}
-            <div className="max-w-4xl mx-auto mt-4 sm:mt-6 space-y-4">
-              {/* Personalized Impact Predictions */}
-              <ImpactPanel 
-                storms={precipitationStorms}
-                userLocation={location ? { lat: location.lat, lon: location.lon } : null}
-                locationName={location?.name}
-                minimumDbz={(preferences as any)?.minimumDbz ?? 50}
-              />
-              
-              <StormPanel
-                storms={precipitationStorms}
-                useMetric={useMetric}
-                formatDistance={formatDistance}
-                formatSpeed={formatSpeed}
-                isLoading={stormDataLoading}
-                radarSource={currentRadarSource}
-                userLocation={location}
-                stormFilters={stormFilters}
-                alertPreferences={preferences}
-              />
-            </div>
-
+                  </div>);
+                case 'impact':
+                  return (
+                    <div key="impact" className="max-w-4xl mx-auto mt-4 sm:mt-6">
+                      <ImpactPanel 
+                        storms={precipitationStorms}
+                        userLocation={location ? { lat: location.lat, lon: location.lon } : null}
+                        locationName={location?.name}
+                        minimumDbz={(preferences as any)?.minimumDbz ?? 50}
+                      />
+                    </div>
+                  );
+                case 'cells':
+                  return (
+                    <div key="cells" className="max-w-4xl mx-auto mt-4 sm:mt-6">
+                      <StormPanel
+                        storms={precipitationStorms}
+                        useMetric={useMetric}
+                        formatDistance={formatDistance}
+                        formatSpeed={formatSpeed}
+                        isLoading={stormDataLoading}
+                        radarSource={currentRadarSource}
+                        userLocation={location}
+                        stormFilters={stormFilters}
+                        alertPreferences={preferences}
+                      />
+                    </div>
+                  );
+                default:
+                  return null;
+              }
+            })}
 
           </>
         )}
