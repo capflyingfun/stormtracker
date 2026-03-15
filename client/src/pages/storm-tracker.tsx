@@ -215,8 +215,7 @@ export default function StormTracker() {
     isLoading: stormDataLoading,
   } = useStormData(location, radarRange);
 
-  const radiusKm = useMetric ? radarRange * 1.60934 : radarRange * 1.60934;
-  const { strikes: lightningStrikes } = useLightningData(location, radiusKm);
+  const { strikes: lightningStrikes } = useLightningData(location);
 
   // Get alert preferences for visual highlighting only
   const { data: preferences } = useQuery({

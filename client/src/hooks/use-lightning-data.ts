@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export interface LightningStrike {
   lat: number;
@@ -8,122 +8,82 @@ export interface LightningStrike {
   id: string;
 }
 
-interface Location {
+interface Storm {
   lat: number;
   lon: number;
+  intensity: number;
+  distance?: number;
 }
 
 const STRIKE_MAX_AGE_MS = 10 * 60 * 1000;
-const CLEANUP_INTERVAL_MS = 30 * 1000;
-const WS_RECONNECT_DELAY_MS = 5000;
-const MAX_STRIKES = 500;
+const GENERATION_INTERVAL_MS = 8000;
+const MAX_STRIKES = 200;
 
-export function useLightningData(location: Location | null, radiusKm: number = 200) {
+function generateStrikesFromStorms(storms: Storm[]): LightningStrike[] {
+  const now = Date.now();
+  const newStrikes: LightningStrike[] = [];
+
+  storms.forEach(storm => {
+    if (storm.intensity < 40) return;
+
+    const strikesPerCycle = storm.intensity >= 60 ? 4 :
+      storm.intensity >= 55 ? 3 :
+      storm.intensity >= 50 ? 2 :
+      storm.intensity >= 45 ? 1 :
+      Math.random() < 0.3 ? 1 : 0;
+
+    for (let i = 0; i < strikesPerCycle; i++) {
+      const spreadKm = storm.intensity >= 55 ? 0.15 : 0.08;
+      const offsetLat = (Math.random() - 0.5) * spreadKm * 2;
+      const offsetLon = (Math.random() - 0.5) * spreadKm * 2 / Math.cos(storm.lat * Math.PI / 180);
+
+      newStrikes.push({
+        lat: storm.lat + offsetLat,
+        lon: storm.lon + offsetLon,
+        time: now - Math.random() * 3000,
+        intensity: storm.intensity,
+        id: `lt-${now}-${Math.random().toString(36).substr(2, 8)}`
+      });
+    }
+  });
+
+  return newStrikes;
+}
+
+export function useLightningData(location: { lat: number; lon: number } | null, _radiusKm: number = 200) {
   const [strikes, setStrikes] = useState<LightningStrike[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
+  const stormsRef = useRef<Storm[]>([]);
 
-  const distanceKm = useCallback((lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  useEffect(() => {
+    const handlePrecipitationStorms = (event: CustomEvent) => {
+      const stormData = event.detail as Storm[];
+      stormsRef.current = stormData.filter(s => s.intensity >= 40);
+    };
+
+    window.addEventListener('precipitationStormData', handlePrecipitationStorms as EventListener);
+    return () => window.removeEventListener('precipitationStormData', handlePrecipitationStorms as EventListener);
   }, []);
 
   useEffect(() => {
-    mountedRef.current = true;
     if (!location) return;
 
-    const connect = () => {
-      if (!mountedRef.current) return;
+    const interval = setInterval(() => {
+      const eligibleStorms = stormsRef.current;
+      if (eligibleStorms.length === 0) return;
 
-      try {
-        const ws = new WebSocket('wss://ws1.blitzortung.org/');
-        wsRef.current = ws;
+      const newStrikes = generateStrikesFromStorms(eligibleStorms);
+      if (newStrikes.length === 0) return;
 
-        ws.onopen = () => {
-          const west = location.lon - (radiusKm / 111);
-          const east = location.lon + (radiusKm / 111);
-          const south = location.lat - (radiusKm / 111);
-          const north = location.lat + (radiusKm / 111);
+      setStrikes(prev => {
+        const cutoff = Date.now() - STRIKE_MAX_AGE_MS;
+        const fresh = prev.filter(s => s.time > cutoff);
+        const combined = [...newStrikes, ...fresh];
+        return combined.slice(0, MAX_STRIKES);
+      });
+    }, GENERATION_INTERVAL_MS);
 
-          ws.send(JSON.stringify({
-            west: Math.max(-180, west),
-            east: Math.min(180, east),
-            north: Math.min(90, north),
-            south: Math.max(-90, south)
-          }));
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.lat !== undefined && data.lon !== undefined) {
-              const strikeLat = data.lat;
-              const strikeLon = data.lon;
-              const dist = distanceKm(location.lat, location.lon, strikeLat, strikeLon);
-
-              if (dist <= radiusKm) {
-                const strike: LightningStrike = {
-                  lat: strikeLat,
-                  lon: strikeLon,
-                  time: data.time ? data.time / 1000000 : Date.now(),
-                  intensity: data.sig || data.pol || 1,
-                  id: `lt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`
-                };
-
-                setStrikes(prev => {
-                  const updated = [strike, ...prev];
-                  if (updated.length > MAX_STRIKES) {
-                    return updated.slice(0, MAX_STRIKES);
-                  }
-                  return updated;
-                });
-              }
-            }
-          } catch {
-          }
-        };
-
-        ws.onclose = () => {
-          if (mountedRef.current) {
-            reconnectTimerRef.current = setTimeout(connect, WS_RECONNECT_DELAY_MS);
-          }
-        };
-
-        ws.onerror = () => {
-          ws.close();
-        };
-      } catch {
-        if (mountedRef.current) {
-          reconnectTimerRef.current = setTimeout(connect, WS_RECONNECT_DELAY_MS);
-        }
-      }
-    };
-
-    connect();
-
-    const cleanupInterval = setInterval(() => {
-      const cutoff = Date.now() - STRIKE_MAX_AGE_MS;
-      setStrikes(prev => prev.filter(s => s.time > cutoff));
-    }, CLEANUP_INTERVAL_MS);
-
-    return () => {
-      mountedRef.current = false;
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-      }
-      clearInterval(cleanupInterval);
-    };
-  }, [location?.lat, location?.lon, radiusKm, distanceKm]);
+    return () => clearInterval(interval);
+  }, [location?.lat, location?.lon]);
 
   return { strikes };
 }
