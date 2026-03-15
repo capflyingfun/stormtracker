@@ -22,7 +22,6 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Runtime**: Node.js with Express.js
 - **Language**: TypeScript
 - **Database**: PostgreSQL with Drizzle ORM (Neon Database for serverless)
-- **Authentication**: Replit Auth (OpenID Connect) via `server/replit_integrations/auth/` — uses `auth_users` table (varchar UUID IDs), `sessions` table, passport.js with OIDC strategy. Login/logout in header. Non-blocking: app remains fully accessible without sign-in.
 - **Session Management**: `connect-pg-simple`
 - **Build Tool**: esbuild
 - **Core Features**:
