@@ -76,7 +76,7 @@ export function WeatherSummary({ lat, lon, locationName, useMetric }: WeatherSum
   const remainingSections = sections.slice(3);
 
   const dataPointCount = Object.values(data.dataPointsUsed || {}).filter(v => v && v !== 0).length;
-  const providerLabel = data.provider === 'groq' ? 'Groq' : 'OpenAI';
+  const providerLabel = data.provider === 'openrouter' ? 'OpenRouter' : data.provider === 'groq' ? 'Groq' : 'OpenAI';
   const providerColor = data.free ? 'text-green-400' : 'text-amber-400';
 
   return (
