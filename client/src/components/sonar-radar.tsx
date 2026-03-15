@@ -189,7 +189,7 @@ export default function SonarRadar({
       ctx.globalAlpha = 1;
     });
 
-    // ── Lightning strikes ──────────────────────────────────────────────────────
+    // ── Lightning strikes (⚡ emoji) ─────────────────────────────────────────
     const now = Date.now();
     lightningStrikes.forEach(strike => {
       const dLat = (strike.lat - location.lat) * Math.PI / 180;
@@ -212,26 +212,18 @@ export default function SonarRadar({
 
       const age = now - strike.time;
       const freshness = Math.max(0, 1 - age / (10 * 60 * 1000));
+      const alpha = age < 3000 ? 0.8 + Math.random() * 0.2 : 0.3 + freshness * 0.5;
 
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = age < 3000 ? '#fffacd' : age < 30000 ? '#ffd700' : '#ff8c00';
+      ctx.font = age < 3000 ? '10px sans-serif' : `${Math.max(6, Math.round(6 + freshness * 4))}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       if (age < 3000) {
-        ctx.globalAlpha = 0.6 + Math.random() * 0.4;
-        ctx.fillStyle = '#ffffff';
         ctx.shadowColor = '#ffffff';
-        ctx.shadowBlur = 20;
-        ctx.beginPath();
-        ctx.arc(lx, ly, 6 + Math.random() * 3, 0, 2 * Math.PI);
-        ctx.fill();
-      } else {
-        const alpha = 0.3 + freshness * 0.7;
-        const color = age < 30000 ? '#fffacd' : age < 120000 ? '#ffd700' : '#ff8c00';
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = color;
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 8 * freshness;
-        ctx.beginPath();
-        ctx.arc(lx, ly, 2 + freshness * 3, 0, 2 * Math.PI);
-        ctx.fill();
+        ctx.shadowBlur = 8;
       }
+      ctx.fillText('⚡', lx, ly);
       ctx.shadowBlur = 0;
       ctx.globalAlpha = 1;
     });
@@ -451,12 +443,16 @@ export default function SonarRadar({
         {/* Color legend */}
         <div className="grid grid-cols-3 gap-x-3 gap-y-1 text-[11px]">
           {[['bg-green-500','Light'],['bg-yellow-500','Moderate'],['bg-orange-500','Heavy'],
-            ['bg-red-500','Severe'],['bg-purple-500','Extreme'],['bg-yellow-300','Lightning'],['bg-blue-500','You']].map(([c,l]) => (
+            ['bg-red-500','Severe'],['bg-purple-500','Extreme'],['bg-blue-500','You']].map(([c,l]) => (
             <div key={l} className="flex items-center gap-1.5">
               <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${c}`}></div>
               <span className="text-slate-300">{l}</span>
             </div>
           ))}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] shrink-0">⚡</span>
+            <span className="text-slate-300">Lightning</span>
+          </div>
         </div>
 
         {/* Storm count + nearest storm + movement */}
