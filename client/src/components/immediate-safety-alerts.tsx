@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, Navigation, Clock, ArrowUpDown } from "lucide-react";
+import { getStormCategory, getCompassDirection, calculateETA, isStormApproaching } from "@shared/storm-utils";
 
 interface Storm {
   lat: number;
@@ -36,6 +37,7 @@ interface ImmediateSafetyAlertsProps {
   location: any;
   storms: Storm[];
   isLoading: boolean;
+  windsAloftData?: any;
 }
 
 const getSeverityColor = (severity: string): string => {
@@ -50,33 +52,10 @@ const getSeverityColor = (severity: string): string => {
   }
 };
 
-const getDirectionName = (degrees: number): string => {
-  const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-  const index = Math.round(degrees / 22.5) % 16;
-  return directions[index];
-};
+const getDirectionName = getCompassDirection;
+const getIntensityCategory = getStormCategory;
 
-const getIntensityCategory = (dBZ: number): string => {
-  if (dBZ >= 61) return "Extreme";
-  if (dBZ >= 55) return "Severe";  
-  if (dBZ >= 46) return "Heavy";
-  if (dBZ >= 35) return "Moderate";
-  return "Light";
-};
-
-export default function ImmediateSafetyAlerts({ location, storms, isLoading }: ImmediateSafetyAlertsProps) {
-  // Get winds aloft data for storm movement information
-  const { data: windsAloftData } = useQuery({
-    queryKey: ['/api/winds-aloft', location?.lat, location?.lon],
-    enabled: !!location,
-    staleTime: 10 * 60 * 1000, // 10 minutes
-    queryFn: async () => {
-      if (!location) return null;
-      const response = await fetch(`/api/winds-aloft?lat=${location.lat}&lon=${location.lon}`);
-      if (!response.ok) return null;
-      return response.json();
-    },
-  });
+export default function ImmediateSafetyAlerts({ location, storms, isLoading, windsAloftData }: ImmediateSafetyAlertsProps) {
   const [showAlerts, setShowAlerts] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
