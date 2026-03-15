@@ -160,31 +160,22 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading }: I
     };
   });
 
-  // Identify immediate storm threats
+  // Only show storms with a calculated ETA of 45 minutes or less
   const immediateThreats = stormsWithMovement.filter(storm => {
     const mov = storm.movement;
-
-    // Approaching severe storms (within 30° cone, within 35 miles)
-    if (mov && storm.intensity >= 55 && storm.distance <= 35 && (mov.impact === 'high' || mov.impact === 'medium')) {
-      console.log(`🎯 APPROACHING SEVERE STORM: ${storm.intensity.toFixed(1)}dBZ @ ${storm.distance.toFixed(1)}mi, impact=${mov.impact}, ETA=${mov.eta}`);
-      return true;
-    }
-
-    // Already-high-impact from server data with ETA
-    if (mov?.impact === 'high' && mov.eta) return true;
-
-    // Immediate vicinity (within 5 miles regardless of direction)
-    if (storm.intensity >= 55 && storm.distance <= 5) {
-      console.log(`⚠️ IMMEDIATE VICINITY: ${storm.intensity.toFixed(1)}dBZ @ ${storm.distance.toFixed(1)}mi - too close to ignore`);
-      return true;
-    }
-
-    return false;
+    // Must have a valid ETA
+    if (!mov || mov.etaMinutes == null) return false;
+    return mov.etaMinutes <= 45;
   });
 
   // Remove duplicate storms (within 0.01 degree proximity)
-  const uniqueThreats = immediateThreats.filter((storm, index, arr) => 
+  const deduped = immediateThreats.filter((storm, index, arr) =>
     arr.findIndex(s => Math.abs(s.lat - storm.lat) < 0.01 && Math.abs(s.lon - storm.lon) < 0.01) === index
+  );
+
+  // Sort by nearest ETA first
+  const uniqueThreats = [...deduped].sort((a, b) =>
+    (a.movement?.etaMinutes ?? Infinity) - (b.movement?.etaMinutes ?? Infinity)
   );
 
   // Sort NWS alerts by effective date and headline content
