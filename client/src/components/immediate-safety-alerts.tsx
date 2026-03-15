@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, Navigation, Clock, ArrowUpDown } from "lucide-react";
-import { getStormCategory, getCompassDirection, calculateETA, isStormApproaching } from "@shared/storm-utils";
+import { getStormCategory, getCompassDirection, calculateETA, calculateApproachAngle, isStormApproaching } from "@shared/storm-utils";
 
 interface Storm {
   lat: number;
@@ -89,11 +89,6 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     refetchInterval: 5 * 60 * 1000 // Refresh every 5 minutes
   });
 
-  // Debug log to see what storms we're receiving
-  console.log('🚨 IMMEDIATE SAFETY ALERTS: Received storms:', storms.map(s => 
-    `${s.intensity?.toFixed(1)}dBZ @ ${s.distance?.toFixed(1)}mi, bearing: ${s.direction?.toFixed(1)}°`
-  ));
-
   // Format ETA minutes into a human-readable string
   const formatEta = (minutes: number): string => {
     if (minutes < 1) return 'Imminent';
@@ -103,28 +98,22 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     return m > 0 ? `~${h}h ${m}m` : `~${h}h`;
   };
 
-  // Build enriched movement data for each storm, calculating approach angle + ETA
   const stormsWithMovement = storms.map(storm => {
-    // Prefer server-side movement data; fall back to winds aloft
     const rawMovement = storm.movement ?? (windsAloftData?.stormMovement
       ? { direction: windsAloftData.stormMovement.direction, speed: windsAloftData.stormMovement.speed }
       : null);
 
     if (!rawMovement || rawMovement.speed == null) return storm;
 
-    // Direction FROM storm TO user = opposite of bearing from user to storm
-    const directionToUser = (storm.direction + 180) % 360;
-    const angleDiff = Math.abs(((rawMovement.direction - directionToUser + 180) % 360) - 180);
-    const isApproaching = angleDiff <= 30 && rawMovement.speed > 3;
-
-    // ETA: straight-line time until storm reaches user
-    const etaMinutes = isApproaching && rawMovement.speed > 0
-      ? (storm.distance / rawMovement.speed) * 60
+    const approaching = isStormApproaching(storm.direction, rawMovement.direction, rawMovement.speed);
+    const etaMinutes = approaching && rawMovement.speed > 0
+      ? calculateETA(storm.distance, rawMovement.speed)
       : null;
 
+    const angleDiff = calculateApproachAngle(storm.direction, rawMovement.direction);
     const impact: 'high' | 'medium' | 'low' =
-      isApproaching && rawMovement.speed > 5 && angleDiff <= 15 ? 'high'
-      : isApproaching ? 'medium'
+      approaching && rawMovement.speed > 5 && angleDiff <= 15 ? 'high'
+      : approaching ? 'medium'
       : 'low';
 
     return {
@@ -133,18 +122,22 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
         direction: rawMovement.direction,
         speed: rawMovement.speed,
         impact,
-        eta: etaMinutes !== null ? formatEta(etaMinutes) : undefined,
-        etaMinutes: etaMinutes ?? undefined,
+        eta: etaMinutes !== null && etaMinutes < 999 ? formatEta(etaMinutes) : undefined,
+        etaMinutes: etaMinutes !== null && etaMinutes < 999 ? etaMinutes : undefined,
       }
     };
   });
 
-  // Only show storms with a calculated ETA of 45 minutes or less
   const immediateThreats = stormsWithMovement.filter(storm => {
     const mov = storm.movement;
-    // Must have a valid ETA
     if (!mov || mov.etaMinutes == null) return false;
     return mov.etaMinutes <= 45;
+  });
+
+  const approachingButNotImminent = stormsWithMovement.filter(storm => {
+    const mov = storm.movement;
+    if (!mov || mov.etaMinutes == null) return false;
+    return mov.etaMinutes > 45;
   });
 
   // Remove duplicate storms (within 0.01 degree proximity)
@@ -266,7 +259,13 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
         <SkeletonLoader />
       ) : totalAlerts === 0 ? (
         <div className="text-center py-2 animate-fadeIn">
-          <p className="text-slate-300 text-sm">No immediate weather threats detected</p>
+          {approachingButNotImminent.length > 0 ? (
+            <p className="text-yellow-400/80 text-sm">
+              {approachingButNotImminent.length} storm{approachingButNotImminent.length > 1 ? 's' : ''} approaching but not imminent (ETA {'>'} 45 min)
+            </p>
+          ) : (
+            <p className="text-slate-300 text-sm">No immediate weather threats detected</p>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
