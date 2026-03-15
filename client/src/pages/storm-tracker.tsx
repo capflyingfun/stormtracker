@@ -234,6 +234,19 @@ export default function StormTracker() {
     },
   });
 
+  const { data: forecastData } = useQuery<any>({
+    queryKey: ['/api/forecast', location?.lat, location?.lon],
+    enabled: !!location,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
+    queryFn: async () => {
+      if (!location) return null;
+      const res = await fetch(`/api/forecast?lat=${location.lat}&lon=${location.lon}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
   const [tickerMessages, setTickerMessages] = useState<string[]>([]);
   const lastTickerSig = useRef('');
 
@@ -763,6 +776,7 @@ export default function StormTracker() {
               storms={filteredStorms}
               isLoading={stormDataLoading}
               windsAloftData={windsAloftData}
+              nwsForecast={forecastData?.nwsForecast || null}
             />
 
             {/* Storm Summary Section */}
@@ -867,6 +881,7 @@ export default function StormTracker() {
                   radarSource={currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
                   lightningCount={0}
                   useMetric={useMetric}
+                  nwsForecast={forecastData?.nwsForecast || null}
                 />
               </div>
             )}

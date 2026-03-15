@@ -155,6 +155,16 @@ function getDayName(iso: string, i: number) {
   return new Date(iso + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
 }
 
+const SEVERE_KW = ['severe thunderstorm', 'tornado', 'damaging wind', 'large hail', 'flash flood', 'hurricane', 'tropical storm', 'blizzard', 'ice storm', 'winter storm', 'extreme heat', 'storm warning', 'severe weather', 'dangerous', 'life-threatening', 'destructive'];
+const CAUTION_KW = ['thunderstorm', 'scattered storms', 'strong storms', 'gusty wind', 'heavy rain', 'hail possible', 'freezing rain', 'sleet', 'wintry mix', 'dense fog', 'heat advisory', 'wind chill', 'frost', 'freeze warning'];
+
+function getForecastIcon(shortForecast: string, detailed: string): string | null {
+  const text = `${shortForecast} ${detailed}`.toLowerCase();
+  if (SEVERE_KW.some(k => text.includes(k))) return '🚨';
+  if (CAUTION_KW.some(k => text.includes(k))) return '⚠️';
+  return null;
+}
+
 export default function WeatherDashboard({ lat, lon, locationName, useMetric }: WeatherDashboardProps) {
   const [expandedNws, setExpandedNws] = useState<number | null>(null);
 
@@ -381,6 +391,9 @@ export default function WeatherDashboard({ lat, lon, locationName, useMetric }: 
           <div className="space-y-1">
             {forecast.nwsForecast.map((p: any, i: number) => {
               const isExpanded = expandedNws === i;
+              const warnIcon = getForecastIcon(p.shortForecast || '', p.detailedForecast || '');
+              const isSevere = warnIcon === '🚨';
+              const isCaution = warnIcon === '⚠️';
               return (
                 <button
                   key={i}
@@ -388,11 +401,16 @@ export default function WeatherDashboard({ lat, lon, locationName, useMetric }: 
                   onClick={() => setExpandedNws(isExpanded ? null : i)}
                   className="w-full text-left"
                 >
-                  <div className={`rounded-lg p-2.5 transition-colors ${isExpanded ? 'bg-slate-700/60' : 'bg-slate-700/30 hover:bg-slate-700/50'} ${!p.isDaytime ? 'border-l-2 border-indigo-500/40' : 'border-l-2 border-yellow-500/40'}`}>
+                  <div className={`rounded-lg p-2.5 transition-colors ${
+                    isExpanded ? 'bg-slate-700/60' : 'bg-slate-700/30 hover:bg-slate-700/50'
+                  } ${!p.isDaytime ? 'border-l-2 border-indigo-500/40' : 'border-l-2 border-yellow-500/40'} ${
+                    isSevere ? 'ring-1 ring-red-500/40' : isCaution ? 'ring-1 ring-yellow-500/30' : ''
+                  }`}>
                     <div className="flex items-center gap-2">
+                      {warnIcon && <span className="text-sm shrink-0">{warnIcon}</span>}
                       <span className="text-sm font-medium text-slate-200 w-24 shrink-0">{p.name}</span>
                       <span className="text-sm text-white font-medium">{p.temperature}°{p.temperatureUnit}</span>
-                      <span className="text-xs text-slate-400 flex-1 truncate">{p.shortForecast}</span>
+                      <span className={`text-xs flex-1 truncate ${isSevere ? 'text-red-300' : isCaution ? 'text-yellow-300' : 'text-slate-400'}`}>{p.shortForecast}</span>
                       {p.windSpeed && <span className="text-xs text-slate-500 shrink-0">{p.windSpeed}</span>}
                       {isExpanded ? <ChevronUp className="h-3 w-3 text-slate-500 shrink-0" /> : <ChevronDown className="h-3 w-3 text-slate-500 shrink-0" />}
                     </div>

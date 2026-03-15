@@ -57,6 +57,7 @@ interface AIWeatherAssistantProps {
   lightningCount?: number;
   useMetric?: boolean;
   userSettings?: UserSettings;
+  nwsForecast?: any[] | null;
 }
 
 export default function AIWeatherAssistant({
@@ -66,7 +67,8 @@ export default function AIWeatherAssistant({
   radarSource,
   lightningCount = 0,
   useMetric = false,
-  userSettings
+  userSettings,
+  nwsForecast
 }: AIWeatherAssistantProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMonitoring, setIsMonitoring] = useState(false);
@@ -158,17 +160,27 @@ export default function AIWeatherAssistant({
         } : null
       }));
       
+      const nwsForecastSummary = nwsForecast?.slice(0, 6).map(p => ({
+        name: p.name,
+        temperature: p.temperature,
+        temperatureUnit: p.temperatureUnit,
+        windSpeed: p.windSpeed,
+        shortForecast: p.shortForecast,
+        detailedForecast: p.detailedForecast?.slice(0, 300)
+      })) || null;
+
       const response = await apiRequest("POST", "/api/ai-assessment", {
         userLocation,
         storms: optimizedStorms,
         stormCount: storms.length,
         winds,
         radarSource,
-        includeAlerts: true, // Enhanced to include alert analysis
+        includeAlerts: true,
         lightningCount,
         useMetric,
-        threatData: currentThreatData, // Pass fresh threat data to prevent duplicate NWS alert fetching
-        userSettings: { aiTone } // Pass user's tone preference for AFD summary
+        threatData: currentThreatData,
+        userSettings: { aiTone },
+        nwsForecast: nwsForecastSummary
       });
       return response.json();
     },
@@ -187,12 +199,21 @@ export default function AIWeatherAssistant({
         category: storm.category
       }));
       
+      const nwsForecastSummary = nwsForecast?.slice(0, 4).map(p => ({
+        name: p.name,
+        shortForecast: p.shortForecast,
+        temperature: p.temperature,
+        temperatureUnit: p.temperatureUnit,
+        windSpeed: p.windSpeed
+      })) || null;
+
       const response = await apiRequest("POST", "/api/ai-chat", {
         question,
         userLocation,
         useMetric,
         storms: optimizedStorms,
-        stormCount: storms.length
+        stormCount: storms.length,
+        nwsForecast: nwsForecastSummary
       });
       const result = await response.json();
       console.log('Chat API response with live storm data:', result);
