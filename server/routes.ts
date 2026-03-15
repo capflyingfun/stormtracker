@@ -4794,14 +4794,15 @@ Guidelines:
 
   app.post("/api/ai-summary", async (req, res) => {
     try {
-      const { lat, lon, locationName, useMetric } = req.body;
+      const { lat, lon, locationName, useMetric, tone } = req.body;
       if (lat == null || lon == null) {
         return res.status(400).json({ error: "Latitude and longitude required" });
       }
 
       const { aiChat: aiChatFn, getProviderInfo } = await import("./ai-client");
       const providerInfo = getProviderInfo();
-      console.log(`📋 Generating comprehensive weather summary via ${providerInfo.provider}${providerInfo.free ? ' [FREE]' : ''}`);
+      const toneLabel = tone || 'friendly';
+      console.log(`📋 Generating comprehensive weather summary via ${providerInfo.provider}${providerInfo.free ? ' [FREE]' : ''} (tone: ${toneLabel})`);
 
       const fetchWithTimeout = (url: string, timeout = 6000) =>
         fetch(url, { signal: AbortSignal.timeout(timeout) }).then(r => r.ok ? r.json() : null).catch(() => null);
@@ -4820,22 +4821,23 @@ Guidelines:
         fetchWithTimeout(`http://localhost:5000/api/winds-aloft?lat=${lat}&lon=${lon}`),
       ]);
 
-      const unitLabel = useMetric ? '°C' : '°F';
-      const tempConvert = (f: number) => useMetric ? Math.round((f - 32) * 5 / 9) : Math.round(f);
-      const windConvert = (mph: number) => useMetric ? Math.round(mph * 1.609) : Math.round(mph);
-      const windUnit = useMetric ? 'km/h' : 'mph';
+      const toF = (c: number) => Math.round((c * 9/5) + 32);
+      const toC = (f: number) => Math.round((f - 32) * 5 / 9);
+      const toKmh = (mph: number) => Math.round(mph * 1.609);
+      const dualTemp = (valC: number) => `${toF(valC)}°F (${Math.round(valC)}°C)`;
+      const dualWind = (mph: number) => `${Math.round(mph)} mph (${toKmh(mph)} km/h)`;
 
       let dataContext = `COMPREHENSIVE WEATHER DATA FOR: ${locationName || `${lat}, ${lon}`}\n\n`;
 
       if (forecast?.current) {
         const c = forecast.current;
         dataContext += `CURRENT CONDITIONS:\n`;
-        dataContext += `• Temperature: ${tempConvert(c.temperature_2m)}${unitLabel} (Feels like: ${tempConvert(c.apparent_temperature)}${unitLabel})\n`;
-        dataContext += `• Humidity: ${c.relative_humidity_2m}%, Dew Point: ${tempConvert(c.dew_point_2m)}${unitLabel}\n`;
-        dataContext += `• Wind: ${windConvert(c.wind_speed_10m)} ${windUnit} from ${c.wind_direction_10m}°, Gusts: ${windConvert(c.wind_gusts_10m)} ${windUnit}\n`;
+        dataContext += `• Temperature: ${dualTemp(c.temperature_2m)} (Feels like: ${dualTemp(c.apparent_temperature)})\n`;
+        dataContext += `• Humidity: ${c.relative_humidity_2m}%, Dew Point: ${dualTemp(c.dew_point_2m)}\n`;
+        dataContext += `• Wind: ${dualWind(c.wind_speed_10m)} from ${c.wind_direction_10m}°, Gusts: ${dualWind(c.wind_gusts_10m)}\n`;
         dataContext += `• Pressure: ${c.surface_pressure} hPa, Cloud Cover: ${c.cloud_cover}%\n`;
-        dataContext += `• UV Index: ${c.uv_index}, Visibility: ${Math.round(c.visibility / 5280)} miles\n`;
-        dataContext += `• Precipitation: ${c.precipitation} in\n\n`;
+        dataContext += `• UV Index: ${c.uv_index}, Visibility: ${Math.round(c.visibility / 5280)} mi (${Math.round(c.visibility / 1000)} km)\n`;
+        dataContext += `• Precipitation: ${c.precipitation} in (${Math.round(c.precipitation * 25.4)} mm)\n\n`;
       }
 
       if (forecast?.daily) {
@@ -4845,8 +4847,8 @@ Guidelines:
         for (let i = 0; i < d.time.length; i++) {
           const date = new Date(d.time[i] + 'T12:00:00');
           const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : date.toLocaleDateString('en-US', { weekday: 'long' });
-          dataContext += `• ${dayName}: High ${tempConvert(d.tempMax[i])}${unitLabel}, Low ${tempConvert(d.tempMin[i])}${unitLabel}, `;
-          dataContext += `Wind: ${windConvert(d.windMax[i])} ${windUnit}, Precip: ${d.precipProbMax[i]}%, UV: ${d.uvMax[i]}\n`;
+          dataContext += `• ${dayName}: High ${dualTemp(d.tempMax[i])}, Low ${dualTemp(d.tempMin[i])}, `;
+          dataContext += `Wind: ${dualWind(d.windMax[i])}, Precip: ${d.precipProbMax[i]}%, UV: ${d.uvMax[i]}\n`;
         }
         dataContext += '\n';
       }
@@ -4863,14 +4865,14 @@ Guidelines:
       if (storms?.storms?.length > 0) {
         dataContext += `ACTIVE STORMS (${storms.storms.length} detected within ${storms.radius || 50} miles):\n`;
         for (const s of storms.storms.slice(0, 15)) {
-          dataContext += `• ${s.category} storm: ${s.intensity} dBZ, ${s.direction} @ ${s.distance?.toFixed(1)} miles`;
-          if (s.movement) dataContext += `, moving ${s.movement.direction}° at ${s.movement.speed} mph`;
+          dataContext += `• ${s.category} storm: ${s.intensity} dBZ, ${s.direction} @ ${s.distance?.toFixed(1)} mi (${(s.distance * 1.609).toFixed(1)} km)`;
+          if (s.movement) dataContext += `, moving ${s.movement.direction}° at ${dualWind(s.movement.speed)}`;
           if (s.movement?.eta) dataContext += `, ETA: ${s.movement.eta}`;
           dataContext += '\n';
         }
         dataContext += '\n';
       } else {
-        dataContext += `STORMS: No active storms detected within 50 miles.\n\n`;
+        dataContext += `STORMS: No active storms detected within 50 miles (80 km).\n\n`;
       }
 
       const alertsList = alerts?.alerts || (Array.isArray(alerts) ? alerts : []);
@@ -4901,7 +4903,7 @@ Guidelines:
       if (winds?.winds?.length > 0) {
         dataContext += `WINDS ALOFT:\n`;
         for (const w of winds.winds) {
-          dataContext += `• ${w.level}: ${w.direction}° @ ${w.speed} kts\n`;
+          dataContext += `• ${w.level}: ${w.direction}° @ ${w.speed} kts (${Math.round(w.speed * 1.852)} km/h)\n`;
         }
         dataContext += '\n';
       }
@@ -4918,11 +4920,21 @@ Guidelines:
         dataContext += `• PM2.5: ${aq.pm25?.toFixed(1)}, PM10: ${aq.pm10?.toFixed(1)}, O3: ${aq.o3?.toFixed(1)}\n\n`;
       }
 
+      const toneInstructions = toneLabel === 'professional'
+        ? 'Write in a formal meteorological briefing style. Be precise, clinical, and data-driven. Use proper meteorological terminology.'
+        : toneLabel === 'humorous'
+        ? 'Write in a fun, witty style similar to Carrot Weather — include weather-related humor, playful commentary, and personality while still being accurate. Make weather fun!'
+        : 'Write in a warm, conversational tone. Be approachable and helpful, like a friendly local weather expert explaining things to a neighbor.';
+
       const aiResult = await aiChatFn({
         messages: [
           {
             role: "system",
-            content: `You are an expert meteorologist writing a comprehensive weather briefing. Write in plain text (NO markdown, NO asterisks, NO bullet points with *). Use simple dashes (-) for lists if needed.
+            content: `You are an expert meteorologist writing a comprehensive weather briefing. ${toneInstructions}
+
+Write in plain text (NO markdown, NO asterisks, NO bullet points with *). Use simple dashes (-) for lists if needed.
+
+IMPORTANT: Always show BOTH measurement systems together for all values — format as "imperial (metric)" like: 72°F (22°C), 15 mph (24 km/h), 10 miles (16 km).
 
 Structure your briefing with these sections, each as a flowing narrative:
 
@@ -4944,7 +4956,7 @@ ATMOSPHERE: Thunderstorm potential, atmospheric stability, air quality, and moon
 
 BOTTOM LINE: 2-3 sentence "what you need to know" takeaway for the average person.
 
-Write each section as a natural paragraph. Be authoritative and specific with data. Use the ${useMetric ? 'metric (°C, km/h)' : 'imperial (°F, mph)'} unit system.`
+Write each section as a natural paragraph. Be authoritative and specific with data.`
           },
           {
             role: "user",
@@ -4952,7 +4964,7 @@ Write each section as a natural paragraph. Be authoritative and specific with da
           }
         ],
         max_tokens: 4000,
-        temperature: 0.4,
+        temperature: toneLabel === 'humorous' ? 0.7 : toneLabel === 'professional' ? 0.3 : 0.4,
       });
 
       console.log(`📋 Weather summary generated: ${aiResult.content.length} chars via ${aiResult.provider}`);
