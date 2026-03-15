@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { getStormCategory, getCompassDirection, calculateApproachAngle, isStormApproaching, calculateETA } from "@shared/storm-utils";
 import { useLocation } from "@/hooks/use-location";
 import { useStormData } from "@/hooks/use-storm-data";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
@@ -466,6 +467,32 @@ export default function StormTracker() {
     setLastUpdate(null);
   };
 
+  const getStormImpact = (storm: any) => {
+    const movementDir = storm.windsPrediction?.direction || 0;
+    const movementSpeed = storm.windsPrediction?.speed || 0;
+    if (!storm.windsPrediction) {
+      return { severity: 'Low', eta: 'No data', impactChance: 'Low', movementDir: 0, movementSpeed: 0, impactColor: 'text-green-400', severityColor: 'text-green-400' };
+    }
+    const approachAngle = calculateApproachAngle(storm.direction, movementDir);
+    const approaching = isStormApproaching(storm.direction, movementDir, movementSpeed);
+    let eta = 'Not approaching';
+    let impactChance = 'Low';
+    if (approaching && movementSpeed > 0) {
+      const etaMin = calculateETA(storm.distance, movementSpeed);
+      if (etaMin < 999) {
+        eta = etaMin < 60 ? `${Math.round(etaMin)}min` : `${(etaMin / 60).toFixed(1)}hr`;
+        impactChance = approachAngle <= 15 ? 'High' : 'Medium';
+      }
+    }
+    let severity = 'Low';
+    if (storm.intensity >= 55 && storm.distance <= 15) severity = 'High';
+    else if (storm.intensity >= 45 && storm.distance <= 20) severity = 'Medium';
+    else if (storm.intensity >= 35 && storm.distance <= 25) severity = 'Medium';
+    const impactColor = impactChance === 'High' ? 'text-red-400' : impactChance === 'Medium' ? 'text-yellow-400' : 'text-green-400';
+    const severityColor = severity === 'High' ? 'text-red-400' : severity === 'Medium' ? 'text-yellow-400' : 'text-green-400';
+    return { severity, eta, impactChance, movementDir, movementSpeed, impactColor, severityColor };
+  };
+
   const formatDistance = (miles: number) => {
     if (useMetric) {
       const km = miles * 1.60934;
@@ -652,54 +679,7 @@ export default function StormTracker() {
                   {/* Closest Storm */}
                   {(() => {
                     const closestStorm = [...filteredStorms].sort((a, b) => a.distance - b.distance)[0];
-                    const getDirectionName = (degrees: number): string => {
-                      const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-                      const index = Math.round(degrees / 22.5) % 16;
-                      return directions[index];
-                    };
-                    
-                    // Calculate impact assessment
-                    const calculateImpactAssessment = (storm: any) => {
-                      if (!storm.windsPrediction) return { severity: 'Low', eta: 'No data', impactChance: 'Low' };
-                      
-                      const movementSpeed = storm.windsPrediction.speed || 0;
-                      const stormDirection = storm.windsPrediction.direction || 0;
-                      const stormDistance = storm.distance;
-                      
-                      // Calculate bearing from user to storm
-                      const bearingToStorm = storm.direction;
-                      
-                      // Calculate if storm is moving toward user (within 30° cone)
-                      // Storm moves toward user if its movement direction points toward user location
-                      const directionToUser = (bearingToStorm + 180) % 360; // Reverse bearing (storm to user)
-                      const directionDifference = Math.abs(((stormDirection - directionToUser + 180) % 360) - 180);
-                      const isApproaching = directionDifference <= 30;
-                      
-                      // Calculate ETA if approaching
-                      let eta = 'Not approaching';
-                      let impactChance = 'Low';
-                      
-                      if (isApproaching && movementSpeed > 0) {
-                        const etaHours = stormDistance / movementSpeed;
-                        if (etaHours <= 24) {
-                          eta = etaHours < 1 ? `${Math.round(etaHours * 60)}min` : `${etaHours.toFixed(1)}hr`;
-                          impactChance = directionDifference <= 15 ? 'High' : 'Medium';
-                        }
-                      }
-                      
-                      // Severity based on intensity and proximity
-                      let severity = 'Low';
-                      if (storm.intensity >= 55 && stormDistance <= 10) severity = 'High';
-                      else if (storm.intensity >= 45 && stormDistance <= 15) severity = 'Medium';
-                      else if (storm.intensity >= 35 && stormDistance <= 20) severity = 'Medium';
-                      
-                      return { severity, eta, impactChance, movementSpeed, stormDirection };
-                    };
-                    
-                    const direction = getDirectionName(closestStorm.direction);
-                    const formattedBearing = closestStorm.direction.toFixed(0).padStart(3, '0');
-                    const impact = calculateImpactAssessment(closestStorm);
-                    
+                    const impact = getStormImpact(closestStorm);
                     return (
                       <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
                         <div className="flex items-center gap-2 mb-2">
@@ -707,22 +687,19 @@ export default function StormTracker() {
                           <span className="text-sm font-medium text-slate-300">Closest Storm</span>
                         </div>
                         <div className="text-white font-semibold">
-                          {direction} ({formattedBearing}°) @ {formatDistance(closestStorm.distance)}
+                          {getCompassDirection(closestStorm.direction)} ({closestStorm.direction.toFixed(0).padStart(3, '0')}°) @ {formatDistance(closestStorm.distance)}
                         </div>
                         <div className="text-xs text-slate-400 mb-1">
-                          {closestStorm.intensity}dBZ • {closestStorm.intensity >= 61 ? 'Extreme' :
-                           closestStorm.intensity >= 55 ? 'Very Heavy' :
-                           closestStorm.intensity >= 46 ? 'Heavy' :
-                           closestStorm.intensity >= 35 ? 'Moderate' : 'Light'}
+                          {closestStorm.intensity}dBZ • {getStormCategory(closestStorm.intensity)}
                         </div>
                         {closestStorm.windsPrediction && (
                           <div className="text-xs text-slate-300 space-y-1">
-                            <div>Movement: {getDirectionName(impact.stormDirection)} ({impact.stormDirection.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
+                            <div>Movement: {getCompassDirection(impact.movementDir)} ({impact.movementDir.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
                             <div className="flex justify-between">
-                              <span>Impact: <span className={`${impact.impactChance === 'High' ? 'text-red-400' : impact.impactChance === 'Medium' ? 'text-yellow-400' : 'text-green-400'}`}>{impact.impactChance}</span></span>
+                              <span>Impact: <span className={impact.impactColor}>{impact.impactChance}</span></span>
                               <span>ETA: {impact.eta}</span>
                             </div>
-                            <div>Severity: <span className={`${impact.severity === 'High' ? 'text-red-400' : impact.severity === 'Medium' ? 'text-yellow-400' : 'text-green-400'}`}>{impact.severity}</span></div>
+                            <div>Severity: <span className={impact.severityColor}>{impact.severity}</span></div>
                           </div>
                         )}
                       </div>
@@ -732,56 +709,7 @@ export default function StormTracker() {
                   {/* Strongest Storm */}
                   {(() => {
                     const strongestStorm = [...filteredStorms].sort((a, b) => b.intensity - a.intensity)[0];
-                    const getDirectionName = (degrees: number): string => {
-                      const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-                      const index = Math.round(degrees / 22.5) % 16;
-                      return directions[index];
-                    };
-                    
-                    // Calculate impact assessment for strongest storm (intensity-based severity)
-                    const calculateImpactAssessment = (storm: any) => {
-                      if (!storm.windsPrediction) return { severity: 'Low', eta: 'No data', impactChance: 'Low' };
-                      
-                      const movementSpeed = storm.windsPrediction.speed || 0;
-                      const stormDirection = storm.windsPrediction.direction || 0;
-                      const stormDistance = storm.distance;
-                      
-                      // Calculate bearing from user to storm
-                      const bearingToStorm = storm.direction;
-                      
-                      // Calculate if storm is moving toward user (within 30° cone)
-                      // Storm moves toward user if its movement direction points toward user location
-                      const directionToUser = (bearingToStorm + 180) % 360; // Reverse bearing (storm to user)
-                      const directionDifference = Math.abs(((stormDirection - directionToUser + 180) % 360) - 180);
-                      const isApproaching = directionDifference <= 30;
-                      
-                      // Calculate ETA if approaching
-                      let eta = 'Not approaching';
-                      let impactChance = 'Low';
-                      
-                      if (isApproaching && movementSpeed > 0) {
-                        const etaHours = stormDistance / movementSpeed;
-                        if (etaHours <= 24) {
-                          eta = etaHours < 1 ? `${Math.round(etaHours * 60)}min` : `${etaHours.toFixed(1)}hr`;
-                          impactChance = directionDifference <= 15 ? 'High' : 'Medium';
-                        }
-                      }
-                      
-                      // Severity based primarily on intensity (for strongest storm)
-                      let severity = 'Low';
-                      if (storm.intensity >= 61) severity = 'Extreme';
-                      else if (storm.intensity >= 55) severity = 'High';
-                      else if (storm.intensity >= 45) severity = 'Medium';
-                      else if (storm.intensity >= 35) severity = 'Medium';
-                      else if (storm.intensity >= 20) severity = 'Low';
-                      
-                      return { severity, eta, impactChance, movementSpeed, stormDirection };
-                    };
-                    
-                    const direction = getDirectionName(strongestStorm.direction);
-                    const formattedBearing = strongestStorm.direction.toFixed(0).padStart(3, '0');
-                    const impact = calculateImpactAssessment(strongestStorm);
-                    
+                    const impact = getStormImpact(strongestStorm);
                     return (
                       <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
                         <div className="flex items-center gap-2 mb-2">
@@ -792,19 +720,16 @@ export default function StormTracker() {
                           {strongestStorm.intensity}dBZ
                         </div>
                         <div className="text-xs text-slate-400 mb-1">
-                          {direction} ({formattedBearing}°) @ {formatDistance(strongestStorm.distance)} • {strongestStorm.intensity >= 61 ? 'Extreme' :
-                           strongestStorm.intensity >= 55 ? 'Very Heavy' :
-                           strongestStorm.intensity >= 46 ? 'Heavy' :
-                           strongestStorm.intensity >= 35 ? 'Moderate' : 'Light'}
+                          {getCompassDirection(strongestStorm.direction)} ({strongestStorm.direction.toFixed(0).padStart(3, '0')}°) @ {formatDistance(strongestStorm.distance)} • {getStormCategory(strongestStorm.intensity)}
                         </div>
                         {strongestStorm.windsPrediction && (
                           <div className="text-xs text-slate-300 space-y-1">
-                            <div>Movement: {getDirectionName(impact.stormDirection)} ({impact.stormDirection.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
+                            <div>Movement: {getCompassDirection(impact.movementDir)} ({impact.movementDir.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
                             <div className="flex justify-between">
-                              <span>Impact: <span className={`${impact.impactChance === 'High' ? 'text-red-400' : impact.impactChance === 'Medium' ? 'text-yellow-400' : 'text-green-400'}`}>{impact.impactChance}</span></span>
+                              <span>Impact: <span className={impact.impactColor}>{impact.impactChance}</span></span>
                               <span>ETA: {impact.eta}</span>
                             </div>
-                            <div>Severity: <span className={`${impact.severity === 'High' ? 'text-red-400' : impact.severity === 'Medium' ? 'text-yellow-400' : 'text-green-400'}`}>{impact.severity}</span></div>
+                            <div>Severity: <span className={impact.severityColor}>{impact.severity}</span></div>
                           </div>
                         )}
                       </div>

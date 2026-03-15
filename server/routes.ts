@@ -219,8 +219,8 @@ Return ONLY a JSON array of 5 strings.`;
         const stormLon = storm.lon;
         const intensity = storm.dbz || storm.intensity || 25;
         const distance = storm.distance || 50;
-        const movementSpeed = storm.windsPrediction?.speed || 15; // mph
-        const movementDir = storm.windsPrediction?.direction || 0; // degrees
+        const movementSpeed = storm.windsPrediction?.speed || 0;
+        const movementDir = storm.windsPrediction?.direction || 0;
         
         // Calculate if storm is approaching user using proper geographic bearing
         const dLon = (lon - stormLon) * Math.PI / 180;
@@ -242,11 +242,11 @@ Return ONLY a JSON array of 5 strings.`;
         const userInConeAngle = approachAngle <= coneHalfAngle;
         const userInsideCone = userInConeRange && userInConeAngle && movementSpeed > 3;
         
-        // Approach probability (0-100%) - higher when within 30° of direct approach
-        const approachProbability = approachAngle <= 15 ? Math.round(100 - (approachAngle / 15) * 20) :
+        const rawApproachProb = approachAngle <= 15 ? Math.round(100 - (approachAngle / 15) * 20) :
                                     approachAngle <= 30 ? Math.round(80 - ((approachAngle - 15) / 15) * 30) : 
                                     approachAngle <= 60 ? Math.round(50 - ((approachAngle - 30) / 30) * 40) :
                                     Math.max(0, Math.round(10 - ((approachAngle - 60) / 120) * 10));
+        const approachProbability = movementSpeed > 3 ? rawApproachProb : Math.min(rawApproachProb, 5);
         // Approaching if within 30° track cone OR user geometrically inside the cone
         const isApproaching = (approachAngle <= 30 && movementSpeed > 3) || userInsideCone;
         
