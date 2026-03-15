@@ -566,6 +566,9 @@ export default function StormTracker() {
                   <div className="text-xl sm:text-2xl">📍</div>
                   <div>
                     <h2 className="text-lg sm:text-xl font-semibold">{location.name}</h2>
+                    <p className="text-slate-400 text-xs">
+                      {location.lat.toFixed(4)}°{location.lat >= 0 ? 'N' : 'S'}, {Math.abs(location.lon).toFixed(4)}°{location.lon >= 0 ? 'E' : 'W'}
+                    </p>
                     <p className="text-slate-300 text-sm sm:text-base">
                       Detection Radius: {formatDistance(50)} (Unified System)
                     </p>
