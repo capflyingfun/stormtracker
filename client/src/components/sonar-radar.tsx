@@ -343,8 +343,8 @@ export default function SonarRadar({
     if (!canvas || !wrapper) return;
     const resize = () => {
       const wr = wrapper.getBoundingClientRect();
-      // Fill the card width, but cap at ~40% of viewport height so it stays proportional
-      const size = Math.max(Math.min(wr.width, window.innerHeight * 0.42), 60);
+      // Fill card width but cap so the canvas never dominates the screen
+      const size = Math.max(Math.min(wr.width, 240, window.innerHeight * 0.32), 60);
       const dpr = window.devicePixelRatio || 1;
       canvas.width = size * dpr;
       canvas.height = size * dpr;
