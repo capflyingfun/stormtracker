@@ -53,6 +53,34 @@ interface ImmediateSafetyAlertsProps {
   isLoading: boolean;
   windsAloftData?: any;
   nwsForecast?: NWSForecastPeriod[] | null;
+  useMetric?: boolean;
+}
+
+function fToC(f: number): number { return Math.round((f - 32) * 5 / 9); }
+function mphToKmh(mph: number): number { return Math.round(mph * 1.60934); }
+
+function dualTemp(temp: number, unit: string, useMetric?: boolean): string {
+  if (unit === 'F') {
+    const c = fToC(temp);
+    return useMetric ? `${c}°C (${temp}°F)` : `${temp}°F (${c}°C)`;
+  }
+  const f = Math.round(temp * 9 / 5 + 32);
+  return useMetric ? `${temp}°C (${f}°F)` : `${f}°F (${temp}°C)`;
+}
+
+function dualWind(windStr: string, useMetric?: boolean): string {
+  const match = windStr.match(/(\d+)\s*(to\s*(\d+)\s*)?mph/i);
+  if (!match) return windStr;
+  const lo = parseInt(match[1]);
+  const hi = match[3] ? parseInt(match[3]) : null;
+  if (hi) {
+    return useMetric
+      ? `${mphToKmh(lo)} to ${mphToKmh(hi)} km/h (${lo}-${hi} mph)`
+      : `${lo} to ${hi} mph (${mphToKmh(lo)}-${mphToKmh(hi)} km/h)`;
+  }
+  return useMetric
+    ? `${mphToKmh(lo)} km/h (${lo} mph)`
+    : `${lo} mph (${mphToKmh(lo)} km/h)`;
 }
 
 const getSeverityColor = (severity: string): string => {
@@ -102,7 +130,7 @@ function detectForecastWarnings(periods: NWSForecastPeriod[]): { period: NWSFore
   return warnings;
 }
 
-export default function ImmediateSafetyAlerts({ location, storms, isLoading, windsAloftData, nwsForecast }: ImmediateSafetyAlertsProps) {
+export default function ImmediateSafetyAlerts({ location, storms, isLoading, windsAloftData, nwsForecast, useMetric }: ImmediateSafetyAlertsProps) {
   const [showAlerts, setShowAlerts] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
@@ -600,15 +628,16 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
                 <span className={`font-semibold text-sm ${fw.severity === 'warning' ? 'text-red-200' : 'text-yellow-200'}`}>
                   NWS Forecast: {fw.period.name}
                 </span>
-                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                <span className={`text-xs px-1.5 py-0.5 rounded flex items-center gap-1 ${
                   fw.severity === 'warning' ? 'bg-red-700/50 text-red-200' : 'bg-yellow-700/50 text-yellow-200'
                 }`}>
-                  {fw.period.temperature}°{fw.period.temperatureUnit}
+                  {fw.period.isDaytime ? '⤴️' : '⤵️'}
+                  {fw.period.isDaytime ? 'High' : 'Low'}: {dualTemp(fw.period.temperature, fw.period.temperatureUnit, useMetric)}
                 </span>
               </div>
               <p className={`text-sm mb-1.5 ${fw.severity === 'warning' ? 'text-red-100' : 'text-yellow-100'}`}>
                 {fw.period.shortForecast}
-                {fw.period.windSpeed && <span className="text-xs opacity-70"> · Wind: {fw.period.windSpeed}</span>}
+                {fw.period.windSpeed && <span className="text-xs opacity-70"> · Wind: {dualWind(fw.period.windSpeed, useMetric)}</span>}
               </p>
               <div className="flex flex-wrap gap-1.5 mb-1.5">
                 {fw.keywords.slice(0, 3).map((kw, ki) => (
