@@ -100,14 +100,15 @@ interface WeatherAssessmentRequest {
   regionalStorms?: StormData[]; // 50-mile regional context
   winds: WindData[];
   radarSource: string;
-  threatData?: any; // Optional threat detection data for enhanced analysis
-  useMetric?: boolean; // Unit preference for temperature display
+  threatData?: any;
+  useMetric?: boolean;
   userSettings?: {
     aiTone: string;
     detailLevel: string;
     includeHumor: boolean;
     simplifiedLanguage: boolean;
   };
+  nwsForecast?: any[] | null;
 }
 
 export async function generateWeatherAssessment(data: WeatherAssessmentRequest): Promise<{
@@ -607,6 +608,14 @@ NWS Office: ${areaForecastDiscussion.office} (${areaForecastDiscussion.officeCod
 Forecaster's Discussion:
 ${areaForecastDiscussion.discussion.substring(0, 1200)}
 (Summarize the key insights from this discussion in a ${toneStyle} tone)` : 
+  ''}
+
+${data.nwsForecast && data.nwsForecast.length > 0 ?
+  `=== NWS FORECAST PERIODS ===
+${data.nwsForecast.slice(0, 6).map(p => 
+  `• ${p.name}: ${p.temperature}°${p.temperatureUnit} — ${p.shortForecast} (Wind: ${p.windSpeed || 'N/A'})`
+).join('\n')}
+(Use these NWS forecast periods to inform your upcoming conditions analysis)` :
   ''}
 
 === ACTIVE ALERTS & ADVISORIES ===

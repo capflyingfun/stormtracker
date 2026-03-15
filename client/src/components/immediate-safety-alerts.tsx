@@ -37,11 +37,22 @@ interface NWSAlert {
   senderName: string;
 }
 
+interface NWSForecastPeriod {
+  name: string;
+  temperature: number;
+  temperatureUnit: string;
+  windSpeed: string;
+  shortForecast: string;
+  detailedForecast: string;
+  isDaytime: boolean;
+}
+
 interface ImmediateSafetyAlertsProps {
   location: any;
   storms: Storm[];
   isLoading: boolean;
   windsAloftData?: any;
+  nwsForecast?: NWSForecastPeriod[] | null;
 }
 
 const getSeverityColor = (severity: string): string => {
@@ -59,7 +70,39 @@ const getSeverityColor = (severity: string): string => {
 const getDirectionName = getCompassDirection;
 const getIntensityCategory = getStormCategory;
 
-export default function ImmediateSafetyAlerts({ location, storms, isLoading, windsAloftData }: ImmediateSafetyAlertsProps) {
+const SEVERE_KEYWORDS = [
+  'severe thunderstorm', 'tornado', 'damaging wind', 'large hail',
+  'flash flood', 'flooding', 'hurricane', 'tropical storm',
+  'blizzard', 'ice storm', 'winter storm', 'extreme heat',
+  'excessive heat', 'wind advisory', 'high wind', 'gale',
+  'storm warning', 'severe weather', 'dangerous', 'life-threatening',
+  'significant', 'destructive',
+];
+
+const CAUTION_KEYWORDS = [
+  'thunderstorm', 'scattered storms', 'isolated storms',
+  'strong storms', 'gusty wind', 'heavy rain', 'hail possible',
+  'chance of severe', 'freezing rain', 'sleet', 'wintry mix',
+  'fog', 'dense fog', 'heat advisory', 'wind chill',
+  'frost', 'freeze warning',
+];
+
+function detectForecastWarnings(periods: NWSForecastPeriod[]): { period: NWSForecastPeriod; severity: 'warning' | 'caution'; keywords: string[] }[] {
+  const warnings: { period: NWSForecastPeriod; severity: 'warning' | 'caution'; keywords: string[] }[] = [];
+  for (const p of periods) {
+    const text = `${p.shortForecast} ${p.detailedForecast}`.toLowerCase();
+    const severeMatches = SEVERE_KEYWORDS.filter(k => text.includes(k));
+    const cautionMatches = CAUTION_KEYWORDS.filter(k => text.includes(k));
+    if (severeMatches.length > 0) {
+      warnings.push({ period: p, severity: 'warning', keywords: severeMatches });
+    } else if (cautionMatches.length > 0) {
+      warnings.push({ period: p, severity: 'caution', keywords: cautionMatches });
+    }
+  }
+  return warnings;
+}
+
+export default function ImmediateSafetyAlerts({ location, storms, isLoading, windsAloftData, nwsForecast }: ImmediateSafetyAlertsProps) {
   const [showAlerts, setShowAlerts] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
@@ -196,7 +239,8 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     return sortOrder === 'newest' ? b.type.localeCompare(a.type) : a.type.localeCompare(b.type);
   });
 
-  const totalAlerts = nwsAlerts.length + uniqueThreats.length;
+  const forecastWarnings = nwsForecast ? detectForecastWarnings(nwsForecast) : [];
+  const totalAlerts = nwsAlerts.length + uniqueThreats.length + forecastWarnings.length;
 
   // Skeleton loader component
   const SkeletonLoader = () => (
@@ -534,6 +578,54 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
                   </div>
                 )}
               </div>
+            </div>
+          ))}
+
+          {/* NWS Forecast-Based Warnings */}
+          {forecastWarnings.map((fw, index) => (
+            <div
+              key={`forecast-${index}`}
+              className={`rounded-lg p-3 border animate-slideInUp ${
+                fw.severity === 'warning'
+                  ? 'bg-red-900/30 border-red-600/30'
+                  : 'bg-yellow-900/30 border-yellow-600/30'
+              }`}
+              style={{
+                animationDelay: `${(sortedNwsAlerts.length + uniqueThreats.length + index) * 150}ms`,
+                animationFillMode: 'both'
+              }}
+            >
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-lg">{fw.severity === 'warning' ? '🚨' : '⚠️'}</span>
+                <span className={`font-semibold text-sm ${fw.severity === 'warning' ? 'text-red-200' : 'text-yellow-200'}`}>
+                  NWS Forecast: {fw.period.name}
+                </span>
+                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                  fw.severity === 'warning' ? 'bg-red-700/50 text-red-200' : 'bg-yellow-700/50 text-yellow-200'
+                }`}>
+                  {fw.period.temperature}°{fw.period.temperatureUnit}
+                </span>
+              </div>
+              <p className={`text-sm mb-1.5 ${fw.severity === 'warning' ? 'text-red-100' : 'text-yellow-100'}`}>
+                {fw.period.shortForecast}
+                {fw.period.windSpeed && <span className="text-xs opacity-70"> · Wind: {fw.period.windSpeed}</span>}
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {fw.keywords.slice(0, 3).map((kw, ki) => (
+                  <span key={ki} className={`text-xs px-1.5 py-0.5 rounded ${
+                    fw.severity === 'warning' ? 'bg-red-800/50 text-red-300' : 'bg-yellow-800/50 text-yellow-300'
+                  }`}>
+                    {kw}
+                  </span>
+                ))}
+              </div>
+              {fw.period.detailedForecast && (
+                <p className={`text-xs leading-relaxed ${fw.severity === 'warning' ? 'text-red-300/80' : 'text-yellow-300/80'}`}>
+                  {fw.period.detailedForecast.length > 200
+                    ? fw.period.detailedForecast.slice(0, 200) + '...'
+                    : fw.period.detailedForecast}
+                </p>
+              )}
             </div>
           ))}
         </div>

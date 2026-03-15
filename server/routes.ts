@@ -4498,7 +4498,7 @@ Return ONLY a JSON array of 5 strings.`;
   // Interactive AI Weather Chat endpoint
   app.post("/api/ai-chat", async (req, res) => {
     try {
-      const { question, userLocation, useMetric, storms, stormCount } = req.body;
+      const { question, userLocation, useMetric, storms, stormCount, nwsForecast } = req.body;
       
       if (!question || typeof question !== 'string') {
         return res.status(400).json({ error: 'Question is required' });
@@ -4592,7 +4592,8 @@ Return ONLY a JSON array of 5 strings.`;
       }
       const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : { alerts: [] };
       const winds = windsResult.status === 'fulfilled' ? windsResult.value : null;
-      const nwsForecast = nwsForecastResult.status === 'fulfilled' ? nwsForecastResult.value : null;
+      const fetchedNwsForecast = nwsForecastResult.status === 'fulfilled' ? nwsForecastResult.value : null;
+      const resolvedNwsForecast = fetchedNwsForecast || nwsForecast || null;
       const openMeteoForecast = openMeteoForecastResult.status === 'fulfilled' ? openMeteoForecastResult.value : null;
       const afd = afdResult.status === 'fulfilled' ? afdResult.value : null;
       
@@ -4605,7 +4606,7 @@ Return ONLY a JSON array of 5 strings.`;
         thunderstormConditions: thunderstorm,
         activeAlerts: alerts.alerts || [],
         winds: winds,
-        nwsForecast: nwsForecast,
+        nwsForecast: resolvedNwsForecast,
         openMeteoForecast: openMeteoForecast,
         afd: afd,
         useMetric: useMetric || false
@@ -4710,8 +4711,8 @@ ${(() => {
 
 ${weatherContext.nwsForecast ? `
 FORECAST (National Weather Service):
-${weatherContext.nwsForecast.periods.map(period => 
-  `• ${period.name}: ${period.shortForecast}, ${useMetric ? period.temperature + '°C' : period.temperature + '°F'}, ${period.precipitationProbability}% chance of rain`
+${(Array.isArray(weatherContext.nwsForecast) ? weatherContext.nwsForecast : weatherContext.nwsForecast.periods || []).map(period => 
+  `• ${period.name}: ${period.shortForecast}, ${useMetric ? period.temperature + '°C' : period.temperature + '°F'}, Wind: ${period.windSpeed || 'N/A'}`
 ).join('\n')}
 ` : ''}
 
@@ -4796,7 +4797,7 @@ Guidelines:
   // AI Weather Assistant endpoint
   app.post("/api/ai-assessment", async (req, res) => {
     try {
-      const { userLocation, storms, winds, radarSource, includeAlerts = false, lightningCount = 0, useMetric = false, userSettings } = req.body;
+      const { userLocation, storms, winds, radarSource, includeAlerts = false, lightningCount = 0, useMetric = false, userSettings, nwsForecast } = req.body;
       
       if (!userLocation || !Array.isArray(storms) || !Array.isArray(winds)) {
         return res.status(400).json({ error: "Missing required weather data" });
@@ -4819,13 +4820,14 @@ Guidelines:
           if (threatResult.threatCount > 0) {
             const assessment = await generateWeatherAssessment({
               userLocation,
-              storms, // 30-mile immediate threats  
-              regionalStorms: [], // Skip regional fetch for faster threat response
+              storms,
+              regionalStorms: [],
               winds,
               radarSource: radarSource || 'Unknown',
-              threatData: threatResult, // Include threat data for enhanced analysis
+              threatData: threatResult,
               useMetric,
-              userSettings // Pass user's tone preferences for AFD summary
+              userSettings,
+              nwsForecast
             });
             
             console.log(`Enhanced AI assessment with ${threatResult.threatCount} threats: ${assessment.riskLevel} risk`);
@@ -4937,12 +4939,13 @@ Guidelines:
 
       const assessment = await generateWeatherAssessment({
         userLocation,
-        storms: enhancedStorms, // Enhanced storms with impact calculations
-        regionalStorms, // 50-mile regional context
+        storms: enhancedStorms,
+        regionalStorms,
         winds,
         radarSource: radarSource || 'Unknown',
         useMetric,
-        userSettings // Pass user's tone preferences for AFD summary
+        userSettings,
+        nwsForecast
       });
 
       console.log(`AI assessment generated: ${assessment.riskLevel} risk level with ${assessment.confidence} confidence`);
