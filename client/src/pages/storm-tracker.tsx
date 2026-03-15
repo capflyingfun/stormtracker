@@ -167,6 +167,7 @@ export default function StormTracker() {
   const [show3D, setShow3D] = useState(false);
   const [viewMode, setViewMode] = useState<'map' | 'sonar' | '3d'>('map');
   
+  const [searchQuery, setSearchQuery] = useState('');
   const [stormFilters, setStormFilters] = useState({
     light: true,
     moderate: true,
@@ -403,6 +404,7 @@ export default function StormTracker() {
       }
     } catch (error) {
       console.error("Location search failed:", error);
+      alert(`Could not find "${query}". Try a city name, full address, or ZIP code.`);
     }
   };
 
@@ -625,43 +627,35 @@ export default function StormTracker() {
                 </div>
               </div>
 
-              <div className="mb-3 flex gap-2">
+              <form className="mb-3 flex gap-2" onSubmit={(e) => {
+                e.preventDefault();
+                const val = searchQuery.trim();
+                if (val) {
+                  handleLocationSearch(val);
+                  setSearchQuery('');
+                }
+              }}>
                 <Input
                   placeholder="Search for city, state, or address..."
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const target = e.target as HTMLInputElement;
-                      const val = target.value.trim();
-                      if (val) {
-                        handleLocationSearch(val);
-                        target.value = '';
-                      }
-                    }
-                  }}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="bg-slate-700/50 border-slate-600 flex-1"
                   style={{ fontSize: '16px' }}
-                  id="location-search-input"
                   autoComplete="off"
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck={false}
                 />
                 <Button
-                  onClick={() => {
-                    const input = document.getElementById('location-search-input') as HTMLInputElement;
-                    const val = input?.value?.trim();
-                    if (val) {
-                      handleLocationSearch(val);
-                      input.value = '';
-                    }
-                  }}
+                  type="submit"
                   variant="outline"
                   size="sm"
+                  disabled={!searchQuery.trim()}
                   className="h-10 px-3 border-slate-600 text-slate-300 hover:text-white"
                 >
                   🔍
                 </Button>
-              </div>
+              </form>
 
               {/* Favorites — quick-switch + save current */}
               <FavoriteLocations

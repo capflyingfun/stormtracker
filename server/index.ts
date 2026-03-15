@@ -107,6 +107,14 @@ app.use((req, res, next) => {
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
+      app.use((req, res, next) => {
+        if (req.path === '/' || !req.path.includes('.')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        }
+        next();
+      });
       serveStatic(app);
     }
 
