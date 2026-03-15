@@ -1,7 +1,53 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, Navigation, Clock, ArrowUpDown } from "lucide-react";
 import { getStormCategory, getCompassDirection, calculateETA, calculateApproachAngle, isStormApproaching } from "@shared/storm-utils";
+
+function CountdownTimer({ etaMinutes, label }: { etaMinutes: number; label?: string }) {
+  const [now, setNow] = useState(Date.now());
+  const startRef = useRef(Date.now());
+  const etaRef = useRef(etaMinutes);
+
+  useEffect(() => {
+    startRef.current = Date.now();
+    etaRef.current = etaMinutes;
+  }, [etaMinutes]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const elapsedMin = (now - startRef.current) / 60000;
+  const remaining = Math.max(0, etaRef.current - elapsedMin);
+  const totalSec = Math.floor(remaining * 60);
+  const hours = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+
+  const isUrgent = remaining <= 10;
+  const isWarning = remaining <= 20;
+
+  const timeStr = hours > 0
+    ? `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+    : `${mins}:${String(secs).padStart(2, '0')}`;
+
+  if (remaining <= 0) {
+    return (
+      <span className="font-mono font-bold text-red-400 animate-pulse">
+        {label || 'ETA'}: ARRIVING
+      </span>
+    );
+  }
+
+  return (
+    <span className={`font-mono font-bold ${
+      isUrgent ? 'text-red-400 animate-pulse' : isWarning ? 'text-orange-300' : 'text-yellow-300'
+    }`}>
+      {label || 'ETA'}: {timeStr}
+    </span>
+  );
+}
 
 interface Storm {
   lat: number;
@@ -302,9 +348,22 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
       ) : totalAlerts === 0 ? (
         <div className="text-center py-2 animate-fadeIn">
           {approachingButNotImminent.length > 0 ? (
-            <p className="text-yellow-400/80 text-sm">
-              {approachingButNotImminent.length} strong storm{approachingButNotImminent.length > 1 ? 's' : ''} ({'>'}45 dBZ) in your cone but ETA {'>'} 45 min
-            </p>
+            <>
+              <p className="text-yellow-400/80 text-sm">
+                {approachingButNotImminent.length} strong storm{approachingButNotImminent.length > 1 ? 's' : ''} ({'>'}45 dBZ) in your cone but ETA {'>'} 45 min
+              </p>
+              {(() => {
+                const nearest = [...approachingButNotImminent].sort(
+                  (a, b) => (a.movement?.etaMinutes ?? Infinity) - (b.movement?.etaMinutes ?? Infinity)
+                )[0];
+                return nearest?.movement?.etaMinutes != null ? (
+                  <div className="flex items-center justify-center gap-1.5 mt-1.5 text-sm">
+                    <span className="text-slate-500">⏱</span>
+                    <CountdownTimer etaMinutes={nearest.movement.etaMinutes} label="Nearest" />
+                  </div>
+                ) : null;
+              })()}
+            </>
           ) : (
             <p className="text-slate-300 text-sm">No immediate weather threats detected</p>
           )}
@@ -545,11 +604,10 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
                 {/* ETA + threat classification box */}
                 {storm.movement && (
                   <div className="mt-2 p-2 bg-orange-950/50 rounded text-xs space-y-1">
-                    {/* ETA — shown whenever we have one, regardless of impact level */}
-                    {storm.movement.eta && (
-                      <div className="flex items-center gap-1.5 text-yellow-300 font-semibold">
+                    {storm.movement.etaMinutes != null && (
+                      <div className="flex items-center gap-1.5">
                         <span>⏱</span>
-                        <span>ETA: {storm.movement.eta}</span>
+                        <CountdownTimer etaMinutes={storm.movement.etaMinutes} />
                       </div>
                     )}
                     {storm.movement.impact === 'high' ? (
