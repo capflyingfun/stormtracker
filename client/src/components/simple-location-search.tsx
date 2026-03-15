@@ -21,7 +21,7 @@ interface SimpleLocationSearchProps {
 export default function SimpleLocationSearch({
   onLocationSelect,
   onUseCurrentLocation,
-  placeholder = "Enter address, city, state, or ZIP...",
+  placeholder = "Search city, airport, business, ZIP...",
   className = ""
 }: SimpleLocationSearchProps) {
   const [query, setQuery] = useState("");
@@ -149,7 +149,7 @@ export default function SimpleLocationSearch({
                 className="w-full text-left px-3 py-2.5 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0 flex items-center gap-2"
                 onClick={() => handleSuggestionSelect(s)}
               >
-                <span className="text-slate-400 text-sm shrink-0">{s.type === 'postal_code' ? '📮' : '📍'}</span>
+                <span className="text-slate-400 text-sm shrink-0">{s.type === 'postal_code' ? '📮' : s.type === 'poi' ? '' : '📍'}</span>
                 <span className="text-white text-sm truncate">{s.display_name}</span>
               </button>
             ))}
@@ -244,7 +244,7 @@ export default function SimpleLocationSearch({
       )}
 
       <div className="text-xs text-slate-400">
-        Examples: "New York", "90210", "1600 Pennsylvania Ave", "Miami, FL", "London, UK"
+        Examples: "JFK Airport", "New York", "90210", "Walmart Pensacola", "Miami, FL", "London, UK"
       </div>
 
       {showMapPicker && (
