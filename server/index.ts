@@ -4,7 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 
 // Environment variable validation for production
 function validateEnvironment() {
-  const required = ['DATABASE_URL'];
+  const required = ['DATABASE_URL', 'SESSION_SECRET'];
   const optional = ['OPENWEATHER_API_KEY'];
   
   const missing = required.filter(key => !process.env[key]);
@@ -90,6 +90,11 @@ app.use((req, res, next) => {
     
     // Validate database connection
     const { sql, db } = await validateDatabaseConnection();
+
+    // Setup Replit Auth BEFORE routes
+    const { setupAuth, registerAuthRoutes } = await import("./replit_integrations/auth");
+    await setupAuth(app);
+    registerAuthRoutes(app);
 
     const server = await registerRoutes(app);
 
