@@ -113,19 +113,25 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
 
     if (!rawMovement || rawMovement.speed == null) return storm;
 
+    const angleDiff = calculateApproachAngle(storm.direction, rawMovement.direction);
+    const inCone = angleDiff <= 30;
     const approaching = isStormApproaching(storm.direction, rawMovement.direction, rawMovement.speed);
     const etaMinutes = approaching && rawMovement.speed > 0
       ? calculateETA(storm.distance, rawMovement.speed)
-      : null;
+      : inCone && rawMovement.speed > 0
+        ? calculateETA(storm.distance, rawMovement.speed)
+        : null;
 
-    const angleDiff = calculateApproachAngle(storm.direction, rawMovement.direction);
     const impact: 'high' | 'medium' | 'low' =
       approaching && rawMovement.speed > 5 && angleDiff <= 15 ? 'high'
-      : approaching ? 'medium'
+      : inCone && approaching ? 'medium'
+      : inCone ? 'medium'
       : 'low';
 
     return {
       ...storm,
+      inCone,
+      angleDiff,
       movement: {
         direction: rawMovement.direction,
         speed: rawMovement.speed,
@@ -137,15 +143,21 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
   });
 
   const immediateThreats = stormsWithMovement.filter(storm => {
+    if (storm.intensity <= 45) return false;
     const mov = storm.movement;
-    if (!mov || mov.etaMinutes == null) return false;
-    return storm.intensity > 45 && mov.etaMinutes <= 45;
+    if (mov?.etaMinutes != null && mov.etaMinutes <= 45) return true;
+    if ((storm as any).inCone && mov?.etaMinutes != null && mov.etaMinutes <= 45) return true;
+    return false;
   });
 
   const approachingButNotImminent = stormsWithMovement.filter(storm => {
+    if (storm.intensity <= 45) return false;
     const mov = storm.movement;
+    const inCone = (storm as any).inCone;
     if (!mov || mov.etaMinutes == null) return false;
-    return storm.intensity > 45 && mov.etaMinutes > 45;
+    if (inCone && mov.etaMinutes > 45) return true;
+    if (!inCone && mov.etaMinutes > 45) return false;
+    return false;
   });
 
   // Remove duplicate storms (within 0.01 degree proximity)
@@ -291,13 +303,13 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
         <div className="text-center py-2 animate-fadeIn">
           {approachingButNotImminent.length > 0 ? (
             <p className="text-yellow-400/80 text-sm">
-              {approachingButNotImminent.length} strong storm{approachingButNotImminent.length > 1 ? 's' : ''} ({'>'}45 dBZ) approaching but ETA {'>'} 45 min
+              {approachingButNotImminent.length} strong storm{approachingButNotImminent.length > 1 ? 's' : ''} ({'>'}45 dBZ) in your cone but ETA {'>'} 45 min
             </p>
           ) : (
             <p className="text-slate-300 text-sm">No immediate weather threats detected</p>
           )}
           <p className="text-slate-500 text-[10px] mt-1">
-            Alerts trigger for storms {'>'}45 dBZ with ETA {'<'}45 min or severe NWS warnings/watches
+            Alerts: storms {'>'}45 dBZ in 30° cone with ETA {'<'}45 min, or severe NWS warnings/watches
           </p>
         </div>
       ) : (
@@ -542,11 +554,11 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
                     )}
                     {storm.movement.impact === 'high' ? (
                       <div className="text-red-300">
-                        <strong>🎯 COLLISION COURSE:</strong> Storm on direct track to your location
+                        <strong>🎯 COLLISION COURSE:</strong> Storm on direct track — you are in the 30° cone
                       </div>
                     ) : storm.movement.impact === 'medium' ? (
                       <div className="text-orange-300">
-                        <strong>⚠️ APPROACHING:</strong> Storm moving toward your area
+                        <strong>⚠️ IN YOUR CONE:</strong> Storm approaching within 30° of your location
                       </div>
                     ) : (
                       <div className="text-orange-300">
