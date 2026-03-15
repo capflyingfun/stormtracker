@@ -15,7 +15,7 @@ export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 text-yellow-400 select-none">⚡</div>
           <div className="select-none">
-            <h1 className="text-2xl font-bold select-none">StormTracker <span className="text-sm font-normal text-slate-400">v1.25</span></h1>
+            <h1 className="text-2xl font-bold select-none">StormTracker <span className="text-sm font-normal text-slate-400">v1.26</span></h1>
             <p className="text-sm text-slate-300 select-none">Real-time storm cell detection with live radar</p>
           </div>
         </div>
