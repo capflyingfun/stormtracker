@@ -1144,7 +1144,63 @@ Return ONLY a JSON array of 5 strings.`;
         }
       }
       
-      if (suggestions.length === 0 && query.length >= 3) {
+      const poiResults: typeof suggestions = [];
+      try {
+        const nominatimRes = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=8&addressdetails=1&extratags=1`,
+          { signal: AbortSignal.timeout(3000), headers: { 'User-Agent': 'StormTracker/1.0' } }
+        );
+        if (nominatimRes.ok) {
+          const nomData = await nominatimRes.json();
+          for (const r of nomData) {
+            const poiTypes: Record<string, string> = {
+              aerodrome: '✈️', aeroway: '✈️', airport: '✈️',
+              church: '⛪', place_of_worship: '⛪', mosque: '🕌', synagogue: '🕍',
+              school: '🏫', university: '🎓', college: '🎓',
+              hospital: '🏥', clinic: '🏥',
+              restaurant: '🍽️', cafe: '☕', bar: '🍺', fast_food: '🍔',
+              hotel: '🏨', motel: '🏨',
+              shop: '🛒', supermarket: '🛒', mall: '🛍️',
+              park: '🌳', stadium: '🏟️', museum: '🏛️', library: '📚',
+              fire_station: '🚒', police: '🚔', post_office: '📮',
+              fuel: '⛽', parking: '🅿️', marina: '⚓', harbour: '⚓',
+              military: '🎖️', helipad: '🚁',
+            };
+            const rType = (r.type || '').toLowerCase();
+            const rClass = (r.class || '').toLowerCase();
+            const emoji = poiTypes[rType] || poiTypes[rClass] || '';
+            const isPoi = emoji !== '' || ['amenity', 'tourism', 'shop', 'aeroway', 'leisure', 'building'].includes(rClass);
+            const existsAlready = suggestions.some(s =>
+              Math.abs(s.lat - parseFloat(r.lat)) < 0.001 && Math.abs(s.lon - parseFloat(r.lon)) < 0.001
+            );
+            if (existsAlready) continue;
+            const displayParts = [];
+            const name = r.extratags?.name || r.display_name.split(',')[0];
+            displayParts.push(emoji ? `${emoji} ${name}` : name);
+            const addr = r.address || {};
+            if (addr.city || addr.town || addr.village) displayParts.push(addr.city || addr.town || addr.village);
+            if (addr.state && (addr.country_code || '').toUpperCase() === 'US') displayParts.push(addr.state);
+            const cc = (addr.country_code || '').toUpperCase();
+            if (cc && cc !== 'US') displayParts.push(cc);
+            const target = isPoi ? poiResults : suggestions;
+            target.push({
+              id: `nom_${r.place_id}`,
+              display_name: displayParts.join(', '),
+              lat: parseFloat(r.lat),
+              lon: parseFloat(r.lon),
+              type: isPoi ? 'poi' : 'place',
+              importance: parseFloat(r.importance || '0.5'),
+              address: {
+                city: addr.city || addr.town || addr.village || '',
+                state: addr.state || '',
+                country: cc
+              }
+            });
+          }
+        }
+      } catch (e) { /* Nominatim failed, continue */ }
+
+      if (suggestions.length === 0 && poiResults.length === 0 && query.length >= 3) {
         try {
           const photonRes = await fetch(
             `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6`,
@@ -1182,6 +1238,8 @@ Return ONLY a JSON array of 5 strings.`;
           }
         } catch (e) { /* Photon fallback failed, continue */ }
       }
+
+      suggestions.push(...poiResults);
 
       const zipMatch = query.match(/^\d{1,5}$/);
       if (zipMatch && query.length >= 3) {
