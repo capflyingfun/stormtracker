@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Thermometer, Droplets, Wind, Eye, Sun, Cloud, CloudRain,
   Gauge, ChevronDown, ChevronUp, RefreshCw, Sunrise, Sunset,
-  Moon, AlertTriangle
+  Moon, AlertTriangle, Database
 } from "lucide-react";
 import { useState } from "react";
 
@@ -33,24 +33,24 @@ function getConditionIcon(condition: string) {
   return '🌤️';
 }
 
-function dualTemp(tempF: number, tempC: number, useMetric: boolean) {
-  if (useMetric) return `${Math.round(tempC)}°C (${Math.round(tempF)}°F)`;
+function dualTempF(tempF: number, tempC: number) {
   return `${Math.round(tempF)}°F (${Math.round(tempC)}°C)`;
 }
 
-function dualWind(mph: number, kph: number, useMetric: boolean) {
-  if (useMetric) return `${Math.round(kph)} km/h`;
-  return `${Math.round(mph)} mph`;
+function dualWind(mph: number, kph: number) {
+  return `${Math.round(mph)} mph (${Math.round(kph)} km/h)`;
 }
 
-function dualPrecip(inches: number, mm: number, useMetric: boolean) {
-  if (useMetric) return `${mm.toFixed(1)} mm`;
-  return `${inches.toFixed(2)} in`;
+function dualPrecip(inches: number, mm: number) {
+  return `${inches.toFixed(2)} in (${mm.toFixed(1)} mm)`;
 }
 
-function dualVis(miles: number, km: number, useMetric: boolean) {
-  if (useMetric) return `${km.toFixed(1)} km`;
-  return `${miles.toFixed(1)} mi`;
+function dualVis(miles: number, km: number) {
+  return `${miles.toFixed(1)} mi (${km.toFixed(1)} km)`;
+}
+
+function dualPressure(inHg: number, mb: number) {
+  return `${inHg.toFixed(2)} inHg (${Math.round(mb)} mb)`;
 }
 
 function getUVLabel(uv: number) {
@@ -69,8 +69,16 @@ function getAQILabel(aqi: number) {
   return { label: 'Hazardous', color: 'text-purple-400' };
 }
 
+function getSourceColor(name: string) {
+  if (name === 'NWS') return 'text-blue-300 border-blue-500/40';
+  if (name === 'OpenWeather') return 'text-orange-300 border-orange-500/40';
+  if (name === 'WeatherAPI') return 'text-green-300 border-green-500/40';
+  return 'text-cyan-300 border-cyan-500/40';
+}
+
 export default function WeatherDashboard({ lat, lon, useMetric, locationName }: WeatherDashboardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [showSources, setShowSources] = useState(false);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['/api/weather-forecast', lat, lon],
@@ -122,6 +130,8 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
   const forecast = data.forecast || [];
   const alerts = data.alerts || [];
   const airQuality = data.air_quality;
+  const sourcesDetail = data.sources_detail || [];
+  const sourcesCount = data.sources_count || 1;
 
   return (
     <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600 mb-4 sm:mb-6">
@@ -130,18 +140,23 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
           <div className="flex items-center gap-2">
             <span className="text-2xl">{getConditionIcon(cur.condition)}</span>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xl sm:text-2xl font-bold">
-                  {useMetric ? `${Math.round(cur.temp_c)}°C` : `${Math.round(cur.temp_f)}°F`}
-                </span>
-                <span className="text-sm text-slate-400">
-                  Feels {useMetric ? `${Math.round(cur.feelslike_c)}°C` : `${Math.round(cur.feelslike_f)}°F`}
+                  {dualTempF(cur.temp_f, cur.temp_c)}
                 </span>
               </div>
-              <p className="text-sm text-slate-300">{cur.condition}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm text-slate-300">{cur.condition}</p>
+                <span className="text-xs text-slate-500">
+                  Feels {dualTempF(cur.feelslike_f, cur.feelslike_c)}
+                </span>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400 hidden sm:flex">
+              {sourcesCount} source{sourcesCount !== 1 ? 's' : ''}
+            </Badge>
             <Button
               variant="ghost"
               size="sm"
@@ -171,7 +186,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
           </div>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           <div className="bg-slate-700/30 rounded-lg p-2.5 text-center">
             <Droplets className="w-4 h-4 mx-auto text-blue-400 mb-1" />
             <div className="text-white font-semibold text-sm">{cur.humidity}%</div>
@@ -179,35 +194,77 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
           </div>
           <div className="bg-slate-700/30 rounded-lg p-2.5 text-center">
             <Wind className="w-4 h-4 mx-auto text-cyan-400 mb-1" />
-            <div className="text-white font-semibold text-sm">{dualWind(cur.wind_mph, cur.wind_kph, useMetric)} {cur.wind_dir}</div>
-            <div className="text-slate-400 text-[10px]">Wind{cur.gust_mph > cur.wind_mph + 5 ? ` (G${useMetric ? Math.round(cur.gust_kph) : Math.round(cur.gust_mph)})` : ''}</div>
+            <div className="text-white font-semibold text-xs">{dualWind(cur.wind_mph, cur.wind_kph)}</div>
+            <div className="text-slate-400 text-[10px]">{cur.wind_dir} ({cur.wind_degree}°){cur.gust_mph > cur.wind_mph + 5 ? ` G${Math.round(cur.gust_mph)}mph` : ''}</div>
           </div>
           <div className="bg-slate-700/30 rounded-lg p-2.5 text-center">
             <Gauge className="w-4 h-4 mx-auto text-purple-400 mb-1" />
-            <div className="text-white font-semibold text-sm">{useMetric ? `${cur.pressure_mb} mb` : `${cur.pressure_in} in`}</div>
+            <div className="text-white font-semibold text-xs">{dualPressure(cur.pressure_in, cur.pressure_mb)}</div>
             <div className="text-slate-400 text-[10px]">Pressure</div>
           </div>
           <div className="bg-slate-700/30 rounded-lg p-2.5 text-center">
             <Eye className="w-4 h-4 mx-auto text-green-400 mb-1" />
-            <div className="text-white font-semibold text-sm">{dualVis(cur.visibility_miles, cur.visibility_km, useMetric)}</div>
+            <div className="text-white font-semibold text-xs">{dualVis(cur.visibility_miles, cur.visibility_km)}</div>
             <div className="text-slate-400 text-[10px]">Visibility</div>
+          </div>
+          {cur.dew_point_f != null && (
+            <div className="bg-slate-700/30 rounded-lg p-2.5 text-center">
+              <Thermometer className="w-4 h-4 mx-auto text-teal-400 mb-1" />
+              <div className="text-white font-semibold text-xs">{dualTempF(cur.dew_point_f, cur.dew_point_c)}</div>
+              <div className="text-slate-400 text-[10px]">Dew Point</div>
+            </div>
+          )}
+          <div className="bg-slate-700/30 rounded-lg p-2.5 text-center">
+            <Cloud className="w-4 h-4 mx-auto text-slate-300 mb-1" />
+            <div className="text-white font-semibold text-sm">{cur.cloud}%</div>
+            <div className="text-slate-400 text-[10px]">Cloud Cover</div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-400">
-          {cur.uv !== undefined && (
+        <div className="flex items-center gap-3 text-xs text-slate-400 flex-wrap">
+          {cur.uv !== undefined && cur.uv > 0 && (
             <span>UV: <span className={getUVLabel(cur.uv).color}>{cur.uv} ({getUVLabel(cur.uv).label})</span></span>
           )}
           {airQuality?.us_epa_index && (
             <span>AQI: <span className={getAQILabel(airQuality.us_epa_index).color}>{getAQILabel(airQuality.us_epa_index).label}</span></span>
           )}
-          {cur.cloud !== undefined && (
-            <span>Cloud: {cur.cloud}%</span>
-          )}
           {cur.precip_in > 0 && (
-            <span>Precip: {dualPrecip(cur.precip_in, cur.precip_mm, useMetric)}</span>
+            <span>Precip: {dualPrecip(cur.precip_in, cur.precip_mm)}</span>
           )}
         </div>
+
+        {sourcesDetail.length > 1 && (
+          <div>
+            <button
+              onClick={() => setShowSources(!showSources)}
+              className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              <Database className="w-3 h-3" />
+              <span>Hybrid Data: {sourcesDetail.map((s: any) => s.name).join(' + ')}</span>
+              {showSources ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+
+            {showSources && (
+              <div className="mt-2 space-y-1.5">
+                <div className="text-[10px] text-slate-500 mb-1">Per-source readings (consensus averaged above):</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {sourcesDetail.map((src: any, i: number) => (
+                    <div key={i} className={`bg-slate-700/20 rounded p-2 border ${getSourceColor(src.name)}`}>
+                      <div className="text-[10px] font-semibold mb-1">{src.name}</div>
+                      <div className="grid grid-cols-2 gap-x-3 text-[10px] text-slate-300">
+                        <span>Temp: {Math.round(src.temp_f)}°F ({Math.round(src.temp_c)}°C)</span>
+                        <span>Humidity: {src.humidity}%</span>
+                        <span>Wind: {Math.round(src.wind_mph)} mph</span>
+                        <span>Press: {Math.round(src.pressure_mb)} mb</span>
+                        <span className="col-span-2 text-slate-400 truncate">{src.condition}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {forecast.length > 0 && (
           <>
@@ -225,15 +282,18 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
                       <span className="text-slate-300 w-10 text-xs font-medium">{dayName}</span>
                       <span className="text-base shrink-0">{getConditionIcon(day.day.condition)}</span>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1 flex-wrap">
                           <span className="text-white font-semibold text-xs">
-                            {useMetric ? `${Math.round(day.day.maxtemp_c)}°` : `${Math.round(day.day.maxtemp_f)}°`}
+                            {Math.round(day.day.maxtemp_f)}°F
                           </span>
-                          <span className="text-slate-500 text-xs">/</span>
+                          <span className="text-slate-500 text-[10px]">/</span>
                           <span className="text-slate-400 text-xs">
-                            {useMetric ? `${Math.round(day.day.mintemp_c)}°` : `${Math.round(day.day.mintemp_f)}°`}
+                            {Math.round(day.day.mintemp_f)}°F
                           </span>
-                          <span className="text-slate-500 text-[10px] truncate hidden sm:inline">{day.day.condition}</span>
+                          <span className="text-slate-600 text-[10px] hidden sm:inline">
+                            ({Math.round(day.day.maxtemp_c)}°/{Math.round(day.day.mintemp_c)}°C)
+                          </span>
+                          <span className="text-slate-500 text-[10px] truncate hidden md:inline">{day.day.condition}</span>
                         </div>
                       </div>
                       {day.day.daily_chance_of_rain > 0 && (
@@ -242,8 +302,8 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
                           <span className="text-blue-400 text-[10px]">{day.day.daily_chance_of_rain}%</span>
                         </div>
                       )}
-                      <span className="text-slate-500 text-[10px] w-12 text-right hidden sm:block">
-                        {dualWind(day.day.maxwind_mph, day.day.maxwind_kph, useMetric)}
+                      <span className="text-slate-500 text-[10px] w-16 text-right hidden sm:block">
+                        {Math.round(day.day.maxwind_mph)} mph
                       </span>
                     </div>
                   );
@@ -267,14 +327,18 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
                   <Sunset className="w-4 h-4 text-orange-500" />
                   <span className="text-slate-300 text-xs">{forecast[0]?.astro?.sunset}</span>
                 </div>
-                <div className="bg-slate-700/30 rounded-lg p-2 flex items-center gap-2">
-                  <Moon className="w-4 h-4 text-indigo-400" />
-                  <span className="text-slate-300 text-xs">{forecast[0]?.astro?.moon_phase}</span>
-                </div>
-                <div className="bg-slate-700/30 rounded-lg p-2 flex items-center gap-2">
-                  <span className="text-indigo-400 text-xs">🌙</span>
-                  <span className="text-slate-300 text-xs">{forecast[0]?.astro?.moon_illumination}% lit</span>
-                </div>
+                {forecast[0]?.astro?.moon_phase && (
+                  <div className="bg-slate-700/30 rounded-lg p-2 flex items-center gap-2">
+                    <Moon className="w-4 h-4 text-indigo-400" />
+                    <span className="text-slate-300 text-xs">{forecast[0]?.astro?.moon_phase}</span>
+                  </div>
+                )}
+                {forecast[0]?.astro?.moon_illumination && (
+                  <div className="bg-slate-700/30 rounded-lg p-2 flex items-center gap-2">
+                    <span className="text-indigo-400 text-xs">🌙</span>
+                    <span className="text-slate-300 text-xs">{forecast[0]?.astro?.moon_illumination}% lit</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -320,7 +384,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
         </Button>
 
         <div className="text-[10px] text-slate-500 text-right">
-          Source: {data.source || 'Weather API'}
+          Sources: {data.source || 'Weather API'} (Hybrid Averaged)
         </div>
       </CardContent>
     </Card>
