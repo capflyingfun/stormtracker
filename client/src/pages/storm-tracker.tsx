@@ -14,6 +14,7 @@ import Simple3DCanvas from "@/components/simple-3d-canvas";
 import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
 import SonarRadar from "@/components/sonar-radar";
+import WeatherDashboard from "@/components/weather-dashboard";
 
 // import { ThreatMonitor } from "@/components/threat-monitor"; // Consolidated into AI Weather Assistant
 
@@ -750,6 +751,14 @@ export default function StormTracker() {
               storms={filteredStorms}
               isLoading={stormDataLoading}
               windsAloftData={windsAloftData}
+            />
+
+            {/* Current Weather & Forecast */}
+            <WeatherDashboard
+              lat={location.lat}
+              lon={location.lon}
+              useMetric={useMetric}
+              locationName={location.name}
             />
 
             {/* Storm Summary Section */}

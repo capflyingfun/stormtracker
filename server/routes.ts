@@ -5221,6 +5221,155 @@ Guidelines:
     }
   });
 
+  app.get("/api/weather-forecast", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      if (!lat || !lon) return res.status(400).json({ error: "lat and lon required" });
+
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lon as string);
+
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+          latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+        return res.status(400).json({ error: "Invalid coordinates" });
+      }
+
+      if (API_KEYS.weatherapi) {
+        try {
+          const waRes = await fetch(
+            `https://api.weatherapi.com/v1/forecast.json?key=${API_KEYS.weatherapi}&q=${latitude},${longitude}&days=7&aqi=yes&alerts=yes`,
+            { signal: AbortSignal.timeout(8000) }
+          );
+          if (waRes.ok) {
+            const d = await waRes.json();
+            return res.json({
+              source: "WeatherAPI.com",
+              current: {
+                temp_c: d.current.temp_c, temp_f: d.current.temp_f,
+                condition: d.current.condition.text,
+                wind_mph: d.current.wind_mph, wind_kph: d.current.wind_kph,
+                wind_dir: d.current.wind_dir, wind_degree: d.current.wind_degree,
+                pressure_mb: d.current.pressure_mb, pressure_in: d.current.pressure_in,
+                humidity: d.current.humidity, cloud: d.current.cloud,
+                feelslike_c: d.current.feelslike_c, feelslike_f: d.current.feelslike_f,
+                visibility_km: d.current.vis_km, visibility_miles: d.current.vis_miles,
+                uv: d.current.uv,
+                precip_mm: d.current.precip_mm, precip_in: d.current.precip_in,
+                gust_mph: d.current.gust_mph, gust_kph: d.current.gust_kph
+              },
+              forecast: d.forecast.forecastday.map((day: any) => ({
+                date: day.date,
+                day: {
+                  maxtemp_c: day.day.maxtemp_c, maxtemp_f: day.day.maxtemp_f,
+                  mintemp_c: day.day.mintemp_c, mintemp_f: day.day.mintemp_f,
+                  maxwind_mph: day.day.maxwind_mph, maxwind_kph: day.day.maxwind_kph,
+                  totalprecip_mm: day.day.totalprecip_mm, totalprecip_in: day.day.totalprecip_in,
+                  avghumidity: day.day.avghumidity,
+                  daily_chance_of_rain: day.day.daily_chance_of_rain,
+                  daily_chance_of_snow: day.day.daily_chance_of_snow,
+                  condition: day.day.condition.text, uv: day.day.uv
+                },
+                astro: {
+                  sunrise: day.astro.sunrise, sunset: day.astro.sunset,
+                  moonrise: day.astro.moonrise, moonset: day.astro.moonset,
+                  moon_phase: day.astro.moon_phase,
+                  moon_illumination: day.astro.moon_illumination
+                }
+              })),
+              alerts: d.alerts?.alert?.map((a: any) => ({
+                event: a.event, headline: a.headline, description: a.desc,
+                severity: a.severity, effective: a.effective, expires: a.expires
+              })) || [],
+              air_quality: d.current.air_quality ? {
+                pm2_5: d.current.air_quality.pm2_5, pm10: d.current.air_quality.pm10,
+                o3: d.current.air_quality.o3, us_epa_index: d.current.air_quality['us-epa-index']
+              } : null
+            });
+          }
+        } catch (e) {
+          console.log('WeatherAPI.com unavailable, falling back to Open-Meteo:', (e as Error).message);
+        }
+      }
+
+      const omUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset,uv_index_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`;
+      const omRes = await fetch(omUrl, { signal: AbortSignal.timeout(8000) });
+      if (!omRes.ok) throw new Error(`Open-Meteo error: ${omRes.status}`);
+      const om = await omRes.json();
+
+      const wmoConditions: Record<number, string> = {
+        0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',
+        45:'Fog',48:'Depositing rime fog',51:'Light drizzle',53:'Moderate drizzle',55:'Dense drizzle',
+        61:'Slight rain',63:'Moderate rain',65:'Heavy rain',
+        71:'Slight snow',73:'Moderate snow',75:'Heavy snow',77:'Snow grains',
+        80:'Slight showers',81:'Moderate showers',82:'Violent showers',
+        85:'Slight snow showers',86:'Heavy snow showers',
+        95:'Thunderstorm',96:'Thunderstorm with slight hail',99:'Thunderstorm with heavy hail'
+      };
+
+      const c = om.current;
+      const tempF = c.temperature_2m;
+      const tempC = (tempF - 32) * 5/9;
+      const feelsF = c.apparent_temperature;
+      const feelsC = (feelsF - 32) * 5/9;
+      const windMph = c.wind_speed_10m;
+      const windKph = windMph * 1.60934;
+      const gustMph = c.wind_gusts_10m || windMph;
+      const gustKph = gustMph * 1.60934;
+      const pressureMb = c.surface_pressure;
+      const pressureIn = pressureMb * 0.02953;
+
+      const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+      const windDir = dirs[Math.round(c.wind_direction_10m / 22.5) % 16];
+
+      const forecasts = om.daily.time.map((date: string, i: number) => {
+        const hiF = om.daily.temperature_2m_max[i];
+        const loF = om.daily.temperature_2m_min[i];
+        const hiC = (hiF - 32) * 5/9;
+        const loC = (loF - 32) * 5/9;
+        const wmaxMph = om.daily.wind_speed_10m_max[i];
+        const wmaxKph = wmaxMph * 1.60934;
+        return {
+          date,
+          day: {
+            maxtemp_f: hiF, maxtemp_c: hiC, mintemp_f: loF, mintemp_c: loC,
+            maxwind_mph: wmaxMph, maxwind_kph: wmaxKph,
+            totalprecip_in: om.daily.precipitation_sum[i], totalprecip_mm: om.daily.precipitation_sum[i] * 25.4,
+            avghumidity: 0, daily_chance_of_rain: om.daily.precipitation_probability_max[i] || 0,
+            daily_chance_of_snow: 0,
+            condition: wmoConditions[om.daily.weather_code[i]] || 'Unknown',
+            uv: om.daily.uv_index_max[i]
+          },
+          astro: {
+            sunrise: om.daily.sunrise?.[i] ? new Date(om.daily.sunrise[i]).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+            sunset: om.daily.sunset?.[i] ? new Date(om.daily.sunset[i]).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+            moonrise: '', moonset: '', moon_phase: '', moon_illumination: ''
+          }
+        };
+      });
+
+      return res.json({
+        source: "Open-Meteo",
+        current: {
+          temp_f: tempF, temp_c: tempC, condition: wmoConditions[c.weather_code] || 'Unknown',
+          wind_mph: windMph, wind_kph: windKph, wind_dir: windDir, wind_degree: c.wind_direction_10m,
+          pressure_mb: pressureMb, pressure_in: pressureIn,
+          humidity: c.relative_humidity_2m, cloud: c.cloud_cover,
+          feelslike_f: feelsF, feelslike_c: feelsC,
+          visibility_km: 10, visibility_miles: 6.2,
+          uv: om.daily.uv_index_max?.[0] || 0,
+          precip_mm: c.precipitation * 25.4, precip_in: c.precipitation,
+          gust_mph: gustMph, gust_kph: gustKph
+        },
+        forecast: forecasts,
+        alerts: [],
+        air_quality: null
+      });
+    } catch (error) {
+      console.error('Weather forecast endpoint error:', error);
+      res.status(500).json({ error: "Failed to fetch weather forecast" });
+    }
+  });
+
   // AI Assistant Settings API
   app.get("/api/user-settings/:sessionId", async (req, res) => {
     try {
