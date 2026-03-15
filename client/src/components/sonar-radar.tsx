@@ -27,14 +27,6 @@ interface Location {
   name: string;
 }
 
-interface LightningStrike {
-  lat: number;
-  lon: number;
-  time: number;
-  intensity: number;
-  id: string;
-}
-
 interface SonarRadarProps {
   location: Location;
   storms: Storm[];
@@ -43,7 +35,16 @@ interface SonarRadarProps {
   useMetric: boolean;
   onStormClick?: (storm: Storm) => void;
   className?: string;
-  lightningStrikes?: LightningStrike[];
+  showLightning?: boolean;
+}
+
+function getLightningCount(dbz: number): number {
+  if (dbz >= 60) return 5;
+  if (dbz >= 55) return 4;
+  if (dbz >= 50) return 3;
+  if (dbz >= 45) return 2;
+  if (dbz >= 40) return 1;
+  return 0;
 }
 
 export default function SonarRadar({
@@ -54,7 +55,7 @@ export default function SonarRadar({
   useMetric,
   onStormClick,
   className = "",
-  lightningStrikes = [],
+  showLightning = true,
 }: SonarRadarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -189,44 +190,35 @@ export default function SonarRadar({
       ctx.globalAlpha = 1;
     });
 
-    // ── Lightning strikes (⚡ emoji) ─────────────────────────────────────────
-    const now = Date.now();
-    lightningStrikes.forEach(strike => {
-      const dLat = (strike.lat - location.lat) * Math.PI / 180;
-      const dLon = (strike.lon - location.lon) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) ** 2 +
-        Math.cos(location.lat * Math.PI / 180) * Math.cos(strike.lat * Math.PI / 180) *
-        Math.sin(dLon / 2) ** 2;
-      const distMiles = 3959 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      if (distMiles > radarRange) return;
+    // ── Lightning ⚡ overlay on cells ≥40 dBZ ──────────────────────────────────
+    if (showLightning) {
+      sorted.forEach(storm => {
+        const count = getLightningCount(storm.intensity);
+        if (count === 0 || storm.distance > radarRange) return;
+        const r = ((storm.direction - 90) * Math.PI) / 180;
+        const dist = (storm.distance / radarRange) * maxRadius;
+        const sx = cx + Math.cos(r) * dist;
+        const sy = cy + Math.sin(r) * dist;
+        const sz = getStormSize(storm.intensity);
 
-      const y = Math.sin(dLon) * Math.cos(strike.lat * Math.PI / 180);
-      const x = Math.cos(location.lat * Math.PI / 180) * Math.sin(strike.lat * Math.PI / 180) -
-        Math.sin(location.lat * Math.PI / 180) * Math.cos(strike.lat * Math.PI / 180) * Math.cos(dLon);
-      const bearing = ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
-
-      const r = ((bearing - 90) * Math.PI) / 180;
-      const dist = (distMiles / radarRange) * maxRadius;
-      const lx = cx + Math.cos(r) * dist;
-      const ly = cy + Math.sin(r) * dist;
-
-      const age = now - strike.time;
-      const freshness = Math.max(0, 1 - age / (10 * 60 * 1000));
-      const alpha = age < 3000 ? 0.8 + Math.random() * 0.2 : 0.3 + freshness * 0.5;
-
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = age < 3000 ? '#fffacd' : age < 30000 ? '#ffd700' : '#ff8c00';
-      ctx.font = age < 3000 ? '10px sans-serif' : `${Math.max(6, Math.round(6 + freshness * 4))}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      if (age < 3000) {
-        ctx.shadowColor = '#ffffff';
-        ctx.shadowBlur = 8;
-      }
-      ctx.fillText('⚡', lx, ly);
-      ctx.shadowBlur = 0;
-      ctx.globalAlpha = 1;
-    });
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = '#ffd700';
+        ctx.font = `${Math.max(8, sz)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 4;
+        ctx.fillText('⚡', sx, sy - sz - 2);
+        if (count > 1) {
+          ctx.font = 'bold 7px sans-serif';
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowBlur = 0;
+          ctx.fillText(`×${count}`, sx + sz * 0.6, sy - sz - 2);
+        }
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      });
+    }
 
     // ── Center dot (user) ─────────────────────────────────────────────────────
     ctx.fillStyle = '#3b82f6'; ctx.shadowColor = '#3b82f6'; ctx.shadowBlur = 10;
@@ -319,7 +311,7 @@ export default function SonarRadar({
       ctx.arc(dotX, dotY, 2.5, 0, 2 * Math.PI);
       ctx.fill();
     }
-  }, [sweepAngle, storms, selectedStorm, hoveredStorm, radarRange, useMetric, isScanning, lightningStrikes, location]);
+  }, [sweepAngle, storms, selectedStorm, hoveredStorm, radarRange, useMetric, isScanning, showLightning, location]);
 
   const getStormAtPoint = (px: number, py: number, canvas: HTMLCanvasElement) => {
     const W = canvas.clientWidth;
@@ -460,7 +452,7 @@ export default function SonarRadar({
           <div className="flex items-center justify-between">
             <span className="text-slate-400">
               {storms.length > 0 ? `${storms.length} storm${storms.length !== 1 ? 's' : ''}` : 'No storms'}
-              {lightningStrikes.length > 0 ? ` · ⚡${lightningStrikes.length}` : ''}
+              {showLightning && storms.some(s => s.intensity >= 40) ? ` · ⚡${storms.filter(s => s.intensity >= 40).length}` : ''}
               {` within ${formatDistance(radarRange)}`}
             </span>
             {dominantWind && dominantWind.speed > 2 && (
