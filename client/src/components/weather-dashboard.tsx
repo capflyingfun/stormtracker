@@ -155,6 +155,129 @@ function getDayName(iso: string, i: number) {
   return new Date(iso + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
 }
 
+interface HybridDay {
+  dayName: string;
+  date: string;
+  hiF: number;
+  loF: number;
+  icon: string;
+  label: string;
+  precip: number;
+  windMph: number;
+  nwsDay?: any;
+  nwsNight?: any;
+  source: 'hybrid' | 'open-meteo';
+}
+
+function buildHybridForecast(daily: any, nwsPeriods: any[] | null): HybridDay[] {
+  const days: HybridDay[] = [];
+
+  const nwsByDate: Record<string, { day?: any; night?: any }> = {};
+  if (nwsPeriods) {
+    const dayNames: Record<string, string> = {};
+    const firstDate = daily.time[0];
+    for (let d = 0; d < daily.time.length; d++) {
+      const iso = daily.time[d];
+      const dt = new Date(iso + 'T12:00:00');
+      const name = d === 0 ? 'today' : d === 1 ? 'tomorrow' : dt.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      dayNames[name] = iso;
+    }
+    dayNames['tonight'] = firstDate;
+    dayNames['this afternoon'] = firstDate;
+    dayNames['overnight'] = firstDate;
+    dayNames['this evening'] = firstDate;
+
+    for (const p of nwsPeriods) {
+      const rawName = (p.name || '').toLowerCase();
+      const pName = rawName.replace(' night', '').replace(' evening', '');
+      let matchDate: string | null = null;
+      for (const [key, iso] of Object.entries(dayNames)) {
+        if (pName === key || pName.startsWith(key)) {
+          matchDate = iso;
+          break;
+        }
+      }
+      if (!matchDate) {
+        for (const [key, iso] of Object.entries(dayNames)) {
+          if (pName.includes(key) || key.includes(pName)) { matchDate = iso; break; }
+        }
+      }
+      if (matchDate) {
+        if (!nwsByDate[matchDate]) nwsByDate[matchDate] = {};
+        if (p.isDaytime) nwsByDate[matchDate].day = p;
+        else nwsByDate[matchDate].night = p;
+      }
+    }
+  }
+
+  for (let i = 0; i < daily.time.length; i++) {
+    const t = daily.time[i];
+    const omHiF = daily.tempMax[i];
+    const omLoF = daily.tempMin[i];
+    const omCode = daily.weatherCode[i];
+    const omInfo = getWeatherInfo(omCode);
+    const precip = daily.precipProbMax[i];
+    const windMph = daily.windMax[i];
+
+    const nws = nwsByDate[t];
+    if (nws && (nws.day || nws.night)) {
+      const nwsDayTemp = nws.day?.temperature;
+      const nwsNightTemp = nws.night?.temperature;
+      const nwsDayUnit = nws.day?.temperatureUnit || 'F';
+      const nwsNightUnit = nws.night?.temperatureUnit || 'F';
+
+      const nwsHiF = nwsDayTemp != null ? (nwsDayUnit === 'F' ? nwsDayTemp : Math.round(nwsDayTemp * 9/5 + 32)) : null;
+      const nwsLoF = nwsNightTemp != null ? (nwsNightUnit === 'F' ? nwsNightTemp : Math.round(nwsNightTemp * 9/5 + 32)) : null;
+
+      const avgHi = nwsHiF != null ? Math.round((omHiF + nwsHiF) / 2) : omHiF;
+      const avgLo = nwsLoF != null ? Math.round((omLoF + nwsLoF) / 2) : omLoF;
+
+      const nwsShort = nws.day?.shortForecast || nws.night?.shortForecast || '';
+      const nwsLabel = nwsShort || omInfo.label;
+
+      let icon = omInfo.icon;
+      const sl = nwsShort.toLowerCase();
+      if (sl.includes('thunder')) icon = '⛈️';
+      else if (sl.includes('snow') || sl.includes('blizzard')) icon = '❄️';
+      else if (sl.includes('freezing rain') || sl.includes('ice')) icon = '🧊';
+      else if (sl.includes('rain') || sl.includes('showers')) icon = '🌧️';
+      else if (sl.includes('drizzle')) icon = '🌦️';
+      else if (sl.includes('fog')) icon = '🌫️';
+      else if (sl.includes('cloudy') || sl.includes('overcast')) icon = '☁️';
+      else if (sl.includes('partly')) icon = '⛅';
+      else if (sl.includes('mostly sunny') || sl.includes('mostly clear')) icon = '🌤️';
+      else if (sl.includes('sunny') || sl.includes('clear')) icon = '☀️';
+
+      days.push({
+        dayName: getDayName(t, i),
+        date: t,
+        hiF: avgHi,
+        loF: avgLo,
+        icon,
+        label: nwsLabel,
+        precip,
+        windMph,
+        nwsDay: nws.day,
+        nwsNight: nws.night,
+        source: 'hybrid',
+      });
+    } else {
+      days.push({
+        dayName: getDayName(t, i),
+        date: t,
+        hiF: omHiF,
+        loF: omLoF,
+        icon: omInfo.icon,
+        label: omInfo.label,
+        precip,
+        windMph,
+        source: 'open-meteo',
+      });
+    }
+  }
+  return days;
+}
+
 const HAZARD_ICONS: { keyword: string; emoji: string; tier: 'warning' | 'watch' | 'advisory' }[] = [
   { keyword: 'tornado',             emoji: '🌪️', tier: 'warning' },
   { keyword: 'severe thunderstorm', emoji: '⛈️',  tier: 'warning' },
@@ -199,7 +322,7 @@ function getForecastIcon(shortForecast: string, detailed: string): { emoji: stri
 }
 
 export default function WeatherDashboard({ lat, lon, locationName, useMetric }: WeatherDashboardProps) {
-  const [expandedNws, setExpandedNws] = useState<number | null>(null);
+  const [expandedDay, setExpandedDay] = useState<number | null>(null);
 
   const { data: forecast, isLoading, error } = useQuery<any>({
     queryKey: ["/api/forecast", lat, lon],
@@ -376,101 +499,114 @@ export default function WeatherDashboard({ lat, lon, locationName, useMetric }: 
         </div>
       </div>
 
-      <div className="bg-slate-800/60 rounded-xl p-4 border border-slate-700/50">
-        <h3 className="text-sm font-semibold text-white mb-3">7-Day Forecast</h3>
-        <div className="space-y-2">
-          {forecast.daily.time.map((t: string, i: number) => {
-            const dw = getWeatherInfo(forecast.daily.weatherCode[i]);
-            const hiF = forecast.daily.tempMax[i];
-            const loF = forecast.daily.tempMin[i];
-            const hi = useMetric ? Math.round(fToC(hiF)) : Math.round(hiF);
-            const lo = useMetric ? Math.round(fToC(loF)) : Math.round(loF);
-            const hiAlt = useMetric ? Math.round(hiF) : Math.round(fToC(hiF));
-            const loAlt = useMetric ? Math.round(loF) : Math.round(fToC(loF));
-            const precip = forecast.daily.precipProbMax[i];
-            const windMph = forecast.daily.windMax[i];
-            return (
-              <div key={t} className="flex items-center gap-2 py-1.5 border-b border-slate-700/30 last:border-0">
-                <span className="text-sm text-slate-300 w-16 shrink-0">{getDayName(t, i)}</span>
-                <span className="text-lg w-8 text-center">{dw.icon}</span>
-                <span className="text-xs text-slate-400 flex-1 truncate hidden sm:block">{dw.label}</span>
-                {precip > 0 && (
-                  <span className="text-xs text-blue-400 w-10 text-right shrink-0">{precip}%</span>
-                )}
-                <div className="flex items-center gap-1 shrink-0 text-xs text-slate-500">
-                  <Wind className="h-3 w-3" />
-                  {useMetric ? Math.round(mphToKmh(windMph)) : Math.round(windMph)}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-sm font-medium text-white w-8 text-right">{hi}°</span>
-                  <span className="text-xs text-slate-600">/{hiAlt}°</span>
-                  <span className="text-xs text-slate-500 mx-0.5">·</span>
-                  <span className="text-sm text-slate-400 w-6">{lo}°</span>
-                  <span className="text-xs text-slate-600">/{loAlt}°</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {(() => {
+        const hasNws = forecast.nwsForecast && forecast.nwsForecast.length > 0;
+        const hybridDays = buildHybridForecast(forecast.daily, forecast.nwsForecast);
+        return (
+          <div className={`bg-slate-800/60 rounded-xl p-4 border ${hasNws ? 'border-blue-700/30' : 'border-slate-700/50'}`}>
+            <div className="flex items-center gap-2 mb-3">
+              {hasNws && <span className="text-sm">🏛️</span>}
+              <h3 className="text-sm font-semibold text-white">7-Day Forecast</h3>
+              {hasNws && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-700/30">
+                  NWS + Open-Meteo Hybrid
+                </span>
+              )}
+            </div>
+            <div className="space-y-1">
+              {hybridDays.map((day, i) => {
+                const isExpanded = expandedDay === i;
+                const hi = useMetric ? Math.round(fToC(day.hiF)) : Math.round(day.hiF);
+                const lo = useMetric ? Math.round(fToC(day.loF)) : Math.round(day.loF);
+                const hiAlt = useMetric ? Math.round(day.hiF) : Math.round(fToC(day.hiF));
+                const loAlt = useMetric ? Math.round(day.loF) : Math.round(fToC(day.loF));
+                const hasDetail = day.nwsDay || day.nwsNight;
+                const hazard = hasDetail ? getForecastIcon(
+                  (day.nwsDay?.shortForecast || '') + ' ' + (day.nwsNight?.shortForecast || ''),
+                  (day.nwsDay?.detailedForecast || '') + ' ' + (day.nwsNight?.detailedForecast || '')
+                ) : null;
+                const ringClass = hazard?.tier === 'warning' ? 'ring-1 ring-red-500/40' : hazard?.tier === 'watch' ? 'ring-1 ring-orange-500/30' : hazard ? 'ring-1 ring-yellow-500/30' : '';
+                const labelColor = hazard?.tier === 'warning' ? 'text-red-300' : hazard?.tier === 'watch' ? 'text-orange-300' : hazard ? 'text-yellow-300' : 'text-slate-400';
 
-      {forecast.nwsForecast && forecast.nwsForecast.length > 0 && (
-        <div className="bg-slate-800/60 rounded-xl p-4 border border-blue-700/30">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm">🏛️</span>
-            <h3 className="text-sm font-semibold text-white">NWS Detailed Forecast</h3>
-            <span className="text-xs text-slate-500 ml-auto">National Weather Service</span>
-          </div>
-          <div className="space-y-1">
-            {forecast.nwsForecast.map((p: any, i: number) => {
-              const isExpanded = expandedNws === i;
-              const hazard = getForecastIcon(p.shortForecast || '', p.detailedForecast || '');
-              const isWarning = hazard?.tier === 'warning';
-              const isWatch = hazard?.tier === 'watch';
-              const ringClass = isWarning ? 'ring-1 ring-red-500/40' : isWatch ? 'ring-1 ring-orange-500/30' : hazard ? 'ring-1 ring-yellow-500/30' : '';
-              const forecastColor = isWarning ? 'text-red-300' : isWatch ? 'text-orange-300' : hazard ? 'text-yellow-300' : 'text-slate-400';
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setExpandedNws(isExpanded ? null : i)}
-                  className="w-full text-left"
-                >
-                  <div className={`rounded-lg p-2.5 transition-colors ${
-                    isExpanded ? 'bg-slate-700/60' : 'bg-slate-700/30 hover:bg-slate-700/50'
-                  } ${!p.isDaytime ? 'border-l-2 border-indigo-500/40' : 'border-l-2 border-yellow-500/40'} ${ringClass}`}>
-                    <div className="flex items-center gap-2">
-                      {hazard && <span className="text-sm shrink-0">{hazard.emoji}</span>}
-                      <span className="text-sm font-medium text-slate-200 w-24 shrink-0">{p.name}</span>
-                      <span className="text-xs shrink-0">{p.isDaytime ? '⤴️' : '⤵️'}</span>
-                      <span className="text-sm text-white font-medium shrink-0">
-                        {p.isDaytime ? 'High' : 'Low'}: {(() => {
-                          const tempF = p.temperatureUnit === 'F' ? p.temperature : Math.round(p.temperature * 9 / 5 + 32);
-                          const tempC = p.temperatureUnit === 'F' ? Math.round(fToC(p.temperature)) : p.temperature;
-                          return useMetric ? `${tempC}°C (${tempF}°F)` : `${tempF}°F (${tempC}°C)`;
-                        })()}
-                      </span>
-                      <span className={`text-xs flex-1 truncate ${forecastColor}`}>{p.shortForecast}</span>
-                      {p.windSpeed && <span className="text-xs text-slate-500 shrink-0">{(() => {
-                        const m = p.windSpeed.match(/(\d+)\s*(to\s*(\d+)\s*)?mph/i);
-                        if (!m) return p.windSpeed;
-                        const lo = parseInt(m[1]);
-                        const hi = m[3] ? parseInt(m[3]) : null;
-                        if (hi) return useMetric ? `${Math.round(mphToKmh(lo))}-${Math.round(mphToKmh(hi))} km/h` : `${lo}-${hi} mph`;
-                        return useMetric ? `${Math.round(mphToKmh(lo))} km/h` : `${lo} mph`;
-                      })()}</span>}
-                      {isExpanded ? <ChevronUp className="h-3 w-3 text-slate-500 shrink-0" /> : <ChevronDown className="h-3 w-3 text-slate-500 shrink-0" />}
-                    </div>
-                    {isExpanded && p.detailedForecast && (
-                      <p className="text-xs text-slate-300 mt-2 leading-relaxed">{p.detailedForecast}</p>
+                return (
+                  <div key={day.date}>
+                    <button
+                      type="button"
+                      onClick={() => hasDetail ? setExpandedDay(isExpanded ? null : i) : null}
+                      className={`w-full text-left rounded-lg p-2 transition-colors ${
+                        isExpanded ? 'bg-slate-700/60' : hasDetail ? 'bg-slate-700/20 hover:bg-slate-700/40' : ''
+                      } ${ringClass}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {hazard && <span className="text-sm shrink-0">{hazard.emoji}</span>}
+                        <span className="text-sm text-slate-300 w-16 shrink-0 font-medium">{day.dayName}</span>
+                        <span className="text-lg w-8 text-center">{day.icon}</span>
+                        <span className={`text-xs flex-1 truncate hidden sm:block ${labelColor}`}>{day.label}</span>
+                        {day.precip > 0 && (
+                          <span className="text-xs text-blue-400 w-10 text-right shrink-0">{day.precip}%</span>
+                        )}
+                        <div className="flex items-center gap-1 shrink-0 text-xs text-slate-500">
+                          <Wind className="h-3 w-3" />
+                          {useMetric ? Math.round(mphToKmh(day.windMph)) : Math.round(day.windMph)}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-xs">⤴️</span>
+                          <span className="text-sm font-medium text-white w-8 text-right">{hi}°</span>
+                          <span className="text-xs text-slate-600">/{hiAlt}°</span>
+                          <span className="text-xs text-slate-500 mx-0.5">·</span>
+                          <span className="text-xs">⤵️</span>
+                          <span className="text-sm text-slate-400 w-6">{lo}°</span>
+                          <span className="text-xs text-slate-600">/{loAlt}°</span>
+                        </div>
+                        {hasDetail && (
+                          isExpanded ? <ChevronUp className="h-3 w-3 text-slate-500 shrink-0" /> : <ChevronDown className="h-3 w-3 text-slate-500 shrink-0" />
+                        )}
+                      </div>
+                    </button>
+                    {isExpanded && hasDetail && (
+                      <div className="ml-2 mt-1 mb-2 space-y-1.5 border-l-2 border-blue-800/30 pl-3">
+                        {day.nwsDay && (
+                          <div className="text-xs">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="text-yellow-400">☀️</span>
+                              <span className="font-medium text-slate-200">{day.nwsDay.name}</span>
+                              <span className="text-slate-400">⤴️ High: {(() => {
+                                const tf = day.nwsDay.temperatureUnit === 'F' ? day.nwsDay.temperature : Math.round(day.nwsDay.temperature * 9/5 + 32);
+                                const tc = day.nwsDay.temperatureUnit === 'F' ? Math.round(fToC(day.nwsDay.temperature)) : day.nwsDay.temperature;
+                                return useMetric ? `${tc}°C (${tf}°F)` : `${tf}°F (${tc}°C)`;
+                              })()}</span>
+                              {day.nwsDay.windSpeed && <span className="text-slate-500">{day.nwsDay.windSpeed}</span>}
+                            </div>
+                            <p className="text-slate-300 leading-relaxed">{day.nwsDay.detailedForecast}</p>
+                          </div>
+                        )}
+                        {day.nwsNight && (
+                          <div className="text-xs">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="text-indigo-400">🌙</span>
+                              <span className="font-medium text-slate-200">{day.nwsNight.name}</span>
+                              <span className="text-slate-400">⤵️ Low: {(() => {
+                                const tf = day.nwsNight.temperatureUnit === 'F' ? day.nwsNight.temperature : Math.round(day.nwsNight.temperature * 9/5 + 32);
+                                const tc = day.nwsNight.temperatureUnit === 'F' ? Math.round(fToC(day.nwsNight.temperature)) : day.nwsNight.temperature;
+                                return useMetric ? `${tc}°C (${tf}°F)` : `${tf}°F (${tc}°C)`;
+                              })()}</span>
+                              {day.nwsNight.windSpeed && <span className="text-slate-500">{day.nwsNight.windSpeed}</span>}
+                            </div>
+                            <p className="text-slate-300 leading-relaxed">{day.nwsNight.detailedForecast}</p>
+                          </div>
+                        )}
+                        {day.source === 'hybrid' && (
+                          <p className="text-[10px] text-slate-600 italic">Temps averaged from NWS + Open-Meteo</p>
+                        )}
+                      </div>
                     )}
                   </div>
-                </button>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
