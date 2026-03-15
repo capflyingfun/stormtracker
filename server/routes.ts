@@ -5321,6 +5321,15 @@ Guidelines:
         ),
       ];
 
+      const weatherApiFetchIndex = fetches.length;
+      if (API_KEYS.weatherapi) {
+        fetches.push(
+          fetch(`https://api.weatherapi.com/v1/forecast.json?key=${API_KEYS.weatherapi}&q=${latitude},${longitude}&days=3&aqi=yes&alerts=yes`, {
+            signal: AbortSignal.timeout(5000),
+          }).then(r => r.ok ? r.json() : null).catch(() => null)
+        );
+      }
+
       const nwsFetchIndex = fetches.length;
       if (isUS) {
         fetches.push(
@@ -5349,40 +5358,62 @@ Guidelines:
       const data = results[0];
       if (!data) throw new Error('Open-Meteo unavailable');
 
-      const modelResults = results.slice(1, nwsFetchIndex).filter(Boolean);
+      const modelResults = results.slice(1, weatherApiFetchIndex).filter(Boolean);
+      const weatherApiData = API_KEYS.weatherapi ? results[weatherApiFetchIndex] : null;
       const nwsPeriods = isUS ? results[nwsFetchIndex] : null;
 
-      const sourceCount = 1 + modelResults.length + (nwsPeriods ? 1 : 0);
-      const sourceLabels: string[] = ['Open-Meteo'];
-      if (modelResults.length > 0) sourceLabels.push(regional.label);
-      if (nwsPeriods) sourceLabels.push('NWS');
-
-      const blendedDaily = { ...data.daily };
-      if (modelResults.length > 0) {
-        const numDays = data.daily.time.length;
-        for (let d = 0; d < numDays; d++) {
-          let hiSum = data.daily.temperature_2m_max[d];
-          let loSum = data.daily.temperature_2m_min[d];
-          let windSum = data.daily.wind_speed_10m_max[d];
-          let precipSum = data.daily.precipitation_probability_max[d];
-          let count = 1;
-          for (const m of modelResults) {
-            if (m?.daily?.temperature_2m_max?.[d] != null) {
-              hiSum += m.daily.temperature_2m_max[d];
-              loSum += m.daily.temperature_2m_min[d];
-              windSum += (m.daily.wind_speed_10m_max?.[d] ?? data.daily.wind_speed_10m_max[d]);
-              precipSum += (m.daily.precipitation_probability_max?.[d] ?? data.daily.precipitation_probability_max[d]);
-              count++;
-            }
-          }
-          blendedDaily.temperature_2m_max[d] = Math.round((hiSum / count) * 10) / 10;
-          blendedDaily.temperature_2m_min[d] = Math.round((loSum / count) * 10) / 10;
-          blendedDaily.wind_speed_10m_max[d] = Math.round((windSum / count) * 10) / 10;
-          blendedDaily.precipitation_probability_max[d] = Math.round(precipSum / count);
+      const weatherApiDays: { hiF: number; loF: number; windMph: number; precipChance: number }[] = [];
+      if (weatherApiData?.forecast?.forecastday) {
+        for (const fd of weatherApiData.forecast.forecastday) {
+          weatherApiDays.push({
+            hiF: fd.day.maxtemp_f,
+            loF: fd.day.mintemp_f,
+            windMph: fd.day.maxwind_mph,
+            precipChance: fd.day.daily_chance_of_rain || 0,
+          });
         }
       }
 
-      console.log(`🌍 Forecast for ${latitude.toFixed(2)},${longitude.toFixed(2)} — Region: ${regional.region}, Sources: ${sourceLabels.join(' + ')} (${sourceCount} total)`);
+      const sourceLabels: string[] = ['Open-Meteo'];
+      if (modelResults.length > 0) sourceLabels.push(regional.label);
+      if (weatherApiDays.length > 0) sourceLabels.push('WeatherAPI');
+      if (nwsPeriods) sourceLabels.push('NWS');
+      const sourceCount = sourceLabels.length;
+
+      const blendedDaily = { ...data.daily };
+      const numDays = data.daily.time.length;
+      for (let d = 0; d < numDays; d++) {
+        let hiSum = data.daily.temperature_2m_max[d];
+        let loSum = data.daily.temperature_2m_min[d];
+        let windSum = data.daily.wind_speed_10m_max[d];
+        let precipSum = data.daily.precipitation_probability_max[d];
+        let count = 1;
+        for (const m of modelResults) {
+          if (m?.daily?.temperature_2m_max?.[d] != null) {
+            hiSum += m.daily.temperature_2m_max[d];
+            loSum += m.daily.temperature_2m_min[d];
+            windSum += (m.daily.wind_speed_10m_max?.[d] ?? data.daily.wind_speed_10m_max[d]);
+            precipSum += (m.daily.precipitation_probability_max?.[d] ?? data.daily.precipitation_probability_max[d]);
+            count++;
+          }
+        }
+        if (d < weatherApiDays.length) {
+          hiSum += weatherApiDays[d].hiF;
+          loSum += weatherApiDays[d].loF;
+          windSum += weatherApiDays[d].windMph;
+          precipSum += weatherApiDays[d].precipChance;
+          count++;
+        }
+        blendedDaily.temperature_2m_max[d] = Math.round((hiSum / count) * 10) / 10;
+        blendedDaily.temperature_2m_min[d] = Math.round((loSum / count) * 10) / 10;
+        blendedDaily.wind_speed_10m_max[d] = Math.round((windSum / count) * 10) / 10;
+        blendedDaily.precipitation_probability_max[d] = Math.round(precipSum / count);
+      }
+
+      const weatherApiAstro = weatherApiData?.forecast?.forecastday?.[0]?.astro || null;
+      const weatherApiAqi = weatherApiData?.current?.air_quality || null;
+
+      console.log(`🌍 Forecast for ${latitude.toFixed(2)},${longitude.toFixed(2)} — Region: ${regional.region}, Sources: ${sourceLabels.join(' + ')} (${sourceCount} total)${weatherApiDays.length > 0 ? ` [WeatherAPI: ${weatherApiDays.length}-day blend]` : ''}`);
 
       res.json({
         source: "Open-Meteo",
@@ -5427,6 +5458,21 @@ Guidelines:
           detailedForecast: p.detailedForecast,
           isDaytime: p.isDaytime,
         })) : null,
+        astronomy: weatherApiAstro ? {
+          moonPhase: weatherApiAstro.moon_phase,
+          moonIllumination: weatherApiAstro.moon_illumination,
+          moonrise: weatherApiAstro.moonrise,
+          moonset: weatherApiAstro.moonset,
+        } : null,
+        airQuality: weatherApiAqi ? {
+          usEpaIndex: weatherApiAqi['us-epa-index'],
+          pm25: weatherApiAqi.pm2_5,
+          pm10: weatherApiAqi.pm10,
+          o3: weatherApiAqi.o3,
+          no2: weatherApiAqi.no2,
+          co: weatherApiAqi.co,
+          so2: weatherApiAqi.so2,
+        } : null,
         timestamp: new Date().toISOString(),
       });
     } catch (error) {

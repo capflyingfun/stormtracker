@@ -624,6 +624,81 @@ export default function WeatherDashboard({ lat, lon, locationName, useMetric }: 
           </div>
         );
       })()}
+
+      {(forecast.astronomy || forecast.airQuality) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {forecast.astronomy && (
+            <div className="bg-slate-800/60 rounded-xl p-4 border border-indigo-700/30">
+              <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-1.5">
+                <span>🌙</span> Moon & Astronomy
+              </h3>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <p className="text-slate-500">Phase</p>
+                  <p className="text-slate-200">{forecast.astronomy.moonPhase}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Illumination</p>
+                  <p className="text-slate-200">{forecast.astronomy.moonIllumination}%</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Moonrise</p>
+                  <p className="text-slate-200">{forecast.astronomy.moonrise || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">Moonset</p>
+                  <p className="text-slate-200">{forecast.astronomy.moonset || '—'}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          {forecast.airQuality && (
+            <div className="bg-slate-800/60 rounded-xl p-4 border border-green-700/30">
+              <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-1.5">
+                <span>🌬️</span> Air Quality
+                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                  forecast.airQuality.usEpaIndex <= 1 ? 'bg-green-900/40 text-green-300 border border-green-700/30' :
+                  forecast.airQuality.usEpaIndex <= 2 ? 'bg-yellow-900/40 text-yellow-300 border border-yellow-700/30' :
+                  forecast.airQuality.usEpaIndex <= 3 ? 'bg-orange-900/40 text-orange-300 border border-orange-700/30' :
+                  'bg-red-900/40 text-red-300 border border-red-700/30'
+                }`}>
+                  {forecast.airQuality.usEpaIndex <= 1 ? 'Good' :
+                   forecast.airQuality.usEpaIndex <= 2 ? 'Moderate' :
+                   forecast.airQuality.usEpaIndex <= 3 ? 'Unhealthy for Sensitive' :
+                   forecast.airQuality.usEpaIndex <= 4 ? 'Unhealthy' :
+                   forecast.airQuality.usEpaIndex <= 5 ? 'Very Unhealthy' : 'Hazardous'}
+                </span>
+              </h3>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <p className="text-slate-500">PM2.5</p>
+                  <p className="text-slate-200">{forecast.airQuality.pm25?.toFixed(1)} µg/m³</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">PM10</p>
+                  <p className="text-slate-200">{forecast.airQuality.pm10?.toFixed(1)} µg/m³</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">O₃</p>
+                  <p className="text-slate-200">{forecast.airQuality.o3?.toFixed(1)} µg/m³</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">NO₂</p>
+                  <p className="text-slate-200">{forecast.airQuality.no2?.toFixed(1)} µg/m³</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">CO</p>
+                  <p className="text-slate-200">{forecast.airQuality.co?.toFixed(1)} µg/m³</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">SO₂</p>
+                  <p className="text-slate-200">{forecast.airQuality.so2?.toFixed(1)} µg/m³</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
