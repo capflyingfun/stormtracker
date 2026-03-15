@@ -5254,18 +5254,46 @@ Guidelines:
       }
       const latitude = parseFloat(lat as string);
       const longitude = parseFloat(lon as string);
+      const isUS = latitude >= 24.5 && latitude <= 49.5 && longitude >= -125 && longitude <= -66.5;
 
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,cloud_cover,visibility,uv_index,is_day&hourly=temperature_2m,weather_code,precipitation_probability,wind_speed_10m,relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`;
+      const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,cloud_cover,visibility,uv_index,is_day,dew_point_2m&hourly=temperature_2m,weather_code,precipitation_probability,wind_speed_10m,relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`;
 
-      const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-      if (!response.ok) throw new Error(`Open-Meteo error: ${response.status}`);
-      const data = await response.json();
+      const fetches: Promise<any>[] = [
+        fetch(openMeteoUrl, { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+      ];
+
+      if (isUS) {
+        fetches.push(
+          fetch(`https://api.weather.gov/points/${latitude},${longitude}`, {
+            headers: { 'User-Agent': 'StormTracker/1.0 (weather-app)', Accept: 'application/geo+json' },
+            signal: AbortSignal.timeout(5000),
+          })
+            .then(async r => {
+              if (!r.ok) return null;
+              const pts = await r.json();
+              const forecastUrl = pts.properties?.forecast;
+              if (!forecastUrl) return null;
+              const fRes = await fetch(forecastUrl, {
+                headers: { 'User-Agent': 'StormTracker/1.0 (weather-app)', Accept: 'application/geo+json' },
+                signal: AbortSignal.timeout(5000),
+              });
+              if (!fRes.ok) return null;
+              const fd = await fRes.json();
+              return fd.properties?.periods || null;
+            })
+            .catch(() => null)
+        );
+      }
+
+      const [data, nwsPeriods] = await Promise.all(fetches);
+      if (!data) throw new Error('Open-Meteo unavailable');
 
       res.json({
         source: "Open-Meteo",
         timezone: data.timezone,
         timezoneAbbr: data.timezone_abbreviation,
         elevation: data.elevation,
+        isUS,
         current: data.current,
         currentUnits: data.current_units,
         hourly: {
@@ -5288,6 +5316,17 @@ Guidelines:
           precipProbMax: data.daily.precipitation_probability_max,
           windMax: data.daily.wind_speed_10m_max,
         },
+        nwsForecast: nwsPeriods ? nwsPeriods.slice(0, 14).map((p: any) => ({
+          name: p.name,
+          temperature: p.temperature,
+          temperatureUnit: p.temperatureUnit,
+          windSpeed: p.windSpeed,
+          windDirection: p.shortForecast ? undefined : p.windDirection,
+          icon: p.icon,
+          shortForecast: p.shortForecast,
+          detailedForecast: p.detailedForecast,
+          isDaytime: p.isDaytime,
+        })) : null,
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
