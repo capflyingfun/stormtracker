@@ -5264,6 +5264,8 @@ Guidelines:
       const sourceReadings: { name: string; data: SourceReading }[] = [];
       let forecastData: any[] = [];
       let alertsData: any[] = [];
+      let nwsPeriods: any[] = [];
+      let nwsAlerts: any[] = [];
       let airQuality: any = null;
       let astroData: any = null;
       let uvIndex: number = 0;
@@ -5422,49 +5424,111 @@ Guidelines:
             headers: { 'User-Agent': 'StormTracker/1.0 (weather app)' },
             signal: AbortSignal.timeout(5000)
           }).then(r => r.ok ? r.json() : null).then(async (points) => {
-            if (!points?.properties?.observationStations) return;
-            const stationsRes = await fetch(points.properties.observationStations, {
-              headers: { 'User-Agent': 'StormTracker/1.0 (weather app)' },
-              signal: AbortSignal.timeout(5000)
-            });
-            if (!stationsRes.ok) return;
-            const stations = await stationsRes.json();
-            const stationId = stations.features?.[0]?.properties?.stationIdentifier;
-            if (!stationId) return;
+            if (!points?.properties) return;
 
-            const obsRes = await fetch(`https://api.weather.gov/stations/${stationId}/observations/latest`, {
-              headers: { 'User-Agent': 'StormTracker/1.0 (weather app)' },
-              signal: AbortSignal.timeout(5000)
-            });
-            if (!obsRes.ok) return;
-            const obs = await obsRes.json();
-            const p = obs.properties;
-            if (!p?.temperature?.value && p?.temperature?.value !== 0) return;
+            const subFetches: Promise<void>[] = [];
 
-            const tempC = p.temperature.value;
-            const windMps = p.windSpeed?.value || 0;
-            const gustMps = p.windGust?.value || windMps;
-            const visMet = p.visibility?.value || 10000;
-            const pressPa = p.barometricPressure?.value;
-            const pressMb = pressPa ? pressPa / 100 : 1013;
+            if (points.properties.observationStations) {
+              subFetches.push(
+                fetch(points.properties.observationStations, {
+                  headers: { 'User-Agent': 'StormTracker/1.0 (weather app)' },
+                  signal: AbortSignal.timeout(5000)
+                }).then(r => r.ok ? r.json() : null).then(async (stations) => {
+                  const stationId = stations?.features?.[0]?.properties?.stationIdentifier;
+                  if (!stationId) return;
+                  const obsRes = await fetch(`https://api.weather.gov/stations/${stationId}/observations/latest`, {
+                    headers: { 'User-Agent': 'StormTracker/1.0 (weather app)' },
+                    signal: AbortSignal.timeout(5000)
+                  });
+                  if (!obsRes.ok) return;
+                  const obs = await obsRes.json();
+                  const p = obs.properties;
+                  if (!p?.temperature?.value && p?.temperature?.value !== 0) return;
+                  const tempC = p.temperature.value;
+                  const windMps = p.windSpeed?.value || 0;
+                  const gustMps = p.windGust?.value || windMps;
+                  const visMet = p.visibility?.value || 10000;
+                  const pressPa = p.barometricPressure?.value;
+                  const pressMb = pressPa ? pressPa / 100 : 1013;
+                  sourceReadings.push({
+                    name: 'NWS',
+                    data: {
+                      temp_f: cToF(tempC), temp_c: tempC,
+                      feelslike_f: p.windChill?.value != null ? cToF(p.windChill.value) : cToF(tempC),
+                      feelslike_c: p.windChill?.value ?? tempC,
+                      humidity: p.relativeHumidity?.value ? Math.round(p.relativeHumidity.value) : 50,
+                      pressure_mb: pressMb, pressure_in: pressMb * 0.02953,
+                      wind_mph: mpsToMph(windMps), wind_kph: mpsToKph(windMps),
+                      wind_degree: p.windDirection?.value || 0, wind_dir: degToDir(p.windDirection?.value || 0),
+                      gust_mph: mpsToMph(gustMps), gust_kph: mpsToKph(gustMps),
+                      visibility_km: visMet / 1000, visibility_miles: visMet / 1609.34,
+                      cloud: 0, condition: p.textDescription || 'Unknown',
+                      dew_point_f: p.dewpoint?.value != null ? cToF(p.dewpoint.value) : undefined,
+                      dew_point_c: p.dewpoint?.value ?? undefined
+                    }
+                  });
+                }).catch(() => {})
+              );
+            }
 
-            sourceReadings.push({
-              name: 'NWS',
-              data: {
-                temp_f: cToF(tempC), temp_c: tempC,
-                feelslike_f: p.windChill?.value != null ? cToF(p.windChill.value) : cToF(tempC),
-                feelslike_c: p.windChill?.value ?? tempC,
-                humidity: p.relativeHumidity?.value ? Math.round(p.relativeHumidity.value) : 50,
-                pressure_mb: pressMb, pressure_in: pressMb * 0.02953,
-                wind_mph: mpsToMph(windMps), wind_kph: mpsToKph(windMps),
-                wind_degree: p.windDirection?.value || 0, wind_dir: degToDir(p.windDirection?.value || 0),
-                gust_mph: mpsToMph(gustMps), gust_kph: mpsToKph(gustMps),
-                visibility_km: visMet / 1000, visibility_miles: visMet / 1609.34,
-                cloud: 0, condition: p.textDescription || 'Unknown',
-                dew_point_f: p.dewpoint?.value != null ? cToF(p.dewpoint.value) : undefined,
-                dew_point_c: p.dewpoint?.value ?? undefined
-              }
-            });
+            if (points.properties.forecast) {
+              subFetches.push(
+                fetch(points.properties.forecast, {
+                  headers: { 'User-Agent': 'StormTracker/1.0 (weather app)' },
+                  signal: AbortSignal.timeout(6000)
+                }).then(r => r.ok ? r.json() : null).then(fc => {
+                  if (!fc?.properties?.periods) return;
+                  const severeWeatherKeywords = ['thunderstorm','tornado','hurricane','tropical storm','flood','blizzard','ice storm','hail','winter storm','severe'];
+                  nwsPeriods = fc.properties.periods.slice(0, 8).map((p: any) => {
+                    const tempF = p.temperature;
+                    const tempC = Math.round(fToC(tempF));
+                    const forecast = (p.shortForecast || '').toLowerCase();
+                    const weatherTags = severeWeatherKeywords.filter(k => forecast.includes(k));
+                    return {
+                      name: p.name,
+                      isDaytime: p.isDaytime,
+                      temperature_f: tempF,
+                      temperature_c: tempC,
+                      windSpeed: p.windSpeed,
+                      windDirection: p.windDirection,
+                      shortForecast: p.shortForecast,
+                      detailedForecast: p.detailedForecast,
+                      precipChance: p.probabilityOfPrecipitation?.value || 0,
+                      weatherTags: weatherTags,
+                      hasAdvisory: false
+                    };
+                  });
+                }).catch(() => {})
+              );
+            }
+
+            subFetches.push(
+              fetch(`https://api.weather.gov/alerts/active?point=${latitude.toFixed(4)},${longitude.toFixed(4)}`, {
+                headers: { 'User-Agent': 'StormTracker/1.0 (weather app)' },
+                signal: AbortSignal.timeout(5000)
+              }).then(r => r.ok ? r.json() : null).then(al => {
+                if (!al?.features) return;
+                nwsAlerts = al.features.slice(0, 10).map((f: any) => {
+                  const p = f.properties;
+                  return {
+                    event: p.event,
+                    headline: p.headline,
+                    severity: p.severity,
+                    urgency: p.urgency,
+                    certainty: p.certainty,
+                    senderName: p.senderName,
+                    areaDesc: p.areaDesc,
+                    effective: p.effective,
+                    expires: p.expires,
+                    description: p.description?.substring(0, 500),
+                    instruction: p.instruction?.substring(0, 500),
+                    category: p.category
+                  };
+                });
+              }).catch(() => {})
+            );
+
+            await Promise.allSettled(subFetches);
           }).catch(e => console.log('NWS fetch error:', (e as Error).message))
         );
       }
@@ -5474,6 +5538,9 @@ Guidelines:
       if (sourceReadings.length === 0) {
         return res.status(503).json({ error: "No weather data sources available" });
       }
+
+      const sourcePriority: Record<string, number> = { 'NWS': 1, 'OpenWeather': 2, 'WeatherAPI': 3, 'Open-Meteo': 4 };
+      sourceReadings.sort((a, b) => (sourcePriority[a.name] || 99) - (sourcePriority[b.name] || 99));
 
       const avg = (vals: number[]) => vals.reduce((a, b) => a + b, 0) / vals.length;
       const readings = sourceReadings.map(s => s.data);
@@ -5514,13 +5581,33 @@ Guidelines:
         condition: s.data.condition
       }));
 
+      if (nwsAlerts.length > 0 && nwsPeriods.length > 0) {
+        nwsPeriods.forEach((p: any) => {
+          const periodForecast = ((p.shortForecast || '') + ' ' + (p.detailedForecast || '')).toLowerCase();
+          const matched = nwsAlerts.some((a: any) => {
+            const eventWords = (a.event || '').toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
+            return eventWords.length > 0 && eventWords.every((w: string) => periodForecast.includes(w));
+          });
+          if (matched) {
+            p.hasAdvisory = true;
+          }
+        });
+      }
+
+      const allAlerts = alertsData.length > 0 ? alertsData : nwsAlerts.map((a: any) => ({
+        event: a.event, headline: a.headline, description: a.description,
+        severity: a.severity, effective: a.effective, expires: a.expires
+      }));
+
       return res.json({
         source: sourcesUsed.join(' + '),
         sources_detail: perSource,
         sources_count: sourcesUsed.length,
         current: consensus,
         forecast: forecastData,
-        alerts: alertsData,
+        alerts: allAlerts,
+        nws_periods: nwsPeriods,
+        nws_alerts: nwsAlerts,
         air_quality: airQuality,
       });
     } catch (error) {
