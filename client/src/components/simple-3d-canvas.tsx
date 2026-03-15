@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface Simple3DCanvasProps {
-  location: { lat: number; lon: number; city?: string; } | null;
+  location: { lat: number; lon: number; city?: string; name?: string; } | null;
   precipitationStorms: any[];
   setViewMode: (mode: 'map' | 'sonar' | '3d') => void;
+  tickerMessages?: string[];
 }
 
 // 3D perspective transformation
@@ -98,7 +99,7 @@ interface StormInfo {
   movementDir?: string;
 }
 
-export default function Simple3DCanvas({ location, precipitationStorms, setViewMode }: Simple3DCanvasProps) {
+export default function Simple3DCanvas({ location, precipitationStorms, setViewMode, tickerMessages: externalTickerMessages }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(false);
   const [showLegend, setShowLegend] = useState(false); // Collapsible legend
@@ -114,8 +115,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
   const lastUIUpdate = useRef(0);
   const starPositionsRef = useRef<{x: number; y: number; size: number; speed: number}[]>([]);
   const tickerStartTime = useRef(Date.now()); // Track when ticker started for clean scroll
-  const aiTickerMessagesRef = useRef<string[]>([]); // AI-generated conversational messages
-  const lastFetchSignatureRef = useRef<string>(''); // Track when to refetch
+  const aiTickerMessagesRef = useRef<string[]>([]);
   const currentMessageIndexRef = useRef(0); // Current message index for next cycle
   const lastScrollCycleRef = useRef(0); // Track scroll cycle to change message after full scroll
   const lockedMessageRef = useRef<string | null>(null); // Current message locked until scroll completes
@@ -141,107 +141,11 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Fetch AI-generated conversational ticker messages when storms change
   useEffect(() => {
-    if (!precipitationStorms || precipitationStorms.length === 0 || !location) return;
-    
-    // Build priority storm list for API request
-    const dbzToCategory = (dbz: number) => {
-      if (dbz >= 61) return 'extreme';
-      if (dbz >= 55) return 'vheavy';
-      if (dbz >= 46) return 'heavy';
-      if (dbz >= 35) return 'moderate';
-      return 'light';
-    };
-    
-    // Get one priority storm per category
-    const categoryMap: Record<string, any> = {};
-    precipitationStorms.forEach(storm => {
-      const cat = dbzToCategory(storm.dbz || storm.intensity || 25);
-      const dist = storm.distance || 50;
-      if (!categoryMap[cat] || dist < categoryMap[cat].distance) {
-        categoryMap[cat] = { ...storm, category: cat };
-      }
-    });
-    
-    const priorityStorms = Object.values(categoryMap);
-    if (priorityStorms.length === 0) return;
-    
-    // Create signature to check if we need to refetch
-    const signature = priorityStorms.map((s: any) => {
-      const speed = s.windsPrediction?.speed || 15;
-      const etaMin = speed > 0 ? (s.distance / speed) * 60 : 999;
-      const bucket = etaMin < 45 ? 'U' : etaMin < 90 ? 'P' : 'M';
-      return `${s.category}-${bucket}-${Math.round(s.distance / 10)}`;
-    }).join('|');
-    
-    if (signature === lastFetchSignatureRef.current) return;
-    lastFetchSignatureRef.current = signature;
-    
-    // Build request data with direction from user
-    const stormRequests = priorityStorms.map((storm: any) => {
-      const speed = storm.windsPrediction?.speed || 15;
-      const etaMin = speed > 0 ? (storm.distance / speed) * 60 : 999;
-      
-      return {
-        category: storm.category,
-        etaMinutes: etaMin,
-        distance: storm.distance,
-        direction: storm.direction || 'nearby'
-      };
-    });
-    
-    // Calculate impact predictions for each storm
-    const impactPredictions = stormRequests.map((storm: any, i: number) => {
-      const origStorm = priorityStorms[i] as any;
-      const speed = origStorm.windsPrediction?.speed || 15;
-      const movementDir = origStorm.windsPrediction?.direction || 0;
-      const bearingToUser = origStorm.bearing || 0;
-      const angleDiff = Math.abs(bearingToUser - movementDir);
-      const approachAngle = Math.min(angleDiff, 360 - angleDiff);
-      const isApproaching = approachAngle < 90;
-      const approachProbability = Math.max(0, Math.round(100 - (approachAngle / 180) * 100));
-      
-      let impactScore = 0;
-      if (isApproaching && storm.etaMinutes < 180) {
-        const urgencyFactor = Math.max(0, 1 - (storm.etaMinutes / 180));
-        const intensityFactor = (origStorm.dbz || origStorm.intensity || 35) / 70;
-        impactScore = Math.round(urgencyFactor * 40 + intensityFactor * 40 + approachProbability / 100 * 20);
-      }
-      
-      return {
-        category: storm.category,
-        impactScore,
-        approachProbability,
-        etaFormatted: storm.etaMinutes < 999 
-          ? `${Math.floor(storm.etaMinutes / 60)}h ${Math.round(storm.etaMinutes % 60)}m` 
-          : 'N/A',
-        recommendedAction: impactScore >= 60 ? 'Prepare to shelter' : impactScore >= 40 ? 'Wrap up outdoor activities' : 'Monitor conditions'
-      };
-    });
-    
-    // Fetch AI conversational messages with personalized context
-    fetch('/api/ticker-messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        storms: stormRequests,
-        totalStormCount: precipitationStorms.length,
-        locationName: location.name,
-        impactPredictions,
-        userLocation: { lat: location.lat, lon: location.lon }
-      })
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.messages && Array.isArray(data.messages)) {
-          // Store for next cycle - don't interrupt current scroll
-          aiTickerMessagesRef.current = data.messages;
-          console.log('🤖 Loaded personalized AI ticker messages:', data.messages.length, 'variations');
-        }
-      })
-      .catch(err => console.error('Failed to fetch ticker messages:', err));
-  }, [precipitationStorms, location]);
+    if (externalTickerMessages && externalTickerMessages.length > 0) {
+      aiTickerMessagesRef.current = externalTickerMessages;
+    }
+  }, [externalTickerMessages]);
 
   // Removed storm calculation functions - not needed without storm selection
 
