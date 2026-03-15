@@ -58,7 +58,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **OpenAI GPT-4o API**: AI weather assistant and chat functionality.
 - **Blitzortung.org / Lightning Maps / WWLLN**: Real-time lightning detection.
 - **CheckWX API**: International METAR/TAF data.
-- **WeatherAPI.com**: Secondary weather data provider for forecasts, air quality, UV data, etc.
+- **WeatherAPI.com**: Global weather data provider (free tier: 1M calls/month). Provides 3-day forecast blended into hybrid forecast, plus air quality (AQI with 6 pollutants) and astronomy data (moon phase, illumination, moonrise/moonset).
 
 ### Libraries
 - **React**: Frontend framework.
