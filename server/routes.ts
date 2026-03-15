@@ -289,7 +289,7 @@ Return ONLY a JSON array of 5 strings.`;
         
         // Direction from user (16-point compass)
         const dirs16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-        const dirIndex = Math.round(((normalizedBearing + 180) % 360) / 22.5) % 16;
+        const dirIndex = Math.round(((bearingToUser + 180) % 360) / 22.5) % 16;
         const directionFromUser = dirs16[dirIndex];
         
         // Recommended actions based on threat tier and ETA
@@ -357,8 +357,8 @@ Return ONLY a JSON array of 5 strings.`;
         timestamp: new Date().toISOString()
       });
       
-    } catch (error) {
-      console.error('Impact predictions error:', error);
+    } catch (error: any) {
+      console.error('Impact predictions error:', error?.message, error?.stack);
       res.status(500).json({ error: 'Failed to calculate impact predictions' });
     }
   });
