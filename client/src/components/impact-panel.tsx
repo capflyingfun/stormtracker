@@ -32,6 +32,7 @@ interface ImpactPanelProps {
   storms: any[];
   userLocation: { lat: number; lon: number } | null;
   locationName?: string;
+  minimumDbz?: number;
 }
 
 const threatColors: Record<string, string> = {
@@ -74,7 +75,7 @@ function CountdownTimer({ etaMinutes }: { etaMinutes: number }) {
   );
 }
 
-export default function ImpactPanel({ storms, userLocation, locationName }: ImpactPanelProps) {
+export default function ImpactPanel({ storms, userLocation, locationName, minimumDbz = 50 }: ImpactPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   
   // Create a stable storm signature for cache key
@@ -106,15 +107,15 @@ export default function ImpactPanel({ storms, userLocation, locationName }: Impa
   const predictions: ImpactPrediction[] = impactData?.predictions || [];
   const summary: ImpactSummary | null = impactData?.summary || null;
   
-  // Only show storms ≥ 50 dBZ (heavy+) with meaningful impact scores
-  const significantPredictions = predictions.filter(p => p.impactScore > 10 && p.intensityNow >= 50);
+  // Only show storms meeting the user's minimum dBZ threshold
+  const significantPredictions = predictions.filter(p => p.impactScore > 10 && p.intensityNow >= minimumDbz);
   
   if (!userLocation || storms.length === 0) {
     return null;
   }
   
-  // Override summary if the primary threat is below 50 dBZ
-  const filteredSummary = summary && summary.primaryThreat && summary.primaryThreat.intensityNow >= 50
+  // Override summary if the primary threat is below the user's threshold
+  const filteredSummary = summary && summary.primaryThreat && summary.primaryThreat.intensityNow >= minimumDbz
     ? summary : null;
 
   if (significantPredictions.length === 0 && !isLoading) {
