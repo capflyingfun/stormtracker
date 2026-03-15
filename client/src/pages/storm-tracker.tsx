@@ -908,7 +908,7 @@ export default function StormTracker() {
                 </div>
 
                 {/* Radar Display - Conditional based on view mode */}
-                <div className="flex-1 lg:max-w-[70%] mx-auto">
+                <div className="flex-1 w-full lg:max-w-[70%] mx-auto">
                   {viewMode === 'map' && (
                     <StormMap
                       location={location}
@@ -938,7 +938,7 @@ export default function StormTracker() {
                       onStormClick={(storm) => {
                         console.log('Storm clicked in sonar:', storm);
                       }}
-                      className="h-[600px]"
+                      className=""
                     />
                   )}
                   
@@ -1086,6 +1086,7 @@ export default function StormTracker() {
                 storms={precipitationStorms}
                 userLocation={location ? { lat: location.lat, lon: location.lon } : null}
                 locationName={location?.name}
+                minimumDbz={(preferences as any)?.minimumDbz ?? 50}
               />
               
               <StormPanel
