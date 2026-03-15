@@ -208,7 +208,7 @@ export function AIWeatherChat({ userLocation, useMetric, isOpen, onToggle }: AIW
             <Input
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyPress}
               placeholder="Ask about the weather..."
               disabled={chatMutation.isPending}
               className="text-sm"
