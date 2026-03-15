@@ -957,7 +957,6 @@ export default function StormTracker() {
                         console.log('Storm clicked in sonar:', storm);
                       }}
                       className=""
-                      tickerMessages={tickerMessages}
                     />
                   )}
                   
