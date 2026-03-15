@@ -46,7 +46,7 @@ async function fetchNWSAlerts(lat: number, lon: number) {
     };
   } catch (error) {
     console.error('NWS Alerts API error:', error);
-    return { alerts: [], error: error.message };
+    return { alerts: [], error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
 
@@ -56,11 +56,31 @@ const TICKER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
-  // API Keys - these would normally come from environment variables
   const API_KEYS = {
-    openweather: process.env.OPENWEATHER_API_KEY || '49f87b43ad1ddba1821a5cdac7d6965e',
-    weatherapi: process.env.WEATHERAPI_KEY || null, // WeatherAPI.com free tier: 1M calls/month
+    openweather: process.env.OPENWEATHER_API_KEY || '',
+    weatherapi: process.env.WEATHERAPI_KEY || '',
   };
+
+  app.get("/api/owm-tile/:z/:x/:y", async (req, res) => {
+    try {
+      const { z, x, y } = req.params;
+      const apiKey = API_KEYS.openweather;
+      if (!apiKey) {
+        return res.status(503).json({ error: 'OpenWeather API key not configured' });
+      }
+      const tileUrl = `https://tile.openweathermap.org/map/precipitation_new/${z}/${x}/${y}.png?appid=${apiKey}`;
+      const response = await fetch(tileUrl);
+      if (!response.ok) {
+        return res.status(response.status).end();
+      }
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.send(buffer);
+    } catch (error) {
+      res.status(500).end();
+    }
+  });
 
   // AI-powered ticker messages endpoint - generates personalized conversational weather updates
   app.post("/api/ticker-messages", async (req, res) => {
@@ -437,7 +457,7 @@ Return ONLY a JSON array of 5 strings.`;
       // Visual Crossing Timeline API with radar-specific elements
       // Free tier: 1000 records/day, no API key needed for testing
       const response = await fetch(
-        `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=YourAPIKey&elements=precipremote,reflectivity,precip,precipprob,preciptype&include=remote&options=nonulls&unitGroup=us`,
+        `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=${process.env.VISUAL_CROSSING_API_KEY || ''}&elements=precipremote,reflectivity,precip,precipprob,preciptype&include=remote&options=nonulls&unitGroup=us`,
         {
           headers: {
             'User-Agent': 'StormTracker Weather App'
@@ -519,7 +539,7 @@ Return ONLY a JSON array of 5 strings.`;
       // Test Visual Crossing (if API key available)
       try {
         const vcResponse = await fetch(
-          `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=YourAPIKey&elements=precipremote,reflectivity,precip&include=remote&options=nonulls`,
+          `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=${process.env.VISUAL_CROSSING_API_KEY || ''}&elements=precipremote,reflectivity,precip&include=remote&options=nonulls`,
           { signal: AbortSignal.timeout(5000) }
         );
         
@@ -706,7 +726,6 @@ Return ONLY a JSON array of 5 strings.`;
 
   // Thunderstorm formation analysis endpoint
   app.get("/api/thunderstorm-conditions", async (req, res) => {
-    try {
       const { lat, lon } = req.query;
       
       if (!lat || !lon) {
@@ -826,14 +845,9 @@ Return ONLY a JSON array of 5 strings.`;
         console.error('Error fetching thunderstorm conditions:', error);
         res.status(500).json({ 
           error: 'Failed to fetch atmospheric data',
-          message: error.message 
+          message: error instanceof Error ? error.message : 'Unknown error'
         });
       }
-      
-    } catch (error) {
-      console.error('Thunderstorm conditions endpoint error:', error);
-      res.status(500).json({ error: error.message });
-    }
   });
 
   // Helper functions for thunderstorm analysis
@@ -1725,7 +1739,7 @@ Return ONLY a JSON array of 5 strings.`;
       console.error("Automated threat detection error:", error);
       res.status(500).json({ 
         error: "Failed to perform threat detection",
-        message: error.message,
+        message: error instanceof Error ? error.message : 'Unknown error',
         alertsGenerated: 0
       });
     }
@@ -1941,7 +1955,7 @@ Return ONLY a JSON array of 5 strings.`;
       return dbz;
       
     } catch (error) {
-      console.log(`❌ Radar tile parsing error: ${error.message}`);
+      console.log(`❌ Radar tile parsing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return 0;
     }
   }
@@ -3311,7 +3325,7 @@ Return ONLY a JSON array of 5 strings.`;
 
   // Final fallback: OpenWeather surface winds
   async function getFallbackWindData(lat: number, lon: number) {
-    const apiKey = process.env.OPENWEATHER_API_KEY || 'a8f3a8e5a1a3b3d5e9a8f3a8e5a1a3b3';
+    const apiKey = process.env.OPENWEATHER_API_KEY || '';
     
     try {
       const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`);
@@ -3663,7 +3677,7 @@ Return ONLY a JSON array of 5 strings.`;
               }
             }
           } catch (error) {
-            console.log(`AWC API failed for ${airport.icao}: ${error.message}`);
+            console.log(`AWC API failed for ${airport.icao}: ${(error as Error).message}`);
           }
           
           // Fallback: CheckWX API for additional coverage
@@ -3698,7 +3712,7 @@ Return ONLY a JSON array of 5 strings.`;
                 }
               }
             } catch (error) {
-              console.log(`CheckWX API failed for ${airport.icao}: ${error.message}`);
+              console.log(`CheckWX API failed for ${airport.icao}: ${(error as Error).message}`);
             }
           }
           
@@ -3781,7 +3795,7 @@ Return ONLY a JSON array of 5 strings.`;
             });
           }
         } catch (error) {
-          console.log(`Failed to fetch METAR for ${airport.icao}: ${error.message}`);
+          console.log(`Failed to fetch METAR for ${airport.icao}: ${(error as Error).message}`);
         }
       }
       
@@ -3914,7 +3928,7 @@ Return ONLY a JSON array of 5 strings.`;
         }
 
         // Fallback to OpenWeather if other APIs fail and we have a key
-        if (!currentWeather && API_KEYS.openweather && API_KEYS.openweather !== 'a8f3a8e5a1a3b3d5e9a8f3a8e5a1a3b3') {
+        if (!currentWeather && API_KEYS.openweather) {
           console.log('🌤️ Falling back to OpenWeather API...');
           const owmResponse = await fetch(
             `https://api.openweathermap.org/data/2.5/weather?lat=${userLat}&lon=${userLon}&appid=${API_KEYS.openweather}&units=metric`
@@ -4417,7 +4431,7 @@ Return ONLY a JSON array of 5 strings.`;
         }))
       };
     } catch (error) {
-      console.log('NWS forecast error:', error.message);
+      console.log('NWS forecast error:', (error as Error).message);
       return null;
     }
   }
@@ -4448,7 +4462,7 @@ Return ONLY a JSON array of 5 strings.`;
         })) || []
       };
     } catch (error) {
-      console.log('Open-Meteo forecast error:', error.message);
+      console.log('Open-Meteo forecast error:', (error as Error).message);
       return null;
     }
   }
@@ -4504,7 +4518,7 @@ Return ONLY a JSON array of 5 strings.`;
         fullText: productText
       };
     } catch (error) {
-      console.log('AFD fetch error:', error.message);
+      console.log('AFD fetch error:', (error as Error).message);
       return null;
     }
   }

@@ -1637,7 +1637,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       // Fallback to OpenWeatherMap
       radarLayerRef.current = window.L.tileLayer(
-        `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
+        `/api/owm-tile/{z}/{x}/{y}`,
         {
           opacity: 0.9,
           transparent: true,
