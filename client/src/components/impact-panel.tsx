@@ -106,13 +106,17 @@ export default function ImpactPanel({ storms, userLocation, locationName }: Impa
   const predictions: ImpactPrediction[] = impactData?.predictions || [];
   const summary: ImpactSummary | null = impactData?.summary || null;
   
-  // Filter to show only meaningful impacts
-  const significantPredictions = predictions.filter(p => p.impactScore > 10);
+  // Only show storms ≥ 50 dBZ (heavy+) with meaningful impact scores
+  const significantPredictions = predictions.filter(p => p.impactScore > 10 && p.intensityNow >= 50);
   
   if (!userLocation || storms.length === 0) {
     return null;
   }
   
+  // Override summary if the primary threat is below 50 dBZ
+  const filteredSummary = summary && summary.primaryThreat && summary.primaryThreat.intensityNow >= 50
+    ? summary : null;
+
   if (significantPredictions.length === 0 && !isLoading) {
     return (
       <div 
@@ -141,15 +145,15 @@ export default function ImpactPanel({ storms, userLocation, locationName }: Impa
         <div className="flex items-center gap-2">
           <AlertTriangle 
             className="w-5 h-5" 
-            style={{ color: summary ? threatColors[summary.threatLevel] : '#22C55E' }}
+            style={{ color: filteredSummary ? threatColors[filteredSummary.threatLevel] : '#22C55E' }}
           />
           <div className="text-left">
             <div className="text-sm font-semibold text-white">
               Storm Impact Predictions
             </div>
-            {summary && (
+            {filteredSummary && (
               <div className="text-xs text-slate-400">
-                {summary.overallMessage}
+                {filteredSummary.overallMessage}
               </div>
             )}
           </div>
@@ -170,59 +174,59 @@ export default function ImpactPanel({ storms, userLocation, locationName }: Impa
             </div>
           ) : (
             <>
-              {/* Primary threat card */}
-              {summary?.primaryThreat && (
+              {/* Primary threat card — only for ≥50 dBZ storms */}
+              {filteredSummary?.primaryThreat && (
                 <div 
-                  className={`rounded-lg p-3 border ${threatBgColors[summary.primaryThreat.threatTier]}`}
+                  className={`rounded-lg p-3 border ${threatBgColors[filteredSummary.primaryThreat.threatTier]}`}
                   data-testid="primary-threat-card"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span 
                       className="text-xs font-bold uppercase px-2 py-0.5 rounded"
                       style={{ 
-                        backgroundColor: threatColors[summary.primaryThreat.threatTier] + '30',
-                        color: threatColors[summary.primaryThreat.threatTier]
+                        backgroundColor: threatColors[filteredSummary.primaryThreat.threatTier] + '30',
+                        color: threatColors[filteredSummary.primaryThreat.threatTier]
                       }}
                     >
-                      {summary.primaryThreat.threatTier} Impact
+                      {filteredSummary.primaryThreat.threatTier} Impact
                     </span>
                     <span className="text-xs text-slate-400">
-                      Score: {summary.primaryThreat.impactScore}
+                      Score: {filteredSummary.primaryThreat.impactScore}
                     </span>
                   </div>
                   
                   <div className="text-white font-medium mb-2">
-                    {summary.primaryThreat.category}
+                    {filteredSummary.primaryThreat.category}
                   </div>
                   
                   <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                     <div className="flex items-center gap-1 text-slate-300">
                       <MapPin className="w-3 h-3" />
-                      <span>{summary.primaryThreat.directionFromUser} • {summary.primaryThreat.distance}mi</span>
+                      <span>{filteredSummary.primaryThreat.directionFromUser} • {filteredSummary.primaryThreat.distance}mi</span>
                     </div>
                     <div className="flex items-center gap-1 text-slate-300">
                       <Clock className="w-3 h-3" />
-                      <span>ETA: <CountdownTimer etaMinutes={summary.primaryThreat.etaMinutes} /></span>
+                      <span>ETA: <CountdownTimer etaMinutes={filteredSummary.primaryThreat.etaMinutes} /></span>
                     </div>
                     <div className="flex items-center gap-1 text-slate-300">
                       <TrendingUp className="w-3 h-3" />
-                      <span>{summary.primaryThreat.approachProbability}% approach</span>
+                      <span>{filteredSummary.primaryThreat.approachProbability}% approach</span>
                     </div>
                     <div className="flex items-center gap-1 text-slate-300">
                       <Clock className="w-3 h-3" />
-                      <span>~{summary.primaryThreat.durationMinutes}min duration</span>
+                      <span>~{filteredSummary.primaryThreat.durationMinutes}min duration</span>
                     </div>
                   </div>
                   
                   <div 
                     className="text-sm font-medium py-1.5 px-2 rounded text-center"
                     style={{ 
-                      backgroundColor: threatColors[summary.primaryThreat.threatTier] + '20',
-                      color: threatColors[summary.primaryThreat.threatTier]
+                      backgroundColor: threatColors[filteredSummary.primaryThreat.threatTier] + '20',
+                      color: threatColors[filteredSummary.primaryThreat.threatTier]
                     }}
                     data-testid="recommended-action"
                   >
-                    {summary.primaryThreat.recommendedAction}
+                    {filteredSummary.primaryThreat.recommendedAction}
                   </div>
                 </div>
               )}
