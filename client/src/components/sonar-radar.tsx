@@ -367,7 +367,7 @@ export default function SonarRadar({
   const currentTickerMsg = tickerMessages.length > 0
     ? tickerMessages[tickerIndex % tickerMessages.length]
     : storms.length > 0
-      ? `🌧️ ${storms.length} cells within ${formatDistance(radarRange)} — stay weather aware`
+      ? `🌧️ Tracking ${storms.length} cells within ${formatDistance(radarRange)} — monitoring conditions`
       : null;
 
   return (
@@ -434,7 +434,7 @@ export default function SonarRadar({
           </span>
           {dominantWind && dominantWind.speed > 2 && (
             <span className="text-amber-400/90 font-medium">
-              → {getWindDirLabel(dominantWind.direction)} · {Math.round(dominantWind.speed)} mph
+              Storm Direction: {getWindDirLabel(dominantWind.direction)} · {Math.round(dominantWind.speed)} mph
             </span>
           )}
         </div>

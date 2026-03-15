@@ -92,16 +92,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const loc = locationName?.split(',')[0] || 'there';
       
-      // If no storms are actually approaching, return "all clear" messages
+      // If no storms are actually approaching, return status messages acknowledging activity
       if (approachingStorms.length === 0) {
-        const allClearMessages = [
-          `✓ Looking good for ${loc}! Storms nearby but none heading your way.`,
-          `☀️ You're in the clear, ${loc}! Weather's staying where it is.`,
-          `📡 Tracking cells in the area but nothing on track for your location.`,
-          `🌤️ All clear for now! The rain is missing you today, ${loc}.`,
-          `👍 No storms heading your way - enjoy the break while it lasts!`
+        const n = storms.length;
+        const statusMessages = [
+          `📡 ${n} cells detected nearby — none currently heading your way, ${loc}.`,
+          `✓ Storms active in the area but tracking away from ${loc}. Staying vigilant.`,
+          `🌧️ ${n} cells on radar — all moving away or parallel. You're clear for now.`,
+          `📍 Active weather around ${loc}, but nothing on a direct path to you right now.`,
+          `👍 Rain in the region, but it's passing by ${loc} — monitoring continues.`
         ];
-        return res.json({ messages: allClearMessages });
+        return res.json({ messages: statusMessages });
       }
       
       // Create cache key from APPROACHING storms only + location signature
