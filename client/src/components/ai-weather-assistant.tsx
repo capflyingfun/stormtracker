@@ -123,6 +123,7 @@ export default function AIWeatherAssistant({
 }: AIWeatherAssistantProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [briefingExpanded, setBriefingExpanded] = useState(false);
+  const [cardCollapsed, setCardCollapsed] = useState(true);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
   const [isDataReady, setIsDataReady] = useState(false);
@@ -377,11 +378,16 @@ export default function AIWeatherAssistant({
   return (
     <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600">
       <CardHeader>
-        <CardTitle className="text-white">
+        <CardTitle className="text-white cursor-pointer" onClick={() => setCardCollapsed(!cardCollapsed)}>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="flex items-center gap-2">
               <Brain className="w-5 h-5 text-blue-400" />
               AI Weather Assistant
+              {cardCollapsed ? (
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              ) : (
+                <ChevronUp className="w-4 h-4 text-slate-400" />
+              )}
               {isMonitoring && (
                 <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
                   Monitoring
@@ -405,6 +411,8 @@ export default function AIWeatherAssistant({
             </div>
           </div>
         </CardTitle>
+        {!cardCollapsed && (
+        <>
         <div className="flex flex-col sm:flex-row gap-2 mt-2">
           <div className="flex items-center gap-1 px-2 py-1 bg-slate-700/50 border border-slate-600 rounded-md">
             <span className="text-xs text-slate-400 mr-1">Tone:</span>
@@ -483,7 +491,10 @@ export default function AIWeatherAssistant({
             Last check: {lastCheck.toLocaleTimeString()}
           </p>
         )}
+        </>
+        )}
       </CardHeader>
+      {!cardCollapsed && (
       <CardContent className="space-y-4">
         {/* === WEATHER BRIEFING SECTION === */}
         <div className="border border-cyan-500/20 rounded-lg bg-slate-900/50 p-3">
@@ -820,6 +831,7 @@ export default function AIWeatherAssistant({
           </div>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }
