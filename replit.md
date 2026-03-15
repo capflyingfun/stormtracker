@@ -44,6 +44,8 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Performance**: Optimized map rendering, adaptive intelligent sampling, and optimized API timeouts.
 - **Reliability**: Server-side proxy for external APIs, multi-source data integration with fallback strategies, and robust error handling.
 - **Scalability**: Designed for global coverage with support for high volumes of storm data and international weather sources.
+- **Multi-Model Regional Forecasting**: `getRegionalModels()` in `server/routes.ts` maps coordinates to the best available weather models per region (16 regions: US, Canada, Mexico, Europe, UK, Scandinavia, Japan, China, India, Australia, New Zealand, South America, Africa, Southeast Asia, plus global fallback). Forecasts are blended by averaging daily highs/lows/wind/precip across Open-Meteo base + 2 regional models (+ NWS for US), with source count and model names passed to frontend for display.
+- **Hybrid Forecast UI**: `buildHybridForecast()` in `weather-dashboard.tsx` merges NWS day/night periods with blended Open-Meteo daily data; badge shows region flag emoji, model names, and source count; expandable rows show NWS detail for US locations.
 
 ## External Dependencies
 
@@ -52,7 +54,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **RainViewer API**: Global weather radar tiles.
 - **NEXRAD (Iowa Mesonet RIDGE API)**: US high-resolution radar data.
 - **Government Weather Services / NWS API**: Weather alerts and warnings, Area Forecast Discussions.
-- **Open-Meteo API**: Current and forecasted upper atmospheric winds, atmospheric stability parameters.
+- **Open-Meteo API**: Primary global forecast data with multi-model regional blending. Queries region-specific weather models (GFS, GEM, ICON, Météo-France, UK Met Office, MET Norway, JMA, CMA, BOM) based on location coordinates, then averages temperatures, wind, and precipitation across 2-3 models for improved accuracy.
 - **OpenAI GPT-4o API**: AI weather assistant and chat functionality.
 - **Blitzortung.org / Lightning Maps / WWLLN**: Real-time lightning detection.
 - **CheckWX API**: International METAR/TAF data.

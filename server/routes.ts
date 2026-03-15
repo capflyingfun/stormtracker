@@ -5249,6 +5249,52 @@ Guidelines:
     }
   });
 
+  function getRegionalModels(lat: number, lon: number): { models: string[]; region: string; label: string } {
+    if (lat >= 24.5 && lat <= 49.5 && lon >= -125 && lon <= -66.5) {
+      return { models: ['gfs_seamless', 'gem_seamless'], region: 'us', label: 'GFS + GEM' };
+    }
+    if (lat >= 50 && lat <= 72 && lon >= -145 && lon <= -50) {
+      return { models: ['gem_seamless', 'gfs_seamless'], region: 'canada', label: 'GEM + GFS' };
+    }
+    if (lat >= 14 && lat <= 33 && lon >= -120 && lon <= -85) {
+      return { models: ['gfs_seamless', 'gem_seamless'], region: 'mexico', label: 'GFS + GEM' };
+    }
+    if (lat >= 50 && lat <= 62 && lon >= -12 && lon <= 3) {
+      return { models: ['ukmo_seamless', 'icon_seamless'], region: 'uk', label: 'UK Met Office + ICON' };
+    }
+    if (lat >= 55 && lat <= 72 && lon >= 4 && lon <= 32) {
+      return { models: ['icon_seamless', 'metno_seamless'], region: 'scandinavia', label: 'ICON + MET Norway' };
+    }
+    if (lat >= 35 && lat <= 72 && lon >= -12 && lon <= 45) {
+      return { models: ['icon_seamless', 'meteofrance_seamless'], region: 'europe', label: 'ICON + Météo-France' };
+    }
+    if (lat >= 24 && lat <= 46 && lon >= 122 && lon <= 146) {
+      return { models: ['jma_seamless', 'gfs_seamless'], region: 'japan', label: 'JMA + GFS' };
+    }
+    if (lat >= 18 && lat <= 54 && lon >= 73 && lon <= 135) {
+      return { models: ['cma_grapes_global', 'gfs_seamless'], region: 'china', label: 'CMA + GFS' };
+    }
+    if (lat >= 6 && lat <= 38 && lon >= 68 && lon <= 98) {
+      return { models: ['gfs_seamless', 'icon_seamless'], region: 'india', label: 'GFS + ICON' };
+    }
+    if (lat >= -47 && lat <= -10 && lon >= 112 && lon <= 155) {
+      return { models: ['bom_access_global', 'gfs_seamless'], region: 'australia', label: 'BOM + GFS' };
+    }
+    if (lat >= -48 && lat <= -34 && lon >= 165 && lon <= 180) {
+      return { models: ['gfs_seamless', 'icon_seamless'], region: 'newzealand', label: 'GFS + ICON' };
+    }
+    if (lat >= -56 && lat <= 13 && lon >= -82 && lon <= -34) {
+      return { models: ['gfs_seamless', 'icon_seamless'], region: 'southamerica', label: 'GFS + ICON' };
+    }
+    if (lat >= -35 && lat <= 38 && lon >= -20 && lon <= 55) {
+      return { models: ['gfs_seamless', 'icon_seamless'], region: 'africa', label: 'GFS + ICON' };
+    }
+    if (lat >= 1 && lat <= 21 && lon >= 98 && lon <= 145) {
+      return { models: ['gfs_seamless', 'icon_seamless'], region: 'southeast_asia', label: 'GFS + ICON' };
+    }
+    return { models: ['gfs_seamless', 'icon_seamless'], region: 'global', label: 'GFS + ICON' };
+  }
+
   app.get("/api/forecast", async (req, res) => {
     try {
       const { lat, lon } = req.query;
@@ -5259,12 +5305,23 @@ Guidelines:
       const longitude = parseFloat(lon as string);
       const isUS = latitude >= 24.5 && latitude <= 49.5 && longitude >= -125 && longitude <= -66.5;
 
-      const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,cloud_cover,visibility,uv_index,is_day,dew_point_2m&hourly=temperature_2m,weather_code,precipitation_probability,wind_speed_10m,relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`;
+      const regional = getRegionalModels(latitude, longitude);
+      const baseParams = `latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,cloud_cover,visibility,uv_index,is_day,dew_point_2m&hourly=temperature_2m,weather_code,precipitation_probability,wind_speed_10m,relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`;
+
+      const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?${baseParams}`;
+
+      const modelUrls = regional.models.map(model =>
+        `https://api.open-meteo.com/v1/forecast?${baseParams}&models=${model}`
+      );
 
       const fetches: Promise<any>[] = [
         fetch(openMeteoUrl, { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+        ...modelUrls.map(url =>
+          fetch(url, { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null).catch(() => null)
+        ),
       ];
 
+      const nwsFetchIndex = fetches.length;
       if (isUS) {
         fetches.push(
           fetch(`https://api.weather.gov/points/${latitude},${longitude}`, {
@@ -5288,8 +5345,44 @@ Guidelines:
         );
       }
 
-      const [data, nwsPeriods] = await Promise.all(fetches);
+      const results = await Promise.all(fetches);
+      const data = results[0];
       if (!data) throw new Error('Open-Meteo unavailable');
+
+      const modelResults = results.slice(1, nwsFetchIndex).filter(Boolean);
+      const nwsPeriods = isUS ? results[nwsFetchIndex] : null;
+
+      const sourceCount = 1 + modelResults.length + (nwsPeriods ? 1 : 0);
+      const sourceLabels: string[] = ['Open-Meteo'];
+      if (modelResults.length > 0) sourceLabels.push(regional.label);
+      if (nwsPeriods) sourceLabels.push('NWS');
+
+      const blendedDaily = { ...data.daily };
+      if (modelResults.length > 0) {
+        const numDays = data.daily.time.length;
+        for (let d = 0; d < numDays; d++) {
+          let hiSum = data.daily.temperature_2m_max[d];
+          let loSum = data.daily.temperature_2m_min[d];
+          let windSum = data.daily.wind_speed_10m_max[d];
+          let precipSum = data.daily.precipitation_probability_max[d];
+          let count = 1;
+          for (const m of modelResults) {
+            if (m?.daily?.temperature_2m_max?.[d] != null) {
+              hiSum += m.daily.temperature_2m_max[d];
+              loSum += m.daily.temperature_2m_min[d];
+              windSum += (m.daily.wind_speed_10m_max?.[d] ?? data.daily.wind_speed_10m_max[d]);
+              precipSum += (m.daily.precipitation_probability_max?.[d] ?? data.daily.precipitation_probability_max[d]);
+              count++;
+            }
+          }
+          blendedDaily.temperature_2m_max[d] = Math.round((hiSum / count) * 10) / 10;
+          blendedDaily.temperature_2m_min[d] = Math.round((loSum / count) * 10) / 10;
+          blendedDaily.wind_speed_10m_max[d] = Math.round((windSum / count) * 10) / 10;
+          blendedDaily.precipitation_probability_max[d] = Math.round(precipSum / count);
+        }
+      }
+
+      console.log(`🌍 Forecast for ${latitude.toFixed(2)},${longitude.toFixed(2)} — Region: ${regional.region}, Sources: ${sourceLabels.join(' + ')} (${sourceCount} total)`);
 
       res.json({
         source: "Open-Meteo",
@@ -5297,6 +5390,10 @@ Guidelines:
         timezoneAbbr: data.timezone_abbreviation,
         elevation: data.elevation,
         isUS,
+        region: regional.region,
+        forecastSources: sourceLabels,
+        forecastSourceCount: sourceCount,
+        regionalModels: regional.label,
         current: data.current,
         currentUnits: data.current_units,
         hourly: {
@@ -5310,14 +5407,14 @@ Guidelines:
         daily: {
           time: data.daily.time,
           weatherCode: data.daily.weather_code,
-          tempMax: data.daily.temperature_2m_max,
-          tempMin: data.daily.temperature_2m_min,
+          tempMax: blendedDaily.temperature_2m_max,
+          tempMin: blendedDaily.temperature_2m_min,
           sunrise: data.daily.sunrise,
           sunset: data.daily.sunset,
           uvMax: data.daily.uv_index_max,
           precipSum: data.daily.precipitation_sum,
-          precipProbMax: data.daily.precipitation_probability_max,
-          windMax: data.daily.wind_speed_10m_max,
+          precipProbMax: blendedDaily.precipitation_probability_max,
+          windMax: blendedDaily.wind_speed_10m_max,
         },
         nwsForecast: nwsPeriods ? nwsPeriods.slice(0, 14).map((p: any) => ({
           name: p.name,

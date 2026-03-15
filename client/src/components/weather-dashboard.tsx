@@ -166,7 +166,7 @@ interface HybridDay {
   windMph: number;
   nwsDay?: any;
   nwsNight?: any;
-  source: 'hybrid' | 'open-meteo';
+  source: 'hybrid' | 'blended';
 }
 
 function buildHybridForecast(daily: any, nwsPeriods: any[] | null): HybridDay[] {
@@ -271,7 +271,7 @@ function buildHybridForecast(daily: any, nwsPeriods: any[] | null): HybridDay[] 
         label: omInfo.label,
         precip,
         windMph,
-        source: 'open-meteo',
+        source: 'blended',
       });
     }
   }
@@ -502,16 +502,33 @@ export default function WeatherDashboard({ lat, lon, locationName, useMetric }: 
       {(() => {
         const hasNws = forecast.nwsForecast && forecast.nwsForecast.length > 0;
         const hybridDays = buildHybridForecast(forecast.daily, forecast.nwsForecast);
+        const sourceCount = forecast.forecastSourceCount || (hasNws ? 2 : 1);
+        const regionalLabel = forecast.regionalModels || '';
+        const sourceBadge = hasNws
+          ? `NWS + ${regionalLabel} + Open-Meteo`
+          : regionalLabel
+            ? `${regionalLabel} + Open-Meteo`
+            : 'Open-Meteo';
+        const regionEmoji: Record<string, string> = {
+          us: '🇺🇸', canada: '🇨🇦', mexico: '🇲🇽', europe: '🇪🇺', uk: '🇬🇧',
+          scandinavia: '🇳🇴', japan: '🇯🇵', china: '🇨🇳', india: '🇮🇳',
+          australia: '🇦🇺', newzealand: '🇳🇿', southamerica: '🌎', africa: '🌍',
+          southeast_asia: '🌏', global: '🌐',
+        };
+        const rEmoji = regionEmoji[forecast.region || ''] || '🌐';
         return (
-          <div className={`bg-slate-800/60 rounded-xl p-4 border ${hasNws ? 'border-blue-700/30' : 'border-slate-700/50'}`}>
-            <div className="flex items-center gap-2 mb-3">
+          <div className={`bg-slate-800/60 rounded-xl p-4 border ${sourceCount >= 3 ? 'border-blue-700/30' : sourceCount >= 2 ? 'border-cyan-700/30' : 'border-slate-700/50'}`}>
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <span className="text-sm">{rEmoji}</span>
               {hasNws && <span className="text-sm">🏛️</span>}
               <h3 className="text-sm font-semibold text-white">7-Day Forecast</h3>
-              {hasNws && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-700/30">
-                  NWS + Open-Meteo Hybrid
-                </span>
-              )}
+              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                sourceCount >= 3 ? 'bg-blue-900/40 text-blue-300 border-blue-700/30' :
+                sourceCount >= 2 ? 'bg-cyan-900/40 text-cyan-300 border-cyan-700/30' :
+                'bg-slate-700/40 text-slate-300 border-slate-600/30'
+              }`}>
+                {sourceBadge} ({sourceCount} sources)
+              </span>
             </div>
             <div className="space-y-1">
               {hybridDays.map((day, i) => {
@@ -596,7 +613,7 @@ export default function WeatherDashboard({ lat, lon, locationName, useMetric }: 
                           </div>
                         )}
                         {day.source === 'hybrid' && (
-                          <p className="text-[10px] text-slate-600 italic">Temps averaged from NWS + Open-Meteo</p>
+                          <p className="text-[10px] text-slate-600 italic">Temps averaged from {sourceBadge}</p>
                         )}
                       </div>
                     )}
