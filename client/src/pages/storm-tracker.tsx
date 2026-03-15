@@ -582,7 +582,7 @@ export default function StormTracker() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white overflow-x-hidden">
       <Header 
         useMetric={useMetric}
         onUnitsChange={(v: boolean) => { setUseMetric(v); setUserUnitOverride(v); }}
@@ -741,7 +741,7 @@ export default function StormTracker() {
                         className="w-full text-left px-3 py-2.5 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0 flex items-center gap-2"
                         onClick={() => handleSuggestionSelect(s)}
                       >
-                        <span className="text-slate-400 text-sm shrink-0">{s.type === 'postal_code' ? '📮' : '📍'}</span>
+                        <span className="text-slate-400 text-sm shrink-0">{s.type === 'postal_code' ? '📮' : s.type === 'poi' ? '' : '📍'}</span>
                         <span className="text-white text-sm truncate">{s.display_name}</span>
                       </button>
                     ))}
