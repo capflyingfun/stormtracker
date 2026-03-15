@@ -5680,6 +5680,170 @@ Guidelines:
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AccuWeather API Integration
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  const ACCUWEATHER_API_KEY = process.env.ACCUWEATHER_API;
+  
+  async function getAccuWeatherLocationKey(lat: number, lon: number): Promise<string | null> {
+    if (!ACCUWEATHER_API_KEY) return null;
+    try {
+      const resp = await fetch(
+        `https://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey=${ACCUWEATHER_API_KEY}&q=${lat},${lon}`,
+        { signal: AbortSignal.timeout(8000) }
+      );
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      return data.Key || null;
+    } catch {
+      return null;
+    }
+  }
+
+  app.get("/api/accuweather/minutecast", async (req, res) => {
+    if (!ACCUWEATHER_API_KEY) {
+      return res.status(503).json({ error: "AccuWeather API key not configured" });
+    }
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: "lat and lon required" });
+    }
+    try {
+      const resp = await fetch(
+        `https://dataservice.accuweather.com/forecasts/v1/minute?apikey=${ACCUWEATHER_API_KEY}&q=${lat},${lon}`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      if (!resp.ok) {
+        const text = await resp.text();
+        console.error(`AccuWeather MinuteCast error ${resp.status}:`, text);
+        return res.status(resp.status).json({ error: "MinuteCast request failed" });
+      }
+      const data = await resp.json();
+      res.json(data);
+    } catch (err: any) {
+      console.error("AccuWeather MinuteCast error:", err.message);
+      res.status(500).json({ error: "MinuteCast request failed" });
+    }
+  });
+
+  app.get("/api/accuweather/current", async (req, res) => {
+    if (!ACCUWEATHER_API_KEY) {
+      return res.status(503).json({ error: "AccuWeather API key not configured" });
+    }
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: "lat and lon required" });
+    }
+    try {
+      const locationKey = await getAccuWeatherLocationKey(lat, lon);
+      if (!locationKey) {
+        return res.status(404).json({ error: "Location not found" });
+      }
+      const resp = await fetch(
+        `https://dataservice.accuweather.com/currentconditions/v1/${locationKey}?apikey=${ACCUWEATHER_API_KEY}&details=true`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      if (!resp.ok) {
+        return res.status(resp.status).json({ error: "Current conditions request failed" });
+      }
+      const data = await resp.json();
+      res.json(data);
+    } catch (err: any) {
+      console.error("AccuWeather current conditions error:", err.message);
+      res.status(500).json({ error: "Current conditions request failed" });
+    }
+  });
+
+  app.get("/api/accuweather/lightning", async (req, res) => {
+    if (!ACCUWEATHER_API_KEY) {
+      return res.status(503).json({ error: "AccuWeather API key not configured" });
+    }
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+    const radius = parseInt(req.query.radius as string) || 50;
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: "lat and lon required" });
+    }
+    try {
+      const resp = await fetch(
+        `https://apidev.accuweather.com/lightning/v1/strikes/radius?apikey=${ACCUWEATHER_API_KEY}&latitude=${lat}&longitude=${lon}&radius=${Math.min(radius, 60)}`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      if (!resp.ok) {
+        return res.status(resp.status).json({ 
+          error: "Lightning API not available on this plan",
+          source: "radar-derived"
+        });
+      }
+      const data = await resp.json();
+      res.json({ strikes: data, source: "accuweather" });
+    } catch (err: any) {
+      console.error("AccuWeather lightning error:", err.message);
+      res.status(500).json({ error: "Lightning request failed", source: "radar-derived" });
+    }
+  });
+
+  app.get("/api/accuweather/forecast/5day", async (req, res) => {
+    if (!ACCUWEATHER_API_KEY) {
+      return res.status(503).json({ error: "AccuWeather API key not configured" });
+    }
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: "lat and lon required" });
+    }
+    try {
+      const locationKey = await getAccuWeatherLocationKey(lat, lon);
+      if (!locationKey) {
+        return res.status(404).json({ error: "Location not found" });
+      }
+      const resp = await fetch(
+        `https://dataservice.accuweather.com/forecasts/v1/daily/5day/${locationKey}?apikey=${ACCUWEATHER_API_KEY}&details=true`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      if (!resp.ok) {
+        return res.status(resp.status).json({ error: "5-day forecast request failed" });
+      }
+      const data = await resp.json();
+      res.json(data);
+    } catch (err: any) {
+      console.error("AccuWeather 5-day forecast error:", err.message);
+      res.status(500).json({ error: "5-day forecast request failed" });
+    }
+  });
+
+  app.get("/api/accuweather/forecast/12hour", async (req, res) => {
+    if (!ACCUWEATHER_API_KEY) {
+      return res.status(503).json({ error: "AccuWeather API key not configured" });
+    }
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: "lat and lon required" });
+    }
+    try {
+      const locationKey = await getAccuWeatherLocationKey(lat, lon);
+      if (!locationKey) {
+        return res.status(404).json({ error: "Location not found" });
+      }
+      const resp = await fetch(
+        `https://dataservice.accuweather.com/forecasts/v1/hourly/12hour/${locationKey}?apikey=${ACCUWEATHER_API_KEY}&details=true`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      if (!resp.ok) {
+        return res.status(resp.status).json({ error: "12-hour forecast request failed" });
+      }
+      const data = await resp.json();
+      res.json(data);
+    } catch (err: any) {
+      console.error("AccuWeather 12-hour forecast error:", err.message);
+      res.status(500).json({ error: "12-hour forecast request failed" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
