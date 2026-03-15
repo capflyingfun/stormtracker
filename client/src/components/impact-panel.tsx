@@ -57,7 +57,7 @@ function CountdownTimer({ etaMinutes }: { etaMinutes: number }) {
   useEffect(() => {
     setRemaining(etaMinutes);
     const interval = setInterval(() => {
-      setRemaining(prev => Math.max(0, prev - 1/60)); // Decrease by 1 second
+      setRemaining(prev => Math.max(0, prev - 1/60));
     }, 1000);
     return () => clearInterval(interval);
   }, [etaMinutes]);
@@ -78,7 +78,6 @@ function CountdownTimer({ etaMinutes }: { etaMinutes: number }) {
 export default function ImpactPanel({ storms, userLocation, locationName, minimumDbz = 50 }: ImpactPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   
-  // Create a stable storm signature for cache key
   const stormSignature = storms?.map(s => 
     `${(s.lat || 0).toFixed(2)}-${(s.lon || 0).toFixed(2)}-${s.dbz || s.intensity || 0}`
   ).sort().join('|') || '';
@@ -87,7 +86,7 @@ export default function ImpactPanel({ storms, userLocation, locationName, minimu
     queryKey: ['/api/impact-predictions', stormSignature, userLocation?.lat, userLocation?.lon],
     queryFn: async () => {
       if (!storms || storms.length === 0 || !userLocation) {
-        return { predictions: [], summary: null };
+        return { predictions: [], approaching: [], summary: null };
       }
       
       const response = await fetch('/api/impact-predictions', {
@@ -100,25 +99,22 @@ export default function ImpactPanel({ storms, userLocation, locationName, minimu
       return response.json();
     },
     enabled: !!storms && storms.length > 0 && !!userLocation,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
     staleTime: 15000
   });
   
-  const predictions: ImpactPrediction[] = impactData?.predictions || [];
+  const primaryThreat: ImpactPrediction | null = impactData?.predictions?.[0] || null;
+  const approachingLater: ImpactPrediction[] = impactData?.approaching || [];
   const summary: ImpactSummary | null = impactData?.summary || null;
   
-  // Only show storms meeting the user's minimum dBZ threshold
-  const significantPredictions = predictions.filter(p => p.impactScore > 10 && p.intensityNow >= minimumDbz);
-  
+  const threatMeetsThreshold = primaryThreat && primaryThreat.intensityNow >= minimumDbz;
+  const approachingMeetsThreshold = approachingLater.filter(p => p.intensityNow >= minimumDbz);
+
   if (!userLocation || storms.length === 0) {
     return null;
   }
   
-  // Override summary if the primary threat is below the user's threshold
-  const filteredSummary = summary && summary.primaryThreat && summary.primaryThreat.intensityNow >= minimumDbz
-    ? summary : null;
-
-  if (significantPredictions.length === 0 && !isLoading) {
+  if (!threatMeetsThreshold && approachingMeetsThreshold.length === 0 && !isLoading) {
     return (
       <div 
         className="bg-slate-800/90 backdrop-blur-sm rounded-lg p-3 border border-green-500/50"
@@ -137,7 +133,6 @@ export default function ImpactPanel({ storms, userLocation, locationName, minimu
       className="bg-slate-800/95 backdrop-blur-sm rounded-lg border border-slate-600 overflow-hidden"
       data-testid="impact-panel"
     >
-      {/* Header with summary */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full p-3 flex items-center justify-between hover:bg-slate-700/50 transition-colors"
@@ -146,17 +141,21 @@ export default function ImpactPanel({ storms, userLocation, locationName, minimu
         <div className="flex items-center gap-2">
           <AlertTriangle 
             className="w-5 h-5" 
-            style={{ color: filteredSummary ? threatColors[filteredSummary.threatLevel] : '#22C55E' }}
+            style={{ color: threatMeetsThreshold && summary ? threatColors[summary.threatLevel] : approachingMeetsThreshold.length > 0 ? '#EAB308' : '#22C55E' }}
           />
           <div className="text-left">
             <div className="text-sm font-semibold text-white">
               Storm Impact Predictions
             </div>
-            {filteredSummary && (
+            {threatMeetsThreshold && summary ? (
               <div className="text-xs text-slate-400">
-                {filteredSummary.overallMessage}
+                {summary.overallMessage}
               </div>
-            )}
+            ) : approachingMeetsThreshold.length > 0 ? (
+              <div className="text-xs text-yellow-400/80">
+                {approachingMeetsThreshold.length} storm{approachingMeetsThreshold.length > 1 ? 's' : ''} approaching (ETA {'>'} 45 min)
+              </div>
+            ) : null}
           </div>
         </div>
         {isExpanded ? (
@@ -166,7 +165,6 @@ export default function ImpactPanel({ storms, userLocation, locationName, minimu
         )}
       </button>
       
-      {/* Expanded content */}
       {isExpanded && (
         <div className="px-3 pb-3 space-y-2">
           {isLoading ? (
@@ -175,104 +173,109 @@ export default function ImpactPanel({ storms, userLocation, locationName, minimu
             </div>
           ) : (
             <>
-              {/* Primary threat card — only for ≥50 dBZ storms */}
-              {filteredSummary?.primaryThreat && (
+              {threatMeetsThreshold && primaryThreat && (
                 <div 
-                  className={`rounded-lg p-3 border ${threatBgColors[filteredSummary.primaryThreat.threatTier]}`}
+                  className={`rounded-lg p-3 border ${threatBgColors[primaryThreat.threatTier]}`}
                   data-testid="primary-threat-card"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span 
                       className="text-xs font-bold uppercase px-2 py-0.5 rounded"
                       style={{ 
-                        backgroundColor: threatColors[filteredSummary.primaryThreat.threatTier] + '30',
-                        color: threatColors[filteredSummary.primaryThreat.threatTier]
+                        backgroundColor: threatColors[primaryThreat.threatTier] + '30',
+                        color: threatColors[primaryThreat.threatTier]
                       }}
                     >
-                      {filteredSummary.primaryThreat.threatTier} Impact
+                      {primaryThreat.threatTier} Impact
                     </span>
                     <span className="text-xs text-slate-400">
-                      Score: {filteredSummary.primaryThreat.impactScore}
+                      Score: {primaryThreat.impactScore}
                     </span>
                   </div>
                   
                   <div className="text-white font-medium mb-2">
-                    {filteredSummary.primaryThreat.category}
+                    {primaryThreat.category}
                     <span className="text-sm font-normal text-slate-300 ml-2">
-                      {filteredSummary.primaryThreat.intensityNow} dBZ
+                      {primaryThreat.intensityNow} dBZ
                     </span>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                     <div className="flex items-center gap-1 text-slate-300">
                       <MapPin className="w-3 h-3" />
-                      <span>{filteredSummary.primaryThreat.directionFromUser} • {filteredSummary.primaryThreat.distance}mi</span>
+                      <span>{primaryThreat.directionFromUser} • {primaryThreat.distance}mi</span>
                     </div>
                     <div className="flex items-center gap-1 text-slate-300">
                       <Clock className="w-3 h-3" />
-                      <span>ETA: <CountdownTimer etaMinutes={filteredSummary.primaryThreat.etaMinutes} /></span>
+                      <span>ETA: <CountdownTimer etaMinutes={primaryThreat.etaMinutes} /></span>
                     </div>
                     <div className="flex items-center gap-1 text-slate-300">
                       <TrendingUp className="w-3 h-3" />
-                      <span>{filteredSummary.primaryThreat.approachProbability}% approach</span>
+                      <span>{primaryThreat.approachProbability}% approach</span>
                     </div>
                     <div className="flex items-center gap-1 text-slate-300">
                       <Clock className="w-3 h-3" />
-                      <span>~{filteredSummary.primaryThreat.durationMinutes}min duration</span>
+                      <span>~{primaryThreat.durationMinutes}min duration</span>
                     </div>
                   </div>
                   
                   <div 
                     className="text-sm font-medium py-1.5 px-2 rounded text-center"
                     style={{ 
-                      backgroundColor: threatColors[filteredSummary.primaryThreat.threatTier] + '20',
-                      color: threatColors[filteredSummary.primaryThreat.threatTier]
+                      backgroundColor: threatColors[primaryThreat.threatTier] + '20',
+                      color: threatColors[primaryThreat.threatTier]
                     }}
                     data-testid="recommended-action"
                   >
-                    {filteredSummary.primaryThreat.recommendedAction}
+                    {primaryThreat.recommendedAction}
                   </div>
                 </div>
               )}
-              
-              {/* Additional threats */}
-              {significantPredictions.slice(1, 3).map((prediction, idx) => (
-                <div 
-                  key={prediction.stormId}
-                  className="bg-slate-700/50 rounded-lg p-2 border border-slate-600"
-                  data-testid={`secondary-threat-${idx}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: threatColors[prediction.threatTier] }}
-                      />
-                      <span className="text-sm text-white">{prediction.category}</span>
-                      <span className="text-xs text-slate-400">{prediction.intensityNow} dBZ</span>
+
+              {approachingMeetsThreshold.length > 0 && (
+                <div className="space-y-1.5">
+                  {!threatMeetsThreshold && (
+                    <div className="text-xs text-yellow-400/80 font-medium px-1">
+                      Approaching storms (ETA {'>'} 45 min):
                     </div>
-                    <div className="text-xs text-slate-400">
-                      {prediction.directionFromUser} • {prediction.distance}mi
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-slate-400">
-                      ETA: {prediction.etaFormatted}
-                    </span>
-                    <span 
-                      className="text-xs px-1.5 py-0.5 rounded"
-                      style={{ 
-                        backgroundColor: threatColors[prediction.threatTier] + '20',
-                        color: threatColors[prediction.threatTier]
-                      }}
+                  )}
+                  {approachingMeetsThreshold.slice(0, 2).map((storm) => (
+                    <div 
+                      key={storm.stormId}
+                      className="bg-slate-700/50 rounded-lg p-2 border border-slate-600"
                     >
-                      {prediction.threatTier}
-                    </span>
-                  </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: threatColors[storm.threatTier] }}
+                          />
+                          <span className="text-sm text-white">{storm.category}</span>
+                          <span className="text-xs text-slate-400">{storm.intensityNow} dBZ</span>
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          {storm.directionFromUser} • {storm.distance}mi
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-xs text-slate-400">
+                          ETA: {storm.etaFormatted}
+                        </span>
+                        <span 
+                          className="text-xs px-1.5 py-0.5 rounded"
+                          style={{ 
+                            backgroundColor: threatColors[storm.threatTier] + '20',
+                            color: threatColors[storm.threatTier]
+                          }}
+                        >
+                          {storm.threatTier}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
               
-              {/* Location context */}
               <div className="text-xs text-slate-500 text-center pt-1">
                 Predictions for {locationName || 'your location'}
               </div>

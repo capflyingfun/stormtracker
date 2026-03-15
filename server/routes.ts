@@ -328,30 +328,27 @@ Return ONLY a JSON array of 5 strings.`;
         };
       });
       
-      // Sort by impact score (highest first)
-      predictions.sort((a: any, b: any) => b.impactScore - a.impactScore);
-      
-      // Generate summary for top threats
-      const topThreats = predictions.filter((p: any) => p.impactScore >= 20).slice(0, 3);
-      const highestThreat = predictions[0];
-      
+      const imminent = predictions.filter((p: any) => p.isApproaching && p.etaMinutes <= 45);
+      imminent.sort((a: any, b: any) => b.intensityNow - a.intensityNow);
+      const primaryThreat = imminent[0] || null;
+
+      const approaching = predictions.filter((p: any) => p.isApproaching && p.etaMinutes > 45 && p.etaMinutes < 999);
+      approaching.sort((a: any, b: any) => b.intensityNow - a.intensityNow);
+
       let summary = null;
-      if (highestThreat && highestThreat.impactScore > 0) {
+      if (primaryThreat) {
         summary = {
-          threatLevel: highestThreat.threatTier,
-          primaryThreat: highestThreat,
-          totalThreats: topThreats.length,
-          overallMessage: topThreats.length > 1 
-            ? `${topThreats.length} storms may impact ${locationName || 'your location'}`
-            : highestThreat.isApproaching 
-              ? `${highestThreat.category} approaching from the ${highestThreat.directionFromUser}`
-              : 'Storms in area - monitoring conditions',
-          urgentAction: highestThreat.recommendedAction
+          threatLevel: primaryThreat.threatTier,
+          primaryThreat,
+          totalThreats: imminent.length,
+          overallMessage: `${primaryThreat.category} approaching from the ${primaryThreat.directionFromUser}`,
+          urgentAction: primaryThreat.recommendedAction
         };
       }
       
       res.json({ 
-        predictions: predictions.slice(0, 5), // Top 5 storms
+        predictions: primaryThreat ? [primaryThreat] : [],
+        approaching: approaching.slice(0, 3),
         summary,
         locationName: locationName || 'Your Location',
         timestamp: new Date().toISOString()
