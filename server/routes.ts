@@ -454,10 +454,13 @@ Return ONLY a JSON array of 5 strings.`;
       
       console.log(`🌧️ Fetching Visual Crossing high-resolution radar data for ${latitude}, ${longitude}`);
       
-      // Visual Crossing Timeline API with radar-specific elements
-      // Free tier: 1000 records/day, no API key needed for testing
+      const vcKey = process.env.VISUAL_CROSSING_API_KEY;
+      if (!vcKey) {
+        return res.status(503).json({ error: 'Visual Crossing API key not configured' });
+      }
+
       const response = await fetch(
-        `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=${process.env.VISUAL_CROSSING_API_KEY || ''}&elements=precipremote,reflectivity,precip,precipprob,preciptype&include=remote&options=nonulls&unitGroup=us`,
+        `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=${vcKey}&elements=precipremote,reflectivity,precip,precipprob,preciptype&include=remote&options=nonulls&unitGroup=us`,
         {
           headers: {
             'User-Agent': 'StormTracker Weather App'
@@ -537,9 +540,10 @@ Return ONLY a JSON array of 5 strings.`;
       };
 
       // Test Visual Crossing (if API key available)
-      try {
+      const vcCompareKey = process.env.VISUAL_CROSSING_API_KEY;
+      if (vcCompareKey) try {
         const vcResponse = await fetch(
-          `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=${process.env.VISUAL_CROSSING_API_KEY || ''}&elements=precipremote,reflectivity,precip&include=remote&options=nonulls`,
+          `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=${vcCompareKey}&elements=precipremote,reflectivity,precip&include=remote&options=nonulls`,
           { signal: AbortSignal.timeout(5000) }
         );
         
