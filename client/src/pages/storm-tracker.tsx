@@ -18,7 +18,6 @@ import WeatherDashboard from "@/components/weather-dashboard";
 import SectionReorder, { getSectionOrder } from "@/components/section-reorder";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIWeatherAssistant from "@/components/ai-weather-assistant";
 import { LayoutList, ChevronDown, ChevronUp } from "lucide-react";
@@ -326,11 +325,6 @@ export default function StormTracker() {
   const [show3D, setShow3D] = useState(false);
   const [viewMode, setViewMode] = useState<'map' | 'sonar' | '3d'>('map');
   
-  const [searchQuery, setSearchQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const suggestTimer = useRef<any>(null);
-  const searchRef = useRef<HTMLDivElement>(null);
   const [stormFilters, setStormFilters] = useState({
     light: true,
     moderate: true,
@@ -588,45 +582,6 @@ export default function StormTracker() {
     };
   }, [isTracking, location, refetchStormData]);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const fetchSuggestions = (q: string) => {
-    if (suggestTimer.current) clearTimeout(suggestTimer.current);
-    if (q.trim().length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
-    suggestTimer.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(q.trim())}`);
-        if (res.ok) {
-          const data = await res.json();
-          setSuggestions(data.suggestions || []);
-          setShowSuggestions((data.suggestions || []).length > 0);
-        }
-      } catch { /* ignore */ }
-    }, 300);
-  };
-
-  const handleSuggestionSelect = (suggestion: any) => {
-    setShowSuggestions(false);
-    setSearchQuery('');
-    setSuggestions([]);
-    const loc = {
-      lat: suggestion.lat,
-      lon: suggestion.lon,
-      name: suggestion.display_name,
-      country: suggestion.address?.country,
-      isUS: suggestion.address?.country === 'US',
-      recommendedRadarSource: (suggestion.address?.country === 'US' ? 'nexrad' : 'rainviewer') as 'nexrad' | 'rainviewer',
-    };
-    handleDirectLocationSelect(loc);
-  };
 
   const handleLocationSearch = async (query: string) => {
     try {
@@ -953,39 +908,6 @@ export default function StormTracker() {
                       🌐 GPS
                     </Button>
                   </div>
-                  <div ref={searchRef} className="relative">
-                    <form className="flex gap-2" onSubmit={(e) => {
-                      e.preventDefault();
-                      const val = searchQuery.trim();
-                      if (val) { setShowSuggestions(false); handleLocationSearch(val); setSearchQuery(''); }
-                    }}>
-                      <Input
-                        placeholder={t.searchPlaceholder}
-                        value={searchQuery}
-                        onChange={(e) => { setSearchQuery(e.target.value); fetchSuggestions(e.target.value); }}
-                        onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
-                        className="bg-slate-700/50 border-slate-600 flex-1 h-9 text-sm"
-                        style={{ fontSize: '16px' }}
-                        autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
-                      />
-                      <Button type="submit" variant="outline" size="sm" disabled={!searchQuery.trim()} className="h-9 px-3 border-slate-600 text-slate-300">
-                        🔍
-                      </Button>
-                    </form>
-                    {showSuggestions && suggestions.length > 0 && (
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 overflow-hidden">
-                        {suggestions.map((s: any, i: number) => (
-                          <button key={s.id || i} type="button"
-                            className="w-full text-left px-3 py-2.5 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0 flex items-center gap-2"
-                            onClick={() => handleSuggestionSelect(s)}
-                          >
-                            <span className="text-slate-400 text-sm shrink-0">{s.type === 'postal_code' ? '📮' : '📍'}</span>
-                            <span className="text-white text-sm truncate">{s.display_name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                   <FavoriteLocations
                     onSelect={handleFavoriteSelect}
                     currentLat={location.lat} currentLon={location.lon} currentName={location.name}
@@ -1084,58 +1006,6 @@ export default function StormTracker() {
                     🌐 GPS
                   </Button>
                 </div>
-              </div>
-
-              <div ref={searchRef} className="mb-3 relative">
-                <form className="flex gap-2" onSubmit={(e) => {
-                  e.preventDefault();
-                  const val = searchQuery.trim();
-                  if (val) {
-                    setShowSuggestions(false);
-                    handleLocationSearch(val);
-                    setSearchQuery('');
-                  }
-                }}>
-                  <Input
-                    placeholder={t.searchPlaceholder}
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      fetchSuggestions(e.target.value);
-                    }}
-                    onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
-                    className="bg-slate-700/50 border-slate-600 flex-1"
-                    style={{ fontSize: '16px' }}
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                  />
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    size="sm"
-                    disabled={!searchQuery.trim()}
-                    className="h-10 px-3 border-slate-600 text-slate-300 hover:text-white"
-                  >
-                    🔍
-                  </Button>
-                </form>
-                {showSuggestions && suggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 overflow-hidden">
-                    {suggestions.map((s: any, i: number) => (
-                      <button
-                        key={s.id || i}
-                        type="button"
-                        className="w-full text-left px-3 py-2.5 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0 flex items-center gap-2"
-                        onClick={() => handleSuggestionSelect(s)}
-                      >
-                        <span className="text-slate-400 text-sm shrink-0">{s.type === 'postal_code' ? '📮' : '📍'}</span>
-                        <span className="text-white text-sm truncate">{s.display_name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <FavoriteLocations
