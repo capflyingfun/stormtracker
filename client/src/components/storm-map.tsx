@@ -254,7 +254,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         } catch (error) {
           if (cancelled) return;
           console.error('Failed to load RainViewer frames:', error);
-          setRadarSource('nexrad');
         }
       } else {
         try {
@@ -310,8 +309,6 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         } catch (error) {
           if (cancelled) return;
           console.error('Failed to load NEXRAD radar:', error);
-          console.log('Switching to RainViewer due to NEXRAD issues');
-          setRadarSource('rainviewer');
         }
       }
     };
