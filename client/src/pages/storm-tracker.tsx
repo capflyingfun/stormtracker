@@ -21,8 +21,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIWeatherAssistant from "@/components/ai-weather-assistant";
-import { LayoutList } from "lucide-react";
+import { LayoutList, ChevronDown, ChevronUp } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
+import { apiRequest } from "@/lib/queryClient";
 
 // Embedded Message Inbox Component for Modal
 function EmbeddedMessageInbox() {
@@ -199,6 +200,8 @@ export default function StormTracker() {
   const [windsData, setWindsData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages'>('tracker');
   const [mobileTab, setMobileTab] = useState<'radar' | 'weather' | 'storms' | 'ai' | 'alerts'>('radar');
+  const [mobileLocationExpanded, setMobileLocationExpanded] = useState(false);
+  const [criticalAlertDismissed, setCriticalAlertDismissed] = useState(false);
 
 
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -240,6 +243,63 @@ export default function StormTracker() {
       return response.json();
     },
   });
+
+  const { data: minuteCastData } = useQuery({
+    queryKey: ['/api/accuweather/minutecast', location?.lat, location?.lon],
+    enabled: !!location,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      if (!location) return null;
+      const res = await apiRequest("GET", `/api/accuweather/minutecast?lat=${location.lat}&lon=${location.lon}`);
+      return res.json();
+    },
+  });
+
+  const criticalAlerts = useMemo(() => {
+    const alerts: { type: 'danger' | 'warning' | 'info'; icon: string; text: string }[] = [];
+    
+    if (minuteCastData?.Summary?.Phrase) {
+      const phrase = minuteCastData.Summary.Phrase;
+      const typeId = minuteCastData.Summary.TypeId;
+      if (typeId !== 0) {
+        alerts.push({ 
+          type: phrase.toLowerCase().includes('thunder') ? 'danger' : 'warning',
+          icon: phrase.toLowerCase().includes('thunder') ? '⛈️' : '🌧️',
+          text: `MinuteCast™: ${phrase}`
+        });
+      }
+    }
+    
+    const severeStorms = precipitationStorms.filter(s => s.intensity >= 50);
+    const approachingStorms = precipitationStorms.filter(s => 
+      s.intensity >= 45 && s.impactAssessment?.eta && 
+      !s.impactAssessment.eta.includes('Not') && !s.impactAssessment.eta.includes('N/A')
+    );
+    
+    if (severeStorms.length > 0) {
+      const closest = [...severeStorms].sort((a, b) => a.distance - b.distance)[0];
+      alerts.push({
+        type: 'danger',
+        icon: '🌩️',
+        text: `${severeStorms.length} severe storm${severeStorms.length > 1 ? 's' : ''} detected — closest ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)} (${closest.intensity}dBZ)`
+      });
+    }
+    
+    if (approachingStorms.length > 0 && severeStorms.length === 0) {
+      const closest = [...approachingStorms].sort((a, b) => a.distance - b.distance)[0];
+      alerts.push({
+        type: 'warning',
+        icon: '⚠️',
+        text: `Storm approaching — ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)}, ETA: ${closest.impactAssessment?.eta || 'calculating'}`
+      });
+    }
+    
+    return alerts;
+  }, [minuteCastData, precipitationStorms, formatDistance]);
+
+  useEffect(() => {
+    setCriticalAlertDismissed(false);
+  }, [criticalAlerts.length]);
 
   const [tickerMessages, setTickerMessages] = useState<string[]>([]);
   const lastTickerSig = useRef('');
@@ -641,8 +701,123 @@ export default function StormTracker() {
           />
         ) : (
           <>
-            {/* Location Display */}
-            <div className="bg-slate-800/50 rounded-xl p-3 sm:p-6 border border-slate-700/50 mb-4 sm:mb-6">
+            {/* === MOBILE: Compact Location Header === */}
+            <div className="lg:hidden bg-slate-800/50 rounded-xl border border-slate-700/50 mb-3 overflow-hidden">
+              <button
+                onClick={() => setMobileLocationExpanded(!mobileLocationExpanded)}
+                className="w-full flex items-center justify-between p-3 touch-manipulation"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-lg">📍</span>
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-semibold text-white truncate">{location.name}</h2>
+                    <p className="text-slate-400 text-[10px]">
+                      {formatDistance(50)} {t.detectionRadius} • {currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
+                      {lastUpdate && ` • ${lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                    </p>
+                  </div>
+                </div>
+                {mobileLocationExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                )}
+              </button>
+
+              {mobileLocationExpanded && (
+                <div className="px-3 pb-3 space-y-2 border-t border-slate-700/30 pt-2">
+                  <div className="flex gap-2">
+                    <Button onClick={resetLocation} variant="outline" size="sm" className="text-xs flex-1">
+                      📍 {t.changeLocation}
+                    </Button>
+                    <Button onClick={handleGPSLocation} variant="outline" size="sm" disabled={locationLoading} className="text-xs flex-1">
+                      🌐 GPS
+                    </Button>
+                  </div>
+                  <div ref={searchRef} className="relative">
+                    <form className="flex gap-2" onSubmit={(e) => {
+                      e.preventDefault();
+                      const val = searchQuery.trim();
+                      if (val) { setShowSuggestions(false); handleLocationSearch(val); setSearchQuery(''); }
+                    }}>
+                      <Input
+                        placeholder={t.searchPlaceholder}
+                        value={searchQuery}
+                        onChange={(e) => { setSearchQuery(e.target.value); fetchSuggestions(e.target.value); }}
+                        onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+                        className="bg-slate-700/50 border-slate-600 flex-1 h-9 text-sm"
+                        style={{ fontSize: '16px' }}
+                        autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+                      />
+                      <Button type="submit" variant="outline" size="sm" disabled={!searchQuery.trim()} className="h-9 px-3 border-slate-600 text-slate-300">
+                        🔍
+                      </Button>
+                    </form>
+                    {showSuggestions && suggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 overflow-hidden">
+                        {suggestions.map((s: any, i: number) => (
+                          <button key={s.id || i} type="button"
+                            className="w-full text-left px-3 py-2.5 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0 flex items-center gap-2"
+                            onClick={() => handleSuggestionSelect(s)}
+                          >
+                            <span className="text-slate-400 text-sm shrink-0">{s.type === 'postal_code' ? '📮' : '📍'}</span>
+                            <span className="text-white text-sm truncate">{s.display_name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <FavoriteLocations
+                    onSelect={handleFavoriteSelect}
+                    currentLat={location.lat} currentLon={location.lon} currentName={location.name}
+                    currentCountry={(location as any).country}
+                    currentIsUS={location.lat >= 24.5 && location.lat <= 49.5 && location.lon >= -125 && location.lon <= -66.5}
+                    currentRadarSource={currentRadarSource === 'nexrad' ? 'nexrad' : 'rainviewer'}
+                    showAddButton={true}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* === MOBILE: Critical Alert Banner === */}
+            {criticalAlerts.length > 0 && !criticalAlertDismissed && (
+              <div className="lg:hidden mb-3 space-y-2">
+                {criticalAlerts.map((alert, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-xl p-3 border flex items-start gap-2 ${
+                      alert.type === 'danger'
+                        ? 'bg-red-900/40 border-red-500/60 animate-pulse'
+                        : alert.type === 'warning'
+                          ? 'bg-amber-900/40 border-amber-500/60'
+                          : 'bg-blue-900/30 border-blue-500/50'
+                    }`}
+                    onClick={() => setMobileTab('alerts')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <span className="text-lg shrink-0">{alert.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${
+                        alert.type === 'danger' ? 'text-red-200' : alert.type === 'warning' ? 'text-amber-200' : 'text-blue-200'
+                      }`}>
+                        {alert.text}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{t.alerts} →</p>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setCriticalAlertDismissed(true); }}
+                      className="text-slate-500 hover:text-white text-xs shrink-0 p-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* === DESKTOP: Full Location Header === */}
+            <div className="hidden lg:block bg-slate-800/50 rounded-xl p-3 sm:p-6 border border-slate-700/50 mb-4 sm:mb-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3 sm:gap-0">
                 <div className="flex items-center gap-3">
                   <div className="text-xl sm:text-2xl">📍</div>
@@ -658,25 +833,12 @@ export default function StormTracker() {
                 </div>
                 
                 <div className="flex flex-wrap gap-2">
-                  {/* Messages and Alerts tabs temporarily disabled */}
-                  <Button
-                    onClick={resetLocation}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs sm:text-sm"
-                  >
+                  <Button onClick={resetLocation} variant="outline" size="sm" className="text-xs sm:text-sm">
                     📍 {t.changeLocation}
                   </Button>
-                  <Button
-                    onClick={handleGPSLocation}
-                    variant="outline"
-                    size="sm"
-                    disabled={locationLoading}
-                    className="text-xs sm:text-sm"
-                  >
+                  <Button onClick={handleGPSLocation} variant="outline" size="sm" disabled={locationLoading} className="text-xs sm:text-sm">
                     🌐 GPS
                   </Button>
-
                 </div>
               </div>
 
@@ -732,7 +894,6 @@ export default function StormTracker() {
                 )}
               </div>
 
-              {/* Favorites — quick-switch + save current */}
               <FavoriteLocations
                 onSelect={handleFavoriteSelect}
                 currentLat={location.lat}
@@ -1372,7 +1533,9 @@ export default function StormTracker() {
                 { id: 'alerts' as const, icon: '🚨', label: t.alerts },
               ].map(tab => {
                 const isActive = mobileTab === tab.id;
-                const alertCount = tab.id === 'alerts' ? filteredStorms.filter(s => s.intensity >= 45).length : 0;
+                const alertCount = tab.id === 'alerts' ? criticalAlerts.length + filteredStorms.filter(s => s.intensity >= 45).length : 0;
+                const stormCount = tab.id === 'storms' ? filteredStorms.length : 0;
+                const hasCritical = tab.id === 'alerts' && criticalAlerts.length > 0;
                 return (
                   <button
                     key={tab.id}
@@ -1380,20 +1543,22 @@ export default function StormTracker() {
                     className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors relative ${
                       isActive 
                         ? 'text-blue-400' 
-                        : 'text-slate-500 active:text-slate-300'
+                        : hasCritical
+                          ? 'text-red-400'
+                          : 'text-slate-500 active:text-slate-300'
                     }`}
                     style={{ WebkitTapHighlightColor: 'transparent' }}
                   >
-                    <span className="text-xl leading-none">{tab.icon}</span>
-                    <span className={`text-[10px] font-medium leading-tight ${isActive ? 'text-blue-400' : 'text-slate-500'}`}>{tab.label}</span>
+                    <span className={`text-xl leading-none ${hasCritical && !isActive ? 'animate-bounce' : ''}`}>{tab.icon}</span>
+                    <span className={`text-[10px] font-medium leading-tight ${isActive ? 'text-blue-400' : hasCritical ? 'text-red-400' : 'text-slate-500'}`}>{tab.label}</span>
                     {tab.id === 'alerts' && alertCount > 0 && (
-                      <span className="absolute -top-0.5 right-0.5 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                      <span className={`absolute -top-0.5 right-0.5 min-w-[16px] h-4 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 ${hasCritical ? 'bg-red-500 animate-pulse' : 'bg-red-500'}`}>
                         {alertCount > 9 ? '9+' : alertCount}
                       </span>
                     )}
-                    {tab.id === 'storms' && filteredStorms.length > 0 && (
+                    {tab.id === 'storms' && stormCount > 0 && (
                       <span className="absolute -top-0.5 right-0.5 min-w-[16px] h-4 bg-orange-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
-                        {filteredStorms.length > 9 ? '9+' : filteredStorms.length}
+                        {stormCount > 9 ? '9+' : stormCount}
                       </span>
                     )}
                   </button>
