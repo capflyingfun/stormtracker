@@ -577,15 +577,28 @@ export default function StormTracker() {
     return `${mph.toFixed(0)} mph`;
   };
 
-  const summarizeDirections = (dirs: string[]): string => {
-    if (dirs.length <= 2) return dirs.join(' & ');
-    const order = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-    const indices = dirs.map(d => order.indexOf(d)).filter(i => i >= 0).sort((a, b) => a - b);
-    if (indices.length === 0) return dirs[0];
-    const first = order[indices[0]];
-    const last = order[indices[indices.length - 1]];
-    if (first === last) return first;
-    return `${first}–${last}`;
+  const clusterStorms = (storms: any[]): any[][] => {
+    if (storms.length === 0) return [];
+    const used = new Set<number>();
+    const clusters: any[][] = [];
+    const sorted = [...storms].sort((a, b) => a.distance - b.distance);
+    for (let i = 0; i < sorted.length; i++) {
+      if (used.has(i)) continue;
+      const cluster = [sorted[i]];
+      used.add(i);
+      for (let j = i + 1; j < sorted.length; j++) {
+        if (used.has(j)) continue;
+        const dirDiff = Math.abs(sorted[i].direction - sorted[j].direction);
+        const normalizedDirDiff = dirDiff > 180 ? 360 - dirDiff : dirDiff;
+        const distDiff = Math.abs(sorted[i].distance - sorted[j].distance);
+        if (normalizedDirDiff <= 45 && distDiff <= 15) {
+          cluster.push(sorted[j]);
+          used.add(j);
+        }
+      }
+      clusters.push(cluster);
+    }
+    return clusters;
   };
 
   const criticalAlerts = useMemo(() => {
@@ -603,35 +616,60 @@ export default function StormTracker() {
       }
     }
     
-    const severeStorms = precipitationStorms.filter(s => s.intensity >= 50);
-    const approachingStorms = precipitationStorms.filter(s => 
-      s.intensity >= 45 && s.impactAssessment?.eta && 
-      !s.impactAssessment.eta.includes('Not') && !s.impactAssessment.eta.includes('N/A')
-    );
+    const strongStorms = precipitationStorms.filter(s => s.intensity >= 45);
+    if (strongStorms.length === 0) return alerts;
     
-    if (severeStorms.length > 0) {
-      const sorted = [...severeStorms].sort((a, b) => a.distance - b.distance);
-      const closest = sorted[0];
-      const maxDbz = Math.max(...sorted.map(s => s.intensity));
-      const directions = [...new Set(sorted.map(s => getCompassDirection(s.direction)))];
-      const dirSummary = summarizeDirections(directions);
-      const riskNote = maxDbz >= 60 ? t.possibleHailTornado : maxDbz >= 55 ? t.heavyDownpours : t.significantPrecip;
-      alerts.push({
-        type: 'danger',
-        icon: '🌩️',
-        text: `${severeStorms.length} ${t.severeRadarPoints} — ${t.nearest}: ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)} (${maxDbz}dBZ). ${t.mainlyToYour} ${dirSummary}. ${riskNote}`
-      });
-    }
+    const clusters = clusterStorms(strongStorms);
     
-    if (approachingStorms.length > 0 && severeStorms.length === 0) {
-      const sorted = [...approachingStorms].sort((a, b) => a.distance - b.distance);
-      const closest = sorted[0];
-      const directions = [...new Set(sorted.map(s => getCompassDirection(s.direction)))];
-      const dirSummary = summarizeDirections(directions);
+    for (const cluster of clusters) {
+      const closest = cluster.reduce((a, b) => a.distance < b.distance ? a : b);
+      const minDbz = Math.min(...cluster.map(s => s.intensity));
+      const maxDbz = Math.max(...cluster.map(s => s.intensity));
+      const avgDir = cluster.reduce((s, x) => s + x.direction, 0) / cluster.length;
+      const dirLabel = getCompassDirection(avgDir);
+      const avgDist = cluster.reduce((s, x) => s + x.distance, 0) / cluster.length;
+      
+      const movingStorms = cluster.filter(s => s.windsPrediction?.speed > 0);
+      let movementText = '';
+      let impactPct = 0;
+      
+      if (movingStorms.length > 0) {
+        const avgMoveDir = movingStorms.reduce((s, x) => s + x.windsPrediction.direction, 0) / movingStorms.length;
+        const avgMoveSpeed = movingStorms.reduce((s, x) => s + x.windsPrediction.speed, 0) / movingStorms.length;
+        const moveDirLabel = getCompassDirection(avgMoveDir);
+        movementText = ` ${t.movingAt} ${moveDirLabel} (${Math.round(avgMoveDir)}°) @ ${formatSpeed(avgMoveSpeed)}.`;
+        
+        const approachCount = movingStorms.filter(s => {
+          const angle = calculateApproachAngle(s.direction, s.windsPrediction.direction);
+          return isStormApproaching(s.direction, s.windsPrediction.direction, s.windsPrediction.speed) && angle <= 30;
+        }).length;
+        
+        if (approachCount > 0) {
+          const approachRatio = approachCount / cluster.length;
+          const distFactor = avgDist <= 10 ? 1.3 : avgDist <= 20 ? 1.0 : avgDist <= 30 ? 0.7 : 0.4;
+          const intensityFactor = maxDbz >= 60 ? 1.2 : maxDbz >= 55 ? 1.0 : 0.8;
+          impactPct = Math.min(95, Math.round(approachRatio * distFactor * intensityFactor * 80));
+        }
+      }
+      
+      const isDanger = maxDbz >= 50;
+      const dbzRange = minDbz === maxDbz ? `${maxDbz}` : `${minDbz}–${maxDbz}`;
+      
+      let text = '';
+      if (cluster.length >= 3) {
+        text = `${t.stormClusterDetected}: ${cluster.length} ${t.severeRadarPoints} ${t.betweenDbz} ${dbzRange} dBZ, ${formatDistance(avgDist)} ${dirLabel} ${t.ofYou}.${movementText}`;
+      } else {
+        text = `${cluster.length} ${t.severeRadarPoints} ${formatDistance(closest.distance)} ${dirLabel} ${t.ofYou} (${dbzRange} dBZ).${movementText}`;
+      }
+      
+      if (impactPct > 0) {
+        text += ` ${impactPct}% ${t.chanceDirectImpact}.`;
+      }
+      
       alerts.push({
-        type: 'warning',
-        icon: '⚠️',
-        text: `${approachingStorms.length} ${t.radarPointsApproaching} — ${t.nearest}: ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)}, ETA: ${closest.impactAssessment?.eta || '...'}. ${t.mainlyToYour} ${dirSummary}.`
+        type: isDanger ? 'danger' : 'warning',
+        icon: isDanger ? '🌩️' : '⚠️',
+        text
       });
     }
     
@@ -1279,6 +1317,18 @@ export default function StormTracker() {
 
             {/* === MOBILE LAYOUT: Bottom Tab Navigation === */}
             <div className="lg:hidden pb-20">
+              {/* Loading overlay while storm data loads */}
+              {stormDataLoading && precipitationStorms.length === 0 && mobileTab === 'radar' && (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <div className="relative">
+                    <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-400 rounded-full animate-spin" />
+                    <span className="absolute inset-0 flex items-center justify-center text-2xl">📡</span>
+                  </div>
+                  <p className="text-blue-200 font-medium text-sm">{t.loadingDataHoldOn}</p>
+                  <p className="text-slate-400 text-xs">{t.scanningRadar}</p>
+                </div>
+              )}
+
               {/* Mobile Tab Content */}
               {mobileTab === 'radar' && (
                 <div>
