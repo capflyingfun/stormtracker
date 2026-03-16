@@ -5817,7 +5817,7 @@ Guidelines:
                 }).then(r => r.ok ? r.json() : null).then(fc => {
                   if (!fc?.properties?.periods) return;
                   const severeWeatherKeywords = ['thunderstorm','tornado','hurricane','tropical storm','flood','blizzard','ice storm','hail','winter storm','severe'];
-                  nwsPeriods = fc.properties.periods.slice(0, 8).map((p: any) => {
+                  nwsPeriods = fc.properties.periods.slice(0, 14).map((p: any) => {
                     const tempF = p.temperature;
                     const tempC = Math.round(fToC(tempF));
                     const forecast = (p.shortForecast || '').toLowerCase();
