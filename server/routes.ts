@@ -1393,10 +1393,47 @@ Return ONLY a JSON array of 5 strings.`;
       query = parsedBody.query;
       console.log(`Geocoding search for: "${query}"`);
       
-      // Try different geocoding approaches starting with most reliable free services
       let locations = [];
       
-      // First try Nominatim (OpenStreetMap) - most reliable and supports detailed addresses
+      if (API_KEYS.opencage) {
+        console.log('Trying OpenCage for address search (primary)');
+        try {
+          const ocResponse = await fetch(
+            `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(query)}&limit=5&no_annotations=1&key=${API_KEYS.opencage}`,
+            { signal: AbortSignal.timeout(3000) }
+          );
+          if (ocResponse.ok) {
+            const ocData = await ocResponse.json();
+            if (ocData.results && ocData.results.length > 0) {
+              locations = ocData.results.map((result: any) => {
+                const comp = result.components || {};
+                const geo = result.geometry || {};
+                const hasHouseNum = !!(comp.house_number && (comp.road || comp.street));
+                let name = '';
+                if (hasHouseNum) {
+                  const road = comp.road || comp.street;
+                  const city = comp.city || comp.town || comp.village || '';
+                  name = `${comp.house_number} ${road}${city ? ', ' + city : ''}`;
+                } else {
+                  name = comp.city || comp.town || comp.village || (result.formatted || '').split(',')[0];
+                }
+                return {
+                  lat: geo.lat,
+                  lon: geo.lng,
+                  name,
+                  state: comp.state || '',
+                  country: comp.country || '',
+                  countryCode: (comp.country_code || '').toUpperCase()
+                };
+              });
+            }
+          }
+        } catch (ocError) {
+          console.log('OpenCage geocode failed:', ocError);
+        }
+      }
+
+      if (locations.length === 0) {
       console.log('Trying Nominatim for address search');
       try {
         // Add retry logic for improved reliability
@@ -1448,6 +1485,7 @@ Return ONLY a JSON array of 5 strings.`;
         }
       } catch (nominatimError) {
         console.log('Nominatim fallback failed:', nominatimError);
+      }
       }
       
       // If no results from Nominatim, try Photon (another OpenStreetMap-based geocoder)
