@@ -4185,9 +4185,9 @@ Return ONLY a JSON array of 5 strings.`;
                         humidity: props.relativeHumidity?.value ? Math.round(props.relativeHumidity.value) : 'Unknown',
                         pressure: props.barometricPressure?.value ? Math.round(props.barometricPressure.value / 100) : 'Unknown', // Convert Pa to hPa
                         visibility: props.visibility?.value ? (props.visibility.value / 1000).toFixed(1) + ' km' : 'Unknown',
-                        windSpeed: props.windSpeed?.value ? Math.round(props.windSpeed.value * 2.237) : 0, // Convert m/s to mph
+                        windSpeed: props.windSpeed?.value ? Math.round(props.windSpeed.value / 1.60934) : 0, // Convert km/h to mph
                         windDirection: props.windDirection?.value || 0,
-                        windGust: props.windGust?.value ? Math.round(props.windGust.value * 2.237) : null,
+                        windGust: props.windGust?.value ? Math.round(props.windGust.value / 1.60934) : null,
                         weather: props.textDescription || 'Clear',
                         cloudCover: props.cloudLayers?.[0]?.amount || 'Unknown',
                         dewPoint: props.dewpoint?.value ? Math.round((props.dewpoint.value * 9/5) + 32) : 'Unknown'
@@ -5781,8 +5781,8 @@ Guidelines:
                   const p = obs.properties;
                   if (!p?.temperature?.value && p?.temperature?.value !== 0) return;
                   const tempC = p.temperature.value;
-                  const windMps = p.windSpeed?.value || 0;
-                  const gustMps = p.windGust?.value || windMps;
+                  const windKph = p.windSpeed?.value || 0; // NWS reports wind in km/h
+                  const gustKph = p.windGust?.value || windKph;
                   const visMet = p.visibility?.value || 10000;
                   const pressPa = p.barometricPressure?.value;
                   const pressMb = pressPa ? pressPa / 100 : 1013;
@@ -5794,9 +5794,9 @@ Guidelines:
                       feelslike_c: p.windChill?.value ?? tempC,
                       humidity: p.relativeHumidity?.value ? Math.round(p.relativeHumidity.value) : 50,
                       pressure_mb: pressMb, pressure_in: pressMb * 0.02953,
-                      wind_mph: mpsToMph(windMps), wind_kph: mpsToKph(windMps),
+                      wind_mph: Math.round(windKph / 1.60934), wind_kph: Math.round(windKph),
                       wind_degree: p.windDirection?.value || 0, wind_dir: degToDir(p.windDirection?.value || 0),
-                      gust_mph: mpsToMph(gustMps), gust_kph: mpsToKph(gustMps),
+                      gust_mph: Math.round(gustKph / 1.60934), gust_kph: Math.round(gustKph),
                       visibility_km: visMet / 1000, visibility_miles: visMet / 1609.34,
                       cloud: 0, condition: p.textDescription || 'Unknown',
                       dew_point_f: p.dewpoint?.value != null ? cToF(p.dewpoint.value) : undefined,

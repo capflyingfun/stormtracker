@@ -445,7 +445,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
                       <div className="grid grid-cols-2 gap-x-2 text-[10px] text-slate-300">
                         <span>{t.temperature}: {Math.round(src.temp_f)}°F ({Math.round(src.temp_c)}°C)</span>
                         <span>{t.humidity}: {src.humidity}%</span>
-                        <span>{t.wind}: {Math.round(src.wind_mph)} mph</span>
+                        <span>{t.wind}: {Math.round(src.wind_mph)} mph ({Math.round(src.wind_mph * 1.60934)} km/h)</span>
                         <span>{t.pressure}: {Math.round(src.pressure_mb)} mb</span>
                         <span className="col-span-2 text-slate-400 truncate">{src.condition}</span>
                       </div>
