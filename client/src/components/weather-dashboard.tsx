@@ -172,6 +172,104 @@ function NWSPeriodCard({ period }: { period: any }) {
   );
 }
 
+function CombinedForecastCard({ dayLabel, icon, highF, highC, lowF, lowC, shortForecast, windInfo, precipChance, thunderProb, shortPhrase, hasAdvisory, weatherTags, dayPeriod, nightPeriod }: {
+  dayLabel: string; icon: string; highF: number | null; highC: number | null; lowF: number | null; lowC: number | null;
+  shortForecast: string; windInfo: string; precipChance: number; thunderProb: number; shortPhrase?: string;
+  hasAdvisory?: boolean; weatherTags: string[]; dayPeriod?: any; nightPeriod?: any;
+}) {
+  const [showDetail, setShowDetail] = useState(false);
+  const { t, language } = useLanguage();
+
+  const detailedForecast = dayPeriod?.detailedForecast || nightPeriod?.detailedForecast;
+  const hasDetails = !!(detailedForecast || nightPeriod);
+
+  return (
+    <div className={`rounded-xl p-2.5 border ${
+      hasAdvisory ? 'bg-amber-900/20 border-amber-600/40' : 'bg-slate-700/20 border-slate-600/30'
+    }`}>
+      <div className="flex items-center gap-2">
+        <span className="text-lg shrink-0">{icon}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-white font-semibold text-[12px]">{translateWeatherText(dayLabel, language)}</span>
+            {hasAdvisory && (
+              <Badge className="bg-amber-600 text-white text-[8px] px-1 py-0 h-3.5 uppercase font-bold">{t.advisory}</Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-1 flex-wrap">
+            {highF != null && (
+              <span className="text-white font-semibold text-[11px]">
+                ☀️ {highF}°F ({highC}°C)
+              </span>
+            )}
+            {lowF != null && (
+              <span className="text-slate-400 text-[11px]">
+                🌙 {lowF}°F ({lowC}°C)
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          {precipChance > 0 && (
+            <div className="flex items-center gap-0.5 justify-end">
+              <Droplets className="w-3 h-3 text-blue-400" />
+              <span className="text-blue-400 text-[10px]">{precipChance}%</span>
+            </div>
+          )}
+          {thunderProb > 0 && (
+            <div className="flex items-center gap-0.5 justify-end">
+              <span className="text-[9px]">⛈</span>
+              <span className="text-orange-400 text-[10px]">{thunderProb}%</span>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400 flex-wrap ml-7">
+        <span>{translateWeatherText(shortForecast, language)}</span>
+        {windInfo && <span>• {t.wind}: {windInfo}</span>}
+      </div>
+      {shortPhrase && (
+        <div className="ml-7 mt-0.5">
+          <span className="text-slate-500 text-[9px] italic">{shortPhrase}</span>
+        </div>
+      )}
+      {weatherTags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1 ml-7">
+          {weatherTags.map((h: string, i: number) => (
+            <span key={i} className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${getHazardColor(h)}`}>
+              {h.charAt(0).toUpperCase() + h.slice(1)}
+            </span>
+          ))}
+        </div>
+      )}
+      {hasDetails && (
+        <>
+          <button
+            onClick={() => setShowDetail(!showDetail)}
+            className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors mt-1 ml-7"
+          >
+            {showDetail ? t.showLess : t.showDetails}
+          </button>
+          {showDetail && (
+            <div className="ml-7 mt-1 space-y-1.5">
+              {dayPeriod?.detailedForecast && (
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  <span className="text-slate-300 font-medium">☀️ {translateWeatherText(dayPeriod.name, language)}:</span> {dayPeriod.detailedForecast}
+                </p>
+              )}
+              {nightPeriod?.detailedForecast && (
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  <span className="text-slate-300 font-medium">🌙 {translateWeatherText(nightPeriod.name, language)}:</span> {nightPeriod.detailedForecast}
+                </p>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function NWSAlertCard({ alert }: { alert: any }) {
   const [showDetail, setShowDetail] = useState(false);
   const { t, language } = useLanguage();
@@ -457,78 +555,111 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
           </div>
         )}
 
-        {nwsPeriods.length > 0 && (
+        {(nwsPeriods.length > 0 || forecast.length > 0) && (
           <>
             <Separator className="bg-slate-700" />
             <div>
               <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Shield className="w-3 h-3" />
-                {t.nwsForecastPeriods}
+                {t.forecast}
               </h4>
               <div className="space-y-2">
-                {nwsPeriods.map((period: any, i: number) => (
-                  <NWSPeriodCard key={i} period={period} />
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {forecast.length > 0 && (
-          <>
-            <Separator className="bg-slate-700" />
-            <div>
-              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                {forecast.length}{t.dayForecast}
-              </h4>
-              <div className="space-y-0.5">
-                {forecast.map((day: any, i: number) => {
-                  const d = new Date(day.date + 'T12:00:00');
+                {(() => {
                   const localDays = DAY_NAMES[language] || DAY_NAMES.en;
-                  const dayName = i === 0 ? t.today : localDays[d.getDay()];
-                  return (
-                    <div key={i}>
-                      <div className="flex items-center gap-1.5 py-1.5 text-sm">
-                        <span className="text-slate-300 w-9 text-[11px] font-medium shrink-0">{dayName}</span>
-                        <span className="text-base shrink-0">{getConditionIcon(day.day.condition)}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1 flex-wrap">
-                            <span className="text-white font-semibold text-[11px]">
-                              {Math.round(day.day.maxtemp_f)}°
-                            </span>
-                            <span className="text-slate-500 text-[10px]">/</span>
-                            <span className="text-slate-400 text-[11px]">
-                              {Math.round(day.day.mintemp_f)}°F
-                            </span>
-                            <span className="text-slate-600 text-[9px]">
-                              ({Math.round(day.day.maxtemp_c)}°/{Math.round(day.day.mintemp_c)}°C)
-                            </span>
-                          </div>
-                        </div>
-                        {day.accuweather?.thunderstormProbability > 0 && (
-                          <div className="flex items-center gap-0.5 shrink-0" title={t.thunderstormProb}>
-                            <span className="text-[10px]">⛈</span>
-                            <span className="text-orange-400 text-[10px]">{day.accuweather.thunderstormProbability}%</span>
-                          </div>
-                        )}
-                        {day.day.daily_chance_of_rain > 0 && (
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            <Droplets className="w-3 h-3 text-blue-400" />
-                            <span className="text-blue-400 text-[10px]">{day.day.daily_chance_of_rain}%</span>
-                          </div>
-                        )}
-                        <span className="text-slate-500 text-[9px] shrink-0 hidden sm:block">
-                          {Math.round(day.day.maxwind_mph)}mph
-                        </span>
-                      </div>
-                      {day.accuweather?.shortPhrase && (
-                        <div className="ml-10 -mt-1 mb-0.5">
-                          <span className="text-slate-500 text-[9px] italic">{day.accuweather.shortPhrase}</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                  const todayNames = ['Today', 'This Afternoon', 'This Morning', 'This Evening', 'Now', 'Rest of Today'];
+
+                  const nwsDayPairs: Array<{ dayPeriod?: any; nightPeriod?: any; dayLabel: string; dateIndex: number }> = [];
+                  if (nwsPeriods.length > 0) {
+                    let currentPair: any = null;
+                    let dateIdx = 0;
+                    for (const period of nwsPeriods) {
+                      const isToday = todayNames.some(n => period.name?.includes(n));
+                      if (period.isDaytime || (isToday && !currentPair)) {
+                        if (currentPair) nwsDayPairs.push(currentPair);
+                        const label = isToday ? t.today : period.name?.replace(' Night', '').replace(' Evening', '') || '';
+                        currentPair = { dayPeriod: period, dayLabel: label, dateIndex: dateIdx };
+                        dateIdx++;
+                      } else if (period.name?.includes('Night') || period.name?.includes('Evening') || period.name === 'Tonight' || period.name === 'Overnight') {
+                        if (!currentPair) {
+                          const label = period.name === 'Tonight' ? t.today : period.name?.replace(' Night', '').replace(' Evening', '') || '';
+                          currentPair = { dayLabel: label, dateIndex: dateIdx };
+                          dateIdx++;
+                        }
+                        currentPair.nightPeriod = period;
+                      }
+                    }
+                    if (currentPair) nwsDayPairs.push(currentPair);
+                  }
+
+                  const combinedDays: any[] = [];
+                  const usedForecastIndices = new Set<number>();
+
+                  if (nwsDayPairs.length > 0) {
+                    nwsDayPairs.forEach((pair) => {
+                      let matchedForecast: any = null;
+                      const pairDayName = pair.dayLabel?.toLowerCase().trim();
+                      forecast.forEach((f: any, fi: number) => {
+                        if (usedForecastIndices.has(fi)) return;
+                        const d = new Date(f.date + 'T12:00:00');
+                        const fDayName = fi === 0 ? t.today.toLowerCase() : localDays[d.getDay()]?.toLowerCase();
+                        if (fDayName === pairDayName || (fi === 0 && pairDayName === t.today.toLowerCase())) {
+                          matchedForecast = f;
+                          usedForecastIndices.add(fi);
+                        }
+                      });
+                      if (!matchedForecast && pair.dateIndex < forecast.length) {
+                        const idx = pair.dateIndex;
+                        if (!usedForecastIndices.has(idx)) {
+                          matchedForecast = forecast[idx];
+                          usedForecastIndices.add(idx);
+                        }
+                      }
+                      combinedDays.push({ ...pair, forecast: matchedForecast });
+                    });
+                  }
+
+                  forecast.forEach((f: any, fi: number) => {
+                    if (usedForecastIndices.has(fi)) return;
+                    const d = new Date(f.date + 'T12:00:00');
+                    const dayName = fi === 0 ? t.today : localDays[d.getDay()];
+                    combinedDays.push({ dayLabel: dayName, dateIndex: fi, forecast: f });
+                  });
+
+                  return combinedDays.map((entry, i) => {
+                    const { dayPeriod, nightPeriod, forecast: fc, dayLabel } = entry;
+                    const icon = dayPeriod ? getConditionIcon(dayPeriod.shortForecast) : fc ? getConditionIcon(fc.day.condition) : '🌤️';
+                    const highF = dayPeriod?.temperature_f ?? (fc ? Math.round(fc.day.maxtemp_f) : null);
+                    const highC = dayPeriod?.temperature_c ?? (fc ? Math.round(fc.day.maxtemp_c) : null);
+                    const lowF = nightPeriod?.temperature_f ?? (fc ? Math.round(fc.day.mintemp_f) : null);
+                    const lowC = nightPeriod?.temperature_c ?? (fc ? Math.round(fc.day.mintemp_c) : null);
+                    const shortForecast = dayPeriod?.shortForecast || fc?.day?.condition || '';
+                    const windInfo = dayPeriod ? `${dayPeriod.windSpeed} ${dayPeriod.windDirection}` : fc ? `${Math.round(fc.day.maxwind_mph)} mph` : '';
+                    const precipChance = dayPeriod?.precipChance || fc?.day?.daily_chance_of_rain || 0;
+                    const thunderProb = fc?.accuweather?.thunderstormProbability || 0;
+                    const shortPhrase = fc?.accuweather?.shortPhrase;
+                    const hasAdvisory = dayPeriod?.hasAdvisory || nightPeriod?.hasAdvisory;
+                    const weatherTags = [...(dayPeriod?.weatherTags || []), ...(nightPeriod?.weatherTags || [])];
+                    const uniqueTags = Array.from(new Set(weatherTags));
+
+                    return (
+                      <CombinedForecastCard
+                        key={i}
+                        dayLabel={dayLabel}
+                        icon={icon}
+                        highF={highF} highC={highC} lowF={lowF} lowC={lowC}
+                        shortForecast={shortForecast}
+                        windInfo={windInfo}
+                        precipChance={precipChance}
+                        thunderProb={thunderProb}
+                        shortPhrase={shortPhrase}
+                        hasAdvisory={hasAdvisory}
+                        weatherTags={uniqueTags}
+                        dayPeriod={dayPeriod}
+                        nightPeriod={nightPeriod}
+                      />
+                    );
+                  });
+                })()}
               </div>
             </div>
           </>
