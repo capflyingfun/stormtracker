@@ -306,9 +306,8 @@ function CountdownTimer({ etaMinutes, alertData, lat, lon, t }: CountdownProps) 
 
   const hrs = Math.floor(remaining / 3600);
   const mins = Math.floor((remaining % 3600) / 60);
-  const timeStr = hrs > 0
-    ? `${hrs}h ${mins.toString().padStart(2, '0')}m`
-    : remaining < 60 ? '<1m' : `${mins}m`;
+  const secs = remaining % 60;
+  const timeStr = `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   const urgency = remaining < 300 ? 'text-red-300 animate-pulse' : remaining < 900 ? 'text-orange-300' : 'text-amber-300';
   return (
     <p className={`text-xs font-mono mt-0.5 ${urgency}`}>
@@ -813,7 +812,7 @@ export default function StormTracker() {
       
       const hasImpact = impactPct >= impactThreshold && impactPct > 0;
       
-      if (impactPct > 0 && impactPct >= impactThreshold) {
+      if (impactPct >= 5 && impactPct >= impactThreshold) {
         alerts.push({
           type: tier >= 3 ? 'danger' : 'warning',
           icon: tier >= 3 ? '🌩️' : '⚠️',
@@ -838,6 +837,7 @@ export default function StormTracker() {
       <Header 
         useMetric={useMetric}
         onUnitsChange={setUseMetric}
+        onOpenSettings={() => setShowStormFilteringSettings(true)}
       />
       
       {/* Storm Filtering Settings Modal */}
@@ -849,6 +849,8 @@ export default function StormTracker() {
           onSave={handleStormFilteringSettingsSave}
           impactThreshold={impactThreshold}
           onImpactThresholdChange={setImpactThreshold}
+          useMetric={useMetric}
+          onUnitsChange={setUseMetric}
         />
       )}
 
@@ -1323,14 +1325,6 @@ export default function StormTracker() {
                       >
                         🌩️ {t.threeDView}
                       </Button>
-                      <Button
-                        onClick={() => setShowStormFilteringSettings(true)}
-                        variant="outline"
-                        size="sm"
-                        className="w-full text-xs"
-                      >
-                        ⚙️ {t.settings}
-                      </Button>
                     </div>
                   </div>
                   
@@ -1609,14 +1603,6 @@ export default function StormTracker() {
                       disabled={!showStormTracks}
                     >
                       🕐 {showTimeLabels ? t.hideTimeLabels : t.showTimeLabels}
-                    </Button>
-                    <Button
-                      onClick={() => setShowStormFilteringSettings(true)}
-                      variant="outline"
-                      size="sm"
-                      className="text-xs shrink-0"
-                    >
-                      ⚙️ {t.settings}
                     </Button>
                   </div>
                   {filteredStorms.length > 0 && (

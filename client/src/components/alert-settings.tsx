@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Volume2, Bell, Mail, AlertTriangle, Filter } from 'lucide-react';
+import { X, Volume2, Bell, AlertTriangle, Filter, Settings } from 'lucide-react';
+import { useLanguage } from '@/hooks/use-language';
 
 interface AlertPreferences {
   minimumDbz: number;
@@ -23,17 +23,22 @@ interface AlertSettingsProps {
   onSave: (preferences: AlertPreferences) => void;
   impactThreshold: number;
   onImpactThresholdChange: (value: number) => void;
+  useMetric: boolean;
+  onUnitsChange: (useMetric: boolean) => void;
 }
 
-export default function AlertSettings({ isOpen, onClose, preferences, onSave, impactThreshold, onImpactThresholdChange }: AlertSettingsProps) {
+export default function AlertSettings({ isOpen, onClose, preferences, onSave, impactThreshold, onImpactThresholdChange, useMetric, onUnitsChange }: AlertSettingsProps) {
   const [localPreferences, setLocalPreferences] = useState<AlertPreferences>(preferences);
   const [localThreshold, setLocalThreshold] = useState(impactThreshold);
+  const [localMetric, setLocalMetric] = useState(useMetric);
+  const { t } = useLanguage();
 
   if (!isOpen) return null;
 
   const handleSave = () => {
     onSave(localPreferences);
     onImpactThresholdChange(localThreshold);
+    onUnitsChange(localMetric);
     localStorage.setItem('stormtracker_impact_threshold', localThreshold.toString());
     onClose();
   };
@@ -45,24 +50,22 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
     }));
   };
 
-  const getDbzDescription = (dbz: number, radarSource: string = 'nexrad') => {
-    const sourceNote = radarSource === 'rainviewer' ? ' (RainViewer)' : ' (NEXRAD)';
-    
-    if (dbz >= 61) return { category: 'Extreme Thunderstorms', color: 'text-purple-400', description: '250+ mm/h (10+ in/h), large hail likely' + sourceNote };
-    if (dbz >= 55) return { category: 'Very Heavy Rain/Hail', color: 'text-red-400', description: '100-205 mm/h (4-8 in/h), hail potential' + sourceNote };
-    if (dbz >= 46) return { category: 'Heavy Rain', color: 'text-orange-400', description: '28.8-48.6 mm/h (1.1-1.9 in/h)' + sourceNote };
-    if (dbz >= 35) return { category: 'Moderate Rain', color: 'text-yellow-400', description: '5.6-23.7 mm/h (0.22-0.93 in/h)' + sourceNote };
-    if (dbz >= 20) return { category: 'Light Rain', color: 'text-green-400', description: '0.6-2.7 mm/h (0.02-0.11 in/h)' + sourceNote };
+  const getDbzDescription = (dbz: number) => {
+    if (dbz >= 61) return { category: 'Extreme Thunderstorms', color: 'text-purple-400', description: '250+ mm/h (10+ in/h), large hail likely' };
+    if (dbz >= 55) return { category: 'Very Heavy Rain/Hail', color: 'text-red-400', description: '100-205 mm/h (4-8 in/h), hail potential' };
+    if (dbz >= 46) return { category: 'Heavy Rain', color: 'text-orange-400', description: '28.8-48.6 mm/h (1.1-1.9 in/h)' };
+    if (dbz >= 35) return { category: 'Moderate Rain', color: 'text-yellow-400', description: '5.6-23.7 mm/h (0.22-0.93 in/h)' };
+    if (dbz >= 20) return { category: 'Light Rain', color: 'text-green-400', description: '0.6-2.7 mm/h (0.02-0.11 in/h)' };
     return { category: 'No Precipitation', color: 'text-gray-400', description: 'Clear conditions' };
   };
 
   const getThresholdDescription = (pct: number) => {
-    if (pct === 0) return { label: 'Show all storms', color: 'text-green-400', desc: 'All storm clusters shown, including those with 0% impact chance.' };
+    if (pct === 0) return { label: 'Show all storms', color: 'text-green-400', desc: 'All storm clusters shown, including those with <5% impact chance.' };
     if (pct <= 20) return { label: 'Very low filter', color: 'text-green-400', desc: 'Only hides storms with very minimal impact chance.' };
     if (pct <= 40) return { label: 'Low filter', color: 'text-yellow-400', desc: 'Hides low-probability storms. Shows moderate threats and above.' };
     if (pct <= 60) return { label: 'Medium filter', color: 'text-orange-400', desc: 'Shows only storms with meaningful impact probability.' };
     if (pct <= 85) return { label: 'High filter', color: 'text-red-400', desc: 'Only shows storms with high probability of direct impact.' };
-    return { label: 'Maximum filter', color: 'text-red-400', desc: 'Only shows storms with 85%+ impact probability. Not recommended.' };
+    return { label: 'Maximum filter', color: 'text-red-400', desc: 'Only shows storms with 85%+ impact probability.' };
   };
 
   const dbzInfo = getDbzDescription(localPreferences.minimumDbz);
@@ -74,8 +77,8 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
         <CardHeader className="pb-3 px-4 pt-4 sm:px-6 sm:pt-6">
           <div className="flex items-center justify-between min-h-[2rem]">
             <CardTitle className="text-lg font-bold text-white flex items-center gap-2 pr-3">
-              <AlertTriangle className="h-5 w-5" />
-              Storm Filtering
+              <Settings className="h-5 w-5" />
+              {t.settings}
             </CardTitle>
             <Button
               variant="ghost"
@@ -88,13 +91,35 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
           </div>
         </CardHeader>
         
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-5">
+          <div>
+            <h3 className="text-sm font-semibold text-white mb-3">Units</h3>
+            <div className="flex gap-2">
+              <Button
+                variant={!localMetric ? "default" : "secondary"}
+                size="sm"
+                onClick={() => setLocalMetric(false)}
+                className="flex-1 text-xs"
+              >
+                Imperial (mph, mi, °F)
+              </Button>
+              <Button
+                variant={localMetric ? "default" : "secondary"}
+                size="sm"
+                onClick={() => setLocalMetric(true)}
+                className="flex-1 text-xs"
+              >
+                Metric (km/h, km, °C)
+              </Button>
+            </div>
+          </div>
+
           <div>
             <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
               <Filter className="h-4 w-4" />
               Impact Threshold
             </h3>
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm text-slate-300">Minimum impact % to show</Label>
@@ -114,8 +139,8 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
                 </div>
               </div>
               
-              <div className="bg-slate-700/50 p-3 rounded-lg border border-slate-600">
-                <div className="flex items-center justify-between mb-1">
+              <div className="bg-slate-700/50 p-2.5 rounded-lg border border-slate-600">
+                <div className="flex items-center justify-between mb-0.5">
                   <span className={`text-sm font-medium ${thresholdInfo.color}`}>
                     {thresholdInfo.label}
                   </span>
@@ -127,19 +152,18 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
                   {thresholdInfo.desc}
                 </p>
               </div>
-              
-              <p className="text-xs text-slate-400">
-                Storms with impact probability below this threshold will appear as "No impact expected" instead of showing impact details. Default is 0% (show all impacts). Max filter is 85%.
-              </p>
             </div>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Alert Threshold</h3>
-            <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Storm Intensity
+            </h3>
+            <div className="space-y-3">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm text-slate-300">Minimum Storm Intensity</Label>
+                  <Label className="text-sm text-slate-300">Minimum dBZ</Label>
                   <span className="text-sm text-white font-mono">{localPreferences.minimumDbz} dBZ</span>
                 </div>
                 <Slider
@@ -152,8 +176,8 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
                 />
               </div>
               
-              <div className="bg-slate-700/50 p-3 rounded-lg border border-slate-600">
-                <div className="flex items-center justify-between mb-1">
+              <div className="bg-slate-700/50 p-2.5 rounded-lg border border-slate-600">
+                <div className="flex items-center justify-between mb-0.5">
                   <span className={`text-sm font-medium ${dbzInfo.color}`}>
                     {dbzInfo.category}
                   </span>
@@ -165,52 +189,45 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
                   {dbzInfo.description}
                 </p>
               </div>
-              
-              <p className="text-xs text-slate-400">
-                Alerts will be triggered for storms at or above this intensity level. 
-                The system will find the closest qualifying storm within your alert radius.
-              </p>
             </div>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Alert Radius</h3>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm text-slate-300">Detection Range</Label>
-                <span className="text-sm text-white">{localPreferences.alertRadius} miles</span>
+            <h3 className="text-sm font-semibold text-white mb-3">Alert Radius & Frequency</h3>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm text-slate-300">Detection Range</Label>
+                  <span className="text-sm text-white">{localPreferences.alertRadius} miles</span>
+                </div>
+                <Slider
+                  value={[localPreferences.alertRadius]}
+                  onValueChange={(value) => updatePreference('alertRadius', value[0])}
+                  max={50}
+                  min={5}
+                  step={5}
+                  className="w-full"
+                />
               </div>
-              <Slider
-                value={[localPreferences.alertRadius]}
-                onValueChange={(value) => updatePreference('alertRadius', value[0])}
-                max={50}
-                min={5}
-                step={5}
-                className="w-full"
-              />
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Alert Frequency</h3>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm text-slate-300">Minimum interval</Label>
-                <span className="text-sm text-white">{localPreferences.alertFrequency} minutes</span>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm text-slate-300">Minimum interval</Label>
+                  <span className="text-sm text-white">{localPreferences.alertFrequency} min</span>
+                </div>
+                <Slider
+                  value={[localPreferences.alertFrequency]}
+                  onValueChange={(value) => updatePreference('alertFrequency', value[0])}
+                  max={60}
+                  min={5}
+                  step={5}
+                  className="w-full"
+                />
               </div>
-              <Slider
-                value={[localPreferences.alertFrequency]}
-                onValueChange={(value) => updatePreference('alertFrequency', value[0])}
-                max={60}
-                min={5}
-                step={5}
-                className="w-full"
-              />
             </div>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Notification Types</h3>
+            <h3 className="text-sm font-semibold text-white mb-3">Notifications</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label htmlFor="sound-alerts" className="text-sm text-slate-300 flex items-center gap-2">
@@ -238,7 +255,26 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
             </div>
           </div>
 
-          <div className="flex gap-2 pt-4 border-t border-slate-600">
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
+              <span className="text-slate-400">OpenWeather</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
+              <span className="text-slate-400">NWS</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
+              <span className="text-slate-400">RainViewer</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
+              <span className="text-slate-400">Map</span>
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-3 border-t border-slate-600">
             <Button
               variant="outline"
               onClick={onClose}

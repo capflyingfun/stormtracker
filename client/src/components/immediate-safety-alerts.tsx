@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, Navigation, Clock, ArrowUpDown } from "lucide-react";
 import { getStormCategory, getCompassDirection, calculateETA, calculateApproachAngle, isStormApproaching } from "@shared/storm-utils";
+import { useLanguage } from "@/hooks/use-language";
 
 function CountdownTimer({ etaMinutes, label }: { etaMinutes: number; label?: string }) {
   const [now, setNow] = useState(Date.now());
@@ -110,6 +111,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
   const [isAnimating, setIsAnimating] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const { language } = useLanguage();
 
   // Delay showing alerts for 3 seconds to allow storm calculations to complete
   useEffect(() => {
@@ -138,6 +140,30 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     staleTime: 2 * 60 * 1000, // 2 minutes
     refetchInterval: 5 * 60 * 1000 // Refresh every 5 minutes
   });
+
+  const { data: translatedAlerts } = useQuery({
+    queryKey: ['/api/translate-alerts', language, nwsAlerts],
+    enabled: language !== 'en' && nwsAlerts.length > 0,
+    queryFn: async () => {
+      const response = await fetch('/api/translate-alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alerts: nwsAlerts, language })
+      });
+      if (!response.ok) return nwsAlerts;
+      const data = await response.json();
+      return data.translatedAlerts || nwsAlerts;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const displayAlerts = (language !== 'en' && translatedAlerts) 
+    ? translatedAlerts.map((ta: any, i: number) => ({
+        ...nwsAlerts[i],
+        headline: ta.headline || nwsAlerts[i]?.headline,
+        description: ta.description || nwsAlerts[i]?.description,
+      }))
+    : nwsAlerts;
 
   // Format ETA minutes into a human-readable string
   const formatEta = (minutes: number): string => {
@@ -223,7 +249,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     'severe weather', 'special weather'
   ];
 
-  const filteredNwsAlerts = nwsAlerts.filter((alert: NWSAlert) => {
+  const filteredNwsAlerts = displayAlerts.filter((alert: NWSAlert) => {
     const type = (alert.type || '').toLowerCase();
     const severity = (alert.severity || '').toLowerCase();
     const urgency = (alert.urgency || '').toLowerCase();

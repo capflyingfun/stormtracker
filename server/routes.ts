@@ -1723,6 +1723,74 @@ Return ONLY a JSON array of 5 strings.`;
     }
   });
 
+  const translateRateLimit = new Map<string, number>();
+  app.post("/api/translate-alerts", async (req, res) => {
+    try {
+      const { alerts, language } = req.body;
+      
+      if (!alerts || !language || language === 'en' || !Array.isArray(alerts) || alerts.length === 0) {
+        return res.json({ translatedAlerts: alerts || [] });
+      }
+
+      if (alerts.length > 20) {
+        return res.status(400).json({ translatedAlerts: alerts.slice(0, 20) });
+      }
+
+      const clientIp = req.ip || 'unknown';
+      const now = Date.now();
+      const lastCall = translateRateLimit.get(clientIp) || 0;
+      if (now - lastCall < 30000) {
+        return res.json({ translatedAlerts: alerts });
+      }
+      translateRateLimit.set(clientIp, now);
+
+      const langNames: Record<string, string> = {
+        es: 'Spanish', fr: 'French', de: 'German', it: 'Italian', pt: 'Portuguese',
+        nl: 'Dutch', pl: 'Polish', ru: 'Russian', tr: 'Turkish', ar: 'Arabic',
+        hi: 'Hindi', id: 'Indonesian', ms: 'Malay', th: 'Thai', vi: 'Vietnamese',
+        ja: 'Japanese', ko: 'Korean', zh: 'Chinese', sw: 'Swahili'
+      };
+      
+      const targetLang = langNames[language] || 'English';
+      
+      const alertTexts = alerts.map((a: any, i: number) => 
+        `[${i}] TYPE: ${a.type}\nHEADLINE: ${a.headline}\nDESCRIPTION: ${a.description || ''}`
+      ).join('\n---\n');
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Translate weather alerts to ${targetLang}. Return JSON array with objects having "type", "headline", and "description" fields. Keep alert severity/urgency clear. Translate naturally, not word-for-word. Return ONLY the JSON array, no markdown.`
+          },
+          { role: "user", content: alertTexts }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000
+      });
+
+      const responseText = completion.choices[0]?.message?.content || '[]';
+      const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const translated = JSON.parse(cleaned);
+      
+      const merged = alerts.map((original: any, i: number) => ({
+        ...original,
+        type: translated[i]?.type || original.type,
+        headline: translated[i]?.headline || original.headline,
+        description: translated[i]?.description || original.description,
+      }));
+
+      res.json({ translatedAlerts: merged });
+    } catch (error) {
+      console.error("Translation error:", error);
+      res.json({ translatedAlerts: req.body.alerts || [] });
+    }
+  });
+
   // Legacy NWS alerts endpoint (for backward compatibility)
   app.post("/api/alerts", async (req, res) => {
     try {
