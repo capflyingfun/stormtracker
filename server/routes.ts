@@ -87,7 +87,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const API_KEYS = {
     openweather: process.env.OPENWEATHER_API_KEY || '',
     weatherapi: process.env.WEATHERAPI_KEY || '',
-    here: process.env.HERE_API_KEY || '',
     opencage: process.env.OPENCAGE_API_KEY || '',
   };
 
@@ -1290,53 +1289,6 @@ Return ONLY a JSON array of 5 strings.`;
           }).catch(() => {})
         );
 
-        if (API_KEYS.here) {
-          fetchPromisesGeo.push(
-            fetch(
-              `https://geocode.search.hereapi.com/v1/geocode?q=${encodeURIComponent(query)}&limit=5&apiKey=${API_KEYS.here}`,
-              { signal: AbortSignal.timeout(3000) }
-            ).then(r => r.ok ? r.json() : { items: [] }).then((hereData: any) => {
-              if (!hereData.items) return;
-              for (const item of hereData.items) {
-                const pos = item.position;
-                if (!pos) continue;
-                const coordId = `${pos.lat.toFixed(5)}_${pos.lng.toFixed(5)}`;
-                const isDuplicate = suggestions.some(s => {
-                  const existingId = `${parseFloat(s.lat).toFixed(5)}_${parseFloat(s.lon).toFixed(5)}`;
-                  return existingId === coordId;
-                });
-                if (isDuplicate) continue;
-                const addr = item.address || {};
-                const displayParts = [];
-                if (addr.houseNumber && addr.street) displayParts.push(`${addr.houseNumber} ${addr.street}`);
-                else if (addr.street) displayParts.push(addr.street);
-                else if (addr.label) displayParts.push(addr.label.split(',')[0]);
-                if (addr.city) displayParts.push(addr.city);
-                if (addr.state) displayParts.push(addr.state);
-                const cc = (addr.countryCode || '').toUpperCase();
-                if (cc && cc !== 'US') displayParts.push(cc);
-                if (displayParts.length === 0) continue;
-                const isInRegion = !regionCountries || regionCountries.includes(cc);
-                const hasStreetDetail = !!(addr.houseNumber && addr.street);
-                suggestions.push({
-                  id: coordId,
-                  display_name: displayParts.join(', '),
-                  lat: pos.lat,
-                  lon: pos.lng,
-                  type: hasStreetDetail ? 'address' : 'place',
-                  importance: isInRegion ? (hasStreetDetail ? 2.0 : 1.2) : 0.5,
-                  address: {
-                    city: addr.city || '',
-                    state: addr.state || '',
-                    country: cc
-                  },
-                  _inRegion: isInRegion
-                });
-              }
-            }).catch(() => {})
-          );
-        }
-
         if (API_KEYS.opencage) {
           fetchPromisesGeo.push(
             fetch(
@@ -1372,7 +1324,7 @@ Return ONLY a JSON array of 5 strings.`;
                   lat: geo.lat,
                   lon: geo.lng,
                   type: hasStreetDetail ? 'address' : 'place',
-                  importance: isInRegion ? (hasStreetDetail ? 1.95 : 1.15) : 0.45,
+                  importance: isInRegion ? (hasStreetDetail ? 2.0 : 1.2) : 0.45,
                   address: {
                     city,
                     state: comp.state || '',
