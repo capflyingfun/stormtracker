@@ -228,6 +228,13 @@ type TranslationKeys = {
   ofYou: string;
   betweenDbz: string;
   movingAt: string;
+  noImpact: string;
+  strongImpact: string;
+  moderateRain: string;
+  heavyRain: string;
+  intenseRain: string;
+  extremeHail: string;
+  stormCluster: string;
 };
 
 const translations: Record<Language, TranslationKeys> = {
@@ -436,6 +443,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'of you',
     betweenDbz: 'between',
     movingAt: 'moving',
+    noImpact: 'No impact expected',
+    strongImpact: 'Impact likely',
+    moderateRain: 'Moderate rain',
+    heavyRain: 'Heavy rain',
+    intenseRain: 'Very heavy rain',
+    extremeHail: 'Extreme/Hail',
+    stormCluster: 'Storm cluster',
   },
 
   es: {
@@ -643,6 +657,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'de usted',
     betweenDbz: 'entre',
     movingAt: 'moviéndose',
+    noImpact: 'Sin impacto esperado',
+    strongImpact: 'Impacto probable',
+    moderateRain: 'Lluvia moderada',
+    heavyRain: 'Lluvia fuerte',
+    intenseRain: 'Lluvia muy fuerte',
+    extremeHail: 'Extremo/Granizo',
+    stormCluster: 'Grupo de tormentas',
   },
 
   fr: {
@@ -850,6 +871,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'de vous',
     betweenDbz: 'entre',
     movingAt: 'se déplaçant',
+    noImpact: 'Aucun impact prévu',
+    strongImpact: 'Impact probable',
+    moderateRain: 'Pluie modérée',
+    heavyRain: 'Forte pluie',
+    intenseRain: 'Très forte pluie',
+    extremeHail: 'Extrême/Grêle',
+    stormCluster: 'Groupe de tempêtes',
   },
 
   de: {
@@ -1057,6 +1085,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'von Ihnen',
     betweenDbz: 'zwischen',
     movingAt: 'bewegt sich',
+    noImpact: 'Kein Einschlag erwartet',
+    strongImpact: 'Einschlag wahrscheinlich',
+    moderateRain: 'Mäßiger Regen',
+    heavyRain: 'Starker Regen',
+    intenseRain: 'Sehr starker Regen',
+    extremeHail: 'Extrem/Hagel',
+    stormCluster: 'Sturmgruppe',
   },
 
   pt: {
@@ -1264,6 +1299,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'de você',
     betweenDbz: 'entre',
     movingAt: 'movendo-se',
+    noImpact: 'Sem impacto esperado',
+    strongImpact: 'Impacto provável',
+    moderateRain: 'Chuva moderada',
+    heavyRain: 'Chuva forte',
+    intenseRain: 'Chuva muito forte',
+    extremeHail: 'Extremo/Granizo',
+    stormCluster: 'Grupo de tempestades',
   },
 
   ja: {
@@ -1471,6 +1513,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'あなたの',
     betweenDbz: '〜',
     movingAt: '移動中',
+    noImpact: '影響なし',
+    strongImpact: '影響の可能性あり',
+    moderateRain: '中程度の雨',
+    heavyRain: '大雨',
+    intenseRain: '非常に激しい雨',
+    extremeHail: '猛烈/雹',
+    stormCluster: '嵐群',
   },
 
   ko: {
@@ -1678,6 +1727,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: '방향',
     betweenDbz: '~',
     movingAt: '이동 중',
+    noImpact: '영향 없음',
+    strongImpact: '영향 가능성',
+    moderateRain: '보통 비',
+    heavyRain: '폭우',
+    intenseRain: '매우 강한 비',
+    extremeHail: '극심/우박',
+    stormCluster: '폭풍 클러스터',
   },
 
   zh: {
@@ -1885,6 +1941,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: '方向',
     betweenDbz: '~',
     movingAt: '移动中',
+    noImpact: '无影响预期',
+    strongImpact: '可能受影响',
+    moderateRain: '中雨',
+    heavyRain: '大雨',
+    intenseRain: '暴雨',
+    extremeHail: '极端/冰雹',
+    stormCluster: '风暴群',
   },
 
   ar: {
@@ -2092,6 +2155,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'منك',
     betweenDbz: 'بين',
     movingAt: 'تتحرك',
+    noImpact: 'لا تأثير متوقع',
+    strongImpact: 'تأثير محتمل',
+    moderateRain: 'أمطار معتدلة',
+    heavyRain: 'أمطار غزيرة',
+    intenseRain: 'أمطار شديدة جداً',
+    extremeHail: 'متطرف/برد',
+    stormCluster: 'مجموعة عواصف',
   },
 
   hi: {
@@ -2299,6 +2369,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'आपसे',
     betweenDbz: 'बीच',
     movingAt: 'चल रहा है',
+    noImpact: 'कोई प्रभाव अपेक्षित नहीं',
+    strongImpact: 'प्रभाव संभावित',
+    moderateRain: 'मध्यम बारिश',
+    heavyRain: 'भारी बारिश',
+    intenseRain: 'बहुत भारी बारिश',
+    extremeHail: 'चरम/ओले',
+    stormCluster: 'तूफान समूह',
   },
 
   id: {
@@ -2506,6 +2583,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'dari Anda',
     betweenDbz: 'antara',
     movingAt: 'bergerak',
+    noImpact: 'Tidak ada dampak yang diharapkan',
+    strongImpact: 'Dampak kemungkinan',
+    moderateRain: 'Hujan sedang',
+    heavyRain: 'Hujan lebat',
+    intenseRain: 'Hujan sangat lebat',
+    extremeHail: 'Ekstrem/Hujan es',
+    stormCluster: 'Kluster badai',
   },
 
   th: {
@@ -2713,6 +2797,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'จากคุณ',
     betweenDbz: 'ระหว่าง',
     movingAt: 'เคลื่อนที่',
+    noImpact: 'ไม่มีผลกระทบ',
+    strongImpact: 'อาจได้รับผลกระทบ',
+    moderateRain: 'ฝนปานกลาง',
+    heavyRain: 'ฝนตกหนัก',
+    intenseRain: 'ฝนตกหนักมาก',
+    extremeHail: 'รุนแรง/ลูกเห็บ',
+    stormCluster: 'กลุ่มพายุ',
   },
 
   vi: {
@@ -2920,6 +3011,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'từ bạn',
     betweenDbz: 'giữa',
     movingAt: 'di chuyển',
+    noImpact: 'Không ảnh hưởng',
+    strongImpact: 'Có thể ảnh hưởng',
+    moderateRain: 'Mưa vừa',
+    heavyRain: 'Mưa to',
+    intenseRain: 'Mưa rất to',
+    extremeHail: 'Cực đoan/Mưa đá',
+    stormCluster: 'Cụm bão',
   },
 
   tr: {
@@ -3127,6 +3225,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'sizden',
     betweenDbz: 'arasında',
     movingAt: 'hareket ediyor',
+    noImpact: 'Etki beklenmez',
+    strongImpact: 'Etki olası',
+    moderateRain: 'Orta yağmur',
+    heavyRain: 'Şiddetli yağmur',
+    intenseRain: 'Çok şiddetli yağmur',
+    extremeHail: 'Aşırı/Dolu',
+    stormCluster: 'Fırtına kümesi',
   },
 
   it: {
@@ -3334,6 +3439,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'da te',
     betweenDbz: 'tra',
     movingAt: 'in movimento',
+    noImpact: 'Nessun impatto previsto',
+    strongImpact: 'Impatto probabile',
+    moderateRain: 'Pioggia moderata',
+    heavyRain: 'Pioggia forte',
+    intenseRain: 'Pioggia molto forte',
+    extremeHail: 'Estremo/Grandine',
+    stormCluster: 'Gruppo di tempeste',
   },
 
   nl: {
@@ -3541,6 +3653,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'van u',
     betweenDbz: 'tussen',
     movingAt: 'beweegt',
+    noImpact: 'Geen impact verwacht',
+    strongImpact: 'Impact waarschijnlijk',
+    moderateRain: 'Matige regen',
+    heavyRain: 'Zware regen',
+    intenseRain: 'Zeer zware regen',
+    extremeHail: 'Extreem/Hagel',
+    stormCluster: 'Stormcluster',
   },
 
   ru: {
@@ -3748,6 +3867,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'от вас',
     betweenDbz: 'между',
     movingAt: 'движется',
+    noImpact: 'Воздействие не ожидается',
+    strongImpact: 'Вероятное воздействие',
+    moderateRain: 'Умеренный дождь',
+    heavyRain: 'Сильный дождь',
+    intenseRain: 'Очень сильный дождь',
+    extremeHail: 'Экстремально/Град',
+    stormCluster: 'Группа штормов',
   },
 
   pl: {
@@ -3955,6 +4081,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'od Ciebie',
     betweenDbz: 'między',
     movingAt: 'porusza się',
+    noImpact: 'Brak oczekiwanego wpływu',
+    strongImpact: 'Prawdopodobny wpływ',
+    moderateRain: 'Umiarkowany deszcz',
+    heavyRain: 'Silny deszcz',
+    intenseRain: 'Bardzo silny deszcz',
+    extremeHail: 'Ekstremalnie/Grad',
+    stormCluster: 'Klaster burzowy',
   },
 
   ms: {
@@ -4162,6 +4295,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'dari anda',
     betweenDbz: 'antara',
     movingAt: 'bergerak',
+    noImpact: 'Tiada kesan dijangka',
+    strongImpact: 'Kesan berkemungkinan',
+    moderateRain: 'Hujan sederhana',
+    heavyRain: 'Hujan lebat',
+    intenseRain: 'Hujan sangat lebat',
+    extremeHail: 'Melampau/Hujan batu',
+    stormCluster: 'Kluster ribut',
   },
 
   sw: {
@@ -4369,6 +4509,13 @@ const translations: Record<Language, TranslationKeys> = {
     ofYou: 'kutoka kwako',
     betweenDbz: 'kati ya',
     movingAt: 'inasogea',
+    noImpact: 'Hakuna athari inayotarajiwa',
+    strongImpact: 'Athari inawezekana',
+    moderateRain: 'Mvua ya wastani',
+    heavyRain: 'Mvua kubwa',
+    intenseRain: 'Mvua kubwa sana',
+    extremeHail: 'Kali sana/Mvua ya mawe',
+    stormCluster: 'Kundi la dhoruba',
   },
 };
 

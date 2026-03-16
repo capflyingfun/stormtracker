@@ -577,28 +577,11 @@ export default function StormTracker() {
     return `${mph.toFixed(0)} mph`;
   };
 
-  const clusterStorms = (storms: any[]): any[][] => {
-    if (storms.length === 0) return [];
-    const used = new Set<number>();
-    const clusters: any[][] = [];
-    const sorted = [...storms].sort((a, b) => a.distance - b.distance);
-    for (let i = 0; i < sorted.length; i++) {
-      if (used.has(i)) continue;
-      const cluster = [sorted[i]];
-      used.add(i);
-      for (let j = i + 1; j < sorted.length; j++) {
-        if (used.has(j)) continue;
-        const dirDiff = Math.abs(sorted[i].direction - sorted[j].direction);
-        const normalizedDirDiff = dirDiff > 180 ? 360 - dirDiff : dirDiff;
-        const distDiff = Math.abs(sorted[i].distance - sorted[j].distance);
-        if (normalizedDirDiff <= 45 && distDiff <= 15) {
-          cluster.push(sorted[j]);
-          used.add(j);
-        }
-      }
-      clusters.push(cluster);
-    }
-    return clusters;
+  const getDbzCategory = (dbz: number): { label: string; tier: number } => {
+    if (dbz >= 60) return { label: t.extremeHail, tier: 4 };
+    if (dbz >= 50) return { label: t.intenseRain, tier: 3 };
+    if (dbz >= 40) return { label: t.heavyRain, tier: 2 };
+    return { label: t.moderateRain, tier: 1 };
   };
 
   const criticalAlerts = useMemo(() => {
@@ -616,28 +599,35 @@ export default function StormTracker() {
       }
     }
     
-    const strongStorms = precipitationStorms.filter(s => s.intensity >= 45);
-    if (strongStorms.length === 0) return alerts;
+    const allStorms = precipitationStorms.filter(s => s.intensity >= 30);
+    if (allStorms.length === 0) return alerts;
     
-    const clusters = clusterStorms(strongStorms);
+    const tiers: { min: number; max: number; tier: number }[] = [
+      { min: 60, max: 999, tier: 4 },
+      { min: 50, max: 59, tier: 3 },
+      { min: 40, max: 49, tier: 2 },
+      { min: 30, max: 39, tier: 1 },
+    ];
     
-    for (const cluster of clusters) {
-      const closest = cluster.reduce((a, b) => a.distance < b.distance ? a : b);
-      const minDbz = Math.min(...cluster.map(s => s.intensity));
-      const maxDbz = Math.max(...cluster.map(s => s.intensity));
-      const avgDir = cluster.reduce((s, x) => s + x.direction, 0) / cluster.length;
-      const dirLabel = getCompassDirection(avgDir);
-      const avgDist = cluster.reduce((s, x) => s + x.distance, 0) / cluster.length;
+    for (const { min: minDbz, max: maxDbzCap, tier } of tiers) {
+      const tierStorms = allStorms.filter(s => s.intensity >= minDbz && s.intensity <= maxDbzCap);
+      if (tierStorms.length === 0) continue;
       
-      const movingStorms = cluster.filter(s => s.windsPrediction?.speed > 0);
-      let movementText = '';
+      const closest = tierStorms.reduce((a, b) => a.distance < b.distance ? a : b);
+      const maxDbz = Math.max(...tierStorms.map(s => s.intensity));
+      const avgDir = tierStorms.reduce((s, x) => s + x.direction, 0) / tierStorms.length;
+      const dirLabel = getCompassDirection(avgDir);
+      const avgDist = tierStorms.reduce((s, x) => s + x.distance, 0) / tierStorms.length;
+      const categoryLabel = getDbzCategory(maxDbz).label;
+      
+      const movingStorms = tierStorms.filter(s => s.windsPrediction?.speed > 0);
+      let moveText = '';
       let impactPct = 0;
       
       if (movingStorms.length > 0) {
         const avgMoveDir = movingStorms.reduce((s, x) => s + x.windsPrediction.direction, 0) / movingStorms.length;
         const avgMoveSpeed = movingStorms.reduce((s, x) => s + x.windsPrediction.speed, 0) / movingStorms.length;
-        const moveDirLabel = getCompassDirection(avgMoveDir);
-        movementText = ` ${t.movingAt} ${moveDirLabel} (${Math.round(avgMoveDir)}°) @ ${formatSpeed(avgMoveSpeed)}.`;
+        moveText = `, ${t.movingAt} ${getCompassDirection(avgMoveDir)} (${Math.round(avgMoveDir)}°) @ ${formatSpeed(avgMoveSpeed)}`;
         
         const approachCount = movingStorms.filter(s => {
           const angle = calculateApproachAngle(s.direction, s.windsPrediction.direction);
@@ -645,32 +635,28 @@ export default function StormTracker() {
         }).length;
         
         if (approachCount > 0) {
-          const approachRatio = approachCount / cluster.length;
-          const distFactor = avgDist <= 10 ? 1.3 : avgDist <= 20 ? 1.0 : avgDist <= 30 ? 0.7 : 0.4;
-          const intensityFactor = maxDbz >= 60 ? 1.2 : maxDbz >= 55 ? 1.0 : 0.8;
+          const approachRatio = approachCount / tierStorms.length;
+          const distFactor = avgDist <= 10 ? 1.4 : avgDist <= 20 ? 1.0 : avgDist <= 30 ? 0.7 : 0.3;
+          const intensityFactor = tier >= 4 ? 1.3 : tier >= 3 ? 1.1 : tier >= 2 ? 0.9 : 0.7;
           impactPct = Math.min(95, Math.round(approachRatio * distFactor * intensityFactor * 80));
         }
       }
       
-      const isDanger = maxDbz >= 50;
-      const dbzRange = minDbz === maxDbz ? `${maxDbz}` : `${minDbz}–${maxDbz}`;
+      const hasImpact = impactPct > 0;
       
-      let text = '';
-      if (cluster.length >= 3) {
-        text = `${t.stormClusterDetected}: ${cluster.length} ${t.severeRadarPoints} ${t.betweenDbz} ${dbzRange} dBZ, ${formatDistance(avgDist)} ${dirLabel} ${t.ofYou}.${movementText}`;
+      if (hasImpact) {
+        alerts.push({
+          type: tier >= 3 ? 'danger' : 'warning',
+          icon: tier >= 3 ? '🌩️' : '⚠️',
+          text: `⚠️ ${categoryLabel} ${t.stormCluster} (${maxDbz} dBZ) — ${formatDistance(closest.distance)} ${dirLabel} ${t.ofYou}${moveText}. ${t.strongImpact}: ${impactPct}% ${t.chanceDirectImpact}.`
+        });
       } else {
-        text = `${cluster.length} ${t.severeRadarPoints} ${formatDistance(closest.distance)} ${dirLabel} ${t.ofYou} (${dbzRange} dBZ).${movementText}`;
+        alerts.push({
+          type: 'info',
+          icon: tier >= 3 ? '🌧️' : '✔️',
+          text: `✔️ ${categoryLabel} ${t.stormCluster} ${formatDistance(avgDist)} ${dirLabel} ${t.ofYou}${moveText}. ${t.noImpact}.`
+        });
       }
-      
-      if (impactPct > 0) {
-        text += ` ${impactPct}% ${t.chanceDirectImpact}.`;
-      }
-      
-      alerts.push({
-        type: isDanger ? 'danger' : 'warning',
-        icon: isDanger ? '🌩️' : '⚠️',
-        text
-      });
     }
     
     return alerts;
@@ -834,28 +820,32 @@ export default function StormTracker() {
 
             {/* === MOBILE: Critical Alert Banner === */}
             {criticalAlerts.length > 0 && (
-              <div className="lg:hidden mb-3 space-y-2">
+              <div className="lg:hidden mb-3 space-y-1.5">
                 {criticalAlerts.map((alert, i) => (
                   <div
                     key={i}
-                    className={`rounded-xl p-3 border flex items-center gap-2 ${
+                    className={`rounded-xl border flex items-start gap-2 ${
                       alert.type === 'danger'
-                        ? 'bg-red-900/40 border-red-500/60 animate-pulse'
+                        ? 'p-3 bg-red-900/40 border-red-500/60 animate-pulse'
                         : alert.type === 'warning'
-                          ? 'bg-amber-900/40 border-amber-500/60'
-                          : 'bg-blue-900/30 border-blue-500/50'
+                          ? 'p-3 bg-amber-900/40 border-amber-500/60'
+                          : 'p-2 bg-slate-800/40 border-slate-600/40'
                     }`}
                     onClick={() => setMobileTab('alerts')}
                     style={{ cursor: 'pointer' }}
                   >
-                    <span className="text-lg shrink-0">{alert.icon}</span>
+                    <span className={`shrink-0 ${alert.type === 'info' ? 'text-sm' : 'text-lg'}`}>{alert.icon}</span>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${
-                        alert.type === 'danger' ? 'text-red-200' : alert.type === 'warning' ? 'text-amber-200' : 'text-blue-200'
+                      <p className={`font-medium ${
+                        alert.type === 'danger' ? 'text-sm text-red-200' 
+                          : alert.type === 'warning' ? 'text-sm text-amber-200' 
+                          : 'text-xs text-slate-300'
                       }`}>
                         {alert.text}
                       </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{t.viewAllAlerts} →</p>
+                      {alert.type !== 'info' && (
+                        <p className="text-[10px] text-slate-400 mt-0.5">{t.viewAllAlerts} →</p>
+                      )}
                     </div>
                   </div>
                 ))}
