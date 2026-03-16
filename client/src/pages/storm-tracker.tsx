@@ -577,10 +577,19 @@ export default function StormTracker() {
     return `${mph.toFixed(0)} mph`;
   };
 
-  const [expandedAlertIndex, setExpandedAlertIndex] = useState<number | null>(null);
+  const summarizeDirections = (dirs: string[]): string => {
+    if (dirs.length <= 2) return dirs.join(' & ');
+    const order = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    const indices = dirs.map(d => order.indexOf(d)).filter(i => i >= 0).sort((a, b) => a - b);
+    if (indices.length === 0) return dirs[0];
+    const first = order[indices[0]];
+    const last = order[indices[indices.length - 1]];
+    if (first === last) return first;
+    return `${first}–${last}`;
+  };
 
   const criticalAlerts = useMemo(() => {
-    const alerts: { type: 'danger' | 'warning' | 'info'; icon: string; text: string; detail?: string }[] = [];
+    const alerts: { type: 'danger' | 'warning' | 'info'; icon: string; text: string }[] = [];
     
     if (minuteCastData?.Summary?.Phrase) {
       const phrase = minuteCastData.Summary.Phrase;
@@ -589,8 +598,7 @@ export default function StormTracker() {
         alerts.push({ 
           type: phrase.toLowerCase().includes('thunder') ? 'danger' : 'warning',
           icon: phrase.toLowerCase().includes('thunder') ? '⛈️' : '🌧️',
-          text: `MinuteCast™: ${phrase}`,
-          detail: `AccuWeather MinuteCast™ precipitation forecast: ${phrase}. This is a minute-by-minute forecast for the next 2 hours at your exact location. ${phrase.toLowerCase().includes('thunder') ? 'Thunderstorms can produce dangerous lightning, strong winds, and hail. Seek shelter immediately.' : 'Prepare for changing conditions and have rain gear ready.'}`
+          text: `MinuteCast™: ${phrase}`
         });
       }
     }
@@ -605,30 +613,30 @@ export default function StormTracker() {
       const sorted = [...severeStorms].sort((a, b) => a.distance - b.distance);
       const closest = sorted[0];
       const maxDbz = Math.max(...sorted.map(s => s.intensity));
-      const avgDist = sorted.reduce((s, x) => s + x.distance, 0) / sorted.length;
       const directions = [...new Set(sorted.map(s => getCompassDirection(s.direction)))];
+      const dirSummary = summarizeDirections(directions);
+      const riskNote = maxDbz >= 60 ? t.possibleHailTornado : maxDbz >= 55 ? t.heavyDownpours : t.significantPrecip;
       alerts.push({
         type: 'danger',
         icon: '🌩️',
-        text: `${severeStorms.length} severe radar storm point${severeStorms.length > 1 ? 's' : ''} detected — closest ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)} (${closest.intensity}dBZ)`,
-        detail: `${severeStorms.length} radar returns at 50+ dBZ (heavy rain/hail). Strongest: ${maxDbz} dBZ. Nearest: ${formatDistance(closest.distance)} to your ${getCompassDirection(closest.direction)}. Average distance: ${formatDistance(avgDist)}. Directions: ${directions.join(', ')}. ${maxDbz >= 60 ? 'Possible hail or tornado risk.' : maxDbz >= 55 ? 'Heavy downpours and gusty winds likely.' : 'Significant precipitation detected.'}`
+        text: `${severeStorms.length} ${t.severeRadarPoints} — ${t.nearest}: ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)} (${maxDbz}dBZ). ${t.mainlyToYour} ${dirSummary}. ${riskNote}`
       });
     }
     
     if (approachingStorms.length > 0 && severeStorms.length === 0) {
       const sorted = [...approachingStorms].sort((a, b) => a.distance - b.distance);
       const closest = sorted[0];
-      const etaList = sorted.filter(s => s.impactAssessment?.eta).map(s => s.impactAssessment!.eta);
+      const directions = [...new Set(sorted.map(s => getCompassDirection(s.direction)))];
+      const dirSummary = summarizeDirections(directions);
       alerts.push({
         type: 'warning',
         icon: '⚠️',
-        text: `${approachingStorms.length} radar storm point${approachingStorms.length > 1 ? 's' : ''} approaching — closest ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)}, ETA: ${closest.impactAssessment?.eta || 'calculating'}`,
-        detail: `${approachingStorms.length} radar return${approachingStorms.length > 1 ? 's' : ''} at 45+ dBZ moving toward you. Closest point: ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)} at ${closest.intensity} dBZ.${etaList.length > 0 ? ` ETAs: ${etaList.join(', ')}.` : ''} Monitor movement and seek shelter if intensifying.`
+        text: `${approachingStorms.length} ${t.radarPointsApproaching} — ${t.nearest}: ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)}, ETA: ${closest.impactAssessment?.eta || '...'}. ${t.mainlyToYour} ${dirSummary}.`
       });
     }
     
     return alerts;
-  }, [minuteCastData, precipitationStorms, formatDistance]);
+  }, [minuteCastData, precipitationStorms, formatDistance, t]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
@@ -792,64 +800,25 @@ export default function StormTracker() {
                 {criticalAlerts.map((alert, i) => (
                   <div
                     key={i}
-                    className={`rounded-xl p-3 border transition-all duration-200 ${
+                    className={`rounded-xl p-3 border flex items-center gap-2 ${
                       alert.type === 'danger'
                         ? 'bg-red-900/40 border-red-500/60 animate-pulse'
                         : alert.type === 'warning'
                           ? 'bg-amber-900/40 border-amber-500/60'
                           : 'bg-blue-900/30 border-blue-500/50'
                     }`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (alert.detail) {
-                        setExpandedAlertIndex(expandedAlertIndex === i ? null : i);
-                      } else {
-                        setMobileTab('alerts');
-                      }
-                    }}
+                    onClick={() => setMobileTab('alerts')}
                     style={{ cursor: 'pointer' }}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg shrink-0">{alert.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium ${
-                          alert.type === 'danger' ? 'text-red-200' : alert.type === 'warning' ? 'text-amber-200' : 'text-blue-200'
-                        }`}>
-                          {alert.text}
-                        </p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          {alert.detail ? (expandedAlertIndex === i ? 'Tap to collapse' : 'Tap for details') : `${t.alerts} →`}
-                        </p>
-                      </div>
-                      {alert.detail && (
-                        <span className={`text-xs transition-transform duration-200 ${expandedAlertIndex === i ? 'rotate-180' : ''} ${
-                          alert.type === 'danger' ? 'text-red-400' : alert.type === 'warning' ? 'text-amber-400' : 'text-blue-400'
-                        }`}>▼</span>
-                      )}
-                    </div>
-                    {expandedAlertIndex === i && alert.detail && (
-                      <div className={`mt-2 pt-2 border-t text-xs leading-relaxed ${
-                        alert.type === 'danger' 
-                          ? 'border-red-700/50 text-red-100/80' 
-                          : alert.type === 'warning' 
-                            ? 'border-amber-700/50 text-amber-100/80' 
-                            : 'border-blue-700/50 text-blue-100/80'
+                    <span className="text-lg shrink-0">{alert.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${
+                        alert.type === 'danger' ? 'text-red-200' : alert.type === 'warning' ? 'text-amber-200' : 'text-blue-200'
                       }`}>
-                        {alert.detail}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setMobileTab('alerts'); }}
-                          className={`mt-2 w-full py-1.5 rounded-lg text-xs font-medium ${
-                            alert.type === 'danger' 
-                              ? 'bg-red-600/40 text-red-100 hover:bg-red-600/60' 
-                              : alert.type === 'warning' 
-                                ? 'bg-amber-600/40 text-amber-100 hover:bg-amber-600/60' 
-                                : 'bg-blue-600/40 text-blue-100 hover:bg-blue-600/60'
-                          }`}
-                        >
-                          View All Alerts →
-                        </button>
-                      </div>
-                    )}
+                        {alert.text}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{t.viewAllAlerts} →</p>
+                    </div>
                   </div>
                 ))}
               </div>
