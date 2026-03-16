@@ -255,52 +255,6 @@ export default function StormTracker() {
     },
   });
 
-  const criticalAlerts = useMemo(() => {
-    const alerts: { type: 'danger' | 'warning' | 'info'; icon: string; text: string }[] = [];
-    
-    if (minuteCastData?.Summary?.Phrase) {
-      const phrase = minuteCastData.Summary.Phrase;
-      const typeId = minuteCastData.Summary.TypeId;
-      if (typeId !== 0) {
-        alerts.push({ 
-          type: phrase.toLowerCase().includes('thunder') ? 'danger' : 'warning',
-          icon: phrase.toLowerCase().includes('thunder') ? '⛈️' : '🌧️',
-          text: `MinuteCast™: ${phrase}`
-        });
-      }
-    }
-    
-    const severeStorms = precipitationStorms.filter(s => s.intensity >= 50);
-    const approachingStorms = precipitationStorms.filter(s => 
-      s.intensity >= 45 && s.impactAssessment?.eta && 
-      !s.impactAssessment.eta.includes('Not') && !s.impactAssessment.eta.includes('N/A')
-    );
-    
-    if (severeStorms.length > 0) {
-      const closest = [...severeStorms].sort((a, b) => a.distance - b.distance)[0];
-      alerts.push({
-        type: 'danger',
-        icon: '🌩️',
-        text: `${severeStorms.length} severe storm${severeStorms.length > 1 ? 's' : ''} detected — closest ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)} (${closest.intensity}dBZ)`
-      });
-    }
-    
-    if (approachingStorms.length > 0 && severeStorms.length === 0) {
-      const closest = [...approachingStorms].sort((a, b) => a.distance - b.distance)[0];
-      alerts.push({
-        type: 'warning',
-        icon: '⚠️',
-        text: `Storm approaching — ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)}, ETA: ${closest.impactAssessment?.eta || 'calculating'}`
-      });
-    }
-    
-    return alerts;
-  }, [minuteCastData, precipitationStorms, formatDistance]);
-
-  useEffect(() => {
-    setCriticalAlertDismissed(false);
-  }, [criticalAlerts.length]);
-
   const [tickerMessages, setTickerMessages] = useState<string[]>([]);
   const lastTickerSig = useRef('');
 
@@ -623,6 +577,52 @@ export default function StormTracker() {
     }
     return `${mph.toFixed(0)} mph`;
   };
+
+  const criticalAlerts = useMemo(() => {
+    const alerts: { type: 'danger' | 'warning' | 'info'; icon: string; text: string }[] = [];
+    
+    if (minuteCastData?.Summary?.Phrase) {
+      const phrase = minuteCastData.Summary.Phrase;
+      const typeId = minuteCastData.Summary.TypeId;
+      if (typeId !== 0) {
+        alerts.push({ 
+          type: phrase.toLowerCase().includes('thunder') ? 'danger' : 'warning',
+          icon: phrase.toLowerCase().includes('thunder') ? '⛈️' : '🌧️',
+          text: `MinuteCast™: ${phrase}`
+        });
+      }
+    }
+    
+    const severeStorms = precipitationStorms.filter(s => s.intensity >= 50);
+    const approachingStorms = precipitationStorms.filter(s => 
+      s.intensity >= 45 && s.impactAssessment?.eta && 
+      !s.impactAssessment.eta.includes('Not') && !s.impactAssessment.eta.includes('N/A')
+    );
+    
+    if (severeStorms.length > 0) {
+      const closest = [...severeStorms].sort((a, b) => a.distance - b.distance)[0];
+      alerts.push({
+        type: 'danger',
+        icon: '🌩️',
+        text: `${severeStorms.length} severe storm${severeStorms.length > 1 ? 's' : ''} detected — closest ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)} (${closest.intensity}dBZ)`
+      });
+    }
+    
+    if (approachingStorms.length > 0 && severeStorms.length === 0) {
+      const closest = [...approachingStorms].sort((a, b) => a.distance - b.distance)[0];
+      alerts.push({
+        type: 'warning',
+        icon: '⚠️',
+        text: `Storm approaching — ${formatDistance(closest.distance)} ${getCompassDirection(closest.direction)}, ETA: ${closest.impactAssessment?.eta || 'calculating'}`
+      });
+    }
+    
+    return alerts;
+  }, [minuteCastData, precipitationStorms, formatDistance]);
+
+  useEffect(() => {
+    setCriticalAlertDismissed(false);
+  }, [criticalAlerts.length]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
