@@ -382,7 +382,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         radarLayerRef.current = window.L.tileLayer(tileUrlTemplate, {
           opacity: 0.6,
           zIndex: 200,
-          attribution: 'RainViewer'
+          attribution: 'RainViewer',
+          maxNativeZoom: 7,
+          maxZoom: 18,
+          errorTileUrl: ''
         });
       } else {
         const timestampStr = String(timestamp);
@@ -1664,7 +1667,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           opacity: 0.6,
           transparent: true,
           zIndex: 1000,
-          maxZoom: 12
+          maxNativeZoom: 7,
+          maxZoom: 18,
+          errorTileUrl: ''
         });
       } else {
         // NEXRAD radar overlay
