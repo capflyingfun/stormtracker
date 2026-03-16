@@ -15,7 +15,7 @@ export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
   const currentLang = LANGUAGES.find(l => l.code === language);
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 p-4 select-none">
+    <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 p-4 select-none relative z-[55]">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 text-yellow-400 select-none">⚡</div>
@@ -37,7 +37,7 @@ export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
               {currentLang?.flag} {currentLang?.nativeName}
             </Button>
             {showLangMenu && (
-              <div className="absolute right-0 top-full mt-1 z-50 bg-slate-800 border border-slate-600 rounded-lg shadow-xl py-1 min-w-[180px] max-h-[320px] overflow-y-auto">
+              <div className="absolute right-0 top-full mt-1 z-[60] bg-slate-800 border border-slate-600 rounded-lg shadow-xl py-1 min-w-[180px] max-h-[320px] overflow-y-auto">
                 {LANGUAGES.map(lang => (
                   <button
                     key={lang.code}
