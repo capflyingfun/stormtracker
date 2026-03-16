@@ -129,6 +129,22 @@ export const alertSubscriptions = pgTable("alert_subscriptions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Storm feedback for self-correcting predictions
+export const stormFeedback = pgTable("storm_feedback", {
+  id: serial("id").primaryKey(),
+  lat: real("lat").notNull(),
+  lon: real("lon").notNull(),
+  predictedDbz: integer("predicted_dbz").notNull(),
+  predictedImpactPct: integer("predicted_impact_pct").notNull(),
+  predictedEtaMinutes: integer("predicted_eta_minutes"),
+  stormDirection: text("storm_direction"),
+  stormSpeed: real("storm_speed"),
+  feedback: text("feedback").notNull(), // 'yes', 'no', 'unsure'
+  recheckedStillActive: boolean("rechecked_still_active"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Built-in message inbox system for email/text alerts
 export const messageInbox = pgTable("message_inbox", {
   id: serial("id").primaryKey(),

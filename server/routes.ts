@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
-import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema, riskAssessmentSchema, userAlertPreferences, riskAlerts, insertRiskAlertSchema, insertUserAlertPreferencesSchema, updateUserAlertPreferencesSchema, insertAlertSubscriptionSchema } from "@shared/schema";
+import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema, riskAssessmentSchema, userAlertPreferences, riskAlerts, insertRiskAlertSchema, insertUserAlertPreferencesSchema, updateUserAlertPreferencesSchema, insertAlertSubscriptionSchema, stormFeedback } from "@shared/schema";
 import { storage } from "./storage";
+import { db } from "./db";
 import { sendStormAlert, sendTestAlert, sendSMSAlert, sendTestSMS } from "./email";
 import { generateWeatherAssessment } from "./ai-assistant";
 
@@ -1763,6 +1764,68 @@ Return ONLY a JSON array of 5 strings.`;
     } catch (error) {
       console.error("Storm detection error:", error);
       res.status(500).json({ message: "Failed to detect storms" });
+    }
+  });
+
+  app.post("/api/storm-feedback", async (req, res) => {
+    try {
+      const schema = z.object({
+        lat: z.number().min(-90).max(90),
+        lon: z.number().min(-180).max(180),
+        predictedDbz: z.number(),
+        predictedImpactPct: z.number(),
+        predictedEtaMinutes: z.number().optional(),
+        stormDirection: z.string().optional(),
+        stormSpeed: z.number().optional(),
+        feedback: z.enum(['yes', 'no', 'unsure']),
+        recheckedStillActive: z.boolean().optional(),
+        notes: z.string().optional(),
+      });
+      const data = schema.parse(req.body);
+      
+      await db.insert(stormFeedback).values({
+        lat: data.lat,
+        lon: data.lon,
+        predictedDbz: Math.round(data.predictedDbz),
+        predictedImpactPct: Math.round(data.predictedImpactPct),
+        predictedEtaMinutes: data.predictedEtaMinutes != null ? Math.round(data.predictedEtaMinutes) : undefined,
+        stormDirection: data.stormDirection,
+        stormSpeed: data.stormSpeed,
+        feedback: data.feedback,
+        recheckedStillActive: data.recheckedStillActive,
+        notes: data.notes,
+      });
+      
+      const allFeedback = await db.select().from(stormFeedback).orderBy(stormFeedback.createdAt);
+      const total = allFeedback.length;
+      const correct = allFeedback.filter(f => f.feedback === 'yes').length;
+      const incorrect = allFeedback.filter(f => f.feedback === 'no').length;
+      const accuracy = total > 0 ? Math.round((correct / (correct + incorrect || 1)) * 100) : 0;
+      
+      res.json({ 
+        success: true, 
+        stats: { total, correct, incorrect, accuracy },
+        adjustmentFactor: incorrect > 3 && accuracy < 50 ? 0.85 : incorrect > 5 && accuracy < 70 ? 0.9 : 1.0
+      });
+    } catch (error) {
+      console.error("Storm feedback error:", error);
+      res.status(500).json({ message: "Failed to save feedback" });
+    }
+  });
+
+  app.get("/api/storm-feedback/stats", async (_req, res) => {
+    try {
+      const allFeedback = await db.select().from(stormFeedback).orderBy(stormFeedback.createdAt);
+      const total = allFeedback.length;
+      const correct = allFeedback.filter(f => f.feedback === 'yes').length;
+      const incorrect = allFeedback.filter(f => f.feedback === 'no').length;
+      const unsure = allFeedback.filter(f => f.feedback === 'unsure').length;
+      const accuracy = total > 0 ? Math.round((correct / (correct + incorrect || 1)) * 100) : 0;
+      
+      res.json({ total, correct, incorrect, unsure, accuracy });
+    } catch (error) {
+      console.error("Storm feedback stats error:", error);
+      res.status(500).json({ message: "Failed to get feedback stats" });
     }
   });
 

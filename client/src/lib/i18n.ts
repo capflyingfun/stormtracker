@@ -235,6 +235,17 @@ type TranslationKeys = {
   intenseRain: string;
   extremeHail: string;
   stormCluster: string;
+  stormArrived: string;
+  didStormHit: string;
+  yesStormHit: string;
+  noStormMissed: string;
+  unsureUnable: string;
+  recheckingStorm: string;
+  stormStillApproaching: string;
+  stormMovedAway: string;
+  thanksFeedback: string;
+  predictionAccurate: string;
+  predictionAdjusted: string;
 };
 
 const translations: Record<Language, TranslationKeys> = {
@@ -450,6 +461,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Very heavy rain',
     extremeHail: 'Extreme/Hail',
     stormCluster: 'Storm cluster',
+    stormArrived: 'Storm ETA reached!',
+    didStormHit: 'Did this storm affect your area?',
+    yesStormHit: 'Yes, it hit',
+    noStormMissed: 'No, it missed',
+    unsureUnable: 'Unsure / Unable to check',
+    recheckingStorm: 'Rechecking storm data...',
+    stormStillApproaching: 'Storm still approaching — updated ETA',
+    stormMovedAway: 'Storm has moved away or dissipated',
+    thanksFeedback: 'Thanks for the feedback!',
+    predictionAccurate: 'Prediction confirmed accurate',
+    predictionAdjusted: 'Noted — prediction model will adjust',
   },
 
   es: {
@@ -664,6 +686,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Lluvia muy fuerte',
     extremeHail: 'Extremo/Granizo',
     stormCluster: 'Grupo de tormentas',
+    stormArrived: '¡ETA de tormenta alcanzado!',
+    didStormHit: '¿Esta tormenta afectó tu zona?',
+    yesStormHit: 'Sí, impactó',
+    noStormMissed: 'No, falló',
+    unsureUnable: 'No sé / No puedo verificar',
+    recheckingStorm: 'Revisando datos de tormenta...',
+    stormStillApproaching: 'Tormenta aún acercándose — ETA actualizado',
+    stormMovedAway: 'La tormenta se alejó o disipó',
+    thanksFeedback: '¡Gracias por los comentarios!',
+    predictionAccurate: 'Predicción confirmada como precisa',
+    predictionAdjusted: 'Anotado — el modelo se ajustará',
   },
 
   fr: {
@@ -878,6 +911,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Très forte pluie',
     extremeHail: 'Extrême/Grêle',
     stormCluster: 'Groupe de tempêtes',
+    stormArrived: 'ETA de tempête atteint !',
+    didStormHit: 'Cette tempête a-t-elle touché votre zone ?',
+    yesStormHit: 'Oui, elle a frappé',
+    noStormMissed: 'Non, elle a manqué',
+    unsureUnable: 'Incertain / Impossible de vérifier',
+    recheckingStorm: 'Revérification des données...',
+    stormStillApproaching: 'Tempête encore en approche — ETA mis à jour',
+    stormMovedAway: 'La tempête s\'est éloignée ou dissipée',
+    thanksFeedback: 'Merci pour le retour !',
+    predictionAccurate: 'Prédiction confirmée précise',
+    predictionAdjusted: 'Noté — le modèle sera ajusté',
   },
 
   de: {
@@ -1092,6 +1136,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Sehr starker Regen',
     extremeHail: 'Extrem/Hagel',
     stormCluster: 'Sturmgruppe',
+    stormArrived: 'Sturm-ETA erreicht!',
+    didStormHit: 'Hat dieser Sturm Ihr Gebiet betroffen?',
+    yesStormHit: 'Ja, er hat getroffen',
+    noStormMissed: 'Nein, er hat verfehlt',
+    unsureUnable: 'Unsicher / Kann nicht prüfen',
+    recheckingStorm: 'Sturmdaten werden überprüft...',
+    stormStillApproaching: 'Sturm nähert sich noch — ETA aktualisiert',
+    stormMovedAway: 'Sturm hat sich entfernt oder aufgelöst',
+    thanksFeedback: 'Danke für das Feedback!',
+    predictionAccurate: 'Vorhersage als genau bestätigt',
+    predictionAdjusted: 'Notiert — Vorhersagemodell wird angepasst',
   },
 
   pt: {
@@ -1306,6 +1361,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Chuva muito forte',
     extremeHail: 'Extremo/Granizo',
     stormCluster: 'Grupo de tempestades',
+    stormArrived: 'ETA da tempestade atingido!',
+    didStormHit: 'Esta tempestade afetou sua área?',
+    yesStormHit: 'Sim, atingiu',
+    noStormMissed: 'Não, errou',
+    unsureUnable: 'Incerto / Não consigo verificar',
+    recheckingStorm: 'Verificando dados da tempestade...',
+    stormStillApproaching: 'Tempestade ainda se aproximando — ETA atualizado',
+    stormMovedAway: 'A tempestade se afastou ou se dissipou',
+    thanksFeedback: 'Obrigado pelo feedback!',
+    predictionAccurate: 'Previsão confirmada como precisa',
+    predictionAdjusted: 'Anotado — modelo será ajustado',
   },
 
   ja: {
@@ -1520,6 +1586,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: '非常に激しい雨',
     extremeHail: '猛烈/雹',
     stormCluster: '嵐群',
+    stormArrived: '嵐のETA到達！',
+    didStormHit: 'この嵐はあなたの地域に影響しましたか？',
+    yesStormHit: 'はい、影響しました',
+    noStormMissed: 'いいえ、外れました',
+    unsureUnable: '不明 / 確認できない',
+    recheckingStorm: '嵐データを再確認中...',
+    stormStillApproaching: '嵐はまだ接近中 — ETA更新',
+    stormMovedAway: '嵐は移動または消散しました',
+    thanksFeedback: 'フィードバックありがとう！',
+    predictionAccurate: '予測は正確と確認',
+    predictionAdjusted: '記録 — 予測モデルを調整します',
   },
 
   ko: {
@@ -1734,6 +1811,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: '매우 강한 비',
     extremeHail: '극심/우박',
     stormCluster: '폭풍 클러스터',
+    stormArrived: '폭풍 ETA 도달!',
+    didStormHit: '이 폭풍이 당신의 지역에 영향을 미쳤나요?',
+    yesStormHit: '네, 맞았습니다',
+    noStormMissed: '아니요, 빗나갔습니다',
+    unsureUnable: '확실하지 않음 / 확인 불가',
+    recheckingStorm: '폭풍 데이터 재확인 중...',
+    stormStillApproaching: '폭풍이 여전히 접근 중 — ETA 업데이트',
+    stormMovedAway: '폭풍이 이동하거나 소산됨',
+    thanksFeedback: '피드백 감사합니다!',
+    predictionAccurate: '예측 정확성 확인됨',
+    predictionAdjusted: '기록됨 — 예측 모델 조정 예정',
   },
 
   zh: {
@@ -1948,6 +2036,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: '暴雨',
     extremeHail: '极端/冰雹',
     stormCluster: '风暴群',
+    stormArrived: '风暴ETA已到！',
+    didStormHit: '这场风暴影响了您的地区吗？',
+    yesStormHit: '是的，受到了影响',
+    noStormMissed: '没有，未受影响',
+    unsureUnable: '不确定 / 无法确认',
+    recheckingStorm: '重新检查风暴数据...',
+    stormStillApproaching: '风暴仍在接近 — ETA已更新',
+    stormMovedAway: '风暴已移走或消散',
+    thanksFeedback: '感谢反馈！',
+    predictionAccurate: '预测确认准确',
+    predictionAdjusted: '已记录 — 预测模型将调整',
   },
 
   ar: {
@@ -2162,6 +2261,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'أمطار شديدة جداً',
     extremeHail: 'متطرف/برد',
     stormCluster: 'مجموعة عواصف',
+    stormArrived: 'وصل وقت العاصفة المتوقع!',
+    didStormHit: 'هل أثرت هذه العاصفة على منطقتك؟',
+    yesStormHit: 'نعم، أصابت',
+    noStormMissed: 'لا، أخطأت',
+    unsureUnable: 'غير متأكد / لا أستطيع التحقق',
+    recheckingStorm: 'إعادة فحص بيانات العاصفة...',
+    stormStillApproaching: 'العاصفة لا تزال تقترب — تم تحديث الوقت المتوقع',
+    stormMovedAway: 'ابتعدت العاصفة أو تلاشت',
+    thanksFeedback: 'شكراً على الملاحظات!',
+    predictionAccurate: 'تم تأكيد دقة التنبؤ',
+    predictionAdjusted: 'تم التسجيل — سيتم تعديل نموذج التنبؤ',
   },
 
   hi: {
@@ -2376,6 +2486,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'बहुत भारी बारिश',
     extremeHail: 'चरम/ओले',
     stormCluster: 'तूफान समूह',
+    stormArrived: 'तूफान ETA पहुंचा!',
+    didStormHit: 'क्या इस तूफान ने आपके क्षेत्र को प्रभावित किया?',
+    yesStormHit: 'हाँ, प्रभावित किया',
+    noStormMissed: 'नहीं, नहीं आया',
+    unsureUnable: 'अनिश्चित / जांच नहीं कर सकते',
+    recheckingStorm: 'तूफान डेटा की पुनः जाँच...',
+    stormStillApproaching: 'तूफान अभी भी आ रहा है — ETA अपडेट',
+    stormMovedAway: 'तूफान दूर चला गया या विलुप्त हो गया',
+    thanksFeedback: 'प्रतिक्रिया के लिए धन्यवाद!',
+    predictionAccurate: 'भविष्यवाणी सही पुष्टि हुई',
+    predictionAdjusted: 'नोट किया — भविष्यवाणी मॉडल समायोजित होगा',
   },
 
   id: {
@@ -2590,6 +2711,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Hujan sangat lebat',
     extremeHail: 'Ekstrem/Hujan es',
     stormCluster: 'Kluster badai',
+    stormArrived: 'ETA badai tercapai!',
+    didStormHit: 'Apakah badai ini memengaruhi area Anda?',
+    yesStormHit: 'Ya, terjadi',
+    noStormMissed: 'Tidak, meleset',
+    unsureUnable: 'Tidak yakin / Tidak bisa memeriksa',
+    recheckingStorm: 'Memeriksa ulang data badai...',
+    stormStillApproaching: 'Badai masih mendekat — ETA diperbarui',
+    stormMovedAway: 'Badai telah menjauh atau mereda',
+    thanksFeedback: 'Terima kasih atas masukannya!',
+    predictionAccurate: 'Prediksi dikonfirmasi akurat',
+    predictionAdjusted: 'Dicatat — model prediksi akan disesuaikan',
   },
 
   th: {
@@ -2804,6 +2936,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'ฝนตกหนักมาก',
     extremeHail: 'รุนแรง/ลูกเห็บ',
     stormCluster: 'กลุ่มพายุ',
+    stormArrived: 'ETA พายุมาถึงแล้ว!',
+    didStormHit: 'พายุนี้ส่งผลกระทบต่อพื้นที่ของคุณหรือไม่?',
+    yesStormHit: 'ใช่ มาถึงแล้ว',
+    noStormMissed: 'ไม่ พลาดไป',
+    unsureUnable: 'ไม่แน่ใจ / ไม่สามารถตรวจสอบ',
+    recheckingStorm: 'ตรวจสอบข้อมูลพายุอีกครั้ง...',
+    stormStillApproaching: 'พายุยังคงเข้ามา — ETA อัปเดต',
+    stormMovedAway: 'พายุเคลื่อนตัวออกไปหรือสลายตัว',
+    thanksFeedback: 'ขอบคุณสำหรับความคิดเห็น!',
+    predictionAccurate: 'ยืนยันการพยากรณ์ถูกต้อง',
+    predictionAdjusted: 'บันทึกแล้ว — โมเดลจะถูกปรับ',
   },
 
   vi: {
@@ -3018,6 +3161,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Mưa rất to',
     extremeHail: 'Cực đoan/Mưa đá',
     stormCluster: 'Cụm bão',
+    stormArrived: 'ETA bão đã đến!',
+    didStormHit: 'Bão này có ảnh hưởng đến khu vực của bạn không?',
+    yesStormHit: 'Có, đã đến',
+    noStormMissed: 'Không, đã trượt',
+    unsureUnable: 'Không chắc / Không thể kiểm tra',
+    recheckingStorm: 'Đang kiểm tra lại dữ liệu bão...',
+    stormStillApproaching: 'Bão vẫn đang tiến đến — ETA cập nhật',
+    stormMovedAway: 'Bão đã di chuyển hoặc tan biến',
+    thanksFeedback: 'Cảm ơn phản hồi!',
+    predictionAccurate: 'Dự đoán xác nhận chính xác',
+    predictionAdjusted: 'Ghi nhận — mô hình sẽ điều chỉnh',
   },
 
   tr: {
@@ -3232,6 +3386,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Çok şiddetli yağmur',
     extremeHail: 'Aşırı/Dolu',
     stormCluster: 'Fırtına kümesi',
+    stormArrived: 'Fırtına ETA ulaştı!',
+    didStormHit: 'Bu fırtına bölgenizi etkiledi mi?',
+    yesStormHit: 'Evet, vurdu',
+    noStormMissed: 'Hayır, ıskaladı',
+    unsureUnable: 'Emin değilim / Kontrol edemiyorum',
+    recheckingStorm: 'Fırtına verileri yeniden kontrol ediliyor...',
+    stormStillApproaching: 'Fırtına hâlâ yaklaşıyor — ETA güncellendi',
+    stormMovedAway: 'Fırtına uzaklaştı veya dağıldı',
+    thanksFeedback: 'Geri bildirim için teşekkürler!',
+    predictionAccurate: 'Tahmin doğru onaylandı',
+    predictionAdjusted: 'Kaydedildi — tahmin modeli ayarlanacak',
   },
 
   it: {
@@ -3446,6 +3611,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Pioggia molto forte',
     extremeHail: 'Estremo/Grandine',
     stormCluster: 'Gruppo di tempeste',
+    stormArrived: 'ETA tempesta raggiunto!',
+    didStormHit: 'Questa tempesta ha colpito la tua zona?',
+    yesStormHit: 'Sì, ha colpito',
+    noStormMissed: 'No, ha mancato',
+    unsureUnable: 'Incerto / Impossibile verificare',
+    recheckingStorm: 'Ricontrollo dei dati...',
+    stormStillApproaching: 'Tempesta ancora in avvicinamento — ETA aggiornato',
+    stormMovedAway: 'La tempesta si è allontanata o dissipata',
+    thanksFeedback: 'Grazie per il feedback!',
+    predictionAccurate: 'Previsione confermata accurata',
+    predictionAdjusted: 'Registrato — il modello verrà adattato',
   },
 
   nl: {
@@ -3660,6 +3836,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Zeer zware regen',
     extremeHail: 'Extreem/Hagel',
     stormCluster: 'Stormcluster',
+    stormArrived: 'Storm ETA bereikt!',
+    didStormHit: 'Heeft deze storm uw gebied geraakt?',
+    yesStormHit: 'Ja, het raakte',
+    noStormMissed: 'Nee, het miste',
+    unsureUnable: 'Onzeker / Kan niet controleren',
+    recheckingStorm: 'Stormgegevens opnieuw controleren...',
+    stormStillApproaching: 'Storm nadert nog steeds — ETA bijgewerkt',
+    stormMovedAway: 'Storm is weggetrokken of opgelost',
+    thanksFeedback: 'Bedankt voor de feedback!',
+    predictionAccurate: 'Voorspelling bevestigd als nauwkeurig',
+    predictionAdjusted: 'Genoteerd — voorspellingsmodel wordt aangepast',
   },
 
   ru: {
@@ -3874,6 +4061,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Очень сильный дождь',
     extremeHail: 'Экстремально/Град',
     stormCluster: 'Группа штормов',
+    stormArrived: 'Расчётное время шторма достигнуто!',
+    didStormHit: 'Этот шторм затронул вашу зону?',
+    yesStormHit: 'Да, попал',
+    noStormMissed: 'Нет, промахнулся',
+    unsureUnable: 'Не уверен / Не могу проверить',
+    recheckingStorm: 'Перепроверка данных шторма...',
+    stormStillApproaching: 'Шторм всё ещё приближается — ETA обновлён',
+    stormMovedAway: 'Шторм отошёл или рассеялся',
+    thanksFeedback: 'Спасибо за отзыв!',
+    predictionAccurate: 'Прогноз подтверждён как точный',
+    predictionAdjusted: 'Отмечено — модель прогноза будет скорректирована',
   },
 
   pl: {
@@ -4088,6 +4286,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Bardzo silny deszcz',
     extremeHail: 'Ekstremalnie/Grad',
     stormCluster: 'Klaster burzowy',
+    stormArrived: 'ETA burzy osiągnięte!',
+    didStormHit: 'Czy ta burza dotknęła Twój obszar?',
+    yesStormHit: 'Tak, trafiła',
+    noStormMissed: 'Nie, ominęła',
+    unsureUnable: 'Niepewny / Nie mogę sprawdzić',
+    recheckingStorm: 'Ponowne sprawdzanie danych burzy...',
+    stormStillApproaching: 'Burza wciąż się zbliża — ETA zaktualizowane',
+    stormMovedAway: 'Burza się oddaliła lub rozproszyła',
+    thanksFeedback: 'Dziękujemy za opinię!',
+    predictionAccurate: 'Prognoza potwierdzona jako dokładna',
+    predictionAdjusted: 'Zanotowano — model prognozy zostanie dostosowany',
   },
 
   ms: {
@@ -4302,6 +4511,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Hujan sangat lebat',
     extremeHail: 'Melampau/Hujan batu',
     stormCluster: 'Kluster ribut',
+    stormArrived: 'ETA ribut dicapai!',
+    didStormHit: 'Adakah ribut ini menjejaskan kawasan anda?',
+    yesStormHit: 'Ya, terkena',
+    noStormMissed: 'Tidak, terlepas',
+    unsureUnable: 'Tidak pasti / Tidak dapat menyemak',
+    recheckingStorm: 'Menyemak semula data ribut...',
+    stormStillApproaching: 'Ribut masih menghampiri — ETA dikemas kini',
+    stormMovedAway: 'Ribut telah beralih atau reda',
+    thanksFeedback: 'Terima kasih atas maklum balas!',
+    predictionAccurate: 'Ramalan disahkan tepat',
+    predictionAdjusted: 'Diambil perhatian — model ramalan akan diselaraskan',
   },
 
   sw: {
@@ -4516,6 +4736,17 @@ const translations: Record<Language, TranslationKeys> = {
     intenseRain: 'Mvua kubwa sana',
     extremeHail: 'Kali sana/Mvua ya mawe',
     stormCluster: 'Kundi la dhoruba',
+    stormArrived: 'ETA ya dhoruba imefikiwa!',
+    didStormHit: 'Je, dhoruba hii iliathiri eneo lako?',
+    yesStormHit: 'Ndiyo, ilipiga',
+    noStormMissed: 'Hapana, ilipita',
+    unsureUnable: 'Sina uhakika / Siwezi kuangalia',
+    recheckingStorm: 'Kuangalia tena data ya dhoruba...',
+    stormStillApproaching: 'Dhoruba bado inakaribia — ETA imesasishwa',
+    stormMovedAway: 'Dhoruba imeondoka au kutoweka',
+    thanksFeedback: 'Asante kwa maoni!',
+    predictionAccurate: 'Utabiri umethibitishwa sahihi',
+    predictionAdjusted: 'Imerekodiwa — mfumo wa utabiri utarekebishwa',
   },
 };
 

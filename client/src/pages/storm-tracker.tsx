@@ -162,6 +162,162 @@ function EmbeddedMessageInbox() {
   );
 }
 
+interface CountdownProps {
+  etaMinutes: number;
+  alertData: { impactPct: number; tier: number; text: string };
+  lat?: number;
+  lon?: number;
+  t: any;
+}
+
+function CountdownTimer({ etaMinutes, alertData, lat, lon, t }: CountdownProps) {
+  const [remaining, setRemaining] = useState(etaMinutes * 60);
+  const [phase, setPhase] = useState<'counting' | 'rechecking' | 'feedback' | 'result'>('counting');
+  const [recheckResult, setRecheckResult] = useState<string | null>(null);
+  const [feedbackResult, setFeedbackResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRemaining(etaMinutes * 60);
+    setPhase('counting');
+    setRecheckResult(null);
+    setFeedbackResult(null);
+  }, [etaMinutes]);
+
+  useEffect(() => {
+    if (remaining <= 0 || phase !== 'counting') return;
+    const interval = setInterval(() => {
+      setRemaining(prev => {
+        const next = Math.max(0, prev - 1);
+        if (next === 0) doRecheck();
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [remaining > 0, phase]);
+
+  const doRecheck = async () => {
+    setPhase('rechecking');
+    try {
+      if (lat != null && lon != null) {
+        const resp = await fetch('/api/storms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat, lon, radius: 50 })
+        });
+        if (resp.ok) {
+          const storms = await resp.json();
+          const nearStorms = storms.filter((s: any) => s.distance <= 15 && s.intensity >= 30);
+          if (nearStorms.length > 0) {
+            setRecheckResult(t.stormStillApproaching);
+          } else {
+            setRecheckResult(t.stormMovedAway);
+          }
+        }
+      }
+    } catch (e) {}
+    setPhase('feedback');
+  };
+
+  const submitFeedback = async (feedback: 'yes' | 'no' | 'unsure') => {
+    try {
+      const resp = await fetch('/api/storm-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lat: lat || 0,
+          lon: lon || 0,
+          predictedDbz: alertData.tier >= 4 ? 60 : alertData.tier >= 3 ? 50 : alertData.tier >= 2 ? 40 : 30,
+          predictedImpactPct: alertData.impactPct,
+          predictedEtaMinutes: etaMinutes,
+          feedback,
+          recheckedStillActive: recheckResult === t.stormStillApproaching,
+        })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (feedback === 'yes') {
+          setFeedbackResult(`${t.predictionAccurate} (${data.stats.accuracy}%)`);
+        } else if (feedback === 'no') {
+          setFeedbackResult(`${t.predictionAdjusted} (${data.stats.accuracy}%)`);
+        } else {
+          setFeedbackResult(t.thanksFeedback);
+        }
+      } else {
+        setFeedbackResult('⚠️ Could not save — try again');
+        setTimeout(() => setPhase('feedback'), 3000);
+        return;
+      }
+    } catch (e) {
+      setFeedbackResult('⚠️ Could not save — try again');
+      setTimeout(() => setPhase('feedback'), 3000);
+      return;
+    }
+    setPhase('result');
+  };
+
+  if (phase === 'result' && feedbackResult) {
+    return (
+      <p className="text-[10px] text-green-400 mt-0.5">
+        ✅ {feedbackResult}
+      </p>
+    );
+  }
+
+  if (phase === 'feedback') {
+    return (
+      <div className="mt-1 space-y-1">
+        {recheckResult && (
+          <p className={`text-[10px] ${recheckResult === t.stormStillApproaching ? 'text-red-300' : 'text-green-300'}`}>
+            {recheckResult}
+          </p>
+        )}
+        <p className="text-[11px] font-medium text-amber-200">⏱️ {t.didStormHit}</p>
+        <div className="flex gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); submitFeedback('yes'); }}
+            className="px-2 py-0.5 text-[10px] rounded bg-red-700/60 text-red-100 border border-red-500/50 hover:bg-red-600/80"
+          >
+            ✅ {t.yesStormHit}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); submitFeedback('no'); }}
+            className="px-2 py-0.5 text-[10px] rounded bg-green-700/60 text-green-100 border border-green-500/50 hover:bg-green-600/80"
+          >
+            ❌ {t.noStormMissed}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); submitFeedback('unsure'); }}
+            className="px-2 py-0.5 text-[10px] rounded bg-slate-700/60 text-slate-200 border border-slate-500/50 hover:bg-slate-600/80"
+          >
+            🤷 {t.unsureUnable}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'rechecking') {
+    return (
+      <p className="text-xs text-blue-300 mt-0.5 animate-pulse">
+        🔄 {t.recheckingStorm}
+      </p>
+    );
+  }
+
+  const hrs = Math.floor(remaining / 3600);
+  const mins = Math.floor((remaining % 3600) / 60);
+  const secs = remaining % 60;
+  const timeStr = hrs > 0
+    ? `${hrs}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`
+    : `${mins}m ${secs.toString().padStart(2, '0')}s`;
+  const urgency = remaining < 300 ? 'text-red-300 animate-pulse' : remaining < 900 ? 'text-orange-300' : 'text-amber-300';
+  return (
+    <p className={`text-xs font-mono mt-0.5 ${urgency}`}>
+      ⏱️ ETA: {timeStr}
+    </p>
+  );
+}
+
 export default function StormTracker() {
   const queryClient = useQueryClient();
   const { t } = useLanguage();
@@ -201,6 +357,14 @@ export default function StormTracker() {
   const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages'>('tracker');
   const [mobileTab, setMobileTab] = useState<'radar' | 'weather' | 'storms' | 'ai' | 'alerts'>('radar');
   const [mobileLocationExpanded, setMobileLocationExpanded] = useState(false);
+  const [impactThreshold, setImpactThreshold] = useState(() => {
+    const saved = localStorage.getItem('stormtracker_impact_threshold');
+    if (saved) {
+      const val = parseInt(saved, 10);
+      return Number.isFinite(val) ? Math.max(0, Math.min(85, val)) : 0;
+    }
+    return 0;
+  });
 
 
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -585,7 +749,7 @@ export default function StormTracker() {
   };
 
   const criticalAlerts = useMemo(() => {
-    const alerts: { type: 'danger' | 'warning' | 'info'; icon: string; text: string }[] = [];
+    const alerts: { type: 'danger' | 'warning' | 'info'; icon: string; text: string; impactPct: number; tier: number; etaMinutes?: number }[] = [];
     
     if (minuteCastData?.Summary?.Phrase) {
       const phrase = minuteCastData.Summary.Phrase;
@@ -594,7 +758,8 @@ export default function StormTracker() {
         alerts.push({ 
           type: phrase.toLowerCase().includes('thunder') ? 'danger' : 'warning',
           icon: phrase.toLowerCase().includes('thunder') ? '⛈️' : '🌧️',
-          text: `MinuteCast™: ${phrase}`
+          text: `MinuteCast™: ${phrase}`,
+          impactPct: 100, tier: 5
         });
       }
     }
@@ -623,44 +788,51 @@ export default function StormTracker() {
       const movingStorms = tierStorms.filter(s => s.windsPrediction?.speed > 0);
       let moveText = '';
       let impactPct = 0;
+      let etaMinutes: number | undefined;
       
       if (movingStorms.length > 0) {
         const avgMoveDir = movingStorms.reduce((s, x) => s + x.windsPrediction.direction, 0) / movingStorms.length;
         const avgMoveSpeed = movingStorms.reduce((s, x) => s + x.windsPrediction.speed, 0) / movingStorms.length;
         moveText = `, ${t.movingAt} ${getCompassDirection(avgMoveDir)} (${Math.round(avgMoveDir)}°) @ ${formatSpeed(avgMoveSpeed)}`;
         
-        const approachCount = movingStorms.filter(s => {
+        const approachingStorms = movingStorms.filter(s => {
           const angle = calculateApproachAngle(s.direction, s.windsPrediction.direction);
           return isStormApproaching(s.direction, s.windsPrediction.direction, s.windsPrediction.speed) && angle <= 30;
-        }).length;
+        });
         
-        if (approachCount > 0) {
-          const approachRatio = approachCount / tierStorms.length;
+        if (approachingStorms.length > 0) {
+          const approachRatio = approachingStorms.length / tierStorms.length;
           const distFactor = avgDist <= 10 ? 1.4 : avgDist <= 20 ? 1.0 : avgDist <= 30 ? 0.7 : 0.3;
           const intensityFactor = tier >= 4 ? 1.3 : tier >= 3 ? 1.1 : tier >= 2 ? 0.9 : 0.7;
           impactPct = Math.min(95, Math.round(approachRatio * distFactor * intensityFactor * 80));
+          
+          const closestApproaching = approachingStorms.reduce((a, b) => a.distance < b.distance ? a : b);
+          const eta = calculateETA(closestApproaching.distance, closestApproaching.windsPrediction.speed);
+          if (eta > 0 && eta < 999) etaMinutes = eta;
         }
       }
       
-      const hasImpact = impactPct > 0;
+      const hasImpact = impactPct >= impactThreshold && impactPct > 0;
       
-      if (hasImpact) {
+      if (impactPct > 0 && impactPct >= impactThreshold) {
         alerts.push({
           type: tier >= 3 ? 'danger' : 'warning',
           icon: tier >= 3 ? '🌩️' : '⚠️',
-          text: `⚠️ ${categoryLabel} ${t.stormCluster} (${maxDbz} dBZ) — ${formatDistance(closest.distance)} ${dirLabel} ${t.ofYou}${moveText}. ${t.strongImpact}: ${impactPct}% ${t.chanceDirectImpact}.`
+          text: `⚠️ ${categoryLabel} ${t.stormCluster} (${maxDbz} dBZ) — ${formatDistance(closest.distance)} ${dirLabel} ${t.ofYou}${moveText}. ${t.strongImpact}: ${impactPct}% ${t.chanceDirectImpact}.`,
+          impactPct, tier, etaMinutes
         });
       } else {
         alerts.push({
           type: 'info',
-          icon: tier >= 3 ? '🌧️' : '✔️',
-          text: `✔️ ${categoryLabel} ${t.stormCluster} ${formatDistance(avgDist)} ${dirLabel} ${t.ofYou}${moveText}. ${t.noImpact}.`
+          icon: '✔️',
+          text: `✔️ ${categoryLabel} ${t.stormCluster} ${formatDistance(avgDist)} ${dirLabel} ${t.ofYou}${moveText}. ${t.noImpact}.`,
+          impactPct: 0, tier
         });
       }
     }
     
     return alerts;
-  }, [minuteCastData, precipitationStorms, formatDistance, t]);
+  }, [minuteCastData, precipitationStorms, formatDistance, t, impactThreshold]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
@@ -676,6 +848,8 @@ export default function StormTracker() {
           onClose={() => setShowStormFilteringSettings(false)}
           preferences={preferences as any}
           onSave={handleStormFilteringSettingsSave}
+          impactThreshold={impactThreshold}
+          onImpactThresholdChange={setImpactThreshold}
         />
       )}
 
@@ -821,34 +995,62 @@ export default function StormTracker() {
             {/* === MOBILE: Critical Alert Banner === */}
             {criticalAlerts.length > 0 && (
               <div className="lg:hidden mb-3 space-y-1.5">
-                {criticalAlerts.map((alert, i) => (
-                  <div
-                    key={i}
-                    className={`rounded-xl border flex items-start gap-2 ${
-                      alert.type === 'danger'
-                        ? 'p-3 bg-red-900/40 border-red-500/60 animate-pulse'
-                        : alert.type === 'warning'
-                          ? 'p-3 bg-amber-900/40 border-amber-500/60'
-                          : 'p-2 bg-slate-800/40 border-slate-600/40'
-                    }`}
-                    onClick={() => setMobileTab('alerts')}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <span className={`shrink-0 ${alert.type === 'info' ? 'text-sm' : 'text-lg'}`}>{alert.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-medium ${
-                        alert.type === 'danger' ? 'text-sm text-red-200' 
-                          : alert.type === 'warning' ? 'text-sm text-amber-200' 
-                          : 'text-xs text-slate-300'
-                      }`}>
-                        {alert.text}
-                      </p>
-                      {alert.type !== 'info' && (
-                        <p className="text-[10px] text-slate-400 mt-0.5">{t.viewAllAlerts} →</p>
-                      )}
+                {criticalAlerts.map((alert, i) => {
+                  const getBorderStyle = () => {
+                    if (alert.type === 'info') return { borderColor: 'rgb(71 85 105 / 0.4)', borderWidth: '1px' };
+                    if (alert.impactPct >= 75) return { borderColor: '#f87171', borderWidth: '3px' };
+                    if (alert.impactPct >= 50) return { borderColor: '#fb923c', borderWidth: '2px' };
+                    if (alert.impactPct >= 25) return { borderColor: '#f59e0b', borderWidth: '2px' };
+                    if (alert.tier >= 4) return { borderColor: '#a855f7', borderWidth: '3px' };
+                    if (alert.tier >= 3) return { borderColor: '#ef4444', borderWidth: '2px' };
+                    return { borderColor: '#f59e0b', borderWidth: '1px' };
+                  };
+                  const getBgColor = () => {
+                    if (alert.type === 'info') return 'bg-slate-800/40';
+                    if (alert.impactPct >= 75) return 'bg-red-900/50';
+                    if (alert.impactPct >= 50) return 'bg-orange-900/40';
+                    if (alert.tier >= 4) return 'bg-purple-900/40';
+                    if (alert.tier >= 3) return 'bg-red-900/40';
+                    return 'bg-amber-900/40';
+                  };
+                  const borderStyle = getBorderStyle();
+                  return (
+                    <div
+                      key={i}
+                      className={`rounded-xl flex items-start gap-2 ${
+                        alert.type === 'info' ? 'p-2' : 'p-3'
+                      } ${getBgColor()} ${
+                        alert.impactPct >= 75 ? 'animate-pulse' : ''
+                      }`}
+                      onClick={() => setMobileTab('alerts')}
+                      style={{ cursor: 'pointer', borderStyle: 'solid', borderColor: borderStyle.borderColor, borderWidth: borderStyle.borderWidth }}
+                    >
+                      <span className={`shrink-0 ${alert.type === 'info' ? 'text-sm' : 'text-lg'}`}>{alert.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-medium ${
+                          alert.impactPct >= 75 ? 'text-sm text-red-100'
+                            : alert.type === 'danger' ? 'text-sm text-red-200' 
+                            : alert.type === 'warning' ? 'text-sm text-amber-200' 
+                            : 'text-xs text-slate-300'
+                        }`}>
+                          {alert.text}
+                        </p>
+                        {alert.etaMinutes != null && alert.type !== 'info' && (
+                          <CountdownTimer
+                            etaMinutes={alert.etaMinutes}
+                            alertData={alert}
+                            lat={location?.lat}
+                            lon={location?.lon}
+                            t={t}
+                          />
+                        )}
+                        {alert.type !== 'info' && (
+                          <p className="text-[10px] text-slate-400 mt-0.5">{t.viewAllAlerts} →</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -1366,12 +1568,12 @@ export default function StormTracker() {
                       />
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2 justify-center">
+                  <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                     <Button
                       onClick={() => setViewMode('map')}
                       variant="outline"
                       size="sm"
-                      className={`text-xs ${viewMode === 'map' ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
+                      className={`text-xs shrink-0 ${viewMode === 'map' ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
                     >
                       🗺️ {t.map}
                     </Button>
@@ -1379,7 +1581,7 @@ export default function StormTracker() {
                       onClick={() => setViewMode('sonar')}
                       variant="outline"
                       size="sm"
-                      className={`text-xs ${viewMode === 'sonar' ? 'bg-green-600/20 border-green-500 text-green-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
+                      className={`text-xs shrink-0 ${viewMode === 'sonar' ? 'bg-green-600/20 border-green-500 text-green-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
                     >
                       📡 {t.sonar}
                     </Button>
@@ -1387,7 +1589,7 @@ export default function StormTracker() {
                       onClick={() => setViewMode('3d')}
                       variant="outline"
                       size="sm"
-                      className={`text-xs ${viewMode === '3d' ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
+                      className={`text-xs shrink-0 ${viewMode === '3d' ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
                       disabled={precipitationStorms.length === 0}
                     >
                       🌩️ {t.threeD}
@@ -1396,7 +1598,7 @@ export default function StormTracker() {
                       onClick={() => setShowStormTracks(!showStormTracks)}
                       variant="outline"
                       size="sm"
-                      className={`text-xs ${showStormTracks ? 'bg-orange-600/20 border-orange-500 text-orange-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
+                      className={`text-xs shrink-0 ${showStormTracks ? 'bg-orange-600/20 border-orange-500 text-orange-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
                     >
                       🎯 {showStormTracks ? t.hideTracks : t.showTracks}
                     </Button>
@@ -1404,7 +1606,7 @@ export default function StormTracker() {
                       onClick={() => setShowTimeLabels(!showTimeLabels)}
                       variant="outline"
                       size="sm"
-                      className={`text-xs ${showTimeLabels ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
+                      className={`text-xs shrink-0 ${showTimeLabels ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
                       disabled={!showStormTracks}
                     >
                       🕐 {showTimeLabels ? t.hideTimeLabels : t.showTimeLabels}
@@ -1413,7 +1615,7 @@ export default function StormTracker() {
                       onClick={() => setShowStormFilteringSettings(true)}
                       variant="outline"
                       size="sm"
-                      className="text-xs"
+                      className="text-xs shrink-0"
                     >
                       ⚙️ {t.settings}
                     </Button>

@@ -5,10 +5,10 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Volume2, Bell, Mail, AlertTriangle } from 'lucide-react';
+import { X, Volume2, Bell, Mail, AlertTriangle, Filter } from 'lucide-react';
 
 interface AlertPreferences {
-  minimumDbz: number; // Minimum dBZ to trigger alerts
+  minimumDbz: number;
   alertRadius: number;
   alertFrequency: number;
   soundEnabled: boolean;
@@ -21,15 +21,20 @@ interface AlertSettingsProps {
   onClose: () => void;
   preferences: AlertPreferences;
   onSave: (preferences: AlertPreferences) => void;
+  impactThreshold: number;
+  onImpactThresholdChange: (value: number) => void;
 }
 
-export default function AlertSettings({ isOpen, onClose, preferences, onSave }: AlertSettingsProps) {
+export default function AlertSettings({ isOpen, onClose, preferences, onSave, impactThreshold, onImpactThresholdChange }: AlertSettingsProps) {
   const [localPreferences, setLocalPreferences] = useState<AlertPreferences>(preferences);
+  const [localThreshold, setLocalThreshold] = useState(impactThreshold);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
     onSave(localPreferences);
+    onImpactThresholdChange(localThreshold);
+    localStorage.setItem('stormtracker_impact_threshold', localThreshold.toString());
     onClose();
   };
 
@@ -40,19 +45,7 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
     }));
   };
 
-  const getIntensityColor = (intensity: string) => {
-    switch (intensity) {
-      case 'light': return 'text-green-400';
-      case 'moderate': return 'text-yellow-400';
-      case 'heavy': return 'text-orange-400';
-      case 'veryHeavy': return 'text-red-400';
-      case 'extreme': return 'text-purple-400';
-      default: return 'text-gray-400';
-    }
-  };
-
   const getDbzDescription = (dbz: number, radarSource: string = 'nexrad') => {
-    // Note: RainViewer reads 5-12 dBZ higher than NEXRAD due to different calibration
     const sourceNote = radarSource === 'rainviewer' ? ' (RainViewer)' : ' (NEXRAD)';
     
     if (dbz >= 61) return { category: 'Extreme Thunderstorms', color: 'text-purple-400', description: '250+ mm/h (10+ in/h), large hail likely' + sourceNote };
@@ -63,7 +56,17 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
     return { category: 'No Precipitation', color: 'text-gray-400', description: 'Clear conditions' };
   };
 
+  const getThresholdDescription = (pct: number) => {
+    if (pct === 0) return { label: 'Show all storms', color: 'text-green-400', desc: 'All storm clusters shown, including those with 0% impact chance.' };
+    if (pct <= 20) return { label: 'Very low filter', color: 'text-green-400', desc: 'Only hides storms with very minimal impact chance.' };
+    if (pct <= 40) return { label: 'Low filter', color: 'text-yellow-400', desc: 'Hides low-probability storms. Shows moderate threats and above.' };
+    if (pct <= 60) return { label: 'Medium filter', color: 'text-orange-400', desc: 'Shows only storms with meaningful impact probability.' };
+    if (pct <= 85) return { label: 'High filter', color: 'text-red-400', desc: 'Only shows storms with high probability of direct impact.' };
+    return { label: 'Maximum filter', color: 'text-red-400', desc: 'Only shows storms with 85%+ impact probability. Not recommended.' };
+  };
+
   const dbzInfo = getDbzDescription(localPreferences.minimumDbz);
+  const thresholdInfo = getThresholdDescription(localThreshold);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
@@ -86,7 +89,51 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
         </CardHeader>
         
         <CardContent className="space-y-6">
-          {/* Minimum Storm Intensity */}
+          <div>
+            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Impact Threshold
+            </h3>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm text-slate-300">Minimum impact % to show</Label>
+                  <span className="text-sm text-white font-mono">{localThreshold}%</span>
+                </div>
+                <Slider
+                  value={[localThreshold]}
+                  onValueChange={(value) => setLocalThreshold(value[0])}
+                  max={85}
+                  min={0}
+                  step={5}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-[10px] text-slate-500">
+                  <span>0% (show all)</span>
+                  <span>85% (max)</span>
+                </div>
+              </div>
+              
+              <div className="bg-slate-700/50 p-3 rounded-lg border border-slate-600">
+                <div className="flex items-center justify-between mb-1">
+                  <span className={`text-sm font-medium ${thresholdInfo.color}`}>
+                    {thresholdInfo.label}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {localThreshold}%+
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300">
+                  {thresholdInfo.desc}
+                </p>
+              </div>
+              
+              <p className="text-xs text-slate-400">
+                Storms with impact probability below this threshold will appear as "No impact expected" instead of showing impact details. Default is 0% (show all impacts). Max filter is 85%.
+              </p>
+            </div>
+          </div>
+
           <div>
             <h3 className="text-sm font-semibold text-white mb-3">Alert Threshold</h3>
             <div className="space-y-4">
@@ -105,7 +152,6 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
                 />
               </div>
               
-              {/* Current threshold description */}
               <div className="bg-slate-700/50 p-3 rounded-lg border border-slate-600">
                 <div className="flex items-center justify-between mb-1">
                   <span className={`text-sm font-medium ${dbzInfo.color}`}>
@@ -127,7 +173,6 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
             </div>
           </div>
 
-          {/* Alert Radius */}
           <div>
             <h3 className="text-sm font-semibold text-white mb-3">Alert Radius</h3>
             <div className="space-y-2">
@@ -146,7 +191,6 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
             </div>
           </div>
 
-          {/* Alert Frequency */}
           <div>
             <h3 className="text-sm font-semibold text-white mb-3">Alert Frequency</h3>
             <div className="space-y-2">
@@ -165,7 +209,6 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
             </div>
           </div>
 
-          {/* Notification Types */}
           <div>
             <h3 className="text-sm font-semibold text-white mb-3">Notification Types</h3>
             <div className="space-y-3">
@@ -195,7 +238,6 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave }: 
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex gap-2 pt-4 border-t border-slate-600">
             <Button
               variant="outline"
