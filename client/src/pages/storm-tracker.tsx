@@ -198,6 +198,7 @@ export default function StormTracker() {
   const [showMessages, setShowMessages] = useState(false);
   const [windsData, setWindsData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages'>('tracker');
+  const [mobileTab, setMobileTab] = useState<'radar' | 'weather' | 'storms' | 'ai' | 'alerts'>('radar');
 
 
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -751,7 +752,7 @@ export default function StormTracker() {
                 )}
                 <button
                   onClick={() => setShowSectionReorder(true)}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] text-slate-500 hover:text-slate-300 bg-slate-800/50 hover:bg-slate-700/50 rounded-md border border-slate-700/50 transition-colors ml-auto"
+                  className="hidden lg:flex items-center gap-1 px-2 py-1 text-[10px] text-slate-500 hover:text-slate-300 bg-slate-800/50 hover:bg-slate-700/50 rounded-md border border-slate-700/50 transition-colors ml-auto"
                 >
                   <LayoutList className="w-3 h-3" />
                   {t.layout}
@@ -767,6 +768,8 @@ export default function StormTracker() {
               />
             )}
 
+            {/* === DESKTOP LAYOUT: sectionOrder scroll === */}
+            <div className="hidden lg:block">
             {sectionOrder.map(sectionId => {
               switch (sectionId) {
                 case 'isa':
@@ -892,9 +895,7 @@ export default function StormTracker() {
                   ) : null;
                 case 'radar':
                   return (<div key="radar">
-            {/* Interactive Radar Map with Side Controls */}
             <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-                {/* Left Side Controls - Desktop Only */}
                 <div className="hidden lg:flex lg:flex-col lg:w-48 space-y-3">
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                     <h3 className="text-sm font-semibold mb-3 text-slate-300">{t.viewMode}</h3>
@@ -981,7 +982,6 @@ export default function StormTracker() {
                   </div>
                 </div>
 
-                {/* Radar Display - Conditional based on view mode */}
                 <div className="flex-1 w-full lg:max-w-[70%] mx-auto">
                   {viewMode === 'map' && (
                     <StormMap
@@ -1029,10 +1029,7 @@ export default function StormTracker() {
                   )}
                 </div>
 
-                {/* Right Side Controls - Desktop Only */}
                 <div className="hidden lg:flex lg:flex-col lg:w-64 space-y-3">
-
-                  
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                     <h3 className="text-sm font-semibold mb-3 text-slate-300">{t.stormStats}</h3>
                     <div className="space-y-2 text-xs">
@@ -1053,7 +1050,6 @@ export default function StormTracker() {
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                     <h3 className="text-sm font-semibold mb-3 text-slate-300">{t.quickActions}</h3>
                     <div className="space-y-2">
-                      {/* Alerts and Messages temporarily disabled */}
                       {false && (
                         <>
                           <Button
@@ -1076,80 +1072,6 @@ export default function StormTracker() {
                       )}
                     </div>
                   </div>
-                </div>
-
-                {/* Mobile Controls - Stacked Below Map */}
-                <div className="lg:hidden flex flex-wrap gap-2 justify-center mt-4">
-                  <Button
-                    onClick={() => setViewMode('map')}
-                    variant="outline"
-                    size="sm"
-                    className={`${viewMode === 'map' ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
-                  >
-                    🗺️ {t.map}
-                  </Button>
-                  <Button
-                    onClick={() => setViewMode('sonar')}
-                    variant="outline"
-                    size="sm"
-                    className={`${viewMode === 'sonar' ? 'bg-green-600/20 border-green-500 text-green-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
-                  >
-                    📡 {t.sonar}
-                  </Button>
-                  <Button
-                    onClick={() => setViewMode('3d')}
-                    variant="outline"
-                    size="sm"
-                    className={`${viewMode === '3d' ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
-                    disabled={!storms || storms.length === 0}
-                  >
-                    🌩️ {t.threeD}
-                  </Button>
-                  <Button
-                    onClick={() => setShowStormTracks(!showStormTracks)}
-                    variant="outline"
-                    size="sm"
-                    className={`${showStormTracks ? 'bg-orange-600/20 border-orange-500 text-orange-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
-                  >
-                    🎯 {showStormTracks ? t.hideTracks : t.showTracks}
-                  </Button>
-                  <Button
-                    onClick={() => setShowTimeLabels(!showTimeLabels)}
-                    variant="outline"
-                    size="sm"
-                    className={`${showTimeLabels ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
-                    disabled={!showStormTracks}
-                  >
-                    🕐 {showTimeLabels ? t.hideTimeLabels : t.showTimeLabels}
-                  </Button>
-                  <Button
-                    onClick={() => setShowStormFilteringSettings(true)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    ⚙️ {t.settings}
-                  </Button>
-                  {/* Alerts and Messages temporarily disabled */}
-                  {false && (
-                    <>
-                      <Button
-                        onClick={() => setShowAlertSubscription(true)}
-                        variant="outline"
-                        size="sm"
-                        className="bg-blue-600/20 border-blue-500 text-blue-300 hover:bg-blue-600/30"
-                      >
-                        🔔 {t.alerts}
-                      </Button>
-                      <Button
-                        onClick={() => setShowMessages(true)}
-                        variant="outline"
-                        size="sm"
-                        className="bg-green-600/20 border-green-500 text-green-300 hover:bg-green-600/30"
-                      >
-                        📧 {t.messages}
-                      </Button>
-                    </>
-                  )}
                 </div>
               </div>
                   </div>);
@@ -1184,14 +1106,304 @@ export default function StormTracker() {
                   return null;
               }
             })}
+            </div>
+
+            {/* === MOBILE LAYOUT: Bottom Tab Navigation === */}
+            <div className="lg:hidden pb-20">
+              {/* Mobile Tab Content */}
+              {mobileTab === 'radar' && (
+                <div>
+                  <div className="mb-3">
+                    {viewMode === 'map' && (
+                      <StormMap
+                        location={location}
+                        storms={storms || []}
+                        radarRange={radarRange}
+                        useMetric={useMetric}
+                        formatDistance={formatDistance}
+                        formatSpeed={formatSpeed}
+                        stormFilters={stormFilters}
+                        onRadarSourceChange={setCurrentRadarSource}
+                        radarSource={currentRadarSource}
+                        isDisabled={showStormFilteringSettings || showAlertSubscription}
+                        alertPreferences={preferences}
+                        showAllStormTracks={showStormTracks}
+                        showTimeLabels={showTimeLabels}
+                        onMapInstanceReady={setMapInstance}
+                        showLightning={showLightning}
+                      />
+                    )}
+                    {viewMode === 'sonar' && (
+                      <SonarRadar
+                        location={location}
+                        storms={precipitationStorms}
+                        radarRange={radarRange}
+                        formatDistance={formatDistance}
+                        useMetric={useMetric}
+                        onStormClick={(storm) => {
+                          console.log('Storm clicked in sonar:', storm);
+                        }}
+                        className=""
+                        showLightning={showLightning}
+                      />
+                    )}
+                    {viewMode === '3d' && (
+                      <Simple3DCanvas 
+                        location={location} 
+                        precipitationStorms={precipitationStorms}
+                        setViewMode={setViewMode}
+                        tickerMessages={tickerMessages}
+                        showLightning={showLightning}
+                      />
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    <Button
+                      onClick={() => setViewMode('map')}
+                      variant="outline"
+                      size="sm"
+                      className={`text-xs ${viewMode === 'map' ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
+                    >
+                      🗺️ {t.map}
+                    </Button>
+                    <Button
+                      onClick={() => setViewMode('sonar')}
+                      variant="outline"
+                      size="sm"
+                      className={`text-xs ${viewMode === 'sonar' ? 'bg-green-600/20 border-green-500 text-green-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
+                    >
+                      📡 {t.sonar}
+                    </Button>
+                    <Button
+                      onClick={() => setViewMode('3d')}
+                      variant="outline"
+                      size="sm"
+                      className={`text-xs ${viewMode === '3d' ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
+                      disabled={!storms || storms.length === 0}
+                    >
+                      🌩️ {t.threeD}
+                    </Button>
+                    <Button
+                      onClick={() => setShowStormTracks(!showStormTracks)}
+                      variant="outline"
+                      size="sm"
+                      className={`text-xs ${showStormTracks ? 'bg-orange-600/20 border-orange-500 text-orange-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
+                    >
+                      🎯 {showStormTracks ? t.hideTracks : t.showTracks}
+                    </Button>
+                    <Button
+                      onClick={() => setShowTimeLabels(!showTimeLabels)}
+                      variant="outline"
+                      size="sm"
+                      className={`text-xs ${showTimeLabels ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
+                      disabled={!showStormTracks}
+                    >
+                      🕐 {showTimeLabels ? t.hideTimeLabels : t.showTimeLabels}
+                    </Button>
+                    <Button
+                      onClick={() => setShowStormFilteringSettings(true)}
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                    >
+                      ⚙️ {t.settings}
+                    </Button>
+                  </div>
+                  {filteredStorms.length > 0 && (
+                    <div className="mt-3 bg-slate-800/50 rounded-lg p-2 border border-slate-700/50">
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span>{t.detected}: <span className="text-white font-medium">{filteredStorms.length}</span></span>
+                        <span>{t.closest}: <span className="text-white font-medium">
+                          {formatDistance([...filteredStorms].sort((a, b) => a.distance - b.distance)[0].distance)}
+                        </span></span>
+                        <span>{t.source}: <span className="text-white font-medium">{currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}</span></span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {mobileTab === 'weather' && (
+                <WeatherDashboard
+                  lat={location.lat}
+                  lon={location.lon}
+                  useMetric={useMetric}
+                  locationName={location.name}
+                />
+              )}
+
+              {mobileTab === 'storms' && (
+                <div className="space-y-4">
+                  {filteredStorms.length > 0 && (
+                    <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/50">
+                      <h3 className="text-lg font-semibold mb-3 text-white flex items-center gap-2">
+                        ⚡ {t.stormSummary}
+                      </h3>
+                      <div className="grid grid-cols-1 gap-3">
+                        {(() => {
+                          const closestStorm = [...filteredStorms].sort((a, b) => a.distance - b.distance)[0];
+                          const impact = getStormImpact(closestStorm);
+                          return (
+                            <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="text-blue-400">🎯</div>
+                                <span className="text-sm font-medium text-slate-300">{t.closestStorm}</span>
+                              </div>
+                              <div className="text-white font-semibold">
+                                {getCompassDirection(closestStorm.direction)} ({closestStorm.direction.toFixed(0).padStart(3, '0')}°) @ {formatDistance(closestStorm.distance)}
+                              </div>
+                              <div className="text-xs text-slate-400 mb-1">
+                                {closestStorm.intensity}dBZ • {getStormCategory(closestStorm.intensity)}
+                              </div>
+                              {closestStorm.windsPrediction && (
+                                <div className="text-xs text-slate-300 space-y-1">
+                                  <div>{t.movement}: {getCompassDirection(impact.movementDir)} ({impact.movementDir.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
+                                  <div className="flex justify-between">
+                                    <span>{t.impact}: <span className={impact.impactColor}>{impact.impactChance}</span></span>
+                                    <span>{t.eta}: {impact.eta}</span>
+                                  </div>
+                                  <div>{t.severity}: <span className={impact.severityColor}>{impact.severity}</span></div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        {(() => {
+                          const strongestStorm = [...filteredStorms].sort((a, b) => b.intensity - a.intensity)[0];
+                          const impact = getStormImpact(strongestStorm);
+                          return (
+                            <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="text-red-400">⚡</div>
+                                <span className="text-sm font-medium text-slate-300">{t.strongestStorm}</span>
+                              </div>
+                              <div className="text-white font-semibold">
+                                {strongestStorm.intensity}dBZ
+                              </div>
+                              <div className="text-xs text-slate-400 mb-1">
+                                {getCompassDirection(strongestStorm.direction)} ({strongestStorm.direction.toFixed(0).padStart(3, '0')}°) @ {formatDistance(strongestStorm.distance)} • {getStormCategory(strongestStorm.intensity)}
+                              </div>
+                              {strongestStorm.windsPrediction && (
+                                <div className="text-xs text-slate-300 space-y-1">
+                                  <div>{t.movement}: {getCompassDirection(impact.movementDir)} ({impact.movementDir.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
+                                  <div className="flex justify-between">
+                                    <span>{t.impact}: <span className={impact.impactColor}>{impact.impactChance}</span></span>
+                                    <span>{t.eta}: {impact.eta}</span>
+                                  </div>
+                                  <div>{t.severity}: <span className={impact.severityColor}>{impact.severity}</span></div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                  <ImpactPanel 
+                    storms={precipitationStorms}
+                    userLocation={location ? { lat: location.lat, lon: location.lon } : null}
+                    locationName={location?.name}
+                    minimumDbz={(preferences as any)?.minimumDbz ?? 50}
+                  />
+                  <StormPanel
+                    storms={precipitationStorms}
+                    useMetric={useMetric}
+                    formatDistance={formatDistance}
+                    formatSpeed={formatSpeed}
+                    isLoading={stormDataLoading}
+                    radarSource={currentRadarSource}
+                    userLocation={location}
+                    stormFilters={stormFilters}
+                    alertPreferences={preferences}
+                  />
+                </div>
+              )}
+
+              {mobileTab === 'ai' && location && windsAloftData && (
+                <AIWeatherAssistant
+                  userLocation={{
+                    lat: location.lat,
+                    lon: location.lon,
+                    address: location.name
+                  }}
+                  storms={precipitationStorms.map(storm => ({
+                    id: storm.id,
+                    lat: storm.lat,
+                    lon: storm.lon,
+                    intensity: storm.intensity,
+                    distance: storm.distance,
+                    direction: storm.direction,
+                    bearing: storm.bearing || 0,
+                    category: storm.intensity >= 61 ? 'Extreme' :
+                             storm.intensity >= 55 ? 'Very Heavy' :
+                             storm.intensity >= 46 ? 'Heavy' :
+                             storm.intensity >= 35 ? 'Moderate' : 'Light',
+                    movement: storm.windsPrediction ? {
+                      direction: storm.windsPrediction.direction,
+                      speed: storm.windsPrediction.speed,
+                      eta: storm.impactAssessment?.eta,
+                      impact: storm.impactAssessment?.impactChance
+                    } : undefined
+                  }))}
+                  winds={windsAloftData.winds || []}
+                  radarSource={currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
+                  lightningCount={0}
+                  useMetric={useMetric}
+                />
+              )}
+
+              {mobileTab === 'alerts' && (
+                <ImmediateSafetyAlerts
+                  location={location}
+                  storms={filteredStorms}
+                  isLoading={stormDataLoading}
+                  windsAloftData={windsAloftData}
+                />
+              )}
+            </div>
+
+            {/* === MOBILE BOTTOM TAB BAR === */}
+            <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-slate-900/95 border-t border-slate-700/50 flex justify-around items-center z-[999] backdrop-blur-xl" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+              {[
+                { id: 'radar' as const, icon: '📡', label: t.radar },
+                { id: 'weather' as const, icon: '🌤️', label: t.weather },
+                { id: 'storms' as const, icon: '🌩️', label: t.storms },
+                { id: 'ai' as const, icon: '🤖', label: 'AI' },
+                { id: 'alerts' as const, icon: '🚨', label: t.alerts },
+              ].map(tab => {
+                const isActive = mobileTab === tab.id;
+                const alertCount = tab.id === 'alerts' ? filteredStorms.filter(s => s.intensity >= 45).length : 0;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setMobileTab(tab.id)}
+                    className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors relative ${
+                      isActive 
+                        ? 'text-blue-400' 
+                        : 'text-slate-500 active:text-slate-300'
+                    }`}
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
+                  >
+                    <span className="text-xl leading-none">{tab.icon}</span>
+                    <span className={`text-[10px] font-medium leading-tight ${isActive ? 'text-blue-400' : 'text-slate-500'}`}>{tab.label}</span>
+                    {tab.id === 'alerts' && alertCount > 0 && (
+                      <span className="absolute -top-0.5 right-0.5 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                        {alertCount > 9 ? '9+' : alertCount}
+                      </span>
+                    )}
+                    {tab.id === 'storms' && filteredStorms.length > 0 && (
+                      <span className="absolute -top-0.5 right-0.5 min-w-[16px] h-4 bg-orange-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                        {filteredStorms.length > 9 ? '9+' : filteredStorms.length}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
 
           </>
         )}
       </div>
-      
-
-      
-
     </div>
   );
 }
