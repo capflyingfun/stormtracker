@@ -78,6 +78,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [nexradSite, setNexradSite] = useState<string>('');
   const animationIntervalRef = useRef<NodeJS.Timeout>();
   const animationSpeedRef = useRef<number>(800); // ms between frames
+  const nexradLayerTimeoutRef = useRef<NodeJS.Timeout>();
   const [sectorDbzData, setSectorDbzData] = useState<{[key: string]: number}>({});
   
   // Auto-sampling state
@@ -212,47 +213,72 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
   // Initialize radar frames based on source
   useEffect(() => {
+    // Cancel any pending NEXRAD layer timeout from previous source
+    if (nexradLayerTimeoutRef.current) {
+      clearTimeout(nexradLayerTimeoutRef.current);
+      nexradLayerTimeoutRef.current = undefined;
+    }
+    
+    // Clear existing radar layer and frames immediately to prevent stale rendering
+    if (radarLayerRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeLayer(radarLayerRef.current);
+      radarLayerRef.current = null;
+    }
+    setRadarFrames([]);
+    setCurrentFrameIndex(-1);
+    
+    // Stop any running animation
+    if (animationIntervalRef.current) {
+      clearInterval(animationIntervalRef.current);
+      animationIntervalRef.current = undefined;
+      setIsAnimating(false);
+    }
+    
+    let cancelled = false;
+    
     const loadRadarFrames = async () => {
       if (radarSource === 'rainviewer') {
         try {
           const response = await fetch('/api/rainviewer');
+          if (cancelled) return;
           const data = await response.json();
+          if (cancelled) return;
           if (data.radar && data.radar.past) {
             const frames = data.radar.past.map((frame: any) => frame.time);
             setRadarFrames(frames);
             setCurrentFrame(Math.max(0, frames.length - 1));
-            setCurrentFrameIndex(frames.length - 1); // Start with most recent frame
+            setCurrentFrameIndex(frames.length - 1);
             
             console.log(`Loaded ${frames.length} radar frames for animation`);
           }
         } catch (error) {
+          if (cancelled) return;
           console.error('Failed to load RainViewer frames:', error);
-          // Fallback to NEXRAD
           setRadarSource('nexrad');
         }
       } else {
-        // For NEXRAD, use static current radar display
         try {
           if (!location) {
             console.log('NEXRAD: Waiting for location...');
-            return; // Wait for location before loading NEXRAD
+            return;
           }
           
-          // Find nearest radar site for proper attribution
           const nearbyResponse = await fetch('/api/nexrad/nearby', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ lat: location.lat, lon: location.lon })
           });
           
+          if (cancelled) return;
+          
           if (!nearbyResponse.ok) {
             throw new Error('Failed to find nearby radar');
           }
           
           const { site } = await nearbyResponse.json();
+          if (cancelled) return;
           setNexradSite(site);
           
-          // Use static current NEXRAD radar (no animation)
           const frames = ['current'];
           setRadarFrames(frames);
           setCurrentFrame(0);
@@ -260,40 +286,30 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           
           console.log(`NEXRAD: Using static current radar for site ${site}`);
           
-          // Immediately load the radar layer for better initial display
-          setTimeout(() => {
-            if (mapInstanceRef.current && window.L) {
-              const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
-              
-              // Remove existing radar layer
-              if (radarLayerRef.current) {
-                mapInstanceRef.current.removeLayer(radarLayerRef.current);
-              }
-              
-              // Add NEXRAD layer immediately
-              radarLayerRef.current = window.L.tileLayer(nexradUrl, {
-                opacity: 0.7,
-                zIndex: 200,
-                attribution: `NEXRAD (${site})`,
-                updateWhenIdle: true,
-                updateWhenZooming: false,
-                // Force reload to ensure fresh tiles
-                updateInterval: 0
-              });
-              
-              radarLayerRef.current.addTo(mapInstanceRef.current);
-              console.log(`NEXRAD radar layer loaded for site ${site}`);
-              
-              // Give additional time for tiles to load before enabling sampling
-              setTimeout(() => {
-                console.log('NEXRAD radar tiles should be loaded now');
-              }, 1000);
+          nexradLayerTimeoutRef.current = setTimeout(() => {
+            if (cancelled || !mapInstanceRef.current || !window.L) return;
+            const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
+            
+            if (radarLayerRef.current) {
+              mapInstanceRef.current.removeLayer(radarLayerRef.current);
             }
-          }, 1000); // Increased delay to 1 second for slower connections
+            
+            radarLayerRef.current = window.L.tileLayer(nexradUrl, {
+              opacity: 0.7,
+              zIndex: 200,
+              attribution: `NEXRAD (${site})`,
+              updateWhenIdle: true,
+              updateWhenZooming: false,
+              updateInterval: 0
+            });
+            
+            radarLayerRef.current.addTo(mapInstanceRef.current);
+            console.log(`NEXRAD radar layer loaded for site ${site}`);
+          }, 1000);
           
         } catch (error) {
+          if (cancelled) return;
           console.error('Failed to load NEXRAD radar:', error);
-          // Fall back to RainViewer
           console.log('Switching to RainViewer due to NEXRAD issues');
           setRadarSource('rainviewer');
         }
@@ -301,7 +317,15 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     };
 
     loadRadarFrames();
-  }, [radarSource, location]); // Added location dependency
+    
+    return () => {
+      cancelled = true;
+      if (nexradLayerTimeoutRef.current) {
+        clearTimeout(nexradLayerTimeoutRef.current);
+        nexradLayerTimeoutRef.current = undefined;
+      }
+    };
+  }, [radarSource, location]);
 
   // Animation functions
   const startAnimation = () => {
@@ -340,53 +364,53 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
   // Update radar display when animation frame changes
   useEffect(() => {
-    if (currentFrameIndex >= 0 && radarFrames[currentFrameIndex]) {
-      const timestamp = radarFrames[currentFrameIndex];
-      // Load radar layer for this frame
-      if (radarLayerRef.current && mapInstanceRef.current) {
-        mapInstanceRef.current.removeLayer(radarLayerRef.current);
-        radarLayerRef.current = null;
-      }
-      
-      // Load new radar layer for this timestamp
-      const map = mapInstanceRef.current;
-      if (map && window.L) {
-        if (radarSource === 'rainviewer') {
-          const tileUrlTemplate = `/api/rainviewer/tile/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`;
-          radarLayerRef.current = window.L.tileLayer(tileUrlTemplate, {
-            opacity: 0.6,
-            zIndex: 200,
-            attribution: 'RainViewer'
-          });
+    if (currentFrameIndex < 0 || !radarFrames[currentFrameIndex] || radarFrames.length === 0) return;
+    
+    const timestamp = radarFrames[currentFrameIndex];
+    
+    // Validate: don't render RainViewer tiles with NEXRAD frames or vice versa
+    if (radarSource === 'rainviewer' && timestamp === 'current') return;
+    if (radarSource !== 'rainviewer' && typeof timestamp === 'number' && timestamp > 1000000000) return;
+    
+    // Load radar layer for this frame
+    if (radarLayerRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeLayer(radarLayerRef.current);
+      radarLayerRef.current = null;
+    }
+    
+    const map = mapInstanceRef.current;
+    if (map && window.L) {
+      if (radarSource === 'rainviewer') {
+        const tileUrlTemplate = `/api/rainviewer/tile/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`;
+        radarLayerRef.current = window.L.tileLayer(tileUrlTemplate, {
+          opacity: 0.6,
+          zIndex: 200,
+          attribution: 'RainViewer'
+        });
+      } else {
+        const timestampStr = String(timestamp);
+        let nexradUrl;
+        
+        if (timestampStr.startsWith('current') || !nexradSite) {
+          nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
         } else {
-          // NEXRAD: Use RIDGE API for site-specific historical data
-          const timestampStr = String(timestamp);
-          let nexradUrl;
-          
-          if (timestampStr.startsWith('current') || !nexradSite) {
-            // Fallback to current composite radar
-            nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
-          } else {
-            // Use RIDGE API for historical site-specific data
-            nexradUrl = `/api/nexrad/tile/${nexradSite}/${timestamp}/{z}/{x}/{y}.png`;
-          }
-          
-          radarLayerRef.current = window.L.tileLayer(nexradUrl, {
-            opacity: 0.7,
-            zIndex: 200,
-            attribution: `NEXRAD ${nexradSite ? `(${nexradSite})` : ''}`,
-            updateWhenIdle: true,
-            updateWhenZooming: false
-          });
+          nexradUrl = `/api/nexrad/tile/${nexradSite}/${timestamp}/{z}/{x}/{y}.png`;
         }
         
-        radarLayerRef.current.addTo(map);
+        radarLayerRef.current = window.L.tileLayer(nexradUrl, {
+          opacity: 0.7,
+          zIndex: 200,
+          attribution: `NEXRAD ${nexradSite ? `(${nexradSite})` : ''}`,
+          updateWhenIdle: true,
+          updateWhenZooming: false
+        });
       }
       
-      // Sample precipitation data for this frame only when not animating
-      if (!isAnimating) {
-        setTimeout(() => sampleRadarDbz(), 1000);
-      }
+      radarLayerRef.current.addTo(map);
+    }
+    
+    if (!isAnimating) {
+      setTimeout(() => sampleRadarDbz(), 1000);
     }
   }, [currentFrameIndex, radarFrames, radarSource]);
 
