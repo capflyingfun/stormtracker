@@ -54,6 +54,34 @@ async function fetchNWSAlerts(lat: number, lon: number) {
 const tickerMessageCache: Map<string, { messages: string[]; timestamp: number }> = new Map();
 const TICKER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// AccuWeather location key cache (location keys don't change, cache for 24h)
+const accuLocationCache: Map<string, { key: string; timestamp: number }> = new Map();
+const ACCU_LOCATION_TTL = 24 * 60 * 60 * 1000;
+// AccuWeather current conditions cache (15 min to conserve 50 calls/day on free plan)
+const accuCurrentCache: Map<string, { data: any; timestamp: number }> = new Map();
+const ACCU_CURRENT_TTL = 15 * 60 * 1000;
+// AccuWeather forecast cache (30 min — forecasts change slowly)
+const accuForecastCache: Map<string, { data: any; timestamp: number }> = new Map();
+const ACCU_FORECAST_TTL = 30 * 60 * 1000;
+// AccuWeather MinuteCast cache (15 min by rounded coords)
+const accuMinutecastCache: Map<string, { data: any; timestamp: number }> = new Map();
+const ACCU_MINUTECAST_TTL = 15 * 60 * 1000;
+// AccuWeather daily quota guard (50 calls/day on free plan, reserve 5 for safety)
+let accuDailyCallCount = 0;
+let accuDailyResetDate = new Date().toISOString().substring(0, 10);
+const ACCU_DAILY_LIMIT = 45;
+function accuCanCall(): boolean {
+  const today = new Date().toISOString().substring(0, 10);
+  if (today !== accuDailyResetDate) {
+    accuDailyCallCount = 0;
+    accuDailyResetDate = today;
+  }
+  return accuDailyCallCount < ACCU_DAILY_LIMIT;
+}
+function accuRecordCall() {
+  accuDailyCallCount++;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
   const API_KEYS = {
@@ -5551,13 +5579,209 @@ Guidelines:
         );
       }
 
+      // AccuWeather as additional source (with aggressive caching to stay within 50 calls/day free plan)
+      const accu_key = process.env.ACCUWEATHER_API;
+      if (accu_key) {
+        fetchPromises.push(
+          (async () => {
+            try {
+              const coordKey = `${latitude.toFixed(2)},${longitude.toFixed(2)}`;
+
+              // Get location key (cached 24h)
+              let locationKey: string | null = null;
+              const cachedLoc = accuLocationCache.get(coordKey);
+              if (cachedLoc && Date.now() - cachedLoc.timestamp < ACCU_LOCATION_TTL) {
+                locationKey = cachedLoc.key;
+              } else {
+                if (!accuCanCall()) return;
+                const locResp = await fetch(
+                  `https://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey=${accu_key}&q=${latitude},${longitude}`,
+                  { signal: AbortSignal.timeout(6000) }
+                );
+                accuRecordCall();
+                if (locResp.ok) {
+                  const locData = await locResp.json();
+                  locationKey = locData.Key || null;
+                  if (locationKey) {
+                    accuLocationCache.set(coordKey, { key: locationKey, timestamp: Date.now() });
+                  }
+                }
+              }
+              if (!locationKey) return;
+
+              // Fetch current conditions (cached 15 min)
+              const cachedCurrent = accuCurrentCache.get(locationKey);
+              let currentData: any = null;
+              if (cachedCurrent && Date.now() - cachedCurrent.timestamp < ACCU_CURRENT_TTL) {
+                currentData = cachedCurrent.data;
+              } else {
+                if (!accuCanCall()) return;
+                const curResp = await fetch(
+                  `https://dataservice.accuweather.com/currentconditions/v1/${locationKey}?apikey=${accu_key}&details=true`,
+                  { signal: AbortSignal.timeout(6000) }
+                );
+                accuRecordCall();
+                if (curResp.ok) {
+                  const arr = await curResp.json();
+                  currentData = arr?.[0] || null;
+                  if (currentData) {
+                    accuCurrentCache.set(locationKey, { data: currentData, timestamp: Date.now() });
+                  }
+                }
+              }
+
+              if (currentData) {
+                const d = currentData;
+                const tempF = d.Temperature?.Imperial?.Value;
+                const tempC = d.Temperature?.Metric?.Value;
+                if (tempF != null && tempC != null) {
+                  const windMph = d.Wind?.Speed?.Imperial?.Value || 0;
+                  const windKph = d.Wind?.Speed?.Metric?.Value || 0;
+                  const gustMph = d.WindGust?.Speed?.Imperial?.Value || windMph;
+                  const gustKph = d.WindGust?.Speed?.Metric?.Value || windKph;
+                  const pressMb = d.Pressure?.Metric?.Value || 1013;
+                  const pressIn = d.Pressure?.Imperial?.Value || 29.92;
+                  const visKm = d.Visibility?.Metric?.Value || 10;
+                  const visMi = d.Visibility?.Imperial?.Value || 6.2;
+                  const dewF = d.DewPoint?.Imperial?.Value;
+                  const dewC = d.DewPoint?.Metric?.Value;
+
+                  sourceReadings.push({
+                    name: 'AccuWeather',
+                    data: {
+                      temp_f: tempF, temp_c: tempC,
+                      feelslike_f: d.RealFeelTemperature?.Imperial?.Value ?? tempF,
+                      feelslike_c: d.RealFeelTemperature?.Metric?.Value ?? tempC,
+                      humidity: d.RelativeHumidity || 50,
+                      pressure_mb: pressMb, pressure_in: pressIn,
+                      wind_mph: windMph, wind_kph: windKph,
+                      wind_degree: d.Wind?.Direction?.Degrees || 0,
+                      wind_dir: d.Wind?.Direction?.English || degToDir(d.Wind?.Direction?.Degrees || 0),
+                      gust_mph: gustMph, gust_kph: gustKph,
+                      visibility_km: visKm, visibility_miles: visMi,
+                      cloud: d.CloudCover || 0,
+                      condition: d.WeatherText || 'Unknown',
+                      dew_point_f: dewF, dew_point_c: dewC
+                    }
+                  });
+
+                  if (d.UVIndex > uvIndex) uvIndex = d.UVIndex;
+                  if (d.HasPrecipitation && d.Precip1hr?.Imperial?.Value) {
+                    precipIn = Math.max(precipIn, d.Precip1hr.Imperial.Value);
+                    precipMm = Math.max(precipMm, d.Precip1hr.Metric?.Value || precipIn * 25.4);
+                  }
+                }
+              }
+
+              // Fetch 5-day forecast (cached 30 min) — enrich forecastData with AccuWeather-specific fields
+              const cachedForecast = accuForecastCache.get(locationKey);
+              let forecastResp: any = null;
+              if (cachedForecast && Date.now() - cachedForecast.timestamp < ACCU_FORECAST_TTL) {
+                forecastResp = cachedForecast.data;
+              } else {
+                if (!accuCanCall()) { forecastResp = null; } else {
+                  const fcResp = await fetch(
+                    `https://dataservice.accuweather.com/forecasts/v1/daily/5day/${locationKey}?apikey=${accu_key}&details=true`,
+                    { signal: AbortSignal.timeout(8000) }
+                  );
+                  accuRecordCall();
+                  if (fcResp.ok) {
+                    forecastResp = await fcResp.json();
+                    if (forecastResp) {
+                      accuForecastCache.set(locationKey, { data: forecastResp, timestamp: Date.now() });
+                    }
+                  }
+                }
+              }
+
+              if (forecastResp?.DailyForecasts && forecastData.length > 0) {
+                for (let idx = 0; idx < forecastResp.DailyForecasts.length; idx++) {
+                  const acDay = forecastResp.DailyForecasts[idx];
+                  const acDate = acDay.Date?.substring(0, 10);
+                  const match = forecastData.find((f: any) => f.date === acDate);
+                  if (match) {
+                    match.accuweather = {
+                      thunderstormProbability: acDay.Day?.ThunderstormProbability || 0,
+                      rainProbability: acDay.Day?.RainProbability || 0,
+                      snowProbability: acDay.Day?.SnowProbability || 0,
+                      iceProbability: acDay.Day?.IceProbability || 0,
+                      shortPhrase: acDay.Day?.ShortPhrase || '',
+                      longPhrase: acDay.Day?.LongPhrase || '',
+                      nightShortPhrase: acDay.Night?.ShortPhrase || '',
+                      nightLongPhrase: acDay.Night?.LongPhrase || '',
+                      hoursOfSun: acDay.HoursOfSun || 0,
+                      airAndPollen: acDay.AirAndPollen || [],
+                      realFeelMax_f: acDay.RealFeelTemperature?.Maximum?.Value,
+                      realFeelMin_f: acDay.RealFeelTemperature?.Minimum?.Value,
+                      windGustDay_mph: acDay.Day?.WindGust?.Speed?.Value,
+                      windGustNight_mph: acDay.Night?.WindGust?.Speed?.Value,
+                      precipDay_in: acDay.Day?.TotalLiquid?.Value || 0,
+                      precipNight_in: acDay.Night?.TotalLiquid?.Value || 0,
+                      moonPhase: acDay.Moon?.Phase || '',
+                    };
+                  }
+                }
+              } else if (forecastResp?.DailyForecasts && forecastData.length === 0) {
+                forecastData = forecastResp.DailyForecasts.map((acDay: any) => ({
+                  date: acDay.Date?.substring(0, 10),
+                  day: {
+                    maxtemp_f: acDay.Temperature?.Maximum?.Value,
+                    maxtemp_c: fToC(acDay.Temperature?.Maximum?.Value || 70),
+                    mintemp_f: acDay.Temperature?.Minimum?.Value,
+                    mintemp_c: fToC(acDay.Temperature?.Minimum?.Value || 50),
+                    maxwind_mph: acDay.Day?.Wind?.Speed?.Value || 0,
+                    maxwind_kph: (acDay.Day?.Wind?.Speed?.Value || 0) * 1.60934,
+                    totalprecip_in: (acDay.Day?.TotalLiquid?.Value || 0) + (acDay.Night?.TotalLiquid?.Value || 0),
+                    totalprecip_mm: ((acDay.Day?.TotalLiquid?.Value || 0) + (acDay.Night?.TotalLiquid?.Value || 0)) * 25.4,
+                    avghumidity: 0,
+                    daily_chance_of_rain: acDay.Day?.RainProbability || 0,
+                    daily_chance_of_snow: acDay.Day?.SnowProbability || 0,
+                    condition: acDay.Day?.IconPhrase || 'Unknown',
+                    uv: acDay.AirAndPollen?.find((a: any) => a.Name === 'UVIndex')?.Value || 0
+                  },
+                  astro: {
+                    sunrise: acDay.Sun?.Rise ? new Date(acDay.Sun.Rise).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+                    sunset: acDay.Sun?.Set ? new Date(acDay.Sun.Set).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+                    moonrise: acDay.Moon?.Rise ? new Date(acDay.Moon.Rise).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+                    moonset: acDay.Moon?.Set ? new Date(acDay.Moon.Set).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+                    moon_phase: acDay.Moon?.Phase || '',
+                    moon_illumination: ''
+                  },
+                  accuweather: {
+                    thunderstormProbability: acDay.Day?.ThunderstormProbability || 0,
+                    rainProbability: acDay.Day?.RainProbability || 0,
+                    snowProbability: acDay.Day?.SnowProbability || 0,
+                    iceProbability: acDay.Day?.IceProbability || 0,
+                    shortPhrase: acDay.Day?.ShortPhrase || '',
+                    longPhrase: acDay.Day?.LongPhrase || '',
+                    nightShortPhrase: acDay.Night?.ShortPhrase || '',
+                    nightLongPhrase: acDay.Night?.LongPhrase || '',
+                    hoursOfSun: acDay.HoursOfSun || 0,
+                    airAndPollen: acDay.AirAndPollen || [],
+                    realFeelMax_f: acDay.RealFeelTemperature?.Maximum?.Value,
+                    realFeelMin_f: acDay.RealFeelTemperature?.Minimum?.Value,
+                    windGustDay_mph: acDay.Day?.WindGust?.Speed?.Value,
+                    windGustNight_mph: acDay.Night?.WindGust?.Speed?.Value,
+                    precipDay_in: acDay.Day?.TotalLiquid?.Value || 0,
+                    precipNight_in: acDay.Night?.TotalLiquid?.Value || 0,
+                    moonPhase: acDay.Moon?.Phase || '',
+                  }
+                }));
+              }
+            } catch (e) {
+              console.log('AccuWeather forecast source error:', (e as Error).message);
+            }
+          })()
+        );
+      }
+
       await Promise.allSettled(fetchPromises);
 
       if (sourceReadings.length === 0) {
         return res.status(503).json({ error: "No weather data sources available" });
       }
 
-      const sourcePriority: Record<string, number> = { 'NWS': 1, 'OpenWeather': 2, 'WeatherAPI': 3, 'Open-Meteo': 4 };
+      const sourcePriority: Record<string, number> = { 'NWS': 1, 'OpenWeather': 2, 'AccuWeather': 3, 'WeatherAPI': 4, 'Open-Meteo': 5 };
       sourceReadings.sort((a, b) => (sourcePriority[a.name] || 99) - (sourcePriority[b.name] || 99));
 
       const avg = (vals: number[]) => vals.reduce((a, b) => a + b, 0) / vals.length;
@@ -5689,13 +5913,22 @@ Guidelines:
   async function getAccuWeatherLocationKey(lat: number, lon: number): Promise<string | null> {
     if (!ACCUWEATHER_API_KEY) return null;
     try {
+      const coordKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+      const cached = accuLocationCache.get(coordKey);
+      if (cached && Date.now() - cached.timestamp < ACCU_LOCATION_TTL) {
+        return cached.key;
+      }
       const resp = await fetch(
         `https://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey=${ACCUWEATHER_API_KEY}&q=${lat},${lon}`,
         { signal: AbortSignal.timeout(8000) }
       );
       if (!resp.ok) return null;
       const data = await resp.json();
-      return data.Key || null;
+      const key = data.Key || null;
+      if (key) {
+        accuLocationCache.set(coordKey, { key, timestamp: Date.now() });
+      }
+      return key;
     } catch {
       return null;
     }
@@ -5711,16 +5944,26 @@ Guidelines:
       return res.status(400).json({ error: "lat and lon required" });
     }
     try {
+      const cacheKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+      const cached = accuMinutecastCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ACCU_MINUTECAST_TTL) {
+        return res.json(cached.data);
+      }
+      if (!accuCanCall()) {
+        return res.status(429).json({ error: "AccuWeather daily quota reached" });
+      }
       const resp = await fetch(
         `https://dataservice.accuweather.com/forecasts/v1/minute?apikey=${ACCUWEATHER_API_KEY}&q=${lat},${lon}`,
         { signal: AbortSignal.timeout(10000) }
       );
+      accuRecordCall();
       if (!resp.ok) {
         const text = await resp.text();
         console.error(`AccuWeather MinuteCast error ${resp.status}:`, text);
         return res.status(resp.status).json({ error: "MinuteCast request failed" });
       }
       const data = await resp.json();
+      accuMinutecastCache.set(cacheKey, { data, timestamp: Date.now() });
       res.json(data);
     } catch (err: any) {
       console.error("AccuWeather MinuteCast error:", err.message);
@@ -5742,14 +5985,25 @@ Guidelines:
       if (!locationKey) {
         return res.status(404).json({ error: "Location not found" });
       }
+      const cachedCur = accuCurrentCache.get(locationKey);
+      if (cachedCur && Date.now() - cachedCur.timestamp < ACCU_CURRENT_TTL) {
+        return res.json([cachedCur.data]);
+      }
+      if (!accuCanCall()) {
+        return res.status(429).json({ error: "AccuWeather daily quota reached" });
+      }
       const resp = await fetch(
         `https://dataservice.accuweather.com/currentconditions/v1/${locationKey}?apikey=${ACCUWEATHER_API_KEY}&details=true`,
         { signal: AbortSignal.timeout(10000) }
       );
+      accuRecordCall();
       if (!resp.ok) {
         return res.status(resp.status).json({ error: "Current conditions request failed" });
       }
       const data = await resp.json();
+      if (data?.[0]) {
+        accuCurrentCache.set(locationKey, { data: data[0], timestamp: Date.now() });
+      }
       res.json(data);
     } catch (err: any) {
       console.error("AccuWeather current conditions error:", err.message);
@@ -5800,14 +6054,25 @@ Guidelines:
       if (!locationKey) {
         return res.status(404).json({ error: "Location not found" });
       }
+      const cachedFc = accuForecastCache.get(locationKey);
+      if (cachedFc && Date.now() - cachedFc.timestamp < ACCU_FORECAST_TTL) {
+        return res.json(cachedFc.data);
+      }
+      if (!accuCanCall()) {
+        return res.status(429).json({ error: "AccuWeather daily quota reached" });
+      }
       const resp = await fetch(
         `https://dataservice.accuweather.com/forecasts/v1/daily/5day/${locationKey}?apikey=${ACCUWEATHER_API_KEY}&details=true`,
         { signal: AbortSignal.timeout(10000) }
       );
+      accuRecordCall();
       if (!resp.ok) {
         return res.status(resp.status).json({ error: "5-day forecast request failed" });
       }
       const data = await resp.json();
+      if (data) {
+        accuForecastCache.set(locationKey, { data, timestamp: Date.now() });
+      }
       res.json(data);
     } catch (err: any) {
       console.error("AccuWeather 5-day forecast error:", err.message);
@@ -5829,10 +6094,14 @@ Guidelines:
       if (!locationKey) {
         return res.status(404).json({ error: "Location not found" });
       }
+      if (!accuCanCall()) {
+        return res.status(429).json({ error: "AccuWeather daily quota reached" });
+      }
       const resp = await fetch(
         `https://dataservice.accuweather.com/forecasts/v1/hourly/12hour/${locationKey}?apikey=${ACCUWEATHER_API_KEY}&details=true`,
         { signal: AbortSignal.timeout(10000) }
       );
+      accuRecordCall();
       if (!resp.ok) {
         return res.status(resp.status).json({ error: "12-hour forecast request failed" });
       }
