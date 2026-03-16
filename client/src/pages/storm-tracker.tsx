@@ -551,21 +551,26 @@ export default function StormTracker() {
     }
   }, [location]);
 
-  // Auto-switch to NEXRAD for US locations on app load
+  // Auto-switch to NEXRAD for US locations - only on initial location set
+  const hasAutoSwitchedRadar = useRef(false);
   useEffect(() => {
-    if (location && currentRadarSource === 'rainviewer') {
-      // Detect US locations by coordinates or common US indicators
-      const isUSLocation = location.lat >= 24.5 && location.lat <= 49.5 && location.lon >= -125 && location.lon <= -66.5;
-      const hasUSIndicators = location.name.includes(', FL') || location.name.includes(', TX') || location.name.includes(', CA') || 
-                             location.name.includes(', NY') || location.name.includes('Florida') || location.name.includes('Texas') ||
-                             location.name.includes('California') || location.name.includes('Alaska') || location.name.includes('Hawaii');
-      
-      if (isUSLocation || hasUSIndicators) {
-        setCurrentRadarSource('nexrad');
-        console.log('Auto-switched to NEXRAD for US location:', location.name);
-      }
+    if (!location) {
+      hasAutoSwitchedRadar.current = false;
+      return;
     }
-  }, [location, currentRadarSource]);
+    if (hasAutoSwitchedRadar.current) return;
+    hasAutoSwitchedRadar.current = true;
+    
+    const isUSLocation = location.lat >= 24.5 && location.lat <= 49.5 && location.lon >= -125 && location.lon <= -66.5;
+    const hasUSIndicators = location.name.includes(', FL') || location.name.includes(', TX') || location.name.includes(', CA') || 
+                           location.name.includes(', NY') || location.name.includes('Florida') || location.name.includes('Texas') ||
+                           location.name.includes('California') || location.name.includes('Alaska') || location.name.includes('Hawaii');
+    
+    if (isUSLocation || hasUSIndicators) {
+      setCurrentRadarSource('nexrad');
+      console.log('Auto-switched to NEXRAD for US location:', location.name);
+    }
+  }, [location]);
 
   // Auto-refresh when tracking is enabled
   useEffect(() => {
