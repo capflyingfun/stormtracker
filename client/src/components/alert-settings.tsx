@@ -72,8 +72,8 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
   const thresholdInfo = getThresholdDescription(localThreshold);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
-      <Card className="w-full max-w-md bg-slate-800 border-slate-700 max-h-[90vh] sm:max-h-[95vh] overflow-y-auto m-2 sm:m-0">
+    <div className="fixed inset-0 bg-black/60 flex items-start sm:items-center justify-center z-50 p-3 sm:p-4 pt-[max(12px,env(safe-area-inset-top))] overflow-y-auto">
+      <Card className="w-full max-w-md bg-slate-800 border-slate-700 max-h-[85vh] sm:max-h-[90vh] overflow-y-auto my-2 sm:my-0">
         <CardHeader className="pb-3 px-4 pt-4 sm:px-6 sm:pt-6">
           <div className="flex items-center justify-between min-h-[2rem]">
             <CardTitle className="text-lg font-bold text-white flex items-center gap-2 pr-3">

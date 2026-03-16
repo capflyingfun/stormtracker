@@ -395,6 +395,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     // Only trigger if we have a map and location
     if (!mapInstanceRef.current || !location) return;
     
+    // Clear existing radar layer immediately to prevent ghost tiles
+    if (radarLayerRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeLayer(radarLayerRef.current);
+      radarLayerRef.current = null;
+    }
+    
     // Clear existing waypoints when switching sources
     setPrecipitationPoints([]);
     setRadarFrameHistory([]);
@@ -409,7 +415,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const refreshTimer = setTimeout(() => {
       console.log(`Radar source switched to ${radarSource.toUpperCase()} - sampling precipitation data`);
       sampleRadarDbz();
-    }, 1500); // Give time for radar tiles to load
+    }, 2000);
     
     return () => clearTimeout(refreshTimer);
   }, [radarSource]);

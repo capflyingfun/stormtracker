@@ -15,26 +15,26 @@ export default function Header({ useMetric, onUnitsChange, onOpenSettings }: Hea
   const currentLang = LANGUAGES.find(l => l.code === language);
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 p-4 select-none relative z-[55]">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 text-yellow-400 select-none">⚡</div>
-          <div className="select-none">
-            <h1 className="text-2xl font-bold select-none">StormTracker <span className="text-sm font-normal text-slate-400">v1.50</span></h1>
-            <p className="text-sm text-slate-300 select-none">{t.realTimeStorm}</p>
+    <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 p-3 sm:p-4 select-none relative z-[55]">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
+          <div className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400 select-none shrink-0">⚡</div>
+          <div className="select-none min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold select-none leading-tight">StormTracker <span className="text-xs sm:text-sm font-normal text-slate-400">v1.50</span></h1>
+            <p className="text-xs sm:text-sm text-slate-300 select-none truncate">{t.realTimeStorm}</p>
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <div className="relative">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => { setShowLangMenu(!showLangMenu); }}
-              className="px-2 py-1 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 text-sm"
+              className="px-1.5 sm:px-2 py-1 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 text-xs sm:text-sm max-w-[120px] sm:max-w-none"
               title={t.language}
             >
-              {currentLang?.flag} {currentLang?.nativeName}
+              <span className="truncate">{currentLang?.flag} {currentLang?.nativeName}</span>
             </Button>
             {showLangMenu && (
               <div className="absolute right-0 top-full mt-1 z-[60] bg-slate-800 border border-slate-600 rounded-lg shadow-xl py-1 min-w-[180px] max-h-[320px] overflow-y-auto">
@@ -53,7 +53,7 @@ export default function Header({ useMetric, onUnitsChange, onOpenSettings }: Hea
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-gray-400">
+          <div className="hidden sm:flex items-center gap-1.5 text-gray-400">
             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
             <span className="text-sm">{t.ready}</span>
           </div>
@@ -62,7 +62,7 @@ export default function Header({ useMetric, onUnitsChange, onOpenSettings }: Hea
             variant="ghost"
             size="sm"
             onClick={() => { setShowLangMenu(false); onOpenSettings(); }}
-            className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600/50"
+            className="p-1.5 sm:p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 shrink-0"
           >
             ⚙️
           </Button>
