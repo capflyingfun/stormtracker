@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronUp, ChevronDown, GripVertical, X, LayoutList } from "lucide-react";
+import { useLanguage } from "@/hooks/use-language";
 
 export interface SectionConfig {
   id: string;
@@ -49,8 +50,19 @@ interface SectionReorderProps {
 
 export default function SectionReorder({ onClose, onOrderChange, currentOrder }: SectionReorderProps) {
   const [order, setOrder] = useState<string[]>(currentOrder);
+  const { t } = useLanguage();
 
-  const sectionMap = new Map(ALL_SECTIONS.map(s => [s.id, s]));
+  const translatedLabels: Record<string, string> = {
+    'isa': t.immediacySafetyAlert,
+    'weather': t.weatherDashboard,
+    'summary': t.stormSummary,
+    'ai': t.aiWeatherAssistant,
+    'radar': t.radarDisplay,
+    'impact': t.stormImpactPredictions,
+    'cells': t.stormCells,
+  };
+
+  const sectionMap = new Map(ALL_SECTIONS.map(s => [s.id, { ...s, label: translatedLabels[s.id] || s.label }]));
 
   const moveUp = (index: number) => {
     if (index <= 0) return;
@@ -85,7 +97,7 @@ export default function SectionReorder({ onClose, onOrderChange, currentOrder }:
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <LayoutList className="w-5 h-5 text-blue-400" />
-            <h3 className="text-white font-semibold text-base">Customize Layout</h3>
+            <h3 className="text-white font-semibold text-base">{t.layout}</h3>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white">
             <X className="w-5 h-5" />
@@ -135,7 +147,7 @@ export default function SectionReorder({ onClose, onOrderChange, currentOrder }:
             size="sm"
             className="text-xs border-slate-600 text-slate-300"
           >
-            Reset Default
+            {t.refreshData}
           </Button>
           <div className="flex-1" />
           <Button
@@ -144,14 +156,14 @@ export default function SectionReorder({ onClose, onOrderChange, currentOrder }:
             size="sm"
             className="text-xs text-slate-400"
           >
-            Cancel
+            {t.cancel}
           </Button>
           <Button
             onClick={handleSave}
             size="sm"
             className="text-xs bg-blue-600 hover:bg-blue-700 text-white"
           >
-            Save Layout
+            {t.save}
           </Button>
         </div>
       </div>

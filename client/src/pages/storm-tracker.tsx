@@ -28,6 +28,7 @@ import { useLanguage } from "@/hooks/use-language";
 function EmbeddedMessageInbox() {
   const [selectedMessage, setSelectedMessage] = useState<any | null>(null);
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
 
   // Get all messages
   const { data: messages = [], isLoading } = useQuery<any[]>({
@@ -65,15 +66,15 @@ function EmbeddedMessageInbox() {
   };
 
   if (isLoading) {
-    return <div className="text-slate-300">Loading messages...</div>;
+    return <div className="text-slate-300">{t.loadingMessages}</div>;
   }
 
   if (messages.length === 0) {
     return (
       <div className="text-center text-slate-300 py-8">
         <div className="text-4xl mb-4">📧</div>
-        <h3 className="text-lg font-semibold mb-2">No Messages Yet</h3>
-        <p className="text-slate-400">Storm alert messages will appear here when conditions meet your alert criteria.</p>
+        <h3 className="text-lg font-semibold mb-2">{t.noMessagesYet}</h3>
+        <p className="text-slate-400">{t.alertMessagesAppear}</p>
       </div>
     );
   }
@@ -88,7 +89,7 @@ function EmbeddedMessageInbox() {
             size="sm"
             className="text-slate-400 hover:text-white"
           >
-            ← Back to Messages
+            ← {t.messages}
           </Button>
           <Button
             onClick={() => deleteMessageMutation.mutate(selectedMessage.id)}
@@ -97,7 +98,7 @@ function EmbeddedMessageInbox() {
             className="text-red-400 hover:text-red-300"
             disabled={deleteMessageMutation.isPending}
           >
-            🗑️ Delete
+            🗑️ {t.delete}
           </Button>
         </div>
         
@@ -121,9 +122,9 @@ function EmbeddedMessageInbox() {
     <div className="space-y-3">
       <div className="text-slate-300 mb-4">
         <p className="text-sm">
-          Total Messages: <span className="font-semibold">{messages.length}</span>
+          {t.stormAlertMessages}: <span className="font-semibold">{messages.length}</span>
           {" • "}
-          Unread: <span className="font-semibold text-blue-400">{messages.filter((m: any) => !m.isRead).length}</span>
+          New: <span className="font-semibold text-blue-400">{messages.filter((m: any) => !m.isRead).length}</span>
         </p>
       </div>
       
@@ -149,7 +150,7 @@ function EmbeddedMessageInbox() {
             </div>
           </div>
           
-          <p className="text-slate-400 text-sm mb-2">To: {message.recipientEmail}</p>
+          <p className="text-slate-400 text-sm mb-2">{t.to}: {message.recipientEmail}</p>
           
           <div className="text-slate-300 text-sm line-clamp-2">
             {message.textContent?.substring(0, 150)}...
@@ -585,7 +586,7 @@ export default function StormTracker() {
           <div className="bg-slate-900 rounded-xl max-w-lg w-full max-h-[85vh] flex flex-col">
             {/* Fixed Header */}
             <div className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">Storm Alert Notifications</h2>
+              <h2 className="text-lg font-semibold text-white">{t.stormAlertNotifications}</h2>
               <Button
                 onClick={() => setShowAlertSubscription(false)}
                 variant="ghost"
@@ -611,7 +612,7 @@ export default function StormTracker() {
           <div className="bg-slate-900 rounded-xl max-w-4xl w-full max-h-[85vh] flex flex-col">
             {/* Fixed Header */}
             <div className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">Storm Alert Messages</h2>
+              <h2 className="text-lg font-semibold text-white">{t.stormAlertMessages}</h2>
               <Button
                 onClick={() => setShowMessages(false)}
                 variant="ghost"
@@ -650,7 +651,7 @@ export default function StormTracker() {
                       {location.lat.toFixed(4)}°{location.lat >= 0 ? 'N' : 'S'}, {Math.abs(location.lon).toFixed(4)}°{location.lon >= 0 ? 'E' : 'W'}
                     </p>
                     <p className="text-slate-300 text-sm sm:text-base">
-                      {t.detectionRadius}: {formatDistance(50)} (Unified System)
+                      {t.detectionRadius}: {formatDistance(50)} ({t.unifiedSystem})
                     </p>
                   </div>
                 </div>
@@ -745,7 +746,7 @@ export default function StormTracker() {
               <div className="flex items-center gap-2 flex-wrap">
                 {lastUpdate && (
                   <p className="text-slate-400 text-xs sm:text-sm">
-                    Last update: {lastUpdate.toLocaleTimeString()}
+                    {t.lastCheck}: {lastUpdate.toLocaleTimeString()}
                   </p>
                 )}
                 <button
@@ -753,7 +754,7 @@ export default function StormTracker() {
                   className="flex items-center gap-1 px-2 py-1 text-[10px] text-slate-500 hover:text-slate-300 bg-slate-800/50 hover:bg-slate-700/50 rounded-md border border-slate-700/50 transition-colors ml-auto"
                 >
                   <LayoutList className="w-3 h-3" />
-                  Layout
+                  {t.layout}
                 </button>
               </div>
             </div>
@@ -792,7 +793,7 @@ export default function StormTracker() {
                   return filteredStorms.length > 0 ? (
                     <div key="summary" className="bg-slate-800/50 rounded-xl p-3 sm:p-6 border border-slate-700/50 mb-4 sm:mb-6">
                       <h3 className="text-lg font-semibold mb-3 text-white flex items-center gap-2">
-                        ⚡ Storm Summary
+                        ⚡ {t.stormSummary}
                       </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {(() => {
@@ -802,7 +803,7 @@ export default function StormTracker() {
                             <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
                               <div className="flex items-center gap-2 mb-2">
                                 <div className="text-blue-400">🎯</div>
-                                <span className="text-sm font-medium text-slate-300">Closest Storm</span>
+                                <span className="text-sm font-medium text-slate-300">{t.closestStorm}</span>
                               </div>
                               <div className="text-white font-semibold">
                                 {getCompassDirection(closestStorm.direction)} ({closestStorm.direction.toFixed(0).padStart(3, '0')}°) @ {formatDistance(closestStorm.distance)}
@@ -812,12 +813,12 @@ export default function StormTracker() {
                               </div>
                               {closestStorm.windsPrediction && (
                                 <div className="text-xs text-slate-300 space-y-1">
-                                  <div>Movement: {getCompassDirection(impact.movementDir)} ({impact.movementDir.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
+                                  <div>{t.movement}: {getCompassDirection(impact.movementDir)} ({impact.movementDir.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
                                   <div className="flex justify-between">
-                                    <span>Impact: <span className={impact.impactColor}>{impact.impactChance}</span></span>
-                                    <span>ETA: {impact.eta}</span>
+                                    <span>{t.impact}: <span className={impact.impactColor}>{impact.impactChance}</span></span>
+                                    <span>{t.eta}: {impact.eta}</span>
                                   </div>
-                                  <div>Severity: <span className={impact.severityColor}>{impact.severity}</span></div>
+                                  <div>{t.severity}: <span className={impact.severityColor}>{impact.severity}</span></div>
                                 </div>
                               )}
                             </div>
@@ -830,7 +831,7 @@ export default function StormTracker() {
                             <div className="bg-slate-700/30 rounded-lg p-3 border border-slate-600/50">
                               <div className="flex items-center gap-2 mb-2">
                                 <div className="text-red-400">⚡</div>
-                                <span className="text-sm font-medium text-slate-300">Strongest Storm</span>
+                                <span className="text-sm font-medium text-slate-300">{t.strongestStorm}</span>
                               </div>
                               <div className="text-white font-semibold">
                                 {strongestStorm.intensity}dBZ
@@ -840,12 +841,12 @@ export default function StormTracker() {
                               </div>
                               {strongestStorm.windsPrediction && (
                                 <div className="text-xs text-slate-300 space-y-1">
-                                  <div>Movement: {getCompassDirection(impact.movementDir)} ({impact.movementDir.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
+                                  <div>{t.movement}: {getCompassDirection(impact.movementDir)} ({impact.movementDir.toFixed(0).padStart(3, '0')}°) @ {formatSpeed(impact.movementSpeed)}</div>
                                   <div className="flex justify-between">
-                                    <span>Impact: <span className={impact.impactColor}>{impact.impactChance}</span></span>
-                                    <span>ETA: {impact.eta}</span>
+                                    <span>{t.impact}: <span className={impact.impactColor}>{impact.impactChance}</span></span>
+                                    <span>{t.eta}: {impact.eta}</span>
                                   </div>
-                                  <div>Severity: <span className={impact.severityColor}>{impact.severity}</span></div>
+                                  <div>{t.severity}: <span className={impact.severityColor}>{impact.severity}</span></div>
                                 </div>
                               )}
                             </div>
@@ -896,7 +897,7 @@ export default function StormTracker() {
                 {/* Left Side Controls - Desktop Only */}
                 <div className="hidden lg:flex lg:flex-col lg:w-48 space-y-3">
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                    <h3 className="text-sm font-semibold mb-3 text-slate-300">View Mode</h3>
+                    <h3 className="text-sm font-semibold mb-3 text-slate-300">{t.viewMode}</h3>
                     <div className="space-y-2">
                       <Button
                         onClick={() => setViewMode('map')}
@@ -904,7 +905,7 @@ export default function StormTracker() {
                         size="sm"
                         className={`w-full text-xs ${viewMode === 'map' ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                       >
-                        🗺️ Map View
+                        🗺️ {t.mapView}
                       </Button>
                       <Button
                         onClick={() => setViewMode('sonar')}
@@ -912,7 +913,7 @@ export default function StormTracker() {
                         size="sm"
                         className={`w-full text-xs ${viewMode === 'sonar' ? 'bg-green-600/20 border-green-500 text-green-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                       >
-                        📡 Sonar View
+                        📡 {t.sonarView}
                       </Button>
                       <Button
                         onClick={() => setViewMode('3d')}
@@ -921,7 +922,7 @@ export default function StormTracker() {
                         className={`w-full text-xs ${viewMode === '3d' ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                         disabled={!storms || storms.length === 0}
                       >
-                        🌩️ 3D View
+                        🌩️ {t.threeDView}
                       </Button>
                       <Button
                         onClick={() => setShowStormFilteringSettings(true)}
@@ -929,21 +930,21 @@ export default function StormTracker() {
                         size="sm"
                         className="w-full text-xs"
                       >
-                        ⚙️ Settings
+                        ⚙️ {t.settings}
                       </Button>
                     </div>
                   </div>
                   
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                    <h3 className="text-sm font-semibold mb-3 text-slate-300">Storm Tracks</h3>
-                    <p className="text-xs text-slate-400 mb-2">Movement projection cones</p>
+                    <h3 className="text-sm font-semibold mb-3 text-slate-300">{t.stormTracks}</h3>
+                    <p className="text-xs text-slate-400 mb-2">{t.movementProjectionCones}</p>
                     <Button
                       onClick={() => setShowStormTracks(!showStormTracks)}
                       variant="outline"
                       size="sm"
                       className={`w-full text-xs mb-2 ${showStormTracks ? 'bg-orange-600/20 border-orange-500 text-orange-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                     >
-                      🎯 {showStormTracks ? 'Hide Tracks' : 'Show Tracks'}
+                      🎯 {showStormTracks ? t.hideTracks : t.showTracks}
                     </Button>
                     <Button
                       onClick={() => setShowTimeLabels(!showTimeLabels)}
@@ -952,7 +953,7 @@ export default function StormTracker() {
                       className={`w-full text-xs mb-2 ${showTimeLabels ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                       disabled={!showStormTracks}
                     >
-                      🕐 {showTimeLabels ? 'Hide Time Labels' : 'Show Time Labels'}
+                      🕐 {showTimeLabels ? t.hideTimeLabels : t.showTimeLabels}
                     </Button>
                     <Button
                       onClick={() => setShowLightning(!showLightning)}
@@ -960,21 +961,21 @@ export default function StormTracker() {
                       size="sm"
                       className={`w-full text-xs ${showLightning ? 'bg-yellow-600/20 border-yellow-500 text-yellow-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                     >
-                      ⚡ {showLightning ? 'Hide Lightning' : 'Show Lightning'}
+                      ⚡ {showLightning ? t.hideLightning : t.showLightning}
                     </Button>
                     {showLightning && (
-                      <p className="text-[9px] text-slate-500 italic mt-1">Radar-derived, not observed</p>
+                      <p className="text-[9px] text-slate-500 italic mt-1">{t.radarDerived}</p>
                     )}
                   </div>
                   
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                    <h3 className="text-sm font-semibold mb-3 text-slate-300">Radar Info</h3>
+                    <h3 className="text-sm font-semibold mb-3 text-slate-300">{t.radarInfo}</h3>
                     <div className="space-y-2 text-xs">
                       <div className="text-slate-400">
-                        Source: <span className="text-white">{currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}</span>
+                        {t.source}: <span className="text-white">{currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}</span>
                       </div>
                       <div className="text-slate-400">
-                        Range: <span className="text-white">{formatDistance(radarRange)}</span>
+                        {t.range}: <span className="text-white">{formatDistance(radarRange)}</span>
                       </div>
                     </div>
                   </div>
@@ -1033,16 +1034,16 @@ export default function StormTracker() {
 
                   
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                    <h3 className="text-sm font-semibold mb-3 text-slate-300">Storm Stats</h3>
+                    <h3 className="text-sm font-semibold mb-3 text-slate-300">{t.stormStats}</h3>
                     <div className="space-y-2 text-xs">
                       <div className="text-slate-400">
-                        Detected: <span className="text-white">{filteredStorms.length}</span>
+                        {t.detected}: <span className="text-white">{filteredStorms.length}</span>
                       </div>
                       <div className="text-slate-400">
-                        Closest: <span className="text-white">
+                        {t.closest}: <span className="text-white">
                           {filteredStorms.length > 0 ? 
                             formatDistance([...filteredStorms].sort((a, b) => a.distance - b.distance)[0].distance) : 
-                            'None'
+                            t.none
                           }
                         </span>
                       </div>
@@ -1050,7 +1051,7 @@ export default function StormTracker() {
                   </div>
                   
                   <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                    <h3 className="text-sm font-semibold mb-3 text-slate-300">Quick Actions</h3>
+                    <h3 className="text-sm font-semibold mb-3 text-slate-300">{t.quickActions}</h3>
                     <div className="space-y-2">
                       {/* Alerts and Messages temporarily disabled */}
                       {false && (
@@ -1061,7 +1062,7 @@ export default function StormTracker() {
                             size="sm"
                             className="w-full text-xs bg-blue-600/20 border-blue-500 text-blue-300 hover:bg-blue-600/30"
                           >
-                            🔔 Alerts
+                            🔔 {t.alerts}
                           </Button>
                           <Button
                             onClick={() => setShowMessages(true)}
@@ -1069,7 +1070,7 @@ export default function StormTracker() {
                             size="sm"
                             className="w-full text-xs bg-green-600/20 border-green-500 text-green-300 hover:bg-green-600/30"
                           >
-                            📧 Messages
+                            📧 {t.messages}
                           </Button>
                         </>
                       )}
@@ -1085,7 +1086,7 @@ export default function StormTracker() {
                     size="sm"
                     className={`${viewMode === 'map' ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                   >
-                    🗺️ Map
+                    🗺️ {t.map}
                   </Button>
                   <Button
                     onClick={() => setViewMode('sonar')}
@@ -1093,7 +1094,7 @@ export default function StormTracker() {
                     size="sm"
                     className={`${viewMode === 'sonar' ? 'bg-green-600/20 border-green-500 text-green-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                   >
-                    📡 Sonar
+                    📡 {t.sonar}
                   </Button>
                   <Button
                     onClick={() => setViewMode('3d')}
@@ -1102,7 +1103,7 @@ export default function StormTracker() {
                     className={`${viewMode === '3d' ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                     disabled={!storms || storms.length === 0}
                   >
-                    🌩️ 3D
+                    🌩️ {t.threeD}
                   </Button>
                   <Button
                     onClick={() => setShowStormTracks(!showStormTracks)}
@@ -1110,7 +1111,7 @@ export default function StormTracker() {
                     size="sm"
                     className={`${showStormTracks ? 'bg-orange-600/20 border-orange-500 text-orange-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                   >
-                    🎯 {showStormTracks ? 'Hide Tracks' : 'Show Tracks'}
+                    🎯 {showStormTracks ? t.hideTracks : t.showTracks}
                   </Button>
                   <Button
                     onClick={() => setShowTimeLabels(!showTimeLabels)}
@@ -1119,14 +1120,14 @@ export default function StormTracker() {
                     className={`${showTimeLabels ? 'bg-blue-600/20 border-blue-500 text-blue-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
                     disabled={!showStormTracks}
                   >
-                    🕐 {showTimeLabels ? 'Hide Time Labels' : 'Show Time Labels'}
+                    🕐 {showTimeLabels ? t.hideTimeLabels : t.showTimeLabels}
                   </Button>
                   <Button
                     onClick={() => setShowStormFilteringSettings(true)}
                     variant="outline"
                     size="sm"
                   >
-                    ⚙️ Settings
+                    ⚙️ {t.settings}
                   </Button>
                   {/* Alerts and Messages temporarily disabled */}
                   {false && (
@@ -1137,7 +1138,7 @@ export default function StormTracker() {
                         size="sm"
                         className="bg-blue-600/20 border-blue-500 text-blue-300 hover:bg-blue-600/30"
                       >
-                        🔔 Alerts
+                        🔔 {t.alerts}
                       </Button>
                       <Button
                         onClick={() => setShowMessages(true)}
@@ -1145,7 +1146,7 @@ export default function StormTracker() {
                         size="sm"
                         className="bg-green-600/20 border-green-500 text-green-300 hover:bg-green-600/30"
                       >
-                        📧 Messages
+                        📧 {t.messages}
                       </Button>
                     </>
                   )}
