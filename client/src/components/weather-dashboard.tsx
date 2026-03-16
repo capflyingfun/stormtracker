@@ -172,26 +172,68 @@ function NWSPeriodCard({ period }: { period: any }) {
   );
 }
 
-function detectForecastSeverity(forecast: string): { level: 'extreme' | 'severe' | 'moderate' | 'none'; warnings: string[] } {
+function detectForecastSeverity(forecast: string): { level: 'extreme' | 'severe' | 'possible-severe' | 'moderate' | 'none'; warnings: string[] } {
   const text = forecast.toLowerCase();
   const warnings: string[] = [];
-  let level: 'extreme' | 'severe' | 'moderate' | 'none' = 'none';
 
-  if (/tornado|funnel\s*cloud|waterspout|tornade|torbellino/.test(text)) { warnings.push('🌪️ Tornado'); level = 'extreme'; }
-  if (/hurricane|typhoon|cyclone|hurac[aá]n|ouragan|zyklon|taifun/.test(text)) { warnings.push('🌀 Hurricane'); level = 'extreme'; }
-  if (/blizzard|schneesturm|tormenta de nieve/.test(text)) { warnings.push('🌨️ Blizzard'); level = 'extreme'; }
+  const hasExplicitSevere = /\bsevere\b/.test(text);
 
-  if (/\bhail\b|hagel|granizo|gr[êe]le|grandine/.test(text)) { warnings.push('🧊 Hail'); if (level !== 'extreme') level = 'severe'; }
-  if (/thunderstorm|tstorm|t-storm|thundery|thunder\s*shower|gewitter|tormenta\s*el[ée]ctrica|orage|temporale/.test(text)) { warnings.push('⛈️ Thunderstorm'); if (level !== 'extreme') level = 'severe'; }
-  if (/\bflood|flash\s*flood|inundaci[oó]n|inondation|[üu]berschwemmung/.test(text)) { warnings.push('🌊 Flood Risk'); if (level !== 'extreme') level = 'severe'; }
-  if (/ice\s*storm|freezing\s*rain|verglas|lluvia\s*helada/.test(text)) { warnings.push('🧊 Ice Storm'); if (level !== 'extreme') level = 'severe'; }
-  if (/\blightning\b|\bfoudre\b|\brelámpago\b|\bblitz\b/.test(text)) { warnings.push('⚡ Lightning'); if (level !== 'extreme') level = 'severe'; }
-  if (/\bsevere\b/.test(text) && level !== 'extreme') { level = 'severe'; }
+  const extreme = {
+    tornado: /tornado|funnel\s*cloud|waterspout|tornade|torbellino/.test(text),
+    hurricane: /hurricane|typhoon|cyclone|hurac[aá]n|ouragan|zyklon|taifun/.test(text),
+    blizzard: /blizzard|schneesturm|tormenta de nieve/.test(text),
+  };
 
-  if (/heavy\s*rain|heavy\s*snow|downpour|torrential|starkregen|lluvia\s*fuerte|forte\s*pluie|squall/.test(text)) { warnings.push('🌧️ Heavy Precip'); if (level === 'none') level = 'moderate'; }
-  if (/strong\s*wind|high\s*wind|damaging\s*wind|gust|sturm|viento\s*fuerte|vent\s*fort|rafale/.test(text)) { warnings.push('💨 Strong Winds'); if (level === 'none') level = 'moderate'; }
-  if (/dust\s*storm|sandstorm|haboob|tempête\s*de\s*sable|tormenta\s*de\s*arena/.test(text)) { warnings.push('🏜️ Dust Storm'); if (level === 'none') level = 'moderate'; }
-  if (/\bdense\s*fog\b|\bfog\b(?!gy)|\bbrouillard\b|\bniebla\b|\bnebel\b/.test(text)) { warnings.push('🌫️ Fog'); if (level === 'none') level = 'moderate'; }
+  const severeFlags = {
+    hail: /\bhail\b|hagel|granizo|gr[êe]le|grandine/.test(text),
+    thunderstorm: /thunderstorm|tstorm|t-storm|thundery|thunder\s*shower|gewitter|tormenta\s*el[ée]ctrica|orage|temporale/.test(text),
+    flood: /\bflood|flash\s*flood|inundaci[oó]n|inondation|[üu]berschwemmung/.test(text),
+    iceStorm: /ice\s*storm|freezing\s*rain|verglas|lluvia\s*helada/.test(text),
+    lightning: /\blightning\b|\bfoudre\b|\brelámpago\b|\bblitz\b/.test(text),
+  };
+
+  const moderate = {
+    heavyPrecip: /heavy\s*rain|heavy\s*snow|downpour|torrential|starkregen|lluvia\s*fuerte|forte\s*pluie|squall/.test(text),
+    strongWind: /strong\s*wind|high\s*wind|damaging\s*wind|gust|sturm|viento\s*fuerte|vent\s*fort|rafale/.test(text),
+    dustStorm: /dust\s*storm|sandstorm|haboob|tempête\s*de\s*sable|tormenta\s*de\s*arena/.test(text),
+    fog: /\bdense\s*fog\b|\bfog\b(?!gy)|\bbrouillard\b|\bniebla\b|\bnebel\b/.test(text),
+  };
+
+  if (extreme.tornado) warnings.push('🌪️ Tornado');
+  if (extreme.hurricane) warnings.push('🌀 Hurricane');
+  if (extreme.blizzard) warnings.push('🌨️ Blizzard');
+  if (severeFlags.hail) warnings.push('🧊 Hail');
+  if (severeFlags.thunderstorm) warnings.push('⛈️ Thunderstorm');
+  if (severeFlags.flood) warnings.push('🌊 Flood Risk');
+  if (severeFlags.iceStorm) warnings.push('🧊 Ice Storm');
+  if (severeFlags.lightning) warnings.push('⚡ Lightning');
+  if (moderate.heavyPrecip) warnings.push('🌧️ Heavy Precip');
+  if (moderate.strongWind) warnings.push('💨 Strong Winds');
+  if (moderate.dustStorm) warnings.push('🏜️ Dust Storm');
+  if (moderate.fog) warnings.push('🌫️ Fog');
+
+  const hasExtreme = Object.values(extreme).some(Boolean);
+  if (hasExtreme) return { level: 'extreme', warnings: [...new Set(warnings)] };
+
+  const severeCount = Object.values(severeFlags).filter(Boolean).length;
+  const moderateCount = Object.values(moderate).filter(Boolean).length;
+  const dangerIndicators = severeCount + moderateCount;
+
+  const onlyThunderstorm = severeFlags.thunderstorm && severeCount === 1 && moderateCount === 0;
+
+  let level: 'extreme' | 'severe' | 'possible-severe' | 'moderate' | 'none' = 'none';
+
+  if (hasExplicitSevere && severeCount > 0) {
+    level = 'severe';
+  } else if (severeCount >= 2 || (severeFlags.thunderstorm && dangerIndicators >= 3)) {
+    level = 'severe';
+  } else if (onlyThunderstorm || (severeFlags.thunderstorm && dangerIndicators === 2)) {
+    level = 'possible-severe';
+  } else if (severeCount === 1) {
+    level = 'possible-severe';
+  } else if (moderateCount > 0) {
+    level = 'moderate';
+  }
 
   return { level, warnings: [...new Set(warnings)] };
 }
@@ -217,19 +259,24 @@ function ForecastDayCard({ dayLabel, dayHalf, nightHalf, accuweather, hasAdvisor
 
   const allWarnings = [...new Set([...daySeverity.warnings, ...nightSeverity.warnings, ...detailDaySeverity.warnings, ...detailNightSeverity.warnings, ...accuSeverity.warnings])];
   const severityLevels = [daySeverity.level, nightSeverity.level, detailDaySeverity.level, detailNightSeverity.level, accuSeverity.level];
-  const maxSeverity = severityLevels.includes('extreme') ? 'extreme' : severityLevels.includes('severe') ? 'severe' : severityLevels.includes('moderate') ? 'moderate' : 'none';
+  const maxSeverity = severityLevels.includes('extreme') ? 'extreme' 
+    : severityLevels.includes('severe') ? 'severe' 
+    : severityLevels.includes('possible-severe') ? 'possible-severe'
+    : severityLevels.includes('moderate') ? 'moderate' : 'none';
 
   const hasSevereWeather = maxSeverity !== 'none';
   const hasHighThunder = (accuweather?.thunderstormProbability ?? 0) >= 30;
 
   const borderClass = maxSeverity === 'extreme' ? 'bg-red-900/20 border-red-500/60 ring-1 ring-red-500/30'
-    : maxSeverity === 'severe' || hasHighThunder ? 'bg-orange-900/15 border-orange-500/50'
+    : maxSeverity === 'severe' ? 'bg-orange-900/15 border-orange-500/50'
+    : maxSeverity === 'possible-severe' || hasHighThunder ? 'bg-yellow-900/10 border-yellow-500/40'
     : maxSeverity === 'moderate' ? 'bg-amber-900/10 border-amber-500/40'
     : hasAdvisory ? 'bg-amber-900/15 border-amber-600/40'
     : 'bg-slate-700/20 border-slate-600/30';
 
   const headerClass = maxSeverity === 'extreme' ? 'bg-red-900/30 border-red-500/30'
-    : maxSeverity === 'severe' || hasHighThunder ? 'bg-orange-900/20 border-orange-500/20'
+    : maxSeverity === 'severe' ? 'bg-orange-900/20 border-orange-500/20'
+    : maxSeverity === 'possible-severe' || hasHighThunder ? 'bg-yellow-900/15 border-yellow-500/20'
     : maxSeverity === 'moderate' ? 'bg-amber-900/15 border-amber-500/20'
     : 'bg-slate-700/30 border-slate-600/20';
 
@@ -242,6 +289,9 @@ function ForecastDayCard({ dayLabel, dayHalf, nightHalf, accuweather, hasAdvisor
         )}
         {maxSeverity === 'severe' && (
           <Badge className="bg-orange-600 text-white text-[8px] px-1.5 py-0 h-3.5 uppercase font-bold">⚠️ SEVERE</Badge>
+        )}
+        {maxSeverity === 'possible-severe' && (
+          <Badge className="bg-yellow-600 text-white text-[8px] px-1.5 py-0 h-3.5 uppercase font-bold">⚠ POSSIBLE SEVERE</Badge>
         )}
         {maxSeverity === 'moderate' && (
           <Badge className="bg-amber-600 text-white text-[8px] px-1.5 py-0 h-3.5 uppercase font-bold">⚠ CAUTION</Badge>
@@ -258,12 +308,14 @@ function ForecastDayCard({ dayLabel, dayHalf, nightHalf, accuweather, hasAdvisor
         <div className={`flex flex-wrap gap-1 px-3 py-1.5 border-b ${
           maxSeverity === 'extreme' ? 'bg-red-950/30 border-red-500/20' 
           : maxSeverity === 'severe' ? 'bg-orange-950/20 border-orange-500/15'
+          : maxSeverity === 'possible-severe' ? 'bg-yellow-950/15 border-yellow-500/15'
           : 'bg-amber-950/15 border-amber-500/15'
         }`}>
           {allWarnings.map((w, i) => (
             <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
               maxSeverity === 'extreme' ? 'bg-red-900/40 text-red-300'
               : maxSeverity === 'severe' ? 'bg-orange-900/40 text-orange-300'
+              : maxSeverity === 'possible-severe' ? 'bg-yellow-900/30 text-yellow-300'
               : 'bg-amber-900/30 text-amber-300'
             }`}>{w}</span>
           ))}
