@@ -10,6 +10,7 @@ import {
   Moon, AlertTriangle, Database, Shield
 } from "lucide-react";
 import { useState } from "react";
+import { useLanguage } from "@/hooks/use-language";
 
 interface WeatherDashboardProps {
   lat: number;
@@ -120,7 +121,7 @@ function NWSPeriodCard({ period }: { period: any }) {
           </div>
           {period.weatherTags?.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
-              {[...new Set(period.weatherTags)].map((h: string, i: number) => (
+              {Array.from(new Set(period.weatherTags)).map((h: string, i: number) => (
                 <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${getHazardColor(h)}`}>
                   {h.charAt(0).toUpperCase() + h.slice(1)}
                 </span>
@@ -212,6 +213,7 @@ function NWSAlertCard({ alert }: { alert: any }) {
 export default function WeatherDashboard({ lat, lon, useMetric, locationName }: WeatherDashboardProps) {
   const [expanded, setExpanded] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const { t } = useLanguage();
 
   const { data: minuteCast } = useQuery({
     queryKey: ['/api/accuweather/minutecast', lat, lon],
@@ -295,7 +297,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="text-xs sm:text-sm text-slate-300">{cur.condition}</p>
                 <span className="text-[10px] sm:text-xs text-slate-500 whitespace-nowrap">
-                  Feels {dualTempF(cur.feelslike_f, cur.feelslike_c)}
+                  {t.feelsLike} {dualTempF(cur.feelslike_f, cur.feelslike_c)}
                 </span>
               </div>
             </div>
@@ -356,7 +358,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
           <div className="bg-slate-700/30 rounded-lg p-2 text-center">
             <Droplets className="w-3.5 h-3.5 mx-auto text-blue-400 mb-0.5" />
             <div className="text-white font-semibold text-sm">{cur.humidity}%</div>
-            <div className="text-slate-400 text-[10px]">Humidity</div>
+            <div className="text-slate-400 text-[10px]">{t.humidity}</div>
           </div>
           <div className="bg-slate-700/30 rounded-lg p-2 text-center">
             <Wind className="w-3.5 h-3.5 mx-auto text-cyan-400 mb-0.5" />
@@ -366,24 +368,24 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
           <div className="bg-slate-700/30 rounded-lg p-2 text-center">
             <Gauge className="w-3.5 h-3.5 mx-auto text-purple-400 mb-0.5" />
             <div className="text-white font-semibold text-[11px] leading-tight">{dualPressure(cur.pressure_in, cur.pressure_mb)}</div>
-            <div className="text-slate-400 text-[10px]">Pressure</div>
+            <div className="text-slate-400 text-[10px]">{t.pressure}</div>
           </div>
           <div className="bg-slate-700/30 rounded-lg p-2 text-center">
             <Eye className="w-3.5 h-3.5 mx-auto text-green-400 mb-0.5" />
             <div className="text-white font-semibold text-[11px] leading-tight">{dualVis(cur.visibility_miles, cur.visibility_km)}</div>
-            <div className="text-slate-400 text-[10px]">Visibility</div>
+            <div className="text-slate-400 text-[10px]">{t.visibility}</div>
           </div>
           {cur.dew_point_f != null && (
             <div className="bg-slate-700/30 rounded-lg p-2 text-center">
               <Thermometer className="w-3.5 h-3.5 mx-auto text-teal-400 mb-0.5" />
               <div className="text-white font-semibold text-[11px] leading-tight">{dualTempF(cur.dew_point_f, cur.dew_point_c)}</div>
-              <div className="text-slate-400 text-[10px]">Dew Point</div>
+              <div className="text-slate-400 text-[10px]">{t.dewPoint}</div>
             </div>
           )}
           <div className="bg-slate-700/30 rounded-lg p-2 text-center">
             <Cloud className="w-3.5 h-3.5 mx-auto text-slate-300 mb-0.5" />
             <div className="text-white font-semibold text-sm">{cur.cloud}%</div>
-            <div className="text-slate-400 text-[10px]">Cloud Cover</div>
+            <div className="text-slate-400 text-[10px]">{t.cloudCover}</div>
           </div>
         </div>
 
@@ -437,7 +439,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
             <div>
               <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Shield className="w-3 h-3" />
-                NWS Forecast Periods
+                {t.nwsForecastPeriods}
               </h4>
               <div className="space-y-2">
                 {nwsPeriods.map((period: any, i: number) => (
@@ -453,7 +455,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
             <Separator className="bg-slate-700" />
             <div>
               <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                {forecast.length}-Day Forecast
+                {forecast.length}{t.dayForecast}
               </h4>
               <div className="space-y-0.5">
                 {forecast.map((day: any, i: number) => {
@@ -511,7 +513,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
           <>
             <Separator className="bg-slate-700" />
             <div>
-              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Sunrise & Sunset</h4>
+              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{t.sunriseSunset}</h4>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="bg-slate-700/30 rounded-lg p-2 flex items-center gap-2">
                   <Sunrise className="w-4 h-4 text-orange-400 shrink-0" />
@@ -540,7 +542,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
               <>
                 <Separator className="bg-slate-700" />
                 <div>
-                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Air Quality</h4>
+                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{t.airQuality}</h4>
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     {airQuality.pm2_5 !== undefined && (
                       <div className="bg-slate-700/30 rounded p-2 text-center">
@@ -569,7 +571,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
               <>
                 <Separator className="bg-slate-700" />
                 <div>
-                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Pollen & Allergens</h4>
+                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{t.pollenAllergens}</h4>
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     {forecast[0].accuweather.airAndPollen
                       .filter((p: any) => p.Name !== 'AirQuality' && p.Name !== 'UVIndex')
@@ -598,12 +600,12 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
           onClick={() => setExpanded(!expanded)}
           className="w-full text-slate-400 hover:text-white hover:bg-slate-700/50 text-xs"
         >
-          {expanded ? 'Show Less' : 'Sunrise/Sunset, Air Quality...'}
+          {expanded ? t.showLess : `${t.sunriseSunset}, ${t.airQuality}...`}
           {expanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
         </Button>
 
         <div className="text-[9px] text-slate-500 text-right">
-          Sources: {data.source || 'Weather API'} (Hybrid Averaged)
+          {t.sources}: {data.source || 'Weather API'} (Hybrid Averaged)
         </div>
       </CardContent>
     </Card>

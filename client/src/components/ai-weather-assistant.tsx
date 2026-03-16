@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Brain, AlertTriangle, CheckCircle, Clock, MapPin, Wind, Plane, RefreshCw, Send, MessageCircle } from "lucide-react";
+import { useLanguage } from "@/hooks/use-language";
 
 interface StormData {
   id: string;
@@ -72,13 +73,14 @@ export default function AIWeatherAssistant({
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
   const [isDataReady, setIsDataReady] = useState(false);
-  const [loadingTimer, setLoadingTimer] = useState(5); // 5-second countdown
+  const [loadingTimer, setLoadingTimer] = useState(5);
   const [chatQuestion, setChatQuestion] = useState('');
   const [chatResponse, setChatResponse] = useState('');
   const [showChatMode, setShowChatMode] = useState(false);
   const [aiTone, setAiTone] = useState<'professional' | 'friendly' | 'humorous'>(
     userSettings?.aiTone || 'friendly'
   );
+  const { t } = useLanguage();
 
   // Fetch aviation weather data
   const { data: aviationData } = useQuery({
@@ -149,7 +151,7 @@ export default function AIWeatherAssistant({
         intensity: storm.intensity,
         distance: storm.distance,
         direction: storm.direction,
-        type: storm.type,
+        category: storm.category,
         movement: storm.movement ? {
           direction: storm.movement.direction,
           speed: storm.movement.speed,
@@ -302,10 +304,10 @@ export default function AIWeatherAssistant({
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="flex items-center gap-2">
               <Brain className="w-5 h-5 text-blue-400" />
-              AI Weather Assistant
+              {t.aiWeatherAssistant}
               {isMonitoring && (
                 <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
-                  Monitoring
+                  {t.monitoring}
                 </Badge>
               )}
             </div>
@@ -320,7 +322,7 @@ export default function AIWeatherAssistant({
         <div className="flex flex-col sm:flex-row gap-2 mt-2">
           {/* AI Tone Selector */}
           <div className="flex items-center gap-1 px-2 py-1 bg-slate-700/50 border border-slate-600 rounded-md">
-            <span className="text-xs text-slate-400 mr-1">Tone:</span>
+            <span className="text-xs text-slate-400 mr-1">{t.tone}:</span>
             <button
               onClick={() => setAiTone('professional')}
               className={`px-2 py-0.5 text-xs rounded transition-colors ${
@@ -328,9 +330,8 @@ export default function AIWeatherAssistant({
                   ? 'bg-blue-600 text-white' 
                   : 'text-slate-400 hover:text-white hover:bg-slate-600'
               }`}
-              title="Professional meteorological tone"
             >
-              📊 Pro
+              📊 {t.professional}
             </button>
             <button
               onClick={() => setAiTone('friendly')}
@@ -339,9 +340,8 @@ export default function AIWeatherAssistant({
                   ? 'bg-green-600 text-white' 
                   : 'text-slate-400 hover:text-white hover:bg-slate-600'
               }`}
-              title="Friendly conversational tone"
             >
-              😊 Friendly
+              😊 {t.friendly}
             </button>
             <button
               onClick={() => setAiTone('humorous')}
@@ -350,9 +350,8 @@ export default function AIWeatherAssistant({
                   ? 'bg-purple-600 text-white' 
                   : 'text-slate-400 hover:text-white hover:bg-slate-600'
               }`}
-              title="Fun Carrot Weather style"
             >
-              😄 Fun
+              😄 {t.fun}
             </button>
           </div>
           <Button
@@ -368,7 +367,7 @@ export default function AIWeatherAssistant({
               ? 'Analyzing...' 
               : !isDataReady 
                 ? `Loading data... (${loadingTimer}s)`
-                : 'Analyze Weather & Alerts'
+                : t.analyzeWeather
             }
           </Button>
           {isMonitoring ? (
@@ -378,7 +377,7 @@ export default function AIWeatherAssistant({
               variant="destructive"
               className="w-full sm:flex-1"
             >
-              Stop Monitoring
+              {t.stopMonitoring}
             </Button>
           ) : (
             <Button
@@ -387,13 +386,13 @@ export default function AIWeatherAssistant({
               size="sm"
               className="bg-green-600 hover:bg-green-700 text-white w-full sm:flex-1"
             >
-              Start Monitoring
+              {t.startMonitoring}
             </Button>
           )}
         </div>
         {lastCheck && (
           <p className="text-xs text-slate-400 mt-1">
-            Last check: {lastCheck.toLocaleTimeString()}
+            {t.lastCheck}: {lastCheck.toLocaleTimeString()}
           </p>
         )}
       </CardHeader>
@@ -403,21 +402,26 @@ export default function AIWeatherAssistant({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm border-b border-slate-600 pb-4">
             <div className="text-center">
               <div className="font-semibold text-lg text-white">{threatData.threatCount}</div>
-              <div className="text-slate-400">Active Threats</div>
+              <div className="text-slate-400">{t.activeThreats}</div>
             </div>
             <div className="text-center">
               <div className="font-semibold text-lg text-white">{threatData.alertsGenerated}</div>
-              <div className="text-slate-400">Alerts Sent</div>
+              <div className="text-slate-400">{t.alertsSent}</div>
             </div>
             <div className="text-center">
-              <div className="font-semibold text-lg text-white">{threatData.weatherConditions.temperature.toFixed(1)}°F</div>
+              <div className="font-semibold text-lg text-white">
+                {Math.round(threatData.weatherConditions.temperature)}°F
+                <span className="text-slate-400 text-sm ml-1">
+                  ({Math.round(threatData.weatherConditions.temperature_c ?? ((threatData.weatherConditions.temperature - 32) * 5/9))}°C)
+                </span>
+              </div>
               <div className="text-slate-400">Temperature</div>
             </div>
             <div className="text-center">
               <div className="font-semibold text-lg">
                 {threatData.dataQuality.openweather_available ? '✅' : '⚠️'}
               </div>
-              <div className="text-slate-400">Data Status</div>
+              <div className="text-slate-400">{t.dataStatus}</div>
             </div>
           </div>
         )}
@@ -457,7 +461,7 @@ export default function AIWeatherAssistant({
             <div>
               <h4 className="font-semibold mb-2 flex items-center gap-2 text-white">
                 {getRiskIcon(assessment.riskLevel)}
-                Risk Assessment
+                {t.riskAssessment}
               </h4>
               <p className="text-sm text-slate-200">{assessment.summary}</p>
               {assessment.timeToImpact && (

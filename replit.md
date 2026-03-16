@@ -17,6 +17,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Routing**: Wouter
 - **Build Tool**: Vite
 - **UI/UX**: Mobile-first, responsive design with interactive Leaflet-based maps, real-time storm tracking panels, and an intuitive alert system. Features include a sonar-style radar display, 3D storm visualization with height-based cloud rendering, and a comprehensive view mode toggle. UI emphasizes clean design and accessibility with professional meteorological color schemes and animations for visual feedback.
+- **Multilingual Support**: 10 languages (en, es, fr, de, pt, ja, ko, zh, ar, hi) via `client/src/lib/i18n.ts` translation system and `client/src/hooks/use-language.tsx` React context. Language selector in header with flag + native name dropdown. RTL support for Arabic. Browser language auto-detection with localStorage persistence. Key UI labels translated across header, weather dashboard, AI assistant, and storm tracker components.
 
 ### Backend
 - **Runtime**: Node.js with Express.js
