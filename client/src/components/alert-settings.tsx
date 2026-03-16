@@ -60,12 +60,12 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
   };
 
   const getThresholdDescription = (pct: number) => {
-    if (pct === 0) return { label: 'Show all storms', color: 'text-green-400', desc: 'All storm clusters shown, including those with <5% impact chance.' };
-    if (pct <= 20) return { label: 'Very low filter', color: 'text-green-400', desc: 'Only hides storms with very minimal impact chance.' };
-    if (pct <= 40) return { label: 'Low filter', color: 'text-yellow-400', desc: 'Hides low-probability storms. Shows moderate threats and above.' };
-    if (pct <= 60) return { label: 'Medium filter', color: 'text-orange-400', desc: 'Shows only storms with meaningful impact probability.' };
-    if (pct <= 85) return { label: 'High filter', color: 'text-red-400', desc: 'Only shows storms with high probability of direct impact.' };
-    return { label: 'Maximum filter', color: 'text-red-400', desc: 'Only shows storms with 85%+ impact probability.' };
+    if (pct === 0) return { label: t.showAllStorms, color: 'text-green-400', desc: '' };
+    if (pct <= 20) return { label: 'Very low filter', color: 'text-green-400', desc: '' };
+    if (pct <= 40) return { label: 'Low filter', color: 'text-yellow-400', desc: '' };
+    if (pct <= 60) return { label: 'Medium filter', color: 'text-orange-400', desc: '' };
+    if (pct <= 85) return { label: 'High filter', color: 'text-red-400', desc: '' };
+    return { label: 'Maximum filter', color: 'text-red-400', desc: '' };
   };
 
   const dbzInfo = getDbzDescription(localPreferences.minimumDbz);
@@ -93,7 +93,7 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
         
         <CardContent className="space-y-5">
           <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Units</h3>
+            <h3 className="text-sm font-semibold text-white mb-3">{t.units}</h3>
             <div className="flex gap-2">
               <Button
                 variant={!localMetric ? "default" : "secondary"}
@@ -101,7 +101,7 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
                 onClick={() => setLocalMetric(false)}
                 className="flex-1 text-xs"
               >
-                Imperial (mph, mi, °F)
+                {t.imperial}
               </Button>
               <Button
                 variant={localMetric ? "default" : "secondary"}
@@ -109,7 +109,7 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
                 onClick={() => setLocalMetric(true)}
                 className="flex-1 text-xs"
               >
-                Metric (km/h, km, °C)
+                {t.metric}
               </Button>
             </div>
           </div>
@@ -117,12 +117,12 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
           <div>
             <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
               <Filter className="h-4 w-4" />
-              Impact Threshold
+              {t.impactThreshold}
             </h3>
             <div className="space-y-3">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm text-slate-300">Minimum impact % to show</Label>
+                  <Label className="text-sm text-slate-300">{t.minImpactToShow}</Label>
                   <span className="text-sm text-white font-mono">{localThreshold}%</span>
                 </div>
                 <Slider
@@ -134,7 +134,7 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
                   className="w-full"
                 />
                 <div className="flex justify-between text-[10px] text-slate-500">
-                  <span>0% (show all)</span>
+                  <span>0% ({t.showAllStorms})</span>
                   <span>85% (max)</span>
                 </div>
               </div>
@@ -148,9 +148,6 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
                     {localThreshold}%+
                   </span>
                 </div>
-                <p className="text-xs text-slate-300">
-                  {thresholdInfo.desc}
-                </p>
               </div>
             </div>
           </div>
@@ -158,12 +155,12 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
           <div>
             <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
-              Storm Intensity
+              {t.stormIntensity}
             </h3>
             <div className="space-y-3">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm text-slate-300">Minimum dBZ</Label>
+                  <Label className="text-sm text-slate-300">{t.minimumDbz}</Label>
                   <span className="text-sm text-white font-mono">{localPreferences.minimumDbz} dBZ</span>
                 </div>
                 <Slider
@@ -193,11 +190,11 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Alert Radius & Frequency</h3>
+            <h3 className="text-sm font-semibold text-white mb-3">{t.alertRadiusFreq}</h3>
             <div className="space-y-3">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm text-slate-300">Detection Range</Label>
+                  <Label className="text-sm text-slate-300">{t.detectionRange}</Label>
                   <span className="text-sm text-white">{localPreferences.alertRadius} miles</span>
                 </div>
                 <Slider
@@ -211,7 +208,7 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm text-slate-300">Minimum interval</Label>
+                  <Label className="text-sm text-slate-300">{t.minimumInterval}</Label>
                   <span className="text-sm text-white">{localPreferences.alertFrequency} min</span>
                 </div>
                 <Slider
@@ -227,12 +224,12 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Notifications</h3>
+            <h3 className="text-sm font-semibold text-white mb-3">{t.settingsNotifications}</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label htmlFor="sound-alerts" className="text-sm text-slate-300 flex items-center gap-2">
                   <Volume2 className="h-4 w-4" />
-                  Sound Alerts
+                  {t.soundAlerts}
                 </Label>
                 <Switch
                   id="sound-alerts"
@@ -244,7 +241,7 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
               <div className="flex items-center justify-between">
                 <Label htmlFor="push-alerts" className="text-sm text-slate-300 flex items-center gap-2">
                   <Bell className="h-4 w-4" />
-                  Visual Alerts
+                  {t.visualAlerts}
                 </Label>
                 <Switch
                   id="push-alerts"
@@ -280,13 +277,13 @@ export default function AlertSettings({ isOpen, onClose, preferences, onSave, im
               onClick={onClose}
               className="flex-1 bg-slate-700 border-slate-600 hover:bg-slate-600"
             >
-              Cancel
+              {t.cancel}
             </Button>
             <Button
               onClick={handleSave}
               className="flex-1 bg-blue-600 hover:bg-blue-500"
             >
-              Save Settings
+              {t.saveSettings}
             </Button>
           </div>
         </CardContent>
