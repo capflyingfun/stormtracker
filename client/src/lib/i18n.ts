@@ -219,6 +219,15 @@ type TranslationKeys = {
   thunderShelter: string;
   prepareConditions: string;
   viewAllAlerts: string;
+  loadingDataHoldOn: string;
+  scanningRadar: string;
+  stormClusterDetected: string;
+  movingToward: string;
+  movingAway: string;
+  chanceDirectImpact: string;
+  ofYou: string;
+  betweenDbz: string;
+  movingAt: string;
 };
 
 const translations: Record<Language, TranslationKeys> = {
@@ -418,6 +427,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Thunderstorms can produce dangerous lightning, strong winds, and hail. Seek shelter immediately.',
     prepareConditions: 'Prepare for changing conditions and have rain gear ready.',
     viewAllAlerts: 'View All Alerts',
+    loadingDataHoldOn: 'Loading radar data, hold on...',
+    scanningRadar: 'Scanning for storms...',
+    stormClusterDetected: 'Strong storm area detected',
+    movingToward: 'moving toward you',
+    movingAway: 'moving away',
+    chanceDirectImpact: 'chance of direct impact',
+    ofYou: 'of you',
+    betweenDbz: 'between',
+    movingAt: 'moving',
   },
 
   es: {
@@ -616,6 +634,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Las tormentas eléctricas pueden producir relámpagos peligrosos, vientos fuertes y granizo. Busque refugio inmediatamente.',
     prepareConditions: 'Prepárese para condiciones cambiantes y tenga equipo de lluvia listo.',
     viewAllAlerts: 'Ver Todas las Alertas',
+    loadingDataHoldOn: 'Cargando datos de radar, espere...',
+    scanningRadar: 'Buscando tormentas...',
+    stormClusterDetected: 'Área de tormentas fuertes detectada',
+    movingToward: 'moviéndose hacia usted',
+    movingAway: 'alejándose',
+    chanceDirectImpact: 'probabilidad de impacto directo',
+    ofYou: 'de usted',
+    betweenDbz: 'entre',
+    movingAt: 'moviéndose',
   },
 
   fr: {
@@ -814,6 +841,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Les orages peuvent produire des éclairs dangereux, des vents violents et de la grêle. Cherchez un abri immédiatement.',
     prepareConditions: 'Préparez-vous à des conditions changeantes et ayez un équipement de pluie prêt.',
     viewAllAlerts: 'Voir Toutes les Alertes',
+    loadingDataHoldOn: 'Chargement des données radar, patientez...',
+    scanningRadar: 'Recherche de tempêtes...',
+    stormClusterDetected: 'Zone de tempêtes fortes détectée',
+    movingToward: 'se déplaçant vers vous',
+    movingAway: 's\'éloignant',
+    chanceDirectImpact: 'chance d\'impact direct',
+    ofYou: 'de vous',
+    betweenDbz: 'entre',
+    movingAt: 'se déplaçant',
   },
 
   de: {
@@ -1012,6 +1048,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Gewitter können gefährliche Blitze, starke Winde und Hagel erzeugen. Sofort Schutz suchen.',
     prepareConditions: 'Bereiten Sie sich auf wechselnde Bedingungen vor und halten Sie Regenausrüstung bereit.',
     viewAllAlerts: 'Alle Warnungen anzeigen',
+    loadingDataHoldOn: 'Radardaten werden geladen, bitte warten...',
+    scanningRadar: 'Suche nach Stürmen...',
+    stormClusterDetected: 'Starkes Sturmgebiet erkannt',
+    movingToward: 'bewegt sich auf Sie zu',
+    movingAway: 'entfernt sich',
+    chanceDirectImpact: 'Wahrscheinlichkeit eines direkten Einschlags',
+    ofYou: 'von Ihnen',
+    betweenDbz: 'zwischen',
+    movingAt: 'bewegt sich',
   },
 
   pt: {
@@ -1210,6 +1255,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Tempestades podem produzir relâmpagos perigosos, ventos fortes e granizo. Procure abrigo imediatamente.',
     prepareConditions: 'Prepare-se para condições em mudança e tenha equipamento de chuva pronto.',
     viewAllAlerts: 'Ver Todos os Alertas',
+    loadingDataHoldOn: 'Carregando dados de radar, aguarde...',
+    scanningRadar: 'Procurando tempestades...',
+    stormClusterDetected: 'Área de tempestades fortes detectada',
+    movingToward: 'movendo-se em sua direção',
+    movingAway: 'afastando-se',
+    chanceDirectImpact: 'chance de impacto direto',
+    ofYou: 'de você',
+    betweenDbz: 'entre',
+    movingAt: 'movendo-se',
   },
 
   ja: {
@@ -1408,6 +1462,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: '雷雨は危険な雷、強風、雹を引き起こす可能性があります。直ちに避難してください。',
     prepareConditions: '変化する条件に備え、雨具を用意してください。',
     viewAllAlerts: 'すべてのアラートを見る',
+    loadingDataHoldOn: 'レーダーデータを読み込み中、お待ちください...',
+    scanningRadar: '嵐を探索中...',
+    stormClusterDetected: '強い嵐のエリアを検出',
+    movingToward: 'あなたに向かって移動中',
+    movingAway: '離れていく',
+    chanceDirectImpact: '直撃の可能性',
+    ofYou: 'あなたの',
+    betweenDbz: '〜',
+    movingAt: '移動中',
   },
 
   ko: {
@@ -1606,6 +1669,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: '뇌우는 위험한 번개, 강풍, 우박을 동반할 수 있습니다. 즉시 대피하세요.',
     prepareConditions: '변화하는 조건에 대비하고 우비를 준비하세요.',
     viewAllAlerts: '모든 경보 보기',
+    loadingDataHoldOn: '레이더 데이터 로딩 중, 잠시만...',
+    scanningRadar: '폭풍 탐색 중...',
+    stormClusterDetected: '강한 폭풍 지역 감지됨',
+    movingToward: '당신을 향해 이동 중',
+    movingAway: '멀어지는 중',
+    chanceDirectImpact: '직접 영향 확률',
+    ofYou: '방향',
+    betweenDbz: '~',
+    movingAt: '이동 중',
   },
 
   zh: {
@@ -1804,6 +1876,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: '雷暴可能产生危险闪电、强风和冰雹。请立即避难。',
     prepareConditions: '准备应对变化的天气条件，备好雨具。',
     viewAllAlerts: '查看所有警报',
+    loadingDataHoldOn: '正在加载雷达数据，请稍候...',
+    scanningRadar: '正在搜索风暴...',
+    stormClusterDetected: '检测到强风暴区域',
+    movingToward: '正向您移动',
+    movingAway: '正在远离',
+    chanceDirectImpact: '直接影响概率',
+    ofYou: '方向',
+    betweenDbz: '~',
+    movingAt: '移动中',
   },
 
   ar: {
@@ -2002,6 +2083,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'يمكن أن تنتج العواصف الرعدية برقاً خطيراً ورياحاً قوية وبرداً. احتم فوراً.',
     prepareConditions: 'استعد للظروف المتغيرة واحتفظ بمعدات المطر جاهزة.',
     viewAllAlerts: 'عرض جميع التنبيهات',
+    loadingDataHoldOn: 'جاري تحميل بيانات الرادار، انتظر...',
+    scanningRadar: 'البحث عن عواصف...',
+    stormClusterDetected: 'تم اكتشاف منطقة عواصف قوية',
+    movingToward: 'تتحرك نحوك',
+    movingAway: 'تبتعد',
+    chanceDirectImpact: 'احتمال التأثير المباشر',
+    ofYou: 'منك',
+    betweenDbz: 'بين',
+    movingAt: 'تتحرك',
   },
 
   hi: {
@@ -2200,6 +2290,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'गरज के साथ तूफान खतरनाक बिजली, तेज हवाएं और ओले ला सकता है। तुरंत आश्रय लें।',
     prepareConditions: 'बदलती परिस्थितियों के लिए तैयार रहें और बारिश का सामान तैयार रखें।',
     viewAllAlerts: 'सभी अलर्ट देखें',
+    loadingDataHoldOn: 'रडार डेटा लोड हो रहा है, कृपया प्रतीक्षा करें...',
+    scanningRadar: 'तूफानों की खोज जारी...',
+    stormClusterDetected: 'मजबूत तूफान क्षेत्र का पता चला',
+    movingToward: 'आपकी ओर बढ़ रहा है',
+    movingAway: 'दूर जा रहा है',
+    chanceDirectImpact: 'सीधे प्रभाव की संभावना',
+    ofYou: 'आपसे',
+    betweenDbz: 'बीच',
+    movingAt: 'चल रहा है',
   },
 
   id: {
@@ -2398,6 +2497,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Badai petir dapat menghasilkan petir berbahaya, angin kencang, dan hujan es. Segera cari perlindungan.',
     prepareConditions: 'Bersiap untuk kondisi yang berubah dan siapkan perlengkapan hujan.',
     viewAllAlerts: 'Lihat Semua Peringatan',
+    loadingDataHoldOn: 'Memuat data radar, tunggu sebentar...',
+    scanningRadar: 'Mencari badai...',
+    stormClusterDetected: 'Area badai kuat terdeteksi',
+    movingToward: 'bergerak menuju Anda',
+    movingAway: 'menjauh',
+    chanceDirectImpact: 'peluang dampak langsung',
+    ofYou: 'dari Anda',
+    betweenDbz: 'antara',
+    movingAt: 'bergerak',
   },
 
   th: {
@@ -2596,6 +2704,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'พายุฝนฟ้าคะนองอาจก่อให้เกิดฟ้าผ่าที่เป็นอันตราย ลมแรง และลูกเห็บ หาที่หลบภัยทันที',
     prepareConditions: 'เตรียมพร้อมสำหรับสภาพอากาศที่เปลี่ยนแปลงและเตรียมอุปกรณ์กันฝน',
     viewAllAlerts: 'ดูการแจ้งเตือนทั้งหมด',
+    loadingDataHoldOn: 'กำลังโหลดข้อมูลเรดาร์ รอสักครู่...',
+    scanningRadar: 'กำลังค้นหาพายุ...',
+    stormClusterDetected: 'ตรวจพบพื้นที่พายุรุนแรง',
+    movingToward: 'เคลื่อนที่เข้าหาคุณ',
+    movingAway: 'เคลื่อนที่ออกไป',
+    chanceDirectImpact: 'โอกาสส่งผลกระทบโดยตรง',
+    ofYou: 'จากคุณ',
+    betweenDbz: 'ระหว่าง',
+    movingAt: 'เคลื่อนที่',
   },
 
   vi: {
@@ -2794,6 +2911,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Giông bão có thể tạo ra sét nguy hiểm, gió mạnh và mưa đá. Tìm nơi trú ẩn ngay.',
     prepareConditions: 'Chuẩn bị cho điều kiện thay đổi và sẵn sàng đồ chống mưa.',
     viewAllAlerts: 'Xem Tất cả Cảnh báo',
+    loadingDataHoldOn: 'Đang tải dữ liệu radar, chờ chút...',
+    scanningRadar: 'Đang tìm kiếm bão...',
+    stormClusterDetected: 'Phát hiện vùng bão mạnh',
+    movingToward: 'đang di chuyển về phía bạn',
+    movingAway: 'đang di chuyển ra xa',
+    chanceDirectImpact: 'khả năng ảnh hưởng trực tiếp',
+    ofYou: 'từ bạn',
+    betweenDbz: 'giữa',
+    movingAt: 'di chuyển',
   },
 
   tr: {
@@ -2992,6 +3118,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Gök gürültülü fırtınalar tehlikeli yıldırım, kuvvetli rüzgar ve dolu üretebilir. Hemen sığınak arayın.',
     prepareConditions: 'Değişen koşullara hazırlanın ve yağmurluk bulundurun.',
     viewAllAlerts: 'Tüm Uyarıları Gör',
+    loadingDataHoldOn: 'Radar verileri yükleniyor, bekleyin...',
+    scanningRadar: 'Fırtınalar aranıyor...',
+    stormClusterDetected: 'Güçlü fırtına alanı tespit edildi',
+    movingToward: 'size doğru hareket ediyor',
+    movingAway: 'uzaklaşıyor',
+    chanceDirectImpact: 'doğrudan etki olasılığı',
+    ofYou: 'sizden',
+    betweenDbz: 'arasında',
+    movingAt: 'hareket ediyor',
   },
 
   it: {
@@ -3190,6 +3325,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'I temporali possono produrre fulmini pericolosi, venti forti e grandine. Cercare riparo immediatamente.',
     prepareConditions: 'Preparati per condizioni mutevoli e tieni pronto l\'equipaggiamento antipioggia.',
     viewAllAlerts: 'Visualizza Tutti gli Avvisi',
+    loadingDataHoldOn: 'Caricamento dati radar, attendere...',
+    scanningRadar: 'Ricerca di tempeste...',
+    stormClusterDetected: 'Area di tempeste forti rilevata',
+    movingToward: 'in movimento verso di te',
+    movingAway: 'in allontanamento',
+    chanceDirectImpact: 'probabilità di impatto diretto',
+    ofYou: 'da te',
+    betweenDbz: 'tra',
+    movingAt: 'in movimento',
   },
 
   nl: {
@@ -3388,6 +3532,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Onweer kan gevaarlijke bliksem, sterke wind en hagel veroorzaken. Zoek onmiddellijk beschutting.',
     prepareConditions: 'Bereid u voor op veranderende omstandigheden en houd regenkleding bij de hand.',
     viewAllAlerts: 'Bekijk Alle Waarschuwingen',
+    loadingDataHoldOn: 'Radargegevens laden, even geduld...',
+    scanningRadar: 'Zoeken naar stormen...',
+    stormClusterDetected: 'Sterk onweersgebied gedetecteerd',
+    movingToward: 'beweegt naar u toe',
+    movingAway: 'beweegt weg',
+    chanceDirectImpact: 'kans op directe impact',
+    ofYou: 'van u',
+    betweenDbz: 'tussen',
+    movingAt: 'beweegt',
   },
 
   ru: {
@@ -3586,6 +3739,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Грозы могут вызвать опасные молнии, сильный ветер и град. Немедленно укройтесь.',
     prepareConditions: 'Подготовьтесь к изменению условий и держите дождевое снаряжение наготове.',
     viewAllAlerts: 'Все предупреждения',
+    loadingDataHoldOn: 'Загрузка радарных данных, подождите...',
+    scanningRadar: 'Поиск штормов...',
+    stormClusterDetected: 'Обнаружена зона сильных штормов',
+    movingToward: 'движется к вам',
+    movingAway: 'удаляется',
+    chanceDirectImpact: 'вероятность прямого воздействия',
+    ofYou: 'от вас',
+    betweenDbz: 'между',
+    movingAt: 'движется',
   },
 
   pl: {
@@ -3784,6 +3946,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Burze z piorunami mogą powodować niebezpieczne pioruny, silny wiatr i grad. Natychmiast szukaj schronienia.',
     prepareConditions: 'Przygotuj się na zmieniające się warunki i miej gotowy sprzęt przeciwdeszczowy.',
     viewAllAlerts: 'Zobacz Wszystkie Alerty',
+    loadingDataHoldOn: 'Ładowanie danych radarowych, chwilę...',
+    scanningRadar: 'Szukanie burz...',
+    stormClusterDetected: 'Wykryto obszar silnych burz',
+    movingToward: 'porusza się w Twoim kierunku',
+    movingAway: 'oddala się',
+    chanceDirectImpact: 'szansa bezpośredniego uderzenia',
+    ofYou: 'od Ciebie',
+    betweenDbz: 'między',
+    movingAt: 'porusza się',
   },
 
   ms: {
@@ -3982,6 +4153,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Ribut petir boleh menghasilkan kilat berbahaya, angin kencang dan hujan batu. Segera cari perlindungan.',
     prepareConditions: 'Bersedia untuk keadaan yang berubah dan sediakan peralatan hujan.',
     viewAllAlerts: 'Lihat Semua Amaran',
+    loadingDataHoldOn: 'Memuatkan data radar, tunggu...',
+    scanningRadar: 'Mencari ribut...',
+    stormClusterDetected: 'Kawasan ribut kuat dikesan',
+    movingToward: 'bergerak ke arah anda',
+    movingAway: 'menjauh',
+    chanceDirectImpact: 'peluang kesan langsung',
+    ofYou: 'dari anda',
+    betweenDbz: 'antara',
+    movingAt: 'bergerak',
   },
 
   sw: {
@@ -4180,6 +4360,15 @@ const translations: Record<Language, TranslationKeys> = {
     thunderShelter: 'Dhoruba za radi zinaweza kusababisha umeme hatari, upepo mkali na mvua ya mawe. Tafuta hifadhi mara moja.',
     prepareConditions: 'Jiandae kwa hali zinazobadilika na uwe na vifaa vya mvua tayari.',
     viewAllAlerts: 'Tazama Tahadhari Zote',
+    loadingDataHoldOn: 'Inapakia data ya rada, subiri...',
+    scanningRadar: 'Kutafuta dhoruba...',
+    stormClusterDetected: 'Eneo la dhoruba kali limegunduliwa',
+    movingToward: 'inasogea kwako',
+    movingAway: 'inasogea mbali',
+    chanceDirectImpact: 'nafasi ya athari ya moja kwa moja',
+    ofYou: 'kutoka kwako',
+    betweenDbz: 'kati ya',
+    movingAt: 'inasogea',
   },
 };
 
