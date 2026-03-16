@@ -460,32 +460,45 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
                   const d = new Date(day.date + 'T12:00:00');
                   const dayName = i === 0 ? 'Today' : DAY_NAMES[d.getDay()];
                   return (
-                    <div key={i} className="flex items-center gap-1.5 py-1.5 text-sm">
-                      <span className="text-slate-300 w-9 text-[11px] font-medium shrink-0">{dayName}</span>
-                      <span className="text-base shrink-0">{getConditionIcon(day.day.condition)}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className="text-white font-semibold text-[11px]">
-                            {Math.round(day.day.maxtemp_f)}°
-                          </span>
-                          <span className="text-slate-500 text-[10px]">/</span>
-                          <span className="text-slate-400 text-[11px]">
-                            {Math.round(day.day.mintemp_f)}°F
-                          </span>
-                          <span className="text-slate-600 text-[9px]">
-                            ({Math.round(day.day.maxtemp_c)}°/{Math.round(day.day.mintemp_c)}°C)
-                          </span>
+                    <div key={i}>
+                      <div className="flex items-center gap-1.5 py-1.5 text-sm">
+                        <span className="text-slate-300 w-9 text-[11px] font-medium shrink-0">{dayName}</span>
+                        <span className="text-base shrink-0">{getConditionIcon(day.day.condition)}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="text-white font-semibold text-[11px]">
+                              {Math.round(day.day.maxtemp_f)}°
+                            </span>
+                            <span className="text-slate-500 text-[10px]">/</span>
+                            <span className="text-slate-400 text-[11px]">
+                              {Math.round(day.day.mintemp_f)}°F
+                            </span>
+                            <span className="text-slate-600 text-[9px]">
+                              ({Math.round(day.day.maxtemp_c)}°/{Math.round(day.day.mintemp_c)}°C)
+                            </span>
+                          </div>
                         </div>
+                        {day.accuweather?.thunderstormProbability > 0 && (
+                          <div className="flex items-center gap-0.5 shrink-0" title="Thunderstorm probability">
+                            <span className="text-[10px]">⛈</span>
+                            <span className="text-orange-400 text-[10px]">{day.accuweather.thunderstormProbability}%</span>
+                          </div>
+                        )}
+                        {day.day.daily_chance_of_rain > 0 && (
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <Droplets className="w-3 h-3 text-blue-400" />
+                            <span className="text-blue-400 text-[10px]">{day.day.daily_chance_of_rain}%</span>
+                          </div>
+                        )}
+                        <span className="text-slate-500 text-[9px] shrink-0 hidden sm:block">
+                          {Math.round(day.day.maxwind_mph)}mph
+                        </span>
                       </div>
-                      {day.day.daily_chance_of_rain > 0 && (
-                        <div className="flex items-center gap-0.5 shrink-0">
-                          <Droplets className="w-3 h-3 text-blue-400" />
-                          <span className="text-blue-400 text-[10px]">{day.day.daily_chance_of_rain}%</span>
+                      {day.accuweather?.shortPhrase && (
+                        <div className="ml-10 -mt-1 mb-0.5">
+                          <span className="text-slate-500 text-[9px] italic">{day.accuweather.shortPhrase}</span>
                         </div>
                       )}
-                      <span className="text-slate-500 text-[9px] shrink-0 hidden sm:block">
-                        {Math.round(day.day.maxwind_mph)}mph
-                      </span>
                     </div>
                   );
                 })}
@@ -548,6 +561,31 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
                       </div>
                     )}
                   </div>
+                </div>
+              </>
+            )}
+
+            {forecast[0]?.accuweather?.airAndPollen?.length > 0 && (
+              <>
+                <Separator className="bg-slate-700" />
+                <div>
+                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Pollen & Allergens</h4>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    {forecast[0].accuweather.airAndPollen
+                      .filter((p: any) => p.Name !== 'AirQuality' && p.Name !== 'UVIndex')
+                      .map((p: any, i: number) => (
+                        <div key={i} className="bg-slate-700/30 rounded p-2 text-center">
+                          <div className={`font-semibold ${
+                            p.CategoryValue >= 4 ? 'text-red-400' :
+                            p.CategoryValue >= 3 ? 'text-orange-400' :
+                            p.CategoryValue >= 2 ? 'text-yellow-400' : 'text-green-400'
+                          }`}>{p.Category}</div>
+                          <div className="text-slate-400 text-[10px]">{p.Name}</div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                  <div className="text-slate-600 text-[8px] mt-1 text-right">via AccuWeather</div>
                 </div>
               </>
             )}
