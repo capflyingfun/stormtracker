@@ -5598,6 +5598,8 @@ Guidelines:
       }
 
       const sourceReadings: { name: string; data: SourceReading }[] = [];
+      let openMeteoForecast: any[] = [];
+      let weatherApiForecast: any[] = [];
       let forecastData: any[] = [];
       let alertsData: any[] = [];
       let nwsPeriods: any[] = [];
@@ -5641,8 +5643,8 @@ Guidelines:
           precipMm = precipIn * 25.4;
           uvIndex = om.daily?.uv_index_max?.[0] || 0;
 
-          if (om.daily && forecastData.length === 0) {
-            forecastData = om.daily.time.map((date: string, i: number) => {
+          if (om.daily) {
+            openMeteoForecast = om.daily.time.map((date: string, i: number) => {
               const hiF = om.daily.temperature_2m_max[i];
               const loF = om.daily.temperature_2m_min[i];
               return {
@@ -5718,7 +5720,7 @@ Guidelines:
             if (d.uv > uvIndex) uvIndex = d.uv;
 
             if (wa.forecast?.forecastday) {
-              forecastData = wa.forecast.forecastday.map((day: any) => ({
+              weatherApiForecast = wa.forecast.forecastday.map((day: any) => ({
                 date: day.date,
                 day: {
                   maxtemp_c: day.day.maxtemp_c, maxtemp_f: day.day.maxtemp_f,
@@ -6066,6 +6068,38 @@ Guidelines:
       }
 
       await Promise.allSettled(fetchPromises);
+
+      if (openMeteoForecast.length > 0 && weatherApiForecast.length > 0) {
+        forecastData = openMeteoForecast.map((omDay) => {
+          const waDay = weatherApiForecast.find(w => w.date === omDay.date);
+          if (waDay) {
+            return {
+              date: omDay.date,
+              day: {
+                maxtemp_f: Math.round((omDay.day.maxtemp_f + waDay.day.maxtemp_f) / 2),
+                maxtemp_c: Math.round((omDay.day.maxtemp_c + waDay.day.maxtemp_c) / 2),
+                mintemp_f: Math.round((omDay.day.mintemp_f + waDay.day.mintemp_f) / 2),
+                mintemp_c: Math.round((omDay.day.mintemp_c + waDay.day.mintemp_c) / 2),
+                maxwind_mph: Math.round((omDay.day.maxwind_mph + waDay.day.maxwind_mph) / 2),
+                maxwind_kph: Math.round((omDay.day.maxwind_kph + waDay.day.maxwind_kph) / 2),
+                totalprecip_in: Math.max(omDay.day.totalprecip_in || 0, waDay.day.totalprecip_in || 0),
+                totalprecip_mm: Math.max(omDay.day.totalprecip_mm || 0, waDay.day.totalprecip_mm || 0),
+                avghumidity: waDay.day.avghumidity || omDay.day.avghumidity || 0,
+                daily_chance_of_rain: Math.round((omDay.day.daily_chance_of_rain + waDay.day.daily_chance_of_rain) / 2),
+                daily_chance_of_snow: Math.round(((omDay.day.daily_chance_of_snow || 0) + (waDay.day.daily_chance_of_snow || 0)) / 2),
+                condition: waDay.day.condition || omDay.day.condition,
+                uv: Math.max(omDay.day.uv || 0, waDay.day.uv || 0)
+              },
+              astro: waDay.astro?.sunrise ? waDay.astro : omDay.astro
+            };
+          }
+          return omDay;
+        });
+      } else if (openMeteoForecast.length > 0) {
+        forecastData = openMeteoForecast;
+      } else if (weatherApiForecast.length > 0) {
+        forecastData = weatherApiForecast;
+      }
 
       if (sourceReadings.length === 0) {
         return res.status(503).json({ error: "No weather data sources available" });
