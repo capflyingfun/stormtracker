@@ -1759,7 +1759,7 @@ export default function StormTracker() {
             </div>
 
             {/* === MOBILE BOTTOM TAB BAR === */}
-            <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-slate-900/95 border-t border-slate-700/50 flex justify-around items-center z-[999] backdrop-blur-xl" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-700/50 flex justify-around items-center z-[999] backdrop-blur-xl" style={{ height: 'calc(64px + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
               {[
                 { id: 'radar' as const, icon: '📡', label: t.radar },
                 { id: 'weather' as const, icon: '🌤️', label: t.weather },
