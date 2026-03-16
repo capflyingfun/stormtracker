@@ -89,8 +89,9 @@ function getHazardColor(hazard: string) {
 
 function NWSPeriodCard({ period }: { period: any }) {
   const [showDetail, setShowDetail] = useState(false);
+  const { t } = useLanguage();
   const isNight = !period.isDaytime;
-  const tempLabel = isNight ? 'Low' : 'High';
+  const tempLabel = isNight ? t.minTemp : t.maxTemp;
 
   return (
     <div className={`rounded-xl p-3 border ${
@@ -106,7 +107,7 @@ function NWSPeriodCard({ period }: { period: any }) {
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-white font-semibold text-sm">{period.name}</span>
             {period.hasAdvisory && (
-              <Badge className="bg-amber-600 text-white text-[9px] px-1.5 py-0 h-4 uppercase font-bold">Advisory</Badge>
+              <Badge className="bg-amber-600 text-white text-[9px] px-1.5 py-0 h-4 uppercase font-bold">{t.advisory}</Badge>
             )}
             <span className="text-[11px] text-slate-400">
               {isNight ? '🌙' : '☀️'} {tempLabel}: {period.temperature_f}°F ({period.temperature_c}°C)
@@ -114,7 +115,7 @@ function NWSPeriodCard({ period }: { period: any }) {
           </div>
           <p className="text-slate-300 text-xs mt-0.5">{period.shortForecast}</p>
           <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400 flex-wrap">
-            <span>Wind: {period.windSpeed} {period.windDirection}</span>
+            <span>{t.wind}: {period.windSpeed} {period.windDirection}</span>
             {period.precipChance > 0 && (
               <span className="text-blue-400">💧 {period.precipChance}%</span>
             )}
@@ -136,7 +137,7 @@ function NWSPeriodCard({ period }: { period: any }) {
             onClick={() => setShowDetail(!showDetail)}
             className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors mt-1"
           >
-            {showDetail ? 'Hide details' : 'Show details...'}
+            {showDetail ? t.showLess : t.showDetails}
           </button>
           {showDetail && (
             <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
@@ -151,6 +152,7 @@ function NWSPeriodCard({ period }: { period: any }) {
 
 function NWSAlertCard({ alert }: { alert: any }) {
   const [showDetail, setShowDetail] = useState(false);
+  const { t } = useLanguage();
   const severityColors: Record<string, string> = {
     'Extreme': 'bg-red-900/40 border-red-500',
     'Severe': 'bg-red-900/30 border-red-600/50',
@@ -173,7 +175,7 @@ function NWSAlertCard({ alert }: { alert: any }) {
             )}
           </div>
           {alert.senderName && (
-            <p className="text-[11px] text-slate-400 mb-1">by {alert.senderName}</p>
+            <p className="text-[11px] text-slate-400 mb-1">{alert.senderName}</p>
           )}
           {alert.expires && (
             <p className="text-[10px] text-slate-500 mb-1">
@@ -181,13 +183,13 @@ function NWSAlertCard({ alert }: { alert: any }) {
             </p>
           )}
           {alert.areaDesc && (
-            <p className="text-[10px] text-slate-500 mb-1">Areas: {alert.areaDesc}</p>
+            <p className="text-[10px] text-slate-500 mb-1">{t.areas}: {alert.areaDesc}</p>
           )}
           {alert.instruction && (
             <div className="bg-amber-900/20 rounded-lg p-2 mt-1.5 border border-amber-700/30">
               <p className="text-[10px] text-amber-300 flex items-start gap-1">
                 <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-                <span><strong>Safety Instructions:</strong> {alert.instruction.substring(0, 300)}{alert.instruction.length > 300 ? '...' : ''}</span>
+                <span><strong>{t.safetyInstructions}:</strong> {alert.instruction.substring(0, 300)}{alert.instruction.length > 300 ? '...' : ''}</span>
               </p>
             </div>
           )}
@@ -197,7 +199,7 @@ function NWSAlertCard({ alert }: { alert: any }) {
                 onClick={() => setShowDetail(!showDetail)}
                 className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors mt-1"
               >
-                {showDetail ? 'Hide details' : 'Full description...'}
+                {showDetail ? t.showLess : t.showDetails}
               </button>
               {showDetail && (
                 <p className="text-[10px] text-slate-400 mt-1 leading-relaxed whitespace-pre-line">{alert.description}</p>
@@ -262,7 +264,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-slate-400">
               <Cloud className="w-5 h-5" />
-              <span className="text-sm">Weather data unavailable</span>
+              <span className="text-sm">{t.weatherDataUnavailable}</span>
             </div>
             <Button variant="ghost" size="sm" onClick={() => refetch()} className="text-slate-400">
               <RefreshCw className="w-4 h-4" />
@@ -304,7 +306,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <Badge variant="outline" className="text-[9px] border-slate-600 text-slate-400 hidden sm:flex px-1.5 h-5">
-              {sourcesCount} source{sourcesCount !== 1 ? 's' : ''}
+              {sourcesCount} {t.sources}
             </Badge>
             <Button
               variant="ghost"
@@ -391,13 +393,13 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
 
         <div className="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
           {cur.uv !== undefined && cur.uv > 0 && (
-            <span>UV: <span className={getUVLabel(cur.uv).color}>{cur.uv} ({getUVLabel(cur.uv).label})</span></span>
+            <span>{t.uvIndex}: <span className={getUVLabel(cur.uv).color}>{cur.uv} ({getUVLabel(cur.uv).label})</span></span>
           )}
           {airQuality?.us_epa_index && (
             <span>AQI: <span className={getAQILabel(airQuality.us_epa_index).color}>{getAQILabel(airQuality.us_epa_index).label}</span></span>
           )}
           {cur.precip_in > 0 && (
-            <span>Precip: {dualPrecip(cur.precip_in, cur.precip_mm)}</span>
+            <span>{t.precip}: {dualPrecip(cur.precip_in, cur.precip_mm)}</span>
           )}
         </div>
 
@@ -408,21 +410,21 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
               className="flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
             >
               <Database className="w-3 h-3" />
-              <span>Hybrid: {sourcesDetail.map((s: any) => s.name).join(' + ')}</span>
+              <span>{t.hybrid}: {sourcesDetail.map((s: any) => s.name).join(' + ')}</span>
               {showSources ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
             {showSources && (
               <div className="mt-2 space-y-1.5">
-                <div className="text-[9px] text-slate-500 mb-1">Per-source readings (consensus averaged above):</div>
+                <div className="text-[9px] text-slate-500 mb-1">{t.perSourceReadings}:</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                   {sourcesDetail.map((src: any, i: number) => (
                     <div key={i} className={`bg-slate-700/20 rounded p-2 border ${getSourceColor(src.name)}`}>
                       <div className="text-[10px] font-semibold mb-1">{src.name}</div>
                       <div className="grid grid-cols-2 gap-x-2 text-[10px] text-slate-300">
-                        <span>Temp: {Math.round(src.temp_f)}°F ({Math.round(src.temp_c)}°C)</span>
-                        <span>Humidity: {src.humidity}%</span>
-                        <span>Wind: {Math.round(src.wind_mph)} mph</span>
-                        <span>Press: {Math.round(src.pressure_mb)} mb</span>
+                        <span>{t.temperature}: {Math.round(src.temp_f)}°F ({Math.round(src.temp_c)}°C)</span>
+                        <span>{t.humidity}: {src.humidity}%</span>
+                        <span>{t.wind}: {Math.round(src.wind_mph)} mph</span>
+                        <span>{t.pressure}: {Math.round(src.pressure_mb)} mb</span>
                         <span className="col-span-2 text-slate-400 truncate">{src.condition}</span>
                       </div>
                     </div>
@@ -460,7 +462,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
               <div className="space-y-0.5">
                 {forecast.map((day: any, i: number) => {
                   const d = new Date(day.date + 'T12:00:00');
-                  const dayName = i === 0 ? 'Today' : DAY_NAMES[d.getDay()];
+                  const dayName = i === 0 ? t.today : DAY_NAMES[d.getDay()];
                   return (
                     <div key={i}>
                       <div className="flex items-center gap-1.5 py-1.5 text-sm">
@@ -481,7 +483,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
                           </div>
                         </div>
                         {day.accuweather?.thunderstormProbability > 0 && (
-                          <div className="flex items-center gap-0.5 shrink-0" title="Thunderstorm probability">
+                          <div className="flex items-center gap-0.5 shrink-0" title={t.thunderstormProb}>
                             <span className="text-[10px]">⛈</span>
                             <span className="text-orange-400 text-[10px]">{day.accuweather.thunderstormProbability}%</span>
                           </div>
@@ -559,7 +561,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
                     {airQuality.o3 !== undefined && (
                       <div className="bg-slate-700/30 rounded p-2 text-center">
                         <div className="text-white font-semibold">{airQuality.o3?.toFixed(1)}</div>
-                        <div className="text-slate-400 text-[10px]">Ozone</div>
+                        <div className="text-slate-400 text-[10px]">{t.ozone}</div>
                       </div>
                     )}
                   </div>
@@ -600,7 +602,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
           onClick={() => setExpanded(!expanded)}
           className="w-full text-slate-400 hover:text-white hover:bg-slate-700/50 text-xs"
         >
-          {expanded ? t.showLess : `${t.sunriseSunset}, ${t.airQuality}...`}
+          {expanded ? t.showLess : t.showMore}
           {expanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
         </Button>
 

@@ -364,9 +364,9 @@ export default function AIWeatherAssistant({
             className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:flex-1"
           >
             {assessmentMutation.isPending 
-              ? 'Analyzing...' 
+              ? t.analyzing 
               : !isDataReady 
-                ? `Loading data... (${loadingTimer}s)`
+                ? `${t.loadingDataTimer} (${loadingTimer}s)`
                 : t.analyzeWeather
             }
           </Button>
@@ -432,15 +432,15 @@ export default function AIWeatherAssistant({
               <div className="py-4">
                 <Clock className="w-6 h-6 animate-pulse mx-auto mb-2 text-blue-400" />
                 <p className="text-slate-300 mb-2">
-                  Loading storm data and weather information...
+                  {t.loadingStormData}
                 </p>
                 <p className="text-slate-400 text-sm">
-                  {loadingTimer > 0 ? `Ready in ${loadingTimer} seconds` : 'Almost ready...'}
+                  {loadingTimer > 0 ? `${t.ready} ${loadingTimer}s` : t.almostReady}
                 </p>
               </div>
             ) : (
               <p className="text-slate-300 mb-4">
-                Get comprehensive AI analysis of weather risks, storm threats, and active alerts/advisories
+                {t.getAIAnalysis}
               </p>
             )}
           </div>
@@ -547,7 +547,7 @@ export default function AIWeatherAssistant({
               onClick={() => setIsExpanded(!isExpanded)}
               className="w-full text-slate-200 hover:bg-slate-700"
             >
-              {isExpanded ? 'Show Less' : 'Show Detailed Analysis'}
+              {isExpanded ? t.showLess : t.showDetailedAnalysis}
             </Button>
 
             <Separator />
@@ -557,7 +557,7 @@ export default function AIWeatherAssistant({
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-semibold text-white flex items-center gap-2">
                   <MessageCircle className="w-4 h-4" />
-                  Ask Weather Questions
+                  {t.askWeatherQuestions}
                 </h4>
                 <Button
                   variant="ghost"
@@ -565,7 +565,7 @@ export default function AIWeatherAssistant({
                   onClick={() => setShowChatMode(!showChatMode)}
                   className="text-xs text-slate-300 hover:bg-slate-700"
                 >
-                  {showChatMode ? 'Hide Chat' : 'Show Chat'}
+                  {showChatMode ? t.hideChat : t.showChat}
                 </Button>
               </div>
 
@@ -600,7 +600,7 @@ export default function AIWeatherAssistant({
                     <Input
                       value={chatQuestion}
                       onChange={(e) => setChatQuestion(e.target.value)}
-                      placeholder="Ask about weather conditions..."
+                      placeholder={t.chatPlaceholder}
                       disabled={chatMutation.isPending}
                       className="bg-slate-800 border-slate-600 text-slate-200 placeholder-slate-400"
                     />
@@ -618,7 +618,7 @@ export default function AIWeatherAssistant({
                   {chatMutation.isPending && (
                     <div className="flex items-center gap-2 text-sm text-slate-400">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-400"></div>
-                      Analyzing weather data...
+                      {t.analyzing}
                     </div>
                   )}
 
