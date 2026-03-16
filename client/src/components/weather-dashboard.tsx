@@ -370,7 +370,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
               <div key={i} className="flex items-start gap-2 p-2 bg-red-900/30 border border-red-700/50 rounded-lg">
                 <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-red-300">{alert.event || alert.headline}</p>
+                  <p className="text-sm font-medium text-red-300">{translateWeatherText(alert.event || alert.headline, language)}</p>
                   {alert.description && <p className="text-xs text-red-400/80 line-clamp-2">{alert.description}</p>}
                 </div>
               </div>

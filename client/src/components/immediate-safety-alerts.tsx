@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, Navigation, Clock, ArrowUpDown } from "lucide-react";
 import { getStormCategory, getCompassDirection, calculateETA, calculateApproachAngle, isStormApproaching } from "@shared/storm-utils";
 import { useLanguage } from "@/hooks/use-language";
+import { translateWeatherText } from "@/lib/i18n";
 
 function CountdownTimer({ etaMinutes, label }: { etaMinutes: number; label?: string }) {
   const [now, setNow] = useState(Date.now());
@@ -411,7 +412,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
               <div className="flex items-center gap-2 mb-2">
                 <div className="text-lg">🚨</div>
                 <div className={`w-3 h-3 rounded-full ${getSeverityColor(alert.severity || '')}`}></div>
-                <span className="font-semibold text-red-200">{alert.type}</span>
+                <span className="font-semibold text-red-200">{translateWeatherText(alert.type, language)}</span>
               </div>
               
               <p className="text-sm text-red-100 mb-2">{alert.headline}</p>
