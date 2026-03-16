@@ -921,7 +921,7 @@ export default function StormTracker() {
                         variant="outline"
                         size="sm"
                         className={`w-full text-xs ${viewMode === '3d' ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-slate-800/50 border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}
-                        disabled={!storms || storms.length === 0}
+                        disabled={precipitationStorms.length === 0}
                       >
                         🌩️ {t.threeDView}
                       </Button>
@@ -1179,7 +1179,7 @@ export default function StormTracker() {
                       variant="outline"
                       size="sm"
                       className={`text-xs ${viewMode === '3d' ? 'bg-purple-600/20 border-purple-500 text-purple-300' : 'bg-slate-800/50 border-slate-600 text-slate-300'}`}
-                      disabled={!storms || storms.length === 0}
+                      disabled={precipitationStorms.length === 0}
                     >
                       🌩️ {t.threeD}
                     </Button>

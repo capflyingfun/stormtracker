@@ -167,9 +167,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
+    if (canvas.width < 10 || canvas.height < 10) return;
 
     const cameraDistance = 20; // Balanced view distance
 

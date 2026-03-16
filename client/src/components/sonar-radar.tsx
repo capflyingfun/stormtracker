@@ -98,12 +98,13 @@ export default function SonarRadar({
 
     const W = canvas.clientWidth;
     const H = canvas.clientHeight;
+    if (W < 10 || H < 10) return;
     const cx = W / 2;
     const cy = H / 2;
 
-    // Storm field radius — leave room for compass ring outside it
-    const compassRingR = Math.min(cx, cy) - 8;   // outer compass ring, near canvas edge
-    const maxRadius = compassRingR - 22;           // storm field ends here
+    const compassRingR = Math.min(cx, cy) - 8;
+    const maxRadius = compassRingR - 22;
+    if (maxRadius < 5) return;
 
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -365,6 +366,7 @@ export default function SonarRadar({
     const resize = () => {
       const wr = wrapper.getBoundingClientRect();
       // Fill card width, cap height to keep sonar card compact on phones
+      if (wr.width < 10) return;
       const size = Math.max(Math.min(wr.width, window.innerHeight * 0.35), 60);
       const dpr = window.devicePixelRatio || 1;
       canvas.width = size * dpr;
