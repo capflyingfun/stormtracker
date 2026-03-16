@@ -201,7 +201,6 @@ export default function StormTracker() {
   const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages'>('tracker');
   const [mobileTab, setMobileTab] = useState<'radar' | 'weather' | 'storms' | 'ai' | 'alerts'>('radar');
   const [mobileLocationExpanded, setMobileLocationExpanded] = useState(false);
-  const [criticalAlertDismissed, setCriticalAlertDismissed] = useState(false);
 
 
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -620,10 +619,6 @@ export default function StormTracker() {
     return alerts;
   }, [minuteCastData, precipitationStorms, formatDistance]);
 
-  useEffect(() => {
-    setCriticalAlertDismissed(false);
-  }, [criticalAlerts.length]);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
       <Header 
@@ -781,12 +776,12 @@ export default function StormTracker() {
             </div>
 
             {/* === MOBILE: Critical Alert Banner === */}
-            {criticalAlerts.length > 0 && !criticalAlertDismissed && (
+            {criticalAlerts.length > 0 && (
               <div className="lg:hidden mb-3 space-y-2">
                 {criticalAlerts.map((alert, i) => (
                   <div
                     key={i}
-                    className={`rounded-xl p-3 border flex items-start gap-2 ${
+                    className={`rounded-xl p-3 border flex items-center gap-2 ${
                       alert.type === 'danger'
                         ? 'bg-red-900/40 border-red-500/60 animate-pulse'
                         : alert.type === 'warning'
@@ -805,12 +800,6 @@ export default function StormTracker() {
                       </p>
                       <p className="text-[10px] text-slate-400 mt-0.5">{t.alerts} →</p>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setCriticalAlertDismissed(true); }}
-                      className="text-slate-500 hover:text-white text-xs shrink-0 p-1"
-                    >
-                      ✕
-                    </button>
                   </div>
                 ))}
               </div>
