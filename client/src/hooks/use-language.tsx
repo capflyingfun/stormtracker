@@ -18,7 +18,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem('stormtracker-language');
     if (saved) return saved as Language;
     const browserLang = navigator.language.split('-')[0];
-    const supported: Language[] = ['en', 'es', 'fr', 'de', 'pt', 'ja', 'ko', 'zh', 'ar', 'hi'];
+    const supported: Language[] = ['en', 'es', 'fr', 'de', 'pt', 'ja', 'ko', 'zh', 'ar', 'hi', 'id', 'th', 'vi', 'tr', 'it', 'nl', 'ru', 'pl', 'ms', 'sw'];
     return supported.includes(browserLang as Language) ? (browserLang as Language) : 'en';
   });
 
