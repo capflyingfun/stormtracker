@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIWeatherAssistant from "@/components/ai-weather-assistant";
 import { LayoutList } from "lucide-react";
+import { useLanguage } from "@/hooks/use-language";
 
 // Embedded Message Inbox Component for Modal
 function EmbeddedMessageInbox() {
@@ -161,6 +162,7 @@ function EmbeddedMessageInbox() {
 
 export default function StormTracker() {
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
   const [useMetric, setUseMetric] = useState(false);
   const [isTracking, setIsTracking] = useState(true);
   const radarRange = 50;
@@ -648,7 +650,7 @@ export default function StormTracker() {
                       {location.lat.toFixed(4)}°{location.lat >= 0 ? 'N' : 'S'}, {Math.abs(location.lon).toFixed(4)}°{location.lon >= 0 ? 'E' : 'W'}
                     </p>
                     <p className="text-slate-300 text-sm sm:text-base">
-                      Detection Radius: {formatDistance(50)} (Unified System)
+                      {t.detectionRadius}: {formatDistance(50)} (Unified System)
                     </p>
                   </div>
                 </div>
@@ -661,7 +663,7 @@ export default function StormTracker() {
                     size="sm"
                     className="text-xs sm:text-sm"
                   >
-                    📍 Change Location
+                    📍 {t.changeLocation}
                   </Button>
                   <Button
                     onClick={handleGPSLocation}
@@ -687,7 +689,7 @@ export default function StormTracker() {
                   }
                 }}>
                   <Input
-                    placeholder="Search for city, state, or address..."
+                    placeholder={t.searchPlaceholder}
                     value={searchQuery}
                     onChange={(e) => {
                       setSearchQuery(e.target.value);

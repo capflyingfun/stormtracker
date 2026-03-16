@@ -1167,83 +1167,129 @@ Return ONLY a JSON array of 5 strings.`;
       
       const suggestions: any[] = [];
       
-      const response = await fetch(
-        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=8&appid=${API_KEYS.openweather}`,
-        { signal: AbortSignal.timeout(3000) }
+      const looksLikeStreetAddress = /\d+\s+\w/.test(query) || /\b(st|ave|blvd|dr|rd|ln|ct|way|pl|cir|pkwy|hwy|drive|road|street|avenue|boulevard|lane|court|place|circle)\b/i.test(query);
+      
+      const fetchPromisesGeo: Promise<void>[] = [];
+
+      fetchPromisesGeo.push(
+        fetch(
+          `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=8&appid=${API_KEYS.openweather}`,
+          { signal: AbortSignal.timeout(3000) }
+        ).then(r => r.ok ? r.json() : []).then((locations: any[]) => {
+          for (const location of locations) {
+            let displayName = location.name;
+            if (location.state && location.country === 'US') {
+              displayName += `, ${location.state}`;
+            }
+            if (location.country && location.country !== 'US') {
+              displayName += `, ${location.country}`;
+            }
+            const isInRegion = !regionCountries || regionCountries.includes(location.country);
+            suggestions.push({
+              id: `${location.lat}_${location.lon}`,
+              display_name: displayName,
+              lat: location.lat,
+              lon: location.lon,
+              type: 'place',
+              importance: isInRegion ? (looksLikeStreetAddress ? 0.8 : 1.5) - (suggestions.length * 0.05) : 0.5 - (suggestions.length * 0.05),
+              address: {
+                city: location.name,
+                state: location.state,
+                country: location.country
+              },
+              _inRegion: isInRegion
+            });
+          }
+        }).catch(() => {})
       );
-      
-      if (response.ok) {
-        const locations = await response.json();
-        
-        for (const location of locations) {
-          let displayName = location.name;
-          
-          if (location.state && location.country === 'US') {
-            displayName += `, ${location.state}`;
-          }
-          if (location.country && location.country !== 'US') {
-            displayName += `, ${location.country}`;
-          }
-          
-          const isInRegion = !regionCountries || regionCountries.includes(location.country);
-          
-          suggestions.push({
-            id: `${location.lat}_${location.lon}`,
-            display_name: displayName,
-            lat: location.lat,
-            lon: location.lon,
-            type: 'place',
-            importance: isInRegion ? 1.5 - (suggestions.length * 0.05) : 0.5 - (suggestions.length * 0.05),
-            address: {
-              city: location.name,
-              state: location.state,
-              country: location.country
-            },
-            _inRegion: isInRegion
-          });
-        }
-      }
-      
-      if (suggestions.length === 0 && query.length >= 3) {
-        try {
-          const photonRes = await fetch(
+
+      if (query.length >= 3) {
+        fetchPromisesGeo.push(
+          fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`,
+            { headers: { 'User-Agent': 'StormTracker/1.0 (Weather Application)' }, signal: AbortSignal.timeout(3000) }
+          ).then(r => r.ok ? r.json() : []).then((nomData: any[]) => {
+            if (!nomData?.length) return;
+            for (const loc of nomData) {
+              const lat = parseFloat(loc.lat);
+              const lon = parseFloat(loc.lon);
+              const coordId = `${lat.toFixed(5)}_${lon.toFixed(5)}`;
+              const isDuplicate = suggestions.some(s => {
+                const existingId = `${parseFloat(s.lat).toFixed(5)}_${parseFloat(s.lon).toFixed(5)}`;
+                return existingId === coordId;
+              });
+              if (isDuplicate) continue;
+              const addr = loc.address || {};
+              const parts = [];
+              if (addr.house_number && addr.road) parts.push(`${addr.house_number} ${addr.road}`);
+              else if (addr.road) parts.push(addr.road);
+              else if (loc.display_name) parts.push(loc.display_name.split(',')[0]);
+              const city = addr.city || addr.town || addr.village || '';
+              if (city) parts.push(city);
+              if (addr.state) parts.push(addr.state);
+              const cc = (addr.country_code || '').toUpperCase();
+              if (cc && cc !== 'US') parts.push(cc);
+              if (parts.length === 0) continue;
+              const isInRegion = !regionCountries || regionCountries.includes(cc);
+              const hasStreetDetail = !!(addr.house_number || addr.road);
+              suggestions.push({
+                id: coordId,
+                display_name: parts.join(', '),
+                lat, lon,
+                type: hasStreetDetail ? 'address' : 'place',
+                importance: isInRegion ? (hasStreetDetail ? 1.9 : 1.1) : 0.4,
+                address: { city, state: addr.state || '', country: cc },
+                _inRegion: isInRegion
+              });
+            }
+          }).catch(() => {})
+        );
+
+        fetchPromisesGeo.push(
+          fetch(
             `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6`,
             { signal: AbortSignal.timeout(3000) }
-          );
-          if (photonRes.ok) {
-            const photonData = await photonRes.json();
-            if (photonData.features) {
-              for (const f of photonData.features) {
-                const p = f.properties || {};
-                const parts = [];
-                if (p.housenumber && p.street) parts.push(`${p.housenumber} ${p.street}`);
-                else if (p.street) parts.push(p.street);
-                else if (p.name) parts.push(p.name);
-                if (p.city || p.town || p.village) parts.push(p.city || p.town || p.village);
-                if (p.state) parts.push(p.state);
-                const cc = (p.countrycode || '').toUpperCase();
-                if (cc && cc !== 'US') parts.push(cc);
-                if (parts.length === 0) continue;
-                const isInRegion = !regionCountries || regionCountries.includes(cc);
-                suggestions.push({
-                  id: `${f.geometry.coordinates[1]}_${f.geometry.coordinates[0]}`,
-                  display_name: parts.join(', '),
-                  lat: f.geometry.coordinates[1],
-                  lon: f.geometry.coordinates[0],
-                  type: 'place',
-                  importance: isInRegion ? 1.0 : 0.4,
-                  address: {
-                    city: p.city || p.town || p.village || p.name || '',
-                    state: p.state || '',
-                    country: cc
-                  },
-                  _inRegion: isInRegion
-                });
-              }
+          ).then(r => r.ok ? r.json() : { features: [] }).then((photonData: any) => {
+            if (!photonData.features) return;
+            for (const f of photonData.features) {
+              const p = f.properties || {};
+              const parts = [];
+              if (p.housenumber && p.street) parts.push(`${p.housenumber} ${p.street}`);
+              else if (p.street) parts.push(p.street);
+              else if (p.name) parts.push(p.name);
+              if (p.city || p.town || p.village) parts.push(p.city || p.town || p.village);
+              if (p.state) parts.push(p.state);
+              const cc = (p.countrycode || '').toUpperCase();
+              if (cc && cc !== 'US') parts.push(cc);
+              if (parts.length === 0) return;
+              const coordId = `${f.geometry.coordinates[1].toFixed(5)}_${f.geometry.coordinates[0].toFixed(5)}`;
+              const isDuplicate = suggestions.some(s => {
+                const existingId = `${parseFloat(s.lat).toFixed(5)}_${parseFloat(s.lon).toFixed(5)}`;
+                return existingId === coordId;
+              });
+              if (isDuplicate) return;
+              const isInRegion = !regionCountries || regionCountries.includes(cc);
+              const hasStreetDetail = !!(p.housenumber && p.street);
+              suggestions.push({
+                id: coordId,
+                display_name: parts.join(', '),
+                lat: f.geometry.coordinates[1],
+                lon: f.geometry.coordinates[0],
+                type: hasStreetDetail ? 'address' : 'place',
+                importance: isInRegion ? (hasStreetDetail ? 1.8 : 1.0) : 0.4,
+                address: {
+                  city: p.city || p.town || p.village || p.name || '',
+                  state: p.state || '',
+                  country: cc
+                },
+                _inRegion: isInRegion
+              });
             }
-          }
-        } catch (e) { /* Photon fallback failed, continue */ }
+          }).catch(() => {})
+        );
       }
+
+      await Promise.allSettled(fetchPromisesGeo);
 
       const zipMatch = query.match(/^\d{1,5}$/);
       if (zipMatch && query.length >= 3) {
@@ -1673,9 +1719,11 @@ Return ONLY a JSON array of 5 strings.`;
             if (currentWeather.conditions) {
               console.log('🔍 Conditions keys:', Object.keys(currentWeather.conditions));
               console.log(`🌡️ Threat detection using ${currentWeather.source} temp: ${currentWeather.conditions.temperature}°F`);
+              const tempF = currentWeather.conditions.temperature || 75;
               weatherData = {
-                temperature: currentWeather.conditions.temperature || 75,
-                heatIndex: (currentWeather.conditions.temperature || 75) + 5, // Rough estimate
+                temperature: tempF,
+                temperature_c: (tempF - 32) * 5/9,
+                heatIndex: tempF + 5,
                 humidity: (typeof currentWeather.conditions.humidity === 'number') ? currentWeather.conditions.humidity : 50,
                 windSpeed: currentWeather.conditions.windSpeed || 0,
                 conditions: currentWeather.conditions.weather || 'Clear',
@@ -1696,15 +1744,38 @@ Return ONLY a JSON array of 5 strings.`;
           throw new Error('Aviation weather request failed');
         }
       } catch (error) {
-        console.log('Aviation weather failed, using fallback data for threat analysis');
-        weatherData = {
-          temperature: 75,
-          humidity: 60,
-          windSpeed: 5,
-          conditions: 'Variable',
-          uvIndex: null,
-          airQuality: null
-        };
+        console.log('Aviation weather failed, trying direct OpenWeather fallback');
+        try {
+          const owRes = await fetch(
+            `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEYS.openweather}&units=imperial`,
+            { signal: AbortSignal.timeout(5000) }
+          );
+          if (owRes.ok) {
+            const ow = await owRes.json();
+            weatherData = {
+              temperature: ow.main?.temp ?? 75,
+              temperature_c: ow.main?.temp != null ? (ow.main.temp - 32) * 5/9 : null,
+              humidity: ow.main?.humidity ?? 60,
+              windSpeed: ow.wind?.speed ?? 5,
+              conditions: ow.weather?.[0]?.description || 'Variable',
+              uvIndex: null,
+              airQuality: null
+            };
+            console.log(`✅ OpenWeather fallback: ${weatherData.temperature}°F`);
+          } else {
+            throw new Error('OpenWeather fallback failed');
+          }
+        } catch {
+          console.log('All weather sources failed, using fallback data for threat analysis');
+          weatherData = {
+            temperature: 75,
+            humidity: 60,
+            windSpeed: 5,
+            conditions: 'Variable',
+            uvIndex: null,
+            airQuality: null
+          };
+        }
       }
       
       // Run automated threat detection analysis with NWS alerts
@@ -1747,6 +1818,7 @@ Return ONLY a JSON array of 5 strings.`;
         threats: threatSummary,
         weatherConditions: {
           temperature: weatherData.temperature,
+          temperature_c: weatherData.temperature_c ?? ((weatherData.temperature - 32) * 5/9),
           humidity: weatherData.humidity,
           conditions: weatherData.conditions,
           windSpeed: weatherData.windSpeed
