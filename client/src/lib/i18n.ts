@@ -5072,3 +5072,173 @@ export function getTranslations(lang: Language): TranslationKeys {
 export function t(lang: Language, key: keyof TranslationKeys): string {
   return (translations[lang] || translations.en)[key];
 }
+
+const weatherTerms: Record<string, Record<string, string>> = {
+  es: {
+    'Today': 'Hoy', 'Tonight': 'Esta Noche', 'Monday': 'Lunes', 'Tuesday': 'Martes', 'Wednesday': 'Miércoles', 'Thursday': 'Jueves', 'Friday': 'Viernes', 'Saturday': 'Sábado', 'Sunday': 'Domingo',
+    'Monday Night': 'Lunes Noche', 'Tuesday Night': 'Martes Noche', 'Wednesday Night': 'Miércoles Noche', 'Thursday Night': 'Jueves Noche', 'Friday Night': 'Viernes Noche', 'Saturday Night': 'Sábado Noche', 'Sunday Night': 'Domingo Noche',
+    'This Afternoon': 'Esta Tarde', 'Overnight': 'Durante la Noche',
+    'Sunny': 'Soleado', 'Mostly Sunny': 'Mayormente Soleado', 'Partly Sunny': 'Parcialmente Soleado', 'Mostly Cloudy': 'Mayormente Nublado', 'Cloudy': 'Nublado', 'Partly Cloudy': 'Parcialmente Nublado',
+    'Clear': 'Despejado', 'Mostly Clear': 'Mayormente Despejado', 'Partly Clear': 'Parcialmente Despejado',
+    'Rain': 'Lluvia', 'Light Rain': 'Lluvia Ligera', 'Heavy Rain': 'Lluvia Fuerte', 'Showers': 'Chubascos', 'Chance Showers': 'Posibles Chubascos', 'Slight Chance Showers': 'Leve Posibilidad de Chubascos', 'Showers Likely': 'Chubascos Probables',
+    'Thunderstorms': 'Tormentas', 'Chance Thunderstorms': 'Posibles Tormentas', 'Slight Chance Thunderstorms': 'Leve Posibilidad de Tormentas', 'Scattered Thunderstorms': 'Tormentas Aisladas', 'Isolated Thunderstorms': 'Tormentas Dispersas',
+    'Snow': 'Nieve', 'Light Snow': 'Nieve Ligera', 'Heavy Snow': 'Nieve Fuerte', 'Freezing Rain': 'Lluvia Helada', 'Sleet': 'Aguanieve', 'Ice Pellets': 'Granizo Pequeño',
+    'Fog': 'Niebla', 'Haze': 'Bruma', 'Windy': 'Ventoso', 'Breezy': 'Brisa', 'Hot': 'Caluroso', 'Cold': 'Frío',
+    'Chance': 'Posibilidad', 'Slight Chance': 'Leve Posibilidad', 'Likely': 'Probable', 'Scattered': 'Disperso', 'Isolated': 'Aislado',
+    'then': 'luego', 'and': 'y', 'with': 'con',
+    'Rip Current Statement': 'Aviso de Corrientes de Resaca', 'Tornado Warning': 'Advertencia de Tornado', 'Tornado Watch': 'Vigilancia de Tornado',
+    'Severe Thunderstorm Warning': 'Advertencia de Tormenta Severa', 'Severe Thunderstorm Watch': 'Vigilancia de Tormenta Severa',
+    'Flash Flood Warning': 'Advertencia de Inundación Repentina', 'Flash Flood Watch': 'Vigilancia de Inundación Repentina',
+    'Flood Warning': 'Advertencia de Inundación', 'Flood Watch': 'Vigilancia de Inundación', 'Flood Advisory': 'Aviso de Inundación',
+    'Winter Storm Warning': 'Advertencia de Tormenta Invernal', 'Winter Storm Watch': 'Vigilancia de Tormenta Invernal', 'Winter Weather Advisory': 'Aviso de Clima Invernal',
+    'Heat Advisory': 'Aviso de Calor', 'Excessive Heat Warning': 'Advertencia de Calor Excesivo', 'Wind Advisory': 'Aviso de Viento', 'High Wind Warning': 'Advertencia de Viento Fuerte',
+    'Dense Fog Advisory': 'Aviso de Niebla Densa', 'Freeze Warning': 'Advertencia de Helada', 'Frost Advisory': 'Aviso de Escarcha',
+    'Special Weather Statement': 'Comunicado Especial del Tiempo', 'Hazardous Weather Outlook': 'Perspectiva de Clima Peligroso',
+    'Expires': 'Expira', 'Extreme': 'Extremo', 'Severe': 'Severo', 'Moderate': 'Moderado', 'Minor': 'Menor',
+  },
+  fr: {
+    'Today': "Aujourd'hui", 'Tonight': 'Ce Soir', 'Monday': 'Lundi', 'Tuesday': 'Mardi', 'Wednesday': 'Mercredi', 'Thursday': 'Jeudi', 'Friday': 'Vendredi', 'Saturday': 'Samedi', 'Sunday': 'Dimanche',
+    'Monday Night': 'Lundi Soir', 'Tuesday Night': 'Mardi Soir', 'Wednesday Night': 'Mercredi Soir', 'Thursday Night': 'Jeudi Soir', 'Friday Night': 'Vendredi Soir', 'Saturday Night': 'Samedi Soir', 'Sunday Night': 'Dimanche Soir',
+    'This Afternoon': 'Cet Après-midi', 'Overnight': 'Pendant la Nuit',
+    'Sunny': 'Ensoleillé', 'Mostly Sunny': 'Généralement Ensoleillé', 'Partly Sunny': 'Partiellement Ensoleillé', 'Mostly Cloudy': 'Généralement Nuageux', 'Cloudy': 'Nuageux', 'Partly Cloudy': 'Partiellement Nuageux',
+    'Clear': 'Dégagé', 'Mostly Clear': 'Généralement Dégagé', 'Partly Clear': 'Partiellement Dégagé',
+    'Rain': 'Pluie', 'Light Rain': 'Pluie Légère', 'Heavy Rain': 'Forte Pluie', 'Showers': 'Averses', 'Chance Showers': 'Averses Possibles', 'Showers Likely': 'Averses Probables',
+    'Thunderstorms': 'Orages', 'Chance Thunderstorms': 'Orages Possibles', 'Scattered Thunderstorms': 'Orages Épars',
+    'Snow': 'Neige', 'Light Snow': 'Neige Légère', 'Heavy Snow': 'Forte Neige', 'Freezing Rain': 'Pluie Verglaçante',
+    'Fog': 'Brouillard', 'Haze': 'Brume', 'Windy': 'Venteux', 'Breezy': 'Brise', 'Hot': 'Chaud', 'Cold': 'Froid',
+    'then': 'puis', 'and': 'et', 'with': 'avec',
+    'Rip Current Statement': 'Avis de Courants d\'Arrachement', 'Tornado Warning': 'Alerte Tornade', 'Tornado Watch': 'Veille Tornade',
+    'Severe Thunderstorm Warning': 'Alerte Orage Violent', 'Severe Thunderstorm Watch': 'Veille Orage Violent',
+    'Flash Flood Warning': 'Alerte Crue Éclair', 'Flood Warning': 'Alerte Inondation',
+    'Heat Advisory': 'Avis de Chaleur', 'Wind Advisory': 'Avis de Vent', 'Dense Fog Advisory': 'Avis de Brouillard Dense',
+    'Special Weather Statement': 'Bulletin Météo Spécial',
+    'Expires': 'Expire', 'Extreme': 'Extrême', 'Severe': 'Sévère', 'Moderate': 'Modéré', 'Minor': 'Mineur',
+  },
+  de: {
+    'Today': 'Heute', 'Tonight': 'Heute Nacht', 'Monday': 'Montag', 'Tuesday': 'Dienstag', 'Wednesday': 'Mittwoch', 'Thursday': 'Donnerstag', 'Friday': 'Freitag', 'Saturday': 'Samstag', 'Sunday': 'Sonntag',
+    'Monday Night': 'Montag Nacht', 'Tuesday Night': 'Dienstag Nacht', 'Wednesday Night': 'Mittwoch Nacht', 'Thursday Night': 'Donnerstag Nacht', 'Friday Night': 'Freitag Nacht', 'Saturday Night': 'Samstag Nacht', 'Sunday Night': 'Sonntag Nacht',
+    'This Afternoon': 'Heute Nachmittag', 'Overnight': 'Über Nacht',
+    'Sunny': 'Sonnig', 'Mostly Sunny': 'Überwiegend Sonnig', 'Partly Sunny': 'Teilweise Sonnig', 'Mostly Cloudy': 'Überwiegend Bewölkt', 'Cloudy': 'Bewölkt', 'Partly Cloudy': 'Teilweise Bewölkt',
+    'Clear': 'Klar', 'Mostly Clear': 'Überwiegend Klar', 'Partly Clear': 'Teilweise Klar',
+    'Rain': 'Regen', 'Light Rain': 'Leichter Regen', 'Heavy Rain': 'Starker Regen', 'Showers': 'Schauer', 'Thunderstorms': 'Gewitter', 'Snow': 'Schnee',
+    'Fog': 'Nebel', 'Haze': 'Dunst', 'Windy': 'Windig', 'Breezy': 'Brise', 'Hot': 'Heiß', 'Cold': 'Kalt',
+    'then': 'dann', 'and': 'und', 'with': 'mit',
+    'Tornado Warning': 'Tornado-Warnung', 'Severe Thunderstorm Warning': 'Schwere-Gewitter-Warnung',
+    'Expires': 'Läuft ab', 'Extreme': 'Extrem', 'Severe': 'Schwer', 'Moderate': 'Mäßig', 'Minor': 'Gering',
+  },
+  pt: {
+    'Today': 'Hoje', 'Tonight': 'Hoje à Noite', 'Monday': 'Segunda', 'Tuesday': 'Terça', 'Wednesday': 'Quarta', 'Thursday': 'Quinta', 'Friday': 'Sexta', 'Saturday': 'Sábado', 'Sunday': 'Domingo',
+    'Monday Night': 'Segunda à Noite', 'Tuesday Night': 'Terça à Noite', 'Wednesday Night': 'Quarta à Noite', 'Thursday Night': 'Quinta à Noite', 'Friday Night': 'Sexta à Noite', 'Saturday Night': 'Sábado à Noite', 'Sunday Night': 'Domingo à Noite',
+    'Sunny': 'Ensolarado', 'Mostly Sunny': 'Predominantemente Ensolarado', 'Mostly Cloudy': 'Predominantemente Nublado', 'Cloudy': 'Nublado', 'Partly Cloudy': 'Parcialmente Nublado',
+    'Clear': 'Limpo', 'Mostly Clear': 'Predominantemente Limpo',
+    'Rain': 'Chuva', 'Showers': 'Pancadas', 'Thunderstorms': 'Tempestades', 'Snow': 'Neve', 'Fog': 'Nevoeiro',
+    'then': 'depois', 'and': 'e', 'with': 'com',
+    'Expires': 'Expira', 'Extreme': 'Extremo', 'Severe': 'Severo', 'Moderate': 'Moderado', 'Minor': 'Menor',
+  },
+  ja: {
+    'Today': '今日', 'Tonight': '今夜', 'Monday': '月曜日', 'Tuesday': '火曜日', 'Wednesday': '水曜日', 'Thursday': '木曜日', 'Friday': '金曜日', 'Saturday': '土曜日', 'Sunday': '日曜日',
+    'Monday Night': '月曜夜', 'Tuesday Night': '火曜夜', 'Wednesday Night': '水曜夜', 'Thursday Night': '木曜夜', 'Friday Night': '金曜夜', 'Saturday Night': '土曜夜', 'Sunday Night': '日曜夜',
+    'Sunny': '晴れ', 'Mostly Sunny': 'ほぼ晴れ', 'Mostly Cloudy': 'ほぼ曇り', 'Cloudy': '曇り', 'Partly Cloudy': '時々曇り',
+    'Clear': '快晴', 'Mostly Clear': 'ほぼ快晴',
+    'Rain': '雨', 'Heavy Rain': '大雨', 'Light Rain': '小雨', 'Showers': 'にわか雨', 'Thunderstorms': '雷雨', 'Snow': '雪', 'Fog': '霧',
+    'then': 'その後', 'and': 'と', 'with': 'を伴う',
+    'Expires': '有効期限', 'Extreme': '極端', 'Severe': '厳重', 'Moderate': '中程度', 'Minor': '軽度',
+  },
+  ko: {
+    'Today': '오늘', 'Tonight': '오늘 밤', 'Monday': '월요일', 'Tuesday': '화요일', 'Wednesday': '수요일', 'Thursday': '목요일', 'Friday': '금요일', 'Saturday': '토요일', 'Sunday': '일요일',
+    'Sunny': '맑음', 'Mostly Sunny': '대체로 맑음', 'Mostly Cloudy': '대체로 흐림', 'Cloudy': '흐림', 'Partly Cloudy': '구름 조금',
+    'Clear': '청명', 'Mostly Clear': '대체로 청명',
+    'Rain': '비', 'Showers': '소나기', 'Thunderstorms': '뇌우', 'Snow': '눈', 'Fog': '안개',
+    'then': '이후', 'and': '그리고', 'Expires': '만료', 'Extreme': '극심', 'Severe': '심각', 'Moderate': '보통', 'Minor': '경미',
+  },
+  zh: {
+    'Today': '今天', 'Tonight': '今晚', 'Monday': '星期一', 'Tuesday': '星期二', 'Wednesday': '星期三', 'Thursday': '星期四', 'Friday': '星期五', 'Saturday': '星期六', 'Sunday': '星期日',
+    'Sunny': '晴天', 'Mostly Sunny': '多云转晴', 'Mostly Cloudy': '多云', 'Cloudy': '阴天', 'Partly Cloudy': '局部多云',
+    'Clear': '晴朗', 'Mostly Clear': '大部晴朗',
+    'Rain': '雨', 'Heavy Rain': '暴雨', 'Light Rain': '小雨', 'Showers': '阵雨', 'Thunderstorms': '雷暴', 'Snow': '雪', 'Fog': '雾',
+    'then': '然后', 'and': '和', 'Expires': '到期', 'Extreme': '极端', 'Severe': '严重', 'Moderate': '中等', 'Minor': '轻微',
+  },
+  ar: {
+    'Today': 'اليوم', 'Tonight': 'الليلة', 'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس', 'Friday': 'الجمعة', 'Saturday': 'السبت', 'Sunday': 'الأحد',
+    'Sunny': 'مشمس', 'Mostly Sunny': 'مشمس غالباً', 'Mostly Cloudy': 'غائم غالباً', 'Cloudy': 'غائم', 'Clear': 'صافي', 'Mostly Clear': 'صافي غالباً',
+    'Rain': 'مطر', 'Thunderstorms': 'عواصف رعدية', 'Snow': 'ثلج', 'Fog': 'ضباب',
+    'Expires': 'ينتهي', 'Extreme': 'شديد', 'Severe': 'حاد', 'Moderate': 'معتدل', 'Minor': 'طفيف',
+  },
+  hi: {
+    'Today': 'आज', 'Tonight': 'आज रात', 'Monday': 'सोमवार', 'Tuesday': 'मंगलवार', 'Wednesday': 'बुधवार', 'Thursday': 'गुरुवार', 'Friday': 'शुक्रवार', 'Saturday': 'शनिवार', 'Sunday': 'रविवार',
+    'Sunny': 'धूप', 'Mostly Sunny': 'अधिकतर धूप', 'Mostly Cloudy': 'अधिकतर बादल', 'Cloudy': 'बादल', 'Clear': 'साफ़', 'Mostly Clear': 'अधिकतर साफ़',
+    'Rain': 'बारिश', 'Thunderstorms': 'आंधी-तूफान', 'Snow': 'बर्फ', 'Fog': 'कोहरा',
+    'Expires': 'समाप्त', 'Extreme': 'अत्यधिक', 'Severe': 'गंभीर', 'Moderate': 'मध्यम', 'Minor': 'मामूली',
+  },
+  id: {
+    'Today': 'Hari Ini', 'Tonight': 'Malam Ini', 'Monday': 'Senin', 'Tuesday': 'Selasa', 'Wednesday': 'Rabu', 'Thursday': 'Kamis', 'Friday': 'Jumat', 'Saturday': 'Sabtu', 'Sunday': 'Minggu',
+    'Sunny': 'Cerah', 'Mostly Sunny': 'Sebagian Besar Cerah', 'Mostly Cloudy': 'Sebagian Besar Berawan', 'Cloudy': 'Berawan', 'Clear': 'Cerah', 'Mostly Clear': 'Sebagian Besar Cerah',
+    'Rain': 'Hujan', 'Thunderstorms': 'Badai Petir', 'Snow': 'Salju', 'Fog': 'Kabut',
+    'Expires': 'Berakhir', 'Extreme': 'Ekstrem', 'Severe': 'Parah', 'Moderate': 'Sedang', 'Minor': 'Ringan',
+  },
+  th: {
+    'Today': 'วันนี้', 'Tonight': 'คืนนี้', 'Monday': 'วันจันทร์', 'Tuesday': 'วันอังคาร', 'Wednesday': 'วันพุธ', 'Thursday': 'วันพฤหัสบดี', 'Friday': 'วันศุกร์', 'Saturday': 'วันเสาร์', 'Sunday': 'วันอาทิตย์',
+    'Sunny': 'แดดจัด', 'Mostly Sunny': 'ส่วนใหญ่แดดจัด', 'Cloudy': 'มีเมฆมาก', 'Clear': 'ท้องฟ้าแจ่มใส',
+    'Rain': 'ฝน', 'Thunderstorms': 'พายุฝนฟ้าคะนอง', 'Expires': 'หมดอายุ',
+  },
+  vi: {
+    'Today': 'Hôm Nay', 'Tonight': 'Tối Nay', 'Monday': 'Thứ Hai', 'Tuesday': 'Thứ Ba', 'Wednesday': 'Thứ Tư', 'Thursday': 'Thứ Năm', 'Friday': 'Thứ Sáu', 'Saturday': 'Thứ Bảy', 'Sunday': 'Chủ Nhật',
+    'Sunny': 'Nắng', 'Mostly Sunny': 'Phần lớn nắng', 'Cloudy': 'Nhiều mây', 'Clear': 'Quang đãng',
+    'Rain': 'Mưa', 'Thunderstorms': 'Giông bão', 'Expires': 'Hết hạn',
+  },
+  tr: {
+    'Today': 'Bugün', 'Tonight': 'Bu Gece', 'Monday': 'Pazartesi', 'Tuesday': 'Salı', 'Wednesday': 'Çarşamba', 'Thursday': 'Perşembe', 'Friday': 'Cuma', 'Saturday': 'Cumartesi', 'Sunday': 'Pazar',
+    'Sunny': 'Güneşli', 'Mostly Sunny': 'Çoğunlukla Güneşli', 'Cloudy': 'Bulutlu', 'Mostly Cloudy': 'Çoğunlukla Bulutlu', 'Clear': 'Açık', 'Mostly Clear': 'Çoğunlukla Açık',
+    'Rain': 'Yağmur', 'Thunderstorms': 'Gök Gürültülü Fırtına', 'Snow': 'Kar', 'Fog': 'Sis',
+    'Expires': 'Sona erer', 'Extreme': 'Aşırı', 'Severe': 'Şiddetli', 'Moderate': 'Orta', 'Minor': 'Hafif',
+  },
+  it: {
+    'Today': 'Oggi', 'Tonight': 'Stasera', 'Monday': 'Lunedì', 'Tuesday': 'Martedì', 'Wednesday': 'Mercoledì', 'Thursday': 'Giovedì', 'Friday': 'Venerdì', 'Saturday': 'Sabato', 'Sunday': 'Domenica',
+    'Sunny': 'Soleggiato', 'Mostly Sunny': 'Perlopiù Soleggiato', 'Cloudy': 'Nuvoloso', 'Mostly Cloudy': 'Perlopiù Nuvoloso', 'Clear': 'Sereno', 'Mostly Clear': 'Perlopiù Sereno',
+    'Rain': 'Pioggia', 'Thunderstorms': 'Temporali', 'Snow': 'Neve', 'Fog': 'Nebbia',
+    'Expires': 'Scade', 'Extreme': 'Estremo', 'Severe': 'Grave', 'Moderate': 'Moderato', 'Minor': 'Lieve',
+  },
+  nl: {
+    'Today': 'Vandaag', 'Tonight': 'Vanavond', 'Monday': 'Maandag', 'Tuesday': 'Dinsdag', 'Wednesday': 'Woensdag', 'Thursday': 'Donderdag', 'Friday': 'Vrijdag', 'Saturday': 'Zaterdag', 'Sunday': 'Zondag',
+    'Sunny': 'Zonnig', 'Mostly Sunny': 'Overwegend Zonnig', 'Cloudy': 'Bewolkt', 'Mostly Cloudy': 'Overwegend Bewolkt', 'Clear': 'Helder', 'Mostly Clear': 'Overwegend Helder',
+    'Rain': 'Regen', 'Thunderstorms': 'Onweer', 'Snow': 'Sneeuw', 'Fog': 'Mist',
+    'Expires': 'Verloopt', 'Extreme': 'Extreem', 'Severe': 'Ernstig', 'Moderate': 'Matig', 'Minor': 'Licht',
+  },
+  ru: {
+    'Today': 'Сегодня', 'Tonight': 'Сегодня ночью', 'Monday': 'Понедельник', 'Tuesday': 'Вторник', 'Wednesday': 'Среда', 'Thursday': 'Четверг', 'Friday': 'Пятница', 'Saturday': 'Суббота', 'Sunday': 'Воскресенье',
+    'Sunny': 'Солнечно', 'Mostly Sunny': 'Преимущественно солнечно', 'Cloudy': 'Облачно', 'Mostly Cloudy': 'Преимущественно облачно', 'Clear': 'Ясно', 'Mostly Clear': 'Преимущественно ясно',
+    'Rain': 'Дождь', 'Thunderstorms': 'Грозы', 'Snow': 'Снег', 'Fog': 'Туман',
+    'Expires': 'Истекает', 'Extreme': 'Экстремальный', 'Severe': 'Сильный', 'Moderate': 'Умеренный', 'Minor': 'Незначительный',
+  },
+  pl: {
+    'Today': 'Dziś', 'Tonight': 'Dziś w nocy', 'Monday': 'Poniedziałek', 'Tuesday': 'Wtorek', 'Wednesday': 'Środa', 'Thursday': 'Czwartek', 'Friday': 'Piątek', 'Saturday': 'Sobota', 'Sunday': 'Niedziela',
+    'Sunny': 'Słonecznie', 'Mostly Sunny': 'Przeważnie słonecznie', 'Cloudy': 'Pochmurno', 'Mostly Cloudy': 'Przeważnie pochmurno', 'Clear': 'Bezchmurnie', 'Mostly Clear': 'Przeważnie bezchmurnie',
+    'Rain': 'Deszcz', 'Thunderstorms': 'Burze', 'Snow': 'Śnieg', 'Fog': 'Mgła',
+    'Expires': 'Wygasa', 'Extreme': 'Ekstremalny', 'Severe': 'Poważny', 'Moderate': 'Umiarkowany', 'Minor': 'Drobny',
+  },
+  ms: {
+    'Today': 'Hari Ini', 'Tonight': 'Malam Ini', 'Monday': 'Isnin', 'Tuesday': 'Selasa', 'Wednesday': 'Rabu', 'Thursday': 'Khamis', 'Friday': 'Jumaat', 'Saturday': 'Sabtu', 'Sunday': 'Ahad',
+    'Sunny': 'Cerah', 'Cloudy': 'Mendung', 'Clear': 'Cerah', 'Rain': 'Hujan', 'Thunderstorms': 'Ribut Petir', 'Fog': 'Kabus',
+    'Expires': 'Tamat tempoh',
+  },
+  sw: {
+    'Today': 'Leo', 'Tonight': 'Usiku wa Leo', 'Monday': 'Jumatatu', 'Tuesday': 'Jumanne', 'Wednesday': 'Jumatano', 'Thursday': 'Alhamisi', 'Friday': 'Ijumaa', 'Saturday': 'Jumamosi', 'Sunday': 'Jumapili',
+    'Sunny': 'Jua', 'Cloudy': 'Mawingu', 'Clear': 'Safi', 'Rain': 'Mvua', 'Thunderstorms': 'Radi', 'Fog': 'Ukungu',
+    'Expires': 'Inaisha',
+  },
+};
+
+export function translateWeatherText(text: string, lang: Language): string {
+  if (lang === 'en' || !text) return text;
+  const dict = weatherTerms[lang];
+  if (!dict) return text;
+  if (dict[text]) return dict[text];
+  let result = text;
+  const sortedKeys = Object.keys(dict).sort((a, b) => b.length - a.length);
+  for (const key of sortedKeys) {
+    if (result.includes(key)) {
+      result = result.split(key).join(dict[key]);
+    }
+  }
+  return result;
+}

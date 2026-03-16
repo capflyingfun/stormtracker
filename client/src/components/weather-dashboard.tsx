@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useLanguage } from "@/hooks/use-language";
+import { translateWeatherText } from "@/lib/i18n";
 
 interface WeatherDashboardProps {
   lat: number;
@@ -19,7 +20,28 @@ interface WeatherDashboardProps {
   locationName: string;
 }
 
-const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DAY_NAMES: Record<string, string[]> = {
+  en: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
+  es: ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'],
+  fr: ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'],
+  de: ['So','Mo','Di','Mi','Do','Fr','Sa'],
+  pt: ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
+  ja: ['日','月','火','水','木','金','土'],
+  ko: ['일','월','화','수','목','금','토'],
+  zh: ['日','一','二','三','四','五','六'],
+  ar: ['أحد','إثن','ثلا','أرب','خمي','جمع','سبت'],
+  hi: ['रवि','सोम','मंग','बुध','गुरु','शुक्र','शनि'],
+  id: ['Min','Sen','Sel','Rab','Kam','Jum','Sab'],
+  th: ['อา','จ','อ','พ','พฤ','ศ','ส'],
+  vi: ['CN','T2','T3','T4','T5','T6','T7'],
+  tr: ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'],
+  it: ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'],
+  nl: ['Zo','Ma','Di','Wo','Do','Vr','Za'],
+  ru: ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'],
+  pl: ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'],
+  ms: ['Ahd','Isn','Sel','Rab','Kha','Jum','Sab'],
+  sw: ['Jpi','Jtt','Jnn','Jtn','Alh','Iju','Jms'],
+};
 
 function getConditionIcon(condition: string) {
   const c = condition.toLowerCase();
@@ -89,7 +111,7 @@ function getHazardColor(hazard: string) {
 
 function NWSPeriodCard({ period }: { period: any }) {
   const [showDetail, setShowDetail] = useState(false);
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const isNight = !period.isDaytime;
   const tempLabel = isNight ? t.minTemp : t.maxTemp;
 
@@ -105,7 +127,7 @@ function NWSPeriodCard({ period }: { period: any }) {
         <span className="text-xl shrink-0">{getConditionIcon(period.shortForecast)}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-white font-semibold text-sm">{period.name}</span>
+            <span className="text-white font-semibold text-sm">{translateWeatherText(period.name, language)}</span>
             {period.hasAdvisory && (
               <Badge className="bg-amber-600 text-white text-[9px] px-1.5 py-0 h-4 uppercase font-bold">{t.advisory}</Badge>
             )}
@@ -113,7 +135,7 @@ function NWSPeriodCard({ period }: { period: any }) {
               {isNight ? '🌙' : '☀️'} {tempLabel}: {period.temperature_f}°F ({period.temperature_c}°C)
             </span>
           </div>
-          <p className="text-slate-300 text-xs mt-0.5">{period.shortForecast}</p>
+          <p className="text-slate-300 text-xs mt-0.5">{translateWeatherText(period.shortForecast, language)}</p>
           <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400 flex-wrap">
             <span>{t.wind}: {period.windSpeed} {period.windDirection}</span>
             {period.precipChance > 0 && (
@@ -152,7 +174,7 @@ function NWSPeriodCard({ period }: { period: any }) {
 
 function NWSAlertCard({ alert }: { alert: any }) {
   const [showDetail, setShowDetail] = useState(false);
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const severityColors: Record<string, string> = {
     'Extreme': 'bg-red-900/40 border-red-500',
     'Severe': 'bg-red-900/30 border-red-600/50',
@@ -167,10 +189,10 @@ function NWSAlertCard({ alert }: { alert: any }) {
         <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-1">
-            <span className="text-amber-200 font-semibold text-sm">{alert.event}</span>
+            <span className="text-amber-200 font-semibold text-sm">{translateWeatherText(alert.event, language)}</span>
             {alert.severity && (
               <Badge variant="outline" className="text-[9px] border-amber-500/50 text-amber-400 px-1.5 py-0 h-4">
-                {alert.severity}
+                {translateWeatherText(alert.severity, language)}
               </Badge>
             )}
           </div>
@@ -179,7 +201,7 @@ function NWSAlertCard({ alert }: { alert: any }) {
           )}
           {alert.expires && (
             <p className="text-[10px] text-slate-500 mb-1">
-              Expires: {new Date(alert.expires).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+              {translateWeatherText('Expires', language)}: {new Date(alert.expires).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
             </p>
           )}
           {alert.areaDesc && (
@@ -215,7 +237,7 @@ function NWSAlertCard({ alert }: { alert: any }) {
 export default function WeatherDashboard({ lat, lon, useMetric, locationName }: WeatherDashboardProps) {
   const [expanded, setExpanded] = useState(false);
   const [showSources, setShowSources] = useState(false);
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const { data: minuteCast } = useQuery({
     queryKey: ['/api/accuweather/minutecast', lat, lon],
@@ -297,7 +319,7 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
                 </span>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <p className="text-xs sm:text-sm text-slate-300">{cur.condition}</p>
+                <p className="text-xs sm:text-sm text-slate-300">{translateWeatherText(cur.condition, language)}</p>
                 <span className="text-[10px] sm:text-xs text-slate-500 whitespace-nowrap">
                   {t.feelsLike} {dualTempF(cur.feelslike_f, cur.feelslike_c)}
                 </span>
@@ -462,7 +484,8 @@ export default function WeatherDashboard({ lat, lon, useMetric, locationName }: 
               <div className="space-y-0.5">
                 {forecast.map((day: any, i: number) => {
                   const d = new Date(day.date + 'T12:00:00');
-                  const dayName = i === 0 ? t.today : DAY_NAMES[d.getDay()];
+                  const localDays = DAY_NAMES[language] || DAY_NAMES.en;
+                  const dayName = i === 0 ? t.today : localDays[d.getDay()];
                   return (
                     <div key={i}>
                       <div className="flex items-center gap-1.5 py-1.5 text-sm">
