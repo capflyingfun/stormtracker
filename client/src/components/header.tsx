@@ -6,10 +6,10 @@ import { LANGUAGES, type Language } from "@/lib/i18n";
 interface HeaderProps {
   useMetric: boolean;
   onUnitsChange: (useMetric: boolean) => void;
+  onOpenSettings: () => void;
 }
 
-export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
-  const [showConfig, setShowConfig] = useState(false);
+export default function Header({ useMetric, onUnitsChange, onOpenSettings }: HeaderProps) {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const { language, setLanguage, t } = useLanguage();
   const currentLang = LANGUAGES.find(l => l.code === language);
@@ -30,7 +30,7 @@ export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => { setShowLangMenu(!showLangMenu); setShowConfig(false); }}
+              onClick={() => { setShowLangMenu(!showLangMenu); }}
               className="px-2 py-1 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 text-sm"
               title={t.language}
             >
@@ -55,64 +55,19 @@ export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
 
           <div className="flex items-center gap-2 text-gray-400">
             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
-            <span className="text-sm">Ready</span>
+            <span className="text-sm">{t.ready}</span>
           </div>
           
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => { setShowConfig(!showConfig); setShowLangMenu(false); }}
+            onClick={() => { setShowLangMenu(false); onOpenSettings(); }}
             className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600/50"
           >
             ⚙️
           </Button>
         </div>
       </div>
-
-      {showConfig && (
-        <div className="mt-4 p-4 bg-slate-700/30 rounded-lg border border-slate-600/30 select-none">
-          <h3 className="text-lg font-semibold mb-3 select-none">{t.settings}</h3>
-          
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-300 mb-2">Units</label>
-            <div className="flex gap-2">
-              <Button
-                variant={!useMetric ? "default" : "secondary"}
-                size="sm"
-                onClick={() => onUnitsChange(false)}
-              >
-                Imperial (mph, mi, in)
-              </Button>
-              <Button
-                variant={useMetric ? "default" : "secondary"}
-                size="sm"
-                onClick={() => onUnitsChange(true)}
-              >
-                Metric (km/h, km, mm)
-              </Button>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-400"></div>
-              <span>OpenWeather: Active</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-400"></div>
-              <span>NWS: Active</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-400"></div>
-              <span>RainViewer: Active</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-400"></div>
-              <span>Map: Active</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
