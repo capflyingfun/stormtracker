@@ -172,6 +172,30 @@ function NWSPeriodCard({ period }: { period: any }) {
   );
 }
 
+function detectForecastSeverity(forecast: string): { level: 'extreme' | 'severe' | 'moderate' | 'none'; warnings: string[] } {
+  const text = forecast.toLowerCase();
+  const warnings: string[] = [];
+  let level: 'extreme' | 'severe' | 'moderate' | 'none' = 'none';
+
+  if (/tornado|funnel\s*cloud|waterspout|tornade|torbellino/.test(text)) { warnings.push('🌪️ Tornado'); level = 'extreme'; }
+  if (/hurricane|typhoon|cyclone|hurac[aá]n|ouragan|zyklon|taifun/.test(text)) { warnings.push('🌀 Hurricane'); level = 'extreme'; }
+  if (/blizzard|schneesturm|tormenta de nieve/.test(text)) { warnings.push('🌨️ Blizzard'); level = 'extreme'; }
+
+  if (/\bhail\b|hagel|granizo|gr[êe]le|grandine/.test(text)) { warnings.push('🧊 Hail'); if (level !== 'extreme') level = 'severe'; }
+  if (/thunderstorm|tstorm|t-storm|thundery|thunder\s*shower|gewitter|tormenta\s*el[ée]ctrica|orage|temporale/.test(text)) { warnings.push('⛈️ Thunderstorm'); if (level !== 'extreme') level = 'severe'; }
+  if (/\bflood|flash\s*flood|inundaci[oó]n|inondation|[üu]berschwemmung/.test(text)) { warnings.push('🌊 Flood Risk'); if (level !== 'extreme') level = 'severe'; }
+  if (/ice\s*storm|freezing\s*rain|verglas|lluvia\s*helada/.test(text)) { warnings.push('🧊 Ice Storm'); if (level !== 'extreme') level = 'severe'; }
+  if (/\blightning\b|\bfoudre\b|\brelámpago\b|\bblitz\b/.test(text)) { warnings.push('⚡ Lightning'); if (level !== 'extreme') level = 'severe'; }
+  if (/\bsevere\b/.test(text) && level !== 'extreme') { level = 'severe'; }
+
+  if (/heavy\s*rain|heavy\s*snow|downpour|torrential|starkregen|lluvia\s*fuerte|forte\s*pluie|squall/.test(text)) { warnings.push('🌧️ Heavy Precip'); if (level === 'none') level = 'moderate'; }
+  if (/strong\s*wind|high\s*wind|damaging\s*wind|gust|sturm|viento\s*fuerte|vent\s*fort|rafale/.test(text)) { warnings.push('💨 Strong Winds'); if (level === 'none') level = 'moderate'; }
+  if (/dust\s*storm|sandstorm|haboob|tempête\s*de\s*sable|tormenta\s*de\s*arena/.test(text)) { warnings.push('🏜️ Dust Storm'); if (level === 'none') level = 'moderate'; }
+  if (/\bdense\s*fog\b|\bfog\b(?!gy)|\bbrouillard\b|\bniebla\b|\bnebel\b/.test(text)) { warnings.push('🌫️ Fog'); if (level === 'none') level = 'moderate'; }
+
+  return { level, warnings: [...new Set(warnings)] };
+}
+
 function ForecastDayCard({ dayLabel, dayHalf, nightHalf, accuweather, hasAdvisory }: {
   dayLabel: string;
   dayHalf?: { icon: string; tempF: number; tempC: number; forecast: string; wind: string; precipChance: number; detailedForecast?: string; weatherTags?: string[] };
@@ -185,19 +209,66 @@ function ForecastDayCard({ dayLabel, dayHalf, nightHalf, accuweather, hasAdvisor
   const hasDetails = !!(dayHalf?.detailedForecast || nightHalf?.detailedForecast);
   const allTags = Array.from(new Set([...(dayHalf?.weatherTags || []), ...(nightHalf?.weatherTags || [])]));
 
+  const daySeverity = detectForecastSeverity(dayHalf?.forecast || '');
+  const nightSeverity = detectForecastSeverity(nightHalf?.forecast || '');
+  const detailDaySeverity = detectForecastSeverity(dayHalf?.detailedForecast || '');
+  const detailNightSeverity = detectForecastSeverity(nightHalf?.detailedForecast || '');
+  const accuSeverity = detectForecastSeverity(accuweather?.shortPhrase || '');
+
+  const allWarnings = [...new Set([...daySeverity.warnings, ...nightSeverity.warnings, ...detailDaySeverity.warnings, ...detailNightSeverity.warnings, ...accuSeverity.warnings])];
+  const severityLevels = [daySeverity.level, nightSeverity.level, detailDaySeverity.level, detailNightSeverity.level, accuSeverity.level];
+  const maxSeverity = severityLevels.includes('extreme') ? 'extreme' : severityLevels.includes('severe') ? 'severe' : severityLevels.includes('moderate') ? 'moderate' : 'none';
+
+  const hasSevereWeather = maxSeverity !== 'none';
+  const hasHighThunder = (accuweather?.thunderstormProbability ?? 0) >= 30;
+
+  const borderClass = maxSeverity === 'extreme' ? 'bg-red-900/20 border-red-500/60 ring-1 ring-red-500/30'
+    : maxSeverity === 'severe' || hasHighThunder ? 'bg-orange-900/15 border-orange-500/50'
+    : maxSeverity === 'moderate' ? 'bg-amber-900/10 border-amber-500/40'
+    : hasAdvisory ? 'bg-amber-900/15 border-amber-600/40'
+    : 'bg-slate-700/20 border-slate-600/30';
+
+  const headerClass = maxSeverity === 'extreme' ? 'bg-red-900/30 border-red-500/30'
+    : maxSeverity === 'severe' || hasHighThunder ? 'bg-orange-900/20 border-orange-500/20'
+    : maxSeverity === 'moderate' ? 'bg-amber-900/15 border-amber-500/20'
+    : 'bg-slate-700/30 border-slate-600/20';
+
   return (
-    <div className={`rounded-xl border overflow-hidden ${
-      hasAdvisory ? 'bg-amber-900/15 border-amber-600/40' : 'bg-slate-700/20 border-slate-600/30'
-    }`}>
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/30 border-b border-slate-600/20">
+    <div className={`rounded-xl border overflow-hidden ${borderClass}`}>
+      <div className={`flex items-center gap-2 px-3 py-1.5 border-b ${headerClass}`}>
         <span className="text-white font-semibold text-[12px]">{translateWeatherText(dayLabel, language)}</span>
-        {hasAdvisory && (
+        {maxSeverity === 'extreme' && (
+          <Badge className="bg-red-600 text-white text-[8px] px-1.5 py-0 h-3.5 uppercase font-bold animate-pulse">⚠️ EXTREME</Badge>
+        )}
+        {maxSeverity === 'severe' && (
+          <Badge className="bg-orange-600 text-white text-[8px] px-1.5 py-0 h-3.5 uppercase font-bold">⚠️ SEVERE</Badge>
+        )}
+        {maxSeverity === 'moderate' && (
+          <Badge className="bg-amber-600 text-white text-[8px] px-1.5 py-0 h-3.5 uppercase font-bold">⚠ CAUTION</Badge>
+        )}
+        {hasAdvisory && !hasSevereWeather && (
           <Badge className="bg-amber-600 text-white text-[8px] px-1 py-0 h-3.5 uppercase font-bold">{t.advisory}</Badge>
         )}
         {accuweather?.thunderstormProbability != null && accuweather.thunderstormProbability > 0 && (
           <span className="text-orange-400 text-[10px] ml-auto">⛈ {accuweather.thunderstormProbability}%</span>
         )}
       </div>
+
+      {allWarnings.length > 0 && (
+        <div className={`flex flex-wrap gap-1 px-3 py-1.5 border-b ${
+          maxSeverity === 'extreme' ? 'bg-red-950/30 border-red-500/20' 
+          : maxSeverity === 'severe' ? 'bg-orange-950/20 border-orange-500/15'
+          : 'bg-amber-950/15 border-amber-500/15'
+        }`}>
+          {allWarnings.map((w, i) => (
+            <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+              maxSeverity === 'extreme' ? 'bg-red-900/40 text-red-300'
+              : maxSeverity === 'severe' ? 'bg-orange-900/40 text-orange-300'
+              : 'bg-amber-900/30 text-amber-300'
+            }`}>{w}</span>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 divide-x divide-slate-600/20">
         {dayHalf ? (

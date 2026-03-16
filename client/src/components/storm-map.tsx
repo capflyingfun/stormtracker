@@ -2118,7 +2118,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     try {
       // Get map bounds and center
       const center = map.getCenter();
-      const zoom = map.getZoom();
+      const rawZoom = map.getZoom();
+      const zoom = Math.min(rawZoom, 7);
 
       // Calculate the 50-mile radius boundary
       const radiusInDegrees = 50 / 69.0; // 50 miles in degrees
