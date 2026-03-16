@@ -171,13 +171,13 @@ interface CountdownProps {
 }
 
 function CountdownTimer({ etaMinutes, alertData, lat, lon, t }: CountdownProps) {
-  const [remaining, setRemaining] = useState(etaMinutes * 60);
+  const [remaining, setRemaining] = useState(Math.round(etaMinutes * 60));
   const [phase, setPhase] = useState<'counting' | 'rechecking' | 'feedback' | 'result'>('counting');
   const [recheckResult, setRecheckResult] = useState<string | null>(null);
   const [feedbackResult, setFeedbackResult] = useState<string | null>(null);
 
   useEffect(() => {
-    setRemaining(etaMinutes * 60);
+    setRemaining(Math.round(etaMinutes * 60));
     setPhase('counting');
     setRecheckResult(null);
     setFeedbackResult(null);
@@ -306,10 +306,9 @@ function CountdownTimer({ etaMinutes, alertData, lat, lon, t }: CountdownProps) 
 
   const hrs = Math.floor(remaining / 3600);
   const mins = Math.floor((remaining % 3600) / 60);
-  const secs = remaining % 60;
   const timeStr = hrs > 0
-    ? `${hrs}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`
-    : `${mins}m ${secs.toString().padStart(2, '0')}s`;
+    ? `${hrs}h ${mins.toString().padStart(2, '0')}m`
+    : remaining < 60 ? '<1m' : `${mins}m`;
   const urgency = remaining < 300 ? 'text-red-300 animate-pulse' : remaining < 900 ? 'text-orange-300' : 'text-amber-300';
   return (
     <p className={`text-xs font-mono mt-0.5 ${urgency}`}>
