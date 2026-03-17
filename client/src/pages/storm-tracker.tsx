@@ -21,7 +21,7 @@ import SectionReorder, { getSectionOrder } from "@/components/section-reorder";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AIWeatherAssistant from "@/components/ai-weather-assistant";
-import { LayoutList, ChevronDown, ChevronUp } from "lucide-react";
+import { LayoutList, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { apiRequest } from "@/lib/queryClient";
 import { SectionSkeleton } from "@/hooks/use-staggered-loading";
@@ -1448,6 +1448,20 @@ export default function StormTracker() {
                         showLightning={showLightning}
                       />
                     )}
+                  </div>
+                  <div className="flex items-center justify-between bg-slate-800/60 rounded-lg px-3 py-1.5 mb-2 border border-slate-700/30">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs">⚡</span>
+                      <span className="text-xs text-slate-300 font-medium">
+                        {precipitationStorms.length} storm{precipitationStorms.length !== 1 ? 's' : ''} detected
+                      </span>
+                      {stormDataLoading && (
+                        <Loader2 className="h-3 w-3 animate-spin text-blue-400" />
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-500">
+                      {currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
+                    </span>
                   </div>
                   <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                     <Button
