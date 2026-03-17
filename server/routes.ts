@@ -6496,8 +6496,8 @@ Guidelines:
     try {
       const icao = req.params.icao.toUpperCase();
       if (!/^[A-Z0-9]{3,4}$/.test(icao)) return res.status(400).json({ error: "Invalid ICAO code format" });
-      const awcUrl = `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&taf=false&hours=3`;
-      const response = await fetch(awcUrl, { signal: AbortSignal.timeout(8000) });
+      const awcUrl = `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&taf=false&hours=24`;
+      const response = await fetch(awcUrl, { signal: AbortSignal.timeout(12000) });
       if (!response.ok) throw new Error(`AWC returned ${response.status}`);
       const data = await response.json();
       if (!data || data.length === 0) return res.status(404).json({ error: "Station not found" });
@@ -6754,6 +6754,51 @@ Guidelines:
         return { name, icon, age, illumination: Math.round(50 * (1 - Math.cos(normalized * 2 * Math.PI))) };
       })();
 
+      const fltCat = current.fltCat || null;
+
+      const history = data.map((obs: any) => {
+        const oTempC = obs.temp;
+        const oTempF = oTempC != null ? Math.round((oTempC * 9 / 5 + 32) * 10) / 10 : null;
+        const oDewC = obs.dewp;
+        const oHumidity = oTempC != null && oDewC != null
+          ? Math.round(100 * Math.exp((17.625 * oDewC) / (243.04 + oDewC)) / Math.exp((17.625 * oTempC) / (243.04 + oTempC)))
+          : null;
+        const oWindKts = obs.wspd ?? 0;
+        const oWindMph = Math.round(oWindKts * 1.15078);
+        const oPressureMb = obs.altim ? Math.round(obs.altim * 10) / 10 : null;
+        const oPressureInHg = oPressureMb ? Math.round((oPressureMb * 0.02953) * 100) / 100 : null;
+        const oVis = parseVisibility(obs.visib);
+        const oFeelsLike = (() => {
+          if (oTempF == null) return null;
+          if (oTempF <= 50 && oWindMph >= 3) {
+            const wc = 35.74 + 0.6215 * oTempF - 35.75 * Math.pow(oWindMph, 0.16) + 0.4275 * oTempF * Math.pow(oWindMph, 0.16);
+            return Math.round(wc);
+          }
+          if (oTempF >= 80 && oHumidity != null && oHumidity >= 40) {
+            const hi = -42.379 + 2.04901523 * oTempF + 10.14333127 * oHumidity - 0.22475541 * oTempF * oHumidity - 0.00683783 * oTempF * oTempF - 0.05481717 * oHumidity * oHumidity + 0.00122874 * oTempF * oTempF * oHumidity + 0.00085282 * oTempF * oHumidity * oHumidity - 0.00000199 * oTempF * oTempF * oHumidity * oHumidity;
+            return Math.round(hi);
+          }
+          return oTempF != null ? Math.round(oTempF) : null;
+        })();
+        return {
+          time: obs.obsTime,
+          tempF: oTempF != null ? Math.round(oTempF) : null,
+          tempC: oTempC != null ? Math.round(oTempC) : null,
+          feelsLikeF: oFeelsLike,
+          humidity: oHumidity,
+          windSpeedKts: oWindKts,
+          windSpeedMph: oWindMph,
+          windGustKts: obs.wgst ?? null,
+          windDir: obs.wdir ?? null,
+          pressureMb: oPressureMb,
+          pressureInHg: oPressureInHg,
+          visibilityMi: oVis?.miles ?? null,
+          wxString: obs.wxString || null,
+          fltCat: obs.fltCat || null,
+          clouds: obs.clouds || [],
+        };
+      }).reverse();
+
       const station = {
         icao: current.icaoId,
         name: current.name || current.icaoId,
@@ -6768,6 +6813,7 @@ Guidelines:
         dewC: dewC != null ? Math.round(dewC) : null,
         humidity,
         feelsLike: windChillOrHeatIdx,
+        fltCat,
         wind: {
           direction: current.wdir,
           dirLabel: current.wdir != null ? getDirectionFromBearing(current.wdir) : 'Calm',
@@ -6796,6 +6842,7 @@ Guidelines:
         precip: current.precip,
         moonPhase,
         decoded: decodeMetar(current.rawOb || ''),
+        history,
       };
 
       res.json(station);

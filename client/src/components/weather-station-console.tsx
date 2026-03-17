@@ -46,8 +46,28 @@ interface StationData {
   clouds: any[];
   wxString: string | null;
   precip: any;
+  fltCat: string | null;
   moonPhase: { name: string; icon: string; age: number; illumination: number };
   decoded: { label: string; value: string; severity?: string }[];
+  history: HistoryPoint[];
+}
+
+interface HistoryPoint {
+  time: number;
+  tempF: number | null;
+  tempC: number | null;
+  feelsLikeF: number | null;
+  humidity: number | null;
+  windSpeedKts: number;
+  windSpeedMph: number;
+  windGustKts: number | null;
+  windDir: number | null;
+  pressureMb: number | null;
+  pressureInHg: number | null;
+  visibilityMi: number | null;
+  wxString: string | null;
+  fltCat: string | null;
+  clouds: any[];
 }
 
 interface NearbyStation {
@@ -223,6 +243,311 @@ function PressureTrendIcon({ trend }: { trend: string }) {
   if (trend === 'rising') return <TrendingUp className="w-4 h-4 text-green-400" />;
   if (trend === 'falling') return <TrendingDown className="w-4 h-4 text-red-400" />;
   return <Minus className="w-4 h-4 text-slate-400" />;
+}
+
+function FlightCategoryBanner({ fltCat }: { fltCat: string | null }) {
+  if (!fltCat) return null;
+  const cats: Record<string, { color: string; bg: string; border: string; label: string; desc: string }> = {
+    VFR: { color: 'text-green-400', bg: 'bg-green-900/20', border: 'border-green-500/40', label: 'VFR', desc: 'Visual Flight Rules — Clear conditions' },
+    MVFR: { color: 'text-blue-400', bg: 'bg-blue-900/20', border: 'border-blue-500/40', label: 'MVFR', desc: 'Marginal VFR — Reduced visibility or ceiling' },
+    IFR: { color: 'text-red-400', bg: 'bg-red-900/20', border: 'border-red-500/40', label: 'IFR', desc: 'Instrument Flight Rules — Low visibility' },
+    LIFR: { color: 'text-fuchsia-400', bg: 'bg-fuchsia-900/20', border: 'border-fuchsia-500/40', label: 'LIFR', desc: 'Low IFR — Very poor visibility' },
+  };
+  const c = cats[fltCat] || cats.VFR;
+  return (
+    <div className={`rounded-lg px-3 py-2 ${c.bg} border ${c.border} flex items-center justify-between`}>
+      <div className="flex items-center gap-2">
+        <div className={`w-3 h-3 rounded-full ${c.color.replace('text-', 'bg-')} ${fltCat !== 'VFR' ? 'animate-pulse' : ''}`} />
+        <span className={`text-sm font-bold ${c.color}`}>{c.label}</span>
+        <span className="text-[10px] text-slate-400">{c.desc}</span>
+      </div>
+    </div>
+  );
+}
+
+function SparklineChart({ data, color, label, unit, height = 48, showFeelsLike, feelsLikeData }: { data: { time: number; value: number | null }[]; color: string; label: string; unit: string; height?: number; showFeelsLike?: boolean; feelsLikeData?: { time: number; value: number | null }[] }) {
+  const valid = data.filter(d => d.value != null) as { time: number; value: number }[];
+  if (valid.length < 2) return null;
+  const min = Math.min(...valid.map(d => d.value));
+  const max = Math.max(...valid.map(d => d.value));
+  const range = max - min || 1;
+  const w = 280;
+  const pad = 4;
+  const h = height;
+  const points = valid.map((d, i) => {
+    const x = pad + (i / (valid.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((d.value - min) / range) * (h - pad * 2);
+    return `${x},${y}`;
+  }).join(' ');
+
+  let feelsLikePath = '';
+  if (showFeelsLike && feelsLikeData) {
+    const fValid = feelsLikeData.filter(d => d.value != null) as { time: number; value: number }[];
+    if (fValid.length >= 2) {
+      const allMin = Math.min(min, ...fValid.map(d => d.value));
+      const allMax = Math.max(max, ...fValid.map(d => d.value));
+      const allRange = allMax - allMin || 1;
+      const mainPts = valid.map((d, i) => {
+        const x = pad + (i / (valid.length - 1)) * (w - pad * 2);
+        const y = h - pad - ((d.value - allMin) / allRange) * (h - pad * 2);
+        return `${x},${y}`;
+      }).join(' ');
+      feelsLikePath = fValid.map((d, i) => {
+        const x = pad + (i / (fValid.length - 1)) * (w - pad * 2);
+        const y = h - pad - ((d.value - allMin) / allRange) * (h - pad * 2);
+        return `${x},${y}`;
+      }).join(' ');
+      return (
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[9px] text-slate-500 uppercase font-semibold">{label}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] text-slate-400">{valid[valid.length - 1].value}{unit}</span>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-[2px]" style={{ backgroundColor: color }} />
+                <span className="text-[8px] text-slate-500">Actual</span>
+                <div className="w-3 h-[2px] opacity-50" style={{ backgroundColor: '#f97316' }} />
+                <span className="text-[8px] text-slate-500">Feels</span>
+              </div>
+            </div>
+          </div>
+          <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: `${h}px` }}>
+            <polyline points={mainPts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+            <polyline points={feelsLikePath} fill="none" stroke="#f97316" strokeWidth="1.5" strokeDasharray="4,3" strokeLinejoin="round" opacity="0.6" />
+            <circle cx={mainPts.split(' ').pop()?.split(',')[0]} cy={mainPts.split(' ').pop()?.split(',')[1]} r="3" fill={color} />
+          </svg>
+          <div className="flex justify-between text-[8px] text-slate-600 mt-0.5">
+            <span>{formatTimeLabel(valid[0].time)}</span>
+            <span>{formatTimeLabel(valid[Math.floor(valid.length / 2)]?.time)}</span>
+            <span>Now</span>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[9px] text-slate-500 uppercase font-semibold">{label}</span>
+        <span className="text-[9px] text-slate-400">{valid[valid.length - 1].value}{unit}</span>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: `${h}px` }}>
+        <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+        <circle cx={points.split(' ').pop()?.split(',')[0]} cy={points.split(' ').pop()?.split(',')[1]} r="3" fill={color} />
+      </svg>
+      <div className="flex justify-between text-[8px] text-slate-600 mt-0.5">
+        <span>{formatTimeLabel(valid[0].time)}</span>
+        <span>{formatTimeLabel(valid[Math.floor(valid.length / 2)]?.time)}</span>
+        <span>Now</span>
+      </div>
+    </div>
+  );
+}
+
+function formatTimeLabel(time: number): string {
+  const d = new Date(time < 1e12 ? time * 1000 : time);
+  return d.toLocaleTimeString('en', { hour: 'numeric', hour12: true }).replace(' ', '');
+}
+
+function TrendGraphs({ history, tempUnit }: { history: HistoryPoint[]; tempUnit: TempUnit }) {
+  if (!history || history.length < 3) return null;
+  const tempData = history.map(h => ({ time: h.time, value: tempUnit === 'f' ? h.tempF : h.tempC }));
+  const feelsData = history.map(h => ({ time: h.time, value: tempUnit === 'f' ? h.feelsLikeF : (h.feelsLikeF != null ? Math.round((h.feelsLikeF - 32) * 5 / 9) : null) }));
+  const pressData = history.map(h => ({ time: h.time, value: h.pressureInHg }));
+  const windData = history.map(h => ({ time: h.time, value: h.windSpeedMph }));
+  const visData = history.map(h => ({ time: h.time, value: h.visibilityMi }));
+  return (
+    <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3 space-y-4">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-sm">📈</span>
+        <span className="text-[10px] text-slate-400 uppercase font-semibold">24-Hour Trends</span>
+        <span className="text-[8px] text-slate-600">({history.length} observations)</span>
+      </div>
+      <SparklineChart data={tempData} color="#ef4444" label={`Temperature (${tempUnit === 'f' ? '°F' : '°C'})`} unit={tempUnit === 'f' ? '°F' : '°C'} showFeelsLike feelsLikeData={feelsData} />
+      <SparklineChart data={pressData} color="#a78bfa" label="Pressure (inHg)" unit=" inHg" />
+      <SparklineChart data={windData} color="#22c55e" label="Wind Speed (mph)" unit=" mph" />
+      <SparklineChart data={visData} color="#38bdf8" label="Visibility (mi)" unit=" mi" />
+    </div>
+  );
+}
+
+function PressureTendencyChart({ history }: { history: HistoryPoint[] }) {
+  const valid = history.filter(h => h.pressureMb != null).map(h => ({ time: h.time, value: h.pressureMb! }));
+  if (valid.length < 3) return null;
+  const min = Math.min(...valid.map(d => d.value));
+  const max = Math.max(...valid.map(d => d.value));
+  const range = max - min || 0.5;
+  const w = 280;
+  const h = 60;
+  const pad = 4;
+  const first = valid[0].value;
+  const last = valid[valid.length - 1].value;
+  const diff = last - first;
+  const trendLabel = diff > 0.5 ? '↑ Rising' : diff < -0.5 ? '↓ Falling' : '→ Steady';
+  const trendColor = diff > 0.5 ? 'text-green-400' : diff < -0.5 ? 'text-red-400' : 'text-slate-400';
+  const fillPoints = valid.map((d, i) => {
+    const x = pad + (i / (valid.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((d.value - min) / range) * (h - pad * 2);
+    return `${x},${y}`;
+  });
+  const linePath = fillPoints.join(' ');
+  const areaPath = `${pad},${h - pad} ${linePath} ${pad + ((valid.length - 1) / (valid.length - 1)) * (w - pad * 2)},${h - pad}`;
+  return (
+    <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">📊</span>
+          <span className="text-[10px] text-slate-400 uppercase font-semibold">Pressure Tendency</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-[10px] font-semibold ${trendColor}`}>{trendLabel}</span>
+          <span className="text-[9px] text-slate-500">({diff > 0 ? '+' : ''}{diff.toFixed(1)} mb / 24h)</span>
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: `${h}px` }}>
+        <polygon points={areaPath} fill="url(#pressGrad)" opacity="0.3" />
+        <defs>
+          <linearGradient id="pressGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#a78bfa" />
+            <stop offset="100%" stopColor="transparent" />
+          </linearGradient>
+        </defs>
+        <polyline points={linePath} fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinejoin="round" />
+        <circle cx={fillPoints[fillPoints.length - 1].split(',')[0]} cy={fillPoints[fillPoints.length - 1].split(',')[1]} r="3" fill="#a78bfa" />
+      </svg>
+      <div className="flex justify-between text-[8px] text-slate-600 mt-0.5">
+        <span>{formatTimeLabel(valid[0].time)}</span>
+        <span>{min.toFixed(1)} – {max.toFixed(1)} mb</span>
+        <span>Now</span>
+      </div>
+    </div>
+  );
+}
+
+function WindRose({ history }: { history: HistoryPoint[] }) {
+  const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  const counts = new Array(16).fill(0);
+  const speeds = new Array(16).fill(0);
+  let total = 0;
+  history.forEach(h => {
+    if (h.windDir != null && h.windSpeedKts > 0) {
+      const idx = Math.round(h.windDir / 22.5) % 16;
+      counts[idx]++;
+      speeds[idx] += h.windSpeedMph;
+      total++;
+    }
+  });
+  if (total < 3) return null;
+  const maxCount = Math.max(...counts, 1);
+  const cx = 80;
+  const cy = 80;
+  const maxR = 55;
+  return (
+    <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-sm">🧭</span>
+        <span className="text-[10px] text-slate-400 uppercase font-semibold">Wind Rose (24h)</span>
+        <span className="text-[8px] text-slate-600">{total} obs</span>
+      </div>
+      <div className="flex justify-center">
+        <svg viewBox="0 0 160 160" className="w-40 h-40">
+          <circle cx={cx} cy={cy} r={maxR} fill="none" stroke="rgba(100,116,139,0.15)" strokeWidth="1" />
+          <circle cx={cx} cy={cy} r={maxR * 0.66} fill="none" stroke="rgba(100,116,139,0.1)" strokeWidth="1" />
+          <circle cx={cx} cy={cy} r={maxR * 0.33} fill="none" stroke="rgba(100,116,139,0.08)" strokeWidth="1" />
+          {[0, 45, 90, 135].map(a => {
+            const rad = (a - 90) * Math.PI / 180;
+            return <line key={a} x1={cx - maxR * Math.cos(rad)} y1={cy - maxR * Math.sin(rad)} x2={cx + maxR * Math.cos(rad)} y2={cy + maxR * Math.sin(rad)} stroke="rgba(100,116,139,0.08)" strokeWidth="1" />;
+          })}
+          {counts.map((count, i) => {
+            if (count === 0) return null;
+            const angle = (i * 22.5 - 90) * Math.PI / 180;
+            const r = (count / maxCount) * maxR;
+            const avgSpd = speeds[i] / count;
+            const barColor = avgSpd >= 20 ? '#ef4444' : avgSpd >= 10 ? '#f97316' : '#22c55e';
+            const x1 = cx;
+            const y1 = cy;
+            const x2 = cx + r * Math.cos(angle);
+            const y2 = cy + r * Math.sin(angle);
+            const perpAngle = angle + Math.PI / 2;
+            const barW = 4;
+            return (
+              <polygon key={i}
+                points={`${x1 + barW * Math.cos(perpAngle)},${y1 + barW * Math.sin(perpAngle)} ${x2},${y2} ${x1 - barW * Math.cos(perpAngle)},${y1 - barW * Math.sin(perpAngle)}`}
+                fill={barColor} opacity="0.7" />
+            );
+          })}
+          {['N', 'E', 'S', 'W'].map((d, i) => {
+            const angle = (i * 90 - 90) * Math.PI / 180;
+            const x = cx + (maxR + 10) * Math.cos(angle);
+            const y = cy + (maxR + 10) * Math.sin(angle);
+            return <text key={d} x={x} y={y} textAnchor="middle" dominantBaseline="central" className="text-[9px] font-bold fill-slate-400">{d}</text>;
+          })}
+        </svg>
+      </div>
+      <div className="flex justify-center gap-3 mt-1">
+        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" /><span className="text-[8px] text-slate-500">&lt;10 mph</span></div>
+        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-orange-500" /><span className="text-[8px] text-slate-500">10-20</span></div>
+        <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /><span className="text-[8px] text-slate-500">20+</span></div>
+      </div>
+    </div>
+  );
+}
+
+function ConditionTimeline({ history }: { history: HistoryPoint[] }) {
+  if (!history || history.length < 3) return null;
+  const getConditionInfo = (h: HistoryPoint): { emoji: string; color: string; label: string } => {
+    const wx = (h.wxString || '').toUpperCase();
+    if (wx.includes('TS')) return { emoji: '⛈️', color: '#ef4444', label: 'Thunderstorm' };
+    if (wx.includes('SN') || wx.includes('SG')) return { emoji: '🌨️', color: '#bfdbfe', label: 'Snow' };
+    if (wx.includes('FZ')) return { emoji: '🧊', color: '#93c5fd', label: 'Freezing' };
+    if (wx.includes('RA') || wx.includes('DZ') || wx.includes('SH')) return { emoji: '🌧️', color: '#3b82f6', label: 'Rain' };
+    if (wx.includes('FG')) return { emoji: '🌫️', color: '#94a3b8', label: 'Fog' };
+    if (wx.includes('BR') || wx.includes('HZ')) return { emoji: '🌫️', color: '#64748b', label: 'Haze' };
+    const cover = h.clouds?.reduce((max: string, c: any) => {
+      const order = ['SKC', 'CLR', 'FEW', 'SCT', 'BKN', 'OVC'];
+      return order.indexOf(c.cover) > order.indexOf(max) ? c.cover : max;
+    }, 'SKC') || 'SKC';
+    if (cover === 'OVC') return { emoji: '☁️', color: '#64748b', label: 'Overcast' };
+    if (cover === 'BKN') return { emoji: '🌥️', color: '#94a3b8', label: 'Mostly Cloudy' };
+    if (cover === 'SCT') return { emoji: '⛅', color: '#a3e635', label: 'Partly Cloudy' };
+    return { emoji: '☀️', color: '#fbbf24', label: 'Clear' };
+  };
+  const items = history.map(h => ({ ...getConditionInfo(h), time: h.time }));
+  return (
+    <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-sm">🕐</span>
+        <span className="text-[10px] text-slate-400 uppercase font-semibold">24-Hour Conditions</span>
+      </div>
+      <div className="flex gap-[1px] rounded-lg overflow-hidden h-6">
+        {items.map((item, i) => (
+          <div key={i} className="flex-1 relative group cursor-pointer" style={{ backgroundColor: item.color, opacity: 0.7 }} title={`${formatTimeLabel(item.time)}: ${item.label}`}>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-slate-900 px-1.5 py-0.5 rounded text-[8px] text-white whitespace-nowrap z-10 border border-slate-700">
+              {formatTimeLabel(item.time)}: {item.emoji} {item.label}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between text-[8px] text-slate-600 mt-1">
+        <span>{formatTimeLabel(items[0]?.time)}</span>
+        <span>{formatTimeLabel(items[Math.floor(items.length / 2)]?.time)}</span>
+        <span>Now</span>
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+        {Array.from(new Set(items.map(i => i.label))).map(label => {
+          const item = items.find(i => i.label === label)!;
+          const pct = Math.round((items.filter(i => i.label === label).length / items.length) * 100);
+          return (
+            <div key={label} className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="text-[8px] text-slate-500">{item.emoji} {label} {pct}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?: string }) {
@@ -835,6 +1160,8 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
             </div>
           )}
 
+          <FlightCategoryBanner fltCat={stationData.fltCat} />
+
           <AlertTicker lat={lat} lon={lon} icao={stationData.icao} windUnit={windUnit} />
 
           {wxDescription && (
@@ -998,6 +1325,15 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
           <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
             <ForecastIconStrip lat={lat} lon={lon} icao={stationData.icao} />
           </div>
+
+          {stationData.history && stationData.history.length >= 3 && (
+            <>
+              <ConditionTimeline history={stationData.history} />
+              <TrendGraphs history={stationData.history} tempUnit={tempUnit} />
+              <PressureTendencyChart history={stationData.history} />
+              <WindRose history={stationData.history} />
+            </>
+          )}
 
           <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-2">
             <details>
