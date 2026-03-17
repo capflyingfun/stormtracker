@@ -4,7 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Settings, Zap, MessageCircle, Smile } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Settings, Brain } from 'lucide-react';
+import { useLanguage } from '@/hooks/use-language';
+import { LANGUAGES } from '@/lib/i18n';
 
 interface AISettingsProps {
   isOpen: boolean;
@@ -17,19 +20,22 @@ interface UserSettings {
   detailLevel: 'minimal' | 'standard' | 'technical';
   includeHumor: boolean;
   simplifiedLanguage: boolean;
+  preferredLanguage: string;
 }
 
 export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
+  const { language, setLanguage, t } = useLanguage();
   const [settings, setSettings] = useState<UserSettings>({
     aiTone: 'professional',
     detailLevel: 'standard',
     includeHumor: false,
-    simplifiedLanguage: false
+    simplifiedLanguage: false,
+    preferredLanguage: language
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Load user settings
+  // Sync preferred language with current app language when dialog opens
   useEffect(() => {
     if (isOpen && sessionId) {
       loadUserSettings();
@@ -42,7 +48,7 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
       const response = await fetch(`/api/user-settings/${sessionId}`);
       if (response.ok) {
         const data = await response.json();
-        setSettings(data);
+        setSettings({ ...data, preferredLanguage: data.preferredLanguage || language });
       }
     } catch (error) {
       console.error('Failed to load user settings:', error);
@@ -54,6 +60,10 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
   const saveSettings = async () => {
     setSaving(true);
     try {
+      if (settings.preferredLanguage !== language) {
+        setLanguage(settings.preferredLanguage as any);
+      }
+
       const response = await fetch('/api/user-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,14 +88,34 @@ export function AISettings({ isOpen, onClose, sessionId }: AISettingsProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
             <Settings className="w-5 h-5" />
-            AI Assistant Settings
+            {t.settings} — AI
           </CardTitle>
           <CardDescription className="text-slate-600 dark:text-slate-300">
-            Customize your AI weather assistant tone and style (like Carrot Weather)
+            Customize your AI weather assistant tone and style
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-6">
+          {/* Language Selector */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-900 dark:text-white">{t.language}</Label>
+            <Select
+              value={settings.preferredLanguage}
+              onValueChange={(val) => setSettings({ ...settings, preferredLanguage: val })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LANGUAGES.map((lang) => (
+                  <SelectItem key={lang.code} value={lang.code}>
+                    {lang.flag} {lang.nativeName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Dynamic AI Tone */}
           <div className="space-y-3">
             <Label className="text-sm font-medium text-slate-900 dark:text-white">Assistant Tone</Label>

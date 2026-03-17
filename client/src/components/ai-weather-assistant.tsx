@@ -44,6 +44,9 @@ interface WeatherAssessment {
 interface UserSettings {
   aiTone: 'professional' | 'friendly' | 'humorous';
   detailLevel?: 'minimal' | 'standard' | 'technical';
+  includeHumor?: boolean;
+  simplifiedLanguage?: boolean;
+  preferredLanguage?: string;
 }
 
 interface AIWeatherAssistantProps {
@@ -80,7 +83,7 @@ export default function AIWeatherAssistant({
   const [aiTone, setAiTone] = useState<'professional' | 'friendly' | 'humorous'>(
     userSettings?.aiTone || 'friendly'
   );
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   // Fetch aviation weather data
   const { data: aviationData } = useQuery({
@@ -169,8 +172,14 @@ export default function AIWeatherAssistant({
         includeAlerts: true, // Enhanced to include alert analysis
         lightningCount,
         useMetric,
-        threatData: currentThreatData, // Pass fresh threat data to prevent duplicate NWS alert fetching
-        userSettings: { aiTone } // Pass user's tone preference for AFD summary
+        threatData: currentThreatData,
+        userSettings: {
+          aiTone,
+          detailLevel: userSettings?.detailLevel || 'standard',
+          includeHumor: userSettings?.includeHumor || false,
+          simplifiedLanguage: userSettings?.simplifiedLanguage || false,
+          preferredLanguage: userSettings?.preferredLanguage || language
+        }
       });
       return response.json();
     },
@@ -194,7 +203,9 @@ export default function AIWeatherAssistant({
         userLocation,
         useMetric,
         storms: optimizedStorms,
-        stormCount: storms.length
+        stormCount: storms.length,
+        preferredLanguage: userSettings?.preferredLanguage || language,
+        simplifiedLanguage: userSettings?.simplifiedLanguage || false
       });
       const result = await response.json();
       console.log('Chat API response with live storm data:', result);

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageCircle, Send, Bot, User, Loader2 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
+import { useLanguage } from '@/hooks/use-language';
 
 interface Message {
   id: string;
@@ -25,6 +26,7 @@ interface AIWeatherChatProps {
 }
 
 export function AIWeatherChat({ userLocation, useMetric, isOpen, onToggle }: AIWeatherChatProps) {
+  const { language } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
@@ -40,7 +42,8 @@ export function AIWeatherChat({ userLocation, useMetric, isOpen, onToggle }: AIW
       const response = await apiRequest("POST", "/api/ai-chat", {
         question,
         userLocation,
-        useMetric
+        useMetric,
+        preferredLanguage: language
       });
       return response as { response: string; contextUsed: any };
     },

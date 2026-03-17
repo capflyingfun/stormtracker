@@ -4855,7 +4855,7 @@ Return ONLY a JSON array of 5 strings.`;
   // Interactive AI Weather Chat endpoint
   app.post("/api/ai-chat", async (req, res) => {
     try {
-      const { question, userLocation, useMetric, storms, stormCount } = req.body;
+      const { question, userLocation, useMetric, storms, stormCount, preferredLanguage, simplifiedLanguage } = req.body;
       
       if (!question || typeof question !== 'string') {
         return res.status(400).json({ error: 'Question is required' });
@@ -4978,7 +4978,7 @@ Return ONLY a JSON array of 5 strings.`;
         messages: [
           {
             role: "system",
-            content: `You are an expert meteorologist providing comprehensive weather analysis for pilots, boaters, and the general public. Use ALL available weather data to answer questions with detailed insights for aviation, marine, and general safety.
+            content: `You are an expert meteorologist providing comprehensive weather analysis for pilots, boaters, and the general public. Use ALL available weather data to answer questions with detailed insights for aviation, marine, and general safety.${preferredLanguage && preferredLanguage !== 'en' ? `\nIMPORTANT: Respond entirely in the language with code "${preferredLanguage}".` : ''}${simplifiedLanguage ? '\nUse simple, everyday language. Avoid jargon and technical terms.' : ''}
 
 Complete weather briefing data for ${userLocation.address || `${userLocation.lat}, ${userLocation.lon}`}:
 ${weatherContext.currentWeather ? `
@@ -6194,7 +6194,8 @@ Guidelines:
           aiTone: 'professional',
           detailLevel: 'standard',
           includeHumor: false,
-          simplifiedLanguage: false
+          simplifiedLanguage: false,
+          preferredLanguage: 'en'
         });
       }
       
@@ -6207,7 +6208,7 @@ Guidelines:
 
   app.post("/api/user-settings", async (req, res) => {
     try {
-      const { sessionId, aiTone, detailLevel, includeHumor, simplifiedLanguage } = req.body;
+      const { sessionId, aiTone, detailLevel, includeHumor, simplifiedLanguage, preferredLanguage } = req.body;
       
       if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -6218,7 +6219,8 @@ Guidelines:
         aiTone: aiTone || 'professional',
         detailLevel: detailLevel || 'standard',
         includeHumor: includeHumor || false,
-        simplifiedLanguage: simplifiedLanguage || false
+        simplifiedLanguage: simplifiedLanguage || false,
+        preferredLanguage: preferredLanguage || 'en'
       });
       
       res.json(settings);

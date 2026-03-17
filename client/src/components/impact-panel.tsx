@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Clock, MapPin, TrendingUp, Shield, ChevronDown, ChevronUp } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useAutoTranslate } from "@/hooks/use-auto-translate";
 
 interface ImpactPrediction {
   stormId: string;
@@ -76,6 +77,7 @@ function CountdownTimer({ etaMinutes }: { etaMinutes: number }) {
 }
 
 export default function ImpactPanel({ storms, userLocation, locationName, minimumDbz = 50 }: ImpactPanelProps) {
+  const { at } = useAutoTranslate();
   const [isExpanded, setIsExpanded] = useState(true);
   
   const stormSignature = storms?.map(s => 

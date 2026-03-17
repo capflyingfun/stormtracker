@@ -107,6 +107,7 @@ interface WeatherAssessmentRequest {
     detailLevel: string;
     includeHumor: boolean;
     simplifiedLanguage: boolean;
+    preferredLanguage?: string;
   };
 }
 
@@ -564,7 +565,34 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       ? 'Use a warm, conversational tone like chatting with a knowledgeable friend about the weather.'
       : 'Use a professional but approachable meteorological tone.';
 
+    const detailLevel = data.userSettings?.detailLevel || 'standard';
+    const includeHumor = data.userSettings?.includeHumor ?? false;
+    const simplifiedLanguage = data.userSettings?.simplifiedLanguage ?? false;
+    const preferredLanguage = data.userSettings?.preferredLanguage || 'en';
+
+    const detailInstruction = detailLevel === 'minimal'
+      ? 'Keep your response very concise - only essential safety info and key conditions.'
+      : detailLevel === 'technical'
+      ? 'Provide detailed meteorological analysis with technical terminology, model references, and specific parameters.'
+      : 'Provide balanced, informative weather analysis with clear explanations.';
+
+    const humorInstruction = includeHumor
+      ? 'Feel free to include tasteful weather humor, puns, or witty observations when conditions are not severe.'
+      : '';
+
+    const simplifiedInstruction = simplifiedLanguage
+      ? 'Use simple, everyday language. Avoid jargon and technical terms. Explain as if to someone with no weather knowledge.'
+      : '';
+
+    const languageInstruction = preferredLanguage !== 'en'
+      ? `IMPORTANT: Respond entirely in the language with code "${preferredLanguage}". All section headers, analysis, and recommendations must be in that language.`
+      : '';
+
     const prompt = `You are an expert meteorologist providing comprehensive weather analysis. Your response MUST be structured in these FIVE clearly labeled sections as flowing paragraphs.
+${detailInstruction}
+${humorInstruction}
+${simplifiedInstruction}
+${languageInstruction}
 
 CRITICAL FORMATTING RULES:
 - Use plain text section headers on their own line, followed by the paragraph content

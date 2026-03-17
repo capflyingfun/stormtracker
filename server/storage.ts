@@ -293,6 +293,7 @@ export class DatabaseStorage implements IStorage {
             detailLevel: data.detailLevel,
             includeHumor: data.includeHumor,
             simplifiedLanguage: data.simplifiedLanguage,
+            preferredLanguage: data.preferredLanguage,
             updatedAt: new Date()
           })
           .where(eq(userSettings.sessionId, data.sessionId))
