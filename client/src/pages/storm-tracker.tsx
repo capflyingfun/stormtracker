@@ -1398,7 +1398,6 @@ export default function StormTracker() {
                   </div>
                   <p className="text-blue-200 font-medium text-sm">{t.loadingDataHoldOn}</p>
                   <p className="text-slate-400 text-xs">{t.scanningRadar}</p>
-                  <p className="text-slate-500 text-[10px] mt-1">⚡ 0 storms detected so far</p>
                 </div>
               )}
 

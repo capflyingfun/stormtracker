@@ -6839,6 +6839,95 @@ Guidelines:
     }
   });
 
+  app.get("/api/taf/:icao", async (req, res) => {
+    try {
+      const icao = req.params.icao.toUpperCase();
+      if (!/^[A-Z0-9]{3,4}$/.test(icao)) return res.status(400).json({ error: "Invalid ICAO code" });
+
+      const awcUrl = `https://aviationweather.gov/api/data/taf?ids=${icao}&format=json`;
+      const response = await fetch(awcUrl, { signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error(`AWC TAF returned ${response.status}`);
+      const data = await response.json();
+      if (!data || data.length === 0) return res.status(404).json({ error: "No TAF available for this station" });
+
+      const taf = data[0];
+      const rawTaf = taf.rawTAF || '';
+
+      const toIso = (v: any): string | null => {
+        if (!v) return null;
+        if (typeof v === 'string') return v;
+        if (typeof v === 'number') return new Date(v * 1000).toISOString();
+        return null;
+      };
+
+      const periods: any[] = [];
+      if (taf.fcsts && Array.isArray(taf.fcsts)) {
+        for (const f of taf.fcsts) {
+          const fromTime = toIso(f.timeFrom);
+          const toTime = toIso(f.timeTo);
+          const changeType = f.fcstChange || 'FM';
+
+          const wxString = f.wxString || '';
+          const wxCodes = wxString ? wxString.split(/\s+/).filter(Boolean) : [];
+
+          const clouds = (f.clouds || []).map((c: any) => ({
+            cover: c.cover,
+            base: c.base,
+            type: c.type || null,
+          }));
+
+          const coverPriority: Record<string, number> = { SKC: 0, CLR: 0, FEW: 1, SCT: 2, BKN: 3, OVC: 4, VV: 5 };
+          const maxCover = clouds.reduce((max: string, c: any) => {
+            return (coverPriority[c.cover] || 0) > (coverPriority[max] || 0) ? c.cover : max;
+          }, 'SKC');
+
+          let condition = 'Clear';
+          if (wxCodes.some((w: string) => /TS/.test(w))) condition = 'Thunderstorm';
+          else if (wxCodes.some((w: string) => /SN|GS|GR/.test(w))) condition = 'Snow';
+          else if (wxCodes.some((w: string) => /RA|DZ|SH/.test(w))) condition = 'Rain';
+          else if (wxCodes.some((w: string) => /FG|BR/.test(w))) condition = 'Fog';
+          else if (wxCodes.some((w: string) => /HZ/.test(w))) condition = 'Haze';
+          else if (maxCover === 'OVC' || maxCover === 'VV') condition = 'Overcast';
+          else if (maxCover === 'BKN') condition = 'Mostly Cloudy';
+          else if (maxCover === 'SCT') condition = 'Partly Cloudy';
+          else if (maxCover === 'FEW') condition = 'Few Clouds';
+
+          const visNum = typeof f.visib === 'string' ? parseFloat(f.visib.replace('+', '')) : (f.visib ?? null);
+
+          periods.push({
+            from: fromTime,
+            to: toTime,
+            changeType,
+            windDir: f.wdir ?? null,
+            windSpeedKts: f.wspd ?? null,
+            windGustKts: f.wgst ?? null,
+            visibilitySM: visNum,
+            condition,
+            wxCodes,
+            clouds,
+            maxCover,
+          });
+        }
+      }
+
+      const issueTime = toIso(taf.issueTime);
+      const validFrom = toIso(taf.validTimeFrom);
+      const validTo = toIso(taf.validTimeTo);
+
+      res.json({
+        icao,
+        rawTaf,
+        issueTime,
+        validFrom,
+        validTo,
+        periods,
+      });
+    } catch (error: any) {
+      console.error('TAF fetch error:', error.message);
+      res.status(500).json({ error: "Failed to fetch TAF data" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
