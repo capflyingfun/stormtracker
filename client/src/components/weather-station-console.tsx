@@ -421,7 +421,7 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
   );
 }
 
-function AlertTicker({ lat, lon, icao, windUnit }: { lat: number; lon: number; icao?: string; windUnit?: WindUnit }) {
+function AlertTicker({ lat, lon, icao, windUnit, metarWind }: { lat: number; lon: number; icao?: string; windUnit?: WindUnit; metarWind?: { speedKts: number; gustKts: number | null; direction: number | null; dirLabel: string } }) {
   const { data: nwsData } = useQuery<any>({
     queryKey: ['/api/nws-alerts', lat, lon],
     queryFn: async () => { const r = await fetch(`/api/nws-alerts?lat=${lat}&lon=${lon}`); if (!r.ok) return { alerts: [] }; return r.json(); },
@@ -484,10 +484,16 @@ function AlertTicker({ lat, lon, icao, windUnit }: { lat: number; lon: number; i
       const timeLabel = fromDate <= now ? 'Now' : `${zuluH}${zuluM}Z (${localStr})`;
       const prefix = p.changeType === 'TEMPO' ? 'TEMPO ' : p.changeType === 'BECMG' ? 'BECMG ' : '';
 
+      const isNow = fromDate <= now;
+      const useMetar = isNow && metarWind;
+      const windKts = useMetar ? metarWind.speedKts : p.windSpeedKts;
+      const gustKts = useMetar ? metarWind.gustKts : p.windGustKts;
+      const windDir = useMetar ? (metarWind.direction ?? p.windDir) : p.windDir;
+
       const parts: string[] = [];
       parts.push(p.condition || 'Clear');
-      if (p.windSpeedKts != null) {
-        parts.push(`${p.windDir || 'VRB'}° @ ${formatWindForUnit(p.windSpeedKts, p.windGustKts)}`);
+      if (windKts != null) {
+        parts.push(`${windDir || 'VRB'}° @ ${formatWindForUnit(windKts, gustKts)}`);
       }
       if (p.visibilitySM != null && p.visibilitySM < 6) parts.push(`Vis ${p.visibilitySM}SM`);
       if (p.wxCodes?.length > 0) parts.push(p.wxCodes.join(' '));
@@ -832,7 +838,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
             </div>
           )}
 
-          <AlertTicker lat={lat} lon={lon} icao={stationData.icao} windUnit={windUnit} />
+          <AlertTicker lat={lat} lon={lon} icao={stationData.icao} windUnit={windUnit} metarWind={{ speedKts: stationData.wind.speedKts, gustKts: stationData.wind.gustKts, direction: stationData.wind.direction, dirLabel: stationData.wind.dirLabel }} />
 
           {wxDescription && (
             <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-900/15 border border-amber-600/30">
