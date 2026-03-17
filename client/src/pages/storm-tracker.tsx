@@ -1701,8 +1701,8 @@ export default function StormTracker() {
                         {alertCount > 9 ? '9+' : alertCount}
                       </span>
                     )}
-                    {tab.id === 'storms' && stormCount > 0 && (
-                      <span className="absolute -top-0.5 right-0.5 min-w-[16px] h-4 bg-orange-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                    {tab.id === 'storms' && (
+                      <span className={`absolute -top-0.5 right-0.5 min-w-[16px] h-4 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 ${stormCount > 0 ? 'bg-orange-500' : 'bg-slate-600'}`}>
                         {stormCount > 9 ? '9+' : stormCount}
                       </span>
                     )}
