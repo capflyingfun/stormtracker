@@ -218,15 +218,20 @@ function PressureTrendIcon({ trend }: { trend: string }) {
   return <Minus className="w-4 h-4 text-slate-400" />;
 }
 
-function ForecastIconStrip({ lat, lon }: { lat: number; lon: number }) {
-  const { data } = useQuery<any>({
+function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?: string }) {
+  const { data: tafData } = useQuery<any>({
+    queryKey: ['/api/taf', icao],
+    queryFn: async () => { const r = await fetch(`/api/taf/${icao}`); if (!r.ok) throw new Error('fail'); return r.json(); },
+    enabled: !!icao,
+    staleTime: 600000,
+  });
+
+  const { data: forecastData } = useQuery<any>({
     queryKey: ['/api/weather-forecast', lat, lon],
     queryFn: async () => { const r = await fetch(`/api/weather-forecast?lat=${lat}&lon=${lon}`); if (!r.ok) throw new Error('fail'); return r.json(); },
     staleTime: 300000,
+    enabled: !icao,
   });
-
-  const forecast = data?.forecast || [];
-  const nwsPeriods = data?.nws_periods || [];
 
   const getConditionEmoji = (condition: string): string => {
     const c = condition.toLowerCase();
@@ -246,31 +251,79 @@ function ForecastIconStrip({ lat, lon }: { lat: number; lon: number }) {
     return '🌤️';
   };
 
-  const items: { label: string; emoji: string; tempF?: number }[] = [];
-  if (nwsPeriods.length > 0) {
-    nwsPeriods.slice(0, 8).forEach((p: any) => {
-      const shortName = p.name.replace(' Night', ' N').replace('This Afternoon', 'PM').replace('Tonight', 'Eve').replace('Overnight', 'Ovnt');
-      items.push({ label: shortName.length > 5 ? shortName.slice(0, 5) : shortName, emoji: getConditionEmoji(p.shortForecast), tempF: p.temperature_f });
+  const formatTafTime = (iso: string): string => {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffHrs = (d.getTime() - now.getTime()) / (1000 * 60 * 60);
+    if (diffHrs < 1 && diffHrs > -1) return 'Now';
+    const h = d.getUTCHours().toString().padStart(2, '0');
+    const m = d.getUTCMinutes().toString().padStart(2, '0');
+    return `${h}${m}Z`;
+  };
+
+  const items: { label: string; emoji: string; detail?: string; wxCodes?: string[] }[] = [];
+
+  if (tafData?.periods?.length > 0) {
+    tafData.periods.forEach((p: any) => {
+      const label = p.from ? formatTafTime(p.from) : p.changeType || '—';
+      const prefix = p.changeType === 'TEMPO' ? '~' : p.changeType === 'BECMG' ? '→' : '';
+      const windInfo = p.windSpeedKts != null ? `${p.windSpeedKts}kt` : '';
+      const gustInfo = p.windGustKts != null ? `G${p.windGustKts}` : '';
+      const visInfo = p.visibilitySM != null && p.visibilitySM < 6 ? `${p.visibilitySM}SM` : '';
+      const detail = [windInfo + gustInfo, visInfo].filter(Boolean).join(' ') || '';
+      items.push({
+        label: prefix + label,
+        emoji: getConditionEmoji(p.condition),
+        detail,
+        wxCodes: p.wxCodes,
+      });
     });
-  } else if (forecast.length > 0) {
-    forecast.slice(0, 7).forEach((f: any, i: number) => {
-      const d = new Date(f.date + 'T12:00:00');
-      const dayName = i === 0 ? 'Today' : d.toLocaleDateString('en', { weekday: 'short' });
-      items.push({ label: dayName, emoji: getConditionEmoji(f.day.condition), tempF: Math.round(f.day.maxtemp_f) });
-    });
+  } else if (forecastData) {
+    const nwsPeriods = forecastData.nws_periods || [];
+    const forecast = forecastData.forecast || [];
+    if (nwsPeriods.length > 0) {
+      nwsPeriods.slice(0, 8).forEach((p: any) => {
+        const shortName = p.name.replace(' Night', ' N').replace('This Afternoon', 'PM').replace('Tonight', 'Eve').replace('Overnight', 'Ovnt');
+        items.push({ label: shortName.length > 5 ? shortName.slice(0, 5) : shortName, emoji: getConditionEmoji(p.shortForecast), detail: p.temperature_f != null ? `${p.temperature_f}°` : '' });
+      });
+    } else if (forecast.length > 0) {
+      forecast.slice(0, 7).forEach((f: any, i: number) => {
+        const d = new Date(f.date + 'T12:00:00');
+        const dayName = i === 0 ? 'Today' : d.toLocaleDateString('en', { weekday: 'short' });
+        items.push({ label: dayName, emoji: getConditionEmoji(f.day.condition), detail: `${Math.round(f.day.maxtemp_f)}°` });
+      });
+    }
   }
+
   if (items.length === 0) return null;
 
+  const isTaf = !!tafData?.periods?.length;
+
   return (
-    <div className="overflow-x-auto scrollbar-hide">
-      <div className="flex gap-1 min-w-max px-1">
-        {items.map((item, i) => (
-          <div key={i} className="flex flex-col items-center px-1.5 py-1 rounded-lg bg-slate-700/20 min-w-[42px]">
-            <span className="text-[8px] text-slate-500 uppercase">{item.label}</span>
-            <span className="text-base my-0.5">{item.emoji}</span>
-            {item.tempF != null && <span className="text-[9px] text-slate-400">{item.tempF}°</span>}
-          </div>
-        ))}
+    <div>
+      <div className="flex items-center gap-1.5 mb-1">
+        <span className="text-[9px] text-slate-500 font-medium uppercase tracking-wider">
+          {isTaf ? `TAF Forecast · ${tafData.icao}` : 'Forecast Trend'}
+        </span>
+        {isTaf && tafData.validTo && (
+          <span className="text-[8px] text-slate-600">
+            Valid thru {new Date(tafData.validTo).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}
+          </span>
+        )}
+      </div>
+      <div className="overflow-x-auto scrollbar-hide">
+        <div className="flex gap-1 min-w-max px-1">
+          {items.map((item, i) => (
+            <div key={i} className="flex flex-col items-center px-1.5 py-1 rounded-lg bg-slate-700/20 min-w-[42px]">
+              <span className="text-[8px] text-slate-500 uppercase font-mono">{item.label}</span>
+              <span className="text-base my-0.5">{item.emoji}</span>
+              {item.wxCodes && item.wxCodes.length > 0 && (
+                <span className="text-[7px] text-amber-400 font-mono">{item.wxCodes.join(' ')}</span>
+              )}
+              {item.detail && <span className="text-[8px] text-slate-400 font-mono">{item.detail}</span>}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -747,11 +800,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
           </div>
 
           <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm">📡</span>
-              <span className="text-[10px] text-slate-400 uppercase font-semibold">Forecast Trend</span>
-            </div>
-            <ForecastIconStrip lat={lat} lon={lon} />
+            <ForecastIconStrip lat={lat} lon={lon} icao={stationData.icao} />
           </div>
 
           <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-2">
