@@ -6780,6 +6780,7 @@ Guidelines:
           speedMs: Math.round(windSpeedKts * 0.51444 * 10) / 10,
           gustMs: windGustKts != null ? Math.round(windGustKts * 0.51444 * 10) / 10 : null,
           beaufort: getBeaufort(windSpeedKts),
+          gustBeaufort: windGustKts != null ? getBeaufort(windGustKts) : null,
         },
         pressure: {
           inHg: pressureInHg,
