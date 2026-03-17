@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useLanguage } from '@/hooks/use-language';
+import { useAutoTranslate } from '@/hooks/use-auto-translate';
 import { Star, MapPin, RefreshCw, ChevronDown, TrendingUp, TrendingDown, Minus, Droplets, Thermometer, AlertTriangle, Radio, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -124,6 +125,7 @@ function getDirectionFromBearing(deg: number): string {
 }
 
 function WindCompass({ wind, windUnit, cycleWind }: { wind: StationData['wind']; windUnit: WindUnit; cycleWind: () => void }) {
+  const { at } = useAutoTranslate();
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   const isCalm = wind.speedKts === 0;
 
@@ -186,13 +188,13 @@ function WindCompass({ wind, windUnit, cycleWind }: { wind: StationData['wind'];
       <TappableValue onClick={cycleWind} hint={nextUnit[windUnit]}>
         <div className="flex items-center gap-4 mt-1">
           <div className="text-center">
-            <span className="text-[9px] text-slate-500 uppercase block">Speed</span>
+            <span className="text-[9px] text-slate-500 uppercase block">{at('Speed')}</span>
             <span className="text-white font-bold text-sm">{d.speed ?? '--'}</span>
             <span className="text-slate-400 text-[10px]"> {d.unit}</span>
           </div>
           {d.gust != null && (
             <div className="text-center">
-              <span className="text-[9px] text-slate-500 uppercase block">Gust</span>
+              <span className="text-[9px] text-slate-500 uppercase block">{at('Gust')}</span>
               <span className="text-orange-400 font-bold text-sm">{d.gust}</span>
               <span className="text-slate-400 text-[10px]"> {d.unit}</span>
             </div>
@@ -201,9 +203,9 @@ function WindCompass({ wind, windUnit, cycleWind }: { wind: StationData['wind'];
       </TappableValue>
       {windUnit === 'beaufort' && (
         <span className="text-[9px] text-green-400 mt-0.5">
-          {wind.beaufort.description}
+          {at(wind.beaufort.description)}
           {wind.gustBeaufort && wind.gustBeaufort.scale !== wind.beaufort.scale && (
-            <span className="text-orange-400"> · Gusts: {wind.gustBeaufort.description}</span>
+            <span className="text-orange-400"> · {at('Gusts')}: {at(wind.gustBeaufort.description)}</span>
           )}
         </span>
       )}
@@ -246,6 +248,7 @@ function PressureTrendIcon({ trend }: { trend: string }) {
 }
 
 function FlightCategoryBanner({ fltCat }: { fltCat: string | null }) {
+  const { at } = useAutoTranslate();
   if (!fltCat) return null;
   const cats: Record<string, { color: string; bg: string; border: string; label: string; desc: string }> = {
     VFR: { color: 'text-green-400', bg: 'bg-green-900/20', border: 'border-green-500/40', label: 'VFR', desc: 'Visual Flight Rules — Clear conditions' },
@@ -259,7 +262,7 @@ function FlightCategoryBanner({ fltCat }: { fltCat: string | null }) {
       <div className="flex items-center gap-2">
         <div className={`w-3 h-3 rounded-full ${c.color.replace('text-', 'bg-')} ${fltCat !== 'VFR' ? 'animate-pulse' : ''}`} />
         <span className={`text-sm font-bold ${c.color}`}>{c.label}</span>
-        <span className="text-[10px] text-slate-400">{c.desc}</span>
+        <span className="text-[10px] text-slate-400">{at(c.desc)}</span>
       </div>
     </div>
   );
@@ -415,6 +418,7 @@ function formatTimeLabel(time: number, includeMinute = false): string {
 }
 
 function TrendGraphs({ history, tempUnit }: { history: HistoryPoint[]; tempUnit: TempUnit }) {
+  const { at } = useAutoTranslate();
   if (!history || history.length < 3) return null;
   const tempData = history.map(h => ({ time: h.time, value: tempUnit === 'f' ? h.tempF : h.tempC }));
   const feelsData = history.map(h => ({ time: h.time, value: tempUnit === 'f' ? h.feelsLikeF : (h.feelsLikeF != null ? Math.round((h.feelsLikeF - 32) * 5 / 9) : null) }));
@@ -427,19 +431,20 @@ function TrendGraphs({ history, tempUnit }: { history: HistoryPoint[]; tempUnit:
     <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3 space-y-4">
       <div className="flex items-center gap-2 mb-1">
         <span className="text-sm">📈</span>
-        <span className="text-[10px] text-slate-400 uppercase font-semibold">24-Hour Trends</span>
-        <span className="text-[8px] text-slate-600">({history.length} observations)</span>
+        <span className="text-[10px] text-slate-400 uppercase font-semibold">{at('24-Hour Trends')}</span>
+        <span className="text-[8px] text-slate-600">({history.length} {at('observations')})</span>
       </div>
-      <SparklineChart data={tempData} color="#ef4444" label={`Temperature (${tempUnit === 'f' ? '°F' : '°C'})`} unit={tempUnit === 'f' ? '°F' : '°C'} showFeelsLike feelsLikeData={feelsData} />
-      <SparklineChart data={pressData} color="#a78bfa" label="Pressure (inHg)" unit=" inHg" />
-      <SparklineChart data={windData} color="#22c55e" label="Wind Speed (mph)" unit=" mph"
-        secondaryData={hasGusts ? gustData : undefined} secondaryColor="#f97316" secondaryLabel="Gusts" />
-      <SparklineChart data={visData} color="#38bdf8" label="Visibility (mi)" unit=" mi" />
+      <SparklineChart data={tempData} color="#ef4444" label={`${at('Temperature')} (${tempUnit === 'f' ? '°F' : '°C'})`} unit={tempUnit === 'f' ? '°F' : '°C'} showFeelsLike feelsLikeData={feelsData} />
+      <SparklineChart data={pressData} color="#a78bfa" label={`${at('Pressure')} (inHg)`} unit=" inHg" />
+      <SparklineChart data={windData} color="#22c55e" label={`${at('Wind Speed')} (mph)`} unit=" mph"
+        secondaryData={hasGusts ? gustData : undefined} secondaryColor="#f97316" secondaryLabel={at('Gusts')} />
+      <SparklineChart data={visData} color="#38bdf8" label={`${at('Visibility')} (mi)`} unit=" mi" />
     </div>
   );
 }
 
 function PressureTendencyChart({ history }: { history: HistoryPoint[] }) {
+  const { at } = useAutoTranslate();
   const valid = history.filter(h => h.pressureMb != null).map(h => ({ time: h.time, value: h.pressureMb! }));
   const [tappedIdx, setTappedIdx] = useState<number | null>(null);
   if (valid.length < 3) return null;
@@ -454,7 +459,7 @@ function PressureTendencyChart({ history }: { history: HistoryPoint[] }) {
   const first = valid[0].value;
   const last = valid[valid.length - 1].value;
   const diff = last - first;
-  const trendLabel = diff > 0.5 ? '↑ Rising' : diff < -0.5 ? '↓ Falling' : '→ Steady';
+  const trendLabel = diff > 0.5 ? `↑ ${at('Rising')}` : diff < -0.5 ? `↓ ${at('Falling')}` : `→ ${at('Steady')}`;
   const trendColor = diff > 0.5 ? 'text-green-400' : diff < -0.5 ? 'text-red-400' : 'text-slate-400';
   const pts = valid.map((d, i) => ({
     x: pad + (i / (valid.length - 1)) * (w - pad * 2),
@@ -477,7 +482,7 @@ function PressureTendencyChart({ history }: { history: HistoryPoint[] }) {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-sm">📊</span>
-          <span className="text-[10px] text-slate-400 uppercase font-semibold">Pressure Tendency</span>
+          <span className="text-[10px] text-slate-400 uppercase font-semibold">{at('Pressure Tendency')}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className={`text-[10px] font-semibold ${trendColor}`}>{trendLabel}</span>
@@ -526,6 +531,7 @@ function PressureTendencyChart({ history }: { history: HistoryPoint[] }) {
 }
 
 function WindDirectionChart({ history }: { history: HistoryPoint[] }) {
+  const { at } = useAutoTranslate();
   const [tappedIdx, setTappedIdx] = useState<number | null>(null);
   const valid = history.filter(h => h.windDir != null && h.windSpeedKts > 0);
   if (valid.length < 3) return null;
@@ -568,7 +574,7 @@ function WindDirectionChart({ history }: { history: HistoryPoint[] }) {
     <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-sm">🧭</span>
-        <span className="text-[10px] text-slate-400 uppercase font-semibold">Wind Direction (24h)</span>
+        <span className="text-[10px] text-slate-400 uppercase font-semibold">{at('Wind Direction')} (24h)</span>
         <span className="text-[8px] text-slate-600">{valid.length} obs</span>
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full cursor-pointer" style={{ height: `${h}px` }}
@@ -618,7 +624,7 @@ function WindDirectionChart({ history }: { history: HistoryPoint[] }) {
         <span className="text-[8px] text-slate-600 ml-1">0°N</span>
       </div>
       <div className="mt-2 space-y-1">
-        <span className="text-[8px] text-slate-500 uppercase font-semibold">Predominant Directions</span>
+        <span className="text-[8px] text-slate-500 uppercase font-semibold">{at('Predominant Directions')}</span>
         <div className="flex flex-wrap gap-1.5 mt-0.5">
           {topDirs.slice(0, 6).map(d => {
             const barColor = d.avgSpd >= 20 ? 'bg-red-500' : d.avgSpd >= 10 ? 'bg-orange-500' : 'bg-green-500';
@@ -643,6 +649,7 @@ function WindDirectionChart({ history }: { history: HistoryPoint[] }) {
 }
 
 function ConditionTimeline({ history }: { history: HistoryPoint[] }) {
+  const { at } = useAutoTranslate();
   const [tappedIdx, setTappedIdx] = useState<number | null>(null);
   if (!history || history.length < 3) return null;
   const getConditionInfo = (h: HistoryPoint): { emoji: string; color: string; label: string } => {
@@ -668,7 +675,7 @@ function ConditionTimeline({ history }: { history: HistoryPoint[] }) {
     <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-sm">🕐</span>
-        <span className="text-[10px] text-slate-400 uppercase font-semibold">24-Hour Conditions</span>
+        <span className="text-[10px] text-slate-400 uppercase font-semibold">{at('24-Hour Conditions')}</span>
       </div>
       <div className="flex gap-[1px] rounded-lg overflow-hidden h-7 cursor-pointer">
         {items.map((item, i) => (
@@ -683,15 +690,15 @@ function ConditionTimeline({ history }: { history: HistoryPoint[] }) {
         <div className="flex justify-between items-center text-[8px] mt-1">
           <span className="text-slate-400">{formatTimeLabel(tapped.time, true)}</span>
           <span className="text-white font-medium">
-            {tapped.emoji} {tapped.label} · {tapped.tempF}°F · {tapped.windMph} mph · {tapped.vis} mi
+            {tapped.emoji} {at(tapped.label)} · {tapped.tempF}°F · {tapped.windMph} mph · {tapped.vis} mi
           </span>
           <button onClick={() => setTappedIdx(null)} className="text-slate-600 hover:text-slate-400">✕</button>
         </div>
       ) : (
         <div className="flex justify-between text-[8px] text-slate-600 mt-1">
           <span>{formatTimeLabel(items[0]?.time)}</span>
-          <span className="text-slate-500 italic">Tap a segment for details</span>
-          <span>Now</span>
+          <span className="text-slate-500 italic">{at('Tap a segment for details')}</span>
+          <span>{at('Now')}</span>
         </div>
       )}
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
@@ -701,7 +708,7 @@ function ConditionTimeline({ history }: { history: HistoryPoint[] }) {
           return (
             <div key={label} className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-              <span className="text-[8px] text-slate-500">{item.emoji} {label} {pct}%</span>
+              <span className="text-[8px] text-slate-500">{item.emoji} {at(label)} {pct}%</span>
             </div>
           );
         })}
@@ -711,6 +718,7 @@ function ConditionTimeline({ history }: { history: HistoryPoint[] }) {
 }
 
 function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?: string }) {
+  const { at } = useAutoTranslate();
   const [selectedIcao, setSelectedIcao] = useState<string | undefined>(icao);
   const [showStationPicker, setShowStationPicker] = useState(false);
 
@@ -855,7 +863,7 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-1.5">
           <span className="text-[9px] text-slate-500 font-medium uppercase tracking-wider">
-            {isTaf ? `TAF Forecast · ${tafData.icao}` : 'Forecast Trend'}
+            {isTaf ? `${at('TAF Forecast')} · ${tafData.icao}` : at('Forecast Trend')}
           </span>
           {isTaf && (
             <span className="text-[8px] text-slate-600">
@@ -966,6 +974,7 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
 }
 
 function AlertTicker({ lat, lon, icao, windUnit }: { lat: number; lon: number; icao?: string; windUnit?: WindUnit }) {
+  const { at } = useAutoTranslate();
   const { data: nwsData } = useQuery<any>({
     queryKey: ['/api/nws-alerts', lat, lon],
     queryFn: async () => { const r = await fetch(`/api/nws-alerts?lat=${lat}&lon=${lon}`); if (!r.ok) return { alerts: [] }; return r.json(); },
@@ -1085,7 +1094,7 @@ function AlertTicker({ lat, lon, icao, windUnit }: { lat: number; lon: number; i
       <div className="flex items-center gap-2 px-2 py-1 border-b border-slate-700/20 bg-slate-700/30">
         <Radio className="w-3 h-3 text-green-400 animate-pulse" />
         <span className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">
-          {nwsAlerts.length > 0 ? 'Active Alerts' : tafData?.periods?.length > 0 ? `TAF Outlook · ${icao}` : 'Forecast Outlook'}
+          {nwsAlerts.length > 0 ? at('Active Alerts') : tafData?.periods?.length > 0 ? `${at('TAF Outlook')} · ${icao}` : at('Forecast Outlook')}
         </span>
       </div>
       <div className="overflow-hidden relative h-6 flex items-center">
@@ -1100,6 +1109,7 @@ function AlertTicker({ lat, lon, icao, windUnit }: { lat: number; lon: number; i
 }
 
 function MetarDecoder({ decoded }: { decoded: StationData['decoded'] }) {
+  const { at } = useAutoTranslate();
   const [expanded, setExpanded] = useState(false);
   if (!decoded || decoded.length === 0) return null;
 
@@ -1111,7 +1121,7 @@ function MetarDecoder({ decoded }: { decoded: StationData['decoded'] }) {
       <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-700/20 transition-colors">
         <div className="flex items-center gap-2">
           <span className="text-sm">📋</span>
-          <span className="text-[10px] text-slate-400 uppercase font-semibold">METAR Decoded</span>
+          <span className="text-[10px] text-slate-400 uppercase font-semibold">{at('METAR Decoded')}</span>
           {severityItems.length > 0 && (
             <Badge className="text-[8px] px-1 py-0 h-3.5 bg-red-900/30 text-red-400 border-red-600/30">
               {severityItems.length} alert{severityItems.length > 1 ? 's' : ''}
@@ -1140,7 +1150,7 @@ function MetarDecoder({ decoded }: { decoded: StationData['decoded'] }) {
           </div>
         ))}
         {!expanded && decoded.length > display.length && (
-          <span className="text-[9px] text-slate-600 block text-center">Tap to see all {decoded.length} decoded fields</span>
+          <span className="text-[9px] text-slate-600 block text-center">{at('Tap to see all')} {decoded.length} {at('decoded fields')}</span>
         )}
       </div>
     </div>
@@ -1149,6 +1159,7 @@ function MetarDecoder({ decoded }: { decoded: StationData['decoded'] }) {
 
 export default function WeatherStationConsole({ lat, lon, locationName }: { lat: number; lon: number; locationName: string }) {
   const { t } = useLanguage();
+  const { at } = useAutoTranslate();
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
   const [showStationPicker, setShowStationPicker] = useState(false);
   const [searchIcao, setSearchIcao] = useState('');
@@ -1278,8 +1289,8 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
     return (
       <div className="flex flex-col items-center justify-center h-64 text-slate-500">
         <Radio className="w-8 h-8 mb-2 opacity-50" />
-        <span className="text-sm">No weather stations found nearby</span>
-        <span className="text-xs mt-1">Try expanding the search radius</span>
+        <span className="text-sm">{at('No weather stations found nearby')}</span>
+        <span className="text-xs mt-1">{at('Try expanding the search radius')}</span>
       </div>
     );
   }
@@ -1300,7 +1311,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Radio className="w-4 h-4 text-green-400" />
-          <span className="text-sm font-bold text-white">Weather Station</span>
+          <span className="text-sm font-bold text-white">{at('Weather Station')}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <button onClick={() => refetch()} className="p-1.5 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 transition-colors">
@@ -1321,7 +1332,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
           <MapPin className="w-3.5 h-3.5 text-green-400" />
           <div className="text-left">
             <span className="text-white text-xs font-semibold block">{stationData?.name || activeIcao}</span>
-            <span className="text-slate-500 text-[9px]">{activeIcao} {activeStationInfo ? `• ${activeStationInfo.distance} mi away` : ''} {stationData?.elev ? `• ${Math.round(stationData.elev)}m elev` : ''}</span>
+            <span className="text-slate-500 text-[9px]">{activeIcao} {activeStationInfo ? `• ${activeStationInfo.distance} ${at('mi away')}` : ''} {stationData?.elev ? `• ${Math.round(stationData.elev)}m ${at('elev')}` : ''}</span>
           </div>
         </div>
         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showStationPicker ? 'rotate-180' : ''}`} />
@@ -1340,7 +1351,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
           </div>
           {(favorites || []).length > 0 && (
             <div className="px-2 pt-1.5 pb-1">
-              <span className="text-[9px] text-yellow-400 uppercase font-semibold">★ Favorites</span>
+              <span className="text-[9px] text-yellow-400 uppercase font-semibold">★ {at('Favorites')}</span>
               {favorites!.map(f => (
                 <button key={`fav-${f.id}`} onClick={() => selectStation(f.icao)}
                   className={`w-full flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-700/30 text-left ${f.icao === activeIcao ? 'bg-green-900/20' : ''}`}>
@@ -1352,7 +1363,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
             </div>
           )}
           <div className="px-2 pt-1.5 pb-2 max-h-48 overflow-y-auto">
-            <span className="text-[9px] text-slate-500 uppercase font-semibold">Nearby Stations</span>
+            <span className="text-[9px] text-slate-500 uppercase font-semibold">{at('Nearby Stations')}</span>
             {stations.map(s => (
               <button key={s.icao} onClick={() => selectStation(s.icao)}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-700/30 text-left ${s.icao === activeIcao ? 'bg-green-900/20' : ''}`}>
@@ -1372,9 +1383,9 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
             <div className="flex items-center justify-center gap-1.5">
               <div className={`w-1.5 h-1.5 rounded-full ${obsAge < 30 ? 'bg-green-400 animate-pulse' : obsAge < 60 ? 'bg-yellow-400' : 'bg-red-400'}`} />
               <span className="text-[9px] text-slate-500">
-                {obsAge < 2 ? 'Live' : `Updated ${obsAge} min ago`}
+                {obsAge < 2 ? at('Live') : `${at('Updated')} ${obsAge} ${at('min ago')}`}
               </span>
-              <span className="text-[8px] text-slate-600 ml-2">Tap values to change units ⟳</span>
+              <span className="text-[8px] text-slate-600 ml-2">{at('Tap values to change units')} ⟳</span>
             </div>
           )}
 
@@ -1398,7 +1409,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
 
             <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3 flex flex-col items-center justify-center">
               <Thermometer className="w-5 h-5 text-red-400 mb-1" />
-              <span className="text-[9px] text-slate-500 uppercase">Temperature</span>
+              <span className="text-[9px] text-slate-500 uppercase">{at('Temperature')}</span>
               <TappableValue onClick={cycleTemp} hint={nextTemp}>
                 <div className="text-center">
                   <span className="text-white font-bold text-2xl">{getTempDisplay(stationData.tempF, stationData.tempC).val ?? '--'}</span>
@@ -1409,7 +1420,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
               {stationData.feelsLike && (
                 <div className="mt-1 text-center">
                   <span className="text-[9px] text-slate-500 uppercase block">
-                    {stationData.feelsLike.type === 'windchill' ? 'Wind Chill' : stationData.feelsLike.type === 'heatindex' ? 'Heat Index' : 'Feels Like'}
+                    {stationData.feelsLike.type === 'windchill' ? at('Wind Chill') : stationData.feelsLike.type === 'heatindex' ? at('Heat Index') : at('Feels Like')}
                   </span>
                   <TappableValue onClick={cycleTemp} hint={nextTemp}>
                     <span className="text-slate-300 text-xs font-semibold">
@@ -1425,7 +1436,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
 
             <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3 flex flex-col items-center justify-center">
               <Droplets className="w-5 h-5 text-blue-400 mb-1" />
-              <span className="text-[9px] text-slate-500 uppercase">Dew Point</span>
+              <span className="text-[9px] text-slate-500 uppercase">{at('Dew Point')}</span>
               <TappableValue onClick={cycleTemp} hint={nextTemp}>
                 <div className="text-center">
                   <span className="text-white font-bold text-lg">{getTempDisplay(stationData.dewF, stationData.dewC).val ?? '--'}</span>
@@ -1437,22 +1448,22 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
           </div>
 
           <div className="grid grid-cols-3 gap-2">
-            <CircularGauge value={stationData.humidity} max={100} label="Humidity" unit="%" color="#3b82f6" icon="💧" />
+            <CircularGauge value={stationData.humidity} max={100} label={at('Humidity')} unit="%" color="#3b82f6" icon="💧" />
             {(() => {
               const vis = getVisDisplay(stationData.visibility);
               return (
-                <CircularGauge value={vis.val} max={vis.max} label="Visibility" unit={vis.unit} color="#a78bfa" icon="👁️"
+                <CircularGauge value={vis.val} max={vis.max} label={at('Visibility')} unit={vis.unit} color="#a78bfa" icon="👁️"
                   onClick={cycleVis} hint={nextVis[visUnit]} />
               );
             })()}
-            <CircularGauge value={uvIndex} max={11} label="UV Index" unit="" color={uvIndex != null && uvIndex >= 8 ? '#ef4444' : uvIndex != null && uvIndex >= 6 ? '#f97316' : '#22c55e'} icon="☀️" />
+            <CircularGauge value={uvIndex} max={11} label={at('UV Index')} unit="" color={uvIndex != null && uvIndex >= 8 ? '#ef4444' : uvIndex != null && uvIndex >= 6 ? '#f97316' : '#22c55e'} icon="☀️" />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm">🌡️</span>
-                <span className="text-[10px] text-slate-400 uppercase font-semibold">Barometer</span>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold">{at('Barometer')}</span>
                 <PressureTrendIcon trend={stationData.pressure.trend} />
               </div>
               <TappableValue onClick={cyclePress} hint={nextPress[pressUnit]}>
@@ -1482,9 +1493,9 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
                   stationData.pressure.trend === 'falling' ? 'bg-red-900/30 text-red-400' :
                   'bg-slate-700/30 text-slate-400'
                 }`}>
-                  {stationData.pressure.trend === 'rising' ? '↑ Rising' :
-                   stationData.pressure.trend === 'falling' ? '↓ Falling' :
-                   stationData.pressure.trend === 'steady' ? '→ Steady' : '-- Unknown'}
+                  {stationData.pressure.trend === 'rising' ? `↑ ${at('Rising')}` :
+                   stationData.pressure.trend === 'falling' ? `↓ ${at('Falling')}` :
+                   stationData.pressure.trend === 'steady' ? `→ ${at('Steady')}` : `-- ${at('Unknown')}`}
                 </Badge>
               </div>
             </div>
@@ -1492,7 +1503,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
             <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm">🌧️</span>
-                <span className="text-[10px] text-slate-400 uppercase font-semibold">Precipitation</span>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold">{at('Precipitation')}</span>
               </div>
               <TappableValue onClick={cyclePrecip} hint={precipUnit === 'in' ? 'mm' : precipUnit === 'mm' ? 'cm' : 'in'}>
                 <div className="text-center w-full">
@@ -1512,10 +1523,10 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
                   {precipUnit === 'in' && <span className="text-slate-500 text-[10px]">{(stationData.precip * 25.4).toFixed(1)} mm</span>}
                 </div>
               )}
-              <span className="text-[9px] text-slate-500 block text-center mt-0.5">Accumulation</span>
+              <span className="text-[9px] text-slate-500 block text-center mt-0.5">{at('Accumulation')}</span>
               {stationData.clouds && stationData.clouds.length > 0 && (
                 <div className="mt-2 space-y-0.5">
-                  <span className="text-[9px] text-slate-500 uppercase block">Cloud Cover</span>
+                  <span className="text-[9px] text-slate-500 uppercase block">{at('Cloud Cover')}</span>
                   {stationData.clouds.map((c: any, i: number) => (
                     <div key={i} className="flex justify-between text-[10px]">
                       <span className="text-slate-400">{c.cover}</span>
@@ -1532,11 +1543,11 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
               <div className="flex items-center gap-2">
                 <span className="text-lg">{stationData.moonPhase.icon}</span>
                 <div>
-                  <span className="text-white text-xs font-semibold block">{stationData.moonPhase.name}</span>
-                  <span className="text-slate-500 text-[9px]">{stationData.moonPhase.illumination}% illuminated</span>
+                  <span className="text-white text-xs font-semibold block">{at(stationData.moonPhase.name)}</span>
+                  <span className="text-slate-500 text-[9px]">{stationData.moonPhase.illumination}% {at('illuminated')}</span>
                 </div>
               </div>
-              <span className="text-[9px] text-slate-600">Day {stationData.moonPhase.age} of 29</span>
+              <span className="text-[9px] text-slate-600">{at('Day')} {stationData.moonPhase.age} {at('of')} 29</span>
             </div>
           </div>
 
@@ -1555,7 +1566,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
 
           <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-2">
             <details>
-              <summary className="text-[9px] text-slate-500 cursor-pointer hover:text-slate-400">Raw METAR</summary>
+              <summary className="text-[9px] text-slate-500 cursor-pointer hover:text-slate-400">{at('Raw METAR')}</summary>
               <code className="text-[9px] text-green-400 block mt-1 font-mono break-all">{stationData.rawOb}</code>
             </details>
           </div>
@@ -1565,9 +1576,9 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
       {isError && !stationData && (
         <div className="flex flex-col items-center justify-center h-48 text-slate-500">
           <AlertTriangle className="w-6 h-6 text-amber-400 mb-2" />
-          <span className="text-sm text-amber-300">Station data unavailable</span>
-          <span className="text-xs mt-1">Check the ICAO code or try another station</span>
-          <button onClick={() => refetch()} className="mt-3 px-3 py-1 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 text-xs text-slate-400">Retry</button>
+          <span className="text-sm text-amber-300">{at('Station data unavailable')}</span>
+          <span className="text-xs mt-1">{at('Check the ICAO code or try another station')}</span>
+          <button onClick={() => refetch()} className="mt-3 px-3 py-1 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 text-xs text-slate-400">{at('Retry')}</button>
         </div>
       )}
 
@@ -1575,7 +1586,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
         <div className="space-y-3 animate-pulse">
           <div className="flex items-center justify-center gap-1.5 py-1">
             <div className="w-1.5 h-1.5 rounded-full bg-slate-600 animate-pulse" />
-            <span className="text-[9px] text-slate-600">Loading station data…</span>
+            <span className="text-[9px] text-slate-600">{at('Loading station data…')}</span>
           </div>
           <div className="rounded-lg bg-slate-800/50 border border-slate-700/30 h-6" />
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

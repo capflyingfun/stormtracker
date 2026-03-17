@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronUp, ChevronDown, GripVertical, X, LayoutList } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
+import { useAutoTranslate } from "@/hooks/use-auto-translate";
 
 export interface SectionConfig {
   id: string;
@@ -52,10 +53,12 @@ interface SectionReorderProps {
 export default function SectionReorder({ onClose, onOrderChange, currentOrder }: SectionReorderProps) {
   const [order, setOrder] = useState<string[]>(currentOrder);
   const { t } = useLanguage();
+  const { at } = useAutoTranslate();
 
   const translatedLabels: Record<string, string> = {
     'isa': t.immediacySafetyAlert,
     'weather': t.weatherDashboard,
+    'station': at('Weather Station'),
     'summary': t.stormSummary,
     'ai': t.aiWeatherAssistant,
     'radar': t.radarDisplay,
