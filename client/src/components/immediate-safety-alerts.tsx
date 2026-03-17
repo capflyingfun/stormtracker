@@ -108,29 +108,13 @@ const getDirectionName = getCompassDirection;
 const getIntensityCategory = getStormCategory;
 
 export default function ImmediateSafetyAlerts({ location, storms, isLoading, windsAloftData }: ImmediateSafetyAlertsProps) {
-  const [showAlerts, setShowAlerts] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [alertsLoaded, setAlertsLoaded] = useState(false);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const { language } = useLanguage();
-
-  // Delay showing alerts for 3 seconds to allow storm calculations to complete
-  useEffect(() => {
-    if (location && storms.length >= 0) {
-      setIsAnimating(true);
-      const timer = setTimeout(() => {
-        setShowAlerts(true);
-        setIsAnimating(false);
-      }, 3000); // 3 second delay
-      
-      return () => clearTimeout(timer);
-    }
-  }, [location, storms.length]);
 
   // Get NWS alerts after delay
   const { data: nwsAlerts = [], isLoading: alertsLoading } = useQuery({
     queryKey: ['/api/nws-alerts', location?.lat, location?.lon],
-    enabled: !!location && showAlerts,
+    enabled: !!location,
     queryFn: async () => {
       if (!location) return [];
       const response = await fetch(`/api/nws-alerts?lat=${location.lat}&lon=${location.lon}`);
@@ -343,12 +327,10 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
   }
 
   return (
-    <div className={`bg-red-900/30 rounded-xl p-3 sm:p-4 border border-red-600/30 mb-4 sm:mb-6 transition-all duration-500 select-none ${
-      showAlerts ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform translate-y-2'
-    }`}>
+    <div className="bg-red-900/30 rounded-xl p-3 sm:p-4 border border-red-600/30 mb-4 sm:mb-6 select-none">
       <div className="flex items-center justify-between mb-3 select-none">
         <div className="flex items-center gap-2 select-none">
-          {isAnimating ? (
+          {alertsLoading ? (
             <Loader2 className="h-5 w-5 text-red-400 animate-spin select-none" />
           ) : (
             <AlertTriangle className="h-5 w-5 text-red-400 select-none" />
@@ -356,12 +338,12 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
           <h3 className="text-lg font-semibold text-red-200 select-none">
             Immediate Safety Alerts
           </h3>
-          {!isAnimating && totalAlerts > 0 && (
-            <span className="bg-red-600 text-white px-2 py-1 rounded-full text-xs font-bold animate-fadeIn">
+          {!alertsLoading && totalAlerts > 0 && (
+            <span className="bg-red-600 text-white px-2 py-1 rounded-full text-xs font-bold">
               {totalAlerts}
             </span>
           )}
-          {isAnimating && (
+          {alertsLoading && (
             <span className="bg-slate-600/50 text-slate-400 px-2 py-1 rounded-full text-xs">
               Loading...
             </span>
@@ -369,7 +351,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
         </div>
         
         {/* Sort button for NWS alerts */}
-        {!isAnimating && filteredNwsAlerts.length > 1 && (
+        {!alertsLoading && filteredNwsAlerts.length > 1 && (
           <button
             onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
             className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 hover:text-red-100 bg-red-900/30 hover:bg-red-900/50 rounded transition-colors"
@@ -381,7 +363,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
         )}
       </div>
 
-      {isAnimating || alertsLoading ? (
+      {alertsLoading ? (
         <SkeletonLoader />
       ) : totalAlerts === 0 ? (
         <div className="text-center py-2 animate-fadeIn">
