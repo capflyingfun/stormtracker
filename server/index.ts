@@ -59,6 +59,20 @@ const app = express();
 app.use(express.json({ limit: '10mb' })); // Increase limit for AI assistant payloads
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
+// CORS for GitHub Pages static frontend
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && (origin.includes('github.io') || origin.includes('localhost'))) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Serve attached assets
 app.use('/attached_assets', express.static('attached_assets'));
 
