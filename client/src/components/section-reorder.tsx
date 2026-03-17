@@ -12,6 +12,7 @@ export interface SectionConfig {
 export const ALL_SECTIONS: SectionConfig[] = [
   { id: 'isa', label: 'Immediate Safety Alerts', icon: '🚨' },
   { id: 'weather', label: 'Weather Dashboard', icon: '🌤️' },
+  { id: 'station', label: 'Weather Station', icon: '🏠' },
   { id: 'summary', label: 'Storm Summary', icon: '⚡' },
   { id: 'ai', label: 'AI Weather Assistant', icon: '🤖' },
   { id: 'radar', label: 'Radar / Sonar / 3D', icon: '📡' },

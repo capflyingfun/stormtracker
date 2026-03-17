@@ -15,6 +15,7 @@ import AlertSettings from "@/components/alert-settings";
 import AlertSubscription from "@/components/alert-subscription";
 import SonarRadar from "@/components/sonar-radar";
 import WeatherDashboard from "@/components/weather-dashboard";
+import WeatherStationConsole from "@/components/weather-station-console";
 import SectionReorder, { getSectionOrder } from "@/components/section-reorder";
 
 import { Button } from "@/components/ui/button";
@@ -347,7 +348,7 @@ export default function StormTracker() {
   const [showMessages, setShowMessages] = useState(false);
   const [windsData, setWindsData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages'>('tracker');
-  const [mobileTab, setMobileTab] = useState<'radar' | 'weather' | 'storms' | 'ai' | 'alerts'>('radar');
+  const [mobileTab, setMobileTab] = useState<'radar' | 'weather' | 'station' | 'storms' | 'ai' | 'alerts'>('radar');
   const [mobileLocationExpanded, setMobileLocationExpanded] = useState(false);
   const [impactThreshold, setImpactThreshold] = useState(() => {
     const saved = localStorage.getItem('stormtracker_impact_threshold');
@@ -1067,6 +1068,16 @@ export default function StormTracker() {
                       locationName={location.name}
                     />
                   );
+                case 'station':
+                  return (
+                    <div key="station" className="bg-slate-800/50 rounded-xl p-3 sm:p-6 border border-slate-700/50 mb-4 sm:mb-6">
+                      <WeatherStationConsole
+                        lat={location.lat}
+                        lon={location.lon}
+                        locationName={location.name}
+                      />
+                    </div>
+                  );
                 case 'summary':
                   return filteredStorms.length > 0 ? (
                     <div key="summary" className="bg-slate-800/50 rounded-xl p-3 sm:p-6 border border-slate-700/50 mb-4 sm:mb-6">
@@ -1503,6 +1514,14 @@ export default function StormTracker() {
                 />
               )}
 
+              {mobileTab === 'station' && (
+                <WeatherStationConsole
+                  lat={location.lat}
+                  lon={location.lon}
+                  locationName={location.name}
+                />
+              )}
+
               {mobileTab === 'storms' && (
                 <div className="space-y-4">
                   {filteredStorms.length > 0 && (
@@ -1638,6 +1657,7 @@ export default function StormTracker() {
               {[
                 { id: 'radar' as const, icon: '📡', label: t.radar },
                 { id: 'weather' as const, icon: '🌤️', label: t.weather },
+                { id: 'station' as const, icon: '🏠', label: 'Station' },
                 { id: 'storms' as const, icon: '🌩️', label: t.storms },
                 { id: 'ai' as const, icon: '🤖', label: 'AI' },
                 { id: 'alerts' as const, icon: '🚨', label: t.alerts },
