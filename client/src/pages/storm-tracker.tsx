@@ -24,7 +24,7 @@ import AIWeatherAssistant from "@/components/ai-weather-assistant";
 import { LayoutList, ChevronDown, ChevronUp } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { apiRequest } from "@/lib/queryClient";
-import { useLoadingTier, SectionSkeleton } from "@/hooks/use-staggered-loading";
+import { SectionSkeleton } from "@/hooks/use-staggered-loading";
 
 // Embedded Message Inbox Component for Modal
 function EmbeddedMessageInbox() {

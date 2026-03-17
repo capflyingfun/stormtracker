@@ -773,8 +773,41 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
       )}
 
       {isLoading && !stationData && !isError && (
-        <div className="flex items-center justify-center h-48">
-          <RefreshCw className="w-6 h-6 text-slate-500 animate-spin" />
+        <div className="space-y-3 animate-pulse">
+          <div className="flex items-center justify-center gap-1.5 py-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-slate-600 animate-pulse" />
+            <span className="text-[9px] text-slate-600">Loading station data…</span>
+          </div>
+          <div className="rounded-lg bg-slate-800/50 border border-slate-700/30 h-6" />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="col-span-2 sm:col-span-2 rounded-xl bg-slate-800/40 border border-slate-700/20 p-3 flex justify-center">
+              <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-slate-700/15 border-2 border-slate-700/30 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-slate-700/20" />
+              </div>
+            </div>
+            <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
+              <div className="h-4 bg-slate-700/30 rounded w-16 mx-auto mb-2" />
+              <div className="h-8 bg-slate-700/25 rounded w-12 mx-auto mb-1" />
+              <div className="h-3 bg-slate-700/15 rounded w-10 mx-auto" />
+            </div>
+            <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
+              <div className="h-4 bg-slate-700/30 rounded w-14 mx-auto mb-2" />
+              <div className="h-6 bg-slate-700/25 rounded w-10 mx-auto mb-1" />
+              <div className="h-3 bg-slate-700/15 rounded w-10 mx-auto" />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="flex flex-col items-center">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-slate-700/15 border-4 border-slate-700/20" />
+                <div className="h-2.5 bg-slate-700/20 rounded w-14 mt-2" />
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3 h-28" />
+            <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3 h-28" />
+          </div>
         </div>
       )}
     </div>
