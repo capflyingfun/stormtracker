@@ -388,7 +388,7 @@ function SparklineChart({ data, color, label, unit, height = 56, showFeelsLike, 
       </svg>
       {tappedData?.value != null ? (
         <div className="flex justify-between text-[8px] mt-0.5">
-          <span className="text-slate-400">{formatTimeLabel(tappedData.time)}</span>
+          <span className="text-slate-400">{formatTimeLabel(tappedData.time, true)}</span>
           <span className="text-white font-medium">
             {tappedData.value}{unit}
             {tappedSecVal != null && <span className="text-orange-400 ml-1">G{tappedSecVal}{unit}</span>}
@@ -406,8 +406,11 @@ function SparklineChart({ data, color, label, unit, height = 56, showFeelsLike, 
   );
 }
 
-function formatTimeLabel(time: number): string {
+function formatTimeLabel(time: number, includeMinute = false): string {
   const d = new Date(time < 1e12 ? time * 1000 : time);
+  if (includeMinute) {
+    return d.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit', hour12: true });
+  }
   return d.toLocaleTimeString('en', { hour: 'numeric', hour12: true }).replace(' ', '');
 }
 
@@ -507,7 +510,7 @@ function PressureTendencyChart({ history }: { history: HistoryPoint[] }) {
       </svg>
       {tapped && tappedPt ? (
         <div className="flex justify-between text-[8px] mt-0.5">
-          <span className="text-slate-400">{formatTimeLabel(tapped.time)}</span>
+          <span className="text-slate-400">{formatTimeLabel(tapped.time, true)}</span>
           <span className="text-white font-medium">{tapped.value.toFixed(1)} mb</span>
           <button onClick={() => setTappedIdx(null)} className="text-slate-600 hover:text-slate-400">✕</button>
         </div>
@@ -522,67 +525,115 @@ function PressureTendencyChart({ history }: { history: HistoryPoint[] }) {
   );
 }
 
-function WindRose({ history }: { history: HistoryPoint[] }) {
+function WindDirectionChart({ history }: { history: HistoryPoint[] }) {
+  const [tappedIdx, setTappedIdx] = useState<number | null>(null);
+  const valid = history.filter(h => h.windDir != null && h.windSpeedKts > 0);
+  if (valid.length < 3) return null;
+
+  const dirLabel = (deg: number): string => {
+    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    return dirs[Math.round(deg / 22.5) % 16];
+  };
+
   const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
   const counts = new Array(16).fill(0);
   const speeds = new Array(16).fill(0);
-  let total = 0;
-  history.forEach(h => {
-    if (h.windDir != null && h.windSpeedKts > 0) {
-      const idx = Math.round(h.windDir / 22.5) % 16;
-      counts[idx]++;
-      speeds[idx] += h.windSpeedMph;
-      total++;
-    }
+  valid.forEach(h => {
+    const idx = Math.round(h.windDir! / 22.5) % 16;
+    counts[idx]++;
+    speeds[idx] += h.windSpeedMph;
   });
-  if (total < 3) return null;
   const maxCount = Math.max(...counts, 1);
-  const cx = 80;
-  const cy = 80;
-  const maxR = 55;
+  const topDirs = counts.map((c, i) => ({ dir: dirs[i], count: c, avgSpd: c > 0 ? speeds[i] / c : 0, pct: Math.round((c / valid.length) * 100) }))
+    .filter(d => d.count > 0)
+    .sort((a, b) => b.count - a.count);
+
+  const w = 280;
+  const h = 56;
+  const pad = 8;
+  const n = history.length;
+
+  const handleTap = (e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const xPct = (clientX - rect.left) / rect.width;
+    const idx = Math.round(xPct * (n - 1));
+    setTappedIdx(Math.max(0, Math.min(idx, n - 1)));
+  };
+
+  const tappedH = tappedIdx != null ? history[tappedIdx] : null;
+
   return (
     <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-sm">🧭</span>
-        <span className="text-[10px] text-slate-400 uppercase font-semibold">Wind Rose (24h)</span>
-        <span className="text-[8px] text-slate-600">{total} obs</span>
+        <span className="text-[10px] text-slate-400 uppercase font-semibold">Wind Direction (24h)</span>
+        <span className="text-[8px] text-slate-600">{valid.length} obs</span>
       </div>
-      <div className="flex justify-center">
-        <svg viewBox="0 0 160 160" className="w-40 h-40">
-          <circle cx={cx} cy={cy} r={maxR} fill="none" stroke="rgba(100,116,139,0.15)" strokeWidth="1" />
-          <circle cx={cx} cy={cy} r={maxR * 0.66} fill="none" stroke="rgba(100,116,139,0.1)" strokeWidth="1" />
-          <circle cx={cx} cy={cy} r={maxR * 0.33} fill="none" stroke="rgba(100,116,139,0.08)" strokeWidth="1" />
-          {[0, 45, 90, 135].map(a => {
-            const rad = (a - 90) * Math.PI / 180;
-            return <line key={a} x1={cx - maxR * Math.cos(rad)} y1={cy - maxR * Math.sin(rad)} x2={cx + maxR * Math.cos(rad)} y2={cy + maxR * Math.sin(rad)} stroke="rgba(100,116,139,0.08)" strokeWidth="1" />;
-          })}
-          {counts.map((count, i) => {
-            if (count === 0) return null;
-            const angle = (i * 22.5 - 90) * Math.PI / 180;
-            const r = (count / maxCount) * maxR;
-            const avgSpd = speeds[i] / count;
-            const barColor = avgSpd >= 20 ? '#ef4444' : avgSpd >= 10 ? '#f97316' : '#22c55e';
-            const x1 = cx;
-            const y1 = cy;
-            const x2 = cx + r * Math.cos(angle);
-            const y2 = cy + r * Math.sin(angle);
-            const perpAngle = angle + Math.PI / 2;
-            const barW = 4;
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full cursor-pointer" style={{ height: `${h}px` }}
+        onClick={handleTap} onTouchStart={handleTap} onTouchMove={handleTap}>
+        <line x1={pad} y1={h * 0.5} x2={w - pad} y2={h * 0.5} stroke="rgba(100,116,139,0.15)" strokeWidth="1" strokeDasharray="2,2" />
+        {history.map((hp, i) => {
+          if (hp.windDir == null || hp.windSpeedKts <= 0) return null;
+          const x = pad + (i / (n - 1)) * (w - pad * 2);
+          const y = h - pad - (hp.windDir / 360) * (h - pad * 2);
+          const spd = hp.windSpeedMph;
+          const color = spd >= 20 ? '#ef4444' : spd >= 10 ? '#f97316' : '#22c55e';
+          const r = Math.min(2 + spd / 8, 5);
+          return <circle key={i} cx={x} cy={y} r={r} fill={color} opacity="0.8" />;
+        })}
+        {tappedIdx != null && tappedH?.windDir != null && (
+          <>
+            <line x1={pad + (tappedIdx / (n - 1)) * (w - pad * 2)} y1={2} x2={pad + (tappedIdx / (n - 1)) * (w - pad * 2)} y2={h - 2}
+              stroke="rgba(148,163,184,0.4)" strokeWidth="1" strokeDasharray="2,2" />
+            <circle cx={pad + (tappedIdx / (n - 1)) * (w - pad * 2)}
+              cy={h - pad - (tappedH.windDir / 360) * (h - pad * 2)} r="5" fill="white" stroke="#3b82f6" strokeWidth="2" />
+          </>
+        )}
+      </svg>
+      <div className="flex justify-between items-center text-[8px] mt-0.5">
+        {tappedH?.windDir != null ? (
+          <>
+            <span className="text-slate-400">{formatTimeLabel(tappedH.time, true)}</span>
+            <span className="text-white font-medium">
+              {tappedH.windDir}° {dirLabel(tappedH.windDir)} · {tappedH.windSpeedMph} mph
+              {tappedH.windGustKts != null && <span className="text-orange-400"> G{Math.round(tappedH.windGustKts * 1.15078)} mph</span>}
+            </span>
+            <button onClick={() => setTappedIdx(null)} className="text-slate-600 hover:text-slate-400">✕</button>
+          </>
+        ) : (
+          <>
+            <span className="text-slate-600">{formatTimeLabel(history[0].time)}</span>
+            <span className="text-slate-500 italic">Tap for direction details</span>
+            <span className="text-slate-600">Now</span>
+          </>
+        )}
+      </div>
+      <div className="flex items-center gap-0.5 mt-1">
+        <span className="text-[8px] text-slate-600 mr-1">360°N</span>
+        <div className="flex-1 h-[1px] bg-slate-700/30" />
+        <span className="text-[8px] text-slate-600 mx-1">180°S</span>
+        <div className="flex-1 h-[1px] bg-slate-700/30" />
+        <span className="text-[8px] text-slate-600 ml-1">0°N</span>
+      </div>
+      <div className="mt-2 space-y-1">
+        <span className="text-[8px] text-slate-500 uppercase font-semibold">Predominant Directions</span>
+        <div className="flex flex-wrap gap-1.5 mt-0.5">
+          {topDirs.slice(0, 6).map(d => {
+            const barColor = d.avgSpd >= 20 ? 'bg-red-500' : d.avgSpd >= 10 ? 'bg-orange-500' : 'bg-green-500';
             return (
-              <polygon key={i}
-                points={`${x1 + barW * Math.cos(perpAngle)},${y1 + barW * Math.sin(perpAngle)} ${x2},${y2} ${x1 - barW * Math.cos(perpAngle)},${y1 - barW * Math.sin(perpAngle)}`}
-                fill={barColor} opacity="0.7" />
+              <div key={d.dir} className="flex items-center gap-1 bg-slate-700/30 rounded px-1.5 py-0.5">
+                <span className="text-[9px] text-white font-bold">{d.dir}</span>
+                <div className={`h-1.5 rounded-full ${barColor}`} style={{ width: `${Math.max(12, (d.count / maxCount) * 40)}px` }} />
+                <span className="text-[8px] text-slate-400">{d.pct}%</span>
+                <span className="text-[7px] text-slate-500">{Math.round(d.avgSpd)}mph</span>
+              </div>
             );
           })}
-          {['N', 'E', 'S', 'W'].map((d, i) => {
-            const angle = (i * 90 - 90) * Math.PI / 180;
-            const x = cx + (maxR + 10) * Math.cos(angle);
-            const y = cy + (maxR + 10) * Math.sin(angle);
-            return <text key={d} x={x} y={y} textAnchor="middle" dominantBaseline="central" className="text-[9px] font-bold fill-slate-400">{d}</text>;
-          })}
-        </svg>
+        </div>
       </div>
-      <div className="flex justify-center gap-3 mt-1">
+      <div className="flex justify-center gap-3 mt-2">
         <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" /><span className="text-[8px] text-slate-500">&lt;10 mph</span></div>
         <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-orange-500" /><span className="text-[8px] text-slate-500">10-20</span></div>
         <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /><span className="text-[8px] text-slate-500">20+</span></div>
@@ -592,6 +643,7 @@ function WindRose({ history }: { history: HistoryPoint[] }) {
 }
 
 function ConditionTimeline({ history }: { history: HistoryPoint[] }) {
+  const [tappedIdx, setTappedIdx] = useState<number | null>(null);
   if (!history || history.length < 3) return null;
   const getConditionInfo = (h: HistoryPoint): { emoji: string; color: string; label: string } => {
     const wx = (h.wxString || '').toUpperCase();
@@ -610,27 +662,38 @@ function ConditionTimeline({ history }: { history: HistoryPoint[] }) {
     if (cover === 'SCT') return { emoji: '⛅', color: '#a3e635', label: 'Partly Cloudy' };
     return { emoji: '☀️', color: '#fbbf24', label: 'Clear' };
   };
-  const items = history.map(h => ({ ...getConditionInfo(h), time: h.time }));
+  const items = history.map(h => ({ ...getConditionInfo(h), time: h.time, tempF: h.tempF, windMph: h.windSpeedMph, vis: h.visibilityMi }));
+  const tapped = tappedIdx != null && tappedIdx < items.length ? items[tappedIdx] : null;
   return (
     <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-sm">🕐</span>
         <span className="text-[10px] text-slate-400 uppercase font-semibold">24-Hour Conditions</span>
       </div>
-      <div className="flex gap-[1px] rounded-lg overflow-hidden h-6">
+      <div className="flex gap-[1px] rounded-lg overflow-hidden h-7 cursor-pointer">
         {items.map((item, i) => (
-          <div key={i} className="flex-1 relative group cursor-pointer" style={{ backgroundColor: item.color, opacity: 0.7 }} title={`${formatTimeLabel(item.time)}: ${item.label}`}>
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-slate-900 px-1.5 py-0.5 rounded text-[8px] text-white whitespace-nowrap z-10 border border-slate-700">
-              {formatTimeLabel(item.time)}: {item.emoji} {item.label}
-            </div>
-          </div>
+          <div key={i}
+            className={`flex-1 relative transition-all ${tappedIdx === i ? 'ring-2 ring-white/60 z-10 scale-y-110' : ''}`}
+            style={{ backgroundColor: item.color, opacity: tappedIdx === i ? 1 : 0.7 }}
+            onClick={() => setTappedIdx(tappedIdx === i ? null : i)}
+          />
         ))}
       </div>
-      <div className="flex justify-between text-[8px] text-slate-600 mt-1">
-        <span>{formatTimeLabel(items[0]?.time)}</span>
-        <span>{formatTimeLabel(items[Math.floor(items.length / 2)]?.time)}</span>
-        <span>Now</span>
-      </div>
+      {tapped ? (
+        <div className="flex justify-between items-center text-[8px] mt-1">
+          <span className="text-slate-400">{formatTimeLabel(tapped.time, true)}</span>
+          <span className="text-white font-medium">
+            {tapped.emoji} {tapped.label} · {tapped.tempF}°F · {tapped.windMph} mph · {tapped.vis} mi
+          </span>
+          <button onClick={() => setTappedIdx(null)} className="text-slate-600 hover:text-slate-400">✕</button>
+        </div>
+      ) : (
+        <div className="flex justify-between text-[8px] text-slate-600 mt-1">
+          <span>{formatTimeLabel(items[0]?.time)}</span>
+          <span className="text-slate-500 italic">Tap a segment for details</span>
+          <span>Now</span>
+        </div>
+      )}
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
         {Array.from(new Set(items.map(i => i.label))).map(label => {
           const item = items.find(i => i.label === label)!;
@@ -648,10 +711,22 @@ function ConditionTimeline({ history }: { history: HistoryPoint[] }) {
 }
 
 function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?: string }) {
+  const [selectedIcao, setSelectedIcao] = useState<string | undefined>(icao);
+  const [showStationPicker, setShowStationPicker] = useState(false);
+
+  useEffect(() => { setSelectedIcao(icao); }, [icao]);
+
+  const { data: nearbyStations } = useQuery<any>({
+    queryKey: ['/api/nearby-tafs', lat, lon],
+    queryFn: async () => { const r = await fetch(`/api/nearby-tafs?lat=${lat}&lon=${lon}`); if (!r.ok) throw new Error('fail'); return r.json(); },
+    staleTime: 600000,
+    enabled: !!lat && !!lon,
+  });
+
   const { data: tafData } = useQuery<any>({
-    queryKey: ['/api/taf', icao],
-    queryFn: async () => { const r = await fetch(`/api/taf/${icao}`); if (!r.ok) throw new Error('fail'); return r.json(); },
-    enabled: !!icao,
+    queryKey: ['/api/taf', selectedIcao],
+    queryFn: async () => { const r = await fetch(`/api/taf/${selectedIcao}`); if (!r.ok) throw new Error('fail'); return r.json(); },
+    enabled: !!selectedIcao,
     staleTime: 600000,
   });
 
@@ -659,7 +734,7 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
     queryKey: ['/api/weather-forecast', lat, lon],
     queryFn: async () => { const r = await fetch(`/api/weather-forecast?lat=${lat}&lon=${lon}`); if (!r.ok) throw new Error('fail'); return r.json(); },
     staleTime: 300000,
-    enabled: !icao,
+    enabled: !selectedIcao,
   });
 
   const getConditionEmoji = (condition: string): string => {
@@ -750,18 +825,41 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
     return `${name}${base}${type}`;
   };
 
+  const stationList = nearbyStations?.stations || [];
+
   return (
     <div>
-      <div className="flex items-center gap-1.5 mb-1">
-        <span className="text-[9px] text-slate-500 font-medium uppercase tracking-wider">
-          {isTaf ? `TAF Forecast · ${tafData.icao}` : 'Forecast Trend'}
-        </span>
-        {isTaf && tafData.validTo && (
-          <span className="text-[8px] text-slate-600">
-            Valid thru {new Date(tafData.validTo).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' })}
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] text-slate-500 font-medium uppercase tracking-wider">
+            {isTaf ? `TAF Forecast · ${tafData.icao}` : 'Forecast Trend'}
           </span>
+          {isTaf && tafData.validTo && (
+            <span className="text-[8px] text-slate-600">
+              thru {new Date(tafData.validTo).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' })}
+            </span>
+          )}
+        </div>
+        {stationList.length > 1 && (
+          <button onClick={() => setShowStationPicker(!showStationPicker)}
+            className="text-[8px] text-blue-400 hover:text-blue-300 font-medium">
+            {showStationPicker ? '✕ Close' : `📡 ${stationList.length} stations`}
+          </button>
         )}
       </div>
+      {showStationPicker && stationList.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {stationList.map((s: any) => (
+            <button key={s.icao}
+              onClick={() => { setSelectedIcao(s.icao); setShowStationPicker(false); }}
+              className={`px-1.5 py-0.5 rounded text-[8px] font-mono transition-colors ${
+                selectedIcao === s.icao ? 'bg-blue-600/40 text-blue-300 border border-blue-500/40' : 'bg-slate-700/30 text-slate-400 hover:bg-slate-700/50'
+              }`}>
+              {s.icao} <span className="text-slate-500">{s.dist}mi</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="overflow-x-auto scrollbar-hide">
         <div className="flex gap-1 min-w-max px-1">
           {items.map((item, i) => (
@@ -1428,7 +1526,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
               <ConditionTimeline history={stationData.history} />
               <TrendGraphs history={stationData.history} tempUnit={tempUnit} />
               <PressureTendencyChart history={stationData.history} />
-              <WindRose history={stationData.history} />
+              <WindDirectionChart history={stationData.history} />
             </>
           )}
 

@@ -6887,6 +6887,36 @@ Guidelines:
     }
   });
 
+  app.get("/api/nearby-tafs", async (req, res) => {
+    try {
+      const lat = parseFloat(req.query.lat as string);
+      const lon = parseFloat(req.query.lon as string);
+      if (isNaN(lat) || isNaN(lon)) return res.status(400).json({ error: "lat/lon required" });
+
+      const stationsUrl = `https://aviationweather.gov/api/data/stationinfo?bbox=${lat - 1},${lon - 1.5},${lat + 1},${lon + 1.5}&format=json`;
+      const stResp = await fetch(stationsUrl, { signal: AbortSignal.timeout(6000) });
+      if (!stResp.ok) return res.json({ stations: [] });
+      const stData = await stResp.json();
+      if (!Array.isArray(stData)) return res.json({ stations: [] });
+
+      const hasDist = (s: any) => {
+        const dlat = s.lat - lat;
+        const dlon = (s.lon - lon) * Math.cos(lat * Math.PI / 180);
+        return Math.sqrt(dlat * dlat + dlon * dlon) * 69;
+      };
+      const nearby = stData
+        .filter((s: any) => s.icaoId && s.icaoId.length === 4)
+        .map((s: any) => ({ icao: s.icaoId, name: s.name || s.icaoId, dist: Math.round(hasDist(s)) }))
+        .sort((a: any, b: any) => a.dist - b.dist)
+        .slice(0, 8);
+
+      res.json({ stations: nearby });
+    } catch (error: any) {
+      console.error('Nearby TAFs error:', error.message);
+      res.json({ stations: [] });
+    }
+  });
+
   app.get("/api/taf/:icao", async (req, res) => {
     try {
       const icao = req.params.icao.toUpperCase();
