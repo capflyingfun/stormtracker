@@ -25,24 +25,33 @@ function validateEnvironment() {
   log(`Environment validation passed - all required variables present`);
 }
 
-// Database connection validation
+// Database connection validation with retry logic for Neon cold starts
 async function validateDatabaseConnection() {
-  try {
-    if (!process.env.DATABASE_URL) {
-      throw new Error('DATABASE_URL environment variable is not set');
-    }
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL environment variable is not set');
+  }
 
-    // Import the db from our db module for consistent connection
-    const { db, sql } = await import('./db.js');
-    
-    // Test database connection with a simple query
-    await sql`SELECT 1`;
-    log('Database connection validated successfully');
-    
-    return { sql, db };
-  } catch (error) {
-    console.error('Database connection failed:', error);
-    throw new Error(`Database connection error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  const { db, sql } = await import('./db.js');
+
+  const maxAttempts = 5;
+  const baseDelayMs = 2000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await sql`SELECT 1`;
+      log('Database connection validated successfully');
+      return { sql, db };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      if (attempt < maxAttempts) {
+        const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+        log(`Database connection attempt ${attempt}/${maxAttempts} failed: ${message}. Retrying in ${delayMs / 1000}s...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      } else {
+        console.error(`Database connection failed after ${maxAttempts} attempts:`, error);
+        throw new Error(`Database connection error after ${maxAttempts} attempts: ${message}`);
+      }
+    }
   }
 }
 
