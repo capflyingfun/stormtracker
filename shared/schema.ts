@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, real, varchar, numeric, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -151,26 +151,26 @@ export const messageInbox = pgTable("message_inbox", {
   subscriptionId: integer("subscription_id").references(() => alertSubscriptions.id),
   
   // Message details
-  messageType: text("message_type").notNull(), // 'email' or 'sms'
+  messageType: varchar("message_type", { length: 20 }).notNull(), // 'email' or 'sms'
   subject: text("subject").notNull(),
   content: text("content").notNull(),
   htmlContent: text("html_content"), // Rich HTML content for emails
   
   // Recipient info
-  recipientEmail: text("recipient_email"),
-  recipientPhone: text("recipient_phone"),
-  recipientName: text("recipient_name").notNull(),
+  recipientEmail: varchar("recipient_email", { length: 255 }),
+  recipientPhone: varchar("recipient_phone", { length: 20 }),
+  recipientName: varchar("recipient_name", { length: 255 }),
   
   // Storm/alert context
   stormCount: integer("storm_count").default(0),
-  maxIntensity: real("max_intensity").default(0),
-  nearestDistance: real("nearest_distance").default(0),
+  maxIntensity: numeric("max_intensity", { precision: 5, scale: 2 }).default("0"),
+  nearestDistance: numeric("nearest_distance", { precision: 8, scale: 2 }).default("0"),
   alertLocation: text("alert_location"),
   
   // Message status
   isRead: boolean("is_read").default(false),
   isDelivered: boolean("is_delivered").default(true), // Always true for database storage
-  deliveryMethod: text("delivery_method").default("database"), // 'database', 'email', 'sms'
+  deliveryMethod: varchar("delivery_method", { length: 50 }).default("database"), // 'database', 'email', 'sms'
   
   // Timestamps
   sentAt: timestamp("sent_at").defaultNow(),
@@ -361,11 +361,11 @@ export type InsertThreatDetection = z.infer<typeof insertThreatDetectionSchema>;
 // AI assistant preferences for personalized communication style
 export const userSettings = pgTable("user_settings", {
   id: serial("id").primaryKey(),
-  sessionId: text("session_id").notNull().unique(),
+  sessionId: varchar("session_id", { length: 255 }).notNull().unique(),
   
   // AI tone customization (like Carrot Weather app)
-  aiTone: text("ai_tone").default("professional"), // professional, friendly, humorous
-  detailLevel: text("detail_level").default("standard"), // minimal, standard, technical
+  aiTone: varchar("ai_tone", { length: 50 }).default("professional"), // professional, friendly, humorous
+  detailLevel: varchar("detail_level", { length: 50 }).default("standard"), // minimal, standard, technical
   
   // User preferences
   includeHumor: boolean("include_humor").default(false),
@@ -402,3 +402,20 @@ export const insertFavoriteStationSchema = createInsertSchema(favoriteStations).
 
 export type FavoriteStation = typeof favoriteStations.$inferSelect;
 export type InsertFavoriteStation = z.infer<typeof insertFavoriteStationSchema>;
+
+// Legacy tables retained for schema compatibility (not actively used)
+export const authUsers = pgTable("auth_users", {
+  id: varchar("id").primaryKey(),
+  email: varchar("email"),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const sessions = pgTable("sessions", {
+  sid: varchar("sid").primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire").notNull(),
+});
