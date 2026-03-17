@@ -71,6 +71,7 @@ type WindUnit = 'mph' | 'kts' | 'kmh' | 'ms' | 'beaufort';
 type TempUnit = 'f' | 'c';
 type PressureUnit = 'inHg' | 'mb' | 'mmHg' | 'kPa';
 type VisUnit = 'mi' | 'km' | 'm' | 'nm';
+type PrecipUnit = 'in' | 'mm' | 'cm';
 
 function useCycleUnit<T extends string>(key: string, options: T[]): [T, () => void] {
   const [idx, setIdx] = useState(() => {
@@ -613,6 +614,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
   const [tempUnit, cycleTemp] = useCycleUnit<TempUnit>('temp', ['f', 'c']);
   const [pressUnit, cyclePress] = useCycleUnit<PressureUnit>('pressure', ['inHg', 'mb', 'mmHg', 'kPa']);
   const [visUnit, cycleVis] = useCycleUnit<VisUnit>('visibility', ['mi', 'km', 'm', 'nm']);
+  const [precipUnit, cyclePrecip] = useCycleUnit<PrecipUnit>('precip', ['in', 'mm', 'cm']);
 
   const { data: nearbyData } = useQuery<{ stations: NearbyStation[]; count: number }>({
     queryKey: ['/api/nearby-stations', lat, lon],
@@ -696,10 +698,10 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
 
   const getPressDisplay = (p: StationData['pressure']) => {
     switch (pressUnit) {
-      case 'inHg': return { val: p.inHg, unit: 'inHg' };
-      case 'mb': return { val: p.mb, unit: 'mb' };
-      case 'mmHg': return { val: p.mmHg, unit: 'mmHg' };
-      case 'kPa': return { val: p.kPa, unit: 'kPa' };
+      case 'inHg': return { val: p.inHg != null ? p.inHg.toFixed(2) : null, unit: 'inHg' };
+      case 'mb': return { val: p.mb != null ? p.mb.toFixed(1) : null, unit: 'mb' };
+      case 'mmHg': return { val: p.mmHg != null ? p.mmHg.toFixed(1) : null, unit: 'mmHg' };
+      case 'kPa': return { val: p.kPa != null ? p.kPa.toFixed(2) : null, unit: 'kPa' };
     }
   };
 
@@ -926,7 +928,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
                   <span className="text-slate-500 text-[10px] block">{stationData.pressure.mb} mb</span>
                 )}
                 {pressUnit !== 'inHg' && stationData.pressure.inHg && (
-                  <span className="text-slate-500 text-[10px] block">{stationData.pressure.inHg} inHg</span>
+                  <span className="text-slate-500 text-[10px] block">{stationData.pressure.inHg.toFixed(2)} inHg</span>
                 )}
               </div>
               <div className="text-center mt-1">
@@ -947,13 +949,22 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
                 <span className="text-sm">🌧️</span>
                 <span className="text-[10px] text-slate-400 uppercase font-semibold">Precipitation</span>
               </div>
-              <div className="text-center">
-                <span className="text-blue-400 font-bold text-xl">{stationData.precip ? stationData.precip.toFixed(2) : '0.00'}</span>
-                <span className="text-slate-400 text-xs"> in</span>
-              </div>
+              <TappableValue onClick={cyclePrecip} hint={precipUnit === 'in' ? 'mm' : precipUnit === 'mm' ? 'cm' : 'in'}>
+                <div className="text-center w-full">
+                  {(() => {
+                    const rawIn = stationData.precip ?? 0;
+                    switch (precipUnit) {
+                      case 'in': return <><span className="text-blue-400 font-bold text-xl">{rawIn.toFixed(2)}</span><span className="text-slate-400 text-xs"> in</span></>;
+                      case 'mm': return <><span className="text-blue-400 font-bold text-xl">{(rawIn * 25.4).toFixed(1)}</span><span className="text-slate-400 text-xs"> mm</span></>;
+                      case 'cm': return <><span className="text-blue-400 font-bold text-xl">{(rawIn * 2.54).toFixed(2)}</span><span className="text-slate-400 text-xs"> cm</span></>;
+                    }
+                  })()}
+                </div>
+              </TappableValue>
               {stationData.precip != null && stationData.precip > 0 && (
                 <div className="text-center">
-                  <span className="text-slate-500 text-[10px]">{(stationData.precip * 25.4).toFixed(1)} mm</span>
+                  {precipUnit !== 'in' && <span className="text-slate-500 text-[10px]">{stationData.precip.toFixed(2)} in</span>}
+                  {precipUnit === 'in' && <span className="text-slate-500 text-[10px]">{(stationData.precip * 25.4).toFixed(1)} mm</span>}
                 </div>
               )}
               <span className="text-[9px] text-slate-500 block text-center mt-0.5">Accumulation</span>
