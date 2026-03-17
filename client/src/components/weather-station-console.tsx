@@ -265,82 +265,143 @@ function FlightCategoryBanner({ fltCat }: { fltCat: string | null }) {
   );
 }
 
-function SparklineChart({ data, color, label, unit, height = 48, showFeelsLike, feelsLikeData }: { data: { time: number; value: number | null }[]; color: string; label: string; unit: string; height?: number; showFeelsLike?: boolean; feelsLikeData?: { time: number; value: number | null }[] }) {
-  const valid = data.filter(d => d.value != null) as { time: number; value: number }[];
-  if (valid.length < 2) return null;
-  const min = Math.min(...valid.map(d => d.value));
-  const max = Math.max(...valid.map(d => d.value));
-  const range = max - min || 1;
-  const w = 280;
-  const pad = 4;
-  const h = height;
-  const points = valid.map((d, i) => {
-    const x = pad + (i / (valid.length - 1)) * (w - pad * 2);
-    const y = h - pad - ((d.value - min) / range) * (h - pad * 2);
-    return `${x},${y}`;
-  }).join(' ');
+function SparklineChart({ data, color, label, unit, height = 56, showFeelsLike, feelsLikeData, secondaryData, secondaryColor, secondaryLabel }: {
+  data: { time: number; value: number | null }[];
+  color: string; label: string; unit: string; height?: number;
+  showFeelsLike?: boolean; feelsLikeData?: { time: number; value: number | null }[];
+  secondaryData?: { time: number; value: number | null }[];
+  secondaryColor?: string; secondaryLabel?: string;
+}) {
+  const [tappedIdx, setTappedIdx] = useState<number | null>(null);
+  const n = data.length;
+  if (n < 2) return null;
 
-  let feelsLikePath = '';
-  if (showFeelsLike && feelsLikeData) {
-    const fValid = feelsLikeData.filter(d => d.value != null) as { time: number; value: number }[];
-    if (fValid.length >= 2) {
-      const allMin = Math.min(min, ...fValid.map(d => d.value));
-      const allMax = Math.max(max, ...fValid.map(d => d.value));
-      const allRange = allMax - allMin || 1;
-      const mainPts = valid.map((d, i) => {
-        const x = pad + (i / (valid.length - 1)) * (w - pad * 2);
-        const y = h - pad - ((d.value - allMin) / allRange) * (h - pad * 2);
-        return `${x},${y}`;
-      }).join(' ');
-      feelsLikePath = fValid.map((d, i) => {
-        const x = pad + (i / (fValid.length - 1)) * (w - pad * 2);
-        const y = h - pad - ((d.value - allMin) / allRange) * (h - pad * 2);
-        return `${x},${y}`;
-      }).join(' ');
-      return (
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] text-slate-500 uppercase font-semibold">{label}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] text-slate-400">{valid[valid.length - 1].value}{unit}</span>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-[2px]" style={{ backgroundColor: color }} />
-                <span className="text-[8px] text-slate-500">Actual</span>
-                <div className="w-3 h-[2px] opacity-50" style={{ backgroundColor: '#f97316' }} />
-                <span className="text-[8px] text-slate-500">Feels</span>
-              </div>
-            </div>
-          </div>
-          <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: `${h}px` }}>
-            <polyline points={mainPts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
-            <polyline points={feelsLikePath} fill="none" stroke="#f97316" strokeWidth="1.5" strokeDasharray="4,3" strokeLinejoin="round" opacity="0.6" />
-            <circle cx={mainPts.split(' ').pop()?.split(',')[0]} cy={mainPts.split(' ').pop()?.split(',')[1]} r="3" fill={color} />
-          </svg>
-          <div className="flex justify-between text-[8px] text-slate-600 mt-0.5">
-            <span>{formatTimeLabel(valid[0].time)}</span>
-            <span>{formatTimeLabel(valid[Math.floor(valid.length / 2)]?.time)}</span>
-            <span>Now</span>
-          </div>
-        </div>
-      );
+  const allVals: number[] = [];
+  data.forEach(d => { if (d.value != null) allVals.push(d.value); });
+  if (allVals.length < 2) return null;
+  if (showFeelsLike && feelsLikeData) feelsLikeData.forEach(d => { if (d.value != null) allVals.push(d.value); });
+  if (secondaryData) secondaryData.forEach(d => { if (d.value != null) allVals.push(d.value); });
+  const globalMin = Math.min(...allVals);
+  const globalMax = Math.max(...allVals);
+  const gRange = globalMax - globalMin || 1;
+
+  const primaryVals = data.map(d => d.value).filter(v => v != null) as number[];
+  const min = Math.min(...primaryVals);
+  const max = Math.max(...primaryVals);
+
+  const w = 280;
+  const pad = 8;
+  const h = height;
+  const xAt = (i: number) => pad + (i / (n - 1)) * (w - pad * 2);
+  const yAt = (v: number) => h - pad - ((v - globalMin) / gRange) * (h - pad * 2);
+
+  const pts: { x: number; y: number; val: number }[] = [];
+  let minPtIdx = 0, maxPtIdx = 0;
+  data.forEach((d, i) => {
+    if (d.value != null) {
+      const p = { x: xAt(i), y: yAt(d.value), val: d.value };
+      if (d.value === min && pts.length === 0 || d.value <= (pts[minPtIdx]?.val ?? Infinity)) minPtIdx = pts.length;
+      if (d.value === max && pts.length === 0 || d.value >= (pts[maxPtIdx]?.val ?? -Infinity)) maxPtIdx = pts.length;
+      pts.push(p);
     }
+  });
+  const polyline = pts.map(p => `${p.x},${p.y}`).join(' ');
+
+  let feelsLikeLine = '';
+  if (showFeelsLike && feelsLikeData && feelsLikeData.length === n) {
+    const fPts: string[] = [];
+    feelsLikeData.forEach((d, i) => {
+      if (d.value != null) fPts.push(`${xAt(i)},${yAt(d.value)}`);
+    });
+    if (fPts.length >= 2) feelsLikeLine = fPts.join(' ');
   }
+
+  let secondaryLine = '';
+  if (secondaryData && secondaryData.length === n) {
+    const sPts: string[] = [];
+    secondaryData.forEach((d, i) => {
+      if (d.value != null) sPts.push(`${xAt(i)},${yAt(d.value)}`);
+    });
+    if (sPts.length >= 2) secondaryLine = sPts.join(' ');
+  }
+
+  const tappedData = tappedIdx != null ? data[tappedIdx] : null;
+  const tappedX = tappedIdx != null ? xAt(tappedIdx) : 0;
+  const tappedY = tappedIdx != null && tappedData?.value != null ? yAt(tappedData.value) : 0;
+  const tappedSecVal = tappedIdx != null && secondaryData ? secondaryData[tappedIdx]?.value : null;
+
+  const handleTap = (e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const xPct = (clientX - rect.left) / rect.width;
+    const idx = Math.round(xPct * (n - 1));
+    setTappedIdx(Math.max(0, Math.min(idx, n - 1)));
+  };
 
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
         <span className="text-[9px] text-slate-500 uppercase font-semibold">{label}</span>
-        <span className="text-[9px] text-slate-400">{valid[valid.length - 1].value}{unit}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[8px] text-blue-400">▼{min}{unit}</span>
+          <span className="text-[8px] text-red-400">▲{max}{unit}</span>
+          <span className="text-[9px] text-slate-400">Now: {primaryVals[primaryVals.length - 1]}{unit}</span>
+        </div>
       </div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: `${h}px` }}>
-        <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
-        <circle cx={points.split(' ').pop()?.split(',')[0]} cy={points.split(' ').pop()?.split(',')[1]} r="3" fill={color} />
+      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+        <div className="flex items-center gap-0.5">
+          <div className="w-3 h-[2px]" style={{ backgroundColor: color }} />
+          <span className="text-[7px] text-slate-500">{label.split('(')[0].trim()}</span>
+        </div>
+        {feelsLikeLine && (
+          <div className="flex items-center gap-0.5">
+            <div className="w-3 h-[2px] opacity-50" style={{ backgroundColor: '#f97316' }} />
+            <span className="text-[7px] text-slate-500">Feels Like</span>
+          </div>
+        )}
+        {secondaryLine && secondaryLabel && (
+          <div className="flex items-center gap-0.5">
+            <div className="w-3 h-[2px]" style={{ backgroundColor: secondaryColor }} />
+            <span className="text-[7px] text-slate-500">{secondaryLabel}</span>
+          </div>
+        )}
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full cursor-pointer" style={{ height: `${h}px` }}
+        onClick={handleTap} onTouchStart={handleTap} onTouchMove={handleTap}>
+        {feelsLikeLine && (
+          <polyline points={feelsLikeLine} fill="none" stroke="#f97316" strokeWidth="1.5" strokeDasharray="4,3" strokeLinejoin="round" opacity="0.5" />
+        )}
+        {secondaryLine && (
+          <polyline points={secondaryLine} fill="none" stroke={secondaryColor || '#f97316'} strokeWidth="1.5" strokeDasharray="3,2" strokeLinejoin="round" opacity="0.6" />
+        )}
+        <polyline points={polyline} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+        <circle cx={pts[minPtIdx]?.x} cy={pts[minPtIdx]?.y} r="3" fill="#3b82f6" stroke="#1e293b" strokeWidth="1" />
+        <circle cx={pts[maxPtIdx]?.x} cy={pts[maxPtIdx]?.y} r="3" fill="#ef4444" stroke="#1e293b" strokeWidth="1" />
+        <circle cx={pts[pts.length - 1]?.x} cy={pts[pts.length - 1]?.y} r="3" fill={color} />
+        {tappedData?.value != null && (
+          <>
+            <line x1={tappedX} y1={pad / 2} x2={tappedX} y2={h - pad / 2} stroke="rgba(148,163,184,0.4)" strokeWidth="1" strokeDasharray="2,2" />
+            <circle cx={tappedX} cy={tappedY} r="4" fill="white" stroke={color} strokeWidth="2" />
+          </>
+        )}
       </svg>
-      <div className="flex justify-between text-[8px] text-slate-600 mt-0.5">
-        <span>{formatTimeLabel(valid[0].time)}</span>
-        <span>{formatTimeLabel(valid[Math.floor(valid.length / 2)]?.time)}</span>
-        <span>Now</span>
-      </div>
+      {tappedData?.value != null ? (
+        <div className="flex justify-between text-[8px] mt-0.5">
+          <span className="text-slate-400">{formatTimeLabel(tappedData.time)}</span>
+          <span className="text-white font-medium">
+            {tappedData.value}{unit}
+            {tappedSecVal != null && <span className="text-orange-400 ml-1">G{tappedSecVal}{unit}</span>}
+          </span>
+          <button onClick={() => setTappedIdx(null)} className="text-slate-600 hover:text-slate-400">✕</button>
+        </div>
+      ) : (
+        <div className="flex justify-between text-[8px] text-slate-600 mt-0.5">
+          <span>{formatTimeLabel(data[0].time)}</span>
+          <span className="text-slate-500 italic">Tap chart for details</span>
+          <span>Now</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -356,6 +417,8 @@ function TrendGraphs({ history, tempUnit }: { history: HistoryPoint[]; tempUnit:
   const feelsData = history.map(h => ({ time: h.time, value: tempUnit === 'f' ? h.feelsLikeF : (h.feelsLikeF != null ? Math.round((h.feelsLikeF - 32) * 5 / 9) : null) }));
   const pressData = history.map(h => ({ time: h.time, value: h.pressureInHg }));
   const windData = history.map(h => ({ time: h.time, value: h.windSpeedMph }));
+  const gustData = history.map(h => ({ time: h.time, value: h.windGustKts != null ? Math.round(h.windGustKts * 1.15078) : null }));
+  const hasGusts = gustData.some(d => d.value != null);
   const visData = history.map(h => ({ time: h.time, value: h.visibilityMi }));
   return (
     <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3 space-y-4">
@@ -366,7 +429,8 @@ function TrendGraphs({ history, tempUnit }: { history: HistoryPoint[]; tempUnit:
       </div>
       <SparklineChart data={tempData} color="#ef4444" label={`Temperature (${tempUnit === 'f' ? '°F' : '°C'})`} unit={tempUnit === 'f' ? '°F' : '°C'} showFeelsLike feelsLikeData={feelsData} />
       <SparklineChart data={pressData} color="#a78bfa" label="Pressure (inHg)" unit=" inHg" />
-      <SparklineChart data={windData} color="#22c55e" label="Wind Speed (mph)" unit=" mph" />
+      <SparklineChart data={windData} color="#22c55e" label="Wind Speed (mph)" unit=" mph"
+        secondaryData={hasGusts ? gustData : undefined} secondaryColor="#f97316" secondaryLabel="Gusts" />
       <SparklineChart data={visData} color="#38bdf8" label="Visibility (mi)" unit=" mi" />
     </div>
   );
@@ -374,25 +438,37 @@ function TrendGraphs({ history, tempUnit }: { history: HistoryPoint[]; tempUnit:
 
 function PressureTendencyChart({ history }: { history: HistoryPoint[] }) {
   const valid = history.filter(h => h.pressureMb != null).map(h => ({ time: h.time, value: h.pressureMb! }));
+  const [tappedIdx, setTappedIdx] = useState<number | null>(null);
   if (valid.length < 3) return null;
   const min = Math.min(...valid.map(d => d.value));
   const max = Math.max(...valid.map(d => d.value));
+  const minIdx = valid.findIndex(d => d.value === min);
+  const maxIdx = valid.findIndex(d => d.value === max);
   const range = max - min || 0.5;
   const w = 280;
   const h = 60;
-  const pad = 4;
+  const pad = 6;
   const first = valid[0].value;
   const last = valid[valid.length - 1].value;
   const diff = last - first;
   const trendLabel = diff > 0.5 ? '↑ Rising' : diff < -0.5 ? '↓ Falling' : '→ Steady';
   const trendColor = diff > 0.5 ? 'text-green-400' : diff < -0.5 ? 'text-red-400' : 'text-slate-400';
-  const fillPoints = valid.map((d, i) => {
-    const x = pad + (i / (valid.length - 1)) * (w - pad * 2);
-    const y = h - pad - ((d.value - min) / range) * (h - pad * 2);
-    return `${x},${y}`;
-  });
-  const linePath = fillPoints.join(' ');
-  const areaPath = `${pad},${h - pad} ${linePath} ${pad + ((valid.length - 1) / (valid.length - 1)) * (w - pad * 2)},${h - pad}`;
+  const pts = valid.map((d, i) => ({
+    x: pad + (i / (valid.length - 1)) * (w - pad * 2),
+    y: h - pad - ((d.value - min) / range) * (h - pad * 2),
+  }));
+  const linePath = pts.map(p => `${p.x},${p.y}`).join(' ');
+  const areaPath = `${pad},${h - pad} ${linePath} ${pts[pts.length - 1].x},${h - pad}`;
+  const tapped = tappedIdx != null && tappedIdx < valid.length ? valid[tappedIdx] : null;
+  const tappedPt = tappedIdx != null && tappedIdx < pts.length ? pts[tappedIdx] : null;
+  const handleTap = (e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const xPct = (clientX - rect.left) / rect.width;
+    const idx = Math.round(xPct * (valid.length - 1));
+    setTappedIdx(Math.max(0, Math.min(idx, valid.length - 1)));
+  };
   return (
     <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
       <div className="flex items-center justify-between mb-2">
@@ -405,7 +481,12 @@ function PressureTendencyChart({ history }: { history: HistoryPoint[] }) {
           <span className="text-[9px] text-slate-500">({diff > 0 ? '+' : ''}{diff.toFixed(1)} mb / 24h)</span>
         </div>
       </div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: `${h}px` }}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-[8px] text-blue-400">▼{min.toFixed(1)} mb</span>
+        <span className="text-[8px] text-red-400">▲{max.toFixed(1)} mb</span>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full cursor-pointer" style={{ height: `${h}px` }}
+        onClick={handleTap} onTouchStart={handleTap} onTouchMove={handleTap}>
         <polygon points={areaPath} fill="url(#pressGrad)" opacity="0.3" />
         <defs>
           <linearGradient id="pressGrad" x1="0" y1="0" x2="0" y2="1">
@@ -414,13 +495,29 @@ function PressureTendencyChart({ history }: { history: HistoryPoint[] }) {
           </linearGradient>
         </defs>
         <polyline points={linePath} fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinejoin="round" />
-        <circle cx={fillPoints[fillPoints.length - 1].split(',')[0]} cy={fillPoints[fillPoints.length - 1].split(',')[1]} r="3" fill="#a78bfa" />
+        <circle cx={pts[minIdx]?.x} cy={pts[minIdx]?.y} r="3" fill="#3b82f6" stroke="#1e293b" strokeWidth="1" />
+        <circle cx={pts[maxIdx]?.x} cy={pts[maxIdx]?.y} r="3" fill="#ef4444" stroke="#1e293b" strokeWidth="1" />
+        <circle cx={pts[pts.length - 1]?.x} cy={pts[pts.length - 1]?.y} r="3" fill="#a78bfa" />
+        {tappedPt && (
+          <>
+            <line x1={tappedPt.x} y1={pad / 2} x2={tappedPt.x} y2={h - pad / 2} stroke="rgba(148,163,184,0.4)" strokeWidth="1" strokeDasharray="2,2" />
+            <circle cx={tappedPt.x} cy={tappedPt.y} r="4" fill="white" stroke="#a78bfa" strokeWidth="2" />
+          </>
+        )}
       </svg>
-      <div className="flex justify-between text-[8px] text-slate-600 mt-0.5">
-        <span>{formatTimeLabel(valid[0].time)}</span>
-        <span>{min.toFixed(1)} – {max.toFixed(1)} mb</span>
-        <span>Now</span>
-      </div>
+      {tapped && tappedPt ? (
+        <div className="flex justify-between text-[8px] mt-0.5">
+          <span className="text-slate-400">{formatTimeLabel(tapped.time)}</span>
+          <span className="text-white font-medium">{tapped.value.toFixed(1)} mb</span>
+          <button onClick={() => setTappedIdx(null)} className="text-slate-600 hover:text-slate-400">✕</button>
+        </div>
+      ) : (
+        <div className="flex justify-between text-[8px] text-slate-600 mt-0.5">
+          <span>{formatTimeLabel(valid[0].time)}</span>
+          <span className="text-slate-500 italic">Tap chart for details</span>
+          <span>Now</span>
+        </div>
+      )}
     </div>
   );
 }
