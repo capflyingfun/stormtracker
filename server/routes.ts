@@ -6887,6 +6887,111 @@ Guidelines:
     }
   });
 
+  const translationCache = new Map<string, Record<string, string>>();
+  const translateBatchRL = new Map<string, { count: number; resetAt: number }>();
+
+  app.post("/api/translate", async (req, res) => {
+    try {
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      const now = Date.now();
+      const rl = translateBatchRL.get(clientIp);
+      if (rl && rl.resetAt > now) {
+        if (rl.count >= 30) {
+          return res.status(429).json({ error: "Rate limit exceeded", translations: req.body.texts || [] });
+        }
+        rl.count++;
+      } else {
+        translateBatchRL.set(clientIp, { count: 1, resetAt: now + 60000 });
+      }
+      if (translateBatchRL.size > 1000) {
+        for (const [key, val] of translateBatchRL) {
+          if (val.resetAt < now) translateBatchRL.delete(key);
+        }
+      }
+
+      const { texts, lang } = req.body;
+      if (!texts || !Array.isArray(texts) || !lang || lang === 'en') {
+        return res.json({ translations: texts || [] });
+      }
+      if (texts.length > 100) return res.status(400).json({ error: "Max 100 texts per request" });
+
+      const results: string[] = [];
+      const toTranslate: { idx: number; text: string }[] = [];
+
+      for (let i = 0; i < texts.length; i++) {
+        const text = texts[i];
+        if (!text || typeof text !== 'string' || text.trim().length === 0) {
+          results[i] = text || '';
+          continue;
+        }
+        const cacheKey = `${lang}:${text}`;
+        const cached = translationCache.get(cacheKey);
+        if (cached) {
+          results[i] = cached[lang] || text;
+        } else {
+          results[i] = '';
+          toTranslate.push({ idx: i, text });
+        }
+      }
+
+      if (toTranslate.length === 0) {
+        return res.json({ translations: results });
+      }
+
+      const langNames: Record<string, string> = {
+        es: 'Spanish', fr: 'French', de: 'German', it: 'Italian', pt: 'Portuguese',
+        nl: 'Dutch', pl: 'Polish', ru: 'Russian', tr: 'Turkish', ar: 'Arabic',
+        hi: 'Hindi', id: 'Indonesian', ms: 'Malay', th: 'Thai', vi: 'Vietnamese',
+        ja: 'Japanese', ko: 'Korean', zh: 'Chinese (Simplified)', sw: 'Swahili',
+      };
+
+      const langName = langNames[lang] || lang;
+      const batch = toTranslate.map(t => t.text);
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a weather app UI translator. Translate the following UI strings to ${langName}. Keep technical terms (METAR, TAF, ICAO, VFR, IFR, dBZ, UTC, mb, inHg, kt, mph, etc.) untranslated. Keep numbers, units, and formatting intact. Return ONLY a JSON array of translated strings in the same order, no explanations.`
+          },
+          { role: "user", content: JSON.stringify(batch) }
+        ],
+        temperature: 0.1,
+        max_tokens: 4000,
+      });
+
+      const content = completion.choices[0]?.message?.content?.trim() || '[]';
+      let translated: string[];
+      try {
+        translated = JSON.parse(content);
+      } catch {
+        const match = content.match(/\[[\s\S]*\]/);
+        translated = match ? JSON.parse(match[0]) : batch;
+      }
+
+      for (let i = 0; i < toTranslate.length; i++) {
+        const { idx, text } = toTranslate[i];
+        const result = translated[i] || text;
+        results[idx] = result;
+        translationCache.set(`${lang}:${text}`, { [lang]: result });
+      }
+
+      if (translationCache.size > 5000) {
+        const keys = Array.from(translationCache.keys());
+        for (let i = 0; i < 1000; i++) translationCache.delete(keys[i]);
+      }
+
+      res.json({ translations: results });
+    } catch (error: any) {
+      console.error('Translation error:', error.message);
+      res.json({ translations: req.body.texts || [] });
+    }
+  });
+
   app.get("/api/nearby-tafs", async (req, res) => {
     try {
       const lat = parseFloat(req.query.lat as string);
