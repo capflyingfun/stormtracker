@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Cloud, CloudRain, CloudDrizzle, Zap, CloudSnow } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAutoTranslate } from "@/hooks/use-auto-translate";
 
 interface Storm {
   id: string;
@@ -188,6 +189,7 @@ const getRainfallRate = (dbz: number): { mmh: number; inh: number } => {
 };
 
 export default function StormPanel({ storms, formatDistance, formatSpeed, isLoading, radarSource, userLocation, stormFilters, alertPreferences }: StormPanelProps & { stormFilters?: any; alertPreferences?: any }) {
+  const { at } = useAutoTranslate();
   // Local filter state that syncs with the map's precipitation waypoints legend
   const [currentFilters, setCurrentFilters] = useState({
     light: true, moderate: true, heavy: true, veryHeavy: true, extreme: true

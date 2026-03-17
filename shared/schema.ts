@@ -370,7 +370,8 @@ export const userSettings = pgTable("user_settings", {
   // User preferences
   includeHumor: boolean("include_humor").default(false),
   simplifiedLanguage: boolean("simplified_language").default(false),
-  
+  preferredLanguage: text("preferred_language").default("en"),
+
   // Timestamps
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
