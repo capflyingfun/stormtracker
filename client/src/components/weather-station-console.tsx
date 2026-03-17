@@ -421,7 +421,7 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
   );
 }
 
-function AlertTicker({ lat, lon, icao, windUnit, metarWind }: { lat: number; lon: number; icao?: string; windUnit?: WindUnit; metarWind?: { speedKts: number; gustKts: number | null; direction: number | null; dirLabel: string } }) {
+function AlertTicker({ lat, lon, icao, windUnit }: { lat: number; lon: number; icao?: string; windUnit?: WindUnit }) {
   const { data: nwsData } = useQuery<any>({
     queryKey: ['/api/nws-alerts', lat, lon],
     queryFn: async () => { const r = await fetch(`/api/nws-alerts?lat=${lat}&lon=${lon}`); if (!r.ok) return { alerts: [] }; return r.json(); },
@@ -481,19 +481,14 @@ function AlertTicker({ lat, lon, icao, windUnit, metarWind }: { lat: number; lon
       const zuluH = fromDate.getUTCHours().toString().padStart(2, '0');
       const zuluM = fromDate.getUTCMinutes().toString().padStart(2, '0');
       const localStr = fromDate.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(':00', '');
-      const timeLabel = fromDate <= now ? 'Now' : `${zuluH}${zuluM}Z (${localStr})`;
-      const prefix = p.changeType === 'TEMPO' ? 'TEMPO ' : p.changeType === 'BECMG' ? 'BECMG ' : '';
-
-      const isNow = fromDate <= now;
-      const useMetar = isNow && metarWind;
-      const windKts = useMetar ? metarWind.speedKts : p.windSpeedKts;
-      const gustKts = useMetar ? metarWind.gustKts : p.windGustKts;
-      const windDir = useMetar ? (metarWind.direction ?? p.windDir) : p.windDir;
+      const timeLabel = `${zuluH}${zuluM}Z (${localStr})`;
+      const changePrefix = p.changeType === 'TEMPO' ? 'TEMPO ' : p.changeType === 'BECMG' ? 'BECMG ' : '';
+      const fcstPrefix = fromDate <= now ? 'Fcst ' : '';
 
       const parts: string[] = [];
       parts.push(p.condition || 'Clear');
-      if (windKts != null) {
-        parts.push(`${windDir || 'VRB'}° @ ${formatWindForUnit(windKts, gustKts)}`);
+      if (p.windSpeedKts != null) {
+        parts.push(`${p.windDir || 'VRB'}° @ ${formatWindForUnit(p.windSpeedKts, p.windGustKts)}`);
       }
       if (p.visibilitySM != null && p.visibilitySM < 6) parts.push(`Vis ${p.visibilitySM}SM`);
       if (p.wxCodes?.length > 0) parts.push(p.wxCodes.join(' '));
@@ -510,7 +505,7 @@ function AlertTicker({ lat, lon, icao, windUnit, metarWind }: { lat: number; lon
         /cloudy/i.test(p.condition) ? '⛅' :
         p.windSpeedKts >= 20 ? '💨' :
         /clear/i.test(p.condition) ? '☀️' : '🌤️';
-      allMessages.push(`${emoji} ${prefix}${timeLabel}: ${parts.join(' · ')}`);
+      allMessages.push(`${emoji} ${fcstPrefix}${changePrefix}${timeLabel}: ${parts.join(' · ')}`);
     });
   }
 
@@ -838,7 +833,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
             </div>
           )}
 
-          <AlertTicker lat={lat} lon={lon} icao={stationData.icao} windUnit={windUnit} metarWind={{ speedKts: stationData.wind.speedKts, gustKts: stationData.wind.gustKts, direction: stationData.wind.direction, dirLabel: stationData.wind.dirLabel }} />
+          <AlertTicker lat={lat} lon={lon} icao={stationData.icao} windUnit={windUnit} />
 
           {wxDescription && (
             <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-900/15 border border-amber-600/30">
