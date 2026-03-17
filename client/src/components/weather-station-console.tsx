@@ -251,31 +251,45 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
     return '🌤️';
   };
 
-  const formatTafTime = (iso: string): string => {
+  const formatTafTime = (iso: string): { zulu: string; local: string } => {
     const d = new Date(iso);
     const now = new Date();
     const diffHrs = (d.getTime() - now.getTime()) / (1000 * 60 * 60);
-    if (diffHrs < 1 && diffHrs > -1) return 'Now';
+    if (diffHrs < 1 && diffHrs > -1) return { zulu: 'Now', local: '' };
     const h = d.getUTCHours().toString().padStart(2, '0');
     const m = d.getUTCMinutes().toString().padStart(2, '0');
-    return `${h}${m}Z`;
+    const localStr = d.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(':00', '');
+    return { zulu: `${h}${m}Z`, local: localStr };
   };
 
-  const items: { label: string; emoji: string; detail?: string; wxCodes?: string[] }[] = [];
+  const [expandedPeriod, setExpandedPeriod] = useState<number | null>(null);
+
+  interface TafItem {
+    zuluLabel: string;
+    localLabel: string;
+    emoji: string;
+    detail?: string;
+    wxCodes?: string[];
+    period?: any;
+  }
+
+  const items: TafItem[] = [];
 
   if (tafData?.periods?.length > 0) {
     tafData.periods.forEach((p: any) => {
-      const label = p.from ? formatTafTime(p.from) : p.changeType || '—';
+      const time = p.from ? formatTafTime(p.from) : { zulu: p.changeType || '—', local: '' };
       const prefix = p.changeType === 'TEMPO' ? '~' : p.changeType === 'BECMG' ? '→' : '';
       const windInfo = p.windSpeedKts != null ? `${p.windSpeedKts}kt` : '';
       const gustInfo = p.windGustKts != null ? `G${p.windGustKts}` : '';
       const visInfo = p.visibilitySM != null && p.visibilitySM < 6 ? `${p.visibilitySM}SM` : '';
       const detail = [windInfo + gustInfo, visInfo].filter(Boolean).join(' ') || '';
       items.push({
-        label: prefix + label,
+        zuluLabel: prefix + time.zulu,
+        localLabel: time.local,
         emoji: getConditionEmoji(p.condition),
         detail,
         wxCodes: p.wxCodes,
+        period: p,
       });
     });
   } else if (forecastData) {
@@ -284,13 +298,13 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
     if (nwsPeriods.length > 0) {
       nwsPeriods.slice(0, 8).forEach((p: any) => {
         const shortName = p.name.replace(' Night', ' N').replace('This Afternoon', 'PM').replace('Tonight', 'Eve').replace('Overnight', 'Ovnt');
-        items.push({ label: shortName.length > 5 ? shortName.slice(0, 5) : shortName, emoji: getConditionEmoji(p.shortForecast), detail: p.temperature_f != null ? `${p.temperature_f}°` : '' });
+        items.push({ zuluLabel: shortName.length > 5 ? shortName.slice(0, 5) : shortName, localLabel: '', emoji: getConditionEmoji(p.shortForecast), detail: p.temperature_f != null ? `${p.temperature_f}°` : '' });
       });
     } else if (forecast.length > 0) {
       forecast.slice(0, 7).forEach((f: any, i: number) => {
         const d = new Date(f.date + 'T12:00:00');
         const dayName = i === 0 ? 'Today' : d.toLocaleDateString('en', { weekday: 'short' });
-        items.push({ label: dayName, emoji: getConditionEmoji(f.day.condition), detail: `${Math.round(f.day.maxtemp_f)}°` });
+        items.push({ zuluLabel: dayName, localLabel: '', emoji: getConditionEmoji(f.day.condition), detail: `${Math.round(f.day.maxtemp_f)}°` });
       });
     }
   }
@@ -298,6 +312,14 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
   if (items.length === 0) return null;
 
   const isTaf = !!tafData?.periods?.length;
+
+  const formatCloudLayer = (c: any) => {
+    const coverNames: Record<string, string> = { SKC: 'Sky Clear', CLR: 'Clear', FEW: 'Few', SCT: 'Scattered', BKN: 'Broken', OVC: 'Overcast', VV: 'Vertical Vis' };
+    const name = coverNames[c.cover] || c.cover;
+    const base = c.base != null ? ` at ${c.base.toLocaleString()}ft` : '';
+    const type = c.type === 'CB' ? ' (Cumulonimbus)' : c.type === 'TCU' ? ' (Towering Cu)' : '';
+    return `${name}${base}${type}`;
+  };
 
   return (
     <div>
@@ -307,24 +329,88 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
         </span>
         {isTaf && tafData.validTo && (
           <span className="text-[8px] text-slate-600">
-            Valid thru {new Date(tafData.validTo).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}
+            Valid thru {new Date(tafData.validTo).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' })}
           </span>
         )}
       </div>
       <div className="overflow-x-auto scrollbar-hide">
         <div className="flex gap-1 min-w-max px-1">
           {items.map((item, i) => (
-            <div key={i} className="flex flex-col items-center px-1.5 py-1 rounded-lg bg-slate-700/20 min-w-[42px]">
-              <span className="text-[8px] text-slate-500 uppercase font-mono">{item.label}</span>
+            <button
+              key={i}
+              onClick={() => item.period ? setExpandedPeriod(expandedPeriod === i ? null : i) : null}
+              className={`flex flex-col items-center px-1.5 py-1 rounded-lg min-w-[42px] transition-colors ${
+                expandedPeriod === i ? 'bg-blue-600/30 border border-blue-500/40' :
+                item.period ? 'bg-slate-700/20 hover:bg-slate-700/40 cursor-pointer' : 'bg-slate-700/20'
+              }`}
+            >
+              <span className="text-[8px] text-slate-500 uppercase font-mono">{item.zuluLabel}</span>
+              {item.localLabel && <span className="text-[7px] text-slate-600">{item.localLabel}</span>}
               <span className="text-base my-0.5">{item.emoji}</span>
               {item.wxCodes && item.wxCodes.length > 0 && (
                 <span className="text-[7px] text-amber-400 font-mono">{item.wxCodes.join(' ')}</span>
               )}
               {item.detail && <span className="text-[8px] text-slate-400 font-mono">{item.detail}</span>}
-            </div>
+            </button>
           ))}
         </div>
       </div>
+
+      {expandedPeriod != null && items[expandedPeriod]?.period && (() => {
+        const p = items[expandedPeriod].period;
+        const fromDate = p.from ? new Date(p.from) : null;
+        const toDate = p.to ? new Date(p.to) : null;
+        const changeLabels: Record<string, string> = { FM: 'From', TEMPO: 'Temporary', BECMG: 'Becoming', PROB30: 'Prob 30%', PROB40: 'Prob 40%' };
+        return (
+          <div className="mt-2 rounded-lg bg-slate-700/30 border border-slate-600/30 p-2.5 text-xs animate-fadeIn">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-slate-300 font-semibold text-[11px]">
+                {changeLabels[p.changeType] || p.changeType || 'Base'} Period
+              </span>
+              <button onClick={() => setExpandedPeriod(null)} className="text-slate-500 hover:text-slate-300 text-[10px]">✕</button>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
+              <div className="text-slate-500">From</div>
+              <div className="text-slate-300">
+                {fromDate ? `${fromDate.getUTCHours().toString().padStart(2,'0')}${fromDate.getUTCMinutes().toString().padStart(2,'0')}Z (${fromDate.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit', hour12: true })})` : '—'}
+              </div>
+              <div className="text-slate-500">To</div>
+              <div className="text-slate-300">
+                {toDate ? `${toDate.getUTCHours().toString().padStart(2,'0')}${toDate.getUTCMinutes().toString().padStart(2,'0')}Z (${toDate.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit', hour12: true })})` : '—'}
+              </div>
+              <div className="text-slate-500">Condition</div>
+              <div className="text-slate-300">{p.condition || 'Clear'}</div>
+              {p.windSpeedKts != null && (
+                <>
+                  <div className="text-slate-500">Wind</div>
+                  <div className="text-slate-300">
+                    {p.windDir || 'VRB'}° at {p.windSpeedKts} kt ({Math.round(p.windSpeedKts * 1.15078)} mph)
+                    {p.windGustKts ? `, gusting ${p.windGustKts} kt (${Math.round(p.windGustKts * 1.15078)} mph)` : ''}
+                  </div>
+                </>
+              )}
+              {p.visibilitySM != null && (
+                <>
+                  <div className="text-slate-500">Visibility</div>
+                  <div className="text-slate-300">{p.visibilitySM >= 6 ? '6+ SM (Good)' : `${p.visibilitySM} SM`}</div>
+                </>
+              )}
+              {p.clouds?.length > 0 && (
+                <>
+                  <div className="text-slate-500">Clouds</div>
+                  <div className="text-slate-300">{p.clouds.map(formatCloudLayer).join(', ')}</div>
+                </>
+              )}
+              {p.wxCodes?.length > 0 && (
+                <>
+                  <div className="text-slate-500">Weather</div>
+                  <div className="text-amber-400 font-mono">{p.wxCodes.join(' ')}</div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -364,8 +450,10 @@ function AlertTicker({ lat, lon, icao }: { lat: number; lon: number; icao?: stri
       const toDate = p.to ? new Date(p.to) : null;
       if (toDate && toDate < now) return;
 
-      const timeLabel = fromDate <= now ? 'Now' :
-        `${fromDate.getUTCHours().toString().padStart(2, '0')}${fromDate.getUTCMinutes().toString().padStart(2, '0')}Z`;
+      const zuluH = fromDate.getUTCHours().toString().padStart(2, '0');
+      const zuluM = fromDate.getUTCMinutes().toString().padStart(2, '0');
+      const localStr = fromDate.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(':00', '');
+      const timeLabel = fromDate <= now ? 'Now' : `${zuluH}${zuluM}Z (${localStr})`;
       const prefix = p.changeType === 'TEMPO' ? 'TEMPO ' : p.changeType === 'BECMG' ? 'BECMG ' : '';
 
       const parts: string[] = [];
