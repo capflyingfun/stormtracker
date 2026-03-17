@@ -384,3 +384,20 @@ export const insertUserSettingsSchema = createInsertSchema(userSettings).omit({
 
 export type UserSettings = typeof userSettings.$inferSelect;
 export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
+
+export const favoriteStations = pgTable("favorite_stations", {
+  id: serial("id").primaryKey(),
+  icao: text("icao").notNull(),
+  name: text("name").notNull(),
+  lat: real("lat").notNull(),
+  lon: real("lon").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertFavoriteStationSchema = createInsertSchema(favoriteStations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type FavoriteStation = typeof favoriteStations.$inferSelect;
+export type InsertFavoriteStation = z.infer<typeof insertFavoriteStationSchema>;

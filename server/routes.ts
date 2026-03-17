@@ -6437,6 +6437,207 @@ Guidelines:
     }
   });
 
+  // ===== WEATHER STATION (PWS Console) ENDPOINTS =====
+
+  app.get("/api/nearby-stations", async (req, res) => {
+    try {
+      const { lat, lon, radius } = req.query;
+      if (!lat || !lon) return res.status(400).json({ error: "lat and lon required" });
+      const userLat = parseFloat(lat as string);
+      const userLon = parseFloat(lon as string);
+      const r = Math.min(parseFloat((radius as string) || '1.5'), 5);
+      if (isNaN(userLat) || isNaN(userLon) || isNaN(r)) return res.status(400).json({ error: "Invalid lat, lon, or radius" });
+
+      const awcUrl = `https://aviationweather.gov/api/data/metar?bbox=${userLat - r},${userLon - r},${userLat + r},${userLon + r}&format=json&taf=false&hours=1`;
+      const response = await fetch(awcUrl, { signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error(`AWC returned ${response.status}`);
+      const data = await response.json();
+
+      const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 3959;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      };
+
+      const stations = (data || []).map((m: any) => ({
+        icao: m.icaoId,
+        name: m.name || m.icaoId,
+        lat: m.lat,
+        lon: m.lon,
+        distance: Math.round(haversine(userLat, userLon, m.lat, m.lon) * 10) / 10,
+        tempC: m.temp,
+        tempF: m.temp != null ? Math.round(m.temp * 9 / 5 + 32) : null,
+        dewC: m.dewp,
+        dewF: m.dewp != null ? Math.round(m.dewp * 9 / 5 + 32) : null,
+        humidity: m.temp != null && m.dewp != null ? Math.round(100 * Math.exp((17.625 * m.dewp) / (243.04 + m.dewp)) / Math.exp((17.625 * m.temp) / (243.04 + m.temp))) : null,
+        windDir: m.wdir,
+        windSpeed: m.wspd,
+        windGust: m.wgst,
+        visibility: m.visib,
+        altimeter: m.altim,
+        slp: m.slp,
+        wxString: m.wxString,
+        clouds: m.clouds,
+        rawOb: m.rawOb,
+        obsTime: m.obsTime,
+        elev: m.elev,
+      })).sort((a: any, b: any) => a.distance - b.distance);
+
+      res.json({ stations, count: stations.length });
+    } catch (error: any) {
+      console.error("Nearby stations error:", error.message);
+      res.status(500).json({ error: "Failed to fetch nearby stations" });
+    }
+  });
+
+  app.get("/api/station-data/:icao", async (req, res) => {
+    try {
+      const icao = req.params.icao.toUpperCase();
+      if (!/^[A-Z]{3,4}$/.test(icao)) return res.status(400).json({ error: "Invalid ICAO code format" });
+      const awcUrl = `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&taf=false&hours=3`;
+      const response = await fetch(awcUrl, { signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error(`AWC returned ${response.status}`);
+      const data = await response.json();
+      if (!data || data.length === 0) return res.status(404).json({ error: "Station not found" });
+
+      const current = data[0];
+      const previous = data.length > 1 ? data[1] : null;
+
+      const pressureTrend = current.altim && previous?.altim
+        ? current.altim > previous.altim + 0.01 ? 'rising' : current.altim < previous.altim - 0.01 ? 'falling' : 'steady'
+        : 'unknown';
+
+      const tempC = current.temp;
+      const tempF = tempC != null ? Math.round((tempC * 9 / 5 + 32) * 10) / 10 : null;
+      const dewC = current.dewp;
+      const dewF = dewC != null ? Math.round((dewC * 9 / 5 + 32) * 10) / 10 : null;
+
+      const humidity = tempC != null && dewC != null
+        ? Math.round(100 * Math.exp((17.625 * dewC) / (243.04 + dewC)) / Math.exp((17.625 * tempC) / (243.04 + tempC)))
+        : null;
+
+      const windChillOrHeatIdx = (() => {
+        if (tempF == null) return null;
+        if (tempF <= 50 && current.wspd >= 3) {
+          const wc = 35.74 + 0.6215 * tempF - 35.75 * Math.pow(current.wspd, 0.16) + 0.4275 * tempF * Math.pow(current.wspd, 0.16);
+          return { type: 'windchill', f: Math.round(wc), c: Math.round((wc - 32) * 5 / 9) };
+        }
+        if (tempF >= 80 && humidity != null && humidity >= 40) {
+          const hi = -42.379 + 2.04901523 * tempF + 10.14333127 * humidity - 0.22475541 * tempF * humidity - 0.00683783 * tempF * tempF - 0.05481717 * humidity * humidity + 0.00122874 * tempF * tempF * humidity + 0.00085282 * tempF * humidity * humidity - 0.00000199 * tempF * tempF * humidity * humidity;
+          return { type: 'heatindex', f: Math.round(hi), c: Math.round((hi - 32) * 5 / 9) };
+        }
+        return { type: 'feelslike', f: Math.round(tempF), c: tempC != null ? Math.round(tempC) : null };
+      })();
+
+      const pressureInHg = current.altim ? Math.round(current.altim * 100) / 100 : null;
+      const pressureMb = pressureInHg ? Math.round(pressureInHg * 33.8639 * 10) / 10 : null;
+
+      const moonPhase = (() => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth() + 1;
+        const day = now.getDate();
+        const c = Math.floor(365.25 * year);
+        const e = Math.floor(30.6 * month);
+        const jd = c + e + day - 694039.09;
+        const phase = jd / 29.5305882;
+        const normalized = phase - Math.floor(phase);
+        const age = Math.round(normalized * 29.5);
+        let name = 'Waxing Crescent';
+        let icon = '🌒';
+        if (age <= 1 || age >= 29) { name = 'New Moon'; icon = '🌑'; }
+        else if (age <= 6) { name = 'Waxing Crescent'; icon = '🌒'; }
+        else if (age <= 8) { name = 'First Quarter'; icon = '🌓'; }
+        else if (age <= 13) { name = 'Waxing Gibbous'; icon = '🌔'; }
+        else if (age <= 16) { name = 'Full Moon'; icon = '🌕'; }
+        else if (age <= 21) { name = 'Waning Gibbous'; icon = '🌖'; }
+        else if (age <= 23) { name = 'Last Quarter'; icon = '🌗'; }
+        else { name = 'Waning Crescent'; icon = '🌘'; }
+        return { name, icon, age, illumination: Math.round(50 * (1 - Math.cos(normalized * 2 * Math.PI))) };
+      })();
+
+      const station = {
+        icao: current.icaoId,
+        name: current.name || current.icaoId,
+        lat: current.lat,
+        lon: current.lon,
+        elev: current.elev,
+        obsTime: current.obsTime,
+        rawOb: current.rawOb,
+        tempF: tempF != null ? Math.round(tempF) : null,
+        tempC: tempC != null ? Math.round(tempC) : null,
+        dewF: dewF != null ? Math.round(dewF) : null,
+        dewC: dewC != null ? Math.round(dewC) : null,
+        humidity,
+        feelsLike: windChillOrHeatIdx,
+        wind: {
+          direction: current.wdir,
+          dirLabel: current.wdir != null ? getDirectionFromBearing(current.wdir) : 'Calm',
+          speed: current.wspd,
+          gust: current.wgst,
+          speedMph: current.wspd != null ? Math.round(current.wspd * 1.15078) : null,
+          gustMph: current.wgst != null ? Math.round(current.wgst * 1.15078) : null,
+        },
+        pressure: {
+          inHg: pressureInHg,
+          mb: pressureMb,
+          trend: pressureTrend,
+          previousInHg: previous?.altim ? Math.round(previous.altim * 100) / 100 : null,
+        },
+        visibility: {
+          miles: current.visib != null ? Math.round(current.visib * 10) / 10 : null,
+          km: current.visib != null ? Math.round(current.visib * 1.60934 * 10) / 10 : null,
+        },
+        clouds: current.clouds,
+        wxString: current.wxString,
+        precip: current.precip,
+        moonPhase,
+      };
+
+      res.json(station);
+    } catch (error: any) {
+      console.error("Station data error:", error.message);
+      res.status(500).json({ error: "Failed to fetch station data" });
+    }
+  });
+
+  app.get("/api/favorite-stations", async (_req, res) => {
+    try {
+      const { favoriteStations } = await import("@shared/schema");
+      const favorites = await db.select().from(favoriteStations).orderBy(favoriteStations.createdAt);
+      res.json(favorites);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch favorites" });
+    }
+  });
+
+  app.post("/api/favorite-stations", async (req, res) => {
+    try {
+      const { favoriteStations } = await import("@shared/schema");
+      const { icao, name, lat, lon } = req.body;
+      if (!icao || !name) return res.status(400).json({ error: "icao and name required" });
+      const [fav] = await db.insert(favoriteStations).values({ icao, name, lat: lat || 0, lon: lon || 0 }).returning();
+      res.json(fav);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to save favorite" });
+    }
+  });
+
+  app.delete("/api/favorite-stations/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id) || id <= 0) return res.status(400).json({ error: "Invalid station ID" });
+      const { favoriteStations } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.delete(favoriteStations).where(eq(favoriteStations.id, id));
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete favorite" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
