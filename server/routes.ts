@@ -6506,7 +6506,7 @@ Guidelines:
       const previous = data.length > 1 ? data[1] : null;
 
       const pressureTrend = current.altim && previous?.altim
-        ? current.altim > previous.altim + 0.01 ? 'rising' : current.altim < previous.altim - 0.01 ? 'falling' : 'steady'
+        ? current.altim > previous.altim + 0.3 ? 'rising' : current.altim < previous.altim - 0.3 ? 'falling' : 'steady'
         : 'unknown';
 
       const tempC = current.temp;
@@ -6518,10 +6518,15 @@ Guidelines:
         ? Math.round(100 * Math.exp((17.625 * dewC) / (243.04 + dewC)) / Math.exp((17.625 * tempC) / (243.04 + tempC)))
         : null;
 
+      const windSpeedKts = current.wspd ?? 0;
+      const windSpeedMph = Math.round(windSpeedKts * 1.15078);
+      const windGustKts = current.wgst;
+      const windGustMph = windGustKts != null ? Math.round(windGustKts * 1.15078) : null;
+
       const windChillOrHeatIdx = (() => {
         if (tempF == null) return null;
-        if (tempF <= 50 && current.wspd >= 3) {
-          const wc = 35.74 + 0.6215 * tempF - 35.75 * Math.pow(current.wspd, 0.16) + 0.4275 * tempF * Math.pow(current.wspd, 0.16);
+        if (tempF <= 50 && windSpeedMph >= 3) {
+          const wc = 35.74 + 0.6215 * tempF - 35.75 * Math.pow(windSpeedMph, 0.16) + 0.4275 * tempF * Math.pow(windSpeedMph, 0.16);
           return { type: 'windchill', f: Math.round(wc), c: Math.round((wc - 32) * 5 / 9) };
         }
         if (tempF >= 80 && humidity != null && humidity >= 40) {
@@ -6531,8 +6536,199 @@ Guidelines:
         return { type: 'feelslike', f: Math.round(tempF), c: tempC != null ? Math.round(tempC) : null };
       })();
 
-      const pressureInHg = current.altim ? Math.round(current.altim * 100) / 100 : null;
-      const pressureMb = pressureInHg ? Math.round(pressureInHg * 33.8639 * 10) / 10 : null;
+      const pressureMb = current.altim ? Math.round(current.altim * 10) / 10 : null;
+      const pressureInHg = pressureMb ? Math.round((pressureMb * 0.02953) * 100) / 100 : null;
+      const pressureMmHg = pressureMb ? Math.round(pressureMb * 0.75006) : null;
+      const pressureKpa = pressureMb ? Math.round(pressureMb / 10 * 100) / 100 : null;
+
+      const parseVisibility = (v: any): { miles: number; km: number; meters: number; nauticalMiles: number } | null => {
+        if (v == null) return null;
+        let miles: number;
+        if (typeof v === 'string') {
+          miles = parseFloat(v.replace('+', ''));
+          if (v.includes('+')) miles = miles;
+        } else {
+          miles = v;
+        }
+        if (isNaN(miles)) return null;
+        return {
+          miles: Math.round(miles * 10) / 10,
+          km: Math.round(miles * 1.60934 * 10) / 10,
+          meters: Math.round(miles * 1609.34),
+          nauticalMiles: Math.round(miles * 0.868976 * 10) / 10,
+        };
+      };
+
+      const getBeaufort = (kts: number): { scale: number; description: string } => {
+        if (kts < 1) return { scale: 0, description: 'Calm' };
+        if (kts <= 3) return { scale: 1, description: 'Light Air' };
+        if (kts <= 6) return { scale: 2, description: 'Light Breeze' };
+        if (kts <= 10) return { scale: 3, description: 'Gentle Breeze' };
+        if (kts <= 16) return { scale: 4, description: 'Moderate Breeze' };
+        if (kts <= 21) return { scale: 5, description: 'Fresh Breeze' };
+        if (kts <= 27) return { scale: 6, description: 'Strong Breeze' };
+        if (kts <= 33) return { scale: 7, description: 'Near Gale' };
+        if (kts <= 40) return { scale: 8, description: 'Gale' };
+        if (kts <= 47) return { scale: 9, description: 'Strong Gale' };
+        if (kts <= 55) return { scale: 10, description: 'Storm' };
+        if (kts <= 63) return { scale: 11, description: 'Violent Storm' };
+        return { scale: 12, description: 'Hurricane Force' };
+      };
+
+      const decodeMetar = (raw: string) => {
+        const parts: { label: string; value: string; severity?: string }[] = [];
+        if (!raw) return parts;
+
+        const wxCodes: Record<string, string> = {
+          'RA': 'Rain', 'SN': 'Snow', 'DZ': 'Drizzle', 'TS': 'Thunderstorm',
+          'FG': 'Fog', 'BR': 'Mist', 'HZ': 'Haze', 'FU': 'Smoke',
+          'GR': 'Hail', 'GS': 'Small Hail', 'PE': 'Ice Pellets', 'PL': 'Ice Pellets',
+          'SH': 'Showers', 'FZ': 'Freezing', 'VA': 'Volcanic Ash', 'DU': 'Dust',
+          'SA': 'Sand', 'SQ': 'Squall', 'FC': 'Tornado/Waterspout', 'SS': 'Sandstorm',
+          'DS': 'Duststorm', 'PO': 'Dust Devils', 'UP': 'Unknown Precip',
+          'IC': 'Ice Crystals', 'SG': 'Snow Grains',
+        };
+
+        const intensityLabels: Record<string, string> = { '+': 'Heavy', '-': 'Light', '': 'Moderate' };
+
+        const tokens = raw.split(/\s+/);
+        let isRmk = false;
+
+        for (let i = 0; i < tokens.length; i++) {
+          const t = tokens[i];
+
+          if (t === 'METAR' || t === 'SPECI') {
+            parts.push({ label: 'Report Type', value: t === 'SPECI' ? 'Special (unscheduled)' : 'Routine' });
+            continue;
+          }
+
+          if (/^[A-Z]{4}$/.test(t) && i <= 2) {
+            parts.push({ label: 'Station', value: t });
+            continue;
+          }
+
+          if (/^\d{6}Z$/.test(t)) {
+            const day = t.slice(0, 2);
+            const hour = t.slice(2, 4);
+            const min = t.slice(4, 6);
+            parts.push({ label: 'Observation Time', value: `Day ${day}, ${hour}:${min} UTC` });
+            continue;
+          }
+
+          if (t === 'AUTO') {
+            parts.push({ label: 'Automated', value: 'Automated observation (no human observer)' });
+            continue;
+          }
+
+          const windMatch = t.match(/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT$/);
+          if (windMatch) {
+            const dir = windMatch[1] === 'VRB' ? 'Variable' : `${windMatch[1]}°`;
+            const spd = parseInt(windMatch[2]);
+            const gst = windMatch[4] ? parseInt(windMatch[4]) : null;
+            let windDesc = `${dir} at ${spd} kt (${Math.round(spd * 1.15078)} mph, ${Math.round(spd * 1.852)} km/h)`;
+            if (gst) windDesc += `, gusting ${gst} kt (${Math.round(gst * 1.15078)} mph)`;
+            const bf = getBeaufort(spd);
+            windDesc += ` — Beaufort ${bf.scale} (${bf.description})`;
+            parts.push({ label: 'Wind', value: windDesc, severity: spd >= 25 ? 'warning' : gst && gst >= 35 ? 'warning' : undefined });
+            continue;
+          }
+
+          const varWindMatch = t.match(/^(\d{3})V(\d{3})$/);
+          if (varWindMatch) {
+            parts.push({ label: 'Wind Variable', value: `Between ${varWindMatch[1]}° and ${varWindMatch[2]}°` });
+            continue;
+          }
+
+          const visMatch = t.match(/^(\d+)(SM)?$/);
+          if (visMatch && !isRmk && (t.endsWith('SM') || (parseInt(t) <= 10 && i > 2))) {
+            if (t.endsWith('SM')) {
+              const miles = parseFloat(t.replace('SM', '').replace('P', '>'));
+              const isPlus = t.startsWith('P');
+              parts.push({ label: 'Visibility', value: `${isPlus ? '>' : ''}${miles} SM (${Math.round(miles * 1.609)} km)`, severity: miles < 3 ? 'danger' : miles < 5 ? 'warning' : undefined });
+            }
+            continue;
+          }
+
+          if (/^(M?\d+\/(M?\d+))$/.test(t) && t.includes('/') && !isRmk) {
+            const fracMatch = t.match(/^(M?\d+)\/(M?\d+)$/);
+            if (fracMatch) {
+              const rawTempC = fracMatch[1].replace('M', '-');
+              const rawDewC = fracMatch[2].replace('M', '-');
+              const tc = parseFloat(rawTempC);
+              const dc = parseFloat(rawDewC);
+              parts.push({ label: 'Temp / Dewpoint', value: `${tc}°C (${Math.round(tc * 9/5 + 32)}°F) / ${dc}°C (${Math.round(dc * 9/5 + 32)}°F)` });
+              continue;
+            }
+          }
+
+          if (/^A\d{4}$/.test(t)) {
+            const raw_inhg = parseInt(t.slice(1)) / 100;
+            const mb = Math.round(raw_inhg / 0.02953 * 10) / 10;
+            parts.push({ label: 'Altimeter', value: `${raw_inhg.toFixed(2)} inHg (${mb} mb)` });
+            continue;
+          }
+
+          if (/^Q\d{4}$/.test(t)) {
+            const qnh = parseInt(t.slice(1));
+            parts.push({ label: 'QNH', value: `${qnh} hPa (${(qnh * 0.02953).toFixed(2)} inHg)` });
+            continue;
+          }
+
+          const cloudMatch = t.match(/^(SKC|CLR|FEW|SCT|BKN|OVC|VV)(\d{3})?$/);
+          if (cloudMatch) {
+            const covers: Record<string, string> = { 'SKC': 'Sky Clear', 'CLR': 'Clear below 12,000', 'FEW': 'Few (1-2 oktas)', 'SCT': 'Scattered (3-4 oktas)', 'BKN': 'Broken (5-7 oktas)', 'OVC': 'Overcast (8 oktas)', 'VV': 'Vertical Visibility' };
+            const base = cloudMatch[2] ? `at ${parseInt(cloudMatch[2]) * 100} ft AGL` : '';
+            parts.push({ label: 'Clouds', value: `${covers[cloudMatch[1]] || cloudMatch[1]} ${base}`.trim() });
+            continue;
+          }
+
+          if (t === 'RMK') { isRmk = true; parts.push({ label: 'Remarks', value: '—' }); continue; }
+
+          if (isRmk) {
+            if (t === 'AO2') { parts.push({ label: 'Station Type', value: 'Automated with precipitation sensor' }); continue; }
+            if (t === 'AO1') { parts.push({ label: 'Station Type', value: 'Automated without precipitation sensor' }); continue; }
+            if (t.startsWith('SLP')) { const slp = parseFloat(t.slice(3)); const full = slp < 500 ? 1000 + slp / 10 : 900 + slp / 10; parts.push({ label: 'Sea Level Pressure', value: `${full.toFixed(1)} mb` }); continue; }
+            if (/^T\d{8}$/.test(t)) {
+              const ts = parseInt(t[1]) === 1 ? -1 : 1;
+              const tc2 = ts * parseInt(t.slice(2, 5)) / 10;
+              const ds = parseInt(t[5]) === 1 ? -1 : 1;
+              const dc2 = ds * parseInt(t.slice(6, 9)) / 10;
+              parts.push({ label: 'Precise Temp/Dew', value: `${tc2.toFixed(1)}°C / ${dc2.toFixed(1)}°C` });
+              continue;
+            }
+            if (/^LTG/.test(t)) {
+              let ltgDesc = t.replace('LTGIC', 'In-Cloud Lightning').replace('LTGCG', 'Cloud-to-Ground Lightning').replace('LTGCC', 'Cloud-to-Cloud Lightning').replace('LTG', 'Lightning');
+              const nextTokens = [];
+              for (let j = i + 1; j < Math.min(i + 4, tokens.length); j++) {
+                if (/^(DSNT|VC|OHD|ALQDS?|[NESW]{1,3}(-[NESW]{1,3})?)$/.test(tokens[j])) {
+                  const locMap: Record<string, string> = { 'DSNT': 'Distant', 'VC': 'Vicinity', 'OHD': 'Overhead', 'ALQDS': 'All Quadrants', 'ALQD': 'All Quadrants' };
+                  nextTokens.push(locMap[tokens[j]] || tokens[j]);
+                } else break;
+              }
+              if (nextTokens.length) ltgDesc += ` — ${nextTokens.join(', ')}`;
+              parts.push({ label: '⚡ Lightning', value: ltgDesc, severity: 'danger' });
+              continue;
+            }
+            if (/^(CB|TCU)/.test(t)) {
+              parts.push({ label: 'Significant Clouds', value: t === 'CB' ? 'Cumulonimbus (thunderstorm)' : 'Towering Cumulus', severity: 'warning' });
+              continue;
+            }
+            if (/^\$/.test(t)) { parts.push({ label: 'Maintenance', value: 'Station needs maintenance' }); continue; }
+          }
+
+          const wxIntensity = t.startsWith('+') ? '+' : t.startsWith('-') ? '-' : '';
+          const wxBody = t.replace(/^[+-]/, '');
+          const wxPairs = wxBody.match(/.{2}/g);
+          if (wxPairs && wxPairs.every(p => wxCodes[p])) {
+            const desc = wxPairs.map(p => wxCodes[p]).join(' ');
+            const severity = wxBody.includes('TS') || wxBody.includes('FC') || wxBody.includes('GR') ? 'danger' :
+              wxBody.includes('FZ') || wxBody.includes('SN') || wxBody.includes('SQ') ? 'warning' : undefined;
+            parts.push({ label: 'Weather', value: `${intensityLabels[wxIntensity]} ${desc}`, severity });
+            continue;
+          }
+        }
+        return parts;
+      };
 
       const moonPhase = (() => {
         const now = new Date();
@@ -6575,25 +6771,30 @@ Guidelines:
         wind: {
           direction: current.wdir,
           dirLabel: current.wdir != null ? getDirectionFromBearing(current.wdir) : 'Calm',
-          speed: current.wspd,
-          gust: current.wgst,
-          speedMph: current.wspd != null ? Math.round(current.wspd * 1.15078) : null,
-          gustMph: current.wgst != null ? Math.round(current.wgst * 1.15078) : null,
+          speedKts: windSpeedKts,
+          gustKts: windGustKts,
+          speedMph: windSpeedMph,
+          gustMph: windGustMph,
+          speedKmh: Math.round(windSpeedKts * 1.852),
+          gustKmh: windGustKts != null ? Math.round(windGustKts * 1.852) : null,
+          speedMs: Math.round(windSpeedKts * 0.51444 * 10) / 10,
+          gustMs: windGustKts != null ? Math.round(windGustKts * 0.51444 * 10) / 10 : null,
+          beaufort: getBeaufort(windSpeedKts),
         },
         pressure: {
           inHg: pressureInHg,
           mb: pressureMb,
+          mmHg: pressureMmHg,
+          kPa: pressureKpa,
           trend: pressureTrend,
-          previousInHg: previous?.altim ? Math.round(previous.altim * 100) / 100 : null,
+          previousMb: previous?.altim ? Math.round(previous.altim * 10) / 10 : null,
         },
-        visibility: {
-          miles: current.visib != null ? Math.round(current.visib * 10) / 10 : null,
-          km: current.visib != null ? Math.round(current.visib * 1.60934 * 10) / 10 : null,
-        },
+        visibility: parseVisibility(current.visib),
         clouds: current.clouds,
         wxString: current.wxString,
         precip: current.precip,
         moonPhase,
+        decoded: decodeMetar(current.rawOb || ''),
       };
 
       res.json(station);

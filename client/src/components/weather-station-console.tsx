@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useLanguage } from '@/hooks/use-language';
-import { Star, MapPin, RefreshCw, ChevronDown, TrendingUp, TrendingDown, Minus, Eye, Droplets, Wind, Thermometer, AlertTriangle, Radio, Search } from 'lucide-react';
+import { Star, MapPin, RefreshCw, ChevronDown, TrendingUp, TrendingDown, Minus, Droplets, Thermometer, AlertTriangle, Radio, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 
@@ -23,22 +23,30 @@ interface StationData {
   wind: {
     direction: number | null;
     dirLabel: string;
-    speed: number | null;
-    gust: number | null;
-    speedMph: number | null;
+    speedKts: number;
+    gustKts: number | null;
+    speedMph: number;
     gustMph: number | null;
+    speedKmh: number;
+    gustKmh: number | null;
+    speedMs: number;
+    gustMs: number | null;
+    beaufort: { scale: number; description: string };
   };
   pressure: {
     inHg: number | null;
     mb: number | null;
+    mmHg: number | null;
+    kPa: number | null;
     trend: string;
-    previousInHg: number | null;
+    previousMb: number | null;
   };
-  visibility: { miles: number | null; km: number | null };
+  visibility: { miles: number; km: number; meters: number; nauticalMiles: number } | null;
   clouds: any[];
   wxString: string | null;
   precip: any;
   moonPhase: { name: string; icon: string; age: number; illumination: number };
+  decoded: { label: string; value: string; severity?: string }[];
 }
 
 interface NearbyStation {
@@ -58,9 +66,58 @@ interface FavoriteStation {
   lon: number;
 }
 
-function WindCompass({ direction, speed, gust, speedMph, gustMph }: { direction: number | null; speed: number | null; gust: number | null; speedMph: number | null; gustMph: number | null }) {
+type WindUnit = 'mph' | 'kts' | 'kmh' | 'ms' | 'beaufort';
+type TempUnit = 'f' | 'c';
+type PressureUnit = 'inHg' | 'mb' | 'mmHg' | 'kPa';
+type VisUnit = 'mi' | 'km' | 'm' | 'nm';
+
+function useCycleUnit<T extends string>(key: string, options: T[]): [T, () => void] {
+  const [idx, setIdx] = useState(() => {
+    const saved = localStorage.getItem(`stormtracker_unit_${key}`);
+    if (saved) { const i = options.indexOf(saved as T); if (i >= 0) return i; }
+    return 0;
+  });
+  const cycle = useCallback(() => {
+    setIdx(prev => {
+      const next = (prev + 1) % options.length;
+      localStorage.setItem(`stormtracker_unit_${key}`, options[next]);
+      return next;
+    });
+  }, [key, options]);
+  return [options[idx], cycle];
+}
+
+function TappableValue({ children, onClick, hint }: { children: React.ReactNode; onClick: () => void; hint: string }) {
+  return (
+    <button onClick={onClick} className="inline-flex items-center gap-0.5 cursor-pointer active:scale-95 transition-transform group" title={`Tap to switch to ${hint}`}>
+      {children}
+      <span className="text-[7px] text-slate-600 group-hover:text-slate-400 transition-colors ml-0.5">⟳</span>
+    </button>
+  );
+}
+
+function getDirectionFromBearing(deg: number): string {
+  const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
+function WindCompass({ wind, windUnit, cycleWind }: { wind: StationData['wind']; windUnit: WindUnit; cycleWind: () => void }) {
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  const isCalm = speed === 0 || speed == null;
+  const isCalm = wind.speedKts === 0;
+
+  const getWindDisplay = (speed: number | null | undefined, gust: number | null | undefined) => {
+    const s = speed ?? 0;
+    const g = gust;
+    switch (windUnit) {
+      case 'mph': return { speed: wind.speedMph, gust: wind.gustMph, unit: 'mph' };
+      case 'kts': return { speed: wind.speedKts, gust: wind.gustKts, unit: 'kts' };
+      case 'kmh': return { speed: wind.speedKmh, gust: wind.gustKmh, unit: 'km/h' };
+      case 'ms': return { speed: wind.speedMs, gust: wind.gustMs, unit: 'm/s' };
+      case 'beaufort': return { speed: wind.beaufort.scale, gust: null, unit: `Bft` };
+    }
+  };
+  const d = getWindDisplay(wind.speedKts, wind.gustKts);
+  const nextUnit: Record<WindUnit, string> = { mph: 'knots', kts: 'km/h', kmh: 'm/s', ms: 'Beaufort', beaufort: 'mph' };
 
   return (
     <div className="flex flex-col items-center">
@@ -74,10 +131,9 @@ function WindCompass({ direction, speed, gust, speedMph, gustMph }: { direction:
             const rad = angle * Math.PI / 180;
             const x = 100 + 82 * Math.cos(rad);
             const y = 100 + 82 * Math.sin(rad);
-            const isPrimary = i % 2 === 0;
             return (
               <text key={d} x={x} y={y} textAnchor="middle" dominantBaseline="central"
-                className={`${isPrimary ? 'text-[11px] font-bold fill-slate-300' : 'text-[9px] fill-slate-500'}`}>
+                className={`${i % 2 === 0 ? 'text-[11px] font-bold fill-slate-300' : 'text-[9px] fill-slate-500'}`}>
                 {d}
               </text>
             );
@@ -90,48 +146,50 @@ function WindCompass({ direction, speed, gust, speedMph, gustMph }: { direction:
                 stroke="rgba(100,116,139,0.4)" strokeWidth="1.5" />
             );
           })}
-          {!isCalm && direction != null && (
-            <g transform={`rotate(${direction}, 100, 100)`}>
+          {!isCalm && wind.direction != null && (
+            <g transform={`rotate(${wind.direction}, 100, 100)`}>
               <polygon points="100,30 93,65 100,55 107,65" fill="#22c55e" opacity="0.9" />
               <line x1="100" y1="55" x2="100" y2="140" stroke="#22c55e" strokeWidth="2.5" opacity="0.7" />
             </g>
           )}
           <circle cx="100" cy="100" r="22" fill="rgba(15,23,42,0.9)" stroke="rgba(100,116,139,0.3)" strokeWidth="1" />
           <text x="100" y="96" textAnchor="middle" dominantBaseline="central" className="text-[14px] font-bold fill-green-400">
-            {direction != null ? `${direction}°` : '--'}
+            {wind.direction != null ? `${wind.direction}°` : '--'}
           </text>
           <text x="100" y="112" textAnchor="middle" dominantBaseline="central" className="text-[8px] fill-slate-500">
-            {direction != null ? getDirectionFromBearing(direction) : ''}
+            {wind.dirLabel}
           </text>
         </svg>
       </div>
-      <div className="flex items-center gap-4 mt-1">
-        <div className="text-center">
-          <span className="text-[9px] text-slate-500 uppercase block">Speed</span>
-          <span className="text-white font-bold text-sm">{speedMph ?? '--'}</span>
-          <span className="text-slate-400 text-[10px]"> mph</span>
+      <TappableValue onClick={cycleWind} hint={nextUnit[windUnit]}>
+        <div className="flex items-center gap-4 mt-1">
+          <div className="text-center">
+            <span className="text-[9px] text-slate-500 uppercase block">Speed</span>
+            <span className="text-white font-bold text-sm">{d.speed ?? '--'}</span>
+            <span className="text-slate-400 text-[10px]"> {d.unit}</span>
+          </div>
+          {d.gust != null && (
+            <div className="text-center">
+              <span className="text-[9px] text-slate-500 uppercase block">Gust</span>
+              <span className="text-orange-400 font-bold text-sm">{d.gust}</span>
+              <span className="text-slate-400 text-[10px]"> {d.unit}</span>
+            </div>
+          )}
         </div>
-        <div className="text-center">
-          <span className="text-[9px] text-slate-500 uppercase block">Gust</span>
-          <span className="text-orange-400 font-bold text-sm">{gustMph ?? '--'}</span>
-          <span className="text-slate-400 text-[10px]"> mph</span>
-        </div>
-      </div>
+      </TappableValue>
+      {windUnit === 'beaufort' && (
+        <span className="text-[9px] text-green-400 mt-0.5">{wind.beaufort.description}</span>
+      )}
     </div>
   );
 }
 
-function getDirectionFromBearing(deg: number): string {
-  const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-  return dirs[Math.round(deg / 22.5) % 16];
-}
-
-function CircularGauge({ value, max, label, unit, color, icon }: { value: number | null; max: number; label: string; unit: string; color: string; icon?: string }) {
+function CircularGauge({ value, max, label, unit, color, icon, onClick, hint }: { value: number | null; max: number; label: string; unit: string; color: string; icon?: string; onClick?: () => void; hint?: string }) {
   const pct = value != null ? Math.min(value / max, 1) : 0;
   const circumference = 2 * Math.PI * 40;
   const dashOffset = circumference * (1 - pct * 0.75);
 
-  return (
+  const inner = (
     <div className="flex flex-col items-center">
       <div className="relative w-24 h-24 sm:w-28 sm:h-28">
         <svg viewBox="0 0 100 100" className="w-full h-full -rotate-[135deg]">
@@ -147,6 +205,11 @@ function CircularGauge({ value, max, label, unit, color, icon }: { value: number
       <span className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">{label}</span>
     </div>
   );
+
+  if (onClick && hint) {
+    return <TappableValue onClick={onClick} hint={hint}>{inner}</TappableValue>;
+  }
+  return inner;
 }
 
 function PressureTrendIcon({ trend }: { trend: string }) {
@@ -158,7 +221,7 @@ function PressureTrendIcon({ trend }: { trend: string }) {
 function ForecastIconStrip({ lat, lon }: { lat: number; lon: number }) {
   const { data } = useQuery<any>({
     queryKey: ['/api/weather-forecast', lat, lon],
-    queryFn: () => fetch(`/api/weather-forecast?lat=${lat}&lon=${lon}`).then(r => r.json()),
+    queryFn: async () => { const r = await fetch(`/api/weather-forecast?lat=${lat}&lon=${lon}`); if (!r.ok) throw new Error('fail'); return r.json(); },
     staleTime: 300000,
   });
 
@@ -184,7 +247,6 @@ function ForecastIconStrip({ lat, lon }: { lat: number; lon: number }) {
   };
 
   const items: { label: string; emoji: string; tempF?: number }[] = [];
-
   if (nwsPeriods.length > 0) {
     nwsPeriods.slice(0, 8).forEach((p: any) => {
       const shortName = p.name.replace(' Night', ' N').replace('This Afternoon', 'PM').replace('Tonight', 'Eve').replace('Overnight', 'Ovnt');
@@ -197,7 +259,6 @@ function ForecastIconStrip({ lat, lon }: { lat: number; lon: number }) {
       items.push({ label: dayName, emoji: getConditionEmoji(f.day.condition), tempF: Math.round(f.day.maxtemp_f) });
     });
   }
-
   if (items.length === 0) return null;
 
   return (
@@ -218,7 +279,7 @@ function ForecastIconStrip({ lat, lon }: { lat: number; lon: number }) {
 function AlertTicker({ lat, lon }: { lat: number; lon: number }) {
   const { data } = useQuery<any>({
     queryKey: ['/api/weather-forecast', lat, lon],
-    queryFn: () => fetch(`/api/weather-forecast?lat=${lat}&lon=${lon}`).then(r => r.json()),
+    queryFn: async () => { const r = await fetch(`/api/weather-forecast?lat=${lat}&lon=${lon}`); if (!r.ok) throw new Error('fail'); return r.json(); },
     staleTime: 300000,
   });
 
@@ -226,7 +287,6 @@ function AlertTicker({ lat, lon }: { lat: number; lon: number }) {
     ...(data?.nws_alerts || []).map((a: any) => `🚨 ${a.event}: ${a.headline || a.areaDesc}`),
     ...(data?.alerts || []).map((a: any) => `⚠️ ${a.event}: ${a.headline || a.description?.slice(0, 80)}`),
   ];
-
   const forecast = data?.forecast || [];
   const trendMessages: string[] = [];
   forecast.slice(0, 3).forEach((f: any, i: number) => {
@@ -234,17 +294,11 @@ function AlertTicker({ lat, lon }: { lat: number; lon: number }) {
     const rain = f.day?.daily_chance_of_rain || 0;
     const d = new Date(f.date + 'T12:00:00');
     const name = i === 0 ? 'Today' : d.toLocaleDateString('en', { weekday: 'long' });
-    if (/thunder|storm/i.test(cond)) {
-      trendMessages.push(`⛈️ ${name}: ${cond} (${rain}% rain)`);
-    } else if (rain >= 50) {
-      trendMessages.push(`🌧️ ${name}: ${rain}% chance of rain`);
-    }
+    if (/thunder|storm/i.test(cond)) trendMessages.push(`⛈️ ${name}: ${cond} (${rain}% rain)`);
+    else if (rain >= 50) trendMessages.push(`🌧️ ${name}: ${rain}% chance of rain`);
   });
-
   const allMessages = [...alerts, ...trendMessages];
-  if (allMessages.length === 0) {
-    allMessages.push('✅ No active weather alerts — Conditions look good');
-  }
+  if (allMessages.length === 0) allMessages.push('✅ No active weather alerts — Conditions look good');
 
   return (
     <div className="overflow-hidden bg-slate-800/50 rounded-lg border border-slate-700/30">
@@ -263,11 +317,64 @@ function AlertTicker({ lat, lon }: { lat: number; lon: number }) {
   );
 }
 
+function MetarDecoder({ decoded }: { decoded: StationData['decoded'] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!decoded || decoded.length === 0) return null;
+
+  const severityItems = decoded.filter(d => d.severity);
+  const display = expanded ? decoded : severityItems.length > 0 ? severityItems : decoded.slice(0, 3);
+
+  return (
+    <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 overflow-hidden">
+      <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-700/20 transition-colors">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">📋</span>
+          <span className="text-[10px] text-slate-400 uppercase font-semibold">METAR Decoded</span>
+          {severityItems.length > 0 && (
+            <Badge className="text-[8px] px-1 py-0 h-3.5 bg-red-900/30 text-red-400 border-red-600/30">
+              {severityItems.length} alert{severityItems.length > 1 ? 's' : ''}
+            </Badge>
+          )}
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+      <div className="px-3 pb-2 space-y-1">
+        {display.map((item, i) => (
+          <div key={i} className={`flex gap-2 text-[11px] px-2 py-1 rounded-md ${
+            item.severity === 'danger' ? 'bg-red-900/20 border border-red-600/30' :
+            item.severity === 'warning' ? 'bg-amber-900/20 border border-amber-600/30' :
+            'bg-slate-700/10'
+          }`}>
+            <span className={`font-semibold shrink-0 w-28 ${
+              item.severity === 'danger' ? 'text-red-400' :
+              item.severity === 'warning' ? 'text-amber-400' :
+              'text-slate-500'
+            }`}>{item.label}</span>
+            <span className={`${
+              item.severity === 'danger' ? 'text-red-300' :
+              item.severity === 'warning' ? 'text-amber-300' :
+              'text-slate-300'
+            }`}>{item.value}</span>
+          </div>
+        ))}
+        {!expanded && decoded.length > display.length && (
+          <span className="text-[9px] text-slate-600 block text-center">Tap to see all {decoded.length} decoded fields</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function WeatherStationConsole({ lat, lon, locationName }: { lat: number; lon: number; locationName: string }) {
   const { t } = useLanguage();
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
   const [showStationPicker, setShowStationPicker] = useState(false);
   const [searchIcao, setSearchIcao] = useState('');
+
+  const [windUnit, cycleWind] = useCycleUnit<WindUnit>('wind', ['mph', 'kts', 'kmh', 'ms', 'beaufort']);
+  const [tempUnit, cycleTemp] = useCycleUnit<TempUnit>('temp', ['f', 'c']);
+  const [pressUnit, cyclePress] = useCycleUnit<PressureUnit>('pressure', ['inHg', 'mb', 'mmHg', 'kPa']);
+  const [visUnit, cycleVis] = useCycleUnit<VisUnit>('visibility', ['mi', 'km', 'm', 'nm']);
 
   const { data: nearbyData } = useQuery<{ stations: NearbyStation[]; count: number }>({
     queryKey: ['/api/nearby-stations', lat, lon],
@@ -288,11 +395,8 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
   useEffect(() => {
     if (!selectedStation && stations.length > 0) {
       const saved = localStorage.getItem('stormtracker_selected_station');
-      if (saved && stations.find(s => s.icao === saved)) {
-        setSelectedStation(saved);
-      } else {
-        setSelectedStation(stations[0].icao);
-      }
+      if (saved && stations.find(s => s.icao === saved)) setSelectedStation(saved);
+      else setSelectedStation(stations[0].icao);
     }
   }, [stations, selectedStation]);
 
@@ -338,16 +442,38 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
 
   const isFavorite = favorites?.find(f => f.icao === activeIcao);
   const activeStationInfo = stations.find(s => s.icao === activeIcao);
-
   const obsAge = stationData?.obsTime ? Math.round((Date.now() - new Date(stationData.obsTime).getTime()) / 60000) : null;
 
   const uvIndex = useMemo(() => {
     if (!stationData?.tempF) return null;
     const hour = new Date().getHours();
     if (hour < 6 || hour > 20) return 0;
-    const base = hour >= 10 && hour <= 14 ? 8 : hour >= 8 && hour <= 16 ? 5 : 2;
-    return Math.min(base, 11);
+    return hour >= 10 && hour <= 14 ? 8 : hour >= 8 && hour <= 16 ? 5 : 2;
   }, [stationData]);
+
+  const getTempDisplay = (f: number | null, c: number | null) => {
+    if (tempUnit === 'c') return { val: c, unit: '°C', alt: f != null ? `${f}°F` : '' };
+    return { val: f, unit: '°F', alt: c != null ? `${c}°C` : '' };
+  };
+
+  const getPressDisplay = (p: StationData['pressure']) => {
+    switch (pressUnit) {
+      case 'inHg': return { val: p.inHg, unit: 'inHg' };
+      case 'mb': return { val: p.mb, unit: 'mb' };
+      case 'mmHg': return { val: p.mmHg, unit: 'mmHg' };
+      case 'kPa': return { val: p.kPa, unit: 'kPa' };
+    }
+  };
+
+  const getVisDisplay = (v: StationData['visibility']) => {
+    if (!v) return { val: null, unit: '--', max: 10 };
+    switch (visUnit) {
+      case 'mi': return { val: v.miles, unit: 'mi', max: 10 };
+      case 'km': return { val: v.km, unit: 'km', max: 16 };
+      case 'm': return { val: v.meters, unit: 'm', max: 16000 };
+      case 'nm': return { val: v.nauticalMiles, unit: 'NM', max: 10 };
+    }
+  };
 
   const wxDescription = useMemo(() => {
     if (!stationData?.wxString) return null;
@@ -362,8 +488,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
     const intensity = desc.startsWith('+') ? 'Heavy ' : desc.startsWith('-') ? 'Light ' : '';
     desc = desc.replace(/^[+-]/, '');
     const parts = desc.match(/.{2}/g) || [];
-    const translated = parts.map(p => wx[p] || p).join(' ');
-    return intensity + translated;
+    return intensity + parts.map(p => wx[p] || p).join(' ');
   }, [stationData?.wxString]);
 
   if (!activeIcao && !isLoading) {
@@ -376,13 +501,14 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
     );
   }
 
+  const nextTemp = tempUnit === 'f' ? '°C' : '°F';
+  const nextPress: Record<PressureUnit, string> = { inHg: 'mb', mb: 'mmHg', mmHg: 'kPa', kPa: 'inHg' };
+  const nextVis: Record<VisUnit, string> = { mi: 'km', km: 'meters', m: 'NM', nm: 'miles' };
+
   return (
     <div className="space-y-3 pb-20">
       <style>{`
-        @keyframes ticker {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
+        @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-ticker { animation: ticker 30s linear infinite; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
@@ -465,6 +591,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
               <span className="text-[9px] text-slate-500">
                 {obsAge < 2 ? 'Live' : `Updated ${obsAge} min ago`}
               </span>
+              <span className="text-[8px] text-slate-600 ml-2">Tap values to change units ⟳</span>
             </div>
           )}
 
@@ -477,29 +604,36 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
             </div>
           )}
 
+          <MetarDecoder decoded={stationData.decoded} />
+
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div className="col-span-2 sm:col-span-2 flex justify-center rounded-xl bg-slate-800/40 border border-slate-700/20 p-3">
-              <WindCompass
-                direction={stationData.wind.direction}
-                speed={stationData.wind.speed}
-                gust={stationData.wind.gust}
-                speedMph={stationData.wind.speedMph}
-                gustMph={stationData.wind.gustMph}
-              />
+              <WindCompass wind={stationData.wind} windUnit={windUnit} cycleWind={cycleWind} />
             </div>
 
             <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3 flex flex-col items-center justify-center">
               <Thermometer className="w-5 h-5 text-red-400 mb-1" />
               <span className="text-[9px] text-slate-500 uppercase">Temperature</span>
-              <span className="text-white font-bold text-2xl">{stationData.tempF ?? '--'}°</span>
-              <span className="text-slate-500 text-[10px]">{stationData.tempC ?? '--'}°C</span>
+              <TappableValue onClick={cycleTemp} hint={nextTemp}>
+                <div className="text-center">
+                  <span className="text-white font-bold text-2xl">{getTempDisplay(stationData.tempF, stationData.tempC).val ?? '--'}</span>
+                  <span className="text-slate-400 text-sm">{getTempDisplay(stationData.tempF, stationData.tempC).unit}</span>
+                </div>
+              </TappableValue>
+              <span className="text-slate-500 text-[10px]">{getTempDisplay(stationData.tempF, stationData.tempC).alt}</span>
               {stationData.feelsLike && (
                 <div className="mt-1 text-center">
                   <span className="text-[9px] text-slate-500 uppercase block">
                     {stationData.feelsLike.type === 'windchill' ? 'Wind Chill' : stationData.feelsLike.type === 'heatindex' ? 'Heat Index' : 'Feels Like'}
                   </span>
-                  <span className="text-slate-300 text-xs font-semibold">{stationData.feelsLike.f}°F</span>
-                  <span className="text-slate-500 text-[10px]"> ({stationData.feelsLike.c}°C)</span>
+                  <TappableValue onClick={cycleTemp} hint={nextTemp}>
+                    <span className="text-slate-300 text-xs font-semibold">
+                      {tempUnit === 'f' ? `${stationData.feelsLike.f}°F` : `${stationData.feelsLike.c}°C`}
+                    </span>
+                  </TappableValue>
+                  <span className="text-slate-500 text-[10px] ml-1">
+                    ({tempUnit === 'f' ? `${stationData.feelsLike.c}°C` : `${stationData.feelsLike.f}°F`})
+                  </span>
                 </div>
               )}
             </div>
@@ -507,14 +641,25 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
             <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-3 flex flex-col items-center justify-center">
               <Droplets className="w-5 h-5 text-blue-400 mb-1" />
               <span className="text-[9px] text-slate-500 uppercase">Dew Point</span>
-              <span className="text-white font-bold text-lg">{stationData.dewF ?? '--'}°F</span>
-              <span className="text-slate-500 text-[10px]">{stationData.dewC ?? '--'}°C</span>
+              <TappableValue onClick={cycleTemp} hint={nextTemp}>
+                <div className="text-center">
+                  <span className="text-white font-bold text-lg">{getTempDisplay(stationData.dewF, stationData.dewC).val ?? '--'}</span>
+                  <span className="text-slate-400 text-xs">{getTempDisplay(stationData.dewF, stationData.dewC).unit}</span>
+                </div>
+              </TappableValue>
+              <span className="text-slate-500 text-[10px]">{getTempDisplay(stationData.dewF, stationData.dewC).alt}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
             <CircularGauge value={stationData.humidity} max={100} label="Humidity" unit="%" color="#3b82f6" icon="💧" />
-            <CircularGauge value={stationData.visibility?.miles} max={10} label="Visibility" unit="mi" color="#a78bfa" icon="👁️" />
+            {(() => {
+              const vis = getVisDisplay(stationData.visibility);
+              return (
+                <CircularGauge value={vis.val} max={vis.max} label="Visibility" unit={vis.unit} color="#a78bfa" icon="👁️"
+                  onClick={cycleVis} hint={nextVis[visUnit]} />
+              );
+            })()}
             <CircularGauge value={uvIndex} max={11} label="UV Index" unit="" color={uvIndex != null && uvIndex >= 8 ? '#ef4444' : uvIndex != null && uvIndex >= 6 ? '#f97316' : '#22c55e'} icon="☀️" />
           </div>
 
@@ -525,12 +670,26 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
                 <span className="text-[10px] text-slate-400 uppercase font-semibold">Barometer</span>
                 <PressureTrendIcon trend={stationData.pressure.trend} />
               </div>
-              <div className="text-center">
-                <span className="text-white font-bold text-xl">{stationData.pressure.inHg ?? '--'}</span>
-                <span className="text-slate-400 text-xs"> inHg</span>
-              </div>
-              <div className="text-center">
-                <span className="text-slate-500 text-[10px]">{stationData.pressure.mb ?? '--'} mb</span>
+              <TappableValue onClick={cyclePress} hint={nextPress[pressUnit]}>
+                <div className="text-center w-full">
+                  {(() => {
+                    const pd = getPressDisplay(stationData.pressure);
+                    return (
+                      <>
+                        <span className="text-white font-bold text-xl">{pd.val ?? '--'}</span>
+                        <span className="text-slate-400 text-xs"> {pd.unit}</span>
+                      </>
+                    );
+                  })()}
+                </div>
+              </TappableValue>
+              <div className="text-center mt-1">
+                {pressUnit !== 'mb' && stationData.pressure.mb && (
+                  <span className="text-slate-500 text-[10px] block">{stationData.pressure.mb} mb</span>
+                )}
+                {pressUnit !== 'inHg' && stationData.pressure.inHg && (
+                  <span className="text-slate-500 text-[10px] block">{stationData.pressure.inHg} inHg</span>
+                )}
               </div>
               <div className="text-center mt-1">
                 <Badge className={`text-[8px] px-1.5 py-0 h-4 ${
@@ -554,6 +713,11 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
                 <span className="text-blue-400 font-bold text-xl">{stationData.precip ? stationData.precip.toFixed(2) : '0.00'}</span>
                 <span className="text-slate-400 text-xs"> in</span>
               </div>
+              {stationData.precip != null && stationData.precip > 0 && (
+                <div className="text-center">
+                  <span className="text-slate-500 text-[10px]">{(stationData.precip * 25.4).toFixed(1)} mm</span>
+                </div>
+              )}
               <span className="text-[9px] text-slate-500 block text-center mt-0.5">Accumulation</span>
               {stationData.clouds && stationData.clouds.length > 0 && (
                 <div className="mt-2 space-y-0.5">
@@ -561,7 +725,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
                   {stationData.clouds.map((c: any, i: number) => (
                     <div key={i} className="flex justify-between text-[10px]">
                       <span className="text-slate-400">{c.cover}</span>
-                      <span className="text-slate-500">{c.base ? `${c.base} ft` : ''}</span>
+                      <span className="text-slate-500">{c.base ? `${c.base} ft` : ''}{c.base ? ` (${Math.round(c.base * 0.3048)}m)` : ''}</span>
                     </div>
                   ))}
                 </div>
@@ -604,9 +768,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
           <AlertTriangle className="w-6 h-6 text-amber-400 mb-2" />
           <span className="text-sm text-amber-300">Station data unavailable</span>
           <span className="text-xs mt-1">Check the ICAO code or try another station</span>
-          <button onClick={() => refetch()} className="mt-3 px-3 py-1 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 text-xs text-slate-400">
-            Retry
-          </button>
+          <button onClick={() => refetch()} className="mt-3 px-3 py-1 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 text-xs text-slate-400">Retry</button>
         </div>
       )}
 
