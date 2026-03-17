@@ -1448,16 +1448,22 @@ export default function StormTracker() {
                       />
                     )}
                   </div>
-                  <div className="flex items-center justify-between bg-slate-800/60 rounded-lg px-3 py-1.5 mb-2 border border-slate-700/30">
+                  <div className={`rounded-lg px-3 py-2 mb-2 border flex items-center justify-between ${filteredStorms.length > 0 ? 'bg-slate-800/60 border-orange-500/40' : 'bg-slate-800/50 border-slate-700/40'}`}>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs">⚡</span>
-                      <span className="text-xs text-slate-300 font-medium">
-                        {precipitationStorms.length} storm{precipitationStorms.length !== 1 ? 's' : ''} detected
+                      <span className="text-sm">⚡</span>
+                      <span className={`text-sm font-bold ${filteredStorms.length > 0 ? 'text-orange-400' : 'text-slate-300'}`}>
+                        {filteredStorms.length}
                       </span>
+                      <span className="text-xs text-slate-400">{t.detected}</span>
                       {stormDataLoading && (
                         <Loader2 className="h-3 w-3 animate-spin text-blue-400" />
                       )}
                     </div>
+                    {filteredStorms.length > 0 && (
+                      <span className="text-xs text-white font-medium">
+                        {t.closest}: {formatDistance([...filteredStorms].sort((a, b) => a.distance - b.distance)[0].distance)}
+                      </span>
+                    )}
                     <span className="text-[10px] text-slate-500">
                       {currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}
                     </span>
@@ -1505,31 +1511,6 @@ export default function StormTracker() {
                     >
                       🕐 {showTimeLabels ? t.hideTimeLabels : t.showTimeLabels}
                     </Button>
-                  </div>
-                  <div className={`mt-3 rounded-lg p-3 border ${filteredStorms.length > 0 ? 'bg-slate-800/60 border-orange-500/40' : 'bg-slate-800/40 border-slate-700/50'}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">⚡</span>
-                        <div>
-                          <span className={`text-base font-bold ${filteredStorms.length > 0 ? 'text-orange-400' : 'text-slate-300'}`}>
-                            {filteredStorms.length}
-                          </span>
-                          <span className="text-sm text-slate-400 ml-1.5">{t.detected}</span>
-                        </div>
-                      </div>
-                      {filteredStorms.length > 0 && (
-                        <div className="text-right">
-                          <div className="text-xs text-slate-500">{t.closest}</div>
-                          <div className="text-sm text-white font-medium">
-                            {formatDistance([...filteredStorms].sort((a, b) => a.distance - b.distance)[0].distance)}
-                          </div>
-                        </div>
-                      )}
-                      <div className="text-right">
-                        <div className="text-xs text-slate-500">{t.source}</div>
-                        <div className="text-sm text-white font-medium">{currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}</div>
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}
