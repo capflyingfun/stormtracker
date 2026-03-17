@@ -780,22 +780,45 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
   const items: TafItem[] = [];
 
   if (tafData?.periods?.length > 0) {
-    tafData.periods.forEach((p: any) => {
-      const time = p.from ? formatTafTime(p.from) : { zulu: p.changeType || '—', local: '' };
-      const prefix = p.changeType === 'TEMPO' ? '~' : p.changeType === 'BECMG' ? '→' : '';
-      const windInfo = p.windSpeedKts != null ? `${p.windSpeedKts}kt` : '';
-      const gustInfo = p.windGustKts != null ? `G${p.windGustKts}` : '';
-      const visInfo = p.visibilitySM != null && p.visibilitySM < 6 ? `${p.visibilitySM}SM` : '';
+    const fmPeriods = tafData.periods.filter((p: any) => !p.changeType || p.changeType === 'FM');
+    const tempoPeriods = tafData.periods.filter((p: any) => p.changeType === 'TEMPO' || p.changeType === 'BECMG' || p.changeType === 'PROB30' || p.changeType === 'PROB40');
+
+    const validFrom = tafData.validFrom ? new Date(tafData.validFrom).getTime() : (fmPeriods[0]?.from ? new Date(fmPeriods[0].from).getTime() : Date.now());
+    const validTo = tafData.validTo ? new Date(tafData.validTo).getTime() : validFrom + 24 * 3600000;
+    const totalHours = Math.min(Math.ceil((validTo - validFrom) / 3600000), 36);
+
+    for (let hr = 0; hr < totalHours; hr++) {
+      const slotTime = validFrom + hr * 3600000;
+      let activePeriod = fmPeriods[0];
+      for (const p of fmPeriods) {
+        if (p.from && new Date(p.from).getTime() <= slotTime) activePeriod = p;
+      }
+      if (!activePeriod) continue;
+
+      const tempoOverlay = tempoPeriods.find((t: any) => {
+        const tFrom = t.from ? new Date(t.from).getTime() : 0;
+        const tTo = t.to ? new Date(t.to).getTime() : 0;
+        return slotTime >= tFrom && slotTime < tTo;
+      });
+
+      const effectivePeriod = tempoOverlay || activePeriod;
+      const isoStr = new Date(slotTime).toISOString();
+      const time = formatTafTime(isoStr);
+      const prefix = tempoOverlay ? (tempoOverlay.changeType === 'TEMPO' ? '~' : tempoOverlay.changeType === 'BECMG' ? '→' : tempoOverlay.changeType === 'PROB30' ? 'P30' : 'P40') : '';
+      const windInfo = effectivePeriod.windSpeedKts != null ? `${effectivePeriod.windSpeedKts}kt` : '';
+      const gustInfo = effectivePeriod.windGustKts != null ? `G${effectivePeriod.windGustKts}` : '';
+      const visInfo = effectivePeriod.visibilitySM != null && effectivePeriod.visibilitySM < 6 ? `${effectivePeriod.visibilitySM}SM` : '';
       const detail = [windInfo + gustInfo, visInfo].filter(Boolean).join(' ') || '';
+
       items.push({
         zuluLabel: prefix + time.zulu,
         localLabel: time.local,
-        emoji: getConditionEmoji(p.condition),
+        emoji: getConditionEmoji(effectivePeriod.condition),
         detail,
-        wxCodes: p.wxCodes,
-        period: p,
+        wxCodes: effectivePeriod.wxCodes,
+        period: effectivePeriod,
       });
-    });
+    }
   } else if (forecastData) {
     const nwsPeriods = forecastData.nws_periods || [];
     const forecast = forecastData.forecast || [];
@@ -834,9 +857,9 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
           <span className="text-[9px] text-slate-500 font-medium uppercase tracking-wider">
             {isTaf ? `TAF Forecast · ${tafData.icao}` : 'Forecast Trend'}
           </span>
-          {isTaf && tafData.validTo && (
+          {isTaf && (
             <span className="text-[8px] text-slate-600">
-              thru {new Date(tafData.validTo).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' })}
+              {items.length}h {tafData.validTo ? `thru ${new Date(tafData.validTo).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' })}` : ''}
             </span>
           )}
         </div>
