@@ -329,7 +329,18 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     </div>
   );
 
-  if (!location) return null;
+  if (!location) {
+    return (
+      <div className="bg-red-900/30 rounded-xl p-3 sm:p-4 border border-red-600/30 mb-4 sm:mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <Loader2 className="h-5 w-5 text-red-400 animate-spin" />
+          <h3 className="text-lg font-semibold text-red-200">Immediate Safety Alerts</h3>
+          <span className="bg-slate-600/50 text-slate-400 px-2 py-1 rounded-full text-xs">Locating…</span>
+        </div>
+        <SkeletonLoader />
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-red-900/30 rounded-xl p-3 sm:p-4 border border-red-600/30 mb-4 sm:mb-6 transition-all duration-500 select-none ${

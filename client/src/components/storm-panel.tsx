@@ -381,9 +381,14 @@ export default function StormPanel({ storms, formatDistance, formatSpeed, isLoad
       </div>
       
       {sortedStorms.length === 0 ? (
-        <p className="text-slate-400 text-center py-8">
-          {isLoading ? 'Detecting storms...' : 'No storms detected in your area'}
-        </p>
+        <div className="text-center py-8">
+          <p className="text-slate-400">
+            {isLoading ? 'Scanning radar for storms...' : 'No storms detected in your area'}
+          </p>
+          <p className="text-slate-500 text-xs mt-1.5">
+            {isLoading ? '0 storms detected so far' : '0 storms in scan range'}
+          </p>
+        </div>
       ) : (
         <Tabs defaultValue="all" className="w-full">
           <TabsList className="grid w-full grid-cols-3 grid-rows-2 gap-1 bg-slate-700/50 h-auto p-2">
