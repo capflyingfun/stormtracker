@@ -329,35 +329,105 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
   );
 }
 
-function AlertTicker({ lat, lon }: { lat: number; lon: number }) {
-  const { data } = useQuery<any>({
+function AlertTicker({ lat, lon, icao }: { lat: number; lon: number; icao?: string }) {
+  const { data: nwsData } = useQuery<any>({
+    queryKey: ['/api/nws-alerts', lat, lon],
+    queryFn: async () => { const r = await fetch(`/api/nws-alerts?lat=${lat}&lon=${lon}`); if (!r.ok) return { alerts: [] }; return r.json(); },
+    staleTime: 120000,
+  });
+
+  const { data: tafData } = useQuery<any>({
+    queryKey: ['/api/taf', icao],
+    queryFn: async () => { const r = await fetch(`/api/taf/${icao}`); if (!r.ok) throw new Error('fail'); return r.json(); },
+    enabled: !!icao,
+    staleTime: 600000,
+  });
+
+  const { data: forecastData } = useQuery<any>({
     queryKey: ['/api/weather-forecast', lat, lon],
     queryFn: async () => { const r = await fetch(`/api/weather-forecast?lat=${lat}&lon=${lon}`); if (!r.ok) throw new Error('fail'); return r.json(); },
     staleTime: 300000,
   });
 
-  const alerts = [
-    ...(data?.nws_alerts || []).map((a: any) => `🚨 ${a.event}: ${a.headline || a.areaDesc}`),
-    ...(data?.alerts || []).map((a: any) => `⚠️ ${a.event}: ${a.headline || a.description?.slice(0, 80)}`),
-  ];
-  const forecast = data?.forecast || [];
-  const trendMessages: string[] = [];
-  forecast.slice(0, 3).forEach((f: any, i: number) => {
-    const cond = f.day?.condition || '';
-    const rain = f.day?.daily_chance_of_rain || 0;
-    const d = new Date(f.date + 'T12:00:00');
-    const name = i === 0 ? 'Today' : d.toLocaleDateString('en', { weekday: 'long' });
-    if (/thunder|storm/i.test(cond)) trendMessages.push(`⛈️ ${name}: ${cond} (${rain}% rain)`);
-    else if (rain >= 50) trendMessages.push(`🌧️ ${name}: ${rain}% chance of rain`);
+  const allMessages: string[] = [];
+
+  const nwsAlerts = nwsData?.alerts || [];
+  nwsAlerts.forEach((a: any) => {
+    allMessages.push(`🚨 ${a.event}: ${a.headline || a.areaDesc}`);
   });
-  const allMessages = [...alerts, ...trendMessages];
-  if (allMessages.length === 0) allMessages.push('✅ No active weather alerts — Conditions look good');
+
+  if (tafData?.periods?.length > 0) {
+    const now = new Date();
+    tafData.periods.forEach((p: any) => {
+      if (!p.from) return;
+      const fromDate = new Date(p.from);
+      const toDate = p.to ? new Date(p.to) : null;
+      if (toDate && toDate < now) return;
+
+      const timeLabel = fromDate <= now ? 'Now' :
+        `${fromDate.getUTCHours().toString().padStart(2, '0')}${fromDate.getUTCMinutes().toString().padStart(2, '0')}Z`;
+      const prefix = p.changeType === 'TEMPO' ? 'TEMPO ' : p.changeType === 'BECMG' ? 'BECMG ' : '';
+
+      const parts: string[] = [];
+      parts.push(p.condition || 'Clear');
+      if (p.windSpeedKts != null) {
+        let windStr = `${p.windDir || 'VRB'}° @ ${p.windSpeedKts}kt`;
+        if (p.windGustKts) windStr += ` G${p.windGustKts}kt`;
+        parts.push(windStr);
+      }
+      if (p.visibilitySM != null && p.visibilitySM < 6) parts.push(`Vis ${p.visibilitySM}SM`);
+      if (p.wxCodes?.length > 0) parts.push(p.wxCodes.join(' '));
+      if (p.clouds?.length > 0) {
+        const sigCloud = p.clouds.find((c: any) => c.cover === 'BKN' || c.cover === 'OVC' || c.cover === 'VV');
+        if (sigCloud) parts.push(`${sigCloud.cover} ${sigCloud.base ? Math.round(sigCloud.base / 100) * 100 + 'ft' : ''}`);
+      }
+
+      const emoji = /thunder/i.test(p.condition) ? '⛈️' :
+        /rain|shower/i.test(p.condition) ? '🌧️' :
+        /snow/i.test(p.condition) ? '🌨️' :
+        /fog/i.test(p.condition) ? '🌫️' :
+        /overcast/i.test(p.condition) ? '☁️' :
+        /cloudy/i.test(p.condition) ? '⛅' :
+        p.windSpeedKts >= 20 ? '💨' :
+        /clear/i.test(p.condition) ? '☀️' : '🌤️';
+      allMessages.push(`${emoji} ${prefix}${timeLabel}: ${parts.join(' · ')}`);
+    });
+  }
+
+  if (allMessages.length === 0) {
+    const forecast = forecastData?.forecast || [];
+    const nwsPeriods = forecastData?.nws_periods || [];
+    if (nwsPeriods.length > 0) {
+      nwsPeriods.slice(0, 4).forEach((p: any) => {
+        const emoji = /thunder|tstorm/i.test(p.shortForecast) ? '⛈️' :
+          /rain|shower/i.test(p.shortForecast) ? '🌧️' :
+          /snow/i.test(p.shortForecast) ? '🌨️' :
+          /cloud/i.test(p.shortForecast) ? '⛅' : '🌤️';
+        allMessages.push(`${emoji} ${p.name}: ${p.shortForecast}, ${p.temperature_f}°F`);
+      });
+    } else if (forecast.length > 0) {
+      forecast.slice(0, 3).forEach((f: any, i: number) => {
+        const d = new Date(f.date + 'T12:00:00');
+        const name = i === 0 ? 'Today' : d.toLocaleDateString('en', { weekday: 'long' });
+        const cond = f.day?.condition || 'Clear';
+        const hi = Math.round(f.day?.maxtemp_f || 0);
+        const lo = Math.round(f.night?.mintemp_f || f.day?.mintemp_f || 0);
+        const rain = f.day?.daily_chance_of_rain || 0;
+        const emoji = /thunder/i.test(cond) ? '⛈️' : /rain/i.test(cond) ? '🌧️' : /cloud/i.test(cond) ? '⛅' : '🌤️';
+        allMessages.push(`${emoji} ${name}: ${cond}, Hi ${hi}°F/Lo ${lo}°F${rain > 0 ? ` (${rain}% rain)` : ''}`);
+      });
+    }
+  }
+
+  if (allMessages.length === 0) allMessages.push('✅ No active alerts — Conditions clear');
 
   return (
     <div className="overflow-hidden bg-slate-800/50 rounded-lg border border-slate-700/30">
       <div className="flex items-center gap-2 px-2 py-1 border-b border-slate-700/20 bg-slate-700/30">
         <Radio className="w-3 h-3 text-green-400 animate-pulse" />
-        <span className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">Forecast Trend & Alerts</span>
+        <span className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">
+          {nwsAlerts.length > 0 ? 'Active Alerts' : tafData?.periods?.length > 0 ? `TAF Outlook · ${icao}` : 'Forecast Outlook'}
+        </span>
       </div>
       <div className="overflow-hidden relative h-6 flex items-center">
         <div className="animate-ticker flex whitespace-nowrap">
@@ -648,7 +718,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
             </div>
           )}
 
-          <AlertTicker lat={lat} lon={lon} />
+          <AlertTicker lat={lat} lon={lon} icao={stationData.icao} />
 
           {wxDescription && (
             <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-900/15 border border-amber-600/30">
