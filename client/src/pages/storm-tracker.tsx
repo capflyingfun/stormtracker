@@ -1506,17 +1506,31 @@ export default function StormTracker() {
                       🕐 {showTimeLabels ? t.hideTimeLabels : t.showTimeLabels}
                     </Button>
                   </div>
-                  {filteredStorms.length > 0 && (
-                    <div className="mt-3 bg-slate-800/50 rounded-lg p-2 border border-slate-700/50">
-                      <div className="flex items-center justify-between text-xs text-slate-400">
-                        <span>{t.detected}: <span className="text-white font-medium">{filteredStorms.length}</span></span>
-                        <span>{t.closest}: <span className="text-white font-medium">
-                          {formatDistance([...filteredStorms].sort((a, b) => a.distance - b.distance)[0].distance)}
-                        </span></span>
-                        <span>{t.source}: <span className="text-white font-medium">{currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}</span></span>
+                  <div className={`mt-3 rounded-lg p-3 border ${filteredStorms.length > 0 ? 'bg-slate-800/60 border-orange-500/40' : 'bg-slate-800/40 border-slate-700/50'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">⚡</span>
+                        <div>
+                          <span className={`text-base font-bold ${filteredStorms.length > 0 ? 'text-orange-400' : 'text-slate-300'}`}>
+                            {filteredStorms.length}
+                          </span>
+                          <span className="text-sm text-slate-400 ml-1.5">{t.detected}</span>
+                        </div>
+                      </div>
+                      {filteredStorms.length > 0 && (
+                        <div className="text-right">
+                          <div className="text-xs text-slate-500">{t.closest}</div>
+                          <div className="text-sm text-white font-medium">
+                            {formatDistance([...filteredStorms].sort((a, b) => a.distance - b.distance)[0].distance)}
+                          </div>
+                        </div>
+                      )}
+                      <div className="text-right">
+                        <div className="text-xs text-slate-500">{t.source}</div>
+                        <div className="text-sm text-white font-medium">{currentRadarSource === 'nexrad' ? 'NEXRAD' : 'RainViewer'}</div>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 
