@@ -163,6 +163,14 @@ canvas.offscreen{display:none}
 .welcome-btn:hover{filter:brightness(1.1)}
 .welcome-btn:active{transform:scale(0.96)}
 .welcome-btn.secondary{background:var(--bg-elevated);border:1px solid var(--border-subtle)}
+.confirm-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.confirm-box{background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:var(--shadow-md)}
+.confirm-box h3{font-size:1.1em;margin-bottom:8px}
+.confirm-box p{font-size:0.85em;color:var(--text-secondary);margin-bottom:16px;line-height:1.4}
+.confirm-btns{display:flex;gap:10px;justify-content:center}
+.confirm-btns button{padding:10px 20px;border-radius:var(--radius-md);border:none;font-size:0.85em;font-weight:600;cursor:pointer;font-family:var(--font-body)}
+.confirm-allow{background:var(--accent-blue);color:white}
+.confirm-deny{background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border-subtle)}
 </style>
 </head>
 <body>
@@ -217,6 +225,7 @@ const S = {
   alerts:[], station:null, stationId:null,
   map:null, radarLayer:null, radarFrames:[], radarIdx:0,
   radarPlaying:false, radarTimer:null, scanRadius:80,
+  activePage:'weather',
 };
 const TEMP_UNITS = ['°F','°C'];
 const WIND_UNITS = ['mph','kts','km/h','m/s'];
@@ -253,7 +262,6 @@ function fmtPres(mb){
   if(S.presUnit===2) return (mb*0.75006).toFixed(0)+' mmHg';
   return (mb*0.1).toFixed(1)+' kPa';
 }
-function fmtPresAltim(altimMb){return fmtPres(altimMb)}
 
 function fmtVis(sm){
   if(S.visUnit===0) return sm.toFixed(1)+' mi';
@@ -270,9 +278,16 @@ function cycleUnit(key){
   const maxes={tempUnit:2,windUnit:4,presUnit:4,visUnit:2,precipUnit:3};
   S[key]=(S[key]+1)%maxes[key];
   try{localStorage.setItem('st_units',JSON.stringify({t:S.tempUnit,w:S.windUnit,p:S.presUnit,v:S.visUnit,pr:S.precipUnit}))}catch(e){}
+  reRenderActive();
 }
 function loadUnits(){
   try{const u=JSON.parse(localStorage.getItem('st_units'));if(u){S.tempUnit=u.t||0;S.windUnit=u.w||0;S.presUnit=u.p||0;S.visUnit=u.v||0;S.precipUnit=u.pr||0}}catch(e){}
+}
+
+function reRenderActive(){
+  if(S.activePage==='weather'&&S.forecast) renderWeather(S.forecast);
+  if(S.activePage==='station'&&S.station) renderStation();
+  if(S.activePage==='storms') renderStorms();
 }
 
 function haversine(lat1,lon1,lat2,lon2){const R=3959,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
@@ -298,6 +313,7 @@ function pixelToDbz(r,g,b,a){if(a<10)return 0;return(r&127)-32}
 document.querySelectorAll('.nav-item').forEach(btn=>{
   btn.addEventListener('click',()=>{
     const page=btn.dataset.page;
+    S.activePage=page;
     document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     document.querySelectorAll('.section-page').forEach(p=>p.classList.remove('visible'));
@@ -312,17 +328,35 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
 // ==========================================
 // LOCATION
 // ==========================================
-document.getElementById('btn-gps').addEventListener('click',()=>{
-  if(!navigator.geolocation){toast('GPS not available');return}
-  toast('Getting location...');
-  navigator.geolocation.getCurrentPosition(
-    pos=>reverseGeo(pos.coords.latitude,pos.coords.longitude),
-    ()=>toast('Location access denied'),
-    {enableHighAccuracy:true,timeout:10000}
-  );
-});
+document.getElementById('btn-gps').addEventListener('click',()=>showLocationConfirm());
 document.getElementById('btn-search').addEventListener('click',searchLoc);
 document.getElementById('location-input').addEventListener('keypress',e=>{if(e.key==='Enter')searchLoc()});
+
+function showLocationConfirm(){
+  if(!navigator.geolocation){toast('GPS not available');return}
+  const overlay=document.createElement('div');
+  overlay.className='confirm-overlay';
+  overlay.innerHTML=`<div class="confirm-box">
+    <h3>📍 Share Your Location?</h3>
+    <p>StormTracker needs your location to show local weather, radar, and storm data. Your position is only used in your browser and never sent to any server.</p>
+    <div class="confirm-btns">
+      <button class="confirm-deny" id="loc-deny">No Thanks</button>
+      <button class="confirm-allow" id="loc-allow">Allow Location</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('loc-deny').addEventListener('click',()=>{overlay.remove();toast('You can search for a location instead')});
+  document.getElementById('loc-allow').addEventListener('click',()=>{
+    overlay.remove();
+    toast('Getting location...');
+    navigator.geolocation.getCurrentPosition(
+      pos=>reverseGeo(pos.coords.latitude,pos.coords.longitude),
+      ()=>toast('Location access denied — try searching instead'),
+      {enableHighAccuracy:true,timeout:10000}
+    );
+  });
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()});
+}
 
 async function searchLoc(){
   const q=document.getElementById('location-input').value.trim();
@@ -385,22 +419,22 @@ function renderWeather(data){
   el.innerHTML=`
     <div class="weather-hero">
       <div style="font-size:2.5em;margin-bottom:4px">${icon}</div>
-      <div class="hero-temp" onclick="cycleUnit('tempUnit');renderWeather(S.forecast)">${fmtTempShort(tempC)}</div>
+      <div class="hero-temp" onclick="cycleUnit('tempUnit')">${fmtTempShort(tempC)}</div>
       <div class="hero-condition">${desc}</div>
       <div class="hero-location">📍 ${S.locName}</div>
-      <div style="font-size:0.55em;color:var(--accent-cyan);margin-top:4px;opacity:0.7">Tap values to change units</div>
+      <div style="font-size:0.55em;color:var(--accent-cyan);margin-top:4px;opacity:0.7">Tap any value to cycle units</div>
       <div class="hero-detail-row">
-        <div class="hero-detail" onclick="cycleUnit('tempUnit');renderWeather(S.forecast)" style="cursor:pointer"><div class="hero-detail-label">Feels Like</div><div class="hero-detail-value">${fmtTemp(feelsC)}</div></div>
+        <div class="hero-detail" onclick="cycleUnit('tempUnit')" style="cursor:pointer"><div class="hero-detail-label">Feels Like</div><div class="hero-detail-value">${fmtTemp(feelsC)}</div></div>
         <div class="hero-detail"><div class="hero-detail-label">Humidity</div><div class="hero-detail-value">${c.relative_humidity_2m}%</div></div>
-        <div class="hero-detail" onclick="cycleUnit('presUnit');renderWeather(S.forecast)" style="cursor:pointer"><div class="hero-detail-label">Pressure</div><div class="hero-detail-value">${fmtPres(c.pressure_msl)}</div></div>
-        <div class="hero-detail" onclick="cycleUnit('precipUnit');renderWeather(S.forecast)" style="cursor:pointer"><div class="hero-detail-label">Precip</div><div class="hero-detail-value">${fmtPrecip(c.precipitation||0)}</div></div>
+        <div class="hero-detail" onclick="cycleUnit('presUnit')" style="cursor:pointer"><div class="hero-detail-label">Pressure</div><div class="hero-detail-value">${fmtPres(c.pressure_msl)}</div></div>
+        <div class="hero-detail" onclick="cycleUnit('precipUnit')" style="cursor:pointer"><div class="hero-detail-label">Precip</div><div class="hero-detail-value">${fmtPrecip(c.precipitation||0)}</div></div>
       </div>
     </div>
     <div class="weather-grid">
-      <div class="weather-tile" onclick="cycleUnit('windUnit');renderWeather(S.forecast)"><div class="tile-icon">💨</div><div class="tile-label">Wind</div><div class="tile-value">${fmtWind(c.wind_speed_10m)}</div><div class="tile-sub">${degToDir(c.wind_direction_10m)}${c.wind_gusts_10m?' · G'+fmtWind(c.wind_gusts_10m):''}</div><div class="tile-tap">tap to change</div></div>
+      <div class="weather-tile" onclick="cycleUnit('windUnit')"><div class="tile-icon">💨</div><div class="tile-label">Wind</div><div class="tile-value">${fmtWind(c.wind_speed_10m)}</div><div class="tile-sub">${degToDir(c.wind_direction_10m)}${c.wind_gusts_10m?' · G'+fmtWind(c.wind_gusts_10m):''}</div><div class="tile-tap">tap to change</div></div>
       <div class="weather-tile"><div class="tile-icon">☁️</div><div class="tile-label">Clouds</div><div class="tile-value">${c.cloud_cover}%</div><div class="tile-sub">Coverage</div></div>
-      <div class="weather-tile" onclick="cycleUnit('precipUnit');renderWeather(S.forecast)"><div class="tile-icon">🌧️</div><div class="tile-label">Rain</div><div class="tile-value">${fmtPrecip(c.rain||0)}</div><div class="tile-sub">${(c.snowfall||0)>0?'Snow: '+c.snowfall+'cm':''}</div><div class="tile-tap">tap to change</div></div>
-      <div class="weather-tile" onclick="cycleUnit('tempUnit');renderWeather(S.forecast)"><div class="tile-icon">🌡️</div><div class="tile-label">Dew Point</div><div class="tile-value">${fmtTemp(dewC)}</div><div class="tile-sub">Moisture</div><div class="tile-tap">tap to change</div></div>
+      <div class="weather-tile" onclick="cycleUnit('precipUnit')"><div class="tile-icon">🌧️</div><div class="tile-label">Rain</div><div class="tile-value">${fmtPrecip(c.rain||0)}</div><div class="tile-sub">${(c.snowfall||0)>0?'Snow: '+c.snowfall+'cm':''}</div><div class="tile-tap">tap to change</div></div>
+      <div class="weather-tile" onclick="cycleUnit('tempUnit')"><div class="tile-icon">🌡️</div><div class="tile-label">Dew Point</div><div class="tile-value">${fmtTemp(dewC)}</div><div class="tile-sub">Moisture</div><div class="tile-tap">tap to change</div></div>
     </div>
     ${renderHourlyPrecip(hourly)}
     ${renderDailyForecast(daily)}`;
@@ -432,7 +466,7 @@ function renderDailyForecast(d){
 }
 
 // ==========================================
-// RADAR MAP (RainViewer) — maxZoom capped at 6
+// RADAR MAP (RainViewer) — full zoom support
 // ==========================================
 function initRadar(){
   if(!S.lat)return;
@@ -461,8 +495,8 @@ function initRadar(){
     </div>`;
   setTimeout(async()=>{
     if(S.map){S.map.remove();S.map=null}
-    const map=L.map('radar-map',{zoomControl:false,attributionControl:false,maxZoom:6,minZoom:3}).setView([S.lat,S.lon],6);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:6}).addTo(map);
+    const map=L.map('radar-map',{zoomControl:false,attributionControl:false}).setView([S.lat,S.lon],8);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:18}).addTo(map);
     L.circle([S.lat,S.lon],{radius:S.scanRadius*1609.34,color:'#3b82f6',fillOpacity:0.05,weight:1,dashArray:'6 4'}).addTo(map);
     L.circleMarker([S.lat,S.lon],{radius:5,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:1}).addTo(map);
     S.map=map;
@@ -484,7 +518,7 @@ function initRadar(){
 function showRadarFrame(map){
   const frame=S.radarFrames[S.radarIdx];if(!frame)return;
   if(S.radarLayer)map.removeLayer(S.radarLayer);
-  S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/6/1_1.png`,{opacity:0.7,maxZoom:6}).addTo(map);
+  S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/6/1_1.png`,{opacity:0.7,maxZoom:12,maxNativeZoom:12}).addTo(map);
   const t=new Date(frame.time*1000);
   const el=document.getElementById('radar-time');
   if(el)el.textContent=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
@@ -638,21 +672,38 @@ async function fetchStation(){
   try{
     const stationIds=await findNearbyStations(S.lat,S.lon);
     if(!stationIds.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No METAR stations found nearby.</p></div>`;return}
-    const res=await fetch(`https://aviationweather.gov/api/data/metar?ids=${stationIds.join(',')}&format=json`);
-    const data=await res.json();
-    if(!data||!data.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No recent METAR data.</p></div>`;return}
-    const nearest=data.sort((a,b)=>haversine(S.lat,S.lon,a.lat,a.lon)-haversine(S.lat,S.lon,b.lat,b.lon))[0];
+    const metarUrl=`https://aviationweather.gov/api/data/metar?ids=${stationIds.join(',')}&format=json&hours=2`;
+    const res=await fetch(metarUrl);
+    if(!res.ok)throw new Error('AWC returned '+res.status);
+    const text=await res.text();
+    let data;
+    try{data=JSON.parse(text)}catch(e){throw new Error('Invalid JSON from AWC')}
+    if(!Array.isArray(data)||!data.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No recent METAR data available.</p></div>`;return}
+    const withCoords=data.filter(m=>m.lat!=null&&m.lon!=null);
+    if(!withCoords.length){S.station=data[0];S.stationId=data[0].icaoId||stationIds[0];renderStation();return}
+    const nearest=withCoords.sort((a,b)=>haversine(S.lat,S.lon,a.lat,a.lon)-haversine(S.lat,S.lon,b.lat,b.lon))[0];
     S.station=nearest;S.stationId=nearest.icaoId;renderStation();
-  }catch(e){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Station data unavailable.</p></div>`}
+  }catch(e){
+    console.error('Station fetch error:',e);
+    el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Station data unavailable.<br><span style="font-size:0.8em;color:var(--text-muted)">${e.message||''}</span></p></div>`;
+  }
 }
 
 async function findNearbyStations(lat,lon){
   try{
-    const res=await fetch(`https://aviationweather.gov/api/data/stationinfo?bbox=${(lon-1.5).toFixed(2)},${(lat-1.5).toFixed(2)},${(lon+1.5).toFixed(2)},${(lat+1.5).toFixed(2)}&format=json`);
-    const data=await res.json();
-    if(!data||!data.length)return[];
-    return data.filter(s=>s.icaoId).map(s=>({...s,dist:haversine(lat,lon,s.lat,s.lon)})).sort((a,b)=>a.dist-b.dist).slice(0,8).map(s=>s.icaoId);
-  }catch(e){return[]}
+    const bbox=`${(lon-1.5).toFixed(2)},${(lat-1.5).toFixed(2)},${(lon+1.5).toFixed(2)},${(lat+1.5).toFixed(2)}`;
+    const res=await fetch(`https://aviationweather.gov/api/data/stationinfo?bbox=${bbox}&format=json`);
+    if(!res.ok)return[];
+    const text=await res.text();
+    let data;
+    try{data=JSON.parse(text)}catch(e){return[]}
+    if(!Array.isArray(data)||!data.length)return[];
+    return data.filter(s=>s.icaoId&&s.lat!=null&&s.lon!=null)
+      .map(s=>({id:s.icaoId,dist:haversine(lat,lon,s.lat,s.lon)}))
+      .sort((a,b)=>a.dist-b.dist)
+      .slice(0,8)
+      .map(s=>s.id);
+  }catch(e){console.error('Station lookup error:',e);return[]}
 }
 
 function renderStation(){
@@ -662,48 +713,81 @@ function renderStation(){
   const wSpd=s.wspd!=null?parseFloat(s.wspd):null;
   const gustKts=s.wgst!=null?parseFloat(s.wgst):null;
   const wDir=s.wdir!=null?parseFloat(s.wdir):null;
-  const vis=s.visib!=null?parseFloat(s.visib):null;
-  const altim=s.altim!=null?parseFloat(s.altim):null;
+  const visSM=s.visib!=null?parseFloat(s.visib):null;
+  const altimInHg=s.altim!=null?parseFloat(s.altim):null;
+  const altimMb=altimInHg!=null?altimInHg*33.8639:null;
   const rh=(tempC!=null&&dpC!=null)?Math.round(100*Math.exp((17.27*dpC)/(237.7+dpC))/Math.exp((17.27*tempC)/(237.7+tempC))):null;
-  const dist=haversine(S.lat,S.lon,s.lat,s.lon).toFixed(1);
+  const dist=(s.lat!=null&&s.lon!=null)?haversine(S.lat,S.lon,s.lat,s.lon).toFixed(1):'?';
   const raw=s.rawOb||'';
-  const fltCat=getFltCat(vis,s);
+  const fltCat=getFltCat(visSM,s);
   const fltCls=fltCat==='VFR'?'vfr':fltCat==='MVFR'?'mvfr':fltCat==='IFR'?'ifr':'lifr';
+  const stationName=s.name||s.site||S.stationId||'Weather Station';
+  const obTime=s.reportTime||s.obsTime||'';
+  const obLabel=obTime?new Date(obTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
 
   el.innerHTML=`
     <div class="card">
-      <div class="card-title"><span class="icon">🏢</span> ${S.stationId} — ${s.name||'Weather Station'}</div>
-      <div style="display:flex;justify-content:center;gap:10px;align-items:center;margin-bottom:12px">
+      <div class="card-title"><span class="icon">🏢</span> ${S.stationId} — ${stationName}</div>
+      <div style="display:flex;justify-content:center;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
         <span class="flt-cat flt-${fltCls}">${fltCat==='VFR'?'●':'◉'} ${fltCat}</span>
         <span style="font-size:0.7em;color:var(--text-muted)">${dist} mi away</span>
+        ${obLabel?`<span style="font-size:0.65em;color:var(--text-muted);font-family:var(--font-mono)">Obs: ${obLabel}</span>`:''}
       </div>
       <div class="wind-compass">
         <span class="compass-label compass-n">N</span><span class="compass-label compass-s">S</span>
         <span class="compass-label compass-e">E</span><span class="compass-label compass-w">W</span>
         <div class="wind-arrow" style="transform:rotate(${wDir||0}deg)"></div>
       </div>
-      <div style="text-align:center;margin-bottom:14px;cursor:pointer" onclick="cycleUnit('windUnit');renderStation()">
+      <div style="text-align:center;margin-bottom:14px;cursor:pointer" onclick="cycleUnit('windUnit')">
         <div style="font-size:1.2em;font-weight:700">${wSpd!=null?fmtWindKts(wSpd):'-'} ${wDir!=null?degToDir(wDir):''}</div>
         ${gustKts?`<div style="font-size:0.8em;color:var(--accent-orange)">Gusts ${fmtWindKts(gustKts)}</div>`:''}
-        <div style="font-size:0.55em;color:var(--accent-cyan);opacity:0.7;margin-top:2px">tap to change units</div>
+        <div class="tile-tap">tap to change units</div>
       </div>
       <div class="station-grid">
-        <div class="station-tile" onclick="cycleUnit('tempUnit');renderStation()"><div class="station-val">${tempC!=null?fmtTemp(tempC):'--'}</div><div class="station-label">Temp</div><div class="tile-tap">tap</div></div>
-        <div class="station-tile" onclick="cycleUnit('tempUnit');renderStation()"><div class="station-val">${dpC!=null?fmtTemp(dpC):'--'}</div><div class="station-label">Dew Pt</div><div class="tile-tap">tap</div></div>
+        <div class="station-tile" onclick="cycleUnit('tempUnit')"><div class="station-val">${tempC!=null?fmtTemp(tempC):'--'}</div><div class="station-label">Temp</div><div class="tile-tap">tap</div></div>
+        <div class="station-tile" onclick="cycleUnit('tempUnit')"><div class="station-val">${dpC!=null?fmtTemp(dpC):'--'}</div><div class="station-label">Dew Pt</div><div class="tile-tap">tap</div></div>
         <div class="station-tile"><div class="station-val">${rh!=null?rh:'--'}%</div><div class="station-label">Humidity</div></div>
-        <div class="station-tile" onclick="cycleUnit('presUnit');renderStation()"><div class="station-val">${altim!=null?fmtPres(altim):'--'}</div><div class="station-label">Baro</div><div class="tile-tap">tap</div></div>
-        <div class="station-tile" onclick="cycleUnit('visUnit');renderStation()"><div class="station-val">${vis!=null?fmtVis(vis):'--'}</div><div class="station-label">Vis</div><div class="tile-tap">tap</div></div>
-        <div class="station-tile"><div class="station-val">${s.cover||s.cldCvg1||'--'}</div><div class="station-label">Sky</div></div>
+        <div class="station-tile" onclick="cycleUnit('presUnit')"><div class="station-val">${altimMb!=null?fmtPres(altimMb):'--'}</div><div class="station-label">Baro</div><div class="tile-tap">tap</div></div>
+        <div class="station-tile" onclick="cycleUnit('visUnit')"><div class="station-val">${visSM!=null?fmtVis(visSM):'--'}</div><div class="station-label">Vis</div><div class="tile-tap">tap</div></div>
+        <div class="station-tile"><div class="station-val">${formatClouds(s)}</div><div class="station-label">Sky</div></div>
       </div>
+      ${renderMetarDecoded(s)}
       ${raw?`<div class="metar-raw">${raw}</div>`:''}
     </div>`;
 }
 
+function formatClouds(s){
+  const layers=[];
+  for(let i=1;i<=4;i++){
+    const cvg=s['cldCvg'+i];const bas=s['cldBas'+i];
+    if(cvg)layers.push(cvg+(bas!=null?' '+Math.round(bas/100)*100+'ft':''));
+  }
+  return layers.length?layers.join(', '):(s.cover||'CLR');
+}
+
+function renderMetarDecoded(s){
+  const parts=[];
+  if(s.temp!=null)parts.push(`<span>🌡️ Temp: ${fmtTemp(parseFloat(s.temp))}</span>`);
+  if(s.dewp!=null)parts.push(`<span>💧 Dew: ${fmtTemp(parseFloat(s.dewp))}</span>`);
+  if(s.wspd!=null){
+    let w=`💨 Wind: ${fmtWindKts(parseFloat(s.wspd))} ${s.wdir!=null?degToDir(parseFloat(s.wdir)):'VRB'}`;
+    if(s.wgst!=null)w+=` G${fmtWindKts(parseFloat(s.wgst))}`;
+    parts.push(`<span>${w}</span>`);
+  }
+  if(s.visib!=null)parts.push(`<span>👁️ Vis: ${fmtVis(parseFloat(s.visib))}</span>`);
+  if(s.altim!=null)parts.push(`<span>📊 Altim: ${fmtPres(parseFloat(s.altim)*33.8639)}</span>`);
+  if(s.wxString)parts.push(`<span style="color:var(--accent-orange)">⚠️ Wx: ${s.wxString}</span>`);
+  if(!parts.length)return'';
+  return`<div style="display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:12px;font-size:0.7em;color:var(--text-secondary)">${parts.join('')}</div>`;
+}
+
 function getFltCat(vis,s){
-  const ceil=s.cldBas1!=null?parseFloat(s.cldBas1):99999;
-  const cvg=(s.cldCvg1||'').toUpperCase();
-  const hasCeil=cvg==='BKN'||cvg==='OVC'||cvg==='VV';
-  const effCeil=hasCeil?ceil:99999;
+  let effCeil=99999;
+  for(let i=1;i<=4;i++){
+    const cvg=(s['cldCvg'+i]||'').toUpperCase();
+    const bas=s['cldBas'+i]!=null?parseFloat(s['cldBas'+i]):null;
+    if((cvg==='BKN'||cvg==='OVC'||cvg==='VV')&&bas!=null){effCeil=Math.min(effCeil,bas);break}
+  }
   if((vis!=null&&vis<1)||effCeil<500)return'LIFR';
   if((vis!=null&&vis<3)||effCeil<1000)return'IFR';
   if((vis!=null&&vis<=5)||effCeil<=3000)return'MVFR';
@@ -742,7 +826,7 @@ function renderAlerts(){
 }
 
 // ==========================================
-// INIT — always show welcome, never auto-locate
+// INIT — always show welcome, explicit consent
 // ==========================================
 function init(){
   loadUnits();
@@ -752,7 +836,7 @@ function init(){
       <div style="font-size:3em;margin-bottom:12px">⚡</div>
       <h2>Welcome to StormTracker</h2>
       <p>Real-time storm detection powered by live radar data.<br>No API keys, no accounts, 100% free.</p>
-      <button class="welcome-btn" onclick="requestGPS()">🛰️ Use My Location</button>
+      <button class="welcome-btn" onclick="showLocationConfirm()">🛰️ Use My Location</button>
       <button class="welcome-btn secondary" onclick="document.getElementById('location-input').focus()">🔍 Search Location</button>
       <div style="margin-top:20px;font-size:0.75em;color:var(--text-muted)">
         <strong>Features:</strong><br>
@@ -761,16 +845,6 @@ function init(){
         Tappable unit cycling &middot; 7-day forecast
       </div>
     </div>`;
-}
-
-function requestGPS(){
-  if(!navigator.geolocation){toast('GPS not available');return}
-  toast('Requesting location permission...');
-  navigator.geolocation.getCurrentPosition(
-    pos=>reverseGeo(pos.coords.latitude,pos.coords.longitude),
-    ()=>toast('Location access denied — try searching instead'),
-    {enableHighAccuracy:true,timeout:10000}
-  );
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);
