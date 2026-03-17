@@ -32,6 +32,7 @@ interface StationData {
     speedMs: number;
     gustMs: number | null;
     beaufort: { scale: number; description: string };
+    gustBeaufort: { scale: number; description: string } | null;
   };
   pressure: {
     inHg: number | null;
@@ -113,7 +114,7 @@ function WindCompass({ wind, windUnit, cycleWind }: { wind: StationData['wind'];
       case 'kts': return { speed: wind.speedKts, gust: wind.gustKts, unit: 'kts' };
       case 'kmh': return { speed: wind.speedKmh, gust: wind.gustKmh, unit: 'km/h' };
       case 'ms': return { speed: wind.speedMs, gust: wind.gustMs, unit: 'm/s' };
-      case 'beaufort': return { speed: wind.beaufort.scale, gust: null, unit: `Bft` };
+      case 'beaufort': return { speed: wind.beaufort.scale, gust: wind.gustBeaufort?.scale ?? null, unit: `Bft` };
     }
   };
   const d = getWindDisplay(wind.speedKts, wind.gustKts);
@@ -178,7 +179,12 @@ function WindCompass({ wind, windUnit, cycleWind }: { wind: StationData['wind'];
         </div>
       </TappableValue>
       {windUnit === 'beaufort' && (
-        <span className="text-[9px] text-green-400 mt-0.5">{wind.beaufort.description}</span>
+        <span className="text-[9px] text-green-400 mt-0.5">
+          {wind.beaufort.description}
+          {wind.gustBeaufort && wind.gustBeaufort.scale !== wind.beaufort.scale && (
+            <span className="text-orange-400"> · Gusts: {wind.gustBeaufort.description}</span>
+          )}
+        </span>
       )}
     </div>
   );
@@ -415,7 +421,7 @@ function ForecastIconStrip({ lat, lon, icao }: { lat: number; lon: number; icao?
   );
 }
 
-function AlertTicker({ lat, lon, icao }: { lat: number; lon: number; icao?: string }) {
+function AlertTicker({ lat, lon, icao, windUnit }: { lat: number; lon: number; icao?: string; windUnit?: WindUnit }) {
   const { data: nwsData } = useQuery<any>({
     queryKey: ['/api/nws-alerts', lat, lon],
     queryFn: async () => { const r = await fetch(`/api/nws-alerts?lat=${lat}&lon=${lon}`); if (!r.ok) return { alerts: [] }; return r.json(); },
@@ -434,6 +440,28 @@ function AlertTicker({ lat, lon, icao }: { lat: number; lon: number; icao?: stri
     queryFn: async () => { const r = await fetch(`/api/weather-forecast?lat=${lat}&lon=${lon}`); if (!r.ok) throw new Error('fail'); return r.json(); },
     staleTime: 300000,
   });
+
+  const formatWindForUnit = (kts: number, gustKts?: number | null) => {
+    const bft = (k: number) => {
+      if (k < 1) return 0; if (k <= 3) return 1; if (k <= 6) return 2; if (k <= 10) return 3;
+      if (k <= 16) return 4; if (k <= 21) return 5; if (k <= 27) return 6; if (k <= 33) return 7;
+      if (k <= 40) return 8; if (k <= 47) return 9; if (k <= 55) return 10; if (k <= 63) return 11;
+      return 12;
+    };
+    const u = windUnit || 'kts';
+    const convert = (k: number) => {
+      switch (u) {
+        case 'mph': return `${Math.round(k * 1.15078)} mph`;
+        case 'kts': return `${k}kt`;
+        case 'kmh': return `${Math.round(k * 1.852)} km/h`;
+        case 'ms': return `${(k * 0.51444).toFixed(1)} m/s`;
+        case 'beaufort': return `Bft ${bft(k)}`;
+      }
+    };
+    let str = convert(kts);
+    if (gustKts != null) str += ` G${convert(gustKts)}`;
+    return str;
+  };
 
   const allMessages: string[] = [];
 
@@ -459,9 +487,7 @@ function AlertTicker({ lat, lon, icao }: { lat: number; lon: number; icao?: stri
       const parts: string[] = [];
       parts.push(p.condition || 'Clear');
       if (p.windSpeedKts != null) {
-        let windStr = `${p.windDir || 'VRB'}° @ ${p.windSpeedKts}kt`;
-        if (p.windGustKts) windStr += ` G${p.windGustKts}kt`;
-        parts.push(windStr);
+        parts.push(`${p.windDir || 'VRB'}° @ ${formatWindForUnit(p.windSpeedKts, p.windGustKts)}`);
       }
       if (p.visibilitySM != null && p.visibilitySM < 6) parts.push(`Vis ${p.visibilitySM}SM`);
       if (p.wxCodes?.length > 0) parts.push(p.wxCodes.join(' '));
@@ -653,7 +679,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
 
   const isFavorite = favorites?.find(f => f.icao === activeIcao);
   const activeStationInfo = stations.find(s => s.icao === activeIcao);
-  const obsAge = stationData?.obsTime ? Math.round((Date.now() - new Date(stationData.obsTime).getTime()) / 60000) : null;
+  const obsAge = stationData?.obsTime ? Math.round((Date.now() - (typeof stationData.obsTime === 'number' && stationData.obsTime < 1e12 ? stationData.obsTime * 1000 : new Date(stationData.obsTime).getTime())) / 60000) : null;
 
   const uvIndex = useMemo(() => {
     if (!stationData?.tempF) return null;
@@ -806,7 +832,7 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
             </div>
           )}
 
-          <AlertTicker lat={lat} lon={lon} icao={stationData.icao} />
+          <AlertTicker lat={lat} lon={lon} icao={stationData.icao} windUnit={windUnit} />
 
           {wxDescription && (
             <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-900/15 border border-amber-600/30">
