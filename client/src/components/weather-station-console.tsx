@@ -365,6 +365,26 @@ function MetarDecoder({ decoded }: { decoded: StationData['decoded'] }) {
   );
 }
 
+function MetarTafLink({ icao }: { icao: string }) {
+  return (
+    <a
+      href={`https://metar-taf.com/${icao}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-800/40 border border-slate-700/20 hover:bg-slate-700/30 hover:border-blue-600/30 transition-all group"
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-sm">🌐</span>
+        <div>
+          <span className="text-[10px] text-slate-400 uppercase font-semibold block group-hover:text-blue-400 transition-colors">METAR-TAF Detail — {icao}</span>
+          <span className="text-[9px] text-slate-600">Full decoded METAR, TAF, charts & runway info</span>
+        </div>
+      </div>
+      <span className="text-slate-500 group-hover:text-blue-400 text-xs transition-colors">↗</span>
+    </a>
+  );
+}
+
 export default function WeatherStationConsole({ lat, lon, locationName }: { lat: number; lon: number; locationName: string }) {
   const { t } = useLanguage();
   const [selectedStation, setSelectedStation] = useState<string | null>(null);
@@ -753,6 +773,8 @@ export default function WeatherStationConsole({ lat, lon, locationName }: { lat:
             </div>
             <ForecastIconStrip lat={lat} lon={lon} />
           </div>
+
+          <MetarTafLink icao={stationData.icao} />
 
           <div className="rounded-xl bg-slate-800/40 border border-slate-700/20 p-2">
             <details>

@@ -6495,7 +6495,7 @@ Guidelines:
   app.get("/api/station-data/:icao", async (req, res) => {
     try {
       const icao = req.params.icao.toUpperCase();
-      if (!/^[A-Z]{3,4}$/.test(icao)) return res.status(400).json({ error: "Invalid ICAO code format" });
+      if (!/^[A-Z0-9]{3,4}$/.test(icao)) return res.status(400).json({ error: "Invalid ICAO code format" });
       const awcUrl = `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&taf=false&hours=3`;
       const response = await fetch(awcUrl, { signal: AbortSignal.timeout(8000) });
       if (!response.ok) throw new Error(`AWC returned ${response.status}`);
