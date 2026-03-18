@@ -808,9 +808,14 @@ function plotStormMarkers(map){
       const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
       const imp=impactLabel(eta?eta.impact:0);
       mvHtml=`<div style="font-size:0.75em;color:#8cf;margin-top:4px">→ Moving ${degToDir(mv.direction)} at ${spdStr}</div>`;
-      if(eta&&eta.approaching&&eta.impact>0){
-        const etaStr=eta.eta!=null?(eta.eta<60?eta.eta+' min':Math.round(eta.eta/60*10)/10+' hr'):'--';
-        mvHtml+=`<div style="font-size:0.8em;font-weight:700;color:${imp.color};margin-top:2px">⏱ ETA: ${etaStr}</div>`;
+      if(eta&&eta.proximity){
+        mvHtml+=`<div style="font-size:0.75em;color:#f97316;margin-top:2px;font-weight:700">⚠️ Overhead · Moving away</div>`;
+        mvHtml+=`<div style="font-size:0.75em;color:${imp.color}">Impact: ${eta.impact}% ${imp.text}</div>`;
+      }else if(eta&&eta.approaching&&eta.impact>0){
+        const nowTime=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});
+        const arrTime=eta.eta!=null?fmtArrivalTime(eta.eta):'--';
+        mvHtml+=`<div style="font-size:0.8em;font-weight:700;color:${imp.color};margin-top:2px">Arrives ~${arrTime}</div>`;
+        mvHtml+=`<div style="font-size:0.65em;color:#999">Now ${nowTime}</div>`;
         mvHtml+=`<div style="font-size:0.75em;color:${imp.color}">Impact: ${eta.impact}% ${imp.text}</div>`;
       }else{
         mvHtml+=`<div style="font-size:0.65em;color:#6b7;margin-top:2px">Nearby · Not approaching</div>`;
@@ -937,18 +942,23 @@ function calcStormETA(storm){
   const movDir=S.stormMovement.direction;
   const bearingToUser=(storm.bearing+180)%360;
   const diff=Math.abs(((movDir-bearingToUser+180)%360)-180);
-  if(diff>90)return{eta:null,impact:0,approaching:false};
   const closingSpeed=S.stormMovement.speed*Math.cos(diff*Math.PI/180);
-  if(closingSpeed<=0)return{eta:null,impact:0,approaching:false};
+  if(closingSpeed<=0||diff>90){
+    if(storm.distance<=1){
+      const proxPct=Math.round(Math.min(85,(1-storm.distance)*60+storm.dbz/3));
+      return{eta:null,impact:proxPct,approaching:false,closingSpeed:0,proximity:true};
+    }
+    return{eta:null,impact:0,approaching:false};
+  }
   const etaMin=Math.round(storm.distance/closingSpeed*60);
-  let pct=0;
   const dirScore=Math.max(0,1-diff/60);
   const distScore=Math.max(0,1-storm.distance/100);
   const spdScore=Math.min(1,S.stormMovement.speed/30);
   const intScore=Math.min(1,(storm.dbz-15)/50);
-  pct=Math.round(Math.min(100,dirScore*40+distScore*30+spdScore*15+intScore*15));
+  let pct=Math.round(Math.min(100,dirScore*40+distScore*30+spdScore*15+intScore*15));
   if(diff>60)pct=Math.min(pct,15);
-  if(diff>45)pct=Math.min(pct,30);
+  else if(diff>45)pct=Math.min(pct,30);
+  if(storm.distance<=1)pct=Math.max(pct,Math.round(60+(1-storm.distance)*25));
   return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed)};
 }
 function impactLabel(pct){
@@ -1103,7 +1113,10 @@ function renderStorms(){
       if(mv&&mv.speed>=2){
         const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
         mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Moving</div><div class="storm-detail-val">${degToDir(mv.direction)} ${spdStr}</div><div class="tile-tap">tap</div></div>`;
-        if(eta&&eta.approaching&&pct>0){
+        if(eta&&eta.proximity){
+          mvLine+=`<div class="storm-detail" style="grid-column:span 2"><div class="storm-detail-label">Status</div><div class="storm-detail-val" style="color:#f97316;font-size:0.85em">⚠️ Overhead · Moving away</div></div>`;
+          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">Impact</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${imp.text}</div></div>`;
+        }else if(eta&&eta.approaching&&pct>0){
           const sk=stormKey(s);
           const expired=S.etaExpired[sk];
           if(expired){
