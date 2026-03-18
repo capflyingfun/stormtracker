@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>StormTracker v1.50</title>
+<title>StormTracker v1.51</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -179,7 +179,7 @@ canvas.offscreen{display:none}
 
 <header class="app-header">
   <h1>⚡ StormTracker</h1>
-  <div class="version">v1.50 &middot; Real-time Storm Detection</div>
+  <div class="version">v1.51 &middot; Real-time Storm Detection</div>
   <div class="header-status">
     <span class="status-dot" id="status-dot"></span>
     <span id="status-text">Initializing...</span>
@@ -762,7 +762,7 @@ function renderStation(){
       <div style="display:flex;justify-content:center;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
         <span class="flt-cat flt-${fltCls}">${fltCat==='VFR'?'●':'◉'} ${fltCat}</span>
         <span style="font-size:0.7em;color:var(--text-muted)">${dist} mi away</span>
-        ${obLabel?`<span style="font-size:0.65em;color:var(--text-muted);font-family:var(--font-mono)">Obs: ${obLabel}</span>`:''}
+        ${obLabel?`<span style="font-size:0.65em;color:var(--text-muted);font-family:var(--font-mono)">Updated: ${obLabel}</span>`:''}
       </div>
       <div class="wind-compass">
         <span class="compass-label compass-n">N</span><span class="compass-label compass-s">S</span>
