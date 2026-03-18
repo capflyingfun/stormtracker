@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <title>StormTracker v1.52</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -740,7 +742,12 @@ async function scanRadarForStorms(){
   }catch(e){toast('Radar scan failed: '+e.message);console.error('Scan error:',e)}
 }
 
-function loadImage(url){return new Promise((resolve,reject)=>{const img=new Image();img.crossOrigin='anonymous';img.onload=()=>resolve(img);img.onerror=reject;img.src=url})}
+function loadImage(url){
+  return fetch(url).then(r=>{
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return r.blob();
+  }).then(blob=>createImageBitmap(blob));
+}
 function lonToTileX(lon,z){return Math.floor((lon+180)/360*Math.pow(2,z))}
 function latToTileY(lat,z){const r=lat*Math.PI/180;return Math.floor((1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z))}
 function tileXToLon(x,z){return x/Math.pow(2,z)*360-180}
