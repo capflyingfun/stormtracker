@@ -224,7 +224,7 @@ const S = {
   storms:[], stormMarkers:[],
   alerts:[], station:null, stationId:null,
   map:null, radarLayer:null, radarFrames:[], radarIdx:0,
-  radarPlaying:false, radarTimer:null, scanRadius:80,
+  radarPlaying:false, radarTimer:null, scanRadius:80, nexradOn:false, nexradLayer:null,
   activePage:'weather', nearbyStations:[],
 };
 const TEMP_UNITS = ['°F','°C'];
@@ -481,7 +481,9 @@ function initRadar(){
       <div class="radar-time-label" id="radar-time">Loading...</div>
       <div class="map-controls">
         <div class="map-ctrl-btn" id="radar-play" title="Play/Pause">▶</div>
-        <div class="map-ctrl-btn" id="radar-scan" title="Scan for storms">🔍</div>
+        <div class="map-ctrl-btn" id="radar-scan" title="Scan around location">📍</div>
+        <div class="map-ctrl-btn" id="radar-scan-view" title="Scan current view">🔍</div>
+        <div class="map-ctrl-btn" id="radar-nexrad" title="Toggle NEXRAD" style="font-size:0.55em;font-weight:700;line-height:1">NEX</div>
       </div>
       <div class="map-legend">
         <span>dBZ</span>
@@ -493,8 +495,8 @@ function initRadar(){
         <span>Light → Extreme</span>
       </div>
     </div>
-    <div style="font-size:0.7em;color:var(--text-muted);text-align:center;margin-top:6px">
-      RainViewer &middot; Updated every 10 min &middot; Tap 🔍 to scan for storm cells
+    <div id="radar-source-label" style="font-size:0.7em;color:var(--text-muted);text-align:center;margin-top:6px">
+      RainViewer &middot; Updated every 10 min &middot; 📍 Scan location &middot; 🔍 Scan view
     </div>`;
   setTimeout(async()=>{
     if(S.map){S.map.remove();S.map=null}
@@ -514,6 +516,8 @@ function initRadar(){
         S.radarTimer=setInterval(()=>{S.radarIdx=(S.radarIdx+1)%S.radarFrames.length;showRadarFrame(map)},700)}
     });
     document.getElementById('radar-scan').addEventListener('click',()=>{scanRadarForStorms()});
+    document.getElementById('radar-scan-view').addEventListener('click',()=>{scanRadarForView()});
+    document.getElementById('radar-nexrad').addEventListener('click',()=>{toggleNexrad(map)});
     plotStormMarkers(map);
   },100);
 }
@@ -525,6 +529,79 @@ function showRadarFrame(map){
   const t=new Date(frame.time*1000);
   const el=document.getElementById('radar-time');
   if(el)el.textContent=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+}
+
+function toggleNexrad(map){
+  if(S.nexradOn){
+    if(S.nexradLayer){map.removeLayer(S.nexradLayer);S.nexradLayer=null}
+    S.nexradOn=false;
+    const btn=document.getElementById('radar-nexrad');if(btn)btn.style.background='';
+    const lbl=document.getElementById('radar-source-label');
+    if(lbl)lbl.textContent='RainViewer \u00B7 Updated every 10 min \u00B7 \uD83D\uDCCD Scan location \u00B7 \uD83D\uDD0D Scan view';
+    toast('NEXRAD off — RainViewer only');
+  }else{
+    S.nexradOn=true;
+    S.nexradLayer=L.tileLayer(`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`,{opacity:0.6,maxZoom:18,maxNativeZoom:8}).addTo(map);
+    const btn=document.getElementById('radar-nexrad');if(btn)btn.style.background='var(--accent-blue)';
+    const lbl=document.getElementById('radar-source-label');
+    if(lbl)lbl.textContent='RainViewer + NEXRAD (US) \u00B7 \uD83D\uDCCD Scan location \u00B7 \uD83D\uDD0D Scan view';
+    toast('NEXRAD overlay enabled (US only)');
+  }
+}
+
+async function scanRadarForView(){
+  if(!S.map)return;
+  const bounds=S.map.getBounds();
+  const cLat=bounds.getCenter().lat;
+  const cLng=bounds.getCenter().lng;
+  const cornerDist=haversine(cLat,cLng,bounds.getNorth(),bounds.getEast());
+  toast('Scanning visible area...');
+  try{
+    const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
+    const past=rv.radar?.past||[];
+    if(!past.length){S.storms=[];renderStorms();return}
+    const tilePath=past[past.length-1].path;
+    const zoom=6;
+    const rawPoints=[];
+    const minTX=lonToTileX(bounds.getWest(),zoom);
+    const maxTX=lonToTileX(bounds.getEast(),zoom);
+    const minTY=latToTileY(bounds.getNorth(),zoom);
+    const maxTY=latToTileY(bounds.getSouth(),zoom);
+    const canvas=document.getElementById('radarCanvas');
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    for(let tx=minTX;tx<=maxTX;tx++){
+      for(let ty=minTY;ty<=maxTY;ty++){
+        try{
+          const img=await loadImage(`https://tilecache.rainviewer.com${tilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`);
+          ctx.clearRect(0,0,256,256);ctx.drawImage(img,0,0);
+          const step=8;
+          for(let px=0;px<256;px+=step){
+            for(let py=0;py<256;py+=step){
+              const pixel=ctx.getImageData(px,py,1,1).data;
+              const dbz=pixelToDbz(pixel[0],pixel[1],pixel[2],pixel[3]);
+              if(dbz>=15){
+                const ptLat=tileYToLat(ty+py/256,zoom);
+                const ptLon=tileXToLon(tx+px/256,zoom);
+                if(bounds.contains([ptLat,ptLon]))rawPoints.push({lat:ptLat,lng:ptLon,dbz,dist:haversine(cLat,cLng,ptLat,ptLon)});
+              }
+            }
+          }
+        }catch(e){}
+      }
+    }
+    const clusters=clusterPoints(rawPoints,0.15);
+    S.storms=clusters.map(cl=>{
+      const maxDbz=Math.max(...cl.map(p=>p.dbz));
+      const avgLat=cl.reduce((s,p)=>s+p.lat,0)/cl.length;
+      const avgLng=cl.reduce((s,p)=>s+p.lng,0)/cl.length;
+      const dist=haversine(S.lat,S.lon,avgLat,avgLng);
+      const bear=bearingDeg(S.lat,S.lon,avgLat,avgLng);
+      return{lat:avgLat,lng:avgLng,dbz:maxDbz,distance:dist,bearing:bear,pixels:cl.length};
+    }).sort((a,b)=>a.distance-b.distance);
+    toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found in view`);
+    renderStorms();
+    if(S.map)plotStormMarkers(S.map);
+  }catch(e){toast('View scan failed');console.error(e)}
 }
 
 function plotStormMarkers(map){
