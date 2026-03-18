@@ -39,10 +39,25 @@
 html{scroll-behavior:smooth}
 body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-primary);min-height:100vh;min-height:100dvh;padding-bottom:calc(var(--nav-height)+20px);overscroll-behavior:none;-webkit-font-smoothing:antialiased}
 .container{max-width:520px;margin:0 auto;padding:0 12px}
-.app-header{text-align:center;padding:20px 16px 12px;background:linear-gradient(180deg,rgba(59,130,246,0.08) 0%,transparent 100%);border-bottom:1px solid var(--border-subtle);position:sticky;top:0;z-index:100;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
-.app-header h1{font-size:1.4em;font-weight:800;background:linear-gradient(135deg,var(--accent-blue),var(--accent-cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.app-header .version{font-size:0.7em;color:var(--text-muted);margin-top:2px;font-family:var(--font-mono)}
-.header-status{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px;font-size:0.75em;color:var(--text-secondary)}
+.app-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:linear-gradient(180deg,rgba(59,130,246,0.08) 0%,transparent 100%);border-bottom:1px solid var(--border-subtle);position:sticky;top:0;z-index:100;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.app-header .header-left{display:flex;align-items:center;gap:8px}
+.app-header .header-center{text-align:center;flex:1}
+.app-header h1{font-size:1.2em;font-weight:800;background:linear-gradient(135deg,var(--accent-blue),var(--accent-cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:0;line-height:1.2}
+.app-header .version{font-size:0.6em;color:var(--text-muted);font-family:var(--font-mono)}
+.storm-count-badge{background:#22c55e;color:#fff;font-size:0.7em;font-weight:700;padding:2px 8px;border-radius:12px;cursor:pointer;white-space:nowrap}
+.storm-count-badge:empty{display:none}
+.header-loc-btn{width:36px;height:36px;border-radius:10px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:var(--accent-blue);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.1em}
+.loc-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:300;justify-content:center;align-items:flex-start;padding:60px 16px 0}
+.loc-overlay.open{display:flex}
+.loc-overlay-inner{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:16px;width:100%;max-width:400px}
+.loc-overlay-inner input{width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 14px;color:var(--text-primary);font-size:1em;font-family:var(--font-body);outline:none;margin-bottom:10px}
+.loc-overlay-inner input::placeholder{color:var(--text-muted)}
+.loc-overlay-btns{display:flex;gap:8px}
+.loc-overlay-btns button{flex:1;padding:10px;border-radius:var(--radius-md);border:none;font-weight:600;cursor:pointer;font-size:0.85em}
+.loc-overlay-btns .loc-btn-gps{background:rgba(59,130,246,0.2);color:var(--accent-blue)}
+.loc-overlay-btns .loc-btn-search{background:var(--accent-blue);color:#fff}
+.loc-overlay-btns .loc-btn-close{background:rgba(255,255,255,0.08);color:var(--text-muted);flex:0.5}
+.header-status{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:2px;font-size:0.65em;color:var(--text-secondary)}
 .status-dot{width:6px;height:6px;border-radius:50%;background:var(--accent-yellow);animation:pulse-dot 2s ease-in-out infinite}
 .status-dot.live{background:var(--accent-green)}
 @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.4}}
@@ -159,6 +174,8 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .nav-item.active{color:var(--accent-blue)}
 .nav-item .nav-icon{font-size:1.3em}
 .nav-item .nav-label{font-size:0.6em;font-weight:600;text-transform:uppercase;letter-spacing:0.04em}
+.nav-badge{position:absolute;top:2px;right:4px;background:#ef4444;color:#fff;font-size:0.55em;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.nav-badge:empty{display:none}
 .skeleton{background:linear-gradient(90deg,var(--bg-surface) 25%,var(--bg-elevated) 50%,var(--bg-surface) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:var(--radius-sm)}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .skel-line{height:16px;margin-bottom:8px}
@@ -202,21 +219,31 @@ canvas.offscreen{display:none}
 <canvas id="radarCanvas" class="offscreen" width="256" height="256"></canvas>
 
 <header class="app-header">
-  <h1>⚡ StormTracker</h1>
-  <div class="version">v1.53 &middot; Real-time Storm Detection</div>
-  <div class="header-status">
-    <span class="status-dot" id="status-dot"></span>
-    <span id="status-text">Initializing...</span>
+  <div class="header-left">
+    <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
+  <div class="header-center">
+    <h1>⚡ StormTracker</h1>
+    <div class="header-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Initializing...</span>
+    </div>
+  </div>
+  <div class="header-loc-btn" id="btn-loc-open" onclick="toggleLocOverlay(true)" title="Change location">🗺️</div>
 </header>
 
-<div class="container">
-  <div class="location-bar">
-    <span style="font-size:1.1em">📍</span>
+<div class="loc-overlay" id="loc-overlay" onclick="if(event.target===this)toggleLocOverlay(false)">
+  <div class="loc-overlay-inner">
     <input type="text" id="location-input" placeholder="Search city, ZIP, or address..." autocomplete="off">
-    <button class="btn-icon" id="btn-gps" title="Use GPS">🛰️</button>
-    <button class="btn-icon" id="btn-search" title="Search">🔍</button>
+    <div class="loc-overlay-btns">
+      <button class="loc-btn-gps" onclick="showLocationConfirm();toggleLocOverlay(false)">🛰️ GPS</button>
+      <button class="loc-btn-search" onclick="searchLoc();toggleLocOverlay(false)">🔍 Search</button>
+      <button class="loc-btn-close" onclick="toggleLocOverlay(false)">✕</button>
+    </div>
   </div>
+</div>
+
+<div class="container">
   <div id="page-weather" class="section-page visible"></div>
   <div id="page-radar" class="section-page"></div>
   <div id="page-storms" class="section-page"></div>
@@ -235,7 +262,7 @@ canvas.offscreen{display:none}
 <nav class="bottom-nav">
   <button class="nav-item active" data-page="weather"><span class="nav-icon">🌤️</span><span class="nav-label">Weather</span></button>
   <button class="nav-item" data-page="radar"><span class="nav-icon">📡</span><span class="nav-label">Radar</span></button>
-  <button class="nav-item" data-page="storms"><span class="nav-icon">🌪️</span><span class="nav-label">Storms</span></button>
+  <button class="nav-item" data-page="storms" style="position:relative"><span class="nav-icon">🌪️</span><span class="nav-label">Storms</span><span class="nav-badge" id="nav-storm-badge"></span></button>
   <button class="nav-item" data-page="station"><span class="nav-icon">🏢</span><span class="nav-label">Station</span></button>
   <button class="nav-item" data-page="alerts"><span class="nav-icon">⚠️</span><span class="nav-label">Alerts</span></button>
 </nav>
@@ -479,11 +506,7 @@ function nexradToDbz(r,g,b,a){
 document.querySelectorAll('.nav-item').forEach(btn=>{
   btn.addEventListener('click',()=>{
     const page=btn.dataset.page;
-    S.activePage=page;
-    document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.section-page').forEach(p=>p.classList.remove('visible'));
-    document.getElementById('page-'+page).classList.add('visible');
+    switchPage(page);
     if(page==='radar'&&S.lat)initRadar();
     if(page==='station'&&S.lat&&!S.station)fetchStation();
     if(page==='alerts'&&S.lat)fetchAlerts();
@@ -494,8 +517,24 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
 // ==========================================
 // LOCATION
 // ==========================================
-document.getElementById('btn-gps').addEventListener('click',()=>showLocationConfirm());
-document.getElementById('btn-search').addEventListener('click',searchLoc);
+function toggleLocOverlay(open){
+  const el=document.getElementById('loc-overlay');
+  if(open){el.classList.add('open');setTimeout(()=>document.getElementById('location-input').focus(),100)}
+  else el.classList.remove('open');
+}
+function switchPage(page){
+  document.querySelectorAll('.nav-item').forEach(b=>{b.classList.toggle('active',b.dataset.page===page)});
+  document.querySelectorAll('.section-page').forEach(p=>{p.classList.toggle('visible',p.id==='page-'+page)});
+  S.activePage=page;
+  if(page==='radar'&&S.map)setTimeout(()=>S.map.invalidateSize(),100);
+}
+function updateStormBadges(){
+  const n=S.storms.length;
+  const hdr=document.getElementById('header-storm-count');
+  const nav=document.getElementById('nav-storm-badge');
+  if(hdr)hdr.textContent=n?`🌪️ ${n}`:'';
+  if(nav)nav.textContent=n||'';
+}
 document.getElementById('location-input').addEventListener('keypress',e=>{if(e.key==='Enter')searchLoc()});
 
 function showLocationConfirm(){
@@ -784,7 +823,7 @@ async function scanRadarForView(){
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
-    renderStorms();
+    renderStorms();updateStormBadges();
     if(S.map)plotStormMarkers(S.map);
     scheduleAutoScan();
   }catch(e){toast('View scan failed: '+e.message);console.error('ViewScan error:',e)}
@@ -1051,7 +1090,7 @@ async function scanRadarForStorms(){
 
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
-    renderStorms();
+    renderStorms();updateStormBadges();
     if(S.map)plotStormMarkers(S.map);
     scheduleAutoScan();
   }catch(e){toast('Radar scan failed: '+e.message);console.error('Scan error:',e)}
@@ -1454,7 +1493,7 @@ function init(){
       <h2>Welcome to StormTracker</h2>
       <p>Real-time storm detection powered by live radar data.<br>No API keys, no accounts, 100% free.</p>
       <button class="welcome-btn" onclick="showLocationConfirm()">🛰️ Use My Location</button>
-      <button class="welcome-btn secondary" onclick="document.getElementById('location-input').focus()">🔍 Search Location</button>
+      <button class="welcome-btn secondary" onclick="toggleLocOverlay(true)">🔍 Search Location</button>
       <div style="margin-top:20px;font-size:0.75em;color:var(--text-muted)">
         <strong>Features:</strong><br>
         Live weather &middot; Radar map &middot; Storm cell detection<br>
