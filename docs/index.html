@@ -196,11 +196,11 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .powered-by a{color:var(--accent-blue);text-decoration:none}
 .precip-chart-wrap{position:relative;margin-top:8px}
 .precip-chart-area{position:relative;height:90px;overflow:visible}
-.precip-grid-line{position:absolute;left:0;right:0;border-top:1px solid rgba(255,255,255,0.08);pointer-events:none}
+.precip-grid-line{position:absolute;left:0;right:0;border-top:1px solid rgba(255,255,255,0.08);pointer-events:none;z-index:3}
 .precip-grid-line span{position:absolute;right:0;top:2px;font-size:0.5em;color:#e2e8f0;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,0.9),0 0 6px rgba(0,0,0,0.6)}
 .hourly-chart{display:flex;align-items:flex-end;gap:2px;height:100%;position:relative;z-index:2}
-.hourly-bar{flex:1;border-radius:3px 3px 0 0;min-height:2px;position:relative;cursor:pointer}
-.hourly-bar:hover{opacity:0.8}
+.hourly-bar{flex:1;border-radius:3px 3px 0 0;min-height:2px;position:relative;cursor:pointer;opacity:0.55}
+.hourly-bar:hover{opacity:0.75}
 .hourly-bar .bar-tip{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:0.55em;color:#fff;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,0.8),0 0 6px rgba(0,0,0,0.5);font-weight:600;z-index:10}
 .hourly-bar.tapped .bar-tip{opacity:1}
 .precip-max-label{font-size:0.7em;color:var(--accent-yellow);font-weight:700;text-align:right}
