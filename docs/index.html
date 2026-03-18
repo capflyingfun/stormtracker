@@ -197,7 +197,7 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .precip-chart-wrap{position:relative;margin-top:8px}
 .precip-chart-area{position:relative;height:90px;overflow:visible}
 .precip-grid-line{position:absolute;left:0;right:0;border-top:1px solid rgba(255,255,255,0.08);pointer-events:none}
-.precip-grid-line span{position:absolute;right:0;top:2px;font-size:0.5em;color:var(--text-muted);opacity:0.7}
+.precip-grid-line span{position:absolute;right:0;top:2px;font-size:0.5em;color:#e2e8f0;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,0.9),0 0 6px rgba(0,0,0,0.6)}
 .hourly-chart{display:flex;align-items:flex-end;gap:2px;height:100%;position:relative;z-index:2}
 .hourly-bar{flex:1;border-radius:3px 3px 0 0;min-height:2px;position:relative;cursor:pointer}
 .hourly-bar:hover{opacity:0.8}
@@ -219,6 +219,9 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .sec-btns{display:flex;gap:2px}
 .sec-btns button{background:rgba(255,255,255,0.06);border:1px solid var(--border-subtle);color:var(--text-muted);width:24px;height:24px;border-radius:6px;font-size:0.55em;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .sec-btns button:active{background:rgba(59,130,246,0.2);color:var(--accent-blue)}
+.chart-marker{position:absolute;font-size:0.5em;font-weight:700;pointer-events:none;z-index:5;text-shadow:0 1px 3px rgba(0,0,0,0.9),0 0 6px rgba(0,0,0,0.6);white-space:nowrap}
+.chart-marker.hi{color:#22c55e}
+.chart-marker.lo{color:#ef4444}
 canvas.offscreen{display:none}
 .welcome-screen{text-align:center;padding:40px 20px}
 .welcome-screen h2{font-size:1.3em;font-weight:700;margin-bottom:8px;color:var(--text-primary)}
@@ -781,6 +784,7 @@ function renderHourlyPrecip(h){
     <div class="precip-chart-wrap">
       <div class="precip-chart-area">
         ${gridHtml}
+        ${rawMax>0?(()=>{const mxi=precips.indexOf(rawMax);const mxL=(mxi/precips.length*100).toFixed(1);const mxB=(rawMax/maxMm*100+3).toFixed(1);return`<div class="chart-marker hi" style="left:${mxL}%;bottom:${mxB}%">▲ ${maxVal}</div>`})():''}
         <div class="hourly-chart">${precips.map((p,i)=>{
           const ht=maxMm>0?Math.max(1,(p/maxMm)*100):1;
           const color=p>=5?'var(--accent-red)':p>=2?'var(--accent-orange)':p>=0.5?'var(--accent-blue)':'var(--bg-elevated)';
@@ -828,6 +832,13 @@ function renderPressureTrend(h){
   const trendTotal=pres[pres.length-1]-pres[0];
   const trendDir=trendTotal>0.5?'Rising':trendTotal<-0.5?'Falling':'Steady';
   const trendCol=trendTotal>0.5?'#22c55e':trendTotal<-0.5?'#ef4444':'#6b7280';
+  const hiIdx=pres.indexOf(mx),loIdx=pres.indexOf(mn);
+  const hiLabel=isInHg?'▲ '+(mx/33.8639).toFixed(2):'▲ '+mx.toFixed(1);
+  const loLabel=isInHg?'▼ '+(mn/33.8639).toFixed(2):'▼ '+mn.toFixed(1);
+  const hiLeft=(hiIdx/pres.length*100).toFixed(1);
+  const loLeft=(loIdx/pres.length*100).toFixed(1);
+  const hiBot=((mx-padMn)/padRange*100+3).toFixed(1);
+  const loBot=Math.max(0,((mn-padMn)/padRange*100-8)).toFixed(1);
   return`<div class="card" style="margin-top:0">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div class="card-title" style="margin:0"><span class="icon">📊</span> 24h Pressure</div>
@@ -836,6 +847,8 @@ function renderPressureTrend(h){
     <div class="precip-chart-wrap">
       <div class="precip-chart-area">
         ${gridHtml}
+        <div class="chart-marker hi" style="left:${hiLeft}%;bottom:${hiBot}%">${hiLabel}</div>
+        <div class="chart-marker lo" style="left:${loLeft}%;bottom:${loBot}%">${loLabel}</div>
         <div class="hourly-chart pres-chart">${pres.map((p,i)=>{
           const ht=Math.max(2,((p-padMn)/padRange)*100);
           const col=p>pres[0]?'rgba(34,197,94,0.6)':p<pres[0]?'rgba(239,68,68,0.6)':'rgba(107,114,128,0.6)';
