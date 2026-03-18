@@ -1305,7 +1305,7 @@ function showStormCone(map,storm){
   const mv=S.stormMovement;
   if(!mv||mv.speed<2)return;
   const range=Math.min(60,Math.max(storm.distance*1.5,20));
-  const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':'#60a5fa';
+  const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':storm.dbz>=35?'#eab308':storm.dbz>=25?'#22c55e':'#06b6d4';
   const baseWidthMi=Math.max(0,Math.min(3,(storm.dbz-20)/15));
   const dir=mv.direction;
   const perpL=(dir-90+360)%360;
