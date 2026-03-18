@@ -1041,7 +1041,7 @@ function renderPressureTrend(h){
           const isPast=pt.isPast||pt.isNow;
           const col=isPast?'rgba(0,229,255,0.6)':'rgba(0,229,255,0.25)';
           const label=isInHg?(pt.p/33.8639).toFixed(2)+' inHg':pt.p.toFixed(1)+' mb';
-          return`<div class="hourly-bar" data-idx="${i}" style="height:${ht}%;background:${col}"><div class="bar-tip">${label}${isPast?' (actual)':' (fcst)'}</div></div>`;
+          return`<div class="hourly-bar" data-idx="${i}" style="height:${ht}%;background:${col}"><div class="bar-tip">${label}${isPast?' (past)':' (fcst)'}</div></div>`;
         }).join('')}</div>
       </div>
     </div>
