@@ -198,7 +198,7 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .hourly-bar{flex:1;border-radius:3px 3px 0 0;min-height:2px;position:relative;cursor:pointer}
 .hourly-bar:hover{opacity:0.8}
 .hourly-bar .bar-tip{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:0.55em;color:#fff;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,0.8),0 0 6px rgba(0,0,0,0.5);font-weight:600;z-index:10}
-.hourly-bar:hover .bar-tip,.hourly-bar:active .bar-tip{opacity:1}
+.hourly-bar.tapped .bar-tip{opacity:1}
 canvas.offscreen{display:none}
 .welcome-screen{text-align:center;padding:40px 20px}
 .welcome-screen h2{font-size:1.3em;font-weight:700;margin-bottom:8px;color:var(--text-primary)}
@@ -671,7 +671,7 @@ function renderHourlyPrecip(h){
     <div class="hourly-chart">${precips.map((p,i)=>{
       const ht=Math.max(2,(p/maxP)*55);
       const color=p>=5?'var(--accent-red)':p>=2?'var(--accent-orange)':p>=0.5?'var(--accent-blue)':'var(--bg-elevated)';
-      return`<div class="hourly-bar" style="height:${ht}px;background:${color}"><div class="bar-tip">${fmtPrecip(p)}</div></div>`;
+      return`<div class="hourly-bar" onclick="this.classList.toggle('tapped');this.parentNode.querySelectorAll('.hourly-bar').forEach(b=>{if(b!==this)b.classList.remove('tapped')})" style="height:${ht}px;background:${color}"><div class="bar-tip">${fmtPrecip(p)}</div></div>`;
     }).join('')}</div>
     <div style="display:flex;justify-content:space-between;font-size:0.55em;color:var(--text-muted);margin-top:4px">${tLabels.map(l=>`<span>${l}</span>`).join('')}</div></div>`;
 }
