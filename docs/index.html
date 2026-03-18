@@ -336,7 +336,21 @@ function nexradToDbz(r,g,b,a){
     const d=(r-nr)**2+(g-ng)**2+(b-nb)**2;
     if(d<bestD){bestD=d;best=dbz}
   }
-  return bestD<2500?best:0;
+  if(bestD<2500)return best;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b),dd=mx-mn;
+  if(dd<20||dd/mx<0.2)return 0;
+  let h=0;
+  if(mx===r)h=60*((g-b)/dd%6);
+  else if(mx===g)h=60*((b-r)/dd+2);
+  else h=60*((r-g)/dd+4);
+  if(h<0)h+=360;
+  if(h>=170&&h<250)return 15;
+  if(h>=80&&h<170)return 25;
+  if(h>=40&&h<80)return 35;
+  if(h>=20&&h<40)return 45;
+  if(h<20||h>=340)return 55;
+  if(h>=250&&h<340)return 70;
+  return 0;
 }
 
 // ==========================================
