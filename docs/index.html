@@ -698,11 +698,18 @@ function toggleForecastDetail(idx){
   const sunset=d.sunset?new Date(d.sunset[idx]).toLocaleTimeString('en',{hour:'numeric',minute:'2-digit'}):'—';
   const hiC=d.temperature_2m_max[idx],loC=d.temperature_2m_min[idx];
   const hiF=(hiC*9/5+32).toFixed(1),loF=(loC*9/5+32).toFixed(1);
-  const tempDual=S.radarMetric?`${hiC.toFixed(1)}°C / ${loC.toFixed(1)}°C <span style="color:var(--text-muted);font-weight:400">(${hiF}°F / ${loF}°F)</span>`:`${hiF}°F / ${loF}°F <span style="color:var(--text-muted);font-weight:400">(${hiC.toFixed(1)}°C / ${loC.toFixed(1)}°C)</span>`;
+  const isC=S.tempUnit===1;
+  const tempDual=isC?`${hiC.toFixed(1)}°C / ${loC.toFixed(1)}°C <span style="color:var(--text-muted);font-weight:400">(${hiF}°F / ${loF}°F)</span>`:`${hiF}°F / ${loF}°F <span style="color:var(--text-muted);font-weight:400">(${hiC.toFixed(1)}°C / ${loC.toFixed(1)}°C)</span>`;
   const precipMm=precip,precipIn=(precip/25.4).toFixed(2);
-  const pDual=S.radarMetric?`${precipMm.toFixed(1)} mm <span style="color:var(--text-muted);font-weight:400">(${precipIn} in)</span>`:`${precipIn} in <span style="color:var(--text-muted);font-weight:400">(${precipMm.toFixed(1)} mm)</span>`;
-  const wMph=Math.round(wind/1.60934),wKmh=Math.round(wind);
-  const wDual=S.radarMetric?`${wKmh} km/h <span style="color:var(--text-muted);font-weight:400">(${wMph} mph)</span>`:`${wMph} mph <span style="color:var(--text-muted);font-weight:400">(${wKmh} km/h)</span>`;
+  const isMetricP=S.precipUnit>=1;
+  const pDual=isMetricP?`${precipMm.toFixed(1)} mm <span style="color:var(--text-muted);font-weight:400">(${precipIn} in)</span>`:`${precipIn} in <span style="color:var(--text-muted);font-weight:400">(${precipMm.toFixed(1)} mm)</span>`;
+  const wMph=Math.round(wind/1.60934),wKmh=Math.round(wind),wKts=Math.round(wind/1.852);
+  const windLabels=['mph','kts','km/h','m/s'];
+  const windVals=[wMph,wKts,wKmh,Math.round(wind/3.6)];
+  const wu=S.windUnit||0;
+  const wPri=windVals[wu]+' '+windLabels[wu];
+  const wAlt=wu===0?wKmh+' km/h':wMph+' mph';
+  const wDual=`${wPri} <span style="color:var(--text-muted);font-weight:400">(${wAlt})</span>`;
   box.innerHTML=`<div class="forecast-detail">
     <div style="font-weight:700;margin-bottom:6px">${wmoIcon(d.weather_code[idx],true)} ${dayName} — ${wmoDesc(d.weather_code[idx])}</div>
     <div class="fd-row"><span>🌡️ High / Low</span><span style="font-weight:600">${tempDual}</span></div>
