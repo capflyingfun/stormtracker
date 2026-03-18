@@ -325,7 +325,7 @@ const PRES_UNITS = ['inHg','mb','mmHg','kPa'];
 const VIS_UNITS = ['mi','km'];
 const PRECIP_UNITS = ['in','mm','cm'];
 
-function toast(msg){const c=document.getElementById('toast-container');const el=document.createElement('div');el.className='toast';el.textContent=msg;c.appendChild(el);setTimeout(()=>{el.classList.add('out');setTimeout(()=>el.remove(),250)},3000)}
+function toast(msg,dur){const c=document.getElementById('toast-container');const el=document.createElement('div');el.className='toast';el.textContent=msg;c.appendChild(el);setTimeout(()=>{el.classList.add('out');setTimeout(()=>el.remove(),250)},dur||3000)}
 function showSkel(el,n){el.innerHTML=Array.from({length:n},()=>`<div class="skeleton skel-line" style="width:${60+Math.random()*40}%"></div>`).join('')}
 function degToDir(d){const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];return dirs[Math.round(d/22.5)%16]}
 
@@ -1523,28 +1523,30 @@ async function scanRadarForStorms(){
         const allFrames=past.concat(nowcast);
         S.radarFrames=allFrames;
         S._rvTilePath=allFrames.length?allFrames[allFrames.length-1].path:null;
-        console.log('RV API: '+allFrames.length+' frames, path='+S._rvTilePath);
-      }catch(e){console.error('RV API fail:',e);S._rvTilePath=null}
+      }catch(e){S._rvTilePath=null}
       if(!S._rvTilePath){toast('No radar data available');S.storms=[];renderStorms();return}
     }
 
     const colorFn=useNexrad?nexradToDbz:pixelToDbz;
     const minDbz=20;
     const tilePromises=[];
+    let _dbgTileCount=0;
     for(let tx=minTX;tx<=maxTX;tx++){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
           :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,S.scanRadius));
+        _dbgTileCount++;
       }
     }
-    if(!useNexrad){console.log('RV sample tile URL:',`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${minTX}/${minTY}/2/1_1.png`);}
     const tileResults=await Promise.all(tilePromises);
     const rawPoints=tileResults.flat();
-    const tileCount=(maxTX-minTX+1)*(maxTY-minTY+1);
+    const tileCount=_dbgTileCount;
+    const loadedTiles=tileResults.filter(r=>r!==null).length;
+    const tilesWithData=tileResults.filter(r=>r.length>0).length;
     const nullTiles=tileResults.filter(r=>r.length===0).length;
-    console.log('Scan: '+rawPoints.length+' raw pts from '+tileCount+' tiles ('+nullTiles+' empty)'+(useNexrad?' (NEXRAD)':' (RainViewer)')+' path='+S._rvTilePath);
+    if(!useNexrad){toast(`DBG: ${tileCount} tiles, ${loadedTiles} loaded, ${tilesWithData} w/data, ${rawPoints.length} pts, path=${S._rvTilePath?.slice(-20)}`,8000)}
 
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();
