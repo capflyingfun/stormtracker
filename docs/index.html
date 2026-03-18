@@ -308,8 +308,7 @@ function stormCat(dbz){
 function calcDewC(tc,rh){const a=17.27,b=237.7,g=(a*tc)/(b+tc)+Math.log(rh/100);return(b*g)/(a-g)}
 
 function pixelToDbz(r,g,b,a){
-  if(a<10)return 0;
-  if(a>0&&a<255){r=Math.min(255,Math.round(r*255/a));g=Math.min(255,Math.round(g*255/a));b=Math.min(255,Math.round(b*255/a))}
+  if(a<200)return 0;
   const CM=[[0x40,0xff,0xff,5],[0x36,0xc5,0xff,10],[0x00,0x99,0xff,15],
     [0x00,0xff,0x00,20],[0x00,0xc8,0x00,25],[0x00,0x96,0x00,30],
     [0xff,0xff,0x00,35],[0xe6,0xc3,0x00,40],[0xff,0x96,0x00,45],
@@ -606,11 +605,12 @@ async function scanRadarForView(){
         const img=await loadImage(`https://tilecache.rainviewer.com${tilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`);
         ctx.clearRect(0,0,256,256);ctx.drawImage(img,0,0);
         tilesLoaded++;
-        const step=8;
+        const step=4;
+        const imgData=ctx.getImageData(0,0,256,256).data;
         for(let px=0;px<256;px+=step){
           for(let py=0;py<256;py+=step){
-            const pixel=ctx.getImageData(px,py,1,1).data;
-            const rvDbz=pixelToDbz(pixel[0],pixel[1],pixel[2],pixel[3]);
+            const i=(py*256+px)*4;
+            const rvDbz=pixelToDbz(imgData[i],imgData[i+1],imgData[i+2],imgData[i+3]);
             const dbz=mergeDbz(rvDbz,nxGrid,tx,ty,px,py);
             if(dbz>=15){
               const ptLat=tileYToLat(ty+py/256,zoom);
@@ -625,7 +625,7 @@ async function scanRadarForView(){
       }catch(e){tilesError++;console.warn('View tile error:',tx,ty,e.message||e)}
     }
     console.log('ViewScan: '+tilesLoaded+' tiles, '+tilesError+' errors, '+rawPoints.length+' raw points');
-    const clusters=clusterPoints(rawPoints,0.15);
+    const clusters=clusterPoints(rawPoints,0.5);
     S.storms=clusters.map(cl=>{
       const maxDbz=Math.max(...cl.map(p=>p.dbz));
       const avgLat=cl.reduce((s,p)=>s+p.lat,0)/cl.length;
@@ -666,14 +666,14 @@ async function getNexradGrid(tileCoords,zoom){
   if(!S.nexradOn)return grid;
   const c2=document.createElement('canvas');c2.width=256;c2.height=256;
   const cx2=c2.getContext('2d',{willReadFrequently:true});
-  const step=8;
+  const step=4;
   for(const [tx,ty] of tileCoords){
     try{
       const img=await loadImage(`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`);
       cx2.clearRect(0,0,256,256);cx2.drawImage(img,0,0);
-      const m={};
+      const m={};const nxData=cx2.getImageData(0,0,256,256).data;
       for(let px=0;px<256;px+=step){for(let py=0;py<256;py+=step){
-        const p=cx2.getImageData(px,py,1,1).data;
+        const ni=(py*256+px)*4;const p=[nxData[ni],nxData[ni+1],nxData[ni+2],nxData[ni+3]];
         const d=nexradToDbz(p[0],p[1],p[2],p[3]);
         if(d>0)m[px+','+py]=d;
       }}
@@ -720,11 +720,12 @@ async function scanRadarForStorms(){
         const img=await loadImage(url);
         ctx.clearRect(0,0,256,256);ctx.drawImage(img,0,0);
         tilesLoaded++;
-        const step=8;
+        const step=4;
+        const imgData=ctx.getImageData(0,0,256,256).data;
         for(let px=0;px<256;px+=step){
           for(let py=0;py<256;py+=step){
-            const pixel=ctx.getImageData(px,py,1,1).data;
-            const rvDbz=pixelToDbz(pixel[0],pixel[1],pixel[2],pixel[3]);
+            const i=(py*256+px)*4;
+            const rvDbz=pixelToDbz(imgData[i],imgData[i+1],imgData[i+2],imgData[i+3]);
             const dbz=mergeDbz(rvDbz,nxGrid,tx,ty,px,py);
             if(dbz>=15){
               const ptLat=tileYToLat(ty+py/256,zoom);
@@ -738,7 +739,7 @@ async function scanRadarForStorms(){
     }
     console.log('Scan: '+tilesLoaded+' tiles loaded, '+tilesError+' errors, '+rawPoints.length+' raw points');
 
-    const clusters=clusterPoints(rawPoints,0.15);
+    const clusters=clusterPoints(rawPoints,0.5);
     S.storms=clusters.map(cl=>{
       const maxDbz=Math.max(...cl.map(p=>p.dbz));
       const avgLat=cl.reduce((s,p)=>s+p.lat,0)/cl.length;
