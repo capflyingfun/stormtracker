@@ -699,17 +699,14 @@ function renderWeather(data){
   const hourly=data.hourly||{},daily=data.daily||{};
   const baro=getBaroPrediction(c,hourly);
   const trendArrow=baro.trend==='rising'?'↑':baro.trend==='falling'?'↓':'→';
+  const windStr=fmtWind(c.wind_speed_10m);
+  const gustStr=c.wind_gusts_10m?'G'+fmtWind(c.wind_gusts_10m):'';
 
   const sections={
-    grid:`<div class="weather-section" data-sec="grid"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📊</span> Conditions</span>${secBtns('grid')}</div>
-      <div class="weather-grid">
-        <div class="weather-tile" onclick="cycleUnit('windUnit')"><div class="tile-icon">💨</div><div class="tile-label">Wind</div><div class="tile-value">${fmtWind(c.wind_speed_10m)}</div><div class="tile-sub">${degToDir(c.wind_direction_10m)}${c.wind_gusts_10m?' · G'+fmtWind(c.wind_gusts_10m):''}</div><div class="tile-tap">tap to change</div></div>
-        <div class="weather-tile"><div class="tile-icon">☁️</div><div class="tile-label">Clouds</div><div class="tile-value">${c.cloud_cover}%</div><div class="tile-sub">Coverage</div></div>
-        <div class="weather-tile" onclick="cycleUnit('precipUnit')"><div class="tile-icon">🌧️</div><div class="tile-label">Rain</div><div class="tile-value">${fmtPrecip(c.rain||0)}</div><div class="tile-sub">${(c.snowfall||0)>0?'Snow: '+c.snowfall+'cm':''}</div><div class="tile-tap">tap to change</div></div>
-        <div class="weather-tile" onclick="cycleUnit('tempUnit')"><div class="tile-icon">🌡️</div><div class="tile-label">Dew Point</div><div class="tile-value">${fmtTemp(dewC)}</div><div class="tile-sub">Moisture</div><div class="tile-tap">tap to change</div></div>
-      </div></div>`,
-    precip:`<div class="weather-section" data-sec="precip"><div class="sec-header"><span></span>${secBtns('precip')}</div>${renderHourlyPrecip(hourly)}</div>`,
-    baro:`<div class="weather-section" data-sec="baro"><div class="sec-header"><span></span>${secBtns('baro')}</div>${renderBaroForecast(c,hourly)}</div>`,
+    trends:`<div class="weather-section" data-sec="trends"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📈</span> 24h Trends</span>${secBtns('trends')}</div>
+      ${renderHourlyPrecip(hourly)}
+      <div style="margin-top:12px"></div>
+      ${renderPressureTrend(hourly)}</div>`,
     forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${renderDailyForecast(daily)}</div>`
   };
   const order=getSecOrder();
@@ -732,12 +729,18 @@ function renderWeather(data){
         <div class="hero-detail" onclick="cycleUnit('presUnit')" style="cursor:pointer"><div class="hero-detail-label">Pressure</div><div class="hero-detail-value">${fmtPres(c.pressure_msl)}</div></div>
         <div class="hero-detail" onclick="cycleUnit('precipUnit')" style="cursor:pointer"><div class="hero-detail-label">Precip</div><div class="hero-detail-value">${fmtPrecip(c.precipitation||0)}</div></div>
       </div>
+      <div class="hero-detail-row" style="margin-top:6px">
+        <div class="hero-detail" onclick="cycleUnit('windUnit')" style="cursor:pointer"><div class="hero-detail-label">💨 Wind</div><div class="hero-detail-value">${windStr}</div></div>
+        <div class="hero-detail"><div class="hero-detail-label">Direction</div><div class="hero-detail-value">${degToDir(c.wind_direction_10m)}${gustStr?' · '+gustStr:''}</div></div>
+        <div class="hero-detail"><div class="hero-detail-label">☁️ Clouds</div><div class="hero-detail-value">${c.cloud_cover}%</div></div>
+        <div class="hero-detail" onclick="cycleUnit('tempUnit')" style="cursor:pointer"><div class="hero-detail-label">🌡️ Dew Pt</div><div class="hero-detail-value">${fmtTemp(dewC)}</div></div>
+      </div>
     </div>
     ${order.map(k=>sections[k]||'').join('')}`;
   setTimeout(initPrecipTaps,0);
 }
 function secBtns(key){return`<div class="sec-btns"><button onclick="moveSection('${key}',-1)" title="Move up">▲</button><button onclick="moveSection('${key}',1)" title="Move down">▼</button></div>`}
-function getSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_sec_order'));if(o&&o.length===4)return o}catch(e){}return['grid','precip','baro','forecast']}
+function getSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_sec_order'));if(o&&o.length===2)return o}catch(e){}return['trends','forecast']}
 function moveSection(key,dir){
   const order=getSecOrder();const i=order.indexOf(key);
   if(i<0)return;const ni=i+dir;
@@ -799,87 +802,49 @@ function initPrecipTaps(){
   });
 }
 
-function renderBaroForecast(current,hourly){
-  if(!current||!current.pressure_msl)return'';
-  const presMb=current.pressure_msl;
-  const windDir=current.wind_direction_10m||0;
-  const dir=degToDir(windDir);
-  let trend='steady',trendMb=0;
-  if(hourly&&hourly.pressure_msl&&hourly.time){
-    const now=Date.now();
-    const pts=hourly.time.map((t,i)=>({t:new Date(t).getTime(),p:hourly.pressure_msl[i]})).filter(p=>p.t<=now&&p.t>=now-6*3600000);
-    if(pts.length>=3){
-      trendMb=pts[pts.length-1].p-pts[0].p;
-      if(trendMb>1.5)trend='rising';
-      else if(trendMb<-1.5)trend='falling';
-      else trend='steady';
-    }
+function renderPressureTrend(h){
+  if(!h||!h.pressure_msl||!h.time)return'';
+  const now=new Date(),si=h.time.findIndex(t=>new Date(t)>=now);
+  const pres=h.pressure_msl.slice(si,si+24);
+  const times=h.time.slice(si,si+24);
+  if(pres.length<4)return'';
+  const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'PM':'AM';return(hr%12||12)+ap};
+  const tLabels=[];
+  for(let i=0;i<24;i+=6){const t=times[i]?new Date(times[i]):null;tLabels.push(t?fmtHr(t):'+'+i+'h')}
+  const lastT=times[23]?new Date(times[23]):null;
+  tLabels.push(lastT?fmtHr(lastT):'+24h');
+  const mn=Math.min(...pres),mx=Math.max(...pres);
+  const range=mx-mn||1;
+  const padMn=mn-range*0.1,padMx=mx+range*0.1,padRange=padMx-padMn||1;
+  const isInHg=S.presUnit===0;
+  const gridLines=4;
+  let gridHtml='';
+  for(let g=0;g<=gridLines;g++){
+    const val=padMn+(padMx-padMn)*(1-g/gridLines);
+    const pct=(g/gridLines)*100;
+    const label=isInHg?(val/33.8639).toFixed(2)+' inHg':val.toFixed(1)+' mb';
+    gridHtml+=`<div class="precip-grid-line" style="top:${pct}%">${g>0&&g<gridLines?`<span>${label}</span>`:''}</div>`;
   }
-  const isN=windDir>=315||windDir<45,isNE=windDir>=45&&windDir<90,isE=windDir>=90&&windDir<135;
-  const isSE=windDir>=135&&windDir<180,isS=windDir>=180&&windDir<225,isSW=windDir>=225&&windDir<270;
-  const isW=windDir>=270&&windDir<315,isNW=windDir>=315;
-  let prediction='',icon='🌤️',confidence='Moderate';
-  if(trend==='falling'){
-    if(presMb<1005){prediction='Storm likely — deteriorating conditions';icon='⛈️';confidence='High'}
-    else if(presMb<1013){
-      if(isSE||isS||isSW||isW){prediction='Rain expected within 12-24 hrs';icon='🌧️';confidence='High'}
-      else if(isN||isNW){prediction='Clearing trend possible, but unsettled';icon='🌥️';confidence='Moderate'}
-      else{prediction='Increasing cloudiness, rain possible';icon='🌦️';confidence='Moderate'}
-    }else{
-      if(isS||isSW||isSE){prediction='Rain likely within 24-36 hrs';icon='🌦️';confidence='Moderate'}
-      else{prediction='Fair weather ending, change approaching';icon='🌥️';confidence='Moderate'}
-    }
-  }else if(trend==='rising'){
-    if(presMb>1022){prediction='Continued fair weather';icon='☀️';confidence='High'}
-    else if(presMb>1013){
-      if(isN||isNW||isW){prediction='Fair weather ahead';icon='🌤️';confidence='High'}
-      else if(isSW||isS){prediction='Fair, but warming — change possible';icon='🌤️';confidence='Moderate'}
-      else{prediction='Clearing and improving';icon='⛅';confidence='Moderate'}
-    }else{
-      if(isW||isNW){prediction='Clearing soon, improving';icon='⛅';confidence='Moderate'}
-      else{prediction='Slow improvement expected';icon='🌥️';confidence='Low'}
-    }
-  }else{
-    if(presMb>1022){prediction='Continued fair and dry';icon='☀️';confidence='High'}
-    else if(presMb>1013){
-      if(isN||isNE||isE){prediction='Fair with no major change';icon='🌤️';confidence='Moderate'}
-      else{prediction='Mostly fair, slight change possible';icon='⛅';confidence='Moderate'}
-    }else if(presMb>1005){
-      if(isS||isSW||isSE){prediction='Unsettled, rain possible';icon='🌦️';confidence='Low'}
-      else{prediction='Overcast to partly cloudy';icon='🌥️';confidence='Low'}
-    }else{prediction='Continued unsettled, precipitation likely';icon='🌧️';confidence='Moderate'}
-  }
-  const trendArrow=trend==='rising'?'↑':trend==='falling'?'↓':'→';
-  const trendLabel=trend==='rising'?'Rising':trend==='falling'?'Falling':'Steady';
-  const presStr=fmtPres(presMb);
-  const miniPts=[];
-  if(hourly&&hourly.pressure_msl&&hourly.time){
-    const now=Date.now();
-    const pts=hourly.time.map((t,i)=>({t:new Date(t).getTime(),p:hourly.pressure_msl[i]})).filter(p=>p.t<=now&&p.t>=now-6*3600000);
-    miniPts.push(...pts);
-  }
-  let miniChart='';
-  if(miniPts.length>=3){
-    const mn=Math.min(...miniPts.map(p=>p.p)),mx=Math.max(...miniPts.map(p=>p.p)),range=mx-mn||1;
-    miniChart=`<div class="baro-mini-chart">${miniPts.map(p=>{
-      const ht=Math.max(2,((p.p-mn)/range)*22);
-      const col=trend==='rising'?'#22c55e':trend==='falling'?'#ef4444':'#6b7280';
-      return`<div class="baro-mini-bar" style="height:${ht}px;background:${col}"></div>`;
-    }).join('')}</div>`;
-  }
-  return`<div class="card">
-    <div class="card-title"><span class="icon">🔮</span> Barometric Forecast</div>
-    <div class="baro-forecast">
-      <div class="baro-icon">${icon}</div>
-      <div class="baro-info">
-        <div class="baro-prediction">${prediction}</div>
-        <div class="baro-details">
-          ${presStr} · Wind ${dir} · Confidence: ${confidence}<br>
-          <span class="baro-trend ${trend}">${trendArrow} ${trendLabel} (${trendMb>=0?'+':''}${trendMb.toFixed(1)} mb / 6hr)</span>
-        </div>
-        ${miniChart}
+  const trendTotal=pres[pres.length-1]-pres[0];
+  const trendDir=trendTotal>0.5?'Rising':trendTotal<-0.5?'Falling':'Steady';
+  const trendCol=trendTotal>0.5?'#22c55e':trendTotal<-0.5?'#ef4444':'#6b7280';
+  return`<div class="card" style="margin-top:0">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="card-title" style="margin:0"><span class="icon">📊</span> 24h Pressure</div>
+      <div style="font-size:0.7em;font-weight:600;color:${trendCol}">${trendDir} (${trendTotal>=0?'+':''}${trendTotal.toFixed(1)} mb)</div>
+    </div>
+    <div class="precip-chart-wrap">
+      <div class="precip-chart-area">
+        ${gridHtml}
+        <div class="hourly-chart pres-chart">${pres.map((p,i)=>{
+          const ht=Math.max(2,((p-padMn)/padRange)*100);
+          const col=p>pres[0]?'rgba(34,197,94,0.6)':p<pres[0]?'rgba(239,68,68,0.6)':'rgba(107,114,128,0.6)';
+          const label=isInHg?(p/33.8639).toFixed(2)+' inHg':p.toFixed(1)+' mb';
+          return`<div class="hourly-bar" data-idx="${i}" style="height:${ht}%;background:${col}"><div class="bar-tip">${label}</div></div>`;
+        }).join('')}</div>
       </div>
-    </div></div>`;
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:0.55em;color:var(--text-muted);margin-top:4px">${tLabels.map(l=>`<span>${l}</span>`).join('')}</div></div>`;
 }
 
 function renderDailyForecast(d){
