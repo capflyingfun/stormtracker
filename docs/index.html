@@ -763,25 +763,47 @@ function renderWeather(data){
   if(windArc>0){
     gaugeSvg+=`<path d="${arcPath(0,windArc,arcR)}" fill="none" stroke="${neonCyan}0.8)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
   }
-  const ticks=[0,30,60,90,120,150,180,210,240,270,300,330];
-  ticks.forEach(deg=>{
+  const spdTicks=[];
+  const spdStep=maxArcSpd<=15?5:maxArcSpd<=30?5:maxArcSpd<=50?10:maxArcSpd<=100?20:maxArcSpd<=160?25:50;
+  for(let s=0;s<=maxArcSpd;s+=spdStep)spdTicks.push(s);
+  const spdArcStart=-170;
+  spdTicks.forEach(spd=>{
+    const frac=spd/maxArcSpd;
+    const deg=spdArcStart+frac*340;
+    const a=deg*Math.PI/180;
+    const x1=cx+Math.cos(a)*(arcR+1),y1=cy+Math.sin(a)*(arcR+1);
+    const x2=cx+Math.cos(a)*(arcR+4),y2=cy+Math.sin(a)*(arcR+4);
+    gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}0.5)" stroke-width="1"/>`;
+    const lx=cx+Math.cos(a)*(arcR+8),ly=cy+Math.sin(a)*(arcR+8);
+    gaugeSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.6)" font-size="3.5" font-weight="700" text-anchor="middle" dominant-baseline="central">${spd}</text>`;
+  });
+  for(let s=0;s<maxArcSpd;s+=spdStep/5||1){
+    if(spdTicks.includes(s))continue;
+    const frac=s/maxArcSpd;
+    const deg=spdArcStart+frac*340;
+    const a=deg*Math.PI/180;
+    const x1=cx+Math.cos(a)*(arcR+1),y1=cy+Math.sin(a)*(arcR+1);
+    const x2=cx+Math.cos(a)*(arcR+2.5),y2=cy+Math.sin(a)*(arcR+2.5);
+    gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}0.15)" stroke-width="0.4"/>`;
+  }
+  const compassTicks=[0,30,60,90,120,150,180,210,240,270,300,330];
+  compassTicks.forEach(deg=>{
     const a=(deg-90)*Math.PI/180;
     const isMajor=deg%90===0;
     const x1=cx+Math.cos(a)*r,y1=cy+Math.sin(a)*r;
-    const len=isMajor?6:3;
+    const len=isMajor?5:3;
     const x2=cx+Math.cos(a)*(r-len),y2=cy+Math.sin(a)*(r-len);
-    const col=isMajor?`${neonCyan}0.5)`:`${neonCyan}0.2)`;
-    gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="${isMajor?1.5:0.6}"/>`;
+    gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}${isMajor?'0.45':'0.15'})" stroke-width="${isMajor?1.2:0.5}"/>`;
     if(!isMajor){
-      const lx=cx+Math.cos(a)*(r+5.5),ly=cy+Math.sin(a)*(r+5.5);
-      gaugeSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.25)" font-size="4" text-anchor="middle" dominant-baseline="central">${deg||360}</text>`;
+      const lx=cx+Math.cos(a)*(r-8),ly=cy+Math.sin(a)*(r-8);
+      gaugeSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.2)" font-size="3.5" text-anchor="middle" dominant-baseline="central">${deg||360}</text>`;
     }
   });
   for(let d=0;d<360;d+=10){if(d%30===0)continue;
     const a=(d-90)*Math.PI/180;
     const x1=cx+Math.cos(a)*r,y1=cy+Math.sin(a)*r;
     const x2=cx+Math.cos(a)*(r-1.5),y2=cy+Math.sin(a)*(r-1.5);
-    gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}0.1)" stroke-width="0.4"/>`;
+    gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}0.08)" stroke-width="0.4"/>`;
   }
   const ptrAng=(wd-90)*Math.PI/180;
   const pTip=r-1,pBase=10;
@@ -825,7 +847,7 @@ function renderWeather(data){
           </div>
         </div>
         <div class="wind-rose" style="cursor:pointer">
-          <svg viewBox="-8 -8 116 116">
+          <svg viewBox="-12 -12 124 124">
             ${gaugeSvg}
           </svg>
           <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
