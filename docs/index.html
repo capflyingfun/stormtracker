@@ -1235,6 +1235,7 @@ function toggleRadarSource(map){
   S.storms=[];
   S.stormMarkers.forEach(m=>map.removeLayer(m));
   S.stormMarkers=[];
+  if(S._groupMarkers){S._groupMarkers.forEach(m=>map.removeLayer(m));S._groupMarkers=[]}
   renderStorms();
   showRadarLayer(map);
   scanRadarForStorms();
@@ -1316,8 +1317,77 @@ function clearStormCone(){
   const btn=document.getElementById('radar-clear-cone');
   if(btn)btn.style.display='none';
 }
+function clusterStormGroups(storms){
+  if(!storms.length)return[];
+  const used=new Set();
+  const groups=[];
+  const sorted=[...storms].sort((a,b)=>b.dbz-a.dbz);
+  for(let i=0;i<sorted.length;i++){
+    if(used.has(i))continue;
+    const seed=sorted[i];
+    const members=[seed];
+    used.add(i);
+    const tier=seed.dbz>=45?'severe':seed.dbz>=35?'heavy':seed.dbz>=25?'moderate':'light';
+    for(let j=i+1;j<sorted.length;j++){
+      if(used.has(j))continue;
+      const c=sorted[j];
+      const cTier=c.dbz>=45?'severe':c.dbz>=35?'heavy':c.dbz>=25?'moderate':'light';
+      if(cTier!==tier)continue;
+      let closeEnough=false;
+      for(const m of members){
+        if(haversine(m.lat,m.lng,c.lat,c.lng)<12){closeEnough=true;break}
+      }
+      if(closeEnough){members.push(c);used.add(j)}
+    }
+    if(members.length<2)continue;
+    let cLat=0,cLng=0,maxDbz=0,totalPx=0;
+    let nLat=90,sLat=-90,wLng=180,eLng=-180;
+    for(const m of members){
+      cLat+=m.lat;cLng+=m.lng;
+      if(m.dbz>maxDbz)maxDbz=m.dbz;
+      totalPx+=(m.pixels||1);
+      if(m.lat<nLat)nLat=m.lat;if(m.lat>sLat)sLat=m.lat;
+      if(m.lng<wLng)wLng=m.lng;if(m.lng>eLng)eLng=m.lng;
+    }
+    cLat/=members.length;cLng/=members.length;
+    let maxEdgeDist=0;
+    for(const m of members){const d=haversine(cLat,cLng,m.lat,m.lng);if(d>maxEdgeDist)maxEdgeDist=d}
+    maxEdgeDist=Math.max(maxEdgeDist,1);
+    const nearEdgeDist=haversine(S.lat,S.lon,cLat,cLng)-maxEdgeDist;
+    const farEdgeDist=haversine(S.lat,S.lon,cLat,cLng)+maxEdgeDist;
+    const centerDist=haversine(S.lat,S.lon,cLat,cLng);
+    const centerBear=bearingDeg(S.lat,S.lon,cLat,cLng);
+    groups.push({
+      lat:cLat,lng:cLng,maxDbz,tier,members,
+      radiusMi:maxEdgeDist,nearEdge:Math.max(0,nearEdgeDist),farEdge:farEdgeDist,
+      distance:centerDist,bearing:centerBear,pixels:totalPx,
+      count:members.length
+    });
+  }
+  return groups;
+}
+
+function calcGroupImpact(grp){
+  const mv=S.stormMovement;
+  if(!mv||mv.speed<2)return{impact:0,approaching:false,eta:null};
+  const stormBear=grp.bearing;
+  const diff=Math.abs(((mv.direction-stormBear)+540)%360-180);
+  const closingSpeed=mv.speed*Math.cos(diff*Math.PI/180);
+  if(closingSpeed<=0)return{impact:0,approaching:false,eta:null};
+  const etaNear=grp.nearEdge<=0?0:Math.round(grp.nearEdge/closingSpeed*60);
+  const etaFar=Math.round(grp.farEdge/closingSpeed*60);
+  const directMult=directImpactPct(diff);
+  const widthScore=Math.min(1,grp.radiusMi/10);
+  const distScore=Math.max(0,1-grp.nearEdge/60);
+  const intScore=Math.min(1,(grp.maxDbz-15)/50);
+  let pct=Math.round(Math.min(100,(directMult*40+distScore*20+widthScore*15+intScore*15+grp.count/20*10)));
+  if(grp.nearEdge<=2)pct=Math.max(pct,60);
+  return{impact:pct,approaching:true,eta:etaNear,etaFar,closingSpeed:Math.round(closingSpeed)};
+}
+
 function plotStormMarkers(map){
   S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];S._activeCone=null;
+  if(S._groupMarkers){S._groupMarkers.forEach(m=>map.removeLayer(m));S._groupMarkers=[]}
   const mv=S.stormMovement;
   S.storms.forEach(storm=>{
     const cat=stormCat(storm.dbz);
@@ -1370,6 +1440,45 @@ function plotStormMarkers(map){
     if(storm.dbz>=40){
       const lightning=L.marker([storm.lat,storm.lng],{interactive:false,icon:L.divIcon({className:'storm-lightning-icon',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})}).addTo(map);
       S.stormMarkers.push(lightning);
+    }
+  });
+
+  const groups=clusterStormGroups(S.storms);
+  S._groupMarkers=[];
+  S.stormGroups=groups;
+  groups.forEach(grp=>{
+    const gImp=calcGroupImpact(grp);
+    grp._impact=gImp;
+    const tierColors={severe:'#cc00cc',heavy:'#ef4444',moderate:'#eab308',light:'#06b6d4'};
+    const color=tierColors[grp.tier]||'#06b6d4';
+    const imp=impactLabel(gImp.impact);
+    const radiusM=grp.radiusMi*1609.34;
+    const circle=L.circle([grp.lat,grp.lng],{radius:radiusM,color:color,fillColor:color,fillOpacity:0.08,weight:2,dashArray:'8,6',interactive:true}).addTo(map);
+
+    let popHtml=`<div style="text-align:center;font-family:system-ui;min-width:170px">
+      <div style="font-size:1.1em;font-weight:700;color:${color}">Storm Group</div>
+      <div style="font-size:0.8em;color:#ccc;margin:4px 0">${grp.count} cells · Max ${grp.maxDbz} dBZ</div>
+      <div style="font-size:0.75em;color:#aaa">Radius: ${fmtStormDist(grp.radiusMi)} · ${fmtStormDist(grp.distance)} ${degToDir(grp.bearing)}</div>`;
+    if(gImp.approaching&&gImp.impact>0){
+      const arrTime=gImp.eta!=null?fmtArrivalTime(gImp.eta):'--';
+      popHtml+=`<div style="font-size:0.9em;font-weight:700;color:${imp.color};margin-top:6px">${gImp.impact}% ${imp.text}</div>`;
+      popHtml+=`<div style="font-size:0.75em;color:#aaa">Near edge: ${fmtStormDist(grp.nearEdge)}</div>`;
+      popHtml+=`<div style="font-size:0.8em;color:${imp.color}">ETA: ~${arrTime}</div>`;
+    }else{
+      popHtml+=`<div style="font-size:0.8em;color:#6b7;margin-top:4px">Not approaching</div>`;
+    }
+    popHtml+=`</div>`;
+    circle.bindPopup(popHtml,{closeButton:false,className:'storm-popup'});
+    S._groupMarkers.push(circle);
+
+    if(mv&&mv.speed>=2&&gImp.approaching&&gImp.impact>0){
+      const impColor=gImp.impact>=75?'#ef4444':gImp.impact>=50?'#f97316':gImp.impact>=25?'#eab308':'#60a5fa';
+      const arrowPt=destPoint(grp.lat,grp.lng,mv.direction,grp.radiusMi+5);
+      const line=L.polyline([[grp.lat,grp.lng],arrowPt],{color:impColor,weight:3,opacity:0.7,dashArray:'10,6',interactive:false}).addTo(map);
+      S._groupMarkers.push(line);
+      const labelHtml=`<div style="background:rgba(0,0,0,0.85);color:${impColor};padding:3px 8px;border-radius:4px;font-size:0.75em;font-weight:700;font-family:system-ui;white-space:nowrap;border:1px solid ${impColor}44">${gImp.impact}% Impact</div>`;
+      const label=L.marker(arrowPt,{interactive:false,icon:L.divIcon({className:'',html:labelHtml,iconSize:[0,0],iconAnchor:[-8,12]})}).addTo(map);
+      S._groupMarkers.push(label);
     }
   });
 }
@@ -1815,11 +1924,46 @@ function renderStorms(){
       <div class="storm-group-body">${cardsHtml}</div>
     </details>`;
   }
+  let groupsSummary='';
+  const sGroups=S.stormGroups||[];
+  if(sGroups.length){
+    const gCards=sGroups.map(g=>{
+      const gImp=g._impact||calcGroupImpact(g);
+      const imp=impactLabel(gImp.impact);
+      const tierEmoji={severe:'🔴',heavy:'🟠',moderate:'🟡',light:'🔵'};
+      const tierLabel={severe:'Severe',heavy:'Heavy',moderate:'Moderate',light:'Light'};
+      const tierCol={severe:'#cc00cc',heavy:'#ef4444',moderate:'#eab308',light:'#06b6d4'};
+      const col=tierCol[g.tier]||'#06b6d4';
+      let etaLine='';
+      if(gImp.approaching&&gImp.impact>0){
+        const arrTime=gImp.eta!=null?fmtArrivalTime(gImp.eta):'--';
+        etaLine=`<div class="storm-detail"><div class="storm-detail-label">Near Edge ETA</div><div class="storm-detail-val" style="color:${imp.color}">~${arrTime}</div></div>
+          <div class="storm-detail"><div class="storm-detail-label">Impact</div><div class="storm-detail-val" style="color:${imp.color}">${gImp.impact}% ${imp.text}</div></div>`;
+      }else{
+        etaLine=`<div class="storm-detail" style="grid-column:span 2"><div class="storm-detail-label">Status</div><div class="storm-detail-val" style="color:var(--accent-green)">Not approaching</div></div>`;
+      }
+      return`<div class="storm-cell-card" style="border-color:${col};border-width:2px">
+        <div class="storm-header"><span style="font-weight:700">${tierEmoji[g.tier]||'🌧️'} ${tierLabel[g.tier]||'Storm'} Group</span><span class="storm-badge" style="background:${col}22;color:${col};border:1px solid ${col}44">${g.count} cells</span></div>
+        <div class="storm-detail-grid">
+          <div class="storm-detail"><div class="storm-detail-label">Peak dBZ</div><div class="storm-detail-val" style="color:${col}">${g.maxDbz}</div></div>
+          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Radius</div><div class="storm-detail-val">${fmtStormDist(g.radiusMi)}</div><div class="tile-tap">tap</div></div>
+          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Center</div><div class="storm-detail-val">${fmtStormDist(g.distance)} ${degToDir(g.bearing)}</div><div class="tile-tap">tap</div></div>
+          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Near Edge</div><div class="storm-detail-val">${fmtStormDist(g.nearEdge)}</div><div class="tile-tap">tap</div></div>
+          ${etaLine}
+        </div>
+      </div>`;
+    }).join('');
+    groupsSummary=`<div class="card"><div class="card-title"><span class="icon">🌩️</span> Storm Groups <span style="font-size:0.75em;color:var(--text-muted)">(${sGroups.length})</span></div>
+      <div style="font-size:0.7em;color:var(--text-muted);padding:0 8px 8px">Similar-intensity cells within 12 mi grouped together. Impact based on near/far edges relative to you.</div>
+      ${gCards}
+    </div>`;
+  }
   el.innerHTML=`
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
       <div class="alert-text"><span class="alert-title">${storms.length} Storm Cell${storms.length>1?'s':''} Detected</span><br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
     </div>
+    ${groupsSummary}
     <div class="card"><div class="card-title"><span class="icon">🌪️</span> Active Storm Cells</div>
       ${groupHtml}
     </div>
