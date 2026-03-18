@@ -652,6 +652,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="radar-scan-view" title="Scan current view">🔍</div>
         <div class="map-ctrl-btn" id="radar-toggle-src" title="Toggle radar source" style="font-size:0.55em;font-weight:700;line-height:1">SRC</div>
         <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km" style="font-size:0.55em;font-weight:700;line-height:1">MI</div>
+        <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
       </div>
       <div class="map-legend">
         <span>dBZ</span>
@@ -804,14 +805,20 @@ function destPoint(lat,lon,bearing,distMi){
   return[lat2*180/Math.PI,lon2*180/Math.PI];
 }
 function showStormCone(map,storm){
-  if(S._activeCone){map.removeLayer(S._activeCone);S._activeCone=null}
+  clearStormCone();
   const mv=S.stormMovement;
   if(!mv||mv.speed<2)return;
   const range=Math.min(60,Math.max(storm.distance*1.5,20));
   const pts=[destPoint(storm.lat,storm.lng,mv.direction-15,range),destPoint(storm.lat,storm.lng,mv.direction,range),destPoint(storm.lat,storm.lng,mv.direction+15,range)];
   const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':'#60a5fa';
   S._activeCone=L.polygon([[storm.lat,storm.lng],pts[0],pts[1],pts[2],[storm.lat,storm.lng]],{color,fillColor:color,fillOpacity:0.1,weight:1.5,dashArray:'6,4',interactive:false}).addTo(map);
-  S.stormMarkers.push(S._activeCone);
+  const btn=document.getElementById('radar-clear-cone');
+  if(btn)btn.style.display='flex';
+}
+function clearStormCone(){
+  if(S._activeCone&&S.map){S.map.removeLayer(S._activeCone);S._activeCone=null}
+  const btn=document.getElementById('radar-clear-cone');
+  if(btn)btn.style.display='none';
 }
 function plotStormMarkers(map){
   S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];S._activeCone=null;
@@ -832,9 +839,11 @@ function plotStormMarkers(map){
       }else if(eta&&eta.approaching&&eta.impact>0){
         const nowTime=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});
         const arrTime=eta.eta!=null?fmtArrivalTime(eta.eta):'--';
+        const directPct=Math.round(directImpactPct(eta.angleDiff||0)*100);
         mvHtml+=`<div style="font-size:0.8em;font-weight:700;color:${imp.color};margin-top:2px">Arrives ~${arrTime}</div>`;
         mvHtml+=`<div style="font-size:0.65em;color:#999">Now ${nowTime}</div>`;
         mvHtml+=`<div style="font-size:0.75em;color:${imp.color}">Impact: ${eta.impact}% ${imp.text}</div>`;
+        mvHtml+=`<div style="font-size:0.65em;color:#888">Direct hit: ${directPct}% (${eta.angleDiff||0}° off track)</div>`;
       }else{
         mvHtml+=`<div style="font-size:0.65em;color:#6b7;margin-top:2px">Nearby · Not approaching</div>`;
       }
@@ -958,6 +967,13 @@ async function fetchWindsAloft(){
   }catch(e){console.log('Winds aloft fetch failed:',e.message)}
 }
 
+function directImpactPct(diff){
+  if(diff<2)return 1.0;
+  if(diff<5)return 0.85;
+  if(diff<11)return 0.65;
+  if(diff<=15)return 0.30;
+  return 0;
+}
 function calcStormETA(storm){
   if(!S.stormMovement||S.stormMovement.speed<2)return{eta:null,impact:0,approaching:false};
   const movDir=S.stormMovement.direction;
@@ -974,13 +990,13 @@ function calcStormETA(storm){
     return{eta:null,impact:0,approaching:false};
   }
   const etaMin=Math.round(storm.distance/closingSpeed*60);
-  const dirScore=Math.max(0,1-diff/CONE_HALF);
   const distScore=Math.max(0,1-storm.distance/60);
   const spdScore=Math.min(1,S.stormMovement.speed/30);
   const intScore=Math.min(1,(storm.dbz-15)/50);
-  let pct=Math.round(Math.min(100,dirScore*40+distScore*30+spdScore*15+intScore*15));
+  const directMult=directImpactPct(diff);
+  let pct=Math.round(Math.min(100,(directMult*50+distScore*25+spdScore*12+intScore*13)));
   if(storm.distance<=1.5)pct=Math.max(pct,Math.round(55+(1.5-storm.distance)/1.5*30));
-  return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed)};
+  return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed),angleDiff:Math.round(diff)};
 }
 function impactLabel(pct){
   if(pct>=81)return{text:'CRITICAL',color:'#ef4444'};
