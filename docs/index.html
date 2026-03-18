@@ -197,7 +197,8 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .hourly-chart{display:flex;align-items:flex-end;gap:2px;height:75px;margin-top:16px}
 .hourly-bar{flex:1;border-radius:3px 3px 0 0;min-height:2px;position:relative;cursor:pointer}
 .hourly-bar:hover{opacity:0.8}
-.hourly-bar .bar-tip{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:0.5em;color:var(--text-secondary);white-space:nowrap;pointer-events:none}
+.hourly-bar .bar-tip{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:0.55em;color:var(--text-secondary);white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none}
+.hourly-bar:hover .bar-tip,.hourly-bar:active .bar-tip{opacity:1}
 canvas.offscreen{display:none}
 .welcome-screen{text-align:center;padding:40px 20px}
 .welcome-screen h2{font-size:1.3em;font-weight:700;margin-bottom:8px;color:var(--text-primary)}
@@ -664,8 +665,7 @@ function renderHourlyPrecip(h){
     <div class="hourly-chart">${precips.map((p,i)=>{
       const ht=Math.max(2,(p/maxP)*55);
       const color=p>=5?'var(--accent-red)':p>=2?'var(--accent-orange)':p>=0.5?'var(--accent-blue)':'var(--bg-elevated)';
-      const tip=p>=0.1?`<div class="bar-tip">${fmtPrecip(p)}</div>`:'';
-      return`<div class="hourly-bar" style="height:${ht}px;background:${color}">${tip}</div>`;
+      return`<div class="hourly-bar" style="height:${ht}px;background:${color}"><div class="bar-tip">${fmtPrecip(p)}</div></div>`;
     }).join('')}</div>
     <div style="display:flex;justify-content:space-between;font-size:0.55em;color:var(--text-muted);margin-top:4px"><span>Now</span><span>+6h</span><span>+12h</span><span>+18h</span><span>+24h</span></div></div>`;
 }
