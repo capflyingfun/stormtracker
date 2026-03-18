@@ -408,7 +408,7 @@ function fmtCountdown(totalSec){
 }
 function fmtArrivalTime(etaMin){
   const d=new Date(Date.now()+etaMin*60000);
-  return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});
+  return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit',hour12:true});
 }
 function stormKey(s){return s.lat.toFixed(3)+','+s.lng.toFixed(3)}
 function stormFeedbackResponse(key,arrived){
@@ -459,6 +459,11 @@ function startEtaCountdowns(){
       }else{
         el.textContent=fmtCountdown(remain);
       }
+    });
+    document.querySelectorAll('.popup-countdown').forEach(el=>{
+      const target=parseInt(el.getAttribute('data-target'));
+      const remain=Math.max(0,Math.round((target-now)/1000));
+      el.textContent=fmtCountdown(remain);
     });
     document.querySelectorAll('[data-dist-mi]').forEach(el=>{
       const origDist=parseFloat(el.getAttribute('data-dist-mi'));
@@ -1341,34 +1346,36 @@ function plotStormMarkers(map){
     const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':storm.dbz>=35?'#eab308':storm.dbz>=25?'#22c55e':'#06b6d4';
     const r=Math.max(10,storm.dbz/4);
     const eta=calcStormETA(storm);
+    const popupId='pop_'+Math.random().toString(36).slice(2,8);
     let mvHtml='';
     if(mv&&mv.speed>=2){
       const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
       const imp=impactLabel(eta?eta.impact:0);
-      mvHtml=`<div style="font-size:0.75em;color:#8cf;margin-top:4px">→ Moving ${degToDir(mv.direction)} at ${spdStr}</div>`;
+      mvHtml=`<div style="font-size:0.75em;color:#8cf;margin-top:6px;padding-top:6px;border-top:1px solid #333">→ ${degToDir(mv.direction)} at ${spdStr}</div>`;
       if(eta&&eta.proximity){
         mvHtml+=`<div style="font-size:0.75em;color:#f97316;margin-top:2px;font-weight:700">⚠️ Overhead · Moving away</div>`;
-        mvHtml+=`<div style="font-size:0.75em;color:${imp.color}">Impact: ${eta.impact}% ${imp.text}</div>`;
+        mvHtml+=`<div style="font-size:0.85em;font-weight:700;color:${imp.color};margin-top:2px">${eta.impact}% ${imp.text}</div>`;
       }else if(eta&&eta.approaching&&eta.impact>0){
-        const nowTime=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});
         const arrTime=eta.eta!=null?fmtArrivalTime(eta.eta):'--';
-        const directPct=Math.round(directImpactPct(eta.angleDiff||0)*100);
-        mvHtml+=`<div style="font-size:0.8em;font-weight:700;color:${imp.color};margin-top:2px">Arrives ~${arrTime}</div>`;
-        mvHtml+=`<div style="font-size:0.65em;color:#999">Now ${nowTime}</div>`;
-        mvHtml+=`<div style="font-size:0.75em;color:${imp.color}">Impact: ${eta.impact}% ${imp.text}</div>`;
-        mvHtml+=`<div style="font-size:0.65em;color:#888">Direct hit: ${directPct}% (${eta.angleDiff||0}° off track)</div>`;
+        const etaSec=eta.eta!=null?eta.eta*60:0;
+        const targetMs=Date.now()+etaSec*1000;
+        mvHtml+=`<div style="margin-top:4px;padding:4px 8px;background:rgba(0,0,0,0.3);border-radius:6px;border:1px solid ${imp.color}44">
+          <div style="font-size:0.7em;color:#aaa">⏱ Countdown</div>
+          <div style="font-size:1.1em;font-weight:700;color:${imp.color};font-family:monospace" class="popup-countdown" data-target="${Math.round(targetMs)}">${fmtCountdown(Math.round(etaSec))}</div>
+          <div style="font-size:0.7em;color:#bbb;margin-top:2px">Arrives ~${arrTime}</div>
+        </div>`;
+        mvHtml+=`<div style="font-size:0.85em;font-weight:700;color:${imp.color};margin-top:4px">${eta.impact}% ${imp.text}</div>`;
       }else{
-        mvHtml+=`<div style="font-size:0.65em;color:#6b7;margin-top:2px">Nearby · Not approaching</div>`;
+        mvHtml+=`<div style="font-size:0.7em;color:#6b7;margin-top:2px">Nearby · Not approaching</div>`;
       }
     }
-    const popupHtml=`<div style="text-align:center;font-family:system-ui;min-width:150px">
+    const popupHtml=`<div style="text-align:center;font-family:system-ui;min-width:155px">
       <div style="font-size:1.3em;font-weight:700;color:${color}">${storm.dbz} dBZ</div>
-      <div style="font-size:0.85em;margin:4px 0">${cat.label}</div>
-      <div style="font-size:0.75em;color:#aaa">${cat.rain||''}</div>
+      <div style="font-size:0.8em;margin:2px 0">${cat.label}</div>
+      <div style="font-size:0.7em;color:#aaa">${cat.rain||''}</div>
       <div style="font-size:0.8em;color:#ccc;margin-top:4px">${fmtStormDist(storm.distance)} ${degToDir(storm.bearing)}</div>
       ${mvHtml}
-      <div style="font-size:0.7em;color:#999;margin-top:4px">${storm.lat.toFixed(3)}°N, ${Math.abs(storm.lng).toFixed(3)}°${storm.lng<0?'W':'E'}</div>
-      <div style="font-size:0.65em;color:#666;margin-top:2px">${storm.pixels} radar returns</div>
+      <div style="font-size:0.65em;color:#777;margin-top:6px">${storm.lat.toFixed(3)}°, ${Math.abs(storm.lng).toFixed(3)}° · ${storm.pixels} returns</div>
     </div>`;
     const popupOpts={closeButton:false,className:'storm-popup'};
     const stormRef=storm;
