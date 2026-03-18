@@ -644,6 +644,21 @@ function setLoc(lat,lon,name){
   fetchWeather();
   fetchAlerts();
   scanRadarForStorms();
+  scheduleHourlyRefresh();
+}
+
+function scheduleHourlyRefresh(){
+  if(S._hourlyTimer)clearTimeout(S._hourlyTimer);
+  const now=new Date();
+  const next=new Date(now);
+  next.setMinutes(0,0,0);
+  next.setHours(next.getHours()+1);
+  const ms=next.getTime()-now.getTime();
+  S._hourlyTimer=setTimeout(()=>{
+    fetchWeather();
+    fetchAlerts();
+    scheduleHourlyRefresh();
+  },ms);
 }
 
 // ==========================================
