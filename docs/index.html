@@ -1226,11 +1226,14 @@ async function scanRadarForView(){
     const minTX=lonToTileX(bounds.getWest(),zoom),maxTX=lonToTileX(bounds.getEast(),zoom);
     const minTY=latToTileY(bounds.getNorth(),zoom),maxTY=latToTileY(bounds.getSouth(),zoom);
 
-    if(!useNexrad&&!S._rvTilePath){
+    if(!useNexrad){
       try{
         const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
         const past=rv.radar?.past||[];
-        S._rvTilePath=past.length?past[past.length-1].path:null;
+        const nowcast=rv.radar?.nowcast||[];
+        const allFrames=past.concat(nowcast);
+        S.radarFrames=allFrames;
+        S._rvTilePath=allFrames.length?allFrames[allFrames.length-1].path:null;
       }catch(e){S._rvTilePath=null}
       if(!S._rvTilePath){toast('No radar data');return}
     }
@@ -1505,11 +1508,14 @@ async function scanRadarForStorms(){
     const minTX=lonToTileX(westLon,zoom),maxTX=lonToTileX(eastLon,zoom);
     const minTY=latToTileY(northLat,zoom),maxTY=latToTileY(southLat,zoom);
 
-    if(!useNexrad&&!S._rvTilePath){
+    if(!useNexrad){
       try{
         const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
         const past=rv.radar?.past||[];
-        S._rvTilePath=past.length?past[past.length-1].path:null;
+        const nowcast=rv.radar?.nowcast||[];
+        const allFrames=past.concat(nowcast);
+        S.radarFrames=allFrames;
+        S._rvTilePath=allFrames.length?allFrames[allFrames.length-1].path:null;
       }catch(e){S._rvTilePath=null}
       if(!S._rvTilePath){toast('No radar data available');S.storms=[];renderStorms();return}
     }
@@ -1528,7 +1534,8 @@ async function scanRadarForStorms(){
     const tileResults=await Promise.all(tilePromises);
     const rawPoints=tileResults.flat();
     const tileCount=(maxTX-minTX+1)*(maxTY-minTY+1);
-    console.log('Scan: '+rawPoints.length+' raw pts from '+tileCount+' tiles'+(useNexrad?' (NEXRAD)':' (RainViewer)'));
+    const nullTiles=tileResults.filter(r=>r.length===0).length;
+    console.log('Scan: '+rawPoints.length+' raw pts from '+tileCount+' tiles ('+nullTiles+' empty)'+(useNexrad?' (NEXRAD)':' (RainViewer)')+' path='+S._rvTilePath);
 
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();
