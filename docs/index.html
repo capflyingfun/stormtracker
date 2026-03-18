@@ -494,31 +494,25 @@ function toggleStormUnits(){
 function calcDewC(tc,rh){const a=17.27,b=237.7,g=(a*tc)/(b+tc)+Math.log(rh/100);return(b*g)/(a-g)}
 
 function pixelToDbz(r,g,b,a){
-  if(a<30)return 0;
+  if(a<50)return 0;
   if(r+g+b<30)return 0;
-  const RV_PAL=[
-    {r:40,g:40,b:40,dbz:5},
-    {r:30,g:144,b:255,dbz:10},
-    {r:0,g:0,b:255,dbz:15},
-    {r:0,g:255,b:0,dbz:20},
-    {r:0,g:200,b:0,dbz:25},
-    {r:0,g:144,b:0,dbz:30},
-    {r:255,g:255,b:0,dbz:35},
-    {r:255,g:200,b:0,dbz:40},
-    {r:255,g:144,b:0,dbz:45},
-    {r:255,g:0,b:0,dbz:50},
-    {r:200,g:0,b:0,dbz:55},
-    {r:144,g:0,b:0,dbz:60},
-    {r:255,g:0,b:255,dbz:65},
-    {r:144,g:0,b:255,dbz:70},
-    {r:255,g:255,b:255,dbz:75},
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b);
+  if(mx-mn<20&&mx>180)return 0;
+  if(r>200&&g>200&&b>200)return 0;
+  if(r<30&&g<30&&b<30)return 0;
+  const RV=[
+    [30,144,255,10],[0,0,255,15],
+    [0,255,0,20],[0,200,0,25],[0,144,0,30],
+    [255,255,0,35],[255,200,0,40],[255,144,0,45],
+    [255,0,0,50],[200,0,0,55],[144,0,0,60],
+    [255,0,255,65],[144,0,255,70],
   ];
-  let best=0,bestDist=Infinity;
-  for(const p of RV_PAL){
-    const dist=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
-    if(dist<bestDist){bestDist=dist;best=p.dbz}
+  let best=0,bestD=Infinity;
+  for(const p of RV){
+    const d=(r-p[0])**2+(g-p[1])**2+(b-p[2])**2;
+    if(d<bestD){bestD=d;best=p[3]}
   }
-  if(bestDist>12000)return 0;
+  if(bestD>4000)return 0;
   return best;
 }
 function nexradToDbz(r,g,b,a){
