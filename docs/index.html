@@ -46,7 +46,7 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .app-header .version{font-size:0.6em;color:var(--text-muted);font-family:var(--font-mono)}
 .storm-count-badge{background:#6b7280;color:#fff;font-size:0.7em;font-weight:700;padding:2px 8px;border-radius:12px;cursor:pointer;white-space:nowrap}
 .header-loc-btn{width:36px;height:36px;border-radius:10px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:var(--accent-blue);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.1em}
-.loc-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:300;justify-content:center;align-items:flex-start;padding:60px 16px 0}
+.loc-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:10001;justify-content:center;align-items:flex-start;padding:60px 16px 0}
 .loc-overlay.open{display:flex}
 .loc-overlay-inner{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:16px;width:100%;max-width:400px}
 .loc-overlay-inner input{width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 14px;color:var(--text-primary);font-size:1em;font-family:var(--font-body);outline:none;margin-bottom:10px}
@@ -141,6 +141,11 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .forecast-time{font-size:0.65em;color:var(--text-muted);font-weight:600}
 .forecast-icon{font-size:1.4em;margin:6px 0}
 .forecast-temp{font-size:0.9em;font-weight:700}
+.forecast-item{cursor:pointer;transition:border-color 0.2s,background 0.2s}
+.forecast-item:active,.forecast-item.selected{border-color:var(--accent-blue);background:rgba(59,130,246,0.1)}
+.forecast-detail{background:var(--bg-surface);border:1px solid var(--accent-blue);border-radius:var(--radius-md);padding:12px;margin-top:8px;font-size:0.8em;color:var(--text-secondary);animation:fadeIn 0.2s ease}
+.forecast-detail .fd-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border-subtle)}
+.forecast-detail .fd-row:last-child{border-bottom:none}
 .nws-alert{background:var(--bg-surface);border-left:3px solid var(--accent-red);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:10px 12px;margin-bottom:8px;font-size:0.8em}
 .nws-alert.watch{border-left-color:var(--accent-yellow)}
 .nws-alert.advisory{border-left-color:var(--accent-orange)}
@@ -667,8 +672,36 @@ function renderDailyForecast(d){
       const dt=new Date(t+'T12:00'),day=i===0?'Today':dt.toLocaleDateString('en',{weekday:'short'});
       const hi=fmtTempShort(d.temperature_2m_max[i]),lo=fmtTempShort(d.temperature_2m_min[i]);
       const rain=d.precipitation_probability_max?d.precipitation_probability_max[i]:0;
-      return`<div class="forecast-item"><div class="forecast-time">${day}</div><div class="forecast-icon">${wmoIcon(d.weather_code[i],true)}</div><div class="forecast-temp" style="font-weight:700">${hi}</div><div style="font-size:0.7em;color:var(--text-muted)">${lo}</div>${rain>20?`<div style="font-size:0.55em;color:var(--accent-blue);margin-top:2px">💧${rain}%</div>`:''}</div>`;
-    }).join('')}</div></div>`;
+      return`<div class="forecast-item" onclick="toggleForecastDetail(${i})" data-fi="${i}"><div class="forecast-time">${day}</div><div class="forecast-icon">${wmoIcon(d.weather_code[i],true)}</div><div class="forecast-temp" style="font-weight:700">${hi}</div><div style="font-size:0.7em;color:var(--text-muted)">${lo}</div>${rain>0?`<div style="font-size:0.55em;color:var(--accent-blue);margin-top:2px">💧${rain}%</div>`:''}</div>`;
+    }).join('')}</div><div id="forecast-detail-box"></div></div>`;
+}
+function toggleForecastDetail(idx){
+  const d=S.forecast&&S.forecast.daily;if(!d)return;
+  const box=document.getElementById('forecast-detail-box');
+  document.querySelectorAll('.forecast-item').forEach(el=>el.classList.remove('selected'));
+  if(box.dataset.idx==idx){box.innerHTML='';box.dataset.idx='';return}
+  box.dataset.idx=idx;
+  const fi=document.querySelector(`.forecast-item[data-fi="${idx}"]`);
+  if(fi)fi.classList.add('selected');
+  const dt=new Date(d.time[idx]+'T12:00');
+  const dayName=idx===0?'Today':dt.toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'});
+  const hi=fmtTemp(d.temperature_2m_max[idx]),lo=fmtTemp(d.temperature_2m_min[idx]);
+  const rain=d.precipitation_probability_max?d.precipitation_probability_max[idx]:0;
+  const precip=d.precipitation_sum?d.precipitation_sum[idx]:0;
+  const wind=d.wind_speed_10m_max?d.wind_speed_10m_max[idx]:0;
+  const sunrise=d.sunrise?new Date(d.sunrise[idx]).toLocaleTimeString('en',{hour:'numeric',minute:'2-digit'}):'—';
+  const sunset=d.sunset?new Date(d.sunset[idx]).toLocaleTimeString('en',{hour:'numeric',minute:'2-digit'}):'—';
+  const pFmt=S.radarMetric?precip.toFixed(1)+' mm':(precip/25.4).toFixed(2)+' in';
+  const wFmt=S.radarMetric?Math.round(wind)+' km/h':Math.round(wind/1.60934)+' mph';
+  box.innerHTML=`<div class="forecast-detail">
+    <div style="font-weight:700;margin-bottom:6px">${wmoIcon(d.weather_code[idx],true)} ${dayName} — ${wmoDesc(d.weather_code[idx])}</div>
+    <div class="fd-row"><span>🌡️ High / Low</span><span style="font-weight:600">${hi} / ${lo}</span></div>
+    <div class="fd-row"><span>💧 Rain Chance</span><span style="font-weight:600">${rain}%</span></div>
+    <div class="fd-row"><span>🌧️ Precipitation</span><span style="font-weight:600">${pFmt}</span></div>
+    <div class="fd-row"><span>💨 Max Wind</span><span style="font-weight:600">${wFmt}</span></div>
+    <div class="fd-row"><span>🌅 Sunrise</span><span style="font-weight:600">${sunrise}</span></div>
+    <div class="fd-row"><span>🌇 Sunset</span><span style="font-weight:600">${sunset}</span></div>
+  </div>`;
 }
 
 // ==========================================
@@ -934,7 +967,7 @@ function loadTileImage(url){
 }
 
 async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius){
-  const tileSize=256,step=4;
+  const tileSize=256,step=S._scanStep||2;
   const img=await loadTileImage(url);
   if(!img)return[];
   const c=document.createElement('canvas');c.width=tileSize;c.height=tileSize;
@@ -958,6 +991,20 @@ async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius){
   }
   return pts;
 }
+(function initAdaptiveScan(){
+  S._scanStep=2;
+  const t0=performance.now();
+  const c=document.createElement('canvas');c.width=256;c.height=256;
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.fillRect(0,0,256,256);
+  const d=ctx.getImageData(0,0,256,256).data;
+  let s=0;for(let i=0;i<d.length;i+=8)s+=d[i];
+  const ms=performance.now()-t0;
+  if(ms>50)S._scanStep=4;
+  else if(ms>20)S._scanStep=3;
+  else S._scanStep=2;
+  console.log('Adaptive scan: step='+S._scanStep+' (bench='+ms.toFixed(1)+'ms)');
+})();
 
 async function fetchWindsAloft(){
   if(!S.lat)return;
