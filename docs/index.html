@@ -967,17 +967,30 @@ function getLast24(timeArr,valArr){
 function renderPressureTrend(h){
   if(!h||!h.pressure_msl||!h.time)return'';
   const nowMs=Date.now();
-  const si=h.time.findIndex(t=>new Date(t).getTime()>=nowMs);
-  if(si<0)return'';
-  const pres=h.pressure_msl.slice(si,si+24);
-  const times=h.time.slice(si,si+24);
-  if(pres.length<4)return'';
-  if(S.weather&&S.weather.pressure_msl){pres[0]=S.weather.pressure_msl}
+  const allPts=h.time.map((t,i)=>({t:new Date(t).getTime(),p:h.pressure_msl[i],ts:t}));
+  const past3=allPts.filter(p=>p.t<=nowMs&&p.t>=nowMs-3*3600000);
+  const futureStart=allPts.findIndex(p=>p.t>=nowMs);
+  const future24=futureStart>=0?allPts.slice(futureStart,futureStart+24):[];
+  if(past3.length<1&&future24.length<4)return'';
+  const curP=S.weather?S.weather.pressure_msl:(past3.length?past3[past3.length-1].p:future24[0].p);
+  const nowPt={t:nowMs,p:curP,ts:new Date().toISOString(),isNow:true};
+  const combined=[];
+  past3.forEach(p=>combined.push({...p,isPast:true}));
+  if(!past3.length||past3[past3.length-1].t<nowMs-120000)combined.push(nowPt);
+  future24.forEach(p=>combined.push({...p,isFuture:true}));
+  if(combined.length<4)return'';
+  const pastCount=combined.filter(p=>p.isPast||p.isNow).length;
+  const pres=combined.map(p=>p.p);
+  const times=combined.map(p=>p.ts);
   const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'PM':'AM';return(hr%12||12)+ap};
   const tLabels=[];
-  for(let i=0;i<24;i+=6){const t=times[i]?new Date(times[i]):null;tLabels.push(t?fmtHr(t):(i===0?'Now':'+'+i+'h'))}
-  const lastT=times[times.length-1]?new Date(times[times.length-1]):null;
-  tLabels.push(lastT?fmtHr(lastT):'+24h');
+  const step=Math.max(1,Math.floor(combined.length/5));
+  for(let i=0;i<combined.length;i+=step){
+    if(combined[i].isNow){tLabels.push('Now')}
+    else{const t=new Date(combined[i].ts);tLabels.push(fmtHr(t))}
+  }
+  const lastT=new Date(times[times.length-1]);
+  if(tLabels.length<6)tLabels.push(fmtHr(lastT));
   const mn=Math.min(...pres),mx=Math.max(...pres);
   const range=mx-mn||1;
   const padMn=mn-range*0.1,padMx=mx+range*0.1,padRange=padMx-padMn||1;
@@ -1010,21 +1023,25 @@ function renderPressureTrend(h){
     if(hiBot-loBot<12)loBot=Math.max(0,loBot-6);
   }
   if(hiLeft>75)hiLeft=75;if(loLeft>75)loLeft=75;
+  const nowLinePos=pastCount>0?((pastCount-1)/(combined.length-1)*100).toFixed(1):0;
   return`<div class="card" style="margin-top:0">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div class="card-title" style="margin:0"><span class="icon">📊</span> 24h Pressure</div>
+      <div class="card-title" style="margin:0"><span class="icon">📊</span> Pressure Trend</div>
       <div style="font-size:0.7em;font-weight:600;color:${trendCol}">${trendDir} (${fmtPresTrend(trendMb)})</div>
     </div>
     <div class="precip-chart-wrap">
-      <div class="precip-chart-area">
+      <div class="precip-chart-area" style="position:relative">
         ${gridHtml}
+        <div style="position:absolute;left:${nowLinePos}%;top:0;bottom:0;width:2px;background:var(--accent-cyan);opacity:0.6;z-index:5"></div>
+        <div style="position:absolute;left:calc(${nowLinePos}% - 12px);top:-14px;font-size:0.5em;font-weight:700;color:var(--accent-cyan);z-index:6">NOW</div>
         <div class="chart-marker hi" style="left:${hiLeft}%;bottom:${hiBot}%">${hiLabel}</div>
         <div class="chart-marker lo" style="left:${loLeft}%;bottom:${loBot}%">${loLabel}</div>
-        <div class="hourly-chart pres-chart">${pres.map((p,i)=>{
-          const ht=Math.max(2,((p-padMn)/padRange)*100);
-          const col=p>pres[0]?'rgba(34,197,94,0.6)':p<pres[0]?'rgba(239,68,68,0.6)':'rgba(107,114,128,0.6)';
-          const label=isInHg?(p/33.8639).toFixed(2)+' inHg':p.toFixed(1)+' mb';
-          return`<div class="hourly-bar" data-idx="${i}" style="height:${ht}%;background:${col}"><div class="bar-tip">${label}</div></div>`;
+        <div class="hourly-chart pres-chart">${combined.map((pt,i)=>{
+          const ht=Math.max(2,((pt.p-padMn)/padRange)*100);
+          const isPast=pt.isPast||pt.isNow;
+          const col=isPast?'rgba(0,229,255,0.6)':'rgba(0,229,255,0.25)';
+          const label=isInHg?(pt.p/33.8639).toFixed(2)+' inHg':pt.p.toFixed(1)+' mb';
+          return`<div class="hourly-bar" data-idx="${i}" style="height:${ht}%;background:${col}"><div class="bar-tip">${label}${isPast?' (actual)':' (fcst)'}</div></div>`;
         }).join('')}</div>
       </div>
     </div>
