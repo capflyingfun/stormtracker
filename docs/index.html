@@ -521,7 +521,7 @@ function initRadar(){
 function showRadarFrame(map){
   const frame=S.radarFrames[S.radarIdx];if(!frame)return;
   if(S.radarLayer)map.removeLayer(S.radarLayer);
-  S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/6/1_1.png`,{opacity:0.7,maxZoom:12,maxNativeZoom:12}).addTo(map);
+  S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/6/1_1.png`,{opacity:0.7,maxZoom:18,maxNativeZoom:7}).addTo(map);
   const t=new Date(frame.time*1000);
   const el=document.getElementById('radar-time');
   if(el)el.textContent=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
