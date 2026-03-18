@@ -741,14 +741,24 @@ function renderWeather(data){
   gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${neonCyan}0.12)" stroke-width="0.8"/>`;
   gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${ri}" fill="none" stroke="${neonCyan}0.08)" stroke-width="0.5"/>`;
   gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${ri*0.55}" fill="none" stroke="${neonCyan}0.05)" stroke-width="0.3"/>`;
-  const speedArc=Math.min(windSpd/50,1)*340;
-  if(speedArc>0){
-    const startA=-170,endA=startA+speedArc;
-    const sa=startA*Math.PI/180,ea=endA*Math.PI/180;
-    const x1s=cx+Math.cos(sa)*(r+2),y1s=cy+Math.sin(sa)*(r+2);
-    const x2s=cx+Math.cos(ea)*(r+2),y2s=cy+Math.sin(ea)*(r+2);
-    const lg=speedArc>180?1:0;
-    gaugeSvg+=`<path d="M${x1s.toFixed(1)},${y1s.toFixed(1)} A${r+2},${r+2} 0 ${lg} 1 ${x2s.toFixed(1)},${y2s.toFixed(1)}" fill="none" stroke="url(#arcGrad)" stroke-width="3" stroke-linecap="round" filter="url(#glow)"/>`;
+  const gustSpd=c.wind_gusts_10m||windSpd;
+  const maxArcSpd=Math.max(30,gustSpd*1.3);
+  const windArc=Math.min(windSpd/maxArcSpd,1)*340;
+  const gustArc=Math.min(gustSpd/maxArcSpd,1)*340;
+  const arcR=r+2.5;
+  const startA=-170;
+  function arcPath(fromDeg,toDeg,radius){
+    const sa=(startA+fromDeg)*Math.PI/180,ea=(startA+toDeg)*Math.PI/180;
+    const x1=cx+Math.cos(sa)*radius,y1=cy+Math.sin(sa)*radius;
+    const x2=cx+Math.cos(ea)*radius,y2=cy+Math.sin(ea)*radius;
+    const lg=(toDeg-fromDeg)>180?1:0;
+    return`M${x1.toFixed(1)},${y1.toFixed(1)} A${radius},${radius} 0 ${lg} 1 ${x2.toFixed(1)},${y2.toFixed(1)}`;
+  }
+  if(gustArc>windArc+2){
+    gaugeSvg+=`<path d="${arcPath(windArc,gustArc,arcR)}" fill="none" stroke="${neonOrange}0.7)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
+  }
+  if(windArc>0){
+    gaugeSvg+=`<path d="${arcPath(0,windArc,arcR)}" fill="none" stroke="${neonCyan}0.8)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
   }
   const ticks=[0,30,60,90,120,150,180,210,240,270,300,330];
   ticks.forEach(deg=>{
@@ -771,14 +781,14 @@ function renderWeather(data){
     gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}0.1)" stroke-width="0.4"/>`;
   }
   const ptrAng=(wd-90)*Math.PI/180;
-  const pTip=r-1,pBase=8,pWidth=3.5;
+  const pTip=r-1,pBase=10;
   const px=cx+Math.cos(ptrAng)*pTip,py=cy+Math.sin(ptrAng)*pTip;
-  const pLx=cx+Math.cos(ptrAng-0.25)*pBase,pLy=cy+Math.sin(ptrAng-0.25)*pBase;
-  const pRx=cx+Math.cos(ptrAng+0.25)*pBase,pRy=cy+Math.sin(ptrAng+0.25)*pBase;
-  const pBx=cx+Math.cos(ptrAng+Math.PI)*6,pBy=cy+Math.sin(ptrAng+Math.PI)*6;
-  gaugeSvg+=`<polygon points="${px.toFixed(1)},${py.toFixed(1)} ${pLx.toFixed(1)},${pLy.toFixed(1)} ${pBx.toFixed(1)},${pBy.toFixed(1)} ${pRx.toFixed(1)},${pRy.toFixed(1)}" fill="${neonOrange}0.9)" filter="url(#glow2)"/>`;
-  gaugeSvg+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.5" fill="${neonOrange}1)" filter="url(#glow2)"/>`;
-  gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="3" fill="${neonCyan}0.4)" stroke="${neonCyan}0.6)" stroke-width="0.5"/>`;
+  const pLx=cx+Math.cos(ptrAng-0.2)*pBase,pLy=cy+Math.sin(ptrAng-0.2)*pBase;
+  const pRx=cx+Math.cos(ptrAng+0.2)*pBase,pRy=cy+Math.sin(ptrAng+0.2)*pBase;
+  const pBx=cx+Math.cos(ptrAng+Math.PI)*5,pBy=cy+Math.sin(ptrAng+Math.PI)*5;
+  gaugeSvg+=`<polygon points="${px.toFixed(1)},${py.toFixed(1)} ${pLx.toFixed(1)},${pLy.toFixed(1)} ${pBx.toFixed(1)},${pBy.toFixed(1)} ${pRx.toFixed(1)},${pRy.toFixed(1)}" fill="${neonOrange}0.85)" stroke="${neonOrange}1)" stroke-width="0.3"/>`;
+  gaugeSvg+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2" fill="#fff" stroke="${neonOrange}1)" stroke-width="0.5"/>`;
+  gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="3" fill="${neonCyan}0.3)" stroke="${neonCyan}0.5)" stroke-width="0.5"/>`;
   const dotCount=Math.max(3,Math.min(16,Math.round(windSpd/3)));
   for(let i=0;i<dotCount;i++){
     const ang=(wd-90+i*5-dotCount*2.5)*Math.PI/180;
@@ -819,7 +829,7 @@ function renderWeather(data){
           <div class="wind-rose-center">
             <div class="wrc-speed">${windStr}</div>
             <div class="wrc-dir">${degToDir(wd)} ${wd}°</div>
-            ${gustStr?`<div class="wrc-gust">G${gustStr}</div>`:''}
+            ${gustStr?`<div class="wrc-gust">${gustStr}</div>`:''}
           </div>
         </div>
         <div class="hero-side">
