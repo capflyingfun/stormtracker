@@ -1239,7 +1239,7 @@ async function scanRadarForView(){
       if(!S._rvTilePath){toast('No radar data');return}
     }
 
-    const colorFn=useNexrad?nexradToDbz:pixelToDbz;
+    const colorFn=nexradToDbz;
     const minDbz=20;
     const maxScanDist=S.scanRadius*1.5;
     const tilePromises=[];
@@ -1247,7 +1247,7 @@ async function scanRadarForView(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,maxScanDist));
       }
     }
@@ -1361,33 +1361,58 @@ function isUSLocation(lat,lon){
   return lat>=24&&lat<=50&&lon>=-125&&lon<=-66;
 }
 
-async function loadTileImage(url){
-  try{
-    const res=await fetch(url);
-    if(!res.ok)return null;
-    const blob=await res.blob();
-    if(typeof createImageBitmap==='function'){
-      return await createImageBitmap(blob);
-    }
-    return new Promise((resolve)=>{
-      const img=new Image();
-      img.crossOrigin='anonymous';
-      img.onload=()=>resolve(img);
-      img.onerror=()=>resolve(null);
-      img.src=URL.createObjectURL(blob);
-    });
-  }catch(e){return null}
+function loadTileImage(url){
+  return new Promise((resolve)=>{
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    img.onload=()=>resolve(img);
+    img.onerror=()=>resolve(null);
+    img.src=url;
+  });
 }
 
 async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius){
   const tileSize=256,step=S._scanStep||2;
-  const img=await loadTileImage(url);
-  if(!img){console.warn('TILE LOAD FAIL:',url);return[]}
-  const c=document.createElement('canvas');c.width=tileSize;c.height=tileSize;
-  const ctx=c.getContext('2d',{willReadFrequently:true});
-  ctx.drawImage(img,0,0);
-  let data;
-  try{data=ctx.getImageData(0,0,tileSize,tileSize).data}catch(e){console.error('CORS getImageData fail:',url,e.message);return[]}
+  let data=null;
+  try{
+    const res=await fetch(url);
+    if(!res.ok)return[];
+    const blob=await res.blob();
+    if(typeof createImageBitmap==='function'){
+      const bmp=await createImageBitmap(blob);
+      const c=new OffscreenCanvas(tileSize,tileSize);
+      const ctx=c.getContext('2d',{willReadFrequently:true});
+      ctx.drawImage(bmp,0,0);
+      data=ctx.getImageData(0,0,tileSize,tileSize).data;
+      bmp.close();
+    }
+  }catch(e){}
+  if(!data){
+    const img=await loadTileImage(url);
+    if(!img)return[];
+    const c=document.createElement('canvas');c.width=tileSize;c.height=tileSize;
+    const ctx=c.getContext('2d',{willReadFrequently:true});
+    ctx.drawImage(img,0,0);
+    try{data=ctx.getImageData(0,0,tileSize,tileSize).data}catch(e){return[]}
+  }
+  let allZero=true;
+  for(let k=0;k<Math.min(data.length,4000);k++){if(data[k]!==0){allZero=false;break}}
+  if(allZero){
+    if(!S._rvTaintWarn){S._rvTaintWarn=true;toast('⚠️ Browser blocking pixel read — trying workaround...',5000)}
+    try{
+      const res2=await fetch(url);
+      if(!res2.ok)return[];
+      const blob2=await res2.blob();
+      const bmp2=await createImageBitmap(blob2);
+      const c2=document.createElement('canvas');c2.width=tileSize;c2.height=tileSize;
+      const ctx2=c2.getContext('2d',{willReadFrequently:true});
+      ctx2.drawImage(bmp2,0,0);
+      data=ctx2.getImageData(0,0,tileSize,tileSize).data;
+      let still0=true;
+      for(let k=0;k<Math.min(data.length,4000);k++){if(data[k]!==0){still0=false;break}}
+      if(still0)return[];
+    }catch(e){return[]}
+  }
   const pts=[];
   let nonTransparent=0,dbzHits=0;
   const sampleColors=[];
@@ -1407,7 +1432,7 @@ async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius){
       }
     }
   }
-  if(nonTransparent>0||pts.length>0){console.log('TILE',tx,ty,'nonTrans:',nonTransparent,'dbzHits:',dbzHits,'pts:',pts.length,'samples:',JSON.stringify(sampleColors.slice(0,5)))}
+  if(nonTransparent>0){toast(`DBG tile: ${nonTransparent} px, ${dbzHits} dbz, ${JSON.stringify(sampleColors[0]||{})}`,6000)}
   return pts;
 }
 (function initAdaptiveScan(){
@@ -1535,7 +1560,7 @@ async function scanRadarForStorms(){
       if(!S._rvTilePath){toast('No radar data available');S.storms=[];renderStorms();return}
     }
 
-    const colorFn=useNexrad?nexradToDbz:pixelToDbz;
+    const colorFn=nexradToDbz;
     const minDbz=20;
     const tilePromises=[];
     let _dbgTileCount=0;
@@ -1543,7 +1568,7 @@ async function scanRadarForStorms(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,S.scanRadius));
         _dbgTileCount++;
       }
