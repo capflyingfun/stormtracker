@@ -494,10 +494,14 @@ function toggleStormUnits(){
 function calcDewC(tc,rh){const a=17.27,b=237.7,g=(a*tc)/(b+tc)+Math.log(rh/100);return(b*g)/(a-g)}
 
 function pixelToDbz(r,g,b,a){
-  if(a<10)return 0;
-  const dbz=r/2.0-32;
-  if(dbz<5)return 0;
-  return Math.round(dbz);
+  if(a<30)return 0;
+  if(r<50&&g<50&&b<50)return 0;
+  if(b>200&&g>150&&r<100)return 20+((255-b)/55)*10;
+  if(g>200&&r<150&&b<150)return 30+((255-g)/55)*10;
+  if(r>200&&g>200&&b<100)return 40+((r+g-400)/110)*10;
+  if(r>200&&g>100&&g<200&&b<100)return 50+((r-200)/55)*10;
+  if(r>200&&g<100&&b<100)return 60+((255-g-b)/155)*15;
+  return 0;
 }
 function nexradToDbz(r,g,b,a){
   if(a<30)return 0;
@@ -1235,7 +1239,7 @@ async function scanRadarForView(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/0/0_0.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,maxScanDist));
       }
     }
@@ -1516,7 +1520,7 @@ async function scanRadarForStorms(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/0/0_0.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,S.scanRadius));
       }
     }
