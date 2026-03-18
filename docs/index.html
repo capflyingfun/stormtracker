@@ -1378,41 +1378,28 @@ async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius){
     const res=await fetch(url);
     if(!res.ok)return[];
     const blob=await res.blob();
-    if(typeof createImageBitmap==='function'){
-      const bmp=await createImageBitmap(blob);
-      const c=new OffscreenCanvas(tileSize,tileSize);
-      const ctx=c.getContext('2d',{willReadFrequently:true});
-      ctx.drawImage(bmp,0,0);
-      data=ctx.getImageData(0,0,tileSize,tileSize).data;
-      bmp.close();
-    }
-  }catch(e){}
-  if(!data){
-    const img=await loadTileImage(url);
-    if(!img)return[];
+    const objUrl=URL.createObjectURL(blob);
+    const img=await new Promise((resolve)=>{
+      const im=new Image();
+      im.onload=()=>resolve(im);
+      im.onerror=()=>resolve(null);
+      im.src=objUrl;
+    });
+    if(!img){URL.revokeObjectURL(objUrl);return[]}
     const c=document.createElement('canvas');c.width=tileSize;c.height=tileSize;
     const ctx=c.getContext('2d',{willReadFrequently:true});
     ctx.drawImage(img,0,0);
-    try{data=ctx.getImageData(0,0,tileSize,tileSize).data}catch(e){return[]}
+    data=ctx.getImageData(0,0,tileSize,tileSize).data;
+    URL.revokeObjectURL(objUrl);
+  }catch(e){
+    const img2=await loadTileImage(url);
+    if(!img2)return[];
+    const c2=document.createElement('canvas');c2.width=tileSize;c2.height=tileSize;
+    const ctx2=c2.getContext('2d',{willReadFrequently:true});
+    ctx2.drawImage(img2,0,0);
+    try{data=ctx2.getImageData(0,0,tileSize,tileSize).data}catch(e2){return[]}
   }
-  let allZero=true;
-  for(let k=0;k<Math.min(data.length,4000);k++){if(data[k]!==0){allZero=false;break}}
-  if(allZero){
-    if(!S._rvTaintWarn){S._rvTaintWarn=true;toast('⚠️ Browser blocking pixel read — trying workaround...',5000)}
-    try{
-      const res2=await fetch(url);
-      if(!res2.ok)return[];
-      const blob2=await res2.blob();
-      const bmp2=await createImageBitmap(blob2);
-      const c2=document.createElement('canvas');c2.width=tileSize;c2.height=tileSize;
-      const ctx2=c2.getContext('2d',{willReadFrequently:true});
-      ctx2.drawImage(bmp2,0,0);
-      data=ctx2.getImageData(0,0,tileSize,tileSize).data;
-      let still0=true;
-      for(let k=0;k<Math.min(data.length,4000);k++){if(data[k]!==0){still0=false;break}}
-      if(still0)return[];
-    }catch(e){return[]}
-  }
+  if(!data)return[];
   const pts=[];
   let nonTransparent=0,dbzHits=0;
   const sampleColors=[];
