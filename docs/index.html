@@ -976,11 +976,9 @@ function renderPressureTrend(h){
     const label=isInHg?(val/33.8639).toFixed(2)+' inHg':val.toFixed(1)+' mb';
     gridHtml+=`<div class="precip-grid-line" style="top:${pct}%">${g>0&&g<gridLines?`<span>${label}</span>`:''}</div>`;
   }
-  const h3ago=Math.max(0,pres.length-4);
-  const trend3h=pres[pres.length-1]-pres[h3ago];
-  const trend3hThresh=0.3;
-  const trendDir=trend3h>trend3hThresh?'Rising':trend3h<-trend3hThresh?'Falling':'Steady';
-  const trendCol=trend3h>trend3hThresh?'var(--accent-green)':trend3h<-trend3hThresh?'var(--accent-red)':'var(--text-muted)';
+  const trendTotal=pres[pres.length-1]-pres[0];
+  const trendDir=trendTotal>0.5?'Rising':trendTotal<-0.5?'Falling':'Steady';
+  const trendCol=trendTotal>0.5?'var(--accent-green)':trendTotal<-0.5?'var(--accent-red)':'var(--text-muted)';
   function fmtPresTrend(mb){
     if(isInHg){const v=Math.abs(mb/33.8639);return(mb>=0?'+':'-')+(v<0.05?v.toFixed(3):v.toFixed(2))+' inHg'}
     return(mb>=0?'+':'')+mb.toFixed(1)+' mb';
@@ -1000,7 +998,7 @@ function renderPressureTrend(h){
   return`<div class="card" style="margin-top:0">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div class="card-title" style="margin:0"><span class="icon">📊</span> 24h Pressure</div>
-      <div style="font-size:0.7em;font-weight:600;color:${trendCol}">${trendDir} (${fmtPresTrend(trend3h)})</div>
+      <div style="font-size:0.7em;font-weight:600;color:${trendCol}">${trendDir} (${fmtPresTrend(trendTotal)})</div>
     </div>
     <div class="precip-chart-wrap">
       <div class="precip-chart-area">
