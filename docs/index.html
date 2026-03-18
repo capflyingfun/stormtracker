@@ -1026,7 +1026,7 @@ function toggleForecastDetail(idx){
   const d=S.forecast&&S.forecast.daily;if(!d)return;
   const box=document.getElementById('forecast-detail-box');
   document.querySelectorAll('.forecast-item').forEach(el=>el.classList.remove('selected'));
-  if(box.dataset.idx==idx){box.innerHTML='';box.dataset.idx='';return}
+  if(box.dataset.idx===String(idx)){box.innerHTML='';box.dataset.idx='';return}
   box.dataset.idx=idx;
   const fi=document.querySelector(`.forecast-item[data-fi="${idx}"]`);
   if(fi)fi.classList.add('selected');
