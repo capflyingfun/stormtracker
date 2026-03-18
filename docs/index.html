@@ -204,6 +204,17 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .hourly-bar .bar-tip{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:0.55em;color:#fff;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,0.8),0 0 6px rgba(0,0,0,0.5);font-weight:600;z-index:10}
 .hourly-bar.tapped .bar-tip{opacity:1}
 .precip-max-label{font-size:0.7em;color:var(--accent-yellow);font-weight:700;text-align:right}
+.baro-forecast{display:flex;gap:12px;align-items:center;margin-top:8px}
+.baro-icon{font-size:2.8em;line-height:1}
+.baro-info{flex:1}
+.baro-prediction{font-size:0.95em;font-weight:700;margin-bottom:4px}
+.baro-details{font-size:0.7em;color:var(--text-muted);line-height:1.5}
+.baro-trend{display:inline-flex;align-items:center;gap:4px;font-size:0.75em;font-weight:600;padding:2px 8px;border-radius:8px}
+.baro-trend.rising{background:rgba(34,197,94,0.15);color:#22c55e}
+.baro-trend.falling{background:rgba(239,68,68,0.15);color:#ef4444}
+.baro-trend.steady{background:rgba(255,255,255,0.08);color:var(--text-muted)}
+.baro-mini-chart{display:flex;align-items:flex-end;gap:1px;height:24px;margin-top:6px}
+.baro-mini-bar{flex:1;border-radius:2px 2px 0 0;min-height:1px}
 canvas.offscreen{display:none}
 .welcome-screen{text-align:center;padding:40px 20px}
 .welcome-screen h2{font-size:1.3em;font-weight:700;margin-bottom:8px;color:var(--text-primary)}
@@ -621,7 +632,7 @@ async function fetchWeather(){
   try{
     const url=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lon}`
       +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day`
-      +`&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,is_day`
+      +`&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl,is_day`
       +`&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset,wind_speed_10m_max`
       +`&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=7`;
     const res=await fetch(url);const data=await res.json();
@@ -658,6 +669,7 @@ function renderWeather(data){
       <div class="weather-tile" onclick="cycleUnit('tempUnit')"><div class="tile-icon">🌡️</div><div class="tile-label">Dew Point</div><div class="tile-value">${fmtTemp(dewC)}</div><div class="tile-sub">Moisture</div><div class="tile-tap">tap to change</div></div>
     </div>
     ${renderHourlyPrecip(hourly)}
+    ${renderBaroForecast(c,hourly)}
     ${renderDailyForecast(daily)}`;
   setTimeout(initPrecipTaps,0);
 }
@@ -712,6 +724,89 @@ function initPrecipTaps(){
       if(!wasActive)bar.classList.add('tapped');
     });
   });
+}
+
+function renderBaroForecast(current,hourly){
+  if(!current||!current.pressure_msl)return'';
+  const presMb=current.pressure_msl;
+  const windDir=current.wind_direction_10m||0;
+  const dir=degToDir(windDir);
+  let trend='steady',trendMb=0;
+  if(hourly&&hourly.pressure_msl&&hourly.time){
+    const now=Date.now();
+    const pts=hourly.time.map((t,i)=>({t:new Date(t).getTime(),p:hourly.pressure_msl[i]})).filter(p=>p.t<=now&&p.t>=now-6*3600000);
+    if(pts.length>=3){
+      trendMb=pts[pts.length-1].p-pts[0].p;
+      if(trendMb>1.5)trend='rising';
+      else if(trendMb<-1.5)trend='falling';
+      else trend='steady';
+    }
+  }
+  const isN=windDir>=315||windDir<45,isNE=windDir>=45&&windDir<90,isE=windDir>=90&&windDir<135;
+  const isSE=windDir>=135&&windDir<180,isS=windDir>=180&&windDir<225,isSW=windDir>=225&&windDir<270;
+  const isW=windDir>=270&&windDir<315,isNW=windDir>=315;
+  let prediction='',icon='🌤️',confidence='Moderate';
+  if(trend==='falling'){
+    if(presMb<1005){prediction='Storm likely — deteriorating conditions';icon='⛈️';confidence='High'}
+    else if(presMb<1013){
+      if(isSE||isS||isSW||isW){prediction='Rain expected within 12-24 hrs';icon='🌧️';confidence='High'}
+      else if(isN||isNW){prediction='Clearing trend possible, but unsettled';icon='🌥️';confidence='Moderate'}
+      else{prediction='Increasing cloudiness, rain possible';icon='🌦️';confidence='Moderate'}
+    }else{
+      if(isS||isSW||isSE){prediction='Rain likely within 24-36 hrs';icon='🌦️';confidence='Moderate'}
+      else{prediction='Fair weather ending, change approaching';icon='🌥️';confidence='Moderate'}
+    }
+  }else if(trend==='rising'){
+    if(presMb>1022){prediction='Continued fair weather';icon='☀️';confidence='High'}
+    else if(presMb>1013){
+      if(isN||isNW||isW){prediction='Fair weather ahead';icon='🌤️';confidence='High'}
+      else if(isSW||isS){prediction='Fair, but warming — change possible';icon='🌤️';confidence='Moderate'}
+      else{prediction='Clearing and improving';icon='⛅';confidence='Moderate'}
+    }else{
+      if(isW||isNW){prediction='Clearing soon, improving';icon='⛅';confidence='Moderate'}
+      else{prediction='Slow improvement expected';icon='🌥️';confidence='Low'}
+    }
+  }else{
+    if(presMb>1022){prediction='Continued fair and dry';icon='☀️';confidence='High'}
+    else if(presMb>1013){
+      if(isN||isNE||isE){prediction='Fair with no major change';icon='🌤️';confidence='Moderate'}
+      else{prediction='Mostly fair, slight change possible';icon='⛅';confidence='Moderate'}
+    }else if(presMb>1005){
+      if(isS||isSW||isSE){prediction='Unsettled, rain possible';icon='🌦️';confidence='Low'}
+      else{prediction='Overcast to partly cloudy';icon='🌥️';confidence='Low'}
+    }else{prediction='Continued unsettled, precipitation likely';icon='🌧️';confidence='Moderate'}
+  }
+  const trendArrow=trend==='rising'?'↑':trend==='falling'?'↓':'→';
+  const trendLabel=trend==='rising'?'Rising':trend==='falling'?'Falling':'Steady';
+  const presStr=fmtPres(presMb);
+  const miniPts=[];
+  if(hourly&&hourly.pressure_msl&&hourly.time){
+    const now=Date.now();
+    const pts=hourly.time.map((t,i)=>({t:new Date(t).getTime(),p:hourly.pressure_msl[i]})).filter(p=>p.t<=now&&p.t>=now-6*3600000);
+    miniPts.push(...pts);
+  }
+  let miniChart='';
+  if(miniPts.length>=3){
+    const mn=Math.min(...miniPts.map(p=>p.p)),mx=Math.max(...miniPts.map(p=>p.p)),range=mx-mn||1;
+    miniChart=`<div class="baro-mini-chart">${miniPts.map(p=>{
+      const ht=Math.max(2,((p.p-mn)/range)*22);
+      const col=trend==='rising'?'#22c55e':trend==='falling'?'#ef4444':'#6b7280';
+      return`<div class="baro-mini-bar" style="height:${ht}px;background:${col}"></div>`;
+    }).join('')}</div>`;
+  }
+  return`<div class="card">
+    <div class="card-title"><span class="icon">🔮</span> Barometric Forecast</div>
+    <div class="baro-forecast">
+      <div class="baro-icon">${icon}</div>
+      <div class="baro-info">
+        <div class="baro-prediction">${prediction}</div>
+        <div class="baro-details">
+          ${presStr} · Wind ${dir} · Confidence: ${confidence}<br>
+          <span class="baro-trend ${trend}">${trendArrow} ${trendLabel} (${trendMb>=0?'+':''}${trendMb.toFixed(1)} mb / 6hr)</span>
+        </div>
+        ${miniChart}
+      </div>
+    </div></div>`;
 }
 
 function renderDailyForecast(d){
