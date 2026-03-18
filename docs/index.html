@@ -665,52 +665,95 @@ function renderStorms(){
 }
 
 // ==========================================
-// STATION (AWC — METAR bbox lookup)
-// Uses metar?bbox=lat1,lon1,lat2,lon2 format
+// STATION (NWS API — CORS-friendly)
+// Step 1: /points/{lat},{lon} → get observationStations URL
+// Step 2: Follow that URL → list of nearby stations
+// Step 3: /stations/{ICAO}/observations/latest → obs data
+// NWS API has Access-Control-Allow-Origin: * (works from browser)
+// AWC API does NOT have CORS headers (blocked in browser)
 // ==========================================
+const NWS_HDR={headers:{'User-Agent':'StormTracker/1.50','Accept':'application/geo+json'}};
+
 async function fetchStation(){
   const el=document.getElementById('page-station');showSkel(el,5);
   try{
-    const r=1.5;
-    const bbox=`${(S.lat-r).toFixed(2)},${(S.lon-r).toFixed(2)},${(S.lat+r).toFixed(2)},${(S.lon+r).toFixed(2)}`;
-    const metarUrl=`https://aviationweather.gov/api/data/metar?bbox=${bbox}&format=json&taf=false&hours=2`;
-    const res=await fetch(metarUrl);
-    if(!res.ok)throw new Error('AWC returned '+res.status);
-    const text=await res.text();
-    if(!text||text.length<3){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No METAR stations found nearby.</p></div>`;return}
-    let data;
-    try{data=JSON.parse(text)}catch(e){throw new Error('Invalid JSON from AWC')}
-    if(!Array.isArray(data)||!data.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No recent METAR data available.</p></div>`;return}
-    const withCoords=data.filter(m=>m.lat!=null&&m.lon!=null&&m.icaoId);
-    if(!withCoords.length){S.station=data[0];S.stationId=data[0].icaoId||'????';renderStation();return}
-    const nearest=withCoords.sort((a,b)=>haversine(S.lat,S.lon,a.lat,a.lon)-haversine(S.lat,S.lon,b.lat,b.lon))[0];
-    S.station=nearest;S.stationId=nearest.icaoId;
-    S.nearbyStations=withCoords.sort((a,b)=>haversine(S.lat,S.lon,a.lat,a.lon)-haversine(S.lat,S.lon,b.lat,b.lon)).slice(0,8);
-    renderStation();
+    const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,NWS_HDR);
+    if(!ptRes.ok)throw new Error('NWS points returned '+ptRes.status);
+    const ptData=await ptRes.json();
+    const stationsUrl=ptData.properties?.observationStations;
+    if(!stationsUrl)throw new Error('No observation stations URL');
+    const stRes=await fetch(stationsUrl,NWS_HDR);
+    if(!stRes.ok)throw new Error('NWS stations returned '+stRes.status);
+    const stData=await stRes.json();
+    const features=stData.features||stData.observationStations||[];
+    if(!features.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No weather stations found nearby.</p></div>`;return}
+    S.nearbyStations=features.slice(0,10).map(f=>({
+      icao:f.properties.stationIdentifier,
+      name:f.properties.name||'',
+      lat:f.geometry.coordinates[1],
+      lon:f.geometry.coordinates[0],
+      dist:haversine(S.lat,S.lon,f.geometry.coordinates[1],f.geometry.coordinates[0]),
+    })).sort((a,b)=>a.dist-b.dist);
+    await loadStationObs(S.nearbyStations[0].icao);
   }catch(e){
     console.error('Station fetch error:',e);
     el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Station data unavailable.<br><span style="font-size:0.8em;color:var(--text-muted)">${e.message||''}</span></p></div>`;
   }
 }
 
+async function loadStationObs(icao){
+  const el=document.getElementById('page-station');
+  S.stationId=icao;
+  try{
+    const obsRes=await fetch(`https://api.weather.gov/stations/${icao}/observations/latest`,NWS_HDR);
+    if(!obsRes.ok)throw new Error('Obs returned '+obsRes.status);
+    const obsData=await obsRes.json();
+    const p=obsData.properties||{};
+    const stInfo=S.nearbyStations.find(s=>s.icao===icao);
+    S.station={
+      icao:icao,
+      name:stInfo?.name||icao,
+      lat:stInfo?.lat,
+      lon:stInfo?.lon,
+      temp:p.temperature?.value,
+      dewp:p.dewpoint?.value,
+      windSpeedMs:p.windSpeed?.value,
+      windDir:p.windDirection?.value,
+      gustMs:p.windGust?.value,
+      visMeter:p.visibility?.value,
+      presPa:p.barometricPressure?.value,
+      rawMETAR:p.rawMessage||'',
+      clouds:p.cloudLayers||[],
+      obsTime:p.timestamp||'',
+      wxString:p.textDescription||'',
+    };
+    renderStation();
+  }catch(e){
+    console.error('Obs fetch error:',e);
+    el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Could not load observations for ${icao}.</p></div>`;
+  }
+}
+
 function renderStation(){
   const el=document.getElementById('page-station');const s=S.station;if(!s)return;
-  const tempC=s.temp!=null?parseFloat(s.temp):null;
-  const dpC=s.dewp!=null?parseFloat(s.dewp):null;
-  const wSpd=s.wspd!=null?parseFloat(s.wspd):null;
-  const gustKts=s.wgst!=null?parseFloat(s.wgst):null;
-  const wDir=s.wdir!=null?parseFloat(s.wdir):null;
-  const visSM=s.visib!=null?parseFloat(s.visib):null;
-  const altimInHg=s.altim!=null?parseFloat(s.altim):null;
-  const altimMb=altimInHg!=null?altimInHg*33.8639:null;
+  const tempC=s.temp;
+  const dpC=s.dewp;
+  const windMs=s.windSpeedMs;
+  const gustMs=s.gustMs;
+  const wDir=s.windDir;
+  const visMeter=s.visMeter;
+  const visSM=visMeter!=null?(visMeter/1609.34):null;
+  const presPa=s.presPa;
+  const presMb=presPa!=null?(presPa/100):null;
+  const windKts=windMs!=null?(windMs*1.944):null;
+  const gustKts=gustMs!=null?(gustMs*1.944):null;
   const rh=(tempC!=null&&dpC!=null)?Math.round(100*Math.exp((17.27*dpC)/(237.7+dpC))/Math.exp((17.27*tempC)/(237.7+tempC))):null;
   const dist=(s.lat!=null&&s.lon!=null)?haversine(S.lat,S.lon,s.lat,s.lon).toFixed(1):'?';
-  const raw=s.rawOb||'';
+  const raw=s.rawMETAR||'';
   const fltCat=getFltCat(visSM,s);
   const fltCls=fltCat==='VFR'?'vfr':fltCat==='MVFR'?'mvfr':fltCat==='IFR'?'ifr':'lifr';
-  const stationName=s.name||s.site||S.stationId||'Weather Station';
-  const obTime=s.reportTime||s.obsTime||'';
-  const obLabel=obTime?new Date(obTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+  const stationName=s.name||S.stationId||'Weather Station';
+  const obLabel=s.obsTime?new Date(s.obsTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
 
   el.innerHTML=`
     <div class="card">
@@ -726,7 +769,7 @@ function renderStation(){
         <div class="wind-arrow" style="transform:rotate(${wDir||0}deg)"></div>
       </div>
       <div style="text-align:center;margin-bottom:14px;cursor:pointer" onclick="cycleUnit('windUnit')">
-        <div style="font-size:1.2em;font-weight:700">${wSpd!=null?fmtWindKts(wSpd):'-'} ${wDir!=null?degToDir(wDir):''}</div>
+        <div style="font-size:1.2em;font-weight:700">${windKts!=null?fmtWindKts(windKts):'-'} ${wDir!=null?degToDir(wDir):''}</div>
         ${gustKts?`<div style="font-size:0.8em;color:var(--accent-orange)">Gusts ${fmtWindKts(gustKts)}</div>`:''}
         <div class="tile-tap">tap to change units</div>
       </div>
@@ -734,7 +777,7 @@ function renderStation(){
         <div class="station-tile" onclick="cycleUnit('tempUnit')"><div class="station-val">${tempC!=null?fmtTemp(tempC):'--'}</div><div class="station-label">Temp</div><div class="tile-tap">tap</div></div>
         <div class="station-tile" onclick="cycleUnit('tempUnit')"><div class="station-val">${dpC!=null?fmtTemp(dpC):'--'}</div><div class="station-label">Dew Pt</div><div class="tile-tap">tap</div></div>
         <div class="station-tile"><div class="station-val">${rh!=null?rh:'--'}%</div><div class="station-label">Humidity</div></div>
-        <div class="station-tile" onclick="cycleUnit('presUnit')"><div class="station-val">${altimMb!=null?fmtPres(altimMb):'--'}</div><div class="station-label">Baro</div><div class="tile-tap">tap</div></div>
+        <div class="station-tile" onclick="cycleUnit('presUnit')"><div class="station-val">${presMb!=null?fmtPres(presMb):'--'}</div><div class="station-label">Baro</div><div class="tile-tap">tap</div></div>
         <div class="station-tile" onclick="cycleUnit('visUnit')"><div class="station-val">${visSM!=null?fmtVis(visSM):'--'}</div><div class="station-label">Vis</div><div class="tile-tap">tap</div></div>
         <div class="station-tile"><div class="station-val">${formatClouds(s)}</div><div class="station-label">Sky</div></div>
       </div>
@@ -749,56 +792,58 @@ function renderNearbyStations(){
   return`<div class="card"><div class="card-title"><span class="icon">📡</span> Nearby Stations (${S.nearbyStations.length})</div>
     <div style="display:flex;flex-direction:column;gap:6px">
       ${S.nearbyStations.map(st=>{
-        const d=haversine(S.lat,S.lon,st.lat,st.lon).toFixed(1);
-        const active=st.icaoId===S.stationId;
-        return`<div onclick="switchStation('${st.icaoId}')" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${active?'var(--bg-elevated)':'var(--bg-surface)'};border:1px solid ${active?'var(--accent-blue)':'var(--border-subtle)'};border-radius:var(--radius-sm);cursor:pointer;font-size:0.8em">
-          <div><span style="font-weight:700;color:${active?'var(--accent-cyan)':'var(--text-primary)'}">${st.icaoId}</span> <span style="color:var(--text-muted)">${st.name||''}</span></div>
-          <span style="color:var(--text-muted);font-size:0.85em">${d} mi</span>
+        const active=st.icao===S.stationId;
+        return`<div onclick="switchStation('${st.icao}')" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${active?'var(--bg-elevated)':'var(--bg-surface)'};border:1px solid ${active?'var(--accent-blue)':'var(--border-subtle)'};border-radius:var(--radius-sm);cursor:pointer;font-size:0.8em">
+          <div><span style="font-weight:700;color:${active?'var(--accent-cyan)':'var(--text-primary)'}">${st.icao}</span> <span style="color:var(--text-muted)">${st.name||''}</span></div>
+          <span style="color:var(--text-muted);font-size:0.85em">${st.dist.toFixed(1)} mi</span>
         </div>`;
       }).join('')}
     </div></div>`;
 }
 
-function switchStation(icao){
-  const st=S.nearbyStations.find(s=>s.icaoId===icao);
-  if(st){S.station=st;S.stationId=icao;renderStation()}
+async function switchStation(icao){
+  toast('Loading '+icao+'...');
+  await loadStationObs(icao);
 }
 
 function formatClouds(s){
-  const layers=[];
-  for(let i=1;i<=4;i++){
-    const cvg=s['cldCvg'+i];const bas=s['cldBas'+i];
-    if(cvg)layers.push(cvg+(bas!=null?' '+Math.round(bas/100)*100+'ft':''));
-  }
-  return layers.length?layers.join(', '):(s.cover||'CLR');
+  if(!s.clouds||!s.clouds.length)return'CLR';
+  return s.clouds.map(c=>{
+    const cvg=c.amount||c.cover||'';
+    const baseFt=c.base?.value!=null?Math.round(c.base.value*3.281):(c.base!=null?c.base:null);
+    return cvg+(baseFt!=null?' '+baseFt+'ft':'');
+  }).filter(Boolean).join(', ')||'CLR';
 }
 
 function renderMetarDecoded(s){
   const parts=[];
-  if(s.temp!=null)parts.push(`<span>🌡️ Temp: ${fmtTemp(parseFloat(s.temp))}</span>`);
-  if(s.dewp!=null)parts.push(`<span>💧 Dew: ${fmtTemp(parseFloat(s.dewp))}</span>`);
-  if(s.wspd!=null){
-    let w=`💨 Wind: ${fmtWindKts(parseFloat(s.wspd))} ${s.wdir!=null?degToDir(parseFloat(s.wdir)):'VRB'}`;
-    if(s.wgst!=null)w+=` G${fmtWindKts(parseFloat(s.wgst))}`;
+  if(s.temp!=null)parts.push(`<span>🌡️ Temp: ${fmtTemp(s.temp)}</span>`);
+  if(s.dewp!=null)parts.push(`<span>💧 Dew: ${fmtTemp(s.dewp)}</span>`);
+  if(s.windSpeedMs!=null){
+    const wKts=s.windSpeedMs*1.944;
+    let w=`💨 Wind: ${fmtWindKts(wKts)} ${s.windDir!=null?degToDir(s.windDir):'VRB'}`;
+    if(s.gustMs!=null)w+=` G${fmtWindKts(s.gustMs*1.944)}`;
     parts.push(`<span>${w}</span>`);
   }
-  if(s.visib!=null)parts.push(`<span>👁️ Vis: ${fmtVis(parseFloat(s.visib))}</span>`);
-  if(s.altim!=null)parts.push(`<span>📊 Altim: ${fmtPres(parseFloat(s.altim)*33.8639)}</span>`);
-  if(s.wxString)parts.push(`<span style="color:var(--accent-orange)">⚠️ Wx: ${s.wxString}</span>`);
+  if(s.visMeter!=null)parts.push(`<span>👁️ Vis: ${fmtVis(s.visMeter/1609.34)}</span>`);
+  if(s.presPa!=null)parts.push(`<span>📊 Baro: ${fmtPres(s.presPa/100)}</span>`);
+  if(s.wxString)parts.push(`<span style="color:var(--accent-orange)">🌤️ ${s.wxString}</span>`);
   if(!parts.length)return'';
   return`<div style="display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:12px;font-size:0.7em;color:var(--text-secondary)">${parts.join('')}</div>`;
 }
 
-function getFltCat(vis,s){
+function getFltCat(visSM,s){
   let effCeil=99999;
-  for(let i=1;i<=4;i++){
-    const cvg=(s['cldCvg'+i]||'').toUpperCase();
-    const bas=s['cldBas'+i]!=null?parseFloat(s['cldBas'+i]):null;
-    if((cvg==='BKN'||cvg==='OVC'||cvg==='VV')&&bas!=null){effCeil=Math.min(effCeil,bas);break}
+  if(s.clouds&&s.clouds.length){
+    for(const c of s.clouds){
+      const amt=(c.amount||c.cover||'').toUpperCase();
+      const baseFt=c.base?.value!=null?c.base.value*3.281:(typeof c.base==='number'?c.base:null);
+      if((amt==='BKN'||amt==='OVC'||amt==='VV')&&baseFt!=null){effCeil=Math.min(effCeil,baseFt);break}
+    }
   }
-  if((vis!=null&&vis<1)||effCeil<500)return'LIFR';
-  if((vis!=null&&vis<3)||effCeil<1000)return'IFR';
-  if((vis!=null&&vis<=5)||effCeil<=3000)return'MVFR';
+  if((visSM!=null&&visSM<1)||effCeil<500)return'LIFR';
+  if((visSM!=null&&visSM<3)||effCeil<1000)return'IFR';
+  if((visSM!=null&&visSM<=5)||effCeil<=3000)return'MVFR';
   return'VFR';
 }
 
