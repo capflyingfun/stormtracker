@@ -401,7 +401,7 @@ function startEtaCountdowns(){
       const hrs=(now-t0)/3600000;
       const approached=speed*hrs*(impact/100);
       const curDist=Math.max(0,origDist-approached);
-      el.textContent=S.radarMetric?(curDist*1.60934).toFixed(1)+' km':curDist.toFixed(1)+' mi';
+      el.textContent=S.radarMetric?(curDist*1.60934).toFixed(2)+' km':curDist.toFixed(2)+' mi';
     });
     for(const key in S.etaExpired){
       if(S.stormFeedback[key])continue;
