@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v1.52</title>
+<title>StormTracker v1.53</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -309,6 +309,7 @@ function calcDewC(tc,rh){const a=17.27,b=237.7,g=(a*tc)/(b+tc)+Math.log(rh/100);
 
 function pixelToDbz(r,g,b,a){
   if(a<10)return 0;
+  if(a>0&&a<255){r=Math.min(255,Math.round(r*255/a));g=Math.min(255,Math.round(g*255/a));b=Math.min(255,Math.round(b*255/a))}
   const CM=[[0x40,0xff,0xff,5],[0x36,0xc5,0xff,10],[0x00,0x99,0xff,15],
     [0x00,0xff,0x00,20],[0x00,0xc8,0x00,25],[0x00,0x96,0x00,30],
     [0xff,0xff,0x00,35],[0xe6,0xc3,0x00,40],[0xff,0x96,0x00,45],
@@ -623,7 +624,6 @@ async function scanRadarForView(){
         }
       }catch(e){tilesError++;console.warn('View tile error:',tx,ty,e.message||e)}
     }
-    toast(`Tiles: ${tilesLoaded}/${tileCoords.length} loaded, ${rawPoints.length} pts`);
     console.log('ViewScan: '+tilesLoaded+' tiles, '+tilesError+' errors, '+rawPoints.length+' raw points');
     const clusters=clusterPoints(rawPoints,0.15);
     S.storms=clusters.map(cl=>{
@@ -714,20 +714,12 @@ async function scanRadarForStorms(){
     const ctx=canvas.getContext('2d',{willReadFrequently:true});
     let tilesLoaded=0,tilesError=0;
 
-    let firstTileSampled=false;
     for(const [tx,ty] of tileCoords){
       try{
         const url=`https://tilecache.rainviewer.com${tilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`;
         const img=await loadImage(url);
         ctx.clearRect(0,0,256,256);ctx.drawImage(img,0,0);
         tilesLoaded++;
-        if(!firstTileSampled){
-          firstTileSampled=true;
-          const samp=ctx.getImageData(128,128,1,1).data;
-          const full=ctx.getImageData(0,0,256,256).data;
-          let nonZero=0;for(let i=0;i<full.length;i+=4){if(full[i+3]>0)nonZero++}
-          toast(`Tile ${tx},${ty}: px=(${samp[0]},${samp[1]},${samp[2]},${samp[3]}) nz=${nonZero}`);
-        }
         const step=8;
         for(let px=0;px<256;px+=step){
           for(let py=0;py<256;py+=step){
@@ -744,7 +736,6 @@ async function scanRadarForStorms(){
         }
       }catch(e){tilesError++;console.warn('Tile load error:',tx,ty,e.message||e)}
     }
-    toast(`Tiles: ${tilesLoaded}/${tileCoords.length} loaded, ${rawPoints.length} pts`);
     console.log('Scan: '+tilesLoaded+' tiles loaded, '+tilesError+' errors, '+rawPoints.length+' raw points');
 
     const clusters=clusterPoints(rawPoints,0.15);
@@ -759,7 +750,6 @@ async function scanRadarForStorms(){
 
     const src=S.nexradOn&&Object.keys(nxGrid).length?' (RV+NX)':'';
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found${src}`);
-    if(tilesError>0)toast(`${tilesError} tile errors`);
     renderStorms();
     if(S.map)plotStormMarkers(S.map);
   }catch(e){toast('Radar scan failed: '+e.message);console.error('Scan error:',e)}
