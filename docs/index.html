@@ -249,7 +249,7 @@ const S = {
   alerts:[], station:null, stationId:null,
   map:null, radarLayer:null, radarFrames:[], radarIdx:0,
   radarPlaying:false, radarTimer:null, scanRadius:80, radarSource:'nexrad', nexradLayer:null, radarMetric:false,
-  activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null, stormFeedback:{}, autoScanTimer:null, lastScanMs:0,
+  activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null, stormFeedback:{}, etaExpired:{}, autoScanTimer:null, lastScanMs:0,
 };
 const TEMP_UNITS = ['°F','°C'];
 const WIND_UNITS = ['mph','kts','km/h','m/s'];
@@ -346,6 +346,7 @@ function stormKey(s){return s.lat.toFixed(3)+','+s.lng.toFixed(3)}
 function stormFeedbackResponse(key,arrived){
   const time=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});
   S.stormFeedback[key]={arrived,time};
+  delete S.etaExpired[key];
   renderStorms();
 }
 function autoScanInterval(){
@@ -374,54 +375,45 @@ function updateAutoScanUI(){
 }
 function startEtaCountdowns(){
   if(S.etaTimer)clearInterval(S.etaTimer);
+  if(!S.etaExpired)S.etaExpired={};
   S.etaTimer=setInterval(()=>{
-    const els=document.querySelectorAll('[data-eta-sec]');
-    if(!els.length){clearInterval(S.etaTimer);S.etaTimer=null;return}
     const now=Date.now();
-    els.forEach(el=>{
+    document.querySelectorAll('[data-eta-sec]').forEach(el=>{
       const target=parseInt(el.getAttribute('data-eta-sec'));
+      const key=el.getAttribute('data-storm-key');
       const remain=Math.max(0,Math.round((target-now)/1000));
       if(remain<=0){
-        const key=el.getAttribute('data-storm-key');
-        if(key&&!S.stormFeedback[key]&&!el._triggered){
-          el._triggered=true;
+        if(key&&!S.stormFeedback[key]&&!S.etaExpired[key]){
+          S.etaExpired[key]={at:now,fbSec:30};
           el.textContent='🔄 Rescanning…';
-          setTimeout(()=>{
-            if(S.lat!=null)scanRadar();
-            setTimeout(()=>{
-              const wrap=el.closest('.eta-detail');
-              if(wrap&&!wrap.querySelector('.eta-prompt')){
-                el.textContent='⚠️ NOW';
-                const prompt=document.createElement('div');
-                prompt.className='eta-prompt';
-                const timerId='fb_'+key.replace(/[^a-z0-9]/gi,'_');
-                prompt.innerHTML=`<div style="font-size:0.75em;margin-top:4px;color:#fbbf24">Did this storm arrive? <span id="${timerId}" style="font-family:var(--font-mono);color:var(--text-muted)">⏱️ 0:30</span></div>
-                  <div style="display:flex;gap:6px;justify-content:center;margin-top:4px">
-                    <button class="eta-btn eta-btn-yes" onclick="stormFeedbackResponse('${key}',true)">Yes</button>
-                    <button class="eta-btn eta-btn-no" onclick="stormFeedbackResponse('${key}',false)">No</button>
-                  </div>`;
-                wrap.appendChild(prompt);
-                let fbSec=30;
-                const fbInt=setInterval(()=>{
-                  fbSec--;
-                  const tel=document.getElementById(timerId);
-                  if(!tel||fbSec<=0){
-                    clearInterval(fbInt);
-                    if(!S.stormFeedback[key])stormFeedbackResponse(key,false);
-                    return;
-                  }
-                  tel.textContent='⏱️ 0:'+(fbSec<10?'0':'')+fbSec;
-                },1000);
-              }
-            },3000);
-          },500);
-        }else if(!el._triggered){
-          el.textContent='⚠️ NOW';
+          if(S.lat!=null)scanRadar();
         }
       }else{
         el.textContent=fmtCountdown(remain);
       }
     });
+    document.querySelectorAll('[data-dist-mi]').forEach(el=>{
+      const origDist=parseFloat(el.getAttribute('data-dist-mi'));
+      const speed=parseFloat(el.getAttribute('data-speed-mph'));
+      const t0=parseInt(el.getAttribute('data-t0'));
+      const impact=parseFloat(el.getAttribute('data-impact')||'0');
+      if(!speed||!t0)return;
+      const hrs=(now-t0)/3600000;
+      const approached=speed*hrs*(impact/100);
+      const curDist=Math.max(0,origDist-approached);
+      el.textContent=S.radarMetric?(curDist*1.60934).toFixed(1)+' km':curDist.toFixed(1)+' mi';
+    });
+    for(const key in S.etaExpired){
+      if(S.stormFeedback[key])continue;
+      const e=S.etaExpired[key];
+      const elapsed=Math.round((now-e.at)/1000);
+      e.fbSec=Math.max(0,30-elapsed);
+      const promptEl=document.getElementById('fb_'+key.replace(/[^a-z0-9]/gi,'_'));
+      if(promptEl){
+        if(e.fbSec<=0){stormFeedbackResponse(key,false);continue;}
+        promptEl.textContent='⏱️ 0:'+(e.fbSec<10?'0':'')+e.fbSec;
+      }
+    }
   },1000);
 }
 function toggleStormUnits(){
@@ -562,7 +554,7 @@ function setLoc(lat,lon,name){
   document.getElementById('location-input').value=S.locName;
   document.getElementById('status-dot').classList.add('live');
   document.getElementById('status-text').textContent='Live · '+S.locName;
-  S.station=null;S.stationId=null;S.storms=[];S.stormMovement=null;S.stormFeedback={};
+  S.station=null;S.stationId=null;S.storms=[];S.stormMovement=null;S.stormFeedback={};S.etaExpired={};
   S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
   try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:S.locName}))}catch(e){}
   fetchWeather();
@@ -1112,13 +1104,23 @@ function renderStorms(){
         const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
         mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Moving</div><div class="storm-detail-val">${degToDir(mv.direction)} ${spdStr}</div><div class="tile-tap">tap</div></div>`;
         if(eta&&eta.approaching&&pct>0){
-          if(eta.eta!=null){
+          const sk=stormKey(s);
+          const expired=S.etaExpired[sk];
+          if(expired){
+            const fbSec=expired.fbSec!=null?expired.fbSec:30;
+            const timerId='fb_'+sk.replace(/[^a-z0-9]/gi,'_');
+            mvLine+=`<div class="storm-detail eta-detail" style="grid-column:span 2"><div class="storm-detail-label">⏱ ETA</div><div class="storm-detail-val" style="color:#ef4444">⚠️ NOW</div>
+              <div style="font-size:0.75em;margin-top:4px;color:#fbbf24">Did this storm arrive? <span id="${timerId}" style="font-family:var(--font-mono);color:var(--text-muted)">⏱️ 0:${fbSec<10?'0':''}${fbSec}</span></div>
+              <div style="display:flex;gap:6px;justify-content:center;margin-top:4px">
+                <button class="eta-btn eta-btn-yes" onclick="stormFeedbackResponse('${sk}',true)">Yes</button>
+                <button class="eta-btn eta-btn-no" onclick="stormFeedbackResponse('${sk}',false)">No</button>
+              </div></div>`;
+          }else if(eta.eta!=null){
             const elapsedMin=S.scanTime?(Date.now()-S.scanTime)/60000:0;
             const remainMin=Math.max(0,eta.eta-elapsedMin);
             const targetMs=Date.now()+remainMin*60000;
             const arrivalTime=fmtArrivalTime(remainMin);
             const initCountdown=fmtCountdown(Math.round(remainMin*60));
-            const sk=stormKey(s);
             mvLine+=`<div class="storm-detail eta-detail"><div class="storm-detail-label">⏱ ETA</div><div class="storm-detail-val" style="color:${imp.color}"><span class="eta-countdown" data-eta-sec="${Math.round(targetMs)}" data-storm-key="${sk}">${initCountdown}</span></div><div style="font-size:0.65em;color:${imp.color};margin-top:1px">Arrives ~${arrivalTime}</div></div>`;
           }else{
             mvLine+=`<div class="storm-detail"><div class="storm-detail-label">⏱ ETA</div><div class="storm-detail-val" style="color:${imp.color}">--</div></div>`;
@@ -1141,7 +1143,7 @@ function renderStorms(){
         <div class="storm-detail-grid">
           <div class="storm-detail"><div class="storm-detail-label">Peak dBZ</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>
           <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Rain Rate</div><div class="storm-detail-val">${cat.rain}</div><div class="tile-tap">tap</div></div>
-          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Distance</div><div class="storm-detail-val">${fmtStormDist(s.distance)}</div><div class="tile-tap">tap</div></div>
+          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Distance</div><div class="storm-detail-val"><span data-dist-mi="${s.distance}" data-speed-mph="${mv?mv.speed:0}" data-t0="${S.scanTime||Date.now()}" data-impact="${eta?eta.impact:0}">${fmtStormDist(s.distance)}</span></div><div class="tile-tap">tap</div></div>
           <div class="storm-detail"><div class="storm-detail-label">Bearing</div><div class="storm-detail-val">${degToDir(s.bearing)}</div></div>
           ${mvLine}
         </div>
