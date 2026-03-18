@@ -233,9 +233,9 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .wind-rose-labels span{position:absolute;transform:translate(-50%,-50%)}
 .wr-n{left:50%;top:3%}.wr-s{left:50%;top:97%}.wr-e{left:97%;top:50%}.wr-w{left:3%;top:50%}
 .wind-rose-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;background:rgba(0,0,0,0.55);border-radius:50%;padding:10px 14px;backdrop-filter:blur(2px)}
-.wrc-speed{font-size:1.4em;font-weight:900;color:#fff;line-height:1;text-shadow:0 0 10px rgba(0,200,255,0.5)}
-.wrc-dir{font-size:0.65em;font-weight:700;color:rgba(0,220,255,0.9);text-shadow:0 0 6px rgba(0,200,255,0.4)}
-.wrc-gust{font-size:0.5em;color:rgba(255,160,0,0.9);font-weight:600;text-shadow:0 0 4px rgba(255,160,0,0.3)}
+.wrc-speed{font-size:1.4em;font-weight:900;color:rgba(0,220,255,1);line-height:1;text-shadow:0 0 10px rgba(0,200,255,0.5)}
+.wrc-dir{font-size:0.65em;font-weight:700;color:rgba(255,80,80,0.95);text-shadow:0 0 6px rgba(255,60,60,0.4)}
+.wrc-gust{font-size:0.5em;color:rgba(255,160,0,0.95);font-weight:600;text-shadow:0 0 4px rgba(255,160,0,0.3)}
 canvas.offscreen{display:none}
 .welcome-screen{text-align:center;padding:40px 20px}
 .welcome-screen h2{font-size:1.3em;font-weight:700;margin-bottom:8px;color:var(--text-primary)}
@@ -813,9 +813,10 @@ function renderWeather(data){
   const pLx=cx+Math.cos(ptrAng-0.2)*pBase,pLy=cy+Math.sin(ptrAng-0.2)*pBase;
   const pRx=cx+Math.cos(ptrAng+0.2)*pBase,pRy=cy+Math.sin(ptrAng+0.2)*pBase;
   const pBx=cx+Math.cos(ptrAng+Math.PI)*5,pBy=cy+Math.sin(ptrAng+Math.PI)*5;
-  gaugeSvg+=`<polygon points="${px.toFixed(1)},${py.toFixed(1)} ${pLx.toFixed(1)},${pLy.toFixed(1)} ${pBx.toFixed(1)},${pBy.toFixed(1)} ${pRx.toFixed(1)},${pRy.toFixed(1)}" fill="${neonOrange}0.85)" stroke="${neonOrange}1)" stroke-width="0.3"/>`;
-  gaugeSvg+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2" fill="#fff" stroke="${neonOrange}1)" stroke-width="0.5"/>`;
-  gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="3" fill="${neonCyan}0.3)" stroke="${neonCyan}0.5)" stroke-width="0.5"/>`;
+  const neonRed='rgba(255,70,70,';
+  gaugeSvg+=`<polygon points="${px.toFixed(1)},${py.toFixed(1)} ${pLx.toFixed(1)},${pLy.toFixed(1)} ${pBx.toFixed(1)},${pBy.toFixed(1)} ${pRx.toFixed(1)},${pRy.toFixed(1)}" fill="${neonRed}0.85)" stroke="${neonRed}1)" stroke-width="0.3"/>`;
+  gaugeSvg+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2" fill="#fff" stroke="${neonRed}1)" stroke-width="0.5"/>`;
+  gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="3" fill="${neonRed}0.3)" stroke="${neonRed}0.5)" stroke-width="0.5"/>`;
   const dotCount=Math.max(3,Math.min(16,Math.round(windDisp/2)));
   for(let i=0;i<dotCount;i++){
     const ang=(wd-90+i*5-dotCount*2.5)*Math.PI/180;
@@ -823,7 +824,7 @@ function renderWeather(data){
     const dx=cx+Math.cos(ang)*dr,dy=cy+Math.sin(ang)*dr;
     const opacity=0.2+0.6*(i/dotCount);
     const dotR=1+i*0.05;
-    gaugeSvg+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${neonCyan}${opacity.toFixed(2)})"/>`;
+    gaugeSvg+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${neonRed}${opacity.toFixed(2)})"/>`;
   }
 
   el.innerHTML=`
