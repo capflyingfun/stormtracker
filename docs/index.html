@@ -943,9 +943,10 @@ function calcStormETA(storm){
   const bearingToUser=(storm.bearing+180)%360;
   const diff=Math.abs(((movDir-bearingToUser+180)%360)-180);
   const closingSpeed=S.stormMovement.speed*Math.cos(diff*Math.PI/180);
-  if(closingSpeed<=0||diff>90){
-    if(storm.distance<=1){
-      const proxPct=Math.round(Math.min(85,(1-storm.distance)*60+storm.dbz/3));
+  const isGlancing=diff>70&&storm.distance<2;
+  if(closingSpeed<=0||diff>90||isGlancing){
+    if(storm.distance<=1.5){
+      const proxPct=Math.round(Math.min(85,Math.max(0,(1.5-storm.distance)/1.5*60+storm.dbz/3)));
       return{eta:null,impact:proxPct,approaching:false,closingSpeed:0,proximity:true};
     }
     return{eta:null,impact:0,approaching:false};
@@ -958,7 +959,7 @@ function calcStormETA(storm){
   let pct=Math.round(Math.min(100,dirScore*40+distScore*30+spdScore*15+intScore*15));
   if(diff>60)pct=Math.min(pct,15);
   else if(diff>45)pct=Math.min(pct,30);
-  if(storm.distance<=1)pct=Math.max(pct,Math.round(60+(1-storm.distance)*25));
+  if(storm.distance<=1.5)pct=Math.max(pct,Math.round(55+(1.5-storm.distance)/1.5*30));
   return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed)};
 }
 function impactLabel(pct){
