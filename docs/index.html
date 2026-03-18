@@ -911,9 +911,13 @@ function renderHourlyPrecip(h){
   if(precips.length<4)return'';
   const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'PM':'AM';return(hr%12||12)+ap};
   const tLabels=[];
-  for(let i=0;i<24;i+=6){const t=times[i]?new Date(times[i]):null;tLabels.push(t?fmtHr(t):(i===0?'Now':'+'+i+'h'))}
-  const lastT=times[times.length-1]?new Date(times[times.length-1]):null;
-  tLabels.push(lastT?fmtHr(lastT):'+24h');
+  const n=precips.length;
+  const labelCount=5;
+  for(let li=0;li<labelCount;li++){
+    const idx=Math.round(li*(n-1)/(labelCount-1));
+    const t=times[idx]?new Date(times[idx]):null;
+    tLabels.push(t?fmtHr(t):'');
+  }
   const rawMax=Math.max(...precips);
   const maxMm=rawMax<0.5?1:rawMax<2?2:rawMax<5?5:rawMax<10?10:rawMax<25?25:rawMax<50?50:Math.ceil(rawMax/10)*10;
   const isIn=S.precipUnit===0;
@@ -984,13 +988,12 @@ function renderPressureTrend(h){
   const times=combined.map(p=>p.ts);
   const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'PM':'AM';return(hr%12||12)+ap};
   const tLabels=[];
-  const step=Math.max(1,Math.floor(combined.length/5));
-  for(let i=0;i<combined.length;i+=step){
-    if(combined[i].isNow){tLabels.push('Now')}
-    else{const t=new Date(combined[i].ts);tLabels.push(fmtHr(t))}
+  const labelCount=5;
+  for(let li=0;li<labelCount;li++){
+    const idx=Math.round(li*(combined.length-1)/(labelCount-1));
+    if(combined[idx].isNow){tLabels.push('Now')}
+    else{const t=new Date(combined[idx].ts);tLabels.push(fmtHr(t))}
   }
-  const lastT=new Date(times[times.length-1]);
-  if(tLabels.length<6)tLabels.push(fmtHr(lastT));
   const mn=Math.min(...pres),mx=Math.max(...pres);
   const range=mx-mn||1;
   const padMn=mn-range*0.1,padMx=mx+range*0.1,padRange=padMx-padMn||1;
