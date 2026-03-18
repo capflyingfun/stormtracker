@@ -666,17 +666,21 @@ function plotStormMarkers(map){
   S.storms.forEach(storm=>{
     const cat=stormCat(storm.dbz);
     const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':storm.dbz>=35?'#eab308':storm.dbz>=25?'#22c55e':'#06b6d4';
-    const r=Math.max(6,storm.dbz/5);
-    const marker=L.circleMarker([storm.lat,storm.lng],{radius:r,color:color,fillColor:color,fillOpacity:0.6,weight:2}).addTo(map);
-    marker.bindPopup(`<div style="text-align:center;font-family:system-ui;min-width:120px">
-      <div style="font-size:1.1em;font-weight:700;color:${color}">${storm.dbz} dBZ</div>
+    const r=Math.max(10,storm.dbz/4);
+    const popupHtml=`<div style="text-align:center;font-family:system-ui;min-width:130px">
+      <div style="font-size:1.3em;font-weight:700;color:${color}">${storm.dbz} dBZ</div>
       <div style="font-size:0.85em;margin:4px 0">${cat.label}</div>
-      <div style="font-size:0.8em;color:#888">${storm.distance.toFixed(1)} mi ${degToDir(storm.bearing)}</div>
+      <div style="font-size:0.8em;color:#ccc">${storm.distance.toFixed(1)} mi ${degToDir(storm.bearing)}</div>
       <div style="font-size:0.7em;color:#999;margin-top:4px">${storm.lat.toFixed(3)}°N, ${Math.abs(storm.lng).toFixed(3)}°${storm.lng<0?'W':'E'}</div>
-    </div>`,{closeButton:false,className:'storm-popup'});
+      <div style="font-size:0.65em;color:#666;margin-top:2px">${storm.pixels} radar returns</div>
+    </div>`;
+    const popupOpts={closeButton:false,className:'storm-popup'};
+    const marker=L.circleMarker([storm.lat,storm.lng],{radius:r,color:color,fillColor:color,fillOpacity:0.6,weight:2}).addTo(map);
+    marker.bindPopup(popupHtml,popupOpts);
     S.stormMarkers.push(marker);
     if(storm.dbz>=40){
-      const lightning=L.marker([storm.lat,storm.lng],{icon:L.divIcon({className:'',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})}).addTo(map);
+      const lightning=L.marker([storm.lat,storm.lng],{icon:L.divIcon({className:'',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff;pointer-events:none">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})}).addTo(map);
+      lightning.bindPopup(popupHtml,popupOpts);
       S.stormMarkers.push(lightning);
     }
   });
