@@ -224,9 +224,9 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .chart-marker.lo{color:#ef4444}
 .hero-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
 .hero-left{display:flex;align-items:center;gap:10px}
-.wind-rose{position:relative;width:80px;height:80px;flex-shrink:0}
+.wind-rose{position:relative;width:110px;height:110px;flex-shrink:0}
 .wind-rose svg{width:100%;height:100%}
-.wind-rose-labels{position:absolute;inset:0;font-size:0.45em;color:var(--text-muted);font-weight:600}
+.wind-rose-labels{position:absolute;inset:0;font-size:0.55em;color:var(--text-muted);font-weight:700}
 .wind-rose-labels span{position:absolute;transform:translate(-50%,-50%)}
 .wr-n{left:50%;top:6%}.wr-s{left:50%;top:94%}.wr-e{left:94%;top:50%}.wr-w{left:6%;top:50%}
 .wind-info{text-align:center;margin-top:2px;font-size:0.6em;color:var(--text-secondary);line-height:1.3}
@@ -750,10 +750,20 @@ function renderWeather(data){
     const a=(deg-90)*Math.PI/180;
     const x1=cx+Math.cos(a)*r,y1=cy+Math.sin(a)*r;
     const isMajor=deg%90===0;
-    const len=isMajor?5:3;
+    const len=isMajor?6:3;
     const x2=cx+Math.cos(a)*(r-len),y2=cy+Math.sin(a)*(r-len);
-    ticksSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,${isMajor?0.3:0.15})" stroke-width="${isMajor?1.5:0.8}"/>`;
+    ticksSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,${isMajor?0.35:0.15})" stroke-width="${isMajor?1.5:0.8}"/>`;
+    if(!isMajor){
+      const lx=cx+Math.cos(a)*(r+7),ly=cy+Math.sin(a)*(r+7);
+      ticksSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="rgba(255,255,255,0.2)" font-size="5" text-anchor="middle" dominant-baseline="central">${deg||360}</text>`;
+    }
   });
+  for(let d=0;d<360;d+=10){if(d%30===0)continue;
+    const a=(d-90)*Math.PI/180;
+    const x1=cx+Math.cos(a)*r,y1=cy+Math.sin(a)*r;
+    const x2=cx+Math.cos(a)*(r-2),y2=cy+Math.sin(a)*(r-2);
+    ticksSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>`;
+  }
 
   el.innerHTML=`
     <div class="weather-hero">
@@ -767,16 +777,17 @@ function renderWeather(data){
         </div>
         <div onclick="cycleUnit('windUnit')" style="cursor:pointer">
           <div class="wind-rose">
-            <svg viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="${r}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-              <circle cx="50" cy="50" r="${r*0.6}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
+            <svg viewBox="-5 -5 110 110">
+              <circle cx="50" cy="50" r="${r}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+              <circle cx="50" cy="50" r="${r*0.6}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+              <circle cx="50" cy="50" r="${r*0.3}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
               ${ticksSvg}
               ${dotsSvg}
               <circle cx="50" cy="50" r="2" fill="rgba(255,255,255,0.3)"/>
             </svg>
             <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
           </div>
-          <div class="wind-info"><span class="wi-dir">${degToDir(wd)}</span> <span class="wi-speed">${windStr}</span>${gustStr?`<br>Gust ${gustStr}`:''}</div>
+          <div class="wind-info"><span class="wi-dir">${degToDir(wd)} ${wd}°</span> <span class="wi-speed">${windStr}</span>${gustStr?`<br><span style="font-size:0.9em;color:var(--text-muted)">Gust ${gustStr}</span>`:''}</div>
         </div>
       </div>
       <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:4px 0">
@@ -794,7 +805,7 @@ function renderWeather(data){
         <div class="hero-detail"><div class="hero-detail-label">☁️ Clouds</div><div class="hero-detail-value">${c.cloud_cover}%</div></div>
         <div class="hero-detail" onclick="cycleUnit('tempUnit')" style="cursor:pointer"><div class="hero-detail-label">🌡️ Dew Pt</div><div class="hero-detail-value">${fmtTemp(dewC)}</div></div>
         <div class="hero-detail"><div class="hero-detail-label">🌧️ Rain</div><div class="hero-detail-value">${fmtPrecip(c.rain||0)}</div></div>
-        <div class="hero-detail">${(c.snowfall||0)>0?`<div class="hero-detail-label">❄️ Snow</div><div class="hero-detail-value">${c.snowfall}cm</div>`:`<div class="hero-detail-label">🌬️ Gust</div><div class="hero-detail-value">${gustStr||'—'}</div>`}</div>
+        <div class="hero-detail">${(c.snowfall||0)>0?`<div class="hero-detail-label">❄️ Snow</div><div class="hero-detail-value">${c.snowfall}cm</div>`:`<div class="hero-detail-label">🌡️ Spread</div><div class="hero-detail-value">${fmtTemp(tempC-dewC)}</div>`}</div>
       </div>
     </div>
     ${order.map(k=>sections[k]||'').join('')}`;
