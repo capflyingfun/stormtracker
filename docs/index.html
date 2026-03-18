@@ -803,16 +803,19 @@ function destPoint(lat,lon,bearing,distMi){
   const lon2=lon1+Math.atan2(Math.sin(br)*Math.sin(d)*Math.cos(lat1),Math.cos(d)-Math.sin(lat1)*Math.sin(lat2));
   return[lat2*180/Math.PI,lon2*180/Math.PI];
 }
-function plotStormMarkers(map){
-  S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];
+function showStormCone(map,storm){
+  if(S._activeCone){map.removeLayer(S._activeCone);S._activeCone=null}
   const mv=S.stormMovement;
-  if(mv&&mv.speed>=2&&S.lat!=null){
-    const inDir=(mv.direction+180)%360;
-    const pts=[destPoint(S.lat,S.lon,inDir-15,60),destPoint(S.lat,S.lon,inDir,60),destPoint(S.lat,S.lon,inDir+15,60)];
-    const coneCoords=[[S.lat,S.lon],pts[0],pts[1],pts[2],[S.lat,S.lon]];
-    const cone=L.polygon(coneCoords,{color:'#60a5fa',fillColor:'#60a5fa',fillOpacity:0.08,weight:1,dashArray:'6,4',interactive:false}).addTo(map);
-    S.stormMarkers.push(cone);
-  }
+  if(!mv||mv.speed<2)return;
+  const range=Math.min(60,Math.max(storm.distance*1.5,20));
+  const pts=[destPoint(storm.lat,storm.lng,mv.direction-15,range),destPoint(storm.lat,storm.lng,mv.direction,range),destPoint(storm.lat,storm.lng,mv.direction+15,range)];
+  const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':'#60a5fa';
+  S._activeCone=L.polygon([[storm.lat,storm.lng],pts[0],pts[1],pts[2],[storm.lat,storm.lng]],{color,fillColor:color,fillOpacity:0.1,weight:1.5,dashArray:'6,4',interactive:false}).addTo(map);
+  S.stormMarkers.push(S._activeCone);
+}
+function plotStormMarkers(map){
+  S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];S._activeCone=null;
+  const mv=S.stormMovement;
   S.storms.forEach(storm=>{
     const cat=stormCat(storm.dbz);
     const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':storm.dbz>=35?'#eab308':storm.dbz>=25?'#22c55e':'#06b6d4';
@@ -846,14 +849,17 @@ function plotStormMarkers(map){
       <div style="font-size:0.65em;color:#666;margin-top:2px">${storm.pixels} radar returns</div>
     </div>`;
     const popupOpts={closeButton:false,className:'storm-popup'};
+    const stormRef=storm;
     if(mv&&mv.speed>=2){
       const sz=Math.max(24,storm.dbz/2);
       const arrow=L.marker([storm.lat,storm.lng],{icon:L.divIcon({className:'storm-arrow-icon',html:stormArrowSvg(mv.direction,color,sz),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]})}).addTo(map);
       arrow.bindPopup(popupHtml,popupOpts);
+      arrow.on('click',()=>showStormCone(map,stormRef));
       S.stormMarkers.push(arrow);
     }else{
       const marker=L.circleMarker([storm.lat,storm.lng],{radius:r,color:color,fillColor:color,fillOpacity:0.6,weight:2}).addTo(map);
       marker.bindPopup(popupHtml,popupOpts);
+      marker.on('click',()=>showStormCone(map,stormRef));
       S.stormMarkers.push(marker);
     }
     if(storm.dbz>=40){
@@ -956,9 +962,8 @@ function calcStormETA(storm){
   if(!S.stormMovement||S.stormMovement.speed<2)return{eta:null,impact:0,approaching:false};
   const movDir=S.stormMovement.direction;
   const CONE_HALF=15;
-  const bearingFromStorm=(storm.bearing+180)%360;
-  const incomingDir=(movDir+180)%360;
-  const diff=Math.abs(((bearingFromStorm-incomingDir+180)%360)-180);
+  const bearingToUser=(storm.bearing+180)%360;
+  const diff=Math.abs(((movDir-bearingToUser+180)%360)-180);
   const inCone=diff<=CONE_HALF;
   const closingSpeed=S.stormMovement.speed*Math.cos(diff*Math.PI/180);
   if(!inCone||closingSpeed<=1){
