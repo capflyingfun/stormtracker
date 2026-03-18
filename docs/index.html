@@ -102,7 +102,9 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .map-controls{position:absolute;top:10px;right:10px;z-index:500;display:flex;flex-direction:column;gap:4px}
 .map-ctrl-btn{width:32px;height:32px;border-radius:6px;background:rgba(17,24,39,0.85);border:1px solid rgba(255,255,255,0.12);color:var(--text-primary);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.8em;backdrop-filter:blur(10px)}
 .map-ctrl-btn:hover{border-color:var(--accent-blue)}
-.storm-cell-card{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px;margin-bottom:8px}
+.storm-cell-card{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px;margin-bottom:8px;transition:border-color 0.3s}
+@keyframes storm-pulse{0%,100%{border-color:var(--pulse-color);box-shadow:0 0 4px var(--pulse-color)}50%{border-color:color-mix(in srgb,var(--pulse-color) 40%,transparent);box-shadow:0 0 12px var(--pulse-color)}}
+.storm-card-pulse{animation:storm-pulse 2.5s ease-in-out infinite}
 .storm-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .storm-badge{font-size:0.65em;font-weight:700;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em}
 .storm-badge.light{background:rgba(34,197,94,0.15);color:var(--accent-green)}
@@ -323,6 +325,7 @@ function stormCat(dbz){
   if(dbz>=20)return{label:'Light Rain',cls:'light',color:'var(--accent-green)',rain:m?'trace-2.5 mm/hr':'trace-0.1 in/hr'};
   return{label:'Drizzle/Mist',cls:'light',color:'var(--accent-cyan)',rain:'trace'};
 }
+function dbzHex(dbz){return dbz>=55?'#cc00cc':dbz>=50?'#ef4444':dbz>=40?'#f97316':dbz>=30?'#eab308':dbz>=20?'#22c55e':'#06b6d4'}
 function fmtStormDist(mi){return S.radarMetric?(mi*1.60934).toFixed(1)+' km':mi.toFixed(1)+' mi'}
 function fmtCountdown(totalSec){
   if(totalSec<=0)return'NOW';
@@ -1046,8 +1049,10 @@ function renderStorms(){
           mvLine+=`<div class="storm-detail"><div class="storm-detail-label">Impact</div><div class="storm-detail-val" style="color:var(--accent-green)">Nearby · Not approaching</div></div>`;
         }
       }
-      return`<div class="storm-cell-card">
-        <div class="storm-header"><span style="font-weight:700">${s.dbz>=40?'⚡':'🌧️'} Storm Cell</span><span class="storm-badge ${cat.cls}">${cat.label}</span></div>
+      const hex=dbzHex(s.dbz);
+      const pulse=s.dbz>=45?'storm-card-pulse':'';
+      return`<div class="storm-cell-card ${pulse}" style="border-color:${hex};--pulse-color:${hex}">
+        <div class="storm-header"><span style="font-weight:700">${s.dbz>=40?'⚡':'🌧️'} Storm Cell</span><span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${cat.label}</span></div>
         <div class="storm-detail-grid">
           <div class="storm-detail"><div class="storm-detail-label">Peak dBZ</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>
           <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Rain Rate</div><div class="storm-detail-val">${cat.rain}</div><div class="tile-tap">tap</div></div>
