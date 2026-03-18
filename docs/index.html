@@ -308,18 +308,21 @@ function stormCat(dbz){
 function calcDewC(tc,rh){const a=17.27,b=237.7,g=(a*tc)/(b+tc)+Math.log(rh/100);return(b*g)/(a-g)}
 
 function pixelToDbz(r,g,b,a){
-  if(a<200)return 0;
-  const CM=[[0x40,0xff,0xff,5],[0x36,0xc5,0xff,10],[0x00,0x99,0xff,15],
-    [0x00,0xff,0x00,20],[0x00,0xc8,0x00,25],[0x00,0x96,0x00,30],
-    [0xff,0xff,0x00,35],[0xe6,0xc3,0x00,40],[0xff,0x96,0x00,45],
-    [0xff,0x00,0x00,50],[0xc8,0x00,0x00,55],[0x96,0x00,0x00,60],
-    [0xff,0x00,0xff,65],[0x96,0x32,0xcc,70],[0xff,0xff,0xff,75]];
-  let best=0,minD=1e9;
-  for(const [tr,tg,tb,dbz] of CM){
-    const d=(r-tr)**2+(g-tg)**2+(b-tb)**2;
-    if(d<minD){minD=d;best=dbz}
-  }
-  return minD<10000?best:0;
+  if(a<30)return 0;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;
+  if(d===0||d/mx<0.15)return 0;
+  let h;
+  if(mx===r)h=60*((g-b)/d%6);
+  else if(mx===g)h=60*((b-r)/d+2);
+  else h=60*((r-g)/d+4);
+  if(h<0)h+=360;
+  if(h>=170&&h<=250)return 15;
+  if(h>=80&&h<170)return 25;
+  if(h>=40&&h<80)return 35;
+  if(h>=20&&h<40)return 45;
+  if(h<20||h>=340)return 55;
+  if(h>=250&&h<340)return 70;
+  return 0;
 }
 function nexradToDbz(r,g,b,a){
   if(a<30)return 0;
@@ -625,7 +628,7 @@ async function scanRadarForView(){
       }catch(e){tilesError++;console.warn('View tile error:',tx,ty,e.message||e)}
     }
     console.log('ViewScan: '+tilesLoaded+' tiles, '+tilesError+' errors, '+rawPoints.length+' raw points');
-    const clusters=clusterPoints(rawPoints,0.5);
+    const clusters=clusterPoints(rawPoints,0.3);
     S.storms=clusters.map(cl=>{
       const maxDbz=Math.max(...cl.map(p=>p.dbz));
       const avgLat=cl.reduce((s,p)=>s+p.lat,0)/cl.length;
@@ -739,7 +742,7 @@ async function scanRadarForStorms(){
     }
     console.log('Scan: '+tilesLoaded+' tiles loaded, '+tilesError+' errors, '+rawPoints.length+' raw points');
 
-    const clusters=clusterPoints(rawPoints,0.5);
+    const clusters=clusterPoints(rawPoints,0.3);
     S.storms=clusters.map(cl=>{
       const maxDbz=Math.max(...cl.map(p=>p.dbz));
       const avgLat=cl.reduce((s,p)=>s+p.lat,0)/cl.length;
@@ -783,12 +786,18 @@ function clusterPoints(points,threshold){
   for(let i=0;i<points.length;i++){
     if(used.has(i))continue;
     const cluster=[points[i]];used.add(i);
-    for(let j=i+1;j<points.length;j++){
-      if(used.has(j))continue;
-      const d=Math.sqrt((points[i].lat-points[j].lat)**2+(points[i].lng-points[j].lng)**2);
-      if(d<threshold){cluster.push(points[j]);used.add(j)}
+    let changed=true;
+    while(changed){
+      changed=false;
+      for(let j=0;j<points.length;j++){
+        if(used.has(j))continue;
+        for(const p of cluster){
+          const d=Math.sqrt((p.lat-points[j].lat)**2+(p.lng-points[j].lng)**2);
+          if(d<threshold){cluster.push(points[j]);used.add(j);changed=true;break}
+        }
+      }
     }
-    if(cluster.length>=2)clusters.push(cluster);
+    clusters.push(cluster);
   }
   return clusters;
 }
