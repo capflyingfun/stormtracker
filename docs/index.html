@@ -215,6 +215,10 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .baro-trend.steady{background:rgba(255,255,255,0.08);color:var(--text-muted)}
 .baro-mini-chart{display:flex;align-items:flex-end;gap:1px;height:24px;margin-top:6px}
 .baro-mini-bar{flex:1;border-radius:2px 2px 0 0;min-height:1px}
+.sec-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.sec-btns{display:flex;gap:2px}
+.sec-btns button{background:rgba(255,255,255,0.06);border:1px solid var(--border-subtle);color:var(--text-muted);width:24px;height:24px;border-radius:6px;font-size:0.55em;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.sec-btns button:active{background:rgba(59,130,246,0.2);color:var(--accent-blue)}
 canvas.offscreen{display:none}
 .welcome-screen{text-align:center;padding:40px 20px}
 .welcome-screen h2{font-size:1.3em;font-weight:700;margin-bottom:8px;color:var(--text-primary)}
@@ -640,6 +644,52 @@ async function fetchWeather(){
   }catch(e){el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p></div>`}
 }
 
+function getBaroPrediction(current,hourly){
+  const presMb=current.pressure_msl;
+  const windDir=current.wind_direction_10m||0;
+  let trend='steady',trendMb=0;
+  if(hourly&&hourly.pressure_msl&&hourly.time){
+    const now=Date.now();
+    const pts=hourly.time.map((t,i)=>({t:new Date(t).getTime(),p:hourly.pressure_msl[i]})).filter(p=>p.t<=now&&p.t>=now-6*3600000);
+    if(pts.length>=3){trendMb=pts[pts.length-1].p-pts[0].p;trend=trendMb>1.5?'rising':trendMb<-1.5?'falling':'steady'}
+  }
+  const isSE=windDir>=135&&windDir<180,isS=windDir>=180&&windDir<225,isSW=windDir>=225&&windDir<270;
+  const isW=windDir>=270&&windDir<315,isN=windDir>=315||windDir<45,isNW=windDir>=315;
+  const isNE=windDir>=45&&windDir<90,isE=windDir>=90&&windDir<135;
+  let prediction='',icon='🌤️',confidence='Moderate';
+  if(trend==='falling'){
+    if(presMb<1005){prediction='Storm likely';icon='⛈️';confidence='High'}
+    else if(presMb<1013){
+      if(isSE||isS||isSW||isW){prediction='Rain within 12-24 hrs';icon='🌧️';confidence='High'}
+      else if(isN||isNW){prediction='Unsettled, clearing possible';icon='🌥️';confidence='Moderate'}
+      else{prediction='Cloudiness, rain possible';icon='🌦️';confidence='Moderate'}
+    }else{
+      if(isS||isSW||isSE){prediction='Rain within 24-36 hrs';icon='🌦️';confidence='Moderate'}
+      else{prediction='Change approaching';icon='🌥️';confidence='Moderate'}
+    }
+  }else if(trend==='rising'){
+    if(presMb>1022){prediction='Continued fair';icon='☀️';confidence='High'}
+    else if(presMb>1013){
+      if(isN||isNW||isW){prediction='Fair weather ahead';icon='🌤️';confidence='High'}
+      else if(isSW||isS){prediction='Fair, warming';icon='🌤️';confidence='Moderate'}
+      else{prediction='Clearing';icon='⛅';confidence='Moderate'}
+    }else{
+      if(isW||isNW){prediction='Clearing soon';icon='⛅';confidence='Moderate'}
+      else{prediction='Slow improvement';icon='🌥️';confidence='Low'}
+    }
+  }else{
+    if(presMb>1022){prediction='Fair and dry';icon='☀️';confidence='High'}
+    else if(presMb>1013){
+      if(isN||isNE||isE){prediction='Fair, no change';icon='🌤️';confidence='Moderate'}
+      else{prediction='Mostly fair';icon='⛅';confidence='Moderate'}
+    }else if(presMb>1005){
+      if(isS||isSW||isSE){prediction='Rain possible';icon='🌦️';confidence='Low'}
+      else{prediction='Mostly cloudy';icon='🌥️';confidence='Low'}
+    }else{prediction='Unsettled, precip likely';icon='🌧️';confidence='Moderate'}
+  }
+  return{prediction,icon,confidence,trend,trendMb};
+}
+
 function renderWeather(data){
   const el=document.getElementById('page-weather');
   const c=data.current,isDay=c.is_day===1;
@@ -647,14 +697,35 @@ function renderWeather(data){
   const icon=wmoIcon(c.weather_code,isDay),desc=wmoDesc(c.weather_code);
   const dewC=calcDewC(tempC,c.relative_humidity_2m);
   const hourly=data.hourly||{},daily=data.daily||{};
+  const baro=getBaroPrediction(c,hourly);
+  const trendArrow=baro.trend==='rising'?'↑':baro.trend==='falling'?'↓':'→';
+
+  const sections={
+    grid:`<div class="weather-section" data-sec="grid"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📊</span> Conditions</span>${secBtns('grid')}</div>
+      <div class="weather-grid">
+        <div class="weather-tile" onclick="cycleUnit('windUnit')"><div class="tile-icon">💨</div><div class="tile-label">Wind</div><div class="tile-value">${fmtWind(c.wind_speed_10m)}</div><div class="tile-sub">${degToDir(c.wind_direction_10m)}${c.wind_gusts_10m?' · G'+fmtWind(c.wind_gusts_10m):''}</div><div class="tile-tap">tap to change</div></div>
+        <div class="weather-tile"><div class="tile-icon">☁️</div><div class="tile-label">Clouds</div><div class="tile-value">${c.cloud_cover}%</div><div class="tile-sub">Coverage</div></div>
+        <div class="weather-tile" onclick="cycleUnit('precipUnit')"><div class="tile-icon">🌧️</div><div class="tile-label">Rain</div><div class="tile-value">${fmtPrecip(c.rain||0)}</div><div class="tile-sub">${(c.snowfall||0)>0?'Snow: '+c.snowfall+'cm':''}</div><div class="tile-tap">tap to change</div></div>
+        <div class="weather-tile" onclick="cycleUnit('tempUnit')"><div class="tile-icon">🌡️</div><div class="tile-label">Dew Point</div><div class="tile-value">${fmtTemp(dewC)}</div><div class="tile-sub">Moisture</div><div class="tile-tap">tap to change</div></div>
+      </div></div>`,
+    precip:`<div class="weather-section" data-sec="precip"><div class="sec-header"><span></span>${secBtns('precip')}</div>${renderHourlyPrecip(hourly)}</div>`,
+    baro:`<div class="weather-section" data-sec="baro"><div class="sec-header"><span></span>${secBtns('baro')}</div>${renderBaroForecast(c,hourly)}</div>`,
+    forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${renderDailyForecast(daily)}</div>`
+  };
+  const order=getSecOrder();
 
   el.innerHTML=`
     <div class="weather-hero">
-      <div style="font-size:2.5em;margin-bottom:4px">${icon}</div>
-      <div class="hero-temp" onclick="cycleUnit('tempUnit')">${fmtTempShort(tempC)}</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:4px">
+        <div style="font-size:2.2em">${icon}</div>
+        <div><div class="hero-temp" onclick="cycleUnit('tempUnit')" style="font-size:2.8em">${fmtTempShort(tempC)}</div></div>
+      </div>
       <div class="hero-condition">${desc}</div>
-      <div class="hero-location">📍 ${S.locName}</div>
-      <div style="font-size:0.55em;color:var(--accent-cyan);margin-top:4px;opacity:0.7">Tap any value to cycle units</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0">
+        <span style="font-size:1.2em">${baro.icon}</span>
+        <span style="font-size:0.8em;font-weight:600;color:var(--text-secondary)">${baro.prediction}</span>
+        <span class="baro-trend ${baro.trend}" style="font-size:0.65em">${trendArrow} ${baro.trendMb>=0?'+':''}${baro.trendMb.toFixed(1)}</span>
+      </div>
       <div class="hero-detail-row">
         <div class="hero-detail" onclick="cycleUnit('tempUnit')" style="cursor:pointer"><div class="hero-detail-label">Feels Like</div><div class="hero-detail-value">${fmtTemp(feelsC)}</div></div>
         <div class="hero-detail"><div class="hero-detail-label">Humidity</div><div class="hero-detail-value">${c.relative_humidity_2m}%</div></div>
@@ -662,16 +733,18 @@ function renderWeather(data){
         <div class="hero-detail" onclick="cycleUnit('precipUnit')" style="cursor:pointer"><div class="hero-detail-label">Precip</div><div class="hero-detail-value">${fmtPrecip(c.precipitation||0)}</div></div>
       </div>
     </div>
-    <div class="weather-grid">
-      <div class="weather-tile" onclick="cycleUnit('windUnit')"><div class="tile-icon">💨</div><div class="tile-label">Wind</div><div class="tile-value">${fmtWind(c.wind_speed_10m)}</div><div class="tile-sub">${degToDir(c.wind_direction_10m)}${c.wind_gusts_10m?' · G'+fmtWind(c.wind_gusts_10m):''}</div><div class="tile-tap">tap to change</div></div>
-      <div class="weather-tile"><div class="tile-icon">☁️</div><div class="tile-label">Clouds</div><div class="tile-value">${c.cloud_cover}%</div><div class="tile-sub">Coverage</div></div>
-      <div class="weather-tile" onclick="cycleUnit('precipUnit')"><div class="tile-icon">🌧️</div><div class="tile-label">Rain</div><div class="tile-value">${fmtPrecip(c.rain||0)}</div><div class="tile-sub">${(c.snowfall||0)>0?'Snow: '+c.snowfall+'cm':''}</div><div class="tile-tap">tap to change</div></div>
-      <div class="weather-tile" onclick="cycleUnit('tempUnit')"><div class="tile-icon">🌡️</div><div class="tile-label">Dew Point</div><div class="tile-value">${fmtTemp(dewC)}</div><div class="tile-sub">Moisture</div><div class="tile-tap">tap to change</div></div>
-    </div>
-    ${renderHourlyPrecip(hourly)}
-    ${renderBaroForecast(c,hourly)}
-    ${renderDailyForecast(daily)}`;
+    ${order.map(k=>sections[k]||'').join('')}`;
   setTimeout(initPrecipTaps,0);
+}
+function secBtns(key){return`<div class="sec-btns"><button onclick="moveSection('${key}',-1)" title="Move up">▲</button><button onclick="moveSection('${key}',1)" title="Move down">▼</button></div>`}
+function getSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_sec_order'));if(o&&o.length===4)return o}catch(e){}return['grid','precip','baro','forecast']}
+function moveSection(key,dir){
+  const order=getSecOrder();const i=order.indexOf(key);
+  if(i<0)return;const ni=i+dir;
+  if(ni<0||ni>=order.length)return;
+  [order[i],order[ni]]=[order[ni],order[i]];
+  try{localStorage.setItem('st_sec_order',JSON.stringify(order))}catch(e){}
+  if(S.forecast)renderWeather(S.forecast);
 }
 
 function renderHourlyPrecip(h){
