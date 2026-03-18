@@ -1619,11 +1619,13 @@ function calcStormETA(storm){
   const intScore=Math.min(1,(storm.dbz-15)/40);
   const widthScore=Math.min(1,baseWidthMi/3);
   const directMult=directImpactPct(diff);
-  let pct=Math.round(Math.min(100,(directMult*50+distScore*15+spdScore*8+intScore*15+widthScore*12)));
-  if(storm.distance<=5&&diff<=5)pct=Math.max(pct,90);
-  else if(storm.distance<=10&&diff<=8)pct=Math.max(pct,80);
-  else if(storm.distance<=15&&diff<=10)pct=Math.max(pct,70);
-  if(storm.distance<=proxRange)pct=Math.max(pct,Math.round(70+(proxRange-storm.distance)/proxRange*25));
+  const baseScore=directMult*50+distScore*15+spdScore*8+intScore*15+widthScore*12;
+  const closeBoost=storm.distance<20?Math.round((20-storm.distance)/20*25):0;
+  let pct=Math.round(Math.min(100,baseScore+closeBoost));
+  if(storm.distance<=5&&diff<=15)pct=Math.max(pct,92);
+  else if(storm.distance<=10&&diff<=15)pct=Math.max(pct,82);
+  else if(storm.distance<=20&&diff<=12)pct=Math.max(pct,72);
+  if(storm.distance<=proxRange)pct=Math.max(pct,Math.round(75+(proxRange-storm.distance)/proxRange*20));
   return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed),angleDiff:Math.round(diff)};
 }
 function impactLabel(pct){
