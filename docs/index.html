@@ -347,6 +347,7 @@ function stormFeedbackResponse(key,arrived){
   const time=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});
   S.stormFeedback[key]={arrived,time};
   renderStorms();
+  setTimeout(()=>{if(S.lat!=null)scanRadar()},800);
 }
 function startEtaCountdowns(){
   if(S.etaTimer)clearInterval(S.etaTimer);
