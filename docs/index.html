@@ -394,12 +394,24 @@ function startEtaCountdowns(){
                 el.textContent='⚠️ NOW';
                 const prompt=document.createElement('div');
                 prompt.className='eta-prompt';
-                prompt.innerHTML=`<div style="font-size:0.75em;margin-top:4px;color:#fbbf24">Did this storm arrive?</div>
+                const timerId='fb_'+key.replace(/[^a-z0-9]/gi,'_');
+                prompt.innerHTML=`<div style="font-size:0.75em;margin-top:4px;color:#fbbf24">Did this storm arrive? <span id="${timerId}" style="font-family:var(--font-mono);color:var(--text-muted)">⏱️ 0:30</span></div>
                   <div style="display:flex;gap:6px;justify-content:center;margin-top:4px">
                     <button class="eta-btn eta-btn-yes" onclick="stormFeedbackResponse('${key}',true)">Yes</button>
                     <button class="eta-btn eta-btn-no" onclick="stormFeedbackResponse('${key}',false)">No</button>
                   </div>`;
                 wrap.appendChild(prompt);
+                let fbSec=30;
+                const fbInt=setInterval(()=>{
+                  fbSec--;
+                  const tel=document.getElementById(timerId);
+                  if(!tel||fbSec<=0){
+                    clearInterval(fbInt);
+                    if(!S.stormFeedback[key])stormFeedbackResponse(key,false);
+                    return;
+                  }
+                  tel.textContent='⏱️ 0:'+(fbSec<10?'0':'')+fbSec;
+                },1000);
               }
             },3000);
           },500);
