@@ -1214,6 +1214,7 @@ function toggleRadarSource(map){
     toast('Switched to NEXRAD (US)');
   }
   showRadarLayer(map);
+  scanRadarForStorms();
 }
 
 async function scanRadarForView(){
@@ -1373,19 +1374,23 @@ function loadTileImage(url){
 async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius){
   const tileSize=256,step=S._scanStep||2;
   const img=await loadTileImage(url);
-  if(!img)return[];
+  if(!img){console.warn('TILE LOAD FAIL:',url);return[]}
   const c=document.createElement('canvas');c.width=tileSize;c.height=tileSize;
   const ctx=c.getContext('2d',{willReadFrequently:true});
   ctx.drawImage(img,0,0);
   let data;
-  try{data=ctx.getImageData(0,0,tileSize,tileSize).data}catch(e){return[]}
+  try{data=ctx.getImageData(0,0,tileSize,tileSize).data}catch(e){console.error('CORS getImageData fail:',url,e.message);return[]}
   const pts=[];
+  let nonTransparent=0,dbzHits=0;
+  const sampleColors=[];
   for(let x=0;x<tileSize;x+=step){
     for(let y=0;y<tileSize;y+=step){
       const i=(y*tileSize+x)*4;
       if(data[i+3]<30)continue;
+      nonTransparent++;
+      if(sampleColors.length<10&&data[i+3]>50){sampleColors.push({r:data[i],g:data[i+1],b:data[i+2],a:data[i+3]})}
       const dbz=colorFn(data[i],data[i+1],data[i+2],data[i+3]);
-      if(dbz>=minDbz){
+      if(dbz>=minDbz){dbzHits++;
         const ptLon=(tx+x/tileSize)*360/Math.pow(2,zoom)-180;
         const ptLatRad=Math.atan(Math.sinh(Math.PI*(1-2*(ty+y/tileSize)/Math.pow(2,zoom))));
         const ptLat=ptLatRad*180/Math.PI;
@@ -1394,6 +1399,7 @@ async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius){
       }
     }
   }
+  if(nonTransparent>0||pts.length>0){console.log('TILE',tx,ty,'nonTrans:',nonTransparent,'dbzHits:',dbzHits,'pts:',pts.length,'samples:',JSON.stringify(sampleColors.slice(0,5)))}
   return pts;
 }
 (function initAdaptiveScan(){
@@ -1517,7 +1523,8 @@ async function scanRadarForStorms(){
         const allFrames=past.concat(nowcast);
         S.radarFrames=allFrames;
         S._rvTilePath=allFrames.length?allFrames[allFrames.length-1].path:null;
-      }catch(e){S._rvTilePath=null}
+        console.log('RV API: '+allFrames.length+' frames, path='+S._rvTilePath);
+      }catch(e){console.error('RV API fail:',e);S._rvTilePath=null}
       if(!S._rvTilePath){toast('No radar data available');S.storms=[];renderStorms();return}
     }
 
@@ -1532,6 +1539,7 @@ async function scanRadarForStorms(){
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,S.scanRadius));
       }
     }
+    if(!useNexrad){console.log('RV sample tile URL:',`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${minTX}/${minTY}/2/1_1.png`);}
     const tileResults=await Promise.all(tilePromises);
     const rawPoints=tileResults.flat();
     const tileCount=(maxTX-minTX+1)*(maxTY-minTY+1);
