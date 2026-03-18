@@ -194,11 +194,17 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .empty-state p{font-size:0.85em;line-height:1.5}
 .powered-by{text-align:center;padding:20px;font-size:0.65em;color:var(--text-muted)}
 .powered-by a{color:var(--accent-blue);text-decoration:none}
-.hourly-chart{display:flex;align-items:flex-end;gap:2px;height:75px;margin-top:16px}
+.precip-chart-wrap{position:relative;display:flex;margin-top:8px}
+.precip-y-axis{width:36px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;padding-right:4px;font-size:0.5em;color:var(--text-muted)}
+.precip-chart-area{flex:1;position:relative;height:90px}
+.precip-grid-line{position:absolute;left:0;right:0;border-top:1px solid rgba(255,255,255,0.08);pointer-events:none}
+.precip-grid-line span{position:absolute;left:-34px;top:-7px;font-size:0.5em;color:var(--text-muted);width:30px;text-align:right}
+.hourly-chart{display:flex;align-items:flex-end;gap:2px;height:100%;position:relative;z-index:2}
 .hourly-bar{flex:1;border-radius:3px 3px 0 0;min-height:2px;position:relative;cursor:pointer}
 .hourly-bar:hover{opacity:0.8}
 .hourly-bar .bar-tip{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:0.55em;color:#fff;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,0.8),0 0 6px rgba(0,0,0,0.5);font-weight:600;z-index:10}
 .hourly-bar.tapped .bar-tip{opacity:1}
+.precip-max-label{font-size:0.7em;color:var(--accent-yellow);font-weight:700;text-align:right}
 canvas.offscreen{display:none}
 .welcome-screen{text-align:center;padding:40px 20px}
 .welcome-screen h2{font-size:1.3em;font-weight:700;margin-bottom:8px;color:var(--text-primary)}
@@ -661,19 +667,40 @@ function renderHourlyPrecip(h){
   if(!h||!h.precipitation)return'';
   const now=new Date(),si=h.time.findIndex(t=>new Date(t)>=now);
   const precips=h.precipitation.slice(si,si+24);
-  const maxP=Math.max(...precips,1);
   const times=h.time.slice(si,si+24);
   const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'PM':'AM';return(hr%12||12)+ap};
   const tLabels=[];
   for(let i=0;i<24;i+=6){const t=times[i]?new Date(times[i]):null;tLabels.push(t?fmtHr(t):(i===0?'Now':'+'+i+'h'))}
   const lastT=times[23]?new Date(times[23]):null;
   tLabels.push(lastT?fmtHr(lastT):'+24h');
-  return`<div class="card"><div class="card-title"><span class="icon">🌧️</span> 24h Precipitation</div>
-    <div class="hourly-chart">${precips.map((p,i)=>{
-      const ht=Math.max(2,(p/maxP)*55);
-      const color=p>=5?'var(--accent-red)':p>=2?'var(--accent-orange)':p>=0.5?'var(--accent-blue)':'var(--bg-elevated)';
-      return`<div class="hourly-bar" data-idx="${i}" style="height:${ht}px;background:${color}"><div class="bar-tip">${fmtPrecip(p)}</div></div>`;
-    }).join('')}</div>
+  const rawMax=Math.max(...precips);
+  const maxMm=rawMax<0.5?1:rawMax<2?2:rawMax<5?5:rawMax<10?10:rawMax<25?25:rawMax<50?50:Math.ceil(rawMax/10)*10;
+  const isIn=S.precipUnit===0;
+  const gridLines=4;
+  let gridHtml='';
+  for(let g=0;g<=gridLines;g++){
+    const val=maxMm*(g/gridLines);
+    const pct=(1-g/gridLines)*100;
+    const label=isIn?(val/25.4).toFixed(val>5?1:2):val.toFixed(val<1?2:1);
+    const unit=isIn?'in':'mm';
+    gridHtml+=`<div class="precip-grid-line" style="top:${pct}%"><span>${g>0?label:''}${g>0?' '+unit:''}</span></div>`;
+  }
+  const maxVal=isIn?(rawMax/25.4).toFixed(2)+' in':rawMax.toFixed(1)+' mm';
+  return`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="card-title" style="margin:0"><span class="icon">🌧️</span> 24h Precipitation</div>
+      <div class="precip-max-label">Max: ${maxVal}/hr</div>
+    </div>
+    <div class="precip-chart-wrap">
+      <div class="precip-chart-area">
+        ${gridHtml}
+        <div class="hourly-chart">${precips.map((p,i)=>{
+          const ht=maxMm>0?Math.max(1,(p/maxMm)*100):1;
+          const color=p>=5?'var(--accent-red)':p>=2?'var(--accent-orange)':p>=0.5?'var(--accent-blue)':'var(--bg-elevated)';
+          return`<div class="hourly-bar" data-idx="${i}" style="height:${ht}%;background:${color}"><div class="bar-tip">${fmtPrecip(p)}</div></div>`;
+        }).join('')}</div>
+      </div>
+    </div>
     <div style="display:flex;justify-content:space-between;font-size:0.55em;color:var(--text-muted);margin-top:4px">${tLabels.map(l=>`<span>${l}</span>`).join('')}</div></div>`;
 }
 function initPrecipTaps(){
