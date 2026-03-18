@@ -84,6 +84,7 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .storm-popup .leaflet-popup-content-wrapper{background:rgba(17,24,39,0.95);color:#fff;border-radius:8px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 4px 12px rgba(0,0,0,0.5)}
 .storm-popup .leaflet-popup-tip{background:rgba(17,24,39,0.95)}
 .storm-lightning-icon,.storm-lightning-icon *{pointer-events:none!important}
+.storm-arrow-icon{background:none!important;border:none!important}
 .legend-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;width:120px}
 .legend-bar span{flex:1}
 .radar-time-label{position:absolute;top:10px;left:10px;z-index:500;background:rgba(17,24,39,0.9);backdrop-filter:blur(10px);border-radius:var(--radius-sm);padding:4px 10px;font-size:0.65em;color:var(--accent-cyan);font-family:var(--font-mono)}
@@ -230,7 +231,7 @@ const S = {
   alerts:[], station:null, stationId:null,
   map:null, radarLayer:null, radarFrames:[], radarIdx:0,
   radarPlaying:false, radarTimer:null, scanRadius:80, radarSource:'nexrad', nexradLayer:null, radarMetric:false,
-  activePage:'weather', nearbyStations:[],
+  activePage:'weather', nearbyStations:[], stormMovement:null,
 };
 const TEMP_UNITS = ['°F','°C'];
 const WIND_UNITS = ['mph','kts','km/h','m/s'];
@@ -443,7 +444,7 @@ function setLoc(lat,lon,name){
   document.getElementById('location-input').value=S.locName;
   document.getElementById('status-dot').classList.add('live');
   document.getElementById('status-text').textContent='Live · '+S.locName;
-  S.station=null;S.stationId=null;S.storms=[];
+  S.station=null;S.stationId=null;S.storms=[];S.stormMovement=null;
   S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
   try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:S.locName}))}catch(e){}
   fetchWeather();
@@ -676,24 +677,53 @@ async function scanRadarForView(){
   }catch(e){toast('View scan failed: '+e.message);console.error('ViewScan error:',e)}
 }
 
+function stormArrowSvg(deg,color,size){
+  return`<svg width="${size}" height="${size}" viewBox="0 0 40 40" style="transform:rotate(${deg}deg)">
+    <polygon points="20,4 30,30 20,24 10,30" fill="${color}" fill-opacity="0.85" stroke="${color}" stroke-width="1.5"/>
+  </svg>`;
+}
+
 function plotStormMarkers(map){
   S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];
+  const mv=S.stormMovement;
   S.storms.forEach(storm=>{
     const cat=stormCat(storm.dbz);
     const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':storm.dbz>=35?'#eab308':storm.dbz>=25?'#22c55e':'#06b6d4';
     const r=Math.max(10,storm.dbz/4);
-    const popupHtml=`<div style="text-align:center;font-family:system-ui;min-width:140px">
+    const eta=calcStormETA(storm);
+    let mvHtml='';
+    if(mv&&mv.speed>=2){
+      const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
+      mvHtml=`<div style="font-size:0.75em;color:#8cf;margin-top:4px">→ Moving ${degToDir(mv.direction)} at ${spdStr}</div>`;
+      if(eta&&eta.approaching){
+        const impClr=eta.impact==='high'?'#f87171':eta.impact==='medium'?'#fb923c':'#a3e635';
+        const etaStr=eta.eta!=null?(eta.eta<60?eta.eta+' min':Math.round(eta.eta/60*10)/10+' hr'):'--';
+        mvHtml+=`<div style="font-size:0.8em;font-weight:700;color:${impClr};margin-top:2px">⏱ ETA: ${etaStr}</div>`;
+        mvHtml+=`<div style="font-size:0.65em;color:${impClr}">Impact: ${eta.impact.toUpperCase()}</div>`;
+      }else{
+        mvHtml+=`<div style="font-size:0.65em;color:#6b7;margin-top:2px">Not approaching</div>`;
+      }
+    }
+    const popupHtml=`<div style="text-align:center;font-family:system-ui;min-width:150px">
       <div style="font-size:1.3em;font-weight:700;color:${color}">${storm.dbz} dBZ</div>
       <div style="font-size:0.85em;margin:4px 0">${cat.label}</div>
       <div style="font-size:0.75em;color:#aaa">${cat.rain||''}</div>
       <div style="font-size:0.8em;color:#ccc;margin-top:4px">${fmtStormDist(storm.distance)} ${degToDir(storm.bearing)}</div>
-      <div style="font-size:0.7em;color:#999;margin-top:2px">${storm.lat.toFixed(3)}°N, ${Math.abs(storm.lng).toFixed(3)}°${storm.lng<0?'W':'E'}</div>
+      ${mvHtml}
+      <div style="font-size:0.7em;color:#999;margin-top:4px">${storm.lat.toFixed(3)}°N, ${Math.abs(storm.lng).toFixed(3)}°${storm.lng<0?'W':'E'}</div>
       <div style="font-size:0.65em;color:#666;margin-top:2px">${storm.pixels} radar returns</div>
     </div>`;
     const popupOpts={closeButton:false,className:'storm-popup'};
-    const marker=L.circleMarker([storm.lat,storm.lng],{radius:r,color:color,fillColor:color,fillOpacity:0.6,weight:2}).addTo(map);
-    marker.bindPopup(popupHtml,popupOpts);
-    S.stormMarkers.push(marker);
+    if(mv&&mv.speed>=2){
+      const sz=Math.max(24,storm.dbz/2);
+      const arrow=L.marker([storm.lat,storm.lng],{icon:L.divIcon({className:'storm-arrow-icon',html:stormArrowSvg(mv.direction,color,sz),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]})}).addTo(map);
+      arrow.bindPopup(popupHtml,popupOpts);
+      S.stormMarkers.push(arrow);
+    }else{
+      const marker=L.circleMarker([storm.lat,storm.lng],{radius:r,color:color,fillColor:color,fillOpacity:0.6,weight:2}).addTo(map);
+      marker.bindPopup(popupHtml,popupOpts);
+      S.stormMarkers.push(marker);
+    }
     if(storm.dbz>=40){
       const lightning=L.marker([storm.lat,storm.lng],{interactive:false,icon:L.divIcon({className:'storm-lightning-icon',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})}).addTo(map);
       S.stormMarkers.push(lightning);
@@ -746,10 +776,71 @@ async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius){
   return pts;
 }
 
+async function fetchWindsAloft(){
+  if(!S.lat)return;
+  try{
+    const params=new URLSearchParams({
+      latitude:S.lat,longitude:S.lon,
+      current:['wind_speed_10m','wind_direction_10m',
+        'wind_speed_925hPa','wind_direction_925hPa',
+        'wind_speed_850hPa','wind_direction_850hPa',
+        'wind_speed_700hPa','wind_direction_700hPa',
+        'wind_speed_500hPa','wind_direction_500hPa'].join(','),
+      wind_speed_unit:'ms',forecast_days:'1',timezone:'auto'
+    });
+    const r=await fetch('https://api.open-meteo.com/v1/forecast?'+params,{signal:AbortSignal.timeout(5000)});
+    if(!r.ok)return;
+    const d=await r.json();
+    const c=d.current;
+    const levels=[
+      {p:1013,sk:'wind_speed_10m',dk:'wind_direction_10m',w:0.5,isSfc:true},
+      {p:925,sk:'wind_speed_925hPa',dk:'wind_direction_925hPa',w:0.8},
+      {p:850,sk:'wind_speed_850hPa',dk:'wind_direction_850hPa',w:1.5},
+      {p:700,sk:'wind_speed_700hPa',dk:'wind_direction_700hPa',w:2.5},
+      {p:500,sk:'wind_speed_500hPa',dk:'wind_direction_500hPa',w:1.5}
+    ];
+    let tx=0,ty=0,tw=0;
+    levels.forEach(l=>{
+      const spd=c[l.sk],dir=c[l.dk];
+      if(spd==null||dir==null)return;
+      const spdKt=spd*1.944;
+      const movDir=(dir+180)%360;
+      const rad=movDir*Math.PI/180;
+      tx+=Math.sin(rad)*spdKt*l.w;
+      ty+=Math.cos(rad)*spdKt*l.w;
+      tw+=l.w;
+    });
+    if(tw===0)return;
+    const ax=tx/tw,ay=ty/tw;
+    const spd=Math.sqrt(ax*ax+ay*ay);
+    let dir=(Math.atan2(ax,ay)*180/Math.PI+360)%360;
+    const spdMph=Math.round(spd*1.151*0.7);
+    S.stormMovement={direction:Math.round(dir),speed:spdMph};
+    console.log('Winds aloft → storm movement: '+Math.round(dir)+'° at '+spdMph+' mph');
+  }catch(e){console.log('Winds aloft fetch failed:',e.message)}
+}
+
+function calcStormETA(storm){
+  if(!S.stormMovement||S.stormMovement.speed<2)return null;
+  const movDir=S.stormMovement.direction;
+  const bearingToUser=(storm.bearing+180)%360;
+  const diff=Math.abs(((movDir-bearingToUser+180)%360)-180);
+  if(diff>45)return{eta:null,impact:'low',approaching:false};
+  const closingSpeed=S.stormMovement.speed*Math.cos(diff*Math.PI/180);
+  if(closingSpeed<=0)return{eta:null,impact:'low',approaching:false};
+  const etaMin=Math.round(storm.distance/closingSpeed*60);
+  let impact='low';
+  if(diff<=15&&storm.distance<40)impact='high';
+  else if(diff<=30&&storm.distance<60)impact='medium';
+  else if(diff<=45)impact='low';
+  return{eta:etaMin,impact,approaching:true,closingSpeed:Math.round(closingSpeed)};
+}
+
 async function scanRadarForStorms(){
   if(!S.lat)return;
   const useNexrad=S.radarSource==='nexrad';
   toast('Scanning'+(useNexrad?' NEXRAD':' RainViewer')+' for storm cells...');
+  if(!S.stormMovement)fetchWindsAloft();
   try{
     const zoom=8;
     const radiusDeg=S.scanRadius/69.0;
@@ -859,6 +950,21 @@ function renderStorms(){
     <div class="card"><div class="card-title"><span class="icon">🌪️</span> Active Storm Cells</div>
       ${storms.map(s=>{
         const cat=stormCat(s.dbz);
+        const eta=calcStormETA(s);
+        const mv=S.stormMovement;
+        let mvLine='';
+        if(mv&&mv.speed>=2){
+          const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
+          mvLine=`<div class="storm-detail"><div class="storm-detail-label">Moving</div><div class="storm-detail-val">${degToDir(mv.direction)} ${spdStr}</div></div>`;
+          if(eta&&eta.approaching){
+            const etaStr=eta.eta!=null?(eta.eta<60?eta.eta+' min':Math.round(eta.eta/60*10)/10+' hr'):'--';
+            const impClr=eta.impact==='high'?'var(--accent-red)':eta.impact==='medium'?'var(--accent-orange)':'var(--accent-green)';
+            mvLine+=`<div class="storm-detail"><div class="storm-detail-label">⏱ ETA</div><div class="storm-detail-val" style="color:${impClr}">${etaStr}</div></div>`;
+            mvLine+=`<div class="storm-detail"><div class="storm-detail-label">Impact</div><div class="storm-detail-val" style="color:${impClr}">${eta.impact.toUpperCase()}</div></div>`;
+          }else{
+            mvLine+=`<div class="storm-detail"><div class="storm-detail-label">Impact</div><div class="storm-detail-val" style="color:var(--accent-green)">Not approaching</div></div>`;
+          }
+        }
         return`<div class="storm-cell-card">
           <div class="storm-header"><span style="font-weight:700">${s.dbz>=40?'⚡':'🌧️'} Storm Cell</span><span class="storm-badge ${cat.cls}">${cat.label}</span></div>
           <div class="storm-detail-grid">
@@ -866,6 +972,7 @@ function renderStorms(){
             <div class="storm-detail"><div class="storm-detail-label">Rain Rate</div><div class="storm-detail-val">${cat.rain}</div></div>
             <div class="storm-detail"><div class="storm-detail-label">Distance</div><div class="storm-detail-val">${fmtStormDist(s.distance)}</div></div>
             <div class="storm-detail"><div class="storm-detail-label">Bearing</div><div class="storm-detail-val">${degToDir(s.bearing)}</div></div>
+            ${mvLine}
           </div>
           <div style="font-size:0.6em;color:var(--text-muted);margin-top:6px;text-align:center">
             ${s.lat.toFixed(3)}°N, ${Math.abs(s.lng).toFixed(3)}°${s.lng<0?'W':'E'} &middot; ${s.pixels} returns
