@@ -125,6 +125,8 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .storm-cell-card{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px;margin-bottom:8px;transition:border-color 0.3s}
 @keyframes storm-pulse{0%,100%{border-color:var(--pulse-color);box-shadow:0 0 4px var(--pulse-color)}50%{border-color:color-mix(in srgb,var(--pulse-color) 40%,transparent);box-shadow:0 0 12px var(--pulse-color)}}
 .storm-card-pulse{animation:storm-pulse 2.5s ease-in-out infinite}
+@keyframes storm-ring-pulse{0%{transform:scale(1);opacity:0.8}50%{transform:scale(1.6);opacity:0.15}100%{transform:scale(1);opacity:0.8}}
+.storm-ring{border-radius:50%;animation:storm-ring-pulse 2s ease-in-out infinite;pointer-events:none}
 .storm-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .storm-badge{font-size:0.65em;font-weight:700;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em}
 .storm-badge.light{background:rgba(34,197,94,0.15);color:var(--accent-green)}
@@ -1390,6 +1392,11 @@ function plotStormMarkers(map){
       marker.bindPopup(popupHtml,popupOpts);
       marker.on('click',()=>showStormCone(map,stormRef));
       S.stormMarkers.push(marker);
+    }
+    if(eta&&eta.impact>=90){
+      const ringSize=Math.max(36,storm.dbz/1.5);
+      const ring=L.marker([storm.lat,storm.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring" style="width:${ringSize}px;height:${ringSize}px;border:3px solid ${color};box-shadow:0 0 8px ${color}"></div>`,iconSize:[ringSize,ringSize],iconAnchor:[ringSize/2,ringSize/2]})}).addTo(map);
+      S.stormMarkers.push(ring);
     }
     if(storm.dbz>=40){
       const lightning=L.marker([storm.lat,storm.lng],{interactive:false,icon:L.divIcon({className:'storm-lightning-icon',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})}).addTo(map);
