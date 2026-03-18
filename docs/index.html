@@ -1231,6 +1231,11 @@ function toggleRadarSource(map){
     S.radarSource='nexrad';
     toast('Switched to NEXRAD (US)');
   }
+  clearStormCone();
+  S.storms=[];
+  S.stormMarkers.forEach(m=>map.removeLayer(m));
+  S.stormMarkers=[];
+  renderStorms();
   showRadarLayer(map);
   scanRadarForStorms();
 }
