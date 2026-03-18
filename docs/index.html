@@ -657,6 +657,7 @@ function scheduleHourlyRefresh(){
   S._hourlyTimer=setTimeout(()=>{
     fetchWeather();
     fetchAlerts();
+    scanRadarForStorms();
     scheduleHourlyRefresh();
   },ms);
 }
