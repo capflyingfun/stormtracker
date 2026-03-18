@@ -1116,15 +1116,14 @@ function tileXToLon(x,z){return x/Math.pow(2,z)*360-180}
 function tileYToLat(y,z){const n=Math.PI-2*Math.PI*y/Math.pow(2,z);return 180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n)))}
 
 function spacingFilter(points){
-  const clutterRadius=3.0;
   const validPoints=points.filter(p=>{
-    if(p.dbz>=40)return true;
+    if(p.dbz>=35)return true;
     let nearby=0;
     for(const q of points){
       if(q===p)continue;
       const dx=(p.lat-q.lat)*69,dy=(p.lng-q.lng)*69*Math.cos(p.lat*Math.PI/180);
-      if(Math.sqrt(dx*dx+dy*dy)<clutterRadius)nearby++;
-      if(nearby>=2)return true;
+      if(Math.sqrt(dx*dx+dy*dy)<5)nearby++;
+      if(nearby>=1)return true;
     }
     return false;
   });
