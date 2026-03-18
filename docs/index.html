@@ -725,12 +725,35 @@ function renderWeather(data){
   const order=getSecOrder();
 
   const wd=c.wind_direction_10m||0;
-  const arrowRad=(wd+180)*Math.PI/180;
-  const ax1=40+Math.sin(arrowRad-Math.PI)*12,ay1=40+Math.cos(arrowRad-Math.PI)*-12;
-  const ax2=40+Math.sin(arrowRad)*26,ay2=40+Math.cos(arrowRad)*-26;
-  const aL=40+Math.sin(arrowRad-0.3)*20,aLy=40+Math.cos(arrowRad-0.3)*-20;
-  const aR=40+Math.sin(arrowRad+0.3)*20,aRy=40+Math.cos(arrowRad+0.3)*-20;
-  const windCol=c.wind_speed_10m>40?'#ef4444':c.wind_speed_10m>20?'#f59e0b':'#3b82f6';
+  const windSpd=c.wind_speed_10m||0;
+  const windCol=windSpd>40?'#ef4444':windSpd>20?'#f59e0b':'#22c55e';
+  const cx=50,cy=50,r=38;
+  let dotsSvg='';
+  const dotCount=Math.max(3,Math.min(18,Math.round(windSpd/3)));
+  for(let i=0;i<dotCount;i++){
+    const ang=(wd-90+i*4-dotCount*2)*Math.PI/180;
+    const dr=r-2-i*0.3;
+    const dx=cx+Math.cos(ang)*dr,dy=cy+Math.sin(ang)*dr;
+    const opacity=0.3+0.7*(i/dotCount);
+    const dotR=1.5+i*0.08;
+    const col=i>dotCount*0.7?windCol:i>dotCount*0.4?'#a3e635':'#22c55e';
+    dotsSvg+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${col}" opacity="${opacity.toFixed(2)}"/>`;
+  }
+  const tipAng=(wd-90)*Math.PI/180;
+  const tipX=cx+Math.cos(tipAng)*r,tipY=cy+Math.sin(tipAng)*r;
+  const tL=cx+Math.cos(tipAng-0.15)*(r-5),tLy=cy+Math.sin(tipAng-0.15)*(r-5);
+  const tR=cx+Math.cos(tipAng+0.15)*(r-5),tRy=cy+Math.sin(tipAng+0.15)*(r-5);
+  dotsSvg+=`<polygon points="${tipX.toFixed(1)},${tipY.toFixed(1)} ${tL.toFixed(1)},${tLy.toFixed(1)} ${tR.toFixed(1)},${tRy.toFixed(1)}" fill="${windCol}"/>`;
+  const ticks=[0,30,60,90,120,150,180,210,240,270,300,330];
+  let ticksSvg='';
+  ticks.forEach(deg=>{
+    const a=(deg-90)*Math.PI/180;
+    const x1=cx+Math.cos(a)*r,y1=cy+Math.sin(a)*r;
+    const isMajor=deg%90===0;
+    const len=isMajor?5:3;
+    const x2=cx+Math.cos(a)*(r-len),y2=cy+Math.sin(a)*(r-len);
+    ticksSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,${isMajor?0.3:0.15})" stroke-width="${isMajor?1.5:0.8}"/>`;
+  });
 
   el.innerHTML=`
     <div class="weather-hero">
@@ -744,15 +767,12 @@ function renderWeather(data){
         </div>
         <div onclick="cycleUnit('windUnit')" style="cursor:pointer">
           <div class="wind-rose">
-            <svg viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-              <circle cx="40" cy="40" r="22" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
-              <line x1="40" y1="6" x2="40" y2="74" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
-              <line x1="6" y1="40" x2="74" y2="40" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
-              <line x1="${ax1}" y1="${ay1}" x2="${ax2}" y2="${ay2}" stroke="${windCol}" stroke-width="2.5" stroke-linecap="round"/>
-              <line x1="${ax2}" y1="${ay2}" x2="${aL}" y2="${aLy}" stroke="${windCol}" stroke-width="2" stroke-linecap="round"/>
-              <line x1="${ax2}" y1="${ay2}" x2="${aR}" y2="${aRy}" stroke="${windCol}" stroke-width="2" stroke-linecap="round"/>
-              <circle cx="40" cy="40" r="3" fill="${windCol}"/>
+            <svg viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="${r}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+              <circle cx="50" cy="50" r="${r*0.6}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
+              ${ticksSvg}
+              ${dotsSvg}
+              <circle cx="50" cy="50" r="2" fill="rgba(255,255,255,0.3)"/>
             </svg>
             <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
           </div>
