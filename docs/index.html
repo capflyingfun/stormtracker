@@ -1581,25 +1581,30 @@ function directImpactPct(diff){
 function calcStormETA(storm){
   if(!S.stormMovement||S.stormMovement.speed<2)return{eta:null,impact:0,approaching:false};
   const movDir=S.stormMovement.direction;
-  const CONE_HALF=15;
+  const baseWidthMi=Math.max(0,Math.min(3,(storm.dbz-20)/15));
+  const widthAngle=storm.distance>0.5?Math.atan2(baseWidthMi,storm.distance)*180/Math.PI:15;
+  const CONE_HALF=15+widthAngle;
   const bearingToUser=(storm.bearing+180)%360;
   const diff=Math.abs(((movDir-bearingToUser+180)%360)-180);
   const inCone=diff<=CONE_HALF;
   const closingSpeed=S.stormMovement.speed*Math.cos(diff*Math.PI/180);
+  const proxRange=Math.max(1.5,baseWidthMi+0.5);
   if(!inCone||closingSpeed<=1){
-    if(storm.distance<=1.5){
-      const proxPct=Math.round(Math.min(85,Math.max(0,(1.5-storm.distance)/1.5*60+storm.dbz/3)));
+    if(storm.distance<=proxRange){
+      const proxPct=Math.round(Math.min(90,Math.max(0,(proxRange-storm.distance)/proxRange*60+storm.dbz/2.5)));
       return{eta:null,impact:proxPct,approaching:false,closingSpeed:0,proximity:true};
     }
     return{eta:null,impact:0,approaching:false};
   }
-  const etaMin=Math.round(storm.distance/closingSpeed*60);
+  const effectiveDist=Math.max(0,storm.distance-baseWidthMi);
+  const etaMin=Math.round(effectiveDist/closingSpeed*60);
   const distScore=Math.max(0,1-storm.distance/60);
   const spdScore=Math.min(1,S.stormMovement.speed/30);
   const intScore=Math.min(1,(storm.dbz-15)/50);
+  const widthScore=Math.min(1,baseWidthMi/3);
   const directMult=directImpactPct(diff);
-  let pct=Math.round(Math.min(100,(directMult*50+distScore*25+spdScore*12+intScore*13)));
-  if(storm.distance<=1.5)pct=Math.max(pct,Math.round(55+(1.5-storm.distance)/1.5*30));
+  let pct=Math.round(Math.min(100,(directMult*42+distScore*22+spdScore*10+intScore*14+widthScore*12)));
+  if(storm.distance<=proxRange)pct=Math.max(pct,Math.round(55+(proxRange-storm.distance)/proxRange*30));
   return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed),angleDiff:Math.round(diff)};
 }
 function impactLabel(pct){
