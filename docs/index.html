@@ -802,7 +802,7 @@ async function scanRadarForView(){
     }
 
     const colorFn=useNexrad?nexradToDbz:pixelToDbz;
-    const minDbz=useNexrad?30:20;
+    const minDbz=20;
     const maxScanDist=S.scanRadius*1.5;
     const tilePromises=[];
     for(let tx=minTX;tx<=maxTX;tx++){
@@ -1067,7 +1067,7 @@ async function scanRadarForStorms(){
     }
 
     const colorFn=useNexrad?nexradToDbz:pixelToDbz;
-    const minDbz=useNexrad?30:20;
+    const minDbz=20;
     const tilePromises=[];
     for(let tx=minTX;tx<=maxTX;tx++){
       for(let ty=minTY;ty<=maxTY;ty++){
@@ -1118,11 +1118,12 @@ function tileYToLat(y,z){const n=Math.PI-2*Math.PI*y/Math.pow(2,z);return 180/Ma
 function spacingFilter(points){
   const validPoints=points.filter(p=>{
     if(p.dbz>=35)return true;
+    const radius=p.dbz>=30?5:8;
     let nearby=0;
     for(const q of points){
       if(q===p)continue;
       const dx=(p.lat-q.lat)*69,dy=(p.lng-q.lng)*69*Math.cos(p.lat*Math.PI/180);
-      if(Math.sqrt(dx*dx+dy*dy)<5)nearby++;
+      if(Math.sqrt(dx*dx+dy*dy)<radius)nearby++;
       if(nearby>=1)return true;
     }
     return false;
