@@ -469,33 +469,29 @@ function pixelToDbz(r,g,b,a){
 }
 function nexradToDbz(r,g,b,a){
   if(a<30)return 0;
-  const NX=[
-    [0,0,0,0],[100,100,100,5],[4,233,231,10],[1,159,244,15],[3,0,244,20],
-    [2,253,2,25],[1,197,1,30],[0,142,0,35],[253,248,2,40],[229,188,0,45],
-    [253,149,0,50],[253,0,0,55],[212,0,0,60],[188,0,0,65],[248,0,253,70],[152,84,198,75]
+  const PAL=[
+    {dbz:0,r:0,g:255,b:255},
+    {dbz:10,r:0,g:100,b:150},{dbz:15,r:0,g:160,b:230},
+    {dbz:15,r:0,g:215,b:130},{dbz:20,r:0,g:145,b:65},
+    {dbz:25,r:0,g:110,b:33},{dbz:35,r:0,g:75,b:0},
+    {dbz:35,r:255,g:255,b:33},
+    {dbz:42,r:255,g:115,b:0},
+    {dbz:45,r:255,g:0,b:0},{dbz:55,r:150,g:0,b:0},
+    {dbz:55,r:175,g:0,b:150},
+    {dbz:60,r:230,g:100,b:230},
+    {dbz:70,r:0,g:0,b:0},
+    {dbz:90,r:255,g:255,b:255}
   ];
   let best=0,bestD=1e9;
-  for(const [nr,ng,nb,dbz] of NX){
-    const d=(r-nr)**2+(g-ng)**2+(b-nb)**2;
-    if(d<bestD){bestD=d;best=dbz}
+  for(const p of PAL){
+    const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
+    if(d<bestD){bestD=d;best=p.dbz}
   }
-  if(bestD<2500)return best;
-  const mx=Math.max(r,g,b),mn=Math.min(r,g,b),dd=mx-mn;
-  if(dd<20||dd/mx<0.2)return 0;
-  let h=0;
-  if(mx===r)h=60*((g-b)/dd%6);
-  else if(mx===g)h=60*((b-r)/dd+2);
-  else h=60*((r-g)/dd+4);
-  if(h<0)h+=360;
-  if(h>=170&&h<250)return 15;
-  if(h>=120&&h<170)return 25;
-  if(h>=80&&h<120)return 30;
-  if(h>=60&&h<80)return 35;
-  if(h>=40&&h<60)return 40;
-  if(h>=20&&h<40)return 45;
-  if(h<20||h>=340)return 55;
-  if(h>=250&&h<340)return 70;
-  return 0;
+  if(bestD>4000){
+    const mx=Math.max(r,g,b),mn=Math.min(r,g,b);
+    if((mx-mn)<25)return 0;
+  }
+  return best;
 }
 
 // ==========================================
