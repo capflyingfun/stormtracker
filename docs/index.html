@@ -197,7 +197,7 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .hourly-chart{display:flex;align-items:flex-end;gap:2px;height:75px;margin-top:16px}
 .hourly-bar{flex:1;border-radius:3px 3px 0 0;min-height:2px;position:relative;cursor:pointer}
 .hourly-bar:hover{opacity:0.8}
-.hourly-bar .bar-tip{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:0.55em;color:var(--text-secondary);white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none}
+.hourly-bar .bar-tip{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:0.55em;color:#fff;white-space:nowrap;opacity:0;transition:opacity 0.15s;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,0.8),0 0 6px rgba(0,0,0,0.5);font-weight:600}
 .hourly-bar:hover .bar-tip,.hourly-bar:active .bar-tip{opacity:1}
 canvas.offscreen{display:none}
 .welcome-screen{text-align:center;padding:40px 20px}
@@ -661,13 +661,19 @@ function renderHourlyPrecip(h){
   const now=new Date(),si=h.time.findIndex(t=>new Date(t)>=now);
   const precips=h.precipitation.slice(si,si+24);
   const maxP=Math.max(...precips,1);
+  const times=h.time.slice(si,si+24);
+  const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'PM':'AM';return(hr%12||12)+ap};
+  const tLabels=[];
+  for(let i=0;i<24;i+=6){const t=times[i]?new Date(times[i]):null;tLabels.push(t?fmtHr(t):(i===0?'Now':'+'+i+'h'))}
+  const lastT=times[23]?new Date(times[23]):null;
+  tLabels.push(lastT?fmtHr(lastT):'+24h');
   return`<div class="card"><div class="card-title"><span class="icon">🌧️</span> 24h Precipitation</div>
     <div class="hourly-chart">${precips.map((p,i)=>{
       const ht=Math.max(2,(p/maxP)*55);
       const color=p>=5?'var(--accent-red)':p>=2?'var(--accent-orange)':p>=0.5?'var(--accent-blue)':'var(--bg-elevated)';
       return`<div class="hourly-bar" style="height:${ht}px;background:${color}"><div class="bar-tip">${fmtPrecip(p)}</div></div>`;
     }).join('')}</div>
-    <div style="display:flex;justify-content:space-between;font-size:0.55em;color:var(--text-muted);margin-top:4px"><span>Now</span><span>+6h</span><span>+12h</span><span>+18h</span><span>+24h</span></div></div>`;
+    <div style="display:flex;justify-content:space-between;font-size:0.55em;color:var(--text-muted);margin-top:4px">${tLabels.map(l=>`<span>${l}</span>`).join('')}</div></div>`;
 }
 
 function renderDailyForecast(d){
