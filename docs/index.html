@@ -809,7 +809,7 @@ async function scanRadarForView(){
     }
 
     const colorFn=useNexrad?nexradToDbz:pixelToDbz;
-    const minDbz=useNexrad?20:15;
+    const minDbz=useNexrad?30:20;
     const maxScanDist=S.scanRadius*1.5;
     const tilePromises=[];
     for(let tx=minTX;tx<=maxTX;tx++){
@@ -1074,7 +1074,7 @@ async function scanRadarForStorms(){
     }
 
     const colorFn=useNexrad?nexradToDbz:pixelToDbz;
-    const minDbz=useNexrad?20:15;
+    const minDbz=useNexrad?30:20;
     const tilePromises=[];
     for(let tx=minTX;tx<=maxTX;tx++){
       for(let ty=minTY;ty<=maxTY;ty++){
