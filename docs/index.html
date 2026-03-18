@@ -968,6 +968,13 @@ function renderPressureTrend(h){
   if(!h||!h.pressure_msl||!h.time)return'';
   const pts=getLast24(h.time,h.pressure_msl);
   if(pts.length<4)return'';
+  if(S.weather&&S.weather.pressure_msl){
+    const curP=S.weather.pressure_msl;
+    const lastPt=pts[pts.length-1];
+    if(Math.abs(curP-lastPt.v)>0.01){
+      pts.push({t:Date.now(),v:curP,ts:new Date().toISOString()});
+    }
+  }
   const pres=pts.map(p=>p.v);
   const times=pts.map(p=>p.ts);
   const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'PM':'AM';return(hr%12||12)+ap};
