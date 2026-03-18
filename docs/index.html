@@ -227,15 +227,15 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .hero-side-item{text-align:center;line-height:1.2}
 .hero-side-label{font-size:0.5em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px}
 .hero-side-val{font-size:0.85em;font-weight:700;color:var(--text-primary)}
-.wind-rose{position:relative;width:160px;height:160px;flex-shrink:0}
-.wind-rose svg{width:100%;height:100%}
-.wind-rose-labels{position:absolute;inset:0;font-size:0.6em;color:var(--text-muted);font-weight:700}
+.wind-rose{position:relative;width:200px;height:200px;flex-shrink:0}
+.wind-rose svg{width:100%;height:100%;filter:drop-shadow(0 0 8px rgba(0,200,255,0.15))}
+.wind-rose-labels{position:absolute;inset:0;font-size:0.7em;color:rgba(0,220,255,0.7);font-weight:800;text-shadow:0 0 6px rgba(0,200,255,0.4)}
 .wind-rose-labels span{position:absolute;transform:translate(-50%,-50%)}
-.wr-n{left:50%;top:4%}.wr-s{left:50%;top:96%}.wr-e{left:96%;top:50%}.wr-w{left:4%;top:50%}
+.wr-n{left:50%;top:3%}.wr-s{left:50%;top:97%}.wr-e{left:97%;top:50%}.wr-w{left:3%;top:50%}
 .wind-rose-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
-.wrc-speed{font-size:1.1em;font-weight:800;color:var(--text-primary);line-height:1}
-.wrc-dir{font-size:0.6em;font-weight:600;color:var(--accent-cyan)}
-.wrc-gust{font-size:0.5em;color:var(--text-muted)}
+.wrc-speed{font-size:1.4em;font-weight:900;color:#fff;line-height:1;text-shadow:0 0 10px rgba(0,200,255,0.5)}
+.wrc-dir{font-size:0.65em;font-weight:700;color:rgba(0,220,255,0.9);text-shadow:0 0 6px rgba(0,200,255,0.4)}
+.wrc-gust{font-size:0.5em;color:rgba(255,160,0,0.9);font-weight:600;text-shadow:0 0 4px rgba(255,160,0,0.3)}
 canvas.offscreen{display:none}
 .welcome-screen{text-align:center;padding:40px 20px}
 .welcome-screen h2{font-size:1.3em;font-weight:700;margin-bottom:8px;color:var(--text-primary)}
@@ -730,43 +730,63 @@ function renderWeather(data){
 
   const wd=c.wind_direction_10m||0;
   const windSpd=c.wind_speed_10m||0;
-  const windCol=windSpd>40?'#ef4444':windSpd>20?'#f59e0b':'#22c55e';
-  const cx=50,cy=50,r=38;
-  let dotsSvg='';
-  const dotCount=Math.max(3,Math.min(18,Math.round(windSpd/3)));
-  for(let i=0;i<dotCount;i++){
-    const ang=(wd-90+i*4-dotCount*2)*Math.PI/180;
-    const dr=r-2-i*0.3;
-    const dx=cx+Math.cos(ang)*dr,dy=cy+Math.sin(ang)*dr;
-    const opacity=0.3+0.7*(i/dotCount);
-    const dotR=1.5+i*0.08;
-    const col=i>dotCount*0.7?windCol:i>dotCount*0.4?'#a3e635':'#22c55e';
-    dotsSvg+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${col}" opacity="${opacity.toFixed(2)}"/>`;
+  const cx=50,cy=50,r=42,ri=36;
+  const neonCyan='rgba(0,220,255,';const neonOrange='rgba(255,160,0,';
+  let gaugeSvg='';
+  gaugeSvg+=`<defs>
+    <filter id="glow"><feGaussianBlur stdDeviation="1.5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glow2"><feGaussianBlur stdDeviation="2.5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="arcGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="rgba(0,220,255,0.1)"/><stop offset="50%" stop-color="rgba(0,220,255,0.6)"/><stop offset="85%" stop-color="${neonOrange}0.8)"/><stop offset="100%" stop-color="rgba(255,80,50,0.9)"/></linearGradient>
+  </defs>`;
+  gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${neonCyan}0.12)" stroke-width="0.8"/>`;
+  gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${ri}" fill="none" stroke="${neonCyan}0.08)" stroke-width="0.5"/>`;
+  gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${ri*0.55}" fill="none" stroke="${neonCyan}0.05)" stroke-width="0.3"/>`;
+  const speedArc=Math.min(windSpd/50,1)*340;
+  if(speedArc>0){
+    const startA=-170,endA=startA+speedArc;
+    const sa=startA*Math.PI/180,ea=endA*Math.PI/180;
+    const x1s=cx+Math.cos(sa)*(r+2),y1s=cy+Math.sin(sa)*(r+2);
+    const x2s=cx+Math.cos(ea)*(r+2),y2s=cy+Math.sin(ea)*(r+2);
+    const lg=speedArc>180?1:0;
+    gaugeSvg+=`<path d="M${x1s.toFixed(1)},${y1s.toFixed(1)} A${r+2},${r+2} 0 ${lg} 1 ${x2s.toFixed(1)},${y2s.toFixed(1)}" fill="none" stroke="url(#arcGrad)" stroke-width="3" stroke-linecap="round" filter="url(#glow)"/>`;
   }
-  const tipAng=(wd-90)*Math.PI/180;
-  const tipX=cx+Math.cos(tipAng)*r,tipY=cy+Math.sin(tipAng)*r;
-  const tL=cx+Math.cos(tipAng-0.15)*(r-5),tLy=cy+Math.sin(tipAng-0.15)*(r-5);
-  const tR=cx+Math.cos(tipAng+0.15)*(r-5),tRy=cy+Math.sin(tipAng+0.15)*(r-5);
-  dotsSvg+=`<polygon points="${tipX.toFixed(1)},${tipY.toFixed(1)} ${tL.toFixed(1)},${tLy.toFixed(1)} ${tR.toFixed(1)},${tRy.toFixed(1)}" fill="${windCol}"/>`;
   const ticks=[0,30,60,90,120,150,180,210,240,270,300,330];
-  let ticksSvg='';
   ticks.forEach(deg=>{
     const a=(deg-90)*Math.PI/180;
-    const x1=cx+Math.cos(a)*r,y1=cy+Math.sin(a)*r;
     const isMajor=deg%90===0;
+    const x1=cx+Math.cos(a)*r,y1=cy+Math.sin(a)*r;
     const len=isMajor?6:3;
     const x2=cx+Math.cos(a)*(r-len),y2=cy+Math.sin(a)*(r-len);
-    ticksSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,${isMajor?0.35:0.15})" stroke-width="${isMajor?1.5:0.8}"/>`;
+    const col=isMajor?`${neonCyan}0.5)`:`${neonCyan}0.2)`;
+    gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="${isMajor?1.5:0.6}"/>`;
     if(!isMajor){
-      const lx=cx+Math.cos(a)*(r+7),ly=cy+Math.sin(a)*(r+7);
-      ticksSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="rgba(255,255,255,0.2)" font-size="5" text-anchor="middle" dominant-baseline="central">${deg||360}</text>`;
+      const lx=cx+Math.cos(a)*(r+5.5),ly=cy+Math.sin(a)*(r+5.5);
+      gaugeSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.25)" font-size="4" text-anchor="middle" dominant-baseline="central">${deg||360}</text>`;
     }
   });
   for(let d=0;d<360;d+=10){if(d%30===0)continue;
     const a=(d-90)*Math.PI/180;
     const x1=cx+Math.cos(a)*r,y1=cy+Math.sin(a)*r;
-    const x2=cx+Math.cos(a)*(r-2),y2=cy+Math.sin(a)*(r-2);
-    ticksSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>`;
+    const x2=cx+Math.cos(a)*(r-1.5),y2=cy+Math.sin(a)*(r-1.5);
+    gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}0.1)" stroke-width="0.4"/>`;
+  }
+  const ptrAng=(wd-90)*Math.PI/180;
+  const pTip=r-1,pBase=8,pWidth=3.5;
+  const px=cx+Math.cos(ptrAng)*pTip,py=cy+Math.sin(ptrAng)*pTip;
+  const pLx=cx+Math.cos(ptrAng-0.25)*pBase,pLy=cy+Math.sin(ptrAng-0.25)*pBase;
+  const pRx=cx+Math.cos(ptrAng+0.25)*pBase,pRy=cy+Math.sin(ptrAng+0.25)*pBase;
+  const pBx=cx+Math.cos(ptrAng+Math.PI)*6,pBy=cy+Math.sin(ptrAng+Math.PI)*6;
+  gaugeSvg+=`<polygon points="${px.toFixed(1)},${py.toFixed(1)} ${pLx.toFixed(1)},${pLy.toFixed(1)} ${pBx.toFixed(1)},${pBy.toFixed(1)} ${pRx.toFixed(1)},${pRy.toFixed(1)}" fill="${neonOrange}0.9)" filter="url(#glow2)"/>`;
+  gaugeSvg+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.5" fill="${neonOrange}1)" filter="url(#glow2)"/>`;
+  gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="3" fill="${neonCyan}0.4)" stroke="${neonCyan}0.6)" stroke-width="0.5"/>`;
+  const dotCount=Math.max(3,Math.min(16,Math.round(windSpd/3)));
+  for(let i=0;i<dotCount;i++){
+    const ang=(wd-90+i*5-dotCount*2.5)*Math.PI/180;
+    const dr=ri-1;
+    const dx=cx+Math.cos(ang)*dr,dy=cy+Math.sin(ang)*dr;
+    const opacity=0.2+0.6*(i/dotCount);
+    const dotR=1+i*0.05;
+    gaugeSvg+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${neonCyan}${opacity.toFixed(2)})"/>`;
   }
 
   el.innerHTML=`
@@ -792,13 +812,8 @@ function renderWeather(data){
           </div>
         </div>
         <div class="wind-rose" style="cursor:pointer">
-          <svg viewBox="-5 -5 110 110">
-            <circle cx="50" cy="50" r="${r}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-            <circle cx="50" cy="50" r="${r*0.6}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
-            <circle cx="50" cy="50" r="${r*0.3}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
-            ${ticksSvg}
-            ${dotsSvg}
-            <circle cx="50" cy="50" r="2" fill="rgba(255,255,255,0.3)"/>
+          <svg viewBox="-8 -8 116 116">
+            ${gaugeSvg}
           </svg>
           <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
           <div class="wind-rose-center">
