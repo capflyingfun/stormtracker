@@ -237,14 +237,14 @@ function toast(msg){const c=document.getElementById('toast-container');const el=
 function showSkel(el,n){el.innerHTML=Array.from({length:n},()=>`<div class="skeleton skel-line" style="width:${60+Math.random()*40}%"></div>`).join('')}
 function degToDir(d){const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];return dirs[Math.round(d/22.5)%16]}
 
-function cToF(c){return(c*9/5+32).toFixed(0)}
-function fmtTemp(c){return S.tempUnit===0?(cToF(c)+' °F'):(c.toFixed(0)+' °C')}
-function fmtTempShort(c){return S.tempUnit===0?(cToF(c)+'°'):(c.toFixed(0)+'°')}
+function cToF(c){return(c*9/5+32).toFixed(1)}
+function fmtTemp(c){return S.tempUnit===0?(cToF(c)+' °F'):(c.toFixed(1)+' °C')}
+function fmtTempShort(c){return S.tempUnit===0?(cToF(c)+'°'):(c.toFixed(1)+'°')}
 
 function kmhTo(kmh,unit){
-  if(unit===0) return (kmh/1.609).toFixed(0);
-  if(unit===1) return (kmh/1.852).toFixed(0);
-  if(unit===2) return kmh.toFixed(0);
+  if(unit===0) return (kmh/1.609).toFixed(1);
+  if(unit===1) return (kmh/1.852).toFixed(1);
+  if(unit===2) return kmh.toFixed(1);
   return (kmh/3.6).toFixed(1);
 }
 function fmtWind(kmh){return kmhTo(kmh,S.windUnit)+' '+WIND_UNITS[S.windUnit]}
@@ -351,8 +351,11 @@ function showLocationConfirm(){
     toast('Getting location...');
     navigator.geolocation.getCurrentPosition(
       pos=>reverseGeo(pos.coords.latitude,pos.coords.longitude),
-      ()=>toast('Location access denied — try searching instead'),
-      {enableHighAccuracy:true,timeout:10000}
+      err=>{
+        const msgs={1:'Location permission denied',2:'Location unavailable — your browser may block GPS',3:'Location request timed out'};
+        toast((msgs[err.code]||'Could not get location')+' — try searching instead');
+      },
+      {enableHighAccuracy:false,timeout:15000,maximumAge:60000}
     );
   });
   overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()});
