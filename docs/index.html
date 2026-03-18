@@ -598,6 +598,11 @@ function setLoc(lat,lon,name){
   S.station=null;S.stationId=null;S.storms=[];S.stormMovement=null;S.stormFeedback={};S.etaExpired={};
   S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
   try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:S.locName}))}catch(e){}
+  if(S.map){
+    S.map.setView([lat,lon],S.map.getZoom());
+    if(S._userMarker)S._userMarker.setLatLng([lat,lon]);
+    if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
+  }
   fetchWeather();
   fetchAlerts();
   scanRadarForStorms();
@@ -691,14 +696,19 @@ function toggleForecastDetail(idx){
   const wind=d.wind_speed_10m_max?d.wind_speed_10m_max[idx]:0;
   const sunrise=d.sunrise?new Date(d.sunrise[idx]).toLocaleTimeString('en',{hour:'numeric',minute:'2-digit'}):'—';
   const sunset=d.sunset?new Date(d.sunset[idx]).toLocaleTimeString('en',{hour:'numeric',minute:'2-digit'}):'—';
-  const pFmt=S.radarMetric?precip.toFixed(1)+' mm':(precip/25.4).toFixed(2)+' in';
-  const wFmt=S.radarMetric?Math.round(wind)+' km/h':Math.round(wind/1.60934)+' mph';
+  const hiC=d.temperature_2m_max[idx],loC=d.temperature_2m_min[idx];
+  const hiF=(hiC*9/5+32).toFixed(1),loF=(loC*9/5+32).toFixed(1);
+  const tempDual=S.radarMetric?`${hiC.toFixed(1)}°C / ${loC.toFixed(1)}°C <span style="color:var(--text-muted);font-weight:400">(${hiF}°F / ${loF}°F)</span>`:`${hiF}°F / ${loF}°F <span style="color:var(--text-muted);font-weight:400">(${hiC.toFixed(1)}°C / ${loC.toFixed(1)}°C)</span>`;
+  const precipMm=precip,precipIn=(precip/25.4).toFixed(2);
+  const pDual=S.radarMetric?`${precipMm.toFixed(1)} mm <span style="color:var(--text-muted);font-weight:400">(${precipIn} in)</span>`:`${precipIn} in <span style="color:var(--text-muted);font-weight:400">(${precipMm.toFixed(1)} mm)</span>`;
+  const wMph=Math.round(wind/1.60934),wKmh=Math.round(wind);
+  const wDual=S.radarMetric?`${wKmh} km/h <span style="color:var(--text-muted);font-weight:400">(${wMph} mph)</span>`:`${wMph} mph <span style="color:var(--text-muted);font-weight:400">(${wKmh} km/h)</span>`;
   box.innerHTML=`<div class="forecast-detail">
     <div style="font-weight:700;margin-bottom:6px">${wmoIcon(d.weather_code[idx],true)} ${dayName} — ${wmoDesc(d.weather_code[idx])}</div>
-    <div class="fd-row"><span>🌡️ High / Low</span><span style="font-weight:600">${hi} / ${lo}</span></div>
+    <div class="fd-row"><span>🌡️ High / Low</span><span style="font-weight:600">${tempDual}</span></div>
     <div class="fd-row"><span>💧 Rain Chance</span><span style="font-weight:600">${rain}%</span></div>
-    <div class="fd-row"><span>🌧️ Precipitation</span><span style="font-weight:600">${pFmt}</span></div>
-    <div class="fd-row"><span>💨 Max Wind</span><span style="font-weight:600">${wFmt}</span></div>
+    <div class="fd-row"><span>🌧️ Precipitation</span><span style="font-weight:600">${pDual}</span></div>
+    <div class="fd-row"><span>💨 Max Wind</span><span style="font-weight:600">${wDual}</span></div>
     <div class="fd-row"><span>🌅 Sunrise</span><span style="font-weight:600">${sunrise}</span></div>
     <div class="fd-row"><span>🌇 Sunset</span><span style="font-weight:600">${sunset}</span></div>
   </div>`;
@@ -738,8 +748,8 @@ function initRadar(){
     if(S.map){S.map.remove();S.map=null}
     const map=L.map('radar-map',{zoomControl:false,attributionControl:false}).setView([S.lat,S.lon],8);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:18}).addTo(map);
-    L.circle([S.lat,S.lon],{radius:S.scanRadius*1609.34,color:'#3b82f6',fillOpacity:0.05,weight:1,dashArray:'6 4'}).addTo(map);
-    L.circleMarker([S.lat,S.lon],{radius:5,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:1}).addTo(map);
+    S._rangeCircle=L.circle([S.lat,S.lon],{radius:S.scanRadius*1609.34,color:'#3b82f6',fillOpacity:0.05,weight:1,dashArray:'6 4'}).addTo(map);
+    S._userMarker=L.circleMarker([S.lat,S.lon],{radius:5,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:1}).addTo(map);
     S.map=map;
     const isUS=isUSLocation(S.lat,S.lon);
     S.radarSource=isUS?'nexrad':'rainviewer';
