@@ -1019,7 +1019,7 @@ function renderDailyForecast(d){
       const dt=new Date(t+'T12:00'),day=i===0?'Today':dt.toLocaleDateString('en',{weekday:'short'});
       const hi=fmtTempShort(d.temperature_2m_max[i]),lo=fmtTempShort(d.temperature_2m_min[i]);
       const rain=d.precipitation_probability_max?d.precipitation_probability_max[i]:0;
-      return`<div class="forecast-item" onclick="toggleForecastDetail(${i})" data-fi="${i}"><div class="forecast-time">${day}</div><div class="forecast-icon">${wmoIcon(d.weather_code[i],true)}</div><div class="forecast-temp" style="font-weight:700">${hi}</div><div style="font-size:0.7em;color:var(--text-muted)">${lo}</div>${rain>0?`<div style="font-size:0.55em;color:var(--accent-blue);margin-top:2px">💧${rain}%</div>`:''}</div>`;
+      return`<div class="forecast-item" onclick="toggleForecastDetail(${i})" data-fi="${i}"><div class="forecast-time">${day}</div><div class="forecast-icon">${wmoIcon(d.weather_code[i],true)}</div><div class="forecast-temp" style="font-weight:700;color:var(--accent-red);text-shadow:0 0 8px rgba(255,51,85,0.4)">${hi}</div><div style="font-size:0.7em;font-weight:600;color:var(--accent-cyan);text-shadow:0 0 6px rgba(0,229,255,0.3)">${lo}</div>${rain>0?`<div style="font-size:0.55em;color:var(--accent-blue);margin-top:2px">💧${rain}%</div>`:''}</div>`;
     }).join('')}</div><div id="forecast-detail-box"></div></div>`;
 }
 function toggleForecastDetail(idx){
@@ -1044,7 +1044,7 @@ function toggleForecastDetail(idx){
   const windStr=fmtWind(wind);
   box.innerHTML=`<div class="forecast-detail">
     <div style="font-weight:700;margin-bottom:6px">${wmoIcon(d.weather_code[idx],true)} ${dayName} — ${wmoDesc(d.weather_code[idx])}</div>
-    <div class="fd-row"><span>🌡️ High / Low</span><span style="font-weight:600">${tempStr}</span></div>
+    <div class="fd-row"><span>🌡️ High / Low</span><span style="font-weight:600"><span style="color:var(--accent-red)">${fmtTemp(hiC)}</span> / <span style="color:var(--accent-cyan)">${fmtTemp(loC)}</span></span></div>
     <div class="fd-row"><span>💧 Rain Chance</span><span style="font-weight:600">${rain}%</span></div>
     <div class="fd-row"><span>🌧️ Precipitation</span><span style="font-weight:600">${precipStr}</span></div>
     <div class="fd-row"><span>💨 Max Wind</span><span style="font-weight:600">${windStr}</span></div>
