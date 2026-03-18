@@ -741,13 +741,15 @@ function renderWeather(data){
   gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${neonCyan}0.12)" stroke-width="0.8"/>`;
   gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${ri}" fill="none" stroke="${neonCyan}0.08)" stroke-width="0.5"/>`;
   gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${ri*0.55}" fill="none" stroke="${neonCyan}0.05)" stroke-width="0.3"/>`;
-  const gustSpd=c.wind_gusts_10m||windSpd;
-  const peakSpd=Math.max(windSpd,gustSpd);
+  const windDisp=parseFloat(kmhTo(windSpd,S.windUnit));
+  const gustRaw=c.wind_gusts_10m||windSpd;
+  const gustDisp=parseFloat(kmhTo(gustRaw,S.windUnit));
+  const peakDisp=Math.max(windDisp,gustDisp);
   const scales=[10,15,20,30,40,50,75,100,130,160,200];
   let maxArcSpd=scales[scales.length-1];
-  for(const s of scales){if(peakSpd<=s*0.8){maxArcSpd=s;break}}
-  const windArc=Math.min(windSpd/maxArcSpd,1)*340;
-  const gustArc=Math.min(gustSpd/maxArcSpd,1)*340;
+  for(const s of scales){if(peakDisp<=s*0.8){maxArcSpd=s;break}}
+  const windArc=Math.min(windDisp/maxArcSpd,1)*340;
+  const gustArc=Math.min(gustDisp/maxArcSpd,1)*340;
   const arcR=r+2.5;
   const startA=-170;
   function arcPath(fromDeg,toDeg,radius){
@@ -814,7 +816,7 @@ function renderWeather(data){
   gaugeSvg+=`<polygon points="${px.toFixed(1)},${py.toFixed(1)} ${pLx.toFixed(1)},${pLy.toFixed(1)} ${pBx.toFixed(1)},${pBy.toFixed(1)} ${pRx.toFixed(1)},${pRy.toFixed(1)}" fill="${neonOrange}0.85)" stroke="${neonOrange}1)" stroke-width="0.3"/>`;
   gaugeSvg+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2" fill="#fff" stroke="${neonOrange}1)" stroke-width="0.5"/>`;
   gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="3" fill="${neonCyan}0.3)" stroke="${neonCyan}0.5)" stroke-width="0.5"/>`;
-  const dotCount=Math.max(3,Math.min(16,Math.round(windSpd/3)));
+  const dotCount=Math.max(3,Math.min(16,Math.round(windDisp/2)));
   for(let i=0;i<dotCount;i++){
     const ang=(wd-90+i*5-dotCount*2.5)*Math.PI/180;
     const dr=ri-1;
