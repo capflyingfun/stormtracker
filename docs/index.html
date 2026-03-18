@@ -586,8 +586,11 @@ function initRadar(){
     document.getElementById('radar-toggle-units').addEventListener('click',()=>{
       S.radarMetric=!S.radarMetric;
       document.getElementById('radar-toggle-units').textContent=S.radarMetric?'KM':'MI';
+      let openIdx=-1;
+      S.stormMarkers.forEach((m,i)=>{if(m.getPopup&&m.getPopup()&&m.isPopupOpen())openIdx=i});
       plotStormMarkers(map);
-      renderStorms();
+      if(openIdx>=0&&S.stormMarkers[openIdx]&&S.stormMarkers[openIdx].openPopup)S.stormMarkers[openIdx].openPopup();
+      if(S.activePage==='storms')renderStorms();
     });
     plotStormMarkers(map);
   },100);
