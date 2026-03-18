@@ -883,7 +883,7 @@ function renderWeather(data){
       <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0 0">
         <span style="font-size:1.1em">${baro.icon}</span>
         <span style="font-size:0.75em;font-weight:600;color:var(--text-secondary)">${baro.prediction}</span>
-        <span class="baro-trend ${baro.trend}" style="font-size:0.6em;color:${baro.trendMb>0?'var(--accent-green)':baro.trendMb<0?'var(--accent-red)':'var(--text-muted)'};text-shadow:0 0 6px ${baro.trendMb>0?'rgba(0,255,136,0.4)':baro.trendMb<0?'rgba(255,51,85,0.4)':'none'}">${trendArrow} ${(()=>{const isI=S.presUnit===0;if(isI){const v=Math.abs(baro.trendMb/33.8639);return(baro.trendMb>=0?'+':'-')+(v<0.05?v.toFixed(3):v.toFixed(2))}return(baro.trendMb>=0?'+':'')+baro.trendMb.toFixed(1)})()}</span>
+        <span class="baro-trend ${baro.trend}" style="font-size:0.6em;color:${baro.trend==='rising'?'var(--accent-green)':baro.trend==='falling'?'var(--accent-red)':'var(--text-muted)'};text-shadow:0 0 6px ${baro.trend==='rising'?'rgba(0,255,136,0.4)':baro.trend==='falling'?'rgba(255,51,85,0.4)':'none'}">${trendArrow} ${(()=>{const isI=S.presUnit===0;if(isI){const v=Math.abs(baro.trendMb/33.8639);return(baro.trendMb>=0?'+':'-')+(v<0.05?v.toFixed(3):v.toFixed(2))+' inHg'}return(baro.trendMb>=0?'+':'')+baro.trendMb.toFixed(1)+' mb'})()}</span>
       </div>
     </div>
     ${order.map(k=>sections[k]||'').join('')}`;
