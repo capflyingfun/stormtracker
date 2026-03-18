@@ -1277,7 +1277,6 @@ async function scanRadarForView(){
     const tileResults=await Promise.all(tilePromises);
     const rawPoints=tileResults.flat();
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
-    console.log('ViewScan: '+rawPoints.length+' pts, '+(maxTX-minTX+1)*(maxTY-minTY+1)+' tiles ('+srcLabel+')');
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
@@ -1394,56 +1393,6 @@ function loadTileImage(url){
   });
 }
 
-async function decodeRvPng(buf){
-  const v=new DataView(buf);
-  let o=8,w=0,h=0,bd=0;
-  const idats=[];
-  while(o<v.byteLength){
-    const len=v.getUint32(o);
-    const t=String.fromCharCode(v.getUint8(o+4),v.getUint8(o+5),v.getUint8(o+6),v.getUint8(o+7));
-    if(t==='IHDR'){w=v.getUint32(o+8);h=v.getUint32(o+12);bd=v.getUint8(o+16)}
-    else if(t==='IDAT')idats.push(new Uint8Array(buf,o+8,len));
-    else if(t==='IEND')break;
-    o+=12+len;
-  }
-  const total=idats.reduce((s,c)=>s+c.length,0);
-  const comp=new Uint8Array(total);
-  let p=0;for(const c of idats){comp.set(c,p);p+=c.length}
-  const ds=new DecompressionStream('deflate');
-  const wr=ds.writable.getWriter();
-  wr.write(comp);wr.close();
-  const rd=ds.readable.getReader();
-  const chunks=[];
-  while(true){const{done,value}=await rd.read();if(done)break;chunks.push(value)}
-  const dLen=chunks.reduce((s,c)=>s+c.length,0);
-  const raw=new Uint8Array(dLen);
-  p=0;for(const c of chunks){raw.set(c,p);p+=c.length}
-  const stride=Math.ceil(w*bd/8);
-  const indices=new Uint8Array(w*h);
-  const prev=new Uint8Array(stride);
-  for(let y=0;y<h;y++){
-    const fi=y*(stride+1);
-    const filter=raw[fi];
-    const line=new Uint8Array(stride);
-    for(let x=0;x<stride;x++){
-      let val=raw[fi+1+x];
-      const a=x>0?line[x-1]:0;
-      const b=prev[x];
-      const c=x>0?prev[x-1]:0;
-      if(filter===1)val=(val+a)&255;
-      else if(filter===2)val=(val+b)&255;
-      else if(filter===3)val=(val+((a+b)>>1))&255;
-      else if(filter===4){const pa=Math.abs(b-c),pb=Math.abs(a-c),pc=Math.abs(a+b-2*c);val=(val+(pa<=pb&&pa<=pc?a:pb<=pc?b:c))&255}
-      line[x]=val;
-    }
-    for(let x=0;x<w;x++){
-      if(bd===4){const byteIdx=x>>1;indices[y*w+x]=(x&1)===0?(line[byteIdx]>>4)&0xF:line[byteIdx]&0xF}
-      else if(bd===8){indices[y*w+x]=line[x]}
-    }
-    prev.set(line);
-  }
-  return{w,h,indices};
-}
 async function decodeRvRgba(buf){
   const v=new DataView(buf);
   let o=8,w=0,h=0,bd=0,ct=0;
@@ -1674,23 +1623,16 @@ async function scanRadarForStorms(){
     const colorFn=nexradToDbz;
     const minDbz=20;
     const tilePromises=[];
-    let _dbgTileCount=0;
     for(let tx=minTX;tx<=maxTX;tx++){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
           :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,S.scanRadius));
-        _dbgTileCount++;
       }
     }
     const tileResults=await Promise.all(tilePromises);
     const rawPoints=tileResults.flat();
-    const tileCount=_dbgTileCount;
-    const loadedTiles=tileResults.filter(r=>r!==null).length;
-    const tilesWithData=tileResults.filter(r=>r.length>0).length;
-    const nullTiles=tileResults.filter(r=>r.length===0).length;
-    if(!useNexrad&&rawPoints.length===0){toast(`DBG: ${tileCount} tiles, ${rawPoints.length} pts`,5000)}
 
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();
