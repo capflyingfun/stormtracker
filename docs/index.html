@@ -336,7 +336,7 @@ function nexradToDbz(r,g,b,a){
     const d=(r-nr)**2+(g-ng)**2+(b-nb)**2;
     if(d<bestD){bestD=d;best=dbz}
   }
-  return bestD<6000?best:0;
+  return bestD<2500?best:0;
 }
 
 // ==========================================
@@ -586,72 +586,36 @@ async function scanRadarForView(){
   const bounds=S.map.getBounds();
   toast('Scanning visible area...');
   try{
-    const rawPoints=[];
     const useNexrad=isUSLocation(S.lat,S.lon);
-    if(useNexrad){
-      const zoom=7,step=4;
-      const minTX=lonToTileX(bounds.getWest(),zoom),maxTX=lonToTileX(bounds.getEast(),zoom);
-      const minTY=latToTileY(bounds.getNorth(),zoom),maxTY=latToTileY(bounds.getSouth(),zoom);
-      const promises=[];
-      for(let tx=minTX;tx<=maxTX;tx++){for(let ty=minTY;ty<=maxTY;ty++){
-        promises.push(
-          loadImage(`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`)
-            .then(img=>{
-              const c2=document.createElement('canvas');c2.width=256;c2.height=256;
-              const x2=c2.getContext('2d',{willReadFrequently:true});
-              x2.drawImage(img,0,0);
-              const d=x2.getImageData(0,0,256,256).data;
-              const pts=[];
-              for(let py=0;py<256;py+=step){for(let px=0;px<256;px+=step){
-                const i=(py*256+px)*4;
-                const dbz=nexradToDbz(d[i],d[i+1],d[i+2],d[i+3]);
-                if(dbz>=10){
-                  const ptLat=tileYToLat(ty+py/256,zoom);
-                  const ptLon=tileXToLon(tx+px/256,zoom);
-                  if(bounds.contains([ptLat,ptLon])){
-                    const dist=haversine(S.lat,S.lon,ptLat,ptLon);
-                    pts.push({lat:ptLat,lng:ptLon,dbz,dist});
-                  }
-                }
-              }}
-              return pts;
-            }).catch(()=>[])
-        );
-      }}
-      const results=await Promise.all(promises);
-      results.forEach(pts=>rawPoints.push(...pts));
-    } else {
-      const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
-      const past=rv.radar?.past||[];
-      if(!past.length){toast('No radar data');return}
-      const tilePath=past[past.length-1].path;
-      const zoom=6,step=4;
-      const minTX=lonToTileX(bounds.getWest(),zoom),maxTX=lonToTileX(bounds.getEast(),zoom);
-      const minTY=latToTileY(bounds.getNorth(),zoom),maxTY=latToTileY(bounds.getSouth(),zoom);
-      const canvas=document.getElementById('radarCanvas');
-      const ctx=canvas.getContext('2d',{willReadFrequently:true});
-      for(let tx=minTX;tx<=maxTX;tx++){for(let ty=minTY;ty<=maxTY;ty++){
-        try{
-          const img=await loadImage(`https://tilecache.rainviewer.com${tilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`);
-          ctx.clearRect(0,0,256,256);ctx.drawImage(img,0,0);
-          const d=ctx.getImageData(0,0,256,256).data;
-          for(let py=0;py<256;py+=step){for(let px=0;px<256;px+=step){
-            const i=(py*256+px)*4;
-            const dbz=pixelToDbz(d[i],d[i+1],d[i+2],d[i+3]);
-            if(dbz>=15){
-              const ptLat=tileYToLat(ty+py/256,zoom);
-              const ptLon=tileXToLon(tx+px/256,zoom);
-              if(bounds.contains([ptLat,ptLon])){
-                const dist=haversine(S.lat,S.lon,ptLat,ptLon);
-                rawPoints.push({lat:ptLat,lng:ptLon,dbz,dist});
-              }
-            }
-          }}
-        }catch(e){}
-      }}
+    const zoom=8;
+    const minTX=lonToTileX(bounds.getWest(),zoom),maxTX=lonToTileX(bounds.getEast(),zoom);
+    const minTY=latToTileY(bounds.getNorth(),zoom),maxTY=latToTileY(bounds.getSouth(),zoom);
+
+    if(!useNexrad){
+      try{
+        const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
+        const past=rv.radar?.past||[];
+        S._rvTilePath=past.length?past[past.length-1].path:null;
+      }catch(e){S._rvTilePath=null}
+      if(!S._rvTilePath){toast('No radar data');return}
     }
-    console.log('ViewScan: '+rawPoints.length+' raw points'+(useNexrad?' (NEXRAD)':' (RainViewer)'));
-    const clusters=clusterPoints(rawPoints,0.3);
+
+    const colorFn=useNexrad?nexradToDbz:pixelToDbz;
+    const minDbz=useNexrad?20:15;
+    const maxScanDist=S.scanRadius*1.5;
+    const precipPoints=[];
+    const promises=[];
+    for(let tx=minTX;tx<=maxTX;tx++){
+      for(let ty=minTY;ty<=maxTY;ty++){
+        const url=useNexrad
+          ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`;
+        promises.push(adaptiveScanTile(url,tx,ty,zoom,colorFn,minDbz,maxScanDist,precipPoints));
+      }
+    }
+    await Promise.all(promises);
+    console.log('ViewScan: '+precipPoints.length+' points, '+(maxTX-minTX+1)*(maxTY-minTY+1)+' tiles'+(useNexrad?' (NEXRAD)':' (RainViewer)'));
+    const clusters=clusterPoints(precipPoints,0.15);
     S.storms=clusters.map(cl=>{
       const maxDbz=Math.max(...cl.map(p=>p.dbz));
       const avgLat=cl.reduce((s,p)=>s+p.lat,0)/cl.length;
@@ -683,98 +647,117 @@ function plotStormMarkers(map){
 
 // ==========================================
 // RADAR-BASED STORM DETECTION
-// NEXRAD zoom 7 primary (US) + RainViewer fallback (global)
+// Two-phase adaptive scan matching main app approach
+// NEXRAD primary (US) + RainViewer fallback (global)
 // ==========================================
 function isUSLocation(lat,lon){
   return lat>=24&&lat<=50&&lon>=-125&&lon<=-66;
 }
 
-async function scanNexradTiles(rawPoints,zoom,step){
-  const cx=lonToTileX(S.lon,zoom),cy=latToTileY(S.lat,zoom);
-  const tileR=zoom<=6?2:4;
-  const canvas=document.getElementById('radarCanvas');
-  const ctx=canvas.getContext('2d',{willReadFrequently:true});
-  const promises=[];
-  for(let dx=-tileR;dx<=tileR;dx++){
-    for(let dy=-tileR;dy<=tileR;dy++){
-      const tx=cx+dx,ty=cy+dy;
-      promises.push(
-        loadImage(`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`)
-          .then(img=>{
-            const c2=document.createElement('canvas');c2.width=256;c2.height=256;
-            const x2=c2.getContext('2d',{willReadFrequently:true});
-            x2.drawImage(img,0,0);
-            const d=x2.getImageData(0,0,256,256).data;
-            const pts=[];
-            for(let py=0;py<256;py+=step){
-              for(let px=0;px<256;px+=step){
-                const i=(py*256+px)*4;
-                const dbz=nexradToDbz(d[i],d[i+1],d[i+2],d[i+3]);
-                if(dbz>=10){
-                  const ptLat=tileYToLat(ty+py/256,zoom);
-                  const ptLon=tileXToLon(tx+px/256,zoom);
-                  const dist=haversine(S.lat,S.lon,ptLat,ptLon);
-                  if(dist<=S.scanRadius)pts.push({lat:ptLat,lng:ptLon,dbz,dist});
-                }
-              }
-            }
-            return pts;
-          }).catch(()=>[])
-      );
-    }
-  }
-  const results=await Promise.all(promises);
-  results.forEach(pts=>rawPoints.push(...pts));
+function loadTileImage(url){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    img.onload=()=>resolve(img);
+    img.onerror=()=>resolve(null);
+    img.src=url;
+  });
 }
 
-async function scanRainViewerTiles(rawPoints){
-  const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
-  const past=rv.radar?.past||[];
-  if(!past.length)return;
-  const tilePath=past[past.length-1].path;
-  const zoom=6,step=4;
-  const cx=lonToTileX(S.lon,zoom),cy=latToTileY(S.lat,zoom);
-  const canvas=document.getElementById('radarCanvas');
-  const ctx=canvas.getContext('2d',{willReadFrequently:true});
-  for(let dx=-2;dx<=2;dx++){
-    for(let dy=-2;dy<=2;dy++){
-      const tx=cx+dx,ty=cy+dy;
-      try{
-        const img=await loadImage(`https://tilecache.rainviewer.com${tilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`);
-        ctx.clearRect(0,0,256,256);ctx.drawImage(img,0,0);
-        const d=ctx.getImageData(0,0,256,256).data;
-        for(let py=0;py<256;py+=step){
-          for(let px=0;px<256;px+=step){
-            const i=(py*256+px)*4;
-            const dbz=pixelToDbz(d[i],d[i+1],d[i+2],d[i+3]);
-            if(dbz>=15){
-              const ptLat=tileYToLat(ty+py/256,zoom);
-              const ptLon=tileXToLon(tx+px/256,zoom);
-              const dist=haversine(S.lat,S.lon,ptLat,ptLon);
-              if(dist<=S.scanRadius)rawPoints.push({lat:ptLat,lng:ptLon,dbz,dist});
+async function adaptiveScanTile(url,tx,ty,zoom,colorFn,minDbz,scanRadius,precipPoints){
+  const tileSize=256;
+  const img=await loadTileImage(url);
+  if(!img)return;
+  const c=document.createElement('canvas');c.width=tileSize;c.height=tileSize;
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(img,0,0);
+  const data=ctx.getImageData(0,0,tileSize,tileSize).data;
+
+  const coarseStep=16,fineStep=4;
+  const hotSpots=[];
+  for(let x=0;x<tileSize;x+=coarseStep){
+    for(let y=0;y<tileSize;y+=coarseStep){
+      const i=(y*tileSize+x)*4;
+      if(data[i+3]>0){
+        const dbz=colorFn(data[i],data[i+1],data[i+2],data[i+3]);
+        if(dbz>=minDbz)hotSpots.push({x,y,dbz});
+      }
+    }
+  }
+
+  const seen=new Set();
+  hotSpots.forEach(hs=>{
+    const sx=Math.max(0,hs.x-coarseStep),ex=Math.min(tileSize,hs.x+coarseStep+1);
+    const sy=Math.max(0,hs.y-coarseStep),ey=Math.min(tileSize,hs.y+coarseStep+1);
+    for(let x=sx;x<ex;x+=fineStep){
+      for(let y=sy;y<ey;y+=fineStep){
+        const key=x+','+y;if(seen.has(key))continue;seen.add(key);
+        const i=(y*tileSize+x)*4;
+        if(data[i+3]>0){
+          const dbz=colorFn(data[i],data[i+1],data[i+2],data[i+3]);
+          if(dbz>=minDbz){
+            const ptLon=(tx+x/tileSize)*360/Math.pow(2,zoom)-180;
+            const ptLatRad=Math.atan(Math.sinh(Math.PI*(1-2*(ty+y/tileSize)/Math.pow(2,zoom))));
+            const ptLat=ptLatRad*180/Math.PI;
+            const dist=haversine(S.lat,S.lon,ptLat,ptLon);
+            if(dist<=scanRadius){
+              let shouldAdd=true;
+              let minSpacing=dbz>=45?1.0:dbz>=35?1.5:2.0;
+              for(let k=precipPoints.length-1;k>=0;k--){
+                const ep=precipPoints[k];
+                const ed=haversine(ptLat,ptLon,ep.lat,ep.lng);
+                if(ed<minSpacing){
+                  if(dbz>ep.dbz){precipPoints.splice(k,1);shouldAdd=true;break}
+                  else{shouldAdd=false;break}
+                }
+              }
+              if(shouldAdd)precipPoints.push({lat:ptLat,lng:ptLon,dbz,dist});
             }
           }
         }
-      }catch(e){}
+      }
     }
-  }
+  });
 }
 
 async function scanRadarForStorms(){
   if(!S.lat)return;
   toast('Scanning radar for storm cells...');
   try{
-    const rawPoints=[];
     const useNexrad=isUSLocation(S.lat,S.lon);
-    if(useNexrad){
-      await scanNexradTiles(rawPoints,7,4);
-      if(rawPoints.length===0)await scanRainViewerTiles(rawPoints);
-    } else {
-      await scanRainViewerTiles(rawPoints);
-    }
-    console.log('Scan: '+rawPoints.length+' raw points'+(useNexrad?' (NEXRAD)':' (RainViewer)'));
+    const zoom=8;
+    const radiusDeg=S.scanRadius/69.0;
+    const northLat=S.lat+radiusDeg,southLat=S.lat-radiusDeg;
+    const eastLon=S.lon+radiusDeg/Math.cos(S.lat*Math.PI/180);
+    const westLon=S.lon-radiusDeg/Math.cos(S.lat*Math.PI/180);
+    const minTX=lonToTileX(westLon,zoom),maxTX=lonToTileX(eastLon,zoom);
+    const minTY=latToTileY(northLat,zoom),maxTY=latToTileY(southLat,zoom);
 
-    const clusters=clusterPoints(rawPoints,0.3);
+    if(!useNexrad){
+      try{
+        const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
+        const past=rv.radar?.past||[];
+        S._rvTilePath=past.length?past[past.length-1].path:null;
+      }catch(e){S._rvTilePath=null}
+      if(!S._rvTilePath){toast('No radar data available');S.storms=[];renderStorms();return}
+    }
+
+    const colorFn=useNexrad?nexradToDbz:pixelToDbz;
+    const minDbz=useNexrad?20:15;
+    const precipPoints=[];
+    const promises=[];
+    for(let tx=minTX;tx<=maxTX;tx++){
+      for(let ty=minTY;ty<=maxTY;ty++){
+        const url=useNexrad
+          ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`;
+        promises.push(adaptiveScanTile(url,tx,ty,zoom,colorFn,minDbz,S.scanRadius,precipPoints));
+      }
+    }
+    await Promise.all(promises);
+    console.log('Scan: '+precipPoints.length+' points, '+(maxTX-minTX+1)*(maxTY-minTY+1)+' tiles'+(useNexrad?' (NEXRAD)':' (RainViewer)'));
+
+    const clusters=clusterPoints(precipPoints,0.15);
     S.storms=clusters.map(cl=>{
       const maxDbz=Math.max(...cl.map(p=>p.dbz));
       const avgLat=cl.reduce((s,p)=>s+p.lat,0)/cl.length;
