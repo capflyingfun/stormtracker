@@ -658,13 +658,19 @@ function setLoc(lat,lon,name){
   document.getElementById('location-input').value=S.locName;
   document.getElementById('status-dot').classList.add('live');
   document.getElementById('status-text').textContent='Live · '+S.locName;
-  S.station=null;S.stationId=null;S.storms=[];S.stormMovement=null;S.stormFeedback={};S.etaExpired={};
+  S.station=null;S.stationId=null;S.stormMovement=null;S.stormFeedback={};S.etaExpired={};
   S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
+  if(S.map){
+    S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
+    clearStormCone();
+  }
+  S.storms=[];
   try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:S.locName}))}catch(e){}
   if(S.map){
     S.map.setView([lat,lon],S.map.getZoom());
     if(S._userMarker)S._userMarker.setLatLng([lat,lon]);
     if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
+    showRadarLayer(S.map);
   }
   fetchWeather();
   fetchAlerts();
