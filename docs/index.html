@@ -1401,15 +1401,16 @@ async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius){
   }
   if(!data)return[];
   const pts=[];
-  let nonTransparent=0,dbzHits=0;
+  let nonTransparent=0,dbzHits=0,coloredPx=0;
   const sampleColors=[];
   for(let x=0;x<tileSize;x+=step){
     for(let y=0;y<tileSize;y+=step){
       const i=(y*tileSize+x)*4;
-      if(data[i+3]<30)continue;
+      if(data[i+3]<10)continue;
+      const r=data[i],g=data[i+1],b=data[i+2],a=data[i+3];
       nonTransparent++;
-      if(sampleColors.length<10&&data[i+3]>50){sampleColors.push({r:data[i],g:data[i+1],b:data[i+2],a:data[i+3]})}
-      const dbz=colorFn(data[i],data[i+1],data[i+2],data[i+3]);
+      if(r+g+b>10){coloredPx++;if(sampleColors.length<20){sampleColors.push({r,g,b,a})}}
+      const dbz=colorFn(r,g,b,a);
       if(dbz>=minDbz){dbzHits++;
         const ptLon=(tx+x/tileSize)*360/Math.pow(2,zoom)-180;
         const ptLatRad=Math.atan(Math.sinh(Math.PI*(1-2*(ty+y/tileSize)/Math.pow(2,zoom))));
@@ -1419,7 +1420,10 @@ async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius){
       }
     }
   }
-  if(nonTransparent>0){toast(`DBG tile: ${nonTransparent} px, ${dbzHits} dbz, ${JSON.stringify(sampleColors[0]||{})}`,6000)}
+  if(nonTransparent>0){
+    const uniq=sampleColors.filter((c,i,a)=>a.findIndex(x=>x.r===c.r&&x.g===c.g&&x.b===c.b)===i).slice(0,5);
+    toast(`T${tx%100},${ty%100}: ${nonTransparent}px ${coloredPx}clr ${dbzHits}dbz ${JSON.stringify(uniq)}`,8000);
+  }
   return pts;
 }
 (function initAdaptiveScan(){
