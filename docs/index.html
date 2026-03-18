@@ -717,9 +717,9 @@ async function loadStationObs(icao){
       lon:stInfo?.lon,
       temp:p.temperature?.value,
       dewp:p.dewpoint?.value,
-      windSpeedMs:p.windSpeed?.value,
+      windKmh:p.windSpeed?.value,
       windDir:p.windDirection?.value,
-      gustMs:p.windGust?.value,
+      gustKmh:p.windGust?.value,
       visMeter:p.visibility?.value,
       presPa:p.barometricPressure?.value,
       rawMETAR:p.rawMessage||'',
@@ -738,15 +738,13 @@ function renderStation(){
   const el=document.getElementById('page-station');const s=S.station;if(!s)return;
   const tempC=s.temp;
   const dpC=s.dewp;
-  const windMs=s.windSpeedMs;
-  const gustMs=s.gustMs;
+  const windKmh=s.windKmh;
+  const gustKmh=s.gustKmh;
   const wDir=s.windDir;
   const visMeter=s.visMeter;
   const visSM=visMeter!=null?(visMeter/1609.34):null;
   const presPa=s.presPa;
   const presMb=presPa!=null?(presPa/100):null;
-  const windKts=windMs!=null?(windMs*1.944):null;
-  const gustKts=gustMs!=null?(gustMs*1.944):null;
   const rh=(tempC!=null&&dpC!=null)?Math.round(100*Math.exp((17.27*dpC)/(237.7+dpC))/Math.exp((17.27*tempC)/(237.7+tempC))):null;
   const dist=(s.lat!=null&&s.lon!=null)?haversine(S.lat,S.lon,s.lat,s.lon).toFixed(1):'?';
   const raw=s.rawMETAR||'';
@@ -769,8 +767,8 @@ function renderStation(){
         <div class="wind-arrow" style="transform:rotate(${wDir||0}deg)"></div>
       </div>
       <div style="text-align:center;margin-bottom:14px;cursor:pointer" onclick="cycleUnit('windUnit')">
-        <div style="font-size:1.2em;font-weight:700">${windKts!=null?fmtWindKts(windKts):'-'} ${wDir!=null?degToDir(wDir):''}</div>
-        ${gustKts?`<div style="font-size:0.8em;color:var(--accent-orange)">Gusts ${fmtWindKts(gustKts)}</div>`:''}
+        <div style="font-size:1.2em;font-weight:700">${windKmh!=null?fmtWind(windKmh):'-'} ${wDir!=null?degToDir(wDir):''}</div>
+        ${gustKmh?`<div style="font-size:0.8em;color:var(--accent-orange)">Gusts ${fmtWind(gustKmh)}</div>`:''}
         <div class="tile-tap">tap to change units</div>
       </div>
       <div class="station-grid">
@@ -819,10 +817,9 @@ function renderMetarDecoded(s){
   const parts=[];
   if(s.temp!=null)parts.push(`<span>🌡️ Temp: ${fmtTemp(s.temp)}</span>`);
   if(s.dewp!=null)parts.push(`<span>💧 Dew: ${fmtTemp(s.dewp)}</span>`);
-  if(s.windSpeedMs!=null){
-    const wKts=s.windSpeedMs*1.944;
-    let w=`💨 Wind: ${fmtWindKts(wKts)} ${s.windDir!=null?degToDir(s.windDir):'VRB'}`;
-    if(s.gustMs!=null)w+=` G${fmtWindKts(s.gustMs*1.944)}`;
+  if(s.windKmh!=null){
+    let w=`💨 Wind: ${fmtWind(s.windKmh)} ${s.windDir!=null?degToDir(s.windDir):'VRB'}`;
+    if(s.gustKmh!=null)w+=` G${fmtWind(s.gustKmh)}`;
     parts.push(`<span>${w}</span>`);
   }
   if(s.visMeter!=null)parts.push(`<span>👁️ Vis: ${fmtVis(s.visMeter/1609.34)}</span>`);
