@@ -903,14 +903,15 @@ function moveSection(key,dir){
 
 function renderHourlyPrecip(h){
   if(!h||!h.precipitation)return'';
-  const now=new Date(),si=h.time.findIndex(t=>new Date(t)>=now);
-  const precips=h.precipitation.slice(si,si+24);
-  const times=h.time.slice(si,si+24);
+  const pts=getLast24(h.time,h.precipitation);
+  if(pts.length<4)return'';
+  const precips=pts.map(p=>p.v);
+  const times=pts.map(p=>p.ts);
   const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'PM':'AM';return(hr%12||12)+ap};
   const tLabels=[];
-  for(let i=0;i<24;i+=6){const t=times[i]?new Date(times[i]):null;tLabels.push(t?fmtHr(t):(i===0?'Now':'+'+i+'h'))}
-  const lastT=times[23]?new Date(times[23]):null;
-  tLabels.push(lastT?fmtHr(lastT):'+24h');
+  const tStep=Math.max(1,Math.floor(times.length/5));
+  for(let i=0;i<times.length;i+=tStep){const t=times[i]?new Date(times[i]):null;tLabels.push(t?fmtHr(t):'')}
+  if(tLabels.length<5){const lastT=times[times.length-1]?new Date(times[times.length-1]):null;tLabels.push(lastT?fmtHr(lastT):'Now')}
   const rawMax=Math.max(...precips);
   const maxMm=rawMax<0.5?1:rawMax<2?2:rawMax<5?5:rawMax<10?10:rawMax<25?25:rawMax<50?50:Math.ceil(rawMax/10)*10;
   const isIn=S.precipUnit===0;
@@ -954,13 +955,19 @@ function initPrecipTaps(){
   });
 }
 
+function getLast24(timeArr,valArr){
+  const nowMs=Date.now();
+  const all=timeArr.map((t,i)=>({t:new Date(t).getTime(),v:valArr[i],ts:t})).filter(p=>p.t<=nowMs);
+  const cutoff=nowMs-24*3600000;
+  const past=all.filter(p=>p.t>=cutoff);
+  return past.length>=4?past:all.slice(-24);
+}
 function renderPressureTrend(h){
   if(!h||!h.pressure_msl||!h.time)return'';
-  const now=Date.now();
-  const past24=h.time.map((t,i)=>({t:new Date(t).getTime(),p:h.pressure_msl[i],ts:t})).filter(p=>p.t<=now&&p.t>=now-24*3600000);
-  if(past24.length<4)return'';
-  const pres=past24.map(p=>p.p);
-  const times=past24.map(p=>p.ts);
+  const pts=getLast24(h.time,h.pressure_msl);
+  if(pts.length<4)return'';
+  const pres=pts.map(p=>p.v);
+  const times=pts.map(p=>p.ts);
   const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'PM':'AM';return(hr%12||12)+ap};
   const tLabels=[];
   const step=Math.max(1,Math.floor(pres.length/5));
