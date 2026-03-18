@@ -226,7 +226,7 @@ const S = {
   storms:[], stormMarkers:[],
   alerts:[], station:null, stationId:null,
   map:null, radarLayer:null, radarFrames:[], radarIdx:0,
-  radarPlaying:false, radarTimer:null, scanRadius:80, radarSource:'auto', nexradLayer:null,
+  radarPlaying:false, radarTimer:null, scanRadius:80, radarSource:'nexrad', nexradLayer:null,
   activePage:'weather', nearbyStations:[],
 };
 const TEMP_UNITS = ['°F','°C'];
@@ -345,8 +345,10 @@ function nexradToDbz(r,g,b,a){
   else h=60*((r-g)/dd+4);
   if(h<0)h+=360;
   if(h>=170&&h<250)return 15;
-  if(h>=80&&h<170)return 25;
-  if(h>=40&&h<80)return 35;
+  if(h>=120&&h<170)return 25;
+  if(h>=80&&h<120)return 30;
+  if(h>=60&&h<80)return 35;
+  if(h>=40&&h<60)return 40;
   if(h>=20&&h<40)return 45;
   if(h<20||h>=340)return 55;
   if(h>=250&&h<340)return 70;
@@ -435,6 +437,7 @@ function setLoc(lat,lon,name){
   document.getElementById('status-dot').classList.add('live');
   document.getElementById('status-text').textContent='Live · '+S.locName;
   S.station=null;S.stationId=null;S.storms=[];
+  S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
   try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:S.locName}))}catch(e){}
   fetchWeather();
   fetchAlerts();
@@ -660,7 +663,7 @@ function plotStormMarkers(map){
   S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];
   S.storms.forEach(storm=>{
     const cat=stormCat(storm.dbz);
-    const color=storm.dbz>=45?'#ef4444':storm.dbz>=35?'#f97316':storm.dbz>=20?'#eab308':'#22c55e';
+    const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':storm.dbz>=35?'#eab308':storm.dbz>=25?'#22c55e':'#06b6d4';
     const marker=L.circleMarker([storm.lat,storm.lng],{radius:Math.max(6,storm.dbz/5),color:color,fillColor:color,fillOpacity:0.6,weight:2}).addTo(map);
     marker.bindPopup(`<b>${cat.label}</b><br>${storm.dbz} dBZ<br>${storm.distance.toFixed(1)} mi ${degToDir(storm.bearing)}`);
     S.stormMarkers.push(marker);
