@@ -1579,10 +1579,12 @@ async function fetchWindsAloft(){
 }
 
 function directImpactPct(diff){
-  if(diff<2)return 1.0;
-  if(diff<5)return 0.85;
-  if(diff<11)return 0.65;
-  if(diff<=15)return 0.30;
+  if(diff<=1)return 1.0;
+  if(diff<=5)return 0.95;
+  if(diff<=10)return 0.85;
+  if(diff<=15)return 0.65;
+  if(diff<=20)return 0.40;
+  if(diff<=25)return 0.20;
   return 0;
 }
 function calcStormETA(storm){
@@ -1594,7 +1596,7 @@ function calcStormETA(storm){
   const bearingToUser=(storm.bearing+180)%360;
   const diff=Math.abs(((movDir-bearingToUser+180)%360)-180);
   const inCone=diff<=CONE_HALF;
-  const closingSpeed=S.stormMovement.speed*Math.cos(diff*Math.PI/180);
+  const closingSpeed=S.stormMovement.speed*Math.cos(Math.min(diff,60)*Math.PI/180);
   const proxRange=Math.max(1.5,baseWidthMi+0.5);
   if(!inCone||closingSpeed<=1){
     if(storm.distance<=proxRange){
@@ -1605,12 +1607,12 @@ function calcStormETA(storm){
   }
   const effectiveDist=Math.max(0,storm.distance-baseWidthMi);
   const etaMin=Math.round(effectiveDist/closingSpeed*60);
-  const distScore=Math.max(0,1-storm.distance/60);
-  const spdScore=Math.min(1,S.stormMovement.speed/30);
-  const intScore=Math.min(1,(storm.dbz-15)/50);
+  const distScore=Math.max(0,1-storm.distance/80);
+  const spdScore=Math.min(1,S.stormMovement.speed/20);
+  const intScore=Math.min(1,(storm.dbz-15)/40);
   const widthScore=Math.min(1,baseWidthMi/3);
   const directMult=directImpactPct(diff);
-  let pct=Math.round(Math.min(100,(directMult*42+distScore*22+spdScore*10+intScore*14+widthScore*12)));
+  let pct=Math.round(Math.min(100,(directMult*50+distScore*15+spdScore*8+intScore*15+widthScore*12)));
   if(storm.distance<=proxRange)pct=Math.max(pct,Math.round(55+(proxRange-storm.distance)/proxRange*30));
   return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed),angleDiff:Math.round(diff)};
 }
