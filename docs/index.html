@@ -903,15 +903,17 @@ function moveSection(key,dir){
 
 function renderHourlyPrecip(h){
   if(!h||!h.precipitation)return'';
-  const pts=getLast24(h.time,h.precipitation);
-  if(pts.length<4)return'';
-  const precips=pts.map(p=>p.v);
-  const times=pts.map(p=>p.ts);
+  const nowMs=Date.now();
+  const si=h.time.findIndex(t=>new Date(t).getTime()>=nowMs);
+  if(si<0)return'';
+  const precips=h.precipitation.slice(si,si+24);
+  const times=h.time.slice(si,si+24);
+  if(precips.length<4)return'';
   const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'PM':'AM';return(hr%12||12)+ap};
   const tLabels=[];
-  const tStep=Math.max(1,Math.floor(times.length/5));
-  for(let i=0;i<times.length;i+=tStep){const t=times[i]?new Date(times[i]):null;tLabels.push(t?fmtHr(t):'')}
-  if(tLabels.length<5){const lastT=times[times.length-1]?new Date(times[times.length-1]):null;tLabels.push(lastT?fmtHr(lastT):'Now')}
+  for(let i=0;i<24;i+=6){const t=times[i]?new Date(times[i]):null;tLabels.push(t?fmtHr(t):(i===0?'Now':'+'+i+'h'))}
+  const lastT=times[times.length-1]?new Date(times[times.length-1]):null;
+  tLabels.push(lastT?fmtHr(lastT):'+24h');
   const rawMax=Math.max(...precips);
   const maxMm=rawMax<0.5?1:rawMax<2?2:rawMax<5?5:rawMax<10?10:rawMax<25?25:rawMax<50?50:Math.ceil(rawMax/10)*10;
   const isIn=S.precipUnit===0;
