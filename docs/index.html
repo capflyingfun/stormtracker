@@ -654,6 +654,7 @@ function renderWeather(data){
     </div>
     ${renderHourlyPrecip(hourly)}
     ${renderDailyForecast(daily)}`;
+  setTimeout(initPrecipTaps,0);
 }
 
 function renderHourlyPrecip(h){
@@ -671,9 +672,20 @@ function renderHourlyPrecip(h){
     <div class="hourly-chart">${precips.map((p,i)=>{
       const ht=Math.max(2,(p/maxP)*55);
       const color=p>=5?'var(--accent-red)':p>=2?'var(--accent-orange)':p>=0.5?'var(--accent-blue)':'var(--bg-elevated)';
-      return`<div class="hourly-bar" onclick="this.classList.toggle('tapped');this.parentNode.querySelectorAll('.hourly-bar').forEach(b=>{if(b!==this)b.classList.remove('tapped')})" style="height:${ht}px;background:${color}"><div class="bar-tip">${fmtPrecip(p)}</div></div>`;
+      return`<div class="hourly-bar" data-idx="${i}" style="height:${ht}px;background:${color}"><div class="bar-tip">${fmtPrecip(p)}</div></div>`;
     }).join('')}</div>
     <div style="display:flex;justify-content:space-between;font-size:0.55em;color:var(--text-muted);margin-top:4px">${tLabels.map(l=>`<span>${l}</span>`).join('')}</div></div>`;
+}
+function initPrecipTaps(){
+  document.querySelectorAll('.hourly-chart').forEach(chart=>{
+    chart.addEventListener('click',e=>{
+      const bar=e.target.closest('.hourly-bar');
+      if(!bar)return;
+      const wasActive=bar.classList.contains('tapped');
+      chart.querySelectorAll('.hourly-bar').forEach(b=>b.classList.remove('tapped'));
+      if(!wasActive)bar.classList.add('tapped');
+    });
+  });
 }
 
 function renderDailyForecast(d){
