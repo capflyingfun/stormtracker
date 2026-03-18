@@ -94,6 +94,8 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .storm-group-body{padding:4px 0}
 .tappable-unit{cursor:pointer;position:relative;transition:background 0.15s}
 .tappable-unit:active{background:rgba(255,255,255,0.08);border-radius:6px}
+.eta-countdown{font-family:var(--font-mono);font-size:1.1em;letter-spacing:0.5px}
+.eta-detail{min-width:80px}
 .legend-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;width:120px}
 .legend-bar span{flex:1}
 .radar-time-label{position:absolute;top:10px;left:10px;z-index:500;background:rgba(17,24,39,0.9);backdrop-filter:blur(10px);border-radius:var(--radius-sm);padding:4px 10px;font-size:0.65em;color:var(--accent-cyan);font-family:var(--font-mono)}
@@ -240,7 +242,7 @@ const S = {
   alerts:[], station:null, stationId:null,
   map:null, radarLayer:null, radarFrames:[], radarIdx:0,
   radarPlaying:false, radarTimer:null, scanRadius:80, radarSource:'nexrad', nexradLayer:null, radarMetric:false,
-  activePage:'weather', nearbyStations:[], stormMovement:null,
+  activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null,
 };
 const TEMP_UNITS = ['°F','°C'];
 const WIND_UNITS = ['mph','kts','km/h','m/s'];
@@ -322,6 +324,30 @@ function stormCat(dbz){
   return{label:'Drizzle/Mist',cls:'light',color:'var(--accent-cyan)',rain:'trace'};
 }
 function fmtStormDist(mi){return S.radarMetric?(mi*1.60934).toFixed(1)+' km':mi.toFixed(1)+' mi'}
+function fmtCountdown(totalSec){
+  if(totalSec<=0)return'NOW';
+  const h=Math.floor(totalSec/3600),m=Math.floor((totalSec%3600)/60),s=totalSec%60;
+  if(h>0)return h+':'+(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+  return m+':'+(s<10?'0':'')+s;
+}
+function fmtArrivalTime(etaMin){
+  const d=new Date(Date.now()+etaMin*60000);
+  return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});
+}
+function startEtaCountdowns(){
+  if(S.etaTimer)clearInterval(S.etaTimer);
+  S.etaTimer=setInterval(()=>{
+    const els=document.querySelectorAll('[data-eta-sec]');
+    if(!els.length){clearInterval(S.etaTimer);S.etaTimer=null;return}
+    const now=Date.now();
+    els.forEach(el=>{
+      const target=parseInt(el.getAttribute('data-eta-sec'));
+      const remain=Math.max(0,Math.round((target-now)/1000));
+      el.textContent=fmtCountdown(remain);
+      if(remain<=0)el.textContent='⚠️ NOW';
+    });
+  },1000);
+}
 function toggleStormUnits(){
   S.radarMetric=!S.radarMetric;
   const btn=document.getElementById('radar-toggle-units');
@@ -687,6 +713,7 @@ async function scanRadarForView(){
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     console.log('ViewScan: '+rawPoints.length+' pts, '+(maxTX-minTX+1)*(maxTY-minTY+1)+' tiles ('+srcLabel+')');
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
+    S.scanTime=Date.now();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
     renderStorms();
     if(S.map)plotStormMarkers(S.map);
@@ -904,6 +931,7 @@ async function scanRadarForStorms(){
     console.log('Scan: '+rawPoints.length+' raw pts from '+tileCount+' tiles'+(useNexrad?' (NEXRAD)':' (RainViewer)'));
 
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
+    S.scanTime=Date.now();
 
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
@@ -1003,8 +1031,16 @@ function renderStorms(){
         const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
         mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Moving</div><div class="storm-detail-val">${degToDir(mv.direction)} ${spdStr}</div><div class="tile-tap">tap</div></div>`;
         if(eta&&eta.approaching&&pct>0){
-          const etaStr=eta.eta!=null?(eta.eta<60?eta.eta+' min':Math.round(eta.eta/60*10)/10+' hr'):'--';
-          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">⏱ ETA</div><div class="storm-detail-val" style="color:${imp.color}">${etaStr}</div></div>`;
+          if(eta.eta!=null){
+            const elapsedMin=S.scanTime?(Date.now()-S.scanTime)/60000:0;
+            const remainMin=Math.max(0,eta.eta-elapsedMin);
+            const targetMs=Date.now()+remainMin*60000;
+            const arrivalTime=fmtArrivalTime(remainMin);
+            const initCountdown=fmtCountdown(Math.round(remainMin*60));
+            mvLine+=`<div class="storm-detail eta-detail"><div class="storm-detail-label">⏱ ETA</div><div class="storm-detail-val" style="color:${imp.color}"><span class="eta-countdown" data-eta-sec="${Math.round(targetMs)}">${initCountdown}</span></div><div style="font-size:0.65em;color:${imp.color};margin-top:1px">Arrives ~${arrivalTime}</div></div>`;
+          }else{
+            mvLine+=`<div class="storm-detail"><div class="storm-detail-label">⏱ ETA</div><div class="storm-detail-val" style="color:${imp.color}">--</div></div>`;
+          }
           mvLine+=`<div class="storm-detail"><div class="storm-detail-label">Impact</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${imp.text}</div></div>`;
         }else{
           mvLine+=`<div class="storm-detail"><div class="storm-detail-label">Impact</div><div class="storm-detail-val" style="color:var(--accent-green)">Nearby · Not approaching</div></div>`;
@@ -1044,6 +1080,7 @@ function renderStorms(){
       ⚡ Lightning on storms ≥40 dBZ &middot; Radar-derived, not observed<br>
       Impact % based on direction, distance, speed &amp; intensity via winds aloft
     </div>`;
+  startEtaCountdowns();
 }
 
 // ==========================================
