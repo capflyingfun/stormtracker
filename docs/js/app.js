@@ -137,7 +137,7 @@ function stormCat(dbz){
   if(dbz>=20)return{label:'Light Rain',cls:'light',color:'var(--accent-green)',rain:m?'trace-2.5 mm/hr':'trace-0.1 in/hr'};
   return{label:'Drizzle/Mist',cls:'light',color:'var(--accent-cyan)',rain:'trace'};
 }
-function dbzHex(dbz){return dbz>=55?'#cc00cc':dbz>=50?'#ef4444':dbz>=40?'#f97316':dbz>=30?'#eab308':dbz>=20?'#22c55e':'#06b6d4'}
+function dbzHex(dbz){return dbz>=66?'#ff80ab':dbz>=61?'#e040fb':dbz>=56?'#d32f2f':dbz>=51?'#ef5350':dbz>=46?'#f9a825':dbz>=41?'#fdd835':dbz>=36?'#2e7d32':dbz>=31?'#66bb6a':dbz>=26?'#1565c0':dbz>=20?'#42a5f5':'#90caf9'}
 function fmtStormDist(mi){return S.radarMetric?(mi*1.60934).toFixed(1)+' km':mi.toFixed(1)+' mi'}
 function fmtCountdown(totalSec){
   if(totalSec<=0)return'NOW';
@@ -2111,8 +2111,10 @@ function renderStorms(){
       }
       const hex=dbzHex(s.dbz);
       const pulse=(s.dbz>=45)?'storm-card-pulse':'';
+      const cellIcon=s.dbz>=55?'🔴':s.dbz>=45?'⚡':s.dbz>=40?'🟡':s.dbz>=30?'🟢':'🔵';
+      const cellName=s.dbz>=50?tStr('Severe Cell'):s.dbz>=40?tStr('Storm Cell'):tStr('Rain Cell');
       return`<div class="storm-cell-card ${pulse}" style="border-color:${hex};--pulse-color:${hex}">
-        <div class="storm-header"><span style="font-weight:700">${s.dbz>=40?'⚡':'🌧️'} ${tStr('Storm Cell')}</span><span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${tStr(cat.label)}</span></div>
+        <div class="storm-header"><span style="font-weight:700">${cellIcon} ${cellName}</span><span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${tStr(cat.label)}</span></div>
         <div class="storm-detail-grid">
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Peak dBZ')}</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>
           <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Rain Rate')}</div><div class="storm-detail-val">${cat.rain}</div><div class="tile-tap">tap</div></div>
@@ -2131,8 +2133,7 @@ function renderStorms(){
     return ea-eb;
   });
   const overhead=stormsWithEta.filter(s=>isOverhead(s)).sort((a,b)=>a.distance-b.distance);
-  const nearby=stormsWithEta.filter(s=>s.dbz>=40&&isNearby(s)).sort((a,b)=>a.distance-b.distance);
-  const lightCells=stormsWithEta.filter(s=>s.dbz<40&&isNearby(s));
+  const nearby=stormsWithEta.filter(s=>isNearby(s)).sort((a,b)=>b.dbz-a.dbz||a.distance-b.distance);
   let groupHtml='';
   const sections=[
     {key:'approaching',items:approaching,label:'⏱️ Approaching',color:'#ef4444',open:true},
@@ -2148,17 +2149,6 @@ function renderStorms(){
         ${sec.label} <span class="storm-group-count">${sec.items.length}</span>
       </summary>
       <div class="storm-group-body">${cards}</div>
-    </details>`;
-  }
-  if(lightCells.length){
-    const lightSorted=lightCells.sort((a,b)=>b.dbz-a.dbz||a.distance-b.distance);
-    const lightCards=lightSorted.map(buildCard).join('');
-    const lightOpen=prevOpen['light']!==undefined?prevOpen['light']:false;
-    groupHtml+=`<details class="storm-group" data-grp="light" ${lightOpen?'open':''}>
-      <summary class="storm-group-header" style="border-left:3px solid #4ade80">
-        🌦️ Light Precipitation (<40 dBZ) <span class="storm-group-count">${lightCells.length}</span>
-      </summary>
-      <div class="storm-group-body">${lightCards}</div>
     </details>`;
   }
   const stormCount=approaching.length+overhead.length+nearby.length;
