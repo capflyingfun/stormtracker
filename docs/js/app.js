@@ -1714,12 +1714,12 @@ function plotStormMarkers(map){
       const tMs=S._stormETAs[sk]||0;
       const remSec=Math.max(0,Math.round((tMs-Date.now())/1000));
       const lbl=remSec>0?fmtCountdown(remSec):'--';
-      const trackLabel=L.marker([midLat,midLng],{interactive:false,icon:L.divIcon({
-        className:'',
-        html:`<div style="background:rgba(0,0,0,0.8);color:${color};font-size:11px;font-weight:700;font-family:monospace;padding:3px 8px;border-radius:5px;border:1px solid ${color}44;white-space:nowrap;text-align:center;display:inline-block"><span class="map-track-cd" data-target="${Math.round(tMs)}">⏱ ${lbl}</span></div>`,
-        iconSize:[null,null],iconAnchor:[0,0],
-        className:'storm-track-label-icon'
+      const trackLabel=L.marker([midLat,midLng],{interactive:true,icon:L.divIcon({
+        className:'storm-track-label-icon',
+        html:`<div style="background:rgba(0,0,0,0.8);color:${color};font-size:11px;font-weight:700;font-family:monospace;padding:3px 8px;border-radius:5px;border:1px solid ${color}44;white-space:nowrap;text-align:center;display:inline-block;cursor:pointer"><span class="map-track-cd" data-target="${Math.round(tMs)}">⏱ ${lbl}</span></div>`,
+        iconSize:[null,null],iconAnchor:[0,0]
       })}).addTo(map);
+      trackLabel.on('click',()=>showStormCone(map,stormRef));
       S.stormMarkers.push(trackLabel);
       const dotSz=10;
       const arrivalDot=L.marker([S.lat,S.lon],{interactive:false,icon:L.divIcon({
