@@ -1760,28 +1760,6 @@ function initRadar(){
 }
 
 async function buildNexradFrames(){
-  try{
-    const end=new Date();
-    const start=new Date(end.getTime()-2*3600000);
-    const fmt=d=>d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0')
-      +'T'+String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0')+':00Z';
-    const url=`https://mesonet.agron.iastate.edu/json/radar.py?operation=list&product=n0q&radar=USCOMP&start=${fmt(start)}&end=${fmt(end)}`;
-    const resp=await fetch(url);
-    if(resp.ok){
-      const data=await resp.json();
-      const scans=data.scans||[];
-      if(scans.length>=2){
-        console.log('[NEXRAD-ANIM] Got '+scans.length+' real timestamps from IEM');
-        return scans.map(s=>{
-          const ts=s.ts.replace(/[-:TZ]/g,'').slice(0,12);
-          const t=new Date(s.ts);
-          return{time:Math.floor(t.getTime()/1000),ts,type:'past',
-            url:`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-${ts}-900913/{z}/{x}/{y}.png`};
-        });
-      }
-    }
-  }catch(e){console.warn('[NEXRAD-ANIM] IEM timestamps fetch failed, using generated:',e)}
-  console.log('[NEXRAD-ANIM] Falling back to generated timestamps');
   const frames=[];
   const now=Date.now();
   for(let i=24;i>=0;i--){
