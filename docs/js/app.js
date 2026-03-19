@@ -6,7 +6,7 @@ const S = {
   alerts:[], station:null, stationId:null,
   map:null, radarLayer:null, radarFrames:[], radarIdx:0,
   radarPlaying:false, radarTimer:null, scanRadius:80, radarSource:'nexrad', nexradLayer:null, radarMetric:false,
-  activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null, autoScanTimer:null, lastScanMs:0, _lastScanWasHiRes:false,
+  activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null, autoScanTimer:null, lastScanMs:0, _lastScanWasHiRes:false, _stormETAs:{}, _etaRescanInProgress:false,
   travelMode:false, travelWatchId:null, travelLastUpdate:0, travelMarker:null,
 };
 const TEMP_UNITS = ['°F','°C'];
@@ -182,27 +182,31 @@ function startEtaCountdowns(){
   if(S.etaTimer)clearInterval(S.etaTimer);
   S.etaTimer=setInterval(()=>{
     const now=Date.now();
-    let needsRescan=false;
+    let expiredKeys=[];
     document.querySelectorAll('[data-eta-sec]').forEach(el=>{
       const target=parseInt(el.getAttribute('data-eta-sec'));
       const key=el.getAttribute('data-storm-key');
       const remain=Math.max(0,Math.round((target-now)/1000));
       if(remain<=0){
-        if(key&&!needsRescan){
-          S.storms=S.storms.filter(s=>stormKey(s)!==key);
-          needsRescan=true;
-        }
+        if(key)expiredKeys.push(key);
       }else{
         el.textContent=fmtCountdown(remain);
       }
     });
-    if(needsRescan){
+    if(expiredKeys.length&&!S._etaRescanInProgress){
+      expiredKeys.forEach(k=>{delete S._stormETAs[k]});
+      S.storms=S.storms.filter(s=>!expiredKeys.includes(stormKey(s)));
       renderStorms();updateStormBadges();
       if(S.map)plotStormMarkers(S.map);
-      if(S.lat!=null){
-        if(S._lastScanWasHiRes&&S.map)scanRadarHiRes(S.map,true);
-        else scanRadarForStorms();
-      }
+      S._etaRescanInProgress=true;
+      const doScan=async()=>{
+        if(S.lat!=null){
+          if(S._lastScanWasHiRes&&S.map)await scanRadarHiRes(S.map,true);
+          else await scanRadarForStorms();
+        }
+        S._etaRescanInProgress=false;
+      };
+      doScan();
     }
     document.querySelectorAll('.popup-countdown').forEach(el=>{
       const target=parseInt(el.getAttribute('data-target'));
@@ -1911,6 +1915,7 @@ function impactLabel(pct){
 
 async function scanRadarForStorms(){
   if(!S.lat)return;
+  if(!S._etaRescanInProgress)S._stormETAs={};
   clearViewScanCircle();
   const useNexrad=S.radarSource==='nexrad';
   showScanOverlay();
@@ -2074,10 +2079,17 @@ function renderStorms(){
           mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${tStr(imp.text)}</div></div>`;
         }else if(isApproaching(s)){
           const sk=stormKey(s);
-          const elapsedMin=S.scanTime?(Date.now()-S.scanTime)/60000:0;
-          const remainMin=Math.max(0,eta.eta-elapsedMin);
-          const targetMs=Date.now()+remainMin*60000;
+          let targetMs;
+          if(S._stormETAs[sk]&&S._stormETAs[sk]>Date.now()){
+            targetMs=S._stormETAs[sk];
+          }else{
+            const elapsedMin=S.scanTime?(Date.now()-S.scanTime)/60000:0;
+            const remainMin=Math.max(0,eta.eta-elapsedMin);
+            targetMs=Date.now()+remainMin*60000;
+            S._stormETAs[sk]=targetMs;
+          }
           eta._targetMs=targetMs;
+          const remainMin=(targetMs-Date.now())/60000;
           const arrivalTime=fmtArrivalTime(remainMin);
           const initCountdown=fmtCountdown(Math.round(remainMin*60));
           mvLine+=`<div class="storm-detail eta-detail"><div class="storm-detail-label">⏱ ${tStr('ETA')}</div><div class="storm-detail-val" style="color:${imp.color}"><span class="eta-countdown" data-eta-sec="${Math.round(targetMs)}" data-storm-key="${sk}">${initCountdown}</span></div><div style="font-size:0.65em;color:${imp.color};margin-top:1px">${tStr('Arrives')} ~${arrivalTime}</div></div>`;
