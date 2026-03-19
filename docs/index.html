@@ -272,6 +272,15 @@ canvas.offscreen{display:none}
 .confirm-btns button{padding:10px 20px;border-radius:var(--radius-md);border:none;font-size:0.85em;font-weight:600;cursor:pointer;font-family:var(--font-body)}
 .confirm-allow{background:var(--accent-blue);color:white}
 .confirm-deny{background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border-subtle)}
+.scan-overlay{position:absolute;top:0;left:0;right:0;bottom:0;z-index:600;background:rgba(5,8,15,0.85);backdrop-filter:blur(6px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;opacity:0;pointer-events:none;transition:opacity 0.3s}
+.scan-overlay.show{opacity:1;pointer-events:auto}
+.scan-step{display:flex;align-items:center;gap:10px;font-size:0.8em;color:var(--text-muted);transition:all 0.3s}
+.scan-step.active{color:var(--accent-cyan);font-weight:600}
+.scan-step.done{color:var(--accent-green)}
+.scan-step .step-icon{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75em;border:2px solid var(--border-subtle);transition:all 0.3s}
+.scan-step.active .step-icon{border-color:var(--accent-cyan);animation:nx-pulse 1.5s ease-in-out infinite}
+.scan-step.done .step-icon{border-color:var(--accent-green);background:rgba(0,255,136,0.15)}
+.scan-countdown{font-family:var(--font-mono);font-size:1.6em;font-weight:700;color:var(--accent-cyan);text-shadow:0 0 12px rgba(0,229,255,0.4)}
 .travel-btn{width:100%;padding:10px;margin-top:8px;border-radius:var(--radius-md);border:1px solid var(--accent-cyan);background:rgba(0,229,255,0.08);color:var(--accent-cyan);font-size:0.85em;font-weight:600;cursor:pointer;font-family:var(--font-body);transition:all 0.2s}
 .travel-btn:hover{background:rgba(0,229,255,0.15)}
 .travel-btn.active{background:rgba(255,51,85,0.15);border-color:var(--accent-red);color:var(--accent-red)}
@@ -1478,6 +1487,12 @@ function initRadar(){
         </div>
         <span>Light → Extreme</span>
       </div>
+      <div class="scan-overlay" id="scan-overlay">
+        <div class="scan-countdown" id="scan-countdown"></div>
+        <div class="scan-step" id="scan-step1"><div class="step-icon">1</div><span id="scan-step1-text">Gathering winds aloft...</span></div>
+        <div class="scan-step" id="scan-step2"><div class="step-icon">2</div><span id="scan-step2-text">Scanning radar tiles...</span></div>
+        <div class="scan-step" id="scan-step3"><div class="step-icon">3</div><span id="scan-step3-text">Plotting storm points...</span></div>
+      </div>
     </div>
     <div id="radar-source-label" style="font-size:0.7em;color:var(--text-muted);text-align:center;margin-top:6px"></div>`;
   setTimeout(async()=>{
@@ -1559,13 +1574,48 @@ function toggleRadarSource(map){
   scanRadarForStorms();
 }
 
+function showScanOverlay(){
+  const ov=document.getElementById('scan-overlay');if(!ov)return;
+  ov.classList.add('show');
+  ['scan-step1','scan-step2','scan-step3'].forEach(id=>{
+    const el=document.getElementById(id);el.className='scan-step';
+  });
+  document.getElementById('scan-step1').classList.add('active');
+  document.getElementById('scan-countdown').textContent='';
+  let sec=5;
+  document.getElementById('scan-countdown').textContent=sec+'s';
+  if(window._scanCountdownTimer)clearInterval(window._scanCountdownTimer);
+  window._scanCountdownTimer=setInterval(()=>{
+    sec--;
+    const el=document.getElementById('scan-countdown');
+    if(el&&sec>0)el.textContent=sec+'s';
+    else if(el)el.textContent='';
+    if(sec<=0)clearInterval(window._scanCountdownTimer);
+  },1000);
+}
+function scanStep(step,text){
+  const prev=document.getElementById('scan-step'+(step-1));
+  if(prev){prev.classList.remove('active');prev.classList.add('done');prev.querySelector('.step-icon').textContent='✓'}
+  const cur=document.getElementById('scan-step'+step);
+  if(cur){cur.classList.add('active');const sp=document.getElementById('scan-step'+step+'-text');if(sp&&text)sp.textContent=text}
+  const cd=document.getElementById('scan-countdown');
+  if(cd&&step>=2)cd.textContent='';
+}
+function hideScanOverlay(){
+  const s3=document.getElementById('scan-step3');
+  if(s3){s3.classList.remove('active');s3.classList.add('done');s3.querySelector('.step-icon').textContent='✓'}
+  if(window._scanCountdownTimer)clearInterval(window._scanCountdownTimer);
+  setTimeout(()=>{const ov=document.getElementById('scan-overlay');if(ov)ov.classList.remove('show')},600);
+}
+
 async function scanRadarForView(){
   if(!S.map)return;
   const bounds=S.map.getBounds();
   const center=S.map.getCenter();
   const useNexrad=S.radarSource==='nexrad';
-  toast('Scanning visible area'+(useNexrad?' (NEXRAD)':' (RainViewer)')+'...');
+  showScanOverlay();
   await fetchWindsAloft(center.lat,center.lng);
+  scanStep(2,'Scanning radar tiles...');
   try{
     const zoom=useNexrad?8:7;
     const minTX=lonToTileX(bounds.getWest(),zoom),maxTX=lonToTileX(bounds.getEast(),zoom);
@@ -1600,11 +1650,14 @@ async function scanRadarForView(){
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();
-    toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
+    scanStep(3,`Plotting ${S.storms.length} storm points...`);
+    await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();
     if(S.map)plotStormMarkers(S.map);
+    hideScanOverlay();
+    toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
     scheduleAutoScan();
-  }catch(e){toast('View scan failed: '+e.message);console.error('ViewScan error:',e)}
+  }catch(e){hideScanOverlay();toast('View scan failed: '+e.message);console.error('ViewScan error:',e)}
 }
 
 function stormArrowSvg(deg,color,size){
@@ -1957,8 +2010,9 @@ function impactLabel(pct){
 async function scanRadarForStorms(){
   if(!S.lat)return;
   const useNexrad=S.radarSource==='nexrad';
-  toast('Scanning'+(useNexrad?' NEXRAD':' RainViewer')+' for storm cells...');
+  showScanOverlay();
   await fetchWindsAloft();
+  scanStep(2,'Scanning radar tiles...');
   try{
     const zoom=useNexrad?8:7;
     const radiusDeg=S.scanRadius/69.0;
@@ -1998,11 +2052,14 @@ async function scanRadarForStorms(){
     S.scanTime=Date.now();S.lastScanMs=Date.now();
 
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
-    toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
+    scanStep(3,`Plotting ${S.storms.length} storm points...`);
+    await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();
     if(S.map)plotStormMarkers(S.map);
+    hideScanOverlay();
+    toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
     scheduleAutoScan();
-  }catch(e){toast('Radar scan failed: '+e.message);console.error('Scan error:',e)}
+  }catch(e){hideScanOverlay();toast('Radar scan failed: '+e.message);console.error('Scan error:',e)}
 }
 
 function loadImage(url){
