@@ -1837,10 +1837,9 @@ async function buildNexradFrames(){
   const site=findNearestRadar(S.lat,S.lon);
   const end=new Date();
   const start=new Date(end.getTime()-2*60*60*1000);
-  const startISO=start.toISOString().replace(/\.\d{3}/,'');
-  const endISO=end.toISOString().replace(/\.\d{3}/,'');
+  const fmt=d=>d.toISOString().replace(/\.\d{3}Z$/,'Z');
   try{
-    const apiUrl=`https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=${site}&product=N0Q&start=${startISO}&end=${endISO}`;
+    const apiUrl=`https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=${site}&product=N0B&start=${fmt(start)}&end=${fmt(end)}`;
     console.log('[NEXRAD-ANIM] site='+site+' api='+apiUrl);
     const resp=await fetch(apiUrl);
     const data=await resp.json();
@@ -1848,15 +1847,14 @@ async function buildNexradFrames(){
     const scans=data.scans||[];
     if(!scans.length){toast(`No NEXRAD scans found for K${site}`);return[]}
     const recent=scans.slice(-25);
-    const tileUrl=`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::${site}-N0Q-${recent[0].ts}/{z}/{x}/{y}.png`;
-    console.log('[NEXRAD-ANIM] frames='+recent.length+' first tile='+tileUrl);
     return recent.map(scan=>{
-      const ts=scan.ts;
-      const y=+ts.slice(0,4),mo=+ts.slice(4,6)-1,d=+ts.slice(6,8),
-            h=+ts.slice(8,10),mi=+ts.slice(10,12);
-      const time=Math.floor(new Date(Date.UTC(y,mo,d,h,mi)).getTime()/1000);
-      return{time,type:'past',site,
-        url:`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::${site}-N0Q-${ts}/{z}/{x}/{y}.png`};
+      const isoTs=scan.ts;
+      const dt=new Date(isoTs);
+      const time=Math.floor(dt.getTime()/1000);
+      const pad2=n=>String(n).padStart(2,'0');
+      const tileTs=dt.getUTCFullYear()+pad2(dt.getUTCMonth()+1)+pad2(dt.getUTCDate())+pad2(dt.getUTCHours())+pad2(dt.getUTCMinutes());
+      const tileUrl=`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::${site}-N0B-${tileTs}/{z}/{x}/{y}.png`;
+      return{time,type:'past',site,url:tileUrl};
     });
   }catch(e){console.error('NEXRAD frame fetch failed:',e);toast('Failed to load NEXRAD animation data');return[]}
 }
