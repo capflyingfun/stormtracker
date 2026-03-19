@@ -1761,11 +1761,18 @@ function initRadar(){
 
 async function buildNexradFrames(){
   const frames=[];
-  const now=Date.now();
+  const base=new Date();
+  base.setUTCSeconds(0,0);
+  base.setUTCMinutes(Math.floor(base.getUTCMinutes()/5)*5);
+  const safeBase=new Date(base.getTime()-10*60000);
   for(let i=24;i>=0;i--){
-    const t=new Date(now - i*5*60000);
-    const isoTime=t.toISOString().replace(/\.\d{3}Z$/,'Z');
-    frames.push({time:Math.floor(t.getTime()/1000),type:'past',isoTime,wms:true});
+    const t=new Date(safeBase.getTime()-i*5*60000);
+    const ts=String(t.getUTCFullYear())+String(t.getUTCMonth()+1).padStart(2,'0')+
+      String(t.getUTCDate()).padStart(2,'0')+String(t.getUTCHours()).padStart(2,'0')+
+      String(t.getUTCMinutes()).padStart(2,'0');
+    frames.push({time:Math.floor(t.getTime()/1000),type:'past',ts,
+      url:`https://mesonet.agron.iastate.edu/c/tile.py/1.0.0/nexrad-n0q-${ts}-900913/{z}/{x}/{y}.png`,
+      wms:false});
   }
   return frames;
 }
@@ -1832,14 +1839,8 @@ function showRadarAnimFrame(map,idx){
   if(!frames||!frames[idx])return;
   const frame=frames[idx];
   if(S.radarLayer){map.removeLayer(S.radarLayer);S.radarLayer=null}
-  if(frame.wms){
-    S.radarLayer=L.tileLayer.wms('https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q-t.cgi',{
-      layers:'nexrad-n0q-wmst',transparent:true,format:'image/png',
-      time:frame.isoTime,opacity:0.7,maxZoom:11
-    }).addTo(map);
-  }else{
-    S.radarLayer=L.tileLayer(frame.url,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
-  }
+  const maxNZ=S._radarAnimSrc==='nexrad'?8:7;
+  S.radarLayer=L.tileLayer(frame.url,{opacity:0.7,maxZoom:11,maxNativeZoom:maxNZ}).addTo(map);
   const t=new Date(frame.time*1000);
   const timeStr=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
   const isFuture=frame.type==='forecast';
