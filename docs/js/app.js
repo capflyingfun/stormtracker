@@ -2056,16 +2056,10 @@ function renderStorms(){
   const stormsWithEta=storms.map(s=>({...s,_eta:calcStormETA(s)}));
   const prevOpen={};
   el.querySelectorAll('.storm-group').forEach(d=>{const k=d.getAttribute('data-grp');if(k)prevOpen[k]=d.open});
-  const stormCells=stormsWithEta.filter(s=>s.dbz>=40);
   const lightCells=stormsWithEta.filter(s=>s.dbz<40);
-  const groups=[
-    {min:81,max:100,key:'81-100',label:'🔴 81-100% — CRITICAL',color:'#ef4444',open:true},
-    {min:61,max:80,key:'61-80',label:'🟠 61-80% — HIGH',color:'#f97316',open:true},
-    {min:41,max:60,key:'41-60',label:'🟡 41-60% — MODERATE',color:'#eab308',open:true},
-    {min:21,max:40,key:'21-40',label:'🔵 21-40% — LOW',color:'#60a5fa',open:false},
-    {min:1,max:20,key:'1-20',label:'⚪ 1-20% — MINIMAL',color:'#94a3b8',open:false},
-    {min:0,max:0,key:'0',label:'🟢 No Impact — Nearby',color:'#6b7280',open:false}
-  ];
+  function isApproaching(s){const e=s._eta;return e&&e.approaching&&e.impact>0&&e.eta!=null}
+  function isOverhead(s){const e=s._eta;return e&&e.proximity}
+  function isNearby(s){return!isApproaching(s)&&!isOverhead(s)}
   function buildCard(s){
       const cat=stormCat(s.dbz);
       const eta=s._eta;
@@ -2075,22 +2069,18 @@ function renderStorms(){
       if(mv&&mv.speed>=2){
         const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
         mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Moving')}</div><div class="storm-detail-val">${degToDir(mv.direction)} ${spdStr}</div><div class="tile-tap">tap</div></div>`;
-        if(eta&&eta.proximity){
+        if(isOverhead(s)){
           mvLine+=`<div class="storm-detail" style="grid-column:span 2"><div class="storm-detail-label">${tStr('Status')}</div><div class="storm-detail-val" style="color:#f97316;font-size:0.85em">⚠️ ${tStr('Overhead · Moving away')}</div></div>`;
           mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${tStr(imp.text)}</div></div>`;
-        }else if(eta&&eta.approaching&&pct>0){
+        }else if(isApproaching(s)){
           const sk=stormKey(s);
-          if(eta.eta!=null){
-            const elapsedMin=S.scanTime?(Date.now()-S.scanTime)/60000:0;
-            const remainMin=Math.max(0,eta.eta-elapsedMin);
-            const targetMs=Date.now()+remainMin*60000;
-            eta._targetMs=targetMs;
-            const arrivalTime=fmtArrivalTime(remainMin);
-            const initCountdown=fmtCountdown(Math.round(remainMin*60));
-            mvLine+=`<div class="storm-detail eta-detail"><div class="storm-detail-label">⏱ ${tStr('ETA')}</div><div class="storm-detail-val" style="color:${imp.color}"><span class="eta-countdown" data-eta-sec="${Math.round(targetMs)}" data-storm-key="${sk}">${initCountdown}</span></div><div style="font-size:0.65em;color:${imp.color};margin-top:1px">${tStr('Arrives')} ~${arrivalTime}</div></div>`;
-          }else{
-            mvLine+=`<div class="storm-detail"><div class="storm-detail-label">⏱ ${tStr('ETA')}</div><div class="storm-detail-val" style="color:${imp.color}">--</div></div>`;
-          }
+          const elapsedMin=S.scanTime?(Date.now()-S.scanTime)/60000:0;
+          const remainMin=Math.max(0,eta.eta-elapsedMin);
+          const targetMs=Date.now()+remainMin*60000;
+          eta._targetMs=targetMs;
+          const arrivalTime=fmtArrivalTime(remainMin);
+          const initCountdown=fmtCountdown(Math.round(remainMin*60));
+          mvLine+=`<div class="storm-detail eta-detail"><div class="storm-detail-label">⏱ ${tStr('ETA')}</div><div class="storm-detail-val" style="color:${imp.color}"><span class="eta-countdown" data-eta-sec="${Math.round(targetMs)}" data-storm-key="${sk}">${initCountdown}</span></div><div style="font-size:0.65em;color:${imp.color};margin-top:1px">${tStr('Arrives')} ~${arrivalTime}</div></div>`;
           mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${tStr(imp.text)}</div></div>`;
         }else{
           mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:var(--accent-green)">${tStr('Nearby · Not approaching')}</div></div>`;
@@ -2112,24 +2102,28 @@ function renderStorms(){
         </div>
       </div>`;
   }
+  const approaching=stormsWithEta.filter(s=>s.dbz>=40&&isApproaching(s)).sort((a,b)=>{
+    const ea=a._eta&&a._eta.eta!=null?a._eta.eta:99999;
+    const eb=b._eta&&b._eta.eta!=null?b._eta.eta:99999;
+    return ea-eb;
+  });
+  const overhead=stormsWithEta.filter(s=>s.dbz>=40&&isOverhead(s)).sort((a,b)=>a.distance-b.distance);
+  const nearby=stormsWithEta.filter(s=>s.dbz>=40&&isNearby(s)).sort((a,b)=>a.distance-b.distance);
   let groupHtml='';
-  for(const g of groups){
-    const items=stormCells.filter(s=>{
-      const p=s._eta?s._eta.impact:0;
-      return g.min===0&&g.max===0?p===0:p>=g.min&&p<=g.max;
-    }).sort((a,b)=>{
-      const ea=a._eta&&a._eta.eta!=null?a._eta.eta:99999;
-      const eb=b._eta&&b._eta.eta!=null?b._eta.eta:99999;
-      return ea-eb;
-    });
-    if(!items.length)continue;
-    const cardsHtml=items.map(buildCard).join('');
-    const isOpen=prevOpen[g.key]!==undefined?prevOpen[g.key]:g.open;
-    groupHtml+=`<details class="storm-group" data-grp="${g.key}" ${isOpen?'open':''}>
-      <summary class="storm-group-header" style="border-left:3px solid ${g.color}">
-        ${g.label} <span class="storm-group-count">${items.length}</span>
+  const sections=[
+    {key:'approaching',items:approaching,label:'⏱️ Approaching',color:'#ef4444',open:true},
+    {key:'overhead',items:overhead,label:'⚠️ Overhead · Moving Away',color:'#f97316',open:true},
+    {key:'nearby',items:nearby,label:'🟢 Nearby · Not Approaching',color:'#4ade80',open:false}
+  ];
+  for(const sec of sections){
+    if(!sec.items.length)continue;
+    const cards=sec.items.map(buildCard).join('');
+    const isOpen=prevOpen[sec.key]!==undefined?prevOpen[sec.key]:sec.open;
+    groupHtml+=`<details class="storm-group" data-grp="${sec.key}" ${isOpen?'open':''}>
+      <summary class="storm-group-header" style="border-left:3px solid ${sec.color}">
+        ${sec.label} <span class="storm-group-count">${sec.items.length}</span>
       </summary>
-      <div class="storm-group-body">${cardsHtml}</div>
+      <div class="storm-group-body">${cards}</div>
     </details>`;
   }
   if(lightCells.length){
@@ -2143,10 +2137,11 @@ function renderStorms(){
       <div class="storm-group-body">${lightCards}</div>
     </details>`;
   }
+  const stormCount=approaching.length+overhead.length+nearby.length;
   el.innerHTML=`
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
-      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCells.length?' · '+stormCells.length+' Storm'+( stormCells.length>1?'s':''):''}</span><br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
+      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${approaching.length?' · <span style="color:#ef4444">'+approaching.length+' approaching</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
     </div>
     <div class="card"><div class="card-title"><span class="icon">🌪️</span> Active Storm Cells</div>
       ${groupHtml}
