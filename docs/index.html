@@ -739,6 +739,7 @@ function switchPage(page){
   document.querySelectorAll('.section-page').forEach(p=>{p.classList.toggle('visible',p.id==='page-'+page)});
   S.activePage=page;
   if(page==='radar'&&S.map)setTimeout(()=>S.map.invalidateSize(),100);
+  if(_curLang!=='en')setTimeout(()=>quickTranslate(),300);
 }
 function updateStormBadges(){
   const n=S.storms.length;
@@ -2540,49 +2541,80 @@ async function mmTranslate(text,lang){
 async function translatePage(lang){
   if(_translating)return;
   _translating=true;
-  const bar=document.createElement('div');
-  bar.className='translate-bar show';
-  bar.id='translate-bar';
   const ln=LANGS.find(l=>l.c===lang);
-  bar.innerHTML=`<div class="t-spinner"></div><span>Translating to ${ln?ln.n:lang}...</span><span id="t-progress">0%</span>`;
-  document.body.appendChild(bar);
 
   const nodes=getTextNodes(document.body);
   const unique=new Map();
+  const cachedNow=[];
   nodes.forEach(n=>{
     const txt=n.textContent.trim();
     if(!n._origText)n._origText=n.textContent;
+    const ck=lang+'::'+txt;
+    if(_tCache[ck]){
+      cachedNow.push([n,txt,_tCache[ck]]);
+      return;
+    }
     if(!unique.has(txt))unique.set(txt,[]);
     unique.get(txt).push(n);
   });
 
-  const entries=[...unique.entries()];
-  let done=0;
-  const total=entries.length;
-  const batchSize=4;
+  cachedNow.forEach(([n,txt,tr])=>{n.textContent=n.textContent.replace(txt,tr)});
 
-  for(let i=0;i<entries.length;i+=batchSize){
-    const batch=entries.slice(i,i+batchSize);
-    const results=await Promise.all(batch.map(([txt])=>mmTranslate(txt,lang)));
-    batch.forEach(([txt,nodeList],j)=>{
-      const translated=results[j];
-      nodeList.forEach(n=>{
-        n.textContent=n.textContent.replace(txt,translated);
+  const entries=[...unique.entries()];
+  if(entries.length>0){
+    const bar=document.createElement('div');
+    bar.className='translate-bar show';
+    bar.id='translate-bar';
+    bar.innerHTML=`<div class="t-spinner"></div><span>Translating to ${ln?ln.n:lang}...</span><span id="t-progress">0%</span>`;
+    document.body.appendChild(bar);
+
+    let done=0;
+    const total=entries.length;
+    const batchSize=4;
+
+    for(let i=0;i<entries.length;i+=batchSize){
+      const batch=entries.slice(i,i+batchSize);
+      const results=await Promise.all(batch.map(([txt])=>mmTranslate(txt,lang)));
+      batch.forEach(([txt,nodeList],j)=>{
+        const translated=results[j];
+        nodeList.forEach(n=>{
+          n.textContent=n.textContent.replace(txt,translated);
+        });
       });
-    });
-    done+=batch.length;
-    const pct=Math.round(done/total*100);
-    const prog=document.getElementById('t-progress');
-    if(prog)prog.textContent=pct+'%';
+      done+=batch.length;
+      const pct=Math.round(done/total*100);
+      const prog=document.getElementById('t-progress');
+      if(prog)prog.textContent=pct+'%';
+    }
+
+    try{localStorage.setItem('st_tcache',JSON.stringify(_tCache))}catch(e){}
+    const b=document.getElementById('translate-bar');
+    if(b){b.innerHTML=`<span>✓ Translated to ${ln?ln.n:lang}</span>`;setTimeout(()=>b.remove(),2000)}
   }
 
-  try{localStorage.setItem('st_tcache',JSON.stringify(_tCache))}catch(e){}
-  const b=document.getElementById('translate-bar');
-  if(b){b.innerHTML=`<span>✓ Translated to ${ln?ln.n:lang}</span>`;setTimeout(()=>b.remove(),2000)}
   _translating=false;
   _tCooldown=Date.now();
   if(lang==='ar'||lang==='he')document.body.style.direction='rtl';
   else document.body.style.direction='ltr';
+}
+
+function quickTranslate(){
+  if(_curLang==='en'||_translating)return;
+  const nodes=getTextNodes(document.body);
+  let miss=0;
+  nodes.forEach(n=>{
+    if(!n._origText)n._origText=n.textContent;
+    const txt=n.textContent.trim();
+    const ck=_curLang+'::'+txt;
+    if(_tCache[ck]){n.textContent=n.textContent.replace(txt,_tCache[ck])}
+    else{
+      const oTxt=n._origText?.trim();
+      const ok=_curLang+'::'+oTxt;
+      if(oTxt&&_tCache[ok]){n.textContent=n._origText.replace(oTxt,_tCache[ok])}
+      else miss++;
+    }
+  });
+  if(miss>3)translatePage(_curLang);
 }
 
 function restoreOriginals(){
