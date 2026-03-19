@@ -1502,11 +1502,14 @@ function initRadar(){
     S._rangeCircle=L.circle([S.lat,S.lon],{radius:S.scanRadius*1609.34,color:'#3b82f6',fillOpacity:0.05,weight:1,dashArray:'6 4'}).addTo(map);
     S._userMarker=L.circleMarker([S.lat,S.lon],{radius:5,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:1}).addTo(map);
     S.map=map;
-    let _replotTimer=null;
-    map.on('zoomend moveend',()=>{
+    let _replotTimer=null,_lastVisCount=-1;
+    map.on('zoomend',()=>{
       if(!S.storms.length)return;
       clearTimeout(_replotTimer);
-      _replotTimer=setTimeout(()=>plotStormMarkers(map),200);
+      _replotTimer=setTimeout(()=>{
+        const vis=getVisibleStorms();
+        if(vis.length!==_lastVisCount){_lastVisCount=vis.length;plotStormMarkers(map,true)}
+      },300);
     });
     try{
       const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
@@ -1725,9 +1728,9 @@ function getVisibleStorms(){
   return sorted.slice(0,maxByZoom);
 }
 
-function plotStormMarkers(map){
+function plotStormMarkers(map,keepCone){
   S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];
-  clearStormCone();
+  if(!keepCone)clearStormCone();
   const visible=getVisibleStorms();
   const mv=S.stormMovement;
   const filtered=visible.length<S.storms.length;
