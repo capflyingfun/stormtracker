@@ -1165,16 +1165,17 @@ function startWindSim(){
   const seed=Math.random()*1000;
   _windSimTimer=setInterval(()=>{
     const t=Date.now()*0.0001;
-    const spdVar=_wn.noise(t+seed,0)*0.18;
-    const dirVar=_wn.noise(t+seed+50,100)*12;
-    const gustVar=_wn.noise(t+seed+100,200)*0.25;
-    let simSpd=Math.max(0,baseSpd*(1+spdVar));
-    let simDir=((baseDir+dirVar)%360+360)%360;
-    let simGust=Math.max(simSpd*1.01,baseGust*(1+gustVar));
+    const spdNoise=_wn.noise(t+seed,0);
+    const dirNoise=_wn.noise(t+seed+50,100);
+    const gustNoise=_wn.noise(t+seed+100,200);
+    const spdJitter=baseSpd>2?spdNoise*0.22:spdNoise*1.5;
+    let simSpd=Math.max(0.1,baseSpd*(1+spdJitter));
+    let simDir=((baseDir+dirNoise*15)%360+360)%360;
+    let simGust=Math.max(simSpd*1.01,baseGust*(1+gustNoise*0.25));
     const spdEl=document.querySelector('.wrc-speed');
     const dirEl=document.querySelector('.wrc-dir');
     const gustEl=document.querySelector('.wrc-gust');
-    if(spdEl)spdEl.textContent=fmtWind(simSpd);
+    if(spdEl)spdEl.innerHTML=fmtWind(simSpd);
     if(dirEl)dirEl.textContent=degToDir(simDir)+' '+simDir.toFixed(1)+'°';
     if(gustEl){
       if(simGust>simSpd)gustEl.textContent='G'+fmtWind(simGust);
