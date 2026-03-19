@@ -423,6 +423,7 @@ function reRenderActive(){
   if(S.activePage==='weather'&&S.forecast) renderWeather(S.forecast);
   if(S.activePage==='station'&&S.station) renderStation();
   if(S.activePage==='storms') renderStorms();
+  if(_curLang!=='en')setTimeout(quickTranslate,300);
 }
 
 function haversine(lat1,lon1,lat2,lon2){const R=3959,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
@@ -739,7 +740,7 @@ function switchPage(page){
   document.querySelectorAll('.section-page').forEach(p=>{p.classList.toggle('visible',p.id==='page-'+page)});
   S.activePage=page;
   if(page==='radar'&&S.map)setTimeout(()=>S.map.invalidateSize(),100);
-  if(_curLang!=='en')setTimeout(()=>quickTranslate(),300);
+  if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}
 }
 function updateStormBadges(){
   const n=S.storms.length;
@@ -1016,7 +1017,7 @@ async function fetchWeather(){
       +`&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset,wind_speed_10m_max`
       +`&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=7&past_days=1`;
     const res=await fetch(url);const data=await res.json();
-    S.weather=data.current;S.forecast=data;renderWeather(data);
+    S.weather=data.current;S.forecast=data;renderWeather(data);if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p></div>`}
 }
 
@@ -2269,7 +2270,7 @@ async function loadStationObs(icao){
       obsTime:p.timestamp||'',
       wxString:p.textDescription||'',
     };
-    renderStation();
+    renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){
     console.error('Obs fetch error:',e);
     el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Could not load observations for ${icao}.</p></div>`;
@@ -2393,7 +2394,7 @@ async function fetchAlerts(){
   const el=document.getElementById('page-alerts');showSkel(el,3);
   try{
     const res=await fetch(`https://api.weather.gov/alerts/active?point=${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{headers:{'User-Agent':'StormTracker/1.50'}});
-    const data=await res.json();S.alerts=data.features||[];renderAlerts();
+    const data=await res.json();S.alerts=data.features||[];renderAlerts();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){S.alerts=[];renderAlerts()}
 }
 
@@ -2626,7 +2627,7 @@ let _tObserver=null, _tCooldown=0;
 function startTranslateObserver(){
   if(_tObserver)_tObserver.disconnect();
   _tObserver=new MutationObserver(muts=>{
-    if(_curLang==='en'||_translating||Date.now()-_tCooldown<3000)return;
+    if(_curLang==='en'||_translating)return;
     let hasNew=false;
     muts.forEach(m=>{
       m.addedNodes.forEach(n=>{
