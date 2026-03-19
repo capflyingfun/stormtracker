@@ -401,10 +401,10 @@ function fmtLocName(addr,fallback){
   const parts=[];
   if(addr.house_number&&addr.road)parts.push(addr.house_number+' '+addr.road);
   else if(addr.road)parts.push(addr.road);
-  const place=addr.city||addr.town||addr.village||addr.hamlet||addr.county||'';
+  const place=addr.city||addr.town||addr.village||addr.hamlet||addr.municipality||addr.county||'';
   if(place)parts.push(place);
-  const region=addr.state||addr.country||'';
-  if(region)parts.push(region);
+  if(addr.state||addr.state_district)parts.push(addr.state||addr.state_district);
+  if(addr.country&&addr.country_code!=='us')parts.push(addr.country);
   return parts.length?parts.join(', '):(fallback||'Unknown');
 }
 function selectSuggestion(r){
@@ -487,7 +487,7 @@ async function searchLoc(){
 
 async function reverseGeo(lat,lon){
   try{
-    const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+    const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`,{headers:{'Accept-Language':'en'}});
     const data=await res.json();const addr=data.address||{};
     const name=fmtLocName(addr,`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
     setLoc(lat,lon,name);
@@ -501,7 +501,7 @@ function setLoc(lat,lon,name,fromTravel){
   document.getElementById('location-input').value=S.locName;
   document.getElementById('status-dot').classList.add('live');
   document.getElementById('status-text').textContent='Live · '+S.locName;
-  S.station=null;S.stationId=null;S.stormMovement=null;
+  S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;
   S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
   if(S.map){
     S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
@@ -616,12 +616,16 @@ function startMapPick(){
   async function resolveAddr(lat,lon){
     addrEl.textContent='Looking up address...';
     try{
-      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1&zoom=18`,{headers:{'Accept-Language':'en'}});
       const d=await r.json();
       if(d.address){
         const a=d.address;
-        let name=a.city||a.town||a.village||a.hamlet||a.county||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-        if(a.state)name+=', '+a.state;
+        const parts=[];
+        if(a.road||a.pedestrian||a.neighbourhood||a.suburb)parts.push(a.road||a.pedestrian||a.neighbourhood||a.suburb);
+        parts.push(a.city||a.town||a.village||a.hamlet||a.municipality||a.county||'');
+        if(a.state||a.state_district)parts.push(a.state||a.state_district);
+        if(a.country&&a.country_code!=='us')parts.push(a.country);
+        const name=parts.filter(Boolean).join(', ')||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
         addrEl.textContent=name;
       }else{addrEl.textContent=`${lat.toFixed(4)}, ${lon.toFixed(4)}`}
     }catch(e){addrEl.textContent=`${lat.toFixed(4)}, ${lon.toFixed(4)}`}
@@ -2245,7 +2249,7 @@ function renderStorms(){
 // Step 2: Follow that URL → list of nearby stations
 // Step 3: /stations/{ICAO}/observations/latest → obs data
 // NWS API has Access-Control-Allow-Origin: * (works from browser)
-// AWC API does NOT have CORS headers (blocked in browser)
+// AWC API: aviationweather.gov/api/data/metar — international METAR fallback
 // ==========================================
 const NWS_HDR={headers:{'User-Agent':'StormTracker/1.50','Accept':'application/geo+json'}};
 
@@ -2253,7 +2257,7 @@ async function fetchStation(){
   const el=document.getElementById('page-station');showSkel(el,5);
   try{
     const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,NWS_HDR);
-    if(!ptRes.ok)throw new Error('NWS points returned '+ptRes.status);
+    if(!ptRes.ok)throw new Error('NWS_INTL');
     const ptData=await ptRes.json();
     const stationsUrl=ptData.properties?.observationStations;
     if(!stationsUrl)throw new Error('No observation stations URL');
@@ -2261,7 +2265,8 @@ async function fetchStation(){
     if(!stRes.ok)throw new Error('NWS stations returned '+stRes.status);
     const stData=await stRes.json();
     const features=stData.features||stData.observationStations||[];
-    if(!features.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No weather stations found nearby.</p></div>`;return}
+    if(!features.length)throw new Error('NWS_INTL');
+    S._stationSource='nws';
     S.nearbyStations=features.slice(0,10).map(f=>({
       icao:f.properties.stationIdentifier,
       name:f.properties.name||'',
@@ -2271,9 +2276,63 @@ async function fetchStation(){
     })).sort((a,b)=>a.dist-b.dist);
     await loadStationObs(S.nearbyStations[0].icao);
   }catch(e){
-    console.error('Station fetch error:',e);
-    el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Station data unavailable.<br><span style="font-size:0.8em;color:var(--text-muted)">${e.message||''}</span></p></div>`;
+    if(e.message==='NWS_INTL'){
+      try{await fetchStationAWC()}catch(e2){
+        console.error('AWC station error:',e2);
+        el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No weather stations found nearby.<br><span style="font-size:0.8em;color:var(--text-muted)">Try a location closer to an airport</span></p></div>`;
+      }
+    }else{
+      console.error('Station fetch error:',e);
+      el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Station data unavailable.<br><span style="font-size:0.8em;color:var(--text-muted)">${e.message||''}</span></p></div>`;
+    }
   }
+}
+async function fetchStationAWC(){
+  const el=document.getElementById('page-station');
+  const degSpan=1.5;
+  const minLat=(S.lat-degSpan).toFixed(2),maxLat=(S.lat+degSpan).toFixed(2);
+  const minLon=(S.lon-degSpan).toFixed(2),maxLon=(S.lon+degSpan).toFixed(2);
+  const url=`https://aviationweather.gov/api/data/metar?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json&date=0&hours=3`;
+  const r=await fetch(url);
+  if(!r.ok)throw new Error('AWC bbox '+r.status);
+  const data=await r.json();
+  if(!data.length)throw new Error('No stations in range');
+  const seen=new Map();
+  data.forEach(m=>{if(!seen.has(m.icaoId))seen.set(m.icaoId,m)});
+  const stations=[...seen.values()].map(m=>({
+    icao:m.icaoId,name:m.name||m.icaoId,
+    lat:m.lat,lon:m.lon,
+    dist:haversine(S.lat,S.lon,m.lat,m.lon),
+    _awc:m
+  })).sort((a,b)=>a.dist-b.dist).slice(0,10);
+  if(!stations.length)throw new Error('No stations parsed');
+  S._stationSource='awc';
+  S.nearbyStations=stations;
+  loadStationFromAWC(stations[0]._awc,stations[0]);
+}
+function parseAWCobs(m){
+  return{
+    icao:m.icaoId,
+    name:m.name||m.icaoId,
+    lat:m.lat,lon:m.lon,
+    temp:m.temp!=null?m.temp:null,
+    dewp:m.dewp!=null?m.dewp:null,
+    windKmh:m.wspd!=null?m.wspd*1.852:null,
+    windDir:m.wdir!=null?(m.wdir==='VRB'?null:Number(m.wdir)):null,
+    gustKmh:m.wgst!=null?m.wgst*1.852:null,
+    visMeter:m.visib!=null?(String(m.visib).includes('+')?16093:Number(m.visib)*1609.34):null,
+    presPa:m.altim!=null?m.altim*100:null,
+    rawMETAR:m.rawOb||'',
+    clouds:(m.clouds||[]).map(c=>({amount:c.cover,base:{value:c.base!=null?c.base*0.3048:null}})),
+    obsTime:m.reportTime||m.obsTime||'',
+    wxString:m.wxString||'',
+  };
+}
+function loadStationFromAWC(awcData,stInfo){
+  S.stationId=awcData.icaoId;
+  S.station=parseAWCobs(awcData);
+  if(stInfo?.name)S.station.name=stInfo.name;
+  renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
 }
 
 function buildSyntheticMetar(icao,p){
@@ -2296,6 +2355,7 @@ function buildSyntheticMetar(icao,p){
 async function loadStationObs(icao){
   const el=document.getElementById('page-station');
   S.stationId=icao;
+  if(S._stationSource==='awc'){return loadStationObsAWC(icao)}
   try{
     const obsRes=await fetch(`https://api.weather.gov/stations/${icao}/observations/latest`,NWS_HDR);
     if(!obsRes.ok)throw new Error('Obs returned '+obsRes.status);
@@ -2325,8 +2385,21 @@ async function loadStationObs(icao){
     renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){
     console.error('Obs fetch error:',e);
-    el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Could not load observations for ${icao}.</p></div>`;
+    try{await loadStationObsAWC(icao)}catch(e2){
+      el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Could not load observations for ${icao}.</p></div>`;
+    }
   }
+}
+async function loadStationObsAWC(icao){
+  const r=await fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&hours=1`);
+  if(!r.ok)throw new Error('AWC obs '+r.status);
+  const data=await r.json();
+  if(!data.length)throw new Error('No AWC data for '+icao);
+  const stInfo=S.nearbyStations?.find(s=>s.icao===icao);
+  S.stationId=icao;
+  S.station=parseAWCobs(data[0]);
+  if(stInfo?.name)S.station.name=stInfo.name;
+  renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
 }
 
 function renderStation(){
@@ -2436,23 +2509,6 @@ function renderNearbyStations(){
 
 async function switchStation(icao){
   toast('Loading '+icao+'...');
-  if(!S.nearbyStations||!S.nearbyStations.length){
-    try{
-      const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,NWS_HDR);
-      const ptData=await ptRes.json();
-      const stUrl=ptData.properties?.observationStations;
-      if(stUrl){
-        const stRes=await fetch(stUrl,NWS_HDR);
-        const stData=await stRes.json();
-        const features=stData.features||[];
-        S.nearbyStations=features.slice(0,10).map(f=>({
-          icao:f.properties.stationIdentifier,name:f.properties.name||'',
-          lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],
-          dist:haversine(S.lat,S.lon,f.geometry.coordinates[1],f.geometry.coordinates[0]),
-        })).sort((a,b)=>a.dist-b.dist);
-      }
-    }catch(e){}
-  }
   S.stationId=icao;
   await loadStationObs(icao);
 }
