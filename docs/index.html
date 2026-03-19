@@ -1958,7 +1958,7 @@ async function scanRadarForStorms(){
   if(!S.lat)return;
   const useNexrad=S.radarSource==='nexrad';
   toast('Scanning'+(useNexrad?' NEXRAD':' RainViewer')+' for storm cells...');
-  if(!S.stormMovement)await fetchWindsAloft();
+  await fetchWindsAloft();
   try{
     const zoom=useNexrad?8:7;
     const radiusDeg=S.scanRadius/69.0;
