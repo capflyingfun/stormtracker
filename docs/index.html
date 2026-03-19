@@ -331,7 +331,13 @@ canvas.offscreen{display:none}
       <button class="loc-btn-search" onclick="searchLoc();toggleLocOverlay(false)">🔍 Search</button>
       <button class="loc-btn-close" onclick="toggleLocOverlay(false)">✕</button>
     </div>
+    <button class="loc-btn-map" onclick="startMapPick()" style="width:100%;margin-top:6px;padding:8px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">📌 Set Location from Map</button>
     <button class="travel-btn" id="travel-btn" onclick="toggleTravelMode();toggleLocOverlay(false)">🧭 Travel Mode — Follow GPS Live</button>
+    <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:0.75em;color:var(--text-muted);font-weight:600">⭐ Favorites</span>
+      <button id="fav-save-btn" onclick="saveFavorite()" style="font-size:0.7em;padding:2px 8px;background:rgba(0,255,136,0.1);color:var(--accent-green);border:1px solid rgba(0,255,136,0.3);border-radius:6px;cursor:pointer;font-weight:600">+ Save Current</button>
+    </div>
+    <div id="fav-list" style="margin-top:4px"></div>
   </div>
 </div>
 
@@ -741,6 +747,9 @@ function toggleLocOverlay(open){
     const tb=document.getElementById('travel-btn');
     if(S.travelMode){tb.textContent='⏹ Stop Travel Mode';tb.classList.add('active')}
     else{tb.textContent='🧭 Travel Mode — Follow GPS Live';tb.classList.remove('active')}
+    renderFavorites();
+    const saveBtn=document.getElementById('fav-save-btn');
+    if(saveBtn)saveBtn.style.display=S.lat?'':'none';
   }
   else el.classList.remove('open');
 }
@@ -929,6 +938,101 @@ function setLoc(lat,lon,name,fromTravel){
   fetchAlerts();
   scanRadarForStorms();
   scheduleHourlyRefresh();
+}
+
+function getFavorites(){
+  try{return JSON.parse(localStorage.getItem('st_favs')||'[]')}catch(e){return[]}
+}
+function saveFavorites(favs){
+  try{localStorage.setItem('st_favs',JSON.stringify(favs))}catch(e){}
+}
+function saveFavorite(){
+  if(!S.lat){toast('Set a location first');return}
+  const favs=getFavorites();
+  if(favs.length>=5){toast('Max 5 favorites — remove one first');return}
+  if(favs.some(f=>Math.abs(f.lat-S.lat)<0.01&&Math.abs(f.lon-S.lon)<0.01)){toast('Location already saved');return}
+  favs.push({lat:S.lat,lon:S.lon,name:S.locName});
+  saveFavorites(favs);
+  renderFavorites();
+  toast('⭐ Saved: '+S.locName);
+}
+function removeFavorite(idx){
+  const favs=getFavorites();
+  favs.splice(idx,1);
+  saveFavorites(favs);
+  renderFavorites();
+}
+function loadFavorite(idx){
+  const favs=getFavorites();
+  const f=favs[idx];
+  if(f){setLoc(f.lat,f.lon,f.name);toggleLocOverlay(false)}
+}
+function renderFavorites(){
+  const el=document.getElementById('fav-list');
+  if(!el)return;
+  const favs=getFavorites();
+  if(!favs.length){el.innerHTML='<div style="font-size:0.7em;color:#555;text-align:center;padding:4px">No favorites saved</div>';return}
+  el.innerHTML=favs.map((f,i)=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;margin:2px 0;background:rgba(255,255,255,0.03);border-radius:6px;cursor:pointer" onclick="loadFavorite(${i})">
+    <span style="font-size:0.8em">⭐</span>
+    <span style="flex:1;font-size:0.75em;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</span>
+    <button onclick="event.stopPropagation();removeFavorite(${i})" style="background:none;border:none;color:#f44;font-size:0.7em;cursor:pointer;padding:2px 4px">✕</button>
+  </div>`).join('');
+}
+
+function startMapPick(){
+  toggleLocOverlay(false);
+  if(!S.map){switchPage('radar');toast('Loading map...');setTimeout(()=>startMapPick(),1000);return}
+  switchPage('radar');
+  S._mapPickMode=true;
+  let banner=document.getElementById('map-pick-banner');
+  if(!banner){
+    banner=document.createElement('div');
+    banner.id='map-pick-banner';
+    banner.style.cssText='position:absolute;top:0;left:0;right:0;z-index:600;background:rgba(0,229,255,0.15);backdrop-filter:blur(10px);border-bottom:1px solid var(--accent-cyan);padding:8px 12px;display:flex;align-items:center;justify-content:space-between;font-size:0.8em';
+    banner.innerHTML=`<span style="color:var(--accent-cyan);font-weight:600">📌 Pan map to desired location, then tap Confirm</span>
+      <div style="display:flex;gap:6px">
+        <button id="map-pick-confirm" style="padding:4px 12px;background:var(--accent-green);color:#000;border:none;border-radius:6px;font-weight:700;font-size:0.9em;cursor:pointer">✓ Confirm</button>
+        <button id="map-pick-cancel" style="padding:4px 12px;background:rgba(255,51,85,0.2);color:var(--accent-red);border:1px solid var(--accent-red);border-radius:6px;font-weight:600;font-size:0.9em;cursor:pointer">✕</button>
+      </div>`;
+    document.querySelector('.map-container')?.appendChild(banner);
+    document.getElementById('map-pick-confirm').addEventListener('click',confirmMapPick);
+    document.getElementById('map-pick-cancel').addEventListener('click',cancelMapPick);
+  }
+  banner.style.display='flex';
+  if(!S._mapPickPin){
+    S._mapPickPin=L.marker(S.map.getCenter(),{icon:L.divIcon({className:'',html:'<div style="font-size:24px;text-align:center;margin-top:-20px">📍</div>',iconSize:[30,40],iconAnchor:[15,40]})}).addTo(S.map);
+  }else{
+    S._mapPickPin.setLatLng(S.map.getCenter());
+    S._mapPickPin.addTo(S.map);
+  }
+  S.map.on('move',onMapPickMove);
+}
+function onMapPickMove(){
+  if(S._mapPickPin&&S.map)S._mapPickPin.setLatLng(S.map.getCenter());
+}
+async function confirmMapPick(){
+  const center=S.map.getCenter();
+  const lat=center.lat,lon=center.lng;
+  cancelMapPick();
+  let name=`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+    const d=await r.json();
+    if(d.address){
+      const a=d.address;
+      name=a.city||a.town||a.village||a.hamlet||a.county||name;
+      if(a.state)name+=', '+a.state;
+    }
+  }catch(e){}
+  setLoc(lat,lon,name);
+  toast('📌 Location set: '+name);
+}
+function cancelMapPick(){
+  S._mapPickMode=false;
+  const banner=document.getElementById('map-pick-banner');
+  if(banner)banner.style.display='none';
+  if(S._mapPickPin&&S.map){S.map.removeLayer(S._mapPickPin);S._mapPickPin=null}
+  if(S.map)S.map.off('move',onMapPickMove);
 }
 
 function scheduleHourlyRefresh(){
