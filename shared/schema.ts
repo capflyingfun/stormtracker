@@ -403,6 +403,27 @@ export const insertFavoriteStationSchema = createInsertSchema(favoriteStations).
 export type FavoriteStation = typeof favoriteStations.$inferSelect;
 export type InsertFavoriteStation = z.infer<typeof insertFavoriteStationSchema>;
 
+// Cloud sync profiles — simple username + PIN for cross-device sync
+export const syncProfiles = pgTable("sync_profiles", {
+  id: serial("id").primaryKey(),
+  username: varchar("username", { length: 50 }).notNull().unique(),
+  pin: varchar("pin", { length: 4 }).notNull(),
+  favorites: jsonb("favorites").default([]),
+  lastLocation: jsonb("last_location"),
+  settings: jsonb("settings").default({}),
+  lastSyncAt: timestamp("last_sync_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSyncProfileSchema = createInsertSchema(syncProfiles).omit({
+  id: true,
+  lastSyncAt: true,
+  createdAt: true,
+});
+
+export type SyncProfile = typeof syncProfiles.$inferSelect;
+export type InsertSyncProfile = z.infer<typeof insertSyncProfileSchema>;
+
 // Legacy tables retained for schema compatibility (not actively used)
 export const authUsers = pgTable("auth_users", {
   id: varchar("id").primaryKey(),
