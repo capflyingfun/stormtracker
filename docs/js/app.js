@@ -1757,31 +1757,55 @@ function initRadar(){
   },100);
 }
 
-function toggleRadarAnim(map){
-  if(S._radarAnimPlaying) return stopRadarAnim(map);
-  if(S.radarSource==='nexrad'){
-    toast('Radar animation is available with RainViewer source — switching now');
-    S.radarSource='rainviewer';
-    showRadarLayer(map);
+async function buildNexradFrames(){
+  const frames=[];
+  const now=Date.now();
+  for(let i=24;i>=0;i--){
+    const t=new Date(now - i*5*60000);
+    const ts=t.getUTCFullYear()+String(t.getUTCMonth()+1).padStart(2,'0')+String(t.getUTCDate()).padStart(2,'0')
+      +String(t.getUTCHours()).padStart(2,'0')+String(Math.floor(t.getUTCMinutes()/5)*5).padStart(2,'0');
+    frames.push({time:Math.floor(t.getTime()/1000),ts,type:'past',
+      url:`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-${ts}-900913/{z}/{x}/{y}.png`});
   }
-  if(!S.radarFrames.length){toast('No radar frames available');return}
+  return frames;
+}
+async function toggleRadarAnim(map){
+  if(S._radarAnimPlaying) return stopRadarAnim(map);
+  const btn=document.getElementById('radar-anim-btn');
+  btn.textContent='⏳';
+  let animFrames=[];
+  if(S.radarSource==='nexrad'){
+    animFrames=await buildNexradFrames();
+    S._radarAnimSrc='nexrad';
+  }else{
+    if(!S.radarFrames.length){toast('No radar frames available');btn.textContent='▶️';return}
+    const pastCount=(S.radarFrames||[]).filter(f=>!f.path||!f.path.includes('/nowcast/')).length;
+    animFrames=S.radarFrames.map((f,i)=>({
+      time:f.time, type:i<pastCount?'past':'forecast',
+      url:`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/6/1_1.png`
+    }));
+    S._radarAnimSrc='rainviewer';
+  }
+  if(!animFrames.length){toast('No radar frames available');btn.textContent='▶️';return}
+  S._radarAnimFrames=animFrames;
   S._radarAnimPlaying=true;
   S._radarAnimPaused=true;
-  const btn=document.getElementById('radar-anim-btn');
   btn.textContent='⏹️';btn.classList.add('active');
   const bar=document.getElementById('radar-anim-bar');
   bar.style.display='flex';
   const slider=document.getElementById('radar-anim-slider');
-  const pastCount=(S.radarFrames||[]).filter(f=>!f.path.includes('/nowcast/')).length;
-  slider.min=0;slider.max=S.radarFrames.length-1;
+  slider.min=0;slider.max=animFrames.length-1;
   S._radarAnimIdx=0;
   slider.value=0;
-  S._radarAnimPastCount=pastCount;
   showRadarAnimFrame(map,0);
+  startRadarAnimLoop(map);
+}
+function startRadarAnimLoop(map){
+  clearInterval(S._radarAnimTimer);
   S._radarAnimTimer=setInterval(()=>{
     S._radarAnimIdx++;
-    if(S._radarAnimIdx>=S.radarFrames.length) S._radarAnimIdx=0;
-    slider.value=S._radarAnimIdx;
+    if(S._radarAnimIdx>=S._radarAnimFrames.length) S._radarAnimIdx=0;
+    document.getElementById('radar-anim-slider').value=S._radarAnimIdx;
     showRadarAnimFrame(map,S._radarAnimIdx);
   },700);
 }
@@ -1789,37 +1813,35 @@ function stopRadarAnim(map){
   S._radarAnimPlaying=false;
   S._radarAnimPaused=false;
   clearInterval(S._radarAnimTimer);
+  S._radarAnimFrames=[];
   const btn=document.getElementById('radar-anim-btn');
   btn.textContent='▶️';btn.classList.remove('active');
   document.getElementById('radar-anim-bar').style.display='none';
-  S.radarIdx=S.radarFrames.length-1;
+  if(S.radarFrames.length) S.radarIdx=S.radarFrames.length-1;
   showRadarLayer(map);
 }
 function scrubRadarAnim(map,idx){
   clearInterval(S._radarAnimTimer);
   S._radarAnimIdx=idx;
   showRadarAnimFrame(map,idx);
-  S._radarAnimTimer=setInterval(()=>{
-    S._radarAnimIdx++;
-    if(S._radarAnimIdx>=S.radarFrames.length) S._radarAnimIdx=0;
-    document.getElementById('radar-anim-slider').value=S._radarAnimIdx;
-    showRadarAnimFrame(map,S._radarAnimIdx);
-  },700);
+  startRadarAnimLoop(map);
 }
 function showRadarAnimFrame(map,idx){
-  const frame=S.radarFrames[idx];
-  if(!frame)return;
+  const frames=S._radarAnimFrames;
+  if(!frames||!frames[idx])return;
+  const frame=frames[idx];
   if(S.radarLayer){map.removeLayer(S.radarLayer);S.radarLayer=null}
-  S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/6/1_1.png`,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
+  const maxNZ=S._radarAnimSrc==='nexrad'?8:7;
+  S.radarLayer=L.tileLayer(frame.url,{opacity:0.7,maxZoom:11,maxNativeZoom:maxNZ}).addTo(map);
   const t=new Date(frame.time*1000);
   const timeStr=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-  const pastCount=S._radarAnimPastCount||S.radarFrames.length;
-  const isFuture=idx>=pastCount;
+  const isFuture=frame.type==='forecast';
+  const srcTag=S._radarAnimSrc==='nexrad'?'NEX':'RV';
   const label=isFuture?'▸ '+timeStr+' (forecast)':'◂ '+timeStr;
-  document.getElementById('radar-time').textContent=timeStr;
+  document.getElementById('radar-time').textContent=srcTag+' '+timeStr;
   document.getElementById('radar-anim-time').textContent=label;
   const slider=document.getElementById('radar-anim-slider');
-  const pct=S.radarFrames.length>1?idx/(S.radarFrames.length-1):0;
+  const pct=frames.length>1?idx/(frames.length-1):0;
   slider.style.setProperty('--pct',pct);
 }
 
