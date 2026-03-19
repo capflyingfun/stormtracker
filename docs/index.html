@@ -1474,7 +1474,7 @@ function initRadar(){
       <div class="map-controls">
         <div class="map-ctrl-btn" id="radar-scan" title="Re-center & scan">📍</div>
         <div class="map-ctrl-btn" id="radar-scan-view" title="Scan current view">🔍</div>
-        <div class="map-ctrl-btn" id="radar-scan-hires" title="Hi-Res 10mi scan" style="font-size:0.5em;font-weight:700;line-height:1;color:var(--accent-cyan)">HiRes</div>
+        <div class="map-ctrl-btn" id="radar-scan-hires" title="Hi-Res 15mi scan" style="font-size:0.5em;font-weight:700;line-height:1;color:var(--accent-cyan)">HiRes</div>
         <div class="map-ctrl-btn" id="radar-toggle-src" title="Toggle radar source" style="font-size:0.55em;font-weight:700;line-height:1">SRC</div>
         <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km" style="font-size:0.55em;font-weight:700;line-height:1">MI</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
@@ -1704,12 +1704,12 @@ async function scanRadarForView(){
   }catch(e){hideScanOverlay();toast('View scan failed: '+e.message);console.error('ViewScan error:',e)}
 }
 
-async function scanRadarHiRes(map){
+async function scanRadarHiRes(map,fromHome){
   if(!map)return;
-  const center=map.getCenter();
+  const center=fromHome?{lat:S.lat,lng:S.lon}:map.getCenter();
   const cLat=center.lat,cLng=center.lng;
   const useNexrad=S.radarSource==='nexrad';
-  const HIRES_RADIUS=10;
+  const HIRES_RADIUS=15;
   const hiZoom=useNexrad?10:7;
   showScanOverlay();
   await fetchWindsAloft(cLat,cLng);
@@ -2171,6 +2171,17 @@ async function scanRadarForStorms(){
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
     scheduleAutoScan();
+    const severeNearby=S.storms.some(s=>s.dbz>=50&&s.distance<=15);
+    if(severeNearby&&S.map&&!S._autoHiResActive){
+      S._autoHiResActive=true;
+      toast('⚠️ Severe cell within 15 mi — launching Hi-Res scan...');
+      setTimeout(async()=>{
+        const savedCenter=S.map.getCenter();
+        S.map.setView([S.lat,S.lon],11,{animate:true,duration:0.5});
+        await scanRadarHiRes(S.map,true);
+        S._autoHiResActive=false;
+      },1500);
+    }
   }catch(e){hideScanOverlay();toast('Radar scan failed: '+e.message);console.error('Scan error:',e)}
 }
 
