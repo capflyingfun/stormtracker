@@ -1499,6 +1499,7 @@ async function scanRadarForView(){
 
 async function scanRadarHiRes(map,fromHome){
   if(!map)return;
+  if(!S._etaRescanInProgress)S._stormETAs={};
   const center=fromHome?{lat:S.lat,lng:S.lon}:map.getCenter();
   const cLat=center.lat,cLng=center.lng;
   const useNexrad=S.radarSource==='nexrad';
