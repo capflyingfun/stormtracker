@@ -300,15 +300,14 @@ const RV_PAL=[
   {dbz:40,r:236,g:206,b:0},{dbz:42,r:243,g:182,b:0},
   {dbz:45,r:254,g:147,b:0},{dbz:47,r:254,g:88,b:0},
   {dbz:50,r:255,g:0,b:0},{dbz:52,r:228,g:0,b:0},
-  {dbz:55,r:189,g:0,b:0},{dbz:58,r:189,g:0,b:0},
-  {dbz:60,r:189,g:0,b:0},{dbz:62,r:215,g:0,b:101},
-  {dbz:65,r:254,g:0,b:254},{dbz:67,r:214,g:32,b:231},
-  {dbz:70,r:156,g:82,b:198},{dbz:75,r:254,g:254,b:254}
+  {dbz:55,r:189,g:0,b:0},{dbz:60,r:189,g:0,b:0}
 ];
 function rvToDbz(r,g,b,a){
   if(a<30)return 0;
   if(r+g+b<40)return 0;
   if(r>220&&g>220&&b>220)return 0;
+  if(b>150&&r>100&&g<80)return 0;
+  if(r>180&&b>180&&g<100)return 0;
   let best=0,bestD=1e9;
   for(const p of RV_PAL){
     const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
