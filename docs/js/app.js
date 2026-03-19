@@ -1164,15 +1164,21 @@ let _gustResetT=0;
 let _windBase={spd:0,dir:0};
 let _windTarget=null;
 let _windLerpStart=0;
+let _windCurSim={spd:0,dir:0,gust:0};
+let _windSimSeed=0;
 const WIND_LERP_DUR=60000;
 function startWindSim(){
+  const wasRunning=!!_windSimTimer;
   if(_windSimTimer)clearInterval(_windSimTimer);
   if(_windRefreshTimer)clearInterval(_windRefreshTimer);
   if(!S.weather)return;
-  _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
-  _windTarget=null;
-  const seed=Math.random()*1000;
-  _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
+  if(!wasRunning||!_windCurSim.spd){
+    _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
+    _windTarget=null;
+    _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
+  }
+  const seed=wasRunning?(_windSimSeed||Math.random()*1000):Math.random()*1000;
+  _windSimSeed=seed;
   _windRefreshTimer=setInterval(async()=>{
     try{
       const awc=await fetchAWCNearest();
@@ -1219,6 +1225,7 @@ function startWindSim(){
       _gustResetT=now;
     }
     const displayGust=_gustSamples.length>0?Math.max(_gustMax,Math.max(..._gustSamples)):_gustMax;
+    _windCurSim={spd:simSpd,dir:simDir,gust:displayGust};
     const spdEl=document.querySelector('.wrc-speed');
     const dirEl=document.querySelector('.wrc-dir');
     const gustEl=document.querySelector('.wrc-gust');
@@ -1405,6 +1412,40 @@ function buildTrendSVG(h,info){
       svg+=`<text x="${(mnPt.x+5).toFixed(1)}" y="${(mnPt.y+10).toFixed(1)}" fill="${s.color}" font-size="6.5" font-weight="700" opacity="0.7">▼${s.fmt(mnPt.v)}</text>`;
     }
   });
+  const nowLabels=[];
+  lineData.forEach(s=>{
+    const arr=h[s.key];if(!arr)return;
+    const sc=scales.get(s.group);
+    const v=arr[start+nowIdx];if(v==null)return;
+    const y=PAD_T+cH-((v-sc.mn)/sc.rng)*cH;
+    nowLabels.push({y,color:s.color,label:s.fmt(v),id:s.id});
+  });
+  barData.forEach(s=>{
+    const arr=h[s.key];if(!arr)return;
+    const sc=scales.get(s.group);
+    const v=arr[start+nowIdx];if(v==null)return;
+    const ht=Math.max(2,((v-0)/(sc.mx-0||1))*cH);
+    const y=PAD_T+cH-ht;
+    nowLabels.push({y,color:s.color,label:s.fmt(v),id:s.id});
+  });
+  if(nowLabels.length){
+    nowLabels.sort((a,b)=>a.y-b.y);
+    const LBL_H=9;
+    const minY=PAD_T+2,maxY=H-PAD_B-4;
+    const placed=[];
+    nowLabels.forEach(nl=>{
+      let py=nl.y;
+      for(const prev of placed){
+        if(py<prev+LBL_H&&py>prev-LBL_H)py=prev+LBL_H;
+      }
+      if(py<minY)py=minY;
+      if(py>maxY)py=maxY;
+      placed.push(py);
+      const tx=nowX+5;
+      svg+=`<circle cx="${nowX.toFixed(1)}" cy="${nl.y.toFixed(1)}" r="2.5" fill="${nl.color}" stroke="#0f172a" stroke-width="0.8"/>`;
+      svg+=`<text x="${tx.toFixed(1)}" y="${(py+2.5).toFixed(1)}" fill="${nl.color}" font-size="7" font-weight="700" text-shadow="0 0 3px #000">${nl.label}</text>`;
+    });
+  }
   if(groupKeys.length>1||(lineData.length>0&&barData.length>0)){
     let lx=PAD_L+4,ly=PAD_T+10;
     sel.forEach(s=>{
