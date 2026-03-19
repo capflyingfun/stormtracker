@@ -1866,8 +1866,11 @@ async function toggleRadarAnim(map){
   btn.textContent='⏳';
   let animFrames=[];
   if(S.radarSource==='nexrad'){
+    const nearSite=findNearestRadar(S.lat,S.lon);
+    toast(`📡 Nearest radar: K${nearSite} — fetching scans...`);
     animFrames=await buildNexradFrames();
     S._radarAnimSrc='nexrad';
+    S._radarAnimSite=nearSite;
   }else{
     if(!S.radarFrames.length){toast('No radar frames available');btn.textContent='▶️';return}
     const pastCount=(S.radarFrames||[]).filter(f=>!f.path||!f.path.includes('/nowcast/')).length;
@@ -1928,8 +1931,8 @@ function showRadarAnimFrame(map,idx){
   const t=new Date(frame.time*1000);
   const timeStr=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
   const isFuture=frame.type==='forecast';
-  const siteTag=frame.site?'K'+frame.site:'';
-  const srcTag=S._radarAnimSrc==='nexrad'?(siteTag||'NEX'):'RV';
+  const siteTag=frame.site||S._radarAnimSite||'';
+  const srcTag=S._radarAnimSrc==='nexrad'?(siteTag?'K'+siteTag:'NEX'):'RV';
   const label=isFuture?'▸ '+timeStr+' (forecast)':'◂ '+timeStr;
   document.getElementById('radar-time').textContent=srcTag+' '+timeStr;
   document.getElementById('radar-anim-time').textContent=label;
