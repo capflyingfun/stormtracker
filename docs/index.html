@@ -1246,8 +1246,7 @@ function initRadar(){
       <div id="radar-map"></div>
       <div class="radar-time-label" id="radar-time">Loading...</div>
       <div class="map-controls">
-        <div class="map-ctrl-btn" id="radar-recenter" title="Re-center on location">📌</div>
-        <div class="map-ctrl-btn" id="radar-scan" title="Scan around location">📍</div>
+        <div class="map-ctrl-btn" id="radar-scan" title="Re-center & scan">📍</div>
         <div class="map-ctrl-btn" id="radar-scan-view" title="Scan current view">🔍</div>
         <div class="map-ctrl-btn" id="radar-toggle-src" title="Toggle radar source" style="font-size:0.55em;font-weight:700;line-height:1">SRC</div>
         <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km" style="font-size:0.55em;font-weight:700;line-height:1">MI</div>
@@ -1280,11 +1279,10 @@ function initRadar(){
       }
     }catch(e){}
     showRadarLayer(map);
-    document.getElementById('radar-recenter').addEventListener('click',()=>{
+    document.getElementById('radar-scan').addEventListener('click',()=>{
       map.setView([S.lat,S.lon],8,{animate:true,duration:0.5});
-      toast('Re-centered on '+S.locName);
+      scanRadarForStorms();
     });
-    document.getElementById('radar-scan').addEventListener('click',()=>{scanRadarForStorms()});
     document.getElementById('radar-scan-view').addEventListener('click',()=>{scanRadarForView()});
     document.getElementById('radar-toggle-src').addEventListener('click',()=>{toggleRadarSource(map)});
     document.getElementById('radar-toggle-units').addEventListener('click',()=>{
@@ -1368,7 +1366,7 @@ async function scanRadarForView(){
 
     const colorFn=nexradToDbz;
     const minDbz=20;
-    const maxScanDist=S.scanRadius*1.5;
+    const maxScanDist=9999;
     const tilePromises=[];
     for(let tx=minTX;tx<=maxTX;tx++){
       for(let ty=minTY;ty<=maxTY;ty++){
