@@ -575,59 +575,81 @@ function renderFavorites(){
 
 function startMapPick(){
   toggleLocOverlay(false);
-  if(!S.lat){S.lat=39.8;S.lon=-98.5;S.locName=''}
-  if(!S.map){switchPage('radar');toast('Pan to your location and tap Confirm');setTimeout(()=>{if(S.map)startMapPick();else toast('Map loading...')},1200);return}
-  switchPage('radar');
-  S._mapPickMode=true;
-  let banner=document.getElementById('map-pick-banner');
-  if(!banner){
-    banner=document.createElement('div');
-    banner.id='map-pick-banner';
-    banner.style.cssText='position:absolute;top:0;left:0;right:0;z-index:600;background:rgba(0,229,255,0.15);backdrop-filter:blur(10px);border-bottom:1px solid var(--accent-cyan);padding:8px 12px;display:flex;align-items:center;justify-content:space-between;font-size:0.8em';
-    banner.innerHTML=`<span style="color:var(--accent-cyan);font-weight:600">📌 Pan map to desired location, then tap Confirm</span>
-      <div style="display:flex;gap:6px">
-        <button id="map-pick-confirm" style="padding:4px 12px;background:var(--accent-green);color:#000;border:none;border-radius:6px;font-weight:700;font-size:0.9em;cursor:pointer">✓ Confirm</button>
-        <button id="map-pick-cancel" style="padding:4px 12px;background:rgba(255,51,85,0.2);color:var(--accent-red);border:1px solid var(--accent-red);border-radius:6px;font-weight:600;font-size:0.9em;cursor:pointer">✕</button>
-      </div>`;
-    document.querySelector('.map-container')?.appendChild(banner);
-    document.getElementById('map-pick-confirm').addEventListener('click',confirmMapPick);
-    document.getElementById('map-pick-cancel').addEventListener('click',cancelMapPick);
+  let overlay=document.getElementById('map-pick-overlay');
+  if(overlay){overlay.style.display='flex';return}
+  overlay=document.createElement('div');
+  overlay.id='map-pick-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;background:#0f172a';
+  overlay.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#1e293b;border-bottom:1px solid #334155;flex-shrink:0">
+      <div><div style="color:#fff;font-weight:600;font-size:1em">📌 Pick Location</div>
+      <div style="color:#94a3b8;font-size:0.75em">Drag the map so the pin is on your spot</div></div>
+      <button id="map-pick-close" style="background:none;border:none;color:#94a3b8;font-size:1.4em;cursor:pointer;padding:4px 8px">✕</button>
+    </div>
+    <div id="map-pick-map" style="flex:1;position:relative"></div>
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-100%);z-index:1000;pointer-events:none">
+      <div style="display:flex;flex-direction:column;align-items:center">
+        <div style="width:20px;height:20px;border-radius:50%;background:#3b82f6;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center"><div style="width:6px;height:6px;border-radius:50%;background:#fff"></div></div>
+        <div style="width:2px;height:14px;background:#3b82f6"></div>
+        <div style="width:6px;height:3px;background:#60a5fa;border-radius:50%;opacity:0.5"></div>
+      </div>
+    </div>
+    <div style="position:absolute;top:50%;left:0;right:0;border-top:1px solid rgba(96,165,250,0.2);transform:translateY(-14px);z-index:999;pointer-events:none"></div>
+    <div style="position:absolute;left:50%;top:0;bottom:0;border-left:1px solid rgba(96,165,250,0.2);z-index:999;pointer-events:none"></div>
+    <div style="padding:12px 16px;background:#1e293b;border-top:1px solid #334155;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;min-height:20px">
+        <span style="color:#60a5fa">📍</span>
+        <span id="map-pick-addr" style="color:#fff;font-size:0.85em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Resolving...</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button id="map-pick-cancel" style="flex:1;padding:12px;background:transparent;border:1px solid #475569;color:#cbd5e1;border-radius:8px;font-size:0.9em;font-weight:600;cursor:pointer">Cancel</button>
+        <button id="map-pick-confirm" style="flex:1;padding:12px;background:#2563eb;border:none;color:#fff;border-radius:8px;font-size:0.9em;font-weight:700;cursor:pointer">📌 Set This Location</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const initLat=S.lat||39.8,initLon=S.lon||-98.5;
+  const pickMap=L.map('map-pick-map',{center:[initLat,initLon],zoom:9,zoomControl:true});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© CartoDB'}).addTo(pickMap);
+  S._pickMap=pickMap;
+  let resolveTimer=null;
+  const addrEl=document.getElementById('map-pick-addr');
+  async function resolveAddr(lat,lon){
+    addrEl.textContent='Looking up address...';
+    try{
+      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+      const d=await r.json();
+      if(d.address){
+        const a=d.address;
+        let name=a.city||a.town||a.village||a.hamlet||a.county||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+        if(a.state)name+=', '+a.state;
+        addrEl.textContent=name;
+      }else{addrEl.textContent=`${lat.toFixed(4)}, ${lon.toFixed(4)}`}
+    }catch(e){addrEl.textContent=`${lat.toFixed(4)}, ${lon.toFixed(4)}`}
   }
-  banner.style.display='flex';
-  if(!S._mapPickPin){
-    S._mapPickPin=L.marker(S.map.getCenter(),{icon:L.divIcon({className:'',html:'<div style="font-size:24px;text-align:center;margin-top:-20px">📍</div>',iconSize:[30,40],iconAnchor:[15,40]})}).addTo(S.map);
-  }else{
-    S._mapPickPin.setLatLng(S.map.getCenter());
-    S._mapPickPin.addTo(S.map);
-  }
-  S.map.on('move',onMapPickMove);
-}
-function onMapPickMove(){
-  if(S._mapPickPin&&S.map)S._mapPickPin.setLatLng(S.map.getCenter());
-}
-async function confirmMapPick(){
-  const center=S.map.getCenter();
-  const lat=center.lat,lon=center.lng;
-  cancelMapPick();
-  let name=`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-  try{
-    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
-    const d=await r.json();
-    if(d.address){
-      const a=d.address;
-      name=a.city||a.town||a.village||a.hamlet||a.county||name;
-      if(a.state)name+=', '+a.state;
-    }
-  }catch(e){}
-  setLoc(lat,lon,name);
-  toast('📌 Location set: '+name);
+  resolveAddr(initLat,initLon);
+  pickMap.on('moveend',()=>{
+    const c=pickMap.getCenter();
+    if(resolveTimer)clearTimeout(resolveTimer);
+    resolveTimer=setTimeout(()=>resolveAddr(c.lat,c.lng),600);
+  });
+  document.getElementById('map-pick-close').onclick=cancelMapPick;
+  document.getElementById('map-pick-cancel').onclick=cancelMapPick;
+  document.getElementById('map-pick-confirm').onclick=async()=>{
+    const c=pickMap.getCenter();
+    const lat=c.lat,lon=c.lng;
+    let name=addrEl.textContent||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    if(name==='Looking up address...'||name==='Resolving...')name=`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    cancelMapPick();
+    setLoc(lat,lon,name);
+    toast('📌 Location set: '+name);
+  };
 }
 function cancelMapPick(){
-  S._mapPickMode=false;
-  const banner=document.getElementById('map-pick-banner');
-  if(banner)banner.style.display='none';
-  if(S._mapPickPin&&S.map){S.map.removeLayer(S._mapPickPin);S._mapPickPin=null}
-  if(S.map)S.map.off('move',onMapPickMove);
+  const overlay=document.getElementById('map-pick-overlay');
+  if(overlay){
+    if(S._pickMap){S._pickMap.remove();S._pickMap=null}
+    overlay.remove();
+  }
 }
 
 function scheduleHourlyRefresh(){
