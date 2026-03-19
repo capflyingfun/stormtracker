@@ -636,27 +636,31 @@ function startMapPick(){
   overlay.innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#1e293b;border-bottom:1px solid #334155;flex-shrink:0">
       <div><div style="color:#fff;font-weight:600;font-size:1em">📌 Pick Location</div>
-      <div style="color:#94a3b8;font-size:0.75em">Drag the map so the pin is on your spot</div></div>
+      <div style="color:#94a3b8;font-size:0.75em">Drag the map to center the crosshair on your spot</div></div>
       <button id="map-pick-close" style="background:none;border:none;color:#94a3b8;font-size:1.4em;cursor:pointer;padding:4px 8px">✕</button>
     </div>
     <div id="map-pick-map" style="flex:1;position:relative"></div>
-    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-100%);z-index:1000;pointer-events:none">
-      <div style="display:flex;flex-direction:column;align-items:center">
-        <div style="width:20px;height:20px;border-radius:50%;background:#3b82f6;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center"><div style="width:6px;height:6px;border-radius:50%;background:#fff"></div></div>
-        <div style="width:2px;height:14px;background:#3b82f6"></div>
-        <div style="width:6px;height:3px;background:#60a5fa;border-radius:50%;opacity:0.5"></div>
-      </div>
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1000;pointer-events:none">
+      <svg width="60" height="60" viewBox="0 0 60 60">
+        <circle cx="30" cy="30" r="20" fill="none" stroke="#00ff88" stroke-width="2" opacity="0.5"/>
+        <circle cx="30" cy="30" r="10" fill="none" stroke="#00ff88" stroke-width="2" opacity="0.8"/>
+        <circle cx="30" cy="30" r="3" fill="#00ff88"/>
+        <line x1="30" y1="0" x2="30" y2="20" stroke="#00ff88" stroke-width="1.5" opacity="0.6"/>
+        <line x1="30" y1="40" x2="30" y2="60" stroke="#00ff88" stroke-width="1.5" opacity="0.6"/>
+        <line x1="0" y1="30" x2="20" y2="30" stroke="#00ff88" stroke-width="1.5" opacity="0.6"/>
+        <line x1="40" y1="30" x2="60" y2="30" stroke="#00ff88" stroke-width="1.5" opacity="0.6"/>
+      </svg>
     </div>
-    <div style="position:absolute;top:50%;left:0;right:0;border-top:1px solid rgba(96,165,250,0.2);transform:translateY(-14px);z-index:999;pointer-events:none"></div>
-    <div style="position:absolute;left:50%;top:0;bottom:0;border-left:1px solid rgba(96,165,250,0.2);z-index:999;pointer-events:none"></div>
+    <div style="position:absolute;top:50%;left:0;right:0;border-top:1px solid rgba(0,255,136,0.12);z-index:999;pointer-events:none"></div>
+    <div style="position:absolute;left:50%;top:0;bottom:0;border-left:1px solid rgba(0,255,136,0.12);z-index:999;pointer-events:none"></div>
     <div style="padding:12px 16px;background:#1e293b;border-top:1px solid #334155;flex-shrink:0">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;min-height:20px">
-        <span style="color:#60a5fa">📍</span>
+        <span style="color:#00ff88;font-size:0.9em">⊕</span>
         <span id="map-pick-addr" style="color:#fff;font-size:0.85em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Resolving...</span>
       </div>
       <div style="display:flex;gap:8px">
         <button id="map-pick-cancel" style="flex:1;padding:12px;background:transparent;border:1px solid #475569;color:#cbd5e1;border-radius:8px;font-size:0.9em;font-weight:600;cursor:pointer">Cancel</button>
-        <button id="map-pick-confirm" style="flex:1;padding:12px;background:#2563eb;border:none;color:#fff;border-radius:8px;font-size:0.9em;font-weight:700;cursor:pointer">📌 Set This Location</button>
+        <button id="map-pick-confirm" style="flex:1;padding:12px;background:#00cc6a;border:none;color:#fff;border-radius:8px;font-size:0.9em;font-weight:700;cursor:pointer">⊕ Set This Location</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
