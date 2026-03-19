@@ -1014,16 +1014,9 @@ function renderWeather(data){
     const lg=(toDeg-fromDeg)>180?1:0;
     return`M${x1.toFixed(1)},${y1.toFixed(1)} A${radius},${radius} 0 ${lg} 1 ${x2.toFixed(1)},${y2.toFixed(1)}`;
   }
-  if(gustArc>windArc+2){
-    gaugeSvg+=`<path id="gauge-gust-arc" d="${arcPath(windArc,gustArc,arcR)}" fill="none" stroke="${neonOrange}0.7)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
-  } else {
-    gaugeSvg+=`<path id="gauge-gust-arc" d="M0,0" fill="none" stroke="${neonOrange}0.7)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
-  }
-  if(windArc>0){
-    gaugeSvg+=`<path id="gauge-wind-arc" d="${arcPath(0,windArc,arcR)}" fill="none" stroke="${neonCyan}0.8)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
-  } else {
-    gaugeSvg+=`<path id="gauge-wind-arc" d="M0,0" fill="none" stroke="${neonCyan}0.8)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
-  }
+  gaugeSvg+=`<path id="gauge-gust-arc" d="${gustArc>0?arcPath(0,gustArc,arcR):'M0,0'}" fill="none" stroke="${neonOrange}0.7)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
+  gaugeSvg+=`<path id="gauge-wind-arc" d="${windArc>0?arcPath(0,windArc,arcR):'M0,0'}" fill="none" stroke="${neonCyan}0.8)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
+
   S._gaugeMaxSpd=maxArcSpd;S._gaugeArcR=arcR;
   const spdTicks=[];
   const spdStep=maxArcSpd<=15?5:maxArcSpd<=30?5:maxArcSpd<=50?10:maxArcSpd<=100?20:maxArcSpd<=160?25:50;
@@ -1213,8 +1206,8 @@ function startWindSim(){
     }
     const windArcEl=document.getElementById('gauge-wind-arc');
     const gustArcEl=document.getElementById('gauge-gust-arc');
+    if(gustArcEl)gustArcEl.setAttribute('d',gustArc>0?simArcPath(0,gustArc,arcR):'M0,0');
     if(windArcEl)windArcEl.setAttribute('d',windArc>0?simArcPath(0,windArc,arcR):'M0,0');
-    if(gustArcEl)gustArcEl.setAttribute('d',gustArc>windArc+2?simArcPath(windArc,gustArc,arcR):'M0,0');
     const compass=document.querySelector('.wind-rose svg');
     if(compass){
       const ptr=compass.querySelector('polygon');
