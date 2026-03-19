@@ -1678,8 +1678,8 @@ async function scanRadarForView(){
     }
     const tileResults=await Promise.all(tilePromises);
     let allPoints=tileResults.flat();
-    allPoints.forEach(p=>{p.distance=haversine(cLat,cLng,p.lat,p.lng)});
     let filtered=spacingFilter(allPoints).sort((a,b)=>a.distance-b.distance);
+    filtered.forEach(p=>{p._cDist=haversine(cLat,cLng,p.lat,p.lng)});
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
 
     let viewMaxDist=0;
@@ -1693,15 +1693,16 @@ async function scanRadarForView(){
       let lo=MIN_RADIUS,hi=radius;
       for(let i=0;i<12;i++){
         const mid=(lo+hi)/2;
-        const cnt=filtered.filter(p=>p.distance<=mid).length;
+        const cnt=filtered.filter(p=>p._cDist<=mid).length;
         if(cnt>MAX_POINTS)hi=mid;else lo=mid;
       }
       radius=Math.max(MIN_RADIUS,Math.floor(lo));
-      filtered=filtered.filter(p=>p.distance<=radius);
+      filtered=filtered.filter(p=>p._cDist<=radius);
       scanStep(3,`Optimized to ${radius} mi · ${filtered.length.toLocaleString()} points`);
       await new Promise(r=>setTimeout(r,500));
     }else{
-      radius=filtered.length>0?Math.min(Math.ceil(filtered[filtered.length-1].distance*1.1),MAX_RADIUS):radius;
+      const maxCDist=filtered.length>0?Math.max(...filtered.map(p=>p._cDist)):0;
+      radius=Math.min(Math.ceil(maxCDist*1.1)||radius,MAX_RADIUS);
       if(radius<MIN_RADIUS)radius=MIN_RADIUS;
     }
 
