@@ -1502,6 +1502,14 @@ function initRadar(){
     S._rangeCircle=L.circle([S.lat,S.lon],{radius:S.scanRadius*1609.34,color:'#3b82f6',fillOpacity:0.05,weight:1,dashArray:'6 4'}).addTo(map);
     S._userMarker=L.circleMarker([S.lat,S.lon],{radius:5,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:1}).addTo(map);
     S.map=map;
+    let _zoomReplot=null,_lastZoom=map.getZoom();
+    map.on('zoomend',()=>{
+      const z=map.getZoom();
+      if(z===_lastZoom||!S.storms.length)return;
+      _lastZoom=z;
+      clearTimeout(_zoomReplot);
+      _zoomReplot=setTimeout(()=>plotStormMarkers(map),250);
+    });
     try{
       const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
       S.radarFrames=(rv.radar?.past||[]).concat(rv.radar?.nowcast||[]);
@@ -1708,14 +1716,20 @@ function clearStormCone(){
   const btn=document.getElementById('radar-clear-cone');
   if(btn)btn.style.display='none';
 }
+function zoomScale(map){
+  const z=map.getZoom();
+  return z>=10?1.4:z>=9?1.2:z>=8?1.0:z>=7?0.7:z>=6?0.45:z>=5?0.3:0.2;
+}
+
 function plotStormMarkers(map){
   S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];
   clearStormCone();
   const mv=S.stormMovement;
+  const sc=zoomScale(map);
   S.storms.forEach(storm=>{
     const cat=stormCat(storm.dbz);
     const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':storm.dbz>=35?'#eab308':storm.dbz>=25?'#22c55e':'#06b6d4';
-    const r=Math.max(10,storm.dbz/4);
+    const r=Math.max(4,Math.round(Math.max(10,storm.dbz/4)*sc));
     const eta=calcStormETA(storm);
     const popupId='pop_'+Math.random().toString(36).slice(2,8);
     let mvHtml='';
@@ -1751,7 +1765,7 @@ function plotStormMarkers(map){
     const popupOpts={closeButton:false,className:'storm-popup'};
     const stormRef=storm;
     if(mv&&mv.speed>=2){
-      const sz=Math.max(24,storm.dbz/2);
+      const sz=Math.max(10,Math.round(Math.max(24,storm.dbz/2)*sc));
       const arrow=L.marker([storm.lat,storm.lng],{icon:L.divIcon({className:'storm-arrow-icon',html:stormArrowSvg(mv.direction,color,sz),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]})}).addTo(map);
       arrow.bindPopup(popupHtml,popupOpts);
       arrow.on('click',()=>showStormCone(map,stormRef));
