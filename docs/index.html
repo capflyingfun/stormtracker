@@ -272,6 +272,13 @@ canvas.offscreen{display:none}
 .confirm-btns button{padding:10px 20px;border-radius:var(--radius-md);border:none;font-size:0.85em;font-weight:600;cursor:pointer;font-family:var(--font-body)}
 .confirm-allow{background:var(--accent-blue);color:white}
 .confirm-deny{background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border-subtle)}
+.travel-btn{width:100%;padding:10px;margin-top:8px;border-radius:var(--radius-md);border:1px solid var(--accent-cyan);background:rgba(0,229,255,0.08);color:var(--accent-cyan);font-size:0.85em;font-weight:600;cursor:pointer;font-family:var(--font-body);transition:all 0.2s}
+.travel-btn:hover{background:rgba(0,229,255,0.15)}
+.travel-btn.active{background:rgba(255,51,85,0.15);border-color:var(--accent-red);color:var(--accent-red)}
+@keyframes travel-pulse{0%,100%{box-shadow:0 0 4px var(--accent-cyan)}50%{box-shadow:0 0 12px var(--accent-cyan)}}
+.travel-indicator{position:fixed;top:48px;left:50%;transform:translateX(-50%);z-index:10001;background:var(--bg-surface);border:1px solid var(--accent-cyan);border-radius:var(--radius-lg);padding:6px 14px;display:none;align-items:center;gap:8px;font-size:0.75em;color:var(--accent-cyan);font-weight:600;animation:travel-pulse 2s ease-in-out infinite;backdrop-filter:blur(10px)}
+.travel-indicator.show{display:flex}
+.travel-indicator .t-dot{width:8px;height:8px;border-radius:50%;background:var(--accent-cyan);animation:nx-pulse 1.5s ease-in-out infinite}
 .lang-menu{display:none;position:fixed;top:48px;right:40px;z-index:10002;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:8px 0;max-height:70vh;overflow-y:auto;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,0.5);backdrop-filter:blur(20px)}
 .lang-menu.open{display:block}
 .lang-item{display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;font-size:0.85em;color:var(--text-secondary);transition:background 0.15s}
@@ -304,6 +311,7 @@ canvas.offscreen{display:none}
   <div class="header-loc-btn" id="btn-loc-open" onclick="toggleLocOverlay(true)" title="Change location">🗺️</div>
 </header>
 <div class="lang-menu" id="lang-menu"></div>
+<div class="travel-indicator" id="travel-indicator"><div class="t-dot"></div><span id="travel-status">🧭 Travel Mode</span><button onclick="toggleTravelMode()" style="background:rgba(255,51,85,0.2);color:var(--accent-red);border:1px solid var(--accent-red);border-radius:6px;padding:2px 10px;font-size:0.85em;font-weight:600;cursor:pointer;margin-left:4px">Stop</button></div>
 
 <div class="loc-overlay" id="loc-overlay" onclick="if(event.target===this)toggleLocOverlay(false)">
   <div class="loc-overlay-inner">
@@ -314,6 +322,7 @@ canvas.offscreen{display:none}
       <button class="loc-btn-search" onclick="searchLoc();toggleLocOverlay(false)">🔍 Search</button>
       <button class="loc-btn-close" onclick="toggleLocOverlay(false)">✕</button>
     </div>
+    <button class="travel-btn" id="travel-btn" onclick="toggleTravelMode();toggleLocOverlay(false)">🧭 Travel Mode — Follow GPS Live</button>
   </div>
 </div>
 
@@ -351,6 +360,7 @@ const S = {
   map:null, radarLayer:null, radarFrames:[], radarIdx:0,
   radarPlaying:false, radarTimer:null, scanRadius:80, radarSource:'nexrad', nexradLayer:null, radarMetric:false,
   activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null, stormFeedback:{}, etaExpired:{}, autoScanTimer:null, lastScanMs:0,
+  travelMode:false, travelWatchId:null, travelLastUpdate:0, travelMarker:null,
 };
 const TEMP_UNITS = ['°F','°C'];
 const WIND_UNITS = ['mph','kts','km/h','m/s'];
@@ -715,7 +725,13 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
 // ==========================================
 function toggleLocOverlay(open){
   const el=document.getElementById('loc-overlay');
-  if(open){el.classList.add('open');setTimeout(()=>document.getElementById('location-input').focus(),100)}
+  if(open){
+    el.classList.add('open');
+    setTimeout(()=>document.getElementById('location-input').focus(),100);
+    const tb=document.getElementById('travel-btn');
+    if(S.travelMode){tb.textContent='⏹ Stop Travel Mode';tb.classList.add('active')}
+    else{tb.textContent='🧭 Travel Mode — Follow GPS Live';tb.classList.remove('active')}
+  }
   else el.classList.remove('open');
 }
 function switchPage(page){
@@ -877,7 +893,8 @@ async function reverseGeo(lat,lon){
   }catch(e){setLoc(lat,lon)}
 }
 
-function setLoc(lat,lon,name){
+function setLoc(lat,lon,name,fromTravel){
+  if(!fromTravel && S.travelMode) stopTravelMode();
   S.lat=lat;S.lon=lon;
   S.locName=name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
   document.getElementById('location-input').value=S.locName;
@@ -915,6 +932,75 @@ function scheduleHourlyRefresh(){
     fetchAlerts();
     scheduleHourlyRefresh();
   },ms);
+}
+
+// ==========================================
+// TRAVEL MODE (Live GPS Tracking)
+// ==========================================
+function toggleTravelMode(){
+  if(S.travelMode) return stopTravelMode();
+  if(!navigator.geolocation) return toast('GPS not available on this device');
+  S.travelMode=true;
+  S.travelLastUpdate=0;
+  const ind=document.getElementById('travel-indicator');
+  ind.classList.add('show');
+  document.getElementById('travel-status').textContent='🧭 Acquiring GPS...';
+  const btn=document.getElementById('travel-btn');
+  btn.textContent='⏹ Stop Travel Mode';
+  btn.classList.add('active');
+  document.getElementById('status-text').textContent='🧭 Travel Mode · Tracking...';
+  if(S.map && !S.travelMarker){
+    S.travelMarker=L.circleMarker([S.lat||0,S.lon||0],{radius:8,fillColor:'#00e5ff',fillOpacity:0.9,color:'#fff',weight:2,className:'travel-gps-dot'}).addTo(S.map);
+  }
+  S.travelWatchId=navigator.geolocation.watchPosition(
+    pos=>onTravelPosition(pos),
+    err=>{document.getElementById('travel-status').textContent='🧭 GPS error — retrying...'},
+    {enableHighAccuracy:true, maximumAge:5000, timeout:15000}
+  );
+  toast('🧭 Travel Mode ON — GPS tracking active');
+}
+function stopTravelMode(){
+  S.travelMode=false;
+  if(S.travelWatchId!==null){navigator.geolocation.clearWatch(S.travelWatchId);S.travelWatchId=null}
+  document.getElementById('travel-indicator').classList.remove('show');
+  const btn=document.getElementById('travel-btn');
+  btn.textContent='🧭 Travel Mode — Follow GPS Live';
+  btn.classList.remove('active');
+  if(S.travelMarker&&S.map){S.map.removeLayer(S.travelMarker);S.travelMarker=null}
+  if(S.lat) document.getElementById('status-text').textContent='Live · '+S.locName;
+  toast('Travel Mode OFF');
+}
+function onTravelPosition(pos){
+  if(!S.travelMode) return;
+  const lat=pos.coords.latitude, lon=pos.coords.longitude;
+  const acc=pos.coords.accuracy;
+  const now=Date.now();
+  const dist=S.lat?haversine(S.lat,S.lon,lat,lon):999;
+  const spd=pos.coords.speed;
+  const spdTxt=spd!==null&&spd>=0?(S.windUnit===0?((spd*2.237).toFixed(0)+' mph'):(S.windUnit===2?((spd*3.6).toFixed(0)+' km/h'):((spd*1.944).toFixed(0)+' kts'))):'—';
+  document.getElementById('travel-status').textContent='🧭 '+spdTxt+' · ±'+(acc<1000?(acc.toFixed(0)+'m'):((acc/1000).toFixed(1)+'km'));
+  if(S.travelMarker)S.travelMarker.setLatLng([lat,lon]);
+  if(S.map)S.map.panTo([lat,lon],{animate:true,duration:0.5});
+  const minInterval=30000;
+  const minDist=0.15;
+  if(dist>minDist && (now-S.travelLastUpdate)>minInterval){
+    S.travelLastUpdate=now;
+    reverseGeocode(lat,lon).then(name=>{
+      setLoc(lat,lon,name,true);
+      document.getElementById('status-text').textContent='🧭 Travel Mode · '+S.locName;
+    });
+  } else {
+    S.lat=lat;S.lon=lon;
+    if(S._userMarker)S._userMarker.setLatLng([lat,lon]);
+    if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
+  }
+}
+function reverseGeocode(lat,lon){
+  return fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1`,{headers:{'Accept-Language':'en'}})
+    .then(r=>r.json()).then(d=>{
+      if(d&&d.address) return fmtLocName(d.address, d.display_name);
+      return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    }).catch(()=>`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
 }
 
 // ==========================================
