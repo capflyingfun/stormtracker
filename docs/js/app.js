@@ -807,16 +807,19 @@ async function fetchWeather(){
 }
 async function fetchAWCNearest(){
   try{
-    const bbox=`${(S.lat-0.75).toFixed(2)},${(S.lon-0.75).toFixed(2)},${(S.lat+0.75).toFixed(2)},${(S.lon+0.75).toFixed(2)}`;
-    const r=await fetch(`https://aviationweather.gov/api/data/metar?bbox=${bbox}&format=json&date=0&hours=2`,{signal:AbortSignal.timeout(4000)});
-    if(!r.ok)return null;
+    const url=`https://aviationweather.gov/api/data/metar?ids=&format=json&taf=false&hours=2&bbox=${(S.lat-1).toFixed(2)},${(S.lon-1).toFixed(2)},${(S.lat+1).toFixed(2)},${(S.lon+1).toFixed(2)}`;
+    console.log('AWC fetch:',url);
+    const r=await fetch(url,{signal:AbortSignal.timeout(5000)});
+    if(!r.ok){console.log('AWC fetch failed:',r.status);return null}
     const data=await r.json();
+    console.log('AWC returned',data.length,'stations');
     if(!data.length)return null;
     const nearest=data.reduce((best,m)=>{
       const d=haversine(S.lat,S.lon,m.lat,m.lon);
       return(!best||d<best._dist)?{...m,_dist:d}:best;
     },null);
     if(!nearest)return null;
+    console.log('AWC nearest:',nearest.icaoId,'dist:',nearest._dist?.toFixed(1)+'mi');
     return{
       icao:nearest.icaoId,temp:nearest.temp,dewp:nearest.dewp,
       windKmh:nearest.wspd!=null?nearest.wspd*1.852:null,
@@ -826,7 +829,7 @@ async function fetchAWCNearest(){
       visMeter:nearest.visib!=null?(String(nearest.visib).includes('+')?16093:Number(nearest.visib)*1609.34):null,
       wxString:nearest.wxString||'',dist:nearest._dist
     };
-  }catch(e){return null}
+  }catch(e){console.log('AWC nearest error:',e.message);return null}
 }
 function blendSources(sources){
   function avg(field){
@@ -1156,30 +1159,37 @@ const _wn={p:[151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,
   }
 };
 let _windSimTimer=null;
+let _gustSamples=[];
+let _gustMax=0;
+let _gustResetT=0;
 function startWindSim(){
   if(_windSimTimer)clearInterval(_windSimTimer);
   if(!S.weather)return;
   const baseSpd=S.weather.wind_speed_10m||0;
-  const baseGust=S.weather.wind_gusts_10m||baseSpd;
   const baseDir=S.weather.wind_direction_10m||0;
   const seed=Math.random()*1000;
+  _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
   _windSimTimer=setInterval(()=>{
-    const t=Date.now()*0.0001;
+    const t=Date.now()*0.00015;
     const spdNoise=_wn.noise(t+seed,0);
     const dirNoise=_wn.noise(t+seed+50,100);
-    const gustNoise=_wn.noise(t+seed+100,200);
-    const spdJitter=baseSpd>2?spdNoise*0.22:spdNoise*1.5;
-    let simSpd=Math.max(0.1,baseSpd*(1+spdJitter));
-    let simDir=((baseDir+dirNoise*15)%360+360)%360;
-    let simGust=Math.max(simSpd*1.01,baseGust*(1+gustNoise*0.25));
+    const spdFactor=0.5+((spdNoise+1)/2)*0.75;
+    let simSpd=Math.max(0,baseSpd*spdFactor);
+    let simDir=((baseDir+dirNoise*30)%360+360)%360;
+    _gustSamples.push(simSpd);
+    const now=Date.now();
+    if(now-_gustResetT>=10000){
+      _gustMax=Math.max(..._gustSamples);
+      _gustSamples=[];
+      _gustResetT=now;
+    }
+    const displayGust=_gustSamples.length>0?Math.max(_gustMax,Math.max(..._gustSamples)):_gustMax;
     const spdEl=document.querySelector('.wrc-speed');
     const dirEl=document.querySelector('.wrc-dir');
     const gustEl=document.querySelector('.wrc-gust');
     if(spdEl)spdEl.innerHTML=fmtWind(simSpd);
     if(dirEl)dirEl.textContent=degToDir(simDir)+' '+simDir.toFixed(1)+'°';
-    if(gustEl){
-      if(simGust>simSpd)gustEl.textContent='G'+fmtWind(simGust);
-    }
+    if(gustEl)gustEl.textContent=displayGust>0?'G'+fmtWind(displayGust):'';
     const compass=document.querySelector('.wind-rose svg');
     if(compass){
       const ptr=compass.querySelector('polygon');
