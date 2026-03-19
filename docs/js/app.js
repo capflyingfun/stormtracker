@@ -888,7 +888,8 @@ function renderWeather(data){
   S._baroTrendMb=baro.trendMb;S._baroTrend=baro.trend;
   const trendArrow=baro.trend==='rising'?'↑':baro.trend==='falling'?'↓':'→';
   const windStr=fmtWind(c.wind_speed_10m);
-  const gustStr=c.wind_gusts_10m?'G'+fmtWind(c.wind_gusts_10m):(c.wind_speed_10m?'G'+fmtWind(c.wind_speed_10m)+' N/A':'');
+  const hasGust=c.wind_gusts_10m!=null&&c.wind_gusts_10m>0;
+  const gustStr=hasGust?'G'+fmtWind(c.wind_gusts_10m):'Gust: --.- '+WIND_UNITS[S.windUnit];
 
   const sections={
     trends:`<div class="weather-section" data-sec="trends"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📈</span> 24h Trends</span>${secBtns('trends')}</div>
