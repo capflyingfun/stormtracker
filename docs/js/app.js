@@ -168,7 +168,7 @@ function scheduleAutoScan(){
   const elapsed=Date.now()-S.lastScanMs;
   const wait=Math.max(0,interval-elapsed);
   S.autoScanTimer=setTimeout(()=>{
-    if(S.lat!=null){scanRadar();updateAutoScanUI()}
+    if(S.lat!=null){scanRadarForStorms();updateAutoScanUI()}
   },wait);
   updateAutoScanUI();
 }
@@ -193,7 +193,7 @@ function startEtaCountdowns(){
         if(key&&!S.stormFeedback[key]&&!S.etaExpired[key]){
           S.etaExpired[key]={at:now,fbSec:30};
           el.textContent='🔄 Rescanning…';
-          if(S.lat!=null)scanRadar();
+          if(S.lat!=null)scanRadarForStorms();
         }
       }else{
         el.textContent=fmtCountdown(remain);
@@ -206,13 +206,11 @@ function startEtaCountdowns(){
     });
     document.querySelectorAll('[data-dist-mi]').forEach(el=>{
       const origDist=parseFloat(el.getAttribute('data-dist-mi'));
-      const speed=parseFloat(el.getAttribute('data-speed-mph'));
+      const closSpd=parseFloat(el.getAttribute('data-closing-mph')||'0');
       const t0=parseInt(el.getAttribute('data-t0'));
-      const impact=parseFloat(el.getAttribute('data-impact')||'0');
-      if(!speed||!t0)return;
+      if(!closSpd||!t0)return;
       const hrs=(now-t0)/3600000;
-      const approached=speed*hrs*(impact/100);
-      const curDist=Math.max(0,origDist-approached);
+      const curDist=Math.max(0,origDist-closSpd*hrs);
       el.textContent=S.radarMetric?(curDist*1.60934).toFixed(2)+' km':curDist.toFixed(2)+' mi';
     });
     for(const key in S.etaExpired){
@@ -1892,7 +1890,8 @@ function calcStormETA(storm){
     return{eta:null,impact:0,approaching:false};
   }
   const effectiveDist=Math.max(0,storm.distance-baseWidthMi);
-  const etaMin=Math.round(effectiveDist/closingSpeed*60);
+  const etaHrs=effectiveDist/closingSpeed;
+  const etaMin=Math.round(etaHrs*60*100)/100;
   const distScore=Math.max(0,1-storm.distance/80);
   const spdScore=Math.min(1,S.stormMovement.speed/20);
   const intScore=Math.min(1,(storm.dbz-15)/40);
@@ -1905,7 +1904,7 @@ function calcStormETA(storm){
   else if(storm.distance<=10&&diff<=15)pct=Math.max(pct,82);
   else if(storm.distance<=20&&diff<=12)pct=Math.max(pct,72);
   if(storm.distance<=proxRange)pct=Math.max(pct,Math.round(75+(proxRange-storm.distance)/proxRange*20));
-  return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed),angleDiff:Math.round(diff)};
+  return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed*100)/100,angleDiff:Math.round(diff)};
 }
 function impactLabel(pct){
   if(pct>=81)return{text:'CRITICAL',color:'#ef4444'};
@@ -2136,7 +2135,7 @@ function renderStorms(){
         <div class="storm-detail-grid">
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Peak dBZ')}</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>
           <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Rain Rate')}</div><div class="storm-detail-val">${cat.rain}</div><div class="tile-tap">tap</div></div>
-          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Distance')}</div><div class="storm-detail-val"><span data-dist-mi="${s.distance}" data-speed-mph="${mv?mv.speed:0}" data-t0="${S.scanTime||Date.now()}" data-impact="${eta?eta.impact:0}">${fmtStormDist(s.distance)}</span></div><div class="tile-tap">tap</div></div>
+          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Distance')}</div><div class="storm-detail-val"><span data-dist-mi="${s.distance}" data-closing-mph="${eta&&eta.closingSpeed?eta.closingSpeed:0}" data-t0="${S.scanTime||Date.now()}">${fmtStormDist(s.distance)}</span></div><div class="tile-tap">tap</div></div>
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Bearing')}</div><div class="storm-detail-val">${degToDir(s.bearing)}</div></div>
           ${mvLine}
         </div>
