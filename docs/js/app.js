@@ -289,31 +289,17 @@ function nexradToDbz(r,g,b,a){
   if(bestD>5000)return 0;
   return best;
 }
-const RV_PAL=[
-  {dbz:5,r:0,g:239,b:231},{dbz:8,r:0,g:189,b:240},
-  {dbz:10,r:0,g:156,b:247},{dbz:12,r:0,g:93,b:247},
-  {dbz:15,r:0,g:0,b:247},{dbz:17,r:0,g:102,b:148},
-  {dbz:20,r:0,g:255,b:0},{dbz:22,r:1,g:226,b:1},
-  {dbz:25,r:3,g:183,b:3},{dbz:28,r:6,g:142,b:4},
-  {dbz:30,r:8,g:115,b:5},{dbz:32,r:106,g:171,b:3},
-  {dbz:35,r:255,g:255,b:0},{dbz:37,r:247,g:235,b:0},
-  {dbz:40,r:236,g:206,b:0},{dbz:42,r:243,g:182,b:0},
-  {dbz:45,r:254,g:147,b:0},{dbz:47,r:254,g:88,b:0},
-  {dbz:50,r:255,g:0,b:0},{dbz:52,r:228,g:0,b:0},
-  {dbz:55,r:189,g:0,b:0},{dbz:60,r:189,g:0,b:0}
-];
 function rvToDbz(r,g,b,a){
   if(a<30)return 0;
   if(r+g+b<40)return 0;
   if(r>220&&g>220&&b>220)return 0;
-  if(b>150&&r>100&&g<80)return 0;
-  if(r>180&&b>180&&g<100)return 0;
   let best=0,bestD=1e9;
-  for(const p of RV_PAL){
+  for(const p of NEXRAD_PAL){
     const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
     if(d<bestD){bestD=d;best=p.dbz}
   }
   if(bestD>5000)return 0;
+  if(best<=20)best+=15;
   return best;
 }
 
@@ -1499,7 +1485,7 @@ async function scanRadarForView(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_0.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,radius));
       }
     }
@@ -1563,7 +1549,7 @@ async function scanRadarHiRes(map,fromHome){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${hiZoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${hiZoom}/${tx}/${ty}/6/1_0.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${hiZoom}/${tx}/${ty}/6/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,hiZoom,colorFn,minDbz,HIRES_RADIUS,1));
       }
     }
@@ -1979,7 +1965,7 @@ async function scanRadarForStorms(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_0.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,S.scanRadius));
       }
     }
