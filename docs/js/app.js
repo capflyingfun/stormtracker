@@ -2687,9 +2687,9 @@ function tileYToLat(y,z){const n=Math.PI-2*Math.PI*y/Math.pow(2,z);return 180/Ma
 
 function spacingFilter(points,hiRes){
   const validPoints=points.filter(p=>{
-    if(p.dbz>=35)return true;
+    if(p.dbz>=30)return true;
     if(hiRes&&p.dbz>=20)return true;
-    const radius=p.dbz>=30?5:8;
+    const radius=p.dbz>=25?5:8;
     let nearby=0;
     for(const q of points){
       if(q===p)continue;
@@ -2702,7 +2702,7 @@ function spacingFilter(points,hiRes){
   validPoints.sort((a,b)=>b.dbz-a.dbz);
   const out=[];
   for(const p of validPoints){
-    const minSpacing=hiRes?(p.dbz>=45?0.3:p.dbz>=35?0.4:0.5):(p.dbz>=45?1.5:p.dbz>=35?2.0:3.0);
+    const minSpacing=hiRes?(p.dbz>=45?0.3:p.dbz>=35?0.4:0.5):(p.dbz>=45?0.8:p.dbz>=35?1.2:1.8);
     let merged=false;
     for(const e of out){
       if(haversine(p.lat,p.lng,e.lat,e.lng)<minSpacing){
