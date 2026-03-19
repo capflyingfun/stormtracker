@@ -1918,8 +1918,17 @@ function stopRadarAnim(map){
   if(btn){btn.textContent='▶️';btn.classList.remove('active')}
   const bar=document.getElementById('radar-anim-bar');
   if(bar)bar.style.display='none';
-  if(S.radarFrames.length) S.radarIdx=S.radarFrames.length-1;
-  if(map)showRadarLayer(map);
+  if(!map)return;
+  if(S.radarLayer){map.removeLayer(S.radarLayer);S.radarLayer=null}
+  if(S.radarSource==='rainviewer'){
+    fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json()).then(rv=>{
+      const past=rv.radar?.past||[];const nowcast=rv.radar?.nowcast||[];
+      S.radarFrames=past.concat(nowcast);
+      showRadarLayer(map);
+    }).catch(()=>showRadarLayer(map));
+  }else{
+    showRadarLayer(map);
+  }
 }
 function scrubRadarAnim(map,idx){
   clearInterval(S._radarAnimTimer);
