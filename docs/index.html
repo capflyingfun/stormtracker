@@ -475,33 +475,12 @@ function wmoToBasmilius(code,isDay){
   };
   return map[code]||'not-available';
 }
-const _bmCache={};
-let _bmUid=0;
-async function _loadBmSvg(name){
-  if(_bmCache[name])return _bmCache[name];
-  if(_bmCache['_p_'+name])return _bmCache['_p_'+name];
-  _bmCache['_p_'+name]=fetch(BMCDN+name+'.svg').then(r=>r.text()).then(svg=>{
-    svg=svg.replace(/dur="([0-9]*\.?[0-9]+)s"/g,(m,d)=>'dur="'+(parseFloat(d)/2)+'s"');
-    _bmCache[name]=svg;
-    delete _bmCache['_p_'+name];
-    document.querySelectorAll('[data-bm="'+name+'"]').forEach(el=>{
-      const sz=el.dataset.sz||'32';
-      el.innerHTML=svg.replace(/<svg /,'<svg width="'+sz+'" height="'+sz+'" ');
-    });
-    return svg;
-  }).catch(()=>{_bmCache[name]='';});
-  return _bmCache['_p_'+name];
+function bmIcon(name,sz){
+  const s=parseInt(sz)||32;
+  return`<img src="${BMCDN}${name}.svg" width="${s}" height="${s}" alt="" style="display:inline-block;vertical-align:middle" loading="lazy">`;
 }
 function neonWx(code,isDay,sz){
-  const s=parseInt(sz)||32;
-  const name=wmoToBasmilius(code,isDay);
-  const uid='bm'+(++_bmUid);
-  if(_bmCache[name]&&typeof _bmCache[name]==='string'&&_bmCache[name].length>0){
-    const svg=_bmCache[name].replace(/<svg /,'<svg width="'+s+'" height="'+s+'" ');
-    return'<span style="display:inline-block;width:'+s+'px;height:'+s+'px;vertical-align:middle;filter:drop-shadow(0 0 4px rgba(0,229,255,0.3))">'+svg+'</span>';
-  }
-  _loadBmSvg(name);
-  return'<span id="'+uid+'" data-bm="'+name+'" data-sz="'+s+'" style="display:inline-block;width:'+s+'px;height:'+s+'px;vertical-align:middle;filter:drop-shadow(0 0 4px rgba(0,229,255,0.3))"></span>';
+  return bmIcon(wmoToBasmilius(code,isDay),parseInt(sz)||32);
 }
 function animEmoji(code,isDay,size){
   const px=size==='1.2em'?38:size==='1em'?30:28;
@@ -2433,7 +2412,7 @@ function renderStorms(){
     el.innerHTML=`
       <div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">All Clear</span><br>No storm cells detected within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}.</div></div>
       <div class="card"><div class="card-title"><span class="icon">🛰️</span> Radar Storm Scanner</div>
-        <div class="empty-state"><div class="empty-icon">${neonWx(1,true,48)}</div>
+        <div class="empty-state"><div class="empty-icon">${neonWx(1,isCurrentlyDay(),48)}</div>
           <p>Scans ${S.radarSource==='nexrad'?'NEXRAD':'RainViewer'} radar tiles for precipitation.<br>
           Tap 📍 on the radar map to scan around your location.<br><br>
           <strong>Scan radius: ${S.scanRadius} mi</strong></p></div></div>`;
@@ -2938,15 +2917,7 @@ function stationNeonIcon(desc,sz){
   const s=parseInt(sz)||24;
   const dn=isCurrentlyDay();
   const bm=metarDescToBasmilius(desc,dn);
-  if(bm){
-    const uid='bm'+(++_bmUid);
-    if(_bmCache[bm]&&typeof _bmCache[bm]==='string'&&_bmCache[bm].length>0){
-      const svg=_bmCache[bm].replace(/<svg /,'<svg width="'+s+'" height="'+s+'" ');
-      return'<span style="display:inline-block;width:'+s+'px;height:'+s+'px;vertical-align:middle;filter:drop-shadow(0 0 4px rgba(0,229,255,0.3))">'+svg+'</span>';
-    }
-    _loadBmSvg(bm);
-    return'<span id="'+uid+'" data-bm="'+bm+'" data-sz="'+s+'" style="display:inline-block;width:'+s+'px;height:'+s+'px;vertical-align:middle;filter:drop-shadow(0 0 4px rgba(0,229,255,0.3))"></span>';
-  }
+  if(bm)return bmIcon(bm,s);
   return neonWx(wxDescToCode(desc),dn,s);
 }
 
@@ -3061,7 +3032,6 @@ function startAlertCountdowns(){
 // INIT — always show welcome, explicit consent
 // ==========================================
 function init(){
-  ['clear-day','clear-night','partly-cloudy-day','partly-cloudy-night','overcast','cloudy','fog','fog-day','fog-night','rain','drizzle','snow','sleet','thunderstorms','thunderstorms-rain','thunderstorms-day','thunderstorms-night','thunderstorms-day-rain','thunderstorms-night-rain','extreme-rain','extreme-snow','extreme-day-rain','extreme-night-rain','haze','haze-day','haze-night','wind','overcast-day-rain','overcast-night-rain','overcast-day-snow','overcast-night-snow','partly-cloudy-day-rain','partly-cloudy-night-rain','partly-cloudy-day-snow','partly-cloudy-night-snow','not-available'].forEach(n=>_loadBmSvg(n));
   loadUnits();
   try{
     const saved=JSON.parse(localStorage.getItem('st_loc'));
