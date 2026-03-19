@@ -1458,7 +1458,7 @@ function initRadar(){
   if(!S.lat)return;
   const el=document.getElementById('page-radar');
   el.innerHTML=`
-    <div class="card-title"><span class="icon">📡</span> Live Radar</div>
+    <div class="card-title"><span class="icon">📡</span> ${tStr('Live Radar')}</div>
     <div class="map-container">
       <div id="radar-map"></div>
       <div class="radar-time-label" id="radar-time">Loading...</div>
@@ -1655,7 +1655,8 @@ function clearStormCone(){
   if(btn)btn.style.display='none';
 }
 function plotStormMarkers(map){
-  S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];S._activeCone=null;
+  S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];
+  clearStormCone();
   const mv=S.stormMovement;
   S.storms.forEach(storm=>{
     const cat=stormCat(storm.dbz);
@@ -1667,27 +1668,27 @@ function plotStormMarkers(map){
     if(mv&&mv.speed>=2){
       const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
       const imp=impactLabel(eta?eta.impact:0);
-      mvHtml=`<div style="font-size:0.75em;color:#8cf;margin-top:6px;padding-top:6px;border-top:1px solid #333">→ ${degToDir(mv.direction)} at ${spdStr}</div>`;
+      mvHtml=`<div style="font-size:0.75em;color:#8cf;margin-top:6px;padding-top:6px;border-top:1px solid #333">→ ${degToDir(mv.direction)} ${tStr('at')} ${spdStr}</div>`;
       if(eta&&eta.proximity){
-        mvHtml+=`<div style="font-size:0.75em;color:#f97316;margin-top:2px;font-weight:700">⚠️ Overhead · Moving away</div>`;
-        mvHtml+=`<div style="font-size:0.85em;font-weight:700;color:${imp.color};margin-top:2px">${eta.impact}% ${imp.text}</div>`;
+        mvHtml+=`<div style="font-size:0.75em;color:#f97316;margin-top:2px;font-weight:700">⚠️ ${tStr('Overhead · Moving away')}</div>`;
+        mvHtml+=`<div style="font-size:0.85em;font-weight:700;color:${imp.color};margin-top:2px">${eta.impact}% ${tStr(imp.text)}</div>`;
       }else if(eta&&eta.approaching&&eta.impact>0){
         const arrTime=eta.eta!=null?fmtArrivalTime(eta.eta):'--';
         const etaSec=eta.eta!=null?eta.eta*60:0;
         const targetMs=Date.now()+etaSec*1000;
         mvHtml+=`<div style="margin-top:4px;padding:4px 8px;background:rgba(0,0,0,0.3);border-radius:6px;border:1px solid ${imp.color}44">
-          <div style="font-size:0.7em;color:#aaa">⏱ Countdown</div>
+          <div style="font-size:0.7em;color:#aaa">⏱ ${tStr('Countdown')}</div>
           <div style="font-size:1.1em;font-weight:700;color:${imp.color};font-family:monospace" class="popup-countdown" data-target="${Math.round(targetMs)}">${fmtCountdown(Math.round(etaSec))}</div>
-          <div style="font-size:0.7em;color:#bbb;margin-top:2px">Arrives ~${arrTime}</div>
+          <div style="font-size:0.7em;color:#bbb;margin-top:2px">${tStr('Arrives')} ~${arrTime}</div>
         </div>`;
-        mvHtml+=`<div style="font-size:0.85em;font-weight:700;color:${imp.color};margin-top:4px">${eta.impact}% ${imp.text}</div>`;
+        mvHtml+=`<div style="font-size:0.85em;font-weight:700;color:${imp.color};margin-top:4px">${eta.impact}% ${tStr(imp.text)}</div>`;
       }else{
-        mvHtml+=`<div style="font-size:0.7em;color:#6b7;margin-top:2px">Nearby · Not approaching</div>`;
+        mvHtml+=`<div style="font-size:0.7em;color:#6b7;margin-top:2px">${tStr('Nearby · Not approaching')}</div>`;
       }
     }
     const popupHtml=`<div style="text-align:center;font-family:system-ui;min-width:155px">
       <div style="font-size:1.3em;font-weight:700;color:${color}">${storm.dbz} dBZ</div>
-      <div style="font-size:0.8em;margin:2px 0">${cat.label}</div>
+      <div style="font-size:0.8em;margin:2px 0">${tStr(cat.label)}</div>
       <div style="font-size:0.7em;color:#aaa">${cat.rain||''}</div>
       <div style="font-size:0.8em;color:#ccc;margin-top:4px">${fmtStormDist(storm.distance)} ${degToDir(storm.bearing)}</div>
       ${mvHtml}
@@ -2112,10 +2113,10 @@ function renderStorms(){
       let mvLine='';
       if(mv&&mv.speed>=2){
         const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
-        mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Moving</div><div class="storm-detail-val">${degToDir(mv.direction)} ${spdStr}</div><div class="tile-tap">tap</div></div>`;
+        mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Moving')}</div><div class="storm-detail-val">${degToDir(mv.direction)} ${spdStr}</div><div class="tile-tap">tap</div></div>`;
         if(eta&&eta.proximity){
-          mvLine+=`<div class="storm-detail" style="grid-column:span 2"><div class="storm-detail-label">Status</div><div class="storm-detail-val" style="color:#f97316;font-size:0.85em">⚠️ Overhead · Moving away</div></div>`;
-          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">Impact</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${imp.text}</div></div>`;
+          mvLine+=`<div class="storm-detail" style="grid-column:span 2"><div class="storm-detail-label">${tStr('Status')}</div><div class="storm-detail-val" style="color:#f97316;font-size:0.85em">⚠️ ${tStr('Overhead · Moving away')}</div></div>`;
+          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${tStr(imp.text)}</div></div>`;
         }else if(eta&&eta.approaching&&pct>0){
           const sk=stormKey(s);
           const expired=S.etaExpired[sk];
@@ -2134,13 +2135,13 @@ function renderStorms(){
             const targetMs=Date.now()+remainMin*60000;
             const arrivalTime=fmtArrivalTime(remainMin);
             const initCountdown=fmtCountdown(Math.round(remainMin*60));
-            mvLine+=`<div class="storm-detail eta-detail"><div class="storm-detail-label">⏱ ETA</div><div class="storm-detail-val" style="color:${imp.color}"><span class="eta-countdown" data-eta-sec="${Math.round(targetMs)}" data-storm-key="${sk}">${initCountdown}</span></div><div style="font-size:0.65em;color:${imp.color};margin-top:1px">Arrives ~${arrivalTime}</div></div>`;
+            mvLine+=`<div class="storm-detail eta-detail"><div class="storm-detail-label">⏱ ${tStr('ETA')}</div><div class="storm-detail-val" style="color:${imp.color}"><span class="eta-countdown" data-eta-sec="${Math.round(targetMs)}" data-storm-key="${sk}">${initCountdown}</span></div><div style="font-size:0.65em;color:${imp.color};margin-top:1px">${tStr('Arrives')} ~${arrivalTime}</div></div>`;
           }else{
-            mvLine+=`<div class="storm-detail"><div class="storm-detail-label">⏱ ETA</div><div class="storm-detail-val" style="color:${imp.color}">--</div></div>`;
+            mvLine+=`<div class="storm-detail"><div class="storm-detail-label">⏱ ${tStr('ETA')}</div><div class="storm-detail-val" style="color:${imp.color}">--</div></div>`;
           }
-          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">Impact</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${imp.text}</div></div>`;
+          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${tStr(imp.text)}</div></div>`;
         }else{
-          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">Impact</div><div class="storm-detail-val" style="color:var(--accent-green)">Nearby · Not approaching</div></div>`;
+          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:var(--accent-green)">${tStr('Nearby · Not approaching')}</div></div>`;
         }
       }
       const hex=dbzHex(s.dbz);
@@ -2152,12 +2153,12 @@ function renderStorms(){
       </div>`:'';
       return`<div class="storm-cell-card ${pulse}" style="border-color:${fb?'#6b7280':hex};--pulse-color:${hex}${fb?';opacity:0.7':''}">
         ${fbBanner}
-        <div class="storm-header"><span style="font-weight:700">${s.dbz>=40?'⚡':'🌧️'} Storm Cell</span><span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${cat.label}</span></div>
+        <div class="storm-header"><span style="font-weight:700">${s.dbz>=40?'⚡':'🌧️'} ${tStr('Storm Cell')}</span><span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${tStr(cat.label)}</span></div>
         <div class="storm-detail-grid">
-          <div class="storm-detail"><div class="storm-detail-label">Peak dBZ</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>
-          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Rain Rate</div><div class="storm-detail-val">${cat.rain}</div><div class="tile-tap">tap</div></div>
-          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">Distance</div><div class="storm-detail-val"><span data-dist-mi="${s.distance}" data-speed-mph="${mv?mv.speed:0}" data-t0="${S.scanTime||Date.now()}" data-impact="${eta?eta.impact:0}">${fmtStormDist(s.distance)}</span></div><div class="tile-tap">tap</div></div>
-          <div class="storm-detail"><div class="storm-detail-label">Bearing</div><div class="storm-detail-val">${degToDir(s.bearing)}</div></div>
+          <div class="storm-detail"><div class="storm-detail-label">${tStr('Peak dBZ')}</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>
+          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Rain Rate')}</div><div class="storm-detail-val">${cat.rain}</div><div class="tile-tap">tap</div></div>
+          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Distance')}</div><div class="storm-detail-val"><span data-dist-mi="${s.distance}" data-speed-mph="${mv?mv.speed:0}" data-t0="${S.scanTime||Date.now()}" data-impact="${eta?eta.impact:0}">${fmtStormDist(s.distance)}</span></div><div class="tile-tap">tap</div></div>
+          <div class="storm-detail"><div class="storm-detail-label">${tStr('Bearing')}</div><div class="storm-detail-val">${degToDir(s.bearing)}</div></div>
           ${mvLine}
         </div>
         <div style="font-size:0.6em;color:var(--text-muted);margin-top:6px;text-align:center">
@@ -2497,6 +2498,7 @@ function selectLang(code){
   const flag=LANGS.find(l=>l.c===code);
   document.getElementById('btn-lang').textContent=flag?flag.f:'🌐';
   if(code==='en'){restoreOriginals();toast('Language: English');return}
+  preseedStormVocab(code);
   translatePage(code);
 }
 
@@ -2599,6 +2601,19 @@ async function translatePage(lang){
   else document.body.style.direction='ltr';
 }
 
+function tStr(s){if(_curLang==='en'||!s)return s;const k=_curLang+'::'+s;return _tCache[k]||s}
+
+const _stormVocab=['Storm Cell','Live Radar','Peak dBZ','Rain Rate','Distance','Bearing','Moving','Status','Impact','ETA','Countdown','Arrives','Overhead · Moving away','Nearby · Not approaching','at','Extreme — Hail/Tornado','Intense — Hail Likely','Very Heavy Rain','Heavy Rain','Moderate Rain','Light Rain','Drizzle/Mist','No Impact — Nearby','Low Risk','Moderate Risk','Elevated Risk','High Risk','Extreme Risk','returns','Did this storm arrive?','Storm arrived at','Storm missed','Light','Extreme','Temp','Dew Pt','Humidity','Baro','Vis','Sky','tap to change units','tap','Updated','mi away','Gusts','Nearby Stations','Loading'];
+async function preseedStormVocab(lang){
+  const need=_stormVocab.filter(w=>!_tCache[lang+'::'+w]);
+  if(!need.length)return;
+  for(let i=0;i<need.length;i+=4){
+    const batch=need.slice(i,i+4);
+    await Promise.all(batch.map(w=>mmTranslate(w,lang)));
+  }
+  try{localStorage.setItem('st_tcache',JSON.stringify(_tCache))}catch(e){}
+}
+
 function quickTranslate(){
   if(_curLang==='en'||_translating)return;
   const nodes=getTextNodes(document.body);
@@ -2667,6 +2682,7 @@ function startTranslateObserver(){
   if(flag&&_curLang!=='en')document.getElementById('btn-lang').textContent=flag.f;
   startTranslateObserver();
   if(_curLang!=='en'){
+    preseedStormVocab(_curLang);
     setTimeout(()=>translatePage(_curLang),2000);
   }
 })();
