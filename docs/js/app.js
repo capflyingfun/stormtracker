@@ -1247,7 +1247,6 @@ function startWindSim(){
     }catch(e){console.log('Wind refresh error:',e.message)}
   },120000);
   _windSimTimer=setInterval(()=>{
-    if(_windSweepPaused)return;
     let curSpd=_windBase.spd;
     let curDir=_windBase.dir;
     if(_windTarget){
@@ -1279,32 +1278,34 @@ function startWindSim(){
     }
     const displayGust=_gustSamples.length>0?Math.max(_gustMax,Math.max(..._gustSamples)):_gustMax;
     _windCurSim={spd:simSpd,dir:simDir,gust:displayGust};
-    const spdEl=document.querySelector('.wrc-speed');
     const dirEl=document.querySelector('.wrc-dir');
-    const gustEl=document.querySelector('.wrc-gust');
-    if(spdEl)spdEl.innerHTML=fmtWind(simSpd);
     if(dirEl)dirEl.textContent=degToDir(simDir)+' '+simDir.toFixed(1)+'°';
-    if(gustEl)gustEl.textContent=displayGust>0?'G'+fmtWind(displayGust):'';
-    const maxSpd=S._gaugeMaxSpd||10;
-    const arcR=S._gaugeArcR||44.5;
     const cx=50,cy=50;
-    const startA=-170;
-    const simSpdDisp=parseFloat(kmhTo(simSpd,S.windUnit));
-    const gustDisp=parseFloat(kmhTo(displayGust,S.windUnit));
-    const windArc=Math.min(simSpdDisp/maxSpd,1)*340;
-    const gustArc=Math.min(gustDisp/maxSpd,1)*340;
-    function simArcPath(fromDeg,toDeg,radius){
-      if(toDeg-fromDeg<1)return'M0,0';
-      const sa=(startA+fromDeg)*Math.PI/180,ea=(startA+toDeg)*Math.PI/180;
-      const x1=cx+Math.cos(sa)*radius,y1=cy+Math.sin(sa)*radius;
-      const x2=cx+Math.cos(ea)*radius,y2=cy+Math.sin(ea)*radius;
-      const lg=(toDeg-fromDeg)>180?1:0;
-      return`M${x1.toFixed(1)},${y1.toFixed(1)} A${radius},${radius} 0 ${lg} 1 ${x2.toFixed(1)},${y2.toFixed(1)}`;
+    if(!_windSweepPaused){
+      const spdEl=document.querySelector('.wrc-speed');
+      const gustEl=document.querySelector('.wrc-gust');
+      if(spdEl)spdEl.innerHTML=fmtWind(simSpd);
+      if(gustEl)gustEl.textContent=displayGust>0?'G'+fmtWind(displayGust):'';
+      const maxSpd=S._gaugeMaxSpd||10;
+      const arcR=S._gaugeArcR||44.5;
+      const startA=-170;
+      const simSpdDisp=parseFloat(kmhTo(simSpd,S.windUnit));
+      const gustDisp=parseFloat(kmhTo(displayGust,S.windUnit));
+      const windArc=Math.min(simSpdDisp/maxSpd,1)*340;
+      const gustArc=Math.min(gustDisp/maxSpd,1)*340;
+      function simArcPath(fromDeg,toDeg,radius){
+        if(toDeg-fromDeg<1)return'M0,0';
+        const sa=(startA+fromDeg)*Math.PI/180,ea=(startA+toDeg)*Math.PI/180;
+        const x1=cx+Math.cos(sa)*radius,y1=cy+Math.sin(sa)*radius;
+        const x2=cx+Math.cos(ea)*radius,y2=cy+Math.sin(ea)*radius;
+        const lg=(toDeg-fromDeg)>180?1:0;
+        return`M${x1.toFixed(1)},${y1.toFixed(1)} A${radius},${radius} 0 ${lg} 1 ${x2.toFixed(1)},${y2.toFixed(1)}`;
+      }
+      const windArcEl=document.getElementById('gauge-wind-arc');
+      const gustArcEl=document.getElementById('gauge-gust-arc');
+      if(gustArcEl)gustArcEl.setAttribute('d',gustArc>0?simArcPath(0,gustArc,arcR):'M0,0');
+      if(windArcEl)windArcEl.setAttribute('d',windArc>0?simArcPath(0,windArc,arcR):'M0,0');
     }
-    const windArcEl=document.getElementById('gauge-wind-arc');
-    const gustArcEl=document.getElementById('gauge-gust-arc');
-    if(gustArcEl)gustArcEl.setAttribute('d',gustArc>0?simArcPath(0,gustArc,arcR):'M0,0');
-    if(windArcEl)windArcEl.setAttribute('d',windArc>0?simArcPath(0,windArc,arcR):'M0,0');
     const compass=document.querySelector('.wind-rose svg');
     if(compass){
       const ptr=compass.querySelector('polygon');
