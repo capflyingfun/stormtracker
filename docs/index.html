@@ -1644,7 +1644,8 @@ async function scanRadarForView(){
   const center=S.map.getCenter();
   const cLat=center.lat,cLng=center.lng;
   const useNexrad=S.radarSource==='nexrad';
-  const MAX_POINTS=3000,MAX_RADIUS=500,MIN_RADIUS=5;
+  const isMobile=/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<768;
+  const MAX_POINTS=isMobile?1200:3000,MAX_RADIUS=500,MIN_RADIUS=5;
   showScanOverlay();
   await fetchWindsAloft(cLat,cLng);
   scanStep(2,'Scanning radar tiles...');
