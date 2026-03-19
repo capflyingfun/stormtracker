@@ -6,7 +6,7 @@ const S = {
   alerts:[], station:null, stationId:null,
   map:null, radarLayer:null, radarFrames:[], radarIdx:0,
   radarPlaying:false, radarTimer:null, scanRadius:80, radarSource:'nexrad', nexradLayer:null, radarMetric:false,
-  activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null, stormFeedback:{}, etaExpired:{}, autoScanTimer:null, lastScanMs:0,
+  activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null, stormFeedback:{}, etaExpired:{}, autoScanTimer:null, lastScanMs:0, _lastScanWasHiRes:false,
   travelMode:false, travelWatchId:null, travelLastUpdate:0, travelMarker:null,
 };
 const TEMP_UNITS = ['°F','°C'];
@@ -168,7 +168,11 @@ function scheduleAutoScan(){
   const elapsed=Date.now()-S.lastScanMs;
   const wait=Math.max(0,interval-elapsed);
   S.autoScanTimer=setTimeout(()=>{
-    if(S.lat!=null){scanRadarForStorms();updateAutoScanUI()}
+    if(S.lat!=null){
+      if(S._lastScanWasHiRes&&S.map)scanRadarHiRes(S.map,true);
+      else scanRadarForStorms();
+      updateAutoScanUI();
+    }
   },wait);
   updateAutoScanUI();
 }
@@ -193,7 +197,10 @@ function startEtaCountdowns(){
         if(key&&!S.stormFeedback[key]&&!S.etaExpired[key]){
           S.etaExpired[key]={at:now,fbSec:30};
           el.textContent='🔄 Rescanning…';
-          if(S.lat!=null)scanRadarForStorms();
+          if(S.lat!=null){
+            if(S._lastScanWasHiRes&&S.map)scanRadarHiRes(S.map,true);
+            else scanRadarForStorms();
+          }
         }
       }else{
         el.textContent=fmtCountdown(remain);
@@ -1550,7 +1557,7 @@ async function scanRadarHiRes(map,fromHome){
     S.lat=savedLat;S.lon=savedLon;
 
     S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);
-    S.scanTime=Date.now();S.lastScanMs=Date.now();
+    S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=true;
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Hi-Res: ${S.storms.length.toLocaleString()} points in ${HIRES_RADIUS} mi`);
     await new Promise(r=>setTimeout(r,300));
@@ -1560,6 +1567,7 @@ async function scanRadarHiRes(map,fromHome){
     map.setView([cLat,cLng],11,{animate:true,duration:0.5});
     hideScanOverlay();
     toast(`Hi-Res: ${S.storms.length.toLocaleString()} cells in ${HIRES_RADIUS} mi (${srcLabel})`);
+    scheduleAutoScan();
   }catch(e){hideScanOverlay();toast('Hi-Res scan failed: '+e.message);console.error('HiRes error:',e)}
 }
 
@@ -1960,7 +1968,7 @@ async function scanRadarForStorms(){
     const rawPoints=tileResults.flat();
 
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
-    S.scanTime=Date.now();S.lastScanMs=Date.now();
+    S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
 
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Plotting ${S.storms.length} storm points...`);
@@ -1975,11 +1983,12 @@ async function scanRadarForStorms(){
       S._autoHiResActive=true;
       toast('⚠️ Severe cell within 15 mi — launching Hi-Res scan...');
       setTimeout(async()=>{
-        const savedCenter=S.map.getCenter();
         S.map.setView([S.lat,S.lon],11,{animate:true,duration:0.5});
         await scanRadarHiRes(S.map,true);
         S._autoHiResActive=false;
       },1500);
+    }else if(!severeNearby){
+      S._autoHiResActive=false;
     }
   }catch(e){hideScanOverlay();toast('Radar scan failed: '+e.message);console.error('Scan error:',e)}
 }
