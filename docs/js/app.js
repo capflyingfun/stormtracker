@@ -1157,26 +1157,63 @@ const _wn={p:[151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,
   }
 };
 let _windSimTimer=null;
+let _windRefreshTimer=null;
 let _gustSamples=[];
 let _gustMax=0;
 let _gustResetT=0;
+let _windBase={spd:0,dir:0};
+let _windTarget=null;
+let _windLerpStart=0;
+const WIND_LERP_DUR=60000;
 function startWindSim(){
   if(_windSimTimer)clearInterval(_windSimTimer);
+  if(_windRefreshTimer)clearInterval(_windRefreshTimer);
   if(!S.weather)return;
-  const baseSpd=S.weather.wind_speed_10m||0;
-  const baseDir=S.weather.wind_direction_10m||0;
+  _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
+  _windTarget=null;
   const seed=Math.random()*1000;
   _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
+  _windRefreshTimer=setInterval(async()=>{
+    try{
+      const awc=await fetchAWCNearest();
+      if(awc&&awc.windKmh!=null){
+        const newSpd=awc.windKmh;
+        const newDir=awc.windDir!=null?awc.windDir:_windBase.dir;
+        console.log('Wind refresh from AWC·'+awc.icao+': spd='+newSpd.toFixed(1)+'kmh dir='+newDir+'°');
+        setTimeout(()=>{
+          _windTarget={spd:newSpd,dir:newDir};
+          _windLerpStart=Date.now();
+          console.log('Wind lerp started → spd:'+newSpd.toFixed(1)+' dir:'+newDir);
+        },60000);
+      }
+    }catch(e){console.log('Wind refresh error:',e.message)}
+  },120000);
   _windSimTimer=setInterval(()=>{
+    let curSpd=_windBase.spd;
+    let curDir=_windBase.dir;
+    if(_windTarget){
+      const elapsed=Date.now()-_windLerpStart;
+      const p=Math.min(1,elapsed/WIND_LERP_DUR);
+      const ep=p*p*(3-2*p);
+      curSpd=_windBase.spd+((_windTarget.spd-_windBase.spd)*ep);
+      let dd=_windTarget.dir-_windBase.dir;
+      if(dd>180)dd-=360;if(dd<-180)dd+=360;
+      curDir=_windBase.dir+dd*ep;
+      curDir=((curDir%360)+360)%360;
+      if(p>=1){
+        _windBase={spd:_windTarget.spd,dir:_windTarget.dir};
+        _windTarget=null;
+      }
+    }
     const t=Date.now()*0.000055;
     const spdNoise=_wn.noise(t+seed,0);
     const dirNoise=_wn.noise(t+seed+50,100);
     const spdFactor=0.5+((spdNoise+1)/2)*0.75;
-    let simSpd=Math.max(0,baseSpd*spdFactor);
-    let simDir=((baseDir+dirNoise*30)%360+360)%360;
+    let simSpd=Math.max(0,curSpd*spdFactor);
+    let simDir=((curDir+dirNoise*15)%360+360)%360;
     _gustSamples.push(simSpd);
     const now=Date.now();
-    if(now-_gustResetT>=10000){
+    if(now-_gustResetT>=30000){
       _gustMax=Math.max(..._gustSamples);
       _gustSamples=[];
       _gustResetT=now;
