@@ -82,10 +82,12 @@ function windSweepAnim(){
   let newMax=scaleSteps[scaleSteps.length-1];
   for(const sc of scaleSteps){if(peakDisp<=sc*0.8){newMax=sc;break}}
   S._gaugeMaxSpd=newMax;
-  const spdEl=document.querySelector('.wrc-speed');
+  const numEl=document.querySelector('.wrc-num');
+  const unitEl=document.querySelector('.wrc-unit');
   const gustEl=document.querySelector('.wrc-gust');
   const dirEl=document.querySelector('.wrc-dir');
-  if(spdEl)spdEl.innerHTML=fmtWind(0);
+  if(numEl)numEl.textContent=kmhTo(0,S.windUnit);
+  if(unitEl)unitEl.textContent=WIND_UNITS[S.windUnit];
   if(gustEl)gustEl.textContent='G'+fmtWind(0);
   if(dirEl)dirEl.textContent=degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(1)+'°';
   const windArcEl=document.getElementById('gauge-wind-arc');
@@ -110,8 +112,8 @@ function windSweepAnim(){
     const ep=ease(p);
     const curSpd=targetSpd*ep;
     const curGust=targetGust*ep;
-    if(spdEl)spdEl.innerHTML=fmtWind(curSpd);
-    if(gustEl)gustEl.textContent=curGust>0?'G'+fmtWind(curGust):'G'+fmtWind(0);
+    if(numEl)numEl.textContent=kmhTo(curSpd,S.windUnit);
+    if(gustEl)gustEl.textContent='G'+kmhTo(curGust,S.windUnit)+' '+WIND_UNITS[S.windUnit];
     const maxSpd=S._gaugeMaxSpd||10;
     const arcR=S._gaugeArcR||44.5;
     const simSpdDisp=parseFloat(kmhTo(curSpd,S.windUnit));
@@ -1033,9 +1035,11 @@ function renderWeather(data){
   const baro=getBaroPrediction(c,hourly);
   S._baroTrendMb=baro.trendMb;S._baroTrend=baro.trend;
   const trendArrow=baro.trend==='rising'?'↑':baro.trend==='falling'?'↓':'→';
-  const windStr=fmtWind(c.wind_speed_10m);
+  const windNum=kmhTo(c.wind_speed_10m,S.windUnit);
+  const windUnit=WIND_UNITS[S.windUnit];
   const hasGust=c.wind_gusts_10m!=null&&c.wind_gusts_10m>0;
-  const gustStr=hasGust?'G'+fmtWind(c.wind_gusts_10m):'Gust: --.- '+WIND_UNITS[S.windUnit];
+  const gustNum=hasGust?kmhTo(c.wind_gusts_10m,S.windUnit):'--.-';
+  const gustStr=hasGust?'G'+fmtWind(c.wind_gusts_10m):'Gust: --.- '+windUnit;
 
   const sections={
     trends:`<div class="weather-section" data-sec="trends"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📈</span> 48h Trends</span>${secBtns('trends')}</div>
@@ -1170,7 +1174,7 @@ function renderWeather(data){
           </svg>
           <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
           <div class="wind-rose-center">
-            <div class="wrc-speed">${windStr}</div>
+            <div class="wrc-speed"><span class="wrc-num">${windNum}</span><br><span class="wrc-unit">${windUnit}</span></div>
             <div class="wrc-dir">${_windCurSim.spd>0?degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(1)+'°':degToDir(wd)+' '+wd.toFixed(1)+'°'}</div>
             ${gustStr?`<div class="wrc-gust">${gustStr}</div>`:''}
           </div>
@@ -1293,9 +1297,9 @@ function startWindSim(){
     if(dirEl)dirEl.textContent=degToDir(simDir)+' '+simDir.toFixed(1)+'°';
     const cx=50,cy=50;
     if(!_windSweepPaused){
-      const spdEl=document.querySelector('.wrc-speed');
+      const numEl=document.querySelector('.wrc-num');
       const gustEl=document.querySelector('.wrc-gust');
-      if(spdEl)spdEl.innerHTML=fmtWind(simSpd);
+      if(numEl)numEl.textContent=kmhTo(simSpd,S.windUnit);
       if(gustEl)gustEl.textContent=displayGust>0?'G'+fmtWind(displayGust):'';
       const maxSpd=S._gaugeMaxSpd||10;
       const arcR=S._gaugeArcR||44.5;
