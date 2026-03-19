@@ -2601,20 +2601,19 @@ async function translatePage(lang){
 function quickTranslate(){
   if(_curLang==='en'||_translating)return;
   const nodes=getTextNodes(document.body);
-  let miss=0;
+  let applied=0;
   nodes.forEach(n=>{
     if(!n._origText)n._origText=n.textContent;
-    const txt=n.textContent.trim();
-    const ck=_curLang+'::'+txt;
-    if(_tCache[ck]){n.textContent=n.textContent.replace(txt,_tCache[ck])}
-    else{
-      const oTxt=n._origText?.trim();
-      const ok=_curLang+'::'+oTxt;
-      if(oTxt&&_tCache[ok]){n.textContent=n._origText.replace(oTxt,_tCache[ok])}
-      else miss++;
+    const cur=n.textContent.trim();
+    const orig=n._origText?.trim()||cur;
+    const ckOrig=_curLang+'::'+orig;
+    if(_tCache[ckOrig]){
+      if(cur!==_tCache[ckOrig]){n.textContent=n._origText.replace(orig,_tCache[ckOrig]);applied++}
+      return;
     }
+    const ckCur=_curLang+'::'+cur;
+    if(_tCache[ckCur]) return;
   });
-  if(miss>3)translatePage(_curLang);
 }
 
 function restoreOriginals(){
@@ -2637,8 +2636,8 @@ function startTranslateObserver(){
     if(hasNew){
       clearTimeout(_tObserver._debounce);
       _tObserver._debounce=setTimeout(()=>{
-        if(!_translating&&Date.now()-_tCooldown>3000)translatePage(_curLang);
-      },2000);
+        if(!_translating)quickTranslate();
+      },1000);
     }
   });
   _tObserver.observe(document.body,{childList:true,subtree:true});
