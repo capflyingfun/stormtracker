@@ -130,6 +130,23 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .map-ctrl-btn{width:32px;height:32px;border-radius:6px;background:rgba(17,24,39,0.85);border:1px solid rgba(255,255,255,0.12);color:var(--text-primary);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.8em;backdrop-filter:blur(10px)}
 .map-ctrl-btn:hover{border-color:var(--accent-blue)}
 .storm-cell-card{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px;margin-bottom:8px;transition:border-color 0.3s}
+@keyframes wx-sun{0%{transform:rotate(0deg) scale(1)}50%{transform:rotate(15deg) scale(1.1)}100%{transform:rotate(0deg) scale(1)}}
+@keyframes wx-rain{0%,100%{transform:translateY(0)}30%{transform:translateY(2px)}60%{transform:translateY(-1px)}}
+@keyframes wx-snow{0%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(3px) rotate(180deg)}100%{transform:translateY(0) rotate(360deg)}}
+@keyframes wx-storm{0%,100%{transform:scale(1);opacity:1}15%{transform:scale(1.15);opacity:0.7}30%{transform:scale(1);opacity:1}}
+@keyframes wx-cloud{0%,100%{transform:translateX(0)}50%{transform:translateX(3px)}}
+@keyframes wx-fog{0%,100%{opacity:1}50%{opacity:0.5}}
+@keyframes wx-moon{0%,100%{filter:brightness(1) drop-shadow(0 0 4px rgba(255,255,200,0.3))}50%{filter:brightness(1.2) drop-shadow(0 0 8px rgba(255,255,200,0.6))}}
+@keyframes wx-wind{0%,100%{transform:translateX(0) scaleX(1)}50%{transform:translateX(2px) scaleX(1.05)}}
+.wx-anim{display:inline-block;will-change:transform,opacity}
+.wx-anim-sun{animation:wx-sun 4s ease-in-out infinite}
+.wx-anim-rain{animation:wx-rain 1.2s ease-in-out infinite}
+.wx-anim-snow{animation:wx-snow 3s ease-in-out infinite}
+.wx-anim-storm{animation:wx-storm 2s ease-in-out infinite}
+.wx-anim-cloud{animation:wx-cloud 3s ease-in-out infinite}
+.wx-anim-fog{animation:wx-fog 3s ease-in-out infinite}
+.wx-anim-moon{animation:wx-moon 4s ease-in-out infinite}
+.wx-anim-wind{animation:wx-wind 2s ease-in-out infinite}
 @keyframes storm-pulse{0%,100%{border-color:var(--pulse-color);box-shadow:0 0 4px var(--pulse-color)}50%{border-color:color-mix(in srgb,var(--pulse-color) 40%,transparent);box-shadow:0 0 12px var(--pulse-color)}}
 .storm-card-pulse{animation:storm-pulse 2.5s ease-in-out infinite}
 @keyframes storm-ring-pulse{0%{transform:scale(1);opacity:0.8}50%{transform:scale(1.6);opacity:0.15}100%{transform:scale(1);opacity:0.8}}
@@ -396,6 +413,23 @@ function haversine(lat1,lon1,lat2,lon2){const R=3959,dLat=(lat2-lat1)*Math.PI/18
 function bearingDeg(lat1,lon1,lat2,lon2){const dLon=(lon2-lon1)*Math.PI/180;const y=Math.sin(dLon)*Math.cos(lat2*Math.PI/180);const x=Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180)-Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);return((Math.atan2(y,x)*180/Math.PI)+360)%360}
 
 function wmoIcon(code,isDay){const m={0:isDay?'☀️':'🌙',1:isDay?'🌤️':'🌙',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',56:'🌧️',57:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',66:'🧊',67:'🧊',71:'🌨️',73:'🌨️',75:'❄️',77:'🌨️',80:'🌦️',81:'🌧️',82:'🌧️',85:'🌨️',86:'❄️',95:'⛈️',96:'⛈️',99:'⛈️'};return m[code]||'🌡️'}
+function wxAnimClass(code,isDay){
+  if(code>=95)return'wx-anim-storm';
+  if([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(code))return'wx-anim-rain';
+  if([71,73,75,77,85,86].includes(code))return'wx-anim-snow';
+  if([45,48].includes(code))return'wx-anim-fog';
+  if(code===3)return'wx-anim-cloud';
+  if(code===2)return'wx-anim-cloud';
+  if(code===0&&!isDay)return'wx-anim-moon';
+  if(code===1&&!isDay)return'wx-anim-moon';
+  if(code<=1)return'wx-anim-sun';
+  return'wx-anim-cloud';
+}
+function animEmoji(code,isDay,size){
+  const e=wmoIcon(code,isDay);
+  const cls=wxAnimClass(code,isDay);
+  return`<span class="wx-anim ${cls}" style="font-size:${size||'1em'}">${e}</span>`;
+}
 function wmoDesc(code){const m={0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Rime fog',51:'Light drizzle',53:'Moderate drizzle',55:'Dense drizzle',56:'Freezing drizzle',57:'Dense freezing drizzle',61:'Slight rain',63:'Moderate rain',65:'Heavy rain',66:'Freezing rain',67:'Heavy freezing rain',71:'Slight snow',73:'Moderate snow',75:'Heavy snow',77:'Snow grains',80:'Rain showers',81:'Mod rain showers',82:'Violent rain showers',85:'Snow showers',86:'Heavy snow showers',95:'Thunderstorm',96:'T-storm w/ hail',99:'T-storm w/ heavy hail'};return m[code]||'Unknown'}
 
 function stormCat(dbz){
@@ -976,7 +1010,7 @@ function renderWeather(data){
       <div class="hero-compass-layout" onclick="cycleUnit('windUnit')">
         <div class="hero-side">
           <div class="hero-side-item" onclick="event.stopPropagation();cycleUnit('tempUnit')" style="cursor:pointer">
-            <div style="font-size:1.6em;margin-bottom:2px">${icon}</div>
+            <div style="font-size:1.6em;margin-bottom:2px">${animEmoji(c.weather_code,isDay,'1em')}</div>
             <div style="font-size:1.8em;font-weight:800;color:var(--text-primary);line-height:1">${fmtTempShort(tempC)}</div>
             <div style="font-size:0.65em;color:var(--text-secondary);margin-top:2px">${desc}</div>
           </div>
@@ -1024,7 +1058,7 @@ function renderWeather(data){
         </div>
       </div>
       <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0 0">
-        <span style="font-size:1.1em">${baro.icon}</span>
+        <span style="font-size:1.1em" class="wx-anim ${baro.icon==='⛈️'?'wx-anim-storm':baro.icon==='🌧️'?'wx-anim-rain':baro.icon==='🌦️'?'wx-anim-rain':baro.icon==='☀️'?'wx-anim-sun':baro.icon==='🌤️'?'wx-anim-sun':'wx-anim-cloud'}">${baro.icon}</span>
         <span style="font-size:0.75em;font-weight:600;color:var(--text-secondary)">${baro.prediction}</span>
         <span class="baro-trend ${baro.trend}" style="font-size:0.6em;color:${baro.trend==='rising'?'var(--accent-green)':baro.trend==='falling'?'var(--accent-red)':'var(--text-muted)'};text-shadow:0 0 6px ${baro.trend==='rising'?'rgba(0,255,136,0.4)':baro.trend==='falling'?'rgba(255,51,85,0.4)':'none'}">${trendArrow} ${(()=>{const isI=S.presUnit===0;if(isI){const v=Math.abs(baro.trendMb/33.8639);return(baro.trendMb>=0?'+':'-')+(v<0.05?v.toFixed(3):v.toFixed(2))+' inHg'}return(baro.trendMb>=0?'+':'')+baro.trendMb.toFixed(1)+' mb'})()}</span>
       </div>
@@ -1200,7 +1234,7 @@ function renderDailyForecast(d){
       const dt=new Date(t+'T12:00'),day=i===0?'Today':dt.toLocaleDateString('en',{weekday:'short'});
       const hi=fmtTempShort(d.temperature_2m_max[i]),lo=fmtTempShort(d.temperature_2m_min[i]);
       const rain=d.precipitation_probability_max?d.precipitation_probability_max[i]:0;
-      return`<div class="forecast-item" onclick="toggleForecastDetail(${i})" data-fi="${i}"><div class="forecast-time">${day}</div><div class="forecast-icon">${wmoIcon(d.weather_code[i],true)}</div><div class="forecast-temp" style="font-weight:700;color:var(--accent-red);text-shadow:0 0 8px rgba(255,51,85,0.4)">${hi}</div><div style="font-size:0.7em;font-weight:600;color:var(--accent-cyan);text-shadow:0 0 6px rgba(0,229,255,0.3)">${lo}</div>${rain>0?`<div style="font-size:0.55em;color:var(--accent-blue);margin-top:2px">💧${rain}%</div>`:''}</div>`;
+      return`<div class="forecast-item" onclick="toggleForecastDetail(${i})" data-fi="${i}"><div class="forecast-time">${day}</div><div class="forecast-icon">${animEmoji(d.weather_code[i],true,'1em')}</div><div class="forecast-temp" style="font-weight:700;color:var(--accent-red);text-shadow:0 0 8px rgba(255,51,85,0.4)">${hi}</div><div style="font-size:0.7em;font-weight:600;color:var(--accent-cyan);text-shadow:0 0 6px rgba(0,229,255,0.3)">${lo}</div>${rain>0?`<div style="font-size:0.55em;color:var(--accent-blue);margin-top:2px">💧${rain}%</div>`:''}</div>`;
     }).join('')}</div><div id="forecast-detail-box"></div></div>`;
 }
 function toggleForecastDetail(idx){
@@ -1224,7 +1258,7 @@ function toggleForecastDetail(idx){
   const precipStr=fmtPrecip(precip);
   const windStr=fmtWind(wind);
   box.innerHTML=`<div class="forecast-detail">
-    <div style="font-weight:700;margin-bottom:6px">${wmoIcon(d.weather_code[idx],true)} ${dayName} — ${wmoDesc(d.weather_code[idx])}</div>
+    <div style="font-weight:700;margin-bottom:6px">${animEmoji(d.weather_code[idx],true,'1.2em')} ${dayName} — ${wmoDesc(d.weather_code[idx])}</div>
     <div class="fd-row"><span>🌡️ High / Low</span><span style="font-weight:600"><span style="color:var(--accent-red)">${fmtTemp(hiC)}</span> / <span style="color:var(--accent-cyan)">${fmtTemp(loC)}</span></span></div>
     <div class="fd-row"><span>💧 Rain Chance</span><span style="font-weight:600">${rain}%</span></div>
     <div class="fd-row"><span>🌧️ Precipitation</span><span style="font-weight:600">${precipStr}</span></div>
