@@ -1759,22 +1759,102 @@ function initRadar(){
   },100);
 }
 
+function findNearestRadar(lat,lon){
+  const sites=[
+    {id:'BMX',lat:33.172,lon:-86.770},{id:'EOX',lat:31.460,lon:-85.459},
+    {id:'MOB',lat:30.679,lon:-88.240},{id:'EVX',lat:30.565,lon:-85.921},
+    {id:'TLH',lat:30.397,lon:-84.329},{id:'JAX',lat:30.485,lon:-81.702},
+    {id:'LIX',lat:30.337,lon:-89.825},{id:'SHV',lat:32.451,lon:-93.841},
+    {id:'POE',lat:31.156,lon:-92.976},{id:'LCH',lat:30.125,lon:-93.216},
+    {id:'HGX',lat:29.472,lon:-95.079},{id:'CRP',lat:27.784,lon:-97.511},
+    {id:'EWX',lat:29.704,lon:-98.029},{id:'SJT',lat:31.371,lon:-100.492},
+    {id:'MAF',lat:31.943,lon:-102.189},{id:'LBB',lat:33.654,lon:-101.814},
+    {id:'AMA',lat:35.233,lon:-101.709},{id:'FDR',lat:34.362,lon:-98.977},
+    {id:'TLX',lat:35.333,lon:-97.278},{id:'INX',lat:36.175,lon:-95.564},
+    {id:'SGF',lat:37.235,lon:-93.400},{id:'LSX',lat:38.699,lon:-90.683},
+    {id:'EAX',lat:38.810,lon:-94.264},{id:'ICT',lat:37.655,lon:-97.443},
+    {id:'DDC',lat:37.761,lon:-99.969},{id:'GLD',lat:39.367,lon:-101.700},
+    {id:'UEX',lat:40.321,lon:-98.442},{id:'OAX',lat:41.320,lon:-96.367},
+    {id:'ABR',lat:45.456,lon:-98.413},{id:'MPX',lat:44.849,lon:-93.565},
+    {id:'DMX',lat:41.731,lon:-93.723},{id:'DVN',lat:41.612,lon:-90.581},
+    {id:'LOT',lat:41.604,lon:-88.085},{id:'MKX',lat:42.968,lon:-88.551},
+    {id:'GRB',lat:44.498,lon:-88.111},{id:'ARX',lat:43.823,lon:-91.191},
+    {id:'DLH',lat:46.837,lon:-92.210},{id:'FGF',lat:47.528,lon:-97.093},
+    {id:'BIS',lat:46.771,lon:-100.760},{id:'MBX',lat:48.393,lon:-100.865},
+    {id:'GGW',lat:48.206,lon:-106.625},{id:'TFX',lat:47.460,lon:-111.385},
+    {id:'MSX',lat:47.041,lon:-113.986},{id:'SFX',lat:43.106,lon:-112.686},
+    {id:'CBX',lat:43.491,lon:-116.236},{id:'MTX',lat:41.263,lon:-112.448},
+    {id:'GJX',lat:39.062,lon:-108.214},{id:'PUX',lat:38.460,lon:-104.181},
+    {id:'FTG',lat:39.787,lon:-104.546},{id:'CYS',lat:41.152,lon:-104.806},
+    {id:'RIW',lat:43.066,lon:-108.477},{id:'UNR',lat:44.125,lon:-105.100},
+    {id:'ABX',lat:35.150,lon:-106.824},{id:'FDX',lat:34.635,lon:-103.630},
+    {id:'EPZ',lat:31.873,lon:-106.698},{id:'HDX',lat:33.076,lon:-106.120},
+    {id:'PHX',lat:33.422,lon:-112.166},{id:'IWA',lat:33.289,lon:-111.670},
+    {id:'EMX',lat:31.894,lon:-110.630},{id:'YUX',lat:32.495,lon:-114.657},
+    {id:'FSX',lat:34.574,lon:-111.198},{id:'TWX',lat:38.997,lon:-96.232},
+    {id:'FWS',lat:32.573,lon:-97.303},{id:'DFX',lat:29.273,lon:-100.281},
+    {id:'GRK',lat:30.722,lon:-97.383},{id:'DYX',lat:32.538,lon:-99.254},
+    {id:'ATX',lat:48.195,lon:-122.496},{id:'LGX',lat:47.117,lon:-124.107},
+    {id:'OTX',lat:47.681,lon:-117.627},{id:'PDT',lat:45.691,lon:-118.853},
+    {id:'RTX',lat:45.715,lon:-122.965},{id:'MAX',lat:42.081,lon:-122.717},
+    {id:'RGX',lat:39.754,lon:-119.462},{id:'ESX',lat:35.701,lon:-114.891},
+    {id:'VBX',lat:34.836,lon:-120.397},{id:'HNX',lat:36.314,lon:-119.632},
+    {id:'DAX',lat:38.501,lon:-121.678},{id:'MUX',lat:37.155,lon:-121.898},
+    {id:'SOX',lat:33.818,lon:-117.636},{id:'NKX',lat:32.919,lon:-117.042},
+    {id:'VTX',lat:34.412,lon:-119.179},{id:'BRO',lat:25.916,lon:-97.419},
+    {id:'DTX',lat:42.700,lon:-83.472},{id:'APX',lat:44.907,lon:-84.720},
+    {id:'GRR',lat:42.894,lon:-85.545},{id:'IWX',lat:41.359,lon:-85.700},
+    {id:'IND',lat:39.708,lon:-86.280},{id:'VWX',lat:38.260,lon:-87.724},
+    {id:'ILX',lat:40.151,lon:-89.337},{id:'CLE',lat:41.413,lon:-81.860},
+    {id:'ILN',lat:39.420,lon:-83.822},{id:'JKL',lat:37.591,lon:-83.313},
+    {id:'LMK',lat:38.178,lon:-85.791},{id:'HPX',lat:36.737,lon:-87.285},
+    {id:'OHX',lat:36.247,lon:-86.563},{id:'MRX',lat:36.169,lon:-83.402},
+    {id:'HTX',lat:34.931,lon:-86.084},{id:'GWX',lat:33.897,lon:-88.329},
+    {id:'DGX',lat:32.280,lon:-89.984},{id:'JAN',lat:32.318,lon:-90.080},
+    {id:'FFC',lat:33.363,lon:-84.566},{id:'GSP',lat:34.883,lon:-82.220},
+    {id:'CLX',lat:32.656,lon:-81.042},{id:'CAE',lat:33.949,lon:-81.119},
+    {id:'RAX',lat:35.665,lon:-78.490},{id:'MHX',lat:34.776,lon:-76.876},
+    {id:'LTX',lat:33.989,lon:-78.429},{id:'AKQ',lat:36.984,lon:-77.007},
+    {id:'LWX',lat:38.975,lon:-77.478},{id:'DOX',lat:38.826,lon:-75.440},
+    {id:'PHI',lat:39.947,lon:-75.078},{id:'DIX',lat:39.947,lon:-74.411},
+    {id:'OKX',lat:40.866,lon:-72.864},{id:'BOX',lat:41.956,lon:-71.137},
+    {id:'ENX',lat:42.586,lon:-74.064},{id:'BGM',lat:42.200,lon:-75.985},
+    {id:'BUF',lat:42.949,lon:-78.737},{id:'TYX',lat:43.756,lon:-75.680},
+    {id:'GYX',lat:43.891,lon:-70.257},{id:'CXX',lat:44.511,lon:-73.166},
+    {id:'CBW',lat:46.039,lon:-67.806},{id:'MLB',lat:28.113,lon:-80.654},
+    {id:'AMX',lat:25.611,lon:-80.413},{id:'TBW',lat:27.706,lon:-82.402},
+    {id:'BYX',lat:24.597,lon:-81.703},{id:'KEY',lat:24.553,lon:-81.781},
+    {id:'TAE',lat:30.397,lon:-84.329},{id:'VAX',lat:30.890,lon:-83.002},
+    {id:'JGX',lat:32.675,lon:-83.351},{id:'NQA',lat:35.345,lon:-89.873},
+    {id:'LZK',lat:34.836,lon:-92.262},{id:'SRX',lat:35.290,lon:-94.362},
+    {id:'KJK',lat:30.632,lon:-91.220}
+  ];
+  let best=sites[0],bestD=Infinity;
+  for(const s of sites){const d=Math.hypot(lat-s.lat,lon-s.lon);if(d<bestD){bestD=d;best=s}}
+  return best.id;
+}
 async function buildNexradFrames(){
-  const frames=[];
-  const base=new Date();
-  base.setUTCSeconds(0,0);
-  base.setUTCMinutes(Math.floor(base.getUTCMinutes()/5)*5);
-  const safeBase=new Date(base.getTime()-10*60000);
-  for(let i=24;i>=0;i--){
-    const t=new Date(safeBase.getTime()-i*5*60000);
-    const ts=String(t.getUTCFullYear())+String(t.getUTCMonth()+1).padStart(2,'0')+
-      String(t.getUTCDate()).padStart(2,'0')+String(t.getUTCHours()).padStart(2,'0')+
-      String(t.getUTCMinutes()).padStart(2,'0');
-    frames.push({time:Math.floor(t.getTime()/1000),type:'past',ts,
-      url:`https://mesonet.agron.iastate.edu/c/tile.py/1.0.0/nexrad-n0q-${ts}-900913/{z}/{x}/{y}.png`,
-      wms:false});
-  }
-  return frames;
+  const site=findNearestRadar(S.lat,S.lon);
+  const end=new Date();
+  const start=new Date(end.getTime()-2*60*60*1000);
+  const startISO=start.toISOString().replace(/\.\d{3}/,'');
+  const endISO=end.toISOString().replace(/\.\d{3}/,'');
+  try{
+    const url=`https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=${site}&product=N0Q&start=${startISO}&end=${endISO}`;
+    const resp=await fetch(url);
+    const data=await resp.json();
+    const scans=data.scans||[];
+    if(!scans.length){toast(`No NEXRAD scans found for ${site}`);return[]}
+    const recent=scans.slice(-25);
+    return recent.map(scan=>{
+      const ts=scan.ts;
+      const y=+ts.slice(0,4),mo=+ts.slice(4,6)-1,d=+ts.slice(6,8),
+            h=+ts.slice(8,10),mi=+ts.slice(10,12);
+      const time=Math.floor(new Date(Date.UTC(y,mo,d,h,mi)).getTime()/1000);
+      return{time,type:'past',
+        url:`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::${site}-N0Q-${ts}/{z}/{x}/{y}.png`};
+    });
+  }catch(e){console.error('NEXRAD frame fetch failed:',e);toast('Failed to load NEXRAD animation data');return[]}
 }
 async function toggleRadarAnim(map){
   if(S._radarAnimPlaying) return stopRadarAnim(map);
