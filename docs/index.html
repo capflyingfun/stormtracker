@@ -1970,7 +1970,7 @@ function renderStorms(){
     el.innerHTML=`
       <div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">All Clear</span><br>No storm cells detected within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}.</div></div>
       <div class="card"><div class="card-title"><span class="icon">🛰️</span> Radar Storm Scanner</div>
-        <div class="empty-state"><div class="empty-icon">🌤️</div>
+        <div class="empty-state"><div class="empty-icon">${neonWx(1,true,48)}</div>
           <p>Scans ${S.radarSource==='nexrad'?'NEXRAD':'RainViewer'} radar tiles for precipitation.<br>
           Tap 📍 on the radar map to scan around your location.<br><br>
           <strong>Scan radius: ${S.scanRadius} mi</strong></p></div></div>`;
