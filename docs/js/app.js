@@ -1833,30 +1833,36 @@ function findNearestRadar(lat,lon){
   for(const s of sites){const d=Math.hypot(lat-s.lat,lon-s.lon);if(d<bestD){bestD=d;best=s}}
   return best.id;
 }
-async function buildNexradFrames(){
-  const site=findNearestRadar(S.lat,S.lon);
+async function buildNexradFrames(lat,lon){
+  const useLat=lat||S.lat,useLon=lon||S.lon;
+  const site=findNearestRadar(useLat,useLon);
   const end=new Date();
   const start=new Date(end.getTime()-2*60*60*1000);
-  const fmt=d=>d.toISOString().replace(/\.\d{3}Z$/,'Z');
-  try{
-    const apiUrl=`https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=${site}&product=N0B&start=${fmt(start)}&end=${fmt(end)}`;
-    console.log('[NEXRAD-ANIM] site='+site+' api='+apiUrl);
-    const resp=await fetch(apiUrl);
-    const data=await resp.json();
-    console.log('[NEXRAD-ANIM] response:',JSON.stringify(data).slice(0,500));
-    const scans=data.scans||[];
-    if(!scans.length){toast(`No NEXRAD scans found for K${site}`);return[]}
-    const recent=scans.slice(-25);
-    return recent.map(scan=>{
-      const isoTs=scan.ts;
-      const dt=new Date(isoTs);
-      const time=Math.floor(dt.getTime()/1000);
-      const pad2=n=>String(n).padStart(2,'0');
-      const tileTs=dt.getUTCFullYear()+pad2(dt.getUTCMonth()+1)+pad2(dt.getUTCDate())+pad2(dt.getUTCHours())+pad2(dt.getUTCMinutes());
-      const tileUrl=`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::${site}-N0B-${tileTs}/{z}/{x}/{y}.png`;
-      return{time,type:'past',site,url:tileUrl};
-    });
-  }catch(e){console.error('NEXRAD frame fetch failed:',e);toast('Failed to load NEXRAD animation data');return[]}
+  const pad2=n=>String(n).padStart(2,'0');
+  const fmtDt=d=>d.getUTCFullYear()+'-'+pad2(d.getUTCMonth()+1)+'-'+pad2(d.getUTCDate())+'T'+pad2(d.getUTCHours())+':'+pad2(d.getUTCMinutes())+':'+pad2(d.getUTCSeconds())+'Z';
+  const products=['N0B','N0Q','N0R'];
+  for(const prod of products){
+    try{
+      const apiUrl=`https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=${site}&product=${prod}&start=${fmtDt(start)}&end=${fmtDt(end)}`;
+      console.log('[NEXRAD-ANIM] site='+site+' prod='+prod+' api='+apiUrl);
+      const resp=await fetch(apiUrl);
+      const data=await resp.json();
+      console.log('[NEXRAD-ANIM] '+prod+' response:',JSON.stringify(data).slice(0,500));
+      const scans=data.scans||[];
+      if(!scans.length)continue;
+      const recent=scans.slice(-25);
+      toast(`📡 K${site} — ${recent.length} ${prod} frames loaded`);
+      return recent.map(scan=>{
+        const dt=new Date(scan.ts);
+        const time=Math.floor(dt.getTime()/1000);
+        const tileTs=dt.getUTCFullYear()+pad2(dt.getUTCMonth()+1)+pad2(dt.getUTCDate())+pad2(dt.getUTCHours())+pad2(dt.getUTCMinutes());
+        const tileUrl=`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::${site}-${prod}-${tileTs}/{z}/{x}/{y}.png`;
+        return{time,type:'past',site,url:tileUrl};
+      });
+    }catch(e){console.warn('[NEXRAD-ANIM] '+prod+' failed:',e)}
+  }
+  toast(`No NEXRAD scans found for K${site}`);
+  return[];
 }
 async function toggleRadarAnim(map){
   if(S._radarAnimPlaying) return stopRadarAnim(map);
@@ -1864,9 +1870,11 @@ async function toggleRadarAnim(map){
   btn.textContent='⏳';
   let animFrames=[];
   if(S.radarSource==='nexrad'){
-    const nearSite=findNearestRadar(S.lat,S.lon);
+    const center=map.getCenter();
+    const aLat=center.lat,aLon=center.lng;
+    const nearSite=findNearestRadar(aLat,aLon);
     toast(`📡 Nearest radar: K${nearSite} — fetching scans...`);
-    animFrames=await buildNexradFrames();
+    animFrames=await buildNexradFrames(aLat,aLon);
     S._radarAnimSrc='nexrad';
     S._radarAnimSite=nearSite;
   }else{
