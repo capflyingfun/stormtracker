@@ -1266,7 +1266,7 @@ function initRadar(){
     <div id="radar-source-label" style="font-size:0.7em;color:var(--text-muted);text-align:center;margin-top:6px"></div>`;
   setTimeout(async()=>{
     if(S.map){S.map.remove();S.map=null}
-    const map=L.map('radar-map',{zoomControl:false,attributionControl:false,maxZoom:12}).setView([S.lat,S.lon],8);
+    const map=L.map('radar-map',{zoomControl:false,attributionControl:false,maxZoom:12,maxBoundsViscosity:1.0,bounceAtZoomLimits:false}).setView([S.lat,S.lon],8);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:12}).addTo(map);
     S._rangeCircle=L.circle([S.lat,S.lon],{radius:S.scanRadius*1609.34,color:'#3b82f6',fillOpacity:0.05,weight:1,dashArray:'6 4'}).addTo(map);
     S._userMarker=L.circleMarker([S.lat,S.lon],{radius:5,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:1}).addTo(map);
