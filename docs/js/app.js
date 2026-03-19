@@ -67,8 +67,7 @@ function cycleUnit(key){
   S[key]=(S[key]+1)%maxes[key];
   try{localStorage.setItem('st_units',JSON.stringify({t:S.tempUnit,w:S.windUnit,p:S.presUnit,v:S.visUnit,pr:S.precipUnit}))}catch(e){}
   if(key==='windUnit'&&_windCurSim.spd>0&&S.activePage==='weather'){
-    windSweepAnim();
-    return;
+    _windSweepAfterRender=true;
   }
   reRenderActive();
 }
@@ -77,19 +76,10 @@ function windSweepAnim(){
   _windSweepPaused=true;
   const targetSpd=_windCurSim.spd;
   const targetGust=_windCurSim.gust;
-  const peakDisp=Math.max(parseFloat(kmhTo(targetSpd,S.windUnit)),parseFloat(kmhTo(targetGust,S.windUnit)));
-  const scaleSteps=[10,15,20,30,40,50,75,100,130,160,200];
-  let newMax=scaleSteps[scaleSteps.length-1];
-  for(const sc of scaleSteps){if(peakDisp<=sc*0.8){newMax=sc;break}}
-  S._gaugeMaxSpd=newMax;
   const numEl=document.querySelector('.wrc-num');
-  const unitEl=document.querySelector('.wrc-unit');
   const gustEl=document.querySelector('.wrc-gust');
-  const dirEl=document.querySelector('.wrc-dir');
   if(numEl)numEl.textContent=kmhTo(0,S.windUnit);
-  if(unitEl)unitEl.textContent=WIND_UNITS[S.windUnit];
   if(gustEl)gustEl.textContent='G'+fmtWind(0);
-  if(dirEl)dirEl.textContent=degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(1)+'°';
   const windArcEl=document.getElementById('gauge-wind-arc');
   const gustArcEl=document.getElementById('gauge-gust-arc');
   if(windArcEl)windArcEl.setAttribute('d','M0,0');
@@ -1233,6 +1223,7 @@ let _windCurSim={spd:0,dir:0,gust:0};
 let _windSimSeed=0;
 let _windSweepRaf=null;
 let _windSweepPaused=false;
+let _windSweepAfterRender=false;
 const WIND_LERP_DUR=60000;
 function startWindSim(){
   const wasRunning=!!_windSimTimer;
@@ -1337,6 +1328,10 @@ function startWindSim(){
       }
     }
   },100);
+  if(_windSweepAfterRender){
+    _windSweepAfterRender=false;
+    windSweepAnim();
+  }
 }
 function secBtns(key){return`<div class="sec-btns"><button onclick="moveSection('${key}',-1)" title="Move up">▲</button><button onclick="moveSection('${key}',1)" title="Move down">▼</button></div>`}
 function getSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_sec_order'));if(o&&o.length===2)return o}catch(e){}return['trends','forecast']}
