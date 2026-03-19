@@ -1631,7 +1631,7 @@ function plotStormMarkers(map){
   const sc=zoomScale(map);
   S.storms.forEach(storm=>{
     const cat=stormCat(storm.dbz);
-    const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':storm.dbz>=35?'#eab308':storm.dbz>=25?'#22c55e':'#06b6d4';
+    const color=dbzHex(storm.dbz);
     const r=Math.max(4,Math.round(Math.max(10,storm.dbz/4)*sc));
     const eta=calcStormETA(storm);
     const popupId='pop_'+Math.random().toString(36).slice(2,8);
@@ -1644,12 +1644,22 @@ function plotStormMarkers(map){
         mvHtml+=`<div style="font-size:0.75em;color:#f97316;margin-top:2px;font-weight:700">⚠️ ${tStr('Overhead · Moving away')}</div>`;
         mvHtml+=`<div style="font-size:0.85em;font-weight:700;color:${imp.color};margin-top:2px">${eta.impact}% ${tStr(imp.text)}</div>`;
       }else if(eta&&eta.approaching&&eta.impact>0){
-        const arrTime=eta.eta!=null?fmtArrivalTime(eta.eta):'--';
-        const etaSec=eta.eta!=null?eta.eta*60:0;
-        const targetMs=Date.now()+etaSec*1000;
+        const sk=stormKey(storm);
+        let targetMs;
+        if(S._stormETAs[sk]&&S._stormETAs[sk]>Date.now()){
+          targetMs=S._stormETAs[sk];
+        }else{
+          const elapsedMin=S.scanTime?(Date.now()-S.scanTime)/60000:0;
+          const remainMin=Math.max(0,eta.eta-elapsedMin);
+          targetMs=Date.now()+remainMin*60000;
+          S._stormETAs[sk]=targetMs;
+        }
+        const remainSec=Math.max(0,Math.round((targetMs-Date.now())/1000));
+        const remainMin=(targetMs-Date.now())/60000;
+        const arrTime=fmtArrivalTime(remainMin);
         mvHtml+=`<div style="margin-top:4px;padding:4px 8px;background:rgba(0,0,0,0.3);border-radius:6px;border:1px solid ${imp.color}44">
           <div style="font-size:0.7em;color:#aaa">⏱ ${tStr('Countdown')}</div>
-          <div style="font-size:1.1em;font-weight:700;color:${imp.color};font-family:monospace" class="popup-countdown" data-target="${Math.round(targetMs)}">${fmtCountdown(Math.round(etaSec))}</div>
+          <div style="font-size:1.1em;font-weight:700;color:${imp.color};font-family:monospace" class="popup-countdown" data-target="${Math.round(targetMs)}">${fmtCountdown(remainSec)}</div>
           <div style="font-size:0.7em;color:#bbb;margin-top:2px">${tStr('Arrives')} ~${arrTime}</div>
         </div>`;
         mvHtml+=`<div style="font-size:0.85em;font-weight:700;color:${imp.color};margin-top:4px">${eta.impact}% ${tStr(imp.text)}</div>`;
