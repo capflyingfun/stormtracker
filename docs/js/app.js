@@ -747,9 +747,9 @@ async function fetchWeather(){
   try{
     const omUrl=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lon}`
       +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day`
-      +`&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl,is_day`
+      +`&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility,is_day`
       +`&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset,wind_speed_10m_max`
-      +`&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=7&past_days=1`;
+      +`&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=7&past_days=2`;
     const omRes=await fetch(omUrl);const omData=await omRes.json();
     S.forecast=omData;
     if(isUSLocation(S.lat,S.lon)){
@@ -892,10 +892,8 @@ function renderWeather(data){
   const gustStr=hasGust?'G'+fmtWind(c.wind_gusts_10m):'Gust: --.- '+WIND_UNITS[S.windUnit];
 
   const sections={
-    trends:`<div class="weather-section" data-sec="trends"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📈</span> 24h Trends</span>${secBtns('trends')}</div>
-      ${renderHourlyPrecip(hourly)}
-      <div style="margin-top:12px"></div>
-      ${renderPressureTrend(hourly)}</div>`,
+    trends:`<div class="weather-section" data-sec="trends"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📈</span> 48h Trends</span>${secBtns('trends')}</div>
+      ${renderTrendCharts(hourly)}</div>`,
     forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${data._nwsForecast?renderNWSForecast(data._nwsForecast):renderDailyForecast(daily)}</div>`
   };
   const order=getSecOrder();
@@ -1072,53 +1070,169 @@ function moveSection(key,dir){
   if(S.forecast)renderWeather(S.forecast);
 }
 
-function renderHourlyPrecip(h){
-  if(!h||!h.precipitation)return'';
+function get48hData(h){
+  if(!h||!h.time)return null;
   const nowMs=Date.now();
-  const si=h.time.findIndex(t=>new Date(t).getTime()>=nowMs);
-  if(si<0)return'';
-  const precips=h.precipitation.slice(si,si+24);
-  const times=h.time.slice(si,si+24);
-  if(precips.length<4)return'';
-  const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'PM':'AM';return(hr%12||12)+ap};
-  const tLabels=[];
-  const n=precips.length;
-  const labelCount=5;
+  const all=h.time.map((t,i)=>({t:new Date(t).getTime(),idx:i}));
+  const pastStart=all.findIndex(p=>p.t>=nowMs-24*3600000);
+  const futEnd=all.findIndex(p=>p.t>=nowMs+24*3600000);
+  const start=Math.max(0,pastStart);
+  const end=futEnd>0?futEnd:all.length;
+  const nowIdx=all.findIndex(p=>p.t>=nowMs);
+  return{start,end,nowIdx:nowIdx>=0?nowIdx-start:24,count:end-start};
+}
+const TREND_SERIES=[
+  {id:'temp',label:'Temp',icon:'🌡️',color:'#ef4444',key:'temperature_2m',fmt:v=>fmtTemp(v),group:'temp'},
+  {id:'feels',label:'Feels Like',icon:'🤔',color:'#f97316',key:'apparent_temperature',fmt:v=>fmtTemp(v),group:'temp'},
+  {id:'dewpt',label:'Dew Point',icon:'💧',color:'#06b6d4',key:'dew_point_2m',fmt:v=>fmtTemp(v),group:'temp'},
+  {id:'humidity',label:'Humidity',icon:'💦',color:'#22d3ee',key:'relative_humidity_2m',fmt:v=>v.toFixed(0)+'%',unit:'%',group:'pct'},
+  {id:'cloud',label:'Clouds',icon:'☁️',color:'#94a3b8',key:'cloud_cover',fmt:v=>v.toFixed(0)+'%',unit:'%',group:'pct'},
+  {id:'precip',label:'Precip',icon:'🌧️',color:'#3b82f6',key:'precipitation',fmt:v=>fmtPrecip(v),bar:true,group:'precip'},
+  {id:'precipProb',label:'Rain %',icon:'☂️',color:'#818cf8',key:'precipitation_probability',fmt:v=>(v||0).toFixed(0)+'%',unit:'%',group:'pct'},
+  {id:'wind',label:'Wind',icon:'💨',color:'#10b981',key:'wind_speed_10m',fmt:v=>fmtWind(v),group:'wind'},
+  {id:'gust',label:'Gusts',icon:'🌬️',color:'#f59e0b',key:'wind_gusts_10m',fmt:v=>fmtWind(v),group:'wind'},
+  {id:'pres',label:'Pressure',icon:'📊',color:'#00e5ff',key:'pressure_msl',fmt:v=>fmtPres(v),group:'pres'},
+];
+if(!S._trendSel)S._trendSel=['temp','feels'];
+function toggleTrendSeries(id){
+  const idx=S._trendSel.indexOf(id);
+  if(idx>=0)S._trendSel.splice(idx,1);
+  else{if(S._trendSel.length>=4)S._trendSel.shift();S._trendSel.push(id)}
+  if(S.forecast)renderTrendChartUpdate(S.forecast.hourly);
+}
+function renderTrendCharts(h){
+  if(!h||!h.time)return'';
+  const info=get48hData(h);if(!info)return'';
+  const pills=TREND_SERIES.map(s=>{
+    const on=S._trendSel.includes(s.id);
+    return`<button onclick="toggleTrendSeries('${s.id}')" style="padding:3px 8px;border-radius:12px;border:1px solid ${on?s.color:'#334155'};background:${on?s.color+'22':'transparent'};color:${on?s.color:'#94a3b8'};font-size:0.65em;font-weight:600;cursor:pointer;white-space:nowrap">${s.icon} ${s.label}</button>`;
+  }).join('');
+  return`<div class="card" id="trend-card">
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">${pills}</div>
+    <div id="trend-chart-area">${buildTrendSVG(h,info)}</div></div>`;
+}
+function renderTrendChartUpdate(h){
+  const info=get48hData(h);if(!info)return;
+  const pills=TREND_SERIES.map(s=>{
+    const on=S._trendSel.includes(s.id);
+    return`<button onclick="toggleTrendSeries('${s.id}')" style="padding:3px 8px;border-radius:12px;border:1px solid ${on?s.color:'#334155'};background:${on?s.color+'22':'transparent'};color:${on?s.color:'#94a3b8'};font-size:0.65em;font-weight:600;cursor:pointer;white-space:nowrap">${s.icon} ${s.label}</button>`;
+  }).join('');
+  const card=document.getElementById('trend-card');
+  if(card)card.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">${pills}</div><div id="trend-chart-area">${buildTrendSVG(h,info)}</div>`;
+}
+function buildTrendSVG(h,info){
+  const sel=S._trendSel.map(id=>TREND_SERIES.find(s=>s.id===id)).filter(Boolean);
+  if(!sel.length)return'<div style="text-align:center;color:var(--text-muted);font-size:0.8em;padding:20px">Select data series above</div>';
+  const W=600,H=180,PAD_L=6,PAD_R=6,PAD_T=18,PAD_B=22;
+  const cW=W-PAD_L-PAD_R,cH=H-PAD_T-PAD_B;
+  const {start,end,nowIdx,count}=info;
+  if(count<4)return'';
+  const hasBars=sel.some(s=>s.bar);
+  const lineData=sel.filter(s=>!s.bar);
+  const barData=sel.filter(s=>s.bar);
+  let svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">`;
+  svg+=`<defs><linearGradient id="tg-now" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(0,229,255,0.15)"/><stop offset="100%" stop-color="rgba(0,229,255,0)"/></linearGradient></defs>`;
+  for(let g=0;g<=4;g++){
+    const y=PAD_T+cH*(g/4);
+    svg+=`<line x1="${PAD_L}" y1="${y}" x2="${W-PAD_R}" y2="${y}" stroke="rgba(148,163,184,0.1)" stroke-width="0.5"/>`;
+  }
+  const nowX=PAD_L+(nowIdx/(count-1))*cW;
+  svg+=`<rect x="${PAD_L}" y="${PAD_T}" width="${nowX-PAD_L}" height="${cH}" fill="rgba(148,163,184,0.03)"/>`;
+  svg+=`<line x1="${nowX}" y1="${PAD_T-4}" x2="${nowX}" y2="${H-PAD_B}" stroke="rgba(0,229,255,0.5)" stroke-width="1" stroke-dasharray="3,2"/>`;
+  svg+=`<text x="${nowX}" y="${PAD_T-6}" fill="#00e5ff" font-size="7" font-weight="700" text-anchor="middle">NOW</text>`;
+  const groups=new Map();
+  sel.forEach(s=>{const g=s.group||s.id;if(!groups.has(g))groups.set(g,[]);groups.get(g).push(s)});
+  const groupKeys=[...groups.keys()];
+  const scales=new Map();
+  groupKeys.forEach(g=>{
+    const series=groups.get(g);
+    let allVals=[];
+    series.forEach(s=>{
+      const arr=h[s.key];
+      if(arr)for(let i=start;i<end;i++){if(arr[i]!=null)allVals.push(arr[i])}
+    });
+    if(!allVals.length)allVals=[0,1];
+    let mn=Math.min(...allVals),mx=Math.max(...allVals);
+    const rng=mx-mn||1;
+    mn-=rng*0.1;mx+=rng*0.1;
+    scales.set(g,{mn,mx,rng:mx-mn||1});
+  });
+  if(barData.length){
+    const sc=scales.get(barData[0].group);
+    barData.forEach(s=>{
+      const arr=h[s.key];if(!arr)return;
+      const bw=cW/count*0.7;
+      for(let i=0;i<count;i++){
+        const v=arr[start+i];if(v==null||v<=0)continue;
+        const x=PAD_L+(i/(count-1))*cW-bw/2;
+        const ht=Math.max(2,((v-0)/(sc.mx-0||1))*cH);
+        const y=PAD_T+cH-ht;
+        const isPast=i<nowIdx;
+        svg+=`<rect x="${x}" y="${y}" width="${bw}" height="${ht}" rx="1" fill="${s.color}" opacity="${isPast?0.7:0.35}"/>`;
+      }
+    });
+  }
+  lineData.forEach((s,si)=>{
+    const arr=h[s.key];if(!arr)return;
+    const sc=scales.get(s.group);
+    const pts=[];
+    for(let i=0;i<count;i++){
+      const v=arr[start+i];if(v==null)continue;
+      const x=PAD_L+(i/(count-1))*cW;
+      const y=PAD_T+cH-((v-sc.mn)/sc.rng)*cH;
+      pts.push({x,y,v,i});
+    }
+    if(pts.length<2)return;
+    const pastPts=pts.filter(p=>p.i<=nowIdx);
+    const futPts=pts.filter(p=>p.i>=nowIdx);
+    if(pastPts.length>=2){
+      const d=pastPts.map((p,j)=>(j===0?`M${p.x.toFixed(1)},${p.y.toFixed(1)}`:`L${p.x.toFixed(1)},${p.y.toFixed(1)}`)).join(' ');
+      svg+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+    if(futPts.length>=2){
+      const d=futPts.map((p,j)=>(j===0?`M${p.x.toFixed(1)},${p.y.toFixed(1)}`:`L${p.x.toFixed(1)},${p.y.toFixed(1)}`)).join(' ');
+      svg+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="1.5" stroke-dasharray="4,3" stroke-linecap="round" opacity="0.5"/>`;
+    }
+    const mnPt=pts.reduce((a,b)=>a.v<b.v?a:b);
+    const mxPt=pts.reduce((a,b)=>a.v>b.v?a:b);
+    svg+=`<circle cx="${mxPt.x.toFixed(1)}" cy="${mxPt.y.toFixed(1)}" r="3" fill="${s.color}" stroke="#0f172a" stroke-width="1"/>`;
+    svg+=`<text x="${(mxPt.x+5).toFixed(1)}" y="${(mxPt.y-5).toFixed(1)}" fill="${s.color}" font-size="6.5" font-weight="700">▲${s.fmt(mxPt.v)}</text>`;
+    if(Math.abs(mnPt.i-mxPt.i)>3){
+      svg+=`<circle cx="${mnPt.x.toFixed(1)}" cy="${mnPt.y.toFixed(1)}" r="3" fill="${s.color}" stroke="#0f172a" stroke-width="1"/>`;
+      svg+=`<text x="${(mnPt.x+5).toFixed(1)}" y="${(mnPt.y+10).toFixed(1)}" fill="${s.color}" font-size="6.5" font-weight="700" opacity="0.7">▼${s.fmt(mnPt.v)}</text>`;
+    }
+  });
+  if(groupKeys.length>1||(lineData.length>0&&barData.length>0)){
+    let lx=PAD_L+4,ly=PAD_T+10;
+    sel.forEach(s=>{
+      svg+=`<rect x="${lx}" y="${ly-5}" width="8" height="3" rx="1" fill="${s.color}"/>`;
+      svg+=`<text x="${lx+11}" y="${ly-2}" fill="${s.color}" font-size="6" font-weight="600">${s.label}</text>`;
+      ly+=10;
+    });
+  }
+  const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'p':'a';return(hr%12||12)+ap};
+  const labelCount=7;
   for(let li=0;li<labelCount;li++){
-    const idx=Math.round(li*(n-1)/(labelCount-1));
-    const t=times[idx]?new Date(times[idx]):null;
-    tLabels.push(t?fmtHr(t):'');
+    const idx=Math.round(li*(count-1)/(labelCount-1));
+    const t=new Date(h.time[start+idx]);
+    const x=PAD_L+(idx/(count-1))*cW;
+    svg+=`<text x="${x}" y="${H-4}" fill="#64748b" font-size="6" text-anchor="middle">${idx===nowIdx?'Now':fmtHr(t)}</text>`;
   }
-  const rawMax=Math.max(...precips);
-  const maxMm=rawMax<0.5?1:rawMax<2?2:rawMax<5?5:rawMax<10?10:rawMax<25?25:rawMax<50?50:Math.ceil(rawMax/10)*10;
-  const isIn=S.precipUnit===0;
-  const gridLines=4;
-  let gridHtml='';
-  for(let g=0;g<=gridLines;g++){
-    const val=maxMm*(g/gridLines);
-    const pct=(1-g/gridLines)*100;
-    const label=isIn?(val/25.4).toFixed(val>5?1:2):val.toFixed(val<1?2:1);
-    const unit=isIn?'in':'mm';
-    gridHtml+=`<div class="precip-grid-line" style="top:${pct}%">${g>0?`<span>${label} ${unit}</span>`:''}</div>`;
-  }
-  const maxVal=isIn?(rawMax/25.4).toFixed(2)+' in':rawMax.toFixed(1)+' mm';
-  return`<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div class="card-title" style="margin:0"><span class="icon">🌧️</span> 24h Precipitation</div>
-      <div class="precip-max-label">Max: ${maxVal}/hr</div>
-    </div>
-    <div class="precip-chart-wrap">
-      <div class="precip-chart-area">
-        ${gridHtml}
-        ${rawMax>0?(()=>{const mxi=precips.indexOf(rawMax);let mxL=mxi/precips.length*100;if(mxL>75)mxL=75;const mxB=Math.min(92,rawMax/maxMm*100+3);return`<div class="chart-marker hi" style="left:${mxL.toFixed(1)}%;bottom:${mxB.toFixed(1)}%">▲ ${maxVal}</div>`})():''}
-        <div class="hourly-chart">${precips.map((p,i)=>{
-          const ht=maxMm>0?Math.max(1,(p/maxMm)*100):1;
-          const color=p>=5?'var(--accent-red)':p>=2?'var(--accent-orange)':p>=0.5?'var(--accent-blue)':'var(--bg-elevated)';
-          return`<div class="hourly-bar" data-idx="${i}" style="height:${ht}%;background:${color}"><div class="bar-tip">${fmtPrecip(p)}</div></div>`;
-        }).join('')}</div>
-      </div>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:0.55em;color:var(--text-muted);margin-top:4px">${tLabels.map(l=>`<span>${l}</span>`).join('')}</div></div>`;
+  const yLabels=groupKeys.length<=2?groupKeys:[groupKeys[0]];
+  yLabels.forEach((g,gi)=>{
+    const sc=scales.get(g);
+    const isRight=gi>0;
+    [0,0.5,1].forEach(f=>{
+      const v=sc.mn+sc.rng*f;
+      const y=PAD_T+cH-f*cH;
+      const s=groups.get(g)[0];
+      const label=s.fmt(v);
+      if(isRight)svg+=`<text x="${W-PAD_R+2}" y="${y+2}" fill="#475569" font-size="5" text-anchor="start">${label}</text>`;
+      else svg+=`<text x="${PAD_L-2}" y="${y+2}" fill="#475569" font-size="5" text-anchor="end">${label}</text>`;
+    });
+  });
+  svg+=`</svg>`;
+  return svg;
 }
 function initPrecipTaps(){
   document.querySelectorAll('.hourly-chart').forEach(chart=>{
@@ -1130,96 +1244,6 @@ function initPrecipTaps(){
       if(!wasActive)bar.classList.add('tapped');
     });
   });
-}
-
-function getLast24(timeArr,valArr){
-  const nowMs=Date.now();
-  const all=timeArr.map((t,i)=>({t:new Date(t).getTime(),v:valArr[i],ts:t})).filter(p=>p.t<=nowMs);
-  const cutoff=nowMs-24*3600000;
-  const past=all.filter(p=>p.t>=cutoff);
-  return past.length>=4?past:all.slice(-24);
-}
-function renderPressureTrend(h){
-  if(!h||!h.pressure_msl||!h.time)return'';
-  const nowMs=Date.now();
-  const allPts=h.time.map((t,i)=>({t:new Date(t).getTime(),p:h.pressure_msl[i],ts:t}));
-  const past3=allPts.filter(p=>p.t<=nowMs&&p.t>=nowMs-3*3600000);
-  const futureStart=allPts.findIndex(p=>p.t>=nowMs);
-  const future24=futureStart>=0?allPts.slice(futureStart,futureStart+24):[];
-  if(past3.length<1&&future24.length<4)return'';
-  const curP=S.weather?S.weather.pressure_msl:(past3.length?past3[past3.length-1].p:future24[0].p);
-  const nowPt={t:nowMs,p:curP,ts:new Date().toISOString(),isNow:true};
-  const combined=[];
-  past3.forEach(p=>combined.push({...p,isPast:true}));
-  if(!past3.length||past3[past3.length-1].t<nowMs-120000)combined.push(nowPt);
-  future24.forEach(p=>combined.push({...p,isFuture:true}));
-  if(combined.length<4)return'';
-  const pastCount=combined.filter(p=>p.isPast||p.isNow).length;
-  const pres=combined.map(p=>p.p);
-  const times=combined.map(p=>p.ts);
-  const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'PM':'AM';return(hr%12||12)+ap};
-  const tLabels=[];
-  const labelCount=5;
-  for(let li=0;li<labelCount;li++){
-    const idx=Math.round(li*(combined.length-1)/(labelCount-1));
-    if(combined[idx].isNow){tLabels.push('Now')}
-    else{const t=new Date(combined[idx].ts);tLabels.push(fmtHr(t))}
-  }
-  const mn=Math.min(...pres),mx=Math.max(...pres);
-  const range=mx-mn||1;
-  const padMn=mn-range*0.1,padMx=mx+range*0.1,padRange=padMx-padMn||1;
-  const isInHg=S.presUnit===0;
-  const gridLines=4;
-  let gridHtml='';
-  for(let g=0;g<=gridLines;g++){
-    const val=padMn+(padMx-padMn)*(1-g/gridLines);
-    const pct=(g/gridLines)*100;
-    const label=isInHg?(val/33.8639).toFixed(2)+' inHg':val.toFixed(1)+' mb';
-    gridHtml+=`<div class="precip-grid-line" style="top:${pct}%">${g>0&&g<gridLines?`<span>${label}</span>`:''}</div>`;
-  }
-  const trendMb=S._baroTrendMb||0;
-  const trendClass=S._baroTrend||'steady';
-  const trendDir=trendClass==='rising'?'Rising':trendClass==='falling'?'Falling':'Steady';
-  const trendCol=trendClass==='rising'?'var(--accent-green)':trendClass==='falling'?'var(--accent-red)':'var(--text-muted)';
-  function fmtPresTrend(mb){
-    if(isInHg){const v=Math.abs(mb/33.8639);return(mb>=0?'+':'-')+(v<0.05?v.toFixed(3):v.toFixed(2))+' inHg'}
-    return(mb>=0?'+':'')+mb.toFixed(1)+' mb';
-  }
-  const hiIdx=pres.indexOf(mx),loIdx=pres.indexOf(mn);
-  const hiLabel=isInHg?'▲ '+(mx/33.8639).toFixed(2):'▲ '+mx.toFixed(1);
-  const loLabel=isInHg?'▼ '+(mn/33.8639).toFixed(2):'▼ '+mn.toFixed(1);
-  let hiLeft=parseFloat((hiIdx/pres.length*100).toFixed(1));
-  let loLeft=parseFloat((loIdx/pres.length*100).toFixed(1));
-  let hiBot=parseFloat(((mx-padMn)/padRange*100+3).toFixed(1));
-  let loBot=Math.max(0,parseFloat(((mn-padMn)/padRange*100-8).toFixed(1)));
-  if(Math.abs(hiLeft-loLeft)<15&&Math.abs(hiBot-loBot)<15){
-    if(hiLeft>50)hiLeft=Math.min(85,hiLeft+8);else loLeft=Math.max(0,loLeft-8);
-    if(hiBot-loBot<12)loBot=Math.max(0,loBot-6);
-  }
-  if(hiLeft>75)hiLeft=75;if(loLeft>75)loLeft=75;
-  const nowLinePos=pastCount>0?((pastCount-1)/(combined.length-1)*100).toFixed(1):0;
-  return`<div class="card" style="margin-top:0">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div class="card-title" style="margin:0"><span class="icon">📊</span> Pressure Trend</div>
-      <div style="font-size:0.7em;font-weight:600;color:${trendCol}">${trendDir} (${fmtPresTrend(trendMb)})</div>
-    </div>
-    <div class="precip-chart-wrap">
-      <div class="precip-chart-area" style="position:relative">
-        ${gridHtml}
-        <div style="position:absolute;left:${nowLinePos}%;top:0;bottom:0;width:2px;background:var(--accent-cyan);opacity:0.6;z-index:5"></div>
-        <div style="position:absolute;left:calc(${nowLinePos}% - 12px);top:-14px;font-size:0.5em;font-weight:700;color:var(--accent-cyan);z-index:6">NOW</div>
-        <div class="chart-marker hi" style="left:${hiLeft}%;bottom:${hiBot}%">${hiLabel}</div>
-        <div class="chart-marker lo" style="left:${loLeft}%;bottom:${loBot}%">${loLabel}</div>
-        <div class="hourly-chart pres-chart">${combined.map((pt,i)=>{
-          const ht=Math.max(2,((pt.p-padMn)/padRange)*100);
-          const isPast=pt.isPast||pt.isNow;
-          const col=isPast?'rgba(0,229,255,0.6)':'rgba(0,229,255,0.25)';
-          const label=isInHg?(pt.p/33.8639).toFixed(2)+' inHg':pt.p.toFixed(1)+' mb';
-          return`<div class="hourly-bar" data-idx="${i}" style="height:${ht}%;background:${col}"><div class="bar-tip">${label}${isPast?' (past)':' (fcst)'}</div></div>`;
-        }).join('')}</div>
-      </div>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:0.55em;color:var(--text-muted);margin-top:4px">${tLabels.map(l=>`<span>${l}</span>`).join('')}</div></div>`;
 }
 
 function renderDailyForecast(d){
