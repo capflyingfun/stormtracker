@@ -1474,6 +1474,7 @@ function initRadar(){
       <div class="map-controls">
         <div class="map-ctrl-btn" id="radar-scan" title="Re-center & scan">📍</div>
         <div class="map-ctrl-btn" id="radar-scan-view" title="Scan current view">🔍</div>
+        <div class="map-ctrl-btn" id="radar-scan-hires" title="Hi-Res 5mi scan" style="font-size:0.5em;font-weight:700;line-height:1;color:var(--accent-cyan)">HiRes</div>
         <div class="map-ctrl-btn" id="radar-toggle-src" title="Toggle radar source" style="font-size:0.55em;font-weight:700;line-height:1">SRC</div>
         <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km" style="font-size:0.55em;font-weight:700;line-height:1">MI</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
@@ -1525,6 +1526,7 @@ function initRadar(){
       scanRadarForStorms();
     });
     document.getElementById('radar-scan-view').addEventListener('click',()=>{scanRadarForView()});
+    document.getElementById('radar-scan-hires').addEventListener('click',()=>{scanRadarHiRes(map)});
     document.getElementById('radar-toggle-src').addEventListener('click',()=>{toggleRadarSource(map)});
     document.getElementById('radar-toggle-units').addEventListener('click',()=>{
       S.radarMetric=!S.radarMetric;
@@ -1700,6 +1702,67 @@ async function scanRadarForView(){
     toast(`${S.storms.length.toLocaleString()} cells in ${radius} mi radius (${srcLabel})`);
     scheduleAutoScan();
   }catch(e){hideScanOverlay();toast('View scan failed: '+e.message);console.error('ViewScan error:',e)}
+}
+
+async function scanRadarHiRes(map){
+  if(!map)return;
+  const center=map.getCenter();
+  const cLat=center.lat,cLng=center.lng;
+  const useNexrad=S.radarSource==='nexrad';
+  const HIRES_RADIUS=5;
+  const hiZoom=useNexrad?10:9;
+  showScanOverlay();
+  await fetchWindsAloft(cLat,cLng);
+  scanStep(2,'Hi-Res scanning (step=1)...');
+  try{
+    const radiusDeg=HIRES_RADIUS/69.0;
+    const northLat=cLat+radiusDeg,southLat=cLat-radiusDeg;
+    const eastLon=cLng+radiusDeg/Math.cos(cLat*Math.PI/180);
+    const westLon=cLng-radiusDeg/Math.cos(cLat*Math.PI/180);
+    const minTX=lonToTileX(westLon,hiZoom),maxTX=lonToTileX(eastLon,hiZoom);
+    const minTY=latToTileY(northLat,hiZoom),maxTY=latToTileY(southLat,hiZoom);
+
+    if(!useNexrad){
+      try{
+        const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
+        const past=rv.radar?.past||[];
+        const nowcast=rv.radar?.nowcast||[];
+        const allFrames=past.concat(nowcast);
+        S.radarFrames=allFrames;
+        S._rvTilePath=allFrames.length?allFrames[allFrames.length-1].path:null;
+      }catch(e){S._rvTilePath=null}
+      if(!S._rvTilePath){hideScanOverlay();toast('No radar data');return}
+    }
+
+    const colorFn=nexradToDbz;
+    const minDbz=15;
+    const tilePromises=[];
+    const savedLat=S.lat,savedLon=S.lon;
+    S.lat=cLat;S.lon=cLng;
+    for(let tx=minTX;tx<=maxTX;tx++){
+      for(let ty=minTY;ty<=maxTY;ty++){
+        const url=useNexrad
+          ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${hiZoom}/${tx}/${ty}.png`
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${hiZoom}/${tx}/${ty}/6/1_1.png`;
+        tilePromises.push(scanTileForPoints(url,tx,ty,hiZoom,colorFn,minDbz,HIRES_RADIUS,1));
+      }
+    }
+    const tileResults=await Promise.all(tilePromises);
+    const rawPoints=tileResults.flat();
+    S.lat=savedLat;S.lon=savedLon;
+
+    S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);
+    S.scanTime=Date.now();S.lastScanMs=Date.now();
+    const srcLabel=useNexrad?'NEXRAD':'RainViewer';
+    scanStep(3,`Hi-Res: ${S.storms.length.toLocaleString()} points in ${HIRES_RADIUS} mi`);
+    await new Promise(r=>setTimeout(r,300));
+    renderStorms();updateStormBadges();
+    plotStormMarkers(map);
+    showViewScanCircle(map,cLat,cLng,HIRES_RADIUS,S.storms.length);
+    map.setView([cLat,cLng],11,{animate:true,duration:0.5});
+    hideScanOverlay();
+    toast(`Hi-Res: ${S.storms.length.toLocaleString()} cells in ${HIRES_RADIUS} mi (${srcLabel})`);
+  }catch(e){hideScanOverlay();toast('Hi-Res scan failed: '+e.message);console.error('HiRes error:',e)}
 }
 
 function stormArrowSvg(deg,color,size){
@@ -1892,8 +1955,8 @@ async function decodeRvRgba(buf){
   }
   return{w,h,data:rgba};
 }
-async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius){
-  const tileSize=256,step=S._scanStep||2;
+async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius,stepOverride){
+  const tileSize=256,step=stepOverride||S._scanStep||2;
   const isRV=url.includes('rainviewer');
   if(isRV){
     try{
@@ -2133,9 +2196,10 @@ function latToTileY(lat,z){const r=lat*Math.PI/180;return Math.floor((1-Math.log
 function tileXToLon(x,z){return x/Math.pow(2,z)*360-180}
 function tileYToLat(y,z){const n=Math.PI-2*Math.PI*y/Math.pow(2,z);return 180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n)))}
 
-function spacingFilter(points){
+function spacingFilter(points,hiRes){
   const validPoints=points.filter(p=>{
     if(p.dbz>=35)return true;
+    if(hiRes&&p.dbz>=20)return true;
     const radius=p.dbz>=30?5:8;
     let nearby=0;
     for(const q of points){
@@ -2149,7 +2213,7 @@ function spacingFilter(points){
   validPoints.sort((a,b)=>b.dbz-a.dbz);
   const out=[];
   for(const p of validPoints){
-    const minSpacing=p.dbz>=45?1.5:p.dbz>=35?2.0:3.0;
+    const minSpacing=hiRes?(p.dbz>=45?0.3:p.dbz>=35?0.4:0.5):(p.dbz>=45?1.5:p.dbz>=35?2.0:3.0);
     let merged=false;
     for(const e of out){
       if(haversine(p.lat,p.lng,e.lat,e.lng)<minSpacing){
