@@ -1479,7 +1479,7 @@ async function scanRadarForView(){
   const useNexrad=S.radarSource==='nexrad';
   const radius=S.scanRadius;
   showScanOverlay();
-  await fetchWindsAloft(cLat,cLng);
+  await fetchWindsAloft();
   scanStep(2,'Scanning radar tiles...');
   try{
     const zoom=useNexrad?8:7;
@@ -1544,7 +1544,7 @@ async function scanRadarHiRes(map,fromHome){
   const HIRES_RADIUS=15;
   const hiZoom=useNexrad?10:7;
   showScanOverlay();
-  await fetchWindsAloft(cLat,cLng);
+  await fetchWindsAloft();
   scanStep(2,'Hi-Res scanning (step=1)...');
   try{
     const radiusDeg=HIRES_RADIUS/69.0;
