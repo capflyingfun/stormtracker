@@ -745,14 +745,85 @@ function reverseGeocode(lat,lon){
 async function fetchWeather(){
   const el=document.getElementById('page-weather');showSkel(el,6);
   try{
-    const url=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lon}`
+    const omUrl=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lon}`
       +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day`
       +`&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl,is_day`
       +`&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset,wind_speed_10m_max`
       +`&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=7&past_days=1`;
-    const res=await fetch(url);const data=await res.json();
-    S.weather=data.current;S.forecast=data;renderWeather(data);if(_curLang!=='en')setTimeout(quickTranslate,300);
+    const omRes=await fetch(omUrl);const omData=await omRes.json();
+    S.forecast=omData;
+    if(isUSLocation(S.lat,S.lon)){
+      try{
+        const [nwsCur,nwsFc]=await Promise.all([fetchNWSCurrent(),fetchNWSForecast()]);
+        if(nwsCur){
+          omData.current.temperature_2m=nwsCur.temp;
+          if(nwsCur.dewp!=null){const rh=Math.round(100*Math.exp((17.27*nwsCur.dewp)/(237.7+nwsCur.dewp))/Math.exp((17.27*nwsCur.temp)/(237.7+nwsCur.temp)));omData.current.relative_humidity_2m=rh}
+          if(nwsCur.windKmh!=null)omData.current.wind_speed_10m=nwsCur.windKmh;
+          if(nwsCur.windDir!=null)omData.current.wind_direction_10m=nwsCur.windDir;
+          if(nwsCur.gustKmh!=null)omData.current.wind_gusts_10m=nwsCur.gustKmh;
+          if(nwsCur.presPa!=null)omData.current.pressure_msl=nwsCur.presPa/100;
+          if(nwsCur.visMeter!=null)S._nwsVisM=nwsCur.visMeter;
+          if(nwsCur.wxString)omData.current._nwsDesc=nwsCur.wxString;
+          if(nwsCur.feelsC!=null)omData.current.apparent_temperature=nwsCur.feelsC;
+          omData.current._nwsStation=nwsCur.station;
+          omData.current._source='NWS';
+          console.log('Weather: NWS current from '+nwsCur.station);
+        }
+        if(nwsFc&&nwsFc.length){
+          omData._nwsForecast=nwsFc;
+          console.log('Weather: NWS forecast loaded ('+nwsFc.length+' periods)');
+        }
+      }catch(e){console.log('NWS hybrid fetch failed:',e.message)}
+    }
+    S.weather=omData.current;renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p></div>`}
+}
+async function fetchNWSCurrent(){
+  try{
+    const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(4000)});
+    if(!ptRes.ok)return null;
+    const pt=await ptRes.json();
+    const stUrl=pt.properties?.observationStations;
+    if(!stUrl)return null;
+    const stRes=await fetch(stUrl,{...NWS_HDR,signal:AbortSignal.timeout(4000)});
+    if(!stRes.ok)return null;
+    const stData=await stRes.json();
+    const nearest=stData.features?.[0];
+    if(!nearest)return null;
+    const icao=nearest.properties?.stationIdentifier;
+    const obsRes=await fetch(`https://api.weather.gov/stations/${icao}/observations/latest`,{...NWS_HDR,signal:AbortSignal.timeout(4000)});
+    if(!obsRes.ok)return null;
+    const obs=await obsRes.json();
+    const p=obs.properties||{};
+    if(p.temperature?.value==null)return null;
+    return{
+      temp:p.temperature.value,dewp:p.dewpoint?.value,
+      windKmh:p.windSpeed?.value,windDir:p.windDirection?.value,
+      gustKmh:p.windGust?.value,presPa:p.barometricPressure?.value,
+      visMeter:p.visibility?.value,wxString:p.textDescription||'',
+      feelsC:p.windChill?.value??p.heatIndex?.value??null,
+      station:icao
+    };
+  }catch(e){return null}
+}
+async function fetchNWSForecast(){
+  try{
+    const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(4000)});
+    if(!ptRes.ok)return null;
+    const pt=await ptRes.json();
+    const fcUrl=pt.properties?.forecast;
+    if(!fcUrl)return null;
+    const fcRes=await fetch(fcUrl,{...NWS_HDR,signal:AbortSignal.timeout(5000)});
+    if(!fcRes.ok)return null;
+    const fc=await fcRes.json();
+    return(fc.properties?.periods||[]).slice(0,14).map(p=>({
+      name:p.name,temp:p.temperature,unit:p.temperatureUnit,
+      wind:p.windSpeed,windDir:p.windDirection,
+      short:p.shortForecast,detail:p.detailedForecast,
+      precip:p.probabilityOfPrecipitation?.value||0,
+      isDaytime:p.isDaytime,icon:p.icon
+    }));
+  }catch(e){return null}
 }
 
 function getBaroPrediction(current,hourly){
@@ -821,7 +892,7 @@ function renderWeather(data){
       ${renderHourlyPrecip(hourly)}
       <div style="margin-top:12px"></div>
       ${renderPressureTrend(hourly)}</div>`,
-    forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${renderDailyForecast(daily)}</div>`
+    forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${data._nwsForecast?renderNWSForecast(data._nwsForecast):renderDailyForecast(daily)}</div>`
   };
   const order=getSecOrder();
 
@@ -931,7 +1002,8 @@ function renderWeather(data){
           <div class="hero-side-item" onclick="event.stopPropagation();cycleUnit('tempUnit')" style="cursor:pointer">
             <div style="font-size:1.6em;margin-bottom:2px">${animEmoji(c.weather_code,isDay,'1em')}</div>
             <div style="font-size:1.8em;font-weight:800;color:var(--text-primary);line-height:1">${fmtTempShort(tempC)}</div>
-            <div style="font-size:0.65em;color:var(--text-secondary);margin-top:2px">${desc}</div>
+            <div style="font-size:0.65em;color:var(--text-secondary);margin-top:2px">${c._nwsDesc||desc}</div>
+            ${c._source==='NWS'?`<div style="font-size:0.5em;color:var(--accent-cyan);margin-top:1px;opacity:0.7">NWS · ${c._nwsStation||''}</div>`:''}
           </div>
           <div class="hero-side-item" onclick="event.stopPropagation();cycleUnit('tempUnit')" style="cursor:pointer">
             <div class="hero-side-label">Feels Like</div>
@@ -1184,6 +1256,52 @@ function toggleForecastDetail(idx){
     <div class="fd-row"><span>💨 Max Wind</span><span style="font-weight:600">${windStr}</span></div>
     <div class="fd-row"><span>🌅 Sunrise</span><span style="font-weight:600">${sunrise}</span></div>
     <div class="fd-row"><span>🌇 Sunset</span><span style="font-weight:600">${sunset}</span></div>
+  </div>`;
+}
+function renderNWSForecast(periods){
+  if(!periods||!periods.length)return'';
+  S._nwsPeriods=periods;
+  const dayPairs=[];
+  for(let i=0;i<periods.length;i++){
+    const p=periods[i];
+    if(p.isDaytime!==false){
+      const night=periods[i+1]&&periods[i+1].isDaytime===false?periods[i+1]:null;
+      dayPairs.push({day:p,night,idx:i});
+      if(night)i++;
+    }else{
+      dayPairs.push({day:null,night:p,idx:i});
+    }
+  }
+  return`<div class="card"><div class="card-title"><span class="icon">📊</span> NWS Forecast</div>
+    <div class="forecast-scroll">${dayPairs.map((pair,pi)=>{
+      const p=pair.day||pair.night;
+      const tempF=p.temp;const tempC=p.unit==='F'?(tempF-32)*5/9:tempF;
+      const hiStr=fmtTempShort(p.unit==='F'?(tempF-32)*5/9:tempF);
+      const loStr=pair.night?fmtTempShort(pair.night.unit==='F'?(pair.night.temp-32)*5/9:pair.night.temp):'';
+      const rain=p.precip||0;
+      const emojiMap={'Sunny':'☀️','Clear':'🌙','Mostly Sunny':'🌤️','Mostly Clear':'🌤️','Partly Sunny':'⛅','Partly Cloudy':'⛅','Mostly Cloudy':'🌥️','Cloudy':'☁️','Overcast':'☁️',
+        'Rain':'🌧️','Showers':'🌦️','Chance Rain':'🌦️','Slight Chance Rain':'🌦️','Thunderstorms':'⛈️','Chance Thunderstorms':'⛈️','Snow':'❄️','Chance Snow':'🌨️','Fog':'🌫️','Haze':'🌫️','Windy':'💨','Hot':'🔥','Cold':'🥶'};
+      let em='🌤️';for(const[k,v]of Object.entries(emojiMap)){if(p.short.toLowerCase().includes(k.toLowerCase())){em=v;break}}
+      return`<div class="forecast-item" onclick="toggleNWSDetail(${pair.idx})" data-nfi="${pair.idx}"><div class="forecast-time">${p.name.replace(/ Night$/,'').replace(/This /,'')}</div><div class="forecast-icon">${em}</div><div class="forecast-temp" style="font-weight:700;color:var(--accent-red);text-shadow:0 0 8px rgba(255,51,85,0.4)">${hiStr}</div>${loStr?`<div style="font-size:0.7em;font-weight:600;color:var(--accent-cyan);text-shadow:0 0 6px rgba(0,229,255,0.3)">${loStr}</div>`:''}${rain>0?`<div style="font-size:0.55em;color:var(--accent-blue);margin-top:2px">💧${rain}%</div>`:''}</div>`;
+    }).join('')}</div><div id="nws-detail-box"></div>
+    <div style="text-align:right;font-size:0.55em;color:var(--text-muted);margin-top:4px;padding-right:4px">Source: National Weather Service</div></div>`;
+}
+function toggleNWSDetail(idx){
+  const periods=S._nwsPeriods;if(!periods)return;
+  const box=document.getElementById('nws-detail-box');
+  document.querySelectorAll('.forecast-item').forEach(el=>el.classList.remove('selected'));
+  if(box.dataset.idx===String(idx)){box.innerHTML='';box.dataset.idx='';return}
+  box.dataset.idx=idx;
+  const fi=document.querySelector(`.forecast-item[data-nfi="${idx}"]`);
+  if(fi)fi.classList.add('selected');
+  const p=periods[idx];
+  const tempC=p.unit==='F'?(p.temp-32)*5/9:p.temp;
+  box.innerHTML=`<div class="forecast-detail">
+    <div style="font-weight:700;margin-bottom:6px">${p.name} — ${p.short}</div>
+    <div class="fd-row"><span>🌡️ Temperature</span><span style="font-weight:600">${fmtTemp(tempC)}</span></div>
+    <div class="fd-row"><span>💨 Wind</span><span style="font-weight:600">${p.wind} ${p.windDir}</span></div>
+    ${p.precip>0?`<div class="fd-row"><span>💧 Rain Chance</span><span style="font-weight:600">${p.precip}%</span></div>`:''}
+    <div style="font-size:0.8em;color:var(--text-secondary);margin-top:8px;line-height:1.4;border-top:1px solid var(--border-subtle);padding-top:8px">${p.detail}</div>
   </div>`;
 }
 
