@@ -1617,13 +1617,36 @@ function hideScanOverlay(){
   setTimeout(()=>{const ov=document.getElementById('scan-overlay');if(ov)ov.classList.remove('show')},600);
 }
 
+function clearViewScanCircle(){
+  if(S._viewScanCircle&&S.map){S.map.removeLayer(S._viewScanCircle);S._viewScanCircle=null}
+  if(S._viewScanCenter&&S.map){S.map.removeLayer(S._viewScanCenter);S._viewScanCenter=null}
+  if(S._viewScanLabel){S._viewScanLabel.remove();S._viewScanLabel=null}
+}
+function showViewScanCircle(map,lat,lng,radiusMi,count){
+  clearViewScanCircle();
+  S._viewScanCircle=L.circle([lat,lng],{radius:radiusMi*1609.34,color:'#00e5ff',fillColor:'#00e5ff',fillOpacity:0.04,weight:1.5,dashArray:'8 4'}).addTo(map);
+  S._viewScanCenter=L.circleMarker([lat,lng],{radius:4,color:'#00e5ff',fillColor:'#00e5ff',fillOpacity:0.9,weight:1}).addTo(map);
+  let label=document.getElementById('view-scan-label');
+  if(!label){
+    label=document.createElement('div');
+    label.id='view-scan-label';
+    label.style.cssText='position:absolute;bottom:12px;left:10px;z-index:500;background:rgba(17,24,39,0.92);backdrop-filter:blur(10px);border-radius:6px;padding:4px 10px;font-size:0.65em;color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.2)';
+    document.querySelector('.map-container')?.appendChild(label);
+  }
+  const rLabel=radiusMi>=10?Math.round(radiusMi):radiusMi.toFixed(1);
+  label.textContent=`⭕ ${rLabel} mi radius · ${count.toLocaleString()} points`;
+  S._viewScanLabel=label;
+}
+
 async function scanRadarForView(){
   if(!S.map)return;
   const bounds=S.map.getBounds();
   const center=S.map.getCenter();
+  const cLat=center.lat,cLng=center.lng;
   const useNexrad=S.radarSource==='nexrad';
+  const MAX_POINTS=3000,MAX_RADIUS=500,MIN_RADIUS=5;
   showScanOverlay();
-  await fetchWindsAloft(center.lat,center.lng);
+  await fetchWindsAloft(cLat,cLng);
   scanStep(2,'Scanning radar tiles...');
   try{
     const zoom=useNexrad?8:7;
@@ -1639,32 +1662,58 @@ async function scanRadarForView(){
         S.radarFrames=allFrames;
         S._rvTilePath=allFrames.length?allFrames[allFrames.length-1].path:null;
       }catch(e){S._rvTilePath=null}
-      if(!S._rvTilePath){toast('No radar data');return}
+      if(!S._rvTilePath){hideScanOverlay();toast('No radar data');return}
     }
 
     const colorFn=nexradToDbz;
     const minDbz=20;
-    const maxScanDist=9999;
     const tilePromises=[];
     for(let tx=minTX;tx<=maxTX;tx++){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
           :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
-        tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,maxScanDist));
+        tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,9999));
       }
     }
     const tileResults=await Promise.all(tilePromises);
-    const rawPoints=tileResults.flat();
+    let allPoints=tileResults.flat();
+    allPoints.forEach(p=>{p.distance=haversine(cLat,cLng,p.lat,p.lng)});
+    let filtered=spacingFilter(allPoints).sort((a,b)=>a.distance-b.distance);
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
-    S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
+
+    let viewMaxDist=0;
+    const corners=[[bounds.getNorth(),bounds.getWest()],[bounds.getNorth(),bounds.getEast()],[bounds.getSouth(),bounds.getWest()],[bounds.getSouth(),bounds.getEast()]];
+    corners.forEach(c=>{const d=haversine(cLat,cLng,c[0],c[1]);if(d>viewMaxDist)viewMaxDist=d});
+    let radius=Math.min(viewMaxDist,MAX_RADIUS);
+
+    if(filtered.length>MAX_POINTS){
+      scanStep(3,`${filtered.length.toLocaleString()} points found — optimizing radius...`);
+      await new Promise(r=>setTimeout(r,400));
+      let lo=MIN_RADIUS,hi=radius;
+      for(let i=0;i<12;i++){
+        const mid=(lo+hi)/2;
+        const cnt=filtered.filter(p=>p.distance<=mid).length;
+        if(cnt>MAX_POINTS)hi=mid;else lo=mid;
+      }
+      radius=Math.max(MIN_RADIUS,Math.floor(lo));
+      filtered=filtered.filter(p=>p.distance<=radius);
+      scanStep(3,`Optimized to ${radius} mi · ${filtered.length.toLocaleString()} points`);
+      await new Promise(r=>setTimeout(r,500));
+    }else{
+      radius=filtered.length>0?Math.min(Math.ceil(filtered[filtered.length-1].distance*1.1),MAX_RADIUS):radius;
+      if(radius<MIN_RADIUS)radius=MIN_RADIUS;
+    }
+
+    S.storms=filtered;
     S.scanTime=Date.now();S.lastScanMs=Date.now();
-    scanStep(3,`Plotting ${S.storms.length} storm points...`);
-    await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();
-    if(S.map)plotStormMarkers(S.map);
+    if(S.map){
+      plotStormMarkers(S.map);
+      showViewScanCircle(S.map,cLat,cLng,radius,S.storms.length);
+    }
     hideScanOverlay();
-    toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
+    toast(`${S.storms.length.toLocaleString()} cells in ${Math.round(radius)} mi radius (${srcLabel})`);
     scheduleAutoScan();
   }catch(e){hideScanOverlay();toast('View scan failed: '+e.message);console.error('ViewScan error:',e)}
 }
@@ -2024,6 +2073,7 @@ function impactLabel(pct){
 
 async function scanRadarForStorms(){
   if(!S.lat)return;
+  clearViewScanCircle();
   const useNexrad=S.radarSource==='nexrad';
   showScanOverlay();
   await fetchWindsAloft();
