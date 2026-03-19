@@ -2602,19 +2602,37 @@ async function translatePage(lang){
 function quickTranslate(){
   if(_curLang==='en'||_translating)return;
   const nodes=getTextNodes(document.body);
-  let applied=0;
+  const uncached=new Map();
   nodes.forEach(n=>{
     if(!n._origText)n._origText=n.textContent;
     const cur=n.textContent.trim();
     const orig=n._origText?.trim()||cur;
     const ckOrig=_curLang+'::'+orig;
     if(_tCache[ckOrig]){
-      if(cur!==_tCache[ckOrig]){n.textContent=n._origText.replace(orig,_tCache[ckOrig]);applied++}
+      if(cur!==_tCache[ckOrig])n.textContent=n._origText.replace(orig,_tCache[ckOrig]);
       return;
     }
     const ckCur=_curLang+'::'+cur;
-    if(_tCache[ckCur]) return;
+    if(_tCache[ckCur])return;
+    if(!uncached.has(orig))uncached.set(orig,[]);
+    uncached.get(orig).push(n);
   });
+  if(uncached.size>0&&uncached.size<80) translateUncached(uncached,_curLang);
+}
+async function translateUncached(uncMap,lang){
+  if(_translating)return;
+  _translating=true;
+  const entries=[...uncMap.entries()];
+  for(let i=0;i<entries.length;i+=4){
+    const batch=entries.slice(i,i+4);
+    const results=await Promise.all(batch.map(([txt])=>mmTranslate(txt,lang)));
+    batch.forEach(([txt,nodeList],j)=>{
+      nodeList.forEach(n=>{n.textContent=n.textContent.replace(txt,results[j])});
+    });
+  }
+  try{localStorage.setItem('st_tcache',JSON.stringify(_tCache))}catch(e){}
+  _translating=false;
+  _tCooldown=Date.now();
 }
 
 function restoreOriginals(){
