@@ -272,6 +272,17 @@ canvas.offscreen{display:none}
 .confirm-btns button{padding:10px 20px;border-radius:var(--radius-md);border:none;font-size:0.85em;font-weight:600;cursor:pointer;font-family:var(--font-body)}
 .confirm-allow{background:var(--accent-blue);color:white}
 .confirm-deny{background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border-subtle)}
+.lang-menu{display:none;position:fixed;top:48px;right:40px;z-index:10002;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:8px 0;max-height:70vh;overflow-y:auto;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,0.5);backdrop-filter:blur(20px)}
+.lang-menu.open{display:block}
+.lang-item{display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;font-size:0.85em;color:var(--text-secondary);transition:background 0.15s}
+.lang-item:hover{background:rgba(0,229,255,0.08);color:var(--text-primary)}
+.lang-item.active{color:var(--accent-cyan);font-weight:700;background:rgba(0,229,255,0.06)}
+.lang-item .lang-flag{font-size:1.2em}
+.lang-item .lang-name{flex:1}
+.lang-item .lang-check{font-size:0.7em;color:var(--accent-cyan)}
+.translate-bar{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);z-index:10001;background:var(--bg-surface);border:1px solid var(--accent-cyan);border-radius:var(--radius-lg);padding:8px 16px;display:none;align-items:center;gap:10px;font-size:0.8em;color:var(--text-secondary);box-shadow:0 4px 20px rgba(0,229,255,0.15);backdrop-filter:blur(10px)}
+.translate-bar.show{display:flex}
+.translate-bar .t-spinner{width:14px;height:14px;border:2px solid rgba(0,229,255,0.3);border-top-color:var(--accent-cyan);border-radius:50%;animation:nx-spin 0.8s linear infinite}
 </style>
 </head>
 <body>
@@ -289,8 +300,10 @@ canvas.offscreen{display:none}
       <span id="status-text">Initializing...</span>
     </div>
   </div>
+  <div class="header-loc-btn" id="btn-lang" onclick="toggleLangMenu()" title="Language">🌐</div>
   <div class="header-loc-btn" id="btn-loc-open" onclick="toggleLocOverlay(true)" title="Change location">🗺️</div>
 </header>
+<div class="lang-menu" id="lang-menu"></div>
 
 <div class="loc-overlay" id="loc-overlay" onclick="if(event.target===this)toggleLocOverlay(false)">
   <div class="loc-overlay-inner">
@@ -2353,6 +2366,171 @@ function init(){
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);
 else init();
+
+const LANGS=[
+  {c:'en',f:'🇺🇸',n:'English'},{c:'es',f:'🇪🇸',n:'Español'},{c:'fr',f:'🇫🇷',n:'Français'},
+  {c:'de',f:'🇩🇪',n:'Deutsch'},{c:'it',f:'🇮🇹',n:'Italiano'},{c:'pt',f:'🇧🇷',n:'Português'},
+  {c:'ja',f:'🇯🇵',n:'日本語'},{c:'ko',f:'🇰🇷',n:'한국어'},{c:'zh',f:'🇨🇳',n:'中文'},
+  {c:'ar',f:'🇸🇦',n:'العربية'},{c:'hi',f:'🇮🇳',n:'हिन्दी'},{c:'ru',f:'🇷🇺',n:'Русский'},
+  {c:'tr',f:'🇹🇷',n:'Türkçe'},{c:'nl',f:'🇳🇱',n:'Nederlands'},{c:'pl',f:'🇵🇱',n:'Polski'},
+  {c:'vi',f:'🇻🇳',n:'Tiếng Việt'},{c:'th',f:'🇹🇭',n:'ไทย'},{c:'sv',f:'🇸🇪',n:'Svenska'},
+  {c:'id',f:'🇮🇩',n:'Bahasa'},{c:'uk',f:'🇺🇦',n:'Українська'},
+  {c:'cs',f:'🇨🇿',n:'Čeština'},{c:'da',f:'🇩🇰',n:'Dansk'},{c:'fi',f:'🇫🇮',n:'Suomi'},
+  {c:'el',f:'🇬🇷',n:'Ελληνικά'},{c:'he',f:'🇮🇱',n:'עברית'},{c:'hu',f:'🇭🇺',n:'Magyar'},
+  {c:'no',f:'🇳🇴',n:'Norsk'},{c:'ro',f:'🇷🇴',n:'Română'},{c:'ms',f:'🇲🇾',n:'Melayu'},
+  {c:'tl',f:'🇵🇭',n:'Filipino'},{c:'sw',f:'🇰🇪',n:'Kiswahili'}
+];
+let _curLang=localStorage.getItem('st_lang')||'en';
+let _tCache=JSON.parse(localStorage.getItem('st_tcache')||'{}');
+let _translating=false;
+
+function buildLangMenu(){
+  const menu=document.getElementById('lang-menu');
+  menu.innerHTML=LANGS.map(l=>`<div class="lang-item${l.c===_curLang?' active':''}" onclick="selectLang('${l.c}')">
+    <span class="lang-flag">${l.f}</span><span class="lang-name">${l.n}</span>${l.c===_curLang?'<span class="lang-check">✓</span>':''}
+  </div>`).join('');
+}
+function toggleLangMenu(){
+  const menu=document.getElementById('lang-menu');
+  const open=menu.classList.toggle('open');
+  if(open){buildLangMenu();document.addEventListener('click',closeLangMenuOutside,{once:true,capture:true})}
+}
+function closeLangMenuOutside(e){
+  const menu=document.getElementById('lang-menu');
+  const btn=document.getElementById('btn-lang');
+  if(!menu.contains(e.target)&&e.target!==btn){menu.classList.remove('open')}
+  else if(menu.classList.contains('open')){document.addEventListener('click',closeLangMenuOutside,{once:true,capture:true})}
+}
+function selectLang(code){
+  document.getElementById('lang-menu').classList.remove('open');
+  if(code===_curLang&&code!=='en')return;
+  _curLang=code;
+  localStorage.setItem('st_lang',code);
+  const flag=LANGS.find(l=>l.c===code);
+  document.getElementById('btn-lang').textContent=flag?flag.f:'🌐';
+  if(code==='en'){restoreOriginals();toast('Language: English');return}
+  translatePage(code);
+}
+
+function getTextNodes(root){
+  const nodes=[];
+  const walk=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{
+    acceptNode(n){
+      const p=n.parentElement;
+      if(!p)return NodeFilter.FILTER_REJECT;
+      const tag=p.tagName;
+      if(['SCRIPT','STYLE','SVG','CANVAS','NOSCRIPT'].includes(tag))return NodeFilter.FILTER_REJECT;
+      if(p.closest('svg'))return NodeFilter.FILTER_REJECT;
+      const txt=n.textContent.trim();
+      if(!txt||txt.length<2)return NodeFilter.FILTER_REJECT;
+      if(/^[\d\s.,:/%°+\-→↑↓←·•\u2022]+$/.test(txt))return NodeFilter.FILTER_REJECT;
+      if(/^[\u2600-\u27BF\uD83C-\uDBFF\uDC00-\uDFFF\s]+$/.test(txt))return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  while(walk.nextNode())nodes.push(walk.currentNode);
+  return nodes;
+}
+
+async function mmTranslate(text,lang){
+  const key=lang+'::'+text;
+  if(_tCache[key])return _tCache[key];
+  try{
+    const r=await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0,500))}&langpair=en|${lang}&de=stormtracker@weather.app`);
+    const d=await r.json();
+    if(d.responseStatus===200&&d.responseData?.translatedText){
+      let t=d.responseData.translatedText;
+      if(t.toUpperCase()===t&&text.toUpperCase()!==text)t=text;
+      _tCache[key]=t;
+      if(Object.keys(_tCache).length%20===0){
+        try{localStorage.setItem('st_tcache',JSON.stringify(_tCache))}catch(e){}
+      }
+      return t;
+    }
+  }catch(e){}
+  return text;
+}
+
+async function translatePage(lang){
+  if(_translating)return;
+  _translating=true;
+  const bar=document.createElement('div');
+  bar.className='translate-bar show';
+  bar.id='translate-bar';
+  const ln=LANGS.find(l=>l.c===lang);
+  bar.innerHTML=`<div class="t-spinner"></div><span>Translating to ${ln?ln.n:lang}...</span><span id="t-progress">0%</span>`;
+  document.body.appendChild(bar);
+
+  const nodes=getTextNodes(document.body);
+  const unique=new Map();
+  nodes.forEach(n=>{
+    const txt=n.textContent.trim();
+    if(!n._origText)n._origText=n.textContent;
+    if(!unique.has(txt))unique.set(txt,[]);
+    unique.get(txt).push(n);
+  });
+
+  const entries=[...unique.entries()];
+  let done=0;
+  const total=entries.length;
+  const batchSize=4;
+
+  for(let i=0;i<entries.length;i+=batchSize){
+    const batch=entries.slice(i,i+batchSize);
+    const results=await Promise.all(batch.map(([txt])=>mmTranslate(txt,lang)));
+    batch.forEach(([txt,nodeList],j)=>{
+      const translated=results[j];
+      nodeList.forEach(n=>{
+        n.textContent=n.textContent.replace(txt,translated);
+      });
+    });
+    done+=batch.length;
+    const pct=Math.round(done/total*100);
+    const prog=document.getElementById('t-progress');
+    if(prog)prog.textContent=pct+'%';
+  }
+
+  try{localStorage.setItem('st_tcache',JSON.stringify(_tCache))}catch(e){}
+  const b=document.getElementById('translate-bar');
+  if(b){b.innerHTML=`<span>✓ Translated to ${ln?ln.n:lang}</span>`;setTimeout(()=>b.remove(),2000)}
+  _translating=false;
+  if(lang==='ar'||lang==='he')document.body.style.direction='rtl';
+  else document.body.style.direction='ltr';
+}
+
+function restoreOriginals(){
+  const nodes=getTextNodes(document.body);
+  nodes.forEach(n=>{if(n._origText)n.textContent=n._origText});
+  document.body.style.direction='ltr';
+}
+
+let _tObserver=null;
+function startTranslateObserver(){
+  if(_tObserver)_tObserver.disconnect();
+  _tObserver=new MutationObserver(muts=>{
+    if(_curLang==='en'||_translating)return;
+    let hasNew=false;
+    muts.forEach(m=>{
+      m.addedNodes.forEach(n=>{
+        if(n.nodeType===1&&!['SCRIPT','STYLE','SVG'].includes(n.tagName))hasNew=true;
+      });
+    });
+    if(hasNew){
+      clearTimeout(_tObserver._debounce);
+      _tObserver._debounce=setTimeout(()=>translatePage(_curLang),500);
+    }
+  });
+  _tObserver.observe(document.body,{childList:true,subtree:true});
+}
+
+(function initLang(){
+  const flag=LANGS.find(l=>l.c===_curLang);
+  if(flag&&_curLang!=='en')document.getElementById('btn-lang').textContent=flag.f;
+  startTranslateObserver();
+  if(_curLang!=='en'){
+    setTimeout(()=>translatePage(_curLang),2000);
+  }
+})();
 </script>
 </body>
 </html>
