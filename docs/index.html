@@ -1206,7 +1206,7 @@ function renderWeather(data){
   const tempC=c.temperature_2m,feelsC=c.apparent_temperature;
   const icon=wmoIcon(c.weather_code,isDay),desc=wmoDesc(c.weather_code);
   const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
-  if(wxNavBtn)wxNavBtn.textContent=icon;
+  if(wxNavBtn)wxNavBtn.innerHTML=neonWx(c.weather_code,isDay,20);
   const dewC=calcDewC(tempC,c.relative_humidity_2m);
   const hourly=data.hourly||{},daily=data.daily||{};
   const baro=getBaroPrediction(c,hourly);
@@ -2722,7 +2722,7 @@ function renderStation(){
     <div class="card" style="padding-bottom:8px">
       ${!isHome?`<div style="margin-bottom:8px"><button onclick="switchStation('${homeIcao}')" style="padding:4px 10px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;font-size:0.75em;cursor:pointer;font-weight:600">← Back to ${homeIcao}</button></div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-size:1.3em">✈️</span>
+        ${stationNeonIcon(wxDesc,32)}
         <div style="flex:1">
           <div style="font-weight:700;font-size:0.95em">${S.stationId} — ${stationName}</div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:2px;flex-wrap:wrap">
@@ -2777,7 +2777,7 @@ function renderStation(){
         </div>
       </div>
 
-      ${wxDesc&&wxDesc!=='CLR'?`<div style="text-align:center;font-size:0.75em;color:var(--accent-cyan);margin-bottom:8px">${stationWxEmoji(wxDesc)} ${wxDesc}</div>`:''}
+      ${wxDesc&&wxDesc!=='CLR'?`<div style="text-align:center;font-size:0.75em;color:var(--accent-cyan);margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px">${stationNeonIcon(wxDesc,22)} ${wxDesc}</div>`:''}
       ${raw?`<div class="metar-raw">${raw}</div>`:''}
     </div>
     ${renderNearbyStations()}`; 
@@ -2820,21 +2820,28 @@ async function switchStation(icao){
   await loadStationObs(icao);
 }
 
-function stationWxEmoji(desc){
-  if(!desc)return'';
+function wxDescToCode(desc){
+  if(!desc)return 0;
   const d=desc.toLowerCase();
-  if(d.includes('thunder'))return'⛈️';
-  if(d.includes('snow')||d.includes('blizzard'))return'🌨️';
-  if(d.includes('ice')||d.includes('freezing')||d.includes('sleet'))return'🧊';
-  if(d.includes('heavy rain')||d.includes('rain shower'))return'🌧️';
-  if(d.includes('rain')||d.includes('drizzle'))return'🌦️';
-  if(d.includes('fog')||d.includes('mist')||d.includes('haze'))return'🌫️';
-  if(d.includes('overcast'))return'☁️';
-  if(d.includes('mostly cloudy')||d.includes('broken'))return'🌥️';
-  if(d.includes('partly')||d.includes('scattered'))return'⛅';
-  if(d.includes('few cloud'))return'🌤️';
-  if(d.includes('clear')||d.includes('fair')||d.includes('sunny'))return'☀️';
-  return'🌡️';
+  if(d.includes('thunder')||d.includes('t-storm'))return d.includes('hail')?96:95;
+  if(d.includes('heavy snow')||d.includes('blizzard'))return 75;
+  if(d.includes('snow shower'))return 85;
+  if(d.includes('snow'))return 73;
+  if(d.includes('freezing rain')||d.includes('ice')||d.includes('sleet'))return 66;
+  if(d.includes('heavy rain'))return 65;
+  if(d.includes('rain shower'))return 80;
+  if(d.includes('rain'))return 61;
+  if(d.includes('drizzle'))return 51;
+  if(d.includes('fog')||d.includes('mist')||d.includes('haze'))return 45;
+  if(d.includes('overcast'))return 3;
+  if(d.includes('mostly cloudy')||d.includes('broken'))return 3;
+  if(d.includes('partly')||d.includes('scattered'))return 2;
+  if(d.includes('few cloud'))return 1;
+  if(d.includes('clear')||d.includes('fair')||d.includes('sunny'))return 0;
+  return 2;
+}
+function stationNeonIcon(desc,sz){
+  return neonWx(wxDescToCode(desc),true,sz||24);
 }
 
 function formatClouds(s){
