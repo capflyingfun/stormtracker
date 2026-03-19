@@ -1520,6 +1520,7 @@ function initRadar(){
     }catch(e){}
     showRadarLayer(map);
     document.getElementById('radar-scan').addEventListener('click',()=>{
+      clearViewScanCircle();
       map.setView([S.lat,S.lon],8,{animate:true,duration:0.5});
       scanRadarForStorms();
     });
@@ -1640,19 +1641,21 @@ function showViewScanCircle(map,lat,lng,radiusMi,count){
 
 async function scanRadarForView(){
   if(!S.map)return;
-  const bounds=S.map.getBounds();
   const center=S.map.getCenter();
   const cLat=center.lat,cLng=center.lng;
   const useNexrad=S.radarSource==='nexrad';
-  const isMobile=/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)||window.innerWidth<768;
-  const MAX_POINTS=isMobile?1200:3000,MAX_RADIUS=500,MIN_RADIUS=5;
+  const radius=S.scanRadius;
   showScanOverlay();
   await fetchWindsAloft(cLat,cLng);
   scanStep(2,'Scanning radar tiles...');
   try{
     const zoom=useNexrad?8:7;
-    const minTX=lonToTileX(bounds.getWest(),zoom),maxTX=lonToTileX(bounds.getEast(),zoom);
-    const minTY=latToTileY(bounds.getNorth(),zoom),maxTY=latToTileY(bounds.getSouth(),zoom);
+    const radiusDeg=radius/69.0;
+    const northLat=cLat+radiusDeg,southLat=cLat-radiusDeg;
+    const eastLon=cLng+radiusDeg/Math.cos(cLat*Math.PI/180);
+    const westLon=cLng-radiusDeg/Math.cos(cLat*Math.PI/180);
+    const minTX=lonToTileX(westLon,zoom),maxTX=lonToTileX(eastLon,zoom);
+    const minTY=latToTileY(northLat,zoom),maxTY=latToTileY(southLat,zoom);
 
     if(!useNexrad){
       try{
@@ -1669,53 +1672,32 @@ async function scanRadarForView(){
     const colorFn=nexradToDbz;
     const minDbz=20;
     const tilePromises=[];
+    const savedLat=S.lat,savedLon=S.lon;
+    S.lat=cLat;S.lon=cLng;
     for(let tx=minTX;tx<=maxTX;tx++){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
           :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
-        tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,9999));
+        tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,radius));
       }
     }
     const tileResults=await Promise.all(tilePromises);
-    let allPoints=tileResults.flat();
-    let filtered=spacingFilter(allPoints).sort((a,b)=>a.distance-b.distance);
-    filtered.forEach(p=>{p._cDist=haversine(cLat,cLng,p.lat,p.lng)});
-    const srcLabel=useNexrad?'NEXRAD':'RainViewer';
+    const rawPoints=tileResults.flat();
+    S.lat=savedLat;S.lon=savedLon;
 
-    let viewMaxDist=0;
-    const corners=[[bounds.getNorth(),bounds.getWest()],[bounds.getNorth(),bounds.getEast()],[bounds.getSouth(),bounds.getWest()],[bounds.getSouth(),bounds.getEast()]];
-    corners.forEach(c=>{const d=haversine(cLat,cLng,c[0],c[1]);if(d>viewMaxDist)viewMaxDist=d});
-    let radius=Math.min(viewMaxDist,MAX_RADIUS);
-
-    if(filtered.length>MAX_POINTS){
-      scanStep(3,`${filtered.length.toLocaleString()} points found — optimizing radius...`);
-      await new Promise(r=>setTimeout(r,400));
-      let lo=MIN_RADIUS,hi=radius;
-      for(let i=0;i<12;i++){
-        const mid=(lo+hi)/2;
-        const cnt=filtered.filter(p=>p._cDist<=mid).length;
-        if(cnt>MAX_POINTS)hi=mid;else lo=mid;
-      }
-      radius=Math.max(MIN_RADIUS,Math.floor(lo));
-      filtered=filtered.filter(p=>p._cDist<=radius);
-      scanStep(3,`Optimized to ${radius} mi · ${filtered.length.toLocaleString()} points`);
-      await new Promise(r=>setTimeout(r,500));
-    }else{
-      const maxCDist=filtered.length>0?Math.max(...filtered.map(p=>p._cDist)):0;
-      radius=Math.min(Math.ceil(maxCDist*1.1)||radius,MAX_RADIUS);
-      if(radius<MIN_RADIUS)radius=MIN_RADIUS;
-    }
-
-    S.storms=filtered;
+    S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();
+    const srcLabel=useNexrad?'NEXRAD':'RainViewer';
+    scanStep(3,`Plotting ${S.storms.length.toLocaleString()} storm points...`);
+    await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();
     if(S.map){
       plotStormMarkers(S.map);
       showViewScanCircle(S.map,cLat,cLng,radius,S.storms.length);
     }
     hideScanOverlay();
-    toast(`${S.storms.length.toLocaleString()} cells in ${Math.round(radius)} mi radius (${srcLabel})`);
+    toast(`${S.storms.length.toLocaleString()} cells in ${radius} mi radius (${srcLabel})`);
     scheduleAutoScan();
   }catch(e){hideScanOverlay();toast('View scan failed: '+e.message);console.error('ViewScan error:',e)}
 }
