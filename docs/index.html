@@ -1205,6 +1205,8 @@ function renderWeather(data){
   const c=data.current,isDay=c.is_day===1;
   const tempC=c.temperature_2m,feelsC=c.apparent_temperature;
   const icon=wmoIcon(c.weather_code,isDay),desc=wmoDesc(c.weather_code);
+  const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
+  if(wxNavBtn)wxNavBtn.textContent=icon;
   const dewC=calcDewC(tempC,c.relative_humidity_2m);
   const hourly=data.hourly||{},daily=data.daily||{};
   const baro=getBaroPrediction(c,hourly);
