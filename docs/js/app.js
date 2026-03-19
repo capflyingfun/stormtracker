@@ -244,64 +244,50 @@ function toggleStormUnits(){
 }
 function calcDewC(tc,rh){const a=17.27,b=237.7,g=(a*tc)/(b+tc)+Math.log(rh/100);return(b*g)/(a-g)}
 
-function pixelToDbz(r,g,b,a){
-  if(a<30)return 0;
-  const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;
-  if(d===0||d/mx<0.15)return 0;
-  let h;
-  if(mx===r)h=60*((g-b)/d%6);
-  else if(mx===g)h=60*((b-r)/d+2);
-  else h=60*((r-g)/d+4);
-  if(h<0)h+=360;
-  if(h>=170&&h<=250)return 15;
-  if(h>=80&&h<170)return 25;
-  if(h>=40&&h<80)return 35;
-  if(h>=20&&h<40)return 45;
-  if(h<20||h>=340)return 55;
-  if(h>=250&&h<340)return 70;
-  return 0;
-}
-const NEXRAD_PAL=[
-  {dbz:5,r:100,g:210,b:230},{dbz:5,r:136,g:221,b:238},
-  {dbz:10,r:54,g:186,b:229},{dbz:10,r:0,g:100,b:150},
-  {dbz:15,r:0,g:160,b:230},{dbz:15,r:0,g:136,b:191},
-  {dbz:15,r:0,g:145,b:202},{dbz:15,r:0,g:163,b:224},
-  {dbz:20,r:0,g:127,b:180},{dbz:20,r:0,g:112,b:163},
-  {dbz:20,r:0,g:215,b:130},{dbz:20,r:0,g:145,b:65},
-  {dbz:25,r:0,g:78,b:120},{dbz:25,r:0,g:74,b:112},
-  {dbz:25,r:0,g:81,b:128},{dbz:25,r:0,g:85,b:136},
-  {dbz:25,r:0,g:110,b:33},{dbz:30,r:0,g:75,b:0},
-  {dbz:35,r:255,g:255,b:33},{dbz:35,r:255,g:238,b:0},
-  {dbz:42,r:255,g:115,b:0},
-  {dbz:45,r:255,g:0,b:0},{dbz:55,r:150,g:0,b:0},
-  {dbz:55,r:175,g:0,b:150},
-  {dbz:60,r:230,g:100,b:230}
+const RV_PAL=[
+  {dbz:5,r:0,g:239,b:231},{dbz:8,r:0,g:189,b:240},
+  {dbz:10,r:0,g:156,b:247},{dbz:12,r:0,g:93,b:247},
+  {dbz:15,r:0,g:0,b:247},{dbz:17,r:0,g:102,b:148},
+  {dbz:20,r:0,g:255,b:0},{dbz:22,r:1,g:226,b:1},
+  {dbz:25,r:3,g:183,b:3},{dbz:27,r:5,g:155,b:3},
+  {dbz:30,r:8,g:115,b:5},{dbz:32,r:106,g:171,b:3},
+  {dbz:35,r:255,g:255,b:0},{dbz:37,r:247,g:235,b:0},
+  {dbz:40,r:236,g:206,b:0},{dbz:42,r:243,g:182,b:0},
+  {dbz:45,r:254,g:147,b:0},{dbz:47,r:254,g:88,b:0},
+  {dbz:50,r:255,g:0,b:0},{dbz:52,r:228,g:0,b:0},
+  {dbz:55,r:189,g:0,b:0},{dbz:58,r:189,g:0,b:0},
+  {dbz:60,r:189,g:0,b:0},{dbz:62,r:215,g:0,b:101},
+  {dbz:65,r:254,g:0,b:254},{dbz:67,r:214,g:32,b:231},
+  {dbz:70,r:156,g:82,b:198},{dbz:73,r:214,g:185,b:231}
 ];
-function nexradToDbz(r,g,b,a){
+const NEXRAD_PAL=[
+  {dbz:5,r:0,g:239,b:231},{dbz:10,r:0,g:156,b:247},
+  {dbz:15,r:0,g:0,b:247},{dbz:18,r:0,g:153,b:98},
+  {dbz:20,r:0,g:255,b:0},{dbz:25,r:3,g:183,b:3},
+  {dbz:30,r:8,g:115,b:5},{dbz:33,r:156,g:199,b:2},
+  {dbz:35,r:255,g:255,b:0},{dbz:38,r:243,g:225,b:0},
+  {dbz:40,r:236,g:206,b:0},{dbz:43,r:246,g:170,b:0},
+  {dbz:45,r:254,g:147,b:0},{dbz:47,r:254,g:88,b:0},
+  {dbz:50,r:255,g:0,b:0},{dbz:53,r:215,g:0,b:0},
+  {dbz:55,r:189,g:0,b:0},{dbz:60,r:189,g:0,b:0},
+  {dbz:62,r:215,g:0,b:101},{dbz:65,r:254,g:0,b:254},
+  {dbz:68,r:195,g:49,b:220},{dbz:70,r:156,g:82,b:198}
+];
+function palToDbz(pal,r,g,b,a){
   if(a<30)return 0;
-  if(r+g+b<40)return 0;
-  if(r>220&&g>220&&b>220)return 0;
+  if(r+g+b<30)return 0;
+  if(r>240&&g>240&&b>240)return 0;
   let best=0,bestD=1e9;
-  for(const p of NEXRAD_PAL){
+  for(const p of pal){
     const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
     if(d<bestD){bestD=d;best=p.dbz}
   }
-  if(bestD>5000)return 0;
+  if(bestD>6000)return 0;
   return best;
 }
-function rvToDbz(r,g,b,a){
-  if(a<30)return 0;
-  if(r+g+b<40)return 0;
-  if(r>220&&g>220&&b>220)return 0;
-  let best=0,bestD=1e9;
-  for(const p of NEXRAD_PAL){
-    const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
-    if(d<bestD){bestD=d;best=p.dbz}
-  }
-  if(bestD>5000)return 0;
-  if(best<=20)best+=15;
-  return best;
-}
+function pixelToDbz(r,g,b,a){return palToDbz(RV_PAL,r,g,b,a)}
+function nexradToDbz(r,g,b,a){return palToDbz(NEXRAD_PAL,r,g,b,a)}
+function rvToDbz(r,g,b,a){return palToDbz(RV_PAL,r,g,b,a)}
 
 // ==========================================
 // NAVIGATION
@@ -1591,7 +1577,7 @@ function showStormCone(map,storm){
   const mv=S.stormMovement;
   if(!mv||mv.speed<2)return;
   const range=Math.min(60,Math.max(storm.distance*1.5,20));
-  const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':storm.dbz>=35?'#eab308':storm.dbz>=25?'#22c55e':'#06b6d4';
+  const color=dbzHex(storm.dbz);
   const baseWidthMi=Math.max(0,Math.min(3,(storm.dbz-20)/15));
   const dir=mv.direction;
   const perpL=(dir-90+360)%360;
@@ -1631,7 +1617,7 @@ function plotStormMarkers(map){
   const sc=zoomScale(map);
   S.storms.forEach(storm=>{
     const cat=stormCat(storm.dbz);
-    const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':storm.dbz>=35?'#eab308':storm.dbz>=25?'#22c55e':'#06b6d4';
+    const color=dbzHex(storm.dbz);
     const r=Math.max(4,Math.round(Math.max(10,storm.dbz/4)*sc));
     const eta=calcStormETA(storm);
     const popupId='pop_'+Math.random().toString(36).slice(2,8);
