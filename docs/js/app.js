@@ -1140,6 +1140,61 @@ function renderWeather(data){
     </div>
     ${order.map(k=>sections[k]||'').join('')}`;
   setTimeout(initPrecipTaps,0);
+  startWindSim();
+}
+const _wn={p:[151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180],
+  g:[[1,1],[1,-1],[-1,1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]],
+  fade(t){return t*t*t*(t*(t*6-15)+10)},
+  lerp(a,b,t){return a+(b-a)*t},
+  dot(g,x,y){return g[0]*x+g[1]*y},
+  noise(x,y){
+    const p=_wn.p,g=_wn.g,X=Math.floor(x)&255,Y=Math.floor(y)&255;
+    x-=Math.floor(x);y-=Math.floor(y);
+    const u=_wn.fade(x),v=_wn.fade(y);
+    const aa=p[(p[X]+Y)&255]%8,ab=p[(p[X]+Y+1)&255]%8,ba=p[(p[(X+1)&255]+Y)&255]%8,bb=p[(p[(X+1)&255]+Y+1)&255]%8;
+    return _wn.lerp(_wn.lerp(_wn.dot(g[aa],x,y),_wn.dot(g[ba],x-1,y),u),_wn.lerp(_wn.dot(g[ab],x,y-1),_wn.dot(g[bb],x-1,y-1),u),v);
+  }
+};
+let _windSimTimer=null;
+function startWindSim(){
+  if(_windSimTimer)clearInterval(_windSimTimer);
+  if(!S.weather)return;
+  const baseSpd=S.weather.wind_speed_10m||0;
+  const baseGust=S.weather.wind_gusts_10m||baseSpd;
+  const baseDir=S.weather.wind_direction_10m||0;
+  const seed=Math.random()*1000;
+  _windSimTimer=setInterval(()=>{
+    const t=Date.now()*0.0003;
+    const spdVar=_wn.noise(t+seed,0)*0.18;
+    const dirVar=_wn.noise(t+seed+50,100)*12;
+    const gustVar=_wn.noise(t+seed+100,200)*0.25;
+    let simSpd=Math.max(0,baseSpd*(1+spdVar));
+    let simDir=((baseDir+dirVar)%360+360)%360;
+    let simGust=Math.max(simSpd,baseGust*(1+gustVar));
+    const spdEl=document.querySelector('.wrc-speed');
+    const dirEl=document.querySelector('.wrc-dir');
+    const gustEl=document.querySelector('.wrc-gust');
+    if(spdEl)spdEl.textContent=fmtWind(simSpd);
+    if(dirEl)dirEl.textContent=degToDir(simDir)+' '+simDir.toFixed(1)+'°';
+    if(gustEl){
+      if(simGust>simSpd)gustEl.textContent='G'+fmtWind(simGust);
+    }
+    const compass=document.querySelector('.wind-rose svg');
+    if(compass){
+      const ptr=compass.querySelector('polygon');
+      const dot=compass.querySelector('polygon+circle');
+      if(ptr&&dot){
+        const cx=50,cy=50,r=42,pBase=10;
+        const ptrAng=(simDir-90)*Math.PI/180;
+        const px=cx+Math.cos(ptrAng)*r,py=cy+Math.sin(ptrAng)*r;
+        const pLx=cx+Math.cos(ptrAng-0.2)*pBase,pLy=cy+Math.sin(ptrAng-0.2)*pBase;
+        const pRx=cx+Math.cos(ptrAng+0.2)*pBase,pRy=cy+Math.sin(ptrAng+0.2)*pBase;
+        const pBx=cx+Math.cos(ptrAng+Math.PI)*5,pBy=cy+Math.sin(ptrAng+Math.PI)*5;
+        ptr.setAttribute('points',`${px.toFixed(1)},${py.toFixed(1)} ${pLx.toFixed(1)},${pLy.toFixed(1)} ${pBx.toFixed(1)},${pBy.toFixed(1)} ${pRx.toFixed(1)},${pRy.toFixed(1)}`);
+        dot.setAttribute('cx',px.toFixed(1));dot.setAttribute('cy',py.toFixed(1));
+      }
+    }
+  },2000);
 }
 function secBtns(key){return`<div class="sec-btns"><button onclick="moveSection('${key}',-1)" title="Move up">▲</button><button onclick="moveSection('${key}',1)" title="Move down">▼</button></div>`}
 function getSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_sec_order'));if(o&&o.length===2)return o}catch(e){}return['trends','forecast']}
