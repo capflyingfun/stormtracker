@@ -2073,7 +2073,6 @@ function renderStorms(){
   const stormsWithEta=storms.map(s=>({...s,_eta:calcStormETA(s)}));
   const prevOpen={};
   el.querySelectorAll('.storm-group').forEach(d=>{const k=d.getAttribute('data-grp');if(k)prevOpen[k]=d.open});
-  const lightCells=stormsWithEta.filter(s=>s.dbz<40);
   function isApproaching(s){const e=s._eta;return e&&e.approaching&&e.impact>0&&e.eta!=null}
   function isOverhead(s){const e=s._eta;return e&&e.proximity}
   function isNearby(s){return!isApproaching(s)&&!isOverhead(s)}
@@ -2126,13 +2125,14 @@ function renderStorms(){
         </div>
       </div>`;
   }
-  const approaching=stormsWithEta.filter(s=>s.dbz>=40&&isApproaching(s)).sort((a,b)=>{
+  const approaching=stormsWithEta.filter(s=>isApproaching(s)).sort((a,b)=>{
     const ea=a._eta&&a._eta.eta!=null?a._eta.eta:99999;
     const eb=b._eta&&b._eta.eta!=null?b._eta.eta:99999;
     return ea-eb;
   });
-  const overhead=stormsWithEta.filter(s=>s.dbz>=40&&isOverhead(s)).sort((a,b)=>a.distance-b.distance);
+  const overhead=stormsWithEta.filter(s=>isOverhead(s)).sort((a,b)=>a.distance-b.distance);
   const nearby=stormsWithEta.filter(s=>s.dbz>=40&&isNearby(s)).sort((a,b)=>a.distance-b.distance);
+  const lightCells=stormsWithEta.filter(s=>s.dbz<40&&isNearby(s));
   let groupHtml='';
   const sections=[
     {key:'approaching',items:approaching,label:'⏱️ Approaching',color:'#ef4444',open:true},
