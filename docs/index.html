@@ -1345,8 +1345,10 @@ function toggleRadarSource(map){
 async function scanRadarForView(){
   if(!S.map)return;
   const bounds=S.map.getBounds();
+  const center=S.map.getCenter();
   const useNexrad=S.radarSource==='nexrad';
   toast('Scanning visible area'+(useNexrad?' (NEXRAD)':' (RainViewer)')+'...');
+  fetchWindsAloft(center.lat,center.lng);
   try{
     const zoom=useNexrad?8:7;
     const minTX=lonToTileX(bounds.getWest(),zoom),maxTX=lonToTileX(bounds.getEast(),zoom);
@@ -1636,11 +1638,13 @@ async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius){
   console.log('Adaptive scan: step='+S._scanStep+' (bench='+ms.toFixed(1)+'ms)');
 })();
 
-async function fetchWindsAloft(){
-  if(!S.lat)return;
+async function fetchWindsAloft(overrideLat,overrideLon){
+  const lat=overrideLat!=null?overrideLat:S.lat;
+  const lon=overrideLon!=null?overrideLon:S.lon;
+  if(!lat)return;
   try{
     const params=new URLSearchParams({
-      latitude:S.lat,longitude:S.lon,
+      latitude:lat,longitude:lon,
       current:['wind_speed_10m','wind_direction_10m',
         'wind_speed_925hPa','wind_direction_925hPa',
         'wind_speed_850hPa','wind_direction_850hPa',
