@@ -1840,18 +1840,22 @@ async function buildNexradFrames(){
   const startISO=start.toISOString().replace(/\.\d{3}/,'');
   const endISO=end.toISOString().replace(/\.\d{3}/,'');
   try{
-    const url=`https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=${site}&product=N0Q&start=${startISO}&end=${endISO}`;
-    const resp=await fetch(url);
+    const apiUrl=`https://mesonet.agron.iastate.edu/json/radar.py?operation=list&radar=${site}&product=N0Q&start=${startISO}&end=${endISO}`;
+    console.log('[NEXRAD-ANIM] site='+site+' api='+apiUrl);
+    const resp=await fetch(apiUrl);
     const data=await resp.json();
+    console.log('[NEXRAD-ANIM] response:',JSON.stringify(data).slice(0,500));
     const scans=data.scans||[];
-    if(!scans.length){toast(`No NEXRAD scans found for ${site}`);return[]}
+    if(!scans.length){toast(`No NEXRAD scans found for K${site}`);return[]}
     const recent=scans.slice(-25);
+    const tileUrl=`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::${site}-N0Q-${recent[0].ts}/{z}/{x}/{y}.png`;
+    console.log('[NEXRAD-ANIM] frames='+recent.length+' first tile='+tileUrl);
     return recent.map(scan=>{
       const ts=scan.ts;
       const y=+ts.slice(0,4),mo=+ts.slice(4,6)-1,d=+ts.slice(6,8),
             h=+ts.slice(8,10),mi=+ts.slice(10,12);
       const time=Math.floor(new Date(Date.UTC(y,mo,d,h,mi)).getTime()/1000);
-      return{time,type:'past',
+      return{time,type:'past',site,
         url:`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::${site}-N0Q-${ts}/{z}/{x}/{y}.png`};
     });
   }catch(e){console.error('NEXRAD frame fetch failed:',e);toast('Failed to load NEXRAD animation data');return[]}
@@ -1924,7 +1928,8 @@ function showRadarAnimFrame(map,idx){
   const t=new Date(frame.time*1000);
   const timeStr=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
   const isFuture=frame.type==='forecast';
-  const srcTag=S._radarAnimSrc==='nexrad'?'NEX':'RV';
+  const siteTag=frame.site?'K'+frame.site:'';
+  const srcTag=S._radarAnimSrc==='nexrad'?(siteTag||'NEX'):'RV';
   const label=isFuture?'▸ '+timeStr+' (forecast)':'◂ '+timeStr;
   document.getElementById('radar-time').textContent=srcTag+' '+timeStr;
   document.getElementById('radar-anim-time').textContent=label;
