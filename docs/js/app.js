@@ -758,9 +758,12 @@ async function fetchWeather(){
         if(nwsCur){
           omData.current.temperature_2m=nwsCur.temp;
           if(nwsCur.dewp!=null){const rh=Math.round(100*Math.exp((17.27*nwsCur.dewp)/(237.7+nwsCur.dewp))/Math.exp((17.27*nwsCur.temp)/(237.7+nwsCur.temp)));omData.current.relative_humidity_2m=rh}
-          if(nwsCur.windKmh!=null)omData.current.wind_speed_10m=nwsCur.windKmh;
+          if(nwsCur.windKmh!=null){
+            omData.current.wind_speed_10m=nwsCur.windKmh;
+            if(nwsCur.gustKmh!=null)omData.current.wind_gusts_10m=nwsCur.gustKmh;
+            else omData.current.wind_gusts_10m=null;
+          }
           if(nwsCur.windDir!=null)omData.current.wind_direction_10m=nwsCur.windDir;
-          if(nwsCur.gustKmh!=null)omData.current.wind_gusts_10m=nwsCur.gustKmh;
           if(nwsCur.presPa!=null)omData.current.pressure_msl=nwsCur.presPa/100;
           if(nwsCur.visMeter!=null)S._nwsVisM=nwsCur.visMeter;
           if(nwsCur.wxString)omData.current._nwsDesc=nwsCur.wxString;
