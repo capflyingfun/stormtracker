@@ -361,7 +361,7 @@ canvas.offscreen{display:none}
   <button class="nav-item active" data-page="weather"><span class="nav-icon">🌤️</span><span class="nav-label">Weather</span></button>
   <button class="nav-item" data-page="radar"><span class="nav-icon">📡</span><span class="nav-label">Radar</span></button>
   <button class="nav-item" data-page="storms" style="position:relative"><span class="nav-icon">🌪️</span><span class="nav-label">Storms</span><span class="nav-badge" id="nav-storm-badge"></span></button>
-  <button class="nav-item" data-page="station"><span class="nav-icon">🏢</span><span class="nav-label">Station</span></button>
+  <button class="nav-item" data-page="station"><span class="nav-icon">✈️</span><span class="nav-label">Station</span></button>
   <button class="nav-item" data-page="alerts" style="position:relative"><span class="nav-icon">⚠️</span><span class="nav-label">Alerts</span><span class="nav-badge" id="nav-alert-badge">0</span></button>
 </nav>
 
@@ -2662,12 +2662,15 @@ async function loadStationObs(icao){
     if(!obsRes.ok)throw new Error('Obs returned '+obsRes.status);
     const obsData=await obsRes.json();
     const p=obsData.properties||{};
-    const stInfo=S.nearbyStations.find(s=>s.icao===icao);
+    const stInfo=S.nearbyStations?.find(s=>s.icao===icao);
+    const geo=obsData.geometry?.coordinates;
+    const sLat=stInfo?.lat||(geo?geo[1]:S.lat);
+    const sLon=stInfo?.lon||(geo?geo[0]:S.lon);
     S.station={
       icao:icao,
-      name:stInfo?.name||icao,
-      lat:stInfo?.lat,
-      lon:stInfo?.lon,
+      name:stInfo?.name||S._airportDataCache?.find(a=>a.icao===icao)?.name||icao,
+      lat:sLat,
+      lon:sLon,
       temp:p.temperature?.value,
       dewp:p.dewpoint?.value,
       windKmh:p.windSpeed?.value,
@@ -2710,10 +2713,14 @@ function renderStation(){
   const wxDesc=s.wxString||skyTxt;
   const feelsLike=tempC!=null?calcFeelsLike(tempC,windKmh,rh):null;
 
+  const homeIcao=S.nearbyStations?.length?S.nearbyStations[0].icao:null;
+  const isHome=!homeIcao||S.stationId===homeIcao;
+
   el.innerHTML=`
     <div class="card" style="padding-bottom:8px">
+      ${!isHome?`<div style="margin-bottom:8px"><button onclick="switchStation('${homeIcao}')" style="padding:4px 10px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;font-size:0.75em;cursor:pointer;font-weight:600">← Back to ${homeIcao}</button></div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-size:1.3em">🏢</span>
+        <span style="font-size:1.3em">✈️</span>
         <div style="flex:1">
           <div style="font-weight:700;font-size:0.95em">${S.stationId} — ${stationName}</div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:2px;flex-wrap:wrap">
@@ -2790,6 +2797,24 @@ function renderNearbyStations(){
 
 async function switchStation(icao){
   toast('Loading '+icao+'...');
+  if(!S.nearbyStations||!S.nearbyStations.length){
+    try{
+      const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,NWS_HDR);
+      const ptData=await ptRes.json();
+      const stUrl=ptData.properties?.observationStations;
+      if(stUrl){
+        const stRes=await fetch(stUrl,NWS_HDR);
+        const stData=await stRes.json();
+        const features=stData.features||[];
+        S.nearbyStations=features.slice(0,10).map(f=>({
+          icao:f.properties.stationIdentifier,name:f.properties.name||'',
+          lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],
+          dist:haversine(S.lat,S.lon,f.geometry.coordinates[1],f.geometry.coordinates[0]),
+        })).sort((a,b)=>a.dist-b.dist);
+      }
+    }catch(e){}
+  }
+  S.stationId=icao;
   await loadStationObs(icao);
 }
 
