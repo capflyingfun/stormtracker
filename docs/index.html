@@ -1502,6 +1502,12 @@ function initRadar(){
     S._rangeCircle=L.circle([S.lat,S.lon],{radius:S.scanRadius*1609.34,color:'#3b82f6',fillOpacity:0.05,weight:1,dashArray:'6 4'}).addTo(map);
     S._userMarker=L.circleMarker([S.lat,S.lon],{radius:5,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:1}).addTo(map);
     S.map=map;
+    let _replotTimer=null;
+    map.on('zoomend moveend',()=>{
+      if(!S.storms.length)return;
+      clearTimeout(_replotTimer);
+      _replotTimer=setTimeout(()=>plotStormMarkers(map),200);
+    });
     try{
       const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
       S.radarFrames=(rv.radar?.past||[]).concat(rv.radar?.nowcast||[]);
@@ -1574,7 +1580,8 @@ function toggleRadarSource(map){
   scanRadarForStorms();
 }
 
-function showScanOverlay(){
+function showScanOverlay(skipIfNoMap){
+  if(skipIfNoMap&&!S.map)return;
   const ov=document.getElementById('scan-overlay');if(!ov)return;
   ov.classList.add('show');
   ['scan-step1','scan-step2','scan-step3'].forEach(id=>{
@@ -1707,11 +1714,37 @@ function clearStormCone(){
   const btn=document.getElementById('radar-clear-cone');
   if(btn)btn.style.display='none';
 }
+function getVisibleStorms(){
+  if(!S.map||!S.storms.length)return S.storms;
+  const zoom=S.map.getZoom();
+  const bounds=S.map.getBounds();
+  const inView=S.storms.filter(s=>bounds.contains([s.lat,s.lng]));
+  const maxByZoom=zoom>=10?2000:zoom>=9?1200:zoom>=8?800:zoom>=7?500:zoom>=6?300:zoom>=5?150:80;
+  if(inView.length<=maxByZoom)return inView;
+  const sorted=[...inView].sort((a,b)=>b.dbz-a.dbz);
+  return sorted.slice(0,maxByZoom);
+}
+
 function plotStormMarkers(map){
   S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];
   clearStormCone();
+  const visible=getVisibleStorms();
   const mv=S.stormMovement;
-  S.storms.forEach(storm=>{
+  const filtered=visible.length<S.storms.length;
+  if(filtered){
+    let label=document.getElementById('storm-filter-label');
+    if(!label){
+      label=document.createElement('div');
+      label.id='storm-filter-label';
+      label.style.cssText='position:absolute;top:10px;left:10px;z-index:500;background:rgba(17,24,39,0.9);backdrop-filter:blur(10px);border-radius:6px;padding:4px 10px;font-size:0.65em;color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.2)';
+      document.querySelector('.map-container')?.appendChild(label);
+    }
+    label.textContent=`Showing ${visible.length} of ${S.storms.length} · Zoom in for more`;
+  }else{
+    const label=document.getElementById('storm-filter-label');
+    if(label)label.remove();
+  }
+  visible.forEach(storm=>{
     const cat=stormCat(storm.dbz);
     const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':storm.dbz>=35?'#eab308':storm.dbz>=25?'#22c55e':'#06b6d4';
     const r=Math.max(10,storm.dbz/4);
