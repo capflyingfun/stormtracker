@@ -207,10 +207,12 @@ function startEtaCountdowns(){
     document.querySelectorAll('[data-dist-mi]').forEach(el=>{
       const origDist=parseFloat(el.getAttribute('data-dist-mi'));
       const closSpd=parseFloat(el.getAttribute('data-closing-mph')||'0');
-      const t0=parseInt(el.getAttribute('data-t0'));
-      if(!closSpd||!t0)return;
-      const hrs=(now-t0)/3600000;
-      const curDist=Math.max(0,origDist-closSpd*hrs);
+      const targetMs=parseInt(el.getAttribute('data-target-ms')||'0');
+      if(!closSpd||!targetMs){
+        return;
+      }
+      const remainHrs=Math.max(0,(targetMs-now)/3600000);
+      const curDist=remainHrs*closSpd;
       el.textContent=S.radarMetric?(curDist*1.60934).toFixed(2)+' km':curDist.toFixed(2)+' mi';
     });
     for(const key in S.etaExpired){
@@ -2111,6 +2113,7 @@ function renderStorms(){
             const elapsedMin=S.scanTime?(Date.now()-S.scanTime)/60000:0;
             const remainMin=Math.max(0,eta.eta-elapsedMin);
             const targetMs=Date.now()+remainMin*60000;
+            eta._targetMs=targetMs;
             const arrivalTime=fmtArrivalTime(remainMin);
             const initCountdown=fmtCountdown(Math.round(remainMin*60));
             mvLine+=`<div class="storm-detail eta-detail"><div class="storm-detail-label">⏱ ${tStr('ETA')}</div><div class="storm-detail-val" style="color:${imp.color}"><span class="eta-countdown" data-eta-sec="${Math.round(targetMs)}" data-storm-key="${sk}">${initCountdown}</span></div><div style="font-size:0.65em;color:${imp.color};margin-top:1px">${tStr('Arrives')} ~${arrivalTime}</div></div>`;
@@ -2135,7 +2138,7 @@ function renderStorms(){
         <div class="storm-detail-grid">
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Peak dBZ')}</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>
           <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Rain Rate')}</div><div class="storm-detail-val">${cat.rain}</div><div class="tile-tap">tap</div></div>
-          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Distance')}</div><div class="storm-detail-val"><span data-dist-mi="${s.distance}" data-closing-mph="${eta&&eta.closingSpeed?eta.closingSpeed:0}" data-t0="${S.scanTime||Date.now()}">${fmtStormDist(s.distance)}</span></div><div class="tile-tap">tap</div></div>
+          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Distance')}</div><div class="storm-detail-val"><span data-dist-mi="${s.distance}" data-closing-mph="${eta&&eta.closingSpeed?eta.closingSpeed:0}" data-target-ms="${eta&&eta._targetMs?eta._targetMs:0}">${fmtStormDist(s.distance)}</span></div><div class="tile-tap">tap</div></div>
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Bearing')}</div><div class="storm-detail-val">${degToDir(s.bearing)}</div></div>
           ${mvLine}
         </div>
