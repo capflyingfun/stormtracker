@@ -726,9 +726,33 @@ function scheduleHourlyRefresh(){
 // ==========================================
 // TRAVEL MODE (Live GPS Tracking)
 // ==========================================
-function toggleTravelMode(){
+async function toggleTravelMode(){
   if(S.travelMode) return stopTravelMode();
   if(!navigator.geolocation) return toast('GPS not available on this device');
+  if(navigator.permissions){
+    try{
+      const perm=await navigator.permissions.query({name:'geolocation'});
+      if(perm.state==='denied'){
+        toast('📍 Location access denied — please enable it in your browser settings to use Travel Mode');
+        return;
+      }
+      if(perm.state==='prompt'){
+        toast('📍 Requesting location access...');
+      }
+    }catch(e){}
+  }
+  try{
+    await new Promise((resolve,reject)=>{
+      navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:10000});
+    });
+  }catch(err){
+    if(err.code===1){
+      toast('📍 Location access denied — Travel Mode requires GPS permission');
+    }else{
+      toast('📍 Could not get GPS position — please try again');
+    }
+    return;
+  }
   S.travelMode=true;
   S.travelLastUpdate=0;
   const ind=document.getElementById('travel-indicator');
