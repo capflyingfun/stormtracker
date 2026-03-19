@@ -194,6 +194,14 @@ function startEtaCountdowns(){
       }
     });
     if(expiredKeys.length&&!S._etaRescanInProgress){
+      const sinceLastScan=now-S.lastScanMs;
+      if(sinceLastScan<30000){
+        expiredKeys.forEach(k=>{delete S._stormETAs[k]});
+        S.storms=S.storms.filter(s=>!expiredKeys.includes(stormKey(s)));
+        renderStorms();updateStormBadges();
+        if(S.map)plotStormMarkers(S.map);
+        return;
+      }
       expiredKeys.forEach(k=>{delete S._stormETAs[k]});
       S.storms=S.storms.filter(s=>!expiredKeys.includes(stormKey(s)));
       renderStorms();updateStormBadges();
@@ -1888,8 +1896,11 @@ function calcStormETA(storm){
     }
     return{eta:null,impact:0,approaching:false};
   }
-  const effectiveDist=Math.max(0,storm.distance-baseWidthMi);
-  const etaHrs=effectiveDist/closingSpeed;
+  if(storm.distance<=proxRange){
+    const proxPct=Math.round(Math.min(95,Math.max(0,(proxRange-storm.distance)/proxRange*60+storm.dbz/2.5+20)));
+    return{eta:null,impact:proxPct,approaching:false,closingSpeed:0,proximity:true};
+  }
+  const etaHrs=storm.distance/closingSpeed;
   const etaMin=Math.round(etaHrs*60*100)/100;
   const distScore=Math.max(0,1-storm.distance/80);
   const spdScore=Math.min(1,S.stormMovement.speed/20);
