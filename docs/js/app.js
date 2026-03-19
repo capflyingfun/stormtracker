@@ -67,7 +67,8 @@ function cycleUnit(key){
   S[key]=(S[key]+1)%maxes[key];
   try{localStorage.setItem('st_units',JSON.stringify({t:S.tempUnit,w:S.windUnit,p:S.presUnit,v:S.visUnit,pr:S.precipUnit}))}catch(e){}
   if(key==='windUnit'&&_windCurSim.spd>0&&S.activePage==='weather'){
-    _windSweepPending=true;
+    windSweepAnim();
+    return;
   }
   reRenderActive();
 }
@@ -76,6 +77,19 @@ function windSweepAnim(){
   _windSweepPaused=true;
   const targetSpd=_windCurSim.spd;
   const targetGust=_windCurSim.gust;
+  const spdEl=document.querySelector('.wrc-speed');
+  const gustEl=document.querySelector('.wrc-gust');
+  if(spdEl)spdEl.innerHTML=fmtWind(0);
+  if(gustEl)gustEl.textContent='G'+fmtWind(0);
+  const windArcEl=document.getElementById('gauge-wind-arc');
+  const gustArcEl=document.getElementById('gauge-gust-arc');
+  if(windArcEl)windArcEl.setAttribute('d','M0,0');
+  if(gustArcEl)gustArcEl.setAttribute('d','M0,0');
+  const peakDisp=Math.max(parseFloat(kmhTo(targetSpd,S.windUnit)),parseFloat(kmhTo(targetGust,S.windUnit)));
+  const scaleSteps=[10,15,20,30,40,50,75,100,130,160,200];
+  let newMax=scaleSteps[scaleSteps.length-1];
+  for(const sc of scaleSteps){if(peakDisp<=sc*0.8){newMax=sc;break}}
+  S._gaugeMaxSpd=newMax;
   const dur=500;
   const t0=performance.now();
   function ease(t){return t<0.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1}
@@ -1021,9 +1035,9 @@ function renderWeather(data){
   const baro=getBaroPrediction(c,hourly);
   S._baroTrendMb=baro.trendMb;S._baroTrend=baro.trend;
   const trendArrow=baro.trend==='rising'?'↑':baro.trend==='falling'?'↓':'→';
-  const windStr=_windSweepPending?fmtWind(0):fmtWind(c.wind_speed_10m);
+  const windStr=fmtWind(c.wind_speed_10m);
   const hasGust=c.wind_gusts_10m!=null&&c.wind_gusts_10m>0;
-  const gustStr=_windSweepPending?'G'+fmtWind(0):(hasGust?'G'+fmtWind(c.wind_gusts_10m):'Gust: --.- '+WIND_UNITS[S.windUnit]);
+  const gustStr=hasGust?'G'+fmtWind(c.wind_gusts_10m):'Gust: --.- '+WIND_UNITS[S.windUnit];
 
   const sections={
     trends:`<div class="weather-section" data-sec="trends"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📈</span> 48h Trends</span>${secBtns('trends')}</div>
@@ -1063,10 +1077,8 @@ function renderWeather(data){
     const lg=(toDeg-fromDeg)>180?1:0;
     return`M${x1.toFixed(1)},${y1.toFixed(1)} A${radius},${radius} 0 ${lg} 1 ${x2.toFixed(1)},${y2.toFixed(1)}`;
   }
-  const initGustArc=_windSweepPending?0:gustArc;
-  const initWindArc=_windSweepPending?0:windArc;
-  gaugeSvg+=`<path id="gauge-gust-arc" d="${initGustArc>0?arcPath(0,initGustArc,arcR):'M0,0'}" fill="none" stroke="${neonOrange}0.7)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
-  gaugeSvg+=`<path id="gauge-wind-arc" d="${initWindArc>0?arcPath(0,initWindArc,arcR):'M0,0'}" fill="none" stroke="${neonCyan}0.8)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
+  gaugeSvg+=`<path id="gauge-gust-arc" d="${gustArc>0?arcPath(0,gustArc,arcR):'M0,0'}" fill="none" stroke="${neonOrange}0.7)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
+  gaugeSvg+=`<path id="gauge-wind-arc" d="${windArc>0?arcPath(0,windArc,arcR):'M0,0'}" fill="none" stroke="${neonCyan}0.8)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
 
   S._gaugeMaxSpd=maxArcSpd;S._gaugeArcR=arcR;
   const spdTicks=[];
@@ -1219,7 +1231,6 @@ let _windCurSim={spd:0,dir:0,gust:0};
 let _windSimSeed=0;
 let _windSweepRaf=null;
 let _windSweepPaused=false;
-let _windSweepPending=false;
 const WIND_LERP_DUR=60000;
 function startWindSim(){
   const wasRunning=!!_windSimTimer;
@@ -1324,10 +1335,6 @@ function startWindSim(){
       }
     }
   },100);
-  if(_windSweepPending){
-    _windSweepPending=false;
-    windSweepAnim();
-  }
 }
 function secBtns(key){return`<div class="sec-btns"><button onclick="moveSection('${key}',-1)" title="Move up">▲</button><button onclick="moveSection('${key}',1)" title="Move down">▼</button></div>`}
 function getSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_sec_order'));if(o&&o.length===2)return o}catch(e){}return['trends','forecast']}
