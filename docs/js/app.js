@@ -501,7 +501,7 @@ function setLoc(lat,lon,name,fromTravel){
   document.getElementById('location-input').value=S.locName;
   document.getElementById('status-dot').classList.add('live');
   document.getElementById('status-text').textContent='Live · '+S.locName;
-  S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;
+  S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
   S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
   if(S.map){
     S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
@@ -1479,7 +1479,7 @@ async function scanRadarForView(){
   const useNexrad=S.radarSource==='nexrad';
   const radius=S.scanRadius;
   showScanOverlay();
-  await fetchWindsAloft();
+  await fetchWindsAloft(cLat,cLng);
   scanStep(2,'Scanning radar tiles...');
   try{
     const zoom=useNexrad?8:7;
@@ -1544,7 +1544,7 @@ async function scanRadarHiRes(map,fromHome){
   const HIRES_RADIUS=15;
   const hiZoom=useNexrad?10:7;
   showScanOverlay();
-  await fetchWindsAloft();
+  await fetchWindsAloft(cLat,cLng);
   scanStep(2,'Hi-Res scanning (step=1)...');
   try{
     const radiusDeg=HIRES_RADIUS/69.0;
@@ -1902,6 +1902,14 @@ async function fetchWindsAloft(overrideLat,overrideLon){
   const lat=overrideLat!=null?overrideLat:S.lat;
   const lon=overrideLon!=null?overrideLon:S.lon;
   if(!lat)return;
+  const cache=S._windCache;
+  if(cache&&(Date.now()-cache.ts<30*60000)){
+    const d=haversine(lat,lon,cache.lat,cache.lon);
+    if(d<100){
+      console.log('Winds aloft: using cache ('+d.toFixed(0)+'mi from last fetch, '+((Date.now()-cache.ts)/60000).toFixed(0)+'m old)');
+      return;
+    }
+  }
   try{
     const params=new URLSearchParams({
       latitude:lat,longitude:lon,
@@ -1940,6 +1948,7 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     let dir=(Math.atan2(ax,ay)*180/Math.PI+360)%360;
     const spdMph=Math.round(spd*1.151*0.7);
     S.stormMovement={direction:Math.round(dir),speed:spdMph};
+    S._windCache={lat,lon,ts:Date.now(),dir:Math.round(dir),speed:spdMph};
     console.log('Winds aloft → storm movement: '+Math.round(dir)+'° at '+spdMph+' mph');
   }catch(e){console.log('Winds aloft fetch failed:',e.message)}
 }
