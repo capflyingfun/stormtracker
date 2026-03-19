@@ -1683,7 +1683,12 @@ function initRadar(){
         <div class="map-ctrl-btn" id="radar-toggle-src" title="Toggle radar source" style="font-size:0.55em;font-weight:700;line-height:1">SRC</div>
         <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km" style="font-size:0.55em;font-weight:700;line-height:1">MI</div>
         <div class="map-ctrl-btn" id="radar-toggle-airports" title="Toggle airports" style="font-size:0.75em">✈️</div>
+        <div class="map-ctrl-btn" id="radar-anim-btn" title="Animate radar" style="font-size:0.75em">▶️</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
+      </div>
+      <div class="radar-anim-bar" id="radar-anim-bar" style="display:none">
+        <input type="range" id="radar-anim-slider" min="0" max="0" value="0" style="flex:1">
+        <span id="radar-anim-time" style="font-size:0.65em;color:var(--text-secondary);min-width:50px;text-align:right"></span>
       </div>
       <div class="map-legend">
         <span>dBZ</span>
@@ -1744,8 +1749,78 @@ function initRadar(){
       if(openIdx>=0&&S.stormMarkers[openIdx]&&S.stormMarkers[openIdx].openPopup)S.stormMarkers[openIdx].openPopup();
       if(S.activePage==='storms')renderStorms();
     });
+    document.getElementById('radar-anim-btn').addEventListener('click',()=>{toggleRadarAnim(map)});
+    document.getElementById('radar-anim-slider').addEventListener('input',(e)=>{
+      scrubRadarAnim(map,parseInt(e.target.value));
+    });
     plotStormMarkers(map);
   },100);
+}
+
+function toggleRadarAnim(map){
+  if(S._radarAnimPlaying) return stopRadarAnim(map);
+  if(S.radarSource==='nexrad'){
+    toast('Radar animation is available with RainViewer source — switching now');
+    S.radarSource='rainviewer';
+    showRadarLayer(map);
+  }
+  if(!S.radarFrames.length){toast('No radar frames available');return}
+  S._radarAnimPlaying=true;
+  S._radarAnimPaused=true;
+  const btn=document.getElementById('radar-anim-btn');
+  btn.textContent='⏹️';btn.classList.add('active');
+  const bar=document.getElementById('radar-anim-bar');
+  bar.style.display='flex';
+  const slider=document.getElementById('radar-anim-slider');
+  const pastCount=(S.radarFrames||[]).filter(f=>!f.path.includes('/nowcast/')).length;
+  slider.min=0;slider.max=S.radarFrames.length-1;
+  S._radarAnimIdx=0;
+  slider.value=0;
+  S._radarAnimPastCount=pastCount;
+  showRadarAnimFrame(map,0);
+  S._radarAnimTimer=setInterval(()=>{
+    S._radarAnimIdx++;
+    if(S._radarAnimIdx>=S.radarFrames.length) S._radarAnimIdx=0;
+    slider.value=S._radarAnimIdx;
+    showRadarAnimFrame(map,S._radarAnimIdx);
+  },700);
+}
+function stopRadarAnim(map){
+  S._radarAnimPlaying=false;
+  S._radarAnimPaused=false;
+  clearInterval(S._radarAnimTimer);
+  const btn=document.getElementById('radar-anim-btn');
+  btn.textContent='▶️';btn.classList.remove('active');
+  document.getElementById('radar-anim-bar').style.display='none';
+  S.radarIdx=S.radarFrames.length-1;
+  showRadarLayer(map);
+}
+function scrubRadarAnim(map,idx){
+  clearInterval(S._radarAnimTimer);
+  S._radarAnimIdx=idx;
+  showRadarAnimFrame(map,idx);
+  S._radarAnimTimer=setInterval(()=>{
+    S._radarAnimIdx++;
+    if(S._radarAnimIdx>=S.radarFrames.length) S._radarAnimIdx=0;
+    document.getElementById('radar-anim-slider').value=S._radarAnimIdx;
+    showRadarAnimFrame(map,S._radarAnimIdx);
+  },700);
+}
+function showRadarAnimFrame(map,idx){
+  const frame=S.radarFrames[idx];
+  if(!frame)return;
+  if(S.radarLayer){map.removeLayer(S.radarLayer);S.radarLayer=null}
+  S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/6/1_1.png`,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
+  const t=new Date(frame.time*1000);
+  const timeStr=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  const pastCount=S._radarAnimPastCount||S.radarFrames.length;
+  const isFuture=idx>=pastCount;
+  const label=isFuture?'▸ '+timeStr+' (forecast)':'◂ '+timeStr;
+  document.getElementById('radar-time').textContent=timeStr;
+  document.getElementById('radar-anim-time').textContent=label;
+  const slider=document.getElementById('radar-anim-slider');
+  const pct=S.radarFrames.length>1?idx/(S.radarFrames.length-1):0;
+  slider.style.setProperty('--pct',pct);
 }
 
 function showRadarLayer(map){
@@ -1951,6 +2026,7 @@ function showViewScanCircle(map,lat,lng,radiusMi,count){
 }
 
 async function scanRadarForView(){
+  if(S._radarAnimPlaying){toast('⏸ Stop radar animation first');return}
   if(!S.map)return;
   const center=S.map.getCenter();
   const cLat=center.lat,cLng=center.lng;
@@ -2014,6 +2090,7 @@ async function scanRadarForView(){
 }
 
 async function scanRadarHiRes(map,fromHome){
+  if(S._radarAnimPlaying){toast('⏸ Stop radar animation first');return}
   if(!map)return;
   if(!S._etaRescanInProgress)S._stormETAs={};
   const center=fromHome?{lat:S.lat,lng:S.lon}:map.getCenter();
@@ -2488,6 +2565,7 @@ function impactLabel(pct){
 }
 
 async function scanRadarForStorms(){
+  if(S._radarAnimPlaying){toast('⏸ Stop radar animation first');return}
   if(!S.lat)return;
   if(!S._etaRescanInProgress)S._stormETAs={};
   clearViewScanCircle();
