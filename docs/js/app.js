@@ -752,34 +752,116 @@ async function fetchWeather(){
       +`&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=7&past_days=2`;
     const omRes=await fetch(omUrl);const omData=await omRes.json();
     S.forecast=omData;
-    if(isUSLocation(S.lat,S.lon)){
-      try{
-        const [nwsCur,nwsFc]=await Promise.all([fetchNWSCurrent(),fetchNWSForecast()]);
-        if(nwsCur){
-          omData.current.temperature_2m=nwsCur.temp;
-          if(nwsCur.dewp!=null){const rh=Math.round(100*Math.exp((17.27*nwsCur.dewp)/(237.7+nwsCur.dewp))/Math.exp((17.27*nwsCur.temp)/(237.7+nwsCur.temp)));omData.current.relative_humidity_2m=rh}
-          if(nwsCur.windKmh!=null){
-            omData.current.wind_speed_10m=nwsCur.windKmh;
-            if(nwsCur.gustKmh!=null)omData.current.wind_gusts_10m=nwsCur.gustKmh;
-            else omData.current.wind_gusts_10m=null;
-          }
-          if(nwsCur.windDir!=null)omData.current.wind_direction_10m=nwsCur.windDir;
-          if(nwsCur.presPa!=null)omData.current.pressure_msl=nwsCur.presPa/100;
-          if(nwsCur.visMeter!=null)S._nwsVisM=nwsCur.visMeter;
-          if(nwsCur.wxString)omData.current._nwsDesc=nwsCur.wxString;
-          if(nwsCur.feelsC!=null)omData.current.apparent_temperature=nwsCur.feelsC;
-          omData.current._nwsStation=nwsCur.station;
-          omData.current._source='NWS';
-          console.log('Weather: NWS current from '+nwsCur.station);
-        }
-        if(nwsFc&&nwsFc.length){
-          omData._nwsForecast=nwsFc;
-          console.log('Weather: NWS forecast loaded ('+nwsFc.length+' periods)');
-        }
-      }catch(e){console.log('NWS hybrid fetch failed:',e.message)}
-    }
+    try{
+      const isUS=isUSLocation(S.lat,S.lon);
+      const fetches=[fetchAWCNearest()];
+      if(isUS)fetches.push(fetchNWSCurrent(),fetchNWSForecast());
+      const results=await Promise.allSettled(fetches);
+      const awcCur=results[0].status==='fulfilled'?results[0].value:null;
+      const nwsCur=isUS&&results[1].status==='fulfilled'?results[1].value:null;
+      const nwsFc=isUS&&results[2]?.status==='fulfilled'?results[2].value:null;
+      const sources=[];
+      const om={src:'Open-Meteo',temp:omData.current.temperature_2m,dewp:null,
+        windKmh:omData.current.wind_speed_10m,windDir:omData.current.wind_direction_10m,
+        gustKmh:omData.current.wind_gusts_10m,presMb:omData.current.pressure_msl,
+        feelsC:omData.current.apparent_temperature,humidity:omData.current.relative_humidity_2m,
+        visMeter:null,wxString:''};
+      sources.push(om);
+      if(nwsCur){
+        sources.push({src:'NWS·'+nwsCur.station,temp:nwsCur.temp,dewp:nwsCur.dewp,
+          windKmh:nwsCur.windKmh,windDir:nwsCur.windDir,gustKmh:nwsCur.gustKmh,
+          presMb:nwsCur.presPa!=null?nwsCur.presPa/100:null,feelsC:nwsCur.feelsC,
+          humidity:null,visMeter:nwsCur.visMeter,wxString:nwsCur.wxString,station:nwsCur.station});
+      }
+      if(awcCur){
+        sources.push({src:'AWC·'+awcCur.icao,temp:awcCur.temp,dewp:awcCur.dewp,
+          windKmh:awcCur.windKmh,windDir:awcCur.windDir,gustKmh:awcCur.gustKmh,
+          presMb:awcCur.presPa!=null?awcCur.presPa/100:null,feelsC:null,
+          humidity:null,visMeter:awcCur.visMeter,wxString:awcCur.wxString||'',station:awcCur.icao});
+      }
+      const blend=blendSources(sources);
+      omData.current.temperature_2m=blend.temp;
+      omData.current.wind_speed_10m=blend.windKmh;
+      omData.current.wind_direction_10m=blend.windDir;
+      omData.current.wind_gusts_10m=blend.gustKmh;
+      omData.current.pressure_msl=blend.presMb;
+      if(blend.feelsC!=null)omData.current.apparent_temperature=blend.feelsC;
+      if(blend.humidity!=null)omData.current.relative_humidity_2m=blend.humidity;
+      if(blend.visMeter!=null)S._nwsVisM=blend.visMeter;
+      if(blend.dewp!=null){
+        const rh=Math.round(100*Math.exp((17.27*blend.dewp)/(237.7+blend.dewp))/Math.exp((17.27*blend.temp)/(237.7+blend.temp)));
+        omData.current.relative_humidity_2m=rh;
+      }
+      if(blend.wxString)omData.current._nwsDesc=blend.wxString;
+      omData.current._nwsStation=blend.station||null;
+      omData.current._source=blend.sourceLabel;
+      omData.current._sourceCount=sources.length;
+      console.log('Weather blend: '+sources.map(s=>s.src).join(' + ')+' → '+blend.sourceLabel);
+      if(nwsFc&&nwsFc.length){
+        omData._nwsForecast=nwsFc;
+        console.log('Weather: NWS forecast loaded ('+nwsFc.length+' periods)');
+      }
+    }catch(e){console.log('Multi-source blend failed:',e.message)}
     S.weather=omData.current;renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p></div>`}
+}
+async function fetchAWCNearest(){
+  try{
+    const bbox=`${(S.lat-0.75).toFixed(2)},${(S.lon-0.75).toFixed(2)},${(S.lat+0.75).toFixed(2)},${(S.lon+0.75).toFixed(2)}`;
+    const r=await fetch(`https://aviationweather.gov/api/data/metar?bbox=${bbox}&format=json&date=0&hours=2`,{signal:AbortSignal.timeout(4000)});
+    if(!r.ok)return null;
+    const data=await r.json();
+    if(!data.length)return null;
+    const nearest=data.reduce((best,m)=>{
+      const d=haversine(S.lat,S.lon,m.lat,m.lon);
+      return(!best||d<best._dist)?{...m,_dist:d}:best;
+    },null);
+    if(!nearest)return null;
+    return{
+      icao:nearest.icaoId,temp:nearest.temp,dewp:nearest.dewp,
+      windKmh:nearest.wspd!=null?nearest.wspd*1.852:null,
+      windDir:nearest.wdir!=null&&nearest.wdir!=='VRB'?Number(nearest.wdir):null,
+      gustKmh:nearest.wgst!=null?nearest.wgst*1.852:null,
+      presPa:nearest.altim!=null?nearest.altim*100:null,
+      visMeter:nearest.visib!=null?(String(nearest.visib).includes('+')?16093:Number(nearest.visib)*1609.34):null,
+      wxString:nearest.wxString||'',dist:nearest._dist
+    };
+  }catch(e){return null}
+}
+function blendSources(sources){
+  function avg(field){
+    const vals=sources.map(s=>s[field]).filter(v=>v!=null&&!isNaN(v));
+    return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+  }
+  function first(field){
+    for(const s of sources){if(s[field]!=null)return s[field]}
+    return null;
+  }
+  function avgDir(field){
+    const dirs=sources.map(s=>s[field]).filter(v=>v!=null&&!isNaN(v));
+    if(!dirs.length)return null;
+    if(dirs.length===1)return dirs[0];
+    let sx=0,sy=0;
+    dirs.forEach(d=>{const r=d*Math.PI/180;sx+=Math.sin(r);sy+=Math.cos(r)});
+    let a=Math.atan2(sx/dirs.length,sy/dirs.length)*180/Math.PI;
+    return((a%360)+360)%360;
+  }
+  const station=sources.find(s=>s.station)?.station||null;
+  const srcNames=sources.filter(s=>s.src!=='Open-Meteo').map(s=>s.src);
+  const sourceLabel=srcNames.length?srcNames.join('+'):'Open-Meteo';
+  return{
+    temp:avg('temp'),
+    dewp:first('dewp'),
+    windKmh:avg('windKmh'),
+    windDir:avgDir('windDir'),
+    gustKmh:avg('gustKmh'),
+    presMb:avg('presMb'),
+    feelsC:first('feelsC'),
+    humidity:first('humidity'),
+    visMeter:first('visMeter'),
+    wxString:sources.find(s=>s.wxString)?.wxString||'',
+    station,sourceLabel
+  };
 }
 async function fetchNWSCurrent(){
   try{
@@ -1005,7 +1087,7 @@ function renderWeather(data){
             <div style="font-size:1.6em;margin-bottom:2px">${animEmoji(c.weather_code,isDay,'1em')}</div>
             <div style="font-size:1.8em;font-weight:800;color:var(--text-primary);line-height:1">${fmtTempShort(tempC)}</div>
             <div style="font-size:0.65em;color:var(--text-secondary);margin-top:2px">${c._nwsDesc||desc}</div>
-            ${c._source==='NWS'?`<div style="font-size:0.5em;color:var(--accent-cyan);margin-top:1px;opacity:0.7">NWS · ${c._nwsStation||''}</div>`:''}
+            ${c._source?`<div style="font-size:0.5em;color:var(--accent-cyan);margin-top:1px;opacity:0.7">${c._source}${c._sourceCount>1?' (×'+c._sourceCount+' avg)':''}</div>`:''}
           </div>
           <div class="hero-side-item" onclick="event.stopPropagation();cycleUnit('tempUnit')" style="cursor:pointer">
             <div class="hero-side-label">Feels Like</div>
