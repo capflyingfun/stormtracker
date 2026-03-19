@@ -178,7 +178,8 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .station-val{font-size:1.05em;font-weight:700}
 .station-label{font-size:0.6em;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.04em;margin-top:3px}
 .station-sub{font-size:0.65em;color:var(--text-secondary)}
-.metar-raw{font-family:var(--font-mono);font-size:0.7em;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px;color:var(--accent-cyan);line-height:1.6;word-break:break-all;margin-top:10px}
+.metar-raw{font-family:var(--font-mono);font-size:0.7em;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:10px;color:var(--accent-cyan);line-height:1.6;word-break:break-all;margin-top:10px;transition:border-color 0.2s}
+.metar-raw:active{border-color:var(--accent-cyan)}
 .flt-cat{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:0.7em;font-weight:700;letter-spacing:0.06em}
 .flt-vfr{background:rgba(34,197,94,0.15);color:#22c55e}
 .flt-mvfr{background:rgba(59,130,246,0.15);color:#3b82f6}
@@ -2778,7 +2779,7 @@ function renderStation(){
       </div>
 
       ${wxDesc&&wxDesc!=='CLR'?`<div style="text-align:center;font-size:0.75em;color:var(--accent-cyan);margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px">${stationNeonIcon(wxDesc,22)} ${wxDesc}</div>`:''}
-      ${raw?`<div class="metar-raw">${raw}</div>`:''}
+      ${raw?`<div class="metar-raw" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'" style="cursor:pointer">${raw} <span style="font-size:0.75em;color:var(--text-muted)">▼ tap to decode</span></div><div class="metar-decoded" style="display:none">${decodeMetar(raw)}</div>`:''}
     </div>
     ${renderNearbyStations()}`; 
 }
@@ -2818,6 +2819,116 @@ async function switchStation(icao){
   }
   S.stationId=icao;
   await loadStationObs(icao);
+}
+
+function decodeMetar(raw){
+  if(!raw)return'';
+  const WX_CODES={
+    'TS':'Thunderstorm','RA':'Rain','SN':'Snow','DZ':'Drizzle','FG':'Fog','BR':'Mist',
+    'HZ':'Haze','FU':'Smoke','SA':'Sand','DU':'Dust','SQ':'Squall','FC':'Funnel Cloud',
+    'GR':'Hail','GS':'Small Hail/Snow Pellets','IC':'Ice Crystals','PL':'Ice Pellets',
+    'SG':'Snow Grains','UP':'Unknown Precip','VA':'Volcanic Ash','PO':'Dust Whirls',
+    'SS':'Sandstorm','DS':'Duststorm','FZ':'Freezing','BL':'Blowing','DR':'Low Drifting',
+    'MI':'Shallow','PR':'Partial','BC':'Patches','SH':'Showers','PE':'Ice Pellets'
+  };
+  const parts=raw.trim().split(/\s+/);
+  const rows=[];
+  const c=(color,label,val,extra)=>`<div style="display:flex;align-items:baseline;gap:8px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="font-family:var(--font-mono);font-weight:700;color:${color};min-width:70px;font-size:0.85em">${label}</span><span style="color:${color};font-weight:600;font-size:0.9em">${val}</span>${extra?`<span style="font-size:0.7em;color:var(--text-muted)">${extra}</span>`:''}</div>`;
+
+  for(let i=0;i<parts.length;i++){
+    const p=parts[i];
+    if(i===0&&/^[A-Z]{4}$/.test(p)){
+      rows.push(c('var(--accent-cyan)','Station',p,'ICAO identifier'));continue;
+    }
+    if(/^\d{6}Z$/.test(p)){
+      const day=p.slice(0,2),hr=p.slice(2,4),mn=p.slice(4,6);
+      rows.push(c('#a78bfa','Time',`Day ${day}, ${hr}:${mn} UTC`,'Observation time'));continue;
+    }
+    if(p==='AUTO'){rows.push(c('#94a3b8','Type','Automated','No human observer'));continue}
+    if(p==='COR'){rows.push(c('#f59e0b','Type','Corrected','Correction to prior report'));continue}
+    if(/^(VRB|\d{3})\d{2,3}(G\d{2,3})?KT$/.test(p)){
+      const m=p.match(/^(VRB|\d{3})(\d{2,3})(G(\d{2,3}))?KT$/);
+      if(m){
+        const dir=m[1]==='VRB'?'Variable':m[1]+'°';
+        const spd=parseInt(m[2]);const gust=m[4]?parseInt(m[4]):null;
+        let wStr=`${dir} at ${spd} knots`;
+        if(gust)wStr+=`, gusting ${gust} knots`;
+        if(spd===0&&!gust)wStr='Calm';
+        const sev=gust&&gust>=35?'color:var(--accent-red);font-weight:700':spd>=25?'color:var(--accent-orange)':'';
+        rows.push(c(sev||'#22c55e','Wind',wStr,gust>=50?'⚠️ DANGEROUS':''));
+      }continue;
+    }
+    if(/^\d{3}V\d{3}$/.test(p)){
+      rows.push(c('#22c55e','Wind Var',`${p.slice(0,3)}° to ${p.slice(4)}°`,'Variable direction'));continue;
+    }
+    if(/^M?\d+(\/)?(SM)?$/.test(p)||/^\d+\/\d+SM$/.test(p)||/^\d+SM$/.test(p)||p==='M1/4SM'||/^\d+ \d+\/\d+SM$/.test(p)){
+      let vis=p.replace('SM','');
+      if(vis.startsWith('M'))vis='Less than '+vis.slice(1);
+      const visMi=parseFloat(vis)||10;
+      const sev=visMi<1?'var(--accent-red)':visMi<3?'var(--accent-orange)':visMi<=5?'#f59e0b':'#22c55e';
+      rows.push(c(sev,'Visibility',vis+' statute miles',visMi<3?'⚠️ Low visibility':''));continue;
+    }
+    if(/^R\d{2}/.test(p)){
+      rows.push(c('#f59e0b','RVR',p,'Runway visual range'));continue;
+    }
+    const wxMatch=p.match(/^([+-]|VC)?(TS|SH|FZ|BL|DR|MI|PR|BC)?(RA|SN|DZ|FG|BR|HZ|FU|SA|DU|SQ|FC|GR|GS|IC|PL|SG|UP|VA|PO|SS|DS|PE)+$/);
+    if(wxMatch){
+      const intensity=p.startsWith('+')?'Heavy':p.startsWith('-')?'Light':p.startsWith('VC')?'Vicinity':'Moderate';
+      let desc='';
+      const body=p.replace(/^[+-]|^VC/,'');
+      for(let j=0;j<body.length;j+=2){
+        const code=body.slice(j,j+2);
+        if(WX_CODES[code])desc+=(desc?' + ':'')+WX_CODES[code];
+      }
+      const hasSevere=p.includes('TS')||p.includes('GR')||p.includes('FC')||p.includes('SQ');
+      const hasLightning=p.includes('TS');
+      const sev=hasSevere?'var(--accent-red)':p.startsWith('+')?'var(--accent-orange)':'#f59e0b';
+      rows.push(c(sev,'Weather',`${intensity}: ${desc}`,hasLightning?'⚡ Lightning possible':''));continue;
+    }
+    if(/^(CLR|SKC|FEW|SCT|BKN|OVC|VV)\d{0,3}/.test(p)){
+      const cov=p.match(/^(CLR|SKC|FEW|SCT|BKN|OVC|VV)/)[1];
+      const ht=p.replace(cov,'');
+      const htFt=ht?parseInt(ht)*100:null;
+      const covNames={CLR:'Clear (below 12000ft)',SKC:'Sky Clear',FEW:'Few (1-2 oktas)',SCT:'Scattered (3-4 oktas)',BKN:'Broken (5-7 oktas)',OVC:'Overcast (8 oktas)',VV:'Vertical Visibility'};
+      const sev=(cov==='OVC'||cov==='BKN')&&htFt&&htFt<1000?'var(--accent-orange)':cov==='VV'?'var(--accent-red)':'#64748b';
+      rows.push(c(sev,'Clouds',`${covNames[cov]||cov}${htFt!=null?' at '+htFt.toLocaleString()+' ft':''}`,''));continue;
+    }
+    if(/^M?\d{2}\/M?\d{2}$/.test(p)){
+      const [t,d]=p.split('/');
+      const tc=t.startsWith('M')?-parseInt(t.slice(1)):parseInt(t);
+      const dc=d.startsWith('M')?-parseInt(d.slice(1)):parseInt(d);
+      const tf=(tc*9/5+32).toFixed(0),df=(dc*9/5+32).toFixed(0);
+      rows.push(c('#00e5ff','Temp/Dew',`${tc}°C (${tf}°F) / ${dc}°C (${df}°F)`,`Spread: ${(tc-dc).toFixed(0)}°C`));continue;
+    }
+    if(/^A\d{4}$/.test(p)){
+      const inhg=(parseInt(p.slice(1))/100).toFixed(2);
+      const mb=(parseFloat(inhg)*33.8639).toFixed(1);
+      rows.push(c('#a78bfa','Altimeter',`${inhg} inHg (${mb} mb)`,''));continue;
+    }
+    if(/^Q\d{4}$/.test(p)){
+      const mb=parseInt(p.slice(1));
+      rows.push(c('#a78bfa','QNH',`${mb} hPa`,''));continue;
+    }
+    if(p==='RMK'){
+      const rmk=parts.slice(i+1).join(' ');
+      const rmkParts=[];
+      if(rmk.includes('AO2'))rmkParts.push('Automated station with precip sensor');
+      if(rmk.includes('AO1'))rmkParts.push('Automated station without precip sensor');
+      const pkm=rmk.match(/PK WND (\d{3})(\d{2,3})\/(\d{2,4})/);
+      if(pkm)rmkParts.push(`Peak wind ${pkm[1]}° at ${pkm[2]} kt at :${pkm[3]}`);
+      const slpm=rmk.match(/SLP(\d{3})/);
+      if(slpm){const slp=(parseInt(slpm[1])<500?'10':'9')+slpm[1].slice(0,2)+'.'+slpm[1].slice(2);rmkParts.push(`Sea level pressure: ${slp} mb`)}
+      const tm=rmk.match(/T(\d)(\d{3})(\d)(\d{3})/);
+      if(tm){const t=(tm[1]==='1'?-1:1)*parseInt(tm[2])/10;const d=(tm[3]==='1'?-1:1)*parseInt(tm[4])/10;rmkParts.push(`Precise: ${t.toFixed(1)}°C / ${d.toFixed(1)}°C`)}
+      if(rmk.includes('$'))rmkParts.push('⚠️ Station needs maintenance');
+      const ltg=rmk.match(/LTG(DSNT|VC)?\s*(CG|IC|CC|CA)*/);
+      if(ltg)rmkParts.push('⚡ Lightning observed'+(ltg[1]==='DSNT'?' (distant)':ltg[1]==='VC'?' (vicinity)':''));
+      if(rmkParts.length)rows.push(c('#94a3b8','Remarks',rmkParts.join('<br>'),''));
+      else rows.push(c('#94a3b8','Remarks',rmk,''));
+      break;
+    }
+  }
+  return`<div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:8px 10px;margin-top:4px;font-size:0.8em">${rows.join('')}</div>`;
 }
 
 function wxDescToCode(desc){
