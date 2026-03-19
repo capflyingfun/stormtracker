@@ -1,0 +1,60 @@
+Sure! Here’s a complete HTML snippet that you can use in your weather tracker app, implementing Perlin noise for wind speed updates. This code uses JavaScript along with the `simplex-noise` library for generating noise.
+
+### Complete HTML and JavaScript Code
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Weather Tracker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        #windSpeed {
+            font-size: 2em;
+        }
+    </style>
+</head>
+<body>
+    <h1>Live Weather Tracker</h1>
+    <div id="windSpeed">Current Wind Speed: 0.00 m/s</div>
+
+    <script>
+        const simplex = new SimplexNoise();
+        let currentWindSpeed = 0.0;
+        let targetWindSpeed = 0.0;
+        const scale = 0.1; // Scale for Perlin noise effect
+
+        function lerp(start, end, t) {
+            return start + (end - start) * t;
+        }
+
+        function updateWindSpeed() {
+            const time = Date.now() * 0.001; // time in seconds
+            targetWindSpeed = simplex.noise2D(time, 0) * 10; // Scale up to gust range, e.g., 0-10 m/s
+
+            currentWindSpeed = lerp(currentWindSpeed, targetWindSpeed, 0.1); // Lerp to target
+
+            document.getElementById("windSpeed").innerText = `Current Wind Speed: ${currentWindSpeed.toFixed(2)} m/s`;
+        }
+
+        setInterval(updateWindSpeed, 1000); // Update every second
+    </script>
+</body>
+</html>
+```
+
+### Explanation
+
+- **HTML Structure**: A simple layout displaying the current wind speed.
+- **Simplex Noise Library**: Loads from a CDN to generate smooth noise values.
+- **JavaScript Logic**: The script updates the wind speed every second using a combination of Simplex noise and linear interpolation (lerp).
+- **Styling**: Basic styles to center the text.
+
+You can copy and paste this code into your HTML file in Replit, and it should give you a dynamically updating wind speed value that feels natural. Let me know if you need further customization!
