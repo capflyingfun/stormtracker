@@ -1742,7 +1742,7 @@ function plotStormMarkers(map){
       const lightning=L.marker([storm.lat,storm.lng],{interactive:false,icon:L.divIcon({className:'storm-lightning-icon',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})}).addTo(map);
       S.stormMarkers.push(lightning);
     }
-    if(eta&&eta.approaching&&eta.impact>0&&eta.eta!=null&&mv&&mv.speed>=2){
+    if(eta&&eta.approaching&&eta.impact>70&&eta.eta!=null&&mv&&mv.speed>=2&&storm.distance<80){
       const sk=stormKey(storm);
       const trackLine=L.polyline([[storm.lat,storm.lng],[S.lat,S.lon]],{
         color:color,weight:2,opacity:0.5,dashArray:'8,8',interactive:false,
