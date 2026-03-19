@@ -854,7 +854,7 @@ function blendSources(sources){
     dewp:first('dewp'),
     windKmh:avg('windKmh'),
     windDir:avgDir('windDir'),
-    gustKmh:avg('gustKmh'),
+    gustKmh:Math.max(avg('gustKmh')||0,avg('windKmh')||0)||null,
     presMb:avg('presMb'),
     feelsC:first('feelsC'),
     humidity:first('humidity'),
