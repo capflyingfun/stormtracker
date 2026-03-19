@@ -1708,6 +1708,8 @@ function initRadar(){
     </div>
     <div id="radar-source-label" style="font-size:0.7em;color:var(--text-muted);text-align:center;margin-top:6px"></div>`;
   setTimeout(async()=>{
+    S._radarAnimPlaying=false;S._radarAnimPaused=false;
+    clearInterval(S._radarAnimTimer);S._radarAnimFrames=[];
     if(S.map){S.map.remove();S.map=null}
     const map=L.map('radar-map',{zoomControl:false,attributionControl:false,maxZoom:11,maxBoundsViscosity:1.0,bounceAtZoomLimits:false,zoomSnap:0.5,zoomDelta:0.5}).setView([S.lat,S.lon],8);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:11}).addTo(map);
@@ -2048,7 +2050,7 @@ function showViewScanCircle(map,lat,lng,radiusMi,count){
 }
 
 async function scanRadarForView(){
-  if(S._radarAnimPlaying){toast('⏸ Stop radar animation first');return}
+  if(S._radarAnimPlaying){if(S.map)stopRadarAnim(S.map);}
   if(!S.map)return;
   const center=S.map.getCenter();
   const cLat=center.lat,cLng=center.lng;
@@ -2112,7 +2114,7 @@ async function scanRadarForView(){
 }
 
 async function scanRadarHiRes(map,fromHome){
-  if(S._radarAnimPlaying){toast('⏸ Stop radar animation first');return}
+  if(S._radarAnimPlaying){stopRadarAnim(map);}
   if(!map)return;
   if(!S._etaRescanInProgress)S._stormETAs={};
   const center=fromHome?{lat:S.lat,lng:S.lon}:map.getCenter();
@@ -2587,7 +2589,7 @@ function impactLabel(pct){
 }
 
 async function scanRadarForStorms(){
-  if(S._radarAnimPlaying){toast('⏸ Stop radar animation first');return}
+  if(S._radarAnimPlaying){if(S.map)stopRadarAnim(S.map);}
   if(!S.lat)return;
   if(!S._etaRescanInProgress)S._stormETAs={};
   clearViewScanCircle();
