@@ -1601,6 +1601,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="radar-scan-hires" title="Hi-Res 15mi scan" style="font-size:0.5em;font-weight:700;line-height:1;color:var(--accent-cyan)">HiRes</div>
         <div class="map-ctrl-btn" id="radar-toggle-src" title="Toggle radar source" style="font-size:0.55em;font-weight:700;line-height:1">SRC</div>
         <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km" style="font-size:0.55em;font-weight:700;line-height:1">MI</div>
+        <div class="map-ctrl-btn" id="radar-toggle-airports" title="Toggle airports" style="font-size:0.75em">✈️</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
       </div>
       <div class="map-legend">
@@ -1652,6 +1653,7 @@ function initRadar(){
     document.getElementById('radar-scan-view').addEventListener('click',()=>{scanRadarForView()});
     document.getElementById('radar-scan-hires').addEventListener('click',()=>{scanRadarHiRes(map)});
     document.getElementById('radar-toggle-src').addEventListener('click',()=>{toggleRadarSource(map)});
+    document.getElementById('radar-toggle-airports').addEventListener('click',()=>{toggleAirportMarkers(map)});
     document.getElementById('radar-toggle-units').addEventListener('click',()=>{
       S.radarMetric=!S.radarMetric;
       document.getElementById('radar-toggle-units').textContent=S.radarMetric?'KM':'MI';
@@ -1742,6 +1744,108 @@ function hideScanOverlay(){
   if(s3){s3.classList.remove('active');s3.classList.add('done');s3.querySelector('.step-icon').textContent='✓'}
   if(window._scanCountdownTimer)clearInterval(window._scanCountdownTimer);
   setTimeout(()=>{const ov=document.getElementById('scan-overlay');if(ov)ov.classList.remove('show')},600);
+}
+
+S._airportMarkers=[];
+S._airportsVisible=false;
+S._airportDataCache=null;
+
+async function toggleAirportMarkers(map){
+  const btn=document.getElementById('radar-toggle-airports');
+  if(S._airportsVisible){
+    clearAirportMarkers(map);
+    btn.style.background='';
+    btn.style.borderColor='';
+    return;
+  }
+  btn.style.background='rgba(0,229,255,0.2)';
+  btn.style.borderColor='var(--accent-cyan)';
+  S._airportsVisible=true;
+  if(S._airportDataCache&&S._airportDataCache.length){
+    plotAirportMarkers(map,S._airportDataCache);
+    return;
+  }
+  toast('Loading airports...');
+  try{
+    const r=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,NWS_HDR);
+    const pt=await r.json();
+    const stUrl=pt.properties?.observationStations;
+    if(!stUrl)throw new Error('No stations');
+    const sr=await fetch(stUrl,NWS_HDR);
+    const sd=await sr.json();
+    const features=sd.features||[];
+    const stations=features.slice(0,15).map(f=>({
+      icao:f.properties.stationIdentifier,
+      name:f.properties.name||'',
+      lat:f.geometry.coordinates[1],
+      lon:f.geometry.coordinates[0],
+      dist:haversine(S.lat,S.lon,f.geometry.coordinates[1],f.geometry.coordinates[0]),
+    }));
+    S._airportDataCache=stations;
+    plotAirportMarkers(map,stations);
+  }catch(e){
+    console.error('Airport fetch:',e);
+    toast('Could not load airports');
+    S._airportsVisible=false;
+    btn.style.background='';btn.style.borderColor='';
+  }
+}
+
+async function plotAirportMarkers(map,stations){
+  clearAirportMarkers(map);
+  for(const st of stations){
+    try{
+      const obsUrl=`https://api.weather.gov/stations/${st.icao}/observations/latest`;
+      const or=await fetch(obsUrl,NWS_HDR);
+      if(!or.ok)continue;
+      const od=await or.json();
+      const p=od.properties||{};
+      const tc=p.temperature?.value;
+      const wKmh=p.windSpeed?.value;
+      const wDir=p.windDirection?.value;
+      const visMi=p.visibility?.value!=null?(p.visibility.value/1609.34):null;
+      const fltCat=getFltCat(visMi,{clouds:(p.cloudLayers||[]).map(l=>({amount:l.amount,base:l.base}))});
+      const fltColor=fltCat==='VFR'?'#22c55e':fltCat==='MVFR'?'#3b82f6':fltCat==='IFR'?'#ef4444':'#d946ef';
+
+      const icon=L.divIcon({
+        className:'',
+        html:`<div style="display:flex;flex-direction:column;align-items:center;pointer-events:auto">
+          <div style="background:${fltColor};color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,0.6)">${st.icao}</div>
+          <div style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:4px solid ${fltColor}"></div>
+        </div>`,
+        iconSize:[40,20],iconAnchor:[20,20]
+      });
+
+      const tempStr=tc!=null?fmtTemp(tc):'--';
+      const windStr=wKmh!=null?(fmtWind(wKmh)+' '+(wDir!=null?degToDir(wDir):'VRB')):'Calm';
+      const visStr=visMi!=null?fmtVis(visMi):'--';
+      const skyStr=formatClouds({clouds:(p.cloudLayers||[]).map(l=>({amount:l.amount,base:l.base}))});
+
+      const popup=L.popup({className:'storm-popup',maxWidth:220,closeButton:true}).setContent(`
+        <div style="font-size:0.8em;line-height:1.5">
+          <div style="font-weight:700;color:${fltColor};margin-bottom:4px">✈️ ${st.icao} — ${st.name}</div>
+          <div style="display:inline-block;background:${fltColor};color:#fff;padding:0 6px;border-radius:3px;font-size:0.85em;font-weight:600;margin-bottom:4px">${fltCat}</div>
+          <span style="color:var(--text-muted);font-size:0.85em;margin-left:4px">${st.dist.toFixed(1)} mi</span>
+          <div>🌡️ ${tempStr}</div>
+          <div>💨 ${windStr}</div>
+          <div>👁️ Vis: ${visStr}</div>
+          <div>☁️ ${skyStr}</div>
+          <div style="margin-top:4px;text-align:center">
+            <button onclick="switchPage('station');switchStation('${st.icao}')" style="padding:3px 10px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid var(--accent-cyan);border-radius:5px;font-size:0.85em;cursor:pointer;font-weight:600">Open in Station Tab</button>
+          </div>
+        </div>
+      `);
+
+      const marker=L.marker([st.lat,st.lon],{icon,zIndexOffset:500}).addTo(map).bindPopup(popup);
+      S._airportMarkers.push(marker);
+    }catch(e){}
+  }
+}
+
+function clearAirportMarkers(map){
+  S._airportMarkers.forEach(m=>{try{map.removeLayer(m)}catch(e){}});
+  S._airportMarkers=[];
+  S._airportsVisible=false;
 }
 
 function clearViewScanCircle(){
