@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
-import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema, riskAssessmentSchema, userAlertPreferences, riskAlerts, insertRiskAlertSchema, insertUserAlertPreferencesSchema, updateUserAlertPreferencesSchema, insertAlertSubscriptionSchema, stormFeedback } from "@shared/schema";
+import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema, riskAssessmentSchema, userAlertPreferences, riskAlerts, insertRiskAlertSchema, insertUserAlertPreferencesSchema, updateUserAlertPreferencesSchema, insertAlertSubscriptionSchema, stormFeedback, syncProfiles } from "@shared/schema";
 import { storage } from "./storage";
 import { db } from "./db";
 import { sendStormAlert, sendTestAlert, sendSMSAlert, sendTestSMS } from "./email";
@@ -7110,6 +7110,110 @@ Guidelines:
     } catch (error: any) {
       console.error('TAF fetch error:', error.message);
       res.status(500).json({ error: "Failed to fetch TAF data" });
+    }
+  });
+
+  // ==========================================
+  // CLOUD SYNC API
+  // ==========================================
+
+  // Register a new sync profile
+  app.post("/api/sync/register", async (req, res) => {
+    try {
+      const { username, pin } = req.body;
+      if (!username || !pin || !/^\d{4}$/.test(pin)) {
+        return res.status(400).json({ error: "Username and 4-digit PIN required" });
+      }
+      if (username.length < 3 || username.length > 30 || !/^[a-zA-Z0-9_-]+$/.test(username)) {
+        return res.status(400).json({ error: "Username must be 3-30 chars (letters, numbers, _ or -)" });
+      }
+      const existing = await db.select().from(syncProfiles).where(eq(syncProfiles.username, username.toLowerCase())).limit(1);
+      if (existing.length > 0) {
+        return res.status(409).json({ error: "Username already taken" });
+      }
+      const [profile] = await db.insert(syncProfiles).values({
+        username: username.toLowerCase(),
+        pin,
+        favorites: [],
+        lastLocation: null,
+        settings: {},
+      }).returning();
+      res.json({ success: true, username: profile.username });
+    } catch (error: any) {
+      console.error("Sync register error:", error.message);
+      res.status(500).json({ error: "Registration failed" });
+    }
+  });
+
+  // Login / authenticate
+  app.post("/api/sync/login", async (req, res) => {
+    try {
+      const { username, pin } = req.body;
+      if (!username || !pin) {
+        return res.status(400).json({ error: "Username and PIN required" });
+      }
+      const [profile] = await db.select().from(syncProfiles).where(eq(syncProfiles.username, username.toLowerCase())).limit(1);
+      if (!profile || profile.pin !== pin) {
+        return res.status(401).json({ error: "Invalid username or PIN" });
+      }
+      res.json({
+        success: true,
+        username: profile.username,
+        favorites: profile.favorites || [],
+        lastLocation: profile.lastLocation,
+        settings: profile.settings || {},
+        lastSyncAt: profile.lastSyncAt,
+      });
+    } catch (error: any) {
+      console.error("Sync login error:", error.message);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Save/sync data to cloud
+  app.post("/api/sync/save", async (req, res) => {
+    try {
+      const { username, pin, favorites, lastLocation, settings } = req.body;
+      if (!username || !pin) {
+        return res.status(400).json({ error: "Username and PIN required" });
+      }
+      const [profile] = await db.select().from(syncProfiles).where(eq(syncProfiles.username, username.toLowerCase())).limit(1);
+      if (!profile || profile.pin !== pin) {
+        return res.status(401).json({ error: "Invalid username or PIN" });
+      }
+      const updateData: any = { lastSyncAt: new Date() };
+      if (favorites !== undefined) updateData.favorites = favorites;
+      if (lastLocation !== undefined) updateData.lastLocation = lastLocation;
+      if (settings !== undefined) updateData.settings = settings;
+      await db.update(syncProfiles).set(updateData).where(eq(syncProfiles.id, profile.id));
+      res.json({ success: true, lastSyncAt: updateData.lastSyncAt });
+    } catch (error: any) {
+      console.error("Sync save error:", error.message);
+      res.status(500).json({ error: "Save failed" });
+    }
+  });
+
+  // Load data from cloud
+  app.post("/api/sync/load", async (req, res) => {
+    try {
+      const { username, pin } = req.body;
+      if (!username || !pin) {
+        return res.status(400).json({ error: "Username and PIN required" });
+      }
+      const [profile] = await db.select().from(syncProfiles).where(eq(syncProfiles.username, username.toLowerCase())).limit(1);
+      if (!profile || profile.pin !== pin) {
+        return res.status(401).json({ error: "Invalid username or PIN" });
+      }
+      res.json({
+        success: true,
+        favorites: profile.favorites || [],
+        lastLocation: profile.lastLocation,
+        settings: profile.settings || {},
+        lastSyncAt: profile.lastSyncAt,
+      });
+    } catch (error: any) {
+      console.error("Sync load error:", error.message);
+      res.status(500).json({ error: "Load failed" });
     }
   });
 
