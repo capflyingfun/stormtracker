@@ -643,15 +643,23 @@ async function fetchSuggestions(q){
     box.classList.add('active');
   }catch(e){}
 }
+function fmtLocName(addr,fallback){
+  const parts=[];
+  if(addr.house_number&&addr.road)parts.push(addr.house_number+' '+addr.road);
+  else if(addr.road)parts.push(addr.road);
+  const place=addr.city||addr.town||addr.village||addr.hamlet||addr.county||'';
+  if(place)parts.push(place);
+  const region=addr.state||addr.country||'';
+  if(region)parts.push(region);
+  return parts.length?parts.join(', '):(fallback||'Unknown');
+}
 function selectSuggestion(r){
   hideSuggestions();
   const lat=parseFloat(r.lat),lon=parseFloat(r.lon);
-  const addr=r.address||{};
-  const name=addr.city||addr.town||addr.village||addr.county||r.display_name.split(',')[0];
-  const state=addr.state||addr.country||'';
-  document.getElementById('location-input').value=name+(state?', '+state:'');
+  const name=fmtLocName(r.address||{},r.display_name.split(',').slice(0,2).join(',').trim());
+  document.getElementById('location-input').value=name;
   toggleLocOverlay(false);
-  setLoc(lat,lon,name+(state?', '+state:''));
+  setLoc(lat,lon,name);
 }
 function hideSuggestions(){
   const box=document.getElementById('loc-suggestions');
@@ -698,9 +706,13 @@ async function searchLoc(){
   if(!q)return;
   toast('Searching...');
   try{
-    const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`);
+    const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1&addressdetails=1`);
     const data=await res.json();
-    if(data.length){setLoc(parseFloat(data[0].lat),parseFloat(data[0].lon),data[0].display_name.split(',').slice(0,2).join(',').trim())}
+    if(data.length){
+      const r=data[0];
+      const name=fmtLocName(r.address||{},r.display_name.split(',').slice(0,2).join(',').trim());
+      setLoc(parseFloat(r.lat),parseFloat(r.lon),name);
+    }
     else toast('Location not found');
   }catch(e){toast('Search failed')}
 }
@@ -709,8 +721,8 @@ async function reverseGeo(lat,lon){
   try{
     const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
     const data=await res.json();const addr=data.address||{};
-    const name=addr.city||addr.town||addr.village||addr.county||'';
-    setLoc(lat,lon,name?`${name}, ${addr.state||''}`:`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+    const name=fmtLocName(addr,`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+    setLoc(lat,lon,name);
   }catch(e){setLoc(lat,lon)}
 }
 
