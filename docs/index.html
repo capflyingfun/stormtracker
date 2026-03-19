@@ -481,8 +481,7 @@ async function _loadBmSvg(name){
   if(_bmCache[name])return _bmCache[name];
   if(_bmCache['_p_'+name])return _bmCache['_p_'+name];
   _bmCache['_p_'+name]=fetch(BMCDN+name+'.svg').then(r=>r.text()).then(svg=>{
-    svg=svg.replace(/dur="([0-9.]+)s"/g,(m,d)=>'dur="'+(parseFloat(d)/2)+'s"');
-    svg=svg.replace(/dur="\.([0-9]+)s"/g,(m,d)=>'dur="'+(parseFloat('0.'+d)/2)+'s"');
+    svg=svg.replace(/dur="([0-9]*\.?[0-9]+)s"/g,(m,d)=>'dur="'+(parseFloat(d)/2)+'s"');
     _bmCache[name]=svg;
     delete _bmCache['_p_'+name];
     document.querySelectorAll('[data-bm="'+name+'"]').forEach(el=>{
@@ -2901,38 +2900,44 @@ function wxDescToCode(desc){
   if(d.includes('clear')||d.includes('fair')||d.includes('sunny'))return 0;
   return 2;
 }
-function metarDescToBasmilius(desc){
+function isCurrentlyDay(){
+  const h=new Date().getHours();
+  return h>=6&&h<20;
+}
+function metarDescToBasmilius(desc,isDay){
   if(!desc)return null;
   const d=desc.toLowerCase();
-  if(d.includes('thunder')&&d.includes('rain'))return'thunderstorms-rain';
-  if(d.includes('thunder')||d.includes('tsra')||d.includes('ts '))return'thunderstorms';
+  const dn=isDay!==undefined?isDay:isCurrentlyDay();
+  if(d.includes('thunder')&&d.includes('rain'))return dn?'thunderstorms-day-rain':'thunderstorms-night-rain';
+  if(d.includes('thunder')||d.includes('tsra')||d.includes('ts '))return dn?'thunderstorms-day':'thunderstorms-night';
   if(d.includes('freezing rain')||d.includes('freezing drizzle')||d.includes('fzra')||d.includes('fzdz'))return'sleet';
-  if(d.includes('heavy rain')||d.includes('heavy shower'))return'extreme-rain';
-  if(d.includes('rain shower')||d.includes('light rain')||d.includes('-ra'))return'partly-cloudy-day-rain';
+  if(d.includes('heavy rain')||d.includes('heavy shower'))return dn?'extreme-day-rain':'extreme-night-rain';
+  if(d.includes('rain shower')||d.includes('light rain')||d.includes('-ra'))return dn?'partly-cloudy-day-rain':'partly-cloudy-night-rain';
   if(d.includes('rain')||d.includes(' ra'))return'rain';
-  if(d.includes('heavy snow'))return'extreme-snow';
-  if(d.includes('snow shower')||d.includes('flurr'))return'partly-cloudy-day-snow';
+  if(d.includes('heavy snow'))return dn?'extreme-day-snow':'extreme-night-snow';
+  if(d.includes('snow shower')||d.includes('flurr'))return dn?'partly-cloudy-day-snow':'partly-cloudy-night-snow';
   if(d.includes('snow')||d.includes(' sn'))return'snow';
   if(d.includes('drizzle')||d.includes(' dz'))return'drizzle';
   if(d.includes('sleet')||d.includes('ice pellet')||d.includes(' pl'))return'sleet';
-  if(d.includes('hail')||d.includes(' gr'))return'extreme-rain';
-  if(d.includes('fog')||d.includes('mist')||d.includes(' fg')||d.includes(' br'))return'fog';
-  if(d.includes('haze')||d.includes('smoke')||d.includes(' hz')||d.includes(' fu'))return'haze';
-  if(d.includes('dust')||d.includes('sand'))return'dust';
+  if(d.includes('hail')||d.includes(' gr'))return dn?'extreme-day-hail':'extreme-night-hail';
+  if(d.includes('fog')||d.includes('mist')||d.includes(' fg')||d.includes(' br'))return dn?'fog-day':'fog-night';
+  if(d.includes('haze')||d.includes('smoke')||d.includes(' hz')||d.includes(' fu'))return dn?'haze-day':'haze-night';
+  if(d.includes('dust')||d.includes('sand'))return dn?'dust-day':'dust-night';
   if(d.includes('tornado')||d.includes('funnel'))return'tornado';
   if(d.includes('hurricane'))return'hurricane';
   if(d.includes('overcast')||d==='ovc'||d.startsWith('ovc '))return'overcast';
   if(d.includes('broken')||d.includes('mostly cloudy')||d==='bkn'||d.startsWith('bkn '))return'overcast';
-  if(d.includes('scattered')||d.includes('partly cloudy')||d.includes('partly sunny')||d==='sct'||d.startsWith('sct '))return'partly-cloudy-day';
-  if(d.includes('few cloud')||d.includes('mostly clear')||d.includes('mostly sunny')||d==='few'||d.startsWith('few '))return'partly-cloudy-day';
-  if(d.includes('clear')||d.includes('fair')||d.includes('sunny')||d==='clr'||d==='skc')return'clear-day';
+  if(d.includes('scattered')||d.includes('partly cloudy')||d.includes('partly sunny')||d==='sct'||d.startsWith('sct '))return dn?'partly-cloudy-day':'partly-cloudy-night';
+  if(d.includes('few cloud')||d.includes('mostly clear')||d.includes('mostly sunny')||d==='few'||d.startsWith('few '))return dn?'partly-cloudy-day':'partly-cloudy-night';
+  if(d.includes('clear')||d.includes('fair')||d.includes('sunny')||d==='clr'||d==='skc')return dn?'clear-day':'clear-night';
   if(d.includes('cloudy')||d.includes('cloud'))return'cloudy';
   if(d.includes('wind'))return'wind';
   return null;
 }
 function stationNeonIcon(desc,sz){
   const s=parseInt(sz)||24;
-  const bm=metarDescToBasmilius(desc);
+  const dn=isCurrentlyDay();
+  const bm=metarDescToBasmilius(desc,dn);
   if(bm){
     const uid='bm'+(++_bmUid);
     if(_bmCache[bm]&&typeof _bmCache[bm]==='string'&&_bmCache[bm].length>0){
@@ -2942,7 +2947,7 @@ function stationNeonIcon(desc,sz){
     _loadBmSvg(bm);
     return'<span id="'+uid+'" data-bm="'+bm+'" data-sz="'+s+'" style="display:inline-block;width:'+s+'px;height:'+s+'px;vertical-align:middle;filter:drop-shadow(0 0 4px rgba(0,229,255,0.3))"></span>';
   }
-  return neonWx(wxDescToCode(desc),true,s);
+  return neonWx(wxDescToCode(desc),dn,s);
 }
 
 function formatClouds(s){
@@ -3056,7 +3061,7 @@ function startAlertCountdowns(){
 // INIT — always show welcome, explicit consent
 // ==========================================
 function init(){
-  ['clear-day','clear-night','partly-cloudy-day','partly-cloudy-night','overcast','cloudy','fog','rain','drizzle','snow','sleet','thunderstorms','thunderstorms-rain','extreme-rain','extreme-snow','haze','wind','overcast-day-rain','overcast-night-rain','partly-cloudy-day-rain','fog-day','fog-night','overcast-day-snow','not-available'].forEach(n=>_loadBmSvg(n));
+  ['clear-day','clear-night','partly-cloudy-day','partly-cloudy-night','overcast','cloudy','fog','fog-day','fog-night','rain','drizzle','snow','sleet','thunderstorms','thunderstorms-rain','thunderstorms-day','thunderstorms-night','thunderstorms-day-rain','thunderstorms-night-rain','extreme-rain','extreme-snow','extreme-day-rain','extreme-night-rain','haze','haze-day','haze-night','wind','overcast-day-rain','overcast-night-rain','overcast-day-snow','overcast-night-snow','partly-cloudy-day-rain','partly-cloudy-night-rain','partly-cloudy-day-snow','partly-cloudy-night-snow','not-available'].forEach(n=>_loadBmSvg(n));
   loadUnits();
   try{
     const saved=JSON.parse(localStorage.getItem('st_loc'));
