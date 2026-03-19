@@ -1164,13 +1164,13 @@ function startWindSim(){
   const baseDir=S.weather.wind_direction_10m||0;
   const seed=Math.random()*1000;
   _windSimTimer=setInterval(()=>{
-    const t=Date.now()*0.0003;
+    const t=Date.now()*0.0001;
     const spdVar=_wn.noise(t+seed,0)*0.18;
     const dirVar=_wn.noise(t+seed+50,100)*12;
     const gustVar=_wn.noise(t+seed+100,200)*0.25;
     let simSpd=Math.max(0,baseSpd*(1+spdVar));
     let simDir=((baseDir+dirVar)%360+360)%360;
-    let simGust=Math.max(simSpd,baseGust*(1+gustVar));
+    let simGust=Math.max(simSpd*1.01,baseGust*(1+gustVar));
     const spdEl=document.querySelector('.wrc-speed');
     const dirEl=document.querySelector('.wrc-dir');
     const gustEl=document.querySelector('.wrc-gust');
@@ -1194,7 +1194,7 @@ function startWindSim(){
         dot.setAttribute('cx',px.toFixed(1));dot.setAttribute('cy',py.toFixed(1));
       }
     }
-  },2000);
+  },100);
 }
 function secBtns(key){return`<div class="sec-btns"><button onclick="moveSection('${key}',-1)" title="Move up">▲</button><button onclick="moveSection('${key}',1)" title="Move down">▼</button></div>`}
 function getSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_sec_order'));if(o&&o.length===2)return o}catch(e){}return['trends','forecast']}
