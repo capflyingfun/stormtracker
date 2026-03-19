@@ -1697,7 +1697,7 @@ function initRadar(){
           <span style="background:#ff8800"></span><span style="background:#ff0000"></span>
           <span style="background:#cc00cc"></span>
         </div>
-        <span>Light → Extreme</span>
+        <span>30 → 60+ dBZ</span>
       </div>
       <div class="scan-overlay" id="scan-overlay">
         <div class="scan-countdown" id="scan-countdown"></div>
