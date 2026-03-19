@@ -1474,7 +1474,7 @@ function initRadar(){
       <div class="map-controls">
         <div class="map-ctrl-btn" id="radar-scan" title="Re-center & scan">📍</div>
         <div class="map-ctrl-btn" id="radar-scan-view" title="Scan current view">🔍</div>
-        <div class="map-ctrl-btn" id="radar-scan-hires" title="Hi-Res 5mi scan" style="font-size:0.5em;font-weight:700;line-height:1;color:var(--accent-cyan)">HiRes</div>
+        <div class="map-ctrl-btn" id="radar-scan-hires" title="Hi-Res 10mi scan" style="font-size:0.5em;font-weight:700;line-height:1;color:var(--accent-cyan)">HiRes</div>
         <div class="map-ctrl-btn" id="radar-toggle-src" title="Toggle radar source" style="font-size:0.55em;font-weight:700;line-height:1">SRC</div>
         <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km" style="font-size:0.55em;font-weight:700;line-height:1">MI</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
@@ -1709,8 +1709,8 @@ async function scanRadarHiRes(map){
   const center=map.getCenter();
   const cLat=center.lat,cLng=center.lng;
   const useNexrad=S.radarSource==='nexrad';
-  const HIRES_RADIUS=5;
-  const hiZoom=useNexrad?10:9;
+  const HIRES_RADIUS=10;
+  const hiZoom=useNexrad?10:7;
   showScanOverlay();
   await fetchWindsAloft(cLat,cLng);
   scanStep(2,'Hi-Res scanning (step=1)...');
