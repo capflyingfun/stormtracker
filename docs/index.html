@@ -1790,7 +1790,7 @@ async function scanRadarForView(){
     }
 
     const colorFn=nexradToDbz;
-    const minDbz=20;
+    const minDbz=30;
     const tilePromises=[];
     const savedLat=S.lat,savedLon=S.lon;
     S.lat=cLat;S.lon=cLng;
@@ -1853,7 +1853,7 @@ async function scanRadarHiRes(map,fromHome){
     }
 
     const colorFn=nexradToDbz;
-    const minDbz=15;
+    const minDbz=20;
     const tilePromises=[];
     const savedLat=S.lat,savedLon=S.lon;
     S.lat=cLat;S.lon=cLng;
@@ -2265,7 +2265,7 @@ async function scanRadarForStorms(){
     }
 
     const colorFn=nexradToDbz;
-    const minDbz=20;
+    const minDbz=30;
     const tilePromises=[];
     for(let tx=minTX;tx<=maxTX;tx++){
       for(let ty=minTY;ty<=maxTY;ty++){
@@ -2719,10 +2719,10 @@ function renderAlerts(){
     ${alerts.map(a=>{
       const p=a.properties||{};const event=p.event||'Alert';const sev=(p.severity||'').toLowerCase();
       const cls=(sev==='extreme'||sev==='severe')?'':sev==='moderate'?'watch':'advisory';
-      const desc=(p.description||'').substring(0,300);
+      const desc=(p.description||'').replace(/\n/g,'<br>');
       const expires=p.expires?new Date(p.expires).toLocaleString():'';
       const sevIcon=sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
-      return`<div class="nws-alert ${cls}"><div class="nws-alert-title">${sevIcon} ${event}</div><div class="nws-alert-detail">${desc}${desc.length>=300?'...':''}</div>${expires?`<div class="nws-alert-expires">Expires: ${expires}</div>`:''}</div>`;
+      return`<div class="nws-alert ${cls}"><div class="nws-alert-title">${sevIcon} ${event}</div><div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${expires?`<div class="nws-alert-expires">Expires: ${expires}</div>`:''}</div>`;
     }).join('')}</div>`;
 }
 
