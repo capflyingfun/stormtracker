@@ -1591,7 +1591,7 @@ function showStormCone(map,storm){
   const mv=S.stormMovement;
   if(!mv||mv.speed<2)return;
   const range=Math.min(60,Math.max(storm.distance*1.5,20));
-  const color=storm.dbz>=55?'#cc00cc':storm.dbz>=45?'#ef4444':storm.dbz>=40?'#f97316':storm.dbz>=35?'#eab308':storm.dbz>=25?'#22c55e':'#06b6d4';
+  const color=dbzHex(storm.dbz);
   const baseWidthMi=Math.max(0,Math.min(3,(storm.dbz-20)/15));
   const dir=mv.direction;
   const perpL=(dir-90+360)%360;
@@ -1697,6 +1697,31 @@ function plotStormMarkers(map){
     if(storm.dbz>=40){
       const lightning=L.marker([storm.lat,storm.lng],{interactive:false,icon:L.divIcon({className:'storm-lightning-icon',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})}).addTo(map);
       S.stormMarkers.push(lightning);
+    }
+    if(eta&&eta.approaching&&eta.impact>0&&eta.eta!=null&&mv&&mv.speed>=2){
+      const trackLine=L.polyline([[storm.lat,storm.lng],[S.lat,S.lon]],{
+        color:color,weight:2,opacity:0.5,dashArray:'8,8',interactive:false,
+        className:'storm-track-line'
+      }).addTo(map);
+      S.stormMarkers.push(trackLine);
+      const midLat=(storm.lat+S.lat)/2,midLng=(storm.lng+S.lon)/2;
+      const sk=stormKey(storm);
+      const tMs=S._stormETAs[sk]||0;
+      const remSec=Math.max(0,Math.round((tMs-Date.now())/1000));
+      const lbl=remSec>0?fmtCountdown(remSec):'--';
+      const trackLabel=L.marker([midLat,midLng],{interactive:false,icon:L.divIcon({
+        className:'',
+        html:`<div style="background:rgba(0,0,0,0.75);color:${color};font-size:11px;font-weight:700;font-family:monospace;padding:2px 6px;border-radius:4px;border:1px solid ${color}44;white-space:nowrap;text-align:center">⏱ ${lbl}</div>`,
+        iconSize:[60,20],iconAnchor:[30,10]
+      })}).addTo(map);
+      S.stormMarkers.push(trackLabel);
+      const dotSz=10;
+      const arrivalDot=L.marker([S.lat,S.lon],{interactive:false,icon:L.divIcon({
+        className:'',
+        html:`<div class="storm-track-dot" style="width:${dotSz}px;height:${dotSz}px;background:${color};box-shadow:0 0 8px ${color}"></div>`,
+        iconSize:[dotSz,dotSz],iconAnchor:[dotSz/2,dotSz/2]
+      })}).addTo(map);
+      S.stormMarkers.push(arrivalDot);
     }
   });
 }
