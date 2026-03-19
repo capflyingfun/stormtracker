@@ -1174,7 +1174,7 @@ function renderWeather(data){
           </svg>
           <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
           <div class="wind-rose-center">
-            <div class="wrc-speed"><span class="wrc-num">${windNum}</span><br><span class="wrc-unit">${windUnit}</span></div>
+            <div class="wrc-speed"><span class="wrc-num">${windNum}</span><span class="wrc-unit">${windUnit}</span></div>
             <div class="wrc-dir">${_windCurSim.spd>0?degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(1)+'°':degToDir(wd)+' '+wd.toFixed(1)+'°'}</div>
             ${gustStr?`<div class="wrc-gust">${gustStr}</div>`:''}
           </div>
