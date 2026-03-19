@@ -52,6 +52,13 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .loc-overlay-inner{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:16px;width:100%;max-width:400px}
 .loc-overlay-inner input{width:100%;background:rgba(255,255,255,0.06);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 14px;color:var(--text-primary);font-size:1em;font-family:var(--font-body);outline:none;margin-bottom:10px}
 .loc-overlay-inner input::placeholder{color:var(--text-muted)}
+.loc-suggestions{max-height:220px;overflow-y:auto;display:none}
+.loc-suggestions.active{display:block}
+.loc-sug-item{padding:10px 14px;cursor:pointer;font-size:0.9em;color:var(--text-secondary);border-bottom:1px solid var(--border-subtle);transition:background 0.15s}
+.loc-sug-item:hover,.loc-sug-item.selected{background:rgba(0,229,255,0.08);color:var(--text-primary)}
+.loc-sug-item:last-child{border-bottom:none}
+.loc-sug-item .sug-name{font-weight:600;color:var(--text-primary)}
+.loc-sug-item .sug-detail{font-size:0.8em;color:var(--text-muted);margin-top:2px}
 .loc-overlay-btns{display:flex;gap:8px}
 .loc-overlay-btns button{flex:1;padding:10px;border-radius:var(--radius-md);border:none;font-weight:600;cursor:pointer;font-size:0.85em}
 .loc-overlay-btns .loc-btn-gps{background:rgba(59,130,246,0.2);color:var(--accent-blue)}
@@ -278,6 +285,7 @@ canvas.offscreen{display:none}
 <div class="loc-overlay" id="loc-overlay" onclick="if(event.target===this)toggleLocOverlay(false)">
   <div class="loc-overlay-inner">
     <input type="text" id="location-input" placeholder="Search city, ZIP, or address..." autocomplete="off">
+    <div id="loc-suggestions" class="loc-suggestions"></div>
     <div class="loc-overlay-btns">
       <button class="loc-btn-gps" onclick="showLocationConfirm();toggleLocOverlay(false)">🛰️ GPS</button>
       <button class="loc-btn-search" onclick="searchLoc();toggleLocOverlay(false)">🔍 Search</button>
@@ -600,7 +608,61 @@ function updateStormBadges(){
     nav.style.background=n?'#ef4444':'#6b7280';
   }
 }
-document.getElementById('location-input').addEventListener('keypress',e=>{if(e.key==='Enter')searchLoc()});
+document.getElementById('location-input').addEventListener('keypress',e=>{if(e.key==='Enter'){hideSuggestions();searchLoc()}});
+let _sugTimer=null,_sugIdx=-1,_sugResults=[];
+document.getElementById('location-input').addEventListener('input',e=>{
+  const q=e.target.value.trim();
+  if(q.length<2){hideSuggestions();return}
+  clearTimeout(_sugTimer);
+  _sugTimer=setTimeout(()=>fetchSuggestions(q),300);
+});
+document.getElementById('location-input').addEventListener('keydown',e=>{
+  const box=document.getElementById('loc-suggestions');
+  if(!box.classList.contains('active'))return;
+  if(e.key==='ArrowDown'){e.preventDefault();_sugIdx=Math.min(_sugIdx+1,_sugResults.length-1);highlightSug()}
+  else if(e.key==='ArrowUp'){e.preventDefault();_sugIdx=Math.max(_sugIdx-1,0);highlightSug()}
+  else if(e.key==='Enter'&&_sugIdx>=0){e.preventDefault();selectSuggestion(_sugResults[_sugIdx])}
+  else if(e.key==='Escape'){hideSuggestions()}
+});
+async function fetchSuggestions(q){
+  try{
+    const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=1`);
+    const data=await res.json();
+    _sugResults=data;_sugIdx=-1;
+    const box=document.getElementById('loc-suggestions');
+    if(!data.length){hideSuggestions();return}
+    box.innerHTML=data.map((r,i)=>{
+      const parts=r.display_name.split(',');
+      const name=parts[0].trim();
+      const detail=parts.slice(1,3).map(s=>s.trim()).join(', ');
+      return`<div class="loc-sug-item" data-idx="${i}" onclick="selectSuggestion(_sugResults[${i}])">
+        <div class="sug-name">${name}</div>
+        <div class="sug-detail">${detail}</div>
+      </div>`;
+    }).join('');
+    box.classList.add('active');
+  }catch(e){}
+}
+function selectSuggestion(r){
+  hideSuggestions();
+  const lat=parseFloat(r.lat),lon=parseFloat(r.lon);
+  const addr=r.address||{};
+  const name=addr.city||addr.town||addr.village||addr.county||r.display_name.split(',')[0];
+  const state=addr.state||addr.country||'';
+  document.getElementById('location-input').value=name+(state?', '+state:'');
+  toggleLocOverlay(false);
+  setLoc(lat,lon,name+(state?', '+state:''));
+}
+function hideSuggestions(){
+  const box=document.getElementById('loc-suggestions');
+  box.classList.remove('active');box.innerHTML='';_sugIdx=-1;_sugResults=[];
+}
+function highlightSug(){
+  document.querySelectorAll('.loc-sug-item').forEach((el,i)=>{
+    el.classList.toggle('selected',i===_sugIdx);
+    if(i===_sugIdx)el.scrollIntoView({block:'nearest'});
+  });
+}
 
 function showLocationConfirm(){
   if(!navigator.geolocation){toast('GPS not available');return}
