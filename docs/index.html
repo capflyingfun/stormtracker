@@ -2694,8 +2694,8 @@ function formatClouds(s){
   return s.clouds.map(c=>{
     const cvg=c.amount||c.cover||'';
     let baseFt=null;
-    if(c.base!=null&&typeof c.base==='object'&&c.base.value!=null)baseFt=Math.round(c.base.value*3.281);
-    else if(typeof c.base==='number')baseFt=c.base;
+    if(c.base!=null&&typeof c.base==='object'&&c.base.value!=null)baseFt=Math.round(c.base.value*3.281/100)*100;
+    else if(typeof c.base==='number')baseFt=Math.round(c.base/100)*100;
     return cvg+(baseFt!=null?' '+baseFt+'ft':'');
   }).filter(Boolean).join(', ')||'CLR';
 }
