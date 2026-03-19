@@ -1592,6 +1592,8 @@ function destPoint(lat,lon,bearing,distMi){
   return[lat2*180/Math.PI,lon2*180/Math.PI];
 }
 function showStormCone(map,storm){
+  const sk=stormKey(storm);
+  if(S._activeConeKey===sk){clearStormCone();return}
   clearStormCone();
   const mv=S.stormMovement;
   if(!mv||mv.speed<2)return;
@@ -1616,11 +1618,27 @@ function showStormCone(map,storm){
     pts=[[storm.lat,storm.lng],fL,fC,fR,[storm.lat,storm.lng]];
   }
   S._activeCone=L.polygon(pts,{color,fillColor:color,fillOpacity:0.1,weight:1.5,dashArray:'6,4',interactive:false}).addTo(map);
+  S._activeConeKey=sk;
+  S.stormMarkers.forEach(m=>{
+    if(m._stormTrackKey&&m._stormTrackKey!==sk){
+      if(m._map||m._container)try{map.removeLayer(m)}catch(e){}
+      m._trackHidden=true;
+    }
+  });
   const btn=document.getElementById('radar-clear-cone');
   if(btn)btn.style.display='flex';
 }
 function clearStormCone(){
   if(S._activeCone&&S.map){S.map.removeLayer(S._activeCone);S._activeCone=null}
+  S._activeConeKey=null;
+  if(S.map){
+    S.stormMarkers.forEach(m=>{
+      if(m._stormTrackKey&&m._trackHidden){
+        try{m.addTo(S.map)}catch(e){}
+        m._trackHidden=false;
+      }
+    });
+  }
   const btn=document.getElementById('radar-clear-cone');
   if(btn)btn.style.display='none';
 }
@@ -1704,13 +1722,14 @@ function plotStormMarkers(map){
       S.stormMarkers.push(lightning);
     }
     if(eta&&eta.approaching&&eta.impact>0&&eta.eta!=null&&mv&&mv.speed>=2){
+      const sk=stormKey(storm);
       const trackLine=L.polyline([[storm.lat,storm.lng],[S.lat,S.lon]],{
         color:color,weight:2,opacity:0.5,dashArray:'8,8',interactive:false,
         className:'storm-track-line'
       }).addTo(map);
+      trackLine._stormTrackKey=sk;
       S.stormMarkers.push(trackLine);
       const midLat=(storm.lat+S.lat)/2,midLng=(storm.lng+S.lon)/2;
-      const sk=stormKey(storm);
       const tMs=S._stormETAs[sk]||0;
       const remSec=Math.max(0,Math.round((tMs-Date.now())/1000));
       const lbl=remSec>0?fmtCountdown(remSec):'--';
@@ -1719,6 +1738,7 @@ function plotStormMarkers(map){
         html:`<div style="background:rgba(0,0,0,0.8);color:${color};font-size:11px;font-weight:700;font-family:monospace;padding:3px 8px;border-radius:5px;border:1px solid ${color}44;white-space:nowrap;text-align:center;display:inline-block;cursor:pointer"><span class="map-track-cd" data-target="${Math.round(tMs)}">⏱ ${lbl}</span></div>`,
         iconSize:[null,null],iconAnchor:[0,0]
       })}).addTo(map);
+      trackLabel._stormTrackKey=sk;
       trackLabel.on('click',()=>showStormCone(map,stormRef));
       S.stormMarkers.push(trackLabel);
       const dotSz=10;
@@ -1727,6 +1747,7 @@ function plotStormMarkers(map){
         html:`<div class="storm-track-dot" style="width:${dotSz}px;height:${dotSz}px;background:${color};box-shadow:0 0 8px ${color}"></div>`,
         iconSize:[dotSz,dotSz],iconAnchor:[dotSz/2,dotSz/2]
       })}).addTo(map);
+      arrivalDot._stormTrackKey=sk;
       S.stormMarkers.push(arrivalDot);
     }
   });
