@@ -2777,7 +2777,7 @@ function renderStation(){
         </div>
       </div>
 
-      ${wxDesc&&wxDesc!=='CLR'?`<div style="text-align:center;font-size:0.75em;color:var(--accent-cyan);margin-bottom:8px">🌤️ ${wxDesc}</div>`:''}
+      ${wxDesc&&wxDesc!=='CLR'?`<div style="text-align:center;font-size:0.75em;color:var(--accent-cyan);margin-bottom:8px">${stationWxEmoji(wxDesc)} ${wxDesc}</div>`:''}
       ${raw?`<div class="metar-raw">${raw}</div>`:''}
     </div>
     ${renderNearbyStations()}`; 
@@ -2818,6 +2818,23 @@ async function switchStation(icao){
   }
   S.stationId=icao;
   await loadStationObs(icao);
+}
+
+function stationWxEmoji(desc){
+  if(!desc)return'';
+  const d=desc.toLowerCase();
+  if(d.includes('thunder'))return'⛈️';
+  if(d.includes('snow')||d.includes('blizzard'))return'🌨️';
+  if(d.includes('ice')||d.includes('freezing')||d.includes('sleet'))return'🧊';
+  if(d.includes('heavy rain')||d.includes('rain shower'))return'🌧️';
+  if(d.includes('rain')||d.includes('drizzle'))return'🌦️';
+  if(d.includes('fog')||d.includes('mist')||d.includes('haze'))return'🌫️';
+  if(d.includes('overcast'))return'☁️';
+  if(d.includes('mostly cloudy')||d.includes('broken'))return'🌥️';
+  if(d.includes('partly')||d.includes('scattered'))return'⛅';
+  if(d.includes('few cloud'))return'🌤️';
+  if(d.includes('clear')||d.includes('fair')||d.includes('sunny'))return'☀️';
+  return'🌡️';
 }
 
 function formatClouds(s){
