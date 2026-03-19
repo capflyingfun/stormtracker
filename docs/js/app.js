@@ -1817,10 +1817,11 @@ function stopRadarAnim(map){
   clearInterval(S._radarAnimTimer);
   S._radarAnimFrames=[];
   const btn=document.getElementById('radar-anim-btn');
-  btn.textContent='▶️';btn.classList.remove('active');
-  document.getElementById('radar-anim-bar').style.display='none';
+  if(btn){btn.textContent='▶️';btn.classList.remove('active')}
+  const bar=document.getElementById('radar-anim-bar');
+  if(bar)bar.style.display='none';
   if(S.radarFrames.length) S.radarIdx=S.radarFrames.length-1;
-  showRadarLayer(map);
+  if(map)showRadarLayer(map);
 }
 function scrubRadarAnim(map,idx){
   clearInterval(S._radarAnimTimer);
@@ -2050,7 +2051,7 @@ function showViewScanCircle(map,lat,lng,radiusMi,count){
 }
 
 async function scanRadarForView(){
-  if(S._radarAnimPlaying){if(S.map)stopRadarAnim(S.map);}
+  if(S._radarAnimPlaying)stopRadarAnim(S.map);
   if(!S.map)return;
   const center=S.map.getCenter();
   const cLat=center.lat,cLng=center.lng;
@@ -2589,7 +2590,7 @@ function impactLabel(pct){
 }
 
 async function scanRadarForStorms(){
-  if(S._radarAnimPlaying){if(S.map)stopRadarAnim(S.map);}
+  if(S._radarAnimPlaying)stopRadarAnim(S.map);
   if(!S.lat)return;
   if(!S._etaRescanInProgress)S._stormETAs={};
   clearViewScanCircle();
@@ -2621,6 +2622,8 @@ async function scanRadarForStorms(){
     const colorFn=nexradToDbz;
     const minDbz=30;
     const tilePromises=[];
+    const tileCount=(maxTX-minTX+1)*(maxTY-minTY+1);
+    console.log('[SCAN] src='+S.radarSource+' zoom='+zoom+' tiles='+tileCount+' TX='+minTX+'-'+maxTX+' TY='+minTY+'-'+maxTY+' lat='+S.lat+' lon='+S.lon);
     for(let tx=minTX;tx<=maxTX;tx++){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
@@ -2631,8 +2634,10 @@ async function scanRadarForStorms(){
     }
     const tileResults=await Promise.all(tilePromises);
     const rawPoints=tileResults.flat();
+    console.log('[SCAN] rawPoints='+rawPoints.length+' from '+tileResults.length+' tiles (non-empty: '+tileResults.filter(t=>t.length>0).length+')');
 
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
+    console.log('[SCAN] after spacingFilter: '+S.storms.length+' storms');
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
 
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
