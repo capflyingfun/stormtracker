@@ -475,10 +475,34 @@ function wmoToBasmilius(code,isDay){
   };
   return map[code]||'not-available';
 }
+const _bmCache={};
+let _bmUid=0;
+async function _loadBmSvg(name){
+  if(_bmCache[name])return _bmCache[name];
+  if(_bmCache['_p_'+name])return _bmCache['_p_'+name];
+  _bmCache['_p_'+name]=fetch(BMCDN+name+'.svg').then(r=>r.text()).then(svg=>{
+    svg=svg.replace(/dur="([0-9.]+)s"/g,(m,d)=>'dur="'+(parseFloat(d)/2)+'s"');
+    svg=svg.replace(/dur="\.([0-9]+)s"/g,(m,d)=>'dur="'+(parseFloat('0.'+d)/2)+'s"');
+    _bmCache[name]=svg;
+    delete _bmCache['_p_'+name];
+    document.querySelectorAll('[data-bm="'+name+'"]').forEach(el=>{
+      const sz=el.dataset.sz||'32';
+      el.innerHTML=svg.replace(/<svg /,'<svg width="'+sz+'" height="'+sz+'" ');
+    });
+    return svg;
+  }).catch(()=>{_bmCache[name]='';});
+  return _bmCache['_p_'+name];
+}
 function neonWx(code,isDay,sz){
   const s=parseInt(sz)||32;
   const name=wmoToBasmilius(code,isDay);
-  return`<img src="${BMCDN}${name}.svg" width="${s}" height="${s}" alt="" style="display:inline-block;vertical-align:middle;filter:drop-shadow(0 0 4px rgba(0,229,255,0.3))" loading="lazy">`;
+  const uid='bm'+(++_bmUid);
+  if(_bmCache[name]&&typeof _bmCache[name]==='string'&&_bmCache[name].length>0){
+    const svg=_bmCache[name].replace(/<svg /,'<svg width="'+s+'" height="'+s+'" ');
+    return'<span style="display:inline-block;width:'+s+'px;height:'+s+'px;vertical-align:middle;filter:drop-shadow(0 0 4px rgba(0,229,255,0.3))">'+svg+'</span>';
+  }
+  _loadBmSvg(name);
+  return'<span id="'+uid+'" data-bm="'+name+'" data-sz="'+s+'" style="display:inline-block;width:'+s+'px;height:'+s+'px;vertical-align:middle;filter:drop-shadow(0 0 4px rgba(0,229,255,0.3))"></span>';
 }
 function animEmoji(code,isDay,size){
   const px=size==='1.2em'?38:size==='1em'?30:28;
@@ -2909,7 +2933,15 @@ function metarDescToBasmilius(desc){
 function stationNeonIcon(desc,sz){
   const s=parseInt(sz)||24;
   const bm=metarDescToBasmilius(desc);
-  if(bm)return`<img src="${BMCDN}${bm}.svg" width="${s}" height="${s}" alt="" style="display:inline-block;vertical-align:middle;filter:drop-shadow(0 0 4px rgba(0,229,255,0.3))" loading="lazy">`;
+  if(bm){
+    const uid='bm'+(++_bmUid);
+    if(_bmCache[bm]&&typeof _bmCache[bm]==='string'&&_bmCache[bm].length>0){
+      const svg=_bmCache[bm].replace(/<svg /,'<svg width="'+s+'" height="'+s+'" ');
+      return'<span style="display:inline-block;width:'+s+'px;height:'+s+'px;vertical-align:middle;filter:drop-shadow(0 0 4px rgba(0,229,255,0.3))">'+svg+'</span>';
+    }
+    _loadBmSvg(bm);
+    return'<span id="'+uid+'" data-bm="'+bm+'" data-sz="'+s+'" style="display:inline-block;width:'+s+'px;height:'+s+'px;vertical-align:middle;filter:drop-shadow(0 0 4px rgba(0,229,255,0.3))"></span>';
+  }
   return neonWx(wxDescToCode(desc),true,s);
 }
 
