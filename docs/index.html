@@ -2580,6 +2580,7 @@ async function translatePage(lang){
   const b=document.getElementById('translate-bar');
   if(b){b.innerHTML=`<span>✓ Translated to ${ln?ln.n:lang}</span>`;setTimeout(()=>b.remove(),2000)}
   _translating=false;
+  _tCooldown=Date.now();
   if(lang==='ar'||lang==='he')document.body.style.direction='rtl';
   else document.body.style.direction='ltr';
 }
@@ -2590,20 +2591,22 @@ function restoreOriginals(){
   document.body.style.direction='ltr';
 }
 
-let _tObserver=null;
+let _tObserver=null, _tCooldown=0;
 function startTranslateObserver(){
   if(_tObserver)_tObserver.disconnect();
   _tObserver=new MutationObserver(muts=>{
-    if(_curLang==='en'||_translating)return;
+    if(_curLang==='en'||_translating||Date.now()-_tCooldown<3000)return;
     let hasNew=false;
     muts.forEach(m=>{
       m.addedNodes.forEach(n=>{
-        if(n.nodeType===1&&!['SCRIPT','STYLE','SVG'].includes(n.tagName))hasNew=true;
+        if(n.nodeType===1&&!['SCRIPT','STYLE','SVG'].includes(n.tagName)&&!n.classList?.contains('translate-bar')&&!n.classList?.contains('lang-menu'))hasNew=true;
       });
     });
     if(hasNew){
       clearTimeout(_tObserver._debounce);
-      _tObserver._debounce=setTimeout(()=>translatePage(_curLang),500);
+      _tObserver._debounce=setTimeout(()=>{
+        if(!_translating&&Date.now()-_tCooldown>3000)translatePage(_curLang);
+      },2000);
     }
   });
   _tObserver.observe(document.body,{childList:true,subtree:true});
