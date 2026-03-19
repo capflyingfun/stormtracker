@@ -1032,7 +1032,7 @@ function renderWeather(data){
   };
   const order=getSecOrder();
 
-  const wd=c.wind_direction_10m||0;
+  const wd=Math.round((c.wind_direction_10m||0)*10)/10;
   const windSpd=c.wind_speed_10m||0;
   const cx=50,cy=50,r=42,ri=36;
   const neonCyan='rgba(0,220,255,';const neonOrange='rgba(255,160,0,';
@@ -1159,7 +1159,7 @@ function renderWeather(data){
           <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
           <div class="wind-rose-center">
             <div class="wrc-speed">${windStr}</div>
-            <div class="wrc-dir">${degToDir(wd)} ${wd}°</div>
+            <div class="wrc-dir">${_windCurSim.spd>0?degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(1)+'°':degToDir(wd)+' '+wd.toFixed(1)+'°'}</div>
             ${gustStr?`<div class="wrc-gust">${gustStr}</div>`:''}
           </div>
         </div>
