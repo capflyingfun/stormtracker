@@ -6,7 +6,7 @@ const S = {
   alerts:[], station:null, stationId:null,
   map:null, radarLayer:null, radarFrames:[], radarIdx:0,
   radarPlaying:false, radarTimer:null, scanRadius:80, radarSource:'nexrad', nexradLayer:null, radarMetric:false,
-  activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null, stormFeedback:{}, etaExpired:{}, autoScanTimer:null, lastScanMs:0, _lastScanWasHiRes:false,
+  activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null, autoScanTimer:null, lastScanMs:0, _lastScanWasHiRes:false,
   travelMode:false, travelWatchId:null, travelLastUpdate:0, travelMarker:null,
 };
 const TEMP_UNITS = ['°F','°C'];
@@ -150,12 +150,6 @@ function fmtArrivalTime(etaMin){
   return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit',hour12:true});
 }
 function stormKey(s){return s.lat.toFixed(3)+','+s.lng.toFixed(3)}
-function stormFeedbackResponse(key,arrived){
-  const time=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});
-  S.stormFeedback[key]={arrived,time};
-  delete S.etaExpired[key];
-  renderStorms();
-}
 function autoScanInterval(){
   const n=S.storms.length;
   if(n>=4)return 10*60*1000;
@@ -186,53 +180,43 @@ function updateAutoScanUI(){
 }
 function startEtaCountdowns(){
   if(S.etaTimer)clearInterval(S.etaTimer);
-  if(!S.etaExpired)S.etaExpired={};
   S.etaTimer=setInterval(()=>{
     const now=Date.now();
+    let needsRescan=false;
     document.querySelectorAll('[data-eta-sec]').forEach(el=>{
       const target=parseInt(el.getAttribute('data-eta-sec'));
       const key=el.getAttribute('data-storm-key');
       const remain=Math.max(0,Math.round((target-now)/1000));
       if(remain<=0){
-        if(key&&!S.stormFeedback[key]&&!S.etaExpired[key]){
-          S.etaExpired[key]={at:now,fbSec:30};
-          el.textContent='🔄 Rescanning…';
-          if(S.lat!=null){
-            if(S._lastScanWasHiRes&&S.map)scanRadarHiRes(S.map,true);
-            else scanRadarForStorms();
-          }
+        if(key&&!needsRescan){
+          S.storms=S.storms.filter(s=>stormKey(s)!==key);
+          needsRescan=true;
         }
       }else{
         el.textContent=fmtCountdown(remain);
       }
     });
+    if(needsRescan){
+      renderStorms();updateStormBadges();
+      if(S.map)plotStormMarkers(S.map);
+      if(S.lat!=null){
+        if(S._lastScanWasHiRes&&S.map)scanRadarHiRes(S.map,true);
+        else scanRadarForStorms();
+      }
+    }
     document.querySelectorAll('.popup-countdown').forEach(el=>{
       const target=parseInt(el.getAttribute('data-target'));
       const remain=Math.max(0,Math.round((target-now)/1000));
       el.textContent=fmtCountdown(remain);
     });
     document.querySelectorAll('[data-dist-mi]').forEach(el=>{
-      const origDist=parseFloat(el.getAttribute('data-dist-mi'));
       const closSpd=parseFloat(el.getAttribute('data-closing-mph')||'0');
       const targetMs=parseInt(el.getAttribute('data-target-ms')||'0');
-      if(!closSpd||!targetMs){
-        return;
-      }
+      if(!closSpd||!targetMs)return;
       const remainHrs=Math.max(0,(targetMs-now)/3600000);
       const curDist=remainHrs*closSpd;
       el.textContent=S.radarMetric?(curDist*1.60934).toFixed(2)+' km':curDist.toFixed(2)+' mi';
     });
-    for(const key in S.etaExpired){
-      if(S.stormFeedback[key])continue;
-      const e=S.etaExpired[key];
-      const elapsed=Math.round((now-e.at)/1000);
-      e.fbSec=Math.max(0,30-elapsed);
-      const promptEl=document.getElementById('fb_'+key.replace(/[^a-z0-9]/gi,'_'));
-      if(promptEl){
-        if(e.fbSec<=0){stormFeedbackResponse(key,false);continue;}
-        promptEl.textContent='⏱️ 0:'+(e.fbSec<10?'0':'')+e.fbSec;
-      }
-    }
   },1000);
 }
 function toggleStormUnits(){
@@ -501,7 +485,7 @@ function setLoc(lat,lon,name,fromTravel){
   document.getElementById('location-input').value=S.locName;
   document.getElementById('status-dot').classList.add('live');
   document.getElementById('status-text').textContent='Live · '+S.locName;
-  S.station=null;S.stationId=null;S.stormMovement=null;S.stormFeedback={};S.etaExpired={};
+  S.station=null;S.stationId=null;S.stormMovement=null;
   S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
   if(S.map){
     S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
@@ -2072,6 +2056,8 @@ function renderStorms(){
   const stormsWithEta=storms.map(s=>({...s,_eta:calcStormETA(s)}));
   const prevOpen={};
   el.querySelectorAll('.storm-group').forEach(d=>{const k=d.getAttribute('data-grp');if(k)prevOpen[k]=d.open});
+  const stormCells=stormsWithEta.filter(s=>s.dbz>=40);
+  const lightCells=stormsWithEta.filter(s=>s.dbz<40);
   const groups=[
     {min:81,max:100,key:'81-100',label:'🔴 81-100% — CRITICAL',color:'#ef4444',open:true},
     {min:61,max:80,key:'61-80',label:'🟠 61-80% — HIGH',color:'#f97316',open:true},
@@ -2080,21 +2066,7 @@ function renderStorms(){
     {min:1,max:20,key:'1-20',label:'⚪ 1-20% — MINIMAL',color:'#94a3b8',open:false},
     {min:0,max:0,key:'0',label:'🟢 No Impact — Nearby',color:'#6b7280',open:false}
   ];
-  let groupHtml='';
-  for(const g of groups){
-    const items=stormsWithEta.filter(s=>{
-      const sk=stormKey(s);
-      const fb=S.stormFeedback[sk];
-      const p=s._eta?s._eta.impact:0;
-      if(fb)return g.min===0&&g.max===0;
-      return g.min===0&&g.max===0?p===0:p>=g.min&&p<=g.max;
-    }).sort((a,b)=>{
-      const ea=a._eta&&a._eta.eta!=null?a._eta.eta:99999;
-      const eb=b._eta&&b._eta.eta!=null?b._eta.eta:99999;
-      return ea-eb;
-    });
-    if(!items.length)continue;
-    const cardsHtml=items.map(s=>{
+  function buildCard(s){
       const cat=stormCat(s.dbz);
       const eta=s._eta;
       const pct=eta?eta.impact:0;
@@ -2108,17 +2080,7 @@ function renderStorms(){
           mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${tStr(imp.text)}</div></div>`;
         }else if(eta&&eta.approaching&&pct>0){
           const sk=stormKey(s);
-          const expired=S.etaExpired[sk];
-          if(expired){
-            const fbSec=expired.fbSec!=null?expired.fbSec:30;
-            const timerId='fb_'+sk.replace(/[^a-z0-9]/gi,'_');
-            mvLine+=`<div class="storm-detail eta-detail" style="grid-column:span 2"><div class="storm-detail-label">⏱ ETA</div><div class="storm-detail-val" style="color:#ef4444">⚠️ NOW</div>
-              <div style="font-size:0.75em;margin-top:4px;color:#fbbf24">Did this storm arrive? <span id="${timerId}" style="font-family:var(--font-mono);color:var(--text-muted)">⏱️ 0:${fbSec<10?'0':''}${fbSec}</span></div>
-              <div style="display:flex;gap:6px;justify-content:center;margin-top:4px">
-                <button class="eta-btn eta-btn-yes" onclick="stormFeedbackResponse('${sk}',true)">Yes</button>
-                <button class="eta-btn eta-btn-no" onclick="stormFeedbackResponse('${sk}',false)">No</button>
-              </div></div>`;
-          }else if(eta.eta!=null){
+          if(eta.eta!=null){
             const elapsedMin=S.scanTime?(Date.now()-S.scanTime)/60000:0;
             const remainMin=Math.max(0,eta.eta-elapsedMin);
             const targetMs=Date.now()+remainMin*60000;
@@ -2135,14 +2097,8 @@ function renderStorms(){
         }
       }
       const hex=dbzHex(s.dbz);
-      const sk=stormKey(s);
-      const fb=S.stormFeedback[sk];
-      const pulse=(!fb&&s.dbz>=45)?'storm-card-pulse':'';
-      const fbBanner=fb?`<div class="storm-feedback-banner" style="background:${fb.arrived?'rgba(239,68,68,0.15);border-color:#ef4444':'rgba(34,197,94,0.15);border-color:#22c55e'}">
-        ${fb.arrived?'⛈️ Storm arrived at '+fb.time:'✅ Storm missed · '+fb.time}
-      </div>`:'';
-      return`<div class="storm-cell-card ${pulse}" style="border-color:${fb?'#6b7280':hex};--pulse-color:${hex}${fb?';opacity:0.7':''}">
-        ${fbBanner}
+      const pulse=(s.dbz>=45)?'storm-card-pulse':'';
+      return`<div class="storm-cell-card ${pulse}" style="border-color:${hex};--pulse-color:${hex}">
         <div class="storm-header"><span style="font-weight:700">${s.dbz>=40?'⚡':'🌧️'} ${tStr('Storm Cell')}</span><span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${tStr(cat.label)}</span></div>
         <div class="storm-detail-grid">
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Peak dBZ')}</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>
@@ -2155,9 +2111,20 @@ function renderStorms(){
           ${s.lat.toFixed(3)}°N, ${Math.abs(s.lng).toFixed(3)}°${s.lng<0?'W':'E'} &middot; ${s.pixels} returns
         </div>
       </div>`;
-    }).join('');
-    const hasFb=items.some(s=>S.stormFeedback[stormKey(s)]);
-    const isOpen=prevOpen[g.key]!==undefined?prevOpen[g.key]:(hasFb?true:g.open);
+  }
+  let groupHtml='';
+  for(const g of groups){
+    const items=stormCells.filter(s=>{
+      const p=s._eta?s._eta.impact:0;
+      return g.min===0&&g.max===0?p===0:p>=g.min&&p<=g.max;
+    }).sort((a,b)=>{
+      const ea=a._eta&&a._eta.eta!=null?a._eta.eta:99999;
+      const eb=b._eta&&b._eta.eta!=null?b._eta.eta:99999;
+      return ea-eb;
+    });
+    if(!items.length)continue;
+    const cardsHtml=items.map(buildCard).join('');
+    const isOpen=prevOpen[g.key]!==undefined?prevOpen[g.key]:g.open;
     groupHtml+=`<details class="storm-group" data-grp="${g.key}" ${isOpen?'open':''}>
       <summary class="storm-group-header" style="border-left:3px solid ${g.color}">
         ${g.label} <span class="storm-group-count">${items.length}</span>
@@ -2165,10 +2132,21 @@ function renderStorms(){
       <div class="storm-group-body">${cardsHtml}</div>
     </details>`;
   }
+  if(lightCells.length){
+    const lightSorted=lightCells.sort((a,b)=>b.dbz-a.dbz||a.distance-b.distance);
+    const lightCards=lightSorted.map(buildCard).join('');
+    const lightOpen=prevOpen['light']!==undefined?prevOpen['light']:false;
+    groupHtml+=`<details class="storm-group" data-grp="light" ${lightOpen?'open':''}>
+      <summary class="storm-group-header" style="border-left:3px solid #4ade80">
+        🌦️ Light Precipitation (<40 dBZ) <span class="storm-group-count">${lightCells.length}</span>
+      </summary>
+      <div class="storm-group-body">${lightCards}</div>
+    </details>`;
+  }
   el.innerHTML=`
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
-      <div class="alert-text"><span class="alert-title">${storms.length} Storm Cell${storms.length>1?'s':''} Detected</span><br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
+      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCells.length?' · '+stormCells.length+' Storm'+( stormCells.length>1?'s':''):''}</span><br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
     </div>
     <div class="card"><div class="card-title"><span class="icon">🌪️</span> Active Storm Cells</div>
       ${groupHtml}
@@ -2854,7 +2832,7 @@ async function translatePage(lang){
 
 function tStr(s){if(_curLang==='en'||!s)return s;const k=_curLang+'::'+s;return _tCache[k]||s}
 
-const _stormVocab=['Storm Cell','Live Radar','Peak dBZ','Rain Rate','Distance','Bearing','Moving','Status','Impact','ETA','Countdown','Arrives','Overhead · Moving away','Nearby · Not approaching','at','Extreme — Hail/Tornado','Intense — Hail Likely','Very Heavy Rain','Heavy Rain','Moderate Rain','Light Rain','Drizzle/Mist','No Impact — Nearby','Low Risk','Moderate Risk','Elevated Risk','High Risk','Extreme Risk','returns','Did this storm arrive?','Storm arrived at','Storm missed','Light','Extreme','Temp','Dew Pt','Humidity','Baro','Vis','Sky','tap to change units','tap','Updated','mi away','Gusts','Nearby Stations','Loading'];
+const _stormVocab=['Storm Cell','Live Radar','Peak dBZ','Rain Rate','Distance','Bearing','Moving','Status','Impact','ETA','Countdown','Arrives','Overhead · Moving away','Nearby · Not approaching','at','Extreme — Hail/Tornado','Intense — Hail Likely','Very Heavy Rain','Heavy Rain','Moderate Rain','Light Rain','Drizzle/Mist','No Impact — Nearby','Low Risk','Moderate Risk','Elevated Risk','High Risk','Extreme Risk','returns','Light','Extreme','Temp','Dew Pt','Humidity','Baro','Vis','Sky','tap to change units','tap','Updated','mi away','Gusts','Nearby Stations','Loading','Light Precipitation'];
 async function preseedStormVocab(lang){
   const need=_stormVocab.filter(w=>!_tCache[lang+'::'+w]);
   if(!need.length)return;
