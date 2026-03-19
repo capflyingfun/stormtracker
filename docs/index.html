@@ -1565,7 +1565,7 @@ async function scanRadarForView(){
   const center=S.map.getCenter();
   const useNexrad=S.radarSource==='nexrad';
   toast('Scanning visible area'+(useNexrad?' (NEXRAD)':' (RainViewer)')+'...');
-  fetchWindsAloft(center.lat,center.lng);
+  await fetchWindsAloft(center.lat,center.lng);
   try{
     const zoom=useNexrad?8:7;
     const minTX=lonToTileX(bounds.getWest(),zoom),maxTX=lonToTileX(bounds.getEast(),zoom);
@@ -1958,7 +1958,7 @@ async function scanRadarForStorms(){
   if(!S.lat)return;
   const useNexrad=S.radarSource==='nexrad';
   toast('Scanning'+(useNexrad?' NEXRAD':' RainViewer')+' for storm cells...');
-  if(!S.stormMovement)fetchWindsAloft();
+  if(!S.stormMovement)await fetchWindsAloft();
   try{
     const zoom=useNexrad?8:7;
     const radiusDeg=S.scanRadius/69.0;
