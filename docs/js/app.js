@@ -225,6 +225,11 @@ function startEtaCountdowns(){
       const remain=Math.max(0,Math.round((target-now)/1000));
       el.textContent=fmtCountdown(remain);
     });
+    document.querySelectorAll('.map-track-cd').forEach(el=>{
+      const target=parseInt(el.getAttribute('data-target'));
+      const remain=Math.max(0,Math.round((target-now)/1000));
+      el.textContent='⏱ '+fmtCountdown(remain);
+    });
     document.querySelectorAll('[data-dist-mi]').forEach(el=>{
       const closSpd=parseFloat(el.getAttribute('data-closing-mph')||'0');
       const targetMs=parseInt(el.getAttribute('data-target-ms')||'0');
@@ -1711,8 +1716,9 @@ function plotStormMarkers(map){
       const lbl=remSec>0?fmtCountdown(remSec):'--';
       const trackLabel=L.marker([midLat,midLng],{interactive:false,icon:L.divIcon({
         className:'',
-        html:`<div style="background:rgba(0,0,0,0.75);color:${color};font-size:11px;font-weight:700;font-family:monospace;padding:2px 6px;border-radius:4px;border:1px solid ${color}44;white-space:nowrap;text-align:center">⏱ ${lbl}</div>`,
-        iconSize:[60,20],iconAnchor:[30,10]
+        html:`<div style="background:rgba(0,0,0,0.8);color:${color};font-size:11px;font-weight:700;font-family:monospace;padding:3px 8px;border-radius:5px;border:1px solid ${color}44;white-space:nowrap;text-align:center;display:inline-block"><span class="map-track-cd" data-target="${Math.round(tMs)}">⏱ ${lbl}</span></div>`,
+        iconSize:[null,null],iconAnchor:[0,0],
+        className:'storm-track-label-icon'
       })}).addTo(map);
       S.stormMarkers.push(trackLabel);
       const dotSz=10;
