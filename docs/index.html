@@ -2715,15 +2715,41 @@ function renderAlerts(){
       <div style="font-size:0.7em;color:var(--text-muted);text-align:center;padding:10px">NWS alerts cover US locations only.</div>`;
     return;
   }
-  el.innerHTML=`<div class="card"><div class="card-title"><span class="icon">⚠️</span> NWS Alerts (${alerts.length})</div>
-    ${alerts.map(a=>{
+  const now=Date.now();
+  S.alerts=alerts.filter(a=>{const e=a.properties?.expires;return !e||new Date(e).getTime()>now});
+  updateAlertBadge();
+  if(!S.alerts.length){
+    el.innerHTML=`<div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">No Active Alerts</span><br>No NWS warnings or watches for your area.</div></div>
+      <div style="font-size:0.7em;color:var(--text-muted);text-align:center;padding:10px">NWS alerts cover US locations only.</div>`;
+    return;
+  }
+  el.innerHTML=`<div class="card"><div class="card-title"><span class="icon">⚠️</span> NWS Alerts (${S.alerts.length})</div>
+    ${S.alerts.map((a,i)=>{
       const p=a.properties||{};const event=p.event||'Alert';const sev=(p.severity||'').toLowerCase();
       const cls=(sev==='extreme'||sev==='severe')?'':sev==='moderate'?'watch':'advisory';
       const desc=(p.description||'').replace(/\n/g,'<br>');
-      const expires=p.expires?new Date(p.expires).toLocaleString():'';
       const sevIcon=sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
-      return`<div class="nws-alert ${cls}"><div class="nws-alert-title">${sevIcon} ${event}</div><div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${expires?`<div class="nws-alert-expires">Expires: ${expires}</div>`:''}</div>`;
+      return`<div class="nws-alert ${cls}"><div class="nws-alert-title">${sevIcon} ${event}</div><div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${p.expires?`<div class="nws-alert-expires">⏱️ <span id="alert-cd-${i}" data-exp="${new Date(p.expires).getTime()}"></span></div>`:''}</div>`;
     }).join('')}</div>`;
+  startAlertCountdowns();
+}
+function startAlertCountdowns(){
+  if(S._alertCdTimer)clearInterval(S._alertCdTimer);
+  function tick(){
+    const now=Date.now();let anyExpired=false;
+    document.querySelectorAll('[id^="alert-cd-"]').forEach(el=>{
+      const exp=parseInt(el.dataset.exp);
+      const rem=exp-now;
+      if(rem<=0){el.textContent='Expired';el.style.color='var(--accent-red)';anyExpired=true;return}
+      const h=Math.floor(rem/3600000);const m=Math.floor((rem%3600000)/60000);const s=Math.floor((rem%60000)/1000);
+      el.textContent=(h?h+'h ':'')+(m<10&&h?'0':'')+m+'m '+(s<10?'0':'')+s+'s remaining';
+      if(rem<3600000)el.style.color='var(--accent-orange)';
+      else el.style.color='var(--text-muted)';
+    });
+    if(anyExpired)setTimeout(()=>renderAlerts(),1500);
+  }
+  tick();
+  S._alertCdTimer=setInterval(tick,1000);
 }
 
 // ==========================================
