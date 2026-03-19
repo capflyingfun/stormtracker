@@ -66,7 +66,56 @@ function cycleUnit(key){
   const maxes={tempUnit:2,windUnit:4,presUnit:4,visUnit:2,precipUnit:3};
   S[key]=(S[key]+1)%maxes[key];
   try{localStorage.setItem('st_units',JSON.stringify({t:S.tempUnit,w:S.windUnit,p:S.presUnit,v:S.visUnit,pr:S.precipUnit}))}catch(e){}
+  if(key==='windUnit'&&_windCurSim.spd>0&&S.activePage==='weather'){
+    _windSweepPending=true;
+  }
   reRenderActive();
+}
+function windSweepAnim(){
+  if(_windSweepRaf){cancelAnimationFrame(_windSweepRaf);_windSweepRaf=null}
+  _windSweepPaused=true;
+  const targetSpd=_windCurSim.spd;
+  const targetGust=_windCurSim.gust;
+  const dur=500;
+  const t0=performance.now();
+  function ease(t){return t<0.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1}
+  function tick(now){
+    const elapsed=now-t0;
+    const p=Math.min(elapsed/dur,1);
+    const ep=ease(p);
+    const curSpd=targetSpd*ep;
+    const curGust=targetGust*ep;
+    const spdEl=document.querySelector('.wrc-speed');
+    const gustEl=document.querySelector('.wrc-gust');
+    if(spdEl)spdEl.innerHTML=fmtWind(curSpd);
+    if(gustEl)gustEl.textContent=curGust>0?'G'+fmtWind(curGust):'';
+    const maxSpd=S._gaugeMaxSpd||10;
+    const arcR=S._gaugeArcR||44.5;
+    const cx=50,cy=50,startA=-170;
+    const simSpdDisp=parseFloat(kmhTo(curSpd,S.windUnit));
+    const gustDisp2=parseFloat(kmhTo(curGust,S.windUnit));
+    const windArc=Math.min(simSpdDisp/maxSpd,1)*340;
+    const gustArc2=Math.min(gustDisp2/maxSpd,1)*340;
+    function sweepArcPath(fromDeg,toDeg,radius){
+      if(toDeg-fromDeg<1)return'M0,0';
+      const sa=(startA+fromDeg)*Math.PI/180,ea=(startA+toDeg)*Math.PI/180;
+      const x1=cx+Math.cos(sa)*radius,y1=cy+Math.sin(sa)*radius;
+      const x2=cx+Math.cos(ea)*radius,y2=cy+Math.sin(ea)*radius;
+      const lg=(toDeg-fromDeg)>180?1:0;
+      return`M${x1.toFixed(1)},${y1.toFixed(1)} A${radius},${radius} 0 ${lg} 1 ${x2.toFixed(1)},${y2.toFixed(1)}`;
+    }
+    const windArcEl=document.getElementById('gauge-wind-arc');
+    const gustArcEl=document.getElementById('gauge-gust-arc');
+    if(gustArcEl)gustArcEl.setAttribute('d',gustArc2>0?sweepArcPath(0,gustArc2,arcR):'M0,0');
+    if(windArcEl)windArcEl.setAttribute('d',windArc>0?sweepArcPath(0,windArc,arcR):'M0,0');
+    if(p<1){
+      _windSweepRaf=requestAnimationFrame(tick);
+    }else{
+      _windSweepRaf=null;
+      _windSweepPaused=false;
+    }
+  }
+  _windSweepRaf=requestAnimationFrame(tick);
 }
 function loadUnits(){
   try{const u=JSON.parse(localStorage.getItem('st_units'));if(u){S.tempUnit=u.t||0;S.windUnit=u.w||0;S.presUnit=u.p||0;S.visUnit=u.v||0;S.precipUnit=u.pr||0}}catch(e){}
@@ -1166,6 +1215,9 @@ let _windTarget=null;
 let _windLerpStart=0;
 let _windCurSim={spd:0,dir:0,gust:0};
 let _windSimSeed=0;
+let _windSweepRaf=null;
+let _windSweepPaused=false;
+let _windSweepPending=false;
 const WIND_LERP_DUR=60000;
 function startWindSim(){
   const wasRunning=!!_windSimTimer;
@@ -1195,6 +1247,7 @@ function startWindSim(){
     }catch(e){console.log('Wind refresh error:',e.message)}
   },120000);
   _windSimTimer=setInterval(()=>{
+    if(_windSweepPaused)return;
     let curSpd=_windBase.spd;
     let curDir=_windBase.dir;
     if(_windTarget){
@@ -1268,6 +1321,10 @@ function startWindSim(){
       }
     }
   },100);
+  if(_windSweepPending){
+    _windSweepPending=false;
+    windSweepAnim();
+  }
 }
 function secBtns(key){return`<div class="sec-btns"><button onclick="moveSection('${key}',-1)" title="Move up">▲</button><button onclick="moveSection('${key}',1)" title="Move down">▼</button></div>`}
 function getSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_sec_order'));if(o&&o.length===2)return o}catch(e){}return['trends','forecast']}
