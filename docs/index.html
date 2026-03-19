@@ -338,32 +338,6 @@ canvas.offscreen{display:none}
       <button id="fav-save-btn" onclick="saveFavorite()" style="font-size:0.7em;padding:2px 8px;background:rgba(0,255,136,0.1);color:var(--accent-green);border:1px solid rgba(0,255,136,0.3);border-radius:6px;cursor:pointer;font-weight:600">+ Save Current</button>
     </div>
     <div id="fav-list" style="margin-top:4px"></div>
-    <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06)">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:0.75em;color:var(--text-muted);font-weight:600">☁️ Cloud Sync</span>
-        <span id="sync-status" style="font-size:0.65em;color:#555"></span>
-      </div>
-      <div id="sync-logged-out" style="margin-top:4px">
-        <div style="display:flex;gap:4px;margin-bottom:4px">
-          <input id="sync-user" type="text" placeholder="Username" style="flex:1;padding:6px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-size:0.8em" autocomplete="off">
-          <input id="sync-pin" type="password" placeholder="PIN" maxlength="4" inputmode="numeric" pattern="[0-9]*" style="width:60px;padding:6px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-size:0.8em;text-align:center" autocomplete="off">
-        </div>
-        <div style="display:flex;gap:4px">
-          <button onclick="syncLogin()" style="flex:1;padding:6px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;font-size:0.75em;font-weight:600;cursor:pointer">Sign In</button>
-          <button onclick="syncRegister()" style="flex:1;padding:6px;background:rgba(0,255,136,0.1);color:var(--accent-green);border:1px solid rgba(0,255,136,0.3);border-radius:6px;font-size:0.75em;font-weight:600;cursor:pointer">Create Account</button>
-        </div>
-      </div>
-      <div id="sync-logged-in" style="display:none;margin-top:4px">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-          <span style="font-size:0.75em;color:#ddd">👤 <strong id="sync-username-display"></strong></span>
-          <button onclick="syncLogout()" style="margin-left:auto;font-size:0.65em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer">Logout</button>
-        </div>
-        <div style="display:flex;gap:4px">
-          <button onclick="syncPush()" style="flex:1;padding:6px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;font-size:0.75em;font-weight:600;cursor:pointer">⬆ Save to Cloud</button>
-          <button onclick="syncPull()" style="flex:1;padding:6px;background:rgba(0,255,136,0.1);color:var(--accent-green);border:1px solid rgba(0,255,136,0.3);border-radius:6px;font-size:0.75em;font-weight:600;cursor:pointer">⬇ Load from Cloud</button>
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -774,7 +748,6 @@ function toggleLocOverlay(open){
     if(S.travelMode){tb.textContent='⏹ Stop Travel Mode';tb.classList.add('active')}
     else{tb.textContent='🧭 Travel Mode — Follow GPS Live';tb.classList.remove('active')}
     renderFavorites();
-    updateSyncUI();
     const saveBtn=document.getElementById('fav-save-btn');
     if(saveBtn)saveBtn.style.display=S.lat?'':'none';
   }
@@ -989,6 +962,18 @@ function removeFavorite(idx){
   saveFavorites(favs);
   renderFavorites();
 }
+function renameFavorite(idx){
+  const favs=getFavorites();
+  const f=favs[idx];
+  if(!f)return;
+  const newName=prompt('Rename favorite:',f.name);
+  if(newName!==null&&newName.trim()){
+    favs[idx].name=newName.trim();
+    saveFavorites(favs);
+    renderFavorites();
+    toast('Renamed to: '+newName.trim());
+  }
+}
 function loadFavorite(idx){
   const favs=getFavorites();
   const f=favs[idx];
@@ -1002,110 +987,15 @@ function renderFavorites(){
   el.innerHTML=favs.map((f,i)=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;margin:2px 0;background:rgba(255,255,255,0.03);border-radius:6px;cursor:pointer" onclick="loadFavorite(${i})">
     <span style="font-size:0.8em">⭐</span>
     <span style="flex:1;font-size:0.75em;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</span>
+    <button onclick="event.stopPropagation();renameFavorite(${i})" style="background:none;border:none;color:var(--accent-cyan);font-size:0.7em;cursor:pointer;padding:2px 4px" title="Rename">✏️</button>
     <button onclick="event.stopPropagation();removeFavorite(${i})" style="background:none;border:none;color:#f44;font-size:0.7em;cursor:pointer;padding:2px 4px">✕</button>
   </div>`).join('');
 }
 
-const SYNC_API='https://1fb3dcf1-92db-468d-a66b-e7c76a78a144-00-28b9mr2q7kany.picard.replit.dev';
-
-function getSyncSession(){
-  try{return JSON.parse(localStorage.getItem('st_sync')||'null')}catch(e){return null}
-}
-function setSyncSession(data){
-  try{if(data)localStorage.setItem('st_sync',JSON.stringify(data));else localStorage.removeItem('st_sync')}catch(e){}
-  updateSyncUI();
-}
-function updateSyncUI(){
-  const session=getSyncSession();
-  const loggedOut=document.getElementById('sync-logged-out');
-  const loggedIn=document.getElementById('sync-logged-in');
-  const status=document.getElementById('sync-status');
-  if(!loggedOut||!loggedIn)return;
-  if(session){
-    loggedOut.style.display='none';
-    loggedIn.style.display='block';
-    document.getElementById('sync-username-display').textContent=session.username;
-    if(status&&session.lastSyncAt){
-      const d=new Date(session.lastSyncAt);
-      status.textContent='Synced '+d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-      status.style.color='var(--accent-green)';
-    }
-  }else{
-    loggedOut.style.display='block';
-    loggedIn.style.display='none';
-    if(status){status.textContent='Not signed in';status.style.color='#555'}
-  }
-}
-async function syncPost(endpoint,body){
-  const res=await fetch(SYNC_API+endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  return res.json();
-}
-async function syncRegister(){
-  const user=document.getElementById('sync-user').value.trim();
-  const pin=document.getElementById('sync-pin').value.trim();
-  if(!user||user.length<3){toast('Username must be at least 3 characters');return}
-  if(!pin||!/^\d{4}$/.test(pin)){toast('PIN must be exactly 4 digits');return}
-  const r=await syncPost('/api/sync/register',{username:user,pin});
-  if(r.success){
-    setSyncSession({username:r.username,pin});
-    toast('☁️ Account created: '+r.username);
-    syncPush();
-  }else{toast(r.error||'Registration failed')}
-}
-async function syncLogin(){
-  const user=document.getElementById('sync-user').value.trim();
-  const pin=document.getElementById('sync-pin').value.trim();
-  if(!user||!pin){toast('Enter username and PIN');return}
-  const r=await syncPost('/api/sync/login',{username:user,pin});
-  if(r.success){
-    setSyncSession({username:r.username,pin,lastSyncAt:r.lastSyncAt});
-    toast('☁️ Signed in as '+r.username);
-    if(r.favorites&&r.favorites.length){
-      saveFavorites(r.favorites);
-      renderFavorites();
-    }
-    if(r.lastLocation&&r.lastLocation.lat){
-      setLoc(r.lastLocation.lat,r.lastLocation.lon,r.lastLocation.name);
-    }
-  }else{toast(r.error||'Login failed')}
-}
-function syncLogout(){
-  setSyncSession(null);
-  toast('Signed out');
-}
-async function syncPush(){
-  const session=getSyncSession();
-  if(!session){toast('Sign in first');return}
-  const favs=getFavorites();
-  const loc=S.lat?{lat:S.lat,lon:S.lon,name:S.locName}:null;
-  const r=await syncPost('/api/sync/save',{username:session.username,pin:session.pin,favorites:favs,lastLocation:loc});
-  if(r.success){
-    session.lastSyncAt=r.lastSyncAt;
-    setSyncSession(session);
-    toast('⬆ Saved to cloud');
-  }else{toast(r.error||'Save failed')}
-}
-async function syncPull(){
-  const session=getSyncSession();
-  if(!session){toast('Sign in first');return}
-  const r=await syncPost('/api/sync/load',{username:session.username,pin:session.pin});
-  if(r.success){
-    if(r.favorites&&r.favorites.length){
-      saveFavorites(r.favorites);
-      renderFavorites();
-    }
-    if(r.lastLocation&&r.lastLocation.lat){
-      setLoc(r.lastLocation.lat,r.lastLocation.lon,r.lastLocation.name);
-    }
-    session.lastSyncAt=r.lastSyncAt;
-    setSyncSession(session);
-    toast('⬇ Loaded from cloud');
-  }else{toast(r.error||'Load failed')}
-}
-
 function startMapPick(){
   toggleLocOverlay(false);
-  if(!S.map){switchPage('radar');toast('Loading map...');setTimeout(()=>startMapPick(),1000);return}
+  if(!S.lat){S.lat=39.8;S.lon=-98.5;S.locName=''}
+  if(!S.map){switchPage('radar');toast('Pan to your location and tap Confirm');setTimeout(()=>{if(S.map)startMapPick();else toast('Map loading...')},1200);return}
   switchPage('radar');
   S._mapPickMode=true;
   let banner=document.getElementById('map-pick-banner');
