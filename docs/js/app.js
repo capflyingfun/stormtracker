@@ -3848,15 +3848,82 @@ function renderStorms(){
       <div class="storm-group-body">${cards}</div>
     </details>`;
   }
+  let gridHtml='';
+  if(S._rawScanPts&&S._rawScanPts.length){
+    const gridCells=polarGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
+    const zones=[];
+    const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
+    for(const[k,c]of gridCells){
+      const midBear=(c.ai*angStep+angStep/2)%360;
+      const midDist=(c.ri+0.5)*distStep;
+      const cat=stormCat(c.maxDbz);
+      const hex=dbzHex(c.maxDbz);
+      let etaInfo=null;
+      if(mv&&mv.speed>=2){
+        const travelDir=mv.direction;
+        const diff=Math.abs(((travelDir-midBear+180)%360)-180);
+        if(diff<=30){
+          const closingSpd=mv.speed*Math.cos(diff*Math.PI/180);
+          if(closingSpd>0.5){
+            const etaMin=midDist/closingSpd*60;
+            etaInfo={approaching:true,eta:etaMin,color:'#ef4444'};
+          }
+        }
+      }
+      zones.push({ai:c.ai,ri:c.ri,maxDbz:c.maxDbz,count:c.count,midBear,midDist,cat,hex,etaInfo});
+    }
+    zones.sort((a,b)=>{
+      const ae=a.etaInfo&&a.etaInfo.approaching?a.etaInfo.eta:99999;
+      const be=b.etaInfo&&b.etaInfo.approaching?b.etaInfo.eta:99999;
+      if(ae!==be)return ae-be;
+      return a.midDist-b.midDist;
+    });
+    if(zones.length){
+      const zoneCards=zones.map(z=>{
+        const dir=degToDir(z.midBear);
+        const distLo=(z.ri*distStep).toFixed(0);
+        const distHi=((z.ri+1)*distStep).toFixed(0);
+        const distStr=S.radarMetric?`${(distLo*1.60934).toFixed(0)}-${(distHi*1.60934).toFixed(0)} km`:`${distLo}-${distHi} mi`;
+        const bearStr=`${(z.ai*angStep).toFixed(0)}°-${((z.ai+1)*angStep).toFixed(0)}°`;
+        let etaStr='';
+        if(z.etaInfo&&z.etaInfo.approaching){
+          const sec=Math.round(z.etaInfo.eta*60);
+          const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+          etaStr=`<span style="color:#ef4444;font-weight:600;font-family:var(--font-mono);font-size:0.85em">⏱ ${h>0?h+'h:'+String(m).padStart(2,'0')+'m':m+'m:'+String(s).padStart(2,'0')+'s'}</span>`;
+        }
+        return`<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-left:3px solid ${z.hex};background:${z.hex}08;border-radius:4px;margin-bottom:4px">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:0.8em">${dir} <span style="color:var(--text-muted);font-weight:400">${bearStr}</span></div>
+            <div style="font-size:0.7em;color:var(--text-muted)">${distStr} · ${z.count} return${z.count>1?'s':''}</div>
+          </div>
+          <div style="text-align:right">
+            <span style="font-size:0.75em;font-weight:600;color:${z.hex}">${z.maxDbz} dBZ</span>
+            <div style="font-size:0.6em;color:${z.cat.color}">${z.cat.label}</div>
+            ${etaStr}
+          </div>
+        </div>`;
+      }).join('');
+      const gridOpen=prevOpen['gridzones']!==undefined?prevOpen['gridzones']:false;
+      gridHtml=`<div class="card" style="margin-top:8px"><div class="card-title"><span class="icon">📡</span> Grid Zones</div>
+        <details class="storm-group" data-grp="gridzones" ${gridOpen?'open':''}>
+          <summary class="storm-group-header" style="border-left:3px solid var(--accent-cyan)">
+            📡 Radar Grid Zones <span class="storm-group-count">${zones.length}</span>
+          </summary>
+          <div class="storm-group-body" style="padding:4px">${zoneCards}</div>
+        </details>
+      </div>`;
+    }
+  }
   const stormCount=approaching.length+overhead.length+nearby.length;
   el.innerHTML=`${zoneAlert}
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
       <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${approaching.length?' · <span style="color:#ef4444">'+approaching.length+' approaching</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
     </div>
-    <div class="card"><div class="card-title"><span class="icon">🌪️</span> Active Storm Cells</div>
+    <div class="card"><div class="card-title"><span class="icon">🌪️</span> Storm Points</div>
       ${groupHtml}
     </div>
+    ${gridHtml}
     <div style="font-size:0.65em;color:var(--text-muted);text-align:center;padding:4px">
       ⚡ Lightning on storms ≥40 dBZ &middot; Radar-derived, not observed<br>
       Impact % based on direction, distance, speed &amp; intensity via winds aloft
