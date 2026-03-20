@@ -2625,7 +2625,23 @@ function clearStormZones(){
   S._stormZoneLayers=[];
 }
 function zoneRadiusKm(avgDbz){
-  return avgDbz>=60?3:avgDbz>=45?2.5:avgDbz>=30?2:1.5;
+  return avgDbz>=60?4:avgDbz>=45?3:avgDbz>=30?2.5:2;
+}
+function zonePopupHtml(bin,binPts){
+  const avgDbz=Math.round(binPts.reduce((s,p)=>s+p.dbz,0)/binPts.length);
+  const maxDbz=Math.round(Math.max(...binPts.map(p=>p.dbz)));
+  const cat=stormCat(avgDbz);
+  const cLat=binPts.reduce((s,p)=>s+p.lat,0)/binPts.length;
+  const cLng=binPts.reduce((s,p)=>s+p.lng,0)/binPts.length;
+  const dist=haversine(S.lat,S.lon,cLat,cLng);
+  const bear=bearingDeg(S.lat,S.lon,cLat,cLng);
+  return`<div style="text-align:center;font-family:system-ui;min-width:150px">
+    <div style="font-size:1.2em;font-weight:700;color:${bin.color}">${bin.label}</div>
+    <div style="font-size:0.8em;margin:4px 0">${cat.label}</div>
+    <div style="font-size:0.75em;color:#aaa">Avg: ${avgDbz} dBZ · Max: ${maxDbz} dBZ</div>
+    <div style="font-size:0.75em;color:#ccc;margin-top:4px">${fmtStormDist(dist)} ${degToDir(bear)}</div>
+    <div style="font-size:0.7em;color:#8cf;margin-top:4px">📡 ${binPts.length} radar returns</div>
+  </div>`;
 }
 function buildStormZones(map,rawPts){
   clearStormZones();
@@ -2637,44 +2653,52 @@ function buildStormZones(map,rawPts){
     weight:bin.min>=45?2:1,opacity:0.7,
     dashArray:bin.min<30?'4,4':null
   });
-  DBZ_BINS.forEach(bin=>{
+  DBZ_BINS.forEach((bin,binIdx)=>{
     const binPts=rawPts.filter(p=>p.dbz>=bin.min&&(bin.max>=999||p.dbz<bin.max));
     if(!binPts.length)return;
     try{
       const avgDbz=binPts.reduce((s,p)=>s+p.dbz,0)/binPts.length;
       const rKm=zoneRadiusKm(avgDbz);
+      const popup=zonePopupHtml(bin,binPts);
+      function addZoneLayer(geojson){
+        const layer=L.geoJSON(geojson,{style:zoneStyle(bin)}).addTo(map);
+        layer.bindPopup(popup,{closeButton:false,className:'storm-popup'});
+        layer._zoneBinIdx=binIdx;
+        S._stormZoneLayers.push(layer);
+      }
       if(binPts.length===1){
         const p=binPts[0];
-        const circle=turf.circle([p.lng,p.lat],rKm,{units:'kilometers',steps:32});
-        const layer=L.geoJSON(circle,{style:zoneStyle(bin),interactive:false}).addTo(map);
-        layer.bringToBack();
-        S._stormZoneLayers.push(layer);
+        addZoneLayer(turf.circle([p.lng,p.lat],rKm,{units:'kilometers',steps:32}));
         return;
       }
       if(binPts.length<=3){
-        const cLat=binPts.reduce((s,p)=>s+p.lat,0)/binPts.length;
-        const cLng=binPts.reduce((s,p)=>s+p.lng,0)/binPts.length;
-        let maxDistKm=0;
-        binPts.forEach(p=>{const d=haversine(cLat,cLng,p.lat,p.lng)*1.60934;if(d>maxDistKm)maxDistKm=d});
-        const ovalR=Math.max(rKm,maxDistKm+rKm*0.5);
-        const oval=turf.circle([cLng,cLat],ovalR,{units:'kilometers',steps:32});
-        const layer=L.geoJSON(oval,{style:zoneStyle(bin),interactive:false}).addTo(map);
-        layer.bringToBack();
-        S._stormZoneLayers.push(layer);
+        const circles=binPts.map(p=>turf.circle([p.lng,p.lat],rKm,{units:'kilometers',steps:32}));
+        let merged=circles[0];
+        for(let i=1;i<circles.length;i++){
+          try{merged=turf.union(turf.featureCollection([merged,circles[i]]))}catch(e){merged=circles[i]}
+        }
+        addZoneLayer(merged);
         return;
+      }
+      const circles=binPts.map(p=>turf.circle([p.lng,p.lat],rKm*0.6,{units:'kilometers',steps:24}));
+      let merged=circles[0];
+      for(let i=1;i<circles.length;i++){
+        try{merged=turf.union(turf.featureCollection([merged,circles[i]]))}catch(e){}
       }
       const fc=turf.featureCollection(binPts.map(p=>turf.point([p.lng,p.lat])));
       let poly=null;
-      try{poly=turf.concave(fc,{maxEdge:0.15,units:'degrees'})}catch(e){}
-      if(!poly){try{poly=turf.concave(fc,{maxEdge:0.3,units:'degrees'})}catch(e){}}
+      try{poly=turf.concave(fc,{maxEdge:0.5,units:'degrees'})}catch(e){}
+      if(!poly){try{poly=turf.concave(fc,{maxEdge:1.0,units:'degrees'})}catch(e){}}
       if(!poly){try{poly=turf.convex(fc)}catch(e){}}
-      if(!poly)return;
-      try{poly=turf.buffer(poly,0.3,{units:'kilometers'})}catch(e){}
-      const layer=L.geoJSON(poly,{style:zoneStyle(bin),interactive:false}).addTo(map);
-      layer.bringToBack();
-      S._stormZoneLayers.push(layer);
+      if(poly){
+        try{poly=turf.buffer(poly,rKm*0.8,{units:'kilometers'})}catch(e){}
+        try{merged=turf.union(turf.featureCollection([merged,poly]))}catch(e){merged=poly}
+      }
+      addZoneLayer(merged);
     }catch(e){console.warn('Zone build error:',bin.label,e)}
   });
+  S._stormZoneLayers.sort((a,b)=>(a._zoneBinIdx||0)-(b._zoneBinIdx||0));
+  S._stormZoneLayers.forEach(l=>{try{l.bringToFront()}catch(e){}});
   const ms=Math.round(performance.now()-t0);
   console.log(`Storm zones built: ${DBZ_BINS.length} bins from ${rawPts.length} pts in ${ms}ms`);
 }
@@ -2710,8 +2734,8 @@ function toggleStormZones(){
   if(btn)btn.style.opacity=S._showZones?'1':'0.4';
 }
 try{const zv=localStorage.getItem('st_zones');if(zv==='0')S._showZones=false}catch(e){}
-S._showPoints=true;
-try{const pv=localStorage.getItem('st_points');if(pv==='0')S._showPoints=false}catch(e){}
+S._showPoints=false;
+try{const pv=localStorage.getItem('st_points');if(pv==='1')S._showPoints=true}catch(e){}
 function toggleStormPoints(){
   S._showPoints=!S._showPoints;
   try{localStorage.setItem('st_points',S._showPoints?'1':'0')}catch(e){}
