@@ -2338,7 +2338,7 @@ async function scanRadarForView(){
 
     S._rawScanPts=rawPoints;
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
-    S.scanTime=Date.now();S.lastScanMs=Date.now();
+    S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Plotting ${S.storms.length.toLocaleString()} storm points...`);
     await new Promise(r=>setTimeout(r,300));
