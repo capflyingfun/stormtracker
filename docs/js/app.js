@@ -3296,8 +3296,8 @@ function buildPathArrows(map){
   }
   function fixScale(){
     const z=map.getZoom();
-    const baseZoom=7;
-    const scale=Math.pow(2,baseZoom-z);
+    const baseZoom=8;
+    const scale=Math.pow(2,z-baseZoom);
     S._pathArrowLayers.forEach(mk=>{
       const el=mk.getElement();
       if(!el)return;
