@@ -2173,7 +2173,7 @@ async function toggleRadarAnim(map){
     const pastCount=(S.radarFrames||[]).filter(f=>!f.path||!f.path.includes('/nowcast/')).length;
     animFrames=S.radarFrames.map((f,i)=>({
       time:f.time, type:i<pastCount?'past':'forecast',
-      url:`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/4/1_1.png`
+      url:`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/6/1_1.png`
     }));
     S._radarAnimSrc='rainviewer';
   }
@@ -2264,7 +2264,7 @@ function showRadarLayer(map){
     if(S.radarFrames.length){
       S.radarIdx=S.radarFrames.length-1;
       const frame=S.radarFrames[S.radarIdx];
-      S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/4/1_1.png`,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
+      S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/6/1_1.png`,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
       const t=new Date(frame.time*1000);
       const el=document.getElementById('radar-time');
       if(el)el.textContent=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
@@ -2272,7 +2272,7 @@ function showRadarLayer(map){
     if(btn){btn.textContent='RV';btn.style.background=''}
     if(lbl)lbl.textContent='RainViewer \u00B7 Updated every 10 min \u00B7 📍 Scan location \u00B7 🔍 Scan view';
   }
-  if(S._showZones&&!S._radarOverlayVisible&&S.radarLayer&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
+  if(S._showZones&&S._rawScanPts&&S._rawScanPts.length>0&&!S._radarOverlayVisible&&S.radarLayer&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
 }
 
 function toggleRadarSource(map){
@@ -2514,7 +2514,7 @@ async function scanRadarForView(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/4/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,radius));
       }
     }
@@ -2532,7 +2532,7 @@ async function scanRadarForView(){
     if(S.map){
       plotStormMarkers(S.map);
       if(rawPoints.length>0){autoActivateZones()}
-      else{buildStormZones(S.map,rawPoints)}
+      else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}
       showViewScanCircle(S.map,cLat,cLng,radius,S.storms.length);
     }
     hideScanOverlay();
@@ -2582,7 +2582,7 @@ async function scanRadarHiRes(map,fromHome){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${hiZoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${hiZoom}/${tx}/${ty}/4/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${hiZoom}/${tx}/${ty}/6/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,hiZoom,colorFn,minDbz,HIRES_RADIUS,1));
       }
     }
@@ -2599,7 +2599,7 @@ async function scanRadarHiRes(map,fromHome){
     renderStorms();updateStormBadges();
     plotStormMarkers(map);
     if(rawPoints.length>0){autoActivateZones()}
-    else{buildStormZones(map,rawPoints)}
+    else{clearStormZones();if(S.radarLayer&&S.map&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}
     showViewScanCircle(map,cLat,cLng,HIRES_RADIUS,S.storms.length);
     map.setView([cLat,cLng],11,{animate:true,duration:0.5});
     hideScanOverlay();
@@ -3152,7 +3152,7 @@ function buildStormZones(map,rawPts){
   console.log(`Polar grid: ${rawPts.length} pts → ${cells.size} cells (${ZONE_ANG_STEP}°×${ZONE_DIST_STEP_MI}mi) in ${ms}ms`);
 }
 function autoActivateZones(){
-  if(!S._rawScanPts.length)return;
+  if(!S._rawScanPts||!S._rawScanPts.length)return;
   if(!S._showZones){
     S._showZones=true;
     try{localStorage.setItem('st_zones','1')}catch(e){}
@@ -3502,7 +3502,7 @@ async function scanRadarForStorms(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/4/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,S.scanRadius));
       }
     }
@@ -3519,7 +3519,7 @@ async function scanRadarForStorms(){
     scanStep(3,`Plotting ${S.storms.length} storm points...`);
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();
-    if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{buildStormZones(S.map,rawPoints)}}
+    if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
     scheduleAutoScan();
