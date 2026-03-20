@@ -3266,10 +3266,9 @@ function setPathArrowStyle(style){
 }
 function pathArrowNeonColor(maxDbz){
   if(maxDbz>=60)return'#ff00ff';
-  if(maxDbz>=50)return'#ff0033';
-  if(maxDbz>=45)return'#ff5500';
-  if(maxDbz>=35)return'#ffee00';
-  if(maxDbz>=25)return'#00ff66';
+  if(maxDbz>=55)return'#ff0033';
+  if(maxDbz>=45)return'#ffee00';
+  if(maxDbz>=30)return'#00ff66';
   if(maxDbz>=15)return'#00ccff';
   return'#ffffff';
 }
@@ -3282,8 +3281,8 @@ function buildPathArrows(map){
   const travelDir=mv.direction;
   const distances=[50,60,70];
   let maxDbz=0;
-  if(S._rawScanPts&&S._rawScanPts.length>0){
-    for(const p of S._rawScanPts){if(p.dbz>maxDbz)maxDbz=p.dbz}
+  if(S.storms&&S.storms.length>0){
+    for(const p of S.storms){if(p.dbz>maxDbz)maxDbz=p.dbz}
   }
   const color=pathArrowNeonColor(maxDbz);
   const glowStr=color==='#ffffff'
