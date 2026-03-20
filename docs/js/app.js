@@ -1879,7 +1879,13 @@ function initRadar(){
     });
     const zbtn=document.getElementById('btn-zones');if(zbtn)zbtn.style.opacity=S._showZones?'1':'0.4';
     const pbtn=document.getElementById('btn-points');if(pbtn)pbtn.style.opacity=S._showPoints?'1':'0.4';
-    plotStormMarkers(map);
+    if(S.storms.length){
+      plotStormMarkers(map);
+      buildStormZones(map,S._rawScanPts);
+      if(S._rawScanPts.length&&!S._showPoints){
+        S.stormMarkers.forEach(m=>{try{map.removeLayer(m)}catch(e){}});
+      }
+    }
   },100);
 }
 
