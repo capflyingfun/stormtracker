@@ -2394,6 +2394,7 @@ function plotStormMarkers(map){
   clearStormCone();
   const mv=S.stormMovement;
   const sc=zoomScale(map);
+  const pending=[];
   S.storms.forEach(storm=>{
     const cat=stormCat(storm.dbz);
     const color=dbzHex(storm.dbz);
@@ -2444,43 +2445,69 @@ function plotStormMarkers(map){
     const stormRef=storm;
     if(mv&&mv.speed>=2){
       const sz=Math.max(10,Math.round(Math.max(24,storm.dbz/2)*sc));
-      const arrow=L.marker([storm.lat,storm.lng],{icon:L.divIcon({className:'storm-arrow-icon',html:stormArrowSvg(mv.direction,color,sz),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]})}).addTo(map);
-      arrow.bindPopup(popupHtml,popupOpts);
-      arrow.on('click',()=>showStormCone(map,stormRef));
-      S.stormMarkers.push(arrow);
+      const svgHtml=stormArrowSvg(mv.direction,color,sz);
+      pending.push({type:'arrow',lat:storm.lat,lng:storm.lng,sz,svgHtml,popupHtml,popupOpts,stormRef});
     }else{
-      const marker=L.circleMarker([storm.lat,storm.lng],{radius:r,color:color,fillColor:color,fillOpacity:0.6,weight:2}).addTo(map);
-      marker.bindPopup(popupHtml,popupOpts);
-      marker.on('click',()=>showStormCone(map,stormRef));
-      S.stormMarkers.push(marker);
+      pending.push({type:'circle',lat:storm.lat,lng:storm.lng,r,color,popupHtml,popupOpts,stormRef});
     }
     if(eta&&eta.impact>=90){
       const ringSize=Math.max(36,storm.dbz/1.5);
-      const ring=L.marker([storm.lat,storm.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring" style="width:${ringSize}px;height:${ringSize}px;border:3px solid ${color};box-shadow:0 0 8px ${color}"></div>`,iconSize:[ringSize,ringSize],iconAnchor:[ringSize/2,ringSize/2]})}).addTo(map);
-      S.stormMarkers.push(ring);
+      pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringSize,color});
     }
     if(storm.dbz>=40){
-      const lightning=L.marker([storm.lat,storm.lng],{interactive:false,icon:L.divIcon({className:'storm-lightning-icon',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})}).addTo(map);
-      S.stormMarkers.push(lightning);
+      pending.push({type:'lightning',lat:storm.lat,lng:storm.lng});
     }
     if(eta&&eta.approaching&&eta.impact>70&&eta.eta!=null&&mv&&mv.speed>=2&&storm.distance<80){
       const sk=stormKey(storm);
-      const trackLine=L.polyline([[storm.lat,storm.lng],[S.lat,S.lon]],{
-        color:color,weight:2,opacity:0.5,dashArray:'8,8',interactive:false,
-        className:'storm-track-line'
-      }).addTo(map);
-      trackLine._stormTrackKey=sk;
-      S.stormMarkers.push(trackLine);
-      const dotSz=10;
-      const arrivalDot=L.marker([S.lat,S.lon],{interactive:false,icon:L.divIcon({
-        className:'',
-        html:`<div class="storm-track-dot" style="width:${dotSz}px;height:${dotSz}px;background:${color};box-shadow:0 0 8px ${color}"></div>`,
-        iconSize:[dotSz,dotSz],iconAnchor:[dotSz/2,dotSz/2]
-      })}).addTo(map);
-      arrivalDot._stormTrackKey=sk;
-      S.stormMarkers.push(arrivalDot);
+      pending.push({type:'track',lat:storm.lat,lng:storm.lng,color,sk});
     }
   });
+  const offscreen=document.createElement('div');
+  offscreen.style.cssText='position:absolute;left:-9999px;top:-9999px;visibility:hidden';
+  document.body.appendChild(offscreen);
+  const arrowItems=pending.filter(p=>p.type==='arrow');
+  arrowItems.forEach(p=>{
+    const el=document.createElement('div');
+    el.innerHTML=p.svgHtml;
+    offscreen.appendChild(el);
+  });
+  requestAnimationFrame(()=>{requestAnimationFrame(()=>{
+    document.body.removeChild(offscreen);
+    pending.forEach(p=>{
+      if(p.type==='arrow'){
+        const arrow=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'storm-arrow-icon',html:p.svgHtml,iconSize:[p.sz,p.sz],iconAnchor:[p.sz/2,p.sz/2]})}).addTo(map);
+        arrow.bindPopup(p.popupHtml,p.popupOpts);
+        arrow.on('click',()=>showStormCone(map,p.stormRef));
+        S.stormMarkers.push(arrow);
+      }else if(p.type==='circle'){
+        const marker=L.circleMarker([p.lat,p.lng],{radius:p.r,color:p.color,fillColor:p.color,fillOpacity:0.6,weight:2}).addTo(map);
+        marker.bindPopup(p.popupHtml,p.popupOpts);
+        marker.on('click',()=>showStormCone(map,p.stormRef));
+        S.stormMarkers.push(marker);
+      }else if(p.type==='ring'){
+        const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring" style="width:${p.ringSize}px;height:${p.ringSize}px;border:3px solid ${p.color};box-shadow:0 0 8px ${p.color}"></div>`,iconSize:[p.ringSize,p.ringSize],iconAnchor:[p.ringSize/2,p.ringSize/2]})}).addTo(map);
+        S.stormMarkers.push(ring);
+      }else if(p.type==='lightning'){
+        const lightning=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'storm-lightning-icon',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})}).addTo(map);
+        S.stormMarkers.push(lightning);
+      }else if(p.type==='track'){
+        const trackLine=L.polyline([[p.lat,p.lng],[S.lat,S.lon]],{
+          color:p.color,weight:2,opacity:0.5,dashArray:'8,8',interactive:false,
+          className:'storm-track-line'
+        }).addTo(map);
+        trackLine._stormTrackKey=p.sk;
+        S.stormMarkers.push(trackLine);
+        const dotSz=10;
+        const arrivalDot=L.marker([S.lat,S.lon],{interactive:false,icon:L.divIcon({
+          className:'',
+          html:`<div class="storm-track-dot" style="width:${dotSz}px;height:${dotSz}px;background:${p.color};box-shadow:0 0 8px ${p.color}"></div>`,
+          iconSize:[dotSz,dotSz],iconAnchor:[dotSz/2,dotSz/2]
+        })}).addTo(map);
+        arrivalDot._stormTrackKey=p.sk;
+        S.stormMarkers.push(arrivalDot);
+      }
+    });
+  })});
 }
 
 // ==========================================
