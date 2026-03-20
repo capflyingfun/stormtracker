@@ -2644,6 +2644,11 @@ function drawRadarGrid(map,maxRadiusMi){
   }
   const distStep=ZONE_DIST_STEP_MI;
   const nRings=Math.ceil(maxRadiusMi/distStep);
+  const innerRing=L.circle([S.lat,S.lon],{
+    radius:0.5*1609.34,color:'rgba(0,229,255,0.2)',
+    fillOpacity:0,fill:false,weight:0.3,pane:gridPane,interactive:false
+  }).addTo(map);
+  S._radarGridLayers.push(innerRing);
   for(let r=1;r<=nRings;r++){
     const radiusMi=r*distStep;
     const isMajor=(radiusMi%10===0);
