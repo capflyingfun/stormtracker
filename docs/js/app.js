@@ -2067,6 +2067,7 @@ function initRadar(){
     const pbtn=document.getElementById('btn-points');if(pbtn)pbtn.style.opacity=S._showPoints?'1':'0.4';
     const rbtn=document.getElementById('btn-radar-overlay');if(rbtn)rbtn.style.opacity=S._radarOverlayVisible?'1':'0.4';
     const pabtn=document.getElementById('btn-path-arrows');if(pabtn)pabtn.style.opacity=S._showPathArrows?'1':'0.4';
+    if(S._showPathArrows&&S.storms.length)setTimeout(()=>buildPathArrows(map),200);
     if(S.storms.length){
       plotStormMarkers(map);
       buildStormZones(map,S._rawScanPts);
@@ -3276,12 +3277,15 @@ function pathArrowNeonColor(maxDbz){
   if(maxDbz>=15)return'#00ccff';
   return'#ffffff';
 }
-function buildPathArrows(map){
+function buildPathArrows(map,_retries){
   clearPathArrows();
   if(!map||!S._showPathArrows)return;
-  if(!S.stormMovement){toast('⚠️ Wind data unavailable — path arrows hidden');return}
+  if(!S.stormMovement||!S.stormMovement.speed||S.stormMovement.speed<1){
+    const r=(_retries||0);
+    if(r<5){setTimeout(()=>{if(S._showPathArrows)buildPathArrows(map,r+1)},800)}
+    return;
+  }
   const mv=S.stormMovement;
-  if(!mv||mv.speed<1)return;
   const travelDir=mv.direction;
   const distances=[50,60,70];
   let maxDbz=0;
