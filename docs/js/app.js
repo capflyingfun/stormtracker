@@ -2046,6 +2046,7 @@ function initRadar(){
         S.stormMarkers.forEach(m=>{try{map.removeLayer(m)}catch(e){}});
       }
     }
+    if(S._nextRefreshAt)startScanRefreshTimer();
   },100);
 }
 
@@ -2393,9 +2394,10 @@ async function toggleAirportMarkers(map){
 
 async function plotAirportMarkers(map,stations){
   clearAirportMarkers(map);
+  S._airportsVisible=true;
   const plotId=++S._airportPlotId;
   for(const st of stations){
-    if(S._airportPlotId!==plotId||!S._airportsVisible)return;
+    if(S._airportPlotId!==plotId)return;
     try{
       const obsUrl=`https://api.weather.gov/stations/${st.icao}/observations/latest`;
       const or=await fetch(obsUrl,NWS_HDR);
