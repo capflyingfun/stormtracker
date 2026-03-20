@@ -3252,6 +3252,15 @@ function togglePathArrows(){
   const btn=document.getElementById('btn-path-arrows');
   if(btn)btn.style.opacity=S._showPathArrows?'1':'0.4';
 }
+function pathArrowNeonColor(maxDbz){
+  if(maxDbz>=60)return'#ff00ff';
+  if(maxDbz>=50)return'#ff0033';
+  if(maxDbz>=45)return'#ff5500';
+  if(maxDbz>=35)return'#ffee00';
+  if(maxDbz>=25)return'#00ff66';
+  if(maxDbz>=15)return'#00ccff';
+  return'#00ccff';
+}
 function buildPathArrows(map){
   clearPathArrows();
   if(!map||!S._showPathArrows||!S.stormMovement)return;
@@ -3267,20 +3276,18 @@ function buildPathArrows(map){
       if(diff<60&&p.dbz>maxDbz)maxDbz=p.dbz;
     }
   }
-  const color=maxDbz>=15?dbzColor(maxDbz).color:'#4488aa';
-  const glow=maxDbz>=45?`drop-shadow(0 0 10px ${color}) drop-shadow(0 0 4px ${color})`:maxDbz>=30?`drop-shadow(0 0 6px ${color})`:'';
+  const color=pathArrowNeonColor(maxDbz);
+  const glow=`drop-shadow(0 0 8px ${color}) drop-shadow(0 0 3px ${color})`;
   const pane='path-arrow-pane';
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
   const cssRot=travelDir-90;
-  const chevronSvg=(sz,strokeW)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48" style="transform:rotate(${cssRot}deg);filter:${glow}">
-    <path d="M16,8 L34,24 L16,40" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>`;
-  const sz=56;
+  const sz=52;
+  const chevronSvg=(strokeW)=>`<div style="width:${sz}px;height:${sz}px;position:fixed;transform:rotate(${cssRot}deg);filter:${glow}"><svg width="${sz}" height="${sz}" viewBox="0 0 48 48"><path d="M14,6 L36,24 L14,42" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
   const chevrons=[];
   for(let i=0;i<3;i++){
     const pt=destPt(S.lat,S.lon,distances[i],travelDir);
     const mk=L.marker(pt,{
-      icon:L.divIcon({className:'',html:chevronSvg(sz,6-i),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+      icon:L.divIcon({className:'path-arrow-icon',html:chevronSvg(6-i),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
       pane:pane,interactive:false
     }).addTo(map);
     chevrons.push(mk);
@@ -3292,7 +3299,7 @@ function buildPathArrows(map){
       const el=chevrons[i]?.getElement();
       if(!el)continue;
       const phase=(frame-i+6)%6;
-      const op=phase<3?1-phase*0.25:0.15;
+      const op=phase<3?1-phase*0.25:0.12;
       el.style.opacity=String(op);
       el.style.transition='opacity 0.3s';
     }

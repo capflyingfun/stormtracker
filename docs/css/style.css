@@ -26,6 +26,8 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 .leaflet-tile{image-rendering:auto !important;image-rendering:smooth !important}
 .leaflet-tile-pane .leaflet-layer img{image-rendering:auto !important}
+.path-arrow-icon{background:none !important;border:none !important}
+.path-arrow-icon>div{transform-origin:center center}
 html{scroll-behavior:smooth}
 body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-primary);min-height:100vh;min-height:100dvh;padding-bottom:calc(var(--nav-height)+20px);overscroll-behavior:none;-webkit-font-smoothing:antialiased}
 .container{max-width:520px;margin:0 auto;padding:0 12px}
