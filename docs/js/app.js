@@ -3285,11 +3285,7 @@ function buildPathArrows(map){
   const distances=[50,60,70];
   let maxDbz=0;
   if(S._rawScanPts&&S._rawScanPts.length>0){
-    for(const p of S._rawScanPts){
-      const bear=(bearingDeg(S.lat,S.lon,p.lat,p.lng)+360)%360;
-      const diff=Math.abs(((travelDir-bear+180)%360)-180);
-      if(diff<60&&p.dbz>maxDbz)maxDbz=p.dbz;
-    }
+    for(const p of S._rawScanPts){if(p.dbz>maxDbz)maxDbz=p.dbz}
   }
   const color=pathArrowNeonColor(maxDbz);
   const glowStr=color==='#ffffff'
@@ -3298,7 +3294,7 @@ function buildPathArrows(map){
   const pane='path-arrow-pane';
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
   const style=S._pathArrowStyle||'chevron';
-  const sz=52;
+  const sz=46;
   const baseZoom=8;
   const initScale=Math.pow(2,map.getZoom()-baseZoom);
   function makeHtml(strokeW,scale){
