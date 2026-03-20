@@ -3257,15 +3257,13 @@ function buildPathArrows(map){
   if(!map||!S._showPathArrows||!S.stormMovement)return;
   const mv=S.stormMovement;
   if(!mv||mv.speed<1)return;
-  const toDir=(mv.direction+180)%360;
-  const scanR=S._lastScanWasHiRes?15:S.scanRadius||80;
-  const baseR=scanR*0.45;
-  const gap=scanR*0.12;
+  const travelDir=mv.direction;
+  const distances=[50,60,70];
   let maxDbz=0;
   if(S._rawScanPts&&S._rawScanPts.length>0){
     for(const p of S._rawScanPts){
       const bear=(bearingDeg(S.lat,S.lon,p.lat,p.lng)+360)%360;
-      const diff=Math.abs(((mv.direction-bear+180)%360)-180);
+      const diff=Math.abs(((travelDir-bear+180)%360)-180);
       if(diff<60&&p.dbz>maxDbz)maxDbz=p.dbz;
     }
   }
@@ -3273,17 +3271,16 @@ function buildPathArrows(map){
   const glow=maxDbz>=45?`drop-shadow(0 0 10px ${color}) drop-shadow(0 0 4px ${color})`:maxDbz>=30?`drop-shadow(0 0 6px ${color})`:'';
   const pane='path-arrow-pane';
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
-  const svgRot=toDir-90;
-  const chevronSvg=(sz,strokeW)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48" style="transform:rotate(${svgRot}deg);filter:${glow}">
+  const cssRot=travelDir-90;
+  const chevronSvg=(sz,strokeW)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48" style="transform:rotate(${cssRot}deg);filter:${glow}">
     <path d="M16,8 L34,24 L16,40" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`;
   const sz=56;
   const chevrons=[];
   for(let i=0;i<3;i++){
-    const d=baseR+i*gap;
-    const pt=destPt(S.lat,S.lon,d,toDir);
+    const pt=destPt(S.lat,S.lon,distances[i],travelDir);
     const mk=L.marker(pt,{
-      icon:L.divIcon({className:'',html:chevronSvg(sz,i===0?6:i===1?5:4),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+      icon:L.divIcon({className:'',html:chevronSvg(sz,6-i),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
       pane:pane,interactive:false
     }).addTo(map);
     chevrons.push(mk);
