@@ -1800,6 +1800,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="radar-toggle-airports" title="Toggle airports" style="font-size:0.75em">✈️</div>
         <div class="map-ctrl-btn" id="radar-anim-btn" title="Animate radar" style="font-size:0.75em">▶️</div>
         <div class="map-ctrl-btn" id="btn-zones" title="Toggle storm zones" style="font-size:0.55em;font-weight:700;line-height:1;color:#cc00ff" onclick="toggleStormZones()">ZN</div>
+        <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" style="font-size:0.55em;font-weight:700;line-height:1;color:var(--accent-cyan)" onclick="toggleStormPoints()">PT</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
       </div>
       <div class="radar-anim-bar" id="radar-anim-bar" style="display:none">
@@ -1876,6 +1877,8 @@ function initRadar(){
     document.getElementById('radar-anim-slider').addEventListener('input',(e)=>{
       scrubRadarAnim(map,parseInt(e.target.value));
     });
+    const zbtn=document.getElementById('btn-zones');if(zbtn)zbtn.style.opacity=S._showZones?'1':'0.4';
+    const pbtn=document.getElementById('btn-points');if(pbtn)pbtn.style.opacity=S._showPoints?'1':'0.4';
     plotStormMarkers(map);
   },100);
 }
@@ -2565,22 +2568,27 @@ function plotStormMarkers(map){
   });
   requestAnimationFrame(()=>{requestAnimationFrame(()=>{
     document.body.removeChild(offscreen);
+    const addToMap=S._showPoints;
     pending.forEach(p=>{
       if(p.type==='arrow'){
-        const arrow=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'storm-arrow-icon',html:p.svgHtml,iconSize:[p.sz,p.sz],iconAnchor:[p.sz/2,p.sz/2]})}).addTo(map);
+        const arrow=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'storm-arrow-icon',html:p.svgHtml,iconSize:[p.sz,p.sz],iconAnchor:[p.sz/2,p.sz/2]})});
+        if(addToMap)arrow.addTo(map);
         arrow.bindPopup(p.popupHtml,p.popupOpts);
         arrow.on('click',()=>showStormCone(map,p.stormRef));
         S.stormMarkers.push(arrow);
       }else if(p.type==='circle'){
-        const marker=L.circleMarker([p.lat,p.lng],{radius:p.r,color:p.color,fillColor:p.color,fillOpacity:0.6,weight:2}).addTo(map);
+        const marker=L.circleMarker([p.lat,p.lng],{radius:p.r,color:p.color,fillColor:p.color,fillOpacity:0.6,weight:2});
+        if(addToMap)marker.addTo(map);
         marker.bindPopup(p.popupHtml,p.popupOpts);
         marker.on('click',()=>showStormCone(map,p.stormRef));
         S.stormMarkers.push(marker);
       }else if(p.type==='ring'){
-        const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring" style="width:${p.ringSize}px;height:${p.ringSize}px;border:3px solid ${p.color};box-shadow:0 0 8px ${p.color}"></div>`,iconSize:[p.ringSize,p.ringSize],iconAnchor:[p.ringSize/2,p.ringSize/2]})}).addTo(map);
+        const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring" style="width:${p.ringSize}px;height:${p.ringSize}px;border:3px solid ${p.color};box-shadow:0 0 8px ${p.color}"></div>`,iconSize:[p.ringSize,p.ringSize],iconAnchor:[p.ringSize/2,p.ringSize/2]})});
+        if(addToMap)ring.addTo(map);
         S.stormMarkers.push(ring);
       }else if(p.type==='lightning'){
-        const lightning=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'storm-lightning-icon',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})}).addTo(map);
+        const lightning=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'storm-lightning-icon',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})});
+        if(addToMap)lightning.addTo(map);
         S.stormMarkers.push(lightning);
       }else if(p.type==='track'){
         const trackLine=L.polyline([[p.lat,p.lng],[S.lat,S.lon]],{
@@ -2686,6 +2694,20 @@ function toggleStormZones(){
   if(btn)btn.style.opacity=S._showZones?'1':'0.4';
 }
 try{const zv=localStorage.getItem('st_zones');if(zv==='0')S._showZones=false}catch(e){}
+S._showPoints=true;
+try{const pv=localStorage.getItem('st_points');if(pv==='0')S._showPoints=false}catch(e){}
+function toggleStormPoints(){
+  S._showPoints=!S._showPoints;
+  try{localStorage.setItem('st_points',S._showPoints?'1':'0')}catch(e){}
+  S.stormMarkers.forEach(m=>{
+    try{
+      if(S._showPoints){m.addTo(S.map)}
+      else{S.map.removeLayer(m)}
+    }catch(e){}
+  });
+  const btn=document.getElementById('btn-points');
+  if(btn)btn.style.opacity=S._showPoints?'1':'0.4';
+}
 
 // ==========================================
 // RADAR-BASED STORM DETECTION
