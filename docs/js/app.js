@@ -1089,6 +1089,8 @@ function renderWeather(data){
   const sections={
     trends:`<div class="weather-section" data-sec="trends"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📈</span> 48h Trends</span>${secBtns('trends')}</div>
       ${renderTrendCharts(hourly)}</div>`,
+    hourly:`<div class="weather-section" data-sec="hourly"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">🕐</span> 72h Hourly Forecast</span>${secBtns('hourly')}</div>
+      ${renderHourlyForecast(hourly,daily)}</div>`,
     forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${data._nwsForecast?renderNWSForecast(data._nwsForecast):renderDailyForecast(daily)}</div>`
   };
   const order=getSecOrder();
@@ -1609,6 +1611,71 @@ function initPrecipTaps(){
   });
 }
 
+function renderHourlyForecast(h,d){
+  if(!h||!h.time)return'';
+  const now=new Date();
+  const nowIdx=h.time.findIndex(t=>new Date(t)>=now);
+  const startIdx=Math.max(0,nowIdx<0?0:nowIdx);
+  const hours=Math.min(72,h.time.length-startIdx);
+  if(hours<1)return'<div class="card"><p style="color:var(--text-muted);text-align:center;padding:16px">No hourly data available</p></div>';
+  const sunrise=d&&d.sunrise?d.sunrise:[];
+  const sunset=d&&d.sunset?d.sunset:[];
+  function isNight(t){
+    const dt=new Date(t);
+    const dayStr=t.slice(0,10);
+    for(let i=0;i<(d.time||[]).length;i++){
+      if(d.time[i]===dayStr){
+        const sr=sunrise[i]?new Date(sunrise[i]):null;
+        const ss=sunset[i]?new Date(sunset[i]):null;
+        if(sr&&ss)return dt<sr||dt>ss;
+      }
+    }
+    const hr=dt.getHours();return hr<6||hr>20;
+  }
+  let lastDay='';
+  let items='';
+  for(let n=0;n<hours;n++){
+    const i=startIdx+n;
+    const t=h.time[i];
+    const dt=new Date(t);
+    const dayStr=dt.toLocaleDateString('en',{weekday:'short',month:'short',day:'numeric'});
+    if(dayStr!==lastDay){
+      lastDay=dayStr;
+      const isToday=dt.toDateString()===now.toDateString();
+      const isTomorrow=dt.toDateString()===new Date(now.getTime()+86400000).toDateString();
+      const label=isToday?'Today':isTomorrow?'Tomorrow':dayStr;
+      items+=`<div class="hourly-day-label">${label}</div>`;
+    }
+    const hr=dt.getHours();
+    const hrStr=hr===0?'12 AM':hr<12?hr+' AM':hr===12?'12 PM':(hr-12)+' PM';
+    const tempC=h.temperature_2m[i];
+    const feelsC=h.apparent_temperature?h.apparent_temperature[i]:null;
+    const precip=h.precipitation_probability?h.precipitation_probability[i]:0;
+    const precipMm=h.precipitation?h.precipitation[i]:0;
+    const wCode=h.weather_code?h.weather_code[i]:0;
+    const isD=h.is_day?h.is_day[i]===1:!isNight(t);
+    const windKmh=h.wind_speed_10m?h.wind_speed_10m[i]:0;
+    const gustKmh=h.wind_gusts_10m?h.wind_gusts_10m[i]:0;
+    const windDir=h.wind_direction_10m?h.wind_direction_10m[i]:0;
+    const humid=h.relative_humidity_2m?h.relative_humidity_2m[i]:null;
+    const night=!isD;
+    const bgStyle=night?'background:rgba(10,15,40,0.6)':'background:rgba(20,35,60,0.4)';
+    const precipBar=precip>0?`<div style="position:absolute;bottom:0;left:0;right:0;height:${Math.min(precip,100)*0.3}px;background:rgba(59,130,246,${Math.min(0.15+precip/200,0.5)});border-radius:0 0 8px 8px"></div>`:'';
+    items+=`<div class="hourly-item" style="${bgStyle};position:relative;overflow:hidden">
+      ${precipBar}
+      <div class="hourly-time">${n===0?'Now':hrStr}</div>
+      <div class="hourly-icon">${animEmoji(wCode,isD,'1.1em')}</div>
+      <div class="hourly-temp">${fmtTempShort(tempC)}</div>
+      ${feelsC!=null&&Math.abs(feelsC-tempC)>2?`<div class="hourly-feels">Feels ${fmtTempShort(feelsC)}</div>`:''}
+      ${precip>0?`<div class="hourly-precip">💧${precip}%</div>`:''}
+      ${precipMm>0?`<div class="hourly-precip-amt">${fmtPrecip(precipMm)}</div>`:''}
+      <div class="hourly-wind">${degToDir(windDir)} ${fmtWind(windKmh)}${gustKmh>windKmh*1.3?` G${fmtWind(gustKmh)}`:''}</div>
+      ${humid!=null?`<div class="hourly-humid">${humid}%</div>`:''}
+    </div>`;
+  }
+  return`<div class="card"><div class="card-title"><span class="icon">🕐</span> Hourly Forecast — Next 72h</div>
+    <div class="hourly-scroll">${items}</div></div>`;
+}
 function renderDailyForecast(d){
   if(!d||!d.time)return'';
   return`<div class="card"><div class="card-title"><span class="icon">📊</span> 7-Day Forecast</div>
