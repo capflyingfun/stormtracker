@@ -346,6 +346,16 @@ function rvToDbz(r,g,b,a){
   if(a<30)return 0;
   if(r+g+b<40)return 0;
   if(r>220&&g>220&&b>220)return 0;
+  const isPink=r>140&&b>100&&g<r*0.65&&b>g;
+  const isMagenta=r>100&&b>100&&g<80;
+  const isLavender=r>150&&b>180&&g>120&&g<200;
+  if(isPink||isMagenta||isLavender){
+    const intensity=(r+b)/2;
+    if(intensity>200)return 30;
+    if(intensity>150)return 25;
+    if(intensity>100)return 20;
+    return 15;
+  }
   let best=0,bestD=1e9;
   for(const p of NEXRAD_PAL){
     const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
