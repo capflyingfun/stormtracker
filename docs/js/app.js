@@ -2889,7 +2889,6 @@ function clearStormZones(){
   S._stormZoneLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
   S._stormZoneLayers=[];
   clearRadarGrid();
-  clearPathArrows();
 }
 const ZONE_ANG_STEP=3;
 const ZONE_DIST_STEP_MI=5;
@@ -3238,6 +3237,8 @@ try{const pv=localStorage.getItem('st_points');if(pv==='1')S._showPoints=true}ca
 
 function clearPathArrows(){
   if(S._pathArrowAnimInterval){clearInterval(S._pathArrowAnimInterval);S._pathArrowAnimInterval=null}
+  if(S._pathArrowZoomHandler&&S.map){try{S.map.off('zoomend',S._pathArrowZoomHandler)}catch(e){}}
+  S._pathArrowZoomHandler=null;
   S._pathArrowLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
   S._pathArrowLayers=[];
 }
@@ -3282,7 +3283,7 @@ function buildPathArrows(map){
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
   const cssRot=travelDir-90;
   const sz=52;
-  const chevronSvg=(strokeW)=>`<div style="width:${sz}px;height:${sz}px;position:fixed;transform:rotate(${cssRot}deg);filter:${glow}"><svg width="${sz}" height="${sz}" viewBox="0 0 48 48"><path d="M14,6 L36,24 L14,42" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+  const chevronSvg=(strokeW)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48" style="filter:${glow}"><path d="M14,6 L36,24 L14,42" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   const chevrons=[];
   for(let i=0;i<3;i++){
     const pt=destPt(S.lat,S.lon,distances[i],travelDir);
@@ -3293,6 +3294,19 @@ function buildPathArrows(map){
     chevrons.push(mk);
     S._pathArrowLayers.push(mk);
   }
+  function fixScale(){
+    const z=map.getZoom();
+    const baseZoom=7;
+    const scale=Math.pow(2,baseZoom-z);
+    S._pathArrowLayers.forEach(mk=>{
+      const el=mk.getElement();
+      if(!el)return;
+      el.style.transform=el.style.transform.replace(/scale\([^)]*\)/,'')+` scale(${scale})`;
+    });
+  }
+  fixScale();
+  map.on('zoomend',fixScale);
+  S._pathArrowZoomHandler=fixScale;
   let frame=0;
   S._pathArrowAnimInterval=setInterval(()=>{
     for(let i=0;i<3;i++){
