@@ -349,45 +349,66 @@ function nexradToDbz(r,g,b,a){
   if(bestD>5000)return 0;
   return best;
 }
-const RV_PAL=[
-  {dbz:5,r:130,g:200,b:130},{dbz:5,r:160,g:210,b:160},
-  {dbz:8,r:100,g:200,b:100},{dbz:8,r:80,g:180,b:80},
-  {dbz:10,r:50,g:200,b:50},{dbz:10,r:40,g:180,b:40},
-  {dbz:15,r:0,g:160,b:0},{dbz:15,r:0,g:200,b:0},
-  {dbz:20,r:0,g:230,b:0},{dbz:20,r:0,g:255,b:0},
-  {dbz:25,r:200,g:255,b:0},{dbz:25,r:255,g:255,b:0},
-  {dbz:30,r:255,g:200,b:0},{dbz:30,r:255,g:170,b:0},
-  {dbz:35,r:255,g:140,b:0},{dbz:35,r:255,g:100,b:0},
-  {dbz:40,r:255,g:60,b:0},{dbz:40,r:255,g:0,b:0},
-  {dbz:45,r:230,g:0,b:0},{dbz:45,r:200,g:0,b:0},
-  {dbz:50,r:180,g:0,b:0},{dbz:50,r:150,g:0,b:0},
-  {dbz:55,r:200,g:0,b:200},{dbz:55,r:180,g:0,b:180},
-  {dbz:60,r:255,g:0,b:255},{dbz:60,r:220,g:50,b:220},
-  {dbz:8,r:100,g:150,b:255},{dbz:10,r:80,g:130,b:230},
-  {dbz:12,r:60,g:110,b:210},{dbz:15,r:40,g:90,b:200},
-  {dbz:20,r:110,g:110,b:220},{dbz:25,r:130,g:80,b:200}
+const RV_UB=[
+  {dbz:10,r:0xce,g:0xc0,b:0x87},{dbz:12,r:0xd6,g:0xc8,b:0x8f},
+  {dbz:14,r:0xde,g:0xd0,b:0x97},{dbz:15,r:0x88,g:0xdd,b:0xee},
+  {dbz:16,r:0x6c,g:0xd1,b:0xeb},{dbz:17,r:0x51,g:0xc5,b:0xe8},
+  {dbz:18,r:0x36,g:0xba,b:0xe5},{dbz:19,r:0x1b,g:0xae,b:0xe2},
+  {dbz:20,r:0x00,g:0xa3,b:0xe0},{dbz:22,r:0x00,g:0x91,b:0xca},
+  {dbz:25,r:0x00,g:0x77,b:0xaa},{dbz:27,r:0x00,g:0x69,b:0x9c},
+  {dbz:30,r:0x00,g:0x55,b:0x88},{dbz:32,r:0x00,g:0x4e,b:0x78},
+  {dbz:34,r:0x00,g:0x47,b:0x68},{dbz:35,r:0xff,g:0xee,b:0x00},
+  {dbz:37,r:0xff,g:0xd2,b:0x00},{dbz:39,r:0xff,g:0xb7,b:0x00},
+  {dbz:40,r:0xff,g:0xaa,b:0x00},{dbz:42,r:0xff,g:0x95,b:0x00},
+  {dbz:44,r:0xff,g:0x81,b:0x00},{dbz:45,r:0xff,g:0x44,b:0x00},
+  {dbz:47,r:0xe6,g:0x28,b:0x00},{dbz:48,r:0xd9,g:0x1b,b:0x00},
+  {dbz:50,r:0xc1,g:0x00,b:0x00},{dbz:52,r:0x8f,g:0x00,b:0x00},
+  {dbz:54,r:0x5d,g:0x00,b:0x00},{dbz:55,r:0xff,g:0xaa,b:0xff},
+  {dbz:57,r:0xff,g:0x95,b:0xff},{dbz:60,r:0xff,g:0x77,b:0xff},
+  {dbz:63,r:0xff,g:0x58,b:0xff},{dbz:65,r:0xff,g:0xff,b:0xff},
+  {dbz:10,r:0xbf,g:0xff,b:0xff},{dbz:15,r:0x9f,g:0xdf,b:0xff},
+  {dbz:20,r:0x7f,g:0xbf,b:0xff},{dbz:25,r:0x5f,g:0x9f,b:0xff},
+  {dbz:30,r:0x4f,g:0x8f,b:0xff},{dbz:35,r:0x3f,g:0x7f,b:0xff},
+  {dbz:40,r:0x2f,g:0x6f,b:0xff},{dbz:45,r:0x1f,g:0x5f,b:0xff},
+  {dbz:50,r:0x0f,g:0x4f,b:0xff},{dbz:55,r:0x00,g:0x3f,b:0xff}
 ];
 function rvToDbz(r,g,b,a){
-  if(a<30)return 0;
-  if(r+g+b<40)return 0;
-  if(r>220&&g>220&&b>220)return 0;
-  const isPink=r>140&&b>100&&g<r*0.65&&b>g;
-  const isMagenta=r>100&&b>100&&g<80;
-  const isLavender=r>150&&b>180&&g>120&&g<200;
-  if(isPink||isMagenta||isLavender){
-    const intensity=(r+b)/2;
-    if(intensity>200)return 30;
-    if(intensity>150)return 25;
-    if(intensity>100)return 20;
-    return 15;
+  if(a<20)return 0;
+  if(r<10&&g>200&&b<10)return 75;
+  if(r>240&&g>240&&b>240)return 65;
+  if(r>200&&b>200&&g<r){
+    return g>160?55:g>130?57:g>100?59:g>80?61:63;
+  }
+  if(r>200&&g>60&&b<30){
+    if(g>200)return 35;if(g>170)return 37;if(g>140)return 39;
+    if(g>120)return 40;if(g>100)return 42;if(g>80)return 44;
+    return 45;
+  }
+  if(r>80&&g<70&&b<30&&a>200){
+    if(r>240)return 45;if(r>220)return 47;if(r>200)return 48;
+    if(r>180)return 50;if(r>130)return 52;return 54;
+  }
+  if(b>150&&r<180&&g>150){
+    if(r>120)return 15;if(g>200)return 16;if(g>180)return 17;
+    return 18;
+  }
+  if(r<10&&g<180&&b>80){
+    if(g>150)return 20;if(g>120)return 22;if(g>100)return 25;
+    if(g>80)return 28;return 30+Math.min(4,Math.floor((88-g)/10));
+  }
+  if(a<150&&r>80&&g>70&&b>50&&r<230){
+    return Math.min(14,Math.max(8,Math.round((a-20)/15)+8));
+  }
+  if(b>200&&g>100&&r<150){
+    if(g>200)return 10;if(g>160)return 15;if(g>100)return 20;
+    return 30;
   }
   let best=0,bestD=1e9;
-  for(const p of RV_PAL){
+  for(const p of RV_UB){
     const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
     if(d<bestD){bestD=d;best=p.dbz}
   }
-  if(bestD>8000)return 0;
-  return best;
+  return bestD<6000?best:0;
 }
 
 // ==========================================
@@ -2173,7 +2194,7 @@ async function toggleRadarAnim(map){
     const pastCount=(S.radarFrames||[]).filter(f=>!f.path||!f.path.includes('/nowcast/')).length;
     animFrames=S.radarFrames.map((f,i)=>({
       time:f.time, type:i<pastCount?'past':'forecast',
-      url:`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/6/1_1.png`
+      url:`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/2/1_1.png`
     }));
     S._radarAnimSrc='rainviewer';
   }
@@ -2264,7 +2285,7 @@ function showRadarLayer(map){
     if(S.radarFrames.length){
       S.radarIdx=S.radarFrames.length-1;
       const frame=S.radarFrames[S.radarIdx];
-      S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/6/1_1.png`,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
+      S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/2/1_1.png`,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
       const t=new Date(frame.time*1000);
       const el=document.getElementById('radar-time');
       if(el)el.textContent=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
@@ -2514,7 +2535,7 @@ async function scanRadarForView(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,radius));
       }
     }
@@ -2582,7 +2603,7 @@ async function scanRadarHiRes(map,fromHome){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${hiZoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${hiZoom}/${tx}/${ty}/6/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${hiZoom}/${tx}/${ty}/2/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,hiZoom,colorFn,minDbz,HIRES_RADIUS,1));
       }
     }
@@ -3502,7 +3523,7 @@ async function scanRadarForStorms(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,S.scanRadius));
       }
     }
