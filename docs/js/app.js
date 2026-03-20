@@ -1891,14 +1891,15 @@ function initRadar(){
           <span style="color:#ff77cc">🧊Mix</span>
         </div>
       </div>
-      <div class="scan-overlay" id="scan-overlay">
-        <div class="scan-countdown" id="scan-countdown"></div>
-        <div class="scan-step" id="scan-step1"><div class="step-icon">1</div><span id="scan-step1-text">Gathering winds aloft...</span></div>
-        <div class="scan-step" id="scan-step2"><div class="step-icon">2</div><span id="scan-step2-text">Scanning radar tiles...</span></div>
-        <div class="scan-step" id="scan-step3"><div class="step-icon">3</div><span id="scan-step3-text">Plotting storm points...</span></div>
       </div>
     </div>
-    <div id="radar-source-label" style="font-size:0.7em;color:var(--text-muted);text-align:center;margin-top:6px"></div>`;
+    <div id="scan-status-bar" style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;font-size:0.7em;color:var(--text-muted);padding:4px 8px;min-height:20px">
+      <span id="scan-dot1" style="display:none"><span class="scan-dot" id="scan-dot1-c">⚫</span> <span id="scan-dot1-t">Winds</span></span>
+      <span id="scan-dot2" style="display:none"><span class="scan-dot" id="scan-dot2-c">⚫</span> <span id="scan-dot2-t">Radar</span></span>
+      <span id="scan-dot3" style="display:none"><span class="scan-dot" id="scan-dot3-c">⚫</span> <span id="scan-dot3-t">Storms</span></span>
+      <span id="scan-refresh-timer" style="font-family:var(--font-mono);color:var(--accent-cyan);font-weight:600"></span>
+    </div>
+    <div id="radar-source-label" style="font-size:0.7em;color:var(--text-muted);text-align:center"></div>`;
   setTimeout(async()=>{
     S._radarAnimPlaying=false;S._radarAnimPaused=false;
     clearInterval(S._radarAnimTimer);S._radarAnimFrames=[];
@@ -2205,37 +2206,56 @@ function toggleRadarSource(map){
 
 function showScanOverlay(skipIfNoMap){
   if(skipIfNoMap&&!S.map)return;
-  const ov=document.getElementById('scan-overlay');if(!ov)return;
-  ov.classList.add('show');
-  ['scan-step1','scan-step2','scan-step3'].forEach(id=>{
-    const el=document.getElementById(id);el.className='scan-step';
-  });
-  document.getElementById('scan-step1').classList.add('active');
-  document.getElementById('scan-countdown').textContent='';
-  let sec=5;
-  document.getElementById('scan-countdown').textContent=sec+'s';
-  if(window._scanCountdownTimer)clearInterval(window._scanCountdownTimer);
-  window._scanCountdownTimer=setInterval(()=>{
-    sec--;
-    const el=document.getElementById('scan-countdown');
-    if(el&&sec>0)el.textContent=sec+'s';
-    else if(el)el.textContent='';
-    if(sec<=0)clearInterval(window._scanCountdownTimer);
-  },1000);
+  for(let i=1;i<=3;i++){
+    const d=document.getElementById('scan-dot'+i);if(d)d.style.display='inline';
+    const c=document.getElementById('scan-dot'+i+'-c');if(c)c.textContent='🔴';
+  }
+  const t1=document.getElementById('scan-dot1-t');if(t1)t1.textContent='Winds';
+  const t2=document.getElementById('scan-dot2-t');if(t2)t2.textContent='Radar';
+  const t3=document.getElementById('scan-dot3-t');if(t3)t3.textContent='Storms';
+  const dc=document.getElementById('scan-dot1-c');if(dc)dc.textContent='🟡';
 }
 function scanStep(step,text){
-  const prev=document.getElementById('scan-step'+(step-1));
-  if(prev){prev.classList.remove('active');prev.classList.add('done');prev.querySelector('.step-icon').textContent='✓'}
-  const cur=document.getElementById('scan-step'+step);
-  if(cur){cur.classList.add('active');const sp=document.getElementById('scan-step'+step+'-text');if(sp&&text)sp.textContent=text}
-  const cd=document.getElementById('scan-countdown');
-  if(cd&&step>=2)cd.textContent='';
+  const prev=document.getElementById('scan-dot'+(step-1)+'-c');
+  if(prev)prev.textContent='🟢';
+  const cur=document.getElementById('scan-dot'+step+'-c');
+  if(cur)cur.textContent='🟡';
+  const txt=document.getElementById('scan-dot'+step+'-t');
+  if(txt&&text)txt.textContent=text;
 }
 function hideScanOverlay(){
-  const s3=document.getElementById('scan-step3');
-  if(s3){s3.classList.remove('active');s3.classList.add('done');s3.querySelector('.step-icon').textContent='✓'}
-  if(window._scanCountdownTimer)clearInterval(window._scanCountdownTimer);
-  setTimeout(()=>{const ov=document.getElementById('scan-overlay');if(ov)ov.classList.remove('show')},600);
+  const c3=document.getElementById('scan-dot3-c');if(c3)c3.textContent='🟢';
+  startScanRefreshTimer();
+}
+function startScanRefreshTimer(){
+  if(S._scanRefreshTimer)clearInterval(S._scanRefreshTimer);
+  S._lastScanTime=Date.now();
+  const el=document.getElementById('scan-refresh-timer');if(!el)return;
+  function tick(){
+    const elapsed=Date.now()-S._lastScanTime;
+    let totalSec;
+    if(S.travelMode){
+      totalSec=(S.gpsInterval||5);
+    }else{
+      const now=new Date();
+      const next=new Date(now);
+      next.setMinutes(0,0,0);next.setHours(next.getHours()+1);
+      totalSec=Math.round((next.getTime()-now.getTime())/1000);
+    }
+    const remain=Math.max(0,totalSec-Math.floor(elapsed/1000));
+    if(remain>=3600){
+      const h=Math.floor(remain/3600),m=Math.floor((remain%3600)/60);
+      el.textContent='🔄 '+h+'h'+String(m).padStart(2,'0')+'m';
+    }else if(remain>=60){
+      const m=Math.floor(remain/60),s=remain%60;
+      el.textContent='🔄 '+m+':'+String(s).padStart(2,'0');
+    }else{
+      el.textContent='🔄 '+remain+'s';
+    }
+    if(remain<=0){el.textContent='🔄 now';clearInterval(S._scanRefreshTimer);}
+  }
+  tick();
+  S._scanRefreshTimer=setInterval(tick,1000);
 }
 
 S._airportMarkers=[];
