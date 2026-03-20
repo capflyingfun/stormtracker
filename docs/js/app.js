@@ -2969,7 +2969,6 @@ function buildStormZones(map,rawPts){
   const maxR=S._lastScanWasHiRes?15:S.scanRadius||80;
   if(!map||!rawPts||!rawPts.length||!S._showZones){
     if(map&&S.radarLayer&&!map.hasLayer(S.radarLayer)){S.radarLayer.addTo(map)}
-    buildPathArrows(map);
     return;
   }
   drawRadarGrid(map,maxR);
@@ -3186,7 +3185,6 @@ function buildStormZones(map,rawPts){
   }
   const ms=Math.round(performance.now()-t0);
   console.log(`Polar grid: ${rawPts.length} pts → ${cells.size} cells (${ZONE_ANG_STEP}°×${ZONE_DIST_STEP_MI}mi) in ${ms}ms`);
-  buildPathArrows(map);
 }
 function autoActivateZones(){
   if(!S._rawScanPts||!S._rawScanPts.length)return;
