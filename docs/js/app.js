@@ -449,7 +449,13 @@ function switchPage(page){
   document.querySelectorAll('.nav-item').forEach(b=>{b.classList.toggle('active',b.dataset.page===page)});
   document.querySelectorAll('.section-page').forEach(p=>{p.classList.toggle('visible',p.id==='page-'+page)});
   S.activePage=page;
-  if(page==='radar'&&S.map){setTimeout(()=>{S.map.invalidateSize();if(S._showZones&&S._rawScanPts.length)buildStormZones(S.map,S._rawScanPts);if(S._showPathArrows)buildPathArrows(S.map)},150);if(S._nextRefreshAt)startScanRefreshTimer()}
+  if(page==='radar'&&S.lat){
+    if(S.map){setTimeout(()=>{S.map.invalidateSize();if(S._showZones&&S._rawScanPts.length)buildStormZones(S.map,S._rawScanPts);if(S._showPathArrows)buildPathArrows(S.map)},150);if(S._nextRefreshAt)startScanRefreshTimer()}
+    else{initRadar()}
+  }
+  if(page==='station'&&S.lat&&(!S.station||S._stationLocKey!==S.lat+','+S.lon))fetchStation();
+  if(page==='alerts'&&S.lat)fetchAlerts();
+  if(page==='storms'&&S.lat)renderStorms();
   if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}
 }
 function updateStormBadges(){
