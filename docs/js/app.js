@@ -398,7 +398,7 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
     const page=btn.dataset.page;
     switchPage(page);
     if(page==='radar'&&S.lat)initRadar();
-    if(page==='station'&&S.lat&&!S.station)fetchStation();
+    if(page==='station'&&S.lat&&(!S.station||S._stationLocKey!==S.lat+','+S.lon))fetchStation();
     if(page==='alerts'&&S.lat)fetchAlerts();
     if(page==='storms'&&S.lat)renderStorms();
   });
@@ -428,7 +428,7 @@ function switchPage(page){
   document.querySelectorAll('.nav-item').forEach(b=>{b.classList.toggle('active',b.dataset.page===page)});
   document.querySelectorAll('.section-page').forEach(p=>{p.classList.toggle('visible',p.id==='page-'+page)});
   S.activePage=page;
-  if(page==='radar'&&S.map)setTimeout(()=>S.map.invalidateSize(),100);
+  if(page==='radar'&&S.map){setTimeout(()=>S.map.invalidateSize(),100);if(S._nextRefreshAt)startScanRefreshTimer()}
   if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}
 }
 function updateStormBadges(){
@@ -2173,7 +2173,7 @@ async function toggleRadarAnim(map){
     const pastCount=(S.radarFrames||[]).filter(f=>!f.path||!f.path.includes('/nowcast/')).length;
     animFrames=S.radarFrames.map((f,i)=>({
       time:f.time, type:i<pastCount?'past':'forecast',
-      url:`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/1/1_1.png`
+      url:`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/4/1_1.png`
     }));
     S._radarAnimSrc='rainviewer';
   }
@@ -2264,7 +2264,7 @@ function showRadarLayer(map){
     if(S.radarFrames.length){
       S.radarIdx=S.radarFrames.length-1;
       const frame=S.radarFrames[S.radarIdx];
-      S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/1/1_1.png`,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
+      S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/4/1_1.png`,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
       const t=new Date(frame.time*1000);
       const el=document.getElementById('radar-time');
       if(el)el.textContent=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
@@ -2396,54 +2396,53 @@ async function plotAirportMarkers(map,stations){
   clearAirportMarkers(map);
   S._airportsVisible=true;
   const plotId=++S._airportPlotId;
-  for(const st of stations){
-    if(S._airportPlotId!==plotId)return;
-    try{
-      const obsUrl=`https://api.weather.gov/stations/${st.icao}/observations/latest`;
-      const or=await fetch(obsUrl,NWS_HDR);
-      if(!or.ok)continue;
-      const od=await or.json();
-      const p=od.properties||{};
-      const tc=p.temperature?.value;
-      const wKmh=p.windSpeed?.value;
-      const wDir=p.windDirection?.value;
-      const visMi=p.visibility?.value!=null?(p.visibility.value/1609.34):null;
-      const fltCat=getFltCat(visMi,{clouds:(p.cloudLayers||[]).map(l=>({amount:l.amount,base:l.base}))});
-      const fltColor=fltCat==='VFR'?'#22c55e':fltCat==='MVFR'?'#3b82f6':fltCat==='IFR'?'#ef4444':'#d946ef';
-
-      const icon=L.divIcon({
-        className:'',
-        html:`<div style="display:flex;flex-direction:column;align-items:center;pointer-events:auto">
-          <div style="background:${fltColor};color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,0.6)">${st.icao}</div>
-          <div style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:4px solid ${fltColor}"></div>
-        </div>`,
-        iconSize:[40,20],iconAnchor:[20,20]
-      });
-
-      const tempStr=tc!=null?fmtTemp(tc):'--';
-      const windStr=wKmh!=null?(fmtWind(wKmh)+' '+(wDir!=null?degToDir(wDir):'VRB')):'Calm';
-      const visStr=visMi!=null?fmtVis(visMi):'--';
-      const skyStr=formatClouds({clouds:(p.cloudLayers||[]).map(l=>({amount:l.amount,base:l.base}))});
-
-      const popup=L.popup({className:'storm-popup',maxWidth:220,closeButton:true}).setContent(`
-        <div style="font-size:0.8em;line-height:1.5">
-          <div style="font-weight:700;color:${fltColor};margin-bottom:4px">✈️ ${st.icao} — ${st.name}</div>
-          <div style="display:inline-block;background:${fltColor};color:#fff;padding:0 6px;border-radius:3px;font-size:0.85em;font-weight:600;margin-bottom:4px">${fltCat}</div>
-          <span style="color:var(--text-muted);font-size:0.85em;margin-left:4px">${st.dist.toFixed(1)} mi</span>
-          <div>🌡️ ${tempStr}</div>
-          <div>💨 ${windStr}</div>
-          <div>👁️ Vis: ${visStr}</div>
-          <div>☁️ ${skyStr}</div>
-          <div style="margin-top:4px;text-align:center">
-            <button onclick="switchPage('station');switchStation('${st.icao}')" style="padding:3px 10px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid var(--accent-cyan);border-radius:5px;font-size:0.85em;cursor:pointer;font-weight:600">Open in Station Tab</button>
-          </div>
+  toast('✈️ Loading airports...');
+  const results=await Promise.allSettled(stations.map(async st=>{
+    const obsUrl=`https://api.weather.gov/stations/${st.icao}/observations/latest`;
+    const or=await fetch(obsUrl,NWS_HDR);
+    if(!or.ok)return null;
+    const od=await or.json();
+    return{st,props:od.properties||{}};
+  }));
+  if(S._airportPlotId!==plotId)return;
+  const valid=results.filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value);
+  for(const{st,props:p}of valid){
+    const tc=p.temperature?.value;
+    const wKmh=p.windSpeed?.value;
+    const wDir=p.windDirection?.value;
+    const visMi=p.visibility?.value!=null?(p.visibility.value/1609.34):null;
+    const fltCat=getFltCat(visMi,{clouds:(p.cloudLayers||[]).map(l=>({amount:l.amount,base:l.base}))});
+    const fltColor=fltCat==='VFR'?'#22c55e':fltCat==='MVFR'?'#3b82f6':fltCat==='IFR'?'#ef4444':'#d946ef';
+    const icon=L.divIcon({
+      className:'',
+      html:`<div style="display:flex;flex-direction:column;align-items:center;pointer-events:auto">
+        <div style="background:${fltColor};color:#fff;font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,0.6)">${st.icao}</div>
+        <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid ${fltColor}"></div>
+      </div>`,
+      iconSize:[50,26],iconAnchor:[25,26]
+    });
+    const tempStr=tc!=null?fmtTemp(tc):'--';
+    const windStr=wKmh!=null?(fmtWind(wKmh)+' '+(wDir!=null?degToDir(wDir):'VRB')):'Calm';
+    const visStr=visMi!=null?fmtVis(visMi):'--';
+    const skyStr=formatClouds({clouds:(p.cloudLayers||[]).map(l=>({amount:l.amount,base:l.base}))});
+    const popup=L.popup({className:'storm-popup',maxWidth:220,closeButton:true}).setContent(`
+      <div style="font-size:0.8em;line-height:1.5">
+        <div style="font-weight:700;color:${fltColor};margin-bottom:4px">✈️ ${st.icao} — ${st.name}</div>
+        <div style="display:inline-block;background:${fltColor};color:#fff;padding:0 6px;border-radius:3px;font-size:0.85em;font-weight:600;margin-bottom:4px">${fltCat}</div>
+        <span style="color:var(--text-muted);font-size:0.85em;margin-left:4px">${st.dist.toFixed(1)} mi</span>
+        <div>🌡️ ${tempStr}</div>
+        <div>💨 ${windStr}</div>
+        <div>👁️ Vis: ${visStr}</div>
+        <div>☁️ ${skyStr}</div>
+        <div style="margin-top:4px;text-align:center">
+          <button onclick="switchPage('station');switchStation('${st.icao}')" style="padding:3px 10px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid var(--accent-cyan);border-radius:5px;font-size:0.85em;cursor:pointer;font-weight:600">Open in Station Tab</button>
         </div>
-      `);
-
-      const marker=L.marker([st.lat,st.lon],{icon,zIndexOffset:500}).addTo(map).bindPopup(popup);
-      S._airportMarkers.push(marker);
-    }catch(e){}
+      </div>
+    `);
+    const marker=L.marker([st.lat,st.lon],{icon,zIndexOffset:500}).addTo(map).bindPopup(popup);
+    S._airportMarkers.push(marker);
   }
+  toast(`✈️ ${valid.length} airports loaded`);
 }
 
 function clearAirportMarkers(map){
@@ -2515,7 +2514,7 @@ async function scanRadarForView(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/1/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/4/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,radius));
       }
     }
@@ -2583,7 +2582,7 @@ async function scanRadarHiRes(map,fromHome){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${hiZoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${hiZoom}/${tx}/${ty}/1/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${hiZoom}/${tx}/${ty}/4/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,hiZoom,colorFn,minDbz,HIRES_RADIUS,1));
       }
     }
@@ -3503,7 +3502,7 @@ async function scanRadarForStorms(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/1/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/4/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,S.scanRadius));
       }
     }
@@ -3726,6 +3725,7 @@ function renderStorms(){
 const NWS_HDR={headers:{'User-Agent':'StormTracker/1.50','Accept':'application/geo+json'}};
 
 async function fetchStation(){
+  S._stationLocKey=S.lat+','+S.lon;
   const el=document.getElementById('page-station');showSkel(el,5);
   try{
     const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,NWS_HDR);
