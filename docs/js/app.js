@@ -449,7 +449,7 @@ function switchPage(page){
   document.querySelectorAll('.nav-item').forEach(b=>{b.classList.toggle('active',b.dataset.page===page)});
   document.querySelectorAll('.section-page').forEach(p=>{p.classList.toggle('visible',p.id==='page-'+page)});
   S.activePage=page;
-  if(page==='radar'&&S.map){setTimeout(()=>S.map.invalidateSize(),100);if(S._nextRefreshAt)startScanRefreshTimer()}
+  if(page==='radar'&&S.map){setTimeout(()=>{S.map.invalidateSize();if(S._showPathArrows)buildPathArrows(S.map)},100);if(S._nextRefreshAt)startScanRefreshTimer()}
   if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}
 }
 function updateStormBadges(){
