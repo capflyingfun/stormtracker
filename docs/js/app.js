@@ -839,8 +839,9 @@ async function toggleTravelMode(){
       }
     }catch(e){}
   }
+  let gpsPos;
   try{
-    await new Promise((resolve,reject)=>{
+    gpsPos=await new Promise((resolve,reject)=>{
       navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:10000});
     });
   }catch(err){
@@ -850,6 +851,13 @@ async function toggleTravelMode(){
       toast('📍 Could not get GPS position — please try again');
     }
     return;
+  }
+  if(S.lat&&S.lon&&gpsPos){
+    const gpsDist=haversine(S.lat,S.lon,gpsPos.coords.latitude,gpsPos.coords.longitude);
+    if(gpsDist>50){
+      const confirmed=await showGpsRelocateConfirm(gpsDist,gpsPos.coords.latitude,gpsPos.coords.longitude);
+      if(!confirmed)return;
+    }
   }
   S.travelMode=true;
   S.travelLastUpdate=0;
@@ -872,6 +880,36 @@ async function toggleTravelMode(){
   }
   startGpsWatch();
   toast('🧭 Travel Mode ON — GPS tracking active (updates every '+fmtGpsInt(S.gpsInterval)+')');
+}
+function showGpsRelocateConfirm(distMi,gpsLat,gpsLon){
+  return new Promise(resolve=>{
+    const distStr=distMi>500?Math.round(distMi).toLocaleString()+' mi':Math.round(distMi)+' mi';
+    const overlay=document.createElement('div');
+    overlay.className='confirm-overlay';
+    overlay.innerHTML=`<div class="confirm-dialog" style="max-width:340px">
+      <div style="text-align:center;margin-bottom:12px">
+        <div style="font-size:2em">📍</div>
+        <div style="font-weight:700;font-size:1.1em;margin:8px 0">Switch to GPS Location?</div>
+      </div>
+      <p style="font-size:0.85em;color:var(--text-secondary);text-align:center;margin-bottom:16px">
+        Your GPS is <strong>${distStr}</strong> from the current location.<br>
+        Travel Mode will reset everything to your actual GPS position.
+      </p>
+      <div style="display:flex;gap:8px">
+        <button id="gps-reloc-no" style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);font-weight:600;cursor:pointer">Stay Here</button>
+        <button id="gps-reloc-yes" style="flex:1;padding:10px;border-radius:8px;border:none;background:var(--accent-cyan);color:#000;font-weight:700;cursor:pointer">Use GPS 📍</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('gps-reloc-no').addEventListener('click',()=>{overlay.remove();resolve(false)});
+    document.getElementById('gps-reloc-yes').addEventListener('click',()=>{
+      overlay.remove();
+      toast('📍 Relocating to GPS position...');
+      reverseGeo(gpsLat,gpsLon);
+      resolve(true);
+    });
+    overlay.addEventListener('click',e=>{if(e.target===overlay){overlay.remove();resolve(false)}});
+  });
 }
 function stopTravelMode(){
   S.travelMode=false;
@@ -4080,23 +4118,119 @@ async function fetchStationAWC(){
   const degSpan=1.5;
   const minLat=(S.lat-degSpan).toFixed(2),maxLat=(S.lat+degSpan).toFixed(2);
   const minLon=(S.lon-degSpan).toFixed(2),maxLon=(S.lon+degSpan).toFixed(2);
-  const url=`https://aviationweather.gov/api/data/metar?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json&date=0&hours=3`;
-  const r=await fetch(url);
-  if(!r.ok)throw new Error('AWC bbox '+r.status);
-  const data=await r.json();
-  if(!data.length)throw new Error('No stations in range');
-  const seen=new Map();
-  data.forEach(m=>{if(!seen.has(m.icaoId))seen.set(m.icaoId,m)});
-  const stations=[...seen.values()].map(m=>({
-    icao:m.icaoId,name:m.name||m.icaoId,
-    lat:m.lat,lon:m.lon,
-    dist:haversine(S.lat,S.lon,m.lat,m.lon),
-    _awc:m
-  })).sort((a,b)=>a.dist-b.dist).slice(0,10);
-  if(!stations.length)throw new Error('No stations parsed');
-  S._stationSource='awc';
-  S.nearbyStations=stations;
-  loadStationFromAWC(stations[0]._awc,stations[0]);
+  let data=[];
+  try{
+    const url=`https://aviationweather.gov/api/data/metar?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json&hours=3`;
+    const r=await fetch(url);
+    if(r.ok){
+      const body=await r.json();
+      if(Array.isArray(body))data=body;
+    }
+  }catch(e){console.log('AWC metar bbox error:',e.message)}
+  if(data.length){
+    const seen=new Map();
+    data.forEach(m=>{if(!seen.has(m.icaoId))seen.set(m.icaoId,m)});
+    const stations=[...seen.values()].map(m=>({
+      icao:m.icaoId,name:m.name||m.icaoId,
+      lat:m.lat,lon:m.lon,
+      dist:haversine(S.lat,S.lon,m.lat,m.lon),
+      _awc:m
+    })).sort((a,b)=>a.dist-b.dist).slice(0,10);
+    if(stations.length){
+      S._stationSource='awc';
+      S.nearbyStations=stations;
+      loadStationFromAWC(stations[0]._awc,stations[0]);
+      return;
+    }
+  }
+  await fetchStationGlobal();
+}
+async function fetchStationGlobal(){
+  const el=document.getElementById('page-station');
+  const degSpan=2;
+  const minLat=(S.lat-degSpan).toFixed(2),maxLat=(S.lat+degSpan).toFixed(2);
+  const minLon=(S.lon-degSpan).toFixed(2),maxLon=(S.lon+degSpan).toFixed(2);
+  let stationList=[];
+  try{
+    const url=`https://aviationweather.gov/api/data/stationinfo?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json`;
+    const r=await fetch(url);
+    if(r.ok){
+      const body=await r.json();
+      if(Array.isArray(body)){
+        stationList=body.filter(s=>s.siteType&&s.siteType.includes('METAR')).map(s=>({
+          icao:s.icaoId,name:s.site||s.icaoId,
+          lat:s.lat,lon:s.lon,
+          dist:haversine(S.lat,S.lon,s.lat,s.lon)
+        })).sort((a,b)=>a.dist-b.dist).slice(0,10);
+      }
+    }
+  }catch(e){console.log('AWC stationinfo error:',e.message)}
+  if(!stationList.length)throw new Error('No stations in range');
+  S._stationSource='vatsim';
+  S.nearbyStations=stationList;
+  await loadStationVatsim(stationList[0]);
+}
+async function loadStationVatsim(station){
+  const el=document.getElementById('page-station');
+  try{
+    const r=await fetch(`https://metar.vatsim.net/${station.icao}`);
+    if(!r.ok)throw new Error('VATSIM '+r.status);
+    const raw=await r.text();
+    if(!raw||raw.length<10)throw new Error('Empty METAR');
+    const obs=parseRawMetar(raw.trim(),station);
+    S.station=obs;S.stationId=station.icao;
+    renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
+  }catch(e){
+    console.error('VATSIM error for '+station.icao+':',e);
+    el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Could not load station data for ${station.icao}.<br><span style="font-size:0.8em;color:var(--text-muted)">${e.message}</span></p></div>`;
+  }
+}
+function parseRawMetar(raw,station){
+  const parts=raw.split(/\s+/);
+  let temp=null,dewp=null,windDir=null,windKt=null,gustKt=null,vis=null,altim=null;
+  let clouds=[];
+  for(const p of parts){
+    const windM=p.match(/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT$/);
+    if(windM){
+      windDir=windM[1]==='VRB'?null:Number(windM[1]);
+      windKt=Number(windM[2]);
+      if(windM[4])gustKt=Number(windM[4]);
+      continue;
+    }
+    const tempM=p.match(/^(M?\d{1,2})\/(M?\d{1,2})$/);
+    if(tempM){
+      temp=tempM[1].startsWith('M')?-Number(tempM[1].slice(1)):Number(tempM[1]);
+      dewp=tempM[2].startsWith('M')?-Number(tempM[2].slice(1)):Number(tempM[2]);
+      continue;
+    }
+    const altM=p.match(/^Q(\d{4})$/);
+    if(altM){altim=Number(altM[1]);continue}
+    const altA=p.match(/^A(\d{4})$/);
+    if(altA){altim=Number(altA[1])/100*33.8639;continue}
+    if(vis===null&&!windM&&!tempM&&!altM&&!altA&&p.match(/^(\d{4})$/)&&Number(p)>=100&&Number(p)<=9999){
+      vis=Number(p);continue;
+    }
+    const visSM=p.match(/^(\d+)SM$/);
+    if(visSM){vis=Number(visSM[1])*1609.34;continue}
+    const cldM=p.match(/^(FEW|SCT|BKN|OVC|CLR|SKC|NSC|NCD|VV)(\d{3})?$/);
+    if(cldM){
+      clouds.push({amount:cldM[1],base:{value:cldM[2]?Number(cldM[2])*100*0.3048:null}});
+      continue;
+    }
+  }
+  return{
+    icao:station.icao,name:station.name,lat:station.lat,lon:station.lon,
+    temp,dewp,
+    windKmh:windKt!=null?windKt*1.852:null,
+    windDir,
+    gustKmh:gustKt!=null?gustKt*1.852:null,
+    visMeter:vis,
+    presPa:altim!=null?altim*100:null,
+    rawMETAR:raw,
+    clouds,
+    obsTime:new Date().toISOString(),
+    _source:'VATSIM'
+  };
 }
 function parseAWCobs(m){
   return{
@@ -4143,6 +4277,10 @@ function buildSyntheticMetar(icao,p){
 async function loadStationObs(icao){
   const el=document.getElementById('page-station');
   S.stationId=icao;
+  if(S._stationSource==='vatsim'){
+    const st=S.nearbyStations?.find(s=>s.icao===icao)||{icao,name:icao,lat:S.lat,lon:S.lon};
+    return loadStationVatsim(st);
+  }
   if(S._stationSource==='awc'){return loadStationObsAWC(icao)}
   try{
     const obsRes=await fetch(`https://api.weather.gov/stations/${icao}/observations/latest`,NWS_HDR);
