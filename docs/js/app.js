@@ -2067,7 +2067,7 @@ function initRadar(){
     const pbtn=document.getElementById('btn-points');if(pbtn)pbtn.style.opacity=S._showPoints?'1':'0.4';
     const rbtn=document.getElementById('btn-radar-overlay');if(rbtn)rbtn.style.opacity=S._radarOverlayVisible?'1':'0.4';
     const pabtn=document.getElementById('btn-path-arrows');if(pabtn)pabtn.style.opacity=S._showPathArrows?'1':'0.4';
-    if(S._showPathArrows&&S.storms.length)setTimeout(()=>buildPathArrows(map),200);
+    if(S._showPathArrows)setTimeout(()=>buildPathArrows(map),200);
     if(S.storms.length){
       plotStormMarkers(map);
       buildStormZones(map,S._rawScanPts);
@@ -2631,10 +2631,7 @@ async function scanRadarHiRes(map,fromHome){
     if(rawPoints.length>0){autoActivateZones()}
     else{clearStormZones();if(S.radarLayer&&S.map&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}
     showViewScanCircle(map,cLat,cLng,HIRES_RADIUS,S.storms.length);
-    if(S.map&&S._showPathArrows){
-      if(S.activePage==='radar')setTimeout(()=>buildPathArrows(S.map),150);
-      else S._pathArrowsDirty=true;
-    }
+    if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
     map.setView([cLat,cLng],11,{animate:true,duration:0.5});
     hideScanOverlay();
     toast(`Hi-Res: ${S.storms.length.toLocaleString()} cells in ${HIRES_RADIUS} mi (${srcLabel})`);
@@ -3675,10 +3672,7 @@ async function scanRadarForStorms(){
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
-    if(S.map&&S._showPathArrows){
-      if(S.activePage==='radar')setTimeout(()=>buildPathArrows(S.map),150);
-      else S._pathArrowsDirty=true;
-    }
+    if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
     scheduleAutoScan();
     const severeNearby=S.storms.some(s=>s.dbz>=50&&s.distance<=15);
     if(severeNearby&&S.map&&!S._autoHiResActive){
