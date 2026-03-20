@@ -3283,28 +3283,28 @@ function buildPathArrows(map){
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
   const cssRot=travelDir-90;
   const sz=52;
-  const chevronSvg=(strokeW)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48" style="filter:${glow}"><path d="M14,6 L36,24 L14,42" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const chevronSvg=(strokeW,scale)=>`<div class="pa-inner" style="width:${sz}px;height:${sz}px;transform:rotate(${cssRot}deg) scale(${scale});transform-origin:center center;filter:${glow}"><svg width="${sz}" height="${sz}" viewBox="0 0 48 48"><path d="M14,6 L36,24 L14,42" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+  const baseZoom=8;
+  const initScale=Math.pow(2,map.getZoom()-baseZoom);
   const chevrons=[];
   for(let i=0;i<3;i++){
     const pt=destPt(S.lat,S.lon,distances[i],travelDir);
     const mk=L.marker(pt,{
-      icon:L.divIcon({className:'path-arrow-icon',html:chevronSvg(6-i),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+      icon:L.divIcon({className:'path-arrow-icon',html:chevronSvg(6-i,initScale),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
       pane:pane,interactive:false
     }).addTo(map);
     chevrons.push(mk);
     S._pathArrowLayers.push(mk);
   }
   function fixScale(){
-    const z=map.getZoom();
-    const baseZoom=8;
-    const scale=Math.pow(2,z-baseZoom);
+    const scale=Math.pow(2,map.getZoom()-baseZoom);
     S._pathArrowLayers.forEach(mk=>{
       const el=mk.getElement();
       if(!el)return;
-      el.style.transform=el.style.transform.replace(/scale\([^)]*\)/,'')+` scale(${scale})`;
+      const inner=el.querySelector('.pa-inner');
+      if(inner)inner.style.transform=`rotate(${cssRot}deg) scale(${scale})`;
     });
   }
-  fixScale();
   map.on('zoomend',fixScale);
   S._pathArrowZoomHandler=fixScale;
   let frame=0;
@@ -3312,10 +3312,12 @@ function buildPathArrows(map){
     for(let i=0;i<3;i++){
       const el=chevrons[i]?.getElement();
       if(!el)continue;
+      const inner=el.querySelector('.pa-inner');
+      if(!inner)continue;
       const phase=(frame-i+6)%6;
       const op=phase<3?1-phase*0.25:0.12;
-      el.style.opacity=String(op);
-      el.style.transition='opacity 0.3s';
+      inner.style.opacity=String(op);
+      inner.style.transition='opacity 0.3s';
     }
     frame=(frame+1)%6;
   },350);
