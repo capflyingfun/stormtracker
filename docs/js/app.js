@@ -1434,9 +1434,98 @@ function renderWeather(data){
         <span class="baro-trend ${baro.trend}" style="font-size:0.6em;color:${baro.trend==='rising'?'var(--accent-green)':baro.trend==='falling'?'var(--accent-red)':'var(--text-muted)'};text-shadow:0 0 6px ${baro.trend==='rising'?'rgba(0,255,136,0.4)':baro.trend==='falling'?'rgba(255,51,85,0.4)':'none'}">${trendArrow} ${(()=>{const isI=S.presUnit===0;if(isI){const v=Math.abs(baro.trendMb/33.8639);return(baro.trendMb>=0?'+':'-')+(v<0.05?v.toFixed(3):v.toFixed(2))+' inHg'}return(baro.trendMb>=0?'+':'')+baro.trendMb.toFixed(1)+' mb'})()}</span>
       </div>
     </div>
+    <div class="card" style="margin-top:8px;padding:8px;cursor:pointer" onclick="switchPage('radar')">
+      <div class="card-title" style="margin-bottom:4px"><span class="icon">📡</span> Radar Sonar</div>
+      <canvas id="mini-sonar-canvas" style="width:100%;border-radius:8px;display:block"></canvas>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+        <span id="mini-sonar-info" style="font-size:0.6em;color:var(--text-muted)"></span>
+        <span style="font-size:0.6em;color:var(--accent-cyan)">Tap to open Radar →</span>
+      </div>
+    </div>
     ${order.map(k=>sections[k]||'').join('')}`;
   setTimeout(initPrecipTaps,0);
+  setTimeout(drawMiniSonar,50);
   startWindSim();
+}
+function drawMiniSonar(){
+  const canvas=document.getElementById('mini-sonar-canvas');
+  if(!canvas||!S.lat)return;
+  const dpr=window.devicePixelRatio||1;
+  const w=canvas.parentElement.clientWidth-16;
+  const size=Math.min(w,320);
+  canvas.width=size*dpr;canvas.height=size*dpr;
+  canvas.style.height=size+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  const cx=size/2,cy=size/2,maxR=size/2-20;
+  ctx.fillStyle='#0a0e14';
+  ctx.beginPath();ctx.arc(cx,cy,maxR+10,0,Math.PI*2);ctx.fill();
+  const scanR=S.scanRadius||80;
+  const nRings=4;
+  for(let i=1;i<=nRings;i++){
+    const r=maxR*(i/nRings);
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.strokeStyle='rgba(0,220,255,0.12)';ctx.lineWidth=0.5;ctx.stroke();
+    const dist=Math.round(scanR*(i/nRings));
+    const label=S.radarMetric?Math.round(dist*1.60934)+'km':dist+'mi';
+    ctx.fillStyle='rgba(0,220,255,0.35)';ctx.font=`${Math.max(8,size*0.028)}px Inter,sans-serif`;
+    ctx.textAlign='center';ctx.fillText(label,cx,cy-r+10);
+  }
+  ctx.beginPath();ctx.moveTo(cx,cy-maxR);ctx.lineTo(cx,cy+maxR);ctx.strokeStyle='rgba(0,220,255,0.08)';ctx.lineWidth=0.5;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx-maxR,cy);ctx.lineTo(cx+maxR,cy);ctx.stroke();
+  const dirs=[['N',0],['S',180],['E',90],['W',270]];
+  ctx.fillStyle='rgba(0,220,255,0.5)';ctx.font=`bold ${Math.max(9,size*0.035)}px Inter,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+  for(const[l,deg]of dirs){
+    const a=(deg-90)*Math.PI/180;
+    const lx=cx+Math.cos(a)*(maxR+12),ly=cy+Math.sin(a)*(maxR+12);
+    ctx.fillText(l,lx,ly);
+  }
+  let zoneCount=0,maxDbz=0;
+  if(S._rawScanPts&&S._rawScanPts.length){
+    const cells=polarGridBin(S._rawScanPts,S.lat,S.lon,scanR);
+    const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
+    for(const[k,c]of cells){
+      const a1=(c.ai*angStep-90)*Math.PI/180;
+      const a2=((c.ai+1)*angStep-90)*Math.PI/180;
+      const r1=maxR*(c.ri*distStep/scanR);
+      const r2=maxR*((c.ri+1)*distStep/scanR);
+      if(r2<=0)continue;
+      const hex=dbzHex(c.maxDbz);
+      const alpha=Math.min(0.85,0.25+c.maxDbz/80);
+      ctx.beginPath();
+      ctx.arc(cx,cy,r2,a1,a2);
+      ctx.arc(cx,cy,Math.max(0,r1),a2,a1,true);
+      ctx.closePath();
+      ctx.fillStyle=hexToRgba(hex,alpha);
+      ctx.fill();
+      ctx.strokeStyle=hexToRgba(hex,0.3);ctx.lineWidth=0.3;ctx.stroke();
+      if(c.maxDbz>maxDbz)maxDbz=c.maxDbz;
+      zoneCount++;
+    }
+  }
+  if(S.stormMovement&&S.stormMovement.speed>=2){
+    const mv=S.stormMovement;
+    const mvAng=(mv.direction-90)*Math.PI/180;
+    const arrLen=maxR*0.6;
+    const ax=cx+Math.cos(mvAng)*arrLen,ay=cy+Math.sin(mvAng)*arrLen;
+    const headL=12,headW=6;
+    const la=mvAng-Math.PI+0.4,ra=mvAng-Math.PI-0.4;
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(la)*headL,ay+Math.sin(la)*headL);ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(ra)*headL,ay+Math.sin(ra)*headL);
+    const neonC=pathArrowNeonColor(maxDbz);
+    ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx+Math.cos(mvAng)*15,cy+Math.sin(mvAng)*15);ctx.lineTo(ax,ay);
+    ctx.strokeStyle=hexToRgba(neonC,0.5);ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
+  }
+  ctx.beginPath();ctx.arc(cx,cy,3,0,Math.PI*2);ctx.fillStyle='#00dcff';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,6,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.3)';ctx.lineWidth=1;ctx.stroke();
+  const infoEl=document.getElementById('mini-sonar-info');
+  if(infoEl){
+    if(zoneCount>0){
+      infoEl.textContent=`${zoneCount} zone${zoneCount>1?'s':''} · Peak ${maxDbz} dBZ · ${S.radarMetric?Math.round(scanR*1.60934)+'km':scanR+'mi'} radius`;
+    }else{
+      infoEl.textContent=`No radar data · ${S.radarMetric?Math.round(scanR*1.60934)+'km':scanR+'mi'} radius`;
+    }
+  }
 }
 const _wn={p:[151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180],
   g:[[1,1],[1,-1],[-1,1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]],
