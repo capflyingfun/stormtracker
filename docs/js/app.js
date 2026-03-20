@@ -2797,16 +2797,21 @@ function buildStormZones(map,rawPts){
     let mvSpd='--';
     let statusHtml='';
     const cellId='gc'+cell.ri+'_'+cell.ai;
+    let impactPct=0;
+    let impactTier='none';
     if(mv&&mv.speed>=2){
       const bearToUser=(midBear+180)%360;
       const diff=Math.abs(((mv.direction-bearToUser+180)%360)-180);
       const closing=mv.speed*Math.cos(Math.min(diff,60)*Math.PI/180);
-      isApproaching=(diff<=30&&closing>1);
       mvDir=degToDir(mv.direction);
       mvBear=mv.direction+'°';
       mvSpd=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
+      if(diff<=15&&closing>1){impactTier='high';impactPct=80+Math.round((15-diff)/15*20);}
+      else if(diff<=25&&closing>0.5){impactTier='medium';impactPct=31+Math.round((25-diff)/10*49);}
+      else if(diff<=40){impactTier='low';impactPct=Math.max(5,Math.round((40-diff)/15*30));}
+      isApproaching=(impactTier==='high'||impactTier==='medium');
       if(isApproaching&&midDist>1){
-        etaSec=Math.round(midDist/closing*3600);
+        etaSec=Math.round(midDist/Math.max(closing,0.5)*3600);
         const now=new Date();
         const arrival=new Date(now.getTime()+etaSec*1000);
         const hh=arrival.getHours(),mm=arrival.getMinutes();
@@ -2820,12 +2825,13 @@ function buildStormZones(map,rawPts){
         if(maxDbz>approachMaxDbz)approachMaxDbz=maxDbz;
         S._gridEtaTimers.push({id:cellId,etaSec,startTime:Date.now()});
       }
+      const tierColors={high:'#eab308',medium:'#06b6d4',low:'#ec4899',none:'#22c55e'};
+      const tierLabels={high:'🟡 High ('+impactPct+'%)',medium:'🔵 Medium ('+impactPct+'%)',low:'🟣 Low ('+impactPct+'%)',none:'✓ Not in path'};
+      const tc=tierColors[impactTier]||'#22c55e';
       if(midDist<=1){
         statusHtml=`<div style="text-align:center;margin-top:4px;padding:3px 6px;background:rgba(239,68,68,0.15);border-radius:4px;color:#ef4444;font-size:0.8em;font-weight:600">🚨 OVERHEAD</div>`;
-      }else if(isApproaching){
-        statusHtml=`<div style="text-align:center;margin-top:4px;padding:3px 6px;background:rgba(239,68,68,0.12);border-radius:4px;color:#ef4444;font-size:0.78em;font-weight:600">⚠️ Approaching</div>`;
       }else{
-        statusHtml=`<div style="text-align:center;margin-top:4px;padding:3px 6px;background:rgba(34,197,94,0.1);border-radius:4px;color:#22c55e;font-size:0.78em">✓ Not approaching</div>`;
+        statusHtml=`<div style="text-align:center;margin-top:4px;padding:3px 6px;background:${tc}18;border:1px solid ${tc}44;border-radius:4px;color:${tc};font-size:0.78em;font-weight:600">${tierLabels[impactTier]}</div>`;
       }
     }else{
       statusHtml=`<div style="text-align:center;margin-top:4px;color:#666;font-size:0.75em">No movement data</div>`;
