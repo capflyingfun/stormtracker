@@ -2780,6 +2780,7 @@ function buildStormZones(map,rawPts){
     map.getPane(arrowPane).style.zIndex=360;
   }
   const mv=S.stormMovement;
+  let approachCount=0;
   const sortedCells=[...cells.values()].sort((a,b)=>a.maxDbz-b.maxDbz);
   for(const cell of sortedCells){
     const bin=dbzColor(cell.maxDbz);
@@ -2793,16 +2794,41 @@ function buildStormZones(map,rawPts){
     const bearEnd=(cell.ai+1)*ZONE_ANG_STEP;
     const midBear=(bearStart+bearEnd)/2;
     const midDist=(distInner+distOuter)/2;
-    const popup=`<div style="text-align:center;font-family:system-ui;min-width:140px">
-      <div style="font-size:1.1em;font-weight:700;color:${bin.color}">${cat.label}</div>
-      <div style="font-size:0.85em;margin:3px 0">Max: ${maxDbz} dBZ · Avg: ${avgDbz} dBZ</div>
-      <div style="font-size:0.75em;color:#ccc">${degToDir(midBear)} (${Math.round(midBear)}°) · ${fmtStormDist(midDist)}</div>
-      <div style="font-size:0.7em;color:#999;margin-top:3px">${distInner}-${distOuter} mi · ${bearStart}°-${bearEnd}°</div>
-      <div style="font-size:0.7em;color:#8cf;margin-top:3px">📡 ${cell.count} radar returns</div>
+    let mvHtml='';
+    let isApproaching=false;
+    let etaMin=null;
+    if(mv&&mv.speed>=2){
+      const bearToUser=(midBear+180)%360;
+      const diff=Math.abs(((mv.direction-bearToUser+180)%360)-180);
+      const closing=mv.speed*Math.cos(Math.min(diff,60)*Math.PI/180);
+      isApproaching=(diff<=30&&closing>1);
+      if(isApproaching&&midDist>1){
+        etaMin=Math.round(midDist/closing*60);
+        approachCount++;
+      }
+      const dirLabel=degToDir(mv.direction);
+      mvHtml=`<div style="font-size:0.8em;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.1)">
+        → ${dirLabel} (${mv.direction}°) at ${S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'}
+      </div>
+      <div style="font-size:0.75em;margin-top:2px;color:${isApproaching?'#ef4444':'#22c55e'}">
+        ${isApproaching?'⚠️ Approaching':'✓ Not approaching'}${etaMin?' · ~'+etaMin+' min':''}${midDist<=1?' · ⚠️ Overhead':''}
+      </div>`;
+    }else{
+      mvHtml=`<div style="font-size:0.75em;color:#999;margin-top:4px">No movement data</div>`;
+    }
+    const popup=`<div style="text-align:center;font-family:system-ui;min-width:150px">
+      <div style="font-size:1.2em;font-weight:700;color:${bin.color}">${maxDbz} dBZ</div>
+      <div style="font-size:0.85em;margin:2px 0">${cat.label}</div>
+      <div style="font-size:0.75em;color:#aaa">${cat.rain||''} · Avg: ${avgDbz} dBZ</div>
+      <div style="font-size:0.8em;color:#ccc;margin-top:4px">${fmtStormDist(midDist)} ${degToDir(midBear)} (${Math.round(midBear)}°)</div>
+      ${mvHtml}
+      <div style="font-size:0.65em;color:#666;margin-top:4px">${distInner}-${distOuter} mi · ${bearStart}°-${bearEnd}° · 📡 ${cell.count} returns</div>
     </div>`;
+    const borderColor=isApproaching?'#ef4444':bin.color;
+    const borderWeight=isApproaching?2:0.5;
     const poly=L.polygon(verts,{
-      color:bin.color,fillColor:bin.color,
-      fillOpacity:bin.opacity,weight:0.5,opacity:0.5,pane:paneName
+      color:borderColor,fillColor:bin.color,
+      fillOpacity:bin.opacity,weight:borderWeight,opacity:isApproaching?0.9:0.5,pane:paneName
     }).addTo(map);
     poly.bindPopup(popup,{closeButton:false,className:'storm-popup'});
     S._stormZoneLayers.push(poly);
@@ -2815,6 +2841,12 @@ function buildStormZones(map,rawPts){
       }).addTo(map);
       S._stormZoneLayers.push(arrow);
     }
+    if(isApproaching&&midDist<=1){
+      console.log('🚨 Storm overhead! Cell at '+degToDir(midBear)+' '+midDist.toFixed(1)+'mi, '+maxDbz+' dBZ');
+    }
+  }
+  if(approachCount>0){
+    console.log(`⚠️ ${approachCount} grid cell(s) approaching your location`);
   }
   const ms=Math.round(performance.now()-t0);
   console.log(`Polar grid: ${rawPts.length} pts → ${cells.size} cells (${ZONE_ANG_STEP}°×${ZONE_DIST_STEP_MI}mi) in ${ms}ms`);
