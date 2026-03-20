@@ -2840,6 +2840,15 @@ function clearRadarGrid(){
   S._radarGridLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
   S._radarGridLayers=[];
 }
+function gridNeonColor(){
+  let maxDbz=0;
+  if(S.storms&&S.storms.length>0){for(const p of S.storms){if(p.dbz>maxDbz)maxDbz=p.dbz}}
+  return pathArrowNeonColor(maxDbz);
+}
+function hexToRgba(hex,a){
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return`rgba(${r},${g},${b},${a})`;
+}
 function drawRadarGrid(map,maxRadiusMi){
   clearRadarGrid();
   if(!map||!S._showZones)return;
@@ -2849,10 +2858,11 @@ function drawRadarGrid(map,maxRadiusMi){
     map.getPane(gridPane).style.zIndex=340;
     map.getPane(gridPane).style.pointerEvents='none';
   }
+  const gc=gridNeonColor();
   const distStep=ZONE_DIST_STEP_MI;
   const nRings=Math.ceil(maxRadiusMi/distStep);
   const innerRing=L.circle([S.lat,S.lon],{
-    radius:0.5*1609.34,color:'rgba(0,229,255,0.2)',
+    radius:0.5*1609.34,color:hexToRgba(gc,0.2),
     fillOpacity:0,fill:false,weight:0.3,pane:gridPane,interactive:false
   }).addTo(map);
   S._radarGridLayers.push(innerRing);
@@ -2862,7 +2872,7 @@ function drawRadarGrid(map,maxRadiusMi){
     const isOuter=(r===nRings);
     const circle=L.circle([S.lat,S.lon],{
       radius:radiusMi*1609.34,
-      color:isOuter?'#00e5ff':'rgba(0,229,255,0.25)',
+      color:isOuter?gc:hexToRgba(gc,0.25),
       fillOpacity:0,fill:false,
       weight:isOuter?1.5:isMajor?0.8:0.3,
       dashArray:isOuter?'8 4':null,
@@ -2875,7 +2885,7 @@ function drawRadarGrid(map,maxRadiusMi){
     const inner=destPt(S.lat,S.lon,0.5,a);
     const outer=destPt(S.lat,S.lon,maxRadiusMi,a);
     const line=L.polyline([inner,outer],{
-      color:'rgba(0,229,255,0.2)',weight:0.5,
+      color:hexToRgba(gc,0.2),weight:0.5,
       pane:gridPane,interactive:false
     }).addTo(map);
     S._radarGridLayers.push(line);
@@ -2886,7 +2896,7 @@ function drawRadarGrid(map,maxRadiusMi){
     const marker=L.marker(pt,{
       icon:L.divIcon({
         className:'',
-        html:`<div style="color:rgba(0,229,255,0.5);font-size:10px;font-weight:700;text-align:center;text-shadow:0 0 3px #000">${c.l}</div>`,
+        html:`<div style="color:${hexToRgba(gc,0.5)};font-size:10px;font-weight:700;text-align:center;text-shadow:0 0 3px #000">${c.l}</div>`,
         iconSize:[16,16],iconAnchor:[8,8]
       }),
       pane:gridPane,interactive:false
