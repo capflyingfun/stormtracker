@@ -449,7 +449,7 @@ function switchPage(page){
   document.querySelectorAll('.nav-item').forEach(b=>{b.classList.toggle('active',b.dataset.page===page)});
   document.querySelectorAll('.section-page').forEach(p=>{p.classList.toggle('visible',p.id==='page-'+page)});
   S.activePage=page;
-  if(page==='radar'&&S.map){setTimeout(()=>{S.map.invalidateSize();if(S._showPathArrows)buildPathArrows(S.map)},100);if(S._nextRefreshAt)startScanRefreshTimer()}
+  if(page==='radar'&&S.map){setTimeout(()=>{S.map.invalidateSize();if(S._showPathArrows&&(S._pathArrowsDirty||!S._pathArrowLayers.length)){S._pathArrowsDirty=false;buildPathArrows(S.map)}},100);if(S._nextRefreshAt)startScanRefreshTimer()}
   if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}
 }
 function updateStormBadges(){
@@ -2630,7 +2630,10 @@ async function scanRadarHiRes(map,fromHome){
     if(rawPoints.length>0){autoActivateZones()}
     else{clearStormZones();if(S.radarLayer&&S.map&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}
     showViewScanCircle(map,cLat,cLng,HIRES_RADIUS,S.storms.length);
-    if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
+    if(S.map&&S._showPathArrows){
+      if(S.activePage==='radar')setTimeout(()=>buildPathArrows(S.map),150);
+      else S._pathArrowsDirty=true;
+    }
     map.setView([cLat,cLng],11,{animate:true,duration:0.5});
     hideScanOverlay();
     toast(`Hi-Res: ${S.storms.length.toLocaleString()} cells in ${HIRES_RADIUS} mi (${srcLabel})`);
@@ -2823,6 +2826,7 @@ S._showPathArrows=true;
 S._pathArrowStyle='chevron';
 S._pathArrowLayers=[];
 S._pathArrowAnimInterval=null;
+S._pathArrowsDirty=false;
 const DBZ_BINS=[
   {min:15,max:30,color:'#00ccff',label:'Light (15-30 dBZ)',opacity:0.22},
   {min:30,max:45,color:'#00ff66',label:'Moderate (30-45 dBZ)',opacity:0.35},
@@ -3656,7 +3660,10 @@ async function scanRadarForStorms(){
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
-    if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
+    if(S.map&&S._showPathArrows){
+      if(S.activePage==='radar')setTimeout(()=>buildPathArrows(S.map),150);
+      else S._pathArrowsDirty=true;
+    }
     scheduleAutoScan();
     const severeNearby=S.storms.some(s=>s.dbz>=50&&s.distance<=15);
     if(severeNearby&&S.map&&!S._autoHiResActive){
