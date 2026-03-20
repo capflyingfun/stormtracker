@@ -342,6 +342,26 @@ function nexradToDbz(r,g,b,a){
   if(bestD>5000)return 0;
   return best;
 }
+const RV_PAL=[
+  {dbz:5,r:120,g:120,b:190},{dbz:5,r:130,g:130,b:200},
+  {dbz:8,r:100,g:140,b:210},{dbz:8,r:110,g:150,b:220},
+  {dbz:10,r:80,g:120,b:200},{dbz:10,r:90,g:130,b:210},
+  {dbz:12,r:70,g:110,b:190},{dbz:12,r:60,g:100,b:180},
+  {dbz:15,r:50,g:140,b:210},{dbz:15,r:40,g:130,b:200},
+  {dbz:18,r:30,g:160,b:220},{dbz:18,r:20,g:150,b:210},
+  {dbz:20,r:0,g:180,b:230},{dbz:20,r:0,g:160,b:210},
+  {dbz:22,r:0,g:200,b:130},{dbz:22,r:0,g:190,b:100},
+  {dbz:25,r:0,g:220,b:80},{dbz:25,r:0,g:200,b:50},
+  {dbz:28,r:50,g:200,b:0},{dbz:28,r:100,g:230,b:0},
+  {dbz:30,r:0,g:140,b:0},{dbz:30,r:0,g:170,b:0},
+  {dbz:33,r:0,g:100,b:0},{dbz:33,r:0,g:80,b:0},
+  {dbz:35,r:255,g:255,b:0},{dbz:35,r:230,g:230,b:0},
+  {dbz:40,r:255,g:200,b:0},{dbz:40,r:255,g:170,b:0},
+  {dbz:45,r:255,g:100,b:0},{dbz:45,r:255,g:80,b:0},
+  {dbz:50,r:255,g:0,b:0},{dbz:50,r:220,g:0,b:0},
+  {dbz:55,r:180,g:0,b:0},{dbz:55,r:150,g:0,b:0},
+  {dbz:60,r:200,g:0,b:200},{dbz:60,r:170,g:0,b:170}
+];
 function rvToDbz(r,g,b,a){
   if(a<30)return 0;
   if(r+g+b<40)return 0;
@@ -357,12 +377,11 @@ function rvToDbz(r,g,b,a){
     return 15;
   }
   let best=0,bestD=1e9;
-  for(const p of NEXRAD_PAL){
+  for(const p of RV_PAL){
     const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
     if(d<bestD){bestD=d;best=p.dbz}
   }
-  if(bestD>5000)return 0;
-  if(best<=20)best+=15;
+  if(bestD>8000)return 0;
   return best;
 }
 
@@ -2203,8 +2222,8 @@ async function scanRadarForView(){
       if(!S._rvTilePath){hideScanOverlay();toast('No radar data');return}
     }
 
-    const colorFn=nexradToDbz;
-    const minDbz=30;
+    const colorFn=useNexrad?nexradToDbz:rvToDbz;
+    const minDbz=useNexrad?30:15;
     const tilePromises=[];
     const savedLat=S.lat,savedLon=S.lon;
     S.lat=cLat;S.lon=cLng;
@@ -2268,8 +2287,8 @@ async function scanRadarHiRes(map,fromHome){
       if(!S._rvTilePath){hideScanOverlay();toast('No radar data');return}
     }
 
-    const colorFn=nexradToDbz;
-    const minDbz=20;
+    const colorFn=useNexrad?nexradToDbz:rvToDbz;
+    const minDbz=useNexrad?20:10;
     const tilePromises=[];
     const savedLat=S.lat,savedLon=S.lon;
     S.lat=cLat;S.lon=cLng;
@@ -2741,8 +2760,8 @@ async function scanRadarForStorms(){
       if(!S._rvTilePath){toast('No radar data available');S.storms=[];renderStorms();return}
     }
 
-    const colorFn=nexradToDbz;
-    const minDbz=30;
+    const colorFn=useNexrad?nexradToDbz:rvToDbz;
+    const minDbz=useNexrad?30:15;
     const tilePromises=[];
     const tileCount=(maxTX-minTX+1)*(maxTY-minTY+1);
     console.log('[SCAN] src='+S.radarSource+' zoom='+zoom+' tiles='+tileCount+' TX='+minTX+'-'+maxTX+' TY='+minTY+'-'+maxTY+' lat='+S.lat+' lon='+S.lon);
