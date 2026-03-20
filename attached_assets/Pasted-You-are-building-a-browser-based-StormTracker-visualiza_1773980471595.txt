@@ -1,0 +1,125 @@
+You are building a browser-based StormTracker visualization system. I will describe the storm plotting technique I want, and you will generate the HTML, CSS, and JavaScript code needed to implement it.
+
+GOAL:
+Create a dynamic storm visualization that does NOT plot 500–5,000 individual radar points. Instead, group reflectivity values (dBZ) into bins and generate polygons for each bin. Fill each polygon with the correct color (green → yellow → red → magenta) and stack them from lowest to highest reflectivity.
+
+REFERENCE IMAGES:
+(These show the style I want — layered polygons representing storm intensity.)
+- 30–45 dBZ = green region
+- 46–55 dBZ = yellow region
+- 56–60 dBZ = red region
+- 60+ dBZ = magenta region
+Wind barbs or arrows may be added later, but the core feature is polygon-based reflectivity zones.
+
+REQUIREMENTS:
+1. Accept an array of radar sample points in this format:
+   [
+     { lat: number, lon: number, dbz: number },
+     ...
+   ]
+
+2. Group points into reflectivity bins:
+   - green: 30–45 dBZ
+   - yellow: 46–55 dBZ
+   - red: 56–60 dBZ
+   - magenta: 60+ dBZ
+
+3. For each bin, generate a polygon from the points.
+   Use a concave hull (alpha shape) or convex hull if concave fails.
+
+4. Draw each polygon on a Leaflet map with:
+   - correct fill color
+   - 40–60% opacity
+   - no stroke or a thin stroke
+   - stacked visually (green bottom, magenta top)
+
+5. The system must be efficient and avoid plotting thousands of markers.
+
+6. Include a function that checks if the user’s location is inside any polygon and displays an alert:
+   - “You are inside 30–45 dBZ”
+   - “You are inside 46–55 dBZ”
+   - etc.
+
+7. Use Turf.js for polygon generation:
+   - turf.points()
+   - turf.concave()
+   - turf.convex()
+   - turf.booleanPointInPolygon()
+
+8. Provide clean, readable code with comments.
+
+CODE STRUCTURE:
+Generate the following files:
+
+index.html:
+- Load Leaflet
+- Load Turf.js
+- Create a map container
+- Load script.js
+
+style.css:
+- Basic styling for the map
+
+script.js:
+- Example radar data array
+- Functions to group bins
+- Functions to generate polygons
+- Functions to draw polygons
+- Function to check user location
+- Initialization code to render everything
+
+CODE EXAMPLES TO FOLLOW:
+
+Grouping bins:
+--------------------------------
+function groupBins(points) {
+  return {
+    green: points.filter(p => p.dbz >= 30 && p.dbz < 45),
+    yellow: points.filter(p => p.dbz >= 45 && p.dbz < 55),
+    red: points.filter(p => p.dbz >= 55 && p.dbz < 60),
+    magenta: points.filter(p => p.dbz >= 60)
+  };
+}
+--------------------------------
+
+Generating polygons:
+--------------------------------
+function makePolygon(binPoints) {
+  if (binPoints.length < 3) return null;
+  const pts = turf.points(binPoints.map(p => [p.lon, p.lat]));
+  let poly = turf.concave(pts, { maxEdge: 1 });
+  if (!poly) poly = turf.convex(pts);
+  return poly;
+}
+--------------------------------
+
+Drawing polygons:
+--------------------------------
+function drawPolygon(poly, color) {
+  if (!poly) return;
+  L.geoJSON(poly, {
+    style: {
+      color: color,
+      fillColor: color,
+      fillOpacity: 0.45,
+      weight: 1
+    }
+  }).addTo(map);
+}
+--------------------------------
+
+Checking if user is inside a polygon:
+--------------------------------
+function checkUserLocation(userLat, userLon, polygons) {
+  const pt = turf.point([userLon, userLat]);
+  for (const level in polygons) {
+    const poly = polygons[level];
+    if (poly && turf.booleanPointInPolygon(pt, poly)) {
+      alert("You are inside " + level + " dBZ zone");
+    }
+  }
+}
+--------------------------------
+
+FINAL TASK:
+Generate the full working project (index.html, style.css, script.js) using the techniques above. The output must be a complete, runnable HTML project that I can deploy immediately.
