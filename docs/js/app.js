@@ -905,17 +905,7 @@ function showGpsRelocateConfirm(distMi,gpsLat,gpsLon){
     document.getElementById('gps-reloc-yes').addEventListener('click',()=>{
       overlay.remove();
       toast('📍 Relocating to GPS position...');
-      S.lat=gpsLat;S.lon=gpsLon;
-      S.radarSource=isUSLocation(gpsLat,gpsLon)?'nexrad':'rainviewer';
-      S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
-      S.storms=[];S._rawScanPts=[];
-      if(S.map){S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];clearStormCone();clearStormZones();S.map.setView([gpsLat,gpsLon],S.map.getZoom())}
-      reverseGeocode(gpsLat,gpsLon).then(name=>{
-        S.locName=name||`${gpsLat.toFixed(4)}, ${gpsLon.toFixed(4)}`;
-        document.getElementById('location-input').value=S.locName;
-        document.getElementById('status-text').textContent='Live · '+S.locName;
-        try{localStorage.setItem('st_loc',JSON.stringify({lat:gpsLat,lon:gpsLon,name:S.locName}))}catch(e){}
-      });
+      reverseGeo(gpsLat,gpsLon);
       resolve(true);
     });
     overlay.addEventListener('click',e=>{if(e.target===overlay){overlay.remove();resolve(false)}});
@@ -4146,7 +4136,7 @@ async function fetchStationAWC(){
       dist:haversine(S.lat,S.lon,m.lat,m.lon),
       _awc:m
     })).sort((a,b)=>a.dist-b.dist).slice(0,10);
-    if(stations.length&&stations[0].dist<80){
+    if(stations.length){
       S._stationSource='awc';
       S.nearbyStations=stations;
       loadStationFromAWC(stations[0]._awc,stations[0]);
