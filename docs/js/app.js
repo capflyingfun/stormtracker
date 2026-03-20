@@ -766,19 +766,24 @@ function cancelMapPick(){
   }
 }
 
-function scheduleHourlyRefresh(){
-  if(S._hourlyTimer)clearTimeout(S._hourlyTimer);
-  const now=new Date();
-  const next=new Date(now);
-  next.setMinutes(0,0,0);
-  next.setHours(next.getHours()+1);
-  const ms=next.getTime()-now.getTime();
-  S._hourlyTimer=setTimeout(()=>{
+function getAutoRefreshMin(){
+  const v=localStorage.getItem('autoRefreshMin');
+  if(v===null)return 60;
+  return parseInt(v,10);
+}
+function scheduleAutoRefresh(){
+  if(S._autoRefreshTimer)clearInterval(S._autoRefreshTimer);
+  S._autoRefreshTimer=null;
+  const mins=getAutoRefreshMin();
+  if(!mins||mins<=0)return;
+  S._autoRefreshTimer=setInterval(()=>{
+    if(S.travelMode)return;
     fetchWeather();
     fetchAlerts();
-    scheduleHourlyRefresh();
-  },ms);
+    scanRadarForStorms();
+  },mins*60*1000);
 }
+function scheduleHourlyRefresh(){scheduleAutoRefresh()}
 
 // ==========================================
 // TRAVEL MODE (Live GPS Tracking)
@@ -851,6 +856,8 @@ function stopTravelMode(){
   if(S.travelMarker&&S.map){S.map.removeLayer(S.travelMarker);S.travelMarker=null}
   if(S.lat) document.getElementById('status-text').textContent='Live · '+S.locName;
   toast('Travel Mode OFF');
+  scheduleAutoRefresh();
+  startScanRefreshTimer();
 }
 function fmtGpsInt(s){
   if(s<60)return s+'s';
@@ -877,6 +884,8 @@ function toggleSettingsPanel(){
 function syncSettingsPanel(){
   const sel=document.getElementById('settings-travel-int');
   if(sel)sel.value=String(S.gpsInterval||300);
+  const arSel=document.getElementById('settings-auto-refresh');
+  if(arSel)arSel.value=String(getAutoRefreshMin());
   const btn=document.getElementById('settings-travel-toggle');
   if(btn){
     btn.textContent=S.travelMode?'ON':'OFF';
@@ -884,6 +893,13 @@ function syncSettingsPanel(){
     btn.style.borderColor=S.travelMode?'var(--accent-red)':'var(--accent-cyan)';
     btn.style.color=S.travelMode?'var(--accent-red)':'var(--accent-cyan)';
   }
+}
+function setAutoRefresh(val){
+  const mins=parseInt(val,10);
+  localStorage.setItem('autoRefreshMin',String(mins));
+  scheduleAutoRefresh();
+  startScanRefreshTimer();
+  toast(mins>0?'🔄 Auto refresh set to '+fmtGpsInt(mins*60):'🔄 Auto refresh off');
 }
 function showTravelIntervalPopup(){
   const p=document.getElementById('travel-interval-popup');
@@ -2301,13 +2317,12 @@ function startScanRefreshTimer(){
   if(S.travelMode){
     nextRefreshMs=(S.gpsInterval||300)*1000;
   }else{
-    const now=new Date();
-    const next=new Date(now);
-    next.setMinutes(0,0,0);next.setHours(next.getHours()+1);
-    nextRefreshMs=next.getTime()-now.getTime();
+    const mins=getAutoRefreshMin();
+    nextRefreshMs=mins>0?mins*60*1000:0;
   }
-  S._nextRefreshAt=S._lastScanTime+nextRefreshMs;
+  S._nextRefreshAt=nextRefreshMs>0?S._lastScanTime+nextRefreshMs:0;
   const el=document.getElementById('scan-refresh-timer');if(!el)return;
+  if(!S._nextRefreshAt){el.textContent='🔄 Off';return;}
   function tick(){
     const remain=Math.max(0,Math.round((S._nextRefreshAt-Date.now())/1000));
     if(remain>=3600){
