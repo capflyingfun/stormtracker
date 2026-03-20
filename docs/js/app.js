@@ -2624,23 +2624,64 @@ function clearStormZones(){
   S._stormZoneLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
   S._stormZoneLayers=[];
 }
-function zoneRadiusKm(avgDbz){
-  return avgDbz>=60?4:avgDbz>=45?3:avgDbz>=30?2.5:2;
+const HEX_CELL_MI=1.5;
+function hexBinPoints(rawPts){
+  if(!rawPts||!rawPts.length)return[];
+  const cellKm=HEX_CELL_MI*1.60934;
+  const latStep=cellKm/111.32;
+  const cosLat=Math.cos((rawPts[0].lat)*Math.PI/180);
+  const lngStep=cellKm/(111.32*cosLat);
+  const hexH=latStep;
+  const hexW=lngStep;
+  const cells=new Map();
+  for(const p of rawPts){
+    let col=Math.round(p.lng/hexW);
+    let row=Math.round(p.lat/(hexH*0.75));
+    if(row%2!==0)col=Math.round((p.lng-hexW*0.5)/hexW);
+    const key=col+','+row;
+    if(cells.has(key)){
+      const c=cells.get(key);
+      if(p.dbz>c.maxDbz)c.maxDbz=p.dbz;
+      c.sumDbz+=p.dbz;
+      c.count++;
+    }else{
+      const cLng=(row%2!==0)?(col*hexW+hexW*0.5):(col*hexW);
+      const cLat=row*hexH*0.75;
+      cells.set(key,{lat:cLat,lng:cLng,maxDbz:p.dbz,sumDbz:p.dbz,count:1,col,row});
+    }
+  }
+  const result=[];
+  for(const c of cells.values()){
+    result.push({lat:c.lat,lng:c.lng,dbz:c.maxDbz,avgDbz:c.sumDbz/c.count,count:c.count,col:c.col,row:c.row});
+  }
+  return result;
 }
-function zonePopupHtml(bin,binPts){
-  const avgDbz=Math.round(binPts.reduce((s,p)=>s+p.dbz,0)/binPts.length);
-  const maxDbz=Math.round(Math.max(...binPts.map(p=>p.dbz)));
+function hexCellPoly(cLat,cLng,cellKm){
+  const r=cellKm/2;
+  const verts=[];
+  for(let i=0;i<6;i++){
+    const ang=Math.PI/6+i*Math.PI/3;
+    const pt=turf.destination([cLng,cLat],r,ang*180/Math.PI,{units:'kilometers'});
+    verts.push(pt.geometry.coordinates);
+  }
+  verts.push(verts[0]);
+  return turf.polygon([verts]);
+}
+function zonePopupHtml(bin,hexCells,rawCount){
+  const avgDbz=Math.round(hexCells.reduce((s,h)=>s+h.avgDbz,0)/hexCells.length);
+  const maxDbz=Math.round(Math.max(...hexCells.map(h=>h.maxDbz)));
   const cat=stormCat(avgDbz);
-  const cLat=binPts.reduce((s,p)=>s+p.lat,0)/binPts.length;
-  const cLng=binPts.reduce((s,p)=>s+p.lng,0)/binPts.length;
+  const cLat=hexCells.reduce((s,h)=>s+h.lat,0)/hexCells.length;
+  const cLng=hexCells.reduce((s,h)=>s+h.lng,0)/hexCells.length;
   const dist=haversine(S.lat,S.lon,cLat,cLng);
   const bear=bearingDeg(S.lat,S.lon,cLat,cLng);
+  const totalReturns=hexCells.reduce((s,h)=>s+h.count,0);
   return`<div style="text-align:center;font-family:system-ui;min-width:150px">
     <div style="font-size:1.2em;font-weight:700;color:${bin.color}">${bin.label}</div>
     <div style="font-size:0.8em;margin:4px 0">${cat.label}</div>
     <div style="font-size:0.75em;color:#aaa">Avg: ${avgDbz} dBZ · Max: ${maxDbz} dBZ</div>
-    <div style="font-size:0.75em;color:#ccc;margin-top:4px">${fmtStormDist(dist)} ${degToDir(bear)}</div>
-    <div style="font-size:0.7em;color:#8cf;margin-top:4px">📡 ${binPts.length} radar returns</div>
+    <div style="font-size:0.75em;color:#ccc;margin-top:4px">${fmtStormDist(dist)} ${degToDir(bear)} (${Math.round(bear)}°)</div>
+    <div style="font-size:0.7em;color:#8cf;margin-top:4px">⬡ ${hexCells.length} cells · 📡 ${totalReturns} returns</div>
   </div>`;
 }
 function buildStormZones(map,rawPts){
@@ -2648,6 +2689,9 @@ function buildStormZones(map,rawPts){
   if(!map||!rawPts||!rawPts.length||!S._showZones)return;
   if(typeof turf==='undefined')return;
   const t0=performance.now();
+  const hexCells=hexBinPoints(rawPts);
+  const cellKm=HEX_CELL_MI*1.60934;
+  console.log(`Hex grid: ${rawPts.length} pts → ${hexCells.length} cells (${HEX_CELL_MI}mi)`);
   DBZ_BINS.forEach((bin,binIdx)=>{
     const paneName='zone-pane-'+binIdx;
     if(!map.getPane(paneName)){
@@ -2656,49 +2700,35 @@ function buildStormZones(map,rawPts){
     }
   });
   DBZ_BINS.forEach((bin,binIdx)=>{
-    const binPts=rawPts.filter(p=>p.dbz>=bin.min&&(bin.max>=999||p.dbz<bin.max));
-    if(!binPts.length)return;
+    const binCells=hexCells.filter(h=>h.dbz>=bin.min&&(bin.max>=999||h.dbz<bin.max));
+    if(!binCells.length)return;
     try{
-      const avgDbz=binPts.reduce((s,p)=>s+p.dbz,0)/binPts.length;
-      const rKm=zoneRadiusKm(avgDbz);
-      const popup=zonePopupHtml(bin,binPts);
+      const popup=zonePopupHtml(bin,binCells,rawPts.length);
       const paneName='zone-pane-'+binIdx;
       const style={
         color:bin.color,fillColor:bin.color,fillOpacity:bin.opacity,
-        weight:bin.min>=45?2:1,opacity:0.7,
+        weight:bin.min>=45?2:1,opacity:0.6,
         dashArray:bin.min<30?'4,4':null,pane:paneName
       };
-      function addZoneLayer(geojson){
-        const layer=L.geoJSON(geojson,{style,pane:paneName}).addTo(map);
-        layer.bindPopup(popup,{closeButton:false,className:'storm-popup'});
-        S._stormZoneLayers.push(layer);
-      }
-      if(binPts.length===1){
-        addZoneLayer(turf.circle([binPts[0].lng,binPts[0].lat],rKm,{units:'kilometers',steps:32}));
-        return;
-      }
-      if(binPts.length<=5){
-        const circles=binPts.map(p=>turf.circle([p.lng,p.lat],rKm,{units:'kilometers',steps:24}));
-        let merged=circles[0];
-        for(let i=1;i<circles.length;i++){
-          try{merged=turf.union(turf.featureCollection([merged,circles[i]]))}catch(e){};
+      const hexPolys=binCells.map(h=>hexCellPoly(h.lat,h.lng,cellKm));
+      let merged=hexPolys[0];
+      const BATCH=50;
+      for(let i=1;i<hexPolys.length;i+=BATCH){
+        const batch=[merged];
+        for(let j=i;j<Math.min(i+BATCH,hexPolys.length);j++)batch.push(hexPolys[j]);
+        try{merged=turf.union(turf.featureCollection(batch))}catch(e){
+          for(let j=1;j<batch.length;j++){
+            try{merged=turf.union(turf.featureCollection([merged,batch[j]]))}catch(e2){}
+          }
         }
-        addZoneLayer(merged);
-        return;
       }
-      const fc=turf.featureCollection(binPts.map(p=>turf.point([p.lng,p.lat])));
-      let poly=null;
-      try{poly=turf.concave(fc,{maxEdge:0.25,units:'degrees'})}catch(e){}
-      if(!poly){try{poly=turf.concave(fc,{maxEdge:0.5,units:'degrees'})}catch(e){}}
-      if(!poly){try{poly=turf.concave(fc,{maxEdge:1.0,units:'degrees'})}catch(e){}}
-      if(!poly){try{poly=turf.convex(fc)}catch(e){}}
-      if(!poly)return;
-      try{poly=turf.buffer(poly,rKm,{units:'kilometers'})}catch(e){}
-      addZoneLayer(poly);
+      const layer=L.geoJSON(merged,{style,pane:paneName}).addTo(map);
+      layer.bindPopup(popup,{closeButton:false,className:'storm-popup'});
+      S._stormZoneLayers.push(layer);
     }catch(e){console.warn('Zone build error:',bin.label,e)}
   });
   const ms=Math.round(performance.now()-t0);
-  console.log(`Storm zones: ${S._stormZoneLayers.length} layers from ${rawPts.length} pts in ${ms}ms`);
+  console.log(`Storm zones: ${S._stormZoneLayers.length} layers from ${hexCells.length} hex cells in ${ms}ms`);
 }
 function checkUserInZone(){
   if(!S._rawScanPts.length||typeof turf==='undefined')return null;
