@@ -2648,10 +2648,12 @@ function buildStormZones(map,rawPts){
   if(!map||!rawPts||!rawPts.length||!S._showZones)return;
   if(typeof turf==='undefined')return;
   const t0=performance.now();
-  const zoneStyle=(bin)=>({
-    color:bin.color,fillColor:bin.color,fillOpacity:bin.opacity,
-    weight:bin.min>=45?2:1,opacity:0.7,
-    dashArray:bin.min<30?'4,4':null
+  DBZ_BINS.forEach((bin,binIdx)=>{
+    const paneName='zone-pane-'+binIdx;
+    if(!map.getPane(paneName)){
+      map.createPane(paneName);
+      map.getPane(paneName).style.zIndex=350+binIdx*10;
+    }
   });
   DBZ_BINS.forEach((bin,binIdx)=>{
     const binPts=rawPts.filter(p=>p.dbz>=bin.min&&(bin.max>=999||p.dbz<bin.max));
@@ -2660,47 +2662,43 @@ function buildStormZones(map,rawPts){
       const avgDbz=binPts.reduce((s,p)=>s+p.dbz,0)/binPts.length;
       const rKm=zoneRadiusKm(avgDbz);
       const popup=zonePopupHtml(bin,binPts);
+      const paneName='zone-pane-'+binIdx;
+      const style={
+        color:bin.color,fillColor:bin.color,fillOpacity:bin.opacity,
+        weight:bin.min>=45?2:1,opacity:0.7,
+        dashArray:bin.min<30?'4,4':null,pane:paneName
+      };
       function addZoneLayer(geojson){
-        const layer=L.geoJSON(geojson,{style:zoneStyle(bin)}).addTo(map);
+        const layer=L.geoJSON(geojson,{style,pane:paneName}).addTo(map);
         layer.bindPopup(popup,{closeButton:false,className:'storm-popup'});
-        layer._zoneBinIdx=binIdx;
         S._stormZoneLayers.push(layer);
       }
       if(binPts.length===1){
-        const p=binPts[0];
-        addZoneLayer(turf.circle([p.lng,p.lat],rKm,{units:'kilometers',steps:32}));
+        addZoneLayer(turf.circle([binPts[0].lng,binPts[0].lat],rKm,{units:'kilometers',steps:32}));
         return;
       }
-      if(binPts.length<=3){
-        const circles=binPts.map(p=>turf.circle([p.lng,p.lat],rKm,{units:'kilometers',steps:32}));
+      if(binPts.length<=5){
+        const circles=binPts.map(p=>turf.circle([p.lng,p.lat],rKm,{units:'kilometers',steps:24}));
         let merged=circles[0];
         for(let i=1;i<circles.length;i++){
-          try{merged=turf.union(turf.featureCollection([merged,circles[i]]))}catch(e){merged=circles[i]}
+          try{merged=turf.union(turf.featureCollection([merged,circles[i]]))}catch(e){};
         }
         addZoneLayer(merged);
         return;
       }
-      const circles=binPts.map(p=>turf.circle([p.lng,p.lat],rKm*0.6,{units:'kilometers',steps:24}));
-      let merged=circles[0];
-      for(let i=1;i<circles.length;i++){
-        try{merged=turf.union(turf.featureCollection([merged,circles[i]]))}catch(e){}
-      }
       const fc=turf.featureCollection(binPts.map(p=>turf.point([p.lng,p.lat])));
       let poly=null;
-      try{poly=turf.concave(fc,{maxEdge:0.5,units:'degrees'})}catch(e){}
+      try{poly=turf.concave(fc,{maxEdge:0.25,units:'degrees'})}catch(e){}
+      if(!poly){try{poly=turf.concave(fc,{maxEdge:0.5,units:'degrees'})}catch(e){}}
       if(!poly){try{poly=turf.concave(fc,{maxEdge:1.0,units:'degrees'})}catch(e){}}
       if(!poly){try{poly=turf.convex(fc)}catch(e){}}
-      if(poly){
-        try{poly=turf.buffer(poly,rKm*0.8,{units:'kilometers'})}catch(e){}
-        try{merged=turf.union(turf.featureCollection([merged,poly]))}catch(e){merged=poly}
-      }
-      addZoneLayer(merged);
+      if(!poly)return;
+      try{poly=turf.buffer(poly,rKm,{units:'kilometers'})}catch(e){}
+      addZoneLayer(poly);
     }catch(e){console.warn('Zone build error:',bin.label,e)}
   });
-  S._stormZoneLayers.sort((a,b)=>(a._zoneBinIdx||0)-(b._zoneBinIdx||0));
-  S._stormZoneLayers.forEach(l=>{try{l.bringToFront()}catch(e){}});
   const ms=Math.round(performance.now()-t0);
-  console.log(`Storm zones built: ${DBZ_BINS.length} bins from ${rawPts.length} pts in ${ms}ms`);
+  console.log(`Storm zones: ${S._stormZoneLayers.length} layers from ${rawPts.length} pts in ${ms}ms`);
 }
 function checkUserInZone(){
   if(!S._rawScanPts.length||typeof turf==='undefined')return null;
