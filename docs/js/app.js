@@ -2314,7 +2314,7 @@ async function scanRadarForView(){
     }
 
     const colorFn=useNexrad?nexradToDbz:rvToDbz;
-    const minDbz=useNexrad?30:15;
+    const minDbz=15;
     const tilePromises=[];
     const savedLat=S.lat,savedLon=S.lon;
     S.lat=cLat;S.lon=cLng;
@@ -2381,7 +2381,7 @@ async function scanRadarHiRes(map,fromHome){
     }
 
     const colorFn=useNexrad?nexradToDbz:rvToDbz;
-    const minDbz=useNexrad?20:10;
+    const minDbz=10;
     const tilePromises=[];
     const savedLat=S.lat,savedLon=S.lon;
     S.lat=cLat;S.lon=cLng;
@@ -2624,37 +2624,53 @@ function clearStormZones(){
   S._stormZoneLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
   S._stormZoneLayers=[];
 }
+function zoneRadiusKm(avgDbz){
+  return avgDbz>=60?3:avgDbz>=45?2.5:avgDbz>=30?2:1.5;
+}
 function buildStormZones(map,rawPts){
   clearStormZones();
-  if(!map||!rawPts||rawPts.length<3||!S._showZones)return;
+  if(!map||!rawPts||!rawPts.length||!S._showZones)return;
   if(typeof turf==='undefined')return;
   const t0=performance.now();
+  const zoneStyle=(bin)=>({
+    color:bin.color,fillColor:bin.color,fillOpacity:bin.opacity,
+    weight:bin.min>=45?2:1,opacity:0.7,
+    dashArray:bin.min<30?'4,4':null
+  });
   DBZ_BINS.forEach(bin=>{
     const binPts=rawPts.filter(p=>p.dbz>=bin.min&&(bin.max>=999||p.dbz<bin.max));
-    if(binPts.length<3)return;
+    if(!binPts.length)return;
     try{
+      const avgDbz=binPts.reduce((s,p)=>s+p.dbz,0)/binPts.length;
+      const rKm=zoneRadiusKm(avgDbz);
+      if(binPts.length===1){
+        const p=binPts[0];
+        const circle=turf.circle([p.lng,p.lat],rKm,{units:'kilometers',steps:32});
+        const layer=L.geoJSON(circle,{style:zoneStyle(bin),interactive:false}).addTo(map);
+        layer.bringToBack();
+        S._stormZoneLayers.push(layer);
+        return;
+      }
+      if(binPts.length<=3){
+        const cLat=binPts.reduce((s,p)=>s+p.lat,0)/binPts.length;
+        const cLng=binPts.reduce((s,p)=>s+p.lng,0)/binPts.length;
+        let maxDistKm=0;
+        binPts.forEach(p=>{const d=haversine(cLat,cLng,p.lat,p.lng)*1.60934;if(d>maxDistKm)maxDistKm=d});
+        const ovalR=Math.max(rKm,maxDistKm+rKm*0.5);
+        const oval=turf.circle([cLng,cLat],ovalR,{units:'kilometers',steps:32});
+        const layer=L.geoJSON(oval,{style:zoneStyle(bin),interactive:false}).addTo(map);
+        layer.bringToBack();
+        S._stormZoneLayers.push(layer);
+        return;
+      }
       const fc=turf.featureCollection(binPts.map(p=>turf.point([p.lng,p.lat])));
       let poly=null;
       try{poly=turf.concave(fc,{maxEdge:0.15,units:'degrees'})}catch(e){}
-      if(!poly){
-        try{poly=turf.concave(fc,{maxEdge:0.3,units:'degrees'})}catch(e){}
-      }
-      if(!poly){
-        try{poly=turf.convex(fc)}catch(e){}
-      }
+      if(!poly){try{poly=turf.concave(fc,{maxEdge:0.3,units:'degrees'})}catch(e){}}
+      if(!poly){try{poly=turf.convex(fc)}catch(e){}}
       if(!poly)return;
       try{poly=turf.buffer(poly,0.3,{units:'kilometers'})}catch(e){}
-      const layer=L.geoJSON(poly,{
-        style:{
-          color:bin.color,
-          fillColor:bin.color,
-          fillOpacity:bin.opacity,
-          weight:bin.min>=45?2:1,
-          opacity:0.7,
-          dashArray:bin.min<30?'4,4':null
-        },
-        interactive:false
-      }).addTo(map);
+      const layer=L.geoJSON(poly,{style:zoneStyle(bin),interactive:false}).addTo(map);
       layer.bringToBack();
       S._stormZoneLayers.push(layer);
     }catch(e){console.warn('Zone build error:',bin.label,e)}
@@ -2987,7 +3003,7 @@ async function scanRadarForStorms(){
     }
 
     const colorFn=useNexrad?nexradToDbz:rvToDbz;
-    const minDbz=useNexrad?30:15;
+    const minDbz=15;
     const tilePromises=[];
     const tileCount=(maxTX-minTX+1)*(maxTY-minTY+1);
     console.log('[SCAN] src='+S.radarSource+' zoom='+zoom+' tiles='+tileCount+' TX='+minTX+'-'+maxTX+' TY='+minTY+'-'+maxTY+' lat='+S.lat+' lon='+S.lon);
