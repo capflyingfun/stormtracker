@@ -2339,7 +2339,8 @@ async function scanRadarForView(){
     renderStorms();updateStormBadges();
     if(S.map){
       plotStormMarkers(S.map);
-      buildStormZones(S.map,rawPoints);
+      if(rawPoints.length>0){autoActivateZones()}
+      else{buildStormZones(S.map,rawPoints)}
       showViewScanCircle(S.map,cLat,cLng,radius,S.storms.length);
     }
     hideScanOverlay();
@@ -2405,7 +2406,8 @@ async function scanRadarHiRes(map,fromHome){
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();
     plotStormMarkers(map);
-    buildStormZones(map,rawPoints);
+    if(rawPoints.length>0){autoActivateZones()}
+    else{buildStormZones(map,rawPoints)}
     showViewScanCircle(map,cLat,cLng,HIRES_RADIUS,S.storms.length);
     map.setView([cLat,cLng],11,{animate:true,duration:0.5});
     hideScanOverlay();
@@ -2744,6 +2746,11 @@ function dbzColor(dbz){
   }
   return DBZ_BINS[0];
 }
+function gridArrowSvg(deg,color,size){
+  return`<svg width="${size}" height="${size}" viewBox="0 0 40 40" style="transform:rotate(${deg}deg)">
+    <polygon points="20,6 28,28 20,22 12,28" fill="${color}" fill-opacity="0.9" stroke="rgba(0,0,0,0.4)" stroke-width="1"/>
+  </svg>`;
+}
 function buildStormZones(map,rawPts){
   clearStormZones();
   const maxR=S._lastScanWasHiRes?15:S.scanRadius||80;
@@ -2756,6 +2763,12 @@ function buildStormZones(map,rawPts){
     map.createPane(paneName);
     map.getPane(paneName).style.zIndex=355;
   }
+  const arrowPane='zone-arrow-pane';
+  if(!map.getPane(arrowPane)){
+    map.createPane(arrowPane);
+    map.getPane(arrowPane).style.zIndex=360;
+  }
+  const mv=S.stormMovement;
   const sortedCells=[...cells.values()].sort((a,b)=>a.maxDbz-b.maxDbz);
   for(const cell of sortedCells){
     const bin=dbzColor(cell.maxDbz);
@@ -2782,9 +2795,35 @@ function buildStormZones(map,rawPts){
     }).addTo(map);
     poly.bindPopup(popup,{closeButton:false,className:'storm-popup'});
     S._stormZoneLayers.push(poly);
+    if(mv&&mv.speed>=2){
+      const aPt=destPt(S.lat,S.lon,midDist,midBear);
+      const sz=14;
+      const arrow=L.marker(aPt,{
+        icon:L.divIcon({className:'',html:gridArrowSvg(mv.direction,bin.color,sz),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+        pane:arrowPane,interactive:false
+      }).addTo(map);
+      S._stormZoneLayers.push(arrow);
+    }
   }
   const ms=Math.round(performance.now()-t0);
   console.log(`Polar grid: ${rawPts.length} pts → ${cells.size} cells (${ZONE_ANG_STEP}°×${ZONE_DIST_STEP_MI}mi) in ${ms}ms`);
+}
+function autoActivateZones(){
+  if(!S._rawScanPts.length)return;
+  if(!S._showZones){
+    S._showZones=true;
+    try{localStorage.setItem('st_zones','1')}catch(e){}
+    const btn=document.getElementById('btn-zones');
+    if(btn)btn.style.opacity='1';
+  }
+  if(S._showPoints){
+    S._showPoints=false;
+    try{localStorage.setItem('st_points','0')}catch(e){}
+    S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});
+    const btn=document.getElementById('btn-points');
+    if(btn)btn.style.opacity='0.4';
+  }
+  if(S.map)buildStormZones(S.map,S._rawScanPts);
 }
 function checkUserInZone(){
   if(!S._rawScanPts.length)return null;
@@ -3124,7 +3163,7 @@ async function scanRadarForStorms(){
     scanStep(3,`Plotting ${S.storms.length} storm points...`);
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();
-    if(S.map){plotStormMarkers(S.map);buildStormZones(S.map,rawPoints)}
+    if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{buildStormZones(S.map,rawPoints)}}
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
     scheduleAutoScan();
