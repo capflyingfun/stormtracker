@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v1.77</title>
+<title>StormTracker v1.77a</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=177">
+<link rel="stylesheet" href="css/style.css?v=177a">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -22,7 +22,7 @@
     <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
   <div class="header-center">
-    <h1>⚡ StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v1.77</span></h1>
+    <h1>⚡ StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v1.77a</span></h1>
     <div class="header-status">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Initializing...</span>
@@ -31,10 +31,54 @@
   <div class="header-loc-btn" id="btn-travel" onclick="toggleTravelMode()" title="Travel Mode" style="opacity:0.5">🧭</div>
   <div class="header-loc-btn" id="btn-lang" onclick="toggleLangMenu()" title="Language">🌐</div>
   <div class="header-loc-btn" id="btn-loc-open" onclick="toggleLocOverlay(true)" title="Change location">🗺️</div>
+  <div class="header-loc-btn" id="btn-settings" onclick="toggleSettingsPanel()" title="Settings" style="opacity:0.7">⚙️</div>
 </header>
 <div class="lang-menu" id="lang-menu"></div>
 <div class="travel-indicator" id="travel-indicator"><div class="t-dot"></div><span id="travel-status">🧭 Travel Mode</span><button onclick="toggleTravelMode()" style="background:rgba(255,51,85,0.2);color:var(--accent-red);border:1px solid var(--accent-red);border-radius:6px;padding:2px 10px;font-size:0.85em;font-weight:600;cursor:pointer;margin-left:4px">Stop</button></div>
 <div id="travel-toast-bar" style="position:fixed;bottom:60px;left:0;right:0;text-align:center;font-size:0.7em;color:var(--text-muted);padding:2px 12px;pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:9998"></div>
+<div id="travel-interval-popup" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;background:rgba(5,8,15,0.85);backdrop-filter:blur(6px);align-items:center;justify-content:center">
+  <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:20px;max-width:300px;width:90%;text-align:center">
+    <div style="font-size:1.1em;font-weight:700;color:var(--text-primary);margin-bottom:4px">🧭 Travel Mode</div>
+    <div style="font-size:0.8em;color:var(--text-muted);margin-bottom:14px">How often should weather, radar & storms refresh while traveling?</div>
+    <div style="font-size:0.7em;color:var(--text-muted);margin-bottom:10px">GPS position tracks live — this controls data refresh rate</div>
+    <div id="travel-int-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+      <button onclick="pickTravelInterval(300)" class="tint-btn">5 min</button>
+      <button onclick="pickTravelInterval(600)" class="tint-btn">10 min</button>
+      <button onclick="pickTravelInterval(900)" class="tint-btn">15 min</button>
+      <button onclick="pickTravelInterval(1800)" class="tint-btn">30 min</button>
+      <button onclick="pickTravelInterval(2700)" class="tint-btn">45 min</button>
+      <button onclick="pickTravelInterval(3600)" class="tint-btn">1 hour</button>
+    </div>
+    <button onclick="closeTravelIntervalPopup()" style="padding:6px 16px;background:var(--bg-elevated);color:var(--text-muted);border:1px solid var(--border-subtle);border-radius:8px;font-size:0.8em;cursor:pointer">Cancel</button>
+  </div>
+</div>
+<div id="settings-panel" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(5,8,15,0.85);backdrop-filter:blur(6px)" onclick="if(event.target===this)toggleSettingsPanel()">
+  <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:16px;max-width:320px;width:90%;margin:80px auto;max-height:70vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:1em;font-weight:700;color:var(--text-primary)">⚙️ Settings</span>
+      <button onclick="toggleSettingsPanel()" style="background:none;border:none;color:var(--text-muted);font-size:1.2em;cursor:pointer">✕</button>
+    </div>
+    <div style="border-top:1px solid var(--border-subtle);padding-top:10px">
+      <div style="font-size:0.8em;font-weight:600;color:var(--accent-cyan);margin-bottom:8px">🧭 Travel Mode</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:0.75em;color:var(--text-muted)">Data Refresh Interval</span>
+        <select id="settings-travel-int" onchange="setGpsInterval(this.value)" style="font-size:0.75em;padding:2px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
+          <option value="300">5m</option>
+          <option value="600">10m</option>
+          <option value="900">15m</option>
+          <option value="1800">30m</option>
+          <option value="2700">45m</option>
+          <option value="3600">1h</option>
+        </select>
+      </div>
+      <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">GPS tracks live · this controls weather/radar/storm refresh</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span style="font-size:0.75em;color:var(--text-muted)">Travel Mode</span>
+        <button id="settings-travel-toggle" onclick="toggleTravelMode();syncSettingsPanel()" style="font-size:0.75em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid var(--accent-cyan);background:rgba(0,229,255,0.08);color:var(--accent-cyan)">OFF</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="loc-overlay" id="loc-overlay" onclick="if(event.target===this)toggleLocOverlay(false)">
   <div class="loc-overlay-inner">
@@ -51,14 +95,11 @@
       <div style="display:flex;align-items:center;justify-content:space-between">
         <span style="font-size:0.75em;color:var(--text-muted);font-weight:600">🔄 Data Refresh Interval</span>
         <select id="gps-interval-sel" onchange="setGpsInterval(this.value)" style="font-size:0.75em;padding:2px 6px;background:var(--bg-card);color:var(--text-primary);border:1px solid rgba(0,229,255,0.3);border-radius:6px;cursor:pointer">
-          <option value="1">1s</option>
-          <option value="5" selected>5s</option>
-          <option value="15">15s</option>
-          <option value="30">30s</option>
-          <option value="60">1m</option>
-          <option value="300">5m</option>
+          <option value="300" selected>5m</option>
           <option value="600">10m</option>
+          <option value="900">15m</option>
           <option value="1800">30m</option>
+          <option value="2700">45m</option>
           <option value="3600">1h</option>
         </select>
       </div>
@@ -96,6 +137,6 @@
   <button class="nav-item" data-page="alerts" style="position:relative"><span class="nav-icon">⚠️</span><span class="nav-label">Alerts</span><span class="nav-badge" id="nav-alert-badge">0</span></button>
 </nav>
 
-<script src="js/app.js?v=177"></script>
+<script src="js/app.js?v=177a"></script>
 </body>
 </html>
