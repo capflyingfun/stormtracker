@@ -2306,10 +2306,11 @@ function toggleRadarSource(map){
     toast('Switched to NEXRAD (US)');
   }
   clearStormCone();
-  S.storms=[];
+  clearStormZones();
+  S.storms=[];S._rawScanPts=[];
   S.stormMarkers.forEach(m=>map.removeLayer(m));
   S.stormMarkers=[];
-  renderStorms();
+  renderStorms();updateStormBadges();
   showRadarLayer(map);
   scanRadarForStorms();
 }
