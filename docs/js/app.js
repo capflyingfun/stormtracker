@@ -3273,7 +3273,7 @@ function buildPathArrows(map){
   const glow=maxDbz>=45?`drop-shadow(0 0 10px ${color}) drop-shadow(0 0 4px ${color})`:maxDbz>=30?`drop-shadow(0 0 6px ${color})`:'';
   const pane='path-arrow-pane';
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
-  const svgRot=toDir;
+  const svgRot=toDir-90;
   const chevronSvg=(sz,strokeW)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48" style="transform:rotate(${svgRot}deg);filter:${glow}">
     <path d="M16,8 L34,24 L16,40" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`;
