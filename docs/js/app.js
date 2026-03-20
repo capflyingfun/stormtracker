@@ -1990,9 +1990,9 @@ function initRadar(){
       <div class="map-legend">
         <span>dBZ</span>
         <div class="legend-bar">
-          <span style="background:#00cc00" title="Light Rain"></span><span style="background:#ffff00" title="Moderate"></span>
-          <span style="background:#ff8800" title="Heavy"></span><span style="background:#ff0000" title="Severe"></span>
-          <span style="background:#cc00cc" title="Extreme"></span>
+          <span style="background:#00ccff" title="Light Rain"></span><span style="background:#00ff66" title="Moderate"></span>
+          <span style="background:#ffee00" title="Heavy"></span><span style="background:#ff0033" title="Severe"></span>
+          <span style="background:#ff00ff" title="Extreme"></span>
         </div>
         <span>15 → 60+ dBZ</span>
         <div style="display:flex;gap:6px;margin-left:6px;font-size:0.6em;opacity:0.7">
@@ -2817,11 +2817,11 @@ S._showPathArrows=true;
 S._pathArrowLayers=[];
 S._pathArrowAnimInterval=null;
 const DBZ_BINS=[
-  {min:15,max:30,color:'#00ff44',label:'Light (15-30 dBZ)',opacity:0.22},
-  {min:30,max:45,color:'#22cc00',label:'Moderate (30-45 dBZ)',opacity:0.35},
-  {min:45,max:55,color:'#ffcc00',label:'Heavy (45-55 dBZ)',opacity:0.45},
-  {min:55,max:60,color:'#ff3300',label:'Severe (55-60 dBZ)',opacity:0.55},
-  {min:60,max:999,color:'#cc00ff',label:'Extreme (60+ dBZ)',opacity:0.60}
+  {min:15,max:30,color:'#00ccff',label:'Light (15-30 dBZ)',opacity:0.22},
+  {min:30,max:45,color:'#00ff66',label:'Moderate (30-45 dBZ)',opacity:0.35},
+  {min:45,max:55,color:'#ffee00',label:'Heavy (45-55 dBZ)',opacity:0.45},
+  {min:55,max:60,color:'#ff0033',label:'Severe (55-60 dBZ)',opacity:0.55},
+  {min:60,max:999,color:'#ff00ff',label:'Extreme (60+ dBZ)',opacity:0.60}
 ];
 S._radarGridLayers=[];
 function clearRadarGrid(){
