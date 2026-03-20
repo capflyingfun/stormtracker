@@ -206,8 +206,8 @@ function fmtStormDist(mi){return S.radarMetric?(mi*1.60934).toFixed(1)+' km':mi.
 function fmtCountdown(totalSec){
   if(totalSec<=0)return'NOW';
   const h=Math.floor(totalSec/3600),m=Math.floor((totalSec%3600)/60),s=totalSec%60;
-  if(h>0)return h+':'+(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
-  return m+':'+(s<10?'0':'')+s;
+  if(h>0)return h+'h:'+String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s';
+  return m+'m:'+String(s).padStart(2,'0')+'s';
 }
 function fmtArrivalTime(etaMin){
   const d=new Date(Date.now()+etaMin*60000);
@@ -3066,7 +3066,7 @@ function buildStormZones(map,rawPts){
     }else{
       statusHtml=`<div style="text-align:center;margin-top:4px;color:#666;font-size:0.75em">No movement data</div>`;
     }
-    const fmtGridEta=(sec)=>{if(!sec||sec<=0)return'NOW';const m=Math.floor(sec/60),s=sec%60;return m+'m:'+String(s).padStart(2,'0')+'s';};
+    const fmtGridEta=(sec)=>{if(!sec||sec<=0)return'NOW';const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return h>0?h+'h:'+String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s':m+'m:'+String(s).padStart(2,'0')+'s';};
     const fmtEtaInit=etaSec?fmtGridEta(etaSec):'--m:--s';
     const distUnit=S.radarMetric?'km':'mi';
     const distVal=S.radarMetric?(midDist*1.60934).toFixed(1):midDist.toFixed(1);
@@ -3146,7 +3146,7 @@ function buildStormZones(map,rawPts){
     S._arrowCells=[];
   }
   if(S._gridEtaTimers.length>0){
-    const fmtGE=(sec)=>{if(!sec||sec<=0)return'NOW';const m=Math.floor(sec/60),s=sec%60;return m+'m:'+String(s).padStart(2,'0')+'s';};
+    const fmtGE=(sec)=>{if(!sec||sec<=0)return'NOW';const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return h>0?h+'h:'+String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s':m+'m:'+String(s).padStart(2,'0')+'s';};
     S._gridEtaInterval=setInterval(()=>{
       const now=Date.now();
       for(const t of S._gridEtaTimers){
