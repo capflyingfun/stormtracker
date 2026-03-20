@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v1.77t</title>
+<title>StormTracker v1.77u</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=177t">
+<link rel="stylesheet" href="css/style.css?v=177u">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -22,7 +22,7 @@
     <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
   <div class="header-center">
-    <h1>⚡ StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v1.77t</span></h1>
+    <h1>⚡ StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v1.77u</span></h1>
     <div class="header-status">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Initializing...</span>
@@ -95,6 +95,14 @@
         <button id="settings-travel-toggle" onclick="toggleTravelMode();syncSettingsPanel()" style="font-size:0.75em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid var(--accent-cyan);background:rgba(0,229,255,0.08);color:var(--accent-cyan)">OFF</button>
       </div>
     </div>
+    <div style="border-top:1px solid var(--border-subtle);padding-top:10px">
+      <div style="font-size:0.8em;font-weight:600;color:#ffcc00;margin-bottom:8px">➤ Storm Path Arrow Style</div>
+      <div style="display:flex;gap:8px;margin-bottom:6px">
+        <button id="pa-style-chevron" onclick="setPathArrowStyle('chevron')" style="flex:1;font-size:0.75em;padding:6px 8px;border-radius:8px;cursor:pointer;font-weight:600;border:1px solid var(--accent-cyan);background:rgba(0,229,255,0.2);color:var(--text-primary)">❯ Chevron</button>
+        <button id="pa-style-pointer" onclick="setPathArrowStyle('pointer')" style="flex:1;font-size:0.75em;padding:6px 8px;border-radius:8px;cursor:pointer;font-weight:600;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.05);color:var(--text-primary)">▲ Pointer</button>
+      </div>
+      <div style="font-size:0.65em;color:var(--text-muted)">Shape of the direction arrows on the radar map. Color reflects storm intensity — white when clear.</div>
+    </div>
   </div>
 </div>
 
@@ -155,6 +163,6 @@
   <button class="nav-item" data-page="alerts" style="position:relative"><span class="nav-icon">⚠️</span><span class="nav-label">Alerts</span><span class="nav-badge" id="nav-alert-badge">0</span></button>
 </nav>
 
-<script src="js/app.js?v=177t"></script>
+<script src="js/app.js?v=177u"></script>
 </body>
 </html>
