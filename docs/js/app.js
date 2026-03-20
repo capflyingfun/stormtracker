@@ -343,24 +343,22 @@ function nexradToDbz(r,g,b,a){
   return best;
 }
 const RV_PAL=[
-  {dbz:5,r:120,g:120,b:190},{dbz:5,r:130,g:130,b:200},
-  {dbz:8,r:100,g:140,b:210},{dbz:8,r:110,g:150,b:220},
-  {dbz:10,r:80,g:120,b:200},{dbz:10,r:90,g:130,b:210},
-  {dbz:12,r:70,g:110,b:190},{dbz:12,r:60,g:100,b:180},
-  {dbz:15,r:50,g:140,b:210},{dbz:15,r:40,g:130,b:200},
-  {dbz:18,r:30,g:160,b:220},{dbz:18,r:20,g:150,b:210},
-  {dbz:20,r:0,g:180,b:230},{dbz:20,r:0,g:160,b:210},
-  {dbz:22,r:0,g:200,b:130},{dbz:22,r:0,g:190,b:100},
-  {dbz:25,r:0,g:220,b:80},{dbz:25,r:0,g:200,b:50},
-  {dbz:28,r:50,g:200,b:0},{dbz:28,r:100,g:230,b:0},
-  {dbz:30,r:0,g:140,b:0},{dbz:30,r:0,g:170,b:0},
-  {dbz:33,r:0,g:100,b:0},{dbz:33,r:0,g:80,b:0},
-  {dbz:35,r:255,g:255,b:0},{dbz:35,r:230,g:230,b:0},
-  {dbz:40,r:255,g:200,b:0},{dbz:40,r:255,g:170,b:0},
-  {dbz:45,r:255,g:100,b:0},{dbz:45,r:255,g:80,b:0},
-  {dbz:50,r:255,g:0,b:0},{dbz:50,r:220,g:0,b:0},
-  {dbz:55,r:180,g:0,b:0},{dbz:55,r:150,g:0,b:0},
-  {dbz:60,r:200,g:0,b:200},{dbz:60,r:170,g:0,b:170}
+  {dbz:5,r:130,g:200,b:130},{dbz:5,r:160,g:210,b:160},
+  {dbz:8,r:100,g:200,b:100},{dbz:8,r:80,g:180,b:80},
+  {dbz:10,r:50,g:200,b:50},{dbz:10,r:40,g:180,b:40},
+  {dbz:15,r:0,g:160,b:0},{dbz:15,r:0,g:200,b:0},
+  {dbz:20,r:0,g:230,b:0},{dbz:20,r:0,g:255,b:0},
+  {dbz:25,r:200,g:255,b:0},{dbz:25,r:255,g:255,b:0},
+  {dbz:30,r:255,g:200,b:0},{dbz:30,r:255,g:170,b:0},
+  {dbz:35,r:255,g:140,b:0},{dbz:35,r:255,g:100,b:0},
+  {dbz:40,r:255,g:60,b:0},{dbz:40,r:255,g:0,b:0},
+  {dbz:45,r:230,g:0,b:0},{dbz:45,r:200,g:0,b:0},
+  {dbz:50,r:180,g:0,b:0},{dbz:50,r:150,g:0,b:0},
+  {dbz:55,r:200,g:0,b:200},{dbz:55,r:180,g:0,b:180},
+  {dbz:60,r:255,g:0,b:255},{dbz:60,r:220,g:50,b:220},
+  {dbz:8,r:100,g:150,b:255},{dbz:10,r:80,g:130,b:230},
+  {dbz:12,r:60,g:110,b:210},{dbz:15,r:40,g:90,b:200},
+  {dbz:20,r:110,g:110,b:220},{dbz:25,r:130,g:80,b:200}
 ];
 function rvToDbz(r,g,b,a){
   if(a<30)return 0;
@@ -1726,11 +1724,16 @@ function initRadar(){
       <div class="map-legend">
         <span>dBZ</span>
         <div class="legend-bar">
-          <span style="background:#00ff00"></span><span style="background:#ffff00"></span>
-          <span style="background:#ff8800"></span><span style="background:#ff0000"></span>
-          <span style="background:#cc00cc"></span>
+          <span style="background:#00cc00" title="Light Rain"></span><span style="background:#ffff00" title="Moderate"></span>
+          <span style="background:#ff8800" title="Heavy"></span><span style="background:#ff0000" title="Severe"></span>
+          <span style="background:#cc00cc" title="Extreme"></span>
         </div>
-        <span>30 → 60+ dBZ</span>
+        <span>15 → 60+ dBZ</span>
+        <div style="display:flex;gap:6px;margin-left:6px;font-size:0.6em;opacity:0.7">
+          <span style="color:#00cc44">🌧Rain</span>
+          <span style="color:#66aaff">❄Snow</span>
+          <span style="color:#ff77cc">🧊Mix</span>
+        </div>
       </div>
       <div class="scan-overlay" id="scan-overlay">
         <div class="scan-countdown" id="scan-countdown"></div>
@@ -1915,7 +1918,7 @@ async function toggleRadarAnim(map){
     const pastCount=(S.radarFrames||[]).filter(f=>!f.path||!f.path.includes('/nowcast/')).length;
     animFrames=S.radarFrames.map((f,i)=>({
       time:f.time, type:i<pastCount?'past':'forecast',
-      url:`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/6/1_1.png`
+      url:`https://tilecache.rainviewer.com${f.path}/256/{z}/{x}/{y}/1/1_1.png`
     }));
     S._radarAnimSrc='rainviewer';
   }
@@ -2005,7 +2008,7 @@ function showRadarLayer(map){
     if(S.radarFrames.length){
       S.radarIdx=S.radarFrames.length-1;
       const frame=S.radarFrames[S.radarIdx];
-      S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/6/1_1.png`,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
+      S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/1/1_1.png`,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
       const t=new Date(frame.time*1000);
       const el=document.getElementById('radar-time');
       if(el)el.textContent=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
@@ -2231,7 +2234,7 @@ async function scanRadarForView(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/1/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,radius));
       }
     }
@@ -2296,7 +2299,7 @@ async function scanRadarHiRes(map,fromHome){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${hiZoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${hiZoom}/${tx}/${ty}/6/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${hiZoom}/${tx}/${ty}/1/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,hiZoom,colorFn,minDbz,HIRES_RADIUS,1));
       }
     }
@@ -2796,7 +2799,7 @@ async function scanRadarForStorms(){
       for(let ty=minTY;ty<=maxTY;ty++){
         const url=useNexrad
           ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
-          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/6/1_1.png`;
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/1/1_1.png`;
         tilePromises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,S.scanRadius));
       }
     }
