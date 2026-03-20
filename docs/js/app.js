@@ -1835,7 +1835,7 @@ function initRadar(){
     if(S.map){S.map.remove();S.map=null}
     const map=L.map('radar-map',{zoomControl:false,attributionControl:false,maxZoom:11,maxBoundsViscosity:1.0,bounceAtZoomLimits:false,zoomSnap:0.5,zoomDelta:0.5}).setView([S.lat,S.lon],8);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:11}).addTo(map);
-    S._rangeCircle=L.circle([S.lat,S.lon],{radius:S.scanRadius*1609.34,color:'#3b82f6',fillOpacity:0.05,weight:1,dashArray:'6 4'}).addTo(map);
+    S._rangeCircle=L.circle([S.lat,S.lon],{radius:S.scanRadius*1609.34,color:'#3b82f6',fill:false,weight:1,dashArray:'6 4'}).addTo(map);
     S._userMarker=L.circleMarker([S.lat,S.lon],{radius:5,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:1}).addTo(map);
     S.map=map;
     let _zoomReplot=null,_lastZoom=map.getZoom();
@@ -2268,7 +2268,7 @@ function clearViewScanCircle(){
 }
 function showViewScanCircle(map,lat,lng,radiusMi,count){
   clearViewScanCircle();
-  S._viewScanCircle=L.circle([lat,lng],{radius:radiusMi*1609.34,color:'#00e5ff',fillColor:'#00e5ff',fillOpacity:0.04,weight:1.5,dashArray:'8 4'}).addTo(map);
+  S._viewScanCircle=L.circle([lat,lng],{radius:radiusMi*1609.34,color:'#00e5ff',fill:false,weight:1.5,dashArray:'8 4'}).addTo(map);
   S._viewScanCenter=L.circleMarker([lat,lng],{radius:4,color:'#00e5ff',fillColor:'#00e5ff',fillOpacity:0.9,weight:1}).addTo(map);
   let label=document.getElementById('view-scan-label');
   if(!label){
@@ -2620,9 +2620,68 @@ const DBZ_BINS=[
   {min:55,max:60,color:'#ff3300',label:'Severe (55-60 dBZ)',opacity:0.55},
   {min:60,max:999,color:'#cc00ff',label:'Extreme (60+ dBZ)',opacity:0.60}
 ];
+S._radarGridLayers=[];
+function clearRadarGrid(){
+  S._radarGridLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
+  S._radarGridLayers=[];
+}
+function drawRadarGrid(map,maxRadiusMi){
+  clearRadarGrid();
+  if(!map||!S._showZones)return;
+  const gridPane='radar-grid-pane';
+  if(!map.getPane(gridPane)){
+    map.createPane(gridPane);
+    map.getPane(gridPane).style.zIndex=340;
+    map.getPane(gridPane).style.pointerEvents='none';
+  }
+  const distStep=ZONE_DIST_STEP_MI;
+  const nRings=Math.ceil(maxRadiusMi/distStep);
+  for(let r=1;r<=nRings;r++){
+    const radiusMi=r*distStep;
+    const isMajor=(radiusMi%10===0);
+    const isOuter=(r===nRings);
+    const circle=L.circle([S.lat,S.lon],{
+      radius:radiusMi*1609.34,
+      color:isOuter?'#00e5ff':'rgba(0,229,255,0.25)',
+      fillOpacity:0,fill:false,
+      weight:isOuter?1.5:isMajor?0.8:0.3,
+      dashArray:isOuter?'8 4':null,
+      pane:gridPane,interactive:false
+    }).addTo(map);
+    S._radarGridLayers.push(circle);
+  }
+  const angStep=ZONE_ANG_STEP;
+  const majorAngStep=30;
+  for(let a=0;a<360;a+=angStep){
+    const isMajor=(a%majorAngStep===0);
+    if(!isMajor&&a%6!==0)continue;
+    const inner=destPt(S.lat,S.lon,distStep,a);
+    const outer=destPt(S.lat,S.lon,maxRadiusMi,a);
+    const line=L.polyline([inner,outer],{
+      color:isMajor?'rgba(0,229,255,0.3)':'rgba(0,229,255,0.12)',
+      weight:isMajor?0.7:0.3,
+      pane:gridPane,interactive:false
+    }).addTo(map);
+    S._radarGridLayers.push(line);
+  }
+  const cardinals=[{a:0,l:'N'},{a:90,l:'E'},{a:180,l:'S'},{a:270,l:'W'}];
+  for(const c of cardinals){
+    const pt=destPt(S.lat,S.lon,maxRadiusMi+3,c.a);
+    const marker=L.marker(pt,{
+      icon:L.divIcon({
+        className:'',
+        html:`<div style="color:rgba(0,229,255,0.5);font-size:10px;font-weight:700;text-align:center;text-shadow:0 0 3px #000">${c.l}</div>`,
+        iconSize:[16,16],iconAnchor:[8,8]
+      }),
+      pane:gridPane,interactive:false
+    }).addTo(map);
+    S._radarGridLayers.push(marker);
+  }
+}
 function clearStormZones(){
   S._stormZoneLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
   S._stormZoneLayers=[];
+  clearRadarGrid();
 }
 const ZONE_ANG_STEP=3;
 const ZONE_DIST_STEP_MI=5;
@@ -2687,9 +2746,10 @@ function dbzColor(dbz){
 }
 function buildStormZones(map,rawPts){
   clearStormZones();
+  const maxR=S._lastScanWasHiRes?15:S.scanRadius||80;
+  if(S._showZones&&map)drawRadarGrid(map,maxR);
   if(!map||!rawPts||!rawPts.length||!S._showZones)return;
   const t0=performance.now();
-  const maxR=S._lastScanWasHiRes?15:S.scanRadius||80;
   const cells=polarGridBin(rawPts,S.lat,S.lon,maxR);
   const paneName='zone-pane';
   if(!map.getPane(paneName)){
