@@ -2692,6 +2692,8 @@ function drawRadarGrid(map,maxRadiusMi){
   }
 }
 function clearStormZones(){
+  if(S._gridEtaInterval){clearInterval(S._gridEtaInterval);S._gridEtaInterval=null;}
+  S._gridEtaTimers=[];
   S._stormZoneLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
   S._stormZoneLayers=[];
   clearRadarGrid();
@@ -2781,7 +2783,12 @@ function buildStormZones(map,rawPts){
   }
   const mv=S.stormMovement;
   let approachCount=0;
+  if(S._gridEtaInterval){clearInterval(S._gridEtaInterval);S._gridEtaInterval=null;}
+  S._gridEtaTimers=[];
   const sortedCells=[...cells.values()].sort((a,b)=>a.maxDbz-b.maxDbz);
+  const rowS='display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:0.78em;';
+  const lblS='color:#8899aa;white-space:nowrap;margin-right:6px;';
+  const valS='color:#e0e0e0;font-weight:500;text-align:right;';
   for(const cell of sortedCells){
     const bin=dbzColor(cell.maxDbz);
     const verts=wedgePoly(S.lat,S.lon,cell.ri,cell.ai);
@@ -2794,35 +2801,63 @@ function buildStormZones(map,rawPts){
     const bearEnd=(cell.ai+1)*ZONE_ANG_STEP;
     const midBear=(bearStart+bearEnd)/2;
     const midDist=(distInner+distOuter)/2;
-    let mvHtml='';
     let isApproaching=false;
-    let etaMin=null;
+    let etaSec=null;
+    let arrivalStr='--:--';
+    let mvDir='--';
+    let mvBear='--';
+    let mvSpd='--';
+    let statusHtml='';
+    const cellId='gc'+cell.ri+'_'+cell.ai;
     if(mv&&mv.speed>=2){
       const bearToUser=(midBear+180)%360;
       const diff=Math.abs(((mv.direction-bearToUser+180)%360)-180);
       const closing=mv.speed*Math.cos(Math.min(diff,60)*Math.PI/180);
       isApproaching=(diff<=30&&closing>1);
+      mvDir=degToDir(mv.direction);
+      mvBear=mv.direction+'°';
+      mvSpd=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
       if(isApproaching&&midDist>1){
-        etaMin=Math.round(midDist/closing*60);
+        etaSec=Math.round(midDist/closing*3600);
+        const now=new Date();
+        const arrival=new Date(now.getTime()+etaSec*1000);
+        const hh=arrival.getHours(),mm=arrival.getMinutes();
+        const ampm=hh>=12?'PM':'AM';
+        arrivalStr=((hh%12)||12)+':'+String(mm).padStart(2,'0')+' '+ampm;
         approachCount++;
+        S._gridEtaTimers.push({id:cellId,etaSec,startTime:Date.now()});
       }
-      const dirLabel=degToDir(mv.direction);
-      mvHtml=`<div style="font-size:0.8em;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.1)">
-        → ${dirLabel} (${mv.direction}°) at ${S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'}
-      </div>
-      <div style="font-size:0.75em;margin-top:2px;color:${isApproaching?'#ef4444':'#22c55e'}">
-        ${isApproaching?'⚠️ Approaching':'✓ Not approaching'}${etaMin?' · ~'+etaMin+' min':''}${midDist<=1?' · ⚠️ Overhead':''}
-      </div>`;
+      if(midDist<=1){
+        statusHtml=`<div style="text-align:center;margin-top:4px;padding:3px 6px;background:rgba(239,68,68,0.15);border-radius:4px;color:#ef4444;font-size:0.8em;font-weight:600">🚨 OVERHEAD</div>`;
+      }else if(isApproaching){
+        statusHtml=`<div style="text-align:center;margin-top:4px;padding:3px 6px;background:rgba(239,68,68,0.12);border-radius:4px;color:#ef4444;font-size:0.78em;font-weight:600">⚠️ Approaching</div>`;
+      }else{
+        statusHtml=`<div style="text-align:center;margin-top:4px;padding:3px 6px;background:rgba(34,197,94,0.1);border-radius:4px;color:#22c55e;font-size:0.78em">✓ Not approaching</div>`;
+      }
     }else{
-      mvHtml=`<div style="font-size:0.75em;color:#999;margin-top:4px">No movement data</div>`;
+      statusHtml=`<div style="text-align:center;margin-top:4px;color:#666;font-size:0.75em">No movement data</div>`;
     }
-    const popup=`<div style="text-align:center;font-family:system-ui;min-width:150px">
-      <div style="font-size:1.2em;font-weight:700;color:${bin.color}">${maxDbz} dBZ</div>
-      <div style="font-size:0.85em;margin:2px 0">${cat.label}</div>
-      <div style="font-size:0.75em;color:#aaa">${cat.rain||''} · Avg: ${avgDbz} dBZ</div>
-      <div style="font-size:0.8em;color:#ccc;margin-top:4px">${fmtStormDist(midDist)} ${degToDir(midBear)} (${Math.round(midBear)}°)</div>
-      ${mvHtml}
-      <div style="font-size:0.65em;color:#666;margin-top:4px">${distInner}-${distOuter} mi · ${bearStart}°-${bearEnd}° · 📡 ${cell.count} returns</div>
+    const fmtGridEta=(sec)=>{if(!sec||sec<=0)return'NOW';const m=Math.floor(sec/60),s=sec%60;return m+'m:'+String(s).padStart(2,'0')+'s';};
+    const fmtEtaInit=etaSec?fmtGridEta(etaSec):'--m:--s';
+    const distUnit=S.radarMetric?'km':'mi';
+    const distVal=S.radarMetric?(midDist*1.60934).toFixed(1):midDist.toFixed(1);
+    const popup=`<div style="font-family:system-ui;min-width:175px;padding:2px">
+      <div style="text-align:center;margin-bottom:5px">
+        <span style="font-size:1.2em;font-weight:700;color:${bin.color}">${cat.label}</span>
+      </div>
+      <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:4px">
+        <div style="${rowS}"><span style="${lblS}">☔ Intensity:</span><span style="${valS}color:${bin.color}">${cat.label} @ ${maxDbz} dBZ max</span></div>
+        <div style="${rowS}"><span style="${lblS}">📊 Avg:</span><span style="${valS}">${avgDbz} dBZ · ${cat.rain}</span></div>
+      </div>
+      <div style="border-top:1px solid rgba(255,255,255,0.08);margin-top:3px;padding-top:4px">
+        <div style="${rowS}"><span style="${lblS}">⛈️ Movement:</span><span style="${valS}">${mvDir} (${mvBear}) @ ${mvSpd}</span></div>
+        <div style="${rowS}"><span style="${lblS}">⏱️ ETA:</span><span style="${valS}" id="eta-${cellId}">${fmtEtaInit}</span><span style="${lblS}margin-left:8px;">Arrival:</span><span style="${valS}">${arrivalStr}</span></div>
+      </div>
+      <div style="border-top:1px solid rgba(255,255,255,0.08);margin-top:3px;padding-top:4px">
+        <div style="${rowS}"><span style="${lblS}">📍 Location:</span><span style="${valS}">${distVal} ${distUnit} ${degToDir(midBear)} (${Math.round(midBear)}°) of you</span></div>
+      </div>
+      ${statusHtml}
+      <div style="text-align:center;font-size:0.6em;color:#555;margin-top:4px">📡 ${cell.count} return${cell.count>1?'s':''} · ${distInner}-${distOuter} mi · ${bearStart}°-${bearEnd}°</div>
     </div>`;
     const borderColor=isApproaching?'#ef4444':bin.color;
     const borderWeight=isApproaching?2:0.5;
@@ -2830,7 +2865,7 @@ function buildStormZones(map,rawPts){
       color:borderColor,fillColor:bin.color,
       fillOpacity:bin.opacity,weight:borderWeight,opacity:isApproaching?0.9:0.5,pane:paneName
     }).addTo(map);
-    poly.bindPopup(popup,{closeButton:false,className:'storm-popup'});
+    poly.bindPopup(popup,{closeButton:false,className:'storm-popup',maxWidth:280});
     S._stormZoneLayers.push(poly);
     if(mv&&mv.speed>=2){
       const aPt=destPt(S.lat,S.lon,midDist,midBear);
@@ -2841,9 +2876,19 @@ function buildStormZones(map,rawPts){
       }).addTo(map);
       S._stormZoneLayers.push(arrow);
     }
-    if(isApproaching&&midDist<=1){
-      console.log('🚨 Storm overhead! Cell at '+degToDir(midBear)+' '+midDist.toFixed(1)+'mi, '+maxDbz+' dBZ');
-    }
+  }
+  if(S._gridEtaTimers.length>0){
+    const fmtGE=(sec)=>{if(!sec||sec<=0)return'NOW';const m=Math.floor(sec/60),s=sec%60;return m+'m:'+String(s).padStart(2,'0')+'s';};
+    S._gridEtaInterval=setInterval(()=>{
+      const now=Date.now();
+      for(const t of S._gridEtaTimers){
+        const elapsed=Math.floor((now-t.startTime)/1000);
+        const remain=Math.max(0,t.etaSec-elapsed);
+        const el=document.getElementById('eta-'+t.id);
+        if(el)el.textContent=fmtGE(remain);
+        if(remain<=0&&el)el.style.color='#ef4444';
+      }
+    },1000);
   }
   if(approachCount>0){
     console.log(`⚠️ ${approachCount} grid cell(s) approaching your location`);
