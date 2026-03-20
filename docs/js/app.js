@@ -2629,6 +2629,7 @@ async function scanRadarHiRes(map,fromHome){
     plotStormMarkers(map);
     if(rawPoints.length>0){autoActivateZones()}
     else{clearStormZones();if(S.radarLayer&&S.map&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}
+    if(S.map&&S._showPathArrows)buildPathArrows(S.map);
     showViewScanCircle(map,cLat,cLng,HIRES_RADIUS,S.storms.length);
     map.setView([cLat,cLng],11,{animate:true,duration:0.5});
     hideScanOverlay();
@@ -3544,7 +3545,6 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     S.stormMovement={direction:Math.round(dir),speed:spdMph};
     S._windCache={lat,lon,ts:Date.now(),dir:Math.round(dir),speed:spdMph};
     console.log('Winds aloft → storm movement: '+Math.round(dir)+'° at '+spdMph+' mph');
-    if(S.map&&S._showPathArrows)buildPathArrows(S.map);
   }catch(e){console.log('Winds aloft fetch failed:',e.message)}
 }
 
@@ -3661,6 +3661,7 @@ async function scanRadarForStorms(){
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
+    if(S.map&&S._showPathArrows)buildPathArrows(S.map);
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
     scheduleAutoScan();
