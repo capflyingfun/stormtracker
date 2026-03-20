@@ -1801,6 +1801,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="radar-anim-btn" title="Animate radar" style="font-size:0.75em">▶️</div>
         <div class="map-ctrl-btn" id="btn-zones" title="Toggle storm zones" style="font-size:0.55em;font-weight:700;line-height:1;color:#cc00ff" onclick="toggleStormZones()">ZN</div>
         <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" style="font-size:0.55em;font-weight:700;line-height:1;color:var(--accent-cyan)" onclick="toggleStormPoints()">PT</div>
+        <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff9800" onclick="toggleRadarOverlay()">RDR</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
       </div>
       <div class="radar-anim-bar" id="radar-anim-bar" style="display:none">
@@ -1879,6 +1880,7 @@ function initRadar(){
     });
     const zbtn=document.getElementById('btn-zones');if(zbtn)zbtn.style.opacity=S._showZones?'1':'0.4';
     const pbtn=document.getElementById('btn-points');if(pbtn)pbtn.style.opacity=S._showPoints?'1':'0.4';
+    const rbtn=document.getElementById('btn-radar-overlay');if(rbtn)rbtn.style.opacity=S._radarOverlayVisible?'1':'0.4';
     if(S.storms.length){
       plotStormMarkers(map);
       buildStormZones(map,S._rawScanPts);
@@ -2560,10 +2562,7 @@ function plotStormMarkers(map){
     if(storm.dbz>=40){
       pending.push({type:'lightning',lat:storm.lat,lng:storm.lng});
     }
-    if(eta&&eta.approaching&&eta.impact>70&&eta.eta!=null&&mv&&mv.speed>=2&&storm.distance<80){
-      const sk=stormKey(storm);
-      pending.push({type:'track',lat:storm.lat,lng:storm.lng,color,sk});
-    }
+    
   });
   const offscreen=document.createElement('div');
   offscreen.style.cssText='position:absolute;left:-9999px;top:-9999px;visibility:hidden';
@@ -2598,21 +2597,6 @@ function plotStormMarkers(map){
         const lightning=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'storm-lightning-icon',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})});
         if(addToMap)lightning.addTo(map);
         S.stormMarkers.push(lightning);
-      }else if(p.type==='track'){
-        const trackLine=L.polyline([[p.lat,p.lng],[S.lat,S.lon]],{
-          color:p.color,weight:2,opacity:0.5,dashArray:'8,8',interactive:false,
-          className:'storm-track-line'
-        }).addTo(map);
-        trackLine._stormTrackKey=p.sk;
-        S.stormMarkers.push(trackLine);
-        const dotSz=10;
-        const arrivalDot=L.marker([S.lat,S.lon],{interactive:false,icon:L.divIcon({
-          className:'',
-          html:`<div class="storm-track-dot" style="width:${dotSz}px;height:${dotSz}px;background:${p.color};box-shadow:0 0 8px ${p.color}"></div>`,
-          iconSize:[dotSz,dotSz],iconAnchor:[dotSz/2,dotSz/2]
-        })}).addTo(map);
-        arrivalDot._stormTrackKey=p.sk;
-        S.stormMarkers.push(arrivalDot);
       }
     });
   })});
@@ -2766,7 +2750,7 @@ function buildStormZones(map,rawPts){
   const maxR=S._lastScanWasHiRes?15:S.scanRadius||80;
   if(S._showZones&&map){
     drawRadarGrid(map,maxR);
-    if(S.radarLayer&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
+    if(!S._radarOverlayVisible&&S.radarLayer&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
   }
   if(!map||!rawPts||!rawPts.length||!S._showZones)return;
   const t0=performance.now();
@@ -2906,16 +2890,21 @@ function buildStormZones(map,rawPts){
     const avgLat=approachSumLat/approachSumDbz;
     const avgLon=approachSumLon/approachSumDbz;
     const arrowColor=dbzColor(approachMaxDbz).color;
-    const numDots=8;
+    const trailPane='approach-trail-pane';
+    if(!map.getPane(trailPane)){
+      map.createPane(trailPane);
+      map.getPane(trailPane).style.zIndex=450;
+    }
+    const numDots=10;
     const dotMarkers=[];
     for(let i=0;i<numDots;i++){
       const f=i/numDots;
       const lat=avgLat+(S.lat-avgLat)*f;
       const lon=avgLon+(S.lon-avgLon)*f;
-      const sz=i===0?10:6;
+      const sz=i===0?10:Math.max(4,8-i*0.4);
       const dot=L.marker([lat,lon],{
-        icon:L.divIcon({className:'',html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${arrowColor};opacity:0;transition:opacity 0.3s"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
-        pane:arrowPane,interactive:false
+        icon:L.divIcon({className:'',html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${arrowColor};box-shadow:0 0 ${sz}px ${arrowColor};opacity:0;transition:opacity 0.2s"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+        pane:trailPane,interactive:false
       }).addTo(map);
       dotMarkers.push(dot);
       S._stormZoneLayers.push(dot);
@@ -2927,11 +2916,11 @@ function buildStormZones(map,rawPts){
         if(!el)continue;
         const d=el.firstChild;
         if(!d)continue;
-        const idx=(frame+i)%numDots;
-        d.style.opacity=String(Math.max(0,1-idx/numDots));
+        const pos=(frame-i+numDots)%numDots;
+        d.style.opacity=pos<4?String(1-pos*0.25):'0';
       }
       frame=(frame+1)%numDots;
-    },200);
+    },180);
   }
   const ms=Math.round(performance.now()-t0);
   console.log(`Polar grid: ${rawPts.length} pts → ${cells.size} cells (${ZONE_ANG_STEP}°×${ZONE_DIST_STEP_MI}mi) in ${ms}ms`);
@@ -2951,7 +2940,7 @@ function autoActivateZones(){
     const btn=document.getElementById('btn-points');
     if(btn)btn.style.opacity='0.4';
   }
-  if(S.radarLayer&&S.map){try{S.map.removeLayer(S.radarLayer)}catch(e){}}
+  if(!S._radarOverlayVisible&&S.radarLayer&&S.map){try{S.map.removeLayer(S.radarLayer)}catch(e){}}
   if(S.map)buildStormZones(S.map,S._rawScanPts);
 }
 function checkUserInZone(){
@@ -2967,13 +2956,23 @@ function toggleStormZones(){
   try{localStorage.setItem('st_zones',S._showZones?'1':'0')}catch(e){}
   if(S._showZones&&S._rawScanPts.length&&S.map){
     buildStormZones(S.map,S._rawScanPts);
-    if(S.radarLayer){try{S.map.removeLayer(S.radarLayer)}catch(e){}}
   }else{
     clearStormZones();
     if(S.radarLayer&&S.map&&!S.map.hasLayer(S.radarLayer)){try{S.radarLayer.addTo(S.map)}catch(e){}}
   }
   const btn=document.getElementById('btn-zones');
   if(btn)btn.style.opacity=S._showZones?'1':'0.4';
+}
+S._radarOverlayVisible=false;
+function toggleRadarOverlay(){
+  S._radarOverlayVisible=!S._radarOverlayVisible;
+  if(S._radarOverlayVisible&&S.radarLayer&&S.map){
+    if(!S.map.hasLayer(S.radarLayer))S.radarLayer.addTo(S.map);
+  }else if(!S._radarOverlayVisible&&S.radarLayer&&S.map){
+    if(S.map.hasLayer(S.radarLayer))S.map.removeLayer(S.radarLayer);
+  }
+  const btn=document.getElementById('btn-radar-overlay');
+  if(btn)btn.style.opacity=S._radarOverlayVisible?'1':'0.4';
 }
 try{const zv=localStorage.getItem('st_zones');if(zv==='0')S._showZones=false}catch(e){}
 S._showPoints=false;
