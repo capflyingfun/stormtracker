@@ -1978,6 +1978,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="radar-toggle-airports" title="Toggle airports" style="font-size:0.75em">✈️</div>
         <div class="map-ctrl-btn" id="radar-anim-btn" title="Animate radar" style="font-size:0.75em">▶️</div>
         <div class="map-ctrl-btn" id="btn-zones" title="Toggle storm zones" style="font-size:0.55em;font-weight:700;line-height:1;color:#cc00ff" onclick="toggleStormZones()">ZN</div>
+        <div class="map-ctrl-btn" id="btn-path-arrows" title="Toggle storm path arrows" style="font-size:0.55em;font-weight:700;line-height:1;color:#ffcc00" onclick="togglePathArrows()">➤</div>
         <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" style="font-size:0.55em;font-weight:700;line-height:1;color:var(--accent-cyan)" onclick="toggleStormPoints()">PT</div>
         <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff9800" onclick="toggleRadarOverlay()">RDR</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
@@ -2060,6 +2061,7 @@ function initRadar(){
     const zbtn=document.getElementById('btn-zones');if(zbtn)zbtn.style.opacity=S._showZones?'1':'0.4';
     const pbtn=document.getElementById('btn-points');if(pbtn)pbtn.style.opacity=S._showPoints?'1':'0.4';
     const rbtn=document.getElementById('btn-radar-overlay');if(rbtn)rbtn.style.opacity=S._radarOverlayVisible?'1':'0.4';
+    const pabtn=document.getElementById('btn-path-arrows');if(pabtn)pabtn.style.opacity=S._showPathArrows?'1':'0.4';
     if(S.storms.length){
       plotStormMarkers(map);
       buildStormZones(map,S._rawScanPts);
@@ -2811,6 +2813,9 @@ function plotStormMarkers(map){
 S._stormZoneLayers=[];
 S._rawScanPts=[];
 S._showZones=true;
+S._showPathArrows=true;
+S._pathArrowLayers=[];
+S._pathArrowAnimInterval=null;
 const DBZ_BINS=[
   {min:15,max:30,color:'#00ff44',label:'Light (15-30 dBZ)',opacity:0.22},
   {min:30,max:45,color:'#22cc00',label:'Moderate (30-45 dBZ)',opacity:0.35},
@@ -2884,6 +2889,7 @@ function clearStormZones(){
   S._stormZoneLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
   S._stormZoneLayers=[];
   clearRadarGrid();
+  clearPathArrows();
 }
 const ZONE_ANG_STEP=3;
 const ZONE_DIST_STEP_MI=5;
@@ -2957,6 +2963,7 @@ function buildStormZones(map,rawPts){
   const maxR=S._lastScanWasHiRes?15:S.scanRadius||80;
   if(!map||!rawPts||!rawPts.length||!S._showZones){
     if(map&&S.radarLayer&&!map.hasLayer(S.radarLayer)){S.radarLayer.addTo(map)}
+    buildPathArrows(map);
     return;
   }
   drawRadarGrid(map,maxR);
@@ -3173,6 +3180,7 @@ function buildStormZones(map,rawPts){
   }
   const ms=Math.round(performance.now()-t0);
   console.log(`Polar grid: ${rawPts.length} pts → ${cells.size} cells (${ZONE_ANG_STEP}°×${ZONE_DIST_STEP_MI}mi) in ${ms}ms`);
+  buildPathArrows(map);
 }
 function autoActivateZones(){
   if(!S._rawScanPts||!S._rawScanPts.length)return;
@@ -3224,8 +3232,80 @@ function toggleRadarOverlay(){
   if(btn)btn.style.opacity=S._radarOverlayVisible?'1':'0.4';
 }
 try{const zv=localStorage.getItem('st_zones');if(zv==='0')S._showZones=false}catch(e){}
+try{const pa=localStorage.getItem('st_pathArrows');if(pa==='0')S._showPathArrows=false}catch(e){}
 S._showPoints=false;
 try{const pv=localStorage.getItem('st_points');if(pv==='1')S._showPoints=true}catch(e){}
+
+function clearPathArrows(){
+  if(S._pathArrowAnimInterval){clearInterval(S._pathArrowAnimInterval);S._pathArrowAnimInterval=null}
+  S._pathArrowLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
+  S._pathArrowLayers=[];
+}
+function togglePathArrows(){
+  S._showPathArrows=!S._showPathArrows;
+  try{localStorage.setItem('st_pathArrows',S._showPathArrows?'1':'0')}catch(e){}
+  if(S._showPathArrows&&S.stormMovement){
+    buildPathArrows(S.map);
+  }else{
+    clearPathArrows();
+  }
+  const btn=document.getElementById('btn-path-arrows');
+  if(btn)btn.style.opacity=S._showPathArrows?'1':'0.4';
+}
+function buildPathArrows(map){
+  clearPathArrows();
+  if(!map||!S._showPathArrows||!S.stormMovement)return;
+  const mv=S.stormMovement;
+  if(!mv||mv.speed<1)return;
+  const fromDir=mv.direction;
+  const oppDir=(fromDir+180)%360;
+  const scanR=S._lastScanWasHiRes?15:S.scanRadius||80;
+  const placeDist=scanR*0.55;
+  let maxDbz=0;
+  let hasApproaching=false;
+  if(S._rawScanPts&&S._rawScanPts.length>0){
+    for(const p of S._rawScanPts){
+      const bear=(bearingDeg(S.lat,S.lon,p.lat,p.lng)+360)%360;
+      const toUser=(bear+180)%360;
+      const diff=Math.abs(((fromDir-toUser+180)%360)-180);
+      if(diff<45){
+        hasApproaching=true;
+        if(p.dbz>maxDbz)maxDbz=p.dbz;
+      }
+    }
+  }
+  const color=maxDbz>=15?dbzColor(maxDbz).color:'#4488aa';
+  const glow=maxDbz>=45?`drop-shadow(0 0 8px ${color})`:maxDbz>=30?`drop-shadow(0 0 4px ${color})`:'';
+  const pane='path-arrow-pane';
+  if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
+  const chevronSvg=(rot,sz)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48" style="transform:rotate(${rot}deg);filter:${glow}">
+    <path d="M14,8 L34,24 L14,40" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+  const sz=48;
+  const spacing=0.22;
+  const chevrons=[];
+  for(let i=0;i<3;i++){
+    const d=placeDist+(i-1)*placeDist*spacing;
+    const pt=destPt(S.lat,S.lon,d,oppDir);
+    const mk=L.marker(pt,{
+      icon:L.divIcon({className:'',html:chevronSvg(fromDir-90,sz),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+      pane:pane,interactive:false
+    }).addTo(map);
+    chevrons.push(mk);
+    S._pathArrowLayers.push(mk);
+  }
+  let frame=0;
+  S._pathArrowAnimInterval=setInterval(()=>{
+    for(let i=0;i<3;i++){
+      const el=chevrons[i]?.getElement();
+      if(!el)continue;
+      const phase=(frame-i+6)%6;
+      el.style.opacity=phase<3?String(1-phase*0.3):'0.1';
+      el.style.transition='opacity 0.25s';
+    }
+    frame=(frame+1)%6;
+  },400);
+}
 function toggleStormPoints(){
   S._showPoints=!S._showPoints;
   try{localStorage.setItem('st_points',S._showPoints?'1':'0')}catch(e){}
@@ -3427,6 +3507,7 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     S.stormMovement={direction:Math.round(dir),speed:spdMph};
     S._windCache={lat,lon,ts:Date.now(),dir:Math.round(dir),speed:spdMph};
     console.log('Winds aloft → storm movement: '+Math.round(dir)+'° at '+spdMph+' mph');
+    if(S.map&&S._showPathArrows)buildPathArrows(S.map);
   }catch(e){console.log('Winds aloft fetch failed:',e.message)}
 }
 
