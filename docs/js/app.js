@@ -408,6 +408,9 @@ function toggleLocOverlay(open){
     const tb=document.getElementById('travel-btn');
     if(S.travelMode){tb.textContent='⏹ Stop Travel Mode';tb.classList.add('active')}
     else{tb.textContent='🧭 Travel Mode — Follow GPS Live';tb.classList.remove('active')}
+    const intRow=document.getElementById('gps-interval-row');
+    if(intRow)intRow.style.display=S.travelMode?'block':'none';
+    if(S.travelMode){const intSel=document.getElementById('gps-interval-sel');if(intSel)intSel.value=String(S.gpsInterval||5);}
     renderFavorites();
     const saveBtn=document.getElementById('fav-save-btn');
     if(saveBtn)saveBtn.style.display=S.lat?'':'none';
@@ -524,12 +527,28 @@ function showLocationConfirm(){
     overlay.remove();
     toast('Getting location...');
     navigator.geolocation.getCurrentPosition(
-      pos=>reverseGeo(pos.coords.latitude,pos.coords.longitude),
-      err=>{
-        const msgs={1:'Location permission denied',2:'Location unavailable — your browser may block GPS',3:'Location request timed out'};
-        toast((msgs[err.code]||'Could not get location')+' — try searching instead');
+      pos=>{
+        toast('📍 GPS locked — accuracy ±'+Math.round(pos.coords.accuracy)+'m');
+        reverseGeo(pos.coords.latitude,pos.coords.longitude);
       },
-      {enableHighAccuracy:false,timeout:15000,maximumAge:60000}
+      err=>{
+        if(err.code===1){
+          toast('📍 Location permission denied — please enable location in your browser/phone settings, then try again');
+        }else if(err.code===2){
+          toast('📍 Location unavailable — make sure GPS/Location Services is turned ON in your phone settings');
+        }else if(err.code===3){
+          toast('📍 GPS timed out — trying again with lower accuracy...');
+          navigator.geolocation.getCurrentPosition(
+            pos=>{toast('📍 Location found');reverseGeo(pos.coords.latitude,pos.coords.longitude);},
+            err2=>{toast('📍 Still cannot get location — try searching for your city instead');},
+            {enableHighAccuracy:false,timeout:15000,maximumAge:120000}
+          );
+          return;
+        }else{
+          toast('📍 Could not get location — try searching instead');
+        }
+      },
+      {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
     );
   });
   overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()});
@@ -786,6 +805,7 @@ async function toggleTravelMode(){
   }
   S.travelMode=true;
   S.travelLastUpdate=0;
+  S.gpsInterval=parseInt(localStorage.getItem('gpsInterval')||'5',10);
   const ind=document.getElementById('travel-indicator');
   ind.classList.add('show');
   document.getElementById('travel-status').textContent='🧭 Acquiring GPS...';
@@ -793,26 +813,63 @@ async function toggleTravelMode(){
   btn.textContent='⏹ Stop Travel Mode';
   btn.classList.add('active');
   document.getElementById('status-text').textContent='🧭 Travel Mode · Tracking...';
+  const intRow=document.getElementById('gps-interval-row');
+  if(intRow)intRow.style.display='block';
+  const intSel=document.getElementById('gps-interval-sel');
+  if(intSel)intSel.value=String(S.gpsInterval);
   if(S.map && !S.travelMarker){
     S.travelMarker=L.circleMarker([S.lat||0,S.lon||0],{radius:8,fillColor:'#00e5ff',fillOpacity:0.9,color:'#fff',weight:2,className:'travel-gps-dot'}).addTo(S.map);
   }
-  S.travelWatchId=navigator.geolocation.watchPosition(
-    pos=>onTravelPosition(pos),
-    err=>{document.getElementById('travel-status').textContent='🧭 GPS error — retrying...'},
-    {enableHighAccuracy:true, maximumAge:5000, timeout:15000}
-  );
-  toast('🧭 Travel Mode ON — GPS tracking active');
+  startGpsWatch();
+  toast('🧭 Travel Mode ON — GPS tracking active (updates every '+fmtGpsInt(S.gpsInterval)+')');
 }
 function stopTravelMode(){
   S.travelMode=false;
   if(S.travelWatchId!==null){navigator.geolocation.clearWatch(S.travelWatchId);S.travelWatchId=null}
+  if(S._gpsPollingTimer){clearInterval(S._gpsPollingTimer);S._gpsPollingTimer=null}
   document.getElementById('travel-indicator').classList.remove('show');
+  const intRow=document.getElementById('gps-interval-row');
+  if(intRow)intRow.style.display='none';
   const btn=document.getElementById('travel-btn');
   btn.textContent='🧭 Travel Mode — Follow GPS Live';
   btn.classList.remove('active');
   if(S.travelMarker&&S.map){S.map.removeLayer(S.travelMarker);S.travelMarker=null}
   if(S.lat) document.getElementById('status-text').textContent='Live · '+S.locName;
   toast('Travel Mode OFF');
+}
+function fmtGpsInt(s){
+  if(s<60)return s+'s';
+  if(s<3600)return Math.round(s/60)+'m';
+  return Math.round(s/3600)+'h';
+}
+function setGpsInterval(val){
+  S.gpsInterval=parseInt(val,10);
+  localStorage.setItem('gpsInterval',String(S.gpsInterval));
+  if(S.travelMode){
+    startGpsWatch();
+    toast('🔄 GPS update interval set to '+fmtGpsInt(S.gpsInterval));
+  }
+}
+function startGpsWatch(){
+  if(S.travelWatchId!==null){navigator.geolocation.clearWatch(S.travelWatchId);S.travelWatchId=null}
+  if(S._gpsPollingTimer){clearInterval(S._gpsPollingTimer);S._gpsPollingTimer=null}
+  const int=S.gpsInterval||5;
+  const maxAge=Math.max(int*1000-1000,1000);
+  S.travelWatchId=navigator.geolocation.watchPosition(
+    pos=>onTravelPosition(pos),
+    err=>{document.getElementById('travel-status').textContent='🧭 GPS error — retrying...'},
+    {enableHighAccuracy:true, maximumAge:maxAge, timeout:15000}
+  );
+  if(int>=30){
+    S._gpsPollingTimer=setInterval(()=>{
+      if(!S.travelMode)return;
+      navigator.geolocation.getCurrentPosition(
+        pos=>onTravelPosition(pos),
+        ()=>{},
+        {enableHighAccuracy:true,timeout:10000,maximumAge:int*500}
+      );
+    },int*1000);
+  }
 }
 function onTravelPosition(pos){
   if(!S.travelMode) return;
@@ -822,12 +879,14 @@ function onTravelPosition(pos){
   const dist=S.lat?haversine(S.lat,S.lon,lat,lon):999;
   const spd=pos.coords.speed;
   const spdTxt=spd!==null&&spd>=0?(S.windUnit===0?((spd*2.237).toFixed(0)+' mph'):(S.windUnit===2?((spd*3.6).toFixed(0)+' km/h'):((spd*1.944).toFixed(0)+' kts'))):'—';
-  document.getElementById('travel-status').textContent='🧭 '+spdTxt+' · ±'+(acc<1000?(acc.toFixed(0)+'m'):((acc/1000).toFixed(1)+'km'));
+  const intLabel=fmtGpsInt(S.gpsInterval||5);
+  document.getElementById('travel-status').textContent='🧭 '+spdTxt+' · ±'+(acc<1000?(acc.toFixed(0)+'m'):((acc/1000).toFixed(1)+'km'))+' · 🔄'+intLabel;
   if(S.travelMarker)S.travelMarker.setLatLng([lat,lon]);
   if(S.map)S.map.panTo([lat,lon],{animate:true,duration:0.5});
-  const minInterval=30000;
-  const minDist=0.15;
-  if(dist>minDist && (now-S.travelLastUpdate)>minInterval){
+  const refreshInterval=(S.gpsInterval||5)*1000;
+  const minRefresh=Math.max(refreshInterval,5000);
+  const minDist=0.05;
+  if(dist>minDist && (now-S.travelLastUpdate)>minRefresh){
     S.travelLastUpdate=now;
     reverseGeocode(lat,lon).then(name=>{
       setLoc(lat,lon,name,true);
