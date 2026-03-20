@@ -1524,14 +1524,31 @@ function buildTrendSVG(h,info){
       const d=futPts.map((p,j)=>(j===0?`M${p.x.toFixed(1)},${p.y.toFixed(1)}`:`L${p.x.toFixed(1)},${p.y.toFixed(1)}`)).join(' ');
       svg+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="1.5" stroke-dasharray="4,3" stroke-linecap="round" opacity="0.5"/>`;
     }
-    const mnPt=pts.reduce((a,b)=>a.v<b.v?a:b);
-    const mxPt=pts.reduce((a,b)=>a.v>b.v?a:b);
-    svg+=`<circle cx="${mxPt.x.toFixed(1)}" cy="${mxPt.y.toFixed(1)}" r="3" fill="${s.color}" stroke="#0f172a" stroke-width="1"/>`;
-    svg+=`<text x="${(mxPt.x+5).toFixed(1)}" y="${(mxPt.y-5).toFixed(1)}" fill="${s.color}" font-size="6.5" font-weight="700">▲${s.fmt(mxPt.v)}</text>`;
-    if(Math.abs(mnPt.i-mxPt.i)>3){
-      svg+=`<circle cx="${mnPt.x.toFixed(1)}" cy="${mnPt.y.toFixed(1)}" r="3" fill="${s.color}" stroke="#0f172a" stroke-width="1"/>`;
-      svg+=`<text x="${(mnPt.x+5).toFixed(1)}" y="${(mnPt.y+10).toFixed(1)}" fill="${s.color}" font-size="6.5" font-weight="700" opacity="0.7">▼${s.fmt(mnPt.v)}</text>`;
-    }
+    const dayBuckets=new Map();
+    pts.forEach(p=>{
+      const dt=new Date(h.time[start+p.i]);
+      const dk=dt.toDateString();
+      if(!dayBuckets.has(dk))dayBuckets.set(dk,{hi:p,lo:p});
+      const b=dayBuckets.get(dk);
+      if(p.v>b.hi.v)b.hi=p;
+      if(p.v<b.lo.v)b.lo=p;
+    });
+    const usedPts=new Set();
+    dayBuckets.forEach(b=>{
+      const hiK=b.hi.i+':hi',loK=b.lo.i+':lo';
+      if(!usedPts.has(hiK)){
+        usedPts.add(hiK);
+        const tx=b.hi.x+5>W-PAD_R-30?b.hi.x-30:b.hi.x+5;
+        svg+=`<circle cx="${b.hi.x.toFixed(1)}" cy="${b.hi.y.toFixed(1)}" r="3" fill="${s.color}" stroke="#0f172a" stroke-width="1"/>`;
+        svg+=`<text x="${tx.toFixed(1)}" y="${(b.hi.y-5).toFixed(1)}" fill="${s.color}" font-size="6.5" font-weight="700">▲${s.fmt(b.hi.v)}</text>`;
+      }
+      if(Math.abs(b.lo.i-b.hi.i)>2&&!usedPts.has(loK)){
+        usedPts.add(loK);
+        const tx=b.lo.x+5>W-PAD_R-30?b.lo.x-30:b.lo.x+5;
+        svg+=`<circle cx="${b.lo.x.toFixed(1)}" cy="${b.lo.y.toFixed(1)}" r="3" fill="${s.color}" stroke="#0f172a" stroke-width="1"/>`;
+        svg+=`<text x="${tx.toFixed(1)}" y="${(b.lo.y+10).toFixed(1)}" fill="${s.color}" font-size="6.5" font-weight="700" opacity="0.7">▼${s.fmt(b.lo.v)}</text>`;
+      }
+    });
   });
   const nowLabels=[];
   lineData.forEach(s=>{
@@ -2475,7 +2492,7 @@ function plotStormMarkers(map){
     if(mv&&mv.speed>=2){
       const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
       const imp=impactLabel(eta?eta.impact:0);
-      mvHtml=`<div style="font-size:0.75em;color:#8cf;margin-top:6px;padding-top:6px;border-top:1px solid #333">→ ${degToDir(mv.direction)} ${tStr('at')} ${spdStr}</div>`;
+      mvHtml=`<div style="font-size:0.75em;color:#8cf;margin-top:6px;padding-top:6px;border-top:1px solid #333">→ ${degToDir(mv.direction)} (${Math.round(mv.direction)}°) ${tStr('at')} ${spdStr}</div>`;
       if(eta&&eta.proximity){
         mvHtml+=`<div style="font-size:0.75em;color:#f97316;margin-top:2px;font-weight:700">⚠️ ${tStr('Overhead · Moving away')}</div>`;
         mvHtml+=`<div style="font-size:0.85em;font-weight:700;color:${imp.color};margin-top:2px">${eta.impact}% ${tStr(imp.text)}</div>`;
@@ -2991,7 +3008,7 @@ function renderStorms(){
       let mvLine='';
       if(mv&&mv.speed>=2){
         const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
-        mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Moving')}</div><div class="storm-detail-val">${degToDir(mv.direction)} ${spdStr}</div><div class="tile-tap">tap</div></div>`;
+        mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Moving')}</div><div class="storm-detail-val">${degToDir(mv.direction)} (${Math.round(mv.direction)}°) ${spdStr}</div><div class="tile-tap">tap</div></div>`;
         if(isOverhead(s)){
           mvLine+=`<div class="storm-detail" style="grid-column:span 2"><div class="storm-detail-label">${tStr('Status')}</div><div class="storm-detail-val" style="color:#f97316;font-size:0.85em">⚠️ ${tStr('Overhead · Moving away')}</div></div>`;
           mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${tStr(imp.text)}</div></div>`;
@@ -3062,7 +3079,7 @@ function renderStorms(){
   el.innerHTML=`
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
-      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${approaching.length?' · <span style="color:#ef4444">'+approaching.length+' approaching</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
+      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${approaching.length?' · <span style="color:#ef4444">'+approaching.length+' approaching</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
     </div>
     <div class="card"><div class="card-title"><span class="icon">🌪️</span> Active Storm Cells</div>
       ${groupHtml}
@@ -3370,16 +3387,21 @@ function decodeMetar(raw){
     }
     if(p==='AUTO'){rows.push(c('#94a3b8','Type','Automated','No human observer'));continue}
     if(p==='COR'){rows.push(c('#f59e0b','Type','Corrected','Correction to prior report'));continue}
-    if(/^(VRB|\d{3})\d{2,3}(G\d{2,3})?KT$/.test(p)){
-      const m=p.match(/^(VRB|\d{3})(\d{2,3})(G(\d{2,3}))?KT$/);
+    if(/^(VRB|\d{3})\d{2,3}(G\d{2,3})?(KT|MPS|KMH)$/.test(p)){
+      const m=p.match(/^(VRB|\d{3})(\d{2,3})(G(\d{2,3}))?(KT|MPS|KMH)$/);
       if(m){
         const dir=m[1]==='VRB'?'Variable':m[1]+'°';
         const spd=parseInt(m[2]);const gust=m[4]?parseInt(m[4]):null;
-        let wStr=`${dir} at ${spd} knots`;
-        if(gust)wStr+=`, gusting ${gust} knots`;
+        const unit=m[5];
+        const unitLabel=unit==='KT'?'knots':unit==='MPS'?'m/s':'km/h';
+        const spdKt=unit==='MPS'?spd*1.944:unit==='KMH'?spd*0.5399:spd;
+        const gustKt=gust?(unit==='MPS'?gust*1.944:unit==='KMH'?gust*0.5399:gust):null;
+        let wStr=`${dir} at ${spd} ${unitLabel}`;
+        if(unit!=='KT')wStr+=` (${Math.round(spdKt)} kt)`;
+        if(gust){wStr+=`, gusting ${gust} ${unitLabel}`;if(unit!=='KT')wStr+=` (${Math.round(gustKt)} kt)`}
         if(spd===0&&!gust)wStr='Calm';
-        const sev=gust&&gust>=35?'color:var(--accent-red);font-weight:700':spd>=25?'color:var(--accent-orange)':'';
-        rows.push(c(sev||'#22c55e','Wind',wStr,gust>=50?'⚠️ DANGEROUS':''));
+        const sev=gustKt&&gustKt>=35?'color:var(--accent-red);font-weight:700':spdKt>=25?'color:var(--accent-orange)':'';
+        rows.push(c(sev||'#22c55e','Wind',wStr,gustKt>=50?'⚠️ DANGEROUS':''));
       }continue;
     }
     if(/^\d{3}V\d{3}$/.test(p)){
@@ -3391,6 +3413,14 @@ function decodeMetar(raw){
       const visMi=parseFloat(vis)||10;
       const sev=visMi<1?'var(--accent-red)':visMi<3?'var(--accent-orange)':visMi<=5?'#f59e0b':'#22c55e';
       rows.push(c(sev,'Visibility',vis+' statute miles',visMi<3?'⚠️ Low visibility':''));continue;
+    }
+    if(/^\d{4}$/.test(p)&&!(/^\d{6}Z$/.test(p))&&parseInt(p)>=0&&parseInt(p)<=9999&&i>1){
+      const visM=parseInt(p);
+      const visKm=(visM/1000).toFixed(1);
+      const visMi2=(visM/1609.34).toFixed(1);
+      const visStr=visM>=9999?'10+ km (6.2+ mi)':visM>=5000?`${visKm} km (${visMi2} mi)`:`${visM} m (${visMi2} mi)`;
+      const sev2=visM<1600?'var(--accent-red)':visM<5000?'var(--accent-orange)':visM<=8000?'#f59e0b':'#22c55e';
+      rows.push(c(sev2,'Visibility',visStr,visM<1600?'⚠️ Low visibility':'International (meters)'));continue;
     }
     if(/^R\d{2}/.test(p)){
       rows.push(c('#f59e0b','RVR',p,'Runway visual range'));continue;
