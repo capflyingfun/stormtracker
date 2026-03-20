@@ -587,7 +587,7 @@ function setLoc(lat,lon,name,fromTravel){
     S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
     clearStormCone();
   }
-  S.storms=[];
+  S.storms=[];S._rawScanPts=[];clearStormZones();
   try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:S.locName}))}catch(e){}
   if(S.map){
     S.map.setView([lat,lon],S.map.getZoom());
@@ -1799,6 +1799,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km" style="font-size:0.55em;font-weight:700;line-height:1">MI</div>
         <div class="map-ctrl-btn" id="radar-toggle-airports" title="Toggle airports" style="font-size:0.75em">✈️</div>
         <div class="map-ctrl-btn" id="radar-anim-btn" title="Animate radar" style="font-size:0.75em">▶️</div>
+        <div class="map-ctrl-btn" id="btn-zones" title="Toggle storm zones" style="font-size:0.55em;font-weight:700;line-height:1;color:#cc00ff" onclick="toggleStormZones()">ZN</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
       </div>
       <div class="radar-anim-bar" id="radar-anim-bar" style="display:none">
@@ -2326,6 +2327,7 @@ async function scanRadarForView(){
     const rawPoints=tileResults.flat();
     S.lat=savedLat;S.lon=savedLon;
 
+    S._rawScanPts=rawPoints;
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
@@ -2334,6 +2336,7 @@ async function scanRadarForView(){
     renderStorms();updateStormBadges();
     if(S.map){
       plotStormMarkers(S.map);
+      buildStormZones(S.map,rawPoints);
       showViewScanCircle(S.map,cLat,cLng,radius,S.storms.length);
     }
     hideScanOverlay();
@@ -2391,6 +2394,7 @@ async function scanRadarHiRes(map,fromHome){
     const rawPoints=tileResults.flat();
     S.lat=savedLat;S.lon=savedLon;
 
+    S._rawScanPts=rawPoints;
     S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=true;
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
@@ -2398,6 +2402,7 @@ async function scanRadarHiRes(map,fromHome){
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();
     plotStormMarkers(map);
+    buildStormZones(map,rawPoints);
     showViewScanCircle(map,cLat,cLng,HIRES_RADIUS,S.storms.length);
     map.setView([cLat,cLng],11,{animate:true,duration:0.5});
     hideScanOverlay();
@@ -2596,6 +2601,91 @@ function plotStormMarkers(map){
     });
   })});
 }
+
+S._stormZoneLayers=[];
+S._rawScanPts=[];
+S._showZones=true;
+const DBZ_BINS=[
+  {min:15,max:30,color:'#00ff44',label:'Light (15-30 dBZ)',opacity:0.25},
+  {min:30,max:45,color:'#22cc00',label:'Moderate (30-45 dBZ)',opacity:0.32},
+  {min:45,max:55,color:'#ffcc00',label:'Heavy (45-55 dBZ)',opacity:0.40},
+  {min:55,max:60,color:'#ff3300',label:'Severe (55-60 dBZ)',opacity:0.48},
+  {min:60,max:999,color:'#cc00ff',label:'Extreme (60+ dBZ)',opacity:0.55}
+];
+function clearStormZones(){
+  S._stormZoneLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
+  S._stormZoneLayers=[];
+}
+function buildStormZones(map,rawPts){
+  clearStormZones();
+  if(!map||!rawPts||rawPts.length<3||!S._showZones)return;
+  if(typeof turf==='undefined')return;
+  const t0=performance.now();
+  DBZ_BINS.forEach(bin=>{
+    const binPts=rawPts.filter(p=>p.dbz>=bin.min&&(bin.max>=999||p.dbz<bin.max));
+    if(binPts.length<3)return;
+    try{
+      const fc=turf.featureCollection(binPts.map(p=>turf.point([p.lng,p.lat])));
+      let poly=null;
+      try{poly=turf.concave(fc,{maxEdge:0.15,units:'degrees'})}catch(e){}
+      if(!poly){
+        try{poly=turf.concave(fc,{maxEdge:0.3,units:'degrees'})}catch(e){}
+      }
+      if(!poly){
+        try{poly=turf.convex(fc)}catch(e){}
+      }
+      if(!poly)return;
+      try{poly=turf.buffer(poly,0.3,{units:'kilometers'})}catch(e){}
+      const layer=L.geoJSON(poly,{
+        style:{
+          color:bin.color,
+          fillColor:bin.color,
+          fillOpacity:bin.opacity,
+          weight:bin.min>=45?2:1,
+          opacity:0.7,
+          dashArray:bin.min<30?'4,4':null
+        },
+        interactive:false
+      }).addTo(map);
+      layer.bringToBack();
+      S._stormZoneLayers.push(layer);
+    }catch(e){console.warn('Zone build error:',bin.label,e)}
+  });
+  const ms=Math.round(performance.now()-t0);
+  console.log(`Storm zones built: ${DBZ_BINS.length} bins from ${rawPts.length} pts in ${ms}ms`);
+}
+function checkUserInZone(){
+  if(!S._rawScanPts.length||typeof turf==='undefined')return null;
+  const pt=turf.point([S.lon,S.lat]);
+  const zones=[];
+  for(let i=DBZ_BINS.length-1;i>=0;i--){
+    const bin=DBZ_BINS[i];
+    const binPts=S._rawScanPts.filter(p=>p.dbz>=bin.min&&(bin.max>=999||p.dbz<bin.max));
+    if(binPts.length<3)continue;
+    try{
+      const fc=turf.featureCollection(binPts.map(p=>turf.point([p.lng,p.lat])));
+      let poly=null;
+      try{poly=turf.concave(fc,{maxEdge:0.15,units:'degrees'})}catch(e){}
+      if(!poly)try{poly=turf.concave(fc,{maxEdge:0.3,units:'degrees'})}catch(e){}
+      if(!poly)try{poly=turf.convex(fc)}catch(e){}
+      if(!poly)continue;
+      if(turf.booleanPointInPolygon(pt,poly))zones.push(bin);
+    }catch(e){}
+  }
+  return zones.length?zones:null;
+}
+function toggleStormZones(){
+  S._showZones=!S._showZones;
+  try{localStorage.setItem('st_zones',S._showZones?'1':'0')}catch(e){}
+  if(S._showZones&&S._rawScanPts.length&&S.map){
+    buildStormZones(S.map,S._rawScanPts);
+  }else{
+    clearStormZones();
+  }
+  const btn=document.getElementById('btn-zones');
+  if(btn)btn.style.opacity=S._showZones?'1':'0.4';
+}
+try{const zv=localStorage.getItem('st_zones');if(zv==='0')S._showZones=false}catch(e){}
 
 // ==========================================
 // RADAR-BASED STORM DETECTION
@@ -2891,6 +2981,7 @@ async function scanRadarForStorms(){
     const rawPoints=tileResults.flat();
     console.log('[SCAN] rawPoints='+rawPoints.length+' from '+tileResults.length+' tiles (non-empty: '+tileResults.filter(t=>t.length>0).length+')');
 
+    S._rawScanPts=rawPoints;
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     console.log('[SCAN] after spacingFilter: '+S.storms.length+' storms');
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
@@ -2899,7 +2990,7 @@ async function scanRadarForStorms(){
     scanStep(3,`Plotting ${S.storms.length} storm points...`);
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();
-    if(S.map)plotStormMarkers(S.map);
+    if(S.map){plotStormMarkers(S.map);buildStormZones(S.map,rawPoints)}
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
     scheduleAutoScan();
@@ -2982,8 +3073,10 @@ function renderStorms(){
   const el=document.getElementById('page-storms');
   if(!S.lat){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📍</div><p>Set your location to scan for storms.</p></div>`;return}
   const storms=S.storms;
+  const userZones=checkUserInZone();
+  const zoneAlert=userZones?`<div class="alert-banner danger" style="border-left:4px solid ${userZones[0].color}"><span class="alert-icon">🟣</span><div class="alert-text"><span class="alert-title">You are inside ${userZones.map(z=>z.label).join(' + ')}</span><br>Your location is within an active precipitation zone.</div></div>`:'';
   if(!storms.length){
-    el.innerHTML=`
+    el.innerHTML=`${zoneAlert}
       <div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">All Clear</span><br>No storm cells detected within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}.</div></div>
       <div class="card"><div class="card-title"><span class="icon">🛰️</span> Radar Storm Scanner</div>
         <div class="empty-state"><div class="empty-icon">${neonWx(1,isCurrentlyDay(),48)}</div>
@@ -3076,7 +3169,7 @@ function renderStorms(){
     </details>`;
   }
   const stormCount=approaching.length+overhead.length+nearby.length;
-  el.innerHTML=`
+  el.innerHTML=`${zoneAlert}
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
       <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${approaching.length?' · <span style="color:#ef4444">'+approaching.length+' approaching</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
