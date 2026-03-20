@@ -2075,6 +2075,7 @@ function showRadarAnimFrame(map,idx){
   if(S.radarLayer){map.removeLayer(S.radarLayer);S.radarLayer=null}
   const maxNZ=S._radarAnimSrc==='nexrad'?8:7;
   S.radarLayer=L.tileLayer(frame.url,{opacity:0.7,maxZoom:11,maxNativeZoom:maxNZ}).addTo(map);
+  if(S._showZones&&!S._radarOverlayVisible&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
   const t=new Date(frame.time*1000);
   const timeStr=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
   const isFuture=frame.type==='forecast';
@@ -2112,6 +2113,7 @@ function showRadarLayer(map){
     if(btn){btn.textContent='RV';btn.style.background=''}
     if(lbl)lbl.textContent='RainViewer \u00B7 Updated every 10 min \u00B7 📍 Scan location \u00B7 🔍 Scan view';
   }
+  if(S._showZones&&!S._radarOverlayVisible&&S.radarLayer&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
 }
 
 function toggleRadarSource(map){
