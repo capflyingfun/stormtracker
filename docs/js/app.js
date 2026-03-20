@@ -2663,7 +2663,7 @@ function drawRadarGrid(map,maxRadiusMi){
   for(let a=0;a<360;a+=angStep){
     const isMajor=(a%majorAngStep===0);
     if(!isMajor&&a%6!==0)continue;
-    const inner=destPt(S.lat,S.lon,distStep,a);
+    const inner=destPt(S.lat,S.lon,0.5,a);
     const outer=destPt(S.lat,S.lon,maxRadiusMi,a);
     const line=L.polyline([inner,outer],{
       color:isMajor?'rgba(0,229,255,0.3)':'rgba(0,229,255,0.12)',
