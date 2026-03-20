@@ -2865,16 +2865,12 @@ function buildStormZones(map,rawPts){
       color:borderColor,fillColor:bin.color,
       fillOpacity:bin.opacity,weight:borderWeight,opacity:isApproaching?0.9:0.5,pane:paneName
     }).addTo(map);
-    poly.bindPopup(popup,{closeButton:false,className:'storm-popup',maxWidth:280});
+    poly.bindPopup(popup,{closeButton:true,className:'storm-popup',maxWidth:280});
     S._stormZoneLayers.push(poly);
-    if(mv&&mv.speed>=2){
-      const aPt=destPt(S.lat,S.lon,midDist,midBear);
-      const sz=14;
-      const arrow=L.marker(aPt,{
-        icon:L.divIcon({className:'',html:gridArrowSvg(mv.direction,bin.color,sz),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
-        pane:arrowPane,interactive:false
-      }).addTo(map);
-      S._stormZoneLayers.push(arrow);
+    if(isApproaching){
+      const el=poly.getElement&&poly.getElement();
+      if(el)el.classList.add('grid-pulse');
+      poly.on('add',function(){const e=this.getElement&&this.getElement();if(e)e.classList.add('grid-pulse');});
     }
   }
   if(S._gridEtaTimers.length>0){
@@ -2911,6 +2907,7 @@ function autoActivateZones(){
     const btn=document.getElementById('btn-points');
     if(btn)btn.style.opacity='0.4';
   }
+  if(S.radarLayer&&S.map){try{S.map.removeLayer(S.radarLayer)}catch(e){}}
   if(S.map)buildStormZones(S.map,S._rawScanPts);
 }
 function checkUserInZone(){
@@ -2926,8 +2923,10 @@ function toggleStormZones(){
   try{localStorage.setItem('st_zones',S._showZones?'1':'0')}catch(e){}
   if(S._showZones&&S._rawScanPts.length&&S.map){
     buildStormZones(S.map,S._rawScanPts);
+    if(S.radarLayer){try{S.map.removeLayer(S.radarLayer)}catch(e){}}
   }else{
     clearStormZones();
+    if(S.radarLayer&&S.map&&!S.map.hasLayer(S.radarLayer)){try{S.radarLayer.addTo(S.map)}catch(e){}}
   }
   const btn=document.getElementById('btn-zones');
   if(btn)btn.style.opacity=S._showZones?'1':'0.4';
