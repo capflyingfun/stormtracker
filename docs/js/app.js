@@ -189,19 +189,19 @@ function wmoDesc(code){const m={0:'Clear sky',1:'Mainly clear',2:'Partly cloudy'
 
 function stormCat(dbz){
   const m=S.radarMetric;
-  if(dbz>=65)return{label:'Hail very likely, large hail',cls:'extreme',color:'#ff80ab',rain:m?'>42 cm/hr':'>16.6 in/hr'};
-  if(dbz>=60)return{label:'Very heavy rain, hail likely',cls:'extreme',color:'#e040fb',rain:m?'20 cm/hr':'8 in/hr'};
-  if(dbz>=55)return{label:'Very heavy rain, hail possible',cls:'intense',color:'#d32f2f',rain:m?'10 cm/hr':'4 in/hr'};
-  if(dbz>=50)return{label:'Heavy rain, small hail possible',cls:'intense',color:'#ef5350',rain:m?'4.8 cm/hr':'1.9 in/hr'};
-  if(dbz>=45)return{label:'Heavy rain',cls:'heavy',color:'#f9a825',rain:m?'2.3 cm/hr':'0.92 in/hr'};
-  if(dbz>=40)return{label:'Moderate to heavy rain',cls:'heavy',color:'#fdd835',rain:m?'1.1 cm/hr':'0.45 in/hr'};
-  if(dbz>=35)return{label:'Moderate rain',cls:'moderate',color:'#66bb6a',rain:m?'5.6 mm/hr':'0.22 in/hr'};
-  if(dbz>=30)return{label:'Light to moderate rain',cls:'moderate',color:'#2e7d32',rain:m?'2.7 mm/hr':'0.10 in/hr'};
-  if(dbz>=25)return{label:'Light rain',cls:'light',color:'#1565c0',rain:m?'1.3 mm/hr':'0.05 in/hr'};
-  if(dbz>=20)return{label:'Light rain',cls:'light',color:'#42a5f5',rain:m?'0.6 mm/hr':'0.02 in/hr'};
-  return{label:'Drizzle/Mist',cls:'light',color:'#90caf9',rain:'trace'};
+  if(dbz>=65)return{label:'Hail very likely, large hail',cls:'extreme',color:'#ff00ff',rain:m?'>42 cm/hr':'>16.6 in/hr'};
+  if(dbz>=60)return{label:'Very heavy rain, hail likely',cls:'extreme',color:'#ff00ff',rain:m?'20 cm/hr':'8 in/hr'};
+  if(dbz>=55)return{label:'Very heavy rain, hail possible',cls:'intense',color:'#ff0033',rain:m?'10 cm/hr':'4 in/hr'};
+  if(dbz>=50)return{label:'Heavy rain, small hail possible',cls:'intense',color:'#ff2200',rain:m?'4.8 cm/hr':'1.9 in/hr'};
+  if(dbz>=45)return{label:'Heavy rain',cls:'heavy',color:'#ff5500',rain:m?'2.3 cm/hr':'0.92 in/hr'};
+  if(dbz>=40)return{label:'Moderate to heavy rain',cls:'heavy',color:'#ffee00',rain:m?'1.1 cm/hr':'0.45 in/hr'};
+  if(dbz>=35)return{label:'Moderate rain',cls:'moderate',color:'#aaff00',rain:m?'5.6 mm/hr':'0.22 in/hr'};
+  if(dbz>=30)return{label:'Light to moderate rain',cls:'moderate',color:'#00ff66',rain:m?'2.7 mm/hr':'0.10 in/hr'};
+  if(dbz>=25)return{label:'Light rain',cls:'light',color:'#00ffcc',rain:m?'1.3 mm/hr':'0.05 in/hr'};
+  if(dbz>=20)return{label:'Light rain',cls:'light',color:'#00ccff',rain:m?'0.6 mm/hr':'0.02 in/hr'};
+  return{label:'Drizzle/Mist',cls:'light',color:'#0099ff',rain:'trace'};
 }
-function dbzHex(dbz){return dbz>=66?'#ff80ab':dbz>=61?'#e040fb':dbz>=56?'#d32f2f':dbz>=51?'#ef5350':dbz>=46?'#f9a825':dbz>=41?'#fdd835':dbz>=36?'#2e7d32':dbz>=31?'#66bb6a':dbz>=26?'#1565c0':dbz>=20?'#42a5f5':'#90caf9'}
+function dbzHex(dbz){return dbz>=60?'#ff00ff':dbz>=55?'#ff0033':dbz>=50?'#ff2200':dbz>=45?'#ff5500':dbz>=40?'#ffee00':dbz>=35?'#aaff00':dbz>=30?'#00ff66':dbz>=25?'#00ffcc':dbz>=20?'#00ccff':'#0099ff'}
 function fmtStormDist(mi){return S.radarMetric?(mi*1.60934).toFixed(1)+' km':mi.toFixed(1)+' mi'}
 function fmtCountdown(totalSec){
   if(totalSec<=0)return'NOW';
