@@ -3556,6 +3556,7 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     S.stormMovement={direction:Math.round(dir),speed:spdMph};
     S._windCache={lat,lon,ts:Date.now(),dir:Math.round(dir),speed:spdMph};
     console.log('Winds aloft → storm movement: '+Math.round(dir)+'° at '+spdMph+' mph');
+    if(S.map&&S._showPathArrows)buildPathArrows(S.map);
   }catch(e){console.log('Winds aloft fetch failed:',e.message)}
 }
 
