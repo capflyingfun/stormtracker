@@ -1434,13 +1434,15 @@ function renderWeather(data){
         <span class="baro-trend ${baro.trend}" style="font-size:0.6em;color:${baro.trend==='rising'?'var(--accent-green)':baro.trend==='falling'?'var(--accent-red)':'var(--text-muted)'};text-shadow:0 0 6px ${baro.trend==='rising'?'rgba(0,255,136,0.4)':baro.trend==='falling'?'rgba(255,51,85,0.4)':'none'}">${trendArrow} ${(()=>{const isI=S.presUnit===0;if(isI){const v=Math.abs(baro.trendMb/33.8639);return(baro.trendMb>=0?'+':'-')+(v<0.05?v.toFixed(3):v.toFixed(2))+' inHg'}return(baro.trendMb>=0?'+':'')+baro.trendMb.toFixed(1)+' mb'})()}</span>
       </div>
     </div>
-    <div class="card" style="margin-top:8px;padding:8px;cursor:pointer" onclick="switchPage('radar')">
-      <div class="card-title" style="margin-bottom:4px"><span class="icon">📡</span> Radar Sonar</div>
-      <canvas id="mini-sonar-canvas" style="width:100%;border-radius:8px;display:block"></canvas>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
-        <span id="mini-sonar-info" style="font-size:0.6em;color:var(--text-muted)"></span>
-        <span style="font-size:0.6em;color:var(--accent-cyan)">Tap to open Radar →</span>
+    <div class="card" style="margin-top:8px;padding:8px" id="mini-sonar-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span class="card-title" style="margin:0"><span class="icon">📡</span> Radar Sonar</span>
+        <button onclick="event.stopPropagation();switchPage('radar')" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.6em;padding:3px 8px;border-radius:4px;cursor:pointer">Open Radar →</button>
       </div>
+      <div id="mini-sonar-wrap" style="width:100%;position:relative">
+        <canvas id="mini-sonar-canvas" style="width:100%;display:block;border-radius:8px"></canvas>
+      </div>
+      <div id="mini-sonar-info" style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:4px"></div>
     </div>
     ${order.map(k=>sections[k]||'').join('')}`;
   setTimeout(initPrecipTaps,0);
@@ -1450,11 +1452,12 @@ function renderWeather(data){
 function drawMiniSonar(){
   const canvas=document.getElementById('mini-sonar-canvas');
   if(!canvas||!S.lat)return;
+  const wrap=document.getElementById('mini-sonar-wrap');
+  if(!wrap)return;
   const dpr=window.devicePixelRatio||1;
-  const w=canvas.parentElement.clientWidth-16;
-  const size=Math.min(w,320);
+  const size=wrap.clientWidth;
   canvas.width=size*dpr;canvas.height=size*dpr;
-  canvas.style.height=size+'px';
+  canvas.style.width=size+'px';canvas.style.height=size+'px';
   const ctx=canvas.getContext('2d');
   ctx.scale(dpr,dpr);
   const cx=size/2,cy=size/2,maxR=size/2-20;
@@ -1523,7 +1526,7 @@ function drawMiniSonar(){
     if(zoneCount>0){
       infoEl.textContent=`${zoneCount} zone${zoneCount>1?'s':''} · Peak ${maxDbz} dBZ · ${S.radarMetric?Math.round(scanR*1.60934)+'km':scanR+'mi'} radius`;
     }else{
-      infoEl.textContent=`No radar data · ${S.radarMetric?Math.round(scanR*1.60934)+'km':scanR+'mi'} radius`;
+      infoEl.textContent=S.scanTime?`All clear · ${S.radarMetric?Math.round(scanR*1.60934)+'km':scanR+'mi'} radius`:`Waiting for radar scan...`;
     }
   }
 }
@@ -2647,7 +2650,7 @@ async function scanRadarForView(){
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Plotting ${S.storms.length.toLocaleString()} storm points...`);
     await new Promise(r=>setTimeout(r,300));
-    renderStorms();updateStormBadges();
+    renderStorms();updateStormBadges();drawMiniSonar();
     if(S.map){
       plotStormMarkers(S.map);
       if(rawPoints.length>0){autoActivateZones()}
@@ -2715,7 +2718,7 @@ async function scanRadarHiRes(map,fromHome){
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Hi-Res: ${S.storms.length.toLocaleString()} points in ${HIRES_RADIUS} mi`);
     await new Promise(r=>setTimeout(r,300));
-    renderStorms();updateStormBadges();
+    renderStorms();updateStormBadges();drawMiniSonar();
     plotStormMarkers(map);
     if(rawPoints.length>0){autoActivateZones()}
     else{clearStormZones();if(S.radarLayer&&S.map&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}
@@ -3757,7 +3760,7 @@ async function scanRadarForStorms(){
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Plotting ${S.storms.length} storm points...`);
     await new Promise(r=>setTimeout(r,300));
-    renderStorms();updateStormBadges();
+    renderStorms();updateStormBadges();drawMiniSonar();
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
