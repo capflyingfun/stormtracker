@@ -2067,7 +2067,6 @@ function initRadar(){
     const pbtn=document.getElementById('btn-points');if(pbtn)pbtn.style.opacity=S._showPoints?'1':'0.4';
     const rbtn=document.getElementById('btn-radar-overlay');if(rbtn)rbtn.style.opacity=S._radarOverlayVisible?'1':'0.4';
     const pabtn=document.getElementById('btn-path-arrows');if(pabtn)pabtn.style.opacity=S._showPathArrows?'1':'0.4';
-    if(S._showPathArrows)setTimeout(()=>buildPathArrows(map),200);
     if(S.storms.length){
       plotStormMarkers(map);
       buildStormZones(map,S._rawScanPts);
@@ -2075,6 +2074,7 @@ function initRadar(){
         S.stormMarkers.forEach(m=>{try{map.removeLayer(m)}catch(e){}});
       }
     }
+    if(S._showPathArrows)buildPathArrows(map);
     if(S._nextRefreshAt)startScanRefreshTimer();
   },100);
 }
