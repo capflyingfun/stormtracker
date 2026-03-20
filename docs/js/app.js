@@ -2767,7 +2767,10 @@ function gridArrowSvg(deg,color,size){
 function buildStormZones(map,rawPts){
   clearStormZones();
   const maxR=S._lastScanWasHiRes?15:S.scanRadius||80;
-  if(S._showZones&&map)drawRadarGrid(map,maxR);
+  if(S._showZones&&map){
+    drawRadarGrid(map,maxR);
+    if(S.radarLayer&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
+  }
   if(!map||!rawPts||!rawPts.length||!S._showZones)return;
   const t0=performance.now();
   const cells=polarGridBin(rawPts,S.lat,S.lon,maxR);
