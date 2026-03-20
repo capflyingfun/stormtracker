@@ -775,13 +775,18 @@ function scheduleAutoRefresh(){
   if(S._autoRefreshTimer)clearInterval(S._autoRefreshTimer);
   S._autoRefreshTimer=null;
   const mins=getAutoRefreshMin();
-  if(!mins||mins<=0)return;
+  if(!mins||mins<=0){S._nextRefreshAt=0;return}
+  const ms=mins*60*1000;
+  S._nextRefreshAt=Date.now()+ms;
   S._autoRefreshTimer=setInterval(()=>{
     if(S.travelMode)return;
+    S._nextRefreshAt=Date.now()+ms;
+    startScanRefreshTimer();
     fetchWeather();
     fetchAlerts();
     scanRadarForStorms();
-  },mins*60*1000);
+  },ms);
+  startScanRefreshTimer();
 }
 function scheduleHourlyRefresh(){scheduleAutoRefresh()}
 
@@ -2308,7 +2313,7 @@ function scanStep(step,text){
 }
 function hideScanOverlay(){
   const c3=document.getElementById('scan-dot3-c');if(c3)c3.textContent='🟢';
-  startScanRefreshTimer();
+  if(!S.travelMode)scheduleAutoRefresh();
 }
 function startScanRefreshTimer(){
   if(S._scanRefreshTimer)clearInterval(S._scanRefreshTimer);
@@ -2343,6 +2348,7 @@ function startScanRefreshTimer(){
 S._airportMarkers=[];
 S._airportsVisible=false;
 S._airportDataCache=null;
+S._airportPlotId=0;
 
 async function toggleAirportMarkers(map){
   const btn=document.getElementById('radar-toggle-airports');
@@ -2387,7 +2393,9 @@ async function toggleAirportMarkers(map){
 
 async function plotAirportMarkers(map,stations){
   clearAirportMarkers(map);
+  const plotId=++S._airportPlotId;
   for(const st of stations){
+    if(S._airportPlotId!==plotId||!S._airportsVisible)return;
     try{
       const obsUrl=`https://api.weather.gov/stations/${st.icao}/observations/latest`;
       const or=await fetch(obsUrl,NWS_HDR);
@@ -2437,7 +2445,9 @@ async function plotAirportMarkers(map,stations){
 }
 
 function clearAirportMarkers(map){
-  S._airportMarkers.forEach(m=>{try{map.removeLayer(m)}catch(e){}});
+  const m=map||S.map;
+  S._airportPlotId++;
+  S._airportMarkers.forEach(mk=>{try{if(m)m.removeLayer(mk)}catch(e){}});
   S._airportMarkers=[];
   S._airportsVisible=false;
 }
