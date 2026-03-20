@@ -2663,16 +2663,12 @@ function drawRadarGrid(map,maxRadiusMi){
     }).addTo(map);
     S._radarGridLayers.push(circle);
   }
-  const angStep=ZONE_ANG_STEP;
-  const majorAngStep=30;
-  for(let a=0;a<360;a+=angStep){
-    const isMajor=(a%majorAngStep===0);
-    if(!isMajor&&a%6!==0)continue;
+  const cardDirs=[0,90,180,270];
+  for(const a of cardDirs){
     const inner=destPt(S.lat,S.lon,0.5,a);
     const outer=destPt(S.lat,S.lon,maxRadiusMi,a);
     const line=L.polyline([inner,outer],{
-      color:isMajor?'rgba(0,229,255,0.3)':'rgba(0,229,255,0.12)',
-      weight:isMajor?0.7:0.3,
+      color:'rgba(0,229,255,0.2)',weight:0.5,
       pane:gridPane,interactive:false
     }).addTo(map);
     S._radarGridLayers.push(line);
@@ -2693,6 +2689,7 @@ function drawRadarGrid(map,maxRadiusMi){
 }
 function clearStormZones(){
   if(S._gridEtaInterval){clearInterval(S._gridEtaInterval);S._gridEtaInterval=null;}
+  if(S._approachArrowInterval){clearInterval(S._approachArrowInterval);S._approachArrowInterval=null;}
   S._gridEtaTimers=[];
   S._stormZoneLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
   S._stormZoneLayers=[];
@@ -2786,7 +2783,9 @@ function buildStormZones(map,rawPts){
   }
   const mv=S.stormMovement;
   let approachCount=0;
+  let approachSumLat=0,approachSumLon=0,approachSumDbz=0,approachMaxDbz=0;
   if(S._gridEtaInterval){clearInterval(S._gridEtaInterval);S._gridEtaInterval=null;}
+  if(S._approachArrowInterval){clearInterval(S._approachArrowInterval);S._approachArrowInterval=null;}
   S._gridEtaTimers=[];
   const sortedCells=[...cells.values()].sort((a,b)=>a.maxDbz-b.maxDbz);
   const rowS='display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:0.78em;';
@@ -2828,6 +2827,11 @@ function buildStormZones(map,rawPts){
         const ampm=hh>=12?'PM':'AM';
         arrivalStr=((hh%12)||12)+':'+String(mm).padStart(2,'0')+' '+ampm;
         approachCount++;
+        const cellPt=destPt(S.lat,S.lon,midDist,midBear);
+        approachSumLat+=cellPt[0]*maxDbz;
+        approachSumLon+=cellPt[1]*maxDbz;
+        approachSumDbz+=maxDbz;
+        if(maxDbz>approachMaxDbz)approachMaxDbz=maxDbz;
         S._gridEtaTimers.push({id:cellId,etaSec,startTime:Date.now()});
       }
       if(midDist<=1){
@@ -2862,18 +2866,26 @@ function buildStormZones(map,rawPts){
       ${statusHtml}
       <div style="text-align:center;font-size:0.6em;color:#555;margin-top:4px">📡 ${cell.count} return${cell.count>1?'s':''} · ${distInner}-${distOuter} mi · ${bearStart}°-${bearEnd}°</div>
     </div>`;
-    const borderColor=isApproaching?'#ef4444':bin.color;
-    const borderWeight=isApproaching?2:0.5;
+    const borderWeight=isApproaching?1.5:0.5;
     const poly=L.polygon(verts,{
-      color:borderColor,fillColor:bin.color,
+      color:bin.color,fillColor:bin.color,
       fillOpacity:bin.opacity,weight:borderWeight,opacity:isApproaching?0.9:0.5,pane:paneName
     }).addTo(map);
     poly.bindPopup(popup,{closeButton:true,className:'storm-popup',maxWidth:280});
     S._stormZoneLayers.push(poly);
     if(isApproaching){
+      poly.on('add',function(){const e=this.getElement&&this.getElement();if(e)e.classList.add('grid-pulse');});
       const el=poly.getElement&&poly.getElement();
       if(el)el.classList.add('grid-pulse');
-      poly.on('add',function(){const e=this.getElement&&this.getElement();if(e)e.classList.add('grid-pulse');});
+    }
+    if(mv&&mv.speed>=2&&Math.random()<0.3){
+      const aPt=destPt(S.lat,S.lon,midDist,midBear);
+      const sz=14;
+      const arrow=L.marker(aPt,{
+        icon:L.divIcon({className:'',html:gridArrowSvg(mv.direction,bin.color,sz),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+        pane:arrowPane,interactive:false
+      }).addTo(map);
+      S._stormZoneLayers.push(arrow);
     }
   }
   if(S._gridEtaTimers.length>0){
@@ -2889,8 +2901,37 @@ function buildStormZones(map,rawPts){
       }
     },1000);
   }
-  if(approachCount>0){
+  if(approachCount>0&&approachSumDbz>0){
     console.log(`⚠️ ${approachCount} grid cell(s) approaching your location`);
+    const avgLat=approachSumLat/approachSumDbz;
+    const avgLon=approachSumLon/approachSumDbz;
+    const arrowColor=dbzColor(approachMaxDbz).color;
+    const numDots=8;
+    const dotMarkers=[];
+    for(let i=0;i<numDots;i++){
+      const f=i/numDots;
+      const lat=avgLat+(S.lat-avgLat)*f;
+      const lon=avgLon+(S.lon-avgLon)*f;
+      const sz=i===0?10:6;
+      const dot=L.marker([lat,lon],{
+        icon:L.divIcon({className:'',html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${arrowColor};opacity:0;transition:opacity 0.3s"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+        pane:arrowPane,interactive:false
+      }).addTo(map);
+      dotMarkers.push(dot);
+      S._stormZoneLayers.push(dot);
+    }
+    let frame=0;
+    S._approachArrowInterval=setInterval(()=>{
+      for(let i=0;i<numDots;i++){
+        const el=dotMarkers[i].getElement();
+        if(!el)continue;
+        const d=el.firstChild;
+        if(!d)continue;
+        const idx=(frame+i)%numDots;
+        d.style.opacity=String(Math.max(0,1-idx/numDots));
+      }
+      frame=(frame+1)%numDots;
+    },200);
   }
   const ms=Math.round(performance.now()-t0);
   console.log(`Polar grid: ${rawPts.length} pts → ${cells.size} cells (${ZONE_ANG_STEP}°×${ZONE_DIST_STEP_MI}mi) in ${ms}ms`);
