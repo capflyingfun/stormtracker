@@ -2629,8 +2629,8 @@ async function scanRadarHiRes(map,fromHome){
     plotStormMarkers(map);
     if(rawPoints.length>0){autoActivateZones()}
     else{clearStormZones();if(S.radarLayer&&S.map&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}
-    if(S.map&&S._showPathArrows)buildPathArrows(S.map);
     showViewScanCircle(map,cLat,cLng,HIRES_RADIUS,S.storms.length);
+    if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
     map.setView([cLat,cLng],11,{animate:true,duration:0.5});
     hideScanOverlay();
     toast(`Hi-Res: ${S.storms.length.toLocaleString()} cells in ${HIRES_RADIUS} mi (${srcLabel})`);
@@ -3654,9 +3654,9 @@ async function scanRadarForStorms(){
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
-    if(S.map&&S._showPathArrows)buildPathArrows(S.map);
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
+    if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
     scheduleAutoScan();
     const severeNearby=S.storms.some(s=>s.dbz>=50&&s.distance<=15);
     if(severeNearby&&S.map&&!S._autoHiResActive){
