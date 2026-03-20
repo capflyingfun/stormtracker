@@ -785,6 +785,10 @@ function scheduleHourlyRefresh(){
 // ==========================================
 async function toggleTravelMode(){
   if(S.travelMode) return stopTravelMode();
+  if(!localStorage.getItem('gpsInterval')){
+    showTravelIntervalPopup();
+    return;
+  }
   if(!navigator.geolocation) return toast('GPS not available on this device');
   if(navigator.permissions){
     try{
@@ -812,7 +816,7 @@ async function toggleTravelMode(){
   }
   S.travelMode=true;
   S.travelLastUpdate=0;
-  S.gpsInterval=parseInt(localStorage.getItem('gpsInterval')||'5',10);
+  S.gpsInterval=parseInt(localStorage.getItem('gpsInterval')||'300',10);
   const ind=document.getElementById('travel-indicator');
   ind.classList.add('show');
   document.getElementById('travel-status').textContent='🧭 Acquiring GPS...';
@@ -856,10 +860,73 @@ function fmtGpsInt(s){
 function setGpsInterval(val){
   S.gpsInterval=parseInt(val,10);
   localStorage.setItem('gpsInterval',String(S.gpsInterval));
+  const sel1=document.getElementById('gps-interval-sel');if(sel1)sel1.value=String(S.gpsInterval);
+  const sel2=document.getElementById('settings-travel-int');if(sel2)sel2.value=String(S.gpsInterval);
   if(S.travelMode){
     startGpsWatch();
-    toast('🔄 GPS update interval set to '+fmtGpsInt(S.gpsInterval));
+    toast('🧭 Refresh interval set to '+fmtGpsInt(S.gpsInterval));
   }
+}
+function toggleSettingsPanel(){
+  const p=document.getElementById('settings-panel');
+  if(!p)return;
+  const vis=p.style.display==='block';
+  p.style.display=vis?'none':'block';
+  if(!vis)syncSettingsPanel();
+}
+function syncSettingsPanel(){
+  const sel=document.getElementById('settings-travel-int');
+  if(sel)sel.value=String(S.gpsInterval||300);
+  const btn=document.getElementById('settings-travel-toggle');
+  if(btn){
+    btn.textContent=S.travelMode?'ON':'OFF';
+    btn.style.background=S.travelMode?'rgba(255,51,85,0.15)':'rgba(0,229,255,0.08)';
+    btn.style.borderColor=S.travelMode?'var(--accent-red)':'var(--accent-cyan)';
+    btn.style.color=S.travelMode?'var(--accent-red)':'var(--accent-cyan)';
+  }
+}
+function showTravelIntervalPopup(){
+  const p=document.getElementById('travel-interval-popup');
+  if(p)p.style.display='flex';
+}
+function closeTravelIntervalPopup(){
+  const p=document.getElementById('travel-interval-popup');
+  if(p)p.style.display='none';
+}
+function pickTravelInterval(val){
+  closeTravelIntervalPopup();
+  S.gpsInterval=val;
+  localStorage.setItem('gpsInterval',String(val));
+  startTravelModeAfterPick();
+}
+async function startTravelModeAfterPick(){
+  if(!navigator.geolocation) return toast('GPS not available on this device');
+  try{
+    await new Promise((resolve,reject)=>{
+      navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:10000});
+    });
+  }catch(err){
+    if(err.code===1)toast('📍 Location access denied — Travel Mode requires GPS permission');
+    else toast('📍 Could not get GPS position — please try again');
+    return;
+  }
+  S.travelMode=true;
+  S.travelLastUpdate=0;
+  const ind=document.getElementById('travel-indicator');
+  ind.classList.add('show');
+  document.getElementById('travel-status').textContent='🧭 Acquiring GPS...';
+  const btn=document.getElementById('travel-btn');
+  btn.textContent='⏹ Stop Travel Mode';btn.classList.add('active');
+  const hdrTravel=document.getElementById('btn-travel');
+  if(hdrTravel){hdrTravel.style.opacity='1';hdrTravel.style.background='rgba(0,229,255,0.2)';hdrTravel.style.borderRadius='8px';}
+  document.getElementById('status-text').textContent='🧭 Travel Mode · Tracking...';
+  const intRow=document.getElementById('gps-interval-row');if(intRow)intRow.style.display='block';
+  const intSel=document.getElementById('gps-interval-sel');if(intSel)intSel.value=String(S.gpsInterval);
+  if(S.map&&!S.travelMarker){
+    S.travelMarker=L.circleMarker([S.lat||0,S.lon||0],{radius:8,fillColor:'#00e5ff',fillOpacity:0.9,color:'#fff',weight:2,className:'travel-gps-dot'}).addTo(S.map);
+  }
+  startGpsWatch();
+  toast('🧭 Travel Mode ON — refreshing every '+fmtGpsInt(S.gpsInterval));
 }
 function startGpsWatch(){
   if(S.travelWatchId!==null){navigator.geolocation.clearWatch(S.travelWatchId);S.travelWatchId=null}
@@ -2230,19 +2297,19 @@ function hideScanOverlay(){
 function startScanRefreshTimer(){
   if(S._scanRefreshTimer)clearInterval(S._scanRefreshTimer);
   S._lastScanTime=Date.now();
+  let nextRefreshMs;
+  if(S.travelMode){
+    nextRefreshMs=(S.gpsInterval||300)*1000;
+  }else{
+    const now=new Date();
+    const next=new Date(now);
+    next.setMinutes(0,0,0);next.setHours(next.getHours()+1);
+    nextRefreshMs=next.getTime()-now.getTime();
+  }
+  S._nextRefreshAt=S._lastScanTime+nextRefreshMs;
   const el=document.getElementById('scan-refresh-timer');if(!el)return;
   function tick(){
-    const elapsed=Date.now()-S._lastScanTime;
-    let totalSec;
-    if(S.travelMode){
-      totalSec=(S.gpsInterval||5);
-    }else{
-      const now=new Date();
-      const next=new Date(now);
-      next.setMinutes(0,0,0);next.setHours(next.getHours()+1);
-      totalSec=Math.round((next.getTime()-now.getTime())/1000);
-    }
-    const remain=Math.max(0,totalSec-Math.floor(elapsed/1000));
+    const remain=Math.max(0,Math.round((S._nextRefreshAt-Date.now())/1000));
     if(remain>=3600){
       const h=Math.floor(remain/3600),m=Math.floor((remain%3600)/60);
       el.textContent='🔄 '+h+'h'+String(m).padStart(2,'0')+'m';
@@ -2838,6 +2905,7 @@ function gridArrowSvg(deg,color,size){
 }
 function buildStormZones(map,rawPts){
   clearStormZones();
+  S._arrowCells=[];
   const maxR=S._lastScanWasHiRes?15:S.scanRadius||80;
   if(S._showZones&&map){
     drawRadarGrid(map,maxR);
@@ -2959,15 +3027,50 @@ function buildStormZones(map,rawPts){
       const el=poly.getElement&&poly.getElement();
       if(el)el.classList.add('grid-pulse');
     }
-    if(mv&&mv.speed>=2&&Math.random()<0.3){
-      const aPt=destPt(S.lat,S.lon,midDist,midBear);
-      const sz=14;
+    if(mv&&mv.speed>=2){
+      if(!S._arrowCells)S._arrowCells=[];
+      S._arrowCells.push({ri:cell.ri,ai:cell.ai,midDist,midBear,maxDbz,binIdx:bin.idx,color:bin.color,dir:mv.direction,speed:mv.speed});
+    }
+  }
+  if(S._arrowCells&&S._arrowCells.length>0){
+    const ac=S._arrowCells;
+    const visited=new Set();
+    const groups=[];
+    for(let i=0;i<ac.length;i++){
+      if(visited.has(i))continue;
+      const g=[ac[i]];visited.add(i);
+      const stack=[i];
+      while(stack.length){
+        const ci=stack.pop();
+        const c=ac[ci];
+        for(let j=0;j<ac.length;j++){
+          if(visited.has(j))continue;
+          const o=ac[j];
+          if(o.binIdx!==c.binIdx)continue;
+          const dr=Math.abs(o.ri-c.ri),da=Math.min(Math.abs(o.ai-c.ai),Math.round(360/ZONE_ANG_STEP)-Math.abs(o.ai-c.ai));
+          if(dr<=1&&da<=1){visited.add(j);g.push(o);stack.push(j);}
+        }
+      }
+      groups.push(g);
+    }
+    for(const g of groups){
+      let sumD=0,sumB=0,sumSinB=0,sumCosB=0,bestColor=g[0].color,bestDir=g[0].dir;
+      for(const c of g){
+        sumD+=c.midDist;
+        sumSinB+=Math.sin(c.midBear*Math.PI/180);
+        sumCosB+=Math.cos(c.midBear*Math.PI/180);
+      }
+      const avgDist=sumD/g.length;
+      const avgBear=(Math.atan2(sumSinB/g.length,sumCosB/g.length)*180/Math.PI+360)%360;
+      const aPt=destPt(S.lat,S.lon,avgDist,avgBear);
+      const sz=g.length>=4?18:g.length>=2?16:14;
       const arrow=L.marker(aPt,{
-        icon:L.divIcon({className:'',html:gridArrowSvg(mv.direction,bin.color,sz),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+        icon:L.divIcon({className:'',html:gridArrowSvg(bestDir,bestColor,sz),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
         pane:arrowPane,interactive:false
       }).addTo(map);
       S._stormZoneLayers.push(arrow);
     }
+    S._arrowCells=[];
   }
   if(S._gridEtaTimers.length>0){
     const fmtGE=(sec)=>{if(!sec||sec<=0)return'NOW';const m=Math.floor(sec/60),s=sec%60;return m+'m:'+String(s).padStart(2,'0')+'s';};
