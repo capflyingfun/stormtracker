@@ -919,6 +919,11 @@ function syncSettingsPanel(){
     btn.style.borderColor=S.travelMode?'var(--accent-red)':'var(--accent-cyan)';
     btn.style.color=S.travelMode?'var(--accent-red)':'var(--accent-cyan)';
   }
+  const style=S._pathArrowStyle||'chevron';
+  const cBtn=document.getElementById('pa-style-chevron');
+  const pBtn=document.getElementById('pa-style-pointer');
+  if(cBtn){cBtn.style.background=style==='chevron'?'rgba(0,229,255,0.2)':'rgba(255,255,255,0.05)';cBtn.style.borderColor=style==='chevron'?'var(--accent-cyan)':'var(--border-subtle)';}
+  if(pBtn){pBtn.style.background=style==='pointer'?'rgba(0,229,255,0.2)':'rgba(255,255,255,0.05)';pBtn.style.borderColor=style==='pointer'?'var(--accent-cyan)':'var(--border-subtle)';}
 }
 function setAutoRefresh(val){
   const mins=parseInt(val,10);
@@ -2814,6 +2819,7 @@ S._stormZoneLayers=[];
 S._rawScanPts=[];
 S._showZones=true;
 S._showPathArrows=true;
+S._pathArrowStyle='chevron';
 S._pathArrowLayers=[];
 S._pathArrowAnimInterval=null;
 const DBZ_BINS=[
@@ -3232,6 +3238,7 @@ function toggleRadarOverlay(){
 }
 try{const zv=localStorage.getItem('st_zones');if(zv==='0')S._showZones=false}catch(e){}
 try{const pa=localStorage.getItem('st_pathArrows');if(pa==='0')S._showPathArrows=false}catch(e){}
+try{const ps=localStorage.getItem('st_arrowStyle');if(ps==='pointer')S._pathArrowStyle='pointer'}catch(e){}
 S._showPoints=false;
 try{const pv=localStorage.getItem('st_points');if(pv==='1')S._showPoints=true}catch(e){}
 
@@ -3245,13 +3252,18 @@ function clearPathArrows(){
 function togglePathArrows(){
   S._showPathArrows=!S._showPathArrows;
   try{localStorage.setItem('st_pathArrows',S._showPathArrows?'1':'0')}catch(e){}
-  if(S._showPathArrows&&S.stormMovement){
-    buildPathArrows(S.map);
-  }else{
-    clearPathArrows();
-  }
+  if(S._showPathArrows){buildPathArrows(S.map)}else{clearPathArrows()}
   const btn=document.getElementById('btn-path-arrows');
   if(btn)btn.style.opacity=S._showPathArrows?'1':'0.4';
+}
+function setPathArrowStyle(style){
+  S._pathArrowStyle=style;
+  try{localStorage.setItem('st_arrowStyle',style)}catch(e){}
+  if(S._showPathArrows)buildPathArrows(S.map);
+  const cBtn=document.getElementById('pa-style-chevron');
+  const pBtn=document.getElementById('pa-style-pointer');
+  if(cBtn){cBtn.style.background=style==='chevron'?'rgba(0,229,255,0.2)':'rgba(255,255,255,0.05)';cBtn.style.borderColor=style==='chevron'?'var(--accent-cyan)':'var(--border-subtle)';}
+  if(pBtn){pBtn.style.background=style==='pointer'?'rgba(0,229,255,0.2)':'rgba(255,255,255,0.05)';pBtn.style.borderColor=style==='pointer'?'var(--accent-cyan)':'var(--border-subtle)';}
 }
 function pathArrowNeonColor(maxDbz){
   if(maxDbz>=60)return'#ff00ff';
@@ -3260,11 +3272,12 @@ function pathArrowNeonColor(maxDbz){
   if(maxDbz>=35)return'#ffee00';
   if(maxDbz>=25)return'#00ff66';
   if(maxDbz>=15)return'#00ccff';
-  return'#00ccff';
+  return'#ffffff';
 }
 function buildPathArrows(map){
   clearPathArrows();
-  if(!map||!S._showPathArrows||!S.stormMovement)return;
+  if(!map||!S._showPathArrows)return;
+  if(!S.stormMovement){toast('⚠️ Wind data unavailable — path arrows hidden');return}
   const mv=S.stormMovement;
   if(!mv||mv.speed<1)return;
   const travelDir=mv.direction;
@@ -3278,31 +3291,41 @@ function buildPathArrows(map){
     }
   }
   const color=pathArrowNeonColor(maxDbz);
-  const glow=`drop-shadow(0 0 8px ${color}) drop-shadow(0 0 3px ${color})`;
+  const glowStr=color==='#ffffff'
+    ?'drop-shadow(0 0 6px rgba(255,255,255,0.6)) drop-shadow(0 0 2px rgba(255,255,255,0.4))'
+    :`drop-shadow(0 0 8px ${color}) drop-shadow(0 0 3px ${color})`;
   const pane='path-arrow-pane';
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
-  const cssRot=travelDir-90;
+  const style=S._pathArrowStyle||'chevron';
   const sz=52;
-  const chevronSvg=(strokeW,scale)=>`<div class="pa-inner" style="width:${sz}px;height:${sz}px;transform:rotate(${cssRot}deg) scale(${scale});transform-origin:center center;filter:${glow}"><svg width="${sz}" height="${sz}" viewBox="0 0 48 48"><path d="M14,6 L36,24 L14,42" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
   const baseZoom=8;
   const initScale=Math.pow(2,map.getZoom()-baseZoom);
-  const chevrons=[];
+  function makeHtml(strokeW,scale){
+    if(style==='pointer'){
+      const rot=travelDir;
+      return`<div class="pa-inner" style="width:${sz}px;height:${sz}px;transform:rotate(${rot}deg) scale(${scale});transform-origin:center center;filter:${glowStr}"><svg width="${sz}" height="${sz}" viewBox="0 0 48 48"><path d="M24,2 L40,44 L24,34 L8,44 Z" fill="${color}" stroke="rgba(0,0,0,0.35)" stroke-width="1.5" stroke-linejoin="round"/></svg></div>`;
+    }else{
+      const rot=travelDir-90;
+      return`<div class="pa-inner" style="width:${sz}px;height:${sz}px;transform:rotate(${rot}deg) scale(${scale});transform-origin:center center;filter:${glowStr}"><svg width="${sz}" height="${sz}" viewBox="0 0 48 48"><path d="M14,6 L36,24 L14,42" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+    }
+  }
+  const markers=[];
   for(let i=0;i<3;i++){
     const pt=destPt(S.lat,S.lon,distances[i],travelDir);
     const mk=L.marker(pt,{
-      icon:L.divIcon({className:'path-arrow-icon',html:chevronSvg(6-i,initScale),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+      icon:L.divIcon({className:'path-arrow-icon',html:makeHtml(6-i,initScale),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
       pane:pane,interactive:false
     }).addTo(map);
-    chevrons.push(mk);
+    markers.push(mk);
     S._pathArrowLayers.push(mk);
   }
   function fixScale(){
     const scale=Math.pow(2,map.getZoom()-baseZoom);
-    S._pathArrowLayers.forEach(mk=>{
-      const el=mk.getElement();
-      if(!el)return;
-      const inner=el.querySelector('.pa-inner');
-      if(inner)inner.style.transform=`rotate(${cssRot}deg) scale(${scale})`;
+    markers.forEach((mk,i)=>{
+      const el=mk.getElement();if(!el)return;
+      const inner=el.querySelector('.pa-inner');if(!inner)return;
+      const rot=style==='pointer'?travelDir:travelDir-90;
+      inner.style.transform=`rotate(${rot}deg) scale(${scale})`;
     });
   }
   map.on('zoomend',fixScale);
@@ -3310,10 +3333,8 @@ function buildPathArrows(map){
   let frame=0;
   S._pathArrowAnimInterval=setInterval(()=>{
     for(let i=0;i<3;i++){
-      const el=chevrons[i]?.getElement();
-      if(!el)continue;
-      const inner=el.querySelector('.pa-inner');
-      if(!inner)continue;
+      const el=markers[i]?.getElement();if(!el)continue;
+      const inner=el.querySelector('.pa-inner');if(!inner)continue;
       const phase=(frame-i+6)%6;
       const op=phase<3?1-phase*0.25:0.12;
       inner.style.opacity=String(op);
