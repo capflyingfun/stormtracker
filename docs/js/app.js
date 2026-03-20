@@ -3257,38 +3257,34 @@ function buildPathArrows(map){
   if(!map||!S._showPathArrows||!S.stormMovement)return;
   const mv=S.stormMovement;
   if(!mv||mv.speed<1)return;
-  const fromDir=mv.direction;
-  const oppDir=(fromDir+180)%360;
+  const movDir=mv.direction;
+  const sourceDir=(movDir+180)%360;
   const scanR=S._lastScanWasHiRes?15:S.scanRadius||80;
-  const placeDist=scanR*0.55;
+  const baseR=scanR*0.5;
   let maxDbz=0;
-  let hasApproaching=false;
   if(S._rawScanPts&&S._rawScanPts.length>0){
     for(const p of S._rawScanPts){
       const bear=(bearingDeg(S.lat,S.lon,p.lat,p.lng)+360)%360;
-      const toUser=(bear+180)%360;
-      const diff=Math.abs(((fromDir-toUser+180)%360)-180);
-      if(diff<45){
-        hasApproaching=true;
-        if(p.dbz>maxDbz)maxDbz=p.dbz;
-      }
+      const diff=Math.abs(((movDir-bear+180)%360)-180);
+      if(diff<60&&p.dbz>maxDbz)maxDbz=p.dbz;
     }
   }
   const color=maxDbz>=15?dbzColor(maxDbz).color:'#4488aa';
-  const glow=maxDbz>=45?`drop-shadow(0 0 8px ${color})`:maxDbz>=30?`drop-shadow(0 0 4px ${color})`:'';
+  const glow=maxDbz>=45?`drop-shadow(0 0 10px ${color}) drop-shadow(0 0 4px ${color})`:maxDbz>=30?`drop-shadow(0 0 6px ${color})`:'';
   const pane='path-arrow-pane';
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
-  const chevronSvg=(rot,sz)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48" style="transform:rotate(${rot}deg);filter:${glow}">
-    <path d="M14,8 L34,24 L14,40" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  const svgRot=movDir;
+  const chevronSvg=(sz,strokeW)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 48 48" style="transform:rotate(${svgRot}deg);filter:${glow}">
+    <path d="M16,8 L34,24 L16,40" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>`;
-  const sz=48;
-  const spacing=0.22;
+  const sz=56;
+  const gap=scanR*0.12;
   const chevrons=[];
   for(let i=0;i<3;i++){
-    const d=placeDist+(i-1)*placeDist*spacing;
-    const pt=destPt(S.lat,S.lon,d,oppDir);
+    const d=baseR+i*gap;
+    const pt=destPt(S.lat,S.lon,d,sourceDir);
     const mk=L.marker(pt,{
-      icon:L.divIcon({className:'',html:chevronSvg(fromDir-90,sz),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+      icon:L.divIcon({className:'',html:chevronSvg(sz,i===0?6:i===1?5:4),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
       pane:pane,interactive:false
     }).addTo(map);
     chevrons.push(mk);
@@ -3299,12 +3295,14 @@ function buildPathArrows(map){
     for(let i=0;i<3;i++){
       const el=chevrons[i]?.getElement();
       if(!el)continue;
-      const phase=(frame-i+6)%6;
-      el.style.opacity=phase<3?String(1-phase*0.3):'0.1';
-      el.style.transition='opacity 0.25s';
+      const idx=2-i;
+      const phase=(frame-idx+6)%6;
+      const op=phase<3?1-phase*0.25:0.15;
+      el.style.opacity=String(op);
+      el.style.transition='opacity 0.3s';
     }
     frame=(frame+1)%6;
-  },400);
+  },350);
 }
 function toggleStormPoints(){
   S._showPoints=!S._showPoints;
