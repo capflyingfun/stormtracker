@@ -344,21 +344,27 @@ function animEmoji(code,isDay,size){
 }
 function wmoDesc(code){const m={0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Rime fog',51:'Light drizzle',53:'Moderate drizzle',55:'Dense drizzle',56:'Freezing drizzle',57:'Dense freezing drizzle',61:'Slight rain',63:'Moderate rain',65:'Heavy rain',66:'Freezing rain',67:'Heavy freezing rain',71:'Slight snow',73:'Moderate snow',75:'Heavy snow',77:'Snow grains',80:'Rain showers',81:'Mod rain showers',82:'Violent rain showers',85:'Snow showers',86:'Heavy snow showers',95:'Thunderstorm',96:'T-storm w/ hail',99:'T-storm w/ heavy hail'};return m[code]||'Unknown'}
 
+const DBZ_SCALE=[
+  {min:0,  color:'#0099ff',label:'Drizzle/Mist',           cls:'light',   opacity:0.15},
+  {min:20, color:'#00ccff',label:'Light rain',              cls:'light',   opacity:0.18},
+  {min:25, color:'#00ffcc',label:'Light rain',              cls:'light',   opacity:0.22},
+  {min:30, color:'#00ff66',label:'Light to moderate rain',  cls:'moderate',opacity:0.28},
+  {min:35, color:'#aaff00',label:'Moderate rain',           cls:'moderate',opacity:0.33},
+  {min:40, color:'#ffee00',label:'Moderate to heavy rain',  cls:'heavy',   opacity:0.40},
+  {min:45, color:'#ff5500',label:'Heavy rain',              cls:'heavy',   opacity:0.45},
+  {min:50, color:'#ff2200',label:'Heavy rain, small hail possible',cls:'intense',opacity:0.50},
+  {min:55, color:'#ff0033',label:'Very heavy rain, hail possible',cls:'intense',opacity:0.55},
+  {min:60, color:'#ff00ff',label:'Very heavy rain, hail likely',cls:'extreme',opacity:0.60},
+  {min:65, color:'#ff00ff',label:'Hail very likely, large hail',cls:'extreme',opacity:0.60}
+];
+function _dbzEntry(dbz){for(let i=DBZ_SCALE.length-1;i>=0;i--){if(dbz>=DBZ_SCALE[i].min)return DBZ_SCALE[i]}return DBZ_SCALE[0]}
 function stormCat(dbz){
+  const e=_dbzEntry(dbz);
   const m=S.radarMetric;
-  if(dbz>=65)return{label:'Hail very likely, large hail',cls:'extreme',color:'#ff00ff',rain:m?'>42 cm/hr':'>16.6 in/hr'};
-  if(dbz>=60)return{label:'Very heavy rain, hail likely',cls:'extreme',color:'#ff00ff',rain:m?'20 cm/hr':'8 in/hr'};
-  if(dbz>=55)return{label:'Very heavy rain, hail possible',cls:'intense',color:'#ff0033',rain:m?'10 cm/hr':'4 in/hr'};
-  if(dbz>=50)return{label:'Heavy rain, small hail possible',cls:'intense',color:'#ff2200',rain:m?'4.8 cm/hr':'1.9 in/hr'};
-  if(dbz>=45)return{label:'Heavy rain',cls:'heavy',color:'#ff5500',rain:m?'2.3 cm/hr':'0.92 in/hr'};
-  if(dbz>=40)return{label:'Moderate to heavy rain',cls:'heavy',color:'#ffee00',rain:m?'1.1 cm/hr':'0.45 in/hr'};
-  if(dbz>=35)return{label:'Moderate rain',cls:'moderate',color:'#aaff00',rain:m?'5.6 mm/hr':'0.22 in/hr'};
-  if(dbz>=30)return{label:'Light to moderate rain',cls:'moderate',color:'#00ff66',rain:m?'2.7 mm/hr':'0.10 in/hr'};
-  if(dbz>=25)return{label:'Light rain',cls:'light',color:'#00ffcc',rain:m?'1.3 mm/hr':'0.05 in/hr'};
-  if(dbz>=20)return{label:'Light rain',cls:'light',color:'#00ccff',rain:m?'0.6 mm/hr':'0.02 in/hr'};
-  return{label:'Drizzle/Mist',cls:'light',color:'#0099ff',rain:'trace'};
+  const rainMap={0:m?'trace':'trace',20:m?'0.6 mm/hr':'0.02 in/hr',25:m?'1.3 mm/hr':'0.05 in/hr',30:m?'2.7 mm/hr':'0.10 in/hr',35:m?'5.6 mm/hr':'0.22 in/hr',40:m?'1.1 cm/hr':'0.45 in/hr',45:m?'2.3 cm/hr':'0.92 in/hr',50:m?'4.8 cm/hr':'1.9 in/hr',55:m?'10 cm/hr':'4 in/hr',60:m?'20 cm/hr':'8 in/hr',65:m?'>42 cm/hr':'>16.6 in/hr'};
+  return{label:e.label,cls:e.cls,color:e.color,rain:rainMap[e.min]||'trace'};
 }
-function dbzHex(dbz){return dbz>=60?'#ff00ff':dbz>=55?'#ff0033':dbz>=50?'#ff2200':dbz>=45?'#ff5500':dbz>=40?'#ffee00':dbz>=35?'#aaff00':dbz>=30?'#00ff66':dbz>=25?'#00ffcc':dbz>=20?'#00ccff':'#0099ff'}
+function dbzHex(dbz){return _dbzEntry(dbz).color}
 function fmtStormDist(mi){return S.radarMetric?(mi*1.60934).toFixed(1)+' km':mi.toFixed(1)+' mi'}
 function fmtCountdown(totalSec){
   if(totalSec<=0)return'NOW';
@@ -2475,9 +2481,9 @@ function initRadar(){
       <div class="map-legend">
         <span>dBZ</span>
         <div class="legend-bar">
-          <span style="background:#00ccff" title="Light Rain"></span><span style="background:#00ff66" title="Moderate"></span>
-          <span style="background:#ffee00" title="Heavy"></span><span style="background:#ff0033" title="Severe"></span>
-          <span style="background:#ff00ff" title="Extreme"></span>
+          <span style="background:#00ccff" title="15-25 Light"></span><span style="background:#00ffcc" title="25-30 Light"></span><span style="background:#00ff66" title="30-35 Moderate"></span><span style="background:#aaff00" title="35-40 Moderate"></span>
+          <span style="background:#ffee00" title="40-45 Heavy"></span><span style="background:#ff5500" title="45-50 Heavy"></span><span style="background:#ff2200" title="50-55 Intense"></span><span style="background:#ff0033" title="55-60 Severe"></span>
+          <span style="background:#ff00ff" title="60+ Extreme"></span>
         </div>
         <span>15 → 60+ dBZ</span>
         <div style="display:flex;gap:6px;margin-left:6px;font-size:0.6em;opacity:0.7">
@@ -3369,17 +3375,7 @@ S._pathArrowStyle='chevron';
 S._pathArrowLayers=[];
 S._pathArrowAnimInterval=null;
 S._pathArrowsDirty=false;
-const DBZ_BINS=[
-  {min:15,max:25,color:'#00ccff',label:'Light (15-25 dBZ)',opacity:0.18},
-  {min:25,max:30,color:'#00ffcc',label:'Light (25-30 dBZ)',opacity:0.22},
-  {min:30,max:35,color:'#00ff66',label:'Moderate (30-35 dBZ)',opacity:0.28},
-  {min:35,max:40,color:'#aaff00',label:'Moderate (35-40 dBZ)',opacity:0.33},
-  {min:40,max:45,color:'#ffee00',label:'Mod-Heavy (40-45 dBZ)',opacity:0.40},
-  {min:45,max:50,color:'#ff5500',label:'Heavy (45-50 dBZ)',opacity:0.45},
-  {min:50,max:55,color:'#ff2200',label:'Intense (50-55 dBZ)',opacity:0.50},
-  {min:55,max:60,color:'#ff0033',label:'Severe (55-60 dBZ)',opacity:0.55},
-  {min:60,max:999,color:'#ff00ff',label:'Extreme (60+ dBZ)',opacity:0.60}
-];
+const DBZ_BINS=DBZ_SCALE.filter(e=>e.min>=15);
 S._radarGridLayers=[];
 function clearRadarGrid(){
   S._radarGridLayers.forEach(l=>{try{S.map.removeLayer(l)}catch(e){}});
@@ -3510,12 +3506,7 @@ function wedgePoly(cLat,cLng,ri,ai){
   pts.push(pts[0]);
   return pts;
 }
-function dbzColor(dbz){
-  for(let i=DBZ_BINS.length-1;i>=0;i--){
-    if(dbz>=DBZ_BINS[i].min)return DBZ_BINS[i];
-  }
-  return DBZ_BINS[0];
-}
+function dbzColor(dbz){return _dbzEntry(dbz)}
 function gridArrowSvg(deg,color,size){
   return`<svg width="${size}" height="${size}" viewBox="0 0 40 40" style="transform:rotate(${deg}deg)">
     <polygon points="20,6 28,28 20,22 12,28" fill="${color}" fill-opacity="0.9" stroke="rgba(0,0,0,0.4)" stroke-width="1"/>
@@ -3978,12 +3969,8 @@ function setPathArrowStyle(style){
   if(pBtn){pBtn.style.background=style==='pointer'?'rgba(0,229,255,0.2)':'rgba(255,255,255,0.05)';pBtn.style.borderColor=style==='pointer'?'var(--accent-cyan)':'var(--border-subtle)';}
 }
 function pathArrowNeonColor(maxDbz){
-  if(maxDbz>=60)return'#ff00ff';
-  if(maxDbz>=55)return'#ff0033';
-  if(maxDbz>=45)return'#ffee00';
-  if(maxDbz>=30)return'#00ff66';
-  if(maxDbz>=15)return'#00ccff';
-  return'#ffffff';
+  if(maxDbz<15)return'#ffffff';
+  return _dbzEntry(maxDbz).color;
 }
 function buildPathArrows(map,_retries){
   clearPathArrows();
