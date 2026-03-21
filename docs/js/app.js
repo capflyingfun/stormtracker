@@ -1376,31 +1376,42 @@ async function fetchWeather(){
     S.weather=omData.current;renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p></div>`}
 }
+async function _fetchAWCOnce(){
+  const url=`https://aviationweather.gov/api/data/metar?ids=&format=json&taf=false&hours=2&bbox=${(S.lat-1).toFixed(2)},${(S.lon-1).toFixed(2)},${(S.lat+1).toFixed(2)},${(S.lon+1).toFixed(2)}`;
+  console.log('AWC fetch:',url);
+  const r=await fetch(url,{signal:AbortSignal.timeout(8000)});
+  if(!r.ok){console.log('AWC fetch failed:',r.status);return null}
+  const data=await r.json();
+  console.log('AWC returned',data.length,'stations');
+  if(!data.length)return null;
+  const nearest=data.reduce((best,m)=>{
+    const d=haversine(S.lat,S.lon,m.lat,m.lon);
+    return(!best||d<best._dist)?{...m,_dist:d}:best;
+  },null);
+  if(!nearest)return null;
+  console.log('AWC nearest:',nearest.icaoId,'dist:',nearest._dist?.toFixed(1)+'mi');
+  return{
+    icao:nearest.icaoId,temp:nearest.temp,dewp:nearest.dewp,
+    windKmh:nearest.wspd!=null?nearest.wspd*1.852:null,
+    windDir:nearest.wdir!=null&&nearest.wdir!=='VRB'?Number(nearest.wdir):null,
+    gustKmh:nearest.wgst!=null?nearest.wgst*1.852:null,
+    presPa:nearest.altim!=null?nearest.altim*100:null,
+    visMeter:nearest.visib!=null?(String(nearest.visib).includes('+')?16093:Number(nearest.visib)*1609.34):null,
+    wxString:nearest.wxString||'',dist:nearest._dist
+  };
+}
 async function fetchAWCNearest(){
   try{
-    const url=`https://aviationweather.gov/api/data/metar?ids=&format=json&taf=false&hours=2&bbox=${(S.lat-1).toFixed(2)},${(S.lon-1).toFixed(2)},${(S.lat+1).toFixed(2)},${(S.lon+1).toFixed(2)}`;
-    console.log('AWC fetch:',url);
-    const r=await fetch(url,{signal:AbortSignal.timeout(5000)});
-    if(!r.ok){console.log('AWC fetch failed:',r.status);return null}
-    const data=await r.json();
-    console.log('AWC returned',data.length,'stations');
-    if(!data.length)return null;
-    const nearest=data.reduce((best,m)=>{
-      const d=haversine(S.lat,S.lon,m.lat,m.lon);
-      return(!best||d<best._dist)?{...m,_dist:d}:best;
-    },null);
-    if(!nearest)return null;
-    console.log('AWC nearest:',nearest.icaoId,'dist:',nearest._dist?.toFixed(1)+'mi');
-    return{
-      icao:nearest.icaoId,temp:nearest.temp,dewp:nearest.dewp,
-      windKmh:nearest.wspd!=null?nearest.wspd*1.852:null,
-      windDir:nearest.wdir!=null&&nearest.wdir!=='VRB'?Number(nearest.wdir):null,
-      gustKmh:nearest.wgst!=null?nearest.wgst*1.852:null,
-      presPa:nearest.altim!=null?nearest.altim*100:null,
-      visMeter:nearest.visib!=null?(String(nearest.visib).includes('+')?16093:Number(nearest.visib)*1609.34):null,
-      wxString:nearest.wxString||'',dist:nearest._dist
-    };
-  }catch(e){console.log('AWC nearest error:',e.message);return null}
+    const r=await _fetchAWCOnce();
+    if(r)return r;
+    console.log('AWC retry in 2s...');
+    await new Promise(ok=>setTimeout(ok,2000));
+    return await _fetchAWCOnce();
+  }catch(e){
+    console.log('AWC nearest error:',e.message,', retrying...');
+    try{await new Promise(ok=>setTimeout(ok,2000));return await _fetchAWCOnce()}
+    catch(e2){console.log('AWC retry failed:',e2.message);return null}
+  }
 }
 function blendSources(sources){
   function avg(field){
@@ -1439,18 +1450,18 @@ function blendSources(sources){
 }
 async function fetchNWSCurrent(){
   try{
-    const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(4000)});
+    const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(6000)});
     if(!ptRes.ok)return null;
     const pt=await ptRes.json();
     const stUrl=pt.properties?.observationStations;
     if(!stUrl)return null;
-    const stRes=await fetch(stUrl,{...NWS_HDR,signal:AbortSignal.timeout(4000)});
+    const stRes=await fetch(stUrl,{...NWS_HDR,signal:AbortSignal.timeout(6000)});
     if(!stRes.ok)return null;
     const stData=await stRes.json();
     const nearest=stData.features?.[0];
     if(!nearest)return null;
     const icao=nearest.properties?.stationIdentifier;
-    const obsRes=await fetch(`https://api.weather.gov/stations/${icao}/observations/latest`,{...NWS_HDR,signal:AbortSignal.timeout(4000)});
+    const obsRes=await fetch(`https://api.weather.gov/stations/${icao}/observations/latest`,{...NWS_HDR,signal:AbortSignal.timeout(6000)});
     if(!obsRes.ok)return null;
     const obs=await obsRes.json();
     const p=obs.properties||{};
