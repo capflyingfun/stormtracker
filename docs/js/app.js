@@ -3246,16 +3246,18 @@ function buildStormZones(map,rawPts){
       const el=poly.getElement&&poly.getElement();
       if(el)el.classList.add('grid-pulse');
       const aPt=destPt(S.lat,S.lon,midDist,midBear);
-      const sz=maxDbz>=55?26:maxDbz>=40?22:18;
-      const impactArrow=L.marker(aPt,{
-        icon:L.divIcon({className:'',html:gridArrowSvg(mv.direction,bin.color,sz),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+      const lineEnd=[S.lat,S.lon];
+      const dashColor=bin.color;
+      const pulseLine=L.polyline([aPt,lineEnd],{
+        color:dashColor,weight:2,opacity:0.6,
+        dashArray:'8,12',className:'approaching-pulse-line',
         pane:arrowPane,interactive:false
       }).addTo(map);
-      S._stormZoneLayers.push(impactArrow);
+      S._stormZoneLayers.push(pulseLine);
     }
     if(mv&&mv.speed>=2){
       if(!S._arrowCells)S._arrowCells=[];
-      S._arrowCells.push({ri:cell.ri,ai:cell.ai,midDist,midBear,maxDbz,binIdx:bin.idx,color:bin.color,dir:mv.direction,speed:mv.speed,approaching:isApproaching});
+      S._arrowCells.push({ri:cell.ri,ai:cell.ai,midDist,midBear,maxDbz,binIdx:bin.idx,color:bin.color,dir:mv.direction,speed:mv.speed});
     }
   }
   if(S._arrowCells&&S._arrowCells.length>0){
@@ -3872,41 +3874,35 @@ function tileXToLon(x,z){return x/Math.pow(2,z)*360-180}
 function tileYToLat(y,z){const n=Math.PI-2*Math.PI*y/Math.pow(2,z);return 180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n)))}
 
 function spacingFilter(points,hiRes){
-  const validPoints=points.filter(p=>p.dbz>=(hiRes?20:30)||p.dbz>=25);
-  if(validPoints.length>5000){
-    validPoints.sort((a,b)=>b.dbz-a.dbz);
-    validPoints.length=5000;
-  }
+  const validPoints=points.filter(p=>{
+    if(p.dbz>=30)return true;
+    if(hiRes&&p.dbz>=20)return true;
+    const radius=p.dbz>=25?5:8;
+    let nearby=0;
+    for(const q of points){
+      if(q===p)continue;
+      const dx=(p.lat-q.lat)*69,dy=(p.lng-q.lng)*69*Math.cos(p.lat*Math.PI/180);
+      if(Math.sqrt(dx*dx+dy*dy)<radius)nearby++;
+      if(nearby>=1)return true;
+    }
+    return false;
+  });
   validPoints.sort((a,b)=>b.dbz-a.dbz);
   const out=[];
-  const grid=new Map();
-  const cellSize=hiRes?0.01:0.02;
   for(const p of validPoints){
     const minSpacing=hiRes?(p.dbz>=45?0.3:p.dbz>=35?0.4:0.5):(p.dbz>=45?0.8:p.dbz>=35?1.2:1.8);
-    const gx=Math.floor(p.lat/cellSize),gy=Math.floor(p.lng/cellSize);
     let merged=false;
-    for(let dx=-1;dx<=1&&!merged;dx++){
-      for(let dy=-1;dy<=1&&!merged;dy++){
-        const k=(gx+dx)+','+(gy+dy);
-        const bucket=grid.get(k);
-        if(!bucket)continue;
-        for(const e of bucket){
-          if(haversine(p.lat,p.lng,e.lat,e.lng)<minSpacing){
-            e.pixels++;
-            if(p.dbz>e.dbz)e.dbz=p.dbz;
-            merged=true;break;
-          }
-        }
+    for(const e of out){
+      if(haversine(p.lat,p.lng,e.lat,e.lng)<minSpacing){
+        e.pixels++;
+        if(p.dbz>e.dbz)e.dbz=p.dbz;
+        merged=true;break;
       }
     }
     if(!merged){
       const dist=haversine(S.lat,S.lon,p.lat,p.lng);
       const bear=bearingDeg(S.lat,S.lon,p.lat,p.lng);
-      const entry={lat:p.lat,lng:p.lng,dbz:p.dbz,distance:dist,bearing:bear,pixels:1};
-      out.push(entry);
-      const k=gx+','+gy;
-      if(!grid.has(k))grid.set(k,[]);
-      grid.get(k).push(entry);
+      out.push({lat:p.lat,lng:p.lng,dbz:p.dbz,distance:dist,bearing:bear,pixels:1});
     }
   }
   return out;
