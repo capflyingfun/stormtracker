@@ -129,7 +129,38 @@ function windSweepAnim(){
   _windSweepRaf=requestAnimationFrame(tick);
 }
 function loadUnits(){
-  try{const u=JSON.parse(localStorage.getItem('st_units'));if(u){S.tempUnit=u.t||0;S.windUnit=u.w||0;S.presUnit=u.p||0;S.visUnit=u.v||0;S.precipUnit=u.pr||0}}catch(e){}
+  try{
+    const u=JSON.parse(localStorage.getItem('st_units'));
+    if(u!=null){S.tempUnit=u.t||0;S.windUnit=u.w||0;S.presUnit=u.p||0;S.visUnit=u.v||0;S.precipUnit=u.pr||0;return}
+  }catch(e){}
+  autoDetectUnits();
+}
+function autoDetectUnits(){
+  const imperialCountries=['US','LR','MM','PR','GU','VI','AS','MP','FM','MH','PW'];
+  let cc='';
+  try{
+    const tz=Intl.DateTimeFormat().resolvedOptions().timeZone||'';
+    const tzCountry={'America/New_York':'US','America/Chicago':'US','America/Denver':'US','America/Los_Angeles':'US','America/Anchorage':'US','America/Phoenix':'US','Pacific/Honolulu':'US','America/Indianapolis':'US','America/Detroit':'US','America/Boise':'US','America/Juneau':'US','America/Adak':'US','Pacific/Guam':'GU','Pacific/Pago_Pago':'AS','Pacific/Palau':'PW','Pacific/Majuro':'MH','Pacific/Chuuk':'FM','Africa/Monrovia':'LR','Asia/Yangon':'MM'};
+    cc=tzCountry[tz]||'';
+    if(!cc&&tz.startsWith('America/')){
+      const usZones=['New_York','Chicago','Denver','Los_Angeles','Anchorage','Phoenix','Honolulu','Indianapolis','Detroit','Boise','Juneau','Adak','Kentucky','North_Dakota','Menominee','Nome','Sitka','Yakutat','Metlakatla'];
+      const city=tz.split('/').pop();
+      if(usZones.includes(city))cc='US';
+    }
+    if(!cc){
+      const loc=navigator.language||navigator.userLanguage||'';
+      const parts=loc.split('-');
+      if(parts.length>=2)cc=parts[parts.length-1].toUpperCase();
+    }
+  }catch(e){}
+  const isImperial=imperialCountries.includes(cc);
+  S.tempUnit=isImperial?0:1;
+  S.windUnit=isImperial?0:2;
+  S.presUnit=isImperial?0:1;
+  S.visUnit=isImperial?0:1;
+  S.precipUnit=isImperial?0:1;
+  S.radarMetric=!isImperial;
+  console.log('[Units] Auto-detected: '+(isImperial?'Imperial ('+cc+')':'Metric ('+cc+')'));
 }
 
 function reRenderActive(){
@@ -997,6 +1028,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use it for a quick situational glance.'}
 ];
 const CHANGELOG=[
+  {ver:'v1.90',date:'2026-03-21',items:['Auto-localization — units automatically set based on your region (Celsius, km/h, mb for metric countries; Fahrenheit, mph, inHg for US/Liberia/Myanmar)','First-time users see the right units instantly — no manual toggling needed','Detects country via timezone and browser language','Manual unit changes still saved and respected']},
   {ver:'v1.89',date:'2026-03-21',items:['PWA support — install StormTracker as a standalone app on iOS and Android','Service worker for offline caching of core app files','App manifest with icons for home screen installation','Apple-specific meta tags for full-screen iOS experience']},
   {ver:'v1.88b',date:'2026-03-21',items:['Triple-fallback geocoding: Nominatim → Photon → Open-Meteo for reliable worldwide search','International location names fixed — Dubai, suburbs, districts, provinces now display properly','AI responses render markdown: bold, headers, bullet lists styled correctly','AI context now pulls from Open-Meteo + METAR + NWS for richer analysis']},
   {ver:'v1.88',date:'2026-03-21',items:['AI Weather Assistant — GPT-4o-mini powered chat with live weather context','Direct browser-to-OpenAI calls — API key stored locally, never leaves your device','Rich context injection: current conditions, storms, ETAs, alerts, forecasts, METAR','Tone options: Professional, Friendly, Humorous','Detail levels: Brief, Standard, Technical','Quick question buttons for common weather queries','Dynamic urgency — AI prioritizes safety when threats are detected']},
