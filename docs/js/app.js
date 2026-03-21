@@ -80,6 +80,19 @@ function cycleUnit(key){
   reRenderActive();
   S._skipWindRestart=false;
 }
+function updateGaugeSegments(windVal,gustVal){
+  const g=document.getElementById('gauge-seg-group');
+  if(!g)return;
+  const maxSegs=S._gaugeMaxSegs||10;
+  const segs=g.querySelectorAll('.gauge-seg');
+  const windFill=Math.min(windVal,maxSegs);
+  const gustFill=Math.min(gustVal,maxSegs);
+  segs.forEach((s,i)=>{
+    if(i<windFill)s.setAttribute('fill','rgba(0,220,255,0.85)');
+    else if(i<gustFill)s.setAttribute('fill','rgba(255,160,0,0.6)');
+    else s.setAttribute('fill','rgba(0,220,255,0.08)');
+  });
+}
 function windSweepAnim(){
   if(_windSweepRaf){cancelAnimationFrame(_windSweepRaf);_windSweepRaf=null}
   _windSweepPaused=true;
@@ -89,22 +102,10 @@ function windSweepAnim(){
   const gustEl=document.querySelector('.wrc-gust');
   if(numEl)numEl.textContent=kmhTo(0,S.windUnit);
   if(gustEl)gustEl.textContent='G'+fmtWind(0);
-  const windArcEl=document.getElementById('gauge-wind-arc');
-  const gustArcEl=document.getElementById('gauge-gust-arc');
-  if(windArcEl)windArcEl.setAttribute('d','M0,0');
-  if(gustArcEl)gustArcEl.setAttribute('d','M0,0');
+  updateGaugeSegments(0,0);
   const dur=500;
   const t0=performance.now();
   function ease(t){return t<0.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1}
-  function sweepArcPath(fromDeg,toDeg,radius,cxv,cyv){
-    if(toDeg-fromDeg<1)return'M0,0';
-    const startA=-170;
-    const sa=(startA+fromDeg)*Math.PI/180,ea=(startA+toDeg)*Math.PI/180;
-    const x1=cxv+Math.cos(sa)*radius,y1=cyv+Math.sin(sa)*radius;
-    const x2=cxv+Math.cos(ea)*radius,y2=cyv+Math.sin(ea)*radius;
-    const lg=(toDeg-fromDeg)>180?1:0;
-    return`M${x1.toFixed(1)},${y1.toFixed(1)} A${radius},${radius} 0 ${lg} 1 ${x2.toFixed(1)},${y2.toFixed(1)}`;
-  }
   function tick(now){
     const elapsed=now-t0;
     const p=Math.min(elapsed/dur,1);
@@ -113,14 +114,10 @@ function windSweepAnim(){
     const curGust=targetGust*ep;
     if(numEl)numEl.textContent=kmhTo(curSpd,S.windUnit);
     if(gustEl)gustEl.textContent='G'+kmhTo(curGust,S.windUnit)+' '+WIND_UNITS[S.windUnit];
-    const maxSpd=S._gaugeMaxSpd||10;
-    const arcR=S._gaugeArcR||44.5;
+    const maxSegs=S._gaugeMaxSegs||10;
     const simSpdDisp=parseFloat(kmhTo(curSpd,S.windUnit));
     const gustDisp2=parseFloat(kmhTo(curGust,S.windUnit));
-    const windArc=Math.min(simSpdDisp/maxSpd,1)*340;
-    const gustArc2=Math.min(gustDisp2/maxSpd,1)*340;
-    if(gustArcEl)gustArcEl.setAttribute('d',gustArc2>0?sweepArcPath(0,gustArc2,arcR+2,50,50):'M0,0');
-    if(windArcEl)windArcEl.setAttribute('d',windArc>0?sweepArcPath(0,windArc,arcR,50,50):'M0,0');
+    updateGaugeSegments(simSpdDisp,gustDisp2);
     if(p<1){
       _windSweepRaf=requestAnimationFrame(tick);
     }else{
@@ -1570,73 +1567,72 @@ function renderWeather(data){
   let gaugeSvg='';
   gaugeSvg+=`<defs>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <filter id="glow2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <linearGradient id="arcGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="rgba(0,220,255,0.1)"/><stop offset="50%" stop-color="rgba(0,220,255,0.6)"/><stop offset="85%" stop-color="${neonOrange}0.8)"/><stop offset="100%" stop-color="rgba(255,80,50,0.9)"/></linearGradient>
   </defs>`;
-  gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${neonCyan}0.12)" stroke-width="0.8"/>`;
   gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${ri}" fill="none" stroke="${neonCyan}0.08)" stroke-width="0.5"/>`;
   gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${ri*0.55}" fill="none" stroke="${neonCyan}0.05)" stroke-width="0.3"/>`;
   const windDisp=parseFloat(kmhTo(windSpd,S.windUnit));
   const gustRaw=_simActive?_windCurSim.gust:(c.wind_gusts_10m||windSpd);
   const gustDisp=parseFloat(kmhTo(gustRaw,S.windUnit));
-  const maxArcSpd=Math.max(10,Math.ceil(windDisp*1.5/5)*5);
-  const windArc=Math.min(windDisp/maxArcSpd,1)*340;
-  const gustArc=Math.min(gustDisp/maxArcSpd,1)*340;
-  const arcR=r+2.5;
-  const startA=-170;
-  function arcPath(fromDeg,toDeg,radius){
-    const sa=(startA+fromDeg)*Math.PI/180,ea=(startA+toDeg)*Math.PI/180;
-    const x1=cx+Math.cos(sa)*radius,y1=cy+Math.sin(sa)*radius;
-    const x2=cx+Math.cos(ea)*radius,y2=cy+Math.sin(ea)*radius;
-    const lg=(toDeg-fromDeg)>180?1:0;
-    return`M${x1.toFixed(1)},${y1.toFixed(1)} A${radius},${radius} 0 ${lg} 1 ${x2.toFixed(1)},${y2.toFixed(1)}`;
+  const maxArcSpd=Math.max(10,Math.ceil(Math.max(windDisp,gustDisp)*1.3/5)*5);
+  const segGap=4;
+  const segCount=maxArcSpd;
+  const segR=r+4;
+  const segRi=r+0.5;
+  S._gaugeMaxSegs=segCount;S._gaugeArcR=segR;S._gaugeMaxSpd=maxArcSpd;
+  const segAngle=360/segCount;
+  const segArc=segAngle-segGap;
+  gaugeSvg+=`<g id="gauge-seg-group" transform="translate(${cx},${cy})">`;
+  for(let i=0;i<segCount;i++){
+    const rotDeg=-90+i*segAngle;
+    const radStart=0;
+    const radEnd=(segArc)*Math.PI/180;
+    const outerR=segR-cx;
+    const innerR=segRi-cx;
+    const or2=outerR>0?outerR:(segR-50);
+    const ir2=innerR>0?innerR:(segRi-50);
+    const cosS=Math.cos(radStart),sinS=Math.sin(radStart);
+    const cosE=Math.cos(radEnd),sinE=Math.sin(radEnd);
+    const x1=or2*cosS,y1=or2*sinS;
+    const x2=or2*cosE,y2=or2*sinE;
+    const x3=ir2*cosE,y3=ir2*sinE;
+    const x4=ir2*cosS,y4=ir2*sinS;
+    const lg=segArc>180?1:0;
+    const d=`M${x1.toFixed(2)},${y1.toFixed(2)} A${or2},${or2} 0 ${lg} 1 ${x2.toFixed(2)},${y2.toFixed(2)} L${x3.toFixed(2)},${y3.toFixed(2)} A${ir2},${ir2} 0 ${lg} 0 ${x4.toFixed(2)},${y4.toFixed(2)} Z`;
+    let fill;
+    if(i<windDisp)fill=`${neonCyan}0.85)`;
+    else if(i<gustDisp)fill=`${neonOrange}0.6)`;
+    else fill=`${neonCyan}0.08)`;
+    gaugeSvg+=`<path class="gauge-seg" d="${d}" fill="${fill}" style="transform:rotate(${rotDeg}deg)"/>`;
   }
-
-  S._gaugeMaxSpd=maxArcSpd;S._gaugeArcR=arcR;
+  gaugeSvg+=`</g>`;
   const spdTicks=[];
   const spdStep=maxArcSpd<=15?5:maxArcSpd<=30?5:maxArcSpd<=50?10:maxArcSpd<=100?20:maxArcSpd<=160?25:50;
   for(let s=0;s<=maxArcSpd;s+=spdStep)spdTicks.push(s);
-  const spdArcStart=-170;
   spdTicks.forEach(spd=>{
-    const frac=spd/maxArcSpd;
-    const deg=spdArcStart+frac*340;
-    const a=deg*Math.PI/180;
-    const x1=cx+Math.cos(a)*(arcR+1),y1=cy+Math.sin(a)*(arcR+1);
-    const x2=cx+Math.cos(a)*(arcR+4),y2=cy+Math.sin(a)*(arcR+4);
-    gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}0.5)" stroke-width="1"/>`;
-    const lx=cx+Math.cos(a)*(arcR+8),ly=cy+Math.sin(a)*(arcR+8);
-    gaugeSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.6)" font-size="3.5" font-weight="700" text-anchor="middle" dominant-baseline="central">${spd}</text>`;
+    const frac=spd/segCount;
+    const deg=(-90+frac*360)*Math.PI/180;
+    const lx=cx+Math.cos(deg)*(segR+4.5),ly=cy+Math.sin(deg)*(segR+4.5);
+    gaugeSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.5)" font-size="3.2" font-weight="700" text-anchor="middle" dominant-baseline="central">${spd}</text>`;
   });
-  for(let s=0;s<maxArcSpd;s+=spdStep/5||1){
-    if(spdTicks.includes(s))continue;
-    const frac=s/maxArcSpd;
-    const deg=spdArcStart+frac*340;
-    const a=deg*Math.PI/180;
-    const x1=cx+Math.cos(a)*(arcR+1),y1=cy+Math.sin(a)*(arcR+1);
-    const x2=cx+Math.cos(a)*(arcR+2.5),y2=cy+Math.sin(a)*(arcR+2.5);
-    gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}0.15)" stroke-width="0.4"/>`;
-  }
   const compassTicks=[0,30,60,90,120,150,180,210,240,270,300,330];
   compassTicks.forEach(deg=>{
     const a=(deg-90)*Math.PI/180;
     const isMajor=deg%90===0;
-    const x1=cx+Math.cos(a)*r,y1=cy+Math.sin(a)*r;
+    const x1=cx+Math.cos(a)*(ri-0.5),y1=cy+Math.sin(a)*(ri-0.5);
     const len=isMajor?5:3;
-    const x2=cx+Math.cos(a)*(r-len),y2=cy+Math.sin(a)*(r-len);
+    const x2=cx+Math.cos(a)*(ri-0.5-len),y2=cy+Math.sin(a)*(ri-0.5-len);
     gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}${isMajor?'0.45':'0.15'})" stroke-width="${isMajor?1.2:0.5}"/>`;
     if(!isMajor){
-      const lx=cx+Math.cos(a)*(r-8),ly=cy+Math.sin(a)*(r-8);
+      const lx=cx+Math.cos(a)*(ri-8),ly=cy+Math.sin(a)*(ri-8);
       gaugeSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.2)" font-size="3.5" text-anchor="middle" dominant-baseline="central">${deg||360}</text>`;
     }
   });
   for(let d=0;d<360;d+=10){if(d%30===0)continue;
     const a=(d-90)*Math.PI/180;
-    const x1=cx+Math.cos(a)*r,y1=cy+Math.sin(a)*r;
-    const x2=cx+Math.cos(a)*(r-1.5),y2=cy+Math.sin(a)*(r-1.5);
+    const x1=cx+Math.cos(a)*(ri-0.5),y1=cy+Math.sin(a)*(ri-0.5);
+    const x2=cx+Math.cos(a)*(ri-2),y2=cy+Math.sin(a)*(ri-2);
     gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}0.08)" stroke-width="0.4"/>`;
   }
-  gaugeSvg+=`<path id="gauge-gust-arc" d="${gustArc>0?arcPath(0,gustArc,arcR+2):'M0,0'}" fill="none" stroke="${neonOrange}0.5)" stroke-width="2" stroke-linecap="round"/>`;
-  gaugeSvg+=`<path id="gauge-wind-arc" d="${windArc>0?arcPath(0,windArc,arcR):'M0,0'}" fill="none" stroke="${neonCyan}0.8)" stroke-width="2.5" stroke-linecap="round"/>`;
   const ptrAng=(wd-90)*Math.PI/180;
   const pTip=r-1,pBase=10;
   const px=cx+Math.cos(ptrAng)*pTip,py=cy+Math.sin(ptrAng)*pTip;
@@ -1934,25 +1930,9 @@ function startWindSim(){
       const gustEl=document.querySelector('.wrc-gust');
       if(numEl)numEl.textContent=kmhTo(simSpd,S.windUnit);
       if(gustEl)gustEl.textContent=displayGust>0?'G'+fmtWind(displayGust):'';
-      const maxSpd=S._gaugeMaxSpd||10;
-      const arcR=S._gaugeArcR||44.5;
-      const startA=-170;
       const simSpdDisp=parseFloat(kmhTo(simSpd,S.windUnit));
-      const gustDisp=parseFloat(kmhTo(displayGust,S.windUnit));
-      const windArc=Math.min(simSpdDisp/maxSpd,1)*340;
-      const gustArc=Math.min(gustDisp/maxSpd,1)*340;
-      function simArcPath(fromDeg,toDeg,radius){
-        if(toDeg-fromDeg<1)return'M0,0';
-        const sa=(startA+fromDeg)*Math.PI/180,ea=(startA+toDeg)*Math.PI/180;
-        const x1=cx+Math.cos(sa)*radius,y1=cy+Math.sin(sa)*radius;
-        const x2=cx+Math.cos(ea)*radius,y2=cy+Math.sin(ea)*radius;
-        const lg=(toDeg-fromDeg)>180?1:0;
-        return`M${x1.toFixed(1)},${y1.toFixed(1)} A${radius},${radius} 0 ${lg} 1 ${x2.toFixed(1)},${y2.toFixed(1)}`;
-      }
-      const windArcEl=document.getElementById('gauge-wind-arc');
-      const gustArcEl=document.getElementById('gauge-gust-arc');
-      if(gustArcEl)gustArcEl.setAttribute('d',gustArc>0?simArcPath(0,gustArc,arcR+2):'M0,0');
-      if(windArcEl)windArcEl.setAttribute('d',windArc>0?simArcPath(0,windArc,arcR):'M0,0');
+      const gustDispSim=parseFloat(kmhTo(displayGust,S.windUnit));
+      updateGaugeSegments(simSpdDisp,gustDispSim);
     }
     const compass=document.querySelector('.wind-rose svg');
     if(compass){
