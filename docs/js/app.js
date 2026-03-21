@@ -5220,11 +5220,19 @@ async function loadStationObsAWC(icao){
       if(r.ok){data=await r.json();if(data.length)break}
     }catch(e){console.log('AWC obs fetch error ('+hrs+'h):',e.message)}
   }
-  if(!data.length)throw new Error('No AWC data for '+icao);
   const stInfo=S.nearbyStations?.find(s=>s.icao===icao);
   S.stationId=icao;
-  S.station=parseAWCobs(data[0]);
-  if(stInfo?.name)S.station.name=stInfo.name;
+  if(data.length){
+    S.station=parseAWCobs(data[0]);
+    if(stInfo?.name)S.station.name=stInfo.name;
+  }else{
+    console.log('loadStationObsAWC: No METAR for',icao,'— showing station without obs');
+    S.station={
+      icao,name:stInfo?.name||icao,lat:stInfo?.lat||S.lat,lon:stInfo?.lon||S.lon,
+      temp:null,dewp:null,windKmh:null,windDir:null,gustKmh:null,visMeter:null,presPa:null,
+      rawMETAR:'',clouds:[],obsTime:'',wxString:'',_noMetar:true,_reason:'No recent METAR available'
+    };
+  }
   renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
 }
 
@@ -5352,7 +5360,13 @@ async function switchStation(code){
   toast('Loading '+icao+'...');
   S.stationId=icao;
   S._stationSource='awc';
-  await loadStationObs(icao);
+  try{
+    await loadStationObsAWC(icao);
+  }catch(e){
+    console.error('switchStation error for',icao,':',e.message);
+    const el=document.getElementById('page-station');
+    if(el)el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Could not load ${icao}.<br><span style="font-size:0.8em;color:var(--text-muted)">${e.message}</span></p></div>`;
+  }
 }
 
 function decodeMetar(raw){
