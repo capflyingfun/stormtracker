@@ -1910,11 +1910,12 @@ function startWindSim(){
       }
     }
     const t=Date.now()*0.000055;
+    const tSlow=Date.now()*0.000015;
     const spdNoise=_wn.noise(t+seed,0);
-    const dirNoise=_wn.noise(t+seed+50,100);
+    const dirNoise=_wn.noise(tSlow+seed+50,100);
     const spdFactor=((spdNoise+1)/2)*1.5;
     let simSpd=Math.max(0,curSpd*spdFactor);
-    let simDir=((curDir+dirNoise*15)%360+360)%360;
+    let simDir=((curDir+dirNoise*7)%360+360)%360;
     _gustSamples.push(simSpd);
     const now=Date.now();
     if(now-_gustResetT>=30000){
