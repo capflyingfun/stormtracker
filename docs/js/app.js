@@ -3560,15 +3560,24 @@ function updateThreatTicker(){
     bar.style.borderColor=borderColor;
     bar.style.background=bg;
   }
-  if(stormCount===0){
-    const clears=['✅ No storms detected nearby. Clear skies and smooth sailing! 🌤️','✅ All clear! No storm activity in your area. Perfect time to enjoy the weather. ☀️','✅ No storms detected nearby! Let\'s keep it that way... unless you\'re looking for something to track. 📊','✅ Radar is clean! No precipitation detected in your scan area. Relax and enjoy. 😎'];
-    const msg=clears[Math.floor(Date.now()/60000)%clears.length];
-    showTicker(`<span style="color:#4ade80">${msg}</span>`,'#4ade80','rgba(74,222,128,0.2)','linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))',20);
+  const alertMinDbz=31;
+  const sigStormCount=S.storms?S.storms.filter(s=>s.dbz>=alertMinDbz).length:0;
+  if(sigStormCount===0){
+    if(stormCount===0){
+      const clears=['✅ No storms detected nearby. Clear skies and smooth sailing! 🌤️','✅ All clear! No storm activity in your area. Perfect time to enjoy the weather. ☀️','✅ No storms detected nearby! Let\'s keep it that way... unless you\'re looking for something to track. 📊','✅ Radar is clean! No precipitation detected in your scan area. Relax and enjoy. 😎'];
+      const msg=clears[Math.floor(Date.now()/60000)%clears.length];
+      showTicker(`<span style="color:#4ade80">${msg}</span>`,'#4ade80','rgba(74,222,128,0.2)','linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))',20);
+    }else{
+      const clears2=['✅ Light radar returns detected but nothing significant. Enjoy your day! 🌤️','✅ Minor radar clutter only — no meaningful precipitation in your area. ☀️'];
+      const msg=clears2[Math.floor(Date.now()/60000)%clears2.length];
+      showTicker(`<span style="color:#4ade80">${msg}</span>`,'#4ade80','rgba(74,222,128,0.2)','linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))',20);
+    }
     return;
   }
   const allApproaching=[];
   const severeApproaching=[];
   for(const storm of S.storms){
+    if(storm.dbz<alertMinDbz)continue;
     const eta=calcStormETA(storm);
     if(!eta||!eta.approaching||!eta.eta)continue;
     allApproaching.push({storm,eta});
@@ -3576,9 +3585,9 @@ function updateThreatTicker(){
   }
   if(allApproaching.length===0){
     const nearbyMsgs=[
-      `🔔 ${stormCount} storm ☔️ area${stormCount>1?'s':''} detected, but currently not on track to your location. Keep an eye 👁️ out and monitor conditions.`,
-      `🔔 ${stormCount} precipitation cell${stormCount>1?'s':''} in your area — none currently heading your way. Stay aware, weather can shift quickly. 🌦️`,
-      `🔔 Tracking ${stormCount} storm cell${stormCount>1?'s':''} nearby. None approaching at this time, but keep monitoring. You never know what Mother Nature has planned. 🌩️`
+      `🔔 ${sigStormCount} storm ☔️ area${sigStormCount>1?'s':''} detected, but currently not on track to your location. Keep an eye 👁️ out and monitor conditions.`,
+      `🔔 ${sigStormCount} precipitation cell${sigStormCount>1?'s':''} in your area — none currently heading your way. Stay aware, weather can shift quickly. 🌦️`,
+      `🔔 Tracking ${sigStormCount} storm cell${sigStormCount>1?'s':''} nearby. None approaching at this time, but keep monitoring. You never know what Mother Nature has planned. 🌩️`
     ];
     const msg=nearbyMsgs[Math.floor(Date.now()/60000)%nearbyMsgs.length];
     showTicker(`<span style="color:#60a5fa">${msg}</span>`,'#60a5fa','rgba(96,165,250,0.2)','linear-gradient(90deg,rgba(0,5,20,0.95),rgba(5,10,30,0.95),rgba(0,5,20,0.95))',Math.max(15,Math.round(msg.length*0.2)));
