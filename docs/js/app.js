@@ -5039,18 +5039,21 @@ function buildWeatherContext(){
 
   if(S.storms&&S.storms.length){
     parts.push(`\nSTORM DATA: ${S.storms.length} storm cells detected within ${S.scanRadius} mile scan radius.`);
-    const sorted=[...S.storms].sort((a,b)=>a.dist-b.dist);
+    const validStorms=S.storms.filter(s=>s&&s.dist!=null&&s.bear!=null&&s.dbz!=null);
+    const sorted=[...validStorms].sort((a,b)=>a.dist-b.dist);
     const top=sorted.slice(0,12);
     for(const st of top){
       let line=`  Storm at ${st.dist.toFixed(1)} mi ${degToDir(st.bear)} (${st.bear.toFixed(0)}°), intensity ${st.dbz} dBZ`;
       const cat=st.dbz>=60?'EXTREME':st.dbz>=55?'SEVERE':st.dbz>=45?'HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
       line+=` [${cat}]`;
-      const key=`${st.lat.toFixed(2)}_${st.lon.toFixed(2)}`;
-      const eta=S._stormETAs[key];
-      if(eta){
-        if(eta.approaching)line+=` APPROACHING - ETA ${eta.etaMin.toFixed(0)} min, impact ${(eta.impact*100).toFixed(0)}%`;
-        else line+=' not approaching';
-      }
+      try{
+        const key=`${st.lat.toFixed(2)}_${st.lon.toFixed(2)}`;
+        const eta=S._stormETAs[key];
+        if(eta){
+          if(eta.approaching)line+=` APPROACHING - ETA ${eta.etaMin?.toFixed(0)||'?'} min, impact ${eta.impact!=null?((eta.impact*100).toFixed(0)):'?'}%`;
+          else line+=' not approaching';
+        }
+      }catch(e){}
       parts.push(line);
     }
     if(S.stormMovement&&S.stormMovement.speed>=2){
@@ -5118,7 +5121,7 @@ function getAISystemPrompt(){
   else if(detail==='standard')detailInstr='Provide balanced detail with key data points and practical guidance.';
   else if(detail==='technical')detailInstr='Include detailed meteorological analysis with specific measurements, dBZ values, wind shear analysis, and professional terminology.';
 
-  const hasThreats=S.storms&&S.storms.some(st=>st.dbz>=45);
+  const hasThreats=S.storms&&S.storms.some(st=>st&&st.dbz>=45);
   const hasAlerts=S.alerts&&S.alerts.length>0;
   let urgency='';
   if(hasThreats||hasAlerts){
