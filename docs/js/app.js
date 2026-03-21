@@ -3278,12 +3278,14 @@ function buildStormZones(map,rawPts){
       groups.push(g);
     }
     for(const g of groups){
-      let sumD=0,sumB=0,sumSinB=0,sumCosB=0,bestColor=g[0].color,bestDir=g[0].dir;
+      let sumD=0,sumB=0,sumSinB=0,sumCosB=0,bestDir=g[0].dir,groupMaxDbz=0;
       for(const c of g){
         sumD+=c.midDist;
         sumSinB+=Math.sin(c.midBear*Math.PI/180);
         sumCosB+=Math.cos(c.midBear*Math.PI/180);
+        if(c.maxDbz>groupMaxDbz)groupMaxDbz=c.maxDbz;
       }
+      const bestColor=dbzColor(groupMaxDbz).color;
       const avgDist=sumD/g.length;
       const avgBear=(Math.atan2(sumSinB/g.length,sumCosB/g.length)*180/Math.PI+360)%360;
       const aPt=destPt(S.lat,S.lon,avgDist,avgBear);
@@ -3333,18 +3335,22 @@ function buildStormZones(map,rawPts){
     const halfAngle=Math.max(8,Math.min(bearSpread+5,30));
     const coneDist=approachMaxDist*0.95;
     const userPt=[S.lat,S.lon];
-    const ilsCount=12;
+    const ilsCount=20;
+    const tailCount=8;
+    const totalCenter=ilsCount+tailCount;
     const ilsCenterDots=[];
     const ilsLeftDots=[];
     const ilsRightDots=[];
+    const mvDir=mv?mv.direction:avgBearDeg;
+    const tailDist=coneDist*0.35;
     for(let i=0;i<ilsCount;i++){
       const f=(i+1)/(ilsCount+1);
       const d=coneDist*(1-f);
       const spread=halfAngle*(1-f);
       const cPt=destPt(S.lat,S.lon,d,avgBearDeg);
-      const sz=Math.max(4,8-f*4);
+      const sz=Math.max(2,4-f*2);
       const dot=L.marker(cPt,{
-        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${arrowColor};box-shadow:0 0 ${sz+4}px ${arrowColor};opacity:0.15"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${arrowColor};box-shadow:0 0 ${sz+2}px ${arrowColor};opacity:0.12"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
         pane:trailPane,interactive:false
       }).addTo(map);
       ilsCenterDots.push(dot);
@@ -3352,13 +3358,13 @@ function buildStormZones(map,rawPts){
       if(spread>2){
         const lPt=destPt(S.lat,S.lon,d,avgBearDeg-spread);
         const rPt=destPt(S.lat,S.lon,d,avgBearDeg+spread);
-        const barSz=Math.max(3,sz-1);
+        const barSz=Math.max(1.5,sz-0.5);
         const lDot=L.marker(lPt,{
-          icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+2}px ${edgeColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+          icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+1}px ${edgeColor};opacity:0.12"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
           pane:trailPane,interactive:false
         }).addTo(map);
         const rDot=L.marker(rPt,{
-          icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+2}px ${edgeColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+          icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+1}px ${edgeColor};opacity:0.12"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
           pane:trailPane,interactive:false
         }).addTo(map);
         ilsLeftDots.push(lDot);
@@ -3367,6 +3373,25 @@ function buildStormZones(map,rawPts){
         S._stormZoneLayers.push(rDot);
       }
     }
+    for(let i=0;i<tailCount;i++){
+      const f=(i+1)/(tailCount+1);
+      const tPt=destPt(S.lat,S.lon,tailDist*f,(mvDir+180)%360);
+      const fadeOp=Math.max(0.04,0.12*(1-f));
+      const sz=Math.max(1.5,3-f*1.5);
+      const dot=L.marker(tPt,{
+        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${arrowColor};box-shadow:0 0 ${sz+1}px ${arrowColor};opacity:${fadeOp}"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+        pane:trailPane,interactive:false
+      }).addTo(map);
+      ilsCenterDots.push(dot);
+      S._stormZoneLayers.push(dot);
+    }
+    const vanePt=destPt(S.lat,S.lon,tailDist*0.95,(mvDir+180)%360);
+    const vaneSz=14;
+    const vaneArrow=L.marker(vanePt,{
+      icon:L.divIcon({className:'',html:`<svg width="${vaneSz}" height="${vaneSz}" viewBox="0 0 40 40" style="transform:rotate(${mvDir}deg);filter:drop-shadow(0 0 3px ${arrowColor})"><polygon points="20,4 30,30 20,24 10,30" fill="${arrowColor}" fill-opacity="0.7"/></svg>`,iconSize:[vaneSz,vaneSz],iconAnchor:[vaneSz/2,vaneSz/2]}),
+      pane:trailPane,interactive:false
+    }).addTo(map);
+    S._stormZoneLayers.push(vaneArrow);
     let ilsFrame=0;
     const animDots=(dots,frame)=>{
       const len=dots.length;
@@ -3377,10 +3402,10 @@ function buildStormZones(map,rawPts){
         if(!ch)continue;
         const pos=(frame-i+len)%len;
         if(pos<3){
-          ch.style.opacity=String(pos===0?1:pos===1?0.6:0.3);
-          ch.style.transform=pos===0?'scale(1.3)':'scale(1)';
+          ch.style.opacity=String(pos===0?0.9:pos===1?0.5:0.25);
+          ch.style.transform=pos===0?'scale(1.2)':'scale(1)';
         }else{
-          ch.style.opacity='0.15';
+          ch.style.opacity='0.12';
           ch.style.transform='scale(1)';
         }
       }
@@ -3389,7 +3414,7 @@ function buildStormZones(map,rawPts){
       animDots(ilsCenterDots,ilsFrame);
       animDots(ilsLeftDots,ilsFrame);
       animDots(ilsRightDots,ilsFrame);
-      ilsFrame=(ilsFrame+1)%ilsCount;
+      ilsFrame=(ilsFrame+1)%totalCenter;
     },150);
   }
   const ms=Math.round(performance.now()-t0);
