@@ -89,14 +89,8 @@ let _gaugeLastGustFlash=0;
 let _gaugePrevGust=0;
 function _smartGaugeMax(windVal,gustVal){
   const peak=Math.max(windVal,gustVal,1);
-  const ideal=peak*1.45;
-  let step;
-  if(ideal<=10)step=5;
-  else if(ideal<=30)step=5;
-  else if(ideal<=60)step=10;
-  else if(ideal<=120)step=20;
-  else step=25;
-  return Math.max(step,Math.ceil(ideal/step)*step);
+  const ideal=peak*2;
+  return Math.max(5,Math.ceil(ideal/5)*5);
 }
 function updateGaugeSegments(windVal,gustVal){
   const g=document.getElementById('gauge-seg-group');
@@ -159,6 +153,19 @@ function updateGaugeSegments(windVal,gustVal){
       trailPath+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${sz.toFixed(1)}" fill="rgba(0,220,255,${alpha.toFixed(2)})"/>`;
     });
     trailG.innerHTML=trailPath;
+  }
+  const trendEl=document.getElementById('gauge-trend-arrow');
+  if(trendEl&&_gaugeTrail.length>=5){
+    const recent=_gaugeTrail.slice(-5);
+    const oldest=recent[0].v;
+    const newest=recent[recent.length-1].v;
+    const diff=newest-oldest;
+    if(Math.abs(diff)>0.3){
+      const isUp=diff>0;
+      trendEl.innerHTML=`<text x="50" y="70" fill="${isUp?'rgba(255,100,100,0.9)':'rgba(0,220,255,0.9)'}" font-size="6" font-weight="800" text-anchor="middle" dominant-baseline="central">${isUp?'▲':'▼'}</text>`;
+    }else{
+      trendEl.innerHTML='';
+    }
   }
 }
 function windSweepAnim(){
@@ -1469,7 +1476,7 @@ async function _fetchAWCOnce(){
     windDir:nearest.wdir!=null&&nearest.wdir!=='VRB'?Number(nearest.wdir):null,
     gustKmh:nearest.wgst!=null?nearest.wgst*1.852:null,
     presPa:nearest.altim!=null?nearest.altim*100:null,
-    visMeter:nearest.visib!=null?(String(nearest.visib).includes('+')?16093:Number(nearest.visib)*1609.34):null,
+    visMeter:nearest.visib!=null?(String(nearest.visib).includes('+')?16093:Number(nearest.visib)>100?Number(nearest.visib):Number(nearest.visib)*1609.34):null,
     wxString:nearest.wxString||'',dist:nearest._dist
   };
 }
@@ -1656,7 +1663,7 @@ function renderWeather(data){
   const windDisp=parseFloat(kmhTo(windSpd,S.windUnit));
   const gustRaw=_simActive?_windCurSim.gust:(c.wind_gusts_10m||windSpd);
   const gustDisp=parseFloat(kmhTo(gustRaw,S.windUnit));
-  const maxArcSpd=Math.max(10,Math.ceil(Math.max(windDisp,gustDisp)*1.3/5)*5);
+  const maxArcSpd=Math.max(5,Math.ceil(Math.max(windDisp,gustDisp)*2/5)*5);
   const segsPerUnit=maxArcSpd<=30?2:1;
   const segCount=maxArcSpd*segsPerUnit;
   const segGap=segCount<=20?4:segCount<=40?2.5:1.5;
@@ -1688,6 +1695,7 @@ function renderWeather(data){
   }
   gaugeSvg+=`</g>`;
   gaugeSvg+=`<g id="gauge-trail-ring"></g>`;
+  gaugeSvg+=`<g id="gauge-trend-arrow"></g>`;
   const spdTicks=[];
   const spdStep=maxArcSpd<=10?2:maxArcSpd<=20?5:maxArcSpd<=50?5:maxArcSpd<=100?10:maxArcSpd<=150?25:50;
   for(let s=0;s<maxArcSpd;s+=spdStep)spdTicks.push(s);
@@ -4937,9 +4945,9 @@ async function loadStationObs(icao){
       lon:sLon,
       temp:p.temperature?.value,
       dewp:p.dewpoint?.value,
-      windKmh:p.windSpeed?.value,
+      windKmh:p.windSpeed?.value!=null?p.windSpeed.value*3.6:null,
       windDir:p.windDirection?.value,
-      gustKmh:p.windGust?.value,
+      gustKmh:p.windGust?.value!=null?p.windGust.value*3.6:null,
       visMeter:p.visibility?.value,
       presPa:p.barometricPressure?.value,
       rawMETAR:p.rawMessage||buildSyntheticMetar(icao,p),
