@@ -1083,6 +1083,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use it for a quick situational glance.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.09',date:'2026-03-21',items:['AI chat: 🗑️ Clear History button to reset conversation','Map controls split left/right — scan tools on left, storm toggles on right','Reduced vertical button stacking on mobile radar view']},
   {ver:'v2.08',date:'2026-03-21',items:['Clutter filter: ≤8 returns below 31 dBZ auto-hidden from map, sonar, and badges as likely false positives','🕳️ toggle button on map to show/hide clutter when detected','AI assistant now distinguishes real precipitation from radar clutter/ground returns','Alert ticker threshold raised to 31+ dBZ — minor returns no longer trigger warnings']},
   {ver:'v1.95',date:'2026-03-21',items:['Fixed iOS scroll bleed — background page no longer moves when swiping inside Settings','Body position locked (fixed) while Settings is open, scroll position restored on close','Touch boundary trapping on scroll area prevents overscroll leak at top/bottom edges']},
   {ver:'v1.92',date:'2026-03-21',items:['Units now managed in Settings — Imperial/Metric/Auto system selector with individual unit dropdowns','Auto mode: units switch automatically when you search a location in a different country','Removed tap-to-cycle from weather and station displays — cleaner, no more accidental unit changes','Fixed wind gust/direction jumping when changing units']},
@@ -2369,7 +2370,7 @@ function initRadar(){
     <div class="map-container">
       <div id="radar-map"></div>
       <div class="radar-time-label" id="radar-time">Loading...</div>
-      <div class="map-controls">
+      <div class="map-controls map-controls-left">
         <div class="map-ctrl-btn" id="radar-scan" title="Re-center & scan">📍</div>
         <div class="map-ctrl-btn" id="radar-scan-view" title="Scan current view">🔍</div>
         <div class="map-ctrl-btn" id="radar-scan-hires" title="Hi-Res 15mi scan" style="font-size:0.5em;font-weight:700;line-height:1;color:var(--accent-cyan)">HiRes</div>
@@ -2377,6 +2378,8 @@ function initRadar(){
         <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km" style="font-size:0.55em;font-weight:700;line-height:1">MI</div>
         <div class="map-ctrl-btn" id="radar-toggle-airports" title="Toggle airports" style="font-size:0.75em">✈️</div>
         <div class="map-ctrl-btn" id="radar-anim-btn" title="Animate radar" style="font-size:0.75em">▶️</div>
+      </div>
+      <div class="map-controls map-controls-right">
         <div class="map-ctrl-btn" id="btn-zones" title="Toggle storm zones" style="font-size:0.55em;font-weight:700;line-height:1;color:#cc00ff" onclick="toggleStormZones()">ZN</div>
         <div class="map-ctrl-btn" id="btn-path-arrows" title="Toggle storm path arrows" style="font-size:0.55em;font-weight:700;line-height:1;color:#ffcc00" onclick="togglePathArrows()">➤</div>
         <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" style="font-size:0.55em;font-weight:700;line-height:1;color:var(--accent-cyan)" onclick="toggleStormPoints()">PT</div>
@@ -5161,6 +5164,12 @@ function syncAISettings(){
   if(tone)tone.value=getAITone();
   const detail=document.getElementById('settings-ai-detail');
   if(detail)detail.value=getAIDetail();
+}
+function clearAIChat(){
+  _aiChatHistory.length=0;
+  const msgs=document.getElementById('ai-chat-messages');
+  if(msgs)msgs.innerHTML='';
+  addAIMsg('system','🤖 AI Weather Assistant ready. Ask me anything about the current weather, storms, or conditions at your location.');
 }
 function toggleAIChat(){
   const o=document.getElementById('ai-chat-overlay');
