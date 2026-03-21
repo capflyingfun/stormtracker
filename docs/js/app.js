@@ -4887,14 +4887,10 @@ async function fetchStation(){
     })).sort((a,b)=>a.dist-b.dist);
     await loadStationObs(S.nearbyStations[0].icao);
   }catch(e){
-    if(e.message==='NWS_INTL'){
-      try{await fetchStationAWC()}catch(e2){
-        console.error('AWC station error:',e2);
-        el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No weather stations found nearby.<br><span style="font-size:0.8em;color:var(--text-muted)">Try a location closer to an airport</span></p></div>`;
-      }
-    }else{
-      console.error('Station fetch error:',e);
-      el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Station data unavailable.<br><span style="font-size:0.8em;color:var(--text-muted)">${e.message||''}</span></p></div>`;
+    console.log('Station primary fetch error:',e.message);
+    try{await fetchStationAWC()}catch(e2){
+      console.error('AWC station error:',e2);
+      el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No weather stations found nearby.<br><span style="font-size:0.8em;color:var(--text-muted)">Try a location closer to an airport</span></p></div>`;
     }
   }
 }
@@ -5144,9 +5140,13 @@ async function loadStationObs(icao){
   }
 }
 async function loadStationObsAWC(icao){
-  const r=await fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&hours=1`);
-  if(!r.ok)throw new Error('AWC obs '+r.status);
-  const data=await r.json();
+  let data=[];
+  for(const hrs of [3,6,12]){
+    try{
+      const r=await fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&hours=${hrs}`,{signal:AbortSignal.timeout(8000)});
+      if(r.ok){data=await r.json();if(data.length)break}
+    }catch(e){console.log('AWC obs fetch error ('+hrs+'h):',e.message)}
+  }
   if(!data.length)throw new Error('No AWC data for '+icao);
   const stInfo=S.nearbyStations?.find(s=>s.icao===icao);
   S.stationId=icao;
