@@ -1961,6 +1961,25 @@ let _windSweepRaf=null;
 let _windSweepPaused=false;
 let _windSweepAfterRender=false;
 const WIND_LERP_DUR=60000;
+let _gustEvents=[];
+let _calmState={active:false,start:0,dur:0,nextCheck:0};
+function _fBm(x,y,octaves,lacunarity,gain){
+  let val=0,amp=1,freq=1,maxAmp=0;
+  for(let i=0;i<octaves;i++){
+    val+=_wn.noise(x*freq,y*freq)*amp;
+    maxAmp+=amp;
+    amp*=gain;
+    freq*=lacunarity;
+  }
+  return val/maxAmp;
+}
+function _gustEnvelope(t,start,dur){
+  const el=(t-start)/dur;
+  if(el<0||el>1)return 0;
+  const rise=0.15;
+  if(el<rise)return el/rise;
+  return Math.exp(-3.5*(el-rise)/(1-rise));
+}
 function startWindSim(){
   const wasRunning=!!_windSimTimer;
   if(_windSimTimer)clearInterval(_windSimTimer);
@@ -1970,6 +1989,8 @@ function startWindSim(){
     _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
     _windTarget=null;
     _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
+    _gustEvents=[];
+    _calmState={active:false,start:0,dur:0,nextCheck:Date.now()+30000};
     _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:S.weather.wind_gusts_10m||0};
   }
   const seed=wasRunning?(_windSimSeed||Math.random()*1000):Math.random()*1000;
@@ -2006,15 +2027,46 @@ function startWindSim(){
         _windTarget=null;
       }
     }
-    const t=Date.now()*0.000055;
-    const tSlow=Date.now()*0.000015;
-    const spdNoise=_wn.noise(t+seed,0);
-    const dirNoise=_wn.noise(tSlow+seed+50,100);
-    const spdFactor=0.5+((spdNoise+1)/2)*1.0;
-    let simSpd=Math.max(0,curSpd*spdFactor);
-    let simDir=((curDir+dirNoise*7)%360+360)%360;
-    _gustSamples.push(simSpd);
     const now=Date.now();
+    const tSec=now/1000;
+    const turbFactor=S._windShear?S._windShear.factor:1.0;
+    const slowNoise=_fBm(tSec*0.005+seed,0,3,2.0,0.5);
+    const slowAmp=0.05*curSpd*turbFactor;
+    const turbNoise=_fBm(tSec*0.15+seed+200,50,4,2.2,0.45);
+    const turbAmp=Math.max(0.5,0.25*curSpd)*turbFactor;
+    const dirSlow=_fBm(tSec*0.008+seed+100,200,3,2.0,0.5);
+    const dirTurb=_fBm(tSec*0.08+seed+300,150,2,2.0,0.5);
+    const dirWobble=(dirSlow*5+dirTurb*3)*turbFactor;
+    const gustRate=curSpd>15?0.015:curSpd>5?0.01:0.005;
+    const dt=0.1;
+    if(Math.random()<gustRate*dt*turbFactor){
+      const amp=curSpd*(0.3+Math.random()*0.7)*turbFactor;
+      const dur=2+Math.random()*10;
+      _gustEvents.push({start:tSec,dur,amp});
+    }
+    let gustSum=0;
+    _gustEvents=_gustEvents.filter(g=>{
+      const env=_gustEnvelope(tSec,g.start,g.dur);
+      if(env<=0.001)return false;
+      gustSum+=g.amp*env;
+      return true;
+    });
+    const calmRate=curSpd<5?0.003:curSpd<15?0.001:0.0003;
+    let calmMult=1;
+    if(_calmState.active){
+      const cElapsed=(now-_calmState.start)/1000;
+      if(cElapsed>=_calmState.dur){_calmState.active=false;_calmState.nextCheck=now+10000}
+      else{
+        const half=_calmState.dur/2;
+        calmMult=cElapsed<half?Math.max(0,1-cElapsed/half):Math.min(1,(cElapsed-half)/half);
+      }
+    }else if(now>_calmState.nextCheck&&Math.random()<calmRate*dt){
+      _calmState={active:true,start:now,dur:5+Math.random()*30,nextCheck:0};
+      calmMult=1;
+    }
+    let simSpd=Math.max(0,(curSpd+slowNoise*slowAmp+turbNoise*turbAmp+gustSum)*calmMult);
+    let simDir=((curDir+dirWobble)%360+360)%360;
+    _gustSamples.push(simSpd);
     if(now-_gustResetT>=30000){
       _gustMax=Math.max(..._gustSamples);
       _gustSamples=[];
@@ -3822,6 +3874,12 @@ function updateThreatTicker(){
   }
   const alertMinDbz=31;
   const sigStormCount=S.storms?S.storms.filter(s=>s.dbz>=alertMinDbz).length:0;
+  let gridZoneCount=0,gridZoneMaxDbz=0;
+  if(S._rawScanPts&&S._rawScanPts.length&&S.lat!=null){
+    const gzCells=polarGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
+    gridZoneCount=gzCells.size;
+    for(const[,c]of gzCells){if(c.maxDbz>gridZoneMaxDbz)gridZoneMaxDbz=c.maxDbz}
+  }
   if(sigStormCount===0){
     const pool=_tickerWeatherPool();
     if(stormCount>0){
@@ -3829,6 +3887,10 @@ function updateThreatTicker(){
       pool.unshift(`✅ ${stormCount} minor radar return${stormCount>1?'s':''} detected (max ${maxClutter} dBZ) — likely ground clutter, not real precipitation. All clear! 🌤️`);
       pool.unshift(`✅ Light radar reflectivity picked up (${stormCount} return${stormCount>1?'s':''}, peak ${maxClutter} dBZ). Nothing significant — enjoy your day! ☀️`);
       pool.unshift(`✅ Minor clutter on radar — ${stormCount} point${stormCount>1?'s':''} below 31 dBZ. No meaningful weather activity. 😎`);
+    }else if(gridZoneCount>0){
+      pool.unshift(`✅ ${gridZoneCount} radar grid zone${gridZoneCount>1?'s':''} showing faint returns (peak ${gridZoneMaxDbz} dBZ) — likely ground clutter or atmospheric noise. No real storms. 🌤️`);
+      pool.unshift(`✅ Minor radar reflectivity in ${gridZoneCount} grid sector${gridZoneCount>1?'s':''} (max ${gridZoneMaxDbz} dBZ). Below storm threshold — probably clutter. 😎`);
+      pool.unshift(`✅ Grid scan picked up ${gridZoneCount} faint zone${gridZoneCount>1?'s':''} (${gridZoneMaxDbz} dBZ peak). Not significant weather activity. ☀️`);
     }
     const msg=pool[Math.floor(Date.now()/60000)%pool.length];
     showTicker(`<span style="color:#4ade80">${msg}</span>`,'#4ade80','rgba(74,222,128,0.2)','linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))',Math.max(15,Math.round(msg.length*0.18)));
@@ -4283,9 +4345,11 @@ async function fetchWindsAloft(overrideLat,overrideLon){
       {p:500,sk:'wind_speed_500hPa',dk:'wind_direction_500hPa',w:1.5}
     ];
     let tx=0,ty=0,tw=0;
+    const aloftSpeeds=[];
     levels.forEach(l=>{
       const spd=c[l.sk],dir=c[l.dk];
       if(spd==null||dir==null)return;
+      aloftSpeeds.push({p:l.p,spd:spd*3.6,dir});
       const spdKt=spd*1.944;
       const movDir=(dir+180)%360;
       const rad=movDir*Math.PI/180;
@@ -4293,6 +4357,14 @@ async function fetchWindsAloft(overrideLat,overrideLon){
       ty+=Math.cos(rad)*spdKt*l.w;
       tw+=l.w;
     });
+    if(aloftSpeeds.length>=2){
+      const sfc=aloftSpeeds.find(a=>a.p>=1000)||aloftSpeeds[0];
+      const upper=aloftSpeeds[aloftSpeeds.length-1];
+      const shearSpd=Math.abs(upper.spd-sfc.spd);
+      let dd=Math.abs(upper.dir-sfc.dir);if(dd>180)dd=360-dd;
+      S._windShear={speedDiff:shearSpd,dirDiff:dd,factor:Math.min(2.0,0.5+shearSpd/60+dd/180)};
+      console.log('Wind shear: Δspd='+shearSpd.toFixed(1)+'km/h Δdir='+dd+'° turbFactor='+S._windShear.factor.toFixed(2));
+    }
     if(tw===0)return;
     const ax=tx/tw,ay=ty/tw;
     const spd=Math.sqrt(ax*ax+ay*ay);
