@@ -5010,97 +5010,157 @@ function buildWeatherContext(){
   const now=new Date();
   parts.push(`Current time: ${now.toLocaleString()}`);
   if(S.locName)parts.push(`Location: ${S.locName} (${S.lat?.toFixed(4)}, ${S.lon?.toFixed(4)})`);
+  parts.push(`Scan radius: ${S.scanRadius} miles`);
 
+  try{
   if(S.weather){
     const w=S.weather;
-    const tempF=w.temperature_2m!=null?cToF(w.temperature_2m):null;
-    const tempC=w.temperature_2m!=null?w.temperature_2m.toFixed(1):null;
-    const feelsF=w.apparent_temperature!=null?cToF(w.apparent_temperature):null;
+    const tempC=w.temperature_2m;
+    const tempF=tempC!=null?cToF(tempC):null;
+    const feelsC=w.apparent_temperature;
+    const feelsF=feelsC!=null?cToF(feelsC):null;
     const humid=w.relative_humidity_2m;
-    const windMph=w.wind_speed_10m!=null?(w.wind_speed_10m*0.621371).toFixed(1):null;
-    const windDir=w.wind_direction_10m!=null?degToDir(w.wind_direction_10m):null;
-    const gustMph=w.wind_gusts_10m!=null?(w.wind_gusts_10m*0.621371).toFixed(1):null;
+    const windKmh=w.wind_speed_10m;
+    const windMph=windKmh!=null?(windKmh*0.621371).toFixed(1):null;
+    const windDeg=w.wind_direction_10m;
+    const windDir=windDeg!=null?degToDir(windDeg)+' ('+Math.round(windDeg)+'°)':null;
+    const gustKmh=w.wind_gusts_10m;
+    const gustMph=gustKmh!=null?(gustKmh*0.621371).toFixed(1):null;
     const precip=w.precipitation;
     const cloud=w.cloud_cover;
-    const vis=w.visibility!=null?(w.visibility/1609.34).toFixed(1):null;
-    const pres=w.surface_pressure||w.pressure_msl;
-    let line='Current conditions:';
-    if(tempF)line+=` Temp ${tempF}°F (${tempC}°C)`;
-    if(feelsF)line+=`, feels like ${feelsF}°F`;
-    if(humid!=null)line+=`, humidity ${humid}%`;
-    if(windMph&&windDir)line+=`, wind ${windDir} ${windMph} mph`;
-    if(gustMph)line+=` gusts ${gustMph} mph`;
-    if(precip!=null)line+=`, precip ${precip} mm`;
-    if(cloud!=null)line+=`, cloud cover ${cloud}%`;
-    if(vis)line+=`, visibility ${vis} mi`;
-    if(pres)line+=`, pressure ${pres.toFixed(1)} mb`;
-    parts.push(line);
+    const pres=w.pressure_msl||w.surface_pressure;
+    const isDay=w.is_day;
+    const wxCode=w.weather_code;
+    const nwsDesc=w._nwsDesc;
+    const src=w._source||'Open-Meteo';
+    parts.push(`\nCURRENT CONDITIONS (source: ${src}):`);
+    if(tempF!=null)parts.push(`  Temperature: ${tempF}°F (${Number(tempC).toFixed(1)}°C)`);
+    if(feelsF!=null)parts.push(`  Feels like: ${feelsF}°F`);
+    if(humid!=null)parts.push(`  Humidity: ${humid}%`);
+    if(windMph!=null)parts.push(`  Wind: ${windDir||'?'} at ${windMph} mph${gustMph?' gusts '+gustMph+' mph':''}`);
+    if(pres!=null)parts.push(`  Pressure: ${pres.toFixed(1)} mb (${(pres*0.02953).toFixed(2)} inHg)`);
+    if(precip!=null)parts.push(`  Precipitation: ${precip} mm`);
+    if(cloud!=null)parts.push(`  Cloud cover: ${cloud}%`);
+    if(S._nwsVisM!=null)parts.push(`  Visibility: ${(S._nwsVisM/1609.34).toFixed(1)} mi`);
+    if(nwsDesc)parts.push(`  Conditions: ${nwsDesc}`);
+    if(isDay!=null)parts.push(`  Day/Night: ${isDay?'Daytime':'Nighttime'}`);
+  }else{
+    parts.push('\nCurrent conditions: Data not yet loaded. Weather may still be fetching.');
+  }
+
+  if(S.station){
+    const st=S.station;
+    parts.push(`\nMETAR STATION DATA (${S.stationId||'unknown'}):`);
+    if(st.rawOb)parts.push(`  Raw METAR: ${st.rawOb}`);
+    if(st.name)parts.push(`  Station: ${st.name}`);
+    if(st.temp!=null)parts.push(`  METAR Temp: ${cToF(st.temp)}°F (${st.temp.toFixed(1)}°C)`);
+    if(st.dewp!=null)parts.push(`  Dew point: ${cToF(st.dewp)}°F (${st.dewp.toFixed(1)}°C)`);
+    if(st.windSpd!=null){
+      const wDir=st.windDir!=null?degToDir(st.windDir):'VRB';
+      parts.push(`  METAR Wind: ${wDir} at ${(st.windSpd*0.621371).toFixed(0)} mph${st.gustSpd?' gusts '+(st.gustSpd*0.621371).toFixed(0)+' mph':''}`);
+    }
+    if(st.visMi!=null)parts.push(`  Visibility: ${st.visMi.toFixed(1)} SM`);
+    else if(st.visM!=null)parts.push(`  Visibility: ${(st.visM/1609.34).toFixed(1)} SM`);
+    if(st.altimInHg!=null)parts.push(`  Altimeter: ${st.altimInHg.toFixed(2)} inHg`);
+    else if(st.presMb!=null)parts.push(`  Pressure: ${st.presMb.toFixed(1)} mb`);
+    if(st.fltCat)parts.push(`  Flight category: ${st.fltCat}`);
+    if(st.wxString)parts.push(`  Weather: ${st.wxString}`);
+    if(st.clouds&&st.clouds.length){
+      const cStr=st.clouds.map(c=>`${c.amount||'?'} at ${c.base?.value!=null?Math.round(c.base.value*3.28084)+'ft':'?'}`).join(', ');
+      parts.push(`  Cloud layers: ${cStr}`);
+    }
   }
 
   if(S.storms&&S.storms.length){
-    parts.push(`\nSTORM DATA: ${S.storms.length} storm cells detected within ${S.scanRadius} mile scan radius.`);
     const validStorms=S.storms.filter(s=>s&&s.dist!=null&&s.bear!=null&&s.dbz!=null);
-    const sorted=[...validStorms].sort((a,b)=>a.dist-b.dist);
-    const top=sorted.slice(0,12);
-    for(const st of top){
-      let line=`  Storm at ${st.dist.toFixed(1)} mi ${degToDir(st.bear)} (${st.bear.toFixed(0)}°), intensity ${st.dbz} dBZ`;
-      const cat=st.dbz>=60?'EXTREME':st.dbz>=55?'SEVERE':st.dbz>=45?'HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
-      line+=` [${cat}]`;
-      try{
-        const key=`${st.lat.toFixed(2)}_${st.lon.toFixed(2)}`;
-        const eta=S._stormETAs[key];
-        if(eta){
-          if(eta.approaching)line+=` APPROACHING - ETA ${eta.etaMin?.toFixed(0)||'?'} min, impact ${eta.impact!=null?((eta.impact*100).toFixed(0)):'?'}%`;
-          else line+=' not approaching';
-        }
-      }catch(e){}
-      parts.push(line);
+    parts.push(`\nSTORM DATA: ${S.storms.length} storm cells detected (${validStorms.length} with tracking data).`);
+    if(validStorms.length){
+      const sorted=[...validStorms].sort((a,b)=>a.dist-b.dist);
+      const top=sorted.slice(0,12);
+      for(const st of top){
+        let line=`  Storm at ${st.dist.toFixed(1)} mi ${degToDir(st.bear)} (${st.bear.toFixed(0)}°), intensity ${st.dbz} dBZ`;
+        const cat=st.dbz>=60?'EXTREME':st.dbz>=55?'SEVERE':st.dbz>=45?'HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
+        line+=` [${cat}]`;
+        try{
+          const key=`${st.lat.toFixed(2)}_${st.lon.toFixed(2)}`;
+          const eta=S._stormETAs[key];
+          if(eta){
+            if(eta.approaching)line+=` APPROACHING - ETA ${eta.etaMin?.toFixed(0)||'?'} min, impact ${eta.impact!=null?((eta.impact*100).toFixed(0)):'?'}%`;
+            else line+=' moving away/lateral';
+          }
+        }catch(e){}
+        parts.push(line);
+      }
+      if(sorted.length>12)parts.push(`  ... and ${sorted.length-12} more storm cells`);
     }
     if(S.stormMovement&&S.stormMovement.speed>=2){
-      parts.push(`\nGeneral storm movement: ${degToDir(S.stormMovement.direction)} at ${S.stormMovement.speed.toFixed(0)} mph`);
+      parts.push(`  General storm movement: ${degToDir(S.stormMovement.direction)} at ${S.stormMovement.speed.toFixed(0)} mph`);
     }
   }else{
-    parts.push('\nNo storm cells currently detected in scan radius.');
+    parts.push('\nSTORM DATA: No storm cells currently detected in scan radius.');
   }
 
   if(S.alerts&&S.alerts.length){
-    parts.push(`\nACTIVE WEATHER ALERTS (${S.alerts.length}):`);
+    parts.push(`\nACTIVE NWS ALERTS (${S.alerts.length}):`);
     for(const a of S.alerts.slice(0,8)){
-      let line=`  ${a.event||a.headline||'Alert'}`;
-      if(a.severity)line+=` [${a.severity}]`;
-      if(a.description)line+=` — ${a.description.substring(0,200)}`;
+      let line=`  ⚠ ${a.event||a.headline||'Alert'}`;
+      if(a.severity)line+=` [Severity: ${a.severity}]`;
+      if(a.urgency)line+=` [Urgency: ${a.urgency}]`;
+      if(a.description){
+        const desc=a.description.replace(/\n/g,' ').substring(0,300);
+        line+=`\n    ${desc}`;
+      }
       parts.push(line);
     }
   }
 
   if(S.forecast&&S.forecast.hourly){
     const h=S.forecast.hourly;
-    parts.push('\nNext 6 hours forecast:');
-    for(let i=0;i<Math.min(6,h.time?.length||0);i++){
-      const t=h.time[i];const tF=h.temperature_2m?cToF(h.temperature_2m[i]):'?';
+    const nowIdx=h.time?h.time.findIndex(t=>new Date(t)>=now):0;
+    const startIdx=Math.max(0,nowIdx);
+    parts.push('\nHOURLY FORECAST (next 8 hours):');
+    for(let i=startIdx;i<Math.min(startIdx+8,h.time?.length||0);i++){
+      const t=h.time[i];
+      const tF=h.temperature_2m?cToF(h.temperature_2m[i]):'?';
       const pop=h.precipitation_probability?h.precipitation_probability[i]:'?';
       const prec=h.precipitation?h.precipitation[i]:0;
-      const hr=new Date(t).toLocaleTimeString([],{hour:'numeric'});
-      parts.push(`  ${hr}: ${tF}°F, ${pop}% chance precip, ${prec}mm expected`);
+      const wSpd=h.wind_speed_10m?(h.wind_speed_10m[i]*0.621371).toFixed(0):'?';
+      const wGust=h.wind_gusts_10m?(h.wind_gusts_10m[i]*0.621371).toFixed(0):null;
+      const hr=new Date(t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+      let line=`  ${hr}: ${tF}°F, ${pop}% precip chance`;
+      if(prec>0)line+=` (${prec}mm)`;
+      line+=`, wind ${wSpd} mph`;
+      if(wGust&&Number(wGust)>Number(wSpd)+5)line+=` gusts ${wGust}`;
+      parts.push(line);
     }
   }
 
   if(S.forecast&&S.forecast.daily){
     const d=S.forecast.daily;
-    parts.push('\n7-day outlook:');
+    parts.push('\n7-DAY FORECAST:');
     for(let i=0;i<Math.min(7,d.time?.length||0);i++){
-      const day=new Date(d.time[i]).toLocaleDateString([],{weekday:'short'});
+      const day=new Date(d.time[i]+'T12:00').toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});
       const hi=d.temperature_2m_max?cToF(d.temperature_2m_max[i]):'?';
       const lo=d.temperature_2m_min?cToF(d.temperature_2m_min[i]):'?';
       const pop=d.precipitation_probability_max?d.precipitation_probability_max[i]:'?';
-      parts.push(`  ${day}: Hi ${hi}°F / Lo ${lo}°F, ${pop}% precip chance`);
+      const precSum=d.precipitation_sum?d.precipitation_sum[i]:0;
+      const wMax=d.wind_speed_10m_max?(d.wind_speed_10m_max[i]*0.621371).toFixed(0):'?';
+      let line=`  ${day}: Hi ${hi}°F / Lo ${lo}°F, ${pop}% precip`;
+      if(precSum>0)line+=` (${precSum}mm)`;
+      line+=`, max wind ${wMax} mph`;
+      parts.push(line);
     }
   }
 
-  if(S.station){
-    const st=S.station;
-    parts.push(`\nNearest METAR station: ${S.stationId||'unknown'}`);
-    if(st.rawOb)parts.push(`Raw METAR: ${st.rawOb}`);
+  if(S.forecast&&S.forecast._nwsForecast&&S.forecast._nwsForecast.length){
+    parts.push('\nNWS FORECAST PERIODS:');
+    for(const p of S.forecast._nwsForecast.slice(0,6)){
+      parts.push(`  ${p.name}: ${p.detailedForecast||p.shortForecast||''}`);
+    }
+  }
+
+  }catch(e){
+    parts.push('\n[Error building weather context: '+e.message+']');
   }
 
   return parts.join('\n');
