@@ -131,9 +131,10 @@ function windSweepAnim(){
   _windSweepRaf=requestAnimationFrame(tick);
 }
 function loadUnits(){
+  const mode=localStorage.getItem('st_unitMode');
   try{
     const u=JSON.parse(localStorage.getItem('st_units'));
-    if(u!=null){S.tempUnit=u.t||0;S.windUnit=u.w||0;S.presUnit=u.p||0;S.visUnit=u.v||0;S.precipUnit=u.pr||0;return}
+    if(u!=null&&mode&&mode!=='auto'){S.tempUnit=u.t||0;S.windUnit=u.w||0;S.presUnit=u.p||0;S.visUnit=u.v||0;S.precipUnit=u.pr||0;return}
   }catch(e){}
   autoDetectUnits();
 }
@@ -169,33 +170,51 @@ function applyUnitsForCountry(cc){
   S._lastDetectedCC=cc;
 }
 function checkLocationUnits(countryCode){
-  console.log('[Units] checkLocationUnits called with:',countryCode);
   if(!countryCode)return;
   const cc=countryCode.toUpperCase();
+  const mode=localStorage.getItem('st_unitMode')||'auto';
+  if(mode!=='auto')return;
   const locIsImperial=IMPERIAL_CC.includes(cc);
   const curIsImperial=S.tempUnit===0;
-  console.log('[Units] loc='+cc+' locImperial='+locIsImperial+' curImperial='+curIsImperial);
   if(locIsImperial===curIsImperial)return;
-  const sys=locIsImperial?'Imperial (°F, mph, inHg)':'Metric (°C, km/h, mb)';
-  const bar=document.createElement('div');
-  bar.className='unit-switch-bar';
-  bar.innerHTML=`<span>📐 Switch to ${sys} for this region?</span><button onclick="acceptUnitSwitch('${cc}')">Yes</button><button onclick="this.parentElement.remove()">No</button>`;
-  bar.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(10,16,32,0.95);border:1px solid rgba(0,229,255,0.3);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px;font-size:0.85em;color:#e0e8f0;backdrop-filter:blur(10px);box-shadow:0 4px 20px rgba(0,0,0,0.5);max-width:90vw';
-  bar.querySelectorAll('button').forEach(b=>b.style.cssText='padding:6px 14px;border-radius:6px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.1);color:#00e5ff;font-size:0.85em;font-weight:600;cursor:pointer;white-space:nowrap');
-  document.querySelectorAll('.unit-switch-bar').forEach(b=>b.remove());
-  document.body.appendChild(bar);
-  setTimeout(()=>{if(bar.parentElement)bar.remove()},15000);
-}
-function acceptUnitSwitch(cc){
-  document.querySelectorAll('.unit-switch-bar').forEach(b=>b.remove());
   applyUnitsForCountry(cc);
   saveUnits();
   const miBtn=document.getElementById('radar-toggle-units');
   if(miBtn)miBtn.textContent=S.radarMetric?'KM':'MI';
-  if(S.forecast)renderWeather(S.forecast);
-  if(S.station)renderStation();
-  if(S.activePage==='storms')renderStorms();
-  toast('✅ Units switched to '+(IMPERIAL_CC.includes(cc)?'Imperial':'Metric'));
+  reRenderActive();
+  toast('📐 Switched to '+(locIsImperial?'Imperial (°F, mph)':'Metric (°C, km/h)')+' for this region');
+}
+function setUnitSystem(val){
+  localStorage.setItem('st_unitMode',val);
+  const det=document.getElementById('settings-unit-details');
+  if(det)det.style.display=(val==='auto')?'none':'';
+  if(val==='imperial'){applyUnitsForCountry('US');saveUnits();reRenderActive()}
+  else if(val==='metric'){applyUnitsForCountry('BR');saveUnits();reRenderActive()}
+  syncUnitSelects();
+  const miBtn=document.getElementById('radar-toggle-units');
+  if(miBtn)miBtn.textContent=S.radarMetric?'KM':'MI';
+}
+function setIndividualUnit(key,val){
+  S[key]=parseInt(val,10);
+  saveUnits();
+  localStorage.setItem('st_unitMode','custom');
+  const sys=document.getElementById('settings-unit-system');
+  if(sys)sys.value='imperial';
+  reRenderActive();
+  const miBtn=document.getElementById('radar-toggle-units');
+  if(miBtn)miBtn.textContent=S.radarMetric?'KM':'MI';
+}
+function syncUnitSelects(){
+  const m=document.getElementById('settings-unit-system');
+  const mode=localStorage.getItem('st_unitMode')||'auto';
+  if(m)m.value=mode==='custom'?(S.tempUnit===0?'imperial':'metric'):mode;
+  const det=document.getElementById('settings-unit-details');
+  if(det)det.style.display=(mode==='auto')?'none':'';
+  const t=document.getElementById('settings-temp-unit');if(t)t.value=String(S.tempUnit);
+  const w=document.getElementById('settings-wind-unit');if(w)w.value=String(S.windUnit);
+  const p=document.getElementById('settings-pres-unit');if(p)p.value=String(S.presUnit);
+  const v=document.getElementById('settings-vis-unit');if(v)v.value=String(S.visUnit);
+  const pr=document.getElementById('settings-precip-unit');if(pr)pr.value=String(S.precipUnit);
 }
 
 function reRenderActive(){
@@ -1067,6 +1086,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use it for a quick situational glance.'}
 ];
 const CHANGELOG=[
+  {ver:'v1.92',date:'2026-03-21',items:['Units now managed in Settings — Imperial/Metric/Auto system selector with individual unit dropdowns','Auto mode: units switch automatically when you search a location in a different country','Settings X button moved to outer border so it never scrolls out of view','Removed tap-to-cycle from weather and station displays — cleaner, no more accidental unit changes','Fixed wind gust/direction jumping when changing units']},
   {ver:'v1.90',date:'2026-03-21',items:['Auto-localization — units automatically set based on your region (Celsius, km/h, mb for metric countries; Fahrenheit, mph, inHg for US/Liberia/Myanmar)','First-time users see the right units instantly — no manual toggling needed','Detects country via timezone and browser language','Manual unit changes still saved and respected']},
   {ver:'v1.89',date:'2026-03-21',items:['PWA support — install StormTracker as a standalone app on iOS and Android','Service worker for offline caching of core app files','App manifest with icons for home screen installation','Apple-specific meta tags for full-screen iOS experience']},
   {ver:'v1.88b',date:'2026-03-21',items:['Triple-fallback geocoding: Nominatim → Photon → Open-Meteo for reliable worldwide search','International location names fixed — Dubai, suburbs, districts, provinces now display properly','AI responses render markdown: bold, headers, bullet lists styled correctly','AI context now pulls from Open-Meteo + METAR + NWS for richer analysis']},
@@ -1144,6 +1164,7 @@ function toggleSettingsPanel(){
 }
 function syncSettingsPanel(){
   syncAISettings();
+  syncUnitSelects();
   const sel=document.getElementById('settings-travel-int');
   if(sel)sel.value=String(S.gpsInterval||300);
   const arSel=document.getElementById('settings-auto-refresh');
@@ -1620,15 +1641,15 @@ function renderWeather(data){
 
   el.innerHTML=`
     <div class="weather-hero">
-      <div class="hero-compass-layout" onclick="cycleUnit('windUnit')">
+      <div class="hero-compass-layout">
         <div class="hero-side">
-          <div class="hero-side-item" onclick="event.stopPropagation();cycleUnit('tempUnit')" style="cursor:pointer">
+          <div class="hero-side-item">
             <div style="font-size:1.6em;margin-bottom:2px">${animEmoji(c.weather_code,isDay,'1em')}</div>
             <div style="font-size:1.8em;font-weight:800;color:var(--text-primary);line-height:1">${fmtTempShort(tempC)}</div>
             <div style="font-size:0.65em;color:var(--text-secondary);margin-top:2px">${c._nwsDesc||desc}</div>
             ${c._source?`<div style="font-size:0.5em;color:var(--accent-cyan);margin-top:1px;opacity:0.7">${c._source}${c._sourceCount>1?' (×'+c._sourceCount+' avg)':''}</div>`:''}
           </div>
-          <div class="hero-side-item" onclick="event.stopPropagation();cycleUnit('tempUnit')" style="cursor:pointer">
+          <div class="hero-side-item">
             <div class="hero-side-label">Feels Like</div>
             <div class="hero-side-val">${fmtTemp(feelsC)}</div>
           </div>
@@ -1653,19 +1674,19 @@ function renderWeather(data){
           </div>
         </div>
         <div class="hero-side">
-          <div class="hero-side-item" onclick="event.stopPropagation();cycleUnit('presUnit')" style="cursor:pointer">
+          <div class="hero-side-item">
             <div class="hero-side-label">Pressure</div>
             <div class="hero-side-val">${fmtPres(c.pressure_msl)}</div>
           </div>
-          <div class="hero-side-item" onclick="event.stopPropagation();cycleUnit('precipUnit')" style="cursor:pointer">
+          <div class="hero-side-item">
             <div class="hero-side-label">Precip</div>
             <div class="hero-side-val">${fmtPrecip(c.precipitation||0)}</div>
           </div>
-          <div class="hero-side-item" onclick="event.stopPropagation();cycleUnit('tempUnit')" style="cursor:pointer">
+          <div class="hero-side-item">
             <div class="hero-side-label">🌡️ Dew Pt</div>
             <div class="hero-side-val">${fmtTemp(dewC)}</div>
           </div>
-          <div class="hero-side-item" onclick="event.stopPropagation();cycleUnit('tempUnit')" style="cursor:pointer">
+          <div class="hero-side-item">
             <div class="hero-side-label">Spread</div>
             <div class="hero-side-val">${fmtTemp(tempC-dewC)}</div>
           </div>
@@ -4697,21 +4718,20 @@ function renderStation(){
           <span class="compass-label compass-e">E</span><span class="compass-label compass-w">W</span>
           <div class="wind-arrow" style="transform:rotate(${wDir||0}deg)"></div>
         </div>
-        <div style="cursor:pointer;text-align:left" onclick="cycleUnit('windUnit')">
+        <div style="text-align:left">
           <div style="font-size:1.4em;font-weight:700">${windKmh!=null?fmtWind(windKmh):'Calm'}</div>
           <div style="font-size:0.8em;color:var(--text-muted)">${wDir!=null?degToDir(wDir)+' wind':'Calm'}</div>
           ${gustKmh?`<div style="font-size:0.8em;color:var(--accent-orange);font-weight:600">Gusts ${fmtWind(gustKmh)}</div>`:''}
-          <div class="tile-tap" style="margin-top:2px">tap to change units</div>
         </div>
       </div>
 
       <div class="station-grid" style="grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px">
-        <div class="station-tile" onclick="cycleUnit('tempUnit')" style="padding:10px">
+        <div class="station-tile" style="padding:10px">
           <div style="font-size:0.6em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Temperature</div>
           <div class="station-val" style="font-size:1.3em">${tempC!=null?fmtTemp(tempC):'--'}</div>
           ${feelsLike!=null&&Math.abs(feelsLike-tempC)>1?`<div style="font-size:0.65em;color:var(--text-muted)">Feels ${fmtTemp(feelsLike)}</div>`:''}
         </div>
-        <div class="station-tile" onclick="cycleUnit('tempUnit')" style="padding:10px">
+        <div class="station-tile" style="padding:10px">
           <div style="font-size:0.6em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Dew Point</div>
           <div class="station-val" style="font-size:1.3em">${dpC!=null?fmtTemp(dpC):'--'}</div>
           <div style="font-size:0.65em;color:var(--text-muted)">${rh!=null?rh+'% RH':''}</div>
@@ -4719,15 +4739,13 @@ function renderStation(){
       </div>
 
       <div class="station-grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
-        <div class="station-tile" onclick="cycleUnit('presUnit')" style="padding:8px 6px">
+        <div class="station-tile" style="padding:8px 6px">
           <div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Pressure</div>
           <div class="station-val" style="font-size:1em">${presMb!=null?fmtPres(presMb):'--'}</div>
-          <div class="tile-tap">tap</div>
         </div>
-        <div class="station-tile" onclick="cycleUnit('visUnit')" style="padding:8px 6px">
+        <div class="station-tile" style="padding:8px 6px">
           <div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Visibility</div>
           <div class="station-val" style="font-size:1em">${visSM!=null?fmtVis(visSM):'--'}</div>
-          <div class="tile-tap">tap</div>
         </div>
         <div class="station-tile" style="padding:8px 6px">
           <div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Sky</div>

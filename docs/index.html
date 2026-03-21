@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v1.91</title>
+<title>StormTracker v1.92</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <meta name="theme-color" content="#0a1020">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -28,7 +28,7 @@
     <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
   <div class="header-center">
-    <h1>⚡ StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v1.91</span></h1>
+    <h1>⚡ StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v1.92</span></h1>
     <div class="header-status">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Initializing...</span>
@@ -60,10 +60,54 @@
   </div>
 </div>
 <div id="settings-panel" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(5,8,15,0.85);backdrop-filter:blur(6px)" onclick="if(event.target===this)toggleSettingsPanel()">
-  <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:16px;max-width:320px;width:90%;margin:80px auto;max-height:70vh;overflow-y:auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+  <div style="position:relative;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:16px;max-width:320px;width:90%;margin:80px auto;max-height:70vh;overflow-y:auto">
+    <button onclick="toggleSettingsPanel()" style="position:absolute;top:-12px;right:-12px;width:28px;height:28px;border-radius:50%;background:var(--bg-card);border:1px solid var(--border-subtle);color:var(--text-muted);font-size:1em;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,0.4)">✕</button>
+    <div style="margin-bottom:12px">
       <span style="font-size:1em;font-weight:700;color:var(--text-primary)">⚙️ Settings</span>
-      <button onclick="toggleSettingsPanel()" style="background:none;border:none;color:var(--text-muted);font-size:1.2em;cursor:pointer">✕</button>
+    </div>
+    <div style="border-top:1px solid var(--border-subtle);padding-top:10px">
+      <div style="font-size:0.8em;font-weight:600;color:var(--accent-cyan);margin-bottom:8px">📐 Units</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:0.75em;color:var(--text-muted)">System</span>
+        <select id="settings-unit-system" onchange="setUnitSystem(this.value)" style="font-size:0.75em;padding:2px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
+          <option value="imperial">Imperial (°F, mph)</option>
+          <option value="metric">Metric (°C, km/h)</option>
+          <option value="auto">Auto (by location)</option>
+        </select>
+      </div>
+      <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:8px">Auto mode switches units when you change location</div>
+      <div id="settings-unit-details" style="margin-bottom:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:0.7em;color:var(--text-muted)">Temperature</span>
+          <select id="settings-temp-unit" onchange="setIndividualUnit('tempUnit',this.value)" style="font-size:0.7em;padding:2px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
+            <option value="0">°F</option><option value="1">°C</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:0.7em;color:var(--text-muted)">Wind Speed</span>
+          <select id="settings-wind-unit" onchange="setIndividualUnit('windUnit',this.value)" style="font-size:0.7em;padding:2px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
+            <option value="0">mph</option><option value="1">kts</option><option value="2">km/h</option><option value="3">m/s</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:0.7em;color:var(--text-muted)">Pressure</span>
+          <select id="settings-pres-unit" onchange="setIndividualUnit('presUnit',this.value)" style="font-size:0.7em;padding:2px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
+            <option value="0">inHg</option><option value="1">mb</option><option value="2">mmHg</option><option value="3">kPa</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:0.7em;color:var(--text-muted)">Visibility</span>
+          <select id="settings-vis-unit" onchange="setIndividualUnit('visUnit',this.value)" style="font-size:0.7em;padding:2px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
+            <option value="0">mi</option><option value="1">km</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:0.7em;color:var(--text-muted)">Precipitation</span>
+          <select id="settings-precip-unit" onchange="setIndividualUnit('precipUnit',this.value)" style="font-size:0.7em;padding:2px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
+            <option value="0">in</option><option value="1">mm</option><option value="2">cm</option>
+          </select>
+        </div>
+      </div>
     </div>
     <div style="border-top:1px solid var(--border-subtle);padding-top:10px">
       <div style="font-size:0.8em;font-weight:600;color:var(--accent-green);margin-bottom:8px">🔄 Auto Refresh</div>
@@ -251,7 +295,7 @@
   <button class="nav-item" data-page="alerts" style="position:relative" id="nav-alerts"><span class="nav-icon">⚠️</span><span class="nav-label">Alerts</span><span class="nav-badge" id="nav-alert-badge">0</span></button>
 </nav>
 
-<script src="js/app.js?v=191"></script>
+<script src="js/app.js?v=192"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(r=>console.log('SW registered')).catch(e=>console.log('SW failed:',e))}</script>
 </body>
 </html>
