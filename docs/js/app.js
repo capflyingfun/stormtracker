@@ -515,9 +515,10 @@ function fmtLocName(addr,fallback){
   const parts=[];
   if(addr.house_number&&addr.road)parts.push(addr.house_number+' '+addr.road);
   else if(addr.road)parts.push(addr.road);
-  const place=addr.city||addr.town||addr.village||addr.hamlet||addr.municipality||addr.county||'';
+  const place=addr.city||addr.town||addr.village||addr.hamlet||addr.municipality||addr.suburb||addr.borough||addr.district||addr.administrative||addr.county||addr.region||'';
   if(place)parts.push(place);
-  if(addr.state||addr.state_district)parts.push(addr.state||addr.state_district);
+  const state=addr.state||addr.state_district||addr.province||'';
+  if(state&&state!==place)parts.push(state);
   if(addr.country&&addr.country_code!=='us')parts.push(addr.country);
   return parts.length?parts.join(', '):(fallback||'Unknown');
 }
