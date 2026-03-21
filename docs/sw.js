@@ -1,7 +1,8 @@
-const CACHE_NAME = 'stormtracker-v188b';
+const CACHE_NAME = 'stormtracker-v189';
 const STATIC_ASSETS = [
   '/StormTracker/',
   '/StormTracker/index.html',
+  '/StormTracker/offline.html',
   '/StormTracker/css/style.css',
   '/StormTracker/js/app.js',
   '/StormTracker/manifest.json',
@@ -26,6 +27,20 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then(r => r || caches.match('/StormTracker/offline.html')))
+    );
+    return;
+  }
   const url = new URL(event.request.url);
   if (url.origin !== location.origin) {
     event.respondWith(
