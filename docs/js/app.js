@@ -83,13 +83,12 @@ function cycleUnit(key){
 function updateGaugeSegments(windVal,gustVal){
   const g=document.getElementById('gauge-seg-group');
   if(!g)return;
-  const maxSegs=S._gaugeMaxSegs||10;
+  const spu=S._gaugeSegsPerUnit||1;
   const segs=g.querySelectorAll('.gauge-seg');
-  const windFill=Math.min(windVal,maxSegs);
-  const gustFill=Math.min(gustVal,maxSegs);
   segs.forEach((s,i)=>{
-    if(i<windFill)s.setAttribute('fill','rgba(0,220,255,0.85)');
-    else if(i<gustFill)s.setAttribute('fill','rgba(255,160,0,0.6)');
+    const segVal=i/spu;
+    if(segVal<windVal)s.setAttribute('fill','rgba(0,220,255,0.85)');
+    else if(segVal<gustVal)s.setAttribute('fill','rgba(255,160,0,0.6)');
     else s.setAttribute('fill','rgba(0,220,255,0.08)');
   });
 }
@@ -1575,39 +1574,40 @@ function renderWeather(data){
   const gustDisp=parseFloat(kmhTo(gustRaw,S.windUnit));
   const maxArcSpd=Math.max(10,Math.ceil(Math.max(windDisp,gustDisp)*1.3/5)*5);
   const segGap=4;
-  const segCount=maxArcSpd;
+  const segsPerUnit=maxArcSpd<=30?2:1;
+  const segCount=maxArcSpd*segsPerUnit;
   const segR=r+4;
   const segRi=r+0.5;
-  S._gaugeMaxSegs=segCount;S._gaugeArcR=segR;S._gaugeMaxSpd=maxArcSpd;
+  S._gaugeMaxSegs=segCount;S._gaugeSegsPerUnit=segsPerUnit;S._gaugeArcR=segR;S._gaugeMaxSpd=maxArcSpd;
   const segAngle=360/segCount;
   const segArc=segAngle-segGap;
   gaugeSvg+=`<g id="gauge-seg-group" transform="translate(${cx},${cy})">`;
   for(let i=0;i<segCount;i++){
     const rotDeg=-90+i*segAngle;
-    const radStart=0;
     const radEnd=(segArc)*Math.PI/180;
     const or2=segR;
     const ir2=segRi;
-    const cosS=Math.cos(radStart),sinS=Math.sin(radStart);
+    const cosS=1,sinS=0;
     const cosE=Math.cos(radEnd),sinE=Math.sin(radEnd);
-    const x1=or2*cosS,y1=or2*sinS;
+    const x1=or2,y1=0;
     const x2=or2*cosE,y2=or2*sinE;
     const x3=ir2*cosE,y3=ir2*sinE;
-    const x4=ir2*cosS,y4=ir2*sinS;
+    const x4=ir2,y4=0;
     const lg=segArc>180?1:0;
     const d=`M${x1.toFixed(2)},${y1.toFixed(2)} A${or2},${or2} 0 ${lg} 1 ${x2.toFixed(2)},${y2.toFixed(2)} L${x3.toFixed(2)},${y3.toFixed(2)} A${ir2},${ir2} 0 ${lg} 0 ${x4.toFixed(2)},${y4.toFixed(2)} Z`;
+    const segVal=i/segsPerUnit;
     let fill;
-    if(i<windDisp)fill=`${neonCyan}0.85)`;
-    else if(i<gustDisp)fill=`${neonOrange}0.6)`;
+    if(segVal<windDisp)fill=`${neonCyan}0.85)`;
+    else if(segVal<gustDisp)fill=`${neonOrange}0.6)`;
     else fill=`${neonCyan}0.08)`;
     gaugeSvg+=`<path class="gauge-seg" d="${d}" fill="${fill}" style="transform:rotate(${rotDeg}deg)"/>`;
   }
   gaugeSvg+=`</g>`;
   const spdTicks=[];
   const spdStep=maxArcSpd<=15?5:maxArcSpd<=30?5:maxArcSpd<=50?10:maxArcSpd<=100?20:maxArcSpd<=160?25:50;
-  for(let s=0;s<=maxArcSpd;s+=spdStep)spdTicks.push(s);
+  for(let s=0;s<maxArcSpd;s+=spdStep)spdTicks.push(s);
   spdTicks.forEach(spd=>{
-    const frac=spd/segCount;
+    const frac=spd/maxArcSpd;
     const deg=(-90+frac*360)*Math.PI/180;
     const lx=cx+Math.cos(deg)*(segR+4.5),ly=cy+Math.sin(deg)*(segR+4.5);
     gaugeSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.5)" font-size="3.2" font-weight="700" text-anchor="middle" dominant-baseline="central">${spd}</text>`;
