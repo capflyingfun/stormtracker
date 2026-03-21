@@ -3277,15 +3277,16 @@ function buildStormZones(map,rawPts){
       }
       groups.push(g);
     }
-    const globalApproachColor=dbzColor(approachMaxDbz).color;
+    const globalApproachColor=approachMaxDbz>0?dbzColor(approachMaxDbz).color:null;
     for(const g of groups){
-      let sumD=0,sumB=0,sumSinB=0,sumCosB=0,bestDir=g[0].dir;
+      let sumD=0,sumSinB=0,sumCosB=0,bestDir=g[0].dir,gMax=0;
       for(const c of g){
         sumD+=c.midDist;
         sumSinB+=Math.sin(c.midBear*Math.PI/180);
         sumCosB+=Math.cos(c.midBear*Math.PI/180);
+        if(c.maxDbz>gMax)gMax=c.maxDbz;
       }
-      const bestColor=globalApproachColor;
+      const bestColor=globalApproachColor||dbzColor(gMax).color;
       const avgDist=sumD/g.length;
       const avgBear=(Math.atan2(sumSinB/g.length,sumCosB/g.length)*180/Math.PI+360)%360;
       const aPt=destPt(S.lat,S.lon,avgDist,avgBear);
@@ -3358,7 +3359,7 @@ function buildStormZones(map,rawPts){
       if(spread>2){
         const lPt=destPt(S.lat,S.lon,d,avgBearDeg-spread);
         const rPt=destPt(S.lat,S.lon,d,avgBearDeg+spread);
-        const barSz=Math.max(1.5,sz-0.5);
+        const barSz=Math.min(3,Math.max(1.5,sz-0.5));
         const lDot=L.marker(lPt,{
           icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+1}px ${edgeColor};opacity:0.12"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
           pane:trailPane,interactive:false
