@@ -1943,8 +1943,9 @@ const _wn={p:[151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,
 };
 let _windSimTimer=null;
 let _windRefreshTimer=null;
-let _gustBase=0;
-let _gustTarget=null;
+let _gustSamples=[];
+let _gustMax=0;
+let _gustResetT=0;
 let _windBase={spd:0,dir:0};
 let _windTarget=null;
 let _windLerpStart=0;
@@ -1962,9 +1963,8 @@ function startWindSim(){
   if(!wasRunning||!_windCurSim.spd){
     _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
     _windTarget=null;
-    _gustBase=S.weather.wind_gusts_10m||0;
-    _gustTarget=null;
-    _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:_gustBase};
+    _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
+    _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:S.weather.wind_gusts_10m||0};
   }
   const seed=wasRunning?(_windSimSeed||Math.random()*1000):Math.random()*1000;
   _windSimSeed=seed;
@@ -1974,13 +1974,11 @@ function startWindSim(){
       if(awc&&awc.windKmh!=null){
         const newSpd=awc.windKmh;
         const newDir=awc.windDir!=null?awc.windDir:_windBase.dir;
-        const newGust=awc.gustKmh||awc.windKmh*1.3;
-        console.log('Wind refresh from AWC·'+awc.icao+': spd='+newSpd.toFixed(1)+'kmh dir='+newDir+'° gust='+newGust.toFixed(1));
+        console.log('Wind refresh from AWC·'+awc.icao+': spd='+newSpd.toFixed(1)+'kmh dir='+newDir+'°');
         setTimeout(()=>{
           _windTarget={spd:newSpd,dir:newDir};
-          _gustTarget=newGust;
           _windLerpStart=Date.now();
-          console.log('Wind lerp started → spd:'+newSpd.toFixed(1)+' dir:'+newDir+' gust:'+newGust.toFixed(1));
+          console.log('Wind lerp started → spd:'+newSpd.toFixed(1)+' dir:'+newDir);
         },60000);
       }
     }catch(e){console.log('Wind refresh error:',e.message)}
@@ -2009,17 +2007,15 @@ function startWindSim(){
     const spdFactor=0.5+((spdNoise+1)/2)*1.0;
     let simSpd=Math.max(0,curSpd*spdFactor);
     let simDir=((curDir+dirNoise*7)%360+360)%360;
-    let curGust=_gustBase;
-    if(_gustTarget!=null){
-      const elapsed=Date.now()-_windLerpStart;
-      const p=Math.min(1,elapsed/WIND_LERP_DUR);
-      curGust=_gustBase+((_gustTarget-_gustBase)*(p*p*(3-2*p)));
-      if(p>=1){_gustBase=_gustTarget;_gustTarget=null;}
+    _gustSamples.push(simSpd);
+    const now=Date.now();
+    if(now-_gustResetT>=30000){
+      _gustMax=Math.max(..._gustSamples);
+      _gustSamples=[];
+      _gustResetT=now;
     }
-    const gustNoise=_wn.noise(t*1.3+seed+200,300);
-    const gustSpike=Math.max(0,gustNoise)*0.35;
-    let simGust=Math.max(simSpd,curGust*(0.85+gustSpike));
-    _windCurSim={spd:simSpd,dir:simDir,gust:simGust};
+    const displayGust=_gustSamples.length>0?Math.max(_gustMax,Math.max(..._gustSamples)):_gustMax;
+    _windCurSim={spd:simSpd,dir:simDir,gust:displayGust};
     const dirEl=document.querySelector('.wrc-dir');
     if(dirEl)dirEl.textContent=degToDir(simDir)+' '+simDir.toFixed(1)+'°';
     const cx=50,cy=50;
