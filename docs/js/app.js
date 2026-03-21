@@ -3333,15 +3333,10 @@ function buildStormZones(map,rawPts){
     const halfAngle=Math.max(8,Math.min(bearSpread+5,30));
     const coneDist=approachMaxDist*0.95;
     const userPt=[S.lat,S.lon];
-    const coneFillLeft=destPt(S.lat,S.lon,coneDist,avgBearDeg-halfAngle);
-    const coneFillRight=destPt(S.lat,S.lon,coneDist,avgBearDeg+halfAngle);
-    const coneFill=L.polygon([coneFillLeft,userPt,coneFillRight],{
-      color:'transparent',fillColor:edgeColor,fillOpacity:0.05,
-      weight:0,pane:trailPane,interactive:false
-    }).addTo(map);
-    S._stormZoneLayers.push(coneFill);
     const ilsCount=12;
-    const ilsDots=[];
+    const ilsCenterDots=[];
+    const ilsLeftDots=[];
+    const ilsRightDots=[];
     for(let i=0;i<ilsCount;i++){
       const f=(i+1)/(ilsCount+1);
       const d=coneDist*(1-f);
@@ -3352,47 +3347,48 @@ function buildStormZones(map,rawPts){
         icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${arrowColor};box-shadow:0 0 ${sz+4}px ${arrowColor};opacity:0.15"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
         pane:trailPane,interactive:false
       }).addTo(map);
-      ilsDots.push(dot);
+      ilsCenterDots.push(dot);
       S._stormZoneLayers.push(dot);
       if(spread>2){
         const lPt=destPt(S.lat,S.lon,d,avgBearDeg-spread);
         const rPt=destPt(S.lat,S.lon,d,avgBearDeg+spread);
         const barSz=Math.max(3,sz-1);
         const lDot=L.marker(lPt,{
-          icon:L.divIcon({className:'',html:`<div class="ils-bar" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+2}px ${edgeColor};opacity:0.12"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+          icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+2}px ${edgeColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
           pane:trailPane,interactive:false
         }).addTo(map);
         const rDot=L.marker(rPt,{
-          icon:L.divIcon({className:'',html:`<div class="ils-bar" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+2}px ${edgeColor};opacity:0.12"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+          icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+2}px ${edgeColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
           pane:trailPane,interactive:false
         }).addTo(map);
+        ilsLeftDots.push(lDot);
+        ilsRightDots.push(rDot);
         S._stormZoneLayers.push(lDot);
         S._stormZoneLayers.push(rDot);
       }
-      if(i>0&&spread>4){
-        const crossbar=L.polyline(
-          [destPt(S.lat,S.lon,d,avgBearDeg-spread),destPt(S.lat,S.lon,d,avgBearDeg+spread)],
-          {color:edgeColor,weight:1,opacity:0.12,pane:trailPane,interactive:false}
-        ).addTo(map);
-        S._stormZoneLayers.push(crossbar);
-      }
     }
     let ilsFrame=0;
-    S._approachArrowInterval=setInterval(()=>{
-      for(let i=0;i<ilsDots.length;i++){
-        const el=ilsDots[i].getElement();
+    const animDots=(dots,frame)=>{
+      const len=dots.length;
+      for(let i=0;i<len;i++){
+        const el=dots[i].getElement();
         if(!el)continue;
-        const d=el.firstChild;
-        if(!d)continue;
-        const pos=(ilsFrame-i+ilsCount)%ilsCount;
+        const ch=el.firstChild;
+        if(!ch)continue;
+        const pos=(frame-i+len)%len;
         if(pos<3){
-          d.style.opacity=String(pos===0?1:pos===1?0.6:0.3);
-          d.style.transform=pos===0?'scale(1.3)':'scale(1)';
+          ch.style.opacity=String(pos===0?1:pos===1?0.6:0.3);
+          ch.style.transform=pos===0?'scale(1.3)':'scale(1)';
         }else{
-          d.style.opacity='0.15';
-          d.style.transform='scale(1)';
+          ch.style.opacity='0.15';
+          ch.style.transform='scale(1)';
         }
       }
+    };
+    S._approachArrowInterval=setInterval(()=>{
+      animDots(ilsCenterDots,ilsFrame);
+      animDots(ilsLeftDots,ilsFrame);
+      animDots(ilsRightDots,ilsFrame);
       ilsFrame=(ilsFrame+1)%ilsCount;
     },150);
   }
