@@ -3277,15 +3277,15 @@ function buildStormZones(map,rawPts){
       }
       groups.push(g);
     }
+    const globalApproachColor=dbzColor(approachMaxDbz).color;
     for(const g of groups){
-      let sumD=0,sumB=0,sumSinB=0,sumCosB=0,bestDir=g[0].dir,groupMaxDbz=0;
+      let sumD=0,sumB=0,sumSinB=0,sumCosB=0,bestDir=g[0].dir;
       for(const c of g){
         sumD+=c.midDist;
         sumSinB+=Math.sin(c.midBear*Math.PI/180);
         sumCosB+=Math.cos(c.midBear*Math.PI/180);
-        if(c.maxDbz>groupMaxDbz)groupMaxDbz=c.maxDbz;
       }
-      const bestColor=dbzColor(groupMaxDbz).color;
+      const bestColor=globalApproachColor;
       const avgDist=sumD/g.length;
       const avgBear=(Math.atan2(sumSinB/g.length,sumCosB/g.length)*180/Math.PI+360)%360;
       const aPt=destPt(S.lat,S.lon,avgDist,avgBear);
@@ -3375,7 +3375,7 @@ function buildStormZones(map,rawPts){
     }
     for(let i=0;i<tailCount;i++){
       const f=(i+1)/(tailCount+1);
-      const tPt=destPt(S.lat,S.lon,tailDist*f,(mvDir+180)%360);
+      const tPt=destPt(S.lat,S.lon,tailDist*f,mvDir);
       const fadeOp=Math.max(0.04,0.12*(1-f));
       const sz=Math.max(1.5,3-f*1.5);
       const dot=L.marker(tPt,{
@@ -3385,7 +3385,7 @@ function buildStormZones(map,rawPts){
       ilsCenterDots.push(dot);
       S._stormZoneLayers.push(dot);
     }
-    const vanePt=destPt(S.lat,S.lon,tailDist*0.95,(mvDir+180)%360);
+    const vanePt=destPt(S.lat,S.lon,tailDist*0.95,mvDir);
     const vaneSz=14;
     const vaneArrow=L.marker(vanePt,{
       icon:L.divIcon({className:'',html:`<svg width="${vaneSz}" height="${vaneSz}" viewBox="0 0 40 40" style="transform:rotate(${mvDir}deg);filter:drop-shadow(0 0 3px ${arrowColor})"><polygon points="20,4 30,30 20,24 10,30" fill="${arrowColor}" fill-opacity="0.7"/></svg>`,iconSize:[vaneSz,vaneSz],iconAnchor:[vaneSz/2,vaneSz/2]}),
