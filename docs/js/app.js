@@ -418,10 +418,6 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
   btn.addEventListener('click',()=>{
     const page=btn.dataset.page;
     switchPage(page);
-    if(page==='radar'&&S.lat)initRadar();
-    if(page==='station'&&S.lat&&(!S.station||S._stationLocKey!==S.lat+','+S.lon))fetchStation();
-    if(page==='alerts'&&S.lat)fetchAlerts();
-    if(page==='storms'&&S.lat)renderStorms();
   });
 });
 
@@ -3522,15 +3518,20 @@ function loadTileImage(url){
 
 async function decodeRvRgba(buf){
   const v=new DataView(buf);
+  if(buf.byteLength<29)throw new Error('PNG too small');
   let o=8,w=0,h=0,bd=0,ct=0;
   const idats=[];
-  while(o<v.byteLength){
+  while(o+8<=v.byteLength){
     const len=v.getUint32(o);
+    if(len>buf.byteLength)break;
     const t=String.fromCharCode(v.getUint8(o+4),v.getUint8(o+5),v.getUint8(o+6),v.getUint8(o+7));
-    if(t==='IHDR'){w=v.getUint32(o+8);h=v.getUint32(o+12);bd=v.getUint8(o+16);ct=v.getUint8(o+17)}
-    else if(t==='IDAT')idats.push(new Uint8Array(buf,o+8,len));
+    if(t==='IHDR'&&o+17<v.byteLength){w=v.getUint32(o+8);h=v.getUint32(o+12);bd=v.getUint8(o+16);ct=v.getUint8(o+17)}
+    else if(t==='IDAT'){
+      if(o+8+len<=buf.byteLength)idats.push(new Uint8Array(buf,o+8,len));
+    }
     else if(t==='IEND')break;
     o+=12+len;
+    if(o<0)break;
   }
   const total=idats.reduce((s,c)=>s+c.length,0);
   const comp=new Uint8Array(total);
@@ -3546,10 +3547,12 @@ async function decodeRvRgba(buf){
   p=0;for(const c of chunks){raw.set(c,p);p+=c.length}
   const bpp=ct===6?4:ct===4?2:ct===2?3:1;
   const stride=w*bpp;
+  if(!w||!h||dLen<h*(stride+1))throw new Error('PNG decode: bad dimensions');
   const rgba=new Uint8Array(w*h*4);
   const prev=new Uint8Array(stride);
   for(let y=0;y<h;y++){
     const fi=y*(stride+1);
+    if(fi+1+stride>raw.length)break;
     const filter=raw[fi];
     const line=new Uint8Array(stride);
     for(let x=0;x<stride;x++){
