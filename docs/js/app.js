@@ -3285,80 +3285,80 @@ function updateThreatTicker(){
   const inner=document.getElementById('threat-ticker-inner');
   if(!bar||!inner)return;
   const mv=S.stormMovement;
-  if(!mv||mv.speed<1){
-    bar.style.display='none';
-    return;
-  }
   const stormCount=S.storms?S.storms.length:0;
+  function showTicker(html,color,borderColor,bg,dur){
+    inner.innerHTML=html;
+    inner.style.animationDuration=(dur||20)+'s';
+    bar.style.display='block';
+    bar.style.borderColor=borderColor;
+    bar.style.background=bg;
+  }
   if(stormCount===0){
     const clears=['✅ No storms detected nearby. Clear skies and smooth sailing! 🌤️','✅ All clear! No storm activity in your area. Perfect time to enjoy the weather. ☀️','✅ No storms detected nearby! Let\'s keep it that way... unless you\'re looking for something to track. 📊','✅ Radar is clean! No precipitation detected in your scan area. Relax and enjoy. 😎'];
     const msg=clears[Math.floor(Date.now()/60000)%clears.length];
-    inner.innerHTML=`<span style="color:#4ade80">${msg}</span>`;
-    inner.style.animationDuration='20s';
-    bar.style.display='block';
-    bar.style.borderColor='rgba(74,222,128,0.2)';
-    bar.style.background='linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))';
+    showTicker(`<span style="color:#4ade80">${msg}</span>`,'#4ade80','rgba(74,222,128,0.2)','linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))',20);
     return;
   }
-  const threats=[];
+  const allApproaching=[];
+  const severeApproaching=[];
   for(const storm of S.storms){
-    if(storm.dbz<45)continue;
     const eta=calcStormETA(storm);
     if(!eta||!eta.approaching||!eta.eta)continue;
-    threats.push({storm,eta});
+    allApproaching.push({storm,eta});
+    if(storm.dbz>=45)severeApproaching.push({storm,eta});
   }
-  if(threats.length===0){
+  if(allApproaching.length===0){
     const nearbyMsgs=[
       `🔔 ${stormCount} storm ☔️ area${stormCount>1?'s':''} detected, but currently not on track to your location. Keep an eye 👁️ out and monitor conditions.`,
       `🔔 ${stormCount} precipitation cell${stormCount>1?'s':''} in your area — none currently heading your way. Stay aware, weather can shift quickly. 🌦️`,
       `🔔 Tracking ${stormCount} storm cell${stormCount>1?'s':''} nearby. None approaching at this time, but keep monitoring. You never know what Mother Nature has planned. 🌩️`
     ];
     const msg=nearbyMsgs[Math.floor(Date.now()/60000)%nearbyMsgs.length];
-    inner.innerHTML=`<span style="color:#60a5fa">${msg}</span>`;
-    const textLen=msg.length;
-    inner.style.animationDuration=Math.max(15,Math.round(textLen*0.2))+'s';
-    bar.style.display='block';
-    bar.style.borderColor='rgba(96,165,250,0.2)';
-    bar.style.background='linear-gradient(90deg,rgba(0,5,20,0.95),rgba(5,10,30,0.95),rgba(0,5,20,0.95))';
+    showTicker(`<span style="color:#60a5fa">${msg}</span>`,'#60a5fa','rgba(96,165,250,0.2)','linear-gradient(90deg,rgba(0,5,20,0.95),rgba(5,10,30,0.95),rgba(0,5,20,0.95))',Math.max(15,Math.round(msg.length*0.2)));
     return;
   }
-  threats.sort((a,b)=>a.eta.eta-b.eta.eta);
   const spdUnit=S.radarMetric?'km/h':'mph';
   const spdVal=(spd)=>S.radarMetric?Math.round(spd*1.60934):spd;
-  const msgs=threats.map(t=>{
-    const s=t.storm;
-    const etaMin=t.eta.eta;
+  const fromDir=mv?degToDir((mv.direction+180)%360):'';
+  const spd=mv?spdVal(mv.speed):0;
+  function fmtEta(etaMin){
     const etaSec=Math.round(etaMin*60);
-    const h=Math.floor(etaSec/3600);
-    const m=Math.floor((etaSec%3600)/60);
-    const sec=etaSec%60;
+    const h=Math.floor(etaSec/3600),m=Math.floor((etaSec%3600)/60),sec=etaSec%60;
     const etaStr=h>0?h+'h:'+String(m).padStart(2,'0')+'m:'+String(sec).padStart(2,'0')+'s':m+'m:'+String(sec).padStart(2,'0')+'s';
     const arrival=new Date(Date.now()+etaSec*1000);
     const ah=arrival.getHours(),am=arrival.getMinutes();
-    const ampm=ah>=12?'PM':'AM';
-    const arrStr=((ah%12)||12)+':'+String(am).padStart(2,'0')+' '+ampm;
-    const fromDir=degToDir((mv.direction+180)%360);
-    const spd=spdVal(mv.speed);
-    if(s.dbz>=55){
-      return`<span style="color:#ff3355">🚨 WARNING: Extremely dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA approximately ${etaStr} (${arrStr}). Seek shelter immediately and be prepared to take protective action. 🚨</span>`;
-    }else if(s.dbz>=50){
-      return`<span style="color:#ff6644">🚨 SEVERE WEATHER ALERT: Dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA approximately ${etaStr} (${arrStr}). Use extreme caution and monitor conditions closely. 🚨</span>`;
-    }else{
-      return`<span style="color:#ffcc00">⚠️ Strong storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA approximately ${etaStr} (${arrStr}). Use caution and be prepared. ⚠️</span>`;
-    }
-  });
-  const sep='<span style="color:#444;margin:0 40px">│</span>';
-  inner.innerHTML=msgs.join(sep);
-  const textLen=inner.textContent.length;
-  const dur=Math.max(15,Math.round(textLen*0.25));
-  inner.style.animationDuration=dur+'s';
-  bar.style.display='block';
-  bar.style.borderColor=threats[0].storm.dbz>=55?'rgba(255,51,85,0.5)':threats[0].storm.dbz>=50?'rgba(255,102,68,0.4)':'rgba(255,204,0,0.3)';
-  bar.style.background=threats[0].storm.dbz>=55
-    ?'linear-gradient(90deg,rgba(30,0,0,0.95),rgba(50,5,5,0.95),rgba(30,0,0,0.95))'
-    :threats[0].storm.dbz>=50
-    ?'linear-gradient(90deg,rgba(30,10,0,0.95),rgba(50,15,5,0.95),rgba(30,10,0,0.95))'
-    :'linear-gradient(90deg,rgba(30,25,0,0.95),rgba(45,35,5,0.95),rgba(30,25,0,0.95))';
+    const arrStr=((ah%12)||12)+':'+String(am).padStart(2,'0')+' '+(ah>=12?'PM':'AM');
+    return{etaStr,arrStr};
+  }
+  if(severeApproaching.length>0){
+    severeApproaching.sort((a,b)=>a.eta.eta-b.eta.eta);
+    const msgs=severeApproaching.map(t=>{
+      const s=t.storm;const{etaStr,arrStr}=fmtEta(t.eta.eta);
+      if(s.dbz>=55)return`<span style="color:#ff3355">🚨 WARNING: Extremely dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ${etaStr} (${arrStr}). Seek shelter immediately. 🚨</span>`;
+      if(s.dbz>=50)return`<span style="color:#ff6644">🚨 SEVERE WEATHER ALERT: Dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ${etaStr} (${arrStr}). Use extreme caution. 🚨</span>`;
+      return`<span style="color:#ffcc00">⚠️ Strong storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ${etaStr} (${arrStr}). Use caution and be prepared. ⚠️</span>`;
+    });
+    const sep='<span style="color:#444;margin:0 40px">│</span>';
+    const html=msgs.join(sep);
+    const topDbz=severeApproaching[0].storm.dbz;
+    showTicker(html,topDbz>=55?'#ff3355':topDbz>=50?'#ff6644':'#ffcc00',
+      topDbz>=55?'rgba(255,51,85,0.5)':topDbz>=50?'rgba(255,102,68,0.4)':'rgba(255,204,0,0.3)',
+      topDbz>=55?'linear-gradient(90deg,rgba(30,0,0,0.95),rgba(50,5,5,0.95),rgba(30,0,0,0.95))':topDbz>=50?'linear-gradient(90deg,rgba(30,10,0,0.95),rgba(50,15,5,0.95),rgba(30,10,0,0.95))':'linear-gradient(90deg,rgba(30,25,0,0.95),rgba(45,35,5,0.95),rgba(30,25,0,0.95))',
+      Math.max(15,Math.round(inner.textContent?.length||60)*0.25));
+    return;
+  }
+  allApproaching.sort((a,b)=>a.eta.eta-b.eta.eta);
+  const closest=allApproaching[0];
+  const{etaStr,arrStr}=fmtEta(closest.eta.eta);
+  const maxDbz=Math.max(...allApproaching.map(a=>a.storm.dbz));
+  const label=maxDbz>=30?'moderate rain':'light rain';
+  const lightMsgs=[
+    `🌧️ ${allApproaching.length} ${label} cell${allApproaching.length>1?'s':''} heading your way from the ${fromDir} at ${spd} ${spdUnit}. Nearest ETA ${etaStr} (~${arrStr}). Might want to grab an umbrella! ☂️`,
+    `🌦️ Light precipitation approaching — ${allApproaching.length} cell${allApproaching.length>1?'s':''} inbound (${maxDbz} dBZ max). ETA ${etaStr} (~${arrStr}). Nothing severe, but stay dry! 💧`,
+    `☔ Heads up! ${allApproaching.length} rain area${allApproaching.length>1?'s':''} moving toward you (${maxDbz} dBZ). First arrival ~${arrStr}. Not dangerous, just wet. 🌂`
+  ];
+  const msg=lightMsgs[Math.floor(Date.now()/60000)%lightMsgs.length];
+  showTicker(`<span style="color:#7dd3fc">${msg}</span>`,'#7dd3fc','rgba(125,211,252,0.2)','linear-gradient(90deg,rgba(0,8,25,0.95),rgba(5,15,35,0.95),rgba(0,8,25,0.95))',Math.max(15,Math.round(msg.length*0.2)));
 }
 function autoActivateZones(){
   if(!S._rawScanPts||!S._rawScanPts.length)return;
