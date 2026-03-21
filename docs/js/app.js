@@ -3270,11 +3270,11 @@ function buildStormZones(map,rawPts){
       }
     },1000);
   }
-  if(mv&&mv.speed>=2){
-    const hasApproach=approachCount>0&&approachSumDbz>0;
-    if(hasApproach)console.log(`⚠️ ${approachCount} grid cell(s) approaching your location`);
-    const centerColor=hasApproach?dbzColor(approachMaxDbz).color:'#ffffff';
-    const edgeColor=hasApproach?dbzColor(approachMinDbz).color:'#ff3355';
+  if(mv&&mv.speed>=1&&cells.size>0){
+    let scanMaxDbz=0;
+    for(const[,c]of cells){if(c.maxDbz>scanMaxDbz)scanMaxDbz=c.maxDbz;}
+    const dotColor=dbzColor(scanMaxDbz).color;
+    if(approachCount>0)console.log(`⚠️ ${approachCount} grid cell(s) approaching your location`);
     const trailPane='approach-trail-pane';
     if(!map.getPane(trailPane)){
       map.createPane(trailPane);
@@ -3283,9 +3283,9 @@ function buildStormZones(map,rawPts){
     const mvDir=mv.direction;
     const fromBear=(mvDir+180)%360;
     let avgBearDeg=fromBear;
-    let halfAngle=12;
-    let coneDist=70;
-    if(hasApproach){
+    let halfAngle=15;
+    let coneDist=50;
+    if(approachCount>0&&approachSumDbz>0){
       const avgBearRad=Math.atan2(
         approachBearings.reduce((s,b)=>s+Math.sin(b*Math.PI/180),0)/approachCount,
         approachBearings.reduce((s,b)=>s+Math.cos(b*Math.PI/180),0)/approachCount
@@ -3299,11 +3299,9 @@ function buildStormZones(map,rawPts){
       halfAngle=Math.max(8,Math.min(bearSpread+5,30));
       coneDist=Math.max(approachMaxDist*0.95,20);
     }
-    const userPt=[S.lat,S.lon];
     const ilsCount=20;
-    const tailToMi=70;
-    const pastUserDist=Math.max(10,tailToMi-coneDist);
-    const tailCount=Math.round(pastUserDist/coneDist*ilsCount);
+    const tailMi=70;
+    const tailCount=12;
     const totalCenter=ilsCount+tailCount;
     const ilsCenterDots=[];
     const ilsLeftDots=[];
@@ -3315,7 +3313,7 @@ function buildStormZones(map,rawPts){
       const cPt=destPt(S.lat,S.lon,d,avgBearDeg);
       const sz=Math.max(3,6-f*3);
       const dot=L.marker(cPt,{
-        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${centerColor};box-shadow:0 0 ${sz+3}px ${centerColor};opacity:0.15"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${dotColor};box-shadow:0 0 ${sz+3}px ${dotColor};opacity:0.15"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
         pane:trailPane,interactive:false
       }).addTo(map);
       ilsCenterDots.push(dot);
@@ -3325,11 +3323,11 @@ function buildStormZones(map,rawPts){
         const rPt=destPt(S.lat,S.lon,d,avgBearDeg+spread);
         const barSz=Math.min(4,Math.max(2,sz-1));
         const lDot=L.marker(lPt,{
-          icon:L.divIcon({className:'',html:`<div class="ils-dot ils-edge" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+2}px ${edgeColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+          icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${dotColor};box-shadow:0 0 ${barSz+2}px ${dotColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
           pane:trailPane,interactive:false
         }).addTo(map);
         const rDot=L.marker(rPt,{
-          icon:L.divIcon({className:'',html:`<div class="ils-dot ils-edge" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+2}px ${edgeColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+          icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${dotColor};box-shadow:0 0 ${barSz+2}px ${dotColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
           pane:trailPane,interactive:false
         }).addTo(map);
         ilsLeftDots.push(lDot);
@@ -3340,25 +3338,25 @@ function buildStormZones(map,rawPts){
     }
     for(let i=0;i<tailCount;i++){
       const f=(i+1)/(tailCount+1);
-      const tPt=destPt(S.lat,S.lon,pastUserDist*f,mvDir);
+      const tPt=destPt(S.lat,S.lon,tailMi*f,mvDir);
       const fadeOp=Math.max(0.05,0.15*(1-f));
       const sz=Math.max(2,5-f*3);
       const dot=L.marker(tPt,{
-        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${centerColor};box-shadow:0 0 ${sz+2}px ${centerColor};opacity:${fadeOp}"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${dotColor};box-shadow:0 0 ${sz+2}px ${dotColor};opacity:${fadeOp}"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
         pane:trailPane,interactive:false
       }).addTo(map);
       ilsCenterDots.push(dot);
       S._stormZoneLayers.push(dot);
     }
-    const vanePt=destPt(S.lat,S.lon,pastUserDist*0.92,mvDir);
+    const vanePt=destPt(S.lat,S.lon,tailMi*0.92,mvDir);
     const vaneSz=16;
     const vaneArrow=L.marker(vanePt,{
-      icon:L.divIcon({className:'',html:`<svg width="${vaneSz}" height="${vaneSz}" viewBox="0 0 40 40" style="transform:rotate(${mvDir}deg);filter:drop-shadow(0 0 4px ${centerColor})"><polygon points="20,4 30,30 20,24 10,30" fill="${centerColor}" fill-opacity="0.7"/></svg>`,iconSize:[vaneSz,vaneSz],iconAnchor:[vaneSz/2,vaneSz/2]}),
+      icon:L.divIcon({className:'',html:`<svg width="${vaneSz}" height="${vaneSz}" viewBox="0 0 40 40" style="transform:rotate(${mvDir}deg);filter:drop-shadow(0 0 4px ${dotColor})"><polygon points="20,4 30,30 20,24 10,30" fill="${dotColor}" fill-opacity="0.7"/></svg>`,iconSize:[vaneSz,vaneSz],iconAnchor:[vaneSz/2,vaneSz/2]}),
       pane:trailPane,interactive:false
     }).addTo(map);
     S._stormZoneLayers.push(vaneArrow);
     let cFrame=0,sFrame=0;
-    const animCenter=(dots,frame)=>{
+    const animDots=(dots,frame)=>{
       const len=dots.length;
       for(let i=0;i<len;i++){
         const el=dots[i].getElement();
@@ -3375,44 +3373,13 @@ function buildStormZones(map,rawPts){
         }
       }
     };
-    const edgePulse=hasApproach?((dots,frame)=>{
-      const len=dots.length;
-      for(let i=0;i<len;i++){
-        const el=dots[i].getElement();
-        if(!el)continue;
-        const ch=el.firstChild;
-        if(!ch)continue;
-        const pos=(frame-i+len)%len;
-        if(pos<3){
-          ch.style.opacity=String(pos===0?0.9:pos===1?0.5:0.25);
-          ch.style.transform=pos===0?'scale(1.2)':'scale(1)';
-        }else{
-          ch.style.opacity='0.15';
-          ch.style.transform='scale(1)';
-        }
-      }
-    }):null;
-    let edgeFade=0;
     const sideLen=ilsLeftDots.length||1;
     S._approachArrowInterval=setInterval(()=>{
-      animCenter(ilsCenterDots,cFrame);
-      if(edgePulse){
-        edgePulse(ilsLeftDots,sFrame);
-        edgePulse(ilsRightDots,sFrame);
-        sFrame=(sFrame+1)%sideLen;
-      }else{
-        edgeFade=(edgeFade+1)%60;
-        const t=edgeFade/60;
-        const op=0.1+0.5*(0.5+0.5*Math.sin(t*Math.PI*2));
-        const allEdge=[...ilsLeftDots,...ilsRightDots];
-        for(const m of allEdge){
-          const el=m.getElement();
-          if(!el)continue;
-          const ch=el.firstChild;
-          if(ch)ch.style.opacity=String(op.toFixed(2));
-        }
-      }
+      animDots(ilsCenterDots,cFrame);
+      animDots(ilsLeftDots,sFrame);
+      animDots(ilsRightDots,sFrame);
       cFrame=(cFrame+1)%totalCenter;
+      sFrame=(sFrame+1)%sideLen;
     },150);
   }
   const ms=Math.round(performance.now()-t0);
