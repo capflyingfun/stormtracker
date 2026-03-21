@@ -1083,6 +1083,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use it for a quick situational glance.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.10',date:'2026-03-21',items:['Dynamic ticker: 25+ rotating messages with live weather data, radar status, station info, NWS alerts, and educational tips','Ticker pulls real-time temp, wind, humidity, pressure, visibility, cloud cover, sunrise/sunset, forecasts','Nearby-storm ticker also enriched with contextual weather + radar scan info','Fun facts: dBZ scale, NEXRAD network, lightning, dew point, wall clouds, virga, and more']},
   {ver:'v2.09',date:'2026-03-21',items:['AI chat: 🗑️ Clear History button to reset conversation','Map controls split left/right — scan tools on left, storm toggles on right','Reduced vertical button stacking on mobile radar view']},
   {ver:'v2.08',date:'2026-03-21',items:['Clutter filter: ≤8 returns below 31 dBZ auto-hidden from map, sonar, and badges as likely false positives','🕳️ toggle button on map to show/hide clutter when detected','AI assistant now distinguishes real precipitation from radar clutter/ground returns','Alert ticker threshold raised to 31+ dBZ — minor returns no longer trigger warnings']},
   {ver:'v1.95',date:'2026-03-21',items:['Fixed iOS scroll bleed — background page no longer moves when swiping inside Settings','Body position locked (fixed) while Settings is open, scroll position restored on close','Touch boundary trapping on scroll area prevents overscroll leak at top/bottom edges']},
@@ -3595,6 +3596,135 @@ function buildStormZones(map,rawPts){
   const ms=Math.round(performance.now()-t0);
   console.log(`Polar grid: ${rawPts.length} pts → ${cells.size} cells (${ZONE_ANG_STEP}°×${ZONE_DIST_STEP_MI}mi) in ${ms}ms`);
 }
+function _tickerWeatherPool(){
+  const pool=[];
+  const w=S.weather;
+  const fc=S.forecast;
+  pool.push('✅ No storms detected nearby. Clear skies and smooth sailing! 🌤️');
+  pool.push('✅ All clear! No storm activity in your area. Perfect time to enjoy the weather. ☀️');
+  pool.push('✅ Radar is clean! No precipitation detected in your scan area. Relax and enjoy. 😎');
+  pool.push('✅ No storms detected! Let\'s keep it that way... unless you\'re looking for something to track. 📊');
+  if(w){
+    const tc=w.temperature_2m;const fc2=w.apparent_temperature;
+    if(tc!=null){
+      const desc=wmoDesc(w.weather_code||0);
+      pool.push(`🌡️ Currently ${fmtTemp(tc)} — ${desc}${S.locName?' in '+S.locName:''}.`);
+      if(fc2!=null&&Math.abs(tc-fc2)>=2)pool.push(`🌡️ Temperature ${fmtTemp(tc)} but feels like ${fmtTemp(fc2)}${Math.abs(tc-fc2)>=5?' — dress accordingly!':'. Not bad out there.'}`);
+      if(tc>35)pool.push('🔥 It\'s scorching hot out there! Stay hydrated and avoid prolonged sun exposure. 💦');
+      else if(tc>30)pool.push('☀️ Warm and sunny! Great beach weather but don\'t forget sunscreen. 🧴');
+      else if(tc>20)pool.push('😊 Pleasant temperatures right now. Perfect weather for outdoor activities! 🌿');
+      else if(tc>10)pool.push('🧥 A bit cool out. You might want a light jacket if heading outdoors.');
+      else if(tc>0)pool.push('🥶 It\'s quite cold outside. Bundle up and stay warm! 🧣');
+      else pool.push('❄️ Below freezing! Watch for ice on roads and walkways. Stay safe! 🧊');
+    }
+    const wSpd=w.wind_speed_10m;const wDir=w.wind_direction_10m;const wGust=w.wind_gusts_10m;
+    if(wSpd!=null){
+      const dir=wDir!=null?degToDir(wDir):'';
+      if(wSpd<5)pool.push(`🍃 Winds are calm right now${dir?' from the '+dir:''}. Peaceful conditions. 😌`);
+      else if(wSpd<20)pool.push(`💨 Winds from the ${dir} at ${fmtWind(wSpd)}${wGust>wSpd+10?', gusting to '+fmtWind(wGust):''}. Comfortable breeze.`);
+      else if(wSpd<40)pool.push(`💨 Breezy! Winds ${dir} at ${fmtWind(wSpd)}${wGust?' with gusts to '+fmtWind(wGust):''}. Hold onto your hat! 🎩`);
+      else pool.push(`🌬️ Strong winds! ${dir} at ${fmtWind(wSpd)}${wGust?' gusting '+fmtWind(wGust):''}. Use caution outdoors. ⚠️`);
+    }
+    const rh=w.relative_humidity_2m;
+    if(rh!=null){
+      if(rh>85)pool.push(`💧 Humidity is high at ${rh}% — the air feels thick. Stay cool and hydrated. 💦`);
+      else if(rh>60)pool.push(`💧 Humidity at ${rh}%. Moderate moisture in the air — fairly comfortable conditions.`);
+      else if(rh>30)pool.push(`💧 Humidity at ${rh}%. Nice and comfortable out there. Enjoy! 🌟`);
+      else pool.push(`💧 Very dry air — humidity only ${rh}%. Stay hydrated and moisturize. 🏜️`);
+    }
+    const pres=w.pressure_msl;
+    if(pres!=null){
+      pool.push(`📊 Barometric pressure ${fmtPres(pres)}${pres>1020?' — high pressure, typically fair weather.':pres<1005?' — low pressure system in the area. Watch for changes.':'. Steady atmospheric conditions.'}`);
+    }
+    if(S._nwsVisM!=null){
+      const visMi=S._nwsVisM/1609.34;
+      if(visMi>=10)pool.push(`👁️ Visibility excellent at ${fmtVis(visMi)} — crystal clear conditions all around. 🔭`);
+      else if(visMi>=5)pool.push(`👁️ Visibility is good at ${fmtVis(visMi)}. Clear enough for safe travel. 🚗`);
+      else pool.push(`🌫️ Reduced visibility at ${fmtVis(visMi)}. Use caution while driving. 🚦`);
+    }
+    const cc=w.cloud_cover;
+    if(cc!=null){
+      if(cc<=10)pool.push('☀️ Virtually cloudless skies right now. Pure sunshine! 🌞');
+      else if(cc<=30)pool.push(`⛅ Mostly clear with ${cc}% cloud cover. Enjoy the sunshine breaking through! 🌤️`);
+      else if(cc<=70)pool.push(`🌥️ Partly cloudy — ${cc}% cloud cover. A nice mix of sun and clouds.`);
+      else pool.push(`☁️ Overcast skies — ${cc}% cloud cover. The clouds are putting on a show today.`);
+    }
+  }
+  if(fc&&fc.daily){
+    const d=fc.daily;
+    if(d.sunrise&&d.sunrise[0]){
+      const sr=new Date(d.sunrise[0]);const ss=new Date(d.sunset[0]);
+      const now=new Date();
+      const srStr=sr.toLocaleTimeString(_curLang||'en',{hour:'numeric',minute:'2-digit'});
+      const ssStr=ss.toLocaleTimeString(_curLang||'en',{hour:'numeric',minute:'2-digit'});
+      if(now<sr)pool.push(`🌅 Sunrise at ${srStr} · Sunset at ${ssStr}. Dawn is coming! 🌄`);
+      else if(now<ss){
+        const minsLeft=Math.round((ss-now)/60000);
+        const hrsLeft=Math.floor(minsLeft/60);const mLeft=minsLeft%60;
+        pool.push(`🌇 Sunset at ${ssStr} — ${hrsLeft>0?hrsLeft+'h '+mLeft+'m':mLeft+' minutes'} of daylight remaining. ☀️`);
+      }else pool.push(`🌙 Sun has set. Sunrise tomorrow at ${srStr}. Enjoy the night! ✨`);
+    }
+    if(d.temperature_2m_max&&d.temperature_2m_max[0]!=null){
+      pool.push(`📈 Today's forecast: High ${fmtTemp(d.temperature_2m_max[0])} / Low ${fmtTemp(d.temperature_2m_min[0])}${d.precipitation_probability_max&&d.precipitation_probability_max[0]>0?' · '+d.precipitation_probability_max[0]+'% rain chance 🌧️':' · No rain expected 🌞'}`);
+    }
+    if(d.temperature_2m_max&&d.temperature_2m_max[1]!=null){
+      const tmrwDay=new Date();tmrwDay.setDate(tmrwDay.getDate()+1);
+      const dayName=tmrwDay.toLocaleDateString(_curLang||'en',{weekday:'long'});
+      pool.push(`📅 Tomorrow (${dayName}): High ${fmtTemp(d.temperature_2m_max[1])} / Low ${fmtTemp(d.temperature_2m_min[1])}${d.precipitation_probability_max&&d.precipitation_probability_max[1]>20?' · '+d.precipitation_probability_max[1]+'% rain chance':''}`);
+    }
+  }
+  if(S.scanTime){
+    const ago=Math.round((Date.now()-S.scanTime)/60000);
+    const src=S.radarSource==='nexrad'?'NEXRAD':'RainViewer';
+    const rad=S.radarMetric?Math.round(S.scanRadius*1.60934)+' km':S.scanRadius+' mi';
+    pool.push(`📡 ${src} radar scan · ${rad} radius · Last update ${ago<1?'just now':ago+' min ago'}. Monitoring conditions. 🛰️`);
+  }
+  if(S.station){
+    const st=S.station;
+    if(st.fltCat){
+      const fc3=st.fltCat;
+      const fcColor=fc3==='VFR'?'green':fc3==='MVFR'?'blue':fc3==='IFR'?'red':'magenta';
+      pool.push(`✈️ ${S.stationId||'Nearest station'} reporting ${fc3}${fc3==='VFR'?' — clear for flight ops!':fc3==='MVFR'?' — marginal visual conditions':' — instrument conditions in effect'}`);
+    }
+    if(st.rawOb)pool.push(`📋 Latest METAR: ${st.rawOb.substring(0,80)}${st.rawOb.length>80?'...':''}`);
+  }
+  if(S.alerts&&S.alerts.length){
+    for(const a of S.alerts.slice(0,3)){
+      pool.push(`⚠️ NWS: ${a.event||a.headline||'Weather Alert'} in effect${a.severity?' — Severity: '+a.severity:''}`);
+    }
+  }
+  pool.push('📚 Did you know? dBZ measures radar reflectivity: 20-30 = light rain, 30-45 = moderate, 45-55 = heavy, 55+ = severe/hail. 🌧️');
+  pool.push('📚 NEXRAD is a network of 160 Doppler radar stations across the US, scanning the atmosphere every 4-10 minutes. 📡');
+  pool.push('📚 Lightning heats the air to 30,000°C — 5x hotter than the sun\'s surface! That explosive expansion creates thunder. ⚡');
+  pool.push('📚 The dew point is the temperature at which moisture condenses. Above 65°F (18°C) it feels muggy; above 75°F (24°C) is oppressive. 💧');
+  pool.push('📚 A wall cloud is a lowering beneath a thunderstorm\'s base — if it rotates, it can produce a tornado. Stay alert during severe weather! 🌪️');
+  pool.push('📚 The Eye of a hurricane is calm and clear, but surrounded by the most violent winds. Never assume the storm is over! 🌀');
+  pool.push('📚 Radar returns can bounce off buildings, mountains, and even bugs — that\'s why low dBZ returns are often false positives. 🏔️');
+  pool.push('📚 The 30-30 rule: if lightning-to-thunder is 30 seconds or less, go indoors. Wait 30 minutes after the last thunder before going back out. ⚡');
+  pool.push('📚 VFR means Visual Flight Rules — pilots can fly by sight. IFR (Instrument Flight Rules) means relying on cockpit instruments due to poor visibility. ✈️');
+  pool.push('📚 Virga is precipitation that evaporates before reaching the ground. It shows up on radar but you won\'t feel a drop! 🌫️');
+  return pool;
+}
+function _tickerNearbyPool(sigStormCount){
+  const pool=[];
+  pool.push(`🔔 ${sigStormCount} storm ☔️ area${sigStormCount>1?'s':''} detected, but currently not on track to your location. Keep an eye 👁️ out and monitor conditions.`);
+  pool.push(`🔔 ${sigStormCount} precipitation cell${sigStormCount>1?'s':''} in your area — none currently heading your way. Stay aware, weather can shift quickly. 🌦️`);
+  pool.push(`🔔 Tracking ${sigStormCount} storm cell${sigStormCount>1?'s':''} nearby. None approaching at this time, but keep monitoring. 🌩️`);
+  const w=S.weather;
+  if(w){
+    const tc=w.temperature_2m;
+    if(tc!=null)pool.push(`🔔 ${sigStormCount} cell${sigStormCount>1?'s':''} detected nearby · Currently ${fmtTemp(tc)} and ${wmoDesc(w.weather_code||0)}. Storms not approaching. 📊`);
+    const wSpd=w.wind_speed_10m;
+    if(wSpd!=null&&wSpd>5)pool.push(`🔔 ${sigStormCount} cell${sigStormCount>1?'s':''} in area · Winds ${degToDir(w.wind_direction_10m||0)} at ${fmtWind(wSpd)}. Storms holding position or drifting away. 💨`);
+  }
+  if(S.scanTime){
+    const ago=Math.round((Date.now()-S.scanTime)/60000);
+    pool.push(`🔔 ${sigStormCount} storm${sigStormCount>1?'s':''} on radar · Last scan ${ago<1?'just now':ago+' min ago'}. None approaching — continuing to monitor. 📡`);
+  }
+  pool.push(`🔔 Storm activity nearby but no threats heading your way. Weather changes fast — we\'ll alert you if anything shifts. 👀`);
+  pool.push(`🔔 Radar shows ${sigStormCount} cell${sigStormCount>1?'s':''} in range. All moving away or stationary. Keeping watch for you. 🛰️`);
+  return pool;
+}
 function updateThreatTicker(){
   const bar=document.getElementById('threat-ticker');
   const inner=document.getElementById('threat-ticker-inner');
@@ -3611,15 +3741,9 @@ function updateThreatTicker(){
   const alertMinDbz=31;
   const sigStormCount=S.storms?S.storms.filter(s=>s.dbz>=alertMinDbz).length:0;
   if(sigStormCount===0){
-    if(stormCount===0){
-      const clears=['✅ No storms detected nearby. Clear skies and smooth sailing! 🌤️','✅ All clear! No storm activity in your area. Perfect time to enjoy the weather. ☀️','✅ No storms detected nearby! Let\'s keep it that way... unless you\'re looking for something to track. 📊','✅ Radar is clean! No precipitation detected in your scan area. Relax and enjoy. 😎'];
-      const msg=clears[Math.floor(Date.now()/60000)%clears.length];
-      showTicker(`<span style="color:#4ade80">${msg}</span>`,'#4ade80','rgba(74,222,128,0.2)','linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))',20);
-    }else{
-      const clears2=['✅ Light radar returns detected but nothing significant. Enjoy your day! 🌤️','✅ Minor radar clutter only — no meaningful precipitation in your area. ☀️'];
-      const msg=clears2[Math.floor(Date.now()/60000)%clears2.length];
-      showTicker(`<span style="color:#4ade80">${msg}</span>`,'#4ade80','rgba(74,222,128,0.2)','linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))',20);
-    }
+    const pool=_tickerWeatherPool();
+    const msg=pool[Math.floor(Date.now()/60000)%pool.length];
+    showTicker(`<span style="color:#4ade80">${msg}</span>`,'#4ade80','rgba(74,222,128,0.2)','linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))',Math.max(15,Math.round(msg.length*0.18)));
     return;
   }
   const allApproaching=[];
@@ -3632,12 +3756,8 @@ function updateThreatTicker(){
     if(storm.dbz>=45)severeApproaching.push({storm,eta});
   }
   if(allApproaching.length===0){
-    const nearbyMsgs=[
-      `🔔 ${sigStormCount} storm ☔️ area${sigStormCount>1?'s':''} detected, but currently not on track to your location. Keep an eye 👁️ out and monitor conditions.`,
-      `🔔 ${sigStormCount} precipitation cell${sigStormCount>1?'s':''} in your area — none currently heading your way. Stay aware, weather can shift quickly. 🌦️`,
-      `🔔 Tracking ${sigStormCount} storm cell${sigStormCount>1?'s':''} nearby. None approaching at this time, but keep monitoring. You never know what Mother Nature has planned. 🌩️`
-    ];
-    const msg=nearbyMsgs[Math.floor(Date.now()/60000)%nearbyMsgs.length];
+    const pool=_tickerNearbyPool(sigStormCount);
+    const msg=pool[Math.floor(Date.now()/60000)%pool.length];
     showTicker(`<span style="color:#60a5fa">${msg}</span>`,'#60a5fa','rgba(96,165,250,0.2)','linear-gradient(90deg,rgba(0,5,20,0.95),rgba(5,10,30,0.95),rgba(0,5,20,0.95))',Math.max(15,Math.round(msg.length*0.2)));
     return;
   }
