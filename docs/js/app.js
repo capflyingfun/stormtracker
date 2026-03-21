@@ -2235,13 +2235,18 @@ function initRadar(){
       scrubRadarAnim(map,parseInt(e.target.value));
     });
     const zbtn=document.getElementById('btn-zones');if(zbtn)zbtn.style.opacity=S._showZones?'1':'0.4';
-    const pbtn=document.getElementById('btn-points');if(pbtn)pbtn.style.opacity=S._showPoints?'1':'0.4';
+    const pbtn=document.getElementById('btn-points');
+    if(pbtn){
+      if(S._pointsMode==='inbound'){pbtn.style.opacity='1';pbtn.textContent='8▶';pbtn.style.color='#ffcc00';}
+      else if(S._pointsMode==='all'){pbtn.style.opacity='1';pbtn.textContent='PT';pbtn.style.color='var(--accent-cyan)';}
+      else{pbtn.style.opacity='0.4';pbtn.textContent='PT';pbtn.style.color='var(--accent-cyan)';}
+    }
     const rbtn=document.getElementById('btn-radar-overlay');if(rbtn)rbtn.style.opacity=S._radarOverlayVisible?'1':'0.4';
     const pabtn=document.getElementById('btn-path-arrows');if(pabtn)pabtn.style.opacity=S._showPathArrows?'1':'0.4';
     if(S.storms.length){
       plotStormMarkers(map);
       buildStormZones(map,S._rawScanPts);
-      if(S._rawScanPts.length&&!S._showPoints){
+      if(S._rawScanPts.length&&S._pointsMode==='off'){
         S.stormMarkers.forEach(m=>{try{map.removeLayer(m)}catch(e){}});
       }
     }
@@ -2888,6 +2893,17 @@ function plotStormMarkers(map){
   const mv=S.stormMovement;
   const sc=zoomScale(map);
   const pending=[];
+  let visibleStorms=S.storms;
+  if(S._pointsMode==='inbound'){
+    const inbound=[];
+    for(const st of S.storms){
+      const eta=calcStormETA(st);
+      if(eta&&eta.approaching&&eta.eta)inbound.push({storm:st,eta});
+    }
+    inbound.sort((a,b)=>a.storm.dbz===b.storm.dbz?(a.eta.eta-b.eta.eta):(b.storm.dbz-a.storm.dbz));
+    visibleStorms=inbound.slice(0,8).map(i=>i.storm);
+  }
+  const visibleSet=new Set(visibleStorms);
   S.storms.forEach(storm=>{
     const cat=stormCat(storm.dbz);
     const color=dbzHex(storm.dbz);
@@ -2963,27 +2979,32 @@ function plotStormMarkers(map){
   });
   requestAnimationFrame(()=>{requestAnimationFrame(()=>{
     document.body.removeChild(offscreen);
-    const addToMap=S._showPoints;
+    const mode=S._pointsMode;
     pending.forEach(p=>{
+      const isVisible=(mode==='all')||(mode==='inbound'&&visibleSet.has(p.stormRef));
       if(p.type==='arrow'){
         const arrow=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'storm-arrow-icon',html:p.svgHtml,iconSize:[p.sz,p.sz],iconAnchor:[p.sz/2,p.sz/2]})});
-        if(addToMap)arrow.addTo(map);
+        if(isVisible)arrow.addTo(map);
         arrow.bindPopup(p.popupHtml,p.popupOpts);
         arrow.on('click',()=>showStormCone(map,p.stormRef));
+        arrow._stormRef=p.stormRef;
         S.stormMarkers.push(arrow);
       }else if(p.type==='circle'){
         const marker=L.circleMarker([p.lat,p.lng],{radius:p.r,color:p.color,fillColor:p.color,fillOpacity:0.6,weight:2});
-        if(addToMap)marker.addTo(map);
+        if(isVisible)marker.addTo(map);
         marker.bindPopup(p.popupHtml,p.popupOpts);
         marker.on('click',()=>showStormCone(map,p.stormRef));
+        marker._stormRef=p.stormRef;
         S.stormMarkers.push(marker);
       }else if(p.type==='ring'){
         const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring" style="width:${p.ringSize}px;height:${p.ringSize}px;border:3px solid ${p.color};box-shadow:0 0 8px ${p.color}"></div>`,iconSize:[p.ringSize,p.ringSize],iconAnchor:[p.ringSize/2,p.ringSize/2]})});
-        if(addToMap)ring.addTo(map);
+        if(isVisible)ring.addTo(map);
+        ring._stormRef=p.stormRef;
         S.stormMarkers.push(ring);
       }else if(p.type==='lightning'){
         const lightning=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'storm-lightning-icon',html:`<div style="font-size:18px;text-shadow:0 0 6px #fff">⚡</div>`,iconSize:[20,20],iconAnchor:[10,10]})});
-        if(addToMap)lightning.addTo(map);
+        if(isVisible)lightning.addTo(map);
+        lightning._stormRef=p.stormRef;
         S.stormMarkers.push(lightning);
       }
     });
@@ -3393,12 +3414,12 @@ function autoActivateZones(){
     const btn=document.getElementById('btn-zones');
     if(btn)btn.style.opacity='1';
   }
-  if(S._showPoints){
-    S._showPoints=false;
-    try{localStorage.setItem('st_points','0')}catch(e){}
+  if(S._pointsMode==='all'){
+    S._pointsMode='off';S._showPoints=false;
+    try{localStorage.setItem('st_pointsMode','off')}catch(e){}
     S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});
     const btn=document.getElementById('btn-points');
-    if(btn)btn.style.opacity='0.4';
+    if(btn){btn.style.opacity='0.4';btn.textContent='PT';btn.style.color='var(--accent-cyan)';}
   }
   if(!S._radarOverlayVisible&&S.radarLayer&&S.map){try{S.map.removeLayer(S.radarLayer)}catch(e){}}
   if(S.map)buildStormZones(S.map,S._rawScanPts);
@@ -3438,7 +3459,8 @@ try{const zv=localStorage.getItem('st_zones');if(zv==='0')S._showZones=false}cat
 try{const pa=localStorage.getItem('st_pathArrows');if(pa==='0')S._showPathArrows=false}catch(e){}
 try{const ps=localStorage.getItem('st_arrowStyle');if(ps==='pointer')S._pathArrowStyle='pointer'}catch(e){}
 S._showPoints=false;
-try{const pv=localStorage.getItem('st_points');if(pv==='1')S._showPoints=true}catch(e){}
+S._pointsMode='off';
+try{const pv=localStorage.getItem('st_pointsMode');if(pv)S._pointsMode=pv;S._showPoints=(pv==='all')}catch(e){}
 
 function clearPathArrows(){
   if(S._pathArrowAnimInterval){clearInterval(S._pathArrowAnimInterval);S._pathArrowAnimInterval=null}
@@ -3584,16 +3606,22 @@ function buildPathArrows(map,_retries){
   },150);
 }
 function toggleStormPoints(){
-  S._showPoints=!S._showPoints;
-  try{localStorage.setItem('st_points',S._showPoints?'1':'0')}catch(e){}
-  S.stormMarkers.forEach(m=>{
-    try{
-      if(S._showPoints){m.addTo(S.map)}
-      else{S.map.removeLayer(m)}
-    }catch(e){}
-  });
+  const modes=['off','inbound','all'];
+  const cur=modes.indexOf(S._pointsMode);
+  S._pointsMode=modes[(cur+1)%3];
+  S._showPoints=(S._pointsMode!=='off');
+  try{localStorage.setItem('st_pointsMode',S._pointsMode)}catch(e){}
   const btn=document.getElementById('btn-points');
-  if(btn)btn.style.opacity=S._showPoints?'1':'0.4';
+  if(S._pointsMode==='off'){
+    S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});
+    if(btn){btn.style.opacity='0.4';btn.textContent='PT';btn.style.color='var(--accent-cyan)';}
+  }else if(S._pointsMode==='inbound'){
+    if(S.map)plotStormMarkers(S.map);
+    if(btn){btn.style.opacity='1';btn.textContent='8▶';btn.style.color='#ffcc00';}
+  }else{
+    if(S.map)plotStormMarkers(S.map);
+    if(btn){btn.style.opacity='1';btn.textContent='PT';btn.style.color='var(--accent-cyan)';}
+  }
 }
 
 // ==========================================
