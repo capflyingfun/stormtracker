@@ -254,7 +254,7 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .hero-side{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:80px;flex:1}
 .hero-side-item{text-align:center;line-height:1.2}
 .hero-side-label{font-size:0.5em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px}
-.hero-side-val{font-size:0.85em;font-weight:700;color:var(--text-primary)}
+.hero-side-val{font-size:0.72em;font-weight:700;color:var(--text-primary)}
 .wind-rose{position:relative;width:200px;height:200px;flex-shrink:0}
 .wind-rose svg{width:100%;height:100%;filter:drop-shadow(0 0 8px rgba(0,200,255,0.15))}
 .wind-rose-labels{position:absolute;inset:0;font-size:0.7em;color:rgba(0,220,255,0.7);font-weight:800;text-shadow:0 0 6px rgba(0,200,255,0.4)}
