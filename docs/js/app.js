@@ -4939,19 +4939,22 @@ async function fetchStationAWC(){
         fetch(`https://aviationweather.gov/api/data/metar?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json&hours=6`,{signal:AbortSignal.timeout(8000)}),
         fetch(`https://aviationweather.gov/api/data/stationinfo?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json`,{signal:AbortSignal.timeout(8000)})
       ]);
+      console.log('AWC ±'+degSpan+'°: metar=',metarRes.status,', info=',infoRes.status);
       if(metarRes.status==='fulfilled'&&metarRes.value.ok){
         const body=await metarRes.value.json();
+        console.log('AWC metar bbox returned',Array.isArray(body)?body.length:'non-array','results');
         if(Array.isArray(body)&&body.length)data=body;
       }
       if(!data.length&&infoRes.status==='fulfilled'&&infoRes.value.ok){
         const infoBody=await infoRes.value.json();
         if(Array.isArray(infoBody)){
-          const metarStations=infoBody.filter(s=>s.siteType&&s.siteType.includes('METAR'));
+          const metarStations=infoBody.filter(s=>s.siteType&&(Array.isArray(s.siteType)?s.siteType.includes('METAR'):String(s.siteType).includes('METAR')));
+          console.log('AWC stationinfo found',metarStations.length,'METAR stations in ±'+degSpan+'°');
           if(metarStations.length){
             const byDist=metarStations.map(s=>({icao:s.icaoId,iata:s.iataId||null,faa:s.faaId||null,name:s.site||s.icaoId,lat:s.lat,lon:s.lon,dist:haversine(S.lat,S.lon,s.lat,s.lon)})).sort((a,b)=>a.dist-b.dist).slice(0,10);
             S._stationSource='awc';
             S.nearbyStations=byDist;
-            console.log('Station: stationinfo found',byDist.length,'stations (METAR capable), nearest:',byDist[0].icao);
+            console.log('Station: stationinfo nearest:',byDist[0].icao,byDist[0].name);
             await loadStationObsAWC(byDist[0].icao);
             return;
           }
@@ -4962,6 +4965,7 @@ async function fetchStationAWC(){
     if(data.length&&degSpan>=2)break;
   }
   if(data.length){
+    console.log('AWC: using metar bbox data,',data.length,'raw results');
     const seen=new Map();
     data.forEach(m=>{if(!seen.has(m.icaoId))seen.set(m.icaoId,m)});
     const stations=[...seen.values()].map(m=>({
@@ -4971,13 +4975,29 @@ async function fetchStationAWC(){
       _awc:m
     })).sort((a,b)=>a.dist-b.dist).slice(0,10);
     if(stations.length){
+      console.log('AWC: loading nearest:',stations[0].icao,stations[0].name,stations[0].dist.toFixed(1)+'mi');
       S._stationSource='awc';
       S.nearbyStations=stations;
-      loadStationFromAWC(stations[0]._awc,stations[0]);
+      try{
+        loadStationFromAWC(stations[0]._awc,stations[0]);
+      }catch(renderErr){
+        console.error('renderStation error:',renderErr);
+        await loadStationObsAWC(stations[0].icao);
+      }
       return;
     }
   }
-  await fetchStationGlobal();
+  console.log('AWC: no data found, trying global airport DB as last resort');
+  const airports=await _loadGlobalAirports();
+  const nearest=_nearestAirports(S.lat,S.lon,airports,300,10);
+  if(nearest.length){
+    console.log('Global DB found',nearest.length,'airports, nearest:',nearest[0].icao,nearest[0].name);
+    S._stationSource='awc';
+    S.nearbyStations=nearest;
+    await loadStationObsAWC(nearest[0].icao);
+    return;
+  }
+  throw new Error('No stations in range from any source');
 }
 async function fetchStationGlobal(){
   const el=document.getElementById('page-station');
