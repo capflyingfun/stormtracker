@@ -1579,10 +1579,7 @@ function renderWeather(data){
   const windDisp=parseFloat(kmhTo(windSpd,S.windUnit));
   const gustRaw=_simActive?_windCurSim.gust:(c.wind_gusts_10m||windSpd);
   const gustDisp=parseFloat(kmhTo(gustRaw,S.windUnit));
-  const peakDisp=Math.max(windDisp,gustDisp);
-  const scales=[10,15,20,30,40,50,75,100,130,160,200];
-  let maxArcSpd=scales[scales.length-1];
-  for(const s of scales){if(peakDisp<=s*0.8){maxArcSpd=s;break}}
+  const maxArcSpd=Math.max(10,Math.ceil(windDisp*1.5/5)*5);
   const windArc=Math.min(windDisp/maxArcSpd,1)*340;
   const gustArc=Math.min(gustDisp/maxArcSpd,1)*340;
   const arcR=r+2.5;
@@ -1594,8 +1591,6 @@ function renderWeather(data){
     const lg=(toDeg-fromDeg)>180?1:0;
     return`M${x1.toFixed(1)},${y1.toFixed(1)} A${radius},${radius} 0 ${lg} 1 ${x2.toFixed(1)},${y2.toFixed(1)}`;
   }
-  gaugeSvg+=`<path id="gauge-gust-arc" d="${gustArc>0?arcPath(0,gustArc,arcR+2):'M0,0'}" fill="none" stroke="${neonOrange}0.5)" stroke-width="2" stroke-linecap="round"/>`;
-  gaugeSvg+=`<path id="gauge-wind-arc" d="${windArc>0?arcPath(0,windArc,arcR):'M0,0'}" fill="none" stroke="${neonCyan}0.8)" stroke-width="2.5" stroke-linecap="round"/>`;
 
   S._gaugeMaxSpd=maxArcSpd;S._gaugeArcR=arcR;
   const spdTicks=[];
@@ -1640,6 +1635,8 @@ function renderWeather(data){
     const x2=cx+Math.cos(a)*(r-1.5),y2=cy+Math.sin(a)*(r-1.5);
     gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}0.08)" stroke-width="0.4"/>`;
   }
+  gaugeSvg+=`<path id="gauge-gust-arc" d="${gustArc>0?arcPath(0,gustArc,arcR+2):'M0,0'}" fill="none" stroke="${neonOrange}0.5)" stroke-width="2" stroke-linecap="round"/>`;
+  gaugeSvg+=`<path id="gauge-wind-arc" d="${windArc>0?arcPath(0,windArc,arcR):'M0,0'}" fill="none" stroke="${neonCyan}0.8)" stroke-width="2.5" stroke-linecap="round"/>`;
   const ptrAng=(wd-90)*Math.PI/180;
   const pTip=r-1,pBase=10;
   const px=cx+Math.cos(ptrAng)*pTip,py=cy+Math.sin(ptrAng)*pTip;
@@ -1915,7 +1912,7 @@ function startWindSim(){
     const t=Date.now()*0.000055;
     const spdNoise=_wn.noise(t+seed,0);
     const dirNoise=_wn.noise(t+seed+50,100);
-    const spdFactor=0.5+((spdNoise+1)/2)*0.75;
+    const spdFactor=((spdNoise+1)/2)*1.5;
     let simSpd=Math.max(0,curSpd*spdFactor);
     let simDir=((curDir+dirNoise*15)%360+360)%360;
     _gustSamples.push(simSpd);
