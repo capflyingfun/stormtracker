@@ -3257,6 +3257,8 @@ function buildStormZones(map,rawPts){
     }
   }
   if(S._arrowCells)S._arrowCells=[];
+  S._approachData={count:approachCount,maxDbz:approachMaxDbz,minDbz:approachMinDbz,maxDist:approachMaxDist,bearings:approachBearings,sumDbz:approachSumDbz};
+  if(S.map&&S._showPathArrows)buildPathArrows(S.map);
   if(S._gridEtaTimers.length>0){
     const fmtGE=(sec)=>{if(!sec||sec<=0)return'NOW';const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return h>0?h+'h:'+String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s':m+'m:'+String(s).padStart(2,'0')+'s';};
     S._gridEtaInterval=setInterval(()=>{
@@ -3269,118 +3271,6 @@ function buildStormZones(map,rawPts){
         if(remain<=0&&el)el.style.color='#ef4444';
       }
     },1000);
-  }
-  if(mv&&mv.speed>=1&&cells.size>0){
-    let scanMaxDbz=0;
-    for(const[,c]of cells){if(c.maxDbz>scanMaxDbz)scanMaxDbz=c.maxDbz;}
-    const dotColor=dbzColor(scanMaxDbz).color;
-    if(approachCount>0)console.log(`⚠️ ${approachCount} grid cell(s) approaching your location`);
-    const trailPane='approach-trail-pane';
-    if(!map.getPane(trailPane)){
-      map.createPane(trailPane);
-      map.getPane(trailPane).style.zIndex=450;
-    }
-    const mvDir=mv.direction;
-    const fromBear=(mvDir+180)%360;
-    let avgBearDeg=fromBear;
-    let halfAngle=15;
-    let coneDist=50;
-    if(approachCount>0&&approachSumDbz>0){
-      const avgBearRad=Math.atan2(
-        approachBearings.reduce((s,b)=>s+Math.sin(b*Math.PI/180),0)/approachCount,
-        approachBearings.reduce((s,b)=>s+Math.cos(b*Math.PI/180),0)/approachCount
-      );
-      avgBearDeg=(avgBearRad*180/Math.PI+360)%360;
-      let bearSpread=0;
-      for(const b of approachBearings){
-        const d=Math.abs(((b-avgBearDeg)+540)%360-180);
-        if(d>bearSpread)bearSpread=d;
-      }
-      halfAngle=Math.max(8,Math.min(bearSpread+5,30));
-      coneDist=Math.max(approachMaxDist*0.95,20);
-    }
-    const ilsCount=20;
-    const tailMi=70;
-    const tailCount=12;
-    const totalCenter=ilsCount+tailCount;
-    const ilsCenterDots=[];
-    const ilsLeftDots=[];
-    const ilsRightDots=[];
-    for(let i=0;i<ilsCount;i++){
-      const f=(i+1)/(ilsCount+1);
-      const d=coneDist*(1-f);
-      const spread=halfAngle*(1-f);
-      const cPt=destPt(S.lat,S.lon,d,avgBearDeg);
-      const sz=Math.max(3,6-f*3);
-      const dot=L.marker(cPt,{
-        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${dotColor};box-shadow:0 0 ${sz+3}px ${dotColor};opacity:0.15"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
-        pane:trailPane,interactive:false
-      }).addTo(map);
-      ilsCenterDots.push(dot);
-      S._stormZoneLayers.push(dot);
-      if(spread>2){
-        const lPt=destPt(S.lat,S.lon,d,avgBearDeg-spread);
-        const rPt=destPt(S.lat,S.lon,d,avgBearDeg+spread);
-        const barSz=Math.min(4,Math.max(2,sz-1));
-        const lDot=L.marker(lPt,{
-          icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${dotColor};box-shadow:0 0 ${barSz+2}px ${dotColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
-          pane:trailPane,interactive:false
-        }).addTo(map);
-        const rDot=L.marker(rPt,{
-          icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${dotColor};box-shadow:0 0 ${barSz+2}px ${dotColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
-          pane:trailPane,interactive:false
-        }).addTo(map);
-        ilsLeftDots.push(lDot);
-        ilsRightDots.push(rDot);
-        S._stormZoneLayers.push(lDot);
-        S._stormZoneLayers.push(rDot);
-      }
-    }
-    for(let i=0;i<tailCount;i++){
-      const f=(i+1)/(tailCount+1);
-      const tPt=destPt(S.lat,S.lon,tailMi*f,mvDir);
-      const fadeOp=Math.max(0.05,0.15*(1-f));
-      const sz=Math.max(2,5-f*3);
-      const dot=L.marker(tPt,{
-        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${dotColor};box-shadow:0 0 ${sz+2}px ${dotColor};opacity:${fadeOp}"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
-        pane:trailPane,interactive:false
-      }).addTo(map);
-      ilsCenterDots.push(dot);
-      S._stormZoneLayers.push(dot);
-    }
-    const vanePt=destPt(S.lat,S.lon,tailMi*0.92,mvDir);
-    const vaneSz=16;
-    const vaneArrow=L.marker(vanePt,{
-      icon:L.divIcon({className:'',html:`<svg width="${vaneSz}" height="${vaneSz}" viewBox="0 0 40 40" style="transform:rotate(${mvDir}deg);filter:drop-shadow(0 0 4px ${dotColor})"><polygon points="20,4 30,30 20,24 10,30" fill="${dotColor}" fill-opacity="0.7"/></svg>`,iconSize:[vaneSz,vaneSz],iconAnchor:[vaneSz/2,vaneSz/2]}),
-      pane:trailPane,interactive:false
-    }).addTo(map);
-    S._stormZoneLayers.push(vaneArrow);
-    let cFrame=0,sFrame=0;
-    const animDots=(dots,frame)=>{
-      const len=dots.length;
-      for(let i=0;i<len;i++){
-        const el=dots[i].getElement();
-        if(!el)continue;
-        const ch=el.firstChild;
-        if(!ch)continue;
-        const pos=(frame-i+len)%len;
-        if(pos<3){
-          ch.style.opacity=String(pos===0?0.9:pos===1?0.5:0.25);
-          ch.style.transform=pos===0?'scale(1.2)':'scale(1)';
-        }else{
-          ch.style.opacity='0.15';
-          ch.style.transform='scale(1)';
-        }
-      }
-    };
-    const sideLen=ilsLeftDots.length||1;
-    S._approachArrowInterval=setInterval(()=>{
-      animDots(ilsCenterDots,cFrame);
-      animDots(ilsLeftDots,sFrame);
-      animDots(ilsRightDots,sFrame);
-      cFrame=(cFrame+1)%totalCenter;
-      sFrame=(sFrame+1)%sideLen;
-    },150);
   }
   const ms=Math.round(performance.now()-t0);
   console.log(`Polar grid: ${rawPts.length} pts → ${cells.size} cells (${ZONE_ANG_STEP}°×${ZONE_DIST_STEP_MI}mi) in ${ms}ms`);
@@ -3480,64 +3370,115 @@ function buildPathArrows(map,_retries){
     return;
   }
   const mv=S.stormMovement;
-  const travelDir=mv.direction;
-  const distances=[50,60,70];
+  const mvDir=mv.direction;
+  const fromBear=(mvDir+180)%360;
   let maxDbz=0;
   if(S.storms&&S.storms.length>0){
     for(const p of S.storms){if(p.dbz>maxDbz)maxDbz=p.dbz}
   }
-  const color=pathArrowNeonColor(maxDbz);
-  const glowStr=color==='#ffffff'
-    ?'drop-shadow(0 0 6px rgba(255,255,255,0.6)) drop-shadow(0 0 2px rgba(255,255,255,0.4))'
-    :`drop-shadow(0 0 8px ${color}) drop-shadow(0 0 3px ${color})`;
+  const dotColor=pathArrowNeonColor(maxDbz);
+  const ad=S._approachData||{count:0,bearings:[],maxDist:0,sumDbz:0};
+  let avgBearDeg=fromBear;
+  let halfAngle=15;
+  let coneDist=50;
+  if(ad.count>0&&ad.sumDbz>0){
+    const avgBearRad=Math.atan2(
+      ad.bearings.reduce((s,b)=>s+Math.sin(b*Math.PI/180),0)/ad.count,
+      ad.bearings.reduce((s,b)=>s+Math.cos(b*Math.PI/180),0)/ad.count
+    );
+    avgBearDeg=(avgBearRad*180/Math.PI+360)%360;
+    let bearSpread=0;
+    for(const b of ad.bearings){
+      const d=Math.abs(((b-avgBearDeg)+540)%360-180);
+      if(d>bearSpread)bearSpread=d;
+    }
+    halfAngle=Math.max(8,Math.min(bearSpread+5,30));
+    coneDist=Math.max(ad.maxDist*0.95,20);
+  }
   const pane='path-arrow-pane';
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
-  const style=S._pathArrowStyle||'chevron';
-  const sz=46;
-  const baseZoom=8;
-  const initScale=Math.pow(2,map.getZoom()-baseZoom);
-  function makeHtml(strokeW,scale){
-    if(style==='pointer'){
-      const rot=travelDir;
-      return`<div class="pa-inner" style="width:${sz}px;height:${sz}px;transform:rotate(${rot}deg) scale(${scale});transform-origin:center center;filter:${glowStr}"><svg width="${sz}" height="${sz}" viewBox="0 0 48 48"><path d="M24,2 L40,44 L24,34 L8,44 Z" fill="${color}" stroke="rgba(0,0,0,0.35)" stroke-width="1.5" stroke-linejoin="round"/></svg></div>`;
-    }else{
-      const rot=travelDir-90;
-      return`<div class="pa-inner" style="width:${sz}px;height:${sz}px;transform:rotate(${rot}deg) scale(${scale});transform-origin:center center;filter:${glowStr}"><svg width="${sz}" height="${sz}" viewBox="0 0 48 48"><path d="M14,6 L36,24 L14,42" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
-    }
-  }
-  const markers=[];
-  for(let i=0;i<3;i++){
-    const pt=destPt(S.lat,S.lon,distances[i],travelDir);
-    const mk=L.marker(pt,{
-      icon:L.divIcon({className:'path-arrow-icon',html:makeHtml(6-i,initScale),iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+  const ilsCount=20;
+  const tailMi=70;
+  const tailCount=12;
+  const totalCenter=ilsCount+tailCount;
+  const ilsCenterDots=[];
+  const ilsLeftDots=[];
+  const ilsRightDots=[];
+  for(let i=0;i<ilsCount;i++){
+    const f=(i+1)/(ilsCount+1);
+    const d=coneDist*(1-f);
+    const spread=halfAngle*(1-f);
+    const cPt=destPt(S.lat,S.lon,d,avgBearDeg);
+    const sz=Math.max(3,6-f*3);
+    const dot=L.marker(cPt,{
+      icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${dotColor};box-shadow:0 0 ${sz+3}px ${dotColor};opacity:0.15"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
       pane:pane,interactive:false
     }).addTo(map);
-    markers.push(mk);
-    S._pathArrowLayers.push(mk);
-  }
-  function fixScale(){
-    const scale=Math.pow(2,map.getZoom()-baseZoom);
-    markers.forEach((mk,i)=>{
-      const el=mk.getElement();if(!el)return;
-      const inner=el.querySelector('.pa-inner');if(!inner)return;
-      const rot=style==='pointer'?travelDir:travelDir-90;
-      inner.style.transform=`rotate(${rot}deg) scale(${scale})`;
-    });
-  }
-  map.on('zoomend',fixScale);
-  S._pathArrowZoomHandler=fixScale;
-  let frame=0;
-  S._pathArrowAnimInterval=setInterval(()=>{
-    for(let i=0;i<3;i++){
-      const el=markers[i]?.getElement();if(!el)continue;
-      const inner=el.querySelector('.pa-inner');if(!inner)continue;
-      const phase=(frame-i+6)%6;
-      const op=phase<3?1-phase*0.25:0.12;
-      inner.style.opacity=String(op);
-      inner.style.transition='opacity 0.3s';
+    ilsCenterDots.push(dot);
+    S._pathArrowLayers.push(dot);
+    if(spread>2){
+      const lPt=destPt(S.lat,S.lon,d,avgBearDeg-spread);
+      const rPt=destPt(S.lat,S.lon,d,avgBearDeg+spread);
+      const barSz=Math.min(4,Math.max(2,sz-1));
+      const lDot=L.marker(lPt,{
+        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${dotColor};box-shadow:0 0 ${barSz+2}px ${dotColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+        pane:pane,interactive:false
+      }).addTo(map);
+      const rDot=L.marker(rPt,{
+        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${dotColor};box-shadow:0 0 ${barSz+2}px ${dotColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+        pane:pane,interactive:false
+      }).addTo(map);
+      ilsLeftDots.push(lDot);
+      ilsRightDots.push(rDot);
+      S._pathArrowLayers.push(lDot);
+      S._pathArrowLayers.push(rDot);
     }
-    frame=(frame+1)%6;
-  },350);
+  }
+  for(let i=0;i<tailCount;i++){
+    const f=(i+1)/(tailCount+1);
+    const tPt=destPt(S.lat,S.lon,tailMi*f,mvDir);
+    const fadeOp=Math.max(0.05,0.15*(1-f));
+    const sz=Math.max(2,5-f*3);
+    const dot=L.marker(tPt,{
+      icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${dotColor};box-shadow:0 0 ${sz+2}px ${dotColor};opacity:${fadeOp}"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+      pane:pane,interactive:false
+    }).addTo(map);
+    ilsCenterDots.push(dot);
+    S._pathArrowLayers.push(dot);
+  }
+  const vanePt=destPt(S.lat,S.lon,tailMi*0.92,mvDir);
+  const vaneSz=16;
+  const vaneArrow=L.marker(vanePt,{
+    icon:L.divIcon({className:'',html:`<svg width="${vaneSz}" height="${vaneSz}" viewBox="0 0 40 40" style="transform:rotate(${mvDir}deg);filter:drop-shadow(0 0 4px ${dotColor})"><polygon points="20,4 30,30 20,24 10,30" fill="${dotColor}" fill-opacity="0.7"/></svg>`,iconSize:[vaneSz,vaneSz],iconAnchor:[vaneSz/2,vaneSz/2]}),
+    pane:pane,interactive:false
+  }).addTo(map);
+  S._pathArrowLayers.push(vaneArrow);
+  let cFrame=0,sFrame=0;
+  const animDots=(dots,frame)=>{
+    const len=dots.length;
+    for(let i=0;i<len;i++){
+      const el=dots[i].getElement();
+      if(!el)continue;
+      const ch=el.firstChild;
+      if(!ch)continue;
+      const pos=(frame-i+len)%len;
+      if(pos<3){
+        ch.style.opacity=String(pos===0?0.9:pos===1?0.5:0.25);
+        ch.style.transform=pos===0?'scale(1.2)':'scale(1)';
+      }else{
+        ch.style.opacity='0.15';
+        ch.style.transform='scale(1)';
+      }
+    }
+  };
+  const sideLen=ilsLeftDots.length||1;
+  S._pathArrowAnimInterval=setInterval(()=>{
+    animDots(ilsCenterDots,cFrame);
+    animDots(ilsLeftDots,sFrame);
+    animDots(ilsRightDots,sFrame);
+    cFrame=(cFrame+1)%totalCenter;
+    sFrame=(sFrame+1)%sideLen;
+  },150);
 }
 function toggleStormPoints(){
   S._showPoints=!S._showPoints;
