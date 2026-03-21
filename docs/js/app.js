@@ -3377,22 +3377,16 @@ function buildPathArrows(map,_retries){
   const centerColor=hasInbound?pathArrowNeonColor(ad.maxDbz):'#ffffff';
   const edgeColor=hasInbound?pathArrowNeonColor(ad.minDbz):'#ff3355';
   const tailColor=hasInbound?centerColor:'#ffffff';
-  let avgBearDeg=fromBear;
+  const avgBearDeg=fromBear;
   let halfAngle=15;
-  let coneDist=80;
+  const coneDist=80;
   if(hasInbound){
-    const avgBearRad=Math.atan2(
-      ad.bearings.reduce((s,b)=>s+Math.sin(b*Math.PI/180),0)/ad.count,
-      ad.bearings.reduce((s,b)=>s+Math.cos(b*Math.PI/180),0)/ad.count
-    );
-    avgBearDeg=(avgBearRad*180/Math.PI+360)%360;
     let bearSpread=0;
     for(const b of ad.bearings){
-      const d=Math.abs(((b-avgBearDeg)+540)%360-180);
+      const d=Math.abs(((b-fromBear)+540)%360-180);
       if(d>bearSpread)bearSpread=d;
     }
     halfAngle=Math.max(8,Math.min(bearSpread+5,30));
-    coneDist=80;
   }
   const pane='path-arrow-pane';
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
