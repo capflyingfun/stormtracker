@@ -82,17 +82,84 @@ function cycleUnit(key){
   reRenderActive();
   S._skipWindRestart=false;
 }
+let _gaugeTrail=[];
+let _gaugeCurrentMax=10;
+let _gaugeTargetMax=10;
+let _gaugeLastGustFlash=0;
+let _gaugePrevGust=0;
+function _smartGaugeMax(windVal,gustVal){
+  const peak=Math.max(windVal,gustVal,1);
+  const ideal=peak*1.45;
+  let step;
+  if(ideal<=10)step=5;
+  else if(ideal<=30)step=5;
+  else if(ideal<=60)step=10;
+  else if(ideal<=120)step=20;
+  else step=25;
+  return Math.max(step,Math.ceil(ideal/step)*step);
+}
 function updateGaugeSegments(windVal,gustVal){
   const g=document.getElementById('gauge-seg-group');
   if(!g)return;
-  const spu=S._gaugeSegsPerUnit||1;
+  const now=Date.now();
+  _gaugeTrail.push({t:now,v:windVal});
+  while(_gaugeTrail.length>60&&now-_gaugeTrail[0].t>60000)_gaugeTrail.shift();
+  const newMax=_smartGaugeMax(windVal,gustVal);
+  if(newMax!==_gaugeTargetMax)_gaugeTargetMax=newMax;
+  const maxDelta=_gaugeTargetMax-_gaugeCurrentMax;
+  if(Math.abs(maxDelta)>0.5){
+    const rate=maxDelta>0?0.15:0.04;
+    _gaugeCurrentMax+=(maxDelta*rate);
+  }else _gaugeCurrentMax=_gaugeTargetMax;
+  const maxSpd=Math.max(5,Math.round(_gaugeCurrentMax));
+  S._gaugeMaxSpd=maxSpd;
+  const isGustSpike=gustVal>_gaugePrevGust*1.15&&gustVal>windVal*1.2;
+  if(isGustSpike)_gaugeLastGustFlash=now;
+  _gaugePrevGust=gustVal;
+  const flashActive=now-_gaugeLastGustFlash<800;
+  const breathPhase=Math.sin(now*0.003)*0.12;
   const segs=g.querySelectorAll('.gauge-seg');
+  const spu=S._gaugeSegsPerUnit||1;
   segs.forEach((s,i)=>{
-    const segVal=i/spu;
-    if(segVal<windVal)s.setAttribute('fill','rgba(0,220,255,0.85)');
-    else if(segVal<gustVal)s.setAttribute('fill','rgba(255,160,0,0.6)');
-    else s.setAttribute('fill','rgba(0,220,255,0.08)');
+    const segVal=(i/spu)*(maxSpd/(S._gaugeMaxSegs/spu||maxSpd));
+    if(segVal<windVal){
+      const alpha=0.75+breathPhase+(windVal>0?Math.sin(now*0.005+i*0.3)*0.08:0);
+      s.setAttribute('fill',`rgba(0,220,255,${Math.min(0.95,Math.max(0.5,alpha)).toFixed(2)})`);
+    }else if(segVal<gustVal){
+      const gAlpha=flashActive?0.95:0.6;
+      s.setAttribute('fill',`rgba(255,${flashActive?'200':'160'},0,${gAlpha})`);
+    }else{
+      s.setAttribute('fill','rgba(0,220,255,0.08)');
+    }
   });
+  const tickG=document.getElementById('gauge-tick-group');
+  if(tickG){
+    const spdStep=maxSpd<=10?2:maxSpd<=20?5:maxSpd<=50?5:maxSpd<=100?10:maxSpd<=150?25:50;
+    let tickHtml='';
+    for(let spd=0;spd<maxSpd;spd+=spdStep){
+      const frac=spd/maxSpd;
+      const deg=(-90+frac*360)*Math.PI/180;
+      const lx=50+Math.cos(deg)*58.5,ly=50+Math.sin(deg)*58.5;
+      tickHtml+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="rgba(0,220,255,0.5)" font-size="3.2" font-weight="700" text-anchor="middle" dominant-baseline="central">${spd}</text>`;
+    }
+    tickG.innerHTML=tickHtml;
+  }
+  const trailG=document.getElementById('gauge-trail-ring');
+  if(trailG&&_gaugeTrail.length>1){
+    let trailPath='';
+    const cx=50,cy=50,tr=38;
+    _gaugeTrail.forEach((pt,idx)=>{
+      const age=(now-pt.t)/60000;
+      if(age>1)return;
+      const frac=Math.min(pt.v/maxSpd,1);
+      const deg=(-90+frac*360)*Math.PI/180;
+      const x=cx+Math.cos(deg)*tr,y=cy+Math.sin(deg)*tr;
+      const alpha=(1-age)*0.6;
+      const sz=1+frac*1.5;
+      trailPath+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${sz.toFixed(1)}" fill="rgba(0,220,255,${alpha.toFixed(2)})"/>`;
+    });
+    trailG.innerHTML=trailPath;
+  }
 }
 function windSweepAnim(){
   if(_windSweepRaf){cancelAnimationFrame(_windSweepRaf);_windSweepRaf=null}
@@ -1084,6 +1151,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use it for a quick situational glance.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.11',date:'2026-03-21',items:['Dynamic wind gauge: live-scaling max with smart step sizes, breathing segments, gust flash effect, 60s wind trail ring','International station loading: progressive radius search (1°→5°), improved METAR parser (MPS winds, CAVOK, SLP, fractional visibility, weather codes)','Removed VATSIM fallback — all stations now use AWC direct for reliable international data','Station distance display respects metric/imperial units','Fixed flight category for international meter-based visibility']},
   {ver:'v2.10',date:'2026-03-21',items:['Dynamic ticker: 25+ rotating messages with live weather data, radar status, station info, NWS alerts, and educational tips','Ticker pulls real-time temp, wind, humidity, pressure, visibility, cloud cover, sunrise/sunset, forecasts','Nearby-storm ticker also enriched with contextual weather + radar scan info','Fun facts: dBZ scale, NEXRAD network, lightning, dew point, wall clouds, virga, and more']},
   {ver:'v2.09',date:'2026-03-21',items:['AI chat: 🗑️ Clear History button to reset conversation','Map controls split left/right — scan tools on left, storm toggles on right','Reduced vertical button stacking on mobile radar view']},
   {ver:'v2.08',date:'2026-03-21',items:['Clutter filter: ≤8 returns below 31 dBZ auto-hidden from map, sonar, and badges as likely false positives','🕳️ toggle button on map to show/hide clutter when detected','AI assistant now distinguishes real precipitation from radar clutter/ground returns','Alert ticker threshold raised to 31+ dBZ — minor returns no longer trigger warnings']},
@@ -1619,15 +1687,18 @@ function renderWeather(data){
     gaugeSvg+=`<path class="gauge-seg" d="${d}" fill="${fill}" style="transform:rotate(${rotDeg}deg)"/>`;
   }
   gaugeSvg+=`</g>`;
+  gaugeSvg+=`<g id="gauge-trail-ring"></g>`;
   const spdTicks=[];
-  const spdStep=maxArcSpd<=15?5:maxArcSpd<=30?5:maxArcSpd<=50?10:maxArcSpd<=100?20:maxArcSpd<=160?25:50;
+  const spdStep=maxArcSpd<=10?2:maxArcSpd<=20?5:maxArcSpd<=50?5:maxArcSpd<=100?10:maxArcSpd<=150?25:50;
   for(let s=0;s<maxArcSpd;s+=spdStep)spdTicks.push(s);
+  gaugeSvg+=`<g id="gauge-tick-group">`;
   spdTicks.forEach(spd=>{
     const frac=spd/maxArcSpd;
     const deg=(-90+frac*360)*Math.PI/180;
     const lx=cx+Math.cos(deg)*(segR+4.5),ly=cy+Math.sin(deg)*(segR+4.5);
     gaugeSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.5)" font-size="3.2" font-weight="700" text-anchor="middle" dominant-baseline="central">${spd}</text>`;
   });
+  gaugeSvg+=`</g>`;
   const compassTicks=[0,30,60,90,120,150,180,210,240,270,300,330];
   compassTicks.forEach(deg=>{
     const a=(deg-90)*Math.PI/180;
@@ -4657,18 +4728,22 @@ async function fetchStation(){
 }
 async function fetchStationAWC(){
   const el=document.getElementById('page-station');
-  const degSpan=1.5;
-  const minLat=(S.lat-degSpan).toFixed(2),maxLat=(S.lat+degSpan).toFixed(2);
-  const minLon=(S.lon-degSpan).toFixed(2),maxLon=(S.lon+degSpan).toFixed(2);
+  const radii=[1.0,2.0,3.5,5.0];
   let data=[];
-  try{
-    const url=`https://aviationweather.gov/api/data/metar?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json&hours=3`;
-    const r=await fetch(url);
-    if(r.ok){
-      const body=await r.json();
-      if(Array.isArray(body))data=body;
-    }
-  }catch(e){console.log('AWC metar bbox error:',e.message)}
+  for(const degSpan of radii){
+    const minLat=(S.lat-degSpan).toFixed(2),maxLat=(S.lat+degSpan).toFixed(2);
+    const minLon=(S.lon-degSpan).toFixed(2),maxLon=(S.lon+degSpan).toFixed(2);
+    try{
+      const url=`https://aviationweather.gov/api/data/metar?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json&hours=3`;
+      const r=await fetch(url);
+      if(r.ok){
+        const body=await r.json();
+        if(Array.isArray(body)&&body.length)data=body;
+      }
+    }catch(e){console.log('AWC metar bbox error (±'+degSpan+'°):',e.message)}
+    if(data.length>=3)break;
+    if(data.length&&degSpan>=2)break;
+  }
   if(data.length){
     const seen=new Map();
     data.forEach(m=>{if(!seen.has(m.icaoId))seen.set(m.icaoId,m)});
@@ -4689,49 +4764,40 @@ async function fetchStationAWC(){
 }
 async function fetchStationGlobal(){
   const el=document.getElementById('page-station');
-  const degSpan=2;
-  const minLat=(S.lat-degSpan).toFixed(2),maxLat=(S.lat+degSpan).toFixed(2);
-  const minLon=(S.lon-degSpan).toFixed(2),maxLon=(S.lon+degSpan).toFixed(2);
+  const radii=[2.0,4.0,6.0];
   let stationList=[];
-  try{
-    const url=`https://aviationweather.gov/api/data/stationinfo?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json`;
-    const r=await fetch(url);
-    if(r.ok){
-      const body=await r.json();
-      if(Array.isArray(body)){
-        stationList=body.filter(s=>s.siteType&&s.siteType.includes('METAR')).map(s=>({
-          icao:s.icaoId,name:s.site||s.icaoId,
-          lat:s.lat,lon:s.lon,
-          dist:haversine(S.lat,S.lon,s.lat,s.lon)
-        })).sort((a,b)=>a.dist-b.dist).slice(0,10);
+  for(const degSpan of radii){
+    const minLat=(S.lat-degSpan).toFixed(2),maxLat=(S.lat+degSpan).toFixed(2);
+    const minLon=(S.lon-degSpan).toFixed(2),maxLon=(S.lon+degSpan).toFixed(2);
+    try{
+      const url=`https://aviationweather.gov/api/data/stationinfo?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json`;
+      const r=await fetch(url);
+      if(r.ok){
+        const body=await r.json();
+        if(Array.isArray(body)){
+          stationList=body.filter(s=>s.siteType&&s.siteType.includes('METAR')).map(s=>({
+            icao:s.icaoId,name:s.site||s.icaoId,
+            lat:s.lat,lon:s.lon,
+            dist:haversine(S.lat,S.lon,s.lat,s.lon)
+          })).sort((a,b)=>a.dist-b.dist).slice(0,10);
+        }
       }
-    }
-  }catch(e){console.log('AWC stationinfo error:',e.message)}
-  if(!stationList.length)throw new Error('No stations in range');
-  S._stationSource='vatsim';
-  S.nearbyStations=stationList;
-  await loadStationVatsim(stationList[0]);
-}
-async function loadStationVatsim(station){
-  const el=document.getElementById('page-station');
-  try{
-    const r=await fetch(`https://metar.vatsim.net/${station.icao}`);
-    if(!r.ok)throw new Error('VATSIM '+r.status);
-    const raw=await r.text();
-    if(!raw||raw.length<10)throw new Error('Empty METAR');
-    const obs=parseRawMetar(raw.trim(),station);
-    S.station=obs;S.stationId=station.icao;
-    renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
-  }catch(e){
-    console.error('VATSIM error for '+station.icao+':',e);
-    el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Could not load station data for ${station.icao}.<br><span style="font-size:0.8em;color:var(--text-muted)">${e.message}</span></p></div>`;
+    }catch(e){console.log('AWC stationinfo error (±'+degSpan+'°):',e.message)}
+    if(stationList.length)break;
   }
+  if(!stationList.length)throw new Error('No stations in range');
+  S._stationSource='awc';
+  S.nearbyStations=stationList;
+  await loadStationObsAWC(stationList[0].icao);
 }
 function parseRawMetar(raw,station){
   const parts=raw.split(/\s+/);
-  let temp=null,dewp=null,windDir=null,windKt=null,gustKt=null,vis=null,altim=null;
+  let temp=null,dewp=null,windDir=null,windKt=null,gustKt=null,vis=null,altim=null,slp=null;
   let clouds=[];
-  for(const p of parts){
+  let wxString='';
+  const wxCodes=['RA','SN','DZ','GR','GS','TS','FG','BR','HZ','FU','SA','DU','SQ','FC','VA','PO','SS','DS','SH','FZ','MI','PR','BC','BL','DR','VC'];
+  for(let pi=0;pi<parts.length;pi++){
+    const p=parts[pi];
     const windM=p.match(/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT$/);
     if(windM){
       windDir=windM[1]==='VRB'?null:Number(windM[1]);
@@ -4739,25 +4805,55 @@ function parseRawMetar(raw,station){
       if(windM[4])gustKt=Number(windM[4]);
       continue;
     }
-    const tempM=p.match(/^(M?\d{1,2})\/(M?\d{1,2})$/);
+    const windMPS=p.match(/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?MPS$/);
+    if(windMPS){
+      windDir=windMPS[1]==='VRB'?null:Number(windMPS[1]);
+      windKt=Number(windMPS[2])*1.94384;
+      if(windMPS[4])gustKt=Number(windMPS[4])*1.94384;
+      continue;
+    }
+    const tempM=p.match(/^(M?\d{1,2})\/(M?\d{1,2})?$/);
     if(tempM){
       temp=tempM[1].startsWith('M')?-Number(tempM[1].slice(1)):Number(tempM[1]);
-      dewp=tempM[2].startsWith('M')?-Number(tempM[2].slice(1)):Number(tempM[2]);
+      if(tempM[2])dewp=tempM[2].startsWith('M')?-Number(tempM[2].slice(1)):Number(tempM[2]);
       continue;
     }
     const altM=p.match(/^Q(\d{4})$/);
     if(altM){altim=Number(altM[1]);continue}
     const altA=p.match(/^A(\d{4})$/);
     if(altA){altim=Number(altA[1])/100*33.8639;continue}
-    if(vis===null&&!windM&&!tempM&&!altM&&!altA&&p.match(/^(\d{4})$/)&&Number(p)>=100&&Number(p)<=9999){
+    const slpM=p.match(/^SLP(\d{3})$/);
+    if(slpM){
+      const sv=Number(slpM[1]);
+      slp=(sv>=500?900+sv/10:1000+sv/10);
+      if(altim==null)altim=slp;
+      continue;
+    }
+    if(vis===null&&p==='CAVOK'){vis=9999;continue}
+    if(vis===null&&p.match(/^9999NDV?$/)){vis=9999;continue}
+    if(vis===null&&p.match(/^(\d{4})$/)&&Number(p)>=100&&Number(p)<=9999){
       vis=Number(p);continue;
+    }
+    const visSMfrac=p.match(/^(\d+)\s*\/\s*(\d+)SM$/);
+    if(visSMfrac){vis=(Number(visSMfrac[1])/Number(visSMfrac[2]))*1609.34;continue}
+    if(vis===null&&pi>0&&parts[pi-1].match(/^\d+$/)&&p.match(/^(\d+)\/(\d+)SM$/)){
+      const whole=Number(parts[pi-1]);
+      const fm=p.match(/^(\d+)\/(\d+)SM$/);
+      vis=(whole+Number(fm[1])/Number(fm[2]))*1609.34;continue;
     }
     const visSM=p.match(/^(\d+)SM$/);
     if(visSM){vis=Number(visSM[1])*1609.34;continue}
-    const cldM=p.match(/^(FEW|SCT|BKN|OVC|CLR|SKC|NSC|NCD|VV)(\d{3})?$/);
+    if(p==='P6SM'){vis=10*1609.34;continue}
+    const cldM=p.match(/^(FEW|SCT|BKN|OVC|CLR|SKC|NSC|NCD|VV)(\d{3})?(.*)$/);
     if(cldM){
       clouds.push({amount:cldM[1],base:{value:cldM[2]?Number(cldM[2])*100*0.3048:null}});
       continue;
+    }
+    for(const wx of wxCodes){
+      if(p.includes(wx)&&p.match(/^[-+]?(VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(RA|SN|DZ|GR|GS|PL|IC|PE|SG|UP|FG|BR|HZ|FU|SA|DU|VA|PO|SQ|FC|SS|DS)+$/)){
+        wxString+=(wxString?' ':'')+p;
+        break;
+      }
     }
   }
   return{
@@ -4771,7 +4867,8 @@ function parseRawMetar(raw,station){
     rawMETAR:raw,
     clouds,
     obsTime:new Date().toISOString(),
-    _source:'VATSIM'
+    wxString,
+    _source:'AWC'
   };
 }
 function parseAWCobs(m){
@@ -4784,7 +4881,7 @@ function parseAWCobs(m){
     windKmh:m.wspd!=null?m.wspd*1.852:null,
     windDir:m.wdir!=null?(m.wdir==='VRB'?null:Number(m.wdir)):null,
     gustKmh:m.wgst!=null?m.wgst*1.852:null,
-    visMeter:m.visib!=null?(String(m.visib).includes('+')?16093:Number(m.visib)*1609.34):null,
+    visMeter:m.visib!=null?(String(m.visib).includes('+')?16093:Number(m.visib)>100?Number(m.visib):Number(m.visib)*1609.34):null,
     presPa:m.altim!=null?m.altim*100:null,
     rawMETAR:m.rawOb||'',
     clouds:(m.clouds||[]).map(c=>({amount:c.cover,base:{value:c.base!=null?c.base*0.3048:null}})),
@@ -4905,7 +5002,7 @@ function renderStation(){
           <div style="font-weight:700;font-size:0.95em">${S.stationId} — ${stationName}</div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:2px;flex-wrap:wrap">
             <span class="flt-cat flt-${fltCls}" style="font-size:0.7em;padding:1px 8px">${fltCat==='VFR'?'●':'◉'} ${fltCat}</span>
-            <span style="font-size:0.65em;color:var(--text-muted)">${dist} mi away</span>
+            <span style="font-size:0.65em;color:var(--text-muted)">${S.visUnit===1?(dist*1.60934).toFixed(1)+' km':dist+' mi'} away</span>
             ${obLabel?`<span style="font-size:0.6em;color:var(--text-muted);font-family:var(--font-mono)">Updated: ${obLabel}</span>`:''}
           </div>
         </div>
