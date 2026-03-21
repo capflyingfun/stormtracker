@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v1.92</title>
+<title>StormTracker v1.93</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <meta name="theme-color" content="#0a1020">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -28,7 +28,7 @@
     <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
   <div class="header-center">
-    <h1>⚡ StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v1.92</span></h1>
+    <h1>⚡ StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v1.93</span></h1>
     <div class="header-status">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Initializing...</span>
@@ -59,130 +59,132 @@
     <button onclick="closeTravelIntervalPopup()" style="padding:6px 16px;background:var(--bg-elevated);color:var(--text-muted);border:1px solid var(--border-subtle);border-radius:8px;font-size:0.8em;cursor:pointer">Cancel</button>
   </div>
 </div>
-<div id="settings-panel" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(5,8,15,0.85);backdrop-filter:blur(6px)" onclick="if(event.target===this)toggleSettingsPanel()">
-  <div style="position:relative;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:16px;max-width:320px;width:90%;margin:80px auto;max-height:70vh;overflow-y:auto">
-    <button onclick="toggleSettingsPanel()" style="position:absolute;top:-12px;right:-12px;width:28px;height:28px;border-radius:50%;background:var(--bg-card);border:1px solid var(--border-subtle);color:var(--text-muted);font-size:1em;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,0.4)">✕</button>
-    <div style="margin-bottom:12px">
-      <span style="font-size:1em;font-weight:700;color:var(--text-primary)">⚙️ Settings</span>
+<div id="settings-panel" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(5,8,15,0.88);backdrop-filter:blur(8px)" onclick="if(event.target===this)toggleSettingsPanel()">
+  <div style="display:flex;flex-direction:column;max-width:380px;width:100%;height:100%;margin:0 auto;background:var(--bg-card);border-left:1px solid var(--border-subtle);border-right:1px solid var(--border-subtle);overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(180deg,rgba(10,16,32,0.98),rgba(10,16,32,0.92));border-bottom:1px solid var(--border-subtle);flex-shrink:0">
+      <span style="font-size:1.05em;font-weight:700;color:var(--text-primary)">⚙️ Settings</span>
+      <button onclick="toggleSettingsPanel()" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid var(--border-subtle);color:var(--text-muted);font-size:1.1em;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
     </div>
-    <div style="border-top:1px solid var(--border-subtle);padding-top:10px">
-      <div style="font-size:0.8em;font-weight:600;color:var(--accent-cyan);margin-bottom:8px">📐 Units</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:0.75em;color:var(--text-muted)">System</span>
-        <select id="settings-unit-system" onchange="setUnitSystem(this.value)" style="font-size:0.75em;padding:2px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
-          <option value="imperial">Imperial (°F, mph)</option>
-          <option value="metric">Metric (°C, km/h)</option>
-          <option value="auto">Auto (by location)</option>
-        </select>
-      </div>
-      <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:8px">Auto mode switches units when you change location</div>
-      <div id="settings-unit-details" style="margin-bottom:8px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <span style="font-size:0.7em;color:var(--text-muted)">Temperature</span>
-          <select id="settings-temp-unit" onchange="setIndividualUnit('tempUnit',this.value)" style="font-size:0.7em;padding:2px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
-            <option value="0">°F</option><option value="1">°C</option>
+    <div style="flex:1;overflow-y:auto;overflow-x:hidden;padding:16px;-webkit-overflow-scrolling:touch">
+      <div style="margin-bottom:14px">
+        <div style="font-size:0.8em;font-weight:600;color:var(--accent-cyan);margin-bottom:8px">📐 Units</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:0.75em;color:var(--text-muted)">System</span>
+          <select id="settings-unit-system" onchange="setUnitSystem(this.value)" style="font-size:0.75em;padding:4px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
+            <option value="imperial">Imperial (°F, mph)</option>
+            <option value="metric">Metric (°C, km/h)</option>
+            <option value="auto">Auto (by location)</option>
           </select>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <span style="font-size:0.7em;color:var(--text-muted)">Wind Speed</span>
-          <select id="settings-wind-unit" onchange="setIndividualUnit('windUnit',this.value)" style="font-size:0.7em;padding:2px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
-            <option value="0">mph</option><option value="1">kts</option><option value="2">km/h</option><option value="3">m/s</option>
+        <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:8px">Auto mode switches units when you change location</div>
+        <div id="settings-unit-details" style="margin-bottom:4px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:0.7em;color:var(--text-muted)">Temperature</span>
+            <select id="settings-temp-unit" onchange="setIndividualUnit('tempUnit',this.value)" style="font-size:0.7em;padding:2px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
+              <option value="0">°F</option><option value="1">°C</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:0.7em;color:var(--text-muted)">Wind Speed</span>
+            <select id="settings-wind-unit" onchange="setIndividualUnit('windUnit',this.value)" style="font-size:0.7em;padding:2px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
+              <option value="0">mph</option><option value="1">kts</option><option value="2">km/h</option><option value="3">m/s</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:0.7em;color:var(--text-muted)">Pressure</span>
+            <select id="settings-pres-unit" onchange="setIndividualUnit('presUnit',this.value)" style="font-size:0.7em;padding:2px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
+              <option value="0">inHg</option><option value="1">mb</option><option value="2">mmHg</option><option value="3">kPa</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:0.7em;color:var(--text-muted)">Visibility</span>
+            <select id="settings-vis-unit" onchange="setIndividualUnit('visUnit',this.value)" style="font-size:0.7em;padding:2px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
+              <option value="0">mi</option><option value="1">km</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:0.7em;color:var(--text-muted)">Precipitation</span>
+            <select id="settings-precip-unit" onchange="setIndividualUnit('precipUnit',this.value)" style="font-size:0.7em;padding:2px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
+              <option value="0">in</option><option value="1">mm</option><option value="2">cm</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
+        <div style="font-size:0.8em;font-weight:600;color:var(--accent-green);margin-bottom:8px">🔄 Auto Refresh</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:0.75em;color:var(--text-muted)">Refresh Interval</span>
+          <select id="settings-auto-refresh" onchange="setAutoRefresh(this.value)" style="font-size:0.75em;padding:4px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
+            <option value="0">Off</option>
+            <option value="15">15m</option>
+            <option value="30">30m</option>
+            <option value="45">45m</option>
+            <option value="60" selected>60m</option>
+            <option value="90">90m</option>
+            <option value="120">2h</option>
+            <option value="240">4h</option>
+            <option value="360">6h</option>
           </select>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <span style="font-size:0.7em;color:var(--text-muted)">Pressure</span>
-          <select id="settings-pres-unit" onchange="setIndividualUnit('presUnit',this.value)" style="font-size:0.7em;padding:2px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
-            <option value="0">inHg</option><option value="1">mb</option><option value="2">mmHg</option><option value="3">kPa</option>
+        <div style="font-size:0.65em;color:var(--text-muted)">How often weather, radar & storms auto-update when idle</div>
+      </div>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
+        <div style="font-size:0.8em;font-weight:600;color:var(--accent-cyan);margin-bottom:8px">🧭 Travel Mode</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:0.75em;color:var(--text-muted)">Travel Refresh Interval</span>
+          <select id="settings-travel-int" onchange="setGpsInterval(this.value)" style="font-size:0.75em;padding:4px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
+            <option value="300">5m</option>
+            <option value="600">10m</option>
+            <option value="900">15m</option>
+            <option value="1800">30m</option>
+            <option value="2700">45m</option>
+            <option value="3600">1h</option>
           </select>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <span style="font-size:0.7em;color:var(--text-muted)">Visibility</span>
-          <select id="settings-vis-unit" onchange="setIndividualUnit('visUnit',this.value)" style="font-size:0.7em;padding:2px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
-            <option value="0">mi</option><option value="1">km</option>
+        <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">GPS tracks live · this controls data refresh while traveling</div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.75em;color:var(--text-muted)">Travel Mode</span>
+          <button id="settings-travel-toggle" onclick="toggleTravelMode();syncSettingsPanel()" style="font-size:0.75em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid var(--accent-cyan);background:rgba(0,229,255,0.08);color:var(--accent-cyan)">OFF</button>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
+        <div style="font-size:0.8em;font-weight:600;color:#ffcc00;margin-bottom:8px">➤ Storm Path ILS Cone</div>
+        <div style="font-size:0.65em;color:var(--text-muted)">Animated ILS approach cone shows storm movement direction with tail extending 70mi past your location. Color reflects storm intensity.</div>
+      </div>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
+        <div style="font-size:0.8em;font-weight:600;color:#a855f7;margin-bottom:8px">🤖 AI Weather Assistant</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:0.75em;color:var(--text-muted)">OpenAI API Key</span>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="password" id="settings-ai-key" placeholder="sk-..." style="font-size:0.7em;padding:3px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;width:130px;font-family:var(--font-mono)" onchange="saveAIKey(this.value)">
+            <button onclick="toggleAIKeyVis()" style="font-size:0.7em;padding:3px 6px;background:rgba(255,255,255,0.05);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;color:var(--text-muted)">👁</button>
+          </div>
+        </div>
+        <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:8px">Stored locally on your device only — never sent anywhere except OpenAI</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:0.75em;color:var(--text-muted)">AI Tone</span>
+          <select id="settings-ai-tone" onchange="saveAITone(this.value)" style="font-size:0.75em;padding:4px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
+            <option value="professional">Professional</option>
+            <option value="friendly">Friendly</option>
+            <option value="humorous">Humorous</option>
           </select>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <span style="font-size:0.7em;color:var(--text-muted)">Precipitation</span>
-          <select id="settings-precip-unit" onchange="setIndividualUnit('precipUnit',this.value)" style="font-size:0.7em;padding:2px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:5px;cursor:pointer">
-            <option value="0">in</option><option value="1">mm</option><option value="2">cm</option>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:0.75em;color:var(--text-muted)">Detail Level</span>
+          <select id="settings-ai-detail" onchange="saveAIDetail(this.value)" style="font-size:0.75em;padding:4px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
+            <option value="standard">Standard</option>
+            <option value="minimal">Brief</option>
+            <option value="technical">Technical</option>
           </select>
         </div>
       </div>
-    </div>
-    <div style="border-top:1px solid var(--border-subtle);padding-top:10px">
-      <div style="font-size:0.8em;font-weight:600;color:var(--accent-green);margin-bottom:8px">🔄 Auto Refresh</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:0.75em;color:var(--text-muted)">Refresh Interval</span>
-        <select id="settings-auto-refresh" onchange="setAutoRefresh(this.value)" style="font-size:0.75em;padding:2px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
-          <option value="0">Off</option>
-          <option value="15">15m</option>
-          <option value="30">30m</option>
-          <option value="45">45m</option>
-          <option value="60" selected>60m</option>
-          <option value="90">90m</option>
-          <option value="120">2h</option>
-          <option value="240">4h</option>
-          <option value="360">6h</option>
-        </select>
-      </div>
-      <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:12px">How often weather, radar & storms auto-update when idle</div>
-    </div>
-    <div style="border-top:1px solid var(--border-subtle);padding-top:10px">
-      <div style="font-size:0.8em;font-weight:600;color:var(--accent-cyan);margin-bottom:8px">🧭 Travel Mode</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:0.75em;color:var(--text-muted)">Travel Refresh Interval</span>
-        <select id="settings-travel-int" onchange="setGpsInterval(this.value)" style="font-size:0.75em;padding:2px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
-          <option value="300">5m</option>
-          <option value="600">10m</option>
-          <option value="900">15m</option>
-          <option value="1800">30m</option>
-          <option value="2700">45m</option>
-          <option value="3600">1h</option>
-        </select>
-      </div>
-      <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">GPS tracks live · this controls data refresh while traveling</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <span style="font-size:0.75em;color:var(--text-muted)">Travel Mode</span>
-        <button id="settings-travel-toggle" onclick="toggleTravelMode();syncSettingsPanel()" style="font-size:0.75em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid var(--accent-cyan);background:rgba(0,229,255,0.08);color:var(--accent-cyan)">OFF</button>
-      </div>
-    </div>
-    <div style="border-top:1px solid var(--border-subtle);padding-top:10px">
-      <div style="font-size:0.8em;font-weight:600;color:#ffcc00;margin-bottom:8px">➤ Storm Path ILS Cone</div>
-      <div style="font-size:0.65em;color:var(--text-muted)">Animated ILS approach cone shows storm movement direction with tail extending 70mi past your location. Color reflects storm intensity.</div>
-    </div>
-    <div style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:4px">
-      <div style="font-size:0.8em;font-weight:600;color:#a855f7;margin-bottom:8px">🤖 AI Weather Assistant</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:0.75em;color:var(--text-muted)">OpenAI API Key</span>
-        <div style="display:flex;gap:4px;align-items:center">
-          <input type="password" id="settings-ai-key" placeholder="sk-..." style="font-size:0.7em;padding:3px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;width:130px;font-family:var(--font-mono)" onchange="saveAIKey(this.value)">
-          <button onclick="toggleAIKeyVis()" style="font-size:0.7em;padding:3px 6px;background:rgba(255,255,255,0.05);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;color:var(--text-muted)">👁</button>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:12px">
+        <div style="display:flex;gap:8px">
+          <button onclick="showTutorial()" style="flex:1;padding:10px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.8em;font-weight:600;cursor:pointer">📖 Tutorial</button>
+          <button onclick="showChangelog()" style="flex:1;padding:10px;background:rgba(168,85,247,0.1);color:#a855f7;border:1px solid rgba(168,85,247,0.3);border-radius:8px;font-size:0.8em;font-weight:600;cursor:pointer">📋 What's New</button>
         </div>
+        <div style="font-size:0.65em;color:var(--text-muted);margin-top:6px;text-align:center">Learn how to use StormTracker or see recent updates</div>
       </div>
-      <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:8px">Stored locally on your device only — never sent anywhere except OpenAI</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:0.75em;color:var(--text-muted)">AI Tone</span>
-        <select id="settings-ai-tone" onchange="saveAITone(this.value)" style="font-size:0.75em;padding:2px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
-          <option value="professional">Professional</option>
-          <option value="friendly">Friendly</option>
-          <option value="humorous">Humorous</option>
-        </select>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:0.75em;color:var(--text-muted)">Detail Level</span>
-        <select id="settings-ai-detail" onchange="saveAIDetail(this.value)" style="font-size:0.75em;padding:2px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
-          <option value="standard">Standard</option>
-          <option value="minimal">Brief</option>
-          <option value="technical">Technical</option>
-        </select>
-      </div>
-    </div>
-    <div style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:4px">
-      <div style="display:flex;gap:8px">
-        <button onclick="showTutorial()" style="flex:1;padding:8px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.8em;font-weight:600;cursor:pointer">📖 Tutorial</button>
-        <button onclick="showChangelog()" style="flex:1;padding:8px;background:rgba(168,85,247,0.1);color:#a855f7;border:1px solid rgba(168,85,247,0.3);border-radius:8px;font-size:0.8em;font-weight:600;cursor:pointer">📋 What's New</button>
-      </div>
-      <div style="font-size:0.65em;color:var(--text-muted);margin-top:6px;text-align:center">Learn how to use StormTracker or see recent updates</div>
     </div>
   </div>
 </div>
@@ -295,7 +297,7 @@
   <button class="nav-item" data-page="alerts" style="position:relative" id="nav-alerts"><span class="nav-icon">⚠️</span><span class="nav-label">Alerts</span><span class="nav-badge" id="nav-alert-badge">0</span></button>
 </nav>
 
-<script src="js/app.js?v=192"></script>
+<script src="js/app.js?v=193"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(r=>console.log('SW registered')).catch(e=>console.log('SW failed:',e))}</script>
 </body>
 </html>
