@@ -2945,22 +2945,59 @@ async function toggleAirportMarkers(map){
   }
   toast('Loading airports...');
   try{
-    const r=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,NWS_HDR);
-    const pt=await r.json();
-    const stUrl=pt.properties?.observationStations;
-    if(!stUrl)throw new Error('No stations');
-    const sr=await fetch(stUrl,NWS_HDR);
-    const sd=await sr.json();
-    const features=sd.features||[];
-    const stations=features.slice(0,15).map(f=>({
-      icao:f.properties.stationIdentifier,
-      name:f.properties.name||'',
-      lat:f.geometry.coordinates[1],
-      lon:f.geometry.coordinates[0],
-      dist:haversine(S.lat,S.lon,f.geometry.coordinates[1],f.geometry.coordinates[0]),
-    }));
-    S._airportDataCache=stations;
-    plotAirportMarkers(map,stations);
+    let stations=[];
+    let nwsOk=false;
+    try{
+      const r=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(5000)});
+      if(r.ok){
+        const pt=await r.json();
+        const stUrl=pt.properties?.observationStations;
+        if(stUrl){
+          const sr=await fetch(stUrl,{...NWS_HDR,signal:AbortSignal.timeout(5000)});
+          if(sr.ok){
+            const sd=await sr.json();
+            const features=sd.features||[];
+            if(features.length){
+              stations=features.slice(0,15).map(f=>({icao:f.properties.stationIdentifier,name:f.properties.name||'',lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],dist:haversine(S.lat,S.lon,f.geometry.coordinates[1],f.geometry.coordinates[0])}));
+              nwsOk=true;
+              console.log('Map airports: NWS found',stations.length);
+            }
+          }
+        }
+      }
+    }catch(e){console.log('Map airports: NWS error:',e.message)}
+    if(!stations.length){
+      const radii=[1.5,3.0,5.0];
+      for(const deg of radii){
+        try{
+          const r2=await fetch(`https://aviationweather.gov/api/data/stationinfo?bbox=${(S.lat-deg).toFixed(2)},${(S.lon-deg).toFixed(2)},${(S.lat+deg).toFixed(2)},${(S.lon+deg).toFixed(2)}&format=json`,{signal:AbortSignal.timeout(8000)});
+          if(r2.ok){
+            const body=await r2.json();
+            if(Array.isArray(body)){
+              const mc=body.filter(s=>s.siteType&&(Array.isArray(s.siteType)?s.siteType.includes('METAR'):String(s.siteType).includes('METAR')));
+              if(mc.length){
+                stations=mc.map(s=>({icao:s.icaoId,name:s.site||s.icaoId,lat:s.lat,lon:s.lon,dist:haversine(S.lat,S.lon,s.lat,s.lon)})).sort((a,b)=>a.dist-b.dist).slice(0,15);
+                console.log('Map airports: AWC stationinfo found',stations.length,'in ±'+deg+'°');
+                break;
+              }
+            }
+          }
+        }catch(e){console.log('Map airports: AWC error ±'+deg+'°:',e.message)}
+      }
+    }
+    if(!stations.length){
+      const airports=await _loadGlobalAirports();
+      stations=_nearestAirports(S.lat,S.lon,airports,200,15);
+      if(stations.length)console.log('Map airports: global DB found',stations.length);
+    }
+    if(stations.length){
+      S._airportDataCache=stations;
+      plotAirportMarkers(map,stations,nwsOk);
+    }else{
+      toast('No airports found nearby');
+      S._airportsVisible=false;
+      btn.style.background='';btn.style.borderColor='';
+    }
   }catch(e){
     console.error('Airport fetch:',e);
     toast('Could not load airports');
@@ -2969,26 +3006,48 @@ async function toggleAirportMarkers(map){
   }
 }
 
-async function plotAirportMarkers(map,stations){
+async function plotAirportMarkers(map,stations,useNWS){
   clearAirportMarkers(map);
   S._airportsVisible=true;
   const plotId=++S._airportPlotId;
   toast('✈️ Loading airports...');
-  const results=await Promise.allSettled(stations.map(async st=>{
-    const obsUrl=`https://api.weather.gov/stations/${st.icao}/observations/latest`;
-    const or=await fetch(obsUrl,NWS_HDR);
-    if(!or.ok)return null;
-    const od=await or.json();
-    return{st,props:od.properties||{}};
-  }));
+  let results;
+  if(useNWS){
+    results=await Promise.allSettled(stations.map(async st=>{
+      const or=await fetch(`https://api.weather.gov/stations/${st.icao}/observations/latest`,NWS_HDR);
+      if(!or.ok)return null;
+      const od=await or.json();const p=od.properties||{};
+      return{st,tc:p.temperature?.value,wKmh:p.windSpeed?.value,wDir:p.windDirection?.value,
+        visMi:p.visibility?.value!=null?(p.visibility.value/1609.34):null,
+        clouds:(p.cloudLayers||[]).map(l=>({amount:l.amount,base:l.base}))};
+    }));
+  }else{
+    const ids=stations.map(s=>s.icao).join(',');
+    let metars=[];
+    try{
+      const mr=await fetch(`https://aviationweather.gov/api/data/metar?ids=${ids}&format=json&hours=3`,{signal:AbortSignal.timeout(10000)});
+      if(mr.ok)metars=await mr.json();
+    }catch(e){console.log('Map airports AWC metar batch error:',e.message)}
+    const metarMap=new Map();
+    if(Array.isArray(metars))metars.forEach(m=>{if(m.icaoId&&!metarMap.has(m.icaoId))metarMap.set(m.icaoId,m)});
+    results=stations.map(st=>{
+      const m=metarMap.get(st.icao);
+      if(m){
+        const wKts=m.wspd!=null?m.wspd:null;
+        const wKmh=wKts!=null?wKts*1.852:null;
+        const gKts=m.wgst!=null?m.wgst:null;
+        const visMi=m.visib!=null?m.visib:null;
+        const clouds=(m.clouds||[]).map(c=>({amount:c.cover,base:c.base!=null?{value:c.base/0.3048}:null}));
+        return{status:'fulfilled',value:{st,tc:m.temp!=null?m.temp:null,wKmh,wDir:m.wdir,visMi,clouds}};
+      }
+      return{status:'fulfilled',value:{st,tc:null,wKmh:null,wDir:null,visMi:null,clouds:[]}};
+    });
+  }
   if(S._airportPlotId!==plotId)return;
   const valid=results.filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value);
-  for(const{st,props:p}of valid){
-    const tc=p.temperature?.value;
-    const wKmh=p.windSpeed?.value;
-    const wDir=p.windDirection?.value;
-    const visMi=p.visibility?.value!=null?(p.visibility.value/1609.34):null;
-    const fltCat=getFltCat(visMi,{clouds:(p.cloudLayers||[]).map(l=>({amount:l.amount,base:l.base}))});
+  for(const d of valid){
+    const{st,tc,wKmh,wDir,visMi,clouds}=d;
+    const fltCat=getFltCat(visMi,{clouds:clouds||[]});
     const fltColor=fltCat==='VFR'?'#22c55e':fltCat==='MVFR'?'#3b82f6':fltCat==='IFR'?'#ef4444':'#d946ef';
     const icon=L.divIcon({
       className:'',
@@ -3001,7 +3060,7 @@ async function plotAirportMarkers(map,stations){
     const tempStr=tc!=null?fmtTemp(tc):'--';
     const windStr=wKmh!=null?(fmtWind(wKmh)+' '+(wDir!=null?degToDir(wDir):'VRB')):'Calm';
     const visStr=visMi!=null?fmtVis(visMi):'--';
-    const skyStr=formatClouds({clouds:(p.cloudLayers||[]).map(l=>({amount:l.amount,base:l.base}))});
+    const skyStr=formatClouds({clouds:clouds||[]});
     const popup=L.popup({className:'storm-popup',maxWidth:220,closeButton:true}).setContent(`
       <div style="font-size:0.8em;line-height:1.5">
         <div style="font-weight:700;color:${fltColor};margin-bottom:4px">✈️ ${st.icao} — ${st.name}</div>
