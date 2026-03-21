@@ -5359,6 +5359,14 @@ async function switchStation(code){
   }
   toast('Loading '+icao+'...');
   S.stationId=icao;
+  const isUS=/^K[A-Z]{3}$/.test(icao)||/^P[A-Z]{3}$/.test(icao)||/^TJ[A-Z]{2}$/.test(icao)||/^PH[A-Z]{2}$/.test(icao);
+  if(isUS){
+    S._stationSource='nws';
+    try{
+      await loadStationObs(icao);
+      return;
+    }catch(e){console.log('switchStation: NWS failed for',icao,', trying AWC:',e.message)}
+  }
   S._stationSource='awc';
   try{
     await loadStationObsAWC(icao);
