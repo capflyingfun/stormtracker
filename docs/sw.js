@@ -1,10 +1,8 @@
-const CACHE_NAME = 'stormtracker-v190b';
+const CACHE_NAME = 'stormtracker-v191';
 const STATIC_ASSETS = [
   '/StormTracker/',
   '/StormTracker/index.html',
   '/StormTracker/offline.html',
-  '/StormTracker/css/style.css',
-  '/StormTracker/js/app.js',
   '/StormTracker/manifest.json',
   '/StormTracker/icons/icon-192x192.png',
   '/StormTracker/icons/icon-512x512.png'
@@ -27,6 +25,11 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+    return;
+  }
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
@@ -41,7 +44,6 @@ self.addEventListener('fetch', event => {
     );
     return;
   }
-  const url = new URL(event.request.url);
   if (url.origin !== location.origin) {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
@@ -91,9 +93,7 @@ self.addEventListener('push', event => {
     vibrate: [200, 100, 200],
     tag: data.tag || 'weather-alert',
     renotify: true,
-    data: {
-      url: data.url || '/StormTracker/'
-    },
+    data: { url: data.url || '/StormTracker/' },
     actions: [
       { action: 'view', title: 'View Details' },
       { action: 'dismiss', title: 'Dismiss' }
