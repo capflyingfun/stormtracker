@@ -167,10 +167,12 @@ function applyUnitsForCountry(cc){
   S._lastDetectedCC=cc;
 }
 function checkLocationUnits(countryCode){
+  console.log('[Units] checkLocationUnits called with:',countryCode);
   if(!countryCode)return;
   const cc=countryCode.toUpperCase();
   const locIsImperial=IMPERIAL_CC.includes(cc);
   const curIsImperial=S.tempUnit===0;
+  console.log('[Units] loc='+cc+' locImperial='+locIsImperial+' curImperial='+curIsImperial);
   if(locIsImperial===curIsImperial)return;
   const sys=locIsImperial?'Imperial (°F, mph, inHg)':'Metric (°C, km/h, mb)';
   const bar=document.createElement('div');
