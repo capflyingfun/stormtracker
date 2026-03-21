@@ -190,7 +190,11 @@ function acceptUnitSwitch(cc){
   document.querySelectorAll('.unit-switch-bar').forEach(b=>b.remove());
   applyUnitsForCountry(cc);
   saveUnits();
-  reRenderActive();
+  const miBtn=document.getElementById('radar-toggle-units');
+  if(miBtn)miBtn.textContent=S.radarMetric?'KM':'MI';
+  if(S.forecast)renderWeather(S.forecast);
+  if(S.station)renderStation();
+  if(S.activePage==='storms')renderStorms();
   toast('✅ Units switched to '+(IMPERIAL_CC.includes(cc)?'Imperial':'Metric'));
 }
 
@@ -616,7 +620,8 @@ function selectSuggestion(r){
   document.getElementById('location-input').value=name;
   toggleLocOverlay(false);
   setLoc(lat,lon,name);
-  checkLocationUnits(addr.country_code);
+  const cc=addr.country_code;
+  if(cc)setTimeout(()=>checkLocationUnits(cc),500);
 }
 function hideSuggestions(){
   const box=document.getElementById('loc-suggestions');
@@ -1515,8 +1520,9 @@ function renderWeather(data){
   };
   const order=getSecOrder();
 
-  const wd=(_windCurSim.spd>0&&S._skipWindRestart)?_windCurSim.dir:Math.round((c.wind_direction_10m||0)*10)/10;
-  const windSpd=(_windCurSim.spd>0&&S._skipWindRestart)?_windCurSim.spd:(c.wind_speed_10m||0);
+  const _simActive=_windCurSim.spd>0&&S._skipWindRestart;
+  const wd=_simActive?_windCurSim.dir:Math.round((c.wind_direction_10m||0)*10)/10;
+  const windSpd=_simActive?_windCurSim.spd:(c.wind_speed_10m||0);
   const cx=50,cy=50,r=42,ri=36;
   const neonCyan='rgba(0,220,255,';const neonOrange='rgba(255,160,0,';
   let gaugeSvg='';
@@ -1529,7 +1535,7 @@ function renderWeather(data){
   gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${ri}" fill="none" stroke="${neonCyan}0.08)" stroke-width="0.5"/>`;
   gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${ri*0.55}" fill="none" stroke="${neonCyan}0.05)" stroke-width="0.3"/>`;
   const windDisp=parseFloat(kmhTo(windSpd,S.windUnit));
-  const gustRaw=c.wind_gusts_10m||windSpd;
+  const gustRaw=_simActive?_windCurSim.gust:(c.wind_gusts_10m||windSpd);
   const gustDisp=parseFloat(kmhTo(gustRaw,S.windUnit));
   const peakDisp=Math.max(windDisp,gustDisp);
   const scales=[10,15,20,30,40,50,75,100,130,160,200];
