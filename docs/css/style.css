@@ -100,6 +100,8 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .storm-popup .leaflet-popup-close-button:hover{color:#fff!important}
 @keyframes gridPulse{0%,100%{opacity:0.55}50%{opacity:0.2}}
 .grid-pulse{animation:gridPulse 1.5s ease-in-out infinite}
+@keyframes pulseFlow{0%{stroke-dashoffset:40}100%{stroke-dashoffset:0}}
+.approaching-pulse-line{animation:pulseFlow 1.2s linear infinite;opacity:0.6}
 .storm-lightning-icon,.storm-lightning-icon *{pointer-events:none!important}
 .storm-arrow-icon{background:none!important;border:none!important}
 .storm-group{margin-bottom:8px;border-radius:var(--radius-sm);overflow:hidden}
