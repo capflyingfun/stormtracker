@@ -135,8 +135,8 @@ function loadUnits(){
   }catch(e){}
   autoDetectUnits();
 }
+const IMPERIAL_CC=['US','LR','MM','PR','GU','VI','AS','MP','FM','MH','PW'];
 function autoDetectUnits(){
-  const imperialCountries=['US','LR','MM','PR','GU','VI','AS','MP','FM','MH','PW'];
   let cc='';
   try{
     const tz=Intl.DateTimeFormat().resolvedOptions().timeZone||'';
@@ -153,14 +153,41 @@ function autoDetectUnits(){
       if(parts.length>=2)cc=parts[parts.length-1].toUpperCase();
     }
   }catch(e){}
-  const isImperial=imperialCountries.includes(cc);
+  applyUnitsForCountry(cc);
+  console.log('[Units] Auto-detected: '+(IMPERIAL_CC.includes(cc)?'Imperial':'Metric')+' ('+cc+')');
+}
+function applyUnitsForCountry(cc){
+  const isImperial=IMPERIAL_CC.includes(cc);
   S.tempUnit=isImperial?0:1;
   S.windUnit=isImperial?0:2;
   S.presUnit=isImperial?0:1;
   S.visUnit=isImperial?0:1;
   S.precipUnit=isImperial?0:1;
   S.radarMetric=!isImperial;
-  console.log('[Units] Auto-detected: '+(isImperial?'Imperial ('+cc+')':'Metric ('+cc+')'));
+  S._lastDetectedCC=cc;
+}
+function checkLocationUnits(countryCode){
+  if(!countryCode)return;
+  const cc=countryCode.toUpperCase();
+  const locIsImperial=IMPERIAL_CC.includes(cc);
+  const curIsImperial=S.tempUnit===0;
+  if(locIsImperial===curIsImperial)return;
+  const sys=locIsImperial?'Imperial (°F, mph, inHg)':'Metric (°C, km/h, mb)';
+  const bar=document.createElement('div');
+  bar.className='unit-switch-bar';
+  bar.innerHTML=`<span>📐 Switch to ${sys} for this region?</span><button onclick="acceptUnitSwitch('${cc}')">Yes</button><button onclick="this.parentElement.remove()">No</button>`;
+  bar.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(10,16,32,0.95);border:1px solid rgba(0,229,255,0.3);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px;font-size:0.85em;color:#e0e8f0;backdrop-filter:blur(10px);box-shadow:0 4px 20px rgba(0,0,0,0.5);max-width:90vw';
+  bar.querySelectorAll('button').forEach(b=>b.style.cssText='padding:6px 14px;border-radius:6px;border:1px solid rgba(0,229,255,0.3);background:rgba(0,229,255,0.1);color:#00e5ff;font-size:0.85em;font-weight:600;cursor:pointer;white-space:nowrap');
+  document.querySelectorAll('.unit-switch-bar').forEach(b=>b.remove());
+  document.body.appendChild(bar);
+  setTimeout(()=>{if(bar.parentElement)bar.remove()},15000);
+}
+function acceptUnitSwitch(cc){
+  document.querySelectorAll('.unit-switch-bar').forEach(b=>b.remove());
+  applyUnitsForCountry(cc);
+  saveUnits();
+  reRenderActive();
+  toast('✅ Units switched to '+(IMPERIAL_CC.includes(cc)?'Imperial':'Metric'));
 }
 
 function reRenderActive(){
@@ -665,6 +692,7 @@ async function searchLoc(){
         name=fmtLocName(addr,r.display_name.split(',').slice(0,2).join(',').trim());
       }
       setLoc(parseFloat(r.lat),parseFloat(r.lon),name);
+      checkLocationUnits(addr.country_code);
     }
     else toast('Location not found');
   }catch(e){toast('Search failed')}
@@ -674,13 +702,13 @@ async function reverseGeo(lat,lon){
   const fallback=`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
   try{
     const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`,{headers:{'Accept-Language':'en'},signal:AbortSignal.timeout(5000)});
-    if(res.ok){const data=await res.json();const addr=data.address||{};setLoc(lat,lon,fmtLocName(addr,fallback));return}
+    if(res.ok){const data=await res.json();const addr=data.address||{};setLoc(lat,lon,fmtLocName(addr,fallback));checkLocationUnits(addr.country_code);return}
   }catch(e){console.log('Nominatim reverse failed:',e.message)}
   try{
     const res=await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}&lang=en`,{signal:AbortSignal.timeout(5000)});
     if(res.ok){const data=await res.json();const f=data.features?.[0];if(f){const p=f.properties||{};
       const addr={city:p.city,town:p.town,village:p.village,suburb:p.suburb,district:p.district,state:p.state,country:p.country,country_code:p.countrycode,road:p.street,house_number:p.housenumber,administrative:p.district,county:p.county};
-      setLoc(lat,lon,fmtLocName(addr,fallback));return}}
+      setLoc(lat,lon,fmtLocName(addr,fallback));checkLocationUnits(p.countrycode);return}}
   }catch(e){console.log('Photon reverse failed:',e.message)}
   setLoc(lat,lon,fallback);
 }
