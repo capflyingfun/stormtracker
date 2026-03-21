@@ -609,10 +609,12 @@ function fmtLocName(addr,fallback){
 function selectSuggestion(r){
   hideSuggestions();
   const lat=parseFloat(r.lat),lon=parseFloat(r.lon);
-  const name=fmtLocName(r.address||{},r.display_name.split(',').slice(0,2).join(',').trim());
+  const addr=r.address||{};
+  const name=fmtLocName(addr,r.display_name.split(',').slice(0,2).join(',').trim());
   document.getElementById('location-input').value=name;
   toggleLocOverlay(false);
   setLoc(lat,lon,name);
+  checkLocationUnits(addr.country_code);
 }
 function hideSuggestions(){
   const box=document.getElementById('loc-suggestions');
