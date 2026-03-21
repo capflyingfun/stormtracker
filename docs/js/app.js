@@ -1586,10 +1586,8 @@ function renderWeather(data){
     const rotDeg=-90+i*segAngle;
     const radStart=0;
     const radEnd=(segArc)*Math.PI/180;
-    const outerR=segR-cx;
-    const innerR=segRi-cx;
-    const or2=outerR>0?outerR:(segR-50);
-    const ir2=innerR>0?innerR:(segRi-50);
+    const or2=segR;
+    const ir2=segRi;
     const cosS=Math.cos(radStart),sinS=Math.sin(radStart);
     const cosE=Math.cos(radEnd),sinE=Math.sin(radEnd);
     const x1=or2*cosS,y1=or2*sinS;
