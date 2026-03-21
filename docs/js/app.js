@@ -3372,16 +3372,15 @@ function buildPathArrows(map,_retries){
   const mv=S.stormMovement;
   const mvDir=mv.direction;
   const fromBear=(mvDir+180)%360;
-  let maxDbz=0;
-  if(S.storms&&S.storms.length>0){
-    for(const p of S.storms){if(p.dbz>maxDbz)maxDbz=p.dbz}
-  }
-  const dotColor=pathArrowNeonColor(maxDbz);
-  const ad=S._approachData||{count:0,bearings:[],maxDist:0,sumDbz:0};
+  const ad=S._approachData||{count:0,bearings:[],maxDist:0,sumDbz:0,maxDbz:0,minDbz:999};
+  const hasInbound=ad.count>0&&ad.sumDbz>0;
+  const centerColor=hasInbound?pathArrowNeonColor(ad.maxDbz):'#ffffff';
+  const edgeColor=hasInbound?pathArrowNeonColor(ad.minDbz):'#ff3355';
+  const tailColor=hasInbound?centerColor:'#ffffff';
   let avgBearDeg=fromBear;
   let halfAngle=15;
-  let coneDist=50;
-  if(ad.count>0&&ad.sumDbz>0){
+  let coneDist=80;
+  if(hasInbound){
     const avgBearRad=Math.atan2(
       ad.bearings.reduce((s,b)=>s+Math.sin(b*Math.PI/180),0)/ad.count,
       ad.bearings.reduce((s,b)=>s+Math.cos(b*Math.PI/180),0)/ad.count
@@ -3393,7 +3392,7 @@ function buildPathArrows(map,_retries){
       if(d>bearSpread)bearSpread=d;
     }
     halfAngle=Math.max(8,Math.min(bearSpread+5,30));
-    coneDist=Math.max(ad.maxDist*0.95,20);
+    coneDist=80;
   }
   const pane='path-arrow-pane';
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
@@ -3411,7 +3410,7 @@ function buildPathArrows(map,_retries){
     const cPt=destPt(S.lat,S.lon,d,avgBearDeg);
     const sz=Math.max(3,6-f*3);
     const dot=L.marker(cPt,{
-      icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${dotColor};box-shadow:0 0 ${sz+3}px ${dotColor};opacity:0.15"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+      icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${centerColor};box-shadow:0 0 ${sz+3}px ${centerColor};opacity:0.15"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
       pane:pane,interactive:false
     }).addTo(map);
     ilsCenterDots.push(dot);
@@ -3421,11 +3420,11 @@ function buildPathArrows(map,_retries){
       const rPt=destPt(S.lat,S.lon,d,avgBearDeg+spread);
       const barSz=Math.min(4,Math.max(2,sz-1));
       const lDot=L.marker(lPt,{
-        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${dotColor};box-shadow:0 0 ${barSz+2}px ${dotColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+2}px ${edgeColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
         pane:pane,interactive:false
       }).addTo(map);
       const rDot=L.marker(rPt,{
-        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${dotColor};box-shadow:0 0 ${barSz+2}px ${dotColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+2}px ${edgeColor};opacity:0.15"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
         pane:pane,interactive:false
       }).addTo(map);
       ilsLeftDots.push(lDot);
@@ -3440,7 +3439,7 @@ function buildPathArrows(map,_retries){
     const fadeOp=Math.max(0.05,0.15*(1-f));
     const sz=Math.max(2,5-f*3);
     const dot=L.marker(tPt,{
-      icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${dotColor};box-shadow:0 0 ${sz+2}px ${dotColor};opacity:${fadeOp}"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+      icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${tailColor};box-shadow:0 0 ${sz+2}px ${tailColor};opacity:${fadeOp}"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
       pane:pane,interactive:false
     }).addTo(map);
     ilsCenterDots.push(dot);
@@ -3449,7 +3448,7 @@ function buildPathArrows(map,_retries){
   const vanePt=destPt(S.lat,S.lon,tailMi*0.92,mvDir);
   const vaneSz=16;
   const vaneArrow=L.marker(vanePt,{
-    icon:L.divIcon({className:'',html:`<svg width="${vaneSz}" height="${vaneSz}" viewBox="0 0 40 40" style="transform:rotate(${mvDir}deg);filter:drop-shadow(0 0 4px ${dotColor})"><polygon points="20,4 30,30 20,24 10,30" fill="${dotColor}" fill-opacity="0.7"/></svg>`,iconSize:[vaneSz,vaneSz],iconAnchor:[vaneSz/2,vaneSz/2]}),
+    icon:L.divIcon({className:'',html:`<svg width="${vaneSz}" height="${vaneSz}" viewBox="0 0 40 40" style="transform:rotate(${mvDir}deg);filter:drop-shadow(0 0 4px ${tailColor})"><polygon points="20,4 30,30 20,24 10,30" fill="${tailColor}" fill-opacity="0.7"/></svg>`,iconSize:[vaneSz,vaneSz],iconAnchor:[vaneSz/2,vaneSz/2]}),
     pane:pane,interactive:false
   }).addTo(map);
   S._pathArrowLayers.push(vaneArrow);
