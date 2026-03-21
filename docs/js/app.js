@@ -486,15 +486,39 @@ document.getElementById('location-input').addEventListener('keydown',e=>{
 });
 function cleanQ(q){return q.replace(/\./g,'').replace(/\s+/g,' ').trim()}
 async function nomSearch(q,limit){
-  const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=${limit}&addressdetails=1`);
+  const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=${limit}&addressdetails=1`,{signal:AbortSignal.timeout(5000)});
+  if(!res.ok)throw new Error('Nominatim '+res.status);
   return res.json();
+}
+async function photonSearch(q,limit){
+  const res=await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=${limit}&lang=en`,{signal:AbortSignal.timeout(5000)});
+  if(!res.ok)throw new Error('Photon '+res.status);
+  const data=await res.json();
+  return(data.features||[]).map(f=>{
+    const p=f.properties||{};const c=f.geometry?.coordinates||[];
+    return{lat:String(c[1]),lon:String(c[0]),display_name:[p.name,p.city||p.town||p.village||'',p.state||'',p.country||''].filter(Boolean).join(', '),
+      address:{house_number:p.housenumber,road:p.street,city:p.city,town:p.town,village:p.village,hamlet:p.hamlet,suburb:p.suburb,district:p.district,administrative:p.district,county:p.county,state:p.state,state_district:p.state_district,country:p.country,country_code:p.countrycode,municipality:p.municipality,borough:p.borough,region:p.region,province:p.province}};
+  });
+}
+async function omGeoSearch(q,limit){
+  const res=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=${limit}&language=en`,{signal:AbortSignal.timeout(5000)});
+  if(!res.ok)throw new Error('OM Geo '+res.status);
+  const data=await res.json();
+  return(data.results||[]).map(r=>({lat:String(r.latitude),lon:String(r.longitude),display_name:[r.name,r.admin1||'',r.country||''].filter(Boolean).join(', '),
+    address:{city:r.name,state:r.admin1||'',country:r.country||'',country_code:(r.country_code||'').toLowerCase()}}));
+}
+async function geoSearch(q,limit){
+  try{return await nomSearch(q,limit)}catch(e){console.log('Nominatim failed:',e.message)}
+  try{return await photonSearch(q,limit)}catch(e){console.log('Photon failed:',e.message)}
+  try{return await omGeoSearch(q,limit)}catch(e){console.log('Open-Meteo geo failed:',e.message)}
+  return[];
 }
 async function fetchSuggestions(q){
   try{
-    let data=await nomSearch(cleanQ(q),5);
+    let data=await geoSearch(cleanQ(q),5);
     if(!data.length){
       const simple=q.replace(/^\d+\s*/,'').replace(/\./g,'').trim();
-      if(simple!==cleanQ(q))data=await nomSearch(simple,5);
+      if(simple!==cleanQ(q))data=await geoSearch(simple,5);
     }
     _sugResults=data;_sugIdx=-1;
     const box=document.getElementById('loc-suggestions');
@@ -591,20 +615,19 @@ async function searchLoc(){
   if(!q)return;
   toast('Searching...');
   try{
-    let data=await nomSearch(cleanQ(q),1);
+    let data=await geoSearch(cleanQ(q),1);
     if(!data.length){
       const simple=q.replace(/^\d+\s*/,'').replace(/\./g,'').trim();
-      if(simple!==cleanQ(q))data=await nomSearch(simple,1);
+      if(simple!==cleanQ(q))data=await geoSearch(simple,1);
     }
     if(data.length){
       const r=data[0];
-      const typed=cleanQ(q);
       const addr=r.address||{};
       const hasStreet=addr.house_number&&addr.road;
       let name;
       if(!hasStreet&&/^\d+\s/.test(q)){
         const streetPart=q.split(',')[0].replace(/\./g,'').trim();
-        const place=addr.city||addr.town||addr.village||addr.county||'';
+        const place=addr.city||addr.town||addr.village||addr.suburb||addr.district||addr.administrative||addr.county||'';
         const region=addr.state||addr.country||'';
         name=[streetPart,place,region].filter(Boolean).join(', ');
       }else{
@@ -617,12 +640,18 @@ async function searchLoc(){
 }
 
 async function reverseGeo(lat,lon){
+  const fallback=`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
   try{
-    const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`,{headers:{'Accept-Language':'en'}});
-    const data=await res.json();const addr=data.address||{};
-    const name=fmtLocName(addr,`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
-    setLoc(lat,lon,name);
-  }catch(e){setLoc(lat,lon)}
+    const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`,{headers:{'Accept-Language':'en'},signal:AbortSignal.timeout(5000)});
+    if(res.ok){const data=await res.json();const addr=data.address||{};setLoc(lat,lon,fmtLocName(addr,fallback));return}
+  }catch(e){console.log('Nominatim reverse failed:',e.message)}
+  try{
+    const res=await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}&lang=en`,{signal:AbortSignal.timeout(5000)});
+    if(res.ok){const data=await res.json();const f=data.features?.[0];if(f){const p=f.properties||{};
+      const addr={city:p.city,town:p.town,village:p.village,suburb:p.suburb,district:p.district,state:p.state,country:p.country,country_code:p.countrycode,road:p.street,house_number:p.housenumber,administrative:p.district,county:p.county};
+      setLoc(lat,lon,fmtLocName(addr,fallback));return}}
+  }catch(e){console.log('Photon reverse failed:',e.message)}
+  setLoc(lat,lon,fallback);
 }
 
 function updateNavForLocation(){
@@ -1156,12 +1185,18 @@ function travelDataRefresh(){
   fetchAlerts();
   scanRadarForStorms();
 }
-function reverseGeocode(lat,lon){
-  return fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1`,{headers:{'Accept-Language':'en'}})
-    .then(r=>r.json()).then(d=>{
-      if(d&&d.address) return fmtLocName(d.address, d.display_name);
-      return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-    }).catch(()=>`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+async function reverseGeocode(lat,lon){
+  const fb=`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  try{
+    const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1`,{headers:{'Accept-Language':'en'},signal:AbortSignal.timeout(5000)});
+    if(res.ok){const d=await res.json();if(d&&d.address)return fmtLocName(d.address,d.display_name);}
+  }catch(e){}
+  try{
+    const res=await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}&lang=en`,{signal:AbortSignal.timeout(5000)});
+    if(res.ok){const d=await res.json();const f=d.features?.[0];if(f){const p=f.properties||{};
+      return fmtLocName({city:p.city,town:p.town,village:p.village,suburb:p.suburb,district:p.district,state:p.state,country:p.country,country_code:p.countrycode,road:p.street,administrative:p.district,county:p.county},fb);}}
+  }catch(e){}
+  return fb;
 }
 
 // ==========================================
