@@ -1086,7 +1086,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use it for a quick situational glance.'}
 ];
 const CHANGELOG=[
-  {ver:'v1.93',date:'2026-03-21',items:['Settings panel redesigned — full-height slide-in panel with fixed header bar','X close button in header, always visible while scrolling','Vertical-only scrolling, no horizontal movement','Cleaner section spacing and layout']},
+  {ver:'v1.94',date:'2026-03-21',items:['Settings panel sized as floating modal (80vh max) — no longer fills entire screen','Background content locked while settings is open — no more dual scrolling','Panel centered with rounded corners and shadow for cleaner look']},
   {ver:'v1.92',date:'2026-03-21',items:['Units now managed in Settings — Imperial/Metric/Auto system selector with individual unit dropdowns','Auto mode: units switch automatically when you search a location in a different country','Removed tap-to-cycle from weather and station displays — cleaner, no more accidental unit changes','Fixed wind gust/direction jumping when changing units']},
   {ver:'v1.90',date:'2026-03-21',items:['Auto-localization — units automatically set based on your region (Celsius, km/h, mb for metric countries; Fahrenheit, mph, inHg for US/Liberia/Myanmar)','First-time users see the right units instantly — no manual toggling needed','Detects country via timezone and browser language','Manual unit changes still saved and respected']},
   {ver:'v1.89',date:'2026-03-21',items:['PWA support — install StormTracker as a standalone app on iOS and Android','Service worker for offline caching of core app files','App manifest with icons for home screen installation','Apple-specific meta tags for full-screen iOS experience']},
@@ -1159,8 +1159,9 @@ function showTutorialDirect(){
 function toggleSettingsPanel(){
   const p=document.getElementById('settings-panel');
   if(!p)return;
-  const vis=p.style.display==='block';
-  p.style.display=vis?'none':'block';
+  const vis=p.style.display==='flex';
+  p.style.display=vis?'none':'flex';
+  document.body.style.overflow=vis?'':'hidden';
   if(!vis)syncSettingsPanel();
 }
 function syncSettingsPanel(){
