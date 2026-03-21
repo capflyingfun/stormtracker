@@ -82,23 +82,30 @@ function cycleUnit(key){
   reRenderActive();
   S._skipWindRestart=false;
 }
-let _gaugeTrail=[];
 let _gaugeCurrentMax=10;
 let _gaugeTargetMax=10;
 let _gaugeLastGustFlash=0;
 let _gaugePrevGust=0;
-function _smartGaugeMax(windVal,gustVal){
-  const peak=Math.max(windVal,gustVal,1);
-  const ideal=peak*2;
-  return Math.max(5,Math.ceil(ideal/5)*5);
-}
+let _gaugeAvgSamples=[];
+let _gaugeAvg=0;
+let _gaugePrevAvg=0;
+let _gaugeAvgHistory=[];
 function updateGaugeSegments(windVal,gustVal){
   const g=document.getElementById('gauge-seg-group');
   if(!g)return;
   const now=Date.now();
-  _gaugeTrail.push({t:now,v:windVal});
-  while(_gaugeTrail.length>60&&now-_gaugeTrail[0].t>60000)_gaugeTrail.shift();
-  const newMax=_smartGaugeMax(windVal,gustVal);
+  _gaugeAvgSamples.push({t:now,v:windVal});
+  while(_gaugeAvgSamples.length&&now-_gaugeAvgSamples[0].t>10000)_gaugeAvgSamples.shift();
+  if(_gaugeAvgSamples.length>0){
+    _gaugePrevAvg=_gaugeAvg;
+    _gaugeAvg=_gaugeAvgSamples.reduce((s,p)=>s+p.v,0)/_gaugeAvgSamples.length;
+  }
+  if(now-(_gaugeAvgHistory.length?_gaugeAvgHistory[_gaugeAvgHistory.length-1].t:0)>=1000){
+    _gaugeAvgHistory.push({t:now,v:_gaugeAvg});
+    while(_gaugeAvgHistory.length>30)_gaugeAvgHistory.shift();
+  }
+  const peak=Math.max(_gaugeAvg,gustVal,1);
+  const newMax=Math.max(5,Math.ceil(peak*2/5)*5);
   if(newMax!==_gaugeTargetMax)_gaugeTargetMax=newMax;
   const maxDelta=_gaugeTargetMax-_gaugeCurrentMax;
   if(Math.abs(maxDelta)>0.5){
@@ -111,17 +118,21 @@ function updateGaugeSegments(windVal,gustVal){
   if(isGustSpike)_gaugeLastGustFlash=now;
   _gaugePrevGust=gustVal;
   const flashActive=now-_gaugeLastGustFlash<800;
-  const breathPhase=Math.sin(now*0.003)*0.12;
+  const breathPhase=Math.sin(now*0.003)*0.08;
   const segs=g.querySelectorAll('.gauge-seg');
   const spu=S._gaugeSegsPerUnit||1;
+  const avgDisp=_gaugeAvg;
   segs.forEach((s,i)=>{
     const segVal=(i/spu)*(maxSpd/(S._gaugeMaxSegs/spu||maxSpd));
-    if(segVal<windVal){
-      const alpha=0.75+breathPhase+(windVal>0?Math.sin(now*0.005+i*0.3)*0.08:0);
-      s.setAttribute('fill',`rgba(0,220,255,${Math.min(0.95,Math.max(0.5,alpha)).toFixed(2)})`);
+    const nextSegVal=((i+1)/spu)*(maxSpd/(S._gaugeMaxSegs/spu||maxSpd));
+    if(avgDisp>=segVal&&avgDisp<nextSegVal){
+      s.setAttribute('fill','rgba(255,0,255,0.9)');
+    }else if(segVal<windVal){
+      const alpha=0.8+breathPhase;
+      s.setAttribute('fill',`rgba(0,255,0,${Math.min(0.95,Math.max(0.6,alpha)).toFixed(2)})`);
     }else if(segVal<gustVal){
-      const gAlpha=flashActive?0.95:0.6;
-      s.setAttribute('fill',`rgba(255,${flashActive?'200':'160'},0,${gAlpha})`);
+      const gAlpha=flashActive?1.0:0.7;
+      s.setAttribute('fill',`rgba(255,0,0,${gAlpha})`);
     }else{
       s.setAttribute('fill','rgba(0,220,255,0.08)');
     }
@@ -138,18 +149,24 @@ function updateGaugeSegments(windVal,gustVal){
     }
     tickG.innerHTML=tickHtml;
   }
+  const avgEl=document.querySelector('.wrc-avg');
+  if(avgEl)avgEl.textContent='A'+avgDisp.toFixed(1)+' '+WIND_UNITS[S.windUnit];
   const trendEl=document.querySelector('.wrc-trend');
-  if(trendEl&&_gaugeTrail.length>=5){
-    const recent=_gaugeTrail.slice(-5);
-    const oldest=recent[0].v;
-    const newest=recent[recent.length-1].v;
-    const diff=newest-oldest;
-    if(Math.abs(diff)>0.3){
+  const trendR=document.querySelector('.wrc-trend-r');
+  if(trendEl&&_gaugeAvgHistory.length>=3){
+    const first=_gaugeAvgHistory[0].v;
+    const last=_gaugeAvgHistory[_gaugeAvgHistory.length-1].v;
+    const diff=last-first;
+    if(Math.abs(diff)>0.5){
       const isUp=diff>0;
-      trendEl.textContent=isUp?'▲':'▼';
-      trendEl.style.color=isUp?'rgba(255,70,70,0.95)':'rgba(0,220,255,0.95)';
+      const arrow=isUp?'⤴':'⤵';
+      const col=isUp?'#FF0000':'#00FF00';
+      trendEl.textContent=arrow;
+      trendEl.style.color=col;
+      if(trendR){trendR.textContent='';trendR.style.color=col;}
     }else{
       trendEl.textContent='';
+      if(trendR)trendR.textContent='';
     }
   }
 }
@@ -1758,10 +1775,14 @@ function renderWeather(data){
           </svg>
           <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
           <div class="wind-rose-center">
-            <div class="wrc-speed"><span class="wrc-num">${windNum}</span><span class="wrc-unit">${windUnit}</span></div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:2px">
+              <span class="wrc-trend" style="font-size:0.9em;font-weight:800;line-height:1"></span>
+              <div class="wrc-speed"><span class="wrc-num">${windNum}</span><span class="wrc-unit">${windUnit}</span></div>
+              <span class="wrc-trend-r" style="font-size:0.9em;font-weight:800;line-height:1"></span>
+            </div>
             <div class="wrc-dir">${_windCurSim.spd>0?degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(1)+'°':degToDir(wd)+' '+wd.toFixed(1)+'°'}</div>
             ${gustStr?`<div class="wrc-gust">${gustStr}</div>`:''}
-            <div class="wrc-trend" style="font-size:0.6em;font-weight:800;line-height:1;min-height:0.8em"></div>
+            <div class="wrc-avg"></div>
           </div>
         </div>
         <div class="hero-side">
