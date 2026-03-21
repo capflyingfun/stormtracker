@@ -4863,16 +4863,35 @@ function renderStorms(){
 // ==========================================
 const NWS_HDR={headers:{'User-Agent':'StormTracker/1.50','Accept':'application/geo+json'}};
 
+let _globalAirports=null;
+async function _loadGlobalAirports(){
+  if(_globalAirports)return _globalAirports;
+  try{
+    const r=await fetch('data/airports.json',{signal:AbortSignal.timeout(10000)});
+    if(!r.ok)return null;
+    const data=await r.json();
+    _globalAirports=data.map(a=>({icao:a[0],iata:a[1]||null,name:a[2],lat:a[3],lon:a[4]}));
+    console.log('Global airports loaded:',_globalAirports.length);
+    return _globalAirports;
+  }catch(e){console.log('Airport DB load error:',e.message);return null}
+}
+function _nearestAirports(lat,lon,airports,maxMi,limit){
+  if(!airports)return[];
+  return airports.map(a=>({...a,dist:haversine(lat,lon,a.lat,a.lon)}))
+    .filter(a=>a.dist<=maxMi)
+    .sort((a,b)=>a.dist-b.dist)
+    .slice(0,limit||10);
+}
 async function fetchStation(){
   S._stationLocKey=S.lat+','+S.lon;
   const el=document.getElementById('page-station');showSkel(el,5);
   try{
-    const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,NWS_HDR);
+    const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(6000)});
     if(!ptRes.ok)throw new Error('NWS_INTL');
     const ptData=await ptRes.json();
     const stationsUrl=ptData.properties?.observationStations;
     if(!stationsUrl)throw new Error('No observation stations URL');
-    const stRes=await fetch(stationsUrl,NWS_HDR);
+    const stRes=await fetch(stationsUrl,{...NWS_HDR,signal:AbortSignal.timeout(6000)});
     if(!stRes.ok)throw new Error('NWS stations returned '+stRes.status);
     const stData=await stRes.json();
     const features=stData.features||stData.observationStations||[];
@@ -4887,10 +4906,24 @@ async function fetchStation(){
     })).sort((a,b)=>a.dist-b.dist);
     await loadStationObs(S.nearbyStations[0].icao);
   }catch(e){
-    console.log('Station primary fetch error:',e.message);
+    console.log('Station NWS error:',e.message,'→ trying AWC + global airports');
     try{await fetchStationAWC()}catch(e2){
-      console.error('AWC station error:',e2);
-      el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No weather stations found nearby.<br><span style="font-size:0.8em;color:var(--text-muted)">Try a location closer to an airport</span></p></div>`;
+      console.log('AWC station error:',e2.message,'→ trying global airport DB');
+      try{
+        const airports=await _loadGlobalAirports();
+        const nearest=_nearestAirports(S.lat,S.lon,airports,300,10);
+        if(nearest.length){
+          console.log('Global DB found',nearest.length,'airports, nearest:',nearest[0].icao,nearest[0].name,nearest[0].dist.toFixed(1)+'mi');
+          S._stationSource='awc';
+          S.nearbyStations=nearest;
+          await loadStationObsAWC(nearest[0].icao);
+        }else{
+          el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No weather stations found within 300 mi.<br><span style="font-size:0.8em;color:var(--text-muted)">Try a location closer to an airport</span></p></div>`;
+        }
+      }catch(e3){
+        console.error('Global airport fallback error:',e3);
+        el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No weather stations found nearby.<br><span style="font-size:0.8em;color:var(--text-muted)">Try a location closer to an airport</span></p></div>`;
+      }
     }
   }
 }
@@ -5263,15 +5296,21 @@ async function switchStation(code){
     const match=S.nearbyStations?.find(s=>(s.iata||'').toUpperCase()===icao||(s.faa||'').toUpperCase()===icao);
     if(match){icao=match.icao}
     else{
-      try{
-        const infoR=await fetch(`https://aviationweather.gov/api/data/stationinfo?ids=K${icao},C${icao},E${icao},L${icao},S${icao}&format=json`,{signal:AbortSignal.timeout(5000)});
-        if(infoR.ok){const infoD=await infoR.json();if(infoD.length)icao=infoD[0].icaoId}
-        else icao='K'+icao;
-      }catch(e){icao='K'+icao}
+      const airports=await _loadGlobalAirports();
+      const dbMatch=airports?.find(a=>(a.iata||'').toUpperCase()===icao);
+      if(dbMatch){icao=dbMatch.icao}
+      else{
+        try{
+          const infoR=await fetch(`https://aviationweather.gov/api/data/stationinfo?ids=K${icao},C${icao},E${icao},L${icao},S${icao}&format=json`,{signal:AbortSignal.timeout(5000)});
+          if(infoR.ok){const infoD=await infoR.json();if(infoD.length)icao=infoD[0].icaoId}
+          else icao='K'+icao;
+        }catch(e){icao='K'+icao}
+      }
     }
   }
   toast('Loading '+icao+'...');
   S.stationId=icao;
+  S._stationSource='awc';
   await loadStationObs(icao);
 }
 
