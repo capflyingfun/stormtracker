@@ -2055,18 +2055,22 @@ function startWindSim(){
       gustSum+=g.amp*env;
       return true;
     });
-    const calmRate=curSpd<5?0.003:curSpd<15?0.001:0.0003;
     let calmMult=1;
-    if(_calmState.active){
-      const cElapsed=(now-_calmState.start)/1000;
-      if(cElapsed>=_calmState.dur){_calmState.active=false;_calmState.nextCheck=now+10000}
-      else{
-        const half=_calmState.dur/2;
-        calmMult=cElapsed<half?Math.max(0,1-cElapsed/half):Math.min(1,(cElapsed-half)/half);
+    if(curSpd<8){
+      const calmRate=curSpd<3?0.004:0.001;
+      if(_calmState.active){
+        const cElapsed=(now-_calmState.start)/1000;
+        if(cElapsed>=_calmState.dur){_calmState.active=false;_calmState.nextCheck=now+15000}
+        else{
+          const half=_calmState.dur/2;
+          const rawMult=cElapsed<half?Math.max(0,1-cElapsed/half):Math.min(1,(cElapsed-half)/half);
+          calmMult=0.3+rawMult*0.7;
+        }
+      }else if(now>_calmState.nextCheck&&Math.random()<calmRate*dt){
+        _calmState={active:true,start:now,dur:3+Math.random()*12,nextCheck:0};
       }
-    }else if(now>_calmState.nextCheck&&Math.random()<calmRate*dt){
-      _calmState={active:true,start:now,dur:5+Math.random()*30,nextCheck:0};
-      calmMult=1;
+    }else{
+      if(_calmState.active){_calmState.active=false;_calmState.nextCheck=now+30000}
     }
     let simSpd=Math.max(0,(curSpd+slowNoise*slowAmp+turbNoise*turbAmp+gustSum)*calmMult);
     let simDir=((curDir+dirWobble)%360+360)%360;
