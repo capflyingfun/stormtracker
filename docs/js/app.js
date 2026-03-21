@@ -16,6 +16,7 @@ const PRES_UNITS = ['inHg','mb','mmHg','kPa'];
 const VIS_UNITS = ['mi','km'];
 const PRECIP_UNITS = ['in','mm','cm'];
 
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function toast(msg,dur){
   if(S.travelMode&&!msg.startsWith('🧭')&&!msg.startsWith('📍')&&!msg.startsWith('Travel')){
     const bar=document.getElementById('travel-toast-bar');
@@ -3621,9 +3622,9 @@ function _tickerWeatherPool(){
     if(wSpd!=null){
       const dir=wDir!=null?degToDir(wDir):'';
       if(wSpd<5)pool.push(`🍃 Winds are calm right now${dir?' from the '+dir:''}. Peaceful conditions. 😌`);
-      else if(wSpd<20)pool.push(`💨 Winds from the ${dir} at ${fmtWind(wSpd)}${wGust>wSpd+10?', gusting to '+fmtWind(wGust):''}. Comfortable breeze.`);
-      else if(wSpd<40)pool.push(`💨 Breezy! Winds ${dir} at ${fmtWind(wSpd)}${wGust?' with gusts to '+fmtWind(wGust):''}. Hold onto your hat! 🎩`);
-      else pool.push(`🌬️ Strong winds! ${dir} at ${fmtWind(wSpd)}${wGust?' gusting '+fmtWind(wGust):''}. Use caution outdoors. ⚠️`);
+      else if(wSpd<20)pool.push(`💨 ${dir?'Winds from the '+dir+' at ':'Winds at '}${fmtWind(wSpd)}${wGust>wSpd+10?', gusting to '+fmtWind(wGust):''}. Comfortable breeze.`);
+      else if(wSpd<40)pool.push(`💨 Breezy! ${dir?'Winds '+dir+' at ':'Winds at '}${fmtWind(wSpd)}${wGust?' with gusts to '+fmtWind(wGust):''}. Hold onto your hat! 🎩`);
+      else pool.push(`🌬️ Strong winds! ${dir?dir+' at ':''}${fmtWind(wSpd)}${wGust?' gusting '+fmtWind(wGust):''}. Use caution outdoors. ⚠️`);
     }
     const rh=w.relative_humidity_2m;
     if(rh!=null){
@@ -3684,13 +3685,16 @@ function _tickerWeatherPool(){
     if(st.fltCat){
       pool.push(`✈️ ${S.stationId||'Nearest station'} reporting ${st.fltCat}${st.fltCat==='VFR'?' — clear for flight ops!':st.fltCat==='MVFR'?' — marginal visual conditions':' — instrument conditions in effect'}`);
     }
-    if(st.rawOb)pool.push(`📋 Latest METAR: ${st.rawOb.substring(0,80)}${st.rawOb.length>80?'...':''}`);
+    if(st.rawOb)pool.push(`📋 Latest METAR: ${escHtml(st.rawOb.substring(0,80))}${st.rawOb.length>80?'...':''}`);
   }
   if(S.alerts&&S.alerts.length){
     for(const a of S.alerts.slice(0,3)){
-      pool.push(`⚠️ NWS: ${a.event||a.headline||'Weather Alert'} in effect${a.severity?' — Severity: '+a.severity:''}`);
+      pool.push(`⚠️ NWS: ${escHtml(a.event||a.headline||'Weather Alert')} in effect${a.severity?' — Severity: '+escHtml(a.severity):''}`);
     }
   }
+  pool.push('✅ StormTracker is actively monitoring your area. We\'ll alert you the moment conditions change. 🛡️');
+  pool.push('✅ All quiet on the weather front. Sit back and relax — we\'re watching the skies for you. 🌌');
+  pool.push('✅ No significant weather activity right now. Great conditions for whatever you have planned today! 🎯');
   pool.push('📚 Did you know? dBZ measures radar reflectivity: 20-30 = light rain, 30-45 = moderate, 45-55 = heavy, 55+ = severe/hail. 🌧️');
   pool.push('📚 NEXRAD is a network of 160 Doppler radar stations across the US, scanning the atmosphere every 4-10 minutes. 📡');
   pool.push('📚 Lightning heats the air to 30,000°C — 5x hotter than the sun\'s surface! That explosive expansion creates thunder. ⚡');
@@ -3723,7 +3727,7 @@ function _tickerNearbyPool(sigStormCount){
   pool.push(`🔔 Radar shows ${sigStormCount} cell${sigStormCount>1?'s':''} in range. All moving away or stationary. Keeping watch for you. 🛰️`);
   if(S.alerts&&S.alerts.length){
     for(const a of S.alerts.slice(0,3)){
-      pool.push(`⚠️ NWS: ${a.event||a.headline||'Weather Alert'} in effect${a.severity?' — Severity: '+a.severity:''} · ${sigStormCount} cell${sigStormCount>1?'s':''} nearby but not approaching.`);
+      pool.push(`⚠️ NWS: ${escHtml(a.event||a.headline||'Weather Alert')} in effect${a.severity?' — Severity: '+escHtml(a.severity):''} · ${sigStormCount} cell${sigStormCount>1?'s':''} nearby but not approaching.`);
     }
   }
   return pool;
