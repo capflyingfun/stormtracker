@@ -76,7 +76,9 @@ function cycleUnit(key){
   if(key==='windUnit'&&_windCurSim.spd>0&&S.activePage==='weather'){
     _windSweepAfterRender=true;
   }
+  S._skipWindRestart=true;
   reRenderActive();
+  S._skipWindRestart=false;
 }
 function windSweepAnim(){
   if(_windSweepRaf){cancelAnimationFrame(_windSweepRaf);_windSweepRaf=null}
@@ -1513,8 +1515,8 @@ function renderWeather(data){
   };
   const order=getSecOrder();
 
-  const wd=Math.round((c.wind_direction_10m||0)*10)/10;
-  const windSpd=c.wind_speed_10m||0;
+  const wd=(_windCurSim.spd>0&&S._skipWindRestart)?_windCurSim.dir:Math.round((c.wind_direction_10m||0)*10)/10;
+  const windSpd=(_windCurSim.spd>0&&S._skipWindRestart)?_windCurSim.spd:(c.wind_speed_10m||0);
   const cx=50,cy=50,r=42,ri=36;
   const neonCyan='rgba(0,220,255,';const neonOrange='rgba(255,160,0,';
   let gaugeSvg='';
@@ -1682,7 +1684,7 @@ function renderWeather(data){
     ${order.map(k=>sections[k]||'').join('')}`;
   setTimeout(initPrecipTaps,0);
   setTimeout(drawMiniSonar,50);
-  startWindSim();
+  if(!S._skipWindRestart) startWindSim();
 }
 function drawMiniSonar(){
   const canvas=document.getElementById('mini-sonar-canvas');
