@@ -449,6 +449,7 @@ function switchPage(page){
     if(S.map){setTimeout(()=>{S.map.invalidateSize();if(S._showZones&&S._rawScanPts.length)buildStormZones(S.map,S._rawScanPts);if(S._showPathArrows)buildPathArrows(S.map)},150);if(S._nextRefreshAt)startScanRefreshTimer()}
     else{initRadar()}
   }
+  if(page==='weather'&&S._rawScanPts&&S._rawScanPts.length)setTimeout(drawMiniSonar,80);
   if(page==='station'&&S.lat&&(!S.station||S._stationLocKey!==S.lat+','+S.lon))fetchStation();
   if(page==='alerts'&&S.lat)fetchAlerts();
   if(page==='storms'&&S.lat)renderStorms();
