@@ -1642,6 +1642,7 @@ function renderWeather(data){
   if(wxNavBtn)wxNavBtn.innerHTML=neonWx(c.weather_code,isDay,20);
   const dewC=calcDewC(tempC,c.relative_humidity_2m);
   const hourly=data.hourly||{},daily=data.daily||{};
+  S._hourlyData=hourly;
   const baro=getBaroPrediction(c,hourly);
   S._baroTrendMb=baro.trendMb;S._baroTrend=baro.trend;
   const trendArrow=baro.trend==='rising'?'↑':baro.trend==='falling'?'↓':'→';
@@ -1984,6 +1985,26 @@ function _gustEnvelope(t,start,dur){
   if(el<rise)return el/rise;
   return Math.exp(-3.5*(el-rise)/(1-rise));
 }
+function _getForecastWind(now){
+  const h=S._hourlyData;
+  if(!h||!h.time||!h.wind_speed_10m||!h.wind_direction_10m)return null;
+  const times=h.time;const spds=h.wind_speed_10m;const dirs=h.wind_direction_10m;
+  const gusts=h.wind_gusts_10m;
+  const nowMs=now||Date.now();
+  let i0=-1;
+  for(let i=0;i<times.length-1;i++){
+    const t0=new Date(times[i]).getTime(),t1=new Date(times[i+1]).getTime();
+    if(nowMs>=t0&&nowMs<t1){i0=i;break}
+  }
+  if(i0<0)return null;
+  const t0=new Date(times[i0]).getTime(),t1=new Date(times[i0+1]).getTime();
+  const frac=(nowMs-t0)/(t1-t0);
+  const spd=spds[i0]+(spds[i0+1]-spds[i0])*frac;
+  let dd=dirs[i0+1]-dirs[i0];if(dd>180)dd-=360;if(dd<-180)dd+=360;
+  const dir=((dirs[i0]+dd*frac)%360+360)%360;
+  const gust=gusts?(gusts[i0]+(gusts[i0+1]-gusts[i0])*frac):null;
+  return{spd,dir,gust};
+}
 function startWindSim(){
   const wasRunning=!!_windSimTimer;
   if(_windSimTimer)clearInterval(_windSimTimer);
@@ -2009,7 +2030,6 @@ function startWindSim(){
         setTimeout(()=>{
           _windTarget={spd:newSpd,dir:newDir};
           _windLerpStart=Date.now();
-          console.log('Wind lerp started → spd:'+newSpd.toFixed(1)+' dir:'+newDir);
         },60000);
       }
     }catch(e){console.log('Wind refresh error:',e.message)}
@@ -2030,6 +2050,13 @@ function startWindSim(){
         _windBase={spd:_windTarget.spd,dir:_windTarget.dir};
         _windTarget=null;
       }
+    }
+    const fc=_getForecastWind(Date.now());
+    if(fc&&!_windTarget){
+      const blend=0.35;
+      curSpd=curSpd*(1-blend)+fc.spd*blend;
+      let fdd=fc.dir-curDir;if(fdd>180)fdd-=360;if(fdd<-180)fdd+=360;
+      curDir=((curDir+fdd*blend)%360+360)%360;
     }
     const now=Date.now();
     const tSec=now/1000;
