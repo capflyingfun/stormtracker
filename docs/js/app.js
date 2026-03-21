@@ -1569,8 +1569,8 @@ function renderWeather(data){
   const neonCyan='rgba(0,220,255,';const neonOrange='rgba(255,160,0,';
   let gaugeSvg='';
   gaugeSvg+=`<defs>
-    <filter id="glow"><feGaussianBlur stdDeviation="1.5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <filter id="glow2"><feGaussianBlur stdDeviation="2.5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glow2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
     <linearGradient id="arcGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="rgba(0,220,255,0.1)"/><stop offset="50%" stop-color="rgba(0,220,255,0.6)"/><stop offset="85%" stop-color="${neonOrange}0.8)"/><stop offset="100%" stop-color="rgba(255,80,50,0.9)"/></linearGradient>
   </defs>`;
   gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${neonCyan}0.12)" stroke-width="0.8"/>`;
