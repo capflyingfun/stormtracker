@@ -1496,6 +1496,7 @@ function drawMiniSonar(){
   if(!wrap)return;
   const dpr=window.devicePixelRatio||1;
   const size=wrap.clientWidth;
+  if(size<10)return;
   canvas.width=size*dpr;canvas.height=size*dpr;
   canvas.style.width=size+'px';canvas.style.height=size+'px';
   const ctx=canvas.getContext('2d');
