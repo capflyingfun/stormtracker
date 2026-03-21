@@ -302,3 +302,4 @@ canvas.offscreen{display:none}
 .translate-bar{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);z-index:10001;background:var(--bg-surface);border:1px solid var(--accent-cyan);border-radius:var(--radius-lg);padding:8px 16px;display:none;align-items:center;gap:10px;font-size:0.8em;color:var(--text-secondary);box-shadow:0 4px 20px rgba(0,229,255,0.15);backdrop-filter:blur(10px)}
 .translate-bar.show{display:flex}
 .translate-bar .t-spinner{width:14px;height:14px;border:2px solid rgba(0,229,255,0.3);border-top-color:var(--accent-cyan);border-radius:50%;animation:nx-spin 0.8s linear infinite}
+@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}

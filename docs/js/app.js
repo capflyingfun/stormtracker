@@ -2711,6 +2711,7 @@ async function scanRadarForView(){
       else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}
       showViewScanCircle(S.map,cLat,cLng,radius,S.storms.length);
     }
+    updateThreatTicker();
     hideScanOverlay();
     toast(`${S.storms.length.toLocaleString()} cells in ${radius} mi radius (${srcLabel})`);
     scheduleAutoScan();
@@ -2779,6 +2780,7 @@ async function scanRadarHiRes(map,fromHome){
     showViewScanCircle(map,cLat,cLng,HIRES_RADIUS,S.storms.length);
     if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
     map.setView([cLat,cLng],11,{animate:true,duration:0.5});
+    updateThreatTicker();
     hideScanOverlay();
     toast(`Hi-Res: ${S.storms.length.toLocaleString()} cells in ${HIRES_RADIUS} mi (${srcLabel})`);
     scheduleAutoScan();
@@ -3277,6 +3279,64 @@ function buildStormZones(map,rawPts){
   }
   const ms=Math.round(performance.now()-t0);
   console.log(`Polar grid: ${rawPts.length} pts → ${cells.size} cells (${ZONE_ANG_STEP}°×${ZONE_DIST_STEP_MI}mi) in ${ms}ms`);
+}
+function updateThreatTicker(){
+  const bar=document.getElementById('threat-ticker');
+  const inner=document.getElementById('threat-ticker-inner');
+  if(!bar||!inner)return;
+  const mv=S.stormMovement;
+  if(!mv||mv.speed<1||!S.storms||!S.storms.length){
+    bar.style.display='none';
+    return;
+  }
+  const threats=[];
+  for(const storm of S.storms){
+    if(storm.dbz<45)continue;
+    const eta=calcStormETA(storm);
+    if(!eta||!eta.approaching||!eta.eta)continue;
+    threats.push({storm,eta});
+  }
+  if(threats.length===0){
+    bar.style.display='none';
+    return;
+  }
+  threats.sort((a,b)=>a.eta.eta-b.eta.eta);
+  const spdUnit=S.radarMetric?'km/h':'mph';
+  const spdVal=(spd)=>S.radarMetric?Math.round(spd*1.60934):spd;
+  const msgs=threats.map(t=>{
+    const s=t.storm;
+    const etaMin=t.eta.eta;
+    const etaSec=Math.round(etaMin*60);
+    const h=Math.floor(etaSec/3600);
+    const m=Math.floor((etaSec%3600)/60);
+    const sec=etaSec%60;
+    const etaStr=h>0?h+'h:'+String(m).padStart(2,'0')+'m:'+String(sec).padStart(2,'0')+'s':m+'m:'+String(sec).padStart(2,'0')+'s';
+    const arrival=new Date(Date.now()+etaSec*1000);
+    const ah=arrival.getHours(),am=arrival.getMinutes();
+    const ampm=ah>=12?'PM':'AM';
+    const arrStr=((ah%12)||12)+':'+String(am).padStart(2,'0')+' '+ampm;
+    const fromDir=degToDir((mv.direction+180)%360);
+    const spd=spdVal(mv.speed);
+    if(s.dbz>=55){
+      return`<span style="color:#ff3355">🚨 WARNING: Extremely dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA approximately ${etaStr} (${arrStr}). Seek shelter immediately and be prepared to take protective action. 🚨</span>`;
+    }else if(s.dbz>=50){
+      return`<span style="color:#ff6644">🚨 SEVERE WEATHER ALERT: Dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA approximately ${etaStr} (${arrStr}). Use extreme caution and monitor conditions closely. 🚨</span>`;
+    }else{
+      return`<span style="color:#ffcc00">⚠️ Strong storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA approximately ${etaStr} (${arrStr}). Use caution and be prepared. ⚠️</span>`;
+    }
+  });
+  const sep='<span style="color:#444;margin:0 40px">│</span>';
+  inner.innerHTML=msgs.join(sep);
+  const textLen=inner.textContent.length;
+  const dur=Math.max(15,Math.round(textLen*0.25));
+  inner.style.animationDuration=dur+'s';
+  bar.style.display='block';
+  bar.style.borderColor=threats[0].storm.dbz>=55?'rgba(255,51,85,0.5)':threats[0].storm.dbz>=50?'rgba(255,102,68,0.4)':'rgba(255,204,0,0.3)';
+  bar.style.background=threats[0].storm.dbz>=55
+    ?'linear-gradient(90deg,rgba(30,0,0,0.95),rgba(50,5,5,0.95),rgba(30,0,0,0.95))'
+    :threats[0].storm.dbz>=50
+    ?'linear-gradient(90deg,rgba(30,10,0,0.95),rgba(50,15,5,0.95),rgba(30,10,0,0.95))'
+    :'linear-gradient(90deg,rgba(30,25,0,0.95),rgba(45,35,5,0.95),rgba(30,25,0,0.95))';
 }
 function autoActivateZones(){
   if(!S._rawScanPts||!S._rawScanPts.length)return;
@@ -3801,6 +3861,7 @@ async function scanRadarForStorms(){
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
+    updateThreatTicker();
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
     if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
