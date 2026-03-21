@@ -152,21 +152,19 @@ function updateGaugeSegments(windVal,gustVal){
   const avgEl=document.querySelector('.wrc-avg');
   if(avgEl)avgEl.textContent='A'+avgDisp.toFixed(1)+' '+WIND_UNITS[S.windUnit];
   const trendEl=document.querySelector('.wrc-trend');
-  const trendR=document.querySelector('.wrc-trend-r');
   if(trendEl&&_gaugeAvgHistory.length>=3){
-    const first=_gaugeAvgHistory[0].v;
-    const last=_gaugeAvgHistory[_gaugeAvgHistory.length-1].v;
-    const diff=last-first;
-    if(Math.abs(diff)>0.5){
-      const isUp=diff>0;
-      const arrow=isUp?'⤴':'⤵';
-      const col=isUp?'#FF0000':'#00FF00';
-      trendEl.textContent=arrow;
-      trendEl.style.color=col;
-      if(trendR){trendR.textContent='';trendR.style.color=col;}
-    }else{
-      trendEl.textContent='';
-      if(trendR)trendR.textContent='';
+    const span=Math.min(10,(now-_gaugeAvgHistory[0].t)/1000);
+    if(span>=2){
+      const first=_gaugeAvgHistory[0].v;
+      const last=_gaugeAvgHistory[_gaugeAvgHistory.length-1].v;
+      const rate=(last-first)/span;
+      if(Math.abs(rate)>0.05){
+        const isUp=rate>0;
+        const absR=Math.abs(rate).toFixed(1);
+        trendEl.innerHTML=(isUp?'<span style="color:#FF0000">⤴ +'+absR+'</span>':'<span style="color:#00FF00">⤵ -'+absR+'</span>');
+      }else{
+        trendEl.innerHTML='<span style="color:rgba(0,220,255,0.6)">— 0.0</span>';
+      }
     }
   }
 }
@@ -1775,14 +1773,11 @@ function renderWeather(data){
           </svg>
           <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
           <div class="wind-rose-center">
-            <div style="display:flex;align-items:center;justify-content:center;gap:2px">
-              <span class="wrc-trend" style="font-size:0.9em;font-weight:800;line-height:1"></span>
-              <div class="wrc-speed"><span class="wrc-num">${windNum}</span><span class="wrc-unit">${windUnit}</span></div>
-              <span class="wrc-trend-r" style="font-size:0.9em;font-weight:800;line-height:1"></span>
-            </div>
+            <div class="wrc-speed"><span class="wrc-num">${windNum}</span><span class="wrc-unit">${windUnit}</span></div>
             <div class="wrc-dir">${_windCurSim.spd>0?degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(1)+'°':degToDir(wd)+' '+wd.toFixed(1)+'°'}</div>
             ${gustStr?`<div class="wrc-gust">${gustStr}</div>`:''}
             <div class="wrc-avg"></div>
+            <div class="wrc-trend" style="font-size:0.45em;font-weight:700;line-height:1;min-height:0.9em"></div>
           </div>
         </div>
         <div class="hero-side">
@@ -1948,9 +1943,8 @@ const _wn={p:[151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,
 };
 let _windSimTimer=null;
 let _windRefreshTimer=null;
-let _gustSamples=[];
-let _gustMax=0;
-let _gustResetT=0;
+let _gustBase=0;
+let _gustTarget=null;
 let _windBase={spd:0,dir:0};
 let _windTarget=null;
 let _windLerpStart=0;
@@ -1968,8 +1962,9 @@ function startWindSim(){
   if(!wasRunning||!_windCurSim.spd){
     _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
     _windTarget=null;
-    _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
-    _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:S.weather.wind_gusts_10m||0};
+    _gustBase=S.weather.wind_gusts_10m||0;
+    _gustTarget=null;
+    _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:_gustBase};
   }
   const seed=wasRunning?(_windSimSeed||Math.random()*1000):Math.random()*1000;
   _windSimSeed=seed;
@@ -1979,11 +1974,13 @@ function startWindSim(){
       if(awc&&awc.windKmh!=null){
         const newSpd=awc.windKmh;
         const newDir=awc.windDir!=null?awc.windDir:_windBase.dir;
-        console.log('Wind refresh from AWC·'+awc.icao+': spd='+newSpd.toFixed(1)+'kmh dir='+newDir+'°');
+        const newGust=awc.gustKmh||awc.windKmh*1.3;
+        console.log('Wind refresh from AWC·'+awc.icao+': spd='+newSpd.toFixed(1)+'kmh dir='+newDir+'° gust='+newGust.toFixed(1));
         setTimeout(()=>{
           _windTarget={spd:newSpd,dir:newDir};
+          _gustTarget=newGust;
           _windLerpStart=Date.now();
-          console.log('Wind lerp started → spd:'+newSpd.toFixed(1)+' dir:'+newDir);
+          console.log('Wind lerp started → spd:'+newSpd.toFixed(1)+' dir:'+newDir+' gust:'+newGust.toFixed(1));
         },60000);
       }
     }catch(e){console.log('Wind refresh error:',e.message)}
@@ -2012,15 +2009,17 @@ function startWindSim(){
     const spdFactor=0.5+((spdNoise+1)/2)*1.0;
     let simSpd=Math.max(0,curSpd*spdFactor);
     let simDir=((curDir+dirNoise*7)%360+360)%360;
-    _gustSamples.push(simSpd);
-    const now=Date.now();
-    if(now-_gustResetT>=30000){
-      _gustMax=Math.max(..._gustSamples);
-      _gustSamples=[];
-      _gustResetT=now;
+    let curGust=_gustBase;
+    if(_gustTarget!=null){
+      const elapsed=Date.now()-_windLerpStart;
+      const p=Math.min(1,elapsed/WIND_LERP_DUR);
+      curGust=_gustBase+((_gustTarget-_gustBase)*(p*p*(3-2*p)));
+      if(p>=1){_gustBase=_gustTarget;_gustTarget=null;}
     }
-    const displayGust=_gustSamples.length>0?Math.max(_gustMax,Math.max(..._gustSamples)):_gustMax;
-    _windCurSim={spd:simSpd,dir:simDir,gust:displayGust};
+    const gustNoise=_wn.noise(t*1.3+seed+200,300);
+    const gustSpike=Math.max(0,gustNoise)*0.35;
+    let simGust=Math.max(simSpd,curGust*(0.85+gustSpike));
+    _windCurSim={spd:simSpd,dir:simDir,gust:simGust};
     const dirEl=document.querySelector('.wrc-dir');
     if(dirEl)dirEl.textContent=degToDir(simDir)+' '+simDir.toFixed(1)+'°';
     const cx=50,cy=50;
