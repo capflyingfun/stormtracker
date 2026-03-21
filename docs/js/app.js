@@ -952,6 +952,83 @@ function setGpsInterval(val){
     toast('🧭 Refresh interval set to '+fmtGpsInt(S.gpsInterval));
   }
 }
+const TUTORIAL_SECTIONS=[
+  {title:'🏠 Getting Started',text:'StormTracker detects storms around your location using live radar data. On first launch, allow GPS access or search for your location using the 🗺️ button in the header. The app scans for precipitation within an 80-mile radius and shows results across five tabs.'},
+  {title:'🌤️ Weather Tab',text:'Your main dashboard. Shows current conditions (temperature, wind, humidity, pressure), a <b>wind compass</b> with real-time animated direction, and a <b>Radar Sonar</b> mini-map. The sonar gives you a quick bird\'s-eye view — colored blips show storm cells, and arrows point where approaching storms are heading. Tap "Open Radar →" to jump to the full map.'},
+  {title:'📡 Radar Tab',text:'The full interactive map. Storm cells appear as colored arrows showing movement direction. The sidebar buttons control different layers:<br>• <b>🔍</b> — Scan current map view for storms<br>• <b>HiRes</b> — High-resolution 15-mile scan<br>• <b>NEX/SRC</b> — Switch between NEXRAD (US) and RainViewer (global) radar<br>• <b>MI</b> — Toggle miles/kilometers<br>• <b>✈️</b> — Show nearby airports<br>• <b>▶️</b> — Animate radar over time<br>• <b>ZN</b> — Toggle color-coded storm zones<br>• <b>➤</b> — Toggle the ILS approach cone<br>• <b>PT</b> — Cycle storm points: off → top 8 inbound → all<br>• <b>RDR</b> — Toggle radar overlay tiles'},
+  {title:'➤ ILS Approach Cone',text:'The animated cone on the radar shows where storms are heading relative to you. It\'s inspired by an airport ILS (Instrument Landing System) — a cone of dots extends from the storm source through your location. <b>White dots</b> = no storms approaching. <b>Colored dots</b> = intensity-matched to approaching storm dBZ levels. The cone is always on once wind data is received.'},
+  {title:'🌩️ Storms Tab',text:'Lists all detected storm cells with details: peak dBZ, rain rate, distance, bearing, movement, and ETA. Storms are grouped into <b>Approaching</b> (heading toward you) and <b>Nearby</b> (in the area but not on track). Each card shows a live countdown timer for approaching storms. Tap any storm card for more details.'},
+  {title:'✈️ Station Tab',text:'A full aviation weather station (PWS console). Shows METAR data from nearby airports — wind, temperature, pressure, visibility, cloud layers, and more. <b>Tap any value</b> to cycle through units (°F/°C, mph/kts/km/h, inHg/mb, etc.). Features 24-hour trend charts, wind direction history, flight category indicator (VFR/MVFR/IFR/LIFR), and a METAR decoder. Use the station selector to search by ICAO code and save favorites.'},
+  {title:'⚠️ Alerts Tab',text:'Shows active NWS weather alerts for your area — watches, warnings, and advisories. Alerts are color-coded by severity and sorted chronologically. For non-English users, alerts can be auto-translated to your selected language.'},
+  {title:'🧭 Travel Mode',text:'Tap the 🧭 compass icon in the header to activate. Your GPS position is tracked live, and weather/radar data refreshes automatically as you move. Choose refresh intervals from 5 minutes to 1 hour. The travel indicator bar shows your speed, GPS accuracy, and next refresh. Great for road trips or outdoor activities.'},
+  {title:'📢 Threat Ticker',text:'The scrolling bar below the header shows real-time status:<br>• <b>Green</b> — All clear, no storms detected<br>• <b>Blue</b> — Storms nearby but not heading your way<br>• <b>Light blue</b> — Light rain approaching with ETA<br>• <b>Yellow/Orange/Red</b> — Severe storms approaching with NWS-style warnings and countdowns'},
+  {title:'🌐 Language & Units',text:'Tap the flag icon 🇺🇸 in the header to switch between 20 languages. The app auto-detects your browser language on first visit. Use the MI button on the radar to toggle between miles and kilometers. Station tab values cycle units on tap.'},
+  {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use it for a quick situational glance.'}
+];
+const CHANGELOG=[
+  {ver:'v1.86',date:'2026-03-21',items:['Threat ticker now shows 4 states: clear, nearby, light approaching, severe approaching','Sonar mini-map shows directional arrows for approaching storms','PT button cycles through 3 modes: off, top 8 inbound, all','Top 8 inbound is now the default storm display mode','Ticker moved inside sticky header — always visible when scrolling']},
+  {ver:'v1.85',date:'2026-03-21',items:['NWS-style scrolling threat ticker for storms ≥45 dBZ approaching','Severity-colored messages: yellow (strong), orange (severe), red (extreme)','ETA countdown and arrival time in ticker']},
+  {ver:'v1.84',date:'2026-03-20',items:['Unified ILS approach cone system — single animated cone replaces old chevron arrows','Cone starts 80mi from storm source, tail extends 70mi past user','White center/tail when no storms, dBZ-colored when storms inbound','Bearing bug fixed — cone always uses winds aloft direction']},
+  {ver:'v1.83',date:'2026-03-19',items:['Storm zone grid sectors with impact calculation','Dynamic cone width formula based on storm dBZ','Arrival time uses nowrap formatting']},
+  {ver:'v1.82',date:'2026-03-18',items:['Multi-language support: 20 languages with auto-detection','Auto-translation system for dynamic UI strings','RTL support for Arabic']},
+  {ver:'v1.80',date:'2026-03-17',items:['Weather Station (PWS Console) with METAR data','Wind compass, circular gauges, trend charts','Flight category banner, METAR decoder','24-hour history with sparkline charts','Multi-station TAFs and favorites']},
+  {ver:'v1.75',date:'2026-03-15',items:['Travel Mode with live GPS tracking','Configurable refresh intervals','Speed and accuracy display']},
+  {ver:'v1.70',date:'2026-03-13',items:['3D storm visualization','Lightning detection indicators','Storm feedback system with accuracy tracking']},
+  {ver:'v1.60',date:'2026-03-10',items:['AI weather assistant with GPT-4o','NWS Area Forecast Discussion integration','Risk assessment and comprehensive analysis']},
+  {ver:'v1.50',date:'2026-03-07',items:['NEXRAD high-resolution US radar','RainViewer global radar fallback','Multi-source data integration']},
+  {ver:'v1.0',date:'2026-02-28',items:['Initial release — real-time storm detection','Interactive Leaflet radar map','Storm tracking with ETA calculations','NWS alerts integration']}
+];
+function getTutorialHtml(){
+  return TUTORIAL_SECTIONS.map(s=>`<div style="margin-bottom:14px"><div style="font-weight:700;color:var(--text-primary);margin-bottom:4px;font-size:0.95em">${s.title}</div><div>${s.text}</div></div>`).join('');
+}
+function getChangelogHtml(){
+  return CHANGELOG.map(c=>`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border-subtle)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-weight:700;color:var(--accent-cyan);font-size:1em">${c.ver}</span><span style="font-size:0.75em;color:var(--text-muted)">${c.date}</span></div><ul style="margin:0;padding-left:18px">${c.items.map(i=>`<li style="margin-bottom:3px">${i}</li>`).join('')}</ul></div>`).join('');
+}
+function showTutorial(){
+  const o=document.getElementById('tutorial-overlay');if(!o)return;
+  document.getElementById('tutorial-content').innerHTML=getTutorialHtml();
+  const cb=document.getElementById('tutorial-skip-cb');
+  if(cb)cb.checked=localStorage.getItem('st_skipTutorial')==='1';
+  o.style.display='block';
+  toggleSettingsPanel();
+}
+function closeTutorial(){
+  const o=document.getElementById('tutorial-overlay');if(o)o.style.display='none';
+}
+function setTutorialSkip(skip){
+  localStorage.setItem('st_skipTutorial',skip?'1':'0');
+}
+function showChangelog(){
+  const o=document.getElementById('changelog-overlay');if(!o)return;
+  document.getElementById('changelog-content').innerHTML=getChangelogHtml();
+  o.style.display='block';
+  toggleSettingsPanel();
+}
+function closeChangelog(){
+  const o=document.getElementById('changelog-overlay');if(o)o.style.display='none';
+}
+function checkFirstLaunch(){
+  const skip=localStorage.getItem('st_skipTutorial');
+  const seen=localStorage.getItem('st_tutorialSeen');
+  if(skip==='1')return;
+  if(seen)return;
+  localStorage.setItem('st_tutorialSeen','1');
+  setTimeout(()=>{
+    const ask=document.createElement('div');
+    ask.id='tutorial-prompt';
+    ask.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10000;background:var(--bg-card);border:1px solid var(--accent-cyan);border-radius:12px;padding:14px 18px;max-width:320px;width:90%;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.5)';
+    ask.innerHTML=`<div style="font-size:0.9em;font-weight:600;color:var(--text-primary);margin-bottom:10px">👋 Welcome to StormTracker!</div><div style="font-size:0.78em;color:var(--text-secondary);margin-bottom:12px">Would you like a quick tutorial on how everything works?</div><div style="display:flex;gap:8px"><button onclick="document.getElementById('tutorial-prompt').remove();showTutorialDirect()" style="flex:1;padding:8px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">📖 Yes, show me!</button><button onclick="document.getElementById('tutorial-prompt').remove()" style="flex:1;padding:8px;background:rgba(255,255,255,0.05);color:var(--text-muted);border:1px solid var(--border-subtle);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">Skip</button></div>`;
+    document.body.appendChild(ask);
+    setTimeout(()=>{const el=document.getElementById('tutorial-prompt');if(el)el.remove()},20000);
+  },3000);
+}
+function showTutorialDirect(){
+  const o=document.getElementById('tutorial-overlay');if(!o)return;
+  document.getElementById('tutorial-content').innerHTML=getTutorialHtml();
+  const cb=document.getElementById('tutorial-skip-cb');
+  if(cb)cb.checked=localStorage.getItem('st_skipTutorial')==='1';
+  o.style.display='block';
+}
 function toggleSettingsPanel(){
   const p=document.getElementById('settings-panel');
   if(!p)return;
@@ -4867,6 +4944,7 @@ function startAlertCountdowns(){
 // ==========================================
 function init(){
   loadUnits();
+  checkFirstLaunch();
   try{
     const saved=JSON.parse(localStorage.getItem('st_loc'));
     if(saved&&saved.lat&&saved.lon){setLoc(saved.lat,saved.lon,saved.name);return}
