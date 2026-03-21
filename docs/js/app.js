@@ -4984,11 +4984,27 @@ function toggleAIChat(){
     setTimeout(()=>{const inp=document.getElementById('ai-chat-input');if(inp)inp.focus()},200);
   }
 }
+function fmtAIText(raw){
+  let s=raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s=s.replace(/\*\*\*(.+?)\*\*\*/g,'<b><i>$1</i></b>');
+  s=s.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  s=s.replace(/\*(.+?)\*/g,'<i>$1</i>');
+  s=s.replace(/^### (.+)$/gm,'<span style="display:block;font-weight:700;font-size:0.95em;color:var(--accent-cyan);margin-top:8px">$1</span>');
+  s=s.replace(/^## (.+)$/gm,'<span style="display:block;font-weight:700;font-size:1em;color:var(--accent-cyan);margin-top:8px">$1</span>');
+  s=s.replace(/^# (.+)$/gm,'<span style="display:block;font-weight:800;font-size:1.05em;color:var(--accent-cyan);margin-top:8px">$1</span>');
+  s=s.replace(/^[-•] (.+)$/gm,'<span style="display:block;padding-left:12px;text-indent:-10px">• $1</span>');
+  s=s.replace(/^\d+\.\s+(.+)$/gm,function(m,p1,offset,str){return '<span style="display:block;padding-left:12px">'+m+'</span>'});
+  return s;
+}
 function addAIMsg(role,text){
   const c=document.getElementById('ai-chat-messages');if(!c)return;
   const d=document.createElement('div');
   d.className='ai-msg '+role;
-  d.textContent=text;
+  if(role==='assistant'){
+    d.innerHTML=fmtAIText(text);
+  }else{
+    d.textContent=text;
+  }
   c.appendChild(d);
   c.scrollTop=c.scrollHeight;
 }
