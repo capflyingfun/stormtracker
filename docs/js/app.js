@@ -4885,6 +4885,7 @@ async function fetchStation(){
   S._stationLocKey=S.lat+','+S.lon;
   const el=document.getElementById('page-station');showSkel(el,5);
   try{
+    console.log('Tier 1: NWS — trying api.weather.gov/points for',S.lat.toFixed(4),S.lon.toFixed(4));
     const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(6000)});
     if(!ptRes.ok)throw new Error('NWS_INTL');
     const ptData=await ptRes.json();
@@ -4903,9 +4904,10 @@ async function fetchStation(){
       lon:f.geometry.coordinates[0],
       dist:haversine(S.lat,S.lon,f.geometry.coordinates[1],f.geometry.coordinates[0]),
     })).sort((a,b)=>a.dist-b.dist);
+    console.log('Tier 1: NWS success — nearest:',S.nearbyStations[0].icao,S.nearbyStations[0].name);
     await loadStationObs(S.nearbyStations[0].icao);
   }catch(e){
-    console.log('Station NWS error:',e.message,'→ trying AWC + global airports');
+    console.log('Tier 1: NWS error:',e.message,'→ Tier 2: AWC');
     try{await fetchStationAWC()}catch(e2){
       console.log('AWC station error:',e2.message,'→ trying global airport DB');
       try{
@@ -4929,71 +4931,90 @@ async function fetchStation(){
 async function fetchStationAWC(){
   const el=document.getElementById('page-station');
   const radii=[1.0,2.0,3.5,5.0];
-  let data=[];
+  let foundStations=[];
   for(const degSpan of radii){
     const minLat=(S.lat-degSpan).toFixed(2),maxLat=(S.lat+degSpan).toFixed(2);
     const minLon=(S.lon-degSpan).toFixed(2),maxLon=(S.lon+degSpan).toFixed(2);
     try{
-      const [metarRes,infoRes]=await Promise.allSettled([
-        fetch(`https://aviationweather.gov/api/data/metar?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json&hours=6`,{signal:AbortSignal.timeout(8000)}),
-        fetch(`https://aviationweather.gov/api/data/stationinfo?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json`,{signal:AbortSignal.timeout(8000)})
-      ]);
-      console.log('AWC ±'+degSpan+'°: metar=',metarRes.status,', info=',infoRes.status);
-      if(metarRes.status==='fulfilled'&&metarRes.value.ok){
-        const body=await metarRes.value.json();
-        console.log('AWC metar bbox returned',Array.isArray(body)?body.length:'non-array','results');
-        if(Array.isArray(body)&&body.length)data=body;
-      }
-      if(!data.length&&infoRes.status==='fulfilled'&&infoRes.value.ok){
-        const infoBody=await infoRes.value.json();
-        if(Array.isArray(infoBody)){
-          const metarStations=infoBody.filter(s=>s.siteType&&(Array.isArray(s.siteType)?s.siteType.includes('METAR'):String(s.siteType).includes('METAR')));
-          console.log('AWC stationinfo found',metarStations.length,'METAR stations in ±'+degSpan+'°');
-          if(metarStations.length){
-            const byDist=metarStations.map(s=>({icao:s.icaoId,iata:s.iataId||null,faa:s.faaId||null,name:s.site||s.icaoId,lat:s.lat,lon:s.lon,dist:haversine(S.lat,S.lon,s.lat,s.lon)})).sort((a,b)=>a.dist-b.dist).slice(0,10);
-            S._stationSource='awc';
-            S.nearbyStations=byDist;
-            console.log('Station: stationinfo nearest:',byDist[0].icao,byDist[0].name);
-            await loadStationObsAWC(byDist[0].icao);
-            return;
+      const r=await fetch(`https://aviationweather.gov/api/data/stationinfo?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json`,{signal:AbortSignal.timeout(8000)});
+      if(r.ok){
+        const body=await r.json();
+        if(Array.isArray(body)){
+          const metarCapable=body.filter(s=>s.siteType&&(Array.isArray(s.siteType)?s.siteType.includes('METAR'):String(s.siteType).includes('METAR')));
+          console.log('Tier 2: stationinfo ±'+degSpan+'° found',metarCapable.length,'METAR-capable stations');
+          if(metarCapable.length){
+            foundStations=metarCapable.map(s=>({icao:s.icaoId,iata:s.iataId||null,faa:s.faaId||null,name:s.site||s.icaoId,lat:s.lat,lon:s.lon,dist:haversine(S.lat,S.lon,s.lat,s.lon)})).sort((a,b)=>a.dist-b.dist).slice(0,10);
+            break;
           }
         }
       }
-    }catch(e){console.log('AWC station fetch error (±'+degSpan+'°):',e.message)}
-    if(data.length>=3)break;
-    if(data.length&&degSpan>=2)break;
+    }catch(e){console.log('Tier 2: stationinfo error ±'+degSpan+'°:',e.message)}
   }
-  if(data.length){
-    console.log('AWC: using metar bbox data,',data.length,'raw results');
-    const seen=new Map();
-    data.forEach(m=>{if(!seen.has(m.icaoId))seen.set(m.icaoId,m)});
-    const stations=[...seen.values()].map(m=>({
-      icao:m.icaoId,name:m.name||m.icaoId,
-      lat:m.lat,lon:m.lon,
-      dist:haversine(S.lat,S.lon,m.lat,m.lon),
-      _awc:m
-    })).sort((a,b)=>a.dist-b.dist).slice(0,10);
-    if(stations.length){
-      console.log('AWC: loading nearest:',stations[0].icao,stations[0].name,stations[0].dist.toFixed(1)+'mi');
-      S._stationSource='awc';
-      S.nearbyStations=stations;
+  if(foundStations.length){
+    console.log('Tier 2: AWC stationinfo — nearest:',foundStations[0].icao,foundStations[0].name,foundStations[0].dist.toFixed(1)+'mi');
+    S._stationSource='awc';
+    S.nearbyStations=foundStations;
+    const icao=foundStations[0].icao;
+    let metarLoaded=false;
+    for(const hrs of [3,6,12]){
       try{
-        loadStationFromAWC(stations[0]._awc,stations[0]);
-      }catch(renderErr){
-        console.error('renderStation error:',renderErr);
-        await loadStationObsAWC(stations[0].icao);
-      }
-      return;
+        const mr=await fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&hours=${hrs}`,{signal:AbortSignal.timeout(8000)});
+        if(mr.ok){
+          const md=await mr.json();
+          if(md.length){
+            console.log('Tier 2: METAR found for',icao,'('+hrs+'h window)');
+            S.stationId=icao;
+            S.station=parseAWCobs(md[0]);
+            if(foundStations[0].name)S.station.name=foundStations[0].name;
+            renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
+            metarLoaded=true;
+            break;
+          }
+        }
+      }catch(e){console.log('Tier 2: METAR fetch error ('+hrs+'h):',e.message)}
     }
+    if(!metarLoaded){
+      console.log('Tier 2: No recent METAR for',icao,'— showing station without obs');
+      S.stationId=icao;
+      S.station={
+        icao,name:foundStations[0].name,lat:foundStations[0].lat,lon:foundStations[0].lon,
+        temp:null,dewp:null,windKmh:null,windDir:null,gustKmh:null,visMeter:null,presPa:null,
+        rawMETAR:'',clouds:[],obsTime:'',wxString:'',
+        _noMetar:true,_reason:'No recent METAR available'
+      };
+      renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
+    }
+    return;
   }
-  console.log('AWC: no data found, trying global airport DB as last resort');
+  console.log('Tier 2: stationinfo returned 0 stations → Tier 3: global airport DB');
   const airports=await _loadGlobalAirports();
   const nearest=_nearestAirports(S.lat,S.lon,airports,300,10);
   if(nearest.length){
-    console.log('Global DB found',nearest.length,'airports, nearest:',nearest[0].icao,nearest[0].name);
+    console.log('Tier 3: OurAirports fallback — nearest:',nearest[0].icao,nearest[0].name,nearest[0].dist.toFixed(1)+'mi');
     S._stationSource='awc';
     S.nearbyStations=nearest;
-    await loadStationObsAWC(nearest[0].icao);
+    const icao=nearest[0].icao;
+    let metarLoaded=false;
+    for(const hrs of [3,6,12]){
+      try{
+        const mr=await fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&hours=${hrs}`,{signal:AbortSignal.timeout(8000)});
+        if(mr.ok){const md=await mr.json();if(md.length){
+          console.log('Tier 3: METAR found for',icao);
+          S.stationId=icao;S.station=parseAWCobs(md[0]);
+          if(nearest[0].name)S.station.name=nearest[0].name;
+          renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
+          metarLoaded=true;break;
+        }}
+      }catch(e){}
+    }
+    if(!metarLoaded){
+      console.log('Tier 3: No METAR for',icao,'— showing station without obs');
+      S.stationId=icao;
+      S.station={icao,name:nearest[0].name,lat:nearest[0].lat,lon:nearest[0].lon,
+        temp:null,dewp:null,windKmh:null,windDir:null,gustKmh:null,visMeter:null,presPa:null,
+        rawMETAR:'',clouds:[],obsTime:'',wxString:'',_noMetar:true,_reason:'No recent METAR available'};
+      renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
+    }
     return;
   }
   throw new Error('No stations in range from any source');
@@ -5236,6 +5257,7 @@ function renderStation(){
   el.innerHTML=`
     <div class="card" style="padding-bottom:8px">
       ${!isHome?`<div style="margin-bottom:8px"><button onclick="switchStation('${homeIcao}')" style="padding:4px 10px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;font-size:0.75em;cursor:pointer;font-weight:600">← Back to ${homeIcao}</button></div>`:''}
+      ${s._noMetar?`<div style="background:rgba(255,193,7,0.12);border:1px solid rgba(255,193,7,0.35);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.78em;color:#ffc107;display:flex;align-items:center;gap:6px"><span style="font-size:1.2em">📡</span><span><b>${s.icao||S.stationId}</b> found — ${s._reason||'No recent METAR available'}. International stations may report infrequently.</span></div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
         ${stationNeonIcon(wxDesc,32)}
         <div style="flex:1">

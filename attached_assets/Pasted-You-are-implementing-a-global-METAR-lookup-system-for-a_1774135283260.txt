@@ -1,0 +1,158 @@
+You are implementing a global METAR lookup system for a weather app. The system must work in the United States AND internationally. The logic must follow the exact 3‑tier structure below, with corrected behavior for international stations that do not report METAR frequently.
+
+===========================================================
+TIER 1 — NWS API (UNITED STATES ONLY)
+===========================================================
+1. Call:
+   https://api.weather.gov/points/{lat},{lon}
+
+2. If this returns station information:
+   - Extract the nearest observation station (ICAO)
+   - Fetch METAR from AWC using that ICAO
+   - Return the station + METAR (even if METAR is null)
+
+3. If the NWS API returns 404 or any error:
+   → Fall through to Tier 2.
+
+===========================================================
+TIER 2 — AWC (AVIATION WEATHER CENTER) — GLOBAL
+===========================================================
+IMPORTANT: This tier must NEVER assume “no METAR” means “no station.”  
+Many international airports report METAR only every 3–12 hours.  
+Some report only during daytime.  
+Some report only when staffed.  
+Some report only when weather changes.
+
+Therefore, the logic MUST be:
+
+STEP 1 — STATIONINFO FIRST
+--------------------------------
+Call:
+https://aviationweather.gov/api/data/stationinfo?bbox=...
+
+Use bounding boxes at increasing radii:
+±1°, ±2°, ±3.5°, ±5°
+
+If stationinfo returns ANY stations:
+- Sort by haversine distance
+- Pick the nearest station
+- This station is VALID even if it has no recent METAR
+
+STEP 2 — TRY TO FETCH METAR (OPTIONAL)
+--------------------------------
+Call METAR endpoint with expanding windows:
+- hours=3
+- hours=6
+- hours=12
+
+If METAR is found:
+   station.metar = the METAR text
+
+If METAR is NOT found:
+   station.metar = null
+   station.reason = "No recent METAR available"
+
+DO NOT fall through to Tier 3 just because METAR is missing.
+
+Tier 3 is ONLY for when stationinfo returns ZERO stations.
+
+STEP 3 — RETURN RESULT
+--------------------------------
+Return:
+{
+  icao: "...",
+  name: "...",
+  lat: ...,
+  lon: ...,
+  metar: "..." OR null,
+  reason: "No recent METAR available" (if applicable)
+}
+
+===========================================================
+TIER 3 — GLOBAL AIRPORT DATABASE (OURAIRPORTS)
+===========================================================
+This tier is ONLY used if Tier 2 returns ZERO stations.
+
+Load airports.json (local file) containing ~4,644 medium/large airports.
+
+Steps:
+1. Compute haversine distance to all airports
+2. Filter to airports within 300 miles
+3. Pick nearest airport
+4. Attempt METAR fetch from AWC by ICAO
+5. If METAR missing, return metar: null (same rules as Tier 2)
+
+===========================================================
+CRITICAL RULES (MUST FOLLOW)
+===========================================================
+
+RULE 1 — “NO METAR” DOES NOT MEAN “NO STATION”
+------------------------------------------------
+International airports often go 6–18 hours without reporting METAR.
+Do NOT treat missing METAR as a failure.
+Do NOT fall through to Tier 3 when METAR is missing.
+
+RULE 2 — TIER 3 IS ONLY FOR “NO STATIONS FOUND”
+------------------------------------------------
+Tier 3 should ONLY run if stationinfo returns ZERO stations.
+Not if METAR is missing.
+Not if METAR is stale.
+Not if METAR is null.
+
+RULE 3 — ALWAYS RETURN THE NEAREST VALID STATION
+------------------------------------------------
+Even if METAR is null, return the station.
+
+RULE 4 — LOG WHICH TIER WAS USED
+------------------------------------------------
+Console log:
+- "Tier 1: NWS"
+- "Tier 2: AWC stationinfo"
+- "Tier 3: OurAirports fallback"
+
+===========================================================
+EXAMPLE OF CORRECT BEHAVIOR (RIO DE JANEIRO)
+===========================================================
+
+Rio has many ICAO stations:
+SBGL, SBRJ, SBAF, SBJR, etc.
+
+Tier 2 stationinfo WILL return these stations.
+
+However, METAR may be missing for:
+- 6 hours
+- 12 hours
+- overnight
+- military bases
+- private airports
+
+Correct behavior:
+- Return SBGL (or nearest)
+- metar: null
+- reason: "No recent METAR available"
+- tierUsed: 2
+
+INCORRECT behavior:
+- Treat missing METAR as failure
+- Fall through to Tier 3
+- Pick wrong airport or none
+
+===========================================================
+SUMMARY OF THE FIX
+===========================================================
+
+The main issue is that the old logic assumed:
+“METAR missing = station invalid.”
+
+This is WRONG internationally.
+
+Correct logic:
+“Stationinfo found = station valid, regardless of METAR availability.”
+
+Always return the nearest station.
+METAR is optional.
+Station validity is not dependent on METAR recency.
+
+===========================================================
+END OF SPECIFICATION
+===========================================================
