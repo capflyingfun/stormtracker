@@ -102,6 +102,7 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .grid-pulse{animation:gridPulse 1.5s ease-in-out infinite}
 @keyframes pulseFlow{0%{stroke-dashoffset:40}100%{stroke-dashoffset:0}}
 .approaching-pulse-line{animation:pulseFlow 1.2s linear infinite;opacity:0.6}
+.ils-dot,.ils-bar{border-radius:50%;transition:opacity 0.12s ease,transform 0.12s ease}
 .storm-lightning-icon,.storm-lightning-icon *{pointer-events:none!important}
 .storm-arrow-icon{background:none!important;border:none!important}
 .storm-group{margin-bottom:8px;border-radius:var(--radius-sm);overflow:hidden}

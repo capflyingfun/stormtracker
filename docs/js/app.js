@@ -3330,34 +3330,69 @@ function buildStormZones(map,rawPts){
     }
     const halfAngle=Math.max(8,Math.min(bearSpread+5,30));
     const coneDist=approachMaxDist*0.95;
-    const coneLeft=destPt(S.lat,S.lon,coneDist,avgBearDeg-halfAngle);
-    const coneRight=destPt(S.lat,S.lon,coneDist,avgBearDeg+halfAngle);
     const userPt=[S.lat,S.lon];
-    const leftEdge=L.polyline([coneLeft,userPt],{
-      color:arrowColor,weight:1.5,opacity:0.5,
-      dashArray:'6,10',className:'approaching-pulse-line',
-      pane:trailPane,interactive:false
-    }).addTo(map);
-    S._stormZoneLayers.push(leftEdge);
-    const rightEdge=L.polyline([coneRight,userPt],{
-      color:arrowColor,weight:1.5,opacity:0.5,
-      dashArray:'6,10',className:'approaching-pulse-line',
-      pane:trailPane,interactive:false
-    }).addTo(map);
-    S._stormZoneLayers.push(rightEdge);
-    const centerStart=destPt(S.lat,S.lon,coneDist,avgBearDeg);
-    const centerLine=L.polyline([centerStart,userPt],{
-      color:arrowColor,weight:2.5,opacity:0.7,
-      dashArray:'10,8',className:'approaching-pulse-line',
-      pane:trailPane,interactive:false
-    }).addTo(map);
-    S._stormZoneLayers.push(centerLine);
-    const fillPts=[coneLeft,userPt,coneRight];
-    const coneFill=L.polygon(fillPts,{
-      color:'transparent',fillColor:arrowColor,fillOpacity:0.06,
+    const coneFillLeft=destPt(S.lat,S.lon,coneDist,avgBearDeg-halfAngle);
+    const coneFillRight=destPt(S.lat,S.lon,coneDist,avgBearDeg+halfAngle);
+    const coneFill=L.polygon([coneFillLeft,userPt,coneFillRight],{
+      color:'transparent',fillColor:arrowColor,fillOpacity:0.05,
       weight:0,pane:trailPane,interactive:false
     }).addTo(map);
     S._stormZoneLayers.push(coneFill);
+    const ilsCount=12;
+    const ilsDots=[];
+    for(let i=0;i<ilsCount;i++){
+      const f=(i+1)/(ilsCount+1);
+      const d=coneDist*(1-f);
+      const spread=halfAngle*(1-f);
+      const cPt=destPt(S.lat,S.lon,d,avgBearDeg);
+      const sz=Math.max(4,8-f*4);
+      const dot=L.marker(cPt,{
+        icon:L.divIcon({className:'',html:`<div class="ils-dot" style="width:${sz}px;height:${sz}px;background:${arrowColor};box-shadow:0 0 ${sz+4}px ${arrowColor};opacity:0.15"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}),
+        pane:trailPane,interactive:false
+      }).addTo(map);
+      ilsDots.push(dot);
+      S._stormZoneLayers.push(dot);
+      if(spread>2){
+        const lPt=destPt(S.lat,S.lon,d,avgBearDeg-spread);
+        const rPt=destPt(S.lat,S.lon,d,avgBearDeg+spread);
+        const barSz=Math.max(3,sz-1);
+        const lDot=L.marker(lPt,{
+          icon:L.divIcon({className:'',html:`<div class="ils-bar" style="width:${barSz}px;height:${barSz}px;background:${arrowColor};box-shadow:0 0 ${barSz+2}px ${arrowColor};opacity:0.12"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+          pane:trailPane,interactive:false
+        }).addTo(map);
+        const rDot=L.marker(rPt,{
+          icon:L.divIcon({className:'',html:`<div class="ils-bar" style="width:${barSz}px;height:${barSz}px;background:${arrowColor};box-shadow:0 0 ${barSz+2}px ${arrowColor};opacity:0.12"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+          pane:trailPane,interactive:false
+        }).addTo(map);
+        S._stormZoneLayers.push(lDot);
+        S._stormZoneLayers.push(rDot);
+      }
+      if(i>0&&spread>4){
+        const crossbar=L.polyline(
+          [destPt(S.lat,S.lon,d,avgBearDeg-spread),destPt(S.lat,S.lon,d,avgBearDeg+spread)],
+          {color:arrowColor,weight:1,opacity:0.12,pane:trailPane,interactive:false}
+        ).addTo(map);
+        S._stormZoneLayers.push(crossbar);
+      }
+    }
+    let ilsFrame=0;
+    S._approachArrowInterval=setInterval(()=>{
+      for(let i=0;i<ilsDots.length;i++){
+        const el=ilsDots[i].getElement();
+        if(!el)continue;
+        const d=el.firstChild;
+        if(!d)continue;
+        const pos=(ilsFrame-i+ilsCount)%ilsCount;
+        if(pos<3){
+          d.style.opacity=String(pos===0?1:pos===1?0.6:0.3);
+          d.style.transform=pos===0?'scale(1.3)':'scale(1)';
+        }else{
+          d.style.opacity='0.15';
+          d.style.transform='scale(1)';
+        }
+      }
+      ilsFrame=(ilsFrame+1)%ilsCount;
+    },150);
   }
   const ms=Math.round(performance.now()-t0);
   console.log(`Polar grid: ${rawPts.length} pts → ${cells.size} cells (${ZONE_ANG_STEP}°×${ZONE_DIST_STEP_MI}mi) in ${ms}ms`);
