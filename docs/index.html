@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v1.84b</title>
+<title>StormTracker v1.85</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=184b">
+<link rel="stylesheet" href="css/style.css?v=185">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -22,7 +22,7 @@
     <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
   <div class="header-center">
-    <h1>⚡ StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v1.84b</span></h1>
+    <h1>⚡ StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v1.85</span></h1>
     <div class="header-status">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Initializing...</span>
@@ -33,6 +33,7 @@
   <div class="header-loc-btn" id="btn-loc-open" onclick="toggleLocOverlay(true)" title="Change location">🗺️</div>
   <div class="header-loc-btn" id="btn-settings" onclick="toggleSettingsPanel()" title="Settings" style="opacity:0.7">⚙️</div>
 </header>
+<div id="threat-ticker" style="display:none;overflow:hidden;white-space:nowrap;background:linear-gradient(90deg,rgba(20,0,0,0.95),rgba(40,5,5,0.95),rgba(20,0,0,0.95));border-bottom:1px solid rgba(255,51,85,0.3);font-size:0.72em;font-weight:600;height:26px;line-height:26px;position:relative;z-index:998"><div id="threat-ticker-inner" style="display:inline-block;padding-left:100%;animation:tickerScroll 30s linear infinite"></div></div>
 <div class="lang-menu" id="lang-menu"></div>
 <div class="travel-indicator" id="travel-indicator"><div class="t-dot"></div><span id="travel-status">🧭 Travel Mode</span><button onclick="toggleTravelMode()" style="background:rgba(255,51,85,0.2);color:var(--accent-red);border:1px solid var(--accent-red);border-radius:6px;padding:2px 10px;font-size:0.85em;font-weight:600;cursor:pointer;margin-left:4px">Stop</button></div>
 <div id="travel-toast-bar" style="position:fixed;bottom:60px;left:0;right:0;text-align:center;font-size:0.7em;color:var(--text-muted);padding:2px 12px;pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:9998"></div>
@@ -159,6 +160,6 @@
   <button class="nav-item" data-page="alerts" style="position:relative" id="nav-alerts"><span class="nav-icon">⚠️</span><span class="nav-label">Alerts</span><span class="nav-badge" id="nav-alert-badge">0</span></button>
 </nav>
 
-<script src="js/app.js?v=184b"></script>
+<script src="js/app.js?v=185"></script>
 </body>
 </html>
