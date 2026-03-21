@@ -1874,6 +1874,7 @@ function startWindSim(){
     _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
     _windTarget=null;
     _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
+    _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:S.weather.wind_gusts_10m||0};
   }
   const seed=wasRunning?(_windSimSeed||Math.random()*1000):Math.random()*1000;
   _windSimSeed=seed;
@@ -1913,7 +1914,7 @@ function startWindSim(){
     const tSlow=Date.now()*0.000015;
     const spdNoise=_wn.noise(t+seed,0);
     const dirNoise=_wn.noise(tSlow+seed+50,100);
-    const spdFactor=((spdNoise+1)/2)*1.5;
+    const spdFactor=0.5+((spdNoise+1)/2)*1.0;
     let simSpd=Math.max(0,curSpd*spdFactor);
     let simDir=((curDir+dirNoise*7)%360+360)%360;
     _gustSamples.push(simSpd);
