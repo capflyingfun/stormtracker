@@ -3145,7 +3145,7 @@ function buildStormZones(map,rawPts){
   }
   const mv=S.stormMovement;
   let approachCount=0;
-  let approachSumLat=0,approachSumLon=0,approachSumDbz=0,approachMaxDbz=0;
+  let approachSumLat=0,approachSumLon=0,approachSumDbz=0,approachMaxDbz=0,approachMinDbz=999;
   const approachBearings=[];
   let approachMaxDist=0;
   if(S._gridEtaInterval){clearInterval(S._gridEtaInterval);S._gridEtaInterval=null;}
@@ -3201,6 +3201,7 @@ function buildStormZones(map,rawPts){
         approachSumLon+=cellPt[1]*maxDbz;
         approachSumDbz+=maxDbz;
         if(maxDbz>approachMaxDbz)approachMaxDbz=maxDbz;
+        if(maxDbz<approachMinDbz)approachMinDbz=maxDbz;
         approachBearings.push(midBear);
         if(midDist>approachMaxDist)approachMaxDist=midDist;
         S._gridEtaTimers.push({id:cellId,etaSec,startTime:Date.now()});
@@ -3313,6 +3314,7 @@ function buildStormZones(map,rawPts){
     const avgLat=approachSumLat/approachSumDbz;
     const avgLon=approachSumLon/approachSumDbz;
     const arrowColor=dbzColor(approachMaxDbz).color;
+    const edgeColor=dbzColor(approachMinDbz).color;
     const trailPane='approach-trail-pane';
     if(!map.getPane(trailPane)){
       map.createPane(trailPane);
@@ -3334,7 +3336,7 @@ function buildStormZones(map,rawPts){
     const coneFillLeft=destPt(S.lat,S.lon,coneDist,avgBearDeg-halfAngle);
     const coneFillRight=destPt(S.lat,S.lon,coneDist,avgBearDeg+halfAngle);
     const coneFill=L.polygon([coneFillLeft,userPt,coneFillRight],{
-      color:'transparent',fillColor:arrowColor,fillOpacity:0.05,
+      color:'transparent',fillColor:edgeColor,fillOpacity:0.05,
       weight:0,pane:trailPane,interactive:false
     }).addTo(map);
     S._stormZoneLayers.push(coneFill);
@@ -3357,11 +3359,11 @@ function buildStormZones(map,rawPts){
         const rPt=destPt(S.lat,S.lon,d,avgBearDeg+spread);
         const barSz=Math.max(3,sz-1);
         const lDot=L.marker(lPt,{
-          icon:L.divIcon({className:'',html:`<div class="ils-bar" style="width:${barSz}px;height:${barSz}px;background:${arrowColor};box-shadow:0 0 ${barSz+2}px ${arrowColor};opacity:0.12"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+          icon:L.divIcon({className:'',html:`<div class="ils-bar" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+2}px ${edgeColor};opacity:0.12"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
           pane:trailPane,interactive:false
         }).addTo(map);
         const rDot=L.marker(rPt,{
-          icon:L.divIcon({className:'',html:`<div class="ils-bar" style="width:${barSz}px;height:${barSz}px;background:${arrowColor};box-shadow:0 0 ${barSz+2}px ${arrowColor};opacity:0.12"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
+          icon:L.divIcon({className:'',html:`<div class="ils-bar" style="width:${barSz}px;height:${barSz}px;background:${edgeColor};box-shadow:0 0 ${barSz+2}px ${edgeColor};opacity:0.12"></div>`,iconSize:[barSz,barSz],iconAnchor:[barSz/2,barSz/2]}),
           pane:trailPane,interactive:false
         }).addTo(map);
         S._stormZoneLayers.push(lDot);
@@ -3370,7 +3372,7 @@ function buildStormZones(map,rawPts){
       if(i>0&&spread>4){
         const crossbar=L.polyline(
           [destPt(S.lat,S.lon,d,avgBearDeg-spread),destPt(S.lat,S.lon,d,avgBearDeg+spread)],
-          {color:arrowColor,weight:1,opacity:0.12,pane:trailPane,interactive:false}
+          {color:edgeColor,weight:1,opacity:0.12,pane:trailPane,interactive:false}
         ).addTo(map);
         S._stormZoneLayers.push(crossbar);
       }
