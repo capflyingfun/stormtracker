@@ -1573,9 +1573,9 @@ function renderWeather(data){
   const gustRaw=_simActive?_windCurSim.gust:(c.wind_gusts_10m||windSpd);
   const gustDisp=parseFloat(kmhTo(gustRaw,S.windUnit));
   const maxArcSpd=Math.max(10,Math.ceil(Math.max(windDisp,gustDisp)*1.3/5)*5);
-  const segGap=4;
   const segsPerUnit=maxArcSpd<=30?2:1;
   const segCount=maxArcSpd*segsPerUnit;
+  const segGap=segCount<=20?4:segCount<=40?2.5:1.5;
   const segR=r+4;
   const segRi=r+0.5;
   S._gaugeMaxSegs=segCount;S._gaugeSegsPerUnit=segsPerUnit;S._gaugeArcR=segR;S._gaugeMaxSpd=maxArcSpd;
