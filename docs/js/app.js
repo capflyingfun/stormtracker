@@ -963,9 +963,11 @@ const TUTORIAL_SECTIONS=[
   {title:'🧭 Travel Mode',text:'Tap the 🧭 compass icon in the header to activate. Your GPS position is tracked live, and weather/radar data refreshes automatically as you move. Choose refresh intervals from 5 minutes to 1 hour. The travel indicator bar shows your speed, GPS accuracy, and next refresh. Great for road trips or outdoor activities.'},
   {title:'📢 Threat Ticker',text:'The scrolling bar below the header shows real-time status:<br>• <b>Green</b> — All clear, no storms detected<br>• <b>Blue</b> — Storms nearby but not heading your way<br>• <b>Light blue</b> — Light rain approaching with ETA<br>• <b>Yellow/Orange/Red</b> — Severe storms approaching with NWS-style warnings and countdowns'},
   {title:'🌐 Language & Units',text:'Tap the flag icon 🇺🇸 in the header to switch between 20 languages. The app auto-detects your browser language on first visit. Use the MI button on the radar to toggle between miles and kilometers. Station tab values cycle units on tap.'},
+  {title:'🤖 AI Weather Assistant',text:'Add your OpenAI API key in Settings to unlock the AI assistant. Tap the purple 🤖 button (bottom-right) to open the chat.<br>• Ask about current conditions, storms, forecasts, or safety<br>• The AI has access to all your live weather data: storms, ETAs, alerts, METAR, forecasts<br>• Choose tone (Professional/Friendly/Humorous) and detail level in Settings<br>• Quick question buttons for fast answers<br>• Your API key is stored on your device only — never shared with anyone except OpenAI'},
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use it for a quick situational glance.'}
 ];
 const CHANGELOG=[
+  {ver:'v1.88',date:'2026-03-21',items:['AI Weather Assistant — GPT-4o-mini powered chat with live weather context','Direct browser-to-OpenAI calls — API key stored locally, never leaves your device','Rich context injection: current conditions, storms, ETAs, alerts, forecasts, METAR','Tone options: Professional, Friendly, Humorous','Detail levels: Brief, Standard, Technical','Quick question buttons for common weather queries','Dynamic urgency — AI prioritizes safety when threats are detected']},
   {ver:'v1.87',date:'2026-03-21',items:['Tutorial & What\'s New added to Settings','First-launch welcome prompt with skip option','Comprehensive how-to guide for all features']},
   {ver:'v1.86',date:'2026-03-21',items:['Threat ticker now shows 4 states: clear, nearby, light approaching, severe approaching','Sonar mini-map shows directional arrows for approaching storms','PT button cycles through 3 modes: off, top 8 inbound, all','Top 8 inbound is now the default storm display mode','Ticker moved inside sticky header — always visible when scrolling']},
   {ver:'v1.85',date:'2026-03-21',items:['NWS-style scrolling threat ticker for storms ≥45 dBZ approaching','Severity-colored messages: yellow (strong), orange (severe), red (extreme)','ETA countdown and arrival time in ticker']},
@@ -1038,6 +1040,7 @@ function toggleSettingsPanel(){
   if(!vis)syncSettingsPanel();
 }
 function syncSettingsPanel(){
+  syncAISettings();
   const sel=document.getElementById('settings-travel-int');
   if(sel)sel.value=String(S.gpsInterval||300);
   const arSel=document.getElementById('settings-auto-refresh');
@@ -4941,10 +4944,264 @@ function startAlertCountdowns(){
 }
 
 // ==========================================
+// AI WEATHER ASSISTANT
+// ==========================================
+const _aiChatHistory=[];
+let _aiChatOpen=false;
+
+function saveAIKey(v){localStorage.setItem('st_aiKey',v.trim());updateAIFab();}
+function saveAITone(v){localStorage.setItem('st_aiTone',v);}
+function saveAIDetail(v){localStorage.setItem('st_aiDetail',v);}
+function getAIKey(){return localStorage.getItem('st_aiKey')||'';}
+function getAITone(){return localStorage.getItem('st_aiTone')||'professional';}
+function getAIDetail(){return localStorage.getItem('st_aiDetail')||'standard';}
+function toggleAIKeyVis(){
+  const inp=document.getElementById('settings-ai-key');
+  if(inp)inp.type=inp.type==='password'?'text':'password';
+}
+function updateAIFab(){
+  const fab=document.getElementById('ai-fab');
+  if(fab)fab.style.display=getAIKey()?'block':'none';
+}
+function syncAISettings(){
+  const inp=document.getElementById('settings-ai-key');
+  if(inp)inp.value=getAIKey();
+  const tone=document.getElementById('settings-ai-tone');
+  if(tone)tone.value=getAITone();
+  const detail=document.getElementById('settings-ai-detail');
+  if(detail)detail.value=getAIDetail();
+}
+function toggleAIChat(){
+  const o=document.getElementById('ai-chat-overlay');
+  if(!o)return;
+  _aiChatOpen=!_aiChatOpen;
+  o.style.display=_aiChatOpen?'block':'none';
+  if(_aiChatOpen){
+    const msgs=document.getElementById('ai-chat-messages');
+    if(msgs&&!msgs.children.length){
+      addAIMsg('system','🤖 AI Weather Assistant ready. Ask me anything about the current weather, storms, or conditions at your location.');
+    }
+    setTimeout(()=>{const inp=document.getElementById('ai-chat-input');if(inp)inp.focus()},200);
+  }
+}
+function addAIMsg(role,text){
+  const c=document.getElementById('ai-chat-messages');if(!c)return;
+  const d=document.createElement('div');
+  d.className='ai-msg '+role;
+  d.textContent=text;
+  c.appendChild(d);
+  c.scrollTop=c.scrollHeight;
+}
+function showAITyping(){
+  const c=document.getElementById('ai-chat-messages');if(!c)return;
+  const d=document.createElement('div');d.className='ai-typing';d.id='ai-typing-ind';
+  d.innerHTML='<span></span><span></span><span></span>';
+  c.appendChild(d);c.scrollTop=c.scrollHeight;
+}
+function hideAITyping(){const e=document.getElementById('ai-typing-ind');if(e)e.remove();}
+function aiQuickQ(q){
+  const inp=document.getElementById('ai-chat-input');
+  if(inp)inp.value=q;
+  sendAIChat();
+}
+
+function buildWeatherContext(){
+  const parts=[];
+  const now=new Date();
+  parts.push(`Current time: ${now.toLocaleString()}`);
+  if(S.locName)parts.push(`Location: ${S.locName} (${S.lat?.toFixed(4)}, ${S.lon?.toFixed(4)})`);
+
+  if(S.weather){
+    const w=S.weather;
+    const tempF=w.temperature_2m!=null?cToF(w.temperature_2m):null;
+    const tempC=w.temperature_2m!=null?w.temperature_2m.toFixed(1):null;
+    const feelsF=w.apparent_temperature!=null?cToF(w.apparent_temperature):null;
+    const humid=w.relative_humidity_2m;
+    const windMph=w.wind_speed_10m!=null?(w.wind_speed_10m*0.621371).toFixed(1):null;
+    const windDir=w.wind_direction_10m!=null?degToDir(w.wind_direction_10m):null;
+    const gustMph=w.wind_gusts_10m!=null?(w.wind_gusts_10m*0.621371).toFixed(1):null;
+    const precip=w.precipitation;
+    const cloud=w.cloud_cover;
+    const vis=w.visibility!=null?(w.visibility/1609.34).toFixed(1):null;
+    const pres=w.surface_pressure||w.pressure_msl;
+    let line='Current conditions:';
+    if(tempF)line+=` Temp ${tempF}°F (${tempC}°C)`;
+    if(feelsF)line+=`, feels like ${feelsF}°F`;
+    if(humid!=null)line+=`, humidity ${humid}%`;
+    if(windMph&&windDir)line+=`, wind ${windDir} ${windMph} mph`;
+    if(gustMph)line+=` gusts ${gustMph} mph`;
+    if(precip!=null)line+=`, precip ${precip} mm`;
+    if(cloud!=null)line+=`, cloud cover ${cloud}%`;
+    if(vis)line+=`, visibility ${vis} mi`;
+    if(pres)line+=`, pressure ${pres.toFixed(1)} mb`;
+    parts.push(line);
+  }
+
+  if(S.storms&&S.storms.length){
+    parts.push(`\nSTORM DATA: ${S.storms.length} storm cells detected within ${S.scanRadius} mile scan radius.`);
+    const sorted=[...S.storms].sort((a,b)=>a.dist-b.dist);
+    const top=sorted.slice(0,12);
+    for(const st of top){
+      let line=`  Storm at ${st.dist.toFixed(1)} mi ${degToDir(st.bear)} (${st.bear.toFixed(0)}°), intensity ${st.dbz} dBZ`;
+      const cat=st.dbz>=60?'EXTREME':st.dbz>=55?'SEVERE':st.dbz>=45?'HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
+      line+=` [${cat}]`;
+      const key=`${st.lat.toFixed(2)}_${st.lon.toFixed(2)}`;
+      const eta=S._stormETAs[key];
+      if(eta){
+        if(eta.approaching)line+=` APPROACHING - ETA ${eta.etaMin.toFixed(0)} min, impact ${(eta.impact*100).toFixed(0)}%`;
+        else line+=' not approaching';
+      }
+      parts.push(line);
+    }
+    if(S.stormMovement&&S.stormMovement.speed>=2){
+      parts.push(`\nGeneral storm movement: ${degToDir(S.stormMovement.direction)} at ${S.stormMovement.speed.toFixed(0)} mph`);
+    }
+  }else{
+    parts.push('\nNo storm cells currently detected in scan radius.');
+  }
+
+  if(S.alerts&&S.alerts.length){
+    parts.push(`\nACTIVE WEATHER ALERTS (${S.alerts.length}):`);
+    for(const a of S.alerts.slice(0,8)){
+      let line=`  ${a.event||a.headline||'Alert'}`;
+      if(a.severity)line+=` [${a.severity}]`;
+      if(a.description)line+=` — ${a.description.substring(0,200)}`;
+      parts.push(line);
+    }
+  }
+
+  if(S.forecast&&S.forecast.hourly){
+    const h=S.forecast.hourly;
+    parts.push('\nNext 6 hours forecast:');
+    for(let i=0;i<Math.min(6,h.time?.length||0);i++){
+      const t=h.time[i];const tF=h.temperature_2m?cToF(h.temperature_2m[i]):'?';
+      const pop=h.precipitation_probability?h.precipitation_probability[i]:'?';
+      const prec=h.precipitation?h.precipitation[i]:0;
+      const hr=new Date(t).toLocaleTimeString([],{hour:'numeric'});
+      parts.push(`  ${hr}: ${tF}°F, ${pop}% chance precip, ${prec}mm expected`);
+    }
+  }
+
+  if(S.forecast&&S.forecast.daily){
+    const d=S.forecast.daily;
+    parts.push('\n7-day outlook:');
+    for(let i=0;i<Math.min(7,d.time?.length||0);i++){
+      const day=new Date(d.time[i]).toLocaleDateString([],{weekday:'short'});
+      const hi=d.temperature_2m_max?cToF(d.temperature_2m_max[i]):'?';
+      const lo=d.temperature_2m_min?cToF(d.temperature_2m_min[i]):'?';
+      const pop=d.precipitation_probability_max?d.precipitation_probability_max[i]:'?';
+      parts.push(`  ${day}: Hi ${hi}°F / Lo ${lo}°F, ${pop}% precip chance`);
+    }
+  }
+
+  if(S.station){
+    const st=S.station;
+    parts.push(`\nNearest METAR station: ${S.stationId||'unknown'}`);
+    if(st.rawOb)parts.push(`Raw METAR: ${st.rawOb}`);
+  }
+
+  return parts.join('\n');
+}
+
+function getAISystemPrompt(){
+  const tone=getAITone();
+  const detail=getAIDetail();
+  const ctx=buildWeatherContext();
+
+  let toneInstr='';
+  if(tone==='professional')toneInstr='Use a professional, clear meteorological briefing style. Be precise and factual.';
+  else if(tone==='friendly')toneInstr='Be warm, conversational, and approachable. Use everyday language while keeping accuracy.';
+  else if(tone==='humorous')toneInstr='Be witty and entertaining while keeping safety info serious. Light humor about non-dangerous conditions.';
+
+  let detailInstr='';
+  if(detail==='minimal')detailInstr='Keep responses brief — 2-3 sentences max focusing on essentials.';
+  else if(detail==='standard')detailInstr='Provide balanced detail with key data points and practical guidance.';
+  else if(detail==='technical')detailInstr='Include detailed meteorological analysis with specific measurements, dBZ values, wind shear analysis, and professional terminology.';
+
+  const hasThreats=S.storms&&S.storms.some(st=>st.dbz>=45);
+  const hasAlerts=S.alerts&&S.alerts.length>0;
+  let urgency='';
+  if(hasThreats||hasAlerts){
+    urgency='\n\nIMPORTANT: There are active weather threats. Prioritize safety information. Be direct about risks. If storms are approaching with high dBZ (≥55), use urgent language.';
+  }
+
+  return `You are StormTracker AI, a weather assistant embedded in a real-time storm tracking application. You have access to live weather data, radar-detected storm cells, NWS alerts, and forecasts for the user's location.
+
+${toneInstr}
+${detailInstr}
+${urgency}
+
+LIVE WEATHER DATA:
+${ctx}
+
+Guidelines:
+- Answer questions about current conditions, storms, forecasts, and safety
+- Reference specific data points (temperature, wind, storm distances, dBZ values) when relevant
+- For storm-related questions, mention distance, direction, intensity, and movement
+- If storms are approaching, calculate approximate arrival and recommend actions
+- Use the unit preferences shown in the data
+- If asked about something not in the data, say so honestly
+- Keep responses concise unless the user asks for detail
+- For safety situations, always err on the side of caution`;
+}
+
+async function sendAIChat(){
+  const inp=document.getElementById('ai-chat-input');if(!inp)return;
+  const msg=inp.value.trim();if(!msg)return;
+  inp.value='';
+
+  const key=getAIKey();
+  if(!key){
+    addAIMsg('error','No API key configured. Add your OpenAI API key in Settings (gear icon) under AI Weather Assistant.');
+    return;
+  }
+
+  addAIMsg('user',msg);
+  _aiChatHistory.push({role:'user',content:msg});
+  showAITyping();
+
+  try{
+    const sysPrompt=getAISystemPrompt();
+    const messages=[{role:'system',content:sysPrompt},..._aiChatHistory.slice(-10)];
+
+    const res=await fetch('https://api.openai.com/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body:JSON.stringify({model:'gpt-4o-mini',messages,max_tokens:800,temperature:0.7})
+    });
+
+    hideAITyping();
+
+    if(!res.ok){
+      const err=await res.json().catch(()=>({}));
+      const errMsg=err.error?.message||`API error ${res.status}`;
+      if(res.status===401)addAIMsg('error','Invalid API key. Please check your OpenAI API key in Settings.');
+      else if(res.status===429)addAIMsg('error','Rate limit exceeded. Please wait a moment and try again.');
+      else if(res.status===402||res.status===400&&errMsg.includes('quota'))addAIMsg('error','API quota exceeded. Check your OpenAI billing at platform.openai.com.');
+      else addAIMsg('error','API error: '+errMsg);
+      return;
+    }
+
+    const data=await res.json();
+    const reply=data.choices?.[0]?.message?.content||'No response received.';
+    _aiChatHistory.push({role:'assistant',content:reply});
+    addAIMsg('assistant',reply);
+
+    if(_aiChatHistory.length>20){
+      _aiChatHistory.splice(0,_aiChatHistory.length-14);
+    }
+  }catch(e){
+    hideAITyping();
+    addAIMsg('error','Connection error: '+e.message);
+  }
+}
+
+// ==========================================
 // INIT — always show welcome, explicit consent
 // ==========================================
 function init(){
   loadUnits();
+  updateAIFab();
   checkFirstLaunch();
   try{
     const saved=JSON.parse(localStorage.getItem('st_loc'));
