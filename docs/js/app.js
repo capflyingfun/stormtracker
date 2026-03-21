@@ -1559,17 +1559,42 @@ function drawMiniSonar(){
       zoneCount++;
     }
   }
-  if(S.stormMovement&&S.stormMovement.speed>=2){
+  if(S.stormMovement&&S.stormMovement.speed>=2&&S.storms&&S.storms.length){
     const mv=S.stormMovement;
-    const mvAng=(mv.direction-90)*Math.PI/180;
-    const arrLen=maxR*0.6;
-    const ax=cx+Math.cos(mvAng)*arrLen,ay=cy+Math.sin(mvAng)*arrLen;
-    const headL=12,headW=6;
-    const la=mvAng-Math.PI+0.4,ra=mvAng-Math.PI-0.4;
-    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(la)*headL,ay+Math.sin(la)*headL);ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(ra)*headL,ay+Math.sin(ra)*headL);
+    const mvRad=(mv.direction-90)*Math.PI/180;
+    const approaching=[];
+    for(const st of S.storms){
+      const eta=calcStormETA(st);
+      if(eta&&eta.approaching&&eta.eta){approaching.push({storm:st,eta});}
+    }
+    if(approaching.length>0){
+      approaching.sort((a,b)=>b.storm.dbz-a.storm.dbz);
+      const shown=approaching.slice(0,8);
+      for(const item of shown){
+        const st=item.storm;
+        const dist=st.distance||0;
+        const bearing=st.bearing||0;
+        const stAng=(bearing-90)*Math.PI/180;
+        const r=Math.min(maxR-8,maxR*(dist/scanR));
+        const sx=cx+Math.cos(stAng)*r,sy=cy+Math.sin(stAng)*r;
+        const neonC=dbzHex(st.dbz);
+        const arrLen=Math.max(10,Math.min(20,maxR*0.12));
+        const tipX=sx+Math.cos(mvRad)*arrLen,tipY=sy+Math.sin(mvRad)*arrLen;
+        ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(tipX,tipY);
+        ctx.strokeStyle=neonC;ctx.lineWidth=2;ctx.stroke();
+        const headL=6,ha1=mvRad-Math.PI+0.5,ha2=mvRad-Math.PI-0.5;
+        ctx.beginPath();ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+Math.cos(ha1)*headL,tipY+Math.sin(ha1)*headL);ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+Math.cos(ha2)*headL,tipY+Math.sin(ha2)*headL);
+        ctx.strokeStyle=neonC;ctx.lineWidth=2;ctx.stroke();
+        ctx.beginPath();ctx.arc(sx,sy,3,0,Math.PI*2);ctx.fillStyle=neonC;ctx.fill();
+      }
+    }
     const neonC=pathArrowNeonColor(maxDbz);
+    const arrLen=maxR*0.6;
+    const ax=cx+Math.cos(mvRad)*arrLen,ay=cy+Math.sin(mvRad)*arrLen;
+    const la=mvRad-Math.PI+0.4,ra=mvRad-Math.PI-0.4;
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(la)*12,ay+Math.sin(la)*12);ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(ra)*12,ay+Math.sin(ra)*12);
     ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
-    ctx.beginPath();ctx.moveTo(cx+Math.cos(mvAng)*15,cy+Math.sin(mvAng)*15);ctx.lineTo(ax,ay);
+    ctx.beginPath();ctx.moveTo(cx+Math.cos(mvRad)*15,cy+Math.sin(mvRad)*15);ctx.lineTo(ax,ay);
     ctx.strokeStyle=hexToRgba(neonC,0.5);ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
   }
   ctx.beginPath();ctx.arc(cx,cy,3,0,Math.PI*2);ctx.fillStyle='#00dcff';ctx.fill();

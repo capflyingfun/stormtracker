@@ -31,7 +31,7 @@
 html{scroll-behavior:smooth}
 body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-primary);min-height:100vh;min-height:100dvh;padding-bottom:calc(var(--nav-height)+20px);overscroll-behavior:none;-webkit-font-smoothing:antialiased}
 .container{max-width:520px;margin:0 auto;padding:0 12px}
-.app-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:linear-gradient(180deg,rgba(0,180,255,0.06) 0%,transparent 100%);border-bottom:1px solid var(--border-subtle);position:sticky;top:0;z-index:100;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.app-header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 34px;background:linear-gradient(180deg,rgba(0,180,255,0.06) 0%,transparent 100%);border-bottom:1px solid var(--border-subtle);position:sticky;top:0;z-index:100;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);flex-wrap:wrap}
 .app-header .header-left{display:flex;align-items:center;gap:8px}
 .app-header .header-center{text-align:center;flex:1}
 .app-header h1{font-size:1.2em;font-weight:800;background:linear-gradient(135deg,var(--accent-blue),var(--accent-cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:0;line-height:1.2}
