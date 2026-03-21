@@ -3673,10 +3673,13 @@ function _tickerWeatherPool(){
   const pool=[];
   const w=S.weather;
   const fc=S.forecast;
-  pool.push('✅ No storms detected nearby. Clear skies and smooth sailing! 🌤️');
-  pool.push('✅ All clear! No storm activity in your area. Perfect time to enjoy the weather. ☀️');
-  pool.push('✅ Radar is clean! No precipitation detected in your scan area. Relax and enjoy. 😎');
-  pool.push('✅ No storms detected! Let\'s keep it that way... unless you\'re looking for something to track. 📊');
+  const stormCount=S.storms?S.storms.length:0;
+  if(stormCount===0){
+    pool.push('✅ No storms detected nearby. Clear skies and smooth sailing! 🌤️');
+    pool.push('✅ All clear! No storm activity in your area. Perfect time to enjoy the weather. ☀️');
+    pool.push('✅ Radar is clean! No precipitation detected in your scan area. Relax and enjoy. 😎');
+    pool.push('✅ No storms detected! Let\'s keep it that way... unless you\'re looking for something to track. 📊');
+  }
   if(w){
     const tc=w.temperature_2m;const fc2=w.apparent_temperature;
     if(tc!=null){
