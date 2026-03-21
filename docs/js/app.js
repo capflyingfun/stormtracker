@@ -3285,8 +3285,19 @@ function updateThreatTicker(){
   const inner=document.getElementById('threat-ticker-inner');
   if(!bar||!inner)return;
   const mv=S.stormMovement;
-  if(!mv||mv.speed<1||!S.storms||!S.storms.length){
+  if(!mv||mv.speed<1){
     bar.style.display='none';
+    return;
+  }
+  const stormCount=S.storms?S.storms.length:0;
+  if(stormCount===0){
+    const clears=['✅ No storms detected nearby. Clear skies and smooth sailing! 🌤️','✅ All clear! No storm activity in your area. Perfect time to enjoy the weather. ☀️','✅ No storms detected nearby! Let\'s keep it that way... unless you\'re looking for something to track. 📊','✅ Radar is clean! No precipitation detected in your scan area. Relax and enjoy. 😎'];
+    const msg=clears[Math.floor(Date.now()/60000)%clears.length];
+    inner.innerHTML=`<span style="color:#4ade80">${msg}</span>`;
+    inner.style.animationDuration='20s';
+    bar.style.display='block';
+    bar.style.borderColor='rgba(74,222,128,0.2)';
+    bar.style.background='linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))';
     return;
   }
   const threats=[];
@@ -3297,7 +3308,18 @@ function updateThreatTicker(){
     threats.push({storm,eta});
   }
   if(threats.length===0){
-    bar.style.display='none';
+    const nearbyMsgs=[
+      `🔔 ${stormCount} storm ☔️ area${stormCount>1?'s':''} detected, but currently not on track to your location. Keep an eye 👁️ out and monitor conditions.`,
+      `🔔 ${stormCount} precipitation cell${stormCount>1?'s':''} in your area — none currently heading your way. Stay aware, weather can shift quickly. 🌦️`,
+      `🔔 Tracking ${stormCount} storm cell${stormCount>1?'s':''} nearby. None approaching at this time, but keep monitoring. You never know what Mother Nature has planned. 🌩️`
+    ];
+    const msg=nearbyMsgs[Math.floor(Date.now()/60000)%nearbyMsgs.length];
+    inner.innerHTML=`<span style="color:#60a5fa">${msg}</span>`;
+    const textLen=msg.length;
+    inner.style.animationDuration=Math.max(15,Math.round(textLen*0.2))+'s';
+    bar.style.display='block';
+    bar.style.borderColor='rgba(96,165,250,0.2)';
+    bar.style.background='linear-gradient(90deg,rgba(0,5,20,0.95),rgba(5,10,30,0.95),rgba(0,5,20,0.95))';
     return;
   }
   threats.sort((a,b)=>a.eta.eta-b.eta.eta);
