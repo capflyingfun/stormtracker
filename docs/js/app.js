@@ -3370,9 +3370,13 @@ S._pathArrowLayers=[];
 S._pathArrowAnimInterval=null;
 S._pathArrowsDirty=false;
 const DBZ_BINS=[
-  {min:15,max:30,color:'#00ccff',label:'Light (15-30 dBZ)',opacity:0.22},
-  {min:30,max:45,color:'#00ff66',label:'Moderate (30-45 dBZ)',opacity:0.35},
-  {min:45,max:55,color:'#ffee00',label:'Heavy (45-55 dBZ)',opacity:0.45},
+  {min:15,max:25,color:'#00ccff',label:'Light (15-25 dBZ)',opacity:0.18},
+  {min:25,max:30,color:'#00ffcc',label:'Light (25-30 dBZ)',opacity:0.22},
+  {min:30,max:35,color:'#00ff66',label:'Moderate (30-35 dBZ)',opacity:0.28},
+  {min:35,max:40,color:'#aaff00',label:'Moderate (35-40 dBZ)',opacity:0.33},
+  {min:40,max:45,color:'#ffee00',label:'Mod-Heavy (40-45 dBZ)',opacity:0.40},
+  {min:45,max:50,color:'#ff5500',label:'Heavy (45-50 dBZ)',opacity:0.45},
+  {min:50,max:55,color:'#ff2200',label:'Intense (50-55 dBZ)',opacity:0.50},
   {min:55,max:60,color:'#ff0033',label:'Severe (55-60 dBZ)',opacity:0.55},
   {min:60,max:999,color:'#ff00ff',label:'Extreme (60+ dBZ)',opacity:0.60}
 ];
