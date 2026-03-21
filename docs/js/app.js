@@ -1867,8 +1867,7 @@ function drawMiniSonar(){
     ctx.fillText(l,lx,ly);
   }
   let zoneCount=0,maxDbz=0;
-  const sonarStorms=getVisibleStormList();
-  if(S._rawScanPts&&S._rawScanPts.length&&(sonarStorms.length>0||!isClutterOnly())){
+  if(S._rawScanPts&&S._rawScanPts.length){
     const cells=polarGridBin(S._rawScanPts,S.lat,S.lon,scanR);
     const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
     for(const[k,c]of cells){
