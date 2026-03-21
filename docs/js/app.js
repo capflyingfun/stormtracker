@@ -100,9 +100,9 @@ function updateGaugeSegments(windVal,gustVal){
     _gaugePrevAvg=_gaugeAvg;
     _gaugeAvg=_gaugeAvgSamples.reduce((s,p)=>s+p.v,0)/_gaugeAvgSamples.length;
   }
-  if(now-(_gaugeAvgHistory.length?_gaugeAvgHistory[_gaugeAvgHistory.length-1].t:0)>=1000){
+  if(now-(_gaugeAvgHistory.length?_gaugeAvgHistory[_gaugeAvgHistory.length-1].t:0)>=200){
     _gaugeAvgHistory.push({t:now,v:_gaugeAvg});
-    while(_gaugeAvgHistory.length>30)_gaugeAvgHistory.shift();
+    while(_gaugeAvgHistory.length>10)_gaugeAvgHistory.shift();
   }
   const peak=Math.max(_gaugeAvg,gustVal,1);
   const newMax=Math.max(5,Math.ceil(peak*2/5)*5);
@@ -153,8 +153,8 @@ function updateGaugeSegments(windVal,gustVal){
   if(avgEl)avgEl.textContent='A'+avgDisp.toFixed(1)+' '+WIND_UNITS[S.windUnit];
   const trendEl=document.querySelector('.wrc-trend');
   if(trendEl&&_gaugeAvgHistory.length>=3){
-    const span=Math.min(10,(now-_gaugeAvgHistory[0].t)/1000);
-    if(span>=2){
+    const span=(now-_gaugeAvgHistory[0].t)/1000;
+    if(span>=0.5){
       const first=_gaugeAvgHistory[0].v;
       const last=_gaugeAvgHistory[_gaugeAvgHistory.length-1].v;
       const rate=(last-first)/span;
@@ -3382,9 +3382,7 @@ function clearRadarGrid(){
   S._radarGridLayers=[];
 }
 function gridNeonColor(){
-  let maxDbz=0;
-  if(S.storms&&S.storms.length>0){for(const p of S.storms){if(p.dbz>maxDbz)maxDbz=p.dbz}}
-  return pathArrowNeonColor(maxDbz);
+  return'#00ccff';
 }
 function hexToRgba(hex,a){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
