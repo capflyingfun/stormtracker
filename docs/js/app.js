@@ -1086,7 +1086,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use it for a quick situational glance.'}
 ];
 const CHANGELOG=[
-  {ver:'v1.94',date:'2026-03-21',items:['Settings panel sized as floating modal (80vh max) — no longer fills entire screen','Background content locked while settings is open — no more dual scrolling','Panel centered with rounded corners and shadow for cleaner look']},
+  {ver:'v1.95',date:'2026-03-21',items:['Fixed iOS scroll bleed — background page no longer moves when swiping inside Settings','Body position locked (fixed) while Settings is open, scroll position restored on close','Touch boundary trapping on scroll area prevents overscroll leak at top/bottom edges']},
   {ver:'v1.92',date:'2026-03-21',items:['Units now managed in Settings — Imperial/Metric/Auto system selector with individual unit dropdowns','Auto mode: units switch automatically when you search a location in a different country','Removed tap-to-cycle from weather and station displays — cleaner, no more accidental unit changes','Fixed wind gust/direction jumping when changing units']},
   {ver:'v1.90',date:'2026-03-21',items:['Auto-localization — units automatically set based on your region (Celsius, km/h, mb for metric countries; Fahrenheit, mph, inHg for US/Liberia/Myanmar)','First-time users see the right units instantly — no manual toggling needed','Detects country via timezone and browser language','Manual unit changes still saved and respected']},
   {ver:'v1.89',date:'2026-03-21',items:['PWA support — install StormTracker as a standalone app on iOS and Android','Service worker for offline caching of core app files','App manifest with icons for home screen installation','Apple-specific meta tags for full-screen iOS experience']},
@@ -1160,10 +1160,29 @@ function toggleSettingsPanel(){
   const p=document.getElementById('settings-panel');
   if(!p)return;
   const vis=p.style.display==='flex';
-  p.style.display=vis?'none':'flex';
-  document.body.style.overflow=vis?'':'hidden';
-  if(!vis)syncSettingsPanel();
+  if(vis){
+    const scrollY=Math.abs(parseInt(document.body.style.top||'0'));
+    p.style.display='none';
+    document.body.style.overflow='';document.body.style.position='';document.body.style.width='';document.body.style.top='';
+    window.scrollTo(0,scrollY);
+  }else{
+    const scrollY=window.scrollY;
+    document.body.style.overflow='hidden';document.body.style.position='fixed';document.body.style.width='100%';document.body.style.top=`-${scrollY}px`;
+    p.style.display='flex';
+    syncSettingsPanel();
+  }
 }
+(function(){
+  const sa=document.getElementById('settings-scroll-area');
+  if(!sa)return;
+  sa.addEventListener('touchmove',function(e){
+    const st=sa.scrollTop,sh=sa.scrollHeight,ch=sa.clientHeight;
+    if(sh<=ch){e.preventDefault();return}
+    if(st<=0&&e.touches[0].clientY>sa._lastTouchY){e.preventDefault();return}
+    if(st+ch>=sh&&e.touches[0].clientY<sa._lastTouchY){e.preventDefault();return}
+  },{passive:false});
+  sa.addEventListener('touchstart',function(e){sa._lastTouchY=e.touches[0].clientY},{passive:true});
+})();
 function syncSettingsPanel(){
   syncAISettings();
   syncUnitSelects();
