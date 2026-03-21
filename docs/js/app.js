@@ -3458,9 +3458,9 @@ function toggleRadarOverlay(){
 try{const zv=localStorage.getItem('st_zones');if(zv==='0')S._showZones=false}catch(e){}
 try{const pa=localStorage.getItem('st_pathArrows');if(pa==='0')S._showPathArrows=false}catch(e){}
 try{const ps=localStorage.getItem('st_arrowStyle');if(ps==='pointer')S._pathArrowStyle='pointer'}catch(e){}
-S._showPoints=false;
-S._pointsMode='off';
-try{const pv=localStorage.getItem('st_pointsMode');if(pv)S._pointsMode=pv;S._showPoints=(pv==='all')}catch(e){}
+S._showPoints=true;
+S._pointsMode='inbound';
+try{const pv=localStorage.getItem('st_pointsMode');if(pv){S._pointsMode=pv;S._showPoints=(pv!=='off')}}catch(e){}
 
 function clearPathArrows(){
   if(S._pathArrowAnimInterval){clearInterval(S._pathArrowAnimInterval);S._pathArrowAnimInterval=null}
