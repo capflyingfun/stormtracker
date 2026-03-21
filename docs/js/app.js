@@ -8,6 +8,7 @@ const S = {
   radarPlaying:false, radarTimer:null, scanRadius:80, radarSource:'nexrad', nexradLayer:null, radarMetric:false,
   activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null, autoScanTimer:null, lastScanMs:0, _lastScanWasHiRes:false, _stormETAs:{}, _etaRescanInProgress:false,
   travelMode:false, travelWatchId:null, travelLastUpdate:0, travelMarker:null,
+  showClutter:false,
 };
 const TEMP_UNITS = ['°F','°C'];
 const WIND_UNITS = ['mph','kts','km/h','m/s'];
@@ -537,16 +538,16 @@ function switchPage(page){
   if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}
 }
 function updateStormBadges(){
-  const n=S.storms.length;
+  const vis=getVisibleStormList().length;
   const hdr=document.getElementById('header-storm-count');
   const nav=document.getElementById('nav-storm-badge');
   if(hdr){
-    hdr.textContent=`🌪️ ${n}`;
-    hdr.style.background=n?'#22c55e':'#6b7280';
+    hdr.textContent=`🌪️ ${vis}`;
+    hdr.style.background=vis?'#22c55e':'#6b7280';
   }
   if(nav){
-    nav.textContent=n.toString();
-    nav.style.background=n?'#ef4444':'#6b7280';
+    nav.textContent=vis.toString();
+    nav.style.background=vis?'#ef4444':'#6b7280';
   }
 }
 document.getElementById('location-input').addEventListener('keypress',e=>{if(e.key==='Enter'){hideSuggestions();searchLoc()}});
@@ -1082,6 +1083,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use it for a quick situational glance.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.08',date:'2026-03-21',items:['Clutter filter: ≤8 returns below 31 dBZ auto-hidden from map, sonar, and badges as likely false positives','🕳️ toggle button on map to show/hide clutter when detected','AI assistant now distinguishes real precipitation from radar clutter/ground returns','Alert ticker threshold raised to 31+ dBZ — minor returns no longer trigger warnings']},
   {ver:'v1.95',date:'2026-03-21',items:['Fixed iOS scroll bleed — background page no longer moves when swiping inside Settings','Body position locked (fixed) while Settings is open, scroll position restored on close','Touch boundary trapping on scroll area prevents overscroll leak at top/bottom edges']},
   {ver:'v1.92',date:'2026-03-21',items:['Units now managed in Settings — Imperial/Metric/Auto system selector with individual unit dropdowns','Auto mode: units switch automatically when you search a location in a different country','Removed tap-to-cycle from weather and station displays — cleaner, no more accidental unit changes','Fixed wind gust/direction jumping when changing units']},
   {ver:'v1.90',date:'2026-03-21',items:['Auto-localization — units automatically set based on your region (Celsius, km/h, mb for metric countries; Fahrenheit, mph, inHg for US/Liberia/Myanmar)','First-time users see the right units instantly — no manual toggling needed','Detects country via timezone and browser language','Manual unit changes still saved and respected']},
@@ -1772,7 +1774,8 @@ function drawMiniSonar(){
     ctx.fillText(l,lx,ly);
   }
   let zoneCount=0,maxDbz=0;
-  if(S._rawScanPts&&S._rawScanPts.length){
+  const sonarStorms=getVisibleStormList();
+  if(S._rawScanPts&&S._rawScanPts.length&&(sonarStorms.length>0||!isClutterOnly())){
     const cells=polarGridBin(S._rawScanPts,S.lat,S.lon,scanR);
     const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
     for(const[k,c]of cells){
@@ -1794,11 +1797,11 @@ function drawMiniSonar(){
       zoneCount++;
     }
   }
-  if(S.stormMovement&&S.stormMovement.speed>=2&&S.storms&&S.storms.length){
+  if(S.stormMovement&&S.stormMovement.speed>=2&&sonarStorms.length){
     const mv=S.stormMovement;
     const mvRad=(mv.direction-90)*Math.PI/180;
     const approaching=[];
-    for(const st of S.storms){
+    for(const st of sonarStorms){
       const eta=calcStormETA(st);
       if(eta&&eta.approaching&&eta.eta){approaching.push({storm:st,eta});}
     }
@@ -2379,6 +2382,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" style="font-size:0.55em;font-weight:700;line-height:1;color:var(--accent-cyan)" onclick="toggleStormPoints()">PT</div>
         <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff9800" onclick="toggleRadarOverlay()">RDR</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
+        <div class="map-ctrl-btn" id="clutter-toggle" title="Clutter hidden (tap to show)" style="font-size:0.7em;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);border-color:#555" onclick="toggleClutter()">🕳️</div>
       </div>
       <div class="radar-anim-bar" id="radar-anim-bar" style="display:none">
         <input type="range" id="radar-anim-slider" min="0" max="0" value="0" style="flex:1">
@@ -3103,6 +3107,44 @@ function clearStormCone(){
   const btn=document.getElementById('radar-clear-cone');
   if(btn)btn.style.display='none';
 }
+function isClutterOnly(){
+  if(!S.storms||!S.storms.length)return false;
+  const sig=S.storms.filter(s=>s.dbz>=31);
+  if(sig.length>0)return false;
+  return S.storms.length<=8;
+}
+function getVisibleStormList(){
+  if(!S.storms||!S.storms.length)return[];
+  if(isClutterOnly()&&!S.showClutter)return[];
+  return S.storms;
+}
+function toggleClutter(){
+  S.showClutter=!S.showClutter;
+  const btn=document.getElementById('clutter-toggle');
+  if(btn){
+    btn.style.background=S.showClutter?'rgba(250,204,21,0.3)':'rgba(0,0,0,0.5)';
+    btn.style.borderColor=S.showClutter?'#facc15':'#555';
+    btn.title=S.showClutter?'Showing clutter (tap to hide)':'Clutter hidden (tap to show)';
+  }
+  if(S.map){
+    S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
+  }
+  renderStormMarkers();
+  if(S.activePage==='storms')renderStorms();
+  updateStormBadges();
+  drawMiniSonar();
+}
+function updateClutterButton(){
+  const btn=document.getElementById('clutter-toggle');
+  if(!btn)return;
+  const clutter=isClutterOnly();
+  btn.style.display=clutter?'flex':'none';
+  if(clutter){
+    btn.style.background=S.showClutter?'rgba(250,204,21,0.3)':'rgba(0,0,0,0.5)';
+    btn.style.borderColor=S.showClutter?'#facc15':'#555';
+    btn.title=S.showClutter?'Showing clutter (tap to hide)':'Clutter hidden (tap to show)';
+  }
+}
 function zoomScale(map){
   const z=map.getZoom();
   return z>=10?1.4:z>=9?1.2:z>=8?1.0:z>=7?0.7:z>=6?0.45:z>=5?0.3:0.2;
@@ -3111,13 +3153,16 @@ function zoomScale(map){
 function plotStormMarkers(map){
   S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];
   clearStormCone();
+  updateClutterButton();
+  const stormList=getVisibleStormList();
+  if(!stormList.length)return;
   const mv=S.stormMovement;
   const sc=zoomScale(map);
   const pending=[];
-  let visibleStorms=S.storms;
+  let visibleStorms=stormList;
   if(S._pointsMode==='inbound'){
     const inbound=[];
-    for(const st of S.storms){
+    for(const st of stormList){
       const eta=calcStormETA(st);
       if(eta&&eta.approaching&&eta.eta)inbound.push({storm:st,eta});
     }
@@ -3125,7 +3170,7 @@ function plotStormMarkers(map){
     visibleStorms=inbound.slice(0,8).map(i=>i.storm);
   }
   const visibleSet=new Set(visibleStorms);
-  S.storms.forEach(storm=>{
+  stormList.forEach(storm=>{
     const cat=stormCat(storm.dbz);
     const color=dbzHex(storm.dbz);
     const r=Math.max(4,Math.round(Math.max(10,storm.dbz/4)*sc));
@@ -5235,9 +5280,16 @@ function buildWeatherContext(){
 
   if(S.storms&&S.storms.length){
     const validStorms=S.storms.filter(s=>s&&s.dist!=null&&s.bear!=null&&s.dbz!=null);
-    parts.push(`\nSTORM DATA: ${S.storms.length} storm cells detected (${validStorms.length} with tracking data).`);
-    if(validStorms.length){
-      const sorted=[...validStorms].sort((a,b)=>a.dist-b.dist);
+    const sigStorms=validStorms.filter(s=>s.dbz>=31);
+    const lowStorms=validStorms.filter(s=>s.dbz<31);
+    parts.push(`\nSTORM DATA: ${validStorms.length} radar returns detected.`);
+    if(lowStorms.length>0&&sigStorms.length===0){
+      parts.push(`  NOTE: All ${lowStorms.length} returns are below 31 dBZ (max ${Math.max(...lowStorms.map(s=>s.dbz))} dBZ). ${lowStorms.length<=8?'With 8 or fewer sub-31 dBZ returns, these are most likely radar ground clutter or false positives — not real precipitation. Mention this to the user as "minor radar reflectivity/clutter" rather than rain.':'There are more than 8 low-dBZ returns which may indicate light drizzle or virga, but nothing significant.'}`);
+    }else if(lowStorms.length>0&&sigStorms.length>0){
+      parts.push(`  ${sigStorms.length} significant cells (31+ dBZ) and ${lowStorms.length} minor returns (<31 dBZ, likely clutter).`);
+    }
+    if(sigStorms.length){
+      const sorted=[...sigStorms].sort((a,b)=>a.dist-b.dist);
       const top=sorted.slice(0,12);
       for(const st of top){
         let line=`  Storm at ${st.dist.toFixed(1)} mi ${degToDir(st.bear)} (${st.bear.toFixed(0)}°), intensity ${st.dbz} dBZ`;
@@ -5253,7 +5305,7 @@ function buildWeatherContext(){
         }catch(e){}
         parts.push(line);
       }
-      if(sorted.length>12)parts.push(`  ... and ${sorted.length-12} more storm cells`);
+      if(sorted.length>12)parts.push(`  ... and ${sorted.length-12} more significant storm cells`);
     }
     if(S.stormMovement&&S.stormMovement.speed>=2){
       parts.push(`  General storm movement: ${degToDir(S.stormMovement.direction)} at ${S.stormMovement.speed.toFixed(0)} mph`);
