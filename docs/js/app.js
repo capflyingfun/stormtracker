@@ -3393,7 +3393,7 @@ function buildStormZones(map,rawPts){
       pane:trailPane,interactive:false
     }).addTo(map);
     S._stormZoneLayers.push(vaneArrow);
-    let ilsFrame=0;
+    let cFrame=0,sFrame=0;
     const animDots=(dots,frame)=>{
       const len=dots.length;
       for(let i=0;i<len;i++){
@@ -3411,11 +3411,13 @@ function buildStormZones(map,rawPts){
         }
       }
     };
+    const sideLen=ilsLeftDots.length||1;
     S._approachArrowInterval=setInterval(()=>{
-      animDots(ilsCenterDots,ilsFrame);
-      animDots(ilsLeftDots,ilsFrame);
-      animDots(ilsRightDots,ilsFrame);
-      ilsFrame=(ilsFrame+1)%totalCenter;
+      animDots(ilsCenterDots,cFrame);
+      animDots(ilsLeftDots,sFrame);
+      animDots(ilsRightDots,sFrame);
+      cFrame=(cFrame+1)%totalCenter;
+      sFrame=(sFrame+1)%sideLen;
     },150);
   }
   const ms=Math.round(performance.now()-t0);
