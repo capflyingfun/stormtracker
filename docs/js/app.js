@@ -119,7 +119,7 @@ function windSweepAnim(){
     const gustDisp2=parseFloat(kmhTo(curGust,S.windUnit));
     const windArc=Math.min(simSpdDisp/maxSpd,1)*340;
     const gustArc2=Math.min(gustDisp2/maxSpd,1)*340;
-    if(gustArcEl)gustArcEl.setAttribute('d',gustArc2>0?sweepArcPath(0,gustArc2,arcR,50,50):'M0,0');
+    if(gustArcEl)gustArcEl.setAttribute('d',gustArc2>0?sweepArcPath(0,gustArc2,arcR+2,50,50):'M0,0');
     if(windArcEl)windArcEl.setAttribute('d',windArc>0?sweepArcPath(0,windArc,arcR,50,50):'M0,0');
     if(p<1){
       _windSweepRaf=requestAnimationFrame(tick);
@@ -1594,8 +1594,8 @@ function renderWeather(data){
     const lg=(toDeg-fromDeg)>180?1:0;
     return`M${x1.toFixed(1)},${y1.toFixed(1)} A${radius},${radius} 0 ${lg} 1 ${x2.toFixed(1)},${y2.toFixed(1)}`;
   }
-  gaugeSvg+=`<path id="gauge-gust-arc" d="${gustArc>0?arcPath(0,gustArc,arcR):'M0,0'}" fill="none" stroke="${neonOrange}0.7)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
-  gaugeSvg+=`<path id="gauge-wind-arc" d="${windArc>0?arcPath(0,windArc,arcR):'M0,0'}" fill="none" stroke="${neonCyan}0.8)" stroke-width="3.5" stroke-linecap="round" filter="url(#glow)"/>`;
+  gaugeSvg+=`<path id="gauge-gust-arc" d="${gustArc>0?arcPath(0,gustArc,arcR+2):'M0,0'}" fill="none" stroke="${neonOrange}0.5)" stroke-width="2" stroke-linecap="round" filter="url(#glow)"/>`;
+  gaugeSvg+=`<path id="gauge-wind-arc" d="${windArc>0?arcPath(0,windArc,arcR):'M0,0'}" fill="none" stroke="${neonCyan}0.8)" stroke-width="2.5" stroke-linecap="round" filter="url(#glow)"/>`;
 
   S._gaugeMaxSpd=maxArcSpd;S._gaugeArcR=arcR;
   const spdTicks=[];
@@ -1666,7 +1666,7 @@ function renderWeather(data){
         <div class="hero-side">
           <div class="hero-side-item">
             <div style="font-size:1.6em;margin-bottom:2px">${animEmoji(c.weather_code,isDay,'1em')}</div>
-            <div style="font-size:1.5em;font-weight:800;color:var(--text-primary);line-height:1">${fmtTempShort(tempC)}</div>
+            <div style="font-size:1.3em;font-weight:800;color:var(--text-primary);line-height:1">${fmtTempShort(tempC)}</div>
             <div style="font-size:0.65em;color:var(--text-secondary);margin-top:2px">${c._nwsDesc||desc}</div>
             ${c._source?`<div style="font-size:0.5em;color:var(--accent-cyan);margin-top:1px;opacity:0.7">${c._source}${c._sourceCount>1?' (×'+c._sourceCount+' avg)':''}</div>`:''}
           </div>
@@ -1952,7 +1952,7 @@ function startWindSim(){
       }
       const windArcEl=document.getElementById('gauge-wind-arc');
       const gustArcEl=document.getElementById('gauge-gust-arc');
-      if(gustArcEl)gustArcEl.setAttribute('d',gustArc>0?simArcPath(0,gustArc,arcR):'M0,0');
+      if(gustArcEl)gustArcEl.setAttribute('d',gustArc>0?simArcPath(0,gustArc,arcR+2):'M0,0');
       if(windArcEl)windArcEl.setAttribute('d',windArc>0?simArcPath(0,windArc,arcR):'M0,0');
     }
     const compass=document.querySelector('.wind-rose svg');
