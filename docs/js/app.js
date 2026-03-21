@@ -152,7 +152,8 @@ function updateGaugeSegments(windVal,gustVal){
   const avgEl=document.querySelector('.wrc-avg');
   if(avgEl)avgEl.textContent='A'+avgDisp.toFixed(1)+' '+WIND_UNITS[S.windUnit];
   const trendEl=document.querySelector('.wrc-trend');
-  if(trendEl&&_gaugeAvgHistory.length>=3){
+  if(trendEl)trendEl.innerHTML='';
+  if(false&&trendEl&&_gaugeAvgHistory.length>=3){
     const span=(now-_gaugeAvgHistory[0].t)/1000;
     if(span>=0.5){
       const first=_gaugeAvgHistory[0].v;
@@ -1463,12 +1464,16 @@ async function fetchWeather(){
   }catch(e){el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p></div>`}
 }
 async function _fetchAWCOnce(){
-  const url=`https://aviationweather.gov/api/data/metar?ids=&format=json&taf=false&hours=2&bbox=${(S.lat-1).toFixed(2)},${(S.lon-1).toFixed(2)},${(S.lat+1).toFixed(2)},${(S.lon+1).toFixed(2)}`;
-  console.log('AWC fetch:',url);
-  const r=await fetch(url,{signal:AbortSignal.timeout(8000)});
-  if(!r.ok){console.log('AWC fetch failed:',r.status);return null}
-  const data=await r.json();
-  console.log('AWC returned',data.length,'stations');
+  let data=[];
+  for(const deg of [1.0,2.0,3.5]){
+    const url=`https://aviationweather.gov/api/data/metar?ids=&format=json&taf=false&hours=3&bbox=${(S.lat-deg).toFixed(2)},${(S.lon-deg).toFixed(2)},${(S.lat+deg).toFixed(2)},${(S.lon+deg).toFixed(2)}`;
+    console.log('AWC fetch (±'+deg+'°):',url);
+    const r=await fetch(url,{signal:AbortSignal.timeout(8000)});
+    if(!r.ok){console.log('AWC fetch failed:',r.status);continue}
+    data=await r.json();
+    console.log('AWC returned',data.length,'stations');
+    if(data.length)break;
+  }
   if(!data.length)return null;
   const nearest=data.reduce((best,m)=>{
     const d=haversine(S.lat,S.lon,m.lat,m.lon);
@@ -4901,13 +4906,29 @@ async function fetchStationAWC(){
     const minLat=(S.lat-degSpan).toFixed(2),maxLat=(S.lat+degSpan).toFixed(2);
     const minLon=(S.lon-degSpan).toFixed(2),maxLon=(S.lon+degSpan).toFixed(2);
     try{
-      const url=`https://aviationweather.gov/api/data/metar?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json&hours=3`;
-      const r=await fetch(url);
-      if(r.ok){
-        const body=await r.json();
+      const [metarRes,infoRes]=await Promise.allSettled([
+        fetch(`https://aviationweather.gov/api/data/metar?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json&hours=6`,{signal:AbortSignal.timeout(8000)}),
+        fetch(`https://aviationweather.gov/api/data/stationinfo?bbox=${minLat},${minLon},${maxLat},${maxLon}&format=json`,{signal:AbortSignal.timeout(8000)})
+      ]);
+      if(metarRes.status==='fulfilled'&&metarRes.value.ok){
+        const body=await metarRes.value.json();
         if(Array.isArray(body)&&body.length)data=body;
       }
-    }catch(e){console.log('AWC metar bbox error (±'+degSpan+'°):',e.message)}
+      if(!data.length&&infoRes.status==='fulfilled'&&infoRes.value.ok){
+        const infoBody=await infoRes.value.json();
+        if(Array.isArray(infoBody)){
+          const metarStations=infoBody.filter(s=>s.siteType&&s.siteType.includes('METAR'));
+          if(metarStations.length){
+            const byDist=metarStations.map(s=>({icao:s.icaoId,iata:s.iataId||null,faa:s.faaId||null,name:s.site||s.icaoId,lat:s.lat,lon:s.lon,dist:haversine(S.lat,S.lon,s.lat,s.lon)})).sort((a,b)=>a.dist-b.dist).slice(0,10);
+            S._stationSource='awc';
+            S.nearbyStations=byDist;
+            console.log('Station: stationinfo found',byDist.length,'stations (METAR capable), nearest:',byDist[0].icao);
+            await loadStationObsAWC(byDist[0].icao);
+            return;
+          }
+        }
+      }
+    }catch(e){console.log('AWC station fetch error (±'+degSpan+'°):',e.message)}
     if(data.length>=3)break;
     if(data.length&&degSpan>=2)break;
   }
@@ -5236,7 +5257,19 @@ function renderNearbyStations(){
     </div></div>`;
 }
 
-async function switchStation(icao){
+async function switchStation(code){
+  let icao=code.toUpperCase().trim();
+  if(icao.length===3){
+    const match=S.nearbyStations?.find(s=>(s.iata||'').toUpperCase()===icao||(s.faa||'').toUpperCase()===icao);
+    if(match){icao=match.icao}
+    else{
+      try{
+        const infoR=await fetch(`https://aviationweather.gov/api/data/stationinfo?ids=K${icao},C${icao},E${icao},L${icao},S${icao}&format=json`,{signal:AbortSignal.timeout(5000)});
+        if(infoR.ok){const infoD=await infoR.json();if(infoD.length)icao=infoD[0].icaoId}
+        else icao='K'+icao;
+      }catch(e){icao='K'+icao}
+    }
+  }
   toast('Loading '+icao+'...');
   S.stationId=icao;
   await loadStationObs(icao);
