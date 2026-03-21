@@ -624,6 +624,16 @@ async function reverseGeo(lat,lon){
   }catch(e){setLoc(lat,lon)}
 }
 
+function updateNavForLocation(){
+  const isUS=S.lat&&isUSLocation(S.lat,S.lon);
+  const stn=document.getElementById('nav-station');
+  const alt=document.getElementById('nav-alerts');
+  if(stn)stn.style.display=isUS?'':'none';
+  if(alt)alt.style.display=isUS?'':'none';
+  document.querySelectorAll('.bottom-nav .nav-item').forEach(b=>{
+    b.style.flex=isUS?'':'1';
+  });
+}
 function setLoc(lat,lon,name,fromTravel){
   if(!fromTravel && S.travelMode) stopTravelMode();
   S.lat=lat;S.lon=lon;
@@ -633,6 +643,7 @@ function setLoc(lat,lon,name,fromTravel){
   document.getElementById('status-text').textContent='Live · '+S.locName;
   S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
   S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
+  updateNavForLocation();
   if(S.map){
     S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
     clearStormCone();
@@ -1997,10 +2008,10 @@ function renderHourlyForecast(h,d){
     const precipBar=precip>0?`<div style="position:absolute;bottom:0;left:0;right:0;height:${Math.min(precip,100)*0.3}px;background:rgba(59,130,246,${Math.min(0.15+precip/200,0.5)});border-radius:0 0 8px 8px"></div>`:'';
     items+=`<div class="hourly-item" style="${bgStyle};position:relative;overflow:hidden">
       ${precipBar}
-      <div class="hourly-time">${n===0?'Now':hrStr}</div>
+      <div class="hourly-time">${n===0?tStr('Now'):hrStr}</div>
       <div class="hourly-icon">${animEmoji(wCode,isD,'1.1em')}</div>
       <div class="hourly-temp">${fmtTempShort(tempC)}</div>
-      ${feelsC!=null&&Math.abs(feelsC-tempC)>2?`<div class="hourly-feels">Feels ${fmtTempShort(feelsC)}</div>`:''}
+      ${feelsC!=null&&Math.abs(feelsC-tempC)>2?`<div class="hourly-feels">${tStr('Feels')} ${fmtTempShort(feelsC)}</div>`:''}
       ${precip>0?`<div class="hourly-precip">💧${precip}%</div>`:''}
       ${precipMm>0?`<div class="hourly-precip-amt">${fmtPrecip(precipMm)}</div>`:''}
       <div class="hourly-wind">${degToDir(windDir)} ${fmtWind(windKmh)}${gustKmh>windKmh*1.3?` G${fmtWind(gustKmh)}`:''}</div>
@@ -2012,9 +2023,9 @@ function renderHourlyForecast(h,d){
 }
 function renderDailyForecast(d){
   if(!d||!d.time)return'';
-  return`<div class="card"><div class="card-title"><span class="icon">📊</span> 7-Day Forecast</div>
+  return`<div class="card"><div class="card-title"><span class="icon">📊</span> ${tStr('7-Day Forecast')}</div>
     <div class="forecast-scroll">${d.time.map((t,i)=>{
-      const dt=new Date(t+'T12:00'),day=i===0?'Today':dt.toLocaleDateString('en',{weekday:'short'});
+      const dt=new Date(t+'T12:00'),day=i===0?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'short'});
       const hi=fmtTempShort(d.temperature_2m_max[i]),lo=fmtTempShort(d.temperature_2m_min[i]);
       const rain=d.precipitation_probability_max?d.precipitation_probability_max[i]:0;
       return`<div class="forecast-item" onclick="toggleForecastDetail(${i})" data-fi="${i}"><div class="forecast-time">${day}</div><div class="forecast-icon">${animEmoji(d.weather_code[i],true,'1em')}</div><div class="forecast-temp" style="font-weight:700;color:var(--accent-red);text-shadow:0 0 8px rgba(255,51,85,0.4)">${hi}</div><div style="font-size:0.7em;font-weight:600;color:var(--accent-cyan);text-shadow:0 0 6px rgba(0,229,255,0.3)">${lo}</div>${rain>0?`<div style="font-size:0.55em;color:var(--accent-blue);margin-top:2px">💧${rain}%</div>`:''}</div>`;
@@ -2029,26 +2040,27 @@ function toggleForecastDetail(idx){
   const fi=document.querySelector(`.forecast-item[data-fi="${idx}"]`);
   if(fi)fi.classList.add('selected');
   const dt=new Date(d.time[idx]+'T12:00');
-  const dayName=idx===0?'Today':dt.toLocaleDateString('en',{weekday:'long',month:'short',day:'numeric'});
+  const dayName=idx===0?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'long',month:'short',day:'numeric'});
   const hi=fmtTemp(d.temperature_2m_max[idx]),lo=fmtTemp(d.temperature_2m_min[idx]);
   const rain=d.precipitation_probability_max?d.precipitation_probability_max[idx]:0;
   const precip=d.precipitation_sum?d.precipitation_sum[idx]:0;
   const wind=d.wind_speed_10m_max?d.wind_speed_10m_max[idx]:0;
-  const sunrise=d.sunrise?new Date(d.sunrise[idx]).toLocaleTimeString('en',{hour:'numeric',minute:'2-digit'}):'—';
-  const sunset=d.sunset?new Date(d.sunset[idx]).toLocaleTimeString('en',{hour:'numeric',minute:'2-digit'}):'—';
+  const sunrise=d.sunrise?new Date(d.sunrise[idx]).toLocaleTimeString(_curLang||'en',{hour:'numeric',minute:'2-digit'}):'—';
+  const sunset=d.sunset?new Date(d.sunset[idx]).toLocaleTimeString(_curLang||'en',{hour:'numeric',minute:'2-digit'}):'—';
   const hiC=d.temperature_2m_max[idx],loC=d.temperature_2m_min[idx];
   const tempStr=fmtTemp(hiC)+' / '+fmtTemp(loC);
   const precipStr=fmtPrecip(precip);
   const windStr=fmtWind(wind);
   box.innerHTML=`<div class="forecast-detail">
-    <div style="font-weight:700;margin-bottom:6px">${animEmoji(d.weather_code[idx],true,'1.2em')} ${dayName} — ${wmoDesc(d.weather_code[idx])}</div>
-    <div class="fd-row"><span>🌡️ High / Low</span><span style="font-weight:600"><span style="color:var(--accent-red)">${fmtTemp(hiC)}</span> / <span style="color:var(--accent-cyan)">${fmtTemp(loC)}</span></span></div>
-    <div class="fd-row"><span>💧 Rain Chance</span><span style="font-weight:600">${rain}%</span></div>
-    <div class="fd-row"><span>🌧️ Precipitation</span><span style="font-weight:600">${precipStr}</span></div>
-    <div class="fd-row"><span>💨 Max Wind</span><span style="font-weight:600">${windStr}</span></div>
-    <div class="fd-row"><span>🌅 Sunrise</span><span style="font-weight:600">${sunrise}</span></div>
-    <div class="fd-row"><span>🌇 Sunset</span><span style="font-weight:600">${sunset}</span></div>
+    <div style="font-weight:700;margin-bottom:6px">${animEmoji(d.weather_code[idx],true,'1.2em')} ${dayName} — ${tStr(wmoDesc(d.weather_code[idx]))}</div>
+    <div class="fd-row"><span>🌡️ ${tStr('High / Low')}</span><span style="font-weight:600"><span style="color:var(--accent-red)">${fmtTemp(hiC)}</span> / <span style="color:var(--accent-cyan)">${fmtTemp(loC)}</span></span></div>
+    <div class="fd-row"><span>💧 ${tStr('Rain Chance')}</span><span style="font-weight:600">${rain}%</span></div>
+    <div class="fd-row"><span>🌧️ ${tStr('Precipitation')}</span><span style="font-weight:600">${precipStr}</span></div>
+    <div class="fd-row"><span>💨 ${tStr('Max Wind')}</span><span style="font-weight:600">${windStr}</span></div>
+    <div class="fd-row"><span>🌅 ${tStr('Sunrise')}</span><span style="font-weight:600">${sunrise}</span></div>
+    <div class="fd-row"><span>🌇 ${tStr('Sunset')}</span><span style="font-weight:600">${sunset}</span></div>
   </div>`;
+  if(_curLang!=='en')setTimeout(quickTranslate,100);
 }
 function renderNWSForecast(periods){
   if(!periods||!periods.length)return'';
@@ -4805,7 +4817,7 @@ function selectLang(code){
   _curLang=code;
   localStorage.setItem('st_lang',code);
   const flag=LANGS.find(l=>l.c===code);
-  document.getElementById('btn-lang').textContent=flag?flag.f:'🌐';
+  document.getElementById('btn-lang').textContent=flag?flag.f:'🇺🇸';
   if(code==='en'){restoreOriginals();toast('Language: English');return}
   preseedStormVocab(code);
   translatePage(code);
@@ -4912,7 +4924,7 @@ async function translatePage(lang){
 
 function tStr(s){if(_curLang==='en'||!s)return s;const k=_curLang+'::'+s;return _tCache[k]||s}
 
-const _stormVocab=['Storm Cell','Live Radar','Peak dBZ','Rain Rate','Distance','Bearing','Moving','Status','Impact','ETA','Countdown','Arrives','Overhead · Moving away','Nearby · Not approaching','at','Extreme — Hail/Tornado','Intense — Hail Likely','Very Heavy Rain','Heavy Rain','Moderate Rain','Light Rain','Drizzle/Mist','No Impact — Nearby','Low Risk','Moderate Risk','Elevated Risk','High Risk','Extreme Risk','returns','Light','Extreme','Temp','Dew Pt','Humidity','Baro','Vis','Sky','tap to change units','tap','Updated','mi away','Gusts','Nearby Stations','Loading','Light Precipitation'];
+const _stormVocab=['Storm Cell','Live Radar','Peak dBZ','Rain Rate','Distance','Bearing','Moving','Status','Impact','ETA','Countdown','Arrives','Overhead · Moving away','Nearby · Not approaching','at','Extreme — Hail/Tornado','Intense — Hail Likely','Very Heavy Rain','Heavy Rain','Moderate Rain','Light Rain','Drizzle/Mist','No Impact — Nearby','Low Risk','Moderate Risk','Elevated Risk','High Risk','Extreme Risk','returns','Light','Extreme','Temp','Dew Pt','Humidity','Baro','Vis','Sky','tap to change units','tap','Updated','mi away','Gusts','Nearby Stations','Loading','Light Precipitation','7-Day Forecast','Today','Now','Feels','High / Low','Rain Chance','Precipitation','Max Wind','Sunrise','Sunset','Hourly Forecast — Next 72h','NWS Forecast','Thunderstorm','Rain','Snow','Cloudy','Partly Cloudy','Clear','Fog','Drizzle','Mostly fair'];
 async function preseedStormVocab(lang){
   const need=_stormVocab.filter(w=>!_tCache[lang+'::'+w]);
   if(!need.length)return;
@@ -4988,7 +5000,7 @@ function startTranslateObserver(){
 
 (function initLang(){
   const flag=LANGS.find(l=>l.c===_curLang);
-  if(flag&&_curLang!=='en')document.getElementById('btn-lang').textContent=flag.f;
+  document.getElementById('btn-lang').textContent=flag?flag.f:'🇺🇸';
   startTranslateObserver();
   if(_curLang!=='en'){
     preseedStormVocab(_curLang);
