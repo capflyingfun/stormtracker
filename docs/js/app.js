@@ -4495,6 +4495,97 @@ function spacingFilter(points,hiRes){
 // ==========================================
 // STORMS DISPLAY
 // ==========================================
+function _loadStormFilter(){
+  try{const f=JSON.parse(localStorage.getItem('st_stormFilter'));if(f)return f}catch(e){}
+  return{minDbz:0,maxDist:0,approachOnly:false,sort1:'threat',sort2:'eta'};
+}
+function _saveStormFilter(f){localStorage.setItem('st_stormFilter',JSON.stringify(f));S._stormFilter=f}
+function _stormSortFn(a,b,key){
+  if(key==='dbz')return b.dbz-a.dbz;
+  if(key==='dist')return a.distance-b.distance;
+  if(key==='eta'){
+    const ea=a._eta&&a._eta.approaching&&a._eta.eta!=null?a._eta.eta:99999;
+    const eb=b._eta&&b._eta.approaching&&b._eta.eta!=null?b._eta.eta:99999;
+    return ea-eb;
+  }
+  if(key==='threat'){
+    const ta=(a.dbz||0)*(a._eta&&a._eta.approaching?2:0.5)/(Math.max(a.distance,1));
+    const tb=(b.dbz||0)*(b._eta&&b._eta.approaching?2:0.5)/(Math.max(b.distance,1));
+    return tb-ta;
+  }
+  return 0;
+}
+function _applyStormFilter(storms,f){
+  let out=storms;
+  if(f.minDbz>0)out=out.filter(s=>s.dbz>=f.minDbz);
+  if(f.maxDist>0)out=out.filter(s=>s.distance<=f.maxDist);
+  if(f.approachOnly)out=out.filter(s=>{const e=s._eta;return e&&e.approaching&&e.eta!=null});
+  out.sort((a,b)=>{const r=_stormSortFn(a,b,f.sort1);return r!==0?r:_stormSortFn(a,b,f.sort2)});
+  return out;
+}
+function _smartStormSummary(storms){
+  const mv=S.stormMovement;
+  if(!storms.length||!mv||mv.speed<2)return'';
+  const approaching=storms.filter(s=>{const e=s._eta;return e&&e.approaching&&e.eta!=null});
+  if(!approaching.length)return'<div style="padding:8px 12px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:8px;font-size:0.8em;color:#4ade80;margin-bottom:8px">No storms currently approaching your location.</div>';
+  approaching.sort((a,b)=>a._eta.eta-b._eta.eta);
+  const light=approaching.filter(s=>s.dbz<40);
+  const moderate=approaching.filter(s=>s.dbz>=40&&s.dbz<50);
+  const severe=approaching.filter(s=>s.dbz>=50);
+  const fmtEtaShort=(min)=>{const s=Math.round(min*60);const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return(h>0?String(h).padStart(2,'0')+'h:':'')+String(m).padStart(2,'0')+'m:'+String(sec).padStart(2,'0')+'s';};
+  const fmtTime=(min)=>{const d=new Date(Date.now()+min*60000);const h=d.getHours(),m=d.getMinutes();return((h%12)||12)+':'+String(m).padStart(2,'0')+(h>=12?' PM':' AM');};
+  let lines=[];
+  if(light.length){
+    const first=light[0],last=light[light.length-1];
+    lines.push(`<span style="color:#00ffcc">🔵 Light rain</span> inbound starting in <b>${fmtEtaShort(first._eta.eta)}</b> (${fmtTime(first._eta.eta)})${light.length>1?' — '+light.length+' cells':''}`);
+  }
+  if(moderate.length){
+    const first=moderate[0];
+    lines.push(`<span style="color:#ffee00">🟡 Moderate to heavy</span> cells inbound, ETA <b>${fmtEtaShort(first._eta.eta)}</b> (${fmtTime(first._eta.eta)})${moderate.length>1?' — '+moderate.length+' cells':''}`);
+  }
+  if(severe.length){
+    const first=severe[0];
+    lines.push(`<span style="color:#ff0033">🔴 Severe/intense</span> cells inbound, ETA <b>${fmtEtaShort(first._eta.eta)}</b> (${fmtTime(first._eta.eta)})${severe.length>1?' — '+severe.length+' cells':''}`);
+  }
+  return`<div style="padding:8px 12px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:8px;font-size:0.78em;line-height:1.6;margin-bottom:8px">${lines.join('<br>')}</div>`;
+}
+function _renderFilterBar(f){
+  const sortOpts=[['threat','Threat Score'],['dbz','Strongest'],['eta','Soonest ETA'],['dist','Closest']];
+  const mkOpts=(sel)=>sortOpts.map(([v,l])=>`<option value="${v}"${sel===v?' selected':''}>${l}</option>`).join('');
+  return`<div class="card" style="padding:8px 10px;margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:0.72em">
+      <span style="font-weight:700;color:var(--text-secondary)">Sort:</span>
+      <select id="sf-sort1" onchange="updateStormFilter()" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em">${mkOpts(f.sort1)}</select>
+      <span style="color:var(--text-muted)">then</span>
+      <select id="sf-sort2" onchange="updateStormFilter()" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em">${mkOpts(f.sort2)}</select>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:0.72em;margin-top:6px">
+      <span style="font-weight:700;color:var(--text-secondary)">Filter:</span>
+      <label style="display:flex;align-items:center;gap:3px;color:var(--text-secondary)">Min dBZ
+        <input id="sf-mindbz" type="number" min="0" max="75" step="5" value="${f.minDbz||0}" onchange="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
+      </label>
+      <label style="display:flex;align-items:center;gap:3px;color:var(--text-secondary)">Max dist
+        <input id="sf-maxdist" type="number" min="0" max="200" step="5" value="${f.maxDist||0}" onchange="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
+        <span style="color:var(--text-muted)">${S.radarMetric?'km':'mi'}</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:3px;cursor:pointer;color:var(--text-secondary)">
+        <input id="sf-approach" type="checkbox" ${f.approachOnly?'checked':''} onchange="updateStormFilter()"> Approaching only
+      </label>
+    </div>
+  </div>`;
+}
+function updateStormFilter(){
+  const f={
+    sort1:document.getElementById('sf-sort1')?.value||'threat',
+    sort2:document.getElementById('sf-sort2')?.value||'eta',
+    minDbz:parseInt(document.getElementById('sf-mindbz')?.value)||0,
+    maxDist:parseInt(document.getElementById('sf-maxdist')?.value)||0,
+    approachOnly:document.getElementById('sf-approach')?.checked||false
+  };
+  _saveStormFilter(f);
+  renderStorms();
+}
+S._stormFilter=_loadStormFilter();
 function renderStorms(){
   const el=document.getElementById('page-storms');
   if(!S.lat){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📍</div><p>Set your location to scan for storms.</p></div>`;return}
@@ -4514,6 +4605,8 @@ function renderStorms(){
   const severe=storms.some(s=>s.dbz>=45);
   const mv=S.stormMovement;
   const stormsWithEta=storms.map(s=>({...s,_eta:calcStormETA(s)}));
+  const sf=S._stormFilter||_loadStormFilter();
+  const filtered=_applyStormFilter(stormsWithEta,sf);
   const prevOpen={};
   el.querySelectorAll('.storm-group').forEach(d=>{const k=d.getAttribute('data-grp');if(k)prevOpen[k]=d.open});
   function isApproaching(s){const e=s._eta;return e&&e.approaching&&e.impact>0&&e.eta!=null}
@@ -4570,13 +4663,9 @@ function renderStorms(){
         </div>
       </div>`;
   }
-  const approaching=stormsWithEta.filter(s=>isApproaching(s)).sort((a,b)=>{
-    const ea=a._eta&&a._eta.eta!=null?a._eta.eta:99999;
-    const eb=b._eta&&b._eta.eta!=null?b._eta.eta:99999;
-    return ea-eb;
-  });
-  const overhead=stormsWithEta.filter(s=>isOverhead(s)).sort((a,b)=>a.distance-b.distance);
-  const nearby=stormsWithEta.filter(s=>isNearby(s)).sort((a,b)=>b.dbz-a.dbz||a.distance-b.distance);
+  const approaching=filtered.filter(s=>isApproaching(s));
+  const overhead=filtered.filter(s=>isOverhead(s));
+  const nearby=filtered.filter(s=>isNearby(s));
   let groupHtml='';
   const sections=[
     {key:'approaching',items:approaching,label:'⏱️ Approaching',color:'#ef4444',open:true},
@@ -4661,11 +4750,17 @@ function renderStorms(){
     }
   }
   const stormCount=approaching.length+overhead.length+nearby.length;
+  const filteredCount=filtered.length;
+  const totalCount=stormsWithEta.length;
+  const filterNote=filteredCount<totalCount?` <span style="color:var(--text-muted);font-size:0.85em">(showing ${filteredCount}/${totalCount})</span>`:'';
+  const smartSummary=_smartStormSummary(stormsWithEta);
   el.innerHTML=`${zoneAlert}
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
-      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${approaching.length?' · <span style="color:#ef4444">'+approaching.length+' approaching</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
+      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${filterNote}${approaching.length?' · <span style="color:#ef4444">'+approaching.length+' approaching</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
     </div>
+    ${smartSummary}
+    ${_renderFilterBar(sf)}
     <div class="card"><div class="card-title"><span class="icon">🌪️</span> Storm Points</div>
       ${groupHtml}
     </div>
