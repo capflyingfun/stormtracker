@@ -138,23 +138,7 @@ function updateGaugeSegments(windVal,gustVal){
     }
     tickG.innerHTML=tickHtml;
   }
-  const trailG=document.getElementById('gauge-trail-ring');
-  if(trailG&&_gaugeTrail.length>1){
-    let trailPath='';
-    const cx=50,cy=50,tr=38;
-    _gaugeTrail.forEach((pt,idx)=>{
-      const age=(now-pt.t)/60000;
-      if(age>1)return;
-      const frac=Math.min(pt.v/maxSpd,1);
-      const deg=(-90+frac*360)*Math.PI/180;
-      const x=cx+Math.cos(deg)*tr,y=cy+Math.sin(deg)*tr;
-      const alpha=(1-age)*0.6;
-      const sz=1+frac*1.5;
-      trailPath+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${sz.toFixed(1)}" fill="rgba(0,220,255,${alpha.toFixed(2)})"/>`;
-    });
-    trailG.innerHTML=trailPath;
-  }
-  const trendEl=document.getElementById('gauge-trend-arrow');
+  const trendEl=document.querySelector('.wrc-trend');
   if(trendEl&&_gaugeTrail.length>=5){
     const recent=_gaugeTrail.slice(-5);
     const oldest=recent[0].v;
@@ -162,9 +146,10 @@ function updateGaugeSegments(windVal,gustVal){
     const diff=newest-oldest;
     if(Math.abs(diff)>0.3){
       const isUp=diff>0;
-      trendEl.innerHTML=`<text x="50" y="70" fill="${isUp?'rgba(255,100,100,0.9)':'rgba(0,220,255,0.9)'}" font-size="6" font-weight="800" text-anchor="middle" dominant-baseline="central">${isUp?'▲':'▼'}</text>`;
+      trendEl.textContent=isUp?'▲':'▼';
+      trendEl.style.color=isUp?'rgba(255,70,70,0.95)':'rgba(0,220,255,0.95)';
     }else{
-      trendEl.innerHTML='';
+      trendEl.textContent='';
     }
   }
 }
@@ -819,10 +804,10 @@ function updateNavForLocation(){
   const isUS=S.lat&&isUSLocation(S.lat,S.lon);
   const stn=document.getElementById('nav-station');
   const alt=document.getElementById('nav-alerts');
-  if(stn)stn.style.display=isUS?'':'none';
+  if(stn)stn.style.display='';
   if(alt)alt.style.display=isUS?'':'none';
   document.querySelectorAll('.bottom-nav .nav-item').forEach(b=>{
-    b.style.flex=isUS?'':'1';
+    b.style.flex='1';
   });
 }
 function setLoc(lat,lon,name,fromTravel){
@@ -1694,8 +1679,6 @@ function renderWeather(data){
     gaugeSvg+=`<path class="gauge-seg" d="${d}" fill="${fill}" style="transform:rotate(${rotDeg}deg)"/>`;
   }
   gaugeSvg+=`</g>`;
-  gaugeSvg+=`<g id="gauge-trail-ring"></g>`;
-  gaugeSvg+=`<g id="gauge-trend-arrow"></g>`;
   const spdTicks=[];
   const spdStep=maxArcSpd<=10?2:maxArcSpd<=20?5:maxArcSpd<=50?5:maxArcSpd<=100?10:maxArcSpd<=150?25:50;
   for(let s=0;s<maxArcSpd;s+=spdStep)spdTicks.push(s);
@@ -1778,6 +1761,7 @@ function renderWeather(data){
             <div class="wrc-speed"><span class="wrc-num">${windNum}</span><span class="wrc-unit">${windUnit}</span></div>
             <div class="wrc-dir">${_windCurSim.spd>0?degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(1)+'°':degToDir(wd)+' '+wd.toFixed(1)+'°'}</div>
             ${gustStr?`<div class="wrc-gust">${gustStr}</div>`:''}
+            <div class="wrc-trend" style="font-size:0.6em;font-weight:800;line-height:1;min-height:0.8em"></div>
           </div>
         </div>
         <div class="hero-side">
