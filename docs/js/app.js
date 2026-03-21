@@ -3181,12 +3181,15 @@ function buildStormZones(map,rawPts){
       const bearToUser=(midBear+180)%360;
       const diff=Math.abs(((mv.direction-bearToUser+180)%360)-180);
       const closing=mv.speed*Math.cos(Math.min(diff,60)*Math.PI/180);
+      const baseWidthMi=Math.max(0,Math.min(3,(maxDbz-20)/15));
+      const widthAngle=midDist>0.5?Math.atan2(baseWidthMi,midDist)*180/Math.PI:15;
+      const coneHalf=15+widthAngle;
       mvDir=degToDir(mv.direction);
       mvBear=mv.direction+'°';
       mvSpd=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
-      if(diff<=15&&closing>1){impactTier='high';impactPct=80+Math.round((15-diff)/15*20);}
-      else if(diff<=25&&closing>0.5){impactTier='medium';impactPct=31+Math.round((25-diff)/10*49);}
-      else if(diff<=40){impactTier='low';impactPct=Math.max(5,Math.round((40-diff)/15*30));}
+      if(diff<=coneHalf*0.6&&closing>1){impactTier='high';impactPct=80+Math.round(((coneHalf*0.6)-diff)/(coneHalf*0.6)*20);}
+      else if(diff<=coneHalf&&closing>0.5){impactTier='medium';impactPct=31+Math.round((coneHalf-diff)/(coneHalf*0.4)*49);}
+      else if(diff<=coneHalf+10){impactTier='low';impactPct=Math.max(5,Math.round((coneHalf+10-diff)/10*30));}
       isApproaching=(impactTier==='high'||impactTier==='medium');
       if(isApproaching&&midDist>1){
         etaSec=Math.round(midDist/Math.max(closing,0.5)*3600);
@@ -3231,7 +3234,7 @@ function buildStormZones(map,rawPts){
       </div>
       <div style="border-top:1px solid rgba(255,255,255,0.08);margin-top:3px;padding-top:4px">
         <div style="${rowS}"><span style="${lblS}">⛈️ Movement:</span><span style="${valS}">${mvDir} (${mvBear}) @ ${mvSpd}</span></div>
-        <div style="${rowS}"><span style="${lblS}">⏱️ ETA:</span><span style="${valS}" id="eta-${cellId}">${fmtEtaInit}</span><span style="${lblS}margin-left:8px;">Arrival:</span><span style="${valS}">${arrivalStr}</span></div>
+        <div style="${rowS}"><span style="${lblS}">⏱️ ETA:</span><span style="${valS}" id="eta-${cellId}">${fmtEtaInit}</span><span style="${lblS}margin-left:8px;">Arrival:</span><span style="${valS}white-space:nowrap;">${arrivalStr}</span></div>
       </div>
       <div style="border-top:1px solid rgba(255,255,255,0.08);margin-top:3px;padding-top:4px">
         <div style="${rowS}"><span style="${lblS}">📍 Location:</span><span style="${valS}">${distVal} ${distUnit} ${degToDir(midBear)} (${Math.round(midBear)}°) of you</span></div>
