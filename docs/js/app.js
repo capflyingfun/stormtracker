@@ -3682,9 +3682,7 @@ function _tickerWeatherPool(){
   if(S.station){
     const st=S.station;
     if(st.fltCat){
-      const fc3=st.fltCat;
-      const fcColor=fc3==='VFR'?'green':fc3==='MVFR'?'blue':fc3==='IFR'?'red':'magenta';
-      pool.push(`✈️ ${S.stationId||'Nearest station'} reporting ${fc3}${fc3==='VFR'?' — clear for flight ops!':fc3==='MVFR'?' — marginal visual conditions':' — instrument conditions in effect'}`);
+      pool.push(`✈️ ${S.stationId||'Nearest station'} reporting ${st.fltCat}${st.fltCat==='VFR'?' — clear for flight ops!':st.fltCat==='MVFR'?' — marginal visual conditions':' — instrument conditions in effect'}`);
     }
     if(st.rawOb)pool.push(`📋 Latest METAR: ${st.rawOb.substring(0,80)}${st.rawOb.length>80?'...':''}`);
   }
@@ -3723,6 +3721,11 @@ function _tickerNearbyPool(sigStormCount){
   }
   pool.push(`🔔 Storm activity nearby but no threats heading your way. Weather changes fast — we\'ll alert you if anything shifts. 👀`);
   pool.push(`🔔 Radar shows ${sigStormCount} cell${sigStormCount>1?'s':''} in range. All moving away or stationary. Keeping watch for you. 🛰️`);
+  if(S.alerts&&S.alerts.length){
+    for(const a of S.alerts.slice(0,3)){
+      pool.push(`⚠️ NWS: ${a.event||a.headline||'Weather Alert'} in effect${a.severity?' — Severity: '+a.severity:''} · ${sigStormCount} cell${sigStormCount>1?'s':''} nearby but not approaching.`);
+    }
+  }
   return pool;
 }
 function updateThreatTicker(){
@@ -3742,6 +3745,12 @@ function updateThreatTicker(){
   const sigStormCount=S.storms?S.storms.filter(s=>s.dbz>=alertMinDbz).length:0;
   if(sigStormCount===0){
     const pool=_tickerWeatherPool();
+    if(stormCount>0){
+      const maxClutter=Math.max(...S.storms.map(s=>s.dbz));
+      pool.unshift(`✅ ${stormCount} minor radar return${stormCount>1?'s':''} detected (max ${maxClutter} dBZ) — likely ground clutter, not real precipitation. All clear! 🌤️`);
+      pool.unshift(`✅ Light radar reflectivity picked up (${stormCount} return${stormCount>1?'s':''}, peak ${maxClutter} dBZ). Nothing significant — enjoy your day! ☀️`);
+      pool.unshift(`✅ Minor clutter on radar — ${stormCount} point${stormCount>1?'s':''} below 31 dBZ. No meaningful weather activity. 😎`);
+    }
     const msg=pool[Math.floor(Date.now()/60000)%pool.length];
     showTicker(`<span style="color:#4ade80">${msg}</span>`,'#4ade80','rgba(74,222,128,0.2)','linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))',Math.max(15,Math.round(msg.length*0.18)));
     return;
