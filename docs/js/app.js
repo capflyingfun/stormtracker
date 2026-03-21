@@ -1594,8 +1594,8 @@ function renderWeather(data){
     const lg=(toDeg-fromDeg)>180?1:0;
     return`M${x1.toFixed(1)},${y1.toFixed(1)} A${radius},${radius} 0 ${lg} 1 ${x2.toFixed(1)},${y2.toFixed(1)}`;
   }
-  gaugeSvg+=`<path id="gauge-gust-arc" d="${gustArc>0?arcPath(0,gustArc,arcR+2):'M0,0'}" fill="none" stroke="${neonOrange}0.5)" stroke-width="2" stroke-linecap="round" filter="url(#glow)"/>`;
-  gaugeSvg+=`<path id="gauge-wind-arc" d="${windArc>0?arcPath(0,windArc,arcR):'M0,0'}" fill="none" stroke="${neonCyan}0.8)" stroke-width="2.5" stroke-linecap="round" filter="url(#glow)"/>`;
+  gaugeSvg+=`<path id="gauge-gust-arc" d="${gustArc>0?arcPath(0,gustArc,arcR+2):'M0,0'}" fill="none" stroke="${neonOrange}0.5)" stroke-width="2" stroke-linecap="round"/>`;
+  gaugeSvg+=`<path id="gauge-wind-arc" d="${windArc>0?arcPath(0,windArc,arcR):'M0,0'}" fill="none" stroke="${neonCyan}0.8)" stroke-width="2.5" stroke-linecap="round"/>`;
 
   S._gaugeMaxSpd=maxArcSpd;S._gaugeArcR=arcR;
   const spdTicks=[];
