@@ -4337,7 +4337,9 @@ function updateThreatTicker(){
   const stormCount=S.storms?S.storms.length:0;
   function showTicker(html,color,borderColor,bg,dur){
     inner.innerHTML=html;
-    inner.style.animationDuration=(dur||20)+'s';
+    const textLen=inner.textContent?inner.textContent.length:60;
+    const autoDur=Math.max(20,Math.round(textLen*0.35));
+    inner.style.animationDuration=(dur||autoDur)+'s';
     bar.style.display='block';
     bar.style.borderColor=borderColor;
     bar.style.background=bg;
@@ -4407,8 +4409,7 @@ function updateThreatTicker(){
     const topDbz=severeApproaching[0].storm.dbz;
     showTicker(html,topDbz>=55?'#ff3355':topDbz>=50?'#ff6644':'#ffcc00',
       topDbz>=55?'rgba(255,51,85,0.5)':topDbz>=50?'rgba(255,102,68,0.4)':'rgba(255,204,0,0.3)',
-      topDbz>=55?'linear-gradient(90deg,rgba(30,0,0,0.95),rgba(50,5,5,0.95),rgba(30,0,0,0.95))':topDbz>=50?'linear-gradient(90deg,rgba(30,10,0,0.95),rgba(50,15,5,0.95),rgba(30,10,0,0.95))':'linear-gradient(90deg,rgba(30,25,0,0.95),rgba(45,35,5,0.95),rgba(30,25,0,0.95))',
-      Math.max(15,Math.round(inner.textContent?.length||60)*0.25));
+      topDbz>=55?'linear-gradient(90deg,rgba(30,0,0,0.95),rgba(50,5,5,0.95),rgba(30,0,0,0.95))':topDbz>=50?'linear-gradient(90deg,rgba(30,10,0,0.95),rgba(50,15,5,0.95),rgba(30,10,0,0.95))':'linear-gradient(90deg,rgba(30,25,0,0.95),rgba(45,35,5,0.95),rgba(30,25,0,0.95))');
     return;
   }
   allApproaching.sort((a,b)=>a.eta.eta-b.eta.eta);
