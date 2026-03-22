@@ -2087,13 +2087,12 @@ function renderWeather(data){
 
   const sections={
     wind:`<div class="weather-section" data-sec="wind"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">💨</span> Wind</span>${secBtns('wind')}</div>
-      <div class="wind-section-body">${gaugeHtml}
-        <div class="wind-section-stats">
-          <div class="wind-stat-row"><span class="wind-stat-label">Speed</span><span class="wind-stat-val">${windNum} ${windUnit}</span></div>
-          <div class="wind-stat-row"><span class="wind-stat-label">Direction</span><span class="wind-stat-val">${degToDir(wd)} ${wd.toFixed(0)}°</span></div>
-          <div class="wind-stat-row"><span class="wind-stat-label">Gusts</span><span class="wind-stat-val">${hasGust?kmhTo(c.wind_gusts_10m,S.windUnit)+' '+windUnit:'--'}</span></div>
-          <div class="wind-stat-row"><span class="wind-stat-label">Beaufort</span><span class="wind-stat-val" style="color:${_BFT_CLR[bf]}">F${bf} ${_BFT_NAME[bf]}</span></div>
-        </div>
+      <div class="wind-gauge-full">${gaugeHtml}</div>
+      <div class="wind-stats-2x2">
+        <div class="wind-stat-cell"><div class="wind-stat-label">Speed</div><div class="wind-stat-val">${windNum} ${windUnit}</div></div>
+        <div class="wind-stat-cell"><div class="wind-stat-label">Direction</div><div class="wind-stat-val">${degToDir(wd)} ${wd.toFixed(0)}°</div></div>
+        <div class="wind-stat-cell"><div class="wind-stat-label">Gusts</div><div class="wind-stat-val">${hasGust?kmhTo(c.wind_gusts_10m,S.windUnit)+' '+windUnit:'--'}</div></div>
+        <div class="wind-stat-cell"><div class="wind-stat-label">Beaufort</div><div class="wind-stat-val" style="color:${_BFT_CLR[bf]}">F${bf} ${_BFT_NAME[bf]}</div></div>
       </div></div>`,
     trends:`<div class="weather-section" data-sec="trends"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📈</span> 48h Trends</span>${secBtns('trends')}</div>
       ${renderTrendCharts(hourly)}</div>`,
