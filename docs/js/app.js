@@ -310,15 +310,28 @@ function renderGaugeG1000(d){
     const yy=tapeCenter-(s-windDisp)*pxPerUnit;
     if(yy<10||yy>H-10)continue;
     const major=s%(maxTape<=30?10:20)===0;
-    svg+=`<line x1="${tapeW-6}" y1="${yy.toFixed(1)}" x2="${tapeW}" y2="${yy.toFixed(1)}" stroke="${major?'#5a6070':'#2a2e38'}" stroke-width="${major?1:0.5}"/>`;
-    if(major)svg+=`<text x="${tapeW-8}" y="${yy.toFixed(1)}" fill="#8b95a5" font-size="6" text-anchor="end" dominant-baseline="central" font-family="monospace">${s}</text>`;
+    svg+=`<line x1="2" y1="${yy.toFixed(1)}" x2="${2+(major?8:4)}" y2="${yy.toFixed(1)}" stroke="${major?'#5a6070':'#2a2e38'}" stroke-width="${major?1:0.5}"/>`;
+    if(major)svg+=`<text x="${major?12:8}" y="${yy.toFixed(1)}" fill="#8b95a5" font-size="6" text-anchor="start" dominant-baseline="central" font-family="monospace">${s}</text>`;
   }
-  svg+=`<rect x="${tapeW-1}" y="${tapeCenter-6}" width="14" height="12" rx="2" fill="#111" stroke="#00ff00" stroke-width="0.8"/>`;
-  svg+=`<text x="${tapeW+6}" y="${tapeCenter}" fill="#00ff00" font-size="7" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${windNum}</text>`;
+  const sBoxW=S.windUnit>=3?20:16;
+  svg+=`<rect x="${tapeW-sBoxW}" y="${tapeCenter-6}" width="${sBoxW+2}" height="12" rx="2" fill="#111" stroke="#00ff00" stroke-width="0.8"/>`;
+  svg+=`<text x="${tapeW-sBoxW/2+1}" y="${tapeCenter}" fill="#00ff00" font-size="7" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${windNum}</text>`;
   svg+=`<text x="${tapeW/2+1}" y="12" fill="#00ddff" font-size="5.5" font-weight="700" text-anchor="middle" font-family="monospace">${parseFloat(windNum).toFixed(0)}${windUnit.charAt(0).toUpperCase()}</text>`;
   if(gustDisp>windDisp){
     const gustY=tapeCenter-(gustDisp-windDisp)*pxPerUnit;
-    if(gustY>10&&gustY<H-10)svg+=`<line x1="4" y1="${gustY.toFixed(1)}" x2="${tapeW-2}" y2="${gustY.toFixed(1)}" stroke="rgba(255,0,0,0.6)" stroke-width="1" stroke-dasharray="2,2"/>`;
+    if(gustY>10&&gustY<H-10){
+      svg+=`<line x1="2" y1="${gustY.toFixed(1)}" x2="${tapeW}" y2="${gustY.toFixed(1)}" stroke="rgba(255,0,0,0.7)" stroke-width="1.5"/>`;
+      svg+=`<text x="${tapeW+2}" y="${gustY.toFixed(1)}" fill="#ff4444" font-size="4.5" font-weight="600" text-anchor="start" dominant-baseline="central" font-family="monospace">G${parseFloat(kmhTo(d.gustRaw,S.windUnit)).toFixed(0)}</text>`;
+    }
+  }
+  const avgKmh=(_windMinKmh<Infinity&&_windMaxKmh>0)?(_windMinKmh+_windMaxKmh)/2:0;
+  if(avgKmh>0){
+    const avgDisp=parseFloat(kmhTo(avgKmh,S.windUnit));
+    const avgY=tapeCenter-(avgDisp-windDisp)*pxPerUnit;
+    if(avgY>10&&avgY<H-10){
+      svg+=`<line x1="2" y1="${avgY.toFixed(1)}" x2="${tapeW}" y2="${avgY.toFixed(1)}" stroke="rgba(0,200,255,0.5)" stroke-width="0.8" stroke-dasharray="3,2"/>`;
+      svg+=`<text x="${tapeW+2}" y="${avgY.toFixed(1)}" fill="#00c8ff" font-size="4" font-weight="600" text-anchor="start" dominant-baseline="central" font-family="monospace">A${avgDisp.toFixed(0)}</text>`;
+    }
   }
   const green='#00cc44';
   svg+=`<rect x="${W-tapeW-2}" y="2" width="${tapeW}" height="${H-4}" rx="3" fill="#0c0e14" stroke="#2a2e38" stroke-width="0.5"/>`;
@@ -2482,7 +2495,7 @@ function startWindSim(){
     const gStyle=getGaugeStyle();
     if(gStyle==='neon'){
       const dirEl=document.querySelector('.wrc-dir');
-      if(dirEl)dirEl.textContent=degToDir(simDir)+' '+simDir.toFixed(1)+'°';
+      if(dirEl)dirEl.textContent=degToDir(simDir)+' '+simDir.toFixed(0)+'°';
       const cx=50,cy=50;
       if(!_windSweepPaused){
         const numEl=document.querySelector('.wrc-num');
