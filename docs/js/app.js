@@ -2334,7 +2334,7 @@ function drawMiniSonar(){
       const aMid=((c.ai+0.5)*angStep-90)*Math.PI/180;
       const rMid=maxR*(distMi/viewR);
       if(rMid<=0)continue;
-      dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid,angDeg:(c.ai+0.5)*angStep});
+      dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid,angDeg:(c.ai+0.5)*angStep,angRad:aMid});
       if(c.maxDbz>maxDbz)maxDbz=c.maxDbz;
       zoneCount++;
     }
@@ -2343,21 +2343,24 @@ function drawMiniSonar(){
     const sweepStart=S._sonarSweepStart||0;
     const totalSwept=S._sonarTotalSwept||0;
     const zoomScale=80/viewR;
-    const minDot=Math.max(2.5,size*0.012)*Math.min(zoomScale,6),maxDot=Math.max(6,size*0.028)*Math.min(zoomScale,6);
+    const baseDot=Math.max(6,size*0.028);
+    const radialStretch=zoomScale<=1?1:1+((zoomScale-1)*0.7);
     const sweepDps=40;
     const holdDegs=3*sweepDps;
     const fadeDegs=4*sweepDps;
     const totalDegs=holdDegs+fadeDegs;
     for(const d of dots){
       const frac=Math.min(1,d.dist/maxR);
-      const dotR=minDot+(maxDot-minDot)*frac;
+      const tangR=baseDot*(0.6+0.4*frac)*(0.7+0.3*Math.min(d.dbz/60,1));
+      const radR=tangR*radialStretch;
       const hex=dbzHex(d.dbz);
       const dotAng=((d.angDeg-90)%360+360)%360;
       let angDiff=((sweepDeg-dotAng)%360+360)%360;
       const hasBeenSwept=totalSwept>=360||angDiff<totalSwept;
       if(!hasBeenSwept){
-        ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
-        ctx.fillStyle='rgba(20,25,35,0.5)';ctx.fill();
+        ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.angRad);
+        ctx.beginPath();ctx.ellipse(0,0,tangR,radR,0,0,Math.PI*2);
+        ctx.fillStyle='rgba(20,25,35,0.5)';ctx.fill();ctx.restore();
         continue;
       }
       let sweepAlpha;
@@ -2366,18 +2369,20 @@ function drawMiniSonar(){
       else{sweepAlpha=0.06}
       const baseA=Math.min(0.95,0.4+d.dbz/60);
       const alpha=baseA*sweepAlpha;
-      ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
+      ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.angRad);
+      ctx.beginPath();ctx.ellipse(0,0,tangR,radR,0,0,Math.PI*2);
       ctx.fillStyle=hexToRgba(hex,alpha);ctx.fill();
       if(d.dbz>=40&&sweepAlpha>0.15){
-        ctx.save();ctx.shadowColor=hex;ctx.shadowBlur=dotR*3;
-        ctx.beginPath();ctx.arc(d.x,d.y,dotR*0.8,0,Math.PI*2);
+        ctx.shadowColor=hex;ctx.shadowBlur=tangR*3;
+        ctx.beginPath();ctx.ellipse(0,0,tangR*0.8,radR*0.8,0,0,Math.PI*2);
         ctx.fillStyle=hexToRgba(hex,alpha*0.7);ctx.fill();
-        ctx.restore();
+        ctx.shadowBlur=0;
         if(sweepAlpha>0.5){
-          ctx.beginPath();ctx.arc(d.x,d.y,dotR*1.6,0,Math.PI*2);
+          ctx.beginPath();ctx.ellipse(0,0,tangR*1.6,radR*1.6,0,0,Math.PI*2);
           ctx.strokeStyle=hexToRgba(hex,sweepAlpha*0.3);ctx.lineWidth=1;ctx.stroke();
         }
       }
+      ctx.restore();
     }
   }
   const nRings=4;
