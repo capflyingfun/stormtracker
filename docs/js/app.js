@@ -1281,6 +1281,7 @@ function setLoc(lat,lon,name,fromTravel){
   }
   fetchWeather();
   fetchAlerts();
+  fetchTerrainGrid();
   scanRadarForStorms();
   scheduleHourlyRefresh();
 }
@@ -1590,6 +1591,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use it for a quick situational glance.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.28',date:'2026-03-22',items:['Historical cell tracking: compares actual storm positions across consecutive radar scans for per-cell movement vectors','NWS warning polygon geometry: point-in-polygon check against official NWS warning areas boosts impact scores for storms inside active warnings','Terrain effects: fetches 9×9 elevation grid via Open-Meteo, detects valley channels and ridge barriers that can steer or block storms','AI context enriched with terrain analysis, cell tracking data, and NWS polygon matches']},
   {ver:'v2.11',date:'2026-03-21',items:['Dynamic wind gauge: live-scaling max with smart step sizes, breathing segments, gust flash effect, 60s wind trail ring','International station loading: progressive radius search (1°→5°), improved METAR parser (MPS winds, CAVOK, SLP, fractional visibility, weather codes)','Removed VATSIM fallback — all stations now use AWC direct for reliable international data','Station distance display respects metric/imperial units','Fixed flight category for international meter-based visibility']},
   {ver:'v2.10',date:'2026-03-21',items:['Dynamic ticker: 25+ rotating messages with live weather data, radar status, station info, NWS alerts, and educational tips','Ticker pulls real-time temp, wind, humidity, pressure, visibility, cloud cover, sunrise/sunset, forecasts','Nearby-storm ticker also enriched with contextual weather + radar scan info','Fun facts: dBZ scale, NEXRAD network, lightning, dew point, wall clouds, virga, and more']},
   {ver:'v2.09',date:'2026-03-21',items:['AI chat: 🗑️ Clear History button to reset conversation','Map controls split left/right — scan tools on left, storm toggles on right','Reduced vertical button stacking on mobile radar view']},
@@ -4922,6 +4924,88 @@ function getCellTrack(storm){
   const key=`${storm.lat.toFixed(2)}_${storm.lon.toFixed(2)}`;
   return S._cellTracks[key]||null;
 }
+S._terrainData=null;
+S._terrainLastLat=null;
+S._terrainLastLon=null;
+async function fetchTerrainGrid(){
+  if(!S.lat||!S.lon)return;
+  if(S._terrainLastLat&&Math.abs(S.lat-S._terrainLastLat)<0.05&&Math.abs(S.lon-S._terrainLastLon)<0.05&&S._terrainData)return;
+  try{
+    const pts=[];
+    const gridN=9,span=0.35;
+    const step=span*2/(gridN-1);
+    for(let r=0;r<gridN;r++){
+      for(let c=0;c<gridN;c++){
+        pts.push({lat:S.lat-span+r*step,lon:S.lon-span+c*step});
+      }
+    }
+    const lats=pts.map(p=>p.lat.toFixed(4)).join(',');
+    const lons=pts.map(p=>p.lon.toFixed(4)).join(',');
+    const res=await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lons}`,{signal:AbortSignal.timeout(8000)});
+    const data=await res.json();
+    const elevs=data.elevation||[];
+    if(elevs.length!==gridN*gridN)return;
+    const grid=[];
+    for(let r=0;r<gridN;r++){
+      const row=[];
+      for(let c=0;c<gridN;c++) row.push(elevs[r*gridN+c]);
+      grid.push(row);
+    }
+    const channels=[];
+    const userElev=grid[Math.floor(gridN/2)][Math.floor(gridN/2)];
+    for(let ang=0;ang<360;ang+=15){
+      const rad=ang*Math.PI/180;
+      let sumElev=0,cnt=0,lowCount=0;
+      for(let d=1;d<=4;d++){
+        const dr=d*(gridN-1)/(2*4);
+        const rr=Math.round(gridN/2+Math.cos(rad+Math.PI/2)*dr);
+        const cc=Math.round(gridN/2+Math.cos(rad)*dr);
+        if(rr>=0&&rr<gridN&&cc>=0&&cc<gridN){
+          sumElev+=grid[rr][cc];cnt++;
+          if(grid[rr][cc]<userElev+50)lowCount++;
+        }
+      }
+      if(cnt>0){
+        const avgElev=sumElev/cnt;
+        channels.push({dir:ang,avgElev,lowRatio:lowCount/cnt,diff:avgElev-userElev});
+      }
+    }
+    const valleys=channels.filter(c=>c.diff<-30&&c.lowRatio>=0.5);
+    const ridges=channels.filter(c=>c.diff>80);
+    const relief=Math.max(...channels.map(c=>c.avgElev))-Math.min(...channels.map(c=>c.avgElev));
+    S._terrainData={userElev,grid,channels,valleys,ridges,relief,gridN,span};
+    S._terrainLastLat=S.lat;
+    S._terrainLastLon=S.lon;
+    console.log(`[TERRAIN] elev=${userElev.toFixed(0)}m relief=${relief.toFixed(0)}m valleys=${valleys.length} ridges=${ridges.length}`);
+  }catch(e){console.log('[TERRAIN] fetch failed:',e.message)}
+}
+function getTerrainEffect(stormDir){
+  if(!S._terrainData||S._terrainData.relief<50)return{channelBoost:0,ridgeBlock:0,valleyAlign:false,desc:null};
+  const td=S._terrainData;
+  let bestValley=null,bestValleyDiff=Infinity;
+  for(const v of td.valleys){
+    const d1=Math.abs(((stormDir-v.dir+180)%360)-180);
+    const d2=Math.abs(((stormDir-(v.dir+180)%360+180)%360)-180);
+    const d=Math.min(d1,d2);
+    if(d<bestValleyDiff){bestValleyDiff=d;bestValley=v;}
+  }
+  let channelBoost=0,valleyAlign=false,valleyDesc=null;
+  if(bestValley&&bestValleyDiff<30){
+    channelBoost=Math.round(Math.max(0,Math.min(12,(30-bestValleyDiff)/30*12*(Math.abs(bestValley.diff)/100))));
+    valleyAlign=true;
+    valleyDesc=`Valley channel ${bestValley.dir}° (${Math.abs(bestValley.diff).toFixed(0)}m below)`;
+  }
+  let ridgeBlock=0,ridgeDesc=null;
+  for(const r of td.ridges){
+    const d=Math.abs(((stormDir-r.dir+180)%360)-180);
+    if(d<25){
+      const block=Math.round(Math.min(10,(r.diff-80)/150*10));
+      if(block>ridgeBlock){ridgeBlock=block;ridgeDesc=`Ridge barrier ${r.dir}° (${r.diff.toFixed(0)}m above)`;}
+    }
+  }
+  const desc=valleyDesc||ridgeDesc||null;
+  return{channelBoost,ridgeBlock,valleyAlign,desc};
+}
 function pointInNWSPolygon(lat,lon){
   if(!S.alerts||!S.alerts.length)return[];
   const matched=[];
@@ -4959,20 +5043,22 @@ function calcStormETA(storm){
   const nwsWarnings=pointInNWSPolygon(storm.lat,storm.lon);
   const nwsBoost=nwsWarnings.length>0?15:0;
   const hasSevereWarning=nwsWarnings.some(w=>w.severity==='Severe'||w.severity==='Extreme');
+  const terrain=getTerrainEffect(movDir);
+  const terrainNet=terrain.channelBoost-terrain.ridgeBlock;
   if(!inCone||closingSpeed<=1){
     if(storm.distance<=proxRange){
-      const proxPct=Math.round(Math.min(90,Math.max(0,(proxRange-storm.distance)/proxRange*60+storm.dbz/2.5+nwsBoost)));
-      return{eta:null,impact:proxPct,approaching:false,closingSpeed:0,proximity:true,cellTrack:!!cellTrack,nwsWarnings};
+      const proxPct=Math.round(Math.min(90,Math.max(0,(proxRange-storm.distance)/proxRange*60+storm.dbz/2.5+nwsBoost+Math.max(0,terrainNet))));
+      return{eta:null,impact:proxPct,approaching:false,closingSpeed:0,proximity:true,cellTrack:!!cellTrack,nwsWarnings,terrain:terrain.desc};
     }
     if(hasSevereWarning&&storm.distance<=30){
       const warnPct=Math.round(Math.min(60,25+storm.dbz/3));
-      return{eta:null,impact:warnPct,approaching:false,closingSpeed:0,nwsWarning:true,nwsWarnings};
+      return{eta:null,impact:warnPct,approaching:false,closingSpeed:0,nwsWarning:true,nwsWarnings,terrain:terrain.desc};
     }
-    return{eta:null,impact:nwsBoost,approaching:false,nwsWarnings};
+    return{eta:null,impact:Math.max(0,nwsBoost+terrainNet),approaching:false,nwsWarnings,terrain:terrain.desc};
   }
   if(storm.distance<=proxRange){
-    const proxPct=Math.round(Math.min(95,Math.max(0,(proxRange-storm.distance)/proxRange*60+storm.dbz/2.5+20+nwsBoost)));
-    return{eta:null,impact:proxPct,approaching:false,closingSpeed:0,proximity:true,cellTrack:!!cellTrack,nwsWarnings};
+    const proxPct=Math.round(Math.min(95,Math.max(0,(proxRange-storm.distance)/proxRange*60+storm.dbz/2.5+20+nwsBoost+Math.max(0,terrainNet))));
+    return{eta:null,impact:proxPct,approaching:false,closingSpeed:0,proximity:true,cellTrack:!!cellTrack,nwsWarnings,terrain:terrain.desc};
   }
   const etaHrs=storm.distance/closingSpeed;
   const etaMin=Math.round(etaHrs*60*100)/100;
@@ -4982,7 +5068,7 @@ function calcStormETA(storm){
   const widthScore=Math.min(1,baseWidthMi/3);
   const directMult=directImpactPct(diff);
   const trackBonus=cellTrack?5:0;
-  const baseScore=directMult*50+distScore*15+spdScore*8+intScore*15+widthScore*12+nwsBoost+trackBonus;
+  const baseScore=directMult*50+distScore*15+spdScore*8+intScore*15+widthScore*12+nwsBoost+trackBonus+terrainNet;
   const closeBoost=storm.distance<20?Math.round((20-storm.distance)/20*25):0;
   let pct=Math.round(Math.min(100,baseScore+closeBoost));
   if(storm.distance<=5&&diff<=15)pct=Math.max(pct,92);
@@ -4990,7 +5076,7 @@ function calcStormETA(storm){
   else if(storm.distance<=20&&diff<=12)pct=Math.max(pct,72);
   if(hasSevereWarning)pct=Math.max(pct,Math.min(95,pct+20));
   if(storm.distance<=proxRange)pct=Math.max(pct,Math.round(75+(proxRange-storm.distance)/proxRange*20));
-  return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed*100)/100,angleDiff:Math.round(diff),cellTrack:!!cellTrack,trackDir:cellTrack?cellTrack.dir:null,trackSpd:cellTrack?cellTrack.speed:null,nwsWarnings};
+  return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed*100)/100,angleDiff:Math.round(diff),cellTrack:!!cellTrack,trackDir:cellTrack?cellTrack.dir:null,trackSpd:cellTrack?cellTrack.speed:null,nwsWarnings,terrain:terrain.desc};
 }
 function impactLabel(pct){
   if(pct>=81)return{text:'CRITICAL',color:'#ef4444'};
@@ -6486,6 +6572,23 @@ function buildWeatherContext(){
     parts.push('\nNWS FORECAST PERIODS:');
     for(const p of S.forecast._nwsForecast.slice(0,6)){
       parts.push(`  ${p.name}: ${p.detailedForecast||p.shortForecast||''}`);
+    }
+  }
+
+  if(S._terrainData){
+    const td=S._terrainData;
+    parts.push(`\nTERRAIN ANALYSIS:`);
+    parts.push(`  User elevation: ${td.userElev.toFixed(0)}m (${(td.userElev*3.281).toFixed(0)}ft)`);
+    parts.push(`  Local relief: ${td.relief.toFixed(0)}m (${(td.relief*3.281).toFixed(0)}ft)`);
+    if(td.valleys.length)parts.push(`  Valley channels: ${td.valleys.map(v=>`${v.dir}° (${Math.abs(v.diff).toFixed(0)}m deep)`).join(', ')}`);
+    if(td.ridges.length)parts.push(`  Ridge barriers: ${td.ridges.map(r=>`${r.dir}° (${r.diff.toFixed(0)}m high)`).join(', ')}`);
+    if(td.valleys.length||td.ridges.length)parts.push(`  Note: Valleys can channel storms, ridges can block/deflect weaker cells`);
+  }
+  if(S._cellTracks&&Object.keys(S._cellTracks).length){
+    parts.push(`\nCELL TRACKING: ${Object.keys(S._cellTracks).length} individually tracked cells`);
+    const tracks=Object.values(S._cellTracks).sort((a,b)=>b.dbz-a.dbz).slice(0,5);
+    for(const t of tracks){
+      parts.push(`  Cell at ${t.toLat.toFixed(2)},${t.toLon.toFixed(2)}: ${t.dbz}dBZ, moving ${t.dir}° at ${t.speed}mph`);
     }
   }
 
