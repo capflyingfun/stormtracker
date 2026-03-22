@@ -127,7 +127,7 @@ function _toggleSonarSettings(){
   p.innerHTML=html;
   wrap.style.position='relative';wrap.appendChild(p);
 }
-function _setSonarOpt(key,val){_sonarCfg[key]=val;_saveSonarCfg();const p=document.getElementById('sonar-settings-panel');if(p){p.remove();_toggleSonarSettings()}drawMiniSonar()}
+function _setSonarOpt(key,val){_sonarCfg[key]=val;_saveSonarCfg();const p=document.getElementById('sonar-settings-panel');if(p)p.remove();drawMiniSonar();setTimeout(()=>_toggleSonarSettings(),50)}
 function _setSonarSlider(key,val,elId,suffix){_sonarCfg[key]=Number(val);_saveSonarCfg();const el=document.getElementById(elId);if(el)el.textContent=val+suffix;drawMiniSonar()}
 function _onDbzSlider(cls,val){
   _setDbzScale(cls,val/100);
@@ -136,8 +136,14 @@ function _onDbzSlider(cls,val){
   drawMiniSonar();
 }
 function _resetAllSonar(){
-  Object.assign(_sonarCfg,JSON.parse(JSON.stringify(_SONAR_DEFAULTS)));_saveSonarCfg();
-  const p=document.getElementById('sonar-settings-panel');if(p){p.remove();_toggleSonarSettings()}drawMiniSonar();
+  const fresh=JSON.parse(JSON.stringify(_SONAR_DEFAULTS));
+  for(const k in _sonarCfg)delete _sonarCfg[k];
+  Object.assign(_sonarCfg,fresh);
+  _saveSonarCfg();
+  const p=document.getElementById('sonar-settings-panel');
+  if(p)p.remove();
+  drawMiniSonar();
+  setTimeout(()=>_toggleSonarSettings(),50);
 }
 let _sonarZoomMi=parseInt(localStorage.getItem('st_sonarZoom'))||80;
 if(!_SONAR_ZOOM_LEVELS.includes(_sonarZoomMi))_sonarZoomMi=80;
