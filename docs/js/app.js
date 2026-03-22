@@ -382,8 +382,7 @@ function renderGaugeG1000(d){
   svg+=`<text x="${W-tapeW/2-1}" y="${tapeTop+8}" fill="${cyan}" font-size="5" font-weight="600" text-anchor="middle" font-family="monospace">${pUnit}</text>`;
   const hasStorm=!!(strongest&&strongest.distance<80);
   const rotOff=hasStorm?0:dirDeg;
-  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="${compassR}" fill="none" stroke="${green}" stroke-width="1.5"/>`;
-  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="${compassR+1}" fill="none" stroke="rgba(0,255,0,0.15)" stroke-width="0.5"/>`;
+  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="${compassR}" fill="none" stroke="${green}" stroke-width="1"/>`;
   for(let dd=0;dd<360;dd+=10){
     const a=((dd-rotOff)-90)*Math.PI/180;
     const major=dd%30===0;
@@ -395,8 +394,11 @@ function renderGaugeG1000(d){
       svg+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="${dd%90===0?'#ffffff':'#e2e8f0'}" font-size="${dd%90===0?'7':'5.5'}" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${lbl}</text>`;
     }
   }
+  const hdgAng=((dirDeg-rotOff)-90)*Math.PI/180;
+  const hbR=compassR+1;
+  svg+=`<polygon points="${(compassCx+Math.cos(hdgAng)*(hbR+5)).toFixed(1)},${(compassCy+Math.sin(hdgAng)*(hbR+5)).toFixed(1)} ${(compassCx+Math.cos(hdgAng-0.08)*hbR).toFixed(1)},${(compassCy+Math.sin(hdgAng-0.08)*hbR).toFixed(1)} ${(compassCx+Math.cos(hdgAng+0.08)*hbR).toFixed(1)},${(compassCy+Math.sin(hdgAng+0.08)*hbR).toFixed(1)}" fill="${green}" stroke="${green}" stroke-width="0.5"/>`;
   const nLen=compassR-16,nBase=14;
-  const wRelAng=((dirDeg-rotOff)-90)*Math.PI/180;
+  const wRelAng=hdgAng;
   svg+=`<polygon points="${(compassCx+Math.cos(wRelAng)*nLen).toFixed(1)},${(compassCy+Math.sin(wRelAng)*nLen).toFixed(1)} ${(compassCx+Math.cos(wRelAng-0.12)*nBase).toFixed(1)},${(compassCy+Math.sin(wRelAng-0.12)*nBase).toFixed(1)} ${(compassCx+Math.cos(wRelAng+0.12)*nBase).toFixed(1)},${(compassCy+Math.sin(wRelAng+0.12)*nBase).toFixed(1)}" fill="rgba(255,0,255,0.65)" stroke="${magenta}" stroke-width="0.6"/>`;
   const tAng=wRelAng+Math.PI;
   svg+=`<polygon points="${(compassCx+Math.cos(tAng)*(nLen-2)).toFixed(1)},${(compassCy+Math.sin(tAng)*(nLen-2)).toFixed(1)} ${(compassCx+Math.cos(tAng-0.1)*10).toFixed(1)},${(compassCy+Math.sin(tAng-0.1)*10).toFixed(1)} ${(compassCx+Math.cos(tAng+0.1)*10).toFixed(1)},${(compassCy+Math.sin(tAng+0.1)*10).toFixed(1)}" fill="rgba(255,255,255,0.12)"/>`;
@@ -434,39 +436,36 @@ function renderGaugeG1000(d){
   }
   svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="4" fill="#222" stroke="${magenta}" stroke-width="1"/>`;
   svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="1.5" fill="${magenta}"/>`;
-  if(!hasStorm){
-    svg+=`<polygon points="${compassCx},${(compassCy-compassR+2).toFixed(1)} ${(compassCx-4).toFixed(1)},${(compassCy-compassR+9).toFixed(1)} ${(compassCx+4).toFixed(1)},${(compassCy-compassR+9).toFixed(1)}" fill="${green}" stroke="${green}" stroke-width="0.5"/>`;
-  }
   const infoTop=compassCy-compassR-16;
   const infoBot=compassCy+compassR+4;
+  const boxL=compassCx-compassR+2,boxR=compassCx+compassR-30;
   svg+=`<rect x="${compassCx-22}" y="${infoTop}" width="44" height="12" rx="2" fill="#111" stroke="${green}" stroke-width="0.8"/>`;
   svg+=`<text x="${compassCx}" y="${infoTop+6}" fill="${green}" font-size="6.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${dirDeg.toFixed(0)}°</text>`;
   if(upperDir!=null){
-    svg+=`<rect x="${tapeW+4}" y="${infoTop}" width="28" height="12" rx="2" fill="#111" stroke="${yellow}" stroke-width="0.6"/>`;
-    svg+=`<text x="${tapeW+18}" y="${infoTop+6}" fill="${yellow}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${Math.round(upperDir)}°</text>`;
-    svg+=`<text x="${tapeW+18}" y="${infoTop-4}" fill="${yellow}" font-size="3.5" font-weight="600" text-anchor="middle" font-family="monospace">ALOFT</text>`;
+    svg+=`<rect x="${boxL}" y="${infoTop}" width="28" height="12" rx="2" fill="#111" stroke="${yellow}" stroke-width="0.6"/>`;
+    svg+=`<text x="${boxL+14}" y="${infoTop+6}" fill="${yellow}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${Math.round(upperDir)}°</text>`;
+    svg+=`<text x="${boxL+14}" y="${infoTop-4}" fill="${yellow}" font-size="3.5" font-weight="600" text-anchor="middle" font-family="monospace">ALOFT</text>`;
   }
   if(hasStorm){
-    svg+=`<rect x="${W-tapeW-34}" y="${infoTop}" width="30" height="12" rx="2" fill="#111" stroke="${cyan}" stroke-width="0.6"/>`;
-    svg+=`<text x="${W-tapeW-19}" y="${infoTop+6}" fill="${cyan}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${Math.round(strongest.bearing)}°</text>`;
-    svg+=`<text x="${W-tapeW-19}" y="${infoTop-4}" fill="${cyan}" font-size="3.5" font-weight="600" text-anchor="middle" font-family="monospace">STM</text>`;
+    svg+=`<rect x="${boxR}" y="${infoTop}" width="30" height="12" rx="2" fill="#111" stroke="${cyan}" stroke-width="0.6"/>`;
+    svg+=`<text x="${boxR+15}" y="${infoTop+6}" fill="${cyan}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${Math.round(strongest.bearing)}°</text>`;
+    svg+=`<text x="${boxR+15}" y="${infoTop-4}" fill="${cyan}" font-size="3.5" font-weight="600" text-anchor="middle" font-family="monospace">STM</text>`;
     const userFromStm=((strongest.bearing+180)%360).toFixed(0);
-    svg+=`<rect x="${tapeW+4}" y="${infoBot}" width="28" height="12" rx="2" fill="#111" stroke="${magenta}" stroke-width="0.6"/>`;
-    svg+=`<text x="${tapeW+18}" y="${infoBot+6}" fill="${magenta}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${userFromStm}°</text>`;
-    svg+=`<text x="${tapeW+18}" y="${infoBot+16}" fill="${magenta}" font-size="3.5" font-weight="600" text-anchor="middle" font-family="monospace">FROM</text>`;
+    svg+=`<rect x="${boxL}" y="${infoBot}" width="28" height="12" rx="2" fill="#111" stroke="${magenta}" stroke-width="0.6"/>`;
+    svg+=`<text x="${boxL+14}" y="${infoBot+6}" fill="${magenta}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${userFromStm}°</text>`;
+    svg+=`<text x="${boxL+14}" y="${infoBot+16}" fill="${magenta}" font-size="3.5" font-weight="600" text-anchor="middle" font-family="monospace">FROM</text>`;
     if(stmXTK!=null){
       const xtkAbs=Math.abs(stmXTK);
       const xtkStr=xtkAbs<10?xtkAbs.toFixed(1):xtkAbs.toFixed(0);
       const xtkUnit=S.radarMetric?'km':'mi';
-      svg+=`<rect x="${W-tapeW-34}" y="${infoBot}" width="30" height="12" rx="2" fill="#111" stroke="${cyan}" stroke-width="0.6"/>`;
-      svg+=`<text x="${W-tapeW-19}" y="${infoBot+6}" fill="${cyan}" font-size="5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${xtkStr}${xtkUnit}</text>`;
-      svg+=`<text x="${W-tapeW-19}" y="${infoBot+16}" fill="${cyan}" font-size="3.5" font-weight="600" text-anchor="middle" font-family="monospace">XTK</text>`;
+      svg+=`<rect x="${boxR}" y="${infoBot}" width="30" height="12" rx="2" fill="#111" stroke="${cyan}" stroke-width="0.6"/>`;
+      svg+=`<text x="${boxR+15}" y="${infoBot+6}" fill="${cyan}" font-size="5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${xtkStr}${xtkUnit}</text>`;
+      svg+=`<text x="${boxR+15}" y="${infoBot+16}" fill="${cyan}" font-size="3.5" font-weight="600" text-anchor="middle" font-family="monospace">XTK</text>`;
     }
     const distStr=strongest.distance<10?strongest.distance.toFixed(1):strongest.distance.toFixed(0);
     const distUnit=S.radarMetric?'km':'mi';
     svg+=`<rect x="${compassCx-22}" y="${infoBot}" width="44" height="12" rx="2" fill="#111" stroke="#3a3e48" stroke-width="0.6"/>`;
-    let botLine=`${distStr}${distUnit} ${strongest.dbz||0}dBZ`;
-    svg+=`<text x="${compassCx}" y="${infoBot+6}" fill="#e2e8f0" font-size="5" font-weight="600" text-anchor="middle" dominant-baseline="central" font-family="monospace">${botLine}</text>`;
+    svg+=`<text x="${compassCx}" y="${infoBot+6}" fill="#e2e8f0" font-size="5" font-weight="600" text-anchor="middle" dominant-baseline="central" font-family="monospace">${distStr}${distUnit} ${strongest.dbz||0}dBZ</text>`;
     const impColor=stmImpact>=80?'#ef4444':stmImpact>=50?amber:stmImpact>=20?'#eab308':green;
     svg+=`<text x="${compassCx}" y="${infoBot+18}" fill="${impColor}" font-size="5" font-weight="700" text-anchor="middle" font-family="monospace">${stmImpact}% IMPACT</text>`;
     if(stmEta&&stmEta.eta!=null){
@@ -2314,23 +2313,33 @@ function drawMiniSonar(){
   if(S._rawScanPts&&S._rawScanPts.length){
     const cells=polarGridBin(S._rawScanPts,S.lat,S.lon,scanR);
     const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
+    const dotMap=new Map();
     for(const[k,c]of cells){
-      const a1=(c.ai*angStep-90)*Math.PI/180;
-      const a2=((c.ai+1)*angStep-90)*Math.PI/180;
-      const r1=maxR*(c.ri*distStep/scanR);
-      const r2=maxR*((c.ri+1)*distStep/scanR);
-      if(r2<=0)continue;
-      const hex=dbzHex(c.maxDbz);
-      const alpha=Math.min(0.85,0.25+c.maxDbz/80);
-      ctx.beginPath();
-      ctx.arc(cx,cy,r2,a1,a2);
-      ctx.arc(cx,cy,Math.max(0,r1),a2,a1,true);
-      ctx.closePath();
-      ctx.fillStyle=hexToRgba(hex,alpha);
-      ctx.fill();
-      ctx.strokeStyle=hexToRgba(hex,0.3);ctx.lineWidth=0.3;ctx.stroke();
+      const aMid=((c.ai+0.5)*angStep-90)*Math.PI/180;
+      const rMid=maxR*((c.ri+0.5)*distStep/scanR);
+      if(rMid<=0)continue;
+      const gx=Math.round((compassCx||cx)+Math.cos(aMid)*rMid);
+      const gy=Math.round((compassCy||cy)+Math.sin(aMid)*rMid);
+      const dk=`${gx},${gy}`;
+      const prev=dotMap.get(dk);
+      if(!prev||c.maxDbz>prev.dbz){dotMap.set(dk,{x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid});}
       if(c.maxDbz>maxDbz)maxDbz=c.maxDbz;
       zoneCount++;
+    }
+    const minDot=Math.max(1.5,size*0.006),maxDot=Math.max(4,size*0.02);
+    for(const[,d]of dotMap){
+      const frac=Math.min(1,d.dist/maxR);
+      const dotR=minDot+(maxDot-minDot)*frac;
+      const hex=dbzHex(d.dbz);
+      const alpha=Math.min(0.9,0.35+d.dbz/70);
+      ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
+      ctx.fillStyle=hexToRgba(hex,alpha);ctx.fill();
+      if(d.dbz>=40){
+        ctx.save();ctx.shadowColor=hex;ctx.shadowBlur=dotR*2;
+        ctx.beginPath();ctx.arc(d.x,d.y,dotR*0.6,0,Math.PI*2);
+        ctx.fillStyle=hexToRgba(hex,0.5);ctx.fill();
+        ctx.restore();
+      }
     }
   }
   try{
