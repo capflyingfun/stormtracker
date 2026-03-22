@@ -2343,7 +2343,7 @@ function drawMiniSonar(){
     const sweepStart=S._sonarSweepStart||0;
     const totalSwept=S._sonarTotalSwept||0;
     const zoomScale=80/viewR;
-    const minDot=Math.max(2.5,size*0.012)*Math.min(2.5,zoomScale),maxDot=Math.max(6,size*0.028)*Math.min(2.5,zoomScale);
+    const minDot=Math.max(2.5,size*0.012)*Math.min(zoomScale,6),maxDot=Math.max(6,size*0.028)*Math.min(zoomScale,6);
     const sweepDps=40;
     const holdDegs=3*sweepDps;
     const fadeDegs=4*sweepDps;
