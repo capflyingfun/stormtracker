@@ -2421,6 +2421,9 @@ function drawMiniSonar(){
       ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
       ctx.beginPath();ctx.moveTo(cx+Math.cos(mvRad)*15,cy+Math.sin(mvRad)*15);ctx.lineTo(ax,ay);
       ctx.strokeStyle=hexToRgba(neonC,0.5);ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
+      const slx=ax+Math.cos(mvRad)*10,sly=ay+Math.sin(mvRad)*10;
+      ctx.fillStyle=hexToRgba(neonC,0.8);ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('STORM',slx,sly);
     }
     const aloftDir=S._upperWindDir;
     if(aloftDir!=null){
