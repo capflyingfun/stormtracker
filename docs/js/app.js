@@ -68,7 +68,7 @@ function _beaufortBar(kmh){
 }
 
 let _windMinKmh=Infinity,_windMaxKmh=0;
-const _SONAR_ZOOM_LEVELS=[15,20,30,40,60,80];
+const _SONAR_ZOOM_LEVELS=[20,30,40,50,60,70,80];
 let _sonarZoomMi=parseInt(localStorage.getItem('st_sonarZoom'))||80;
 if(!_SONAR_ZOOM_LEVELS.includes(_sonarZoomMi))_sonarZoomMi=80;
 function sonarZoomIn(){const i=_SONAR_ZOOM_LEVELS.indexOf(_sonarZoomMi);if(i>0){_sonarZoomMi=_SONAR_ZOOM_LEVELS[i-1];localStorage.setItem('st_sonarZoom',_sonarZoomMi);S._sonarTotalSwept=0;S._sonarSweepAngle=0;drawMiniSonar();_syncSonarZoomBtns()}}
@@ -2351,8 +2351,8 @@ function drawMiniSonar(){
     const totalDegs=holdDegs+fadeDegs;
     for(const d of dots){
       const frac=Math.min(1,d.dist/maxR);
-      const tangR=baseDot*(0.6+0.4*frac)*(0.7+0.3*Math.min(d.dbz/60,1));
-      const radR=tangR*radialStretch;
+      const radR=baseDot*(0.6+0.4*frac)*(0.7+0.3*Math.min(d.dbz/60,1));
+      const tangR=radR*radialStretch;
       const hex=dbzHex(d.dbz);
       const dotAng=((d.angDeg-90)%360+360)%360;
       let angDiff=((sweepDeg-dotAng)%360+360)%360;
