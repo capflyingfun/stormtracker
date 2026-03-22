@@ -69,6 +69,38 @@ function _beaufortBar(kmh){
 
 let _windMinKmh=Infinity,_windMaxKmh=0;
 const _SONAR_ZOOM_LEVELS=[20,30,40,50,60,70,80];
+const _SONAR_DBZ_CLASSES=['light','moderate','heavy','intense','extreme'];
+const _SONAR_DBZ_LABELS={light:'Light (0-29)',moderate:'Moderate (30-39)',heavy:'Heavy (40-49)',intense:'Intense (50-59)',extreme:'Extreme (60+)'};
+const _SONAR_DBZ_COLORS={light:'#00ccff',moderate:'#aaff00',heavy:'#ffee00',intense:'#ff2200',extreme:'#ff00ff'};
+let _sonarDbzScale=(function(){try{const s=JSON.parse(localStorage.getItem('st_sonarDbzScale'));if(s&&typeof s==='object')return s}catch(e){}return{}})();
+function _getDbzScale(cls){return _sonarDbzScale[cls]!=null?_sonarDbzScale[cls]:1}
+function _setDbzScale(cls,v){_sonarDbzScale[cls]=v;localStorage.setItem('st_sonarDbzScale',JSON.stringify(_sonarDbzScale))}
+function _toggleSonarSettings(){
+  let p=document.getElementById('sonar-settings-panel');
+  if(p){p.style.display=p.style.display==='none'?'block':'none';return}
+  const wrap=document.getElementById('mini-sonar-wrap');if(!wrap)return;
+  p=document.createElement('div');p.id='sonar-settings-panel';
+  p.style.cssText='position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(10,14,20,0.92);z-index:20;border-radius:8px;padding:12px 16px;overflow-y:auto;backdrop-filter:blur(4px)';
+  let html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="color:#00eeff;font-weight:700;font-size:0.75em">Dot Size by dBZ</span><button onclick="_toggleSonarSettings()" style="background:none;border:none;color:#00eeff;font-size:1em;cursor:pointer;padding:2px 6px">✕</button></div>';
+  for(const cls of _SONAR_DBZ_CLASSES){
+    const val=Math.round(_getDbzScale(cls)*100);
+    const col=_SONAR_DBZ_COLORS[cls];
+    html+=`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:0.6em;color:${col};font-weight:600">${_SONAR_DBZ_LABELS[cls]}</span><span id="sonar-dbz-val-${cls}" style="font-size:0.55em;color:rgba(255,255,255,0.7);min-width:32px;text-align:right">${val}%</span></div><input type="range" min="50" max="200" value="${val}" step="10" id="sonar-dbz-${cls}" oninput="_onDbzSlider('${cls}',this.value)" style="width:100%;height:16px;accent-color:${col};cursor:pointer"></div>`;
+  }
+  html+='<button onclick="_resetDbzScales()" style="background:none;border:1px solid rgba(0,220,255,0.3);color:rgba(0,220,255,0.6);font-size:0.55em;padding:3px 10px;border-radius:4px;cursor:pointer;margin-top:2px;width:100%">Reset to Default</button>';
+  p.innerHTML=html;
+  wrap.style.position='relative';wrap.appendChild(p);
+}
+function _onDbzSlider(cls,val){
+  _setDbzScale(cls,val/100);
+  const el=document.getElementById('sonar-dbz-val-'+cls);
+  if(el)el.textContent=val+'%';
+  drawMiniSonar();
+}
+function _resetDbzScales(){
+  for(const cls of _SONAR_DBZ_CLASSES){_sonarDbzScale[cls]=1;const sl=document.getElementById('sonar-dbz-'+cls);if(sl)sl.value=100;const vl=document.getElementById('sonar-dbz-val-'+cls);if(vl)vl.textContent='100%'}
+  localStorage.setItem('st_sonarDbzScale',JSON.stringify(_sonarDbzScale));drawMiniSonar();
+}
 let _sonarZoomMi=parseInt(localStorage.getItem('st_sonarZoom'))||80;
 if(!_SONAR_ZOOM_LEVELS.includes(_sonarZoomMi))_sonarZoomMi=80;
 function sonarZoomIn(){const i=_SONAR_ZOOM_LEVELS.indexOf(_sonarZoomMi);if(i>0){_sonarZoomMi=_SONAR_ZOOM_LEVELS[i-1];localStorage.setItem('st_sonarZoom',_sonarZoomMi);S._sonarTotalSwept=0;S._sonarSweepAngle=0;drawMiniSonar();_syncSonarZoomBtns()}}
@@ -2293,6 +2325,7 @@ function renderWeather(data){
         <div style="display:flex;gap:4px;align-items:center">
           <button id="sonar-zoom-in" onclick="event.stopPropagation();sonarZoomIn()" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.7em;width:24px;height:24px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-weight:700;opacity:0.8" title="Zoom in">＋</button>
           <button id="sonar-zoom-out" onclick="event.stopPropagation();sonarZoomOut()" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.7em;width:24px;height:24px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-weight:700;opacity:0.8" title="Zoom out">ー</button>
+          <button onclick="event.stopPropagation();_toggleSonarSettings()" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.7em;width:24px;height:24px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;opacity:0.8" title="Dot size settings">⚙</button>
           <button onclick="event.stopPropagation();switchPage('radar')" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.6em;padding:3px 8px;border-radius:4px;cursor:pointer">Open Radar →</button>
         </div>
       </div>
@@ -2365,7 +2398,9 @@ function drawMiniSonar(){
     const totalDegs=holdDegs+fadeDegs;
     for(const d of dots){
       const frac=Math.min(1,d.dist/maxR);
-      const dotR=useRaw?rawDotR*(0.8+0.4*frac):(minDot+(maxDot-minDot)*frac);
+      const dbzCls=_dbzEntry(d.dbz).cls;
+      const dbzSc=_getDbzScale(dbzCls);
+      const dotR=(useRaw?rawDotR*(0.8+0.4*frac):(minDot+(maxDot-minDot)*frac))*dbzSc;
       const hex=dbzHex(d.dbz);
       const dotAng=((d.angDeg-90)%360+360)%360;
       let angDiff=((sweepDeg-dotAng)%360+360)%360;
