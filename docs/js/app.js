@@ -1413,7 +1413,7 @@ function setLoc(lat,lon,name,fromTravel){
     S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
     clearStormCone();
   }
-  S.storms=[];S._rawScanPts=[];clearStormZones();
+  S.storms=[];S._rawScanPts=[];S._sonarFirstSweep=false;clearStormZones();
   try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:S.locName}))}catch(e){}
   if(S.map){
     S.map.setView([lat,lon],S.map.getZoom());
@@ -2346,24 +2346,39 @@ function drawMiniSonar(){
     }
     dots.sort((a,b)=>a.dbz-b.dbz);
     const sweepDeg=S._sonarSweepAngle||0;
+    const firstSweepDone=S._sonarFirstSweep||false;
     const minDot=Math.max(2.5,size*0.012),maxDot=Math.max(6,size*0.028);
+    const sweepDps=0.04*1000/16.67;
+    const holdDegs=3*sweepDps;
+    const fadeDegs=4*sweepDps;
+    const totalDegs=holdDegs+fadeDegs;
     for(const d of dots){
       const frac=Math.min(1,d.dist/maxR);
       const dotR=minDot+(maxDot-minDot)*frac;
-      let angDiff=((sweepDeg-(d.angDeg+90))%360+360)%360;
-      const fadeSec=5,sweepDps=0.04*1000/16.67;
-      const fadeDegs=fadeSec*sweepDps;
-      const sweepAlpha=angDiff<fadeDegs?Math.max(0.08,1-angDiff/fadeDegs):0.08;
       const hex=dbzHex(d.dbz);
+      if(!firstSweepDone){
+        ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
+        ctx.fillStyle='rgba(20,25,35,0.6)';ctx.fill();
+        continue;
+      }
+      let angDiff=((sweepDeg-(d.angDeg+90))%360+360)%360;
+      let sweepAlpha;
+      if(angDiff<holdDegs){sweepAlpha=1}
+      else if(angDiff<totalDegs){sweepAlpha=Math.max(0.06,1-(angDiff-holdDegs)/fadeDegs)}
+      else{sweepAlpha=0.06}
       const baseA=Math.min(0.95,0.4+d.dbz/60);
       const alpha=baseA*sweepAlpha;
       ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
       ctx.fillStyle=hexToRgba(hex,alpha);ctx.fill();
-      if(d.dbz>=40&&sweepAlpha>0.3){
-        ctx.save();ctx.shadowColor=hex;ctx.shadowBlur=dotR*2.5;
-        ctx.beginPath();ctx.arc(d.x,d.y,dotR*0.7,0,Math.PI*2);
-        ctx.fillStyle=hexToRgba(hex,alpha*0.6);ctx.fill();
+      if(d.dbz>=40&&sweepAlpha>0.15){
+        ctx.save();ctx.shadowColor=hex;ctx.shadowBlur=dotR*3;
+        ctx.beginPath();ctx.arc(d.x,d.y,dotR*0.8,0,Math.PI*2);
+        ctx.fillStyle=hexToRgba(hex,alpha*0.7);ctx.fill();
         ctx.restore();
+        if(sweepAlpha>0.5){
+          ctx.beginPath();ctx.arc(d.x,d.y,dotR*1.6,0,Math.PI*2);
+          ctx.strokeStyle=hexToRgba(hex,sweepAlpha*0.3);ctx.lineWidth=1;ctx.stroke();
+        }
       }
     }
   }
@@ -2447,7 +2462,9 @@ function startSonarSweep(){
   function tick(ts){
     if(!document.getElementById('mini-sonar-canvas')){_sonarAnimId=0;return;}
     const dt=last?ts-last:16;last=ts;
-    S._sonarSweepAngle=(S._sonarSweepAngle+dt*0.04)%360;
+    const prevAngle=S._sonarSweepAngle||0;
+    S._sonarSweepAngle=(prevAngle+dt*0.04)%360;
+    if(!S._sonarFirstSweep&&prevAngle>300&&S._sonarSweepAngle<60)S._sonarFirstSweep=true;
     drawMiniSonar();
     _sonarAnimId=requestAnimationFrame(tick);
   }
