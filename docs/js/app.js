@@ -68,6 +68,12 @@ function _beaufortBar(kmh){
 }
 
 let _windMinKmh=Infinity,_windMaxKmh=0;
+const _SONAR_ZOOM_LEVELS=[15,20,30,40,60,80];
+let _sonarZoomMi=parseInt(localStorage.getItem('st_sonarZoom'))||80;
+if(!_SONAR_ZOOM_LEVELS.includes(_sonarZoomMi))_sonarZoomMi=80;
+function sonarZoomIn(){const i=_SONAR_ZOOM_LEVELS.indexOf(_sonarZoomMi);if(i>0){_sonarZoomMi=_SONAR_ZOOM_LEVELS[i-1];localStorage.setItem('st_sonarZoom',_sonarZoomMi);S._sonarTotalSwept=0;S._sonarSweepAngle=0;drawMiniSonar();_syncSonarZoomBtns()}}
+function sonarZoomOut(){const i=_SONAR_ZOOM_LEVELS.indexOf(_sonarZoomMi);if(i<_SONAR_ZOOM_LEVELS.length-1){_sonarZoomMi=_SONAR_ZOOM_LEVELS[i+1];localStorage.setItem('st_sonarZoom',_sonarZoomMi);S._sonarTotalSwept=0;S._sonarSweepAngle=0;drawMiniSonar();_syncSonarZoomBtns()}}
+function _syncSonarZoomBtns(){const zi=document.getElementById('sonar-zoom-in');const zo=document.getElementById('sonar-zoom-out');if(zi)zi.style.opacity=_sonarZoomMi<=_SONAR_ZOOM_LEVELS[0]?'0.3':'0.8';if(zo)zo.style.opacity=_sonarZoomMi>=_SONAR_ZOOM_LEVELS[_SONAR_ZOOM_LEVELS.length-1]?'0.3':'0.8'}
 let _gyroHeading=null,_gyroEnabled=false,_gyroRaw=null,_gyroSmooth=null;
 function initGyroCompass(){
   if(_gyroEnabled)return;
@@ -2284,7 +2290,11 @@ function renderWeather(data){
     <div class="card" style="margin-top:8px;padding:8px" id="mini-sonar-card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <span class="card-title" style="margin:0"><span class="icon">📡</span> Radar Sonar</span>
-        <button onclick="event.stopPropagation();switchPage('radar')" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.6em;padding:3px 8px;border-radius:4px;cursor:pointer">Open Radar →</button>
+        <div style="display:flex;gap:4px;align-items:center">
+          <button id="sonar-zoom-in" onclick="event.stopPropagation();sonarZoomIn()" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.7em;width:24px;height:24px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-weight:700;opacity:0.8" title="Zoom in">＋</button>
+          <button id="sonar-zoom-out" onclick="event.stopPropagation();sonarZoomOut()" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.7em;width:24px;height:24px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-weight:700;opacity:0.8" title="Zoom out">ー</button>
+          <button onclick="event.stopPropagation();switchPage('radar')" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.6em;padding:3px 8px;border-radius:4px;cursor:pointer">Open Radar →</button>
+        </div>
       </div>
       <div id="mini-sonar-wrap" style="width:100%;position:relative">
         <canvas id="mini-sonar-canvas" style="width:100%;display:block;border-radius:8px"></canvas>
@@ -2293,7 +2303,7 @@ function renderWeather(data){
     </div>
     ${order.map(k=>sections[k]||'').join('')}`;
   setTimeout(initPrecipTaps,0);
-  setTimeout(startSonarSweep,50);
+  setTimeout(()=>{startSonarSweep();_syncSonarZoomBtns()},50);
   if(!S._skipWindRestart) startWindSim();
 }
 function drawMiniSonar(){
@@ -2312,12 +2322,13 @@ function drawMiniSonar(){
   ctx.fillStyle='#0a0e14';
   ctx.beginPath();ctx.arc(cx,cy,maxR+10,0,Math.PI*2);ctx.fill();
   const scanR=S.scanRadius||80;
+  const viewR=_sonarZoomMi;
   const nRings=4;
   for(let i=1;i<=nRings;i++){
     const r=maxR*(i/nRings);
     ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
     ctx.strokeStyle='rgba(0,220,255,0.12)';ctx.lineWidth=0.5;ctx.stroke();
-    const dist=Math.round(scanR*(i/nRings));
+    const dist=Math.round(viewR*(i/nRings));
     const label=S.radarMetric?Math.round(dist*1.60934)+'km':dist+'mi';
     ctx.fillStyle='rgba(0,220,255,0.35)';ctx.font=`${Math.max(8,size*0.028)}px Inter,sans-serif`;
     ctx.textAlign='center';ctx.fillText(label,cx,cy-r+10);
@@ -2337,8 +2348,10 @@ function drawMiniSonar(){
     const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
     const dots=[];
     for(const[k,c]of cells){
+      const distMi=(c.ri+0.5)*distStep;
+      if(distMi>viewR)continue;
       const aMid=((c.ai+0.5)*angStep-90)*Math.PI/180;
-      const rMid=maxR*((c.ri+0.5)*distStep/scanR);
+      const rMid=maxR*(distMi/viewR);
       if(rMid<=0)continue;
       dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid,angDeg:(c.ai+0.5)*angStep});
       if(c.maxDbz>maxDbz)maxDbz=c.maxDbz;
@@ -2386,7 +2399,7 @@ function drawMiniSonar(){
     }
   }
   try{
-    const sonarStorms=(S.storms||[]).filter(s=>s.distance<=scanR);
+    const sonarStorms=(S.storms||[]).filter(s=>s.distance<=viewR);
     if(S.stormMovement&&S.stormMovement.speed>=2&&sonarStorms.length){
       const mv=S.stormMovement;
       const mvRad=(mv.direction-90)*Math.PI/180;
@@ -2403,7 +2416,7 @@ function drawMiniSonar(){
           const dist=st.distance||0;
           const bearing=st.bearing||0;
           const stAng=(bearing-90)*Math.PI/180;
-          const r=Math.min(maxR-8,maxR*(dist/scanR));
+          const r=Math.min(maxR-8,maxR*(dist/viewR));
           const sx=cx+Math.cos(stAng)*r,sy=cy+Math.sin(stAng)*r;
           const neonC=dbzHex(st.dbz);
           const arrLen=Math.max(10,Math.min(20,maxR*0.12));
@@ -2472,9 +2485,9 @@ function drawMiniSonar(){
   const infoEl=document.getElementById('mini-sonar-info');
   if(infoEl){
     if(zoneCount>0){
-      infoEl.textContent=`${zoneCount} zone${zoneCount>1?'s':''} · Peak ${maxDbz} dBZ · ${S.radarMetric?Math.round(scanR*1.60934)+'km':scanR+'mi'} radius`;
+      infoEl.textContent=`${zoneCount} zone${zoneCount>1?'s':''} · Peak ${maxDbz} dBZ · ${S.radarMetric?Math.round(viewR*1.60934)+'km':viewR+'mi'} radius`;
     }else{
-      infoEl.textContent=S.scanTime?`All clear · ${S.radarMetric?Math.round(scanR*1.60934)+'km':scanR+'mi'} radius`:`Waiting for radar scan...`;
+      infoEl.textContent=S.scanTime?`All clear · ${S.radarMetric?Math.round(viewR*1.60934)+'km':viewR+'mi'} radius`:`Waiting for radar scan...`;
     }
   }
 }
