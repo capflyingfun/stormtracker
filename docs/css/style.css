@@ -268,6 +268,7 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .wrc-dir{font-size:0.65em;font-weight:700;color:rgba(255,80,80,0.95);text-shadow:0 0 6px rgba(255,60,60,0.4)}
 .wrc-gust{font-size:0.5em;color:#FF0000;font-weight:600;text-shadow:0 0 4px rgba(255,0,0,0.3)}
 .wrc-avg{font-size:0.5em;color:#FF00FF;font-weight:600;text-shadow:0 0 4px rgba(255,0,255,0.3)}
+.wrc-force{width:85%;margin:1px auto 0;pointer-events:none}
 canvas.offscreen{display:none}
 .welcome-screen{text-align:center;padding:40px 20px}
 .welcome-screen h2{font-size:1.3em;font-weight:700;margin-bottom:8px;color:var(--text-primary)}

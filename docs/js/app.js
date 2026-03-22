@@ -52,6 +52,19 @@ function ktsTo(kts,unit){
   return (kts*0.5144).toFixed(1);
 }
 function fmtWindKts(kts){return ktsTo(kts,S.windUnit)+' '+WIND_UNITS[S.windUnit]}
+const _BFT_KMH=[1,6,12,20,29,39,50,62,75,89,103,118,1000];
+const _BFT_NAME=['Calm','Light Air','Light Breeze','Gentle Breeze','Mod Breeze','Fresh Breeze','Strong Breeze','Near Gale','Gale','Strong Gale','Storm','Violent Storm','Hurricane'];
+const _BFT_CLR=['#88ccff','#66ddaa','#44cc88','#33bb66','#aadd44','#ddcc33','#ffaa22','#ff7722','#ff4444','#dd2222','#bb1155','#991177','#770099'];
+function beaufortFromKmh(kmh){for(let i=0;i<_BFT_KMH.length;i++){if(kmh<_BFT_KMH[i])return i}return 12}
+function _beaufortBar(kmh){
+  const bf=beaufortFromKmh(kmh);
+  let bars='';
+  for(let i=0;i<=12;i++){
+    const fill=i<=bf?_BFT_CLR[i]:'rgba(255,255,255,0.08)';
+    bars+=`<div style="flex:1;height:4px;border-radius:2px;background:${fill}"></div>`;
+  }
+  return`<div style="width:100%;margin-top:1px"><div style="display:flex;gap:1px;margin-bottom:1px">${bars}</div><div style="font-size:0.38em;color:${_BFT_CLR[bf]};font-weight:600;text-align:center;line-height:1">F${bf} ${_BFT_NAME[bf]}</div></div>`;
+}
 
 function fmtPres(mb){
   if(S.presUnit===0) return (mb*0.02953).toFixed(2)+' inHg';
@@ -257,37 +270,67 @@ function checkLocationUnits(countryCode){
   reRenderActive();
   toast('📐 Switched to '+(locIsImperial?'Imperial (°F, mph)':'Metric (°C, km/h)')+' for this region');
 }
-function setUnitSystem(val){
-  localStorage.setItem('st_unitMode',val);
-  const det=document.getElementById('settings-unit-details');
-  if(det)det.style.display=(val==='auto')?'none':'';
-  if(val==='imperial'){applyUnitsForCountry('US');saveUnits();reRenderActive()}
-  else if(val==='metric'){applyUnitsForCountry('BR');saveUnits();reRenderActive()}
+function applyUnitPreset(mode){
+  localStorage.setItem('st_unitMode',mode);
+  if(mode==='imperial'){applyUnitsForCountry('US');saveUnits()}
+  else if(mode==='metric'){applyUnitsForCountry('BR');saveUnits()}
+  else if(mode==='custom'){
+    try{
+      const saved=JSON.parse(localStorage.getItem('st_customUnits'));
+      if(saved){S.tempUnit=saved.t;S.windUnit=saved.w;S.presUnit=saved.p;S.visUnit=saved.v;S.precipUnit=saved.pr;saveUnits()}
+    }catch(e){}
+  }
+  else if(mode==='auto'){autoDetectUnits();saveUnits()}
   syncUnitSelects();
-  const miBtn=document.getElementById('radar-toggle-units');
-  if(miBtn)miBtn.textContent=S.radarMetric?'KM':'MI';
-}
-function setIndividualUnit(key,val){
-  S[key]=parseInt(val,10);
-  saveUnits();
-  localStorage.setItem('st_unitMode','custom');
-  const sys=document.getElementById('settings-unit-system');
-  if(sys)sys.value='imperial';
   reRenderActive();
   const miBtn=document.getElementById('radar-toggle-units');
   if(miBtn)miBtn.textContent=S.radarMetric?'KM':'MI';
 }
-function syncUnitSelects(){
-  const m=document.getElementById('settings-unit-system');
+function saveCustomUnits(){
+  const obj={t:S.tempUnit,w:S.windUnit,p:S.presUnit,v:S.visUnit,pr:S.precipUnit};
+  localStorage.setItem('st_customUnits',JSON.stringify(obj));
+  localStorage.setItem('st_unitMode','custom');
+  syncUnitSelects();
+  toast('💾 Custom units saved');
+}
+function setIndividualUnit(key,val){
+  S[key]=parseInt(val,10);
+  saveUnits();
   const mode=localStorage.getItem('st_unitMode')||'auto';
-  if(m)m.value=mode==='custom'?(S.tempUnit===0?'imperial':'metric'):mode;
-  const det=document.getElementById('settings-unit-details');
-  if(det)det.style.display=(mode==='auto')?'none':'';
-  const t=document.getElementById('settings-temp-unit');if(t)t.value=String(S.tempUnit);
-  const w=document.getElementById('settings-wind-unit');if(w)w.value=String(S.windUnit);
-  const p=document.getElementById('settings-pres-unit');if(p)p.value=String(S.presUnit);
-  const v=document.getElementById('settings-vis-unit');if(v)v.value=String(S.visUnit);
-  const pr=document.getElementById('settings-precip-unit');if(pr)pr.value=String(S.precipUnit);
+  if(mode==='auto')localStorage.setItem('st_unitMode','custom');
+  syncUnitSelects();
+  reRenderActive();
+  const miBtn=document.getElementById('radar-toggle-units');
+  if(miBtn)miBtn.textContent=S.radarMetric?'KM':'MI';
+}
+function _ubtn(containerId,options,curVal,key){
+  const c=document.getElementById(containerId);if(!c)return;
+  c.innerHTML=options.map((o,i)=>{
+    const active=i===curVal;
+    return`<button onclick="setIndividualUnit('${key}',${i})" style="padding:3px 7px;font-size:0.68em;font-weight:${active?'700':'500'};border-radius:5px;cursor:pointer;border:1px solid ${active?'var(--accent-cyan)':'var(--border-subtle)'};background:${active?'rgba(0,229,255,0.15)':'rgba(255,255,255,0.04)'};color:${active?'var(--accent-cyan)':'var(--text-muted)'};transition:all 0.15s">${o}</button>`;
+  }).join('');
+}
+function syncUnitSelects(){
+  const mode=localStorage.getItem('st_unitMode')||'auto';
+  document.querySelectorAll('.unit-preset-btn').forEach(b=>{
+    const id=b.id.replace('up-','');
+    const active=id===mode;
+    b.style.background=active?'rgba(0,229,255,0.15)':'rgba(255,255,255,0.04)';
+    b.style.borderColor=active?'var(--accent-cyan)':'var(--border-subtle)';
+    b.style.color=active?'var(--accent-cyan)':'var(--text-muted)';
+  });
+  const desc=document.getElementById('unit-preset-desc');
+  if(desc){
+    const msgs={auto:'Auto mode switches units when you change location',imperial:'US standard: °F, mph, inHg, mi, in',metric:'International: °C, km/h, mb, km, mm',custom:'Your saved custom unit combination'};
+    desc.textContent=msgs[mode]||'';
+  }
+  _ubtn('ubg-temp',['°F','°C'],S.tempUnit,'tempUnit');
+  _ubtn('ubg-wind',['mph','kts','km/h','m/s'],S.windUnit,'windUnit');
+  _ubtn('ubg-pres',['inHg','mb','mmHg','kPa'],S.presUnit,'presUnit');
+  _ubtn('ubg-vis',['mi','km'],S.visUnit,'visUnit');
+  _ubtn('ubg-precip',['in','mm','cm'],S.precipUnit,'precipUnit');
+  const saveRow=document.getElementById('unit-save-row');
+  if(saveRow)saveRow.style.display=(mode!=='auto')?'':'none';
 }
 
 function reRenderActive(){
@@ -1789,7 +1832,7 @@ function renderWeather(data){
             <div class="wrc-dir">${_windCurSim.spd>0?degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(1)+'°':degToDir(wd)+' '+wd.toFixed(1)+'°'}</div>
             ${gustStr?`<div class="wrc-gust">${gustStr}</div>`:''}
             <div class="wrc-avg"></div>
-            <div class="wrc-trend" style="font-size:0.45em;font-weight:700;line-height:1;min-height:0.9em"></div>
+            <div class="wrc-force">${_beaufortBar(windSpd)}</div>
           </div>
         </div>
         <div class="hero-side">
