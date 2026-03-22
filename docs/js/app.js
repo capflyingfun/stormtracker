@@ -4887,7 +4887,7 @@ S._scanHistory=[];
 S._cellTracks={};
 function recordScanSnapshot(){
   if(!S.storms||!S.storms.length)return;
-  const snap={ts:Date.now(),cells:S.storms.filter(s=>s.dbz>=25).map(s=>({lat:s.lat,lon:s.lon,dbz:s.dbz,distance:s.distance,bearing:s.bearing}))};
+  const snap={ts:Date.now(),cells:S.storms.filter(s=>s.dbz>=25&&s.lat!=null&&s.lng!=null).map(s=>({lat:s.lat,lng:s.lng,dbz:s.dbz,distance:s.distance,bearing:s.bearing}))};
   S._scanHistory.push(snap);
   if(S._scanHistory.length>5)S._scanHistory.shift();
   if(S._scanHistory.length>=2)buildCellTracks();
@@ -4902,7 +4902,7 @@ function buildCellTracks(){
   for(const c of curr.cells){
     let best=null,bestD=Infinity;
     for(const p of prev.cells){
-      const d=haversine(c.lat,c.lon,p.lat,p.lon);
+      const d=haversine(c.lat,c.lng,p.lat,p.lng);
       const dbzDiff=Math.abs(c.dbz-p.dbz);
       if(d<bestD&&d<15&&dbzDiff<25){bestD=d;best=p;}
     }
@@ -4910,10 +4910,10 @@ function buildCellTracks(){
       const dxMi=bestD;
       const spdMph=dxMi/dtHrs;
       if(spdMph>120)continue;
-      const dy=c.lat-best.lat,dx=(c.lon-best.lon)*Math.cos(c.lat*Math.PI/180);
+      const dy=c.lat-best.lat,dx=(c.lng-best.lng)*Math.cos(c.lat*Math.PI/180);
       const dir=(Math.atan2(dx,dy)*180/Math.PI+360)%360;
-      const key=`${c.lat.toFixed(2)}_${c.lon.toFixed(2)}`;
-      tracks[key]={dir:Math.round(dir),speed:Math.round(spdMph),fromLat:best.lat,fromLon:best.lon,toLat:c.lat,toLon:c.lon,dbz:c.dbz};
+      const key=`${c.lat.toFixed(2)}_${c.lng.toFixed(2)}`;
+      tracks[key]={dir:Math.round(dir),speed:Math.round(spdMph),fromLat:best.lat,fromLng:best.lng,toLat:c.lat,toLng:c.lng,dbz:c.dbz};
     }
   }
   S._cellTracks=tracks;
@@ -4921,7 +4921,7 @@ function buildCellTracks(){
 }
 function getCellTrack(storm){
   if(!S._cellTracks)return null;
-  const key=`${storm.lat.toFixed(2)}_${storm.lon.toFixed(2)}`;
+  const key=`${storm.lat.toFixed(2)}_${storm.lng.toFixed(2)}`;
   return S._cellTracks[key]||null;
 }
 S._terrainData=null;
@@ -5040,7 +5040,7 @@ function calcStormETA(storm){
   const inCone=diff<=CONE_HALF;
   const closingSpeed=movSpd*Math.cos(Math.min(diff,60)*Math.PI/180);
   const proxRange=Math.max(1.5,baseWidthMi+0.5);
-  const nwsWarnings=pointInNWSPolygon(storm.lat,storm.lon);
+  const nwsWarnings=pointInNWSPolygon(storm.lat,storm.lng);
   const nwsBoost=nwsWarnings.length>0?15:0;
   const hasSevereWarning=nwsWarnings.some(w=>w.severity==='Severe'||w.severity==='Extreme');
   const terrain=getTerrainEffect(movDir);
@@ -6489,7 +6489,7 @@ function buildWeatherContext(){
       const seen=new Set();
       const top=[];
       for(const s of [...byDbz,...byDist]){
-        const k=`${s.lat.toFixed(3)}_${s.lon.toFixed(3)}`;
+        const k=`${s.lat.toFixed(3)}_${s.lng.toFixed(3)}`;
         if(!seen.has(k)){seen.add(k);top.push(s);}
         if(top.length>=12)break;
       }
@@ -6588,7 +6588,7 @@ function buildWeatherContext(){
     parts.push(`\nCELL TRACKING: ${Object.keys(S._cellTracks).length} individually tracked cells`);
     const tracks=Object.values(S._cellTracks).sort((a,b)=>b.dbz-a.dbz).slice(0,5);
     for(const t of tracks){
-      parts.push(`  Cell at ${t.toLat.toFixed(2)},${t.toLon.toFixed(2)}: ${t.dbz}dBZ, moving ${t.dir}° at ${t.speed}mph`);
+      parts.push(`  Cell at ${t.toLat.toFixed(2)},${t.toLng.toFixed(2)}: ${t.dbz}dBZ, moving ${t.dir}° at ${t.speed}mph`);
     }
   }
 
