@@ -2202,78 +2202,85 @@ function drawMiniSonar(){
       zoneCount++;
     }
   }
-  if(S.stormMovement&&S.stormMovement.speed>=2&&sonarStorms.length){
-    const mv=S.stormMovement;
-    const mvRad=(mv.direction-90)*Math.PI/180;
-    const approaching=[];
-    for(const st of sonarStorms){
-      const eta=calcStormETA(st);
-      if(eta&&eta.approaching&&eta.eta){approaching.push({storm:st,eta});}
-    }
-    if(approaching.length>0){
-      approaching.sort((a,b)=>b.storm.dbz-a.storm.dbz);
-      const shown=approaching.slice(0,8);
-      for(const item of shown){
-        const st=item.storm;
-        const dist=st.distance||0;
-        const bearing=st.bearing||0;
-        const stAng=(bearing-90)*Math.PI/180;
-        const r=Math.min(maxR-8,maxR*(dist/scanR));
-        const sx=cx+Math.cos(stAng)*r,sy=cy+Math.sin(stAng)*r;
-        const neonC=dbzHex(st.dbz);
-        const arrLen=Math.max(10,Math.min(20,maxR*0.12));
-        const tipX=sx+Math.cos(mvRad)*arrLen,tipY=sy+Math.sin(mvRad)*arrLen;
-        ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(tipX,tipY);
-        ctx.strokeStyle=neonC;ctx.lineWidth=2;ctx.stroke();
-        const headL=6,ha1=mvRad-Math.PI+0.5,ha2=mvRad-Math.PI-0.5;
-        ctx.beginPath();ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+Math.cos(ha1)*headL,tipY+Math.sin(ha1)*headL);ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+Math.cos(ha2)*headL,tipY+Math.sin(ha2)*headL);
-        ctx.strokeStyle=neonC;ctx.lineWidth=2;ctx.stroke();
-        ctx.beginPath();ctx.arc(sx,sy,3,0,Math.PI*2);ctx.fillStyle=neonC;ctx.fill();
+  try{
+    const sonarStorms=S._rawScanPts?S._rawScanPts.filter(p=>p.dbz>=15):[];
+    if(S.stormMovement&&S.stormMovement.speed>=2&&sonarStorms.length){
+      const mv=S.stormMovement;
+      const mvRad=(mv.direction-90)*Math.PI/180;
+      const approaching=[];
+      for(const st of sonarStorms){
+        const eta=calcStormETA(st);
+        if(eta&&eta.approaching&&eta.eta){approaching.push({storm:st,eta});}
       }
+      if(approaching.length>0){
+        approaching.sort((a,b)=>b.storm.dbz-a.storm.dbz);
+        const shown=approaching.slice(0,8);
+        for(const item of shown){
+          const st=item.storm;
+          const dist=st.distance||0;
+          const bearing=st.bearing||0;
+          const stAng=(bearing-90)*Math.PI/180;
+          const r=Math.min(maxR-8,maxR*(dist/scanR));
+          const sx=cx+Math.cos(stAng)*r,sy=cy+Math.sin(stAng)*r;
+          const neonC=dbzHex(st.dbz);
+          const arrLen=Math.max(10,Math.min(20,maxR*0.12));
+          const tipX=sx+Math.cos(mvRad)*arrLen,tipY=sy+Math.sin(mvRad)*arrLen;
+          ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(tipX,tipY);
+          ctx.strokeStyle=neonC;ctx.lineWidth=2;ctx.stroke();
+          const headL=6,ha1=mvRad-Math.PI+0.5,ha2=mvRad-Math.PI-0.5;
+          ctx.beginPath();ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+Math.cos(ha1)*headL,tipY+Math.sin(ha1)*headL);ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+Math.cos(ha2)*headL,tipY+Math.sin(ha2)*headL);
+          ctx.strokeStyle=neonC;ctx.lineWidth=2;ctx.stroke();
+          ctx.beginPath();ctx.arc(sx,sy,3,0,Math.PI*2);ctx.fillStyle=neonC;ctx.fill();
+        }
+      }
+      const neonC=pathArrowNeonColor(maxDbz);
+      const arrLen=maxR*0.6;
+      const ax=cx+Math.cos(mvRad)*arrLen,ay=cy+Math.sin(mvRad)*arrLen;
+      const la=mvRad-Math.PI+0.4,ra=mvRad-Math.PI-0.4;
+      ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(la)*12,ay+Math.sin(la)*12);ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(ra)*12,ay+Math.sin(ra)*12);
+      ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
+      ctx.beginPath();ctx.moveTo(cx+Math.cos(mvRad)*15,cy+Math.sin(mvRad)*15);ctx.lineTo(ax,ay);
+      ctx.strokeStyle=hexToRgba(neonC,0.5);ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
     }
-    const neonC=pathArrowNeonColor(maxDbz);
-    const arrLen=maxR*0.6;
-    const ax=cx+Math.cos(mvRad)*arrLen,ay=cy+Math.sin(mvRad)*arrLen;
-    const la=mvRad-Math.PI+0.4,ra=mvRad-Math.PI-0.4;
-    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(la)*12,ay+Math.sin(la)*12);ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(ra)*12,ay+Math.sin(ra)*12);
-    ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
-    ctx.beginPath();ctx.moveTo(cx+Math.cos(mvRad)*15,cy+Math.sin(mvRad)*15);ctx.lineTo(ax,ay);
-    ctx.strokeStyle=hexToRgba(neonC,0.5);ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
-  }
+  }catch(e){console.log('Sonar storm overlay error:',e.message)}
   ctx.save();
-  ctx.shadowColor='#00dcff';ctx.shadowBlur=8;
-  ctx.beginPath();ctx.arc(cx,cy,6,0,Math.PI*2);ctx.fillStyle='#00eeff';ctx.fill();
+  ctx.shadowColor='#00dcff';ctx.shadowBlur=10;
+  ctx.beginPath();ctx.arc(cx,cy,7,0,Math.PI*2);ctx.fillStyle='#00eeff';ctx.fill();
   ctx.restore();
-  ctx.beginPath();ctx.arc(cx,cy,10,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();
-  ctx.beginPath();ctx.arc(cx,cy,15,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.2)';ctx.lineWidth=0.8;ctx.stroke();
-  const ilsLen=Math.max(18,maxR*0.14);
-  ctx.save();ctx.shadowColor='rgba(0,220,255,0.5)';ctx.shadowBlur=4;
-  ctx.beginPath();ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx-5,cy-ilsLen+8);ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx+5,cy-ilsLen+8);
-  ctx.strokeStyle='rgba(0,220,255,0.7)';ctx.lineWidth=2;ctx.lineCap='round';ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,11,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.6)';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,16,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.25)';ctx.lineWidth=1;ctx.stroke();
+  const ilsLen=Math.max(20,maxR*0.15);
+  ctx.save();ctx.shadowColor='rgba(0,220,255,0.6)';ctx.shadowBlur=6;
+  ctx.beginPath();ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx-6,cy-ilsLen+9);
+  ctx.strokeStyle='#00ddff';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx+6,cy-ilsLen+9);
+  ctx.strokeStyle='#00ddff';ctx.lineWidth=2.5;ctx.stroke();
   ctx.beginPath();ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx,cy+ilsLen*0.7);
+  ctx.strokeStyle='rgba(0,220,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx-9,cy);ctx.lineTo(cx+9,cy);
   ctx.strokeStyle='rgba(0,220,255,0.4)';ctx.lineWidth=1.2;ctx.stroke();
-  ctx.beginPath();ctx.moveTo(cx-8,cy);ctx.lineTo(cx+8,cy);
-  ctx.strokeStyle='rgba(0,220,255,0.3)';ctx.lineWidth=1;ctx.stroke();
   ctx.lineCap='butt';ctx.restore();
-  if(S.weather&&S.weather.wind_direction_10m!=null){
-    const wdDeg=S.weather.wind_direction_10m;
-    const wRad=(wdDeg-90)*Math.PI/180;
-    const chevR=maxR+3;
-    const chevL=Math.max(10,maxR*0.07);
-    const chevW=0.3;
-    ctx.save();ctx.shadowColor='rgba(0,255,136,0.6)';ctx.shadowBlur=6;
-    const chevTipX=cx+Math.cos(wRad)*chevR,chevTipY=cy+Math.sin(wRad)*chevR;
-    const cL1x=cx+Math.cos(wRad-chevW)*(chevR-chevL),cL1y=cy+Math.sin(wRad-chevW)*(chevR-chevL);
-    const cR1x=cx+Math.cos(wRad+chevW)*(chevR-chevL),cR1y=cy+Math.sin(wRad+chevW)*(chevR-chevL);
-    ctx.beginPath();ctx.moveTo(chevTipX,chevTipY);ctx.lineTo(cL1x,cL1y);ctx.moveTo(chevTipX,chevTipY);ctx.lineTo(cR1x,cR1y);
-    ctx.strokeStyle='#00ff88';ctx.lineWidth=3;ctx.lineCap='round';ctx.stroke();
-    const midX=cx+Math.cos(wRad)*(chevR-chevL*0.85),midY=cy+Math.sin(wRad)*(chevR-chevL*0.85);
-    const cL2x=cx+Math.cos(wRad-chevW)*(chevR-chevL*1.7),cL2y=cy+Math.sin(wRad-chevW)*(chevR-chevL*1.7);
-    const cR2x=cx+Math.cos(wRad+chevW)*(chevR-chevL*1.7),cR2y=cy+Math.sin(wRad+chevW)*(chevR-chevL*1.7);
-    ctx.beginPath();ctx.moveTo(midX,midY);ctx.lineTo(cL2x,cL2y);ctx.moveTo(midX,midY);ctx.lineTo(cR2x,cR2y);
-    ctx.strokeStyle='rgba(0,255,136,0.5)';ctx.lineWidth=2.5;ctx.stroke();
-    ctx.lineCap='butt';ctx.restore();
-  }
+  try{
+    if(S.weather&&S.weather.wind_direction_10m!=null){
+      const wdDeg=S.weather.wind_direction_10m;
+      const wRad=(wdDeg-90)*Math.PI/180;
+      const chevR=maxR+4;
+      const chevL=Math.max(12,maxR*0.08);
+      const chevW=0.32;
+      ctx.save();ctx.shadowColor='rgba(0,255,136,0.7)';ctx.shadowBlur=8;
+      const chevTipX=cx+Math.cos(wRad)*chevR,chevTipY=cy+Math.sin(wRad)*chevR;
+      const cL1x=cx+Math.cos(wRad-chevW)*(chevR-chevL),cL1y=cy+Math.sin(wRad-chevW)*(chevR-chevL);
+      const cR1x=cx+Math.cos(wRad+chevW)*(chevR-chevL),cR1y=cy+Math.sin(wRad+chevW)*(chevR-chevL);
+      ctx.beginPath();ctx.moveTo(chevTipX,chevTipY);ctx.lineTo(cL1x,cL1y);ctx.moveTo(chevTipX,chevTipY);ctx.lineTo(cR1x,cR1y);
+      ctx.strokeStyle='#00ff88';ctx.lineWidth=3.5;ctx.lineCap='round';ctx.stroke();
+      const midX=cx+Math.cos(wRad)*(chevR-chevL*0.85),midY=cy+Math.sin(wRad)*(chevR-chevL*0.85);
+      const cL2x=cx+Math.cos(wRad-chevW)*(chevR-chevL*1.7),cL2y=cy+Math.sin(wRad-chevW)*(chevR-chevL*1.7);
+      const cR2x=cx+Math.cos(wRad+chevW)*(chevR-chevL*1.7),cR2y=cy+Math.sin(wRad+chevW)*(chevR-chevL*1.7);
+      ctx.beginPath();ctx.moveTo(midX,midY);ctx.lineTo(cL2x,cL2y);ctx.moveTo(midX,midY);ctx.lineTo(cR2x,cR2y);
+      ctx.strokeStyle='rgba(0,255,136,0.55)';ctx.lineWidth=2.5;ctx.stroke();
+      ctx.lineCap='butt';ctx.restore();
+    }
+  }catch(e){console.log('Sonar wind chevron error:',e.message)}
   const infoEl=document.getElementById('mini-sonar-info');
   if(infoEl){
     if(zoneCount>0){
