@@ -1882,8 +1882,9 @@ async function fetchWeather(){
       if(blend.humidity!=null)omData.current.relative_humidity_2m=blend.humidity;
       if(blend.visMeter!=null)S._nwsVisM=blend.visMeter;
       if(blend.dewp!=null){
+        omData.current._directDewC=blend.dewp;
         const rh=Math.round(100*Math.exp((17.27*blend.dewp)/(237.7+blend.dewp))/Math.exp((17.27*blend.temp)/(237.7+blend.temp)));
-        omData.current.relative_humidity_2m=rh;
+        omData.current.relative_humidity_2m=Math.min(100,Math.max(0,rh));
       }
       if(blend.wxString)omData.current._nwsDesc=blend.wxString;
       omData.current._nwsStation=blend.station||null;
@@ -2075,7 +2076,7 @@ function renderWeather(data){
   const icon=wmoIcon(c.weather_code,isDay),desc=wmoDesc(c.weather_code);
   const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
   if(wxNavBtn)wxNavBtn.innerHTML=neonWx(c.weather_code,isDay,20);
-  const dewC=calcDewC(tempC,c.relative_humidity_2m);
+  const dewC=c._directDewC!=null?c._directDewC:calcDewC(tempC,Math.min(100,c.relative_humidity_2m));
   const hourly=data.hourly||{},daily=data.daily||{};
   S._hourlyData=hourly;
   const baro=getBaroPrediction(c,hourly);
