@@ -2074,15 +2074,6 @@ function renderWeather(data){
   const gustNum=hasGust?kmhTo(c.wind_gusts_10m,S.windUnit):'--.-';
   const gustStr=hasGust?'G'+fmtWind(c.wind_gusts_10m):'Gust: --.- '+windUnit;
 
-  const sections={
-    trends:`<div class="weather-section" data-sec="trends"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📈</span> 48h Trends</span>${secBtns('trends')}</div>
-      ${renderTrendCharts(hourly)}</div>`,
-    hourly:`<div class="weather-section" data-sec="hourly"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">🕐</span> 72h Hourly Forecast</span>${secBtns('hourly')}</div>
-      ${renderHourlyForecast(hourly,daily)}</div>`,
-    forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${data._nwsForecast?renderNWSForecast(data._nwsForecast):renderDailyForecast(daily)}</div>`
-  };
-  const order=getSecOrder();
-
   const _simActive=_windCurSim.spd>0&&S._skipWindRestart;
   const wd=_simActive?_windCurSim.dir:Math.round((c.wind_direction_10m||0)*10)/10;
   const windSpd=_simActive?_windCurSim.spd:(c.wind_speed_10m||0);
@@ -2094,48 +2085,40 @@ function renderWeather(data){
   const gaugeData={windSpd,wd,windDisp,gustDisp,gustRaw,windNum,windUnit,gustStr,bf,simActive:_simActive,pressure:c.pressure_msl};
   const gaugeHtml=renderWindGauge(gaugeData);
 
+  const sections={
+    wind:`<div class="weather-section" data-sec="wind"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">💨</span> Wind</span>${secBtns('wind')}</div>
+      <div class="wind-section-body">${gaugeHtml}
+        <div class="wind-section-stats">
+          <div class="wind-stat-row"><span class="wind-stat-label">Speed</span><span class="wind-stat-val">${windNum} ${windUnit}</span></div>
+          <div class="wind-stat-row"><span class="wind-stat-label">Direction</span><span class="wind-stat-val">${degToDir(wd)} ${wd.toFixed(0)}°</span></div>
+          <div class="wind-stat-row"><span class="wind-stat-label">Gusts</span><span class="wind-stat-val">${hasGust?kmhTo(c.wind_gusts_10m,S.windUnit)+' '+windUnit:'--'}</span></div>
+          <div class="wind-stat-row"><span class="wind-stat-label">Beaufort</span><span class="wind-stat-val" style="color:${_BFT_CLR[bf]}">F${bf} ${_BFT_NAME[bf]}</span></div>
+        </div>
+      </div></div>`,
+    trends:`<div class="weather-section" data-sec="trends"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📈</span> 48h Trends</span>${secBtns('trends')}</div>
+      ${renderTrendCharts(hourly)}</div>`,
+    hourly:`<div class="weather-section" data-sec="hourly"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">🕐</span> 72h Hourly Forecast</span>${secBtns('hourly')}</div>
+      ${renderHourlyForecast(hourly,daily)}</div>`,
+    forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${data._nwsForecast?renderNWSForecast(data._nwsForecast):renderDailyForecast(daily)}</div>`
+  };
+  const order=getSecOrder();
+
   el.innerHTML=`
     <div class="weather-hero">
-      <div class="hero-compass-layout">
-        <div class="hero-side">
-          <div class="hero-side-item">
-            <div style="font-size:1.6em;margin-bottom:2px">${animEmoji(c.weather_code,isDay,'1em')}</div>
-            <div style="font-size:1.3em;font-weight:800;color:var(--text-primary);line-height:1">${fmtTempShort(tempC)}</div>
-            <div style="font-size:0.65em;color:var(--text-secondary);margin-top:2px">${c._nwsDesc||desc}</div>
-            ${c._source?`<div style="font-size:0.5em;color:var(--accent-cyan);margin-top:1px;opacity:0.7">${c._source}${c._sourceCount>1?' (×'+c._sourceCount+' avg)':''}</div>`:''}
-          </div>
-          <div class="hero-side-item">
-            <div class="hero-side-label">Feels Like</div>
-            <div class="hero-side-val">${fmtTemp(feelsC)}</div>
-          </div>
-          <div class="hero-side-item">
-            <div class="hero-side-label">Humidity</div>
-            <div class="hero-side-val">${c.relative_humidity_2m}%</div>
-          </div>
-          <div class="hero-side-item">
-            <div class="hero-side-label">☁️ Clouds</div>
-            <div class="hero-side-val">${c.cloud_cover}%</div>
-          </div>
+      <div class="hero-stats-grid">
+        <div class="hero-main-stat">
+          <div style="font-size:1.8em;margin-bottom:2px">${animEmoji(c.weather_code,isDay,'1em')}</div>
+          <div style="font-size:1.5em;font-weight:800;color:var(--text-primary);line-height:1">${fmtTempShort(tempC)}</div>
+          <div style="font-size:0.7em;color:var(--text-secondary);margin-top:3px">${c._nwsDesc||desc}</div>
+          ${c._source?`<div style="font-size:0.5em;color:var(--accent-cyan);margin-top:1px;opacity:0.7">${c._source}${c._sourceCount>1?' (×'+c._sourceCount+' avg)':''}</div>`:''}
         </div>
-        ${gaugeHtml}
-        <div class="hero-side">
-          <div class="hero-side-item">
-            <div class="hero-side-label">Pressure</div>
-            <div class="hero-side-val">${fmtPres(c.pressure_msl)}</div>
-          </div>
-          <div class="hero-side-item">
-            <div class="hero-side-label">Precip</div>
-            <div class="hero-side-val">${fmtPrecip(c.precipitation||0)}</div>
-          </div>
-          <div class="hero-side-item">
-            <div class="hero-side-label">🌡️ Dew Pt</div>
-            <div class="hero-side-val">${fmtTemp(dewC)}</div>
-          </div>
-          <div class="hero-side-item">
-            <div class="hero-side-label">Spread</div>
-            <div class="hero-side-val">${fmtTemp(tempC-dewC)}</div>
-          </div>
-        </div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Feels Like</div><div class="hero-side-val">${fmtTemp(feelsC)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Humidity</div><div class="hero-side-val">${c.relative_humidity_2m}%</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">☁️ Clouds</div><div class="hero-side-val">${c.cloud_cover}%</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Pressure</div><div class="hero-side-val">${fmtPres(c.pressure_msl)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Precip</div><div class="hero-side-val">${fmtPrecip(c.precipitation||0)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">🌡️ Dew Pt</div><div class="hero-side-val">${fmtTemp(dewC)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Spread</div><div class="hero-side-val">${fmtTemp(tempC-dewC)}</div></div>
       </div>
       <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0 0">
         ${(()=>{const bc={0:0,1:1,2:2,3:3};const bm={'☀️':0,'🌤️':1,'⛅':2,'🌥️':3,'☁️':3,'🌦️':51,'🌧️':61,'⛈️':95};const bc2=bm[baro.icon]!=null?bm[baro.icon]:3;return neonWx(bc2,true,28)})()}
@@ -2494,7 +2477,8 @@ function startWindSim(){
   }
 }
 function secBtns(key){return`<div class="sec-btns"><button onclick="moveSection('${key}',-1)" title="Move up">▲</button><button onclick="moveSection('${key}',1)" title="Move down">▼</button></div>`}
-function getSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_sec_order'));if(o&&o.length===2)return o}catch(e){}return['trends','forecast']}
+const _defaultSecOrder=['wind','trends','forecast'];
+function getSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_sec_order'));if(Array.isArray(o)&&o.length>=2){const valid=['wind','trends','forecast','hourly'];const filtered=o.filter(k=>valid.includes(k));_defaultSecOrder.forEach(k=>{if(!filtered.includes(k))filtered.push(k)});return filtered}}catch(e){}return _defaultSecOrder.slice()}
 function moveSection(key,dir){
   const order=getSecOrder();const i=order.indexOf(key);
   if(i<0)return;const ni=i+dir;
