@@ -2203,7 +2203,7 @@ function drawMiniSonar(){
     }
   }
   try{
-    const sonarStorms=S._rawScanPts?S._rawScanPts.filter(p=>p.dbz>=15):[];
+    const sonarStorms=(S.storms||[]).filter(s=>s.distance<=scanR);
     if(S.stormMovement&&S.stormMovement.speed>=2&&sonarStorms.length){
       const mv=S.stormMovement;
       const mvRad=(mv.direction-90)*Math.PI/180;
