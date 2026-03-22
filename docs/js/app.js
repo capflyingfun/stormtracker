@@ -68,6 +68,27 @@ function _beaufortBar(kmh){
 }
 
 let _windMinKmh=Infinity,_windMaxKmh=0;
+let _gyroHeading=null,_gyroEnabled=false;
+function initGyroCompass(){
+  if(_gyroEnabled)return;
+  const handler=e=>{
+    let h=null;
+    if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
+    else if(e.alpha!=null)h=(360-e.alpha)%360;
+    if(h!=null)_gyroHeading=h;
+  };
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    DeviceOrientationEvent.requestPermission().then(r=>{
+      if(r==='granted'){window.addEventListener('deviceorientation',handler,true);_gyroEnabled=true;localStorage.setItem('st_gyro','1')}
+    }).catch(()=>{});
+  }else{
+    window.addEventListener('deviceorientationabsolute',handler,true);
+    window.addEventListener('deviceorientation',handler,true);
+    _gyroEnabled=true;localStorage.setItem('st_gyro','1');
+  }
+}
+function disableGyro(){_gyroEnabled=false;_gyroHeading=null;localStorage.removeItem('st_gyro')}
+if(localStorage.getItem('st_gyro')==='1'){try{initGyroCompass()}catch(e){}}
 function _resetMinMax(){_windMinKmh=Infinity;_windMaxKmh=0}
 function _trackMinMax(kmh){if(kmh>0.1){if(kmh<_windMinKmh)_windMinKmh=kmh;if(kmh>_windMaxKmh)_windMaxKmh=kmh}}
 function getGaugeStyle(){return localStorage.getItem('st_gaugeStyle')||'neon'}
@@ -381,7 +402,7 @@ function renderGaugeG1000(d){
   svg+=`<text x="${(pPtrR-4-pPtrW/2).toFixed(1)}" y="${pTapeCenter.toFixed(1)}" fill="${green}" font-size="${S.presUnit===0?'6':'7'}" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${pDisp}</text>`;
   svg+=`<text x="${W-tapeW/2-1}" y="${tapeTop+8}" fill="${cyan}" font-size="5" font-weight="600" text-anchor="middle" font-family="monospace">${pUnit}</text>`;
   const hasStorm=!!(strongest&&strongest.distance<80);
-  const rotOff=hasStorm?0:dirDeg;
+  const rotOff=(_gyroEnabled&&_gyroHeading!=null)?_gyroHeading:0;
   svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="${compassR}" fill="none" stroke="${green}" stroke-width="1"/>`;
   for(let dd=0;dd<360;dd+=10){
     const a=((dd-rotOff)-90)*Math.PI/180;
@@ -394,77 +415,52 @@ function renderGaugeG1000(d){
       svg+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="${dd%90===0?'#ffffff':'#e2e8f0'}" font-size="${dd%90===0?'7':'5.5'}" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${lbl}</text>`;
     }
   }
-  const hdgAng=((dirDeg-rotOff)-90)*Math.PI/180;
-  const hbR=compassR+1;
-  svg+=`<polygon points="${(compassCx+Math.cos(hdgAng)*(hbR+5)).toFixed(1)},${(compassCy+Math.sin(hdgAng)*(hbR+5)).toFixed(1)} ${(compassCx+Math.cos(hdgAng-0.08)*hbR).toFixed(1)},${(compassCy+Math.sin(hdgAng-0.08)*hbR).toFixed(1)} ${(compassCx+Math.cos(hdgAng+0.08)*hbR).toFixed(1)},${(compassCy+Math.sin(hdgAng+0.08)*hbR).toFixed(1)}" fill="${green}" stroke="${green}" stroke-width="0.5"/>`;
-  const nLen=compassR-16,nBase=14;
-  const wRelAng=hdgAng;
-  svg+=`<polygon points="${(compassCx+Math.cos(wRelAng)*nLen).toFixed(1)},${(compassCy+Math.sin(wRelAng)*nLen).toFixed(1)} ${(compassCx+Math.cos(wRelAng-0.12)*nBase).toFixed(1)},${(compassCy+Math.sin(wRelAng-0.12)*nBase).toFixed(1)} ${(compassCx+Math.cos(wRelAng+0.12)*nBase).toFixed(1)},${(compassCy+Math.sin(wRelAng+0.12)*nBase).toFixed(1)}" fill="rgba(255,0,255,0.65)" stroke="${magenta}" stroke-width="0.6"/>`;
-  const tAng=wRelAng+Math.PI;
-  svg+=`<polygon points="${(compassCx+Math.cos(tAng)*(nLen-2)).toFixed(1)},${(compassCy+Math.sin(tAng)*(nLen-2)).toFixed(1)} ${(compassCx+Math.cos(tAng-0.1)*10).toFixed(1)},${(compassCy+Math.sin(tAng-0.1)*10).toFixed(1)} ${(compassCx+Math.cos(tAng+0.1)*10).toFixed(1)},${(compassCy+Math.sin(tAng+0.1)*10).toFixed(1)}" fill="rgba(255,255,255,0.12)"/>`;
+  const drawArrow=(deg,color,label,dashed,len)=>{
+    const ang=((deg-rotOff)-90)*Math.PI/180;
+    const aLen=len||compassR-18;
+    if(dashed){
+      svg+=`<line x1="${(compassCx+Math.cos(ang+Math.PI)*6).toFixed(1)}" y1="${(compassCy+Math.sin(ang+Math.PI)*6).toFixed(1)}" x2="${(compassCx+Math.cos(ang)*aLen).toFixed(1)}" y2="${(compassCy+Math.sin(ang)*aLen).toFixed(1)}" stroke="${color}" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+    }else{
+      svg+=`<line x1="${(compassCx+Math.cos(ang+Math.PI)*6).toFixed(1)}" y1="${(compassCy+Math.sin(ang+Math.PI)*6).toFixed(1)}" x2="${(compassCx+Math.cos(ang)*aLen).toFixed(1)}" y2="${(compassCy+Math.sin(ang)*aLen).toFixed(1)}" stroke="${color}" stroke-width="1.8"/>`;
+    }
+    svg+=`<polygon points="${(compassCx+Math.cos(ang)*aLen).toFixed(1)},${(compassCy+Math.sin(ang)*aLen).toFixed(1)} ${(compassCx+Math.cos(ang-0.2)*(aLen-7)).toFixed(1)},${(compassCy+Math.sin(ang-0.2)*(aLen-7)).toFixed(1)} ${(compassCx+Math.cos(ang+0.2)*(aLen-7)).toFixed(1)},${(compassCy+Math.sin(ang+0.2)*(aLen-7)).toFixed(1)}" fill="${color}" opacity="0.85"/>`;
+    const lx=compassCx+Math.cos(ang)*(aLen+8),ly=compassCy+Math.sin(ang)*(aLen+8);
+    if(lx>compassCx-compassR+10&&lx<compassCx+compassR-10&&ly>compassCy-compassR+5&&ly<compassCy+compassR-5){
+      svg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${color}" font-size="3.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${label}</text>`;
+    }
+  };
+  drawArrow(dirDeg,magenta,'WIND',false,compassR-18);
   const upperDir=S._upperWindDir!=null?S._upperWindDir:null;
-  if(upperDir!=null){
-    const uRelAng=((upperDir-rotOff)-90)*Math.PI/180;
-    const uLen=compassR-18;
-    svg+=`<line x1="${(compassCx+Math.cos(uRelAng+Math.PI)*8).toFixed(1)}" y1="${(compassCy+Math.sin(uRelAng+Math.PI)*8).toFixed(1)}" x2="${(compassCx+Math.cos(uRelAng)*uLen).toFixed(1)}" y2="${(compassCy+Math.sin(uRelAng)*uLen).toFixed(1)}" stroke="${yellow}" stroke-width="1.2" stroke-dasharray="4,3"/>`;
-    svg+=`<polygon points="${(compassCx+Math.cos(uRelAng)*uLen).toFixed(1)},${(compassCy+Math.sin(uRelAng)*uLen).toFixed(1)} ${(compassCx+Math.cos(uRelAng-0.18)*(uLen-7)).toFixed(1)},${(compassCy+Math.sin(uRelAng-0.18)*(uLen-7)).toFixed(1)} ${(compassCx+Math.cos(uRelAng+0.18)*(uLen-7)).toFixed(1)},${(compassCy+Math.sin(uRelAng+0.18)*(uLen-7)).toFixed(1)}" fill="${yellow}" opacity="0.7"/>`;
-  }
-  let stmEta=null,stmImpact=0,stmXTK=null,stmClosing=0;
+  if(upperDir!=null)drawArrow(upperDir,yellow,'ALOFT',true,compassR-20);
+  let stmEta=null,stmImpact=0,stmClosing=0;
   if(hasStorm){
     stmEta=calcStormETA(strongest);
     stmImpact=stmEta?stmEta.impact:0;
     stmClosing=stmEta?stmEta.closingSpeed:0;
-    const stmRelAng=((strongest.bearing-rotOff)-90)*Math.PI/180;
-    const sLen=compassR-18;
-    svg+=`<line x1="${compassCx}" y1="${compassCy}" x2="${(compassCx+Math.cos(stmRelAng)*sLen).toFixed(1)}" y2="${(compassCy+Math.sin(stmRelAng)*sLen).toFixed(1)}" stroke="${cyan}" stroke-width="1.8"/>`;
-    svg+=`<polygon points="${(compassCx+Math.cos(stmRelAng)*sLen).toFixed(1)},${(compassCy+Math.sin(stmRelAng)*sLen).toFixed(1)} ${(compassCx+Math.cos(stmRelAng-0.2)*(sLen-7)).toFixed(1)},${(compassCy+Math.sin(stmRelAng-0.2)*(sLen-7)).toFixed(1)} ${(compassCx+Math.cos(stmRelAng+0.2)*(sLen-7)).toFixed(1)},${(compassCy+Math.sin(stmRelAng+0.2)*(sLen-7)).toFixed(1)}" fill="${cyan}"/>`;
-    if(mv&&mv.speed>=2){
-      const angleDiff=((mv.direction-strongest.bearing+540)%360)-180;
-      const xtkDist=strongest.distance*Math.sin(angleDiff*Math.PI/180);
-      stmXTK=xtkDist;
-      const maxDefl=28;
-      const cdiDots=5;
-      const deflPx=Math.max(-maxDefl,Math.min(maxDefl,(stmImpact>0?((100-stmImpact)/100)*maxDefl*Math.sign(xtkDist):maxDefl*Math.sign(xtkDist||1))));
-      for(let i=-cdiDots;i<=cdiDots;i++){
-        const dotX=compassCx+i*(maxDefl/cdiDots);
-        svg+=`<circle cx="${dotX.toFixed(1)}" cy="${compassCy.toFixed(1)}" r="1" fill="none" stroke="#3a3e48" stroke-width="0.5"/>`;
-      }
-      const barColor=stmImpact>=80?'#ef4444':stmImpact>=50?amber:stmImpact>=20?'#eab308':green;
-      svg+=`<line x1="${(compassCx+deflPx-10).toFixed(1)}" y1="${compassCy.toFixed(1)}" x2="${(compassCx+deflPx+10).toFixed(1)}" y2="${compassCy.toFixed(1)}" stroke="${barColor}" stroke-width="2.5" stroke-linecap="round"/>`;
-      svg+=`<circle cx="${(compassCx+deflPx).toFixed(1)}" cy="${compassCy.toFixed(1)}" r="2.5" fill="${barColor}"/>`;
-    }
+    drawArrow(strongest.bearing,cyan,'STORM',false,compassR-16);
   }
-  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="4" fill="#222" stroke="${magenta}" stroke-width="1"/>`;
-  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="1.5" fill="${magenta}"/>`;
+  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="3.5" fill="#222" stroke="${green}" stroke-width="1"/>`;
+  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="1.2" fill="${green}"/>`;
   const infoTop=compassCy-compassR-16;
   const infoBot=compassCy+compassR+4;
-  const boxL=compassCx-compassR+2,boxR=compassCx+compassR-30;
+  const gyroLabel=(_gyroEnabled&&_gyroHeading!=null)?`GYRO ${Math.round(_gyroHeading)}°`:'N UP';
   svg+=`<rect x="${compassCx-22}" y="${infoTop}" width="44" height="12" rx="2" fill="#111" stroke="${green}" stroke-width="0.8"/>`;
-  svg+=`<text x="${compassCx}" y="${infoTop+6}" fill="${green}" font-size="6.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${dirDeg.toFixed(0)}°</text>`;
-  if(upperDir!=null){
-    svg+=`<rect x="${boxL}" y="${infoTop}" width="28" height="12" rx="2" fill="#111" stroke="${yellow}" stroke-width="0.6"/>`;
-    svg+=`<text x="${boxL+14}" y="${infoTop+6}" fill="${yellow}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${Math.round(upperDir)}°</text>`;
-    svg+=`<text x="${boxL+14}" y="${infoTop-4}" fill="${yellow}" font-size="3.5" font-weight="600" text-anchor="middle" font-family="monospace">ALOFT</text>`;
-  }
+  svg+=`<text x="${compassCx}" y="${infoTop+6}" fill="${green}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${gyroLabel}</text>`;
+  const legY=infoTop;
+  const legItems=[[magenta,`WIND ${dirDeg.toFixed(0)}°`,false]];
+  if(upperDir!=null)legItems.push([yellow,`ALOFT ${Math.round(upperDir)}°`,true]);
+  if(hasStorm)legItems.push([cyan,`STM ${Math.round(strongest.bearing)}°`,false]);
+  const legX0=compassCx-compassR-2;
+  legItems.forEach((it,i)=>{
+    const ly=legY+i*10;
+    if(it[2]){svg+=`<line x1="${legX0}" y1="${(ly+5).toFixed(1)}" x2="${(legX0+10).toFixed(1)}" y2="${(ly+5).toFixed(1)}" stroke="${it[0]}" stroke-width="1.2" stroke-dasharray="3,2"/>`}
+    else{svg+=`<line x1="${legX0}" y1="${(ly+5).toFixed(1)}" x2="${(legX0+10).toFixed(1)}" y2="${(ly+5).toFixed(1)}" stroke="${it[0]}" stroke-width="1.5"/>`}
+    svg+=`<text x="${(legX0+13).toFixed(1)}" y="${(ly+5).toFixed(1)}" fill="${it[0]}" font-size="4" font-weight="600" text-anchor="start" dominant-baseline="central" font-family="monospace">${it[1]}</text>`;
+  });
   if(hasStorm){
-    svg+=`<rect x="${boxR}" y="${infoTop}" width="30" height="12" rx="2" fill="#111" stroke="${cyan}" stroke-width="0.6"/>`;
-    svg+=`<text x="${boxR+15}" y="${infoTop+6}" fill="${cyan}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${Math.round(strongest.bearing)}°</text>`;
-    svg+=`<text x="${boxR+15}" y="${infoTop-4}" fill="${cyan}" font-size="3.5" font-weight="600" text-anchor="middle" font-family="monospace">STM</text>`;
-    const userFromStm=((strongest.bearing+180)%360).toFixed(0);
-    svg+=`<rect x="${boxL}" y="${infoBot}" width="28" height="12" rx="2" fill="#111" stroke="${magenta}" stroke-width="0.6"/>`;
-    svg+=`<text x="${boxL+14}" y="${infoBot+6}" fill="${magenta}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${userFromStm}°</text>`;
-    svg+=`<text x="${boxL+14}" y="${infoBot+16}" fill="${magenta}" font-size="3.5" font-weight="600" text-anchor="middle" font-family="monospace">FROM</text>`;
-    if(stmXTK!=null){
-      const xtkAbs=Math.abs(stmXTK);
-      const xtkStr=xtkAbs<10?xtkAbs.toFixed(1):xtkAbs.toFixed(0);
-      const xtkUnit=S.radarMetric?'km':'mi';
-      svg+=`<rect x="${boxR}" y="${infoBot}" width="30" height="12" rx="2" fill="#111" stroke="${cyan}" stroke-width="0.6"/>`;
-      svg+=`<text x="${boxR+15}" y="${infoBot+6}" fill="${cyan}" font-size="5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${xtkStr}${xtkUnit}</text>`;
-      svg+=`<text x="${boxR+15}" y="${infoBot+16}" fill="${cyan}" font-size="3.5" font-weight="600" text-anchor="middle" font-family="monospace">XTK</text>`;
-    }
     const distStr=strongest.distance<10?strongest.distance.toFixed(1):strongest.distance.toFixed(0);
     const distUnit=S.radarMetric?'km':'mi';
-    svg+=`<rect x="${compassCx-22}" y="${infoBot}" width="44" height="12" rx="2" fill="#111" stroke="#3a3e48" stroke-width="0.6"/>`;
+    svg+=`<rect x="${compassCx-28}" y="${infoBot}" width="56" height="12" rx="2" fill="#111" stroke="#3a3e48" stroke-width="0.6"/>`;
     svg+=`<text x="${compassCx}" y="${infoBot+6}" fill="#e2e8f0" font-size="5" font-weight="600" text-anchor="middle" dominant-baseline="central" font-family="monospace">${distStr}${distUnit} ${strongest.dbz||0}dBZ</text>`;
     const impColor=stmImpact>=80?'#ef4444':stmImpact>=50?amber:stmImpact>=20?'#eab308':green;
     svg+=`<text x="${compassCx}" y="${infoBot+18}" fill="${impColor}" font-size="5" font-weight="700" text-anchor="middle" font-family="monospace">${stmImpact}% IMPACT</text>`;
@@ -473,7 +469,7 @@ function renderGaugeG1000(d){
       svg+=`<text x="${compassCx}" y="${infoBot+26}" fill="${amber}" font-size="4.5" font-weight="600" text-anchor="middle" font-family="monospace">ETA ${etaStr} · ${stmClosing.toFixed(0)}mph closing</text>`;
     }
   }else{
-    svg+=`<text x="${compassCx}" y="${infoBot+6}" fill="#5a6070" font-size="5" text-anchor="middle" font-family="monospace">HDG UP · NO STORMS</text>`;
+    svg+=`<text x="${compassCx}" y="${infoBot+6}" fill="#5a6070" font-size="5" text-anchor="middle" font-family="monospace">NORTH UP · NO STORMS</text>`;
   }
   return`<div class="wind-rose gauge-g1000" data-gauge="g1000" style="cursor:pointer;width:300px;height:280px;flex-shrink:0;position:relative">
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%">${svg}</svg>
@@ -566,6 +562,18 @@ function syncGaugeStyleBtns(){
     b.style.borderColor=active?'var(--accent-cyan)':'var(--border-subtle)';
     b.style.color=active?'var(--accent-cyan)':'var(--text-muted)';
   });
+}
+
+function toggleGyroCompass(){
+  if(_gyroEnabled){disableGyro();syncGyroBtn();reRenderActive();return}
+  initGyroCompass();
+  setTimeout(()=>{syncGyroBtn();reRenderActive()},300);
+}
+function syncGyroBtn(){
+  const btn=document.getElementById('gyro-toggle-btn');
+  if(!btn)return;
+  if(_gyroEnabled){btn.textContent='✅ Gyro Compass ON';btn.style.background='rgba(0,229,255,0.15)';btn.style.borderColor='var(--accent-cyan)';btn.style.color='var(--accent-cyan)'}
+  else{btn.textContent='🔄 Enable Gyro Compass';btn.style.background='rgba(255,255,255,0.04)';btn.style.borderColor='var(--border-subtle)';btn.style.color='var(--text-muted)'}
 }
 
 function fmtPres(mb){
@@ -1824,6 +1832,7 @@ function syncSettingsPanel(){
   syncAISettings();
   syncUnitSelects();
   syncGaugeStyleBtns();
+  syncGyroBtn();
   const sel=document.getElementById('settings-travel-int');
   if(sel)sel.value=String(S.gpsInterval||300);
   const arSel=document.getElementById('settings-auto-refresh');
@@ -2318,8 +2327,8 @@ function drawMiniSonar(){
       const aMid=((c.ai+0.5)*angStep-90)*Math.PI/180;
       const rMid=maxR*((c.ri+0.5)*distStep/scanR);
       if(rMid<=0)continue;
-      const gx=Math.round((compassCx||cx)+Math.cos(aMid)*rMid);
-      const gy=Math.round((compassCy||cy)+Math.sin(aMid)*rMid);
+      const gx=Math.round(cx+Math.cos(aMid)*rMid);
+      const gy=Math.round(cy+Math.sin(aMid)*rMid);
       const dk=`${gx},${gy}`;
       const prev=dotMap.get(dk);
       if(!prev||c.maxDbz>prev.dbz){dotMap.set(dk,{x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid});}
@@ -2630,7 +2639,8 @@ function startWindSim(){
         }
       }
     }else{
-      if(!S._gaugeTickLast||now-S._gaugeTickLast>300){
+      const gyroActive=_gyroEnabled&&_gyroHeading!=null;
+      if(!S._gaugeTickLast||now-S._gaugeTickLast>(gyroActive?150:300)){
         S._gaugeTickLast=now;
         const wr=document.querySelector('.wind-rose,[data-gauge]');
         if(wr&&S.weather){
