@@ -2325,42 +2325,54 @@ function drawMiniSonar(){
   const viewR=_sonarZoomMi;
   let zoneCount=0,maxDbz=0;
   if(S._rawScanPts&&S._rawScanPts.length){
-    const cells=polarGridBin(S._rawScanPts,S.lat,S.lon,scanR);
-    const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
+    const useRaw=viewR<=40;
     const dots=[];
-    for(const[k,c]of cells){
-      const distMi=(c.ri+0.5)*distStep;
-      if(distMi>viewR)continue;
-      const aMid=((c.ai+0.5)*angStep-90)*Math.PI/180;
-      const rMid=maxR*(distMi/viewR);
-      if(rMid<=0)continue;
-      dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid,angDeg:(c.ai+0.5)*angStep,angRad:aMid});
-      if(c.maxDbz>maxDbz)maxDbz=c.maxDbz;
-      zoneCount++;
+    if(useRaw){
+      for(const p of S._rawScanPts){
+        const distMi=haversine(S.lat,S.lon,p.lat,p.lng);
+        if(distMi>viewR)continue;
+        const bear=(bearingDeg(S.lat,S.lon,p.lat,p.lng)+360)%360;
+        const aMid=(bear-90)*Math.PI/180;
+        const rMid=maxR*(distMi/viewR);
+        if(rMid<=0)continue;
+        dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:p.dbz,dist:rMid,angDeg:bear});
+        if(p.dbz>maxDbz)maxDbz=p.dbz;
+        zoneCount++;
+      }
+    }else{
+      const cells=polarGridBin(S._rawScanPts,S.lat,S.lon,scanR);
+      const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
+      for(const[k,c]of cells){
+        const distMi=(c.ri+0.5)*distStep;
+        if(distMi>viewR)continue;
+        const aMid=((c.ai+0.5)*angStep-90)*Math.PI/180;
+        const rMid=maxR*(distMi/viewR);
+        if(rMid<=0)continue;
+        dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid,angDeg:(c.ai+0.5)*angStep});
+        if(c.maxDbz>maxDbz)maxDbz=c.maxDbz;
+        zoneCount++;
+      }
     }
     dots.sort((a,b)=>a.dbz-b.dbz);
     const sweepDeg=S._sonarSweepAngle||0;
-    const sweepStart=S._sonarSweepStart||0;
     const totalSwept=S._sonarTotalSwept||0;
     const zoomScale=80/viewR;
-    const baseDot=Math.max(6,size*0.028);
-    const radialStretch=zoomScale<=1?1:1+((zoomScale-1)*0.7);
+    const minDot=Math.max(2.5,size*0.012)*Math.min(zoomScale,6),maxDot=Math.max(6,size*0.028)*Math.min(zoomScale,6);
+    const rawDotR=useRaw?Math.max(2,size*0.007)*Math.min(zoomScale,3):0;
     const sweepDps=40;
     const holdDegs=3*sweepDps;
     const fadeDegs=4*sweepDps;
     const totalDegs=holdDegs+fadeDegs;
     for(const d of dots){
       const frac=Math.min(1,d.dist/maxR);
-      const radR=baseDot*(0.6+0.4*frac)*(0.7+0.3*Math.min(d.dbz/60,1));
-      const tangR=radR*radialStretch;
+      const dotR=useRaw?rawDotR*(0.8+0.4*frac):(minDot+(maxDot-minDot)*frac);
       const hex=dbzHex(d.dbz);
       const dotAng=((d.angDeg-90)%360+360)%360;
       let angDiff=((sweepDeg-dotAng)%360+360)%360;
       const hasBeenSwept=totalSwept>=360||angDiff<totalSwept;
       if(!hasBeenSwept){
-        ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.angRad);
-        ctx.beginPath();ctx.ellipse(0,0,tangR,radR,0,0,Math.PI*2);
-        ctx.fillStyle='rgba(20,25,35,0.5)';ctx.fill();ctx.restore();
+        ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
+        ctx.fillStyle='rgba(20,25,35,0.5)';ctx.fill();
         continue;
       }
       let sweepAlpha;
@@ -2369,20 +2381,18 @@ function drawMiniSonar(){
       else{sweepAlpha=0.06}
       const baseA=Math.min(0.95,0.4+d.dbz/60);
       const alpha=baseA*sweepAlpha;
-      ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.angRad);
-      ctx.beginPath();ctx.ellipse(0,0,tangR,radR,0,0,Math.PI*2);
+      ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
       ctx.fillStyle=hexToRgba(hex,alpha);ctx.fill();
       if(d.dbz>=40&&sweepAlpha>0.15){
-        ctx.shadowColor=hex;ctx.shadowBlur=tangR*3;
-        ctx.beginPath();ctx.ellipse(0,0,tangR*0.8,radR*0.8,0,0,Math.PI*2);
+        ctx.save();ctx.shadowColor=hex;ctx.shadowBlur=dotR*3;
+        ctx.beginPath();ctx.arc(d.x,d.y,dotR*0.8,0,Math.PI*2);
         ctx.fillStyle=hexToRgba(hex,alpha*0.7);ctx.fill();
-        ctx.shadowBlur=0;
+        ctx.restore();
         if(sweepAlpha>0.5){
-          ctx.beginPath();ctx.ellipse(0,0,tangR*1.6,radR*1.6,0,0,Math.PI*2);
+          ctx.beginPath();ctx.arc(d.x,d.y,dotR*1.6,0,Math.PI*2);
           ctx.strokeStyle=hexToRgba(hex,sweepAlpha*0.3);ctx.lineWidth=1;ctx.stroke();
         }
       }
-      ctx.restore();
     }
   }
   const nRings=4;
