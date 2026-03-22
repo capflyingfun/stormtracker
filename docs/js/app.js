@@ -2240,32 +2240,39 @@ function drawMiniSonar(){
     ctx.beginPath();ctx.moveTo(cx+Math.cos(mvRad)*15,cy+Math.sin(mvRad)*15);ctx.lineTo(ax,ay);
     ctx.strokeStyle=hexToRgba(neonC,0.5);ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
   }
-  ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fillStyle='#00dcff';ctx.fill();
-  ctx.beginPath();ctx.arc(cx,cy,8,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.4)';ctx.lineWidth=1.5;ctx.stroke();
-  ctx.beginPath();ctx.arc(cx,cy,12,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.15)';ctx.lineWidth=0.5;ctx.stroke();
-  const ilsLen=Math.max(14,maxR*0.12);
-  ctx.beginPath();ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx-4,cy-ilsLen+6);ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx+4,cy-ilsLen+6);
-  ctx.strokeStyle='rgba(0,220,255,0.6)';ctx.lineWidth=1.5;ctx.stroke();
-  ctx.beginPath();ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx,cy+ilsLen*0.6);
+  ctx.save();
+  ctx.shadowColor='#00dcff';ctx.shadowBlur=8;
+  ctx.beginPath();ctx.arc(cx,cy,6,0,Math.PI*2);ctx.fillStyle='#00eeff';ctx.fill();
+  ctx.restore();
+  ctx.beginPath();ctx.arc(cx,cy,10,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,15,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.2)';ctx.lineWidth=0.8;ctx.stroke();
+  const ilsLen=Math.max(18,maxR*0.14);
+  ctx.save();ctx.shadowColor='rgba(0,220,255,0.5)';ctx.shadowBlur=4;
+  ctx.beginPath();ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx-5,cy-ilsLen+8);ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx+5,cy-ilsLen+8);
+  ctx.strokeStyle='rgba(0,220,255,0.7)';ctx.lineWidth=2;ctx.lineCap='round';ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx,cy+ilsLen*0.7);
+  ctx.strokeStyle='rgba(0,220,255,0.4)';ctx.lineWidth=1.2;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx-8,cy);ctx.lineTo(cx+8,cy);
   ctx.strokeStyle='rgba(0,220,255,0.3)';ctx.lineWidth=1;ctx.stroke();
-  ctx.beginPath();ctx.moveTo(cx-6,cy);ctx.lineTo(cx+6,cy);
-  ctx.strokeStyle='rgba(0,220,255,0.25)';ctx.lineWidth=0.8;ctx.stroke();
+  ctx.lineCap='butt';ctx.restore();
   if(S.weather&&S.weather.wind_direction_10m!=null){
     const wdDeg=S.weather.wind_direction_10m;
     const wRad=(wdDeg-90)*Math.PI/180;
-    const chevR=maxR+2;
+    const chevR=maxR+3;
+    const chevL=Math.max(10,maxR*0.07);
+    const chevW=0.3;
+    ctx.save();ctx.shadowColor='rgba(0,255,136,0.6)';ctx.shadowBlur=6;
     const chevTipX=cx+Math.cos(wRad)*chevR,chevTipY=cy+Math.sin(wRad)*chevR;
-    const chevL=8,chevW=0.35;
     const cL1x=cx+Math.cos(wRad-chevW)*(chevR-chevL),cL1y=cy+Math.sin(wRad-chevW)*(chevR-chevL);
     const cR1x=cx+Math.cos(wRad+chevW)*(chevR-chevL),cR1y=cy+Math.sin(wRad+chevW)*(chevR-chevL);
     ctx.beginPath();ctx.moveTo(chevTipX,chevTipY);ctx.lineTo(cL1x,cL1y);ctx.moveTo(chevTipX,chevTipY);ctx.lineTo(cR1x,cR1y);
-    ctx.strokeStyle='rgba(0,255,136,0.7)';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.stroke();
+    ctx.strokeStyle='#00ff88';ctx.lineWidth=3;ctx.lineCap='round';ctx.stroke();
+    const midX=cx+Math.cos(wRad)*(chevR-chevL*0.85),midY=cy+Math.sin(wRad)*(chevR-chevL*0.85);
     const cL2x=cx+Math.cos(wRad-chevW)*(chevR-chevL*1.7),cL2y=cy+Math.sin(wRad-chevW)*(chevR-chevL*1.7);
     const cR2x=cx+Math.cos(wRad+chevW)*(chevR-chevL*1.7),cR2y=cy+Math.sin(wRad+chevW)*(chevR-chevL*1.7);
-    const midX=cx+Math.cos(wRad)*(chevR-chevL*0.9),midY=cy+Math.sin(wRad)*(chevR-chevL*0.9);
     ctx.beginPath();ctx.moveTo(midX,midY);ctx.lineTo(cL2x,cL2y);ctx.moveTo(midX,midY);ctx.lineTo(cR2x,cR2y);
-    ctx.strokeStyle='rgba(0,255,136,0.4)';ctx.lineWidth=2;ctx.stroke();
-    ctx.lineCap='butt';
+    ctx.strokeStyle='rgba(0,255,136,0.5)';ctx.lineWidth=2.5;ctx.stroke();
+    ctx.lineCap='butt';ctx.restore();
   }
   const infoEl=document.getElementById('mini-sonar-info');
   if(infoEl){
