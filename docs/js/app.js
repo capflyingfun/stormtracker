@@ -963,41 +963,47 @@ const RV_UB=[
 ];
 function rvToDbz(r,g,b,a){
   if(a<20)return 0;
-  if(r<10&&g>200&&b<10)return 75;
-  if(r>240&&g>240&&b>240)return 65;
-  if(r>200&&b>200&&g<r){
-    return g>160?55:g>130?57:g>100?59:g>80?61:63;
+  let raw=0;
+  if(r<10&&g>200&&b<10)raw=75;
+  else if(r>240&&g>240&&b>240)raw=65;
+  else if(r>200&&b>200&&g<r){
+    raw=g>160?55:g>130?57:g>100?59:g>80?61:63;
   }
-  if(r>200&&g>60&&b<30){
-    if(g>200)return 35;if(g>170)return 37;if(g>140)return 39;
-    if(g>120)return 40;if(g>100)return 42;if(g>80)return 44;
-    return 45;
+  else if(r>200&&g>60&&b<30){
+    if(g>200)raw=35;else if(g>170)raw=37;else if(g>140)raw=39;
+    else if(g>120)raw=40;else if(g>100)raw=42;else if(g>80)raw=44;
+    else raw=45;
   }
-  if(r>80&&g<70&&b<30&&a>200){
-    if(r>240)return 45;if(r>220)return 47;if(r>200)return 48;
-    if(r>180)return 50;if(r>130)return 52;return 54;
+  else if(r>80&&g<70&&b<30&&a>200){
+    if(r>240)raw=45;else if(r>220)raw=47;else if(r>200)raw=48;
+    else if(r>180)raw=50;else if(r>130)raw=52;else raw=54;
   }
-  if(b>150&&r<180&&g>150){
-    if(r>120)return 15;if(g>200)return 16;if(g>180)return 17;
-    return 18;
+  else if(b>150&&r<180&&g>150){
+    if(r>120)raw=15;else if(g>200)raw=16;else if(g>180)raw=17;
+    else raw=18;
   }
-  if(r<10&&g<180&&b>80){
-    if(g>150)return 20;if(g>120)return 22;if(g>100)return 25;
-    if(g>80)return 28;return 30+Math.min(4,Math.floor((88-g)/10));
+  else if(r<10&&g<180&&b>80){
+    if(g>150)raw=20;else if(g>120)raw=22;else if(g>100)raw=25;
+    else if(g>80)raw=28;else raw=30+Math.min(4,Math.floor((88-g)/10));
   }
-  if(a<150&&r>80&&g>70&&b>50&&r<230){
-    return Math.min(14,Math.max(8,Math.round((a-20)/15)+8));
+  else if(a<150&&r>80&&g>70&&b>50&&r<230){
+    raw=Math.min(14,Math.max(8,Math.round((a-20)/15)+8));
   }
-  if(b>200&&g>100&&r<150){
-    if(g>200)return 10;if(g>160)return 15;if(g>100)return 20;
-    return 30;
+  else if(b>200&&g>100&&r<150){
+    if(g>200)raw=10;else if(g>160)raw=15;else if(g>100)raw=20;
+    else raw=30;
   }
-  let best=0,bestD=1e9;
-  for(const p of RV_UB){
-    const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
-    if(d<bestD){bestD=d;best=p.dbz}
+  else{
+    let best=0,bestD=1e9;
+    for(const p of RV_UB){
+      const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
+      if(d<bestD){bestD=d;best=p.dbz}
+    }
+    raw=bestD<6000?best:0;
   }
-  return bestD<6000?best:0;
+  if(raw<=0)return 0;
+  const boost=raw>=30?Math.round(raw*1.29):raw>=20?Math.round(raw*1.18):raw>=15?Math.round(raw*1.10):raw;
+  return Math.min(75,boost);
 }
 
 // ==========================================
@@ -1443,6 +1449,7 @@ function scheduleAutoRefresh(){
     startScanRefreshTimer();
     fetchWeather();
     fetchAlerts();
+    fetchTerrainGrid();
     scanRadarForStorms();
   },ms);
   startScanRefreshTimer();
@@ -3831,7 +3838,7 @@ function plotStormMarkers(map){
       ${mvHtml}
       <div style="font-size:0.65em;color:#777;margin-top:6px">${storm.lat.toFixed(3)}°, ${Math.abs(storm.lng).toFixed(3)}° · ${storm.pixels} returns</div>
     </div>`;
-    const popupOpts={closeButton:false,className:'storm-popup'};
+    const popupOpts={closeButton:true,className:'storm-popup'};
     const stormRef=storm;
     if(mv&&mv.speed>=2){
       const sz=Math.max(10,Math.round(Math.max(24,storm.dbz/2)*sc));
