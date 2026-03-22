@@ -4338,7 +4338,7 @@ function updateThreatTicker(){
   function showTicker(html,color,borderColor,bg,dur){
     inner.innerHTML=html;
     const textLen=inner.textContent?inner.textContent.length:60;
-    const autoDur=Math.max(20,Math.round(textLen*0.35));
+    const autoDur=Math.max(18,Math.round(textLen*0.322));
     inner.style.animationDuration=(dur||autoDur)+'s';
     bar.style.display='block';
     bar.style.borderColor=borderColor;
@@ -4387,22 +4387,26 @@ function updateThreatTicker(){
   const spdVal=(spd)=>S.radarMetric?Math.round(spd*1.60934):spd;
   const fromDir=mv?degToDir((mv.direction+180)%360):'';
   const spd=mv?spdVal(mv.speed):0;
-  function fmtEta(etaMin){
-    const etaSec=Math.round(etaMin*60);
-    const h=Math.floor(etaSec/3600),m=Math.floor((etaSec%3600)/60),sec=etaSec%60;
-    const etaStr=h>0?h+'h:'+String(m).padStart(2,'0')+'m:'+String(sec).padStart(2,'0')+'s':m+'m:'+String(sec).padStart(2,'0')+'s';
-    const arrival=new Date(Date.now()+etaSec*1000);
+  function fmtEtaLive(etaMin){
+    const targetMs=Date.now()+Math.round(etaMin*60)*1000;
+    const arrival=new Date(targetMs);
     const ah=arrival.getHours(),am=arrival.getMinutes();
     const arrStr=((ah%12)||12)+':'+String(am).padStart(2,'0')+' '+(ah>=12?'PM':'AM');
-    return{etaStr,arrStr};
+    const cdSpan=`<span class="ticker-cd" data-target="${targetMs}"></span>`;
+    return{cdSpan,arrStr};
+  }
+  function _tickerCdFmt(remain){
+    if(remain<=0)return'NOW';
+    const h=Math.floor(remain/3600),m=Math.floor((remain%3600)/60),s=remain%60;
+    return h>0?h+'h:'+String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s':m+'m:'+String(s).padStart(2,'0')+'s';
   }
   if(severeApproaching.length>0){
     severeApproaching.sort((a,b)=>a.eta.eta-b.eta.eta);
     const msgs=severeApproaching.map(t=>{
-      const s=t.storm;const{etaStr,arrStr}=fmtEta(t.eta.eta);
-      if(s.dbz>=55)return`<span style="color:#ff3355">🚨 WARNING: Extremely dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ${etaStr} (${arrStr}). Seek shelter immediately. 🚨</span>`;
-      if(s.dbz>=50)return`<span style="color:#ff6644">🚨 SEVERE WEATHER ALERT: Dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ${etaStr} (${arrStr}). Use extreme caution. 🚨</span>`;
-      return`<span style="color:#ffcc00">⚠️ Strong storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ${etaStr} (${arrStr}). Use caution and be prepared. ⚠️</span>`;
+      const s=t.storm;const{cdSpan,arrStr}=fmtEtaLive(t.eta.eta);
+      if(s.dbz>=55)return`<span style="color:#ff3355">🚨 WARNING: Extremely dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Seek shelter immediately. 🚨</span>`;
+      if(s.dbz>=50)return`<span style="color:#ff6644">🚨 SEVERE WEATHER ALERT: Dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Use extreme caution. 🚨</span>`;
+      return`<span style="color:#ffcc00">⚠️ Strong storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Use caution and be prepared. ⚠️</span>`;
     });
     const sep='<span style="color:#444;margin:0 40px">│</span>';
     const html=msgs.join(sep);
@@ -4410,20 +4414,39 @@ function updateThreatTicker(){
     showTicker(html,topDbz>=55?'#ff3355':topDbz>=50?'#ff6644':'#ffcc00',
       topDbz>=55?'rgba(255,51,85,0.5)':topDbz>=50?'rgba(255,102,68,0.4)':'rgba(255,204,0,0.3)',
       topDbz>=55?'linear-gradient(90deg,rgba(30,0,0,0.95),rgba(50,5,5,0.95),rgba(30,0,0,0.95))':topDbz>=50?'linear-gradient(90deg,rgba(30,10,0,0.95),rgba(50,15,5,0.95),rgba(30,10,0,0.95))':'linear-gradient(90deg,rgba(30,25,0,0.95),rgba(45,35,5,0.95),rgba(30,25,0,0.95))');
+    _startTickerCountdown();
     return;
   }
   allApproaching.sort((a,b)=>a.eta.eta-b.eta.eta);
   const closest=allApproaching[0];
-  const{etaStr,arrStr}=fmtEta(closest.eta.eta);
+  const{cdSpan,arrStr}=fmtEtaLive(closest.eta.eta);
   const maxDbz=Math.max(...allApproaching.map(a=>a.storm.dbz));
   const label=maxDbz>=30?'moderate rain':'light rain';
   const lightMsgs=[
-    `🌧️ ${allApproaching.length} ${label} cell${allApproaching.length>1?'s':''} heading your way from the ${fromDir} at ${spd} ${spdUnit}. Nearest ETA ${etaStr} (~${arrStr}). Might want to grab an umbrella! ☂️`,
-    `🌦️ Light precipitation approaching — ${allApproaching.length} cell${allApproaching.length>1?'s':''} inbound (${maxDbz} dBZ max). ETA ${etaStr} (~${arrStr}). Nothing severe, but stay dry! 💧`,
-    `☔ Heads up! ${allApproaching.length} rain area${allApproaching.length>1?'s':''} moving toward you (${maxDbz} dBZ). First arrival ~${arrStr}. Not dangerous, just wet. 🌂`
+    `🌧️ ${allApproaching.length} ${label} cell${allApproaching.length>1?'s':''} heading your way from the ${fromDir} at ${spd} ${spdUnit}. Nearest ETA ⏱️${cdSpan} (~${arrStr}). Might want to grab an umbrella! ☂️`,
+    `🌦️ Light precipitation approaching — ${allApproaching.length} cell${allApproaching.length>1?'s':''} inbound (${maxDbz} dBZ max). ETA ⏱️${cdSpan} (~${arrStr}). Nothing severe, but stay dry! 💧`,
+    `☔ Heads up! ${allApproaching.length} rain area${allApproaching.length>1?'s':''} moving toward you (${maxDbz} dBZ). First arrival ⏱️${cdSpan} (~${arrStr}). Not dangerous, just wet. 🌂`
   ];
   const msg=lightMsgs[Math.floor(Date.now()/60000)%lightMsgs.length];
-  showTicker(`<span style="color:#7dd3fc">${msg}</span>`,'#7dd3fc','rgba(125,211,252,0.2)','linear-gradient(90deg,rgba(0,8,25,0.95),rgba(5,15,35,0.95),rgba(0,8,25,0.95))',Math.max(15,Math.round(msg.length*0.2)));
+  showTicker(`<span style="color:#7dd3fc">${msg}</span>`,'#7dd3fc','rgba(125,211,252,0.2)','linear-gradient(90deg,rgba(0,8,25,0.95),rgba(5,15,35,0.95),rgba(0,8,25,0.95))');
+  _startTickerCountdown();
+}
+let _tickerCdTimer=0;
+function _startTickerCountdown(){
+  if(_tickerCdTimer)clearInterval(_tickerCdTimer);
+  _tickTickerCd();
+  _tickerCdTimer=setInterval(_tickTickerCd,1000);
+}
+function _tickTickerCd(){
+  const spans=document.querySelectorAll('.ticker-cd');
+  if(!spans.length){if(_tickerCdTimer){clearInterval(_tickerCdTimer);_tickerCdTimer=0;}return;}
+  const now=Date.now();
+  spans.forEach(sp=>{
+    const t=parseInt(sp.dataset.target)||0;
+    const remain=Math.max(0,Math.round((t-now)/1000));
+    const h=Math.floor(remain/3600),m=Math.floor((remain%3600)/60),s=remain%60;
+    sp.textContent=remain<=0?'NOW':h>0?h+'h:'+String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s':m+'m:'+String(s).padStart(2,'0')+'s';
+  });
 }
 function autoActivateZones(){
   if(!S._rawScanPts||!S._rawScanPts.length)return;
