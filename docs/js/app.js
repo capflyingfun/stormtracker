@@ -68,14 +68,21 @@ function _beaufortBar(kmh){
 }
 
 let _windMinKmh=Infinity,_windMaxKmh=0;
-let _gyroHeading=null,_gyroEnabled=false;
+let _gyroHeading=null,_gyroEnabled=false,_gyroRaw=null,_gyroSmooth=null;
 function initGyroCompass(){
   if(_gyroEnabled)return;
   const handler=e=>{
     let h=null;
     if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
+    else if(e.absolute&&e.alpha!=null)h=(360-e.alpha)%360;
     else if(e.alpha!=null)h=(360-e.alpha)%360;
-    if(h!=null)_gyroHeading=h;
+    if(h==null)return;
+    _gyroRaw=h;
+    if(_gyroSmooth==null){_gyroSmooth=h;_gyroHeading=h;return}
+    let diff=h-_gyroSmooth;
+    if(diff>180)diff-=360;if(diff<-180)diff+=360;
+    _gyroSmooth=((_gyroSmooth+diff*0.15)%360+360)%360;
+    _gyroHeading=Math.round(_gyroSmooth*10)/10;
   };
   if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
     DeviceOrientationEvent.requestPermission().then(r=>{
@@ -87,7 +94,7 @@ function initGyroCompass(){
     _gyroEnabled=true;localStorage.setItem('st_gyro','1');
   }
 }
-function disableGyro(){_gyroEnabled=false;_gyroHeading=null;localStorage.removeItem('st_gyro')}
+function disableGyro(){_gyroEnabled=false;_gyroHeading=null;_gyroRaw=null;_gyroSmooth=null;localStorage.removeItem('st_gyro')}
 if(localStorage.getItem('st_gyro')==='1'){try{initGyroCompass()}catch(e){}}
 function _resetMinMax(){_windMinKmh=Infinity;_windMaxKmh=0}
 function _trackMinMax(kmh){if(kmh>0.1){if(kmh<_windMinKmh)_windMinKmh=kmh;if(kmh>_windMaxKmh)_windMaxKmh=kmh}}
@@ -1391,13 +1398,14 @@ function updateNavForLocation(){
     b.style.flex='1';
   });
 }
+let _setLocTimer=null;
 function setLoc(lat,lon,name,fromTravel){
   if(!fromTravel && S.travelMode) stopTravelMode();
   S.lat=lat;S.lon=lon;
   S.locName=name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
   document.getElementById('location-input').value=S.locName;
   document.getElementById('status-dot').classList.add('live');
-  document.getElementById('status-text').textContent='Live · '+S.locName;
+  document.getElementById('status-text').textContent='Loading · '+S.locName;
   S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
   S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
   updateNavForLocation();
@@ -1413,11 +1421,16 @@ function setLoc(lat,lon,name,fromTravel){
     if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
     showRadarLayer(S.map);
   }
-  fetchWeather();
-  fetchAlerts();
-  fetchTerrainGrid();
-  scanRadarForStorms();
-  scheduleHourlyRefresh();
+  if(_setLocTimer)clearTimeout(_setLocTimer);
+  _setLocTimer=setTimeout(()=>{
+    _setLocTimer=null;
+    document.getElementById('status-text').textContent='Live · '+S.locName;
+    fetchWeather();
+    fetchAlerts();
+    fetchTerrainGrid();
+    scanRadarForStorms();
+    scheduleHourlyRefresh();
+  },150);
 }
 
 function getFavorites(){
@@ -2322,31 +2335,34 @@ function drawMiniSonar(){
   if(S._rawScanPts&&S._rawScanPts.length){
     const cells=polarGridBin(S._rawScanPts,S.lat,S.lon,scanR);
     const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
-    const dotMap=new Map();
+    const dots=[];
     for(const[k,c]of cells){
       const aMid=((c.ai+0.5)*angStep-90)*Math.PI/180;
       const rMid=maxR*((c.ri+0.5)*distStep/scanR);
       if(rMid<=0)continue;
-      const gx=Math.round(cx+Math.cos(aMid)*rMid);
-      const gy=Math.round(cy+Math.sin(aMid)*rMid);
-      const dk=`${gx},${gy}`;
-      const prev=dotMap.get(dk);
-      if(!prev||c.maxDbz>prev.dbz){dotMap.set(dk,{x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid});}
+      dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid,angDeg:(c.ai+0.5)*angStep});
       if(c.maxDbz>maxDbz)maxDbz=c.maxDbz;
       zoneCount++;
     }
-    const minDot=Math.max(1.5,size*0.006),maxDot=Math.max(4,size*0.02);
-    for(const[,d]of dotMap){
+    dots.sort((a,b)=>a.dbz-b.dbz);
+    const sweepDeg=S._sonarSweepAngle||0;
+    const minDot=Math.max(2.5,size*0.012),maxDot=Math.max(6,size*0.028);
+    for(const d of dots){
       const frac=Math.min(1,d.dist/maxR);
       const dotR=minDot+(maxDot-minDot)*frac;
+      let angDiff=((sweepDeg-(d.angDeg+90))%360+360)%360;
+      const fadeSec=5,sweepDps=0.04*1000/16.67;
+      const fadeDegs=fadeSec*sweepDps;
+      const sweepAlpha=angDiff<fadeDegs?Math.max(0.08,1-angDiff/fadeDegs):0.08;
       const hex=dbzHex(d.dbz);
-      const alpha=Math.min(0.9,0.35+d.dbz/70);
+      const baseA=Math.min(0.95,0.4+d.dbz/60);
+      const alpha=baseA*sweepAlpha;
       ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
       ctx.fillStyle=hexToRgba(hex,alpha);ctx.fill();
-      if(d.dbz>=40){
-        ctx.save();ctx.shadowColor=hex;ctx.shadowBlur=dotR*2;
-        ctx.beginPath();ctx.arc(d.x,d.y,dotR*0.6,0,Math.PI*2);
-        ctx.fillStyle=hexToRgba(hex,0.5);ctx.fill();
+      if(d.dbz>=40&&sweepAlpha>0.3){
+        ctx.save();ctx.shadowColor=hex;ctx.shadowBlur=dotR*2.5;
+        ctx.beginPath();ctx.arc(d.x,d.y,dotR*0.7,0,Math.PI*2);
+        ctx.fillStyle=hexToRgba(hex,alpha*0.6);ctx.fill();
         ctx.restore();
       }
     }
