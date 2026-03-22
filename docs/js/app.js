@@ -72,34 +72,72 @@ const _SONAR_ZOOM_LEVELS=[20,30,40,50,60,70,80];
 const _SONAR_DBZ_CLASSES=['light','moderate','heavy','intense','extreme'];
 const _SONAR_DBZ_LABELS={light:'Light (0-29)',moderate:'Moderate (30-39)',heavy:'Heavy (40-49)',intense:'Intense (50-59)',extreme:'Extreme (60+)'};
 const _SONAR_DBZ_COLORS={light:'#00ccff',moderate:'#aaff00',heavy:'#ffee00',intense:'#ff2200',extreme:'#ff00ff'};
-let _sonarDbzScale=(function(){try{const s=JSON.parse(localStorage.getItem('st_sonarDbzScale'));if(s&&typeof s==='object')return s}catch(e){}return{}})();
-function _getDbzScale(cls){return _sonarDbzScale[cls]!=null?_sonarDbzScale[cls]:1}
-function _setDbzScale(cls,v){_sonarDbzScale[cls]=v;localStorage.setItem('st_sonarDbzScale',JSON.stringify(_sonarDbzScale))}
+const _SONAR_DEFAULTS={dbzScale:{},sweepSpeed:40,fadeDur:2,alwaysOn:false,dotOpacity:100,glowInt:1,gridBright:100,dbzFloor:0,showStormArrows:true,showAloft:true,showLightning:true};
+let _sonarCfg=(function(){try{const s=JSON.parse(localStorage.getItem('st_sonarCfg'));if(s&&typeof s==='object')return Object.assign({},_SONAR_DEFAULTS,s)}catch(e){}return Object.assign({},_SONAR_DEFAULTS)})();
+function _saveSonarCfg(){localStorage.setItem('st_sonarCfg',JSON.stringify(_sonarCfg))}
+function _getDbzScale(cls){return _sonarCfg.dbzScale[cls]!=null?_sonarCfg.dbzScale[cls]:1}
+function _setDbzScale(cls,v){_sonarCfg.dbzScale[cls]=v;_saveSonarCfg()}
 function _toggleSonarSettings(){
   let p=document.getElementById('sonar-settings-panel');
   if(p){p.style.display=p.style.display==='none'?'block':'none';return}
   const wrap=document.getElementById('mini-sonar-wrap');if(!wrap)return;
   p=document.createElement('div');p.id='sonar-settings-panel';
-  p.style.cssText='position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(10,14,20,0.92);z-index:20;border-radius:8px;padding:12px 16px;overflow-y:auto;backdrop-filter:blur(4px)';
-  let html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="color:#00eeff;font-weight:700;font-size:0.75em">Dot Size by dBZ</span><button onclick="_toggleSonarSettings()" style="background:none;border:none;color:#00eeff;font-size:1em;cursor:pointer;padding:2px 6px">✕</button></div>';
+  p.style.cssText='position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(10,14,20,0.92);z-index:20;border-radius:8px;padding:10px 14px;overflow-y:auto;backdrop-filter:blur(4px)';
+  const sw=_sonarCfg,lb='font-size:0.55em;color:rgba(255,255,255,0.7)',tl='font-size:0.6em;color:#00eeff;font-weight:600',vl='font-size:0.5em;color:rgba(255,255,255,0.6);min-width:28px;text-align:right';
+  const spdNames={20:'Slow',40:'Medium',60:'Fast',80:'Turbo'};
+  const fadeNames={1:'Short',2:'Medium',3:'Long'};
+  const glowNames={0:'None',1:'Subtle',2:'Intense'};
+  let html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="color:#00eeff;font-weight:700;font-size:0.7em">⚙ Sonar Settings</span><button onclick="_toggleSonarSettings()" style="background:none;border:none;color:#00eeff;font-size:1em;cursor:pointer;padding:2px 6px">✕</button></div>';
+  html+='<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,220,255,0.15)">';
+  html+='<div style="'+tl+';margin-bottom:4px">Sweep</div>';
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="'+lb+'">Speed</span><div style="display:flex;gap:3px">';
+  for(const spd of [20,40,60,80])html+=`<button onclick="_setSonarOpt('sweepSpeed',${spd})" id="ss-spd-${spd}" style="font-size:0.45em;padding:2px 5px;border-radius:3px;cursor:pointer;border:1px solid ${sw.sweepSpeed===spd?'#00eeff':'rgba(0,220,255,0.3)'};background:${sw.sweepSpeed===spd?'rgba(0,220,255,0.2)':'none'};color:${sw.sweepSpeed===spd?'#00eeff':'rgba(255,255,255,0.5)'}">${spdNames[spd]}</button>`;
+  html+='</div></div>';
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="'+lb+'">Fade</span><div style="display:flex;gap:3px">';
+  for(const fd of [1,2,3])html+=`<button onclick="_setSonarOpt('fadeDur',${fd})" id="ss-fade-${fd}" style="font-size:0.45em;padding:2px 5px;border-radius:3px;cursor:pointer;border:1px solid ${sw.fadeDur===fd?'#00eeff':'rgba(0,220,255,0.3)'};background:${sw.fadeDur===fd?'rgba(0,220,255,0.2)':'none'};color:${sw.fadeDur===fd?'#00eeff':'rgba(255,255,255,0.5)'}">${fadeNames[fd]}</button>`;
+  html+='</div></div>';
+  html+=`<div style="display:flex;justify-content:space-between;align-items:center"><span style="${lb}">Always On (no sweep)</span><button onclick="_setSonarOpt('alwaysOn',!_sonarCfg.alwaysOn)" id="ss-always" style="font-size:0.45em;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid ${sw.alwaysOn?'#00ff88':'rgba(0,220,255,0.3)'};background:${sw.alwaysOn?'rgba(0,255,136,0.2)':'none'};color:${sw.alwaysOn?'#00ff88':'rgba(255,255,255,0.5)'}">${sw.alwaysOn?'ON':'OFF'}</button></div>`;
+  html+='</div>';
+  html+='<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,220,255,0.15)">';
+  html+='<div style="'+tl+';margin-bottom:4px">Visual</div>';
+  html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="${lb}">Dot Opacity</span><span id="ss-opac-v" style="${vl}">${sw.dotOpacity}%</span></div><input type="range" min="20" max="100" value="${sw.dotOpacity}" step="10" oninput="_setSonarSlider('dotOpacity',this.value,'ss-opac-v','%')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer;margin-bottom:4px">`;
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="'+lb+'">Glow</span><div style="display:flex;gap:3px">';
+  for(const gl of [0,1,2])html+=`<button onclick="_setSonarOpt('glowInt',${gl})" id="ss-glow-${gl}" style="font-size:0.45em;padding:2px 5px;border-radius:3px;cursor:pointer;border:1px solid ${sw.glowInt===gl?'#00eeff':'rgba(0,220,255,0.3)'};background:${sw.glowInt===gl?'rgba(0,220,255,0.2)':'none'};color:${sw.glowInt===gl?'#00eeff':'rgba(255,255,255,0.5)'}">${glowNames[gl]}</button>`;
+  html+='</div></div>';
+  html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="${lb}">Grid Brightness</span><span id="ss-grid-v" style="${vl}">${sw.gridBright}%</span></div><input type="range" min="0" max="200" value="${sw.gridBright}" step="20" oninput="_setSonarSlider('gridBright',this.value,'ss-grid-v','%')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer;margin-bottom:4px">`;
+  html+=`<div style="display:flex;justify-content:space-between;align-items:center"><span style="${lb}">dBZ Floor (hide below)</span><span id="ss-floor-v" style="${vl}">${sw.dbzFloor}</span></div><input type="range" min="0" max="40" value="${sw.dbzFloor}" step="5" oninput="_setSonarSlider('dbzFloor',this.value,'ss-floor-v','')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer">`;
+  html+='</div>';
+  html+='<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,220,255,0.15)">';
+  html+='<div style="'+tl+';margin-bottom:4px">Overlays</div>';
+  const togs=[['showStormArrows','Storm Arrows'],['showAloft','Aloft Wind'],['showLightning','⚡ Lightning (≥48 dBZ)']];
+  for(const[key,lbl]of togs){
+    const on=sw[key];
+    html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="${lb}">${lbl}</span><button onclick="_setSonarOpt('${key}',!_sonarCfg.${key})" id="ss-${key}" style="font-size:0.45em;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid ${on?'#00ff88':'rgba(0,220,255,0.3)'};background:${on?'rgba(0,255,136,0.2)':'none'};color:${on?'#00ff88':'rgba(255,255,255,0.5)'}">${on?'ON':'OFF'}</button></div>`;
+  }
+  html+='</div>';
+  html+='<div style="margin-bottom:6px">';
+  html+='<div style="'+tl+';margin-bottom:4px">Dot Size by dBZ</div>';
   for(const cls of _SONAR_DBZ_CLASSES){
     const val=Math.round(_getDbzScale(cls)*100);
     const col=_SONAR_DBZ_COLORS[cls];
-    html+=`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px"><span style="font-size:0.6em;color:${col};font-weight:600">${_SONAR_DBZ_LABELS[cls]}</span><span id="sonar-dbz-val-${cls}" style="font-size:0.55em;color:rgba(255,255,255,0.7);min-width:32px;text-align:right">${val}%</span></div><input type="range" min="50" max="200" value="${val}" step="10" id="sonar-dbz-${cls}" oninput="_onDbzSlider('${cls}',this.value)" style="width:100%;height:16px;accent-color:${col};cursor:pointer"></div>`;
+    html+=`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1px"><span style="font-size:0.5em;color:${col};font-weight:600">${_SONAR_DBZ_LABELS[cls]}</span><span id="sonar-dbz-val-${cls}" style="${vl}">${val}%</span></div><input type="range" min="50" max="200" value="${val}" step="10" id="sonar-dbz-${cls}" oninput="_onDbzSlider('${cls}',this.value)" style="width:100%;height:14px;accent-color:${col};cursor:pointer"></div>`;
   }
-  html+='<button onclick="_resetDbzScales()" style="background:none;border:1px solid rgba(0,220,255,0.3);color:rgba(0,220,255,0.6);font-size:0.55em;padding:3px 10px;border-radius:4px;cursor:pointer;margin-top:2px;width:100%">Reset to Default</button>';
+  html+='</div>';
+  html+='<button onclick="_resetAllSonar()" style="background:none;border:1px solid rgba(0,220,255,0.3);color:rgba(0,220,255,0.6);font-size:0.5em;padding:3px 10px;border-radius:4px;cursor:pointer;width:100%">Reset All to Default</button>';
   p.innerHTML=html;
   wrap.style.position='relative';wrap.appendChild(p);
 }
+function _setSonarOpt(key,val){_sonarCfg[key]=val;_saveSonarCfg();const p=document.getElementById('sonar-settings-panel');if(p){p.remove();_toggleSonarSettings()}drawMiniSonar()}
+function _setSonarSlider(key,val,elId,suffix){_sonarCfg[key]=Number(val);_saveSonarCfg();const el=document.getElementById(elId);if(el)el.textContent=val+suffix;drawMiniSonar()}
 function _onDbzSlider(cls,val){
   _setDbzScale(cls,val/100);
   const el=document.getElementById('sonar-dbz-val-'+cls);
   if(el)el.textContent=val+'%';
   drawMiniSonar();
 }
-function _resetDbzScales(){
-  for(const cls of _SONAR_DBZ_CLASSES){_sonarDbzScale[cls]=1;const sl=document.getElementById('sonar-dbz-'+cls);if(sl)sl.value=100;const vl=document.getElementById('sonar-dbz-val-'+cls);if(vl)vl.textContent='100%'}
-  localStorage.setItem('st_sonarDbzScale',JSON.stringify(_sonarDbzScale));drawMiniSonar();
+function _resetAllSonar(){
+  Object.assign(_sonarCfg,JSON.parse(JSON.stringify(_SONAR_DEFAULTS)));_saveSonarCfg();
+  const p=document.getElementById('sonar-settings-panel');if(p){p.remove();_toggleSonarSettings()}drawMiniSonar();
 }
 let _sonarZoomMi=parseInt(localStorage.getItem('st_sonarZoom'))||80;
 if(!_SONAR_ZOOM_LEVELS.includes(_sonarZoomMi))_sonarZoomMi=80;
@@ -2392,69 +2430,89 @@ function drawMiniSonar(){
     const zoomScale=80/viewR;
     const minDot=Math.max(2.5,size*0.012)*Math.min(zoomScale,6),maxDot=Math.max(6,size*0.028)*Math.min(zoomScale,6);
     const rawDotR=useRaw?Math.max(2,size*0.007)*Math.min(zoomScale,3):0;
-    const sweepDps=40;
-    const holdDegs=3*sweepDps;
-    const fadeDegs=4*sweepDps;
+    const cfg=_sonarCfg;
+    const sweepDps=cfg.sweepSpeed;
+    const holdDegs=cfg.fadeDur*sweepDps;
+    const fadeDegs=(cfg.fadeDur+1)*sweepDps;
     const totalDegs=holdDegs+fadeDegs;
+    const opacMul=cfg.dotOpacity/100;
+    const dbzFloor=cfg.dbzFloor;
+    const isAlwaysOn=cfg.alwaysOn;
+    const glowMul=cfg.glowInt;
+    const lightningDots=[];
     for(const d of dots){
+      if(d.dbz<dbzFloor)continue;
       const frac=Math.min(1,d.dist/maxR);
       const dbzCls=_dbzEntry(d.dbz).cls;
       const dbzSc=_getDbzScale(dbzCls);
       const dotR=(useRaw?rawDotR*(0.8+0.4*frac):(minDot+(maxDot-minDot)*frac))*dbzSc;
       const hex=dbzHex(d.dbz);
-      const dotAng=((d.angDeg-90)%360+360)%360;
-      let angDiff=((sweepDeg-dotAng)%360+360)%360;
-      const hasBeenSwept=totalSwept>=360||angDiff<totalSwept;
-      if(!hasBeenSwept){
-        ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
-        ctx.fillStyle='rgba(20,25,35,0.5)';ctx.fill();
-        continue;
+      let sweepAlpha=1;
+      if(!isAlwaysOn){
+        const dotAng=((d.angDeg-90)%360+360)%360;
+        let angDiff=((sweepDeg-dotAng)%360+360)%360;
+        const hasBeenSwept=totalSwept>=360||angDiff<totalSwept;
+        if(!hasBeenSwept){
+          ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
+          ctx.fillStyle='rgba(20,25,35,0.5)';ctx.fill();
+          continue;
+        }
+        if(angDiff<holdDegs){sweepAlpha=1}
+        else if(angDiff<totalDegs){sweepAlpha=Math.max(0.06,1-(angDiff-holdDegs)/fadeDegs)}
+        else{sweepAlpha=0.06}
       }
-      let sweepAlpha;
-      if(angDiff<holdDegs){sweepAlpha=1}
-      else if(angDiff<totalDegs){sweepAlpha=Math.max(0.06,1-(angDiff-holdDegs)/fadeDegs)}
-      else{sweepAlpha=0.06}
-      const baseA=Math.min(0.95,0.4+d.dbz/60);
+      const baseA=Math.min(0.95,0.4+d.dbz/60)*opacMul;
       const alpha=baseA*sweepAlpha;
       ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
       ctx.fillStyle=hexToRgba(hex,alpha);ctx.fill();
-      if(d.dbz>=40&&sweepAlpha>0.15){
-        ctx.save();ctx.shadowColor=hex;ctx.shadowBlur=dotR*3;
+      if(d.dbz>=40&&sweepAlpha>0.15&&glowMul>0){
+        ctx.save();ctx.shadowColor=hex;ctx.shadowBlur=dotR*3*glowMul;
         ctx.beginPath();ctx.arc(d.x,d.y,dotR*0.8,0,Math.PI*2);
         ctx.fillStyle=hexToRgba(hex,alpha*0.7);ctx.fill();
         ctx.restore();
-        if(sweepAlpha>0.5){
-          ctx.beginPath();ctx.arc(d.x,d.y,dotR*1.6,0,Math.PI*2);
+        if(sweepAlpha>0.5&&glowMul>=1){
+          ctx.beginPath();ctx.arc(d.x,d.y,dotR*(1+0.6*glowMul),0,Math.PI*2);
           ctx.strokeStyle=hexToRgba(hex,sweepAlpha*0.3);ctx.lineWidth=1;ctx.stroke();
         }
       }
+      if(d.dbz>=48&&sweepAlpha>0.3&&cfg.showLightning)lightningDots.push(d);
+    }
+    if(cfg.showLightning&&lightningDots.length){
+      ctx.save();
+      ctx.font=`${Math.max(10,size*0.035)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.shadowColor='rgba(255,255,0,0.8)';ctx.shadowBlur=6;
+      for(const d of lightningDots){ctx.fillStyle='rgba(255,255,50,0.9)';ctx.fillText('⚡',d.x,d.y)}
+      ctx.restore();
     }
   }
-  const nRings=4;
-  for(let i=1;i<=nRings;i++){
-    const r=maxR*(i/nRings);
-    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
-    ctx.strokeStyle='rgba(0,220,255,0.18)';ctx.lineWidth=0.8;ctx.stroke();
-    const dist=Math.round(viewR*(i/nRings));
-    const label=S.radarMetric?Math.round(dist*1.60934)+'km':dist+'mi';
+  const gB=(_sonarCfg.gridBright||100)/100;
+  if(gB>0){
+    const nRings=4;
+    for(let i=1;i<=nRings;i++){
+      const r=maxR*(i/nRings);
+      ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
+      ctx.strokeStyle=`rgba(0,220,255,${0.18*gB})`;ctx.lineWidth=0.8;ctx.stroke();
+      const dist=Math.round(viewR*(i/nRings));
+      const label=S.radarMetric?Math.round(dist*1.60934)+'km':dist+'mi';
+      ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
+      ctx.fillStyle=`rgba(0,220,255,${0.5*gB})`;ctx.font=`${Math.max(8,size*0.028)}px Inter,sans-serif`;
+      ctx.textAlign='center';ctx.fillText(label,cx,cy-r+10);ctx.restore();
+    }
+    ctx.beginPath();ctx.moveTo(cx,cy-maxR);ctx.lineTo(cx,cy+maxR);ctx.strokeStyle=`rgba(0,220,255,${0.1*gB})`;ctx.lineWidth=0.5;ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx-maxR,cy);ctx.lineTo(cx+maxR,cy);ctx.stroke();
+    const dirs=[['N',0],['S',180],['E',90],['W',270]];
     ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
-    ctx.fillStyle='rgba(0,220,255,0.5)';ctx.font=`${Math.max(8,size*0.028)}px Inter,sans-serif`;
-    ctx.textAlign='center';ctx.fillText(label,cx,cy-r+10);ctx.restore();
+    ctx.fillStyle=`rgba(0,220,255,${0.6*gB})`;ctx.font=`bold ${Math.max(9,size*0.035)}px Inter,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    for(const[l,deg]of dirs){
+      const a=(deg-90)*Math.PI/180;
+      const lx=cx+Math.cos(a)*(maxR+12),ly=cy+Math.sin(a)*(maxR+12);
+      ctx.fillText(l,lx,ly);
+    }
+    ctx.restore();
   }
-  ctx.beginPath();ctx.moveTo(cx,cy-maxR);ctx.lineTo(cx,cy+maxR);ctx.strokeStyle='rgba(0,220,255,0.1)';ctx.lineWidth=0.5;ctx.stroke();
-  ctx.beginPath();ctx.moveTo(cx-maxR,cy);ctx.lineTo(cx+maxR,cy);ctx.stroke();
-  const dirs=[['N',0],['S',180],['E',90],['W',270]];
-  ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
-  ctx.fillStyle='rgba(0,220,255,0.6)';ctx.font=`bold ${Math.max(9,size*0.035)}px Inter,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
-  for(const[l,deg]of dirs){
-    const a=(deg-90)*Math.PI/180;
-    const lx=cx+Math.cos(a)*(maxR+12),ly=cy+Math.sin(a)*(maxR+12);
-    ctx.fillText(l,lx,ly);
-  }
-  ctx.restore();
   try{
     const sonarStorms=(S.storms||[]).filter(s=>s.distance<=viewR);
-    if(S.stormMovement&&S.stormMovement.speed>=2&&sonarStorms.length){
+    if(_sonarCfg.showStormArrows&&S.stormMovement&&S.stormMovement.speed>=2&&sonarStorms.length){
       const mv=S.stormMovement;
       const mvRad=(mv.direction-90)*Math.PI/180;
       const approaching=[];
@@ -2500,7 +2558,7 @@ function drawMiniSonar(){
       ctx.restore();
     }
     const aloftDir=S._upperWindDir;
-    if(aloftDir!=null){
+    if(_sonarCfg.showAloft&&aloftDir!=null){
       const toDir=(aloftDir+180)%360;
       const aloftRad=(toDir-90)*Math.PI/180;
       const aLen=maxR*0.55;
@@ -2521,21 +2579,22 @@ function drawMiniSonar(){
     }
   }catch(e){console.log('Sonar storm overlay error:',e.message)}
   if(!S._sonarSweepAngle)S._sonarSweepAngle=0;
-  const sweepRad=S._sonarSweepAngle*Math.PI/180;
-  const grad=ctx.createConicalGradient?null:null;
-  ctx.save();
-  const sweepEndX=cx+Math.cos(sweepRad)*maxR,sweepEndY=cy+Math.sin(sweepRad)*maxR;
-  const tailSpan=0.6;
-  for(let i=0;i<12;i++){
-    const frac=i/12;
-    const aOff=sweepRad-tailSpan*frac;
-    const ex=cx+Math.cos(aOff)*maxR,ey=cy+Math.sin(aOff)*maxR;
-    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);
-    ctx.strokeStyle=`rgba(0,220,255,${0.18*(1-frac)})`;ctx.lineWidth=1.5*(1-frac*0.5);ctx.stroke();
+  if(!_sonarCfg.alwaysOn){
+    const sweepRad=S._sonarSweepAngle*Math.PI/180;
+    ctx.save();
+    const sweepEndX=cx+Math.cos(sweepRad)*maxR,sweepEndY=cy+Math.sin(sweepRad)*maxR;
+    const tailSpan=0.6;
+    for(let i=0;i<12;i++){
+      const frac=i/12;
+      const aOff=sweepRad-tailSpan*frac;
+      const ex=cx+Math.cos(aOff)*maxR,ey=cy+Math.sin(aOff)*maxR;
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);
+      ctx.strokeStyle=`rgba(0,220,255,${0.18*(1-frac)})`;ctx.lineWidth=1.5*(1-frac*0.5);ctx.stroke();
+    }
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(sweepEndX,sweepEndY);
+    ctx.strokeStyle='rgba(0,255,255,0.35)';ctx.lineWidth=2;ctx.stroke();
+    ctx.restore();
   }
-  ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(sweepEndX,sweepEndY);
-  ctx.strokeStyle='rgba(0,255,255,0.35)';ctx.lineWidth=2;ctx.stroke();
-  ctx.restore();
   ctx.save();
   ctx.shadowColor='#00dcff';ctx.shadowBlur=10;
   ctx.beginPath();ctx.arc(cx,cy,7,0,Math.PI*2);ctx.fillStyle='#00eeff';ctx.fill();
@@ -2560,7 +2619,8 @@ function startSonarSweep(){
     if(!document.getElementById('mini-sonar-canvas')){_sonarAnimId=0;return;}
     const dt=last?ts-last:16;last=ts;
     const prevAngle=S._sonarSweepAngle||0;
-    const advance=dt*0.04;
+    if(_sonarCfg.alwaysOn){S._sonarTotalSwept=720;drawMiniSonar();_sonarAnimId=requestAnimationFrame(tick);return}
+    const advance=dt*(_sonarCfg.sweepSpeed/1000);
     S._sonarSweepAngle=(prevAngle+advance)%360;
     S._sonarTotalSwept=Math.min(720,(S._sonarTotalSwept||0)+advance);
     drawMiniSonar();
