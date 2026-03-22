@@ -298,86 +298,118 @@ function renderGaugeMinimal(d){
 function renderGaugeG1000(d){
   const{windSpd,wd,windDisp,gustDisp,windNum,windUnit,gustStr,bf,simActive,pressure}=d;
   const dirDeg=simActive?_windCurSim.dir:wd;
-  const W=260,H=200;
-  const tapeW=40,compassR=55,compassCx=W/2,compassCy=H/2;
+  const W=300,H=230,topBar=16,botBar=14;
+  const tapeW=38,tapeTop=topBar+2,tapeBot=H-botBar-2,tapeH=tapeBot-tapeTop;
+  const compassR=52,compassCx=W/2,compassCy=topBar+(tapeBot-topBar)/2;
+  const green='#00ff00',cyan='#00ddff',magenta='#ff00ff',amber='#ffaa00';
   let svg='';
-  svg+=`<rect x="0" y="0" width="${W}" height="${H}" rx="4" fill="#111318"/>`;
-  svg+=`<rect x="2" y="2" width="${tapeW}" height="${H-4}" rx="3" fill="#0c0e14" stroke="#2a2e38" stroke-width="0.5"/>`;
+  svg+=`<rect x="0" y="0" width="${W}" height="${H}" rx="3" fill="#111318"/>`;
+  svg+=`<rect x="0" y="0" width="${W}" height="${topBar}" rx="3" fill="#1a1a22"/>`;
+  svg+=`<line x1="0" y1="${topBar}" x2="${W}" y2="${topBar}" stroke="#3a3e48" stroke-width="0.5"/>`;
+  const storms=S.storms||[];
+  const strongest=storms.length?storms.reduce((a,b)=>(b.dbz||0)>(a.dbz||0)?b:a,storms[0]):null;
+  const mv=S.stormMovement;
+  let topTxt='';
+  if(strongest){
+    topTxt+=`STM ${strongest.dbz||0}dBZ ${strongest.distance.toFixed(0)}${S.radarMetric?'km':'mi'}`;
+    if(mv&&mv.speed>=2)topTxt+=`  MVG ${degToDir(mv.direction)} ${mv.speed.toFixed(0)}${S.radarMetric?'km/h':'mph'}`;
+  }else{topTxt='NO STORMS DETECTED'}
+  svg+=`<text x="${W/2}" y="${topBar/2+1}" fill="${strongest?amber:'#5a6070'}" font-size="5" font-weight="600" text-anchor="middle" dominant-baseline="central" font-family="monospace">${topTxt}</text>`;
+  svg+=`<rect x="0" y="${H-botBar}" width="${W}" height="${botBar}" rx="3" fill="#1a1a22"/>`;
+  svg+=`<line x1="0" y1="${H-botBar}" x2="${W}" y2="${H-botBar}" stroke="#3a3e48" stroke-width="0.5"/>`;
+  const tempC=S.weather?S.weather.temperature_2m:null;
+  const oat=tempC!=null?`OAT ${S.tempUnit===0?cToF(tempC)+'°F':tempC.toFixed(1)+'°C'}`:'';
+  svg+=`<text x="4" y="${H-botBar/2+1}" fill="${cyan}" font-size="4.5" font-weight="600" text-anchor="start" dominant-baseline="central" font-family="monospace">${oat}</text>`;
+  const pMb=pressure||1013.25;
+  const pDisp=S.presUnit===0?(pMb*0.02953).toFixed(2):pMb.toFixed(0);
+  const pUnit=S.presUnit===0?'IN':'MB';
+  svg+=`<text x="${W/2}" y="${H-botBar/2+1}" fill="${green}" font-size="4.5" font-weight="600" text-anchor="middle" dominant-baseline="central" font-family="monospace">BARO ${pDisp}${pUnit}</text>`;
+  svg+=`<text x="${W-4}" y="${H-botBar/2+1}" fill="#8b95a5" font-size="4.5" font-weight="600" text-anchor="end" dominant-baseline="central" font-family="monospace">F${bf} ${_BFT_NAME[bf]}</text>`;
+  svg+=`<rect x="1" y="${tapeTop}" width="${tapeW}" height="${tapeH}" fill="#0c0e14" stroke="#2a2e38" stroke-width="0.5"/>`;
   const maxTape=Math.max(20,Math.ceil(Math.max(windDisp,gustDisp)*1.5/10)*10);
-  const tapeCenter=H/2;
-  const pxPerUnit=(H-20)/maxTape;
+  const tapeCenter=tapeTop+tapeH/2;
+  const pxPerUnit=tapeH*0.8/maxTape;
   for(let s=0;s<=maxTape;s+=maxTape<=30?2:5){
     const yy=tapeCenter-(s-windDisp)*pxPerUnit;
-    if(yy<10||yy>H-10)continue;
+    if(yy<tapeTop+4||yy>tapeBot-4)continue;
     const major=s%(maxTape<=30?10:20)===0;
-    svg+=`<line x1="2" y1="${yy.toFixed(1)}" x2="${2+(major?8:4)}" y2="${yy.toFixed(1)}" stroke="${major?'#5a6070':'#2a2e38'}" stroke-width="${major?1:0.5}"/>`;
-    if(major)svg+=`<text x="${major?12:8}" y="${yy.toFixed(1)}" fill="#8b95a5" font-size="6" text-anchor="start" dominant-baseline="central" font-family="monospace">${s}</text>`;
+    svg+=`<line x1="1" y1="${yy.toFixed(1)}" x2="${1+(major?10:5)}" y2="${yy.toFixed(1)}" stroke="${major?'#5a6070':'#2a2e38'}" stroke-width="${major?1:0.5}"/>`;
+    if(major)svg+=`<text x="13" y="${yy.toFixed(1)}" fill="#e2e8f0" font-size="6.5" font-weight="600" text-anchor="start" dominant-baseline="central" font-family="monospace">${s}</text>`;
   }
-  const sBoxW=S.windUnit>=3?20:16;
-  svg+=`<rect x="${tapeW-sBoxW}" y="${tapeCenter-6}" width="${sBoxW+2}" height="12" rx="2" fill="#111" stroke="#00ff00" stroke-width="0.8"/>`;
-  svg+=`<text x="${tapeW-sBoxW/2+1}" y="${tapeCenter}" fill="#00ff00" font-size="7" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${windNum}</text>`;
-  svg+=`<text x="${tapeW/2+1}" y="12" fill="#00ddff" font-size="5.5" font-weight="700" text-anchor="middle" font-family="monospace">${parseFloat(windNum).toFixed(0)}${windUnit.charAt(0).toUpperCase()}</text>`;
   if(gustDisp>windDisp){
     const gustY=tapeCenter-(gustDisp-windDisp)*pxPerUnit;
-    if(gustY>10&&gustY<H-10){
-      svg+=`<line x1="2" y1="${gustY.toFixed(1)}" x2="${tapeW}" y2="${gustY.toFixed(1)}" stroke="rgba(255,0,0,0.7)" stroke-width="1.5"/>`;
-      svg+=`<text x="${tapeW+2}" y="${gustY.toFixed(1)}" fill="#ff4444" font-size="4.5" font-weight="600" text-anchor="start" dominant-baseline="central" font-family="monospace">G${parseFloat(kmhTo(d.gustRaw,S.windUnit)).toFixed(0)}</text>`;
+    if(gustY>tapeTop+4&&gustY<tapeBot-4){
+      svg+=`<line x1="1" y1="${gustY.toFixed(1)}" x2="${tapeW}" y2="${gustY.toFixed(1)}" stroke="red" stroke-width="1.8"/>`;
+      svg+=`<text x="${tapeW+2}" y="${gustY.toFixed(1)}" fill="#ff3333" font-size="4.5" font-weight="700" text-anchor="start" dominant-baseline="central" font-family="monospace">G${parseFloat(kmhTo(d.gustRaw,S.windUnit)).toFixed(0)}</text>`;
     }
   }
   const avgKmh=(_windMinKmh<Infinity&&_windMaxKmh>0)?(_windMinKmh+_windMaxKmh)/2:0;
   if(avgKmh>0){
     const avgDisp=parseFloat(kmhTo(avgKmh,S.windUnit));
     const avgY=tapeCenter-(avgDisp-windDisp)*pxPerUnit;
-    if(avgY>10&&avgY<H-10){
-      svg+=`<line x1="2" y1="${avgY.toFixed(1)}" x2="${tapeW}" y2="${avgY.toFixed(1)}" stroke="rgba(0,200,255,0.5)" stroke-width="0.8" stroke-dasharray="3,2"/>`;
-      svg+=`<text x="${tapeW+2}" y="${avgY.toFixed(1)}" fill="#00c8ff" font-size="4" font-weight="600" text-anchor="start" dominant-baseline="central" font-family="monospace">A${avgDisp.toFixed(0)}</text>`;
+    if(avgY>tapeTop+4&&avgY<tapeBot-4){
+      svg+=`<polygon points="${tapeW},${(avgY-4).toFixed(1)} ${tapeW+8},${avgY.toFixed(1)} ${tapeW},${(avgY+4).toFixed(1)}" fill="${cyan}" stroke="${cyan}" stroke-width="0.5"/>`;
+      svg+=`<text x="${tapeW+10}" y="${avgY.toFixed(1)}" fill="${cyan}" font-size="4" font-weight="600" text-anchor="start" dominant-baseline="central" font-family="monospace">A${avgDisp.toFixed(0)}</text>`;
     }
   }
-  const green='#00cc44';
-  svg+=`<rect x="${W-tapeW-2}" y="2" width="${tapeW}" height="${H-4}" rx="3" fill="#0c0e14" stroke="#2a2e38" stroke-width="0.5"/>`;
-  const pMb=pressure||1013.25;
-  const pDisp=S.presUnit===0?(pMb*0.02953).toFixed(2):pMb.toFixed(0);
-  const pUnit=S.presUnit===0?'IN':'MB';
+  const maxKmhDisp=_windMaxKmh>0?parseFloat(kmhTo(_windMaxKmh,S.windUnit)):0;
+  if(maxKmhDisp>0){
+    const maxY=tapeCenter-(maxKmhDisp-windDisp)*pxPerUnit;
+    if(maxY>tapeTop+4&&maxY<tapeBot-4){
+      svg+=`<line x1="1" y1="${maxY.toFixed(1)}" x2="${tapeW}" y2="${maxY.toFixed(1)}" stroke="${amber}" stroke-width="1" stroke-dasharray="3,2"/>`;
+    }
+  }
+  svg+=`<polygon points="${tapeW},${(tapeCenter-7).toFixed(1)} ${tapeW+13},${(tapeCenter-7).toFixed(1)} ${tapeW+17},${tapeCenter.toFixed(1)} ${tapeW+13},${(tapeCenter+7).toFixed(1)} ${tapeW},${(tapeCenter+7).toFixed(1)}" fill="#111" stroke="${green}" stroke-width="1"/>`;
+  svg+=`<text x="${tapeW+8}" y="${tapeCenter.toFixed(1)}" fill="${green}" font-size="8" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${parseFloat(windNum).toFixed(0)}</text>`;
+  svg+=`<text x="${tapeW/2+1}" y="${tapeTop+8}" fill="${cyan}" font-size="5" font-weight="600" text-anchor="middle" font-family="monospace">${windUnit.toUpperCase()}</text>`;
+  svg+=`<rect x="${W-tapeW-1}" y="${tapeTop}" width="${tapeW}" height="${tapeH}" fill="#0c0e14" stroke="#2a2e38" stroke-width="0.5"/>`;
   const pMax=S.presUnit===0?31.5:1060;const pMin=S.presUnit===0?28.5:960;
   const pVal=S.presUnit===0?pMb*0.02953:pMb;
   const pRange=pMax-pMin;
-  for(let p=Math.ceil(pMin);p<=pMax;p+=S.presUnit===0?0.5:10){
-    const frac=(p-pMin)/pRange;
-    const yy=H-10-(H-20)*frac;
-    if(yy<10||yy>H-10)continue;
-    const major=S.presUnit===0?(p*10)%5===0:(p%50===0);
-    const x0=W-tapeW-2;
-    svg+=`<line x1="${x0}" y1="${yy.toFixed(1)}" x2="${x0+6}" y2="${yy.toFixed(1)}" stroke="${major?'#5a6070':'#2a2e38'}" stroke-width="${major?1:0.5}"/>`;
-    if(major)svg+=`<text x="${x0+8}" y="${yy.toFixed(1)}" fill="#8b95a5" font-size="5" text-anchor="start" dominant-baseline="central" font-family="monospace">${S.presUnit===0?p.toFixed(1):p}</text>`;
+  const pTapeCenter=tapeTop+tapeH/2;
+  const ppxPerUnit=tapeH*0.8/pRange;
+  for(let p=Math.floor(pMin*10)/10;p<=pMax;p+=S.presUnit===0?0.5:10){
+    const yy=pTapeCenter-(p-pVal)*ppxPerUnit;
+    if(yy<tapeTop+4||yy>tapeBot-4)continue;
+    const major=S.presUnit===0?Math.abs(p*2-Math.round(p*2))<0.01&&Math.round(p)===p:(p%50===0);
+    const x0=W-tapeW-1;
+    svg+=`<line x1="${(x0+tapeW-1-(major?10:5)).toFixed(1)}" y1="${yy.toFixed(1)}" x2="${(x0+tapeW-1).toFixed(1)}" y2="${yy.toFixed(1)}" stroke="${major?'#5a6070':'#2a2e38'}" stroke-width="${major?1:0.5}"/>`;
+    if(major)svg+=`<text x="${(x0+tapeW-13).toFixed(1)}" y="${yy.toFixed(1)}" fill="#e2e8f0" font-size="5.5" font-weight="600" text-anchor="end" dominant-baseline="central" font-family="monospace">${S.presUnit===0?p.toFixed(1):p}</text>`;
   }
-  const pFrac=(pVal-pMin)/pRange;
-  const pY=H-10-(H-20)*pFrac;
-  const pBoxW=S.presUnit===0?30:20;
-  svg+=`<rect x="${W-tapeW-pBoxW-2}" y="${pY-6}" width="${pBoxW}" height="12" rx="2" fill="#111" stroke="${green}" stroke-width="0.8"/>`;
-  svg+=`<text x="${W-tapeW-pBoxW/2-2}" y="${pY}" fill="${green}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${pDisp}</text>`;
-  svg+=`<text x="${W-tapeW/2-1}" y="12" fill="#00ddff" font-size="5.5" font-weight="700" text-anchor="middle" font-family="monospace">${pDisp}${pUnit}</text>`;
+  const pBoxW=S.presUnit===0?32:22;
+  svg+=`<polygon points="${(W-tapeW-1).toFixed(1)},${(pTapeCenter+7).toFixed(1)} ${(W-tapeW-1).toFixed(1)},${(pTapeCenter-7).toFixed(1)} ${(W-tapeW-14).toFixed(1)},${(pTapeCenter-7).toFixed(1)} ${(W-tapeW-18).toFixed(1)},${pTapeCenter.toFixed(1)} ${(W-tapeW-14).toFixed(1)},${(pTapeCenter+7).toFixed(1)}" fill="#111" stroke="${green}" stroke-width="1"/>`;
+  svg+=`<text x="${(W-tapeW-9).toFixed(1)}" y="${pTapeCenter.toFixed(1)}" fill="${green}" font-size="6.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${pDisp}</text>`;
+  svg+=`<text x="${W-tapeW/2-1}" y="${tapeTop+8}" fill="${cyan}" font-size="5" font-weight="600" text-anchor="middle" font-family="monospace">${pUnit}</text>`;
   svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="${compassR}" fill="none" stroke="#3a3e48" stroke-width="0.8"/>`;
+  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="${compassR+1}" fill="none" stroke="#2a2e38" stroke-width="0.3"/>`;
   for(let dd=0;dd<360;dd+=10){
     const a=(dd-90)*Math.PI/180;
     const major=dd%30===0;
     const x1=compassCx+Math.cos(a)*(compassR-1),y1=compassCy+Math.sin(a)*(compassR-1);
-    const x2=compassCx+Math.cos(a)*(compassR-(major?7:3)),y2=compassCy+Math.sin(a)*(compassR-(major?7:3));
-    svg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${major?'#8b95a5':'#3a3e48'}" stroke-width="${major?1:0.5}"/>`;
+    const x2=compassCx+Math.cos(a)*(compassR-(major?8:3)),y2=compassCy+Math.sin(a)*(compassR-(major?8:3));
+    svg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${major?'#e2e8f0':'#3a3e48'}" stroke-width="${major?1.2:0.5}"/>`;
     if(dd%30===0){
       const lbl=dd===0?'N':dd===90?'E':dd===180?'S':dd===270?'W':String(dd/10);
-      const tx=compassCx+Math.cos(a)*(compassR-12),ty=compassCy+Math.sin(a)*(compassR-12);
-      svg+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="${dd%90===0?'#e2e8f0':'#8b95a5'}" font-size="${dd%90===0?'7':'5'}" font-weight="${dd%90===0?'700':'500'}" text-anchor="middle" dominant-baseline="central" font-family="monospace">${lbl}</text>`;
+      const tx=compassCx+Math.cos(a)*(compassR-14),ty=compassCy+Math.sin(a)*(compassR-14);
+      svg+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="${dd%90===0?'#ffffff':'#e2e8f0'}" font-size="${dd%90===0?'7':'5.5'}" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${lbl}</text>`;
     }
   }
-  const pAng=(dirDeg-90)*Math.PI/180;
-  svg+=`<polygon points="${(compassCx+Math.cos(pAng)*(compassR-14)).toFixed(1)},${(compassCy+Math.sin(pAng)*(compassR-14)).toFixed(1)} ${(compassCx+Math.cos(pAng-0.12)*16).toFixed(1)},${(compassCy+Math.sin(pAng-0.12)*16).toFixed(1)} ${(compassCx+Math.cos(pAng+0.12)*16).toFixed(1)},${(compassCy+Math.sin(pAng+0.12)*16).toFixed(1)}" fill="rgba(255,0,255,0.6)" stroke="#ff00ff" stroke-width="0.5"/>`;
-  const tailAng=pAng+Math.PI;
-  svg+=`<polygon points="${(compassCx+Math.cos(tailAng)*(compassR-16)).toFixed(1)},${(compassCy+Math.sin(tailAng)*(compassR-16)).toFixed(1)} ${(compassCx+Math.cos(tailAng-0.1)*12).toFixed(1)},${(compassCy+Math.sin(tailAng-0.1)*12).toFixed(1)} ${(compassCx+Math.cos(tailAng+0.1)*12).toFixed(1)},${(compassCy+Math.sin(tailAng+0.1)*12).toFixed(1)}" fill="rgba(255,255,255,0.15)"/>`;
-  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="3" fill="#222" stroke="#ff00ff" stroke-width="1"/>`;
-  svg+=`<rect x="${compassCx-20}" y="${compassCy+compassR+4}" width="40" height="14" rx="3" fill="#111" stroke="#3a3e48" stroke-width="0.5"/>`;
-  svg+=`<text x="${compassCx}" y="${compassCy+compassR+11}" fill="#00ddff" font-size="6.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${dirDeg.toFixed(0)}°</text>`;
-  svg+=`<text x="${compassCx}" y="${compassCy+compassR+22}" fill="#8b95a5" font-size="5" text-anchor="middle" font-family="monospace">F${bf} ${_BFT_NAME[bf]}</text>`;
-  return`<div class="wind-rose gauge-g1000" data-gauge="g1000" style="cursor:pointer;width:260px;height:200px;flex-shrink:0;position:relative">
+  const wAng=(dirDeg-90)*Math.PI/180;
+  const nLen=compassR-16,nBase=14;
+  svg+=`<polygon points="${(compassCx+Math.cos(wAng)*nLen).toFixed(1)},${(compassCy+Math.sin(wAng)*nLen).toFixed(1)} ${(compassCx+Math.cos(wAng-0.12)*nBase).toFixed(1)},${(compassCy+Math.sin(wAng-0.12)*nBase).toFixed(1)} ${(compassCx+Math.cos(wAng+0.12)*nBase).toFixed(1)},${(compassCy+Math.sin(wAng+0.12)*nBase).toFixed(1)}" fill="rgba(255,0,255,0.65)" stroke="${magenta}" stroke-width="0.6"/>`;
+  const tAng=wAng+Math.PI;
+  svg+=`<polygon points="${(compassCx+Math.cos(tAng)*(nLen-2)).toFixed(1)},${(compassCy+Math.sin(tAng)*(nLen-2)).toFixed(1)} ${(compassCx+Math.cos(tAng-0.1)*10).toFixed(1)},${(compassCy+Math.sin(tAng-0.1)*10).toFixed(1)} ${(compassCx+Math.cos(tAng+0.1)*10).toFixed(1)},${(compassCy+Math.sin(tAng+0.1)*10).toFixed(1)}" fill="rgba(255,255,255,0.12)"/>`;
+  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="4" fill="#222" stroke="${magenta}" stroke-width="1"/>`;
+  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="1.5" fill="${magenta}"/>`;
+  if(mv&&mv.speed>=2){
+    const sAng=(mv.direction-90)*Math.PI/180;
+    const sLen=compassR-20;
+    svg+=`<line x1="${compassCx}" y1="${compassCy}" x2="${(compassCx+Math.cos(sAng)*sLen).toFixed(1)}" y2="${(compassCy+Math.sin(sAng)*sLen).toFixed(1)}" stroke="${amber}" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+    svg+=`<polygon points="${(compassCx+Math.cos(sAng)*sLen).toFixed(1)},${(compassCy+Math.sin(sAng)*sLen).toFixed(1)} ${(compassCx+Math.cos(sAng-0.2)*(sLen-6)).toFixed(1)},${(compassCy+Math.sin(sAng-0.2)*(sLen-6)).toFixed(1)} ${(compassCx+Math.cos(sAng+0.2)*(sLen-6)).toFixed(1)},${(compassCy+Math.sin(sAng+0.2)*(sLen-6)).toFixed(1)}" fill="${amber}"/>`;
+  }
+  svg+=`<rect x="${compassCx-22}" y="${compassCy+compassR+4}" width="44" height="14" rx="2" fill="#111" stroke="#3a3e48" stroke-width="0.8"/>`;
+  svg+=`<text x="${compassCx}" y="${compassCy+compassR+11}" fill="${green}" font-size="7" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${dirDeg.toFixed(0)}°</text>`;
+  return`<div class="wind-rose gauge-g1000" data-gauge="g1000" style="cursor:pointer;width:300px;height:230px;flex-shrink:0;position:relative">
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%">${svg}</svg>
   </div>`;
 }
