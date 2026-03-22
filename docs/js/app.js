@@ -6310,7 +6310,7 @@ function buildWeatherContext(){
   }
 
   if(S.storms&&S.storms.length){
-    const validStorms=S.storms.filter(s=>s&&s.dist!=null&&s.bear!=null&&s.dbz!=null);
+    const validStorms=S.storms.filter(s=>s&&s.distance!=null&&s.bearing!=null&&s.dbz!=null);
     const sigStorms=validStorms.filter(s=>s.dbz>=31);
     const lowStorms=validStorms.filter(s=>s.dbz<31);
     parts.push(`\nSTORM DATA: ${validStorms.length} radar returns detected.`);
@@ -6320,10 +6320,10 @@ function buildWeatherContext(){
       parts.push(`  ${sigStorms.length} significant cells (31+ dBZ) and ${lowStorms.length} minor returns (<31 dBZ, likely clutter).`);
     }
     if(sigStorms.length){
-      const sorted=[...sigStorms].sort((a,b)=>a.dist-b.dist);
+      const sorted=[...sigStorms].sort((a,b)=>a.distance-b.distance);
       const top=sorted.slice(0,12);
       for(const st of top){
-        let line=`  Storm at ${st.dist.toFixed(1)} mi ${degToDir(st.bear)} (${st.bear.toFixed(0)}°), intensity ${st.dbz} dBZ`;
+        let line=`  Storm at ${st.distance.toFixed(1)} mi ${degToDir(st.bearing)} (${st.bearing.toFixed(0)}°), intensity ${st.dbz} dBZ`;
         const cat=st.dbz>=60?'EXTREME':st.dbz>=55?'SEVERE':st.dbz>=45?'HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
         line+=` [${cat}]`;
         try{
