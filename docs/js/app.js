@@ -1413,7 +1413,7 @@ function setLoc(lat,lon,name,fromTravel){
     S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
     clearStormCone();
   }
-  S.storms=[];S._rawScanPts=[];S._sonarFirstSweep=false;clearStormZones();
+  S.storms=[];S._rawScanPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
   try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:S.locName}))}catch(e){}
   if(S.map){
     S.map.setView([lat,lon],S.map.getZoom());
@@ -2346,9 +2346,10 @@ function drawMiniSonar(){
     }
     dots.sort((a,b)=>a.dbz-b.dbz);
     const sweepDeg=S._sonarSweepAngle||0;
-    const firstSweepDone=S._sonarFirstSweep||false;
+    const sweepStart=S._sonarSweepStart||0;
+    const totalSwept=S._sonarTotalSwept||0;
     const minDot=Math.max(2.5,size*0.012),maxDot=Math.max(6,size*0.028);
-    const sweepDps=0.04*1000;
+    const sweepDps=40;
     const holdDegs=3*sweepDps;
     const fadeDegs=4*sweepDps;
     const totalDegs=holdDegs+fadeDegs;
@@ -2356,12 +2357,14 @@ function drawMiniSonar(){
       const frac=Math.min(1,d.dist/maxR);
       const dotR=minDot+(maxDot-minDot)*frac;
       const hex=dbzHex(d.dbz);
-      if(!firstSweepDone){
+      const dotAng=(d.angDeg+90)%360;
+      let angDiff=((sweepDeg-dotAng)%360+360)%360;
+      const hasBeenSwept=totalSwept>=360||angDiff<totalSwept;
+      if(!hasBeenSwept){
         ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
-        ctx.fillStyle='rgba(20,25,35,0.6)';ctx.fill();
+        ctx.fillStyle='rgba(20,25,35,0.5)';ctx.fill();
         continue;
       }
-      let angDiff=((sweepDeg-(d.angDeg+90))%360+360)%360;
       let sweepAlpha;
       if(angDiff<holdDegs){sweepAlpha=1}
       else if(angDiff<totalDegs){sweepAlpha=Math.max(0.06,1-(angDiff-holdDegs)/fadeDegs)}
@@ -2421,6 +2424,9 @@ function drawMiniSonar(){
       ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
       ctx.beginPath();ctx.moveTo(cx+Math.cos(mvRad)*15,cy+Math.sin(mvRad)*15);ctx.lineTo(ax,ay);
       ctx.strokeStyle=hexToRgba(neonC,0.5);ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
+      const slx=ax+Math.cos(mvRad)*10,sly=ay+Math.sin(mvRad)*10;
+      ctx.fillStyle=hexToRgba(neonC,0.8);ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('STORM',slx,sly);
     }
     const aloftDir=S._upperWindDir;
     if(aloftDir!=null){
@@ -2431,13 +2437,13 @@ function drawMiniSonar(){
       const ax1=cx+Math.cos(aloftRad)*aStart,ay1=cy+Math.sin(aloftRad)*aStart;
       const ax2=cx+Math.cos(aloftRad)*aLen,ay2=cy+Math.sin(aloftRad)*aLen;
       ctx.beginPath();ctx.moveTo(ax1,ay1);ctx.lineTo(ax2,ay2);
-      ctx.strokeStyle='rgba(255,255,0,0.5)';ctx.lineWidth=1.8;ctx.setLineDash([6,4]);ctx.stroke();ctx.setLineDash([]);
+      ctx.strokeStyle='rgba(255,0,220,0.55)';ctx.lineWidth=1.8;ctx.setLineDash([6,4]);ctx.stroke();ctx.setLineDash([]);
       const headL=8,ha1=aloftRad-Math.PI+0.4,ha2=aloftRad-Math.PI-0.4;
       ctx.beginPath();ctx.moveTo(ax2,ay2);ctx.lineTo(ax2+Math.cos(ha1)*headL,ay2+Math.sin(ha1)*headL);
       ctx.moveTo(ax2,ay2);ctx.lineTo(ax2+Math.cos(ha2)*headL,ay2+Math.sin(ha2)*headL);
-      ctx.strokeStyle='rgba(255,255,0,0.6)';ctx.lineWidth=2;ctx.stroke();
+      ctx.strokeStyle='rgba(255,0,220,0.65)';ctx.lineWidth=2;ctx.stroke();
       const lx=ax2+Math.cos(aloftRad)*10,ly=ay2+Math.sin(aloftRad)*10;
-      ctx.fillStyle='rgba(255,255,0,0.7)';ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
+      ctx.fillStyle='rgba(255,0,220,0.8)';ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
       ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('ALOFT',lx,ly);
     }
   }catch(e){console.log('Sonar storm overlay error:',e.message)}
@@ -2481,8 +2487,9 @@ function startSonarSweep(){
     if(!document.getElementById('mini-sonar-canvas')){_sonarAnimId=0;return;}
     const dt=last?ts-last:16;last=ts;
     const prevAngle=S._sonarSweepAngle||0;
-    S._sonarSweepAngle=(prevAngle+dt*0.04)%360;
-    if(!S._sonarFirstSweep&&prevAngle>300&&S._sonarSweepAngle<60)S._sonarFirstSweep=true;
+    const advance=dt*0.04;
+    S._sonarSweepAngle=(prevAngle+advance)%360;
+    S._sonarTotalSwept=Math.min(720,(S._sonarTotalSwept||0)+advance);
     drawMiniSonar();
     _sonarAnimId=requestAnimationFrame(tick);
   }
