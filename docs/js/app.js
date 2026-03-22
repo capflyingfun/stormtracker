@@ -72,9 +72,9 @@ function _resetMinMax(){_windMinKmh=Infinity;_windMaxKmh=0}
 function _trackMinMax(kmh){if(kmh>0.1){if(kmh<_windMinKmh)_windMinKmh=kmh;if(kmh>_windMaxKmh)_windMaxKmh=kmh}}
 function getGaugeStyle(){return localStorage.getItem('st_gaugeStyle')||'neon'}
 function setGaugeStyle(s){localStorage.setItem('st_gaugeStyle',s);reRenderActive();syncGaugeStyleBtns()}
-function _led7(num,color,sz){
+function _led7(num,color,sz,dec){
   const segs=[0x7E,0x30,0x6D,0x79,0x33,0x5B,0x5F,0x70,0x7F,0x7B];
-  const str=num.toFixed(1);const chars=str.split('');
+  const str=num.toFixed(dec!=null?dec:1);const chars=str.split('');
   let svg='';let xOff=0;const w=sz*0.6,h=sz,g=sz*0.06,sw=sz*0.12;
   const onC=color||'#ff2222';const offC='rgba(255,255,255,0.04)';
   chars.forEach(ch=>{
@@ -162,7 +162,7 @@ function renderGaugeNeon(d){
     const dx=cx+Math.cos(ang)*dr,dy=cy+Math.sin(ang)*dr;
     g+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${(1+i*0.05).toFixed(1)}" fill="${neonRed}${(0.2+0.6*(i/dotCount)).toFixed(2)})"/>`;
   }
-  const dirStr=simActive?degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(1)+'°':degToDir(wd)+' '+wd.toFixed(1)+'°';
+  const dirStr=simActive?degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(0)+'°':degToDir(wd)+' '+wd.toFixed(0)+'°';
   return`<div class="wind-rose" style="cursor:pointer" data-gauge="neon">
     <svg viewBox="-12 -12 124 124">${g}</svg>
     <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
@@ -223,7 +223,7 @@ function renderGaugeMarine(d){
     svg+=`<text x="${bfBarX+(i-0.5)*bw}" y="${bfBarY+12}" fill="#777" font-size="4" text-anchor="middle" font-family="monospace">${i}</text>`;
   }
   svg+=`<text x="${cx}" y="${cy+28}" fill="#888" font-size="6" font-weight="600" text-anchor="middle" font-family="monospace">WIND DIRECTION</text>`;
-  const dirLed=_led7(parseFloat(dirDeg.toFixed(0)),'#ff2222',16);
+  const dirLed=_led7(Math.round(dirDeg),'#ff2222',16,0);
   svg+=`<g transform="translate(${cx-dirLed.width/2},${cy+30})">${dirLed.svg}</g>`;
   svg+=`<text x="${cx+dirLed.width/2+2}" y="${cy+42}" fill="#cc3333" font-size="5" text-anchor="start" font-family="monospace">°</text>`;
   const mnLed=_led7(minDisp,'#ff2222',12);
@@ -339,8 +339,9 @@ function renderGaugeG1000(d){
   }
   const pFrac=(pVal-pMin)/pRange;
   const pY=H-10-(H-20)*pFrac;
-  svg+=`<rect x="${W-tapeW-14}" y="${pY-6}" width="14" height="12" rx="2" fill="#111" stroke="${green}" stroke-width="0.8"/>`;
-  svg+=`<text x="${W-tapeW-7}" y="${pY}" fill="${green}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${pDisp}</text>`;
+  const pBoxW=S.presUnit===0?30:20;
+  svg+=`<rect x="${W-tapeW-pBoxW-2}" y="${pY-6}" width="${pBoxW}" height="12" rx="2" fill="#111" stroke="${green}" stroke-width="0.8"/>`;
+  svg+=`<text x="${W-tapeW-pBoxW/2-2}" y="${pY}" fill="${green}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${pDisp}</text>`;
   svg+=`<text x="${W-tapeW/2-1}" y="12" fill="#00ddff" font-size="5.5" font-weight="700" text-anchor="middle" font-family="monospace">${pDisp}${pUnit}</text>`;
   svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="${compassR}" fill="none" stroke="#3a3e48" stroke-width="0.8"/>`;
   for(let dd=0;dd<360;dd+=10){
@@ -382,9 +383,16 @@ function renderGaugeSpeedo(d){
   svg+=`<circle cx="${cx}" cy="${cy}" r="${r+7}" fill="url(#speedo-bg)"/>`;
   svg+=`<path d="${arcPathFull(cx,cy,r+3,endAng,startAng)}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"/>`;
   if(gustDisp>windDisp){
-    const gustFrac=gustDisp/maxSpd;
-    const gustAng=startAng-gustFrac*sweep;
-    svg+=`<path d="${arcPathFull(cx,cy,r+3,Math.max(gustAng,endAng),startAng-(windDisp/maxSpd)*sweep)}" fill="none" stroke="rgba(255,50,50,0.25)" stroke-width="8"/>`;
+    const windFrac=Math.min(1,windDisp/maxSpd);
+    const gustFrac=Math.min(1,gustDisp/maxSpd);
+    const windAngDeg=startAng-windFrac*sweep;
+    const gustAngDeg=Math.max(endAng,startAng-gustFrac*sweep);
+    const rr=r+3;
+    const wa=windAngDeg*Math.PI/180,ga=gustAngDeg*Math.PI/180;
+    const wx=cx+Math.cos(wa)*rr,wy=cy-Math.sin(wa)*rr;
+    const gx=cx+Math.cos(ga)*rr,gy=cy-Math.sin(ga)*rr;
+    const angSpan=windAngDeg-gustAngDeg;
+    svg+=`<path d="M${wx.toFixed(1)},${wy.toFixed(1)} A${rr},${rr} 0 ${angSpan>180?1:0} 1 ${gx.toFixed(1)},${gy.toFixed(1)}" fill="none" stroke="rgba(255,50,50,0.25)" stroke-width="8"/>`;
   }
   const step=maxSpd<=15?1:maxSpd<=30?2:maxSpd<=60?5:10;
   for(let s=0;s<=maxSpd;s+=step){
