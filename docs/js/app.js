@@ -15,7 +15,41 @@ const WIND_UNITS = ['mph','kts','km/h','m/s'];
 const PRES_UNITS = ['inHg','mb','mmHg','kPa'];
 const VIS_UNITS = ['mi','km'];
 const PRECIP_UNITS = ['in','mm','cm'];
-
+let _timeFormat=localStorage.getItem('st_timeFormat')||'auto';
+function _is24h(){
+  if(_timeFormat==='24h')return true;
+  if(_timeFormat==='12h')return false;
+  try{const f=new Intl.DateTimeFormat([],{hour:'numeric'}).format(new Date(2000,0,1,13));return!f.match(/[APap]/)}catch(e){return false}
+}
+function fmtClock(d,showSec){
+  if(!(d instanceof Date))d=new Date(d);
+  const h24=_is24h();
+  const opts={hour:'2-digit',minute:'2-digit',hour12:!h24};
+  if(showSec)opts.second='2-digit';
+  return d.toLocaleTimeString([],opts);
+}
+function fmtClockShort(d){
+  if(!(d instanceof Date))d=new Date(d);
+  const h24=_is24h();
+  return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit',hour12:!h24});
+}
+function fmtHrLabel(d){
+  if(!(d instanceof Date))d=new Date(d);
+  if(_is24h()){return String(d.getHours()).padStart(2,'0')+':00'}
+  const hr=d.getHours(),ap=hr>=12?'p':'a';return(hr%12||12)+ap;
+}
+function setTimeFormat(fmt){
+  _timeFormat=fmt;localStorage.setItem('st_timeFormat',fmt);
+  syncTimeFmtBtns();reRenderActive();
+}
+function syncTimeFmtBtns(){
+  document.querySelectorAll('.tf-btn').forEach(b=>{
+    const active=b.dataset.tf===_timeFormat;
+    b.style.background=active?'rgba(0,229,255,0.15)':'rgba(255,255,255,0.04)';
+    b.style.borderColor=active?'var(--accent-cyan)':'var(--border-subtle)';
+    b.style.color=active?'var(--accent-cyan)':'var(--text-muted)';
+  });
+}
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function toast(msg,dur){
   if(S.travelMode&&!msg.startsWith('🧭')&&!msg.startsWith('📍')&&!msg.startsWith('Travel')){
@@ -1016,8 +1050,7 @@ function fmtCountdown(totalSec){
   return m+'m:'+String(s).padStart(2,'0')+'s';
 }
 function fmtArrivalTime(etaMin){
-  const d=new Date(Date.now()+etaMin*60000);
-  return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit',hour12:true});
+  return fmtClockShort(new Date(Date.now()+etaMin*60000));
 }
 function stormKey(s){return s.lat.toFixed(3)+','+s.lng.toFixed(3)}
 function autoScanInterval(){
@@ -1928,6 +1961,7 @@ function syncSettingsPanel(){
   syncUnitSelects();
   syncGaugeStyleBtns();
   syncGyroBtn();
+  syncTimeFmtBtns();
   const sel=document.getElementById('settings-travel-int');
   if(sel)sel.value=String(S.gpsInterval||300);
   const arSel=document.getElementById('settings-auto-refresh');
@@ -3067,7 +3101,7 @@ function buildTrendSVG(h,info){
       ly+=10;
     });
   }
-  const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'p':'a';return(hr%12||12)+ap};
+  const fmtHr=d=>fmtHrLabel(d);
   const labelCount=7;
   for(let li=0;li<labelCount;li++){
     const idx=Math.round(li*(count-1)/(labelCount-1));
@@ -3192,8 +3226,8 @@ function toggleForecastDetail(idx){
   const rain=d.precipitation_probability_max?d.precipitation_probability_max[idx]:0;
   const precip=d.precipitation_sum?d.precipitation_sum[idx]:0;
   const wind=d.wind_speed_10m_max?d.wind_speed_10m_max[idx]:0;
-  const sunrise=d.sunrise?new Date(d.sunrise[idx]).toLocaleTimeString(_curLang||'en',{hour:'numeric',minute:'2-digit'}):'—';
-  const sunset=d.sunset?new Date(d.sunset[idx]).toLocaleTimeString(_curLang||'en',{hour:'numeric',minute:'2-digit'}):'—';
+  const sunrise=d.sunrise?fmtClockShort(new Date(d.sunrise[idx])):'—';
+  const sunset=d.sunset?fmtClockShort(new Date(d.sunset[idx])):'—';
   const hiC=d.temperature_2m_max[idx],loC=d.temperature_2m_min[idx];
   const tempStr=fmtTemp(hiC)+' / '+fmtTemp(loC);
   const precipStr=fmtPrecip(precip);
@@ -3566,7 +3600,7 @@ function showRadarAnimFrame(map,idx){
   S.radarLayer=L.tileLayer(frame.url,{opacity:0.7,maxZoom:11,maxNativeZoom:maxNZ}).addTo(map);
   if(S._showZones&&S._rawScanPts&&S._rawScanPts.length>0&&!S._radarOverlayVisible&&S._zoneOverlays&&S._zoneOverlays.length>0&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
   const t=new Date(frame.time*1000);
-  const timeStr=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  const timeStr=fmtClock(t);
   const isFuture=frame.type==='forecast';
   const siteTag=frame.site||S._radarAnimSite||'';
   const srcTag=S._radarAnimSrc==='nexrad'?(siteTag?'K'+siteTag:'NEX'):'RV';
@@ -3589,7 +3623,7 @@ function showRadarLayer(map){
     if(lbl)lbl.textContent='NEXRAD (US) \u00B7 📍 Scan location \u00B7 🔍 Scan view';
     const t=new Date();
     const el=document.getElementById('radar-time');
-    if(el)el.textContent=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    if(el)el.textContent=fmtClock(t);
   }else{
     if(S.radarFrames.length){
       S.radarIdx=S.radarFrames.length-1;
@@ -3597,7 +3631,7 @@ function showRadarLayer(map){
       S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/2/1_1.png`,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
       const t=new Date(frame.time*1000);
       const el=document.getElementById('radar-time');
-      if(el)el.textContent=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      if(el)el.textContent=fmtClock(t);
     }
     if(btn){btn.textContent='RV';btn.style.background=''}
     if(lbl)lbl.textContent='RainViewer \u00B7 Updated every 10 min \u00B7 📍 Scan location \u00B7 🔍 Scan view';
@@ -4457,9 +4491,7 @@ function buildStormZones(map,rawPts){
         etaSec=Math.round(midDist/Math.max(closing,0.5)*3600);
         const now=new Date();
         const arrival=new Date(now.getTime()+etaSec*1000);
-        const hh=arrival.getHours(),mm=arrival.getMinutes();
-        const ampm=hh>=12?'PM':'AM';
-        arrivalStr=((hh%12)||12)+':'+String(mm).padStart(2,'0')+' '+ampm;
+        arrivalStr=fmtClockShort(arrival);
         approachCount++;
         const cellPt=destPt(S.lat,S.lon,midDist,midBear);
         approachSumLat+=cellPt[0]*maxDbz;
@@ -4602,8 +4634,8 @@ function _tickerWeatherPool(){
     if(d.sunrise&&d.sunrise[0]){
       const sr=new Date(d.sunrise[0]);const ss=new Date(d.sunset[0]);
       const now=new Date();
-      const srStr=sr.toLocaleTimeString(_curLang||'en',{hour:'numeric',minute:'2-digit'});
-      const ssStr=ss.toLocaleTimeString(_curLang||'en',{hour:'numeric',minute:'2-digit'});
+      const srStr=fmtClockShort(sr);
+      const ssStr=fmtClockShort(ss);
       if(now<sr)pool.push(`🌅 Sunrise at ${srStr} · Sunset at ${ssStr}. Dawn is coming! 🌄`);
       else if(now<ss){
         const minsLeft=Math.round((ss-now)/60000);
@@ -4739,8 +4771,7 @@ function updateThreatTicker(){
   function fmtEtaLive(etaMin){
     const targetMs=Date.now()+Math.round(etaMin*60)*1000;
     const arrival=new Date(targetMs);
-    const ah=arrival.getHours(),am=arrival.getMinutes();
-    const arrStr=((ah%12)||12)+':'+String(am).padStart(2,'0')+' '+(ah>=12?'PM':'AM');
+    const arrStr=fmtClockShort(arrival);
     const cdSpan=`<span class="ticker-cd" data-target="${targetMs}"></span>`;
     return{cdSpan,arrStr};
   }
@@ -5685,7 +5716,7 @@ function _smartStormSummary(storms){
   const moderate=approaching.filter(s=>s.dbz>=40&&s.dbz<50);
   const severe=approaching.filter(s=>s.dbz>=50);
   const fmtEtaShort=(min)=>{const s=Math.round(min*60);const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return(h>0?String(h).padStart(2,'0')+'h:':'')+String(m).padStart(2,'0')+'m:'+String(sec).padStart(2,'0')+'s';};
-  const fmtTime=(min)=>{const d=new Date(Date.now()+min*60000);const h=d.getHours(),m=d.getMinutes();return((h%12)||12)+':'+String(m).padStart(2,'0')+(h>=12?' PM':' AM');};
+  const fmtTime=(min)=>fmtClockShort(new Date(Date.now()+min*60000));
   let lines=[];
   if(light.length){
     const first=light[0],last=light[light.length-1];
@@ -6326,7 +6357,7 @@ function renderStation(){
   const fltCat=getFltCat(visSM,s);
   const fltCls=fltCat==='VFR'?'vfr':fltCat==='MVFR'?'mvfr':fltCat==='IFR'?'ifr':'lifr';
   const stationName=s.name||S.stationId||'Weather Station';
-  const obLabel=s.obsTime?new Date(s.obsTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+  const obLabel=s.obsTime?fmtClock(new Date(s.obsTime)):'';
 
   const skyTxt=formatClouds(s);
   const wxDesc=s.wxString||skyTxt;
@@ -6965,7 +6996,7 @@ function buildWeatherContext(){
       const prec=h.precipitation?h.precipitation[i]:0;
       const wSpd=h.wind_speed_10m?(h.wind_speed_10m[i]*0.621371).toFixed(0):'?';
       const wGust=h.wind_gusts_10m?(h.wind_gusts_10m[i]*0.621371).toFixed(0):null;
-      const hr=new Date(t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+      const hr=fmtClockShort(new Date(t));
       let line=`  ${hr}: ${tF}°F, ${pop}% precip chance`;
       if(prec>0)line+=` (${prec}mm)`;
       line+=`, wind ${wSpd} mph`;
