@@ -3568,6 +3568,7 @@ async function scanRadarForView(){
     S._rawScanPts=rawPoints;
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
+    recordScanSnapshot();
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Plotting ${S.storms.length.toLocaleString()} storm points...`);
     await new Promise(r=>setTimeout(r,300));
@@ -4880,43 +4881,116 @@ function directImpactPct(diff){
   if(diff<=25)return 0.20;
   return 0;
 }
+S._scanHistory=[];
+S._cellTracks={};
+function recordScanSnapshot(){
+  if(!S.storms||!S.storms.length)return;
+  const snap={ts:Date.now(),cells:S.storms.filter(s=>s.dbz>=25).map(s=>({lat:s.lat,lon:s.lon,dbz:s.dbz,distance:s.distance,bearing:s.bearing}))};
+  S._scanHistory.push(snap);
+  if(S._scanHistory.length>5)S._scanHistory.shift();
+  if(S._scanHistory.length>=2)buildCellTracks();
+}
+function buildCellTracks(){
+  const hist=S._scanHistory;
+  const prev=hist[hist.length-2],curr=hist[hist.length-1];
+  if(!prev||!curr)return;
+  const dtHrs=(curr.ts-prev.ts)/3600000;
+  if(dtHrs<=0||dtHrs>1)return;
+  const tracks={};
+  for(const c of curr.cells){
+    let best=null,bestD=Infinity;
+    for(const p of prev.cells){
+      const d=haversine(c.lat,c.lon,p.lat,p.lon);
+      const dbzDiff=Math.abs(c.dbz-p.dbz);
+      if(d<bestD&&d<15&&dbzDiff<25){bestD=d;best=p;}
+    }
+    if(best){
+      const dxMi=bestD;
+      const spdMph=dxMi/dtHrs;
+      if(spdMph>120)continue;
+      const dy=c.lat-best.lat,dx=(c.lon-best.lon)*Math.cos(c.lat*Math.PI/180);
+      const dir=(Math.atan2(dx,dy)*180/Math.PI+360)%360;
+      const key=`${c.lat.toFixed(2)}_${c.lon.toFixed(2)}`;
+      tracks[key]={dir:Math.round(dir),speed:Math.round(spdMph),fromLat:best.lat,fromLon:best.lon,toLat:c.lat,toLon:c.lon,dbz:c.dbz};
+    }
+  }
+  S._cellTracks=tracks;
+  console.log(`[TRACK] ${Object.keys(tracks).length} cell tracks from ${prev.cells.length}→${curr.cells.length} cells (${(dtHrs*60).toFixed(1)}min gap)`);
+}
+function getCellTrack(storm){
+  if(!S._cellTracks)return null;
+  const key=`${storm.lat.toFixed(2)}_${storm.lon.toFixed(2)}`;
+  return S._cellTracks[key]||null;
+}
+function pointInNWSPolygon(lat,lon){
+  if(!S.alerts||!S.alerts.length)return[];
+  const matched=[];
+  for(const a of S.alerts){
+    const geo=a.geometry;
+    if(!geo||geo.type!=='Polygon'||!geo.coordinates||!geo.coordinates.length)continue;
+    const ring=geo.coordinates[0];
+    if(!ring||ring.length<3)continue;
+    let inside=false;
+    for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+      const xi=ring[i][1],yi=ring[i][0];
+      const xj=ring[j][1],yj=ring[j][0];
+      if(((yi>lon)!==(yj>lon))&&(lat<(xj-xi)*(lon-yi)/(yj-yi)+xi))inside=!inside;
+    }
+    if(inside){
+      const p=a.properties||{};
+      matched.push({event:p.event||'Alert',severity:p.severity||'Unknown',urgency:p.urgency||'',headline:p.headline||''});
+    }
+  }
+  return matched;
+}
 function calcStormETA(storm){
   if(!S.stormMovement||S.stormMovement.speed<2)return{eta:null,impact:0,approaching:false};
-  const movDir=S.stormMovement.direction;
+  const cellTrack=getCellTrack(storm);
+  const movDir=cellTrack?cellTrack.dir:S.stormMovement.direction;
+  const movSpd=cellTrack?cellTrack.speed:S.stormMovement.speed;
   const baseWidthMi=Math.max(0,Math.min(3,(storm.dbz-20)/15));
   const widthAngle=storm.distance>0.5?Math.atan2(baseWidthMi,storm.distance)*180/Math.PI:15;
   const CONE_HALF=15+widthAngle;
   const bearingToUser=(storm.bearing+180)%360;
   const diff=Math.abs(((movDir-bearingToUser+180)%360)-180);
   const inCone=diff<=CONE_HALF;
-  const closingSpeed=S.stormMovement.speed*Math.cos(Math.min(diff,60)*Math.PI/180);
+  const closingSpeed=movSpd*Math.cos(Math.min(diff,60)*Math.PI/180);
   const proxRange=Math.max(1.5,baseWidthMi+0.5);
+  const nwsWarnings=pointInNWSPolygon(storm.lat,storm.lon);
+  const nwsBoost=nwsWarnings.length>0?15:0;
+  const hasSevereWarning=nwsWarnings.some(w=>w.severity==='Severe'||w.severity==='Extreme');
   if(!inCone||closingSpeed<=1){
     if(storm.distance<=proxRange){
-      const proxPct=Math.round(Math.min(90,Math.max(0,(proxRange-storm.distance)/proxRange*60+storm.dbz/2.5)));
-      return{eta:null,impact:proxPct,approaching:false,closingSpeed:0,proximity:true};
+      const proxPct=Math.round(Math.min(90,Math.max(0,(proxRange-storm.distance)/proxRange*60+storm.dbz/2.5+nwsBoost)));
+      return{eta:null,impact:proxPct,approaching:false,closingSpeed:0,proximity:true,cellTrack:!!cellTrack,nwsWarnings};
     }
-    return{eta:null,impact:0,approaching:false};
+    if(hasSevereWarning&&storm.distance<=30){
+      const warnPct=Math.round(Math.min(60,25+storm.dbz/3));
+      return{eta:null,impact:warnPct,approaching:false,closingSpeed:0,nwsWarning:true,nwsWarnings};
+    }
+    return{eta:null,impact:nwsBoost,approaching:false,nwsWarnings};
   }
   if(storm.distance<=proxRange){
-    const proxPct=Math.round(Math.min(95,Math.max(0,(proxRange-storm.distance)/proxRange*60+storm.dbz/2.5+20)));
-    return{eta:null,impact:proxPct,approaching:false,closingSpeed:0,proximity:true};
+    const proxPct=Math.round(Math.min(95,Math.max(0,(proxRange-storm.distance)/proxRange*60+storm.dbz/2.5+20+nwsBoost)));
+    return{eta:null,impact:proxPct,approaching:false,closingSpeed:0,proximity:true,cellTrack:!!cellTrack,nwsWarnings};
   }
   const etaHrs=storm.distance/closingSpeed;
   const etaMin=Math.round(etaHrs*60*100)/100;
   const distScore=Math.max(0,1-storm.distance/80);
-  const spdScore=Math.min(1,S.stormMovement.speed/20);
+  const spdScore=Math.min(1,movSpd/20);
   const intScore=Math.min(1,(storm.dbz-15)/40);
   const widthScore=Math.min(1,baseWidthMi/3);
   const directMult=directImpactPct(diff);
-  const baseScore=directMult*50+distScore*15+spdScore*8+intScore*15+widthScore*12;
+  const trackBonus=cellTrack?5:0;
+  const baseScore=directMult*50+distScore*15+spdScore*8+intScore*15+widthScore*12+nwsBoost+trackBonus;
   const closeBoost=storm.distance<20?Math.round((20-storm.distance)/20*25):0;
   let pct=Math.round(Math.min(100,baseScore+closeBoost));
   if(storm.distance<=5&&diff<=15)pct=Math.max(pct,92);
   else if(storm.distance<=10&&diff<=15)pct=Math.max(pct,82);
   else if(storm.distance<=20&&diff<=12)pct=Math.max(pct,72);
+  if(hasSevereWarning)pct=Math.max(pct,Math.min(95,pct+20));
   if(storm.distance<=proxRange)pct=Math.max(pct,Math.round(75+(proxRange-storm.distance)/proxRange*20));
-  return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed*100)/100,angleDiff:Math.round(diff)};
+  return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed*100)/100,angleDiff:Math.round(diff),cellTrack:!!cellTrack,trackDir:cellTrack?cellTrack.dir:null,trackSpd:cellTrack?cellTrack.speed:null,nwsWarnings};
 }
 function impactLabel(pct){
   if(pct>=81)return{text:'CRITICAL',color:'#ef4444'};
