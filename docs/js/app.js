@@ -66,6 +66,384 @@ function _beaufortBar(kmh){
   return`<div style="width:100%;margin-top:1px"><div style="display:flex;gap:1px;margin-bottom:1px">${bars}</div><div style="font-size:0.38em;color:${_BFT_CLR[bf]};font-weight:600;text-align:center;line-height:1">F${bf} ${_BFT_NAME[bf]}</div></div>`;
 }
 
+let _windMinKmh=Infinity,_windMaxKmh=0;
+function _resetMinMax(){_windMinKmh=Infinity;_windMaxKmh=0}
+function _trackMinMax(kmh){if(kmh>0.1){if(kmh<_windMinKmh)_windMinKmh=kmh;if(kmh>_windMaxKmh)_windMaxKmh=kmh}}
+function getGaugeStyle(){return localStorage.getItem('st_gaugeStyle')||'neon'}
+function setGaugeStyle(s){localStorage.setItem('st_gaugeStyle',s);reRenderActive();syncGaugeStyleBtns()}
+function _led7(num,color,sz){
+  const segs=[0x7E,0x30,0x6D,0x79,0x33,0x5B,0x5F,0x70,0x7F,0x7B];
+  const str=num.toFixed(1);const chars=str.split('');
+  let svg='';let xOff=0;const w=sz*0.6,h=sz,g=sz*0.06,sw=sz*0.12;
+  const onC=color||'#ff2222';const offC='rgba(255,255,255,0.04)';
+  chars.forEach(ch=>{
+    if(ch==='.'){svg+=`<circle cx="${xOff+sw}" cy="${h-sw/2}" r="${sw*0.6}" fill="${onC}"/>`;xOff+=sw*2;return}
+    if(ch==='-'){svg+=`<rect x="${xOff+g}" y="${h/2-sw/2}" width="${w-2*g}" height="${sw}" rx="${sw*0.3}" fill="${onC}"/>`;xOff+=w+g;return}
+    const d=parseInt(ch);if(isNaN(d)){xOff+=w+g;return}
+    const bits=segs[d];
+    const paths=[
+      {x:g,y:0,w:w-2*g,h:sw,rx:sw*0.3},
+      {x:w-sw,y:g,w:sw,h:h/2-g-sw/2,rx:sw*0.3},
+      {x:w-sw,y:h/2+sw/2,w:sw,h:h/2-g-sw/2,rx:sw*0.3},
+      {x:g,y:h-sw,w:w-2*g,h:sw,rx:sw*0.3},
+      {x:0,y:h/2+sw/2,w:sw,h:h/2-g-sw/2,rx:sw*0.3},
+      {x:0,y:g,w:sw,h:h/2-g-sw/2,rx:sw*0.3},
+      {x:g,y:h/2-sw/2,w:w-2*g,h:sw,rx:sw*0.3}
+    ];
+    paths.forEach((p,i)=>{
+      const on=bits&(1<<(6-i));
+      svg+=`<rect x="${xOff+p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="${p.rx}" fill="${on?onC:offC}"/>`;
+    });
+    xOff+=w+g;
+  });
+  return{svg,width:xOff};
+}
+function renderGaugeNeon(d){
+  const{windSpd,wd,windDisp,gustDisp,gustRaw,windNum,windUnit,gustStr,bf,simActive}=d;
+  const cx=50,cy=50,r=42,ri=36;
+  const neonCyan='rgba(0,220,255,',neonOrange='rgba(255,160,0,';
+  let g='';
+  g+=`<defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+  g+=`<circle cx="${cx}" cy="${cy}" r="${ri}" fill="none" stroke="${neonCyan}0.08)" stroke-width="0.5"/>`;
+  g+=`<circle cx="${cx}" cy="${cy}" r="${ri*0.55}" fill="none" stroke="${neonCyan}0.05)" stroke-width="0.3"/>`;
+  const maxArcSpd=Math.max(5,Math.ceil(Math.max(windDisp,gustDisp)*2/5)*5);
+  const segsPerUnit=maxArcSpd<=30?2:1;
+  const segCount=maxArcSpd*segsPerUnit;
+  const segGap=segCount<=20?4:segCount<=40?2.5:1.5;
+  const segR=r+4,segRi=r+0.5;
+  S._gaugeMaxSegs=segCount;S._gaugeSegsPerUnit=segsPerUnit;S._gaugeArcR=segR;S._gaugeMaxSpd=maxArcSpd;
+  const segAngle=360/segCount,segArc=segAngle-segGap;
+  g+=`<g id="gauge-seg-group" transform="translate(${cx},${cy})">`;
+  for(let i=0;i<segCount;i++){
+    const rotDeg=-90+i*segAngle,radEnd=segArc*Math.PI/180;
+    const cosE=Math.cos(radEnd),sinE=Math.sin(radEnd);
+    const d2=`M${segR},0 A${segR},${segR} 0 ${segArc>180?1:0} 1 ${(segR*cosE).toFixed(2)},${(segR*sinE).toFixed(2)} L${(segRi*cosE).toFixed(2)},${(segRi*sinE).toFixed(2)} A${segRi},${segRi} 0 ${segArc>180?1:0} 0 ${segRi},0 Z`;
+    const segVal=i/segsPerUnit;
+    let fill=segVal<windDisp?`${neonCyan}0.85)`:segVal<gustDisp?`${neonOrange}0.6)`:`${neonCyan}0.08)`;
+    g+=`<path class="gauge-seg" d="${d2}" fill="${fill}" style="transform:rotate(${rotDeg}deg)"/>`;
+  }
+  g+=`</g>`;
+  const spdStep=maxArcSpd<=10?2:maxArcSpd<=20?5:maxArcSpd<=50?5:maxArcSpd<=100?10:maxArcSpd<=150?25:50;
+  g+=`<g id="gauge-tick-group">`;
+  for(let s=0;s<maxArcSpd;s+=spdStep){
+    const frac=s/maxArcSpd,deg=(-90+frac*360)*Math.PI/180;
+    const lx=cx+Math.cos(deg)*(segR+4.5),ly=cy+Math.sin(deg)*(segR+4.5);
+    g+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.5)" font-size="3.2" font-weight="700" text-anchor="middle" dominant-baseline="central">${s}</text>`;
+  }
+  g+=`</g>`;
+  [0,30,60,90,120,150,180,210,240,270,300,330].forEach(deg=>{
+    const a=(deg-90)*Math.PI/180,isMajor=deg%90===0;
+    const x1=cx+Math.cos(a)*(ri-0.5),y1=cy+Math.sin(a)*(ri-0.5);
+    const len=isMajor?5:3;
+    const x2=cx+Math.cos(a)*(ri-0.5-len),y2=cy+Math.sin(a)*(ri-0.5-len);
+    g+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}${isMajor?'0.45':'0.15'})" stroke-width="${isMajor?1.2:0.5}"/>`;
+    if(!isMajor){
+      const lx=cx+Math.cos(a)*(ri-8),ly=cy+Math.sin(a)*(ri-8);
+      g+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.2)" font-size="3.5" text-anchor="middle" dominant-baseline="central">${deg||360}</text>`;
+    }
+  });
+  for(let dd=0;dd<360;dd+=10){if(dd%30===0)continue;
+    const a=(dd-90)*Math.PI/180;
+    g+=`<line x1="${(cx+Math.cos(a)*(ri-0.5)).toFixed(1)}" y1="${(cy+Math.sin(a)*(ri-0.5)).toFixed(1)}" x2="${(cx+Math.cos(a)*(ri-2)).toFixed(1)}" y2="${(cy+Math.sin(a)*(ri-2)).toFixed(1)}" stroke="${neonCyan}0.08)" stroke-width="0.4"/>`;
+  }
+  const ptrAng=(wd-90)*Math.PI/180,pTip=r-1,pBase=10;
+  const px=cx+Math.cos(ptrAng)*pTip,py=cy+Math.sin(ptrAng)*pTip;
+  const pLx=cx+Math.cos(ptrAng-0.2)*pBase,pLy=cy+Math.sin(ptrAng-0.2)*pBase;
+  const pRx=cx+Math.cos(ptrAng+0.2)*pBase,pRy=cy+Math.sin(ptrAng+0.2)*pBase;
+  const pBx=cx+Math.cos(ptrAng+Math.PI)*5,pBy=cy+Math.sin(ptrAng+Math.PI)*5;
+  const neonRed='rgba(255,70,70,';
+  g+=`<polygon points="${px.toFixed(1)},${py.toFixed(1)} ${pLx.toFixed(1)},${pLy.toFixed(1)} ${pBx.toFixed(1)},${pBy.toFixed(1)} ${pRx.toFixed(1)},${pRy.toFixed(1)}" fill="${neonRed}0.85)" stroke="${neonRed}1)" stroke-width="0.3"/>`;
+  g+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2" fill="#fff" stroke="${neonRed}1)" stroke-width="0.5"/>`;
+  g+=`<circle cx="${cx}" cy="${cy}" r="3" fill="${neonRed}0.3)" stroke="${neonRed}0.5)" stroke-width="0.5"/>`;
+  const dotCount=Math.max(3,Math.min(16,Math.round(windDisp/2)));
+  for(let i=0;i<dotCount;i++){
+    const ang=(wd-90+i*5-dotCount*2.5)*Math.PI/180,dr=ri-1;
+    const dx=cx+Math.cos(ang)*dr,dy=cy+Math.sin(ang)*dr;
+    g+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${(1+i*0.05).toFixed(1)}" fill="${neonRed}${(0.2+0.6*(i/dotCount)).toFixed(2)})"/>`;
+  }
+  const dirStr=simActive?degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(1)+'°':degToDir(wd)+' '+wd.toFixed(1)+'°';
+  return`<div class="wind-rose" style="cursor:pointer" data-gauge="neon">
+    <svg viewBox="-12 -12 124 124">${g}</svg>
+    <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
+    <div class="wind-rose-center">
+      <div class="wrc-speed"><span class="wrc-num">${windNum}</span><span class="wrc-unit">${windUnit}</span></div>
+      <div class="wrc-dir">${dirStr}</div>
+      ${gustStr?`<div class="wrc-gust">${gustStr}</div>`:''}
+      <div class="wrc-avg"></div>
+      <div class="wrc-force">${_beaufortBar(d.windSpd)}</div>
+    </div>
+  </div>`;
+}
+function renderGaugeMarine(d){
+  const{windSpd,wd,windDisp,gustDisp,windNum,windUnit,gustStr,bf,simActive}=d;
+  const minDisp=_windMinKmh<Infinity?parseFloat(kmhTo(_windMinKmh,S.windUnit)):0;
+  const maxDisp=_windMaxKmh>0?parseFloat(kmhTo(_windMaxKmh,S.windUnit)):0;
+  const dirDeg=simActive?_windCurSim.dir:wd;
+  const cx=100,cy=100,r=82,ri=70;
+  let svg='';
+  svg+=`<rect x="0" y="0" width="200" height="200" rx="8" fill="#0a0a0a" stroke="#333" stroke-width="1"/>`;
+  svg+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#222" stroke-width="1"/>`;
+  const segCount=72;
+  for(let i=0;i<segCount;i++){
+    const ang=(i*5-90)*Math.PI/180;
+    const diff=((i*5-dirDeg)%360+360)%360;
+    const close=diff<20||diff>340;
+    const fill=close?'#dddddd':'#555555';
+    const iLen=close?12:8;
+    const x1=cx+Math.cos(ang)*(r-1),y1=cy+Math.sin(ang)*(r-1);
+    const x2=cx+Math.cos(ang)*(r-iLen),y2=cy+Math.sin(ang)*(r-iLen);
+    const sw=close?3:1.5;
+    svg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${fill}" stroke-width="${sw}" stroke-linecap="round"/>`;
+  }
+  const cardinals=[{a:0,l:'N'},{a:45,l:'NE'},{a:90,l:'E'},{a:135,l:'SE'},{a:180,l:'S'},{a:225,l:'SW'},{a:270,l:'W'},{a:315,l:'NW'}];
+  cardinals.forEach(c=>{
+    const a=(c.a-90)*Math.PI/180;
+    const tx=cx+Math.cos(a)*(r+12),ty=cy+Math.sin(a)*(r+12);
+    svg+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="#888" font-size="8" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${c.l}</text>`;
+  });
+  [0,30,60,90,120,150].forEach(v=>{
+    const a=(v-90)*Math.PI/180;
+    const tx=cx+Math.cos(a)*(r+22),ty=cy+Math.sin(a)*(r+22);
+    const a2=(360-v-90)*Math.PI/180;
+    const tx2=cx+Math.cos(a2)*(r+22),ty2=cy+Math.sin(a2)*(r+22);
+    svg+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="#cc3333" font-size="7" font-weight="600" text-anchor="middle" dominant-baseline="central" font-family="monospace">${v}</text>`;
+    if(v>0&&v<180)svg+=`<text x="${tx2.toFixed(1)}" y="${ty2.toFixed(1)}" fill="#cc3333" font-size="7" font-weight="600" text-anchor="middle" dominant-baseline="central" font-family="monospace">${v}</text>`;
+  });
+  svg+=`<text x="${cx}" y="${cy-32}" fill="#888" font-size="6" font-weight="600" text-anchor="middle" font-family="monospace">WIND SPEED</text>`;
+  const spdLed=_led7(parseFloat(windNum),'#ff2222',18);
+  svg+=`<g transform="translate(${cx-spdLed.width/2},${cy-30})">${spdLed.svg}</g>`;
+  svg+=`<text x="${cx+spdLed.width/2+4}" y="${cy-18}" fill="#cc3333" font-size="5" text-anchor="start" font-family="monospace">${windUnit}</text>`;
+  svg+=`<text x="${cx}" y="${cy+2}" fill="#888" font-size="6" font-weight="600" text-anchor="middle" font-family="monospace">WIND FORCE</text>`;
+  const bfBarW=120,bfBarX=cx-bfBarW/2,bfBarY=cy+5;
+  for(let i=1;i<=12;i++){
+    const bw=bfBarW/12;
+    const fill=i<=bf?'#dddddd':'#333333';
+    svg+=`<rect x="${bfBarX+(i-1)*bw+0.5}" y="${bfBarY}" width="${bw-1}" height="6" fill="${fill}" rx="1"/>`;
+    svg+=`<text x="${bfBarX+(i-0.5)*bw}" y="${bfBarY+12}" fill="#777" font-size="4" text-anchor="middle" font-family="monospace">${i}</text>`;
+  }
+  svg+=`<text x="${cx}" y="${cy+28}" fill="#888" font-size="6" font-weight="600" text-anchor="middle" font-family="monospace">WIND DIRECTION</text>`;
+  const dirLed=_led7(parseFloat(dirDeg.toFixed(0)),'#ff2222',16);
+  svg+=`<g transform="translate(${cx-dirLed.width/2},${cy+30})">${dirLed.svg}</g>`;
+  svg+=`<text x="${cx+dirLed.width/2+2}" y="${cy+42}" fill="#cc3333" font-size="5" text-anchor="start" font-family="monospace">°</text>`;
+  const mnLed=_led7(minDisp,'#ff2222',12);
+  svg+=`<text x="16" y="14" fill="#888" font-size="6" font-weight="600" text-anchor="start" font-family="monospace">MIN</text>`;
+  svg+=`<g transform="translate(10,17)">${mnLed.svg}</g>`;
+  svg+=`<text x="${10+mnLed.width+2}" y="28" fill="#cc3333" font-size="4.5" text-anchor="start" font-family="monospace">${windUnit}</text>`;
+  const mxLed=_led7(maxDisp,'#ff2222',12);
+  svg+=`<text x="${200-16}" y="14" fill="#888" font-size="6" font-weight="600" text-anchor="end" font-family="monospace">MAX</text>`;
+  svg+=`<g transform="translate(${200-10-mxLed.width},17)">${mxLed.svg}</g>`;
+  svg+=`<text x="12" y="${cy}" fill="#555" font-size="7" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace" transform="rotate(-90,12,${cy})">PORT</text>`;
+  svg+=`<text x="188" y="${cy}" fill="#555" font-size="7" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace" transform="rotate(90,188,${cy})">STBD</text>`;
+  const pAng=(dirDeg-90)*Math.PI/180;
+  svg+=`<polygon points="${(cx+Math.cos(pAng)*(ri-2)).toFixed(1)},${(cy+Math.sin(pAng)*(ri-2)).toFixed(1)} ${(cx+Math.cos(pAng-0.15)*18).toFixed(1)},${(cy+Math.sin(pAng-0.15)*18).toFixed(1)} ${(cx+Math.cos(pAng+0.15)*18).toFixed(1)},${(cy+Math.sin(pAng+0.15)*18).toFixed(1)}" fill="rgba(255,100,150,0.7)" stroke="#ff6699" stroke-width="0.5"/>`;
+  svg+=`<circle cx="${cx}" cy="${cy}" r="4" fill="#222" stroke="#ff6699" stroke-width="1"/>`;
+  return`<div class="wind-rose gauge-marine" data-gauge="marine" style="cursor:pointer;width:200px;height:200px;flex-shrink:0;position:relative">
+    <svg viewBox="0 0 200 200" style="width:100%;height:100%">${svg}</svg>
+  </div>`;
+}
+function renderGaugeMinimal(d){
+  const{windSpd,wd,windDisp,gustDisp,windNum,windUnit,gustStr,bf,simActive}=d;
+  const dirDeg=simActive?_windCurSim.dir:wd;
+  const cx=50,cy=50,r=42;
+  let svg='';
+  svg+=`<circle cx="${cx}" cy="${cy}" r="${r+2}" fill="none" stroke="rgba(148,163,184,0.12)" stroke-width="0.8"/>`;
+  const maxSpd=Math.max(10,Math.ceil(Math.max(windDisp,gustDisp)*1.3/5)*5);
+  const sweepAngle=270,startAngle=135;
+  const spdFrac=Math.min(1,windDisp/maxSpd);
+  const gustFrac=Math.min(1,gustDisp/maxSpd);
+  const endAngG=startAngle+gustFrac*sweepAngle;
+  const endAngW=startAngle+spdFrac*sweepAngle;
+  function arcPath(cx2,cy2,r2,a1,a2){
+    const r1d=a1*Math.PI/180,r2d=a2*Math.PI/180;
+    return`M${(cx2+Math.cos(r1d)*r2).toFixed(1)},${(cy2+Math.sin(r1d)*r2).toFixed(1)} A${r2},${r2} 0 ${a2-a1>180?1:0} 1 ${(cx2+Math.cos(r2d)*r2).toFixed(1)},${(cy2+Math.sin(r2d)*r2).toFixed(1)}`;
+  }
+  svg+=`<path d="${arcPath(cx,cy,r+2,startAngle,startAngle+sweepAngle)}" fill="none" stroke="rgba(148,163,184,0.08)" stroke-width="3" stroke-linecap="round"/>`;
+  if(gustFrac>0.01)svg+=`<path d="${arcPath(cx,cy,r+2,startAngle,endAngG)}" fill="none" stroke="rgba(239,68,68,0.35)" stroke-width="3" stroke-linecap="round"/>`;
+  if(spdFrac>0.01)svg+=`<path d="${arcPath(cx,cy,r+2,startAngle,endAngW)}" fill="none" stroke="rgba(148,163,184,0.6)" stroke-width="3" stroke-linecap="round"/>`;
+  for(let s=0;s<=maxSpd;s+=maxSpd<=20?5:10){
+    const frac=s/maxSpd;
+    const a=(startAngle+frac*sweepAngle)*Math.PI/180;
+    const x1=cx+Math.cos(a)*(r-2),y1=cy+Math.sin(a)*(r-2);
+    const x2=cx+Math.cos(a)*(r+0.5),y2=cy+Math.sin(a)*(r+0.5);
+    svg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(148,163,184,0.25)" stroke-width="0.6"/>`;
+    const tx=cx+Math.cos(a)*(r-5),ty=cy+Math.sin(a)*(r-5);
+    svg+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="rgba(148,163,184,0.35)" font-size="3.5" text-anchor="middle" dominant-baseline="central">${s}</text>`;
+  }
+  const pAng=(dirDeg-90)*Math.PI/180;
+  const pTip=r-8;
+  svg+=`<line x1="${cx}" y1="${cy}" x2="${(cx+Math.cos(pAng)*pTip).toFixed(1)}" y2="${(cy+Math.sin(pAng)*pTip).toFixed(1)}" stroke="rgba(148,163,184,0.5)" stroke-width="1.5" stroke-linecap="round"/>`;
+  svg+=`<circle cx="${(cx+Math.cos(pAng)*pTip).toFixed(1)}" cy="${(cy+Math.sin(pAng)*pTip).toFixed(1)}" r="1.5" fill="rgba(148,163,184,0.7)"/>`;
+  svg+=`<circle cx="${cx}" cy="${cy}" r="2" fill="rgba(148,163,184,0.3)" stroke="rgba(148,163,184,0.4)" stroke-width="0.5"/>`;
+  ['N','E','S','W'].forEach((l,i)=>{
+    const a=(i*90-90)*Math.PI/180;
+    const tx=cx+Math.cos(a)*(r-14),ty=cy+Math.sin(a)*(r-14);
+    svg+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="rgba(148,163,184,0.3)" font-size="4" font-weight="600" text-anchor="middle" dominant-baseline="central">${l}</text>`;
+  });
+  const bfClr=_BFT_CLR[bf];
+  const dirStr=degToDir(dirDeg)+' '+dirDeg.toFixed(0)+'°';
+  return`<div class="wind-rose gauge-minimal" data-gauge="minimal" style="cursor:pointer;width:200px;height:200px;flex-shrink:0;position:relative">
+    <svg viewBox="-8 -8 116 116" style="width:100%;height:100%">${svg}</svg>
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
+      <div style="font-size:1.6em;font-weight:800;color:#e2e8f0;line-height:1" class="wrc-num">${windNum}</div>
+      <div style="font-size:0.55em;font-weight:600;color:#94a3b8;margin-top:1px" class="wrc-unit">${windUnit}</div>
+      <div style="font-size:0.5em;color:#94a3b8;margin-top:2px" class="wrc-dir">${dirStr}</div>
+      <div style="font-size:0.45em;color:#ef4444;margin-top:1px" class="wrc-gust">${gustStr||''}</div>
+      <div style="display:inline-block;padding:1px 5px;border-radius:3px;background:${bfClr}22;border:1px solid ${bfClr}44;margin-top:2px">
+        <span style="font-size:0.4em;font-weight:700;color:${bfClr}">F${bf}</span>
+      </div>
+    </div>
+  </div>`;
+}
+function renderGaugeG1000(d){
+  const{windSpd,wd,windDisp,gustDisp,windNum,windUnit,gustStr,bf,simActive,pressure}=d;
+  const dirDeg=simActive?_windCurSim.dir:wd;
+  const W=260,H=200;
+  const tapeW=40,compassR=55,compassCx=W/2,compassCy=H/2;
+  let svg='';
+  svg+=`<rect x="0" y="0" width="${W}" height="${H}" rx="4" fill="#111318"/>`;
+  svg+=`<rect x="2" y="2" width="${tapeW}" height="${H-4}" rx="3" fill="#0c0e14" stroke="#2a2e38" stroke-width="0.5"/>`;
+  const maxTape=Math.max(20,Math.ceil(Math.max(windDisp,gustDisp)*1.5/10)*10);
+  const tapeCenter=H/2;
+  const pxPerUnit=(H-20)/maxTape;
+  for(let s=0;s<=maxTape;s+=maxTape<=30?2:5){
+    const yy=tapeCenter-(s-windDisp)*pxPerUnit;
+    if(yy<10||yy>H-10)continue;
+    const major=s%(maxTape<=30?10:20)===0;
+    svg+=`<line x1="${tapeW-6}" y1="${yy.toFixed(1)}" x2="${tapeW}" y2="${yy.toFixed(1)}" stroke="${major?'#5a6070':'#2a2e38'}" stroke-width="${major?1:0.5}"/>`;
+    if(major)svg+=`<text x="${tapeW-8}" y="${yy.toFixed(1)}" fill="#8b95a5" font-size="6" text-anchor="end" dominant-baseline="central" font-family="monospace">${s}</text>`;
+  }
+  svg+=`<rect x="${tapeW-1}" y="${tapeCenter-6}" width="14" height="12" rx="2" fill="#111" stroke="#00ff00" stroke-width="0.8"/>`;
+  svg+=`<text x="${tapeW+6}" y="${tapeCenter}" fill="#00ff00" font-size="7" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${windNum}</text>`;
+  svg+=`<text x="${tapeW/2+1}" y="12" fill="#00ddff" font-size="5.5" font-weight="700" text-anchor="middle" font-family="monospace">${parseFloat(windNum).toFixed(0)}${windUnit.charAt(0).toUpperCase()}</text>`;
+  if(gustDisp>windDisp){
+    const gustY=tapeCenter-(gustDisp-windDisp)*pxPerUnit;
+    if(gustY>10&&gustY<H-10)svg+=`<line x1="4" y1="${gustY.toFixed(1)}" x2="${tapeW-2}" y2="${gustY.toFixed(1)}" stroke="rgba(255,0,0,0.6)" stroke-width="1" stroke-dasharray="2,2"/>`;
+  }
+  const green='#00cc44';
+  svg+=`<rect x="${W-tapeW-2}" y="2" width="${tapeW}" height="${H-4}" rx="3" fill="#0c0e14" stroke="#2a2e38" stroke-width="0.5"/>`;
+  const pMb=pressure||1013.25;
+  const pDisp=S.presUnit===0?(pMb*0.02953).toFixed(2):pMb.toFixed(0);
+  const pUnit=S.presUnit===0?'IN':'MB';
+  const pMax=S.presUnit===0?31.5:1060;const pMin=S.presUnit===0?28.5:960;
+  const pVal=S.presUnit===0?pMb*0.02953:pMb;
+  const pRange=pMax-pMin;
+  for(let p=Math.ceil(pMin);p<=pMax;p+=S.presUnit===0?0.5:10){
+    const frac=(p-pMin)/pRange;
+    const yy=H-10-(H-20)*frac;
+    if(yy<10||yy>H-10)continue;
+    const major=S.presUnit===0?(p*10)%5===0:(p%50===0);
+    const x0=W-tapeW-2;
+    svg+=`<line x1="${x0}" y1="${yy.toFixed(1)}" x2="${x0+6}" y2="${yy.toFixed(1)}" stroke="${major?'#5a6070':'#2a2e38'}" stroke-width="${major?1:0.5}"/>`;
+    if(major)svg+=`<text x="${x0+8}" y="${yy.toFixed(1)}" fill="#8b95a5" font-size="5" text-anchor="start" dominant-baseline="central" font-family="monospace">${S.presUnit===0?p.toFixed(1):p}</text>`;
+  }
+  const pFrac=(pVal-pMin)/pRange;
+  const pY=H-10-(H-20)*pFrac;
+  svg+=`<rect x="${W-tapeW-14}" y="${pY-6}" width="14" height="12" rx="2" fill="#111" stroke="${green}" stroke-width="0.8"/>`;
+  svg+=`<text x="${W-tapeW-7}" y="${pY}" fill="${green}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${pDisp}</text>`;
+  svg+=`<text x="${W-tapeW/2-1}" y="12" fill="#00ddff" font-size="5.5" font-weight="700" text-anchor="middle" font-family="monospace">${pDisp}${pUnit}</text>`;
+  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="${compassR}" fill="none" stroke="#3a3e48" stroke-width="0.8"/>`;
+  for(let dd=0;dd<360;dd+=10){
+    const a=(dd-90)*Math.PI/180;
+    const major=dd%30===0;
+    const x1=compassCx+Math.cos(a)*(compassR-1),y1=compassCy+Math.sin(a)*(compassR-1);
+    const x2=compassCx+Math.cos(a)*(compassR-(major?7:3)),y2=compassCy+Math.sin(a)*(compassR-(major?7:3));
+    svg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${major?'#8b95a5':'#3a3e48'}" stroke-width="${major?1:0.5}"/>`;
+    if(dd%30===0){
+      const lbl=dd===0?'N':dd===90?'E':dd===180?'S':dd===270?'W':String(dd/10);
+      const tx=compassCx+Math.cos(a)*(compassR-12),ty=compassCy+Math.sin(a)*(compassR-12);
+      svg+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="${dd%90===0?'#e2e8f0':'#8b95a5'}" font-size="${dd%90===0?'7':'5'}" font-weight="${dd%90===0?'700':'500'}" text-anchor="middle" dominant-baseline="central" font-family="monospace">${lbl}</text>`;
+    }
+  }
+  const pAng=(dirDeg-90)*Math.PI/180;
+  svg+=`<polygon points="${(compassCx+Math.cos(pAng)*(compassR-14)).toFixed(1)},${(compassCy+Math.sin(pAng)*(compassR-14)).toFixed(1)} ${(compassCx+Math.cos(pAng-0.12)*16).toFixed(1)},${(compassCy+Math.sin(pAng-0.12)*16).toFixed(1)} ${(compassCx+Math.cos(pAng+0.12)*16).toFixed(1)},${(compassCy+Math.sin(pAng+0.12)*16).toFixed(1)}" fill="rgba(255,0,255,0.6)" stroke="#ff00ff" stroke-width="0.5"/>`;
+  const tailAng=pAng+Math.PI;
+  svg+=`<polygon points="${(compassCx+Math.cos(tailAng)*(compassR-16)).toFixed(1)},${(compassCy+Math.sin(tailAng)*(compassR-16)).toFixed(1)} ${(compassCx+Math.cos(tailAng-0.1)*12).toFixed(1)},${(compassCy+Math.sin(tailAng-0.1)*12).toFixed(1)} ${(compassCx+Math.cos(tailAng+0.1)*12).toFixed(1)},${(compassCy+Math.sin(tailAng+0.1)*12).toFixed(1)}" fill="rgba(255,255,255,0.15)"/>`;
+  svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="3" fill="#222" stroke="#ff00ff" stroke-width="1"/>`;
+  svg+=`<rect x="${compassCx-20}" y="${compassCy+compassR+4}" width="40" height="14" rx="3" fill="#111" stroke="#3a3e48" stroke-width="0.5"/>`;
+  svg+=`<text x="${compassCx}" y="${compassCy+compassR+11}" fill="#00ddff" font-size="6.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${dirDeg.toFixed(0)}°</text>`;
+  svg+=`<text x="${compassCx}" y="${compassCy+compassR+22}" fill="#8b95a5" font-size="5" text-anchor="middle" font-family="monospace">F${bf} ${_BFT_NAME[bf]}</text>`;
+  return`<div class="wind-rose gauge-g1000" data-gauge="g1000" style="cursor:pointer;width:260px;height:200px;flex-shrink:0;position:relative">
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%">${svg}</svg>
+  </div>`;
+}
+function renderGaugeSpeedo(d){
+  const{windSpd,wd,windDisp,gustDisp,windNum,windUnit,gustStr,bf,simActive}=d;
+  const dirDeg=simActive?_windCurSim.dir:wd;
+  const cx=100,cy=95,r=80;
+  const startAng=220,endAng=-40,sweep=startAng-endAng;
+  const maxSpd=Math.max(10,Math.ceil(Math.max(windDisp,gustDisp)*1.3/5)*5);
+  let svg='';
+  svg+=`<defs>
+    <radialGradient id="speedo-bg" cx="50%" cy="45%"><stop offset="0%" stop-color="#1a1a2e"/><stop offset="100%" stop-color="#0a0a15"/></radialGradient>
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#888"/><stop offset="50%" stop-color="#444"/><stop offset="100%" stop-color="#666"/></linearGradient>
+  </defs>`;
+  svg+=`<circle cx="${cx}" cy="${cy}" r="${r+10}" fill="url(#chrome)" stroke="#222" stroke-width="1"/>`;
+  svg+=`<circle cx="${cx}" cy="${cy}" r="${r+7}" fill="url(#speedo-bg)"/>`;
+  svg+=`<path d="${arcPathFull(cx,cy,r+3,endAng,startAng)}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"/>`;
+  if(gustDisp>windDisp){
+    const gustFrac=gustDisp/maxSpd;
+    const gustAng=startAng-gustFrac*sweep;
+    svg+=`<path d="${arcPathFull(cx,cy,r+3,Math.max(gustAng,endAng),startAng-(windDisp/maxSpd)*sweep)}" fill="none" stroke="rgba(255,50,50,0.25)" stroke-width="8"/>`;
+  }
+  const step=maxSpd<=15?1:maxSpd<=30?2:maxSpd<=60?5:10;
+  for(let s=0;s<=maxSpd;s+=step){
+    const frac=s/maxSpd;
+    const ang=(startAng-frac*sweep)*Math.PI/180;
+    const major=s%(step*5===0?step*5:step<=2?10:step<=5?10:step<=10?20:50)===0||s===0;
+    const x1=cx+Math.cos(ang)*(r-2),y1=cy-Math.sin(ang)*(r-2);
+    const x2=cx+Math.cos(ang)*(r-(major?12:6)),y2=cy-Math.sin(ang)*(r-(major?12:6));
+    svg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${major?'#ddd':'#666'}" stroke-width="${major?1.5:0.8}"/>`;
+    if(major){
+      const tx=cx+Math.cos(ang)*(r-18),ty=cy-Math.sin(ang)*(r-18);
+      svg+=`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" fill="#ccc" font-size="7" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">${s}</text>`;
+    }
+  }
+  const needleFrac=Math.min(1,windDisp/maxSpd);
+  const needleAng=(startAng-needleFrac*sweep)*Math.PI/180;
+  const nx=cx+Math.cos(needleAng)*(r-6),ny=cy-Math.sin(needleAng)*(r-6);
+  const nLx=cx+Math.cos(needleAng+0.08)*12,nLy=cy-Math.sin(needleAng+0.08)*12;
+  const nRx=cx+Math.cos(needleAng-0.08)*12,nRy=cy-Math.sin(needleAng-0.08)*12;
+  const nBx=cx+Math.cos(needleAng+Math.PI)*8,nBy=cy-Math.sin(needleAng+Math.PI)*8;
+  svg+=`<polygon points="${nx.toFixed(1)},${ny.toFixed(1)} ${nLx.toFixed(1)},${nLy.toFixed(1)} ${nBx.toFixed(1)},${nBy.toFixed(1)} ${nRx.toFixed(1)},${nRy.toFixed(1)}" fill="rgba(255,40,40,0.9)" stroke="#ff2222" stroke-width="0.5"/>`;
+  svg+=`<circle cx="${nx.toFixed(1)}" cy="${ny.toFixed(1)}" r="1.5" fill="#ff6666"/>`;
+  svg+=`<circle cx="${cx}" cy="${cy}" r="5" fill="#333" stroke="#888" stroke-width="1"/>`;
+  svg+=`<circle cx="${cx}" cy="${cy}" r="2.5" fill="#ff3333"/>`;
+  svg+=`<text x="${cx}" y="${cy-22}" fill="#00ddff" font-size="6" font-weight="600" text-anchor="middle" font-family="sans-serif">${windUnit.toUpperCase()}</text>`;
+  svg+=`<rect x="${cx-30}" y="${cy+12}" width="60" height="16" rx="3" fill="#0a0a15" stroke="#444" stroke-width="0.8"/>`;
+  svg+=`<text x="${cx}" y="${cy+21}" fill="#00ff00" font-size="7.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace" class="wrc-dir">${degToDir(dirDeg)} ${dirDeg.toFixed(0)}°</text>`;
+  const bfClr=_BFT_CLR[bf];
+  svg+=`<rect x="${cx-14}" y="${cy+32}" width="28" height="10" rx="2" fill="#111" stroke="${bfClr}66" stroke-width="0.5"/>`;
+  svg+=`<text x="${cx}" y="${cy+37}" fill="${bfClr}" font-size="5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">F${bf}</text>`;
+  if(gustDisp>windDisp){
+    svg+=`<text x="${cx+38}" y="${cy+37}" fill="#ff4444" font-size="4.5" font-weight="600" text-anchor="start" font-family="monospace">G${parseFloat(kmhTo(d.gustRaw,S.windUnit)).toFixed(0)}</text>`;
+  }
+  return`<div class="wind-rose gauge-speedo" data-gauge="speedo" style="cursor:pointer;width:200px;height:200px;flex-shrink:0;position:relative">
+    <svg viewBox="0 0 200 200" style="width:100%;height:100%">${svg}</svg>
+  </div>`;
+}
+function arcPathFull(cx,cy,r,a1,a2){
+  const r1=a1*Math.PI/180,r2=a2*Math.PI/180;
+  return`M${(cx+Math.cos(r2)*r).toFixed(1)},${(cy-Math.sin(r2)*r).toFixed(1)} A${r},${r} 0 ${Math.abs(a2-a1)>180?1:0} 0 ${(cx+Math.cos(r1)*r).toFixed(1)},${(cy-Math.sin(r1)*r).toFixed(1)}`;
+}
+function renderWindGauge(d){
+  const style=getGaugeStyle();
+  if(style==='marine')return renderGaugeMarine(d);
+  if(style==='minimal')return renderGaugeMinimal(d);
+  if(style==='g1000')return renderGaugeG1000(d);
+  if(style==='speedo')return renderGaugeSpeedo(d);
+  return renderGaugeNeon(d);
+}
+function syncGaugeStyleBtns(){
+  const cur=getGaugeStyle();
+  document.querySelectorAll('.gauge-style-btn').forEach(b=>{
+    const s=b.dataset.style;
+    const active=s===cur;
+    b.style.background=active?'rgba(0,229,255,0.15)':'rgba(255,255,255,0.04)';
+    b.style.borderColor=active?'var(--accent-cyan)':'var(--border-subtle)';
+    b.style.color=active?'var(--accent-cyan)':'var(--text-muted)';
+  });
+}
+
 function fmtPres(mb){
   if(S.presUnit===0) return (mb*0.02953).toFixed(2)+' inHg';
   if(S.presUnit===1) return mb.toFixed(0)+' mb';
@@ -1312,6 +1690,7 @@ function toggleSettingsPanel(){
 function syncSettingsPanel(){
   syncAISettings();
   syncUnitSelects();
+  syncGaugeStyleBtns();
   const sel=document.getElementById('settings-travel-int');
   if(sel)sel.value=String(S.gpsInterval||300);
   const arSel=document.getElementById('settings-auto-refresh');
@@ -1503,7 +1882,7 @@ async function fetchWeather(){
         console.log('Weather: NWS forecast loaded ('+nwsFc.length+' periods)');
       }
     }catch(e){console.log('Multi-source blend failed:',e.message)}
-    S.weather=omData.current;renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);
+    S.weather=omData.current;_resetMinMax();renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p></div>`}
 }
 async function _fetchAWCOnce(){
@@ -1707,97 +2086,13 @@ function renderWeather(data){
   const _simActive=_windCurSim.spd>0&&S._skipWindRestart;
   const wd=_simActive?_windCurSim.dir:Math.round((c.wind_direction_10m||0)*10)/10;
   const windSpd=_simActive?_windCurSim.spd:(c.wind_speed_10m||0);
-  const cx=50,cy=50,r=42,ri=36;
-  const neonCyan='rgba(0,220,255,';const neonOrange='rgba(255,160,0,';
-  let gaugeSvg='';
-  gaugeSvg+=`<defs>
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  </defs>`;
-  gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${ri}" fill="none" stroke="${neonCyan}0.08)" stroke-width="0.5"/>`;
-  gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="${ri*0.55}" fill="none" stroke="${neonCyan}0.05)" stroke-width="0.3"/>`;
   const windDisp=parseFloat(kmhTo(windSpd,S.windUnit));
   const gustRaw=_simActive?_windCurSim.gust:(c.wind_gusts_10m||windSpd);
   const gustDisp=parseFloat(kmhTo(gustRaw,S.windUnit));
-  const maxArcSpd=Math.max(5,Math.ceil(Math.max(windDisp,gustDisp)*2/5)*5);
-  const segsPerUnit=maxArcSpd<=30?2:1;
-  const segCount=maxArcSpd*segsPerUnit;
-  const segGap=segCount<=20?4:segCount<=40?2.5:1.5;
-  const segR=r+4;
-  const segRi=r+0.5;
-  S._gaugeMaxSegs=segCount;S._gaugeSegsPerUnit=segsPerUnit;S._gaugeArcR=segR;S._gaugeMaxSpd=maxArcSpd;
-  const segAngle=360/segCount;
-  const segArc=segAngle-segGap;
-  gaugeSvg+=`<g id="gauge-seg-group" transform="translate(${cx},${cy})">`;
-  for(let i=0;i<segCount;i++){
-    const rotDeg=-90+i*segAngle;
-    const radEnd=(segArc)*Math.PI/180;
-    const or2=segR;
-    const ir2=segRi;
-    const cosS=1,sinS=0;
-    const cosE=Math.cos(radEnd),sinE=Math.sin(radEnd);
-    const x1=or2,y1=0;
-    const x2=or2*cosE,y2=or2*sinE;
-    const x3=ir2*cosE,y3=ir2*sinE;
-    const x4=ir2,y4=0;
-    const lg=segArc>180?1:0;
-    const d=`M${x1.toFixed(2)},${y1.toFixed(2)} A${or2},${or2} 0 ${lg} 1 ${x2.toFixed(2)},${y2.toFixed(2)} L${x3.toFixed(2)},${y3.toFixed(2)} A${ir2},${ir2} 0 ${lg} 0 ${x4.toFixed(2)},${y4.toFixed(2)} Z`;
-    const segVal=i/segsPerUnit;
-    let fill;
-    if(segVal<windDisp)fill=`${neonCyan}0.85)`;
-    else if(segVal<gustDisp)fill=`${neonOrange}0.6)`;
-    else fill=`${neonCyan}0.08)`;
-    gaugeSvg+=`<path class="gauge-seg" d="${d}" fill="${fill}" style="transform:rotate(${rotDeg}deg)"/>`;
-  }
-  gaugeSvg+=`</g>`;
-  const spdTicks=[];
-  const spdStep=maxArcSpd<=10?2:maxArcSpd<=20?5:maxArcSpd<=50?5:maxArcSpd<=100?10:maxArcSpd<=150?25:50;
-  for(let s=0;s<maxArcSpd;s+=spdStep)spdTicks.push(s);
-  gaugeSvg+=`<g id="gauge-tick-group">`;
-  spdTicks.forEach(spd=>{
-    const frac=spd/maxArcSpd;
-    const deg=(-90+frac*360)*Math.PI/180;
-    const lx=cx+Math.cos(deg)*(segR+4.5),ly=cy+Math.sin(deg)*(segR+4.5);
-    gaugeSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.5)" font-size="3.2" font-weight="700" text-anchor="middle" dominant-baseline="central">${spd}</text>`;
-  });
-  gaugeSvg+=`</g>`;
-  const compassTicks=[0,30,60,90,120,150,180,210,240,270,300,330];
-  compassTicks.forEach(deg=>{
-    const a=(deg-90)*Math.PI/180;
-    const isMajor=deg%90===0;
-    const x1=cx+Math.cos(a)*(ri-0.5),y1=cy+Math.sin(a)*(ri-0.5);
-    const len=isMajor?5:3;
-    const x2=cx+Math.cos(a)*(ri-0.5-len),y2=cy+Math.sin(a)*(ri-0.5-len);
-    gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}${isMajor?'0.45':'0.15'})" stroke-width="${isMajor?1.2:0.5}"/>`;
-    if(!isMajor){
-      const lx=cx+Math.cos(a)*(ri-8),ly=cy+Math.sin(a)*(ri-8);
-      gaugeSvg+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${neonCyan}0.2)" font-size="3.5" text-anchor="middle" dominant-baseline="central">${deg||360}</text>`;
-    }
-  });
-  for(let d=0;d<360;d+=10){if(d%30===0)continue;
-    const a=(d-90)*Math.PI/180;
-    const x1=cx+Math.cos(a)*(ri-0.5),y1=cy+Math.sin(a)*(ri-0.5);
-    const x2=cx+Math.cos(a)*(ri-2),y2=cy+Math.sin(a)*(ri-2);
-    gaugeSvg+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${neonCyan}0.08)" stroke-width="0.4"/>`;
-  }
-  const ptrAng=(wd-90)*Math.PI/180;
-  const pTip=r-1,pBase=10;
-  const px=cx+Math.cos(ptrAng)*pTip,py=cy+Math.sin(ptrAng)*pTip;
-  const pLx=cx+Math.cos(ptrAng-0.2)*pBase,pLy=cy+Math.sin(ptrAng-0.2)*pBase;
-  const pRx=cx+Math.cos(ptrAng+0.2)*pBase,pRy=cy+Math.sin(ptrAng+0.2)*pBase;
-  const pBx=cx+Math.cos(ptrAng+Math.PI)*5,pBy=cy+Math.sin(ptrAng+Math.PI)*5;
-  const neonRed='rgba(255,70,70,';
-  gaugeSvg+=`<polygon points="${px.toFixed(1)},${py.toFixed(1)} ${pLx.toFixed(1)},${pLy.toFixed(1)} ${pBx.toFixed(1)},${pBy.toFixed(1)} ${pRx.toFixed(1)},${pRy.toFixed(1)}" fill="${neonRed}0.85)" stroke="${neonRed}1)" stroke-width="0.3"/>`;
-  gaugeSvg+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2" fill="#fff" stroke="${neonRed}1)" stroke-width="0.5"/>`;
-  gaugeSvg+=`<circle cx="${cx}" cy="${cy}" r="3" fill="${neonRed}0.3)" stroke="${neonRed}0.5)" stroke-width="0.5"/>`;
-  const dotCount=Math.max(3,Math.min(16,Math.round(windDisp/2)));
-  for(let i=0;i<dotCount;i++){
-    const ang=(wd-90+i*5-dotCount*2.5)*Math.PI/180;
-    const dr=ri-1;
-    const dx=cx+Math.cos(ang)*dr,dy=cy+Math.sin(ang)*dr;
-    const opacity=0.2+0.6*(i/dotCount);
-    const dotR=1+i*0.05;
-    gaugeSvg+=`<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="${dotR.toFixed(1)}" fill="${neonRed}${opacity.toFixed(2)})"/>`;
-  }
+  _trackMinMax(windSpd);
+  const bf=beaufortFromKmh(windSpd);
+  const gaugeData={windSpd,wd,windDisp,gustDisp,gustRaw,windNum,windUnit,gustStr,bf,simActive:_simActive,pressure:c.pressure_msl};
+  const gaugeHtml=renderWindGauge(gaugeData);
 
   el.innerHTML=`
     <div class="weather-hero">
@@ -1822,19 +2117,7 @@ function renderWeather(data){
             <div class="hero-side-val">${c.cloud_cover}%</div>
           </div>
         </div>
-        <div class="wind-rose" style="cursor:pointer">
-          <svg viewBox="-12 -12 124 124">
-            ${gaugeSvg}
-          </svg>
-          <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
-          <div class="wind-rose-center">
-            <div class="wrc-speed"><span class="wrc-num">${windNum}</span><span class="wrc-unit">${windUnit}</span></div>
-            <div class="wrc-dir">${_windCurSim.spd>0?degToDir(_windCurSim.dir)+' '+_windCurSim.dir.toFixed(1)+'°':degToDir(wd)+' '+wd.toFixed(1)+'°'}</div>
-            ${gustStr?`<div class="wrc-gust">${gustStr}</div>`:''}
-            <div class="wrc-avg"></div>
-            <div class="wrc-force">${_beaufortBar(windSpd)}</div>
-          </div>
-        </div>
+        ${gaugeHtml}
         <div class="hero-side">
           <div class="hero-side-item">
             <div class="hero-side-label">Pressure</div>
@@ -2152,31 +2435,56 @@ function startWindSim(){
     }
     const displayGust=_gustSamples.length>0?Math.max(_gustMax,Math.max(..._gustSamples)):_gustMax;
     _windCurSim={spd:simSpd,dir:simDir,gust:displayGust};
-    const dirEl=document.querySelector('.wrc-dir');
-    if(dirEl)dirEl.textContent=degToDir(simDir)+' '+simDir.toFixed(1)+'°';
-    const cx=50,cy=50;
-    if(!_windSweepPaused){
-      const numEl=document.querySelector('.wrc-num');
-      const gustEl=document.querySelector('.wrc-gust');
-      if(numEl)numEl.textContent=kmhTo(simSpd,S.windUnit);
-      if(gustEl)gustEl.textContent=displayGust>0?'G'+fmtWind(displayGust):'';
-      const simSpdDisp=parseFloat(kmhTo(simSpd,S.windUnit));
-      const gustDispSim=parseFloat(kmhTo(displayGust,S.windUnit));
-      updateGaugeSegments(simSpdDisp,gustDispSim);
-    }
-    const compass=document.querySelector('.wind-rose svg');
-    if(compass){
-      const ptr=compass.querySelector('polygon');
-      const dot=compass.querySelector('polygon+circle');
-      if(ptr&&dot){
-        const r=42,pBase=10;
-        const ptrAng=(simDir-90)*Math.PI/180;
-        const px=cx+Math.cos(ptrAng)*r,py=cy+Math.sin(ptrAng)*r;
-        const pLx=cx+Math.cos(ptrAng-0.2)*pBase,pLy=cy+Math.sin(ptrAng-0.2)*pBase;
-        const pRx=cx+Math.cos(ptrAng+0.2)*pBase,pRy=cy+Math.sin(ptrAng+0.2)*pBase;
-        const pBx=cx+Math.cos(ptrAng+Math.PI)*5,pBy=cy+Math.sin(ptrAng+Math.PI)*5;
-        ptr.setAttribute('points',`${px.toFixed(1)},${py.toFixed(1)} ${pLx.toFixed(1)},${pLy.toFixed(1)} ${pBx.toFixed(1)},${pBy.toFixed(1)} ${pRx.toFixed(1)},${pRy.toFixed(1)}`);
-        dot.setAttribute('cx',px.toFixed(1));dot.setAttribute('cy',py.toFixed(1));
+    _trackMinMax(simSpd);
+    const gStyle=getGaugeStyle();
+    if(gStyle==='neon'){
+      const dirEl=document.querySelector('.wrc-dir');
+      if(dirEl)dirEl.textContent=degToDir(simDir)+' '+simDir.toFixed(1)+'°';
+      const cx=50,cy=50;
+      if(!_windSweepPaused){
+        const numEl=document.querySelector('.wrc-num');
+        const gustEl=document.querySelector('.wrc-gust');
+        if(numEl)numEl.textContent=kmhTo(simSpd,S.windUnit);
+        if(gustEl)gustEl.textContent=displayGust>0?'G'+fmtWind(displayGust):'';
+        const simSpdDisp=parseFloat(kmhTo(simSpd,S.windUnit));
+        const gustDispSim=parseFloat(kmhTo(displayGust,S.windUnit));
+        updateGaugeSegments(simSpdDisp,gustDispSim);
+      }
+      const compass=document.querySelector('.wind-rose svg');
+      if(compass){
+        const ptr=compass.querySelector('polygon');
+        const dot=compass.querySelector('polygon+circle');
+        if(ptr&&dot){
+          const r=42,pBase=10;
+          const ptrAng=(simDir-90)*Math.PI/180;
+          const px=cx+Math.cos(ptrAng)*r,py=cy+Math.sin(ptrAng)*r;
+          const pLx=cx+Math.cos(ptrAng-0.2)*pBase,pLy=cy+Math.sin(ptrAng-0.2)*pBase;
+          const pRx=cx+Math.cos(ptrAng+0.2)*pBase,pRy=cy+Math.sin(ptrAng+0.2)*pBase;
+          const pBx=cx+Math.cos(ptrAng+Math.PI)*5,pBy=cy+Math.sin(ptrAng+Math.PI)*5;
+          ptr.setAttribute('points',`${px.toFixed(1)},${py.toFixed(1)} ${pLx.toFixed(1)},${pLy.toFixed(1)} ${pBx.toFixed(1)},${pBy.toFixed(1)} ${pRx.toFixed(1)},${pRy.toFixed(1)}`);
+          dot.setAttribute('cx',px.toFixed(1));dot.setAttribute('cy',py.toFixed(1));
+        }
+      }
+    }else{
+      if(!S._gaugeTickLast||now-S._gaugeTickLast>300){
+        S._gaugeTickLast=now;
+        const wr=document.querySelector('.wind-rose,[data-gauge]');
+        if(wr&&S.weather){
+          const c2=S.weather;
+          const wn2=kmhTo(simSpd,S.windUnit);
+          const wu2=WIND_UNITS[S.windUnit];
+          const gd2=parseFloat(kmhTo(displayGust,S.windUnit));
+          const gs2=displayGust>0?'G'+fmtWind(displayGust):'';
+          const bf2=beaufortFromKmh(simSpd);
+          const d2={windSpd:simSpd,wd:simDir,windDisp:parseFloat(wn2),gustDisp:gd2,gustRaw:displayGust,windNum:wn2,windUnit:wu2,gustStr:gs2,bf:bf2,simActive:true,pressure:c2.pressure_msl};
+          const newHtml=renderWindGauge(d2);
+          const parent=wr.parentElement;
+          if(parent){
+            const temp=document.createElement('div');
+            temp.innerHTML=newHtml;
+            parent.replaceChild(temp.firstElementChild,wr);
+          }
+        }
       }
     }
   },100);
