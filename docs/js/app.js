@@ -1413,7 +1413,7 @@ function setLoc(lat,lon,name,fromTravel){
     S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
     clearStormCone();
   }
-  S.storms=[];S._rawScanPts=[];S._sonarFirstSweep=false;clearStormZones();
+  S.storms=[];S._rawScanPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
   try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:S.locName}))}catch(e){}
   if(S.map){
     S.map.setView([lat,lon],S.map.getZoom());
@@ -2346,9 +2346,10 @@ function drawMiniSonar(){
     }
     dots.sort((a,b)=>a.dbz-b.dbz);
     const sweepDeg=S._sonarSweepAngle||0;
-    const firstSweepDone=S._sonarFirstSweep||false;
+    const sweepStart=S._sonarSweepStart||0;
+    const totalSwept=S._sonarTotalSwept||0;
     const minDot=Math.max(2.5,size*0.012),maxDot=Math.max(6,size*0.028);
-    const sweepDps=0.04*1000;
+    const sweepDps=40;
     const holdDegs=3*sweepDps;
     const fadeDegs=4*sweepDps;
     const totalDegs=holdDegs+fadeDegs;
@@ -2356,12 +2357,14 @@ function drawMiniSonar(){
       const frac=Math.min(1,d.dist/maxR);
       const dotR=minDot+(maxDot-minDot)*frac;
       const hex=dbzHex(d.dbz);
-      if(!firstSweepDone){
+      const dotAng=(d.angDeg+90)%360;
+      let angDiff=((sweepDeg-dotAng)%360+360)%360;
+      const hasBeenSwept=totalSwept>=360||angDiff<totalSwept;
+      if(!hasBeenSwept){
         ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
-        ctx.fillStyle='rgba(20,25,35,0.6)';ctx.fill();
+        ctx.fillStyle='rgba(20,25,35,0.5)';ctx.fill();
         continue;
       }
-      let angDiff=((sweepDeg-(d.angDeg+90))%360+360)%360;
       let sweepAlpha;
       if(angDiff<holdDegs){sweepAlpha=1}
       else if(angDiff<totalDegs){sweepAlpha=Math.max(0.06,1-(angDiff-holdDegs)/fadeDegs)}
@@ -2484,8 +2487,9 @@ function startSonarSweep(){
     if(!document.getElementById('mini-sonar-canvas')){_sonarAnimId=0;return;}
     const dt=last?ts-last:16;last=ts;
     const prevAngle=S._sonarSweepAngle||0;
-    S._sonarSweepAngle=(prevAngle+dt*0.04)%360;
-    if(!S._sonarFirstSweep&&prevAngle>300&&S._sonarSweepAngle<60)S._sonarFirstSweep=true;
+    const advance=dt*0.04;
+    S._sonarSweepAngle=(prevAngle+advance)%360;
+    S._sonarTotalSwept=Math.min(720,(S._sonarTotalSwept||0)+advance);
     drawMiniSonar();
     _sonarAnimId=requestAnimationFrame(tick);
   }
