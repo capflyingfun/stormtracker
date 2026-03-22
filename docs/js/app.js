@@ -892,7 +892,7 @@ function toggleStormUnits(){
   renderStorms();
   if(S.map)plotStormMarkers(S.map);
 }
-function calcDewC(tc,rh){const a=17.27,b=237.7,g=(a*tc)/(b+tc)+Math.log(rh/100);return(b*g)/(a-g)}
+function calcDewC(tc,rh){const a=17.27,b=237.7,g=(a*tc)/(b+tc)+Math.log(Math.min(100,rh)/100);return Math.min(tc,(b*g)/(a-g))}
 
 function pixelToDbz(r,g,b,a){
   if(a<30)return 0;
@@ -2077,7 +2077,7 @@ function renderWeather(data){
   const icon=wmoIcon(c.weather_code,isDay),desc=wmoDesc(c.weather_code);
   const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
   if(wxNavBtn)wxNavBtn.innerHTML=neonWx(c.weather_code,isDay,20);
-  const dewC=c._directDewC!=null?c._directDewC:calcDewC(tempC,Math.min(100,c.relative_humidity_2m));
+  const dewC=Math.min(tempC,c._directDewC!=null?c._directDewC:calcDewC(tempC,Math.min(100,c.relative_humidity_2m)));
   const hourly=data.hourly||{},daily=data.daily||{};
   S._hourlyData=hourly;
   const baro=getBaroPrediction(c,hourly);
