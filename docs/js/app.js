@@ -68,7 +68,7 @@ function _beaufortBar(kmh){
 }
 
 let _windMinKmh=Infinity,_windMaxKmh=0;
-const _SONAR_ZOOM_LEVELS=[20,30,40,50,60,70,80];
+const _SONAR_ZOOM_LEVELS=[15,20,30,40,50,60,70,80];
 const _SONAR_DBZ_CLASSES=['light','moderate','heavy','intense','extreme'];
 const _SONAR_DBZ_LABELS={light:'Light (0-29)',moderate:'Moderate (30-39)',heavy:'Heavy (40-49)',intense:'Intense (50-59)',extreme:'Extreme (60+)'};
 const _SONAR_DBZ_COLORS={light:'#00ccff',moderate:'#aaff00',heavy:'#ffee00',intense:'#ff2200',extreme:'#ff00ff'};
@@ -3979,6 +3979,7 @@ async function scanRadarHiRes(map,fromHome){
     S._rawScanPts=rawPoints;
     S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=true;
+    _sonarZoomMi=15;localStorage.setItem('st_sonarZoom',15);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_syncSonarZoomBtns();
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Hi-Res: ${S.storms.length.toLocaleString()} points in ${HIRES_RADIUS} mi`);
     await new Promise(r=>setTimeout(r,300));
@@ -5489,21 +5490,97 @@ async function scanRadarForStorms(){
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
     if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
     scheduleAutoScan();
-    const severeNearby=S.storms.some(s=>s.dbz>=50&&s.distance<=15);
-    if(severeNearby&&S.map&&!S._autoHiResActive){
-      S._autoHiResActive=true;
-      toast('⚠️ Severe cell within 15 mi — launching Hi-Res scan...');
-      setTimeout(async()=>{
-        S.map.setView([S.lat,S.lon],11,{animate:true,duration:0.5});
-        await scanRadarHiRes(S.map,true);
-        S._autoHiResActive=false;
-      },1500);
-    }else if(!severeNearby){
-      S._autoHiResActive=false;
-    }
+    _checkTieredHiRes();
   }catch(e){hideScanOverlay();toast('Radar scan failed: '+e.message);console.error('Scan error:',e)}
 }
 
+let _hiResTierDismissed={15:false,10:false,5:false};
+let _hiResPopupActive=false;
+let _hiResPopupTimer=null;
+function _resetHiResTiers(){_hiResTierDismissed={15:false,10:false,5:false}}
+function _checkTieredHiRes(){
+  if(!S.map||S._lastScanWasHiRes||_hiResPopupActive)return;
+  const severe=S.storms.filter(s=>s.dbz>=50);
+  if(!severe.length){_resetHiResTiers();return}
+  const closest=Math.min(...severe.map(s=>s.distance));
+  const tiers=[15,10,5];
+  for(const tier of tiers){
+    if(closest<=tier&&!_hiResTierDismissed[tier]){
+      if(tier===5){
+        _showHiResPopup(tier,closest,severe[0].dbz,true);
+      }else{
+        _showHiResPopup(tier,closest,severe[0].dbz,false);
+      }
+      return;
+    }
+  }
+}
+function _showHiResPopup(tierMi,distMi,peakDbz,autoTrigger){
+  _hiResPopupActive=true;
+  const existing=document.getElementById('hires-popup');
+  if(existing)existing.remove();
+  if(_hiResPopupTimer){clearTimeout(_hiResPopupTimer);_hiResPopupTimer=null}
+  const popup=document.createElement('div');popup.id='hires-popup';
+  const urgent=tierMi<=5;
+  const borderClr=urgent?'#ff3333':'#ff8800';
+  const bgClr=urgent?'rgba(40,8,8,0.96)':'rgba(20,12,4,0.96)';
+  popup.style.cssText=`position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;background:${bgClr};border:2px solid ${borderClr};border-radius:12px;padding:18px 22px;max-width:320px;width:90%;box-shadow:0 0 30px rgba(0,0,0,0.8),0 0 15px ${borderClr}40;backdrop-filter:blur(8px);text-align:center;animation:hiresPopIn 0.3s ease`;
+  const icon=urgent?'🚨':'⚠️';
+  const title=urgent?'SEVERE STORM NEARBY':'Storm Cell Detected';
+  const action=autoTrigger?'Launching deep analysis for your safety...':'Would you like a deep analysis?';
+  const distUnit=S.radarMetric?Math.round(distMi*1.60934)+' km':distMi.toFixed(1)+' mi';
+  let html=`<div style="font-size:1.4em;margin-bottom:6px">${icon}</div>`;
+  html+=`<div style="color:${borderClr};font-weight:700;font-size:0.85em;margin-bottom:6px">${title}</div>`;
+  html+=`<div style="color:#e2e8f0;font-size:0.7em;margin-bottom:4px">≥50 dBZ cell at <b>${distUnit}</b> (peak ${peakDbz} dBZ)</div>`;
+  html+=`<div style="color:rgba(255,255,255,0.6);font-size:0.6em;margin-bottom:12px">${action}</div>`;
+  if(autoTrigger){
+    html+=`<div id="hires-countdown" style="color:${borderClr};font-size:0.65em;font-weight:600;margin-bottom:8px">Scanning in 5s...</div>`;
+    html+=`<button onclick="_hiResAccept()" style="width:100%;padding:8px;border-radius:8px;border:1px solid ${borderClr};background:${borderClr}22;color:${borderClr};font-weight:700;font-size:0.7em;cursor:pointer">Scan Now</button>`;
+  }else{
+    html+=`<div id="hires-countdown" style="color:rgba(255,255,255,0.4);font-size:0.55em;margin-bottom:10px">Auto-dismiss in 30s</div>`;
+    html+=`<div style="display:flex;gap:8px">`;
+    html+=`<button onclick="_hiResAccept()" style="flex:1;padding:8px;border-radius:8px;border:1px solid #00cc44;background:rgba(0,204,68,0.15);color:#00cc44;font-weight:700;font-size:0.7em;cursor:pointer">Yes, Scan</button>`;
+    html+=`<button onclick="_hiResDecline(${tierMi})" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);font-weight:600;font-size:0.7em;cursor:pointer">Not Now</button>`;
+    html+=`</div>`;
+  }
+  popup.innerHTML=html;
+  document.body.appendChild(popup);
+  const timeoutSec=autoTrigger?5:30;
+  let remaining=timeoutSec;
+  const countEl=()=>document.getElementById('hires-countdown');
+  const interval=setInterval(()=>{
+    remaining--;
+    const el=countEl();
+    if(remaining<=0){
+      clearInterval(interval);
+      if(autoTrigger){_hiResAccept()}
+      else{_hiResDecline(tierMi)}
+      return;
+    }
+    if(el){
+      if(autoTrigger)el.textContent=`Scanning in ${remaining}s...`;
+      else el.textContent=`Auto-dismiss in ${remaining}s`;
+    }
+  },1000);
+  _hiResPopupTimer=interval;
+}
+function _hiResAccept(){
+  _hiResPopupActive=false;
+  if(_hiResPopupTimer){clearInterval(_hiResPopupTimer);_hiResPopupTimer=null}
+  const p=document.getElementById('hires-popup');if(p)p.remove();
+  _resetHiResTiers();
+  if(S.map){
+    toast('🔍 Launching Hi-Res deep analysis...');
+    S.map.setView([S.lat,S.lon],11,{animate:true,duration:0.5});
+    setTimeout(()=>scanRadarHiRes(S.map,true),800);
+  }
+}
+function _hiResDecline(tierMi){
+  _hiResPopupActive=false;
+  if(_hiResPopupTimer){clearInterval(_hiResPopupTimer);_hiResPopupTimer=null}
+  const p=document.getElementById('hires-popup');if(p)p.remove();
+  _hiResTierDismissed[tierMi]=true;
+}
 function loadImage(url){
   return fetch(url).then(r=>{
     if(!r.ok)throw new Error('HTTP '+r.status);
