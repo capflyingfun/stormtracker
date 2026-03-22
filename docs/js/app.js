@@ -2323,25 +2323,6 @@ function drawMiniSonar(){
   ctx.beginPath();ctx.arc(cx,cy,maxR+10,0,Math.PI*2);ctx.fill();
   const scanR=S.scanRadius||80;
   const viewR=_sonarZoomMi;
-  const nRings=4;
-  for(let i=1;i<=nRings;i++){
-    const r=maxR*(i/nRings);
-    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
-    ctx.strokeStyle='rgba(0,220,255,0.12)';ctx.lineWidth=0.5;ctx.stroke();
-    const dist=Math.round(viewR*(i/nRings));
-    const label=S.radarMetric?Math.round(dist*1.60934)+'km':dist+'mi';
-    ctx.fillStyle='rgba(0,220,255,0.35)';ctx.font=`${Math.max(8,size*0.028)}px Inter,sans-serif`;
-    ctx.textAlign='center';ctx.fillText(label,cx,cy-r+10);
-  }
-  ctx.beginPath();ctx.moveTo(cx,cy-maxR);ctx.lineTo(cx,cy+maxR);ctx.strokeStyle='rgba(0,220,255,0.08)';ctx.lineWidth=0.5;ctx.stroke();
-  ctx.beginPath();ctx.moveTo(cx-maxR,cy);ctx.lineTo(cx+maxR,cy);ctx.stroke();
-  const dirs=[['N',0],['S',180],['E',90],['W',270]];
-  ctx.fillStyle='rgba(0,220,255,0.5)';ctx.font=`bold ${Math.max(9,size*0.035)}px Inter,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
-  for(const[l,deg]of dirs){
-    const a=(deg-90)*Math.PI/180;
-    const lx=cx+Math.cos(a)*(maxR+12),ly=cy+Math.sin(a)*(maxR+12);
-    ctx.fillText(l,lx,ly);
-  }
   let zoneCount=0,maxDbz=0;
   if(S._rawScanPts&&S._rawScanPts.length){
     const cells=polarGridBin(S._rawScanPts,S.lat,S.lon,scanR);
@@ -2399,6 +2380,28 @@ function drawMiniSonar(){
       }
     }
   }
+  const nRings=4;
+  for(let i=1;i<=nRings;i++){
+    const r=maxR*(i/nRings);
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.strokeStyle='rgba(0,220,255,0.18)';ctx.lineWidth=0.8;ctx.stroke();
+    const dist=Math.round(viewR*(i/nRings));
+    const label=S.radarMetric?Math.round(dist*1.60934)+'km':dist+'mi';
+    ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
+    ctx.fillStyle='rgba(0,220,255,0.5)';ctx.font=`${Math.max(8,size*0.028)}px Inter,sans-serif`;
+    ctx.textAlign='center';ctx.fillText(label,cx,cy-r+10);ctx.restore();
+  }
+  ctx.beginPath();ctx.moveTo(cx,cy-maxR);ctx.lineTo(cx,cy+maxR);ctx.strokeStyle='rgba(0,220,255,0.1)';ctx.lineWidth=0.5;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx-maxR,cy);ctx.lineTo(cx+maxR,cy);ctx.stroke();
+  const dirs=[['N',0],['S',180],['E',90],['W',270]];
+  ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
+  ctx.fillStyle='rgba(0,220,255,0.6)';ctx.font=`bold ${Math.max(9,size*0.035)}px Inter,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+  for(const[l,deg]of dirs){
+    const a=(deg-90)*Math.PI/180;
+    const lx=cx+Math.cos(a)*(maxR+12),ly=cy+Math.sin(a)*(maxR+12);
+    ctx.fillText(l,lx,ly);
+  }
+  ctx.restore();
   try{
     const sonarStorms=(S.storms||[]).filter(s=>s.distance<=viewR);
     if(S.stormMovement&&S.stormMovement.speed>=2&&sonarStorms.length){
@@ -2422,18 +2425,21 @@ function drawMiniSonar(){
           const neonC=dbzHex(st.dbz);
           const arrLen=Math.max(10,Math.min(20,maxR*0.12));
           const tipX=sx+Math.cos(mvRad)*arrLen,tipY=sy+Math.sin(mvRad)*arrLen;
-          ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(tipX,tipY);
-          ctx.strokeStyle=neonC;ctx.lineWidth=2;ctx.stroke();
           const headL=6,ha1=mvRad-Math.PI+0.5,ha2=mvRad-Math.PI-0.5;
+          ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=6;ctx.shadowOffsetX=1;ctx.shadowOffsetY=1;
+          ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(tipX,tipY);
+          ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
           ctx.beginPath();ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+Math.cos(ha1)*headL,tipY+Math.sin(ha1)*headL);ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+Math.cos(ha2)*headL,tipY+Math.sin(ha2)*headL);
-          ctx.strokeStyle=neonC;ctx.lineWidth=2;ctx.stroke();
-          ctx.beginPath();ctx.arc(sx,sy,3,0,Math.PI*2);ctx.fillStyle=neonC;ctx.fill();
+          ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
+          ctx.beginPath();ctx.arc(sx,sy,3.5,0,Math.PI*2);ctx.fillStyle=neonC;ctx.fill();
+          ctx.restore();
         }
       }
       const neonC=pathArrowNeonColor(maxDbz);
       const arrLen=maxR*0.6;
       const ax=cx+Math.cos(mvRad)*arrLen,ay=cy+Math.sin(mvRad)*arrLen;
       const la=mvRad-Math.PI+0.4,ra=mvRad-Math.PI-0.4;
+      ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=6;
       ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(la)*12,ay+Math.sin(la)*12);ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(ra)*12,ay+Math.sin(ra)*12);
       ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
       ctx.beginPath();ctx.moveTo(cx+Math.cos(mvRad)*15,cy+Math.sin(mvRad)*15);ctx.lineTo(ax,ay);
@@ -2441,6 +2447,7 @@ function drawMiniSonar(){
       const slx=ax+Math.cos(mvRad)*10,sly=ay+Math.sin(mvRad)*10;
       ctx.fillStyle=hexToRgba(neonC,0.8);ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
       ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('STORM',slx,sly);
+      ctx.restore();
     }
     const aloftDir=S._upperWindDir;
     if(aloftDir!=null){
@@ -2450,6 +2457,7 @@ function drawMiniSonar(){
       const aStart=15;
       const ax1=cx+Math.cos(aloftRad)*aStart,ay1=cy+Math.sin(aloftRad)*aStart;
       const ax2=cx+Math.cos(aloftRad)*aLen,ay2=cy+Math.sin(aloftRad)*aLen;
+      ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=6;
       ctx.beginPath();ctx.moveTo(ax1,ay1);ctx.lineTo(ax2,ay2);
       ctx.strokeStyle='rgba(255,0,220,0.55)';ctx.lineWidth=1.8;ctx.setLineDash([6,4]);ctx.stroke();ctx.setLineDash([]);
       const headL=8,ha1=aloftRad-Math.PI+0.4,ha2=aloftRad-Math.PI-0.4;
@@ -2459,6 +2467,7 @@ function drawMiniSonar(){
       const lx=ax2+Math.cos(aloftRad)*10,ly=ay2+Math.sin(aloftRad)*10;
       ctx.fillStyle='rgba(255,0,220,0.8)';ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
       ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('ALOFT',lx,ly);
+      ctx.restore();
     }
   }catch(e){console.log('Sonar storm overlay error:',e.message)}
   if(!S._sonarSweepAngle)S._sonarSweepAngle=0;
