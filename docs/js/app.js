@@ -6320,8 +6320,19 @@ function buildWeatherContext(){
       parts.push(`  ${sigStorms.length} significant cells (31+ dBZ) and ${lowStorms.length} minor returns (<31 dBZ, likely clutter).`);
     }
     if(sigStorms.length){
-      const sorted=[...sigStorms].sort((a,b)=>a.distance-b.distance);
-      const top=sorted.slice(0,12);
+      const peakDbz=Math.max(...sigStorms.map(s=>s.dbz));
+      const peakCat=peakDbz>=60?'EXTREME':peakDbz>=55?'SEVERE':peakDbz>=45?'HEAVY':peakDbz>=30?'MODERATE':'LIGHT';
+      const closestSig=[...sigStorms].sort((a,b)=>a.distance-b.distance)[0];
+      parts.push(`  Peak intensity: ${peakDbz} dBZ [${peakCat}]. Closest significant cell: ${closestSig.distance.toFixed(1)} mi ${degToDir(closestSig.bearing)}.`);
+      const byDist=[...sigStorms].sort((a,b)=>a.distance-b.distance).slice(0,6);
+      const byDbz=[...sigStorms].sort((a,b)=>b.dbz-a.dbz).slice(0,6);
+      const seen=new Set();
+      const top=[];
+      for(const s of [...byDbz,...byDist]){
+        const k=`${s.lat.toFixed(3)}_${s.lon.toFixed(3)}`;
+        if(!seen.has(k)){seen.add(k);top.push(s);}
+        if(top.length>=12)break;
+      }
       for(const st of top){
         let line=`  Storm at ${st.distance.toFixed(1)} mi ${degToDir(st.bearing)} (${st.bearing.toFixed(0)}°), intensity ${st.dbz} dBZ`;
         const cat=st.dbz>=60?'EXTREME':st.dbz>=55?'SEVERE':st.dbz>=45?'HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
@@ -6336,7 +6347,7 @@ function buildWeatherContext(){
         }catch(e){}
         parts.push(line);
       }
-      if(sorted.length>12)parts.push(`  ... and ${sorted.length-12} more significant storm cells`);
+      if(sigStorms.length>top.length)parts.push(`  ... and ${sigStorms.length-top.length} more significant storm cells`);
     }
     if(S.stormMovement&&S.stormMovement.speed>=2){
       parts.push(`  General storm movement: ${degToDir(S.stormMovement.direction)} at ${S.stormMovement.speed.toFixed(0)} mph`);
