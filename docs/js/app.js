@@ -376,9 +376,9 @@ function renderGaugeG1000(d){
     svg+=`<line x1="${(x0+tapeW-1-(major?10:5)).toFixed(1)}" y1="${yy.toFixed(1)}" x2="${(x0+tapeW-1).toFixed(1)}" y2="${yy.toFixed(1)}" stroke="${major?'#5a6070':'#2a2e38'}" stroke-width="${major?1:0.5}"/>`;
     if(major)svg+=`<text x="${(x0+tapeW-13).toFixed(1)}" y="${yy.toFixed(1)}" fill="#e2e8f0" font-size="5.5" font-weight="600" text-anchor="end" dominant-baseline="central" font-family="monospace">${S.presUnit===0?p.toFixed(1):p}</text>`;
   }
-  const pBoxW=S.presUnit===0?32:22;
-  svg+=`<polygon points="${(W-tapeW-1).toFixed(1)},${(pTapeCenter+7).toFixed(1)} ${(W-tapeW-1).toFixed(1)},${(pTapeCenter-7).toFixed(1)} ${(W-tapeW-14).toFixed(1)},${(pTapeCenter-7).toFixed(1)} ${(W-tapeW-18).toFixed(1)},${pTapeCenter.toFixed(1)} ${(W-tapeW-14).toFixed(1)},${(pTapeCenter+7).toFixed(1)}" fill="#111" stroke="${green}" stroke-width="1"/>`;
-  svg+=`<text x="${(W-tapeW-9).toFixed(1)}" y="${pTapeCenter.toFixed(1)}" fill="${green}" font-size="6.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${pDisp}</text>`;
+  const pPtrR=W-tapeW-1,pPtrW=S.presUnit===0?36:26;
+  svg+=`<polygon points="${pPtrR.toFixed(1)},${(pTapeCenter+7).toFixed(1)} ${(pPtrR-4).toFixed(1)},${(pTapeCenter+7).toFixed(1)} ${(pPtrR-4-pPtrW).toFixed(1)},${(pTapeCenter+7).toFixed(1)} ${(pPtrR-4-pPtrW-4).toFixed(1)},${pTapeCenter.toFixed(1)} ${(pPtrR-4-pPtrW).toFixed(1)},${(pTapeCenter-7).toFixed(1)} ${(pPtrR-4).toFixed(1)},${(pTapeCenter-7).toFixed(1)} ${pPtrR.toFixed(1)},${(pTapeCenter-7).toFixed(1)}" fill="#111" stroke="${green}" stroke-width="1"/>`;
+  svg+=`<text x="${(pPtrR-4-pPtrW/2).toFixed(1)}" y="${pTapeCenter.toFixed(1)}" fill="${green}" font-size="${S.presUnit===0?'6':'7'}" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${pDisp}</text>`;
   svg+=`<text x="${W-tapeW/2-1}" y="${tapeTop+8}" fill="${cyan}" font-size="5" font-weight="600" text-anchor="middle" font-family="monospace">${pUnit}</text>`;
   svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="${compassR}" fill="none" stroke="#3a3e48" stroke-width="0.8"/>`;
   svg+=`<circle cx="${compassCx}" cy="${compassCy}" r="${compassR+1}" fill="none" stroke="#2a2e38" stroke-width="0.3"/>`;
