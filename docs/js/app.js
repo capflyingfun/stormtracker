@@ -421,9 +421,13 @@ function renderGaugeSpeedo(d){
     <svg viewBox="0 0 200 200" style="width:100%;height:100%">${svg}</svg>
   </div>`;
 }
-function arcPathFull(cx,cy,r,a1,a2){
-  const r1=a1*Math.PI/180,r2=a2*Math.PI/180;
-  return`M${(cx+Math.cos(r2)*r).toFixed(1)},${(cy-Math.sin(r2)*r).toFixed(1)} A${r},${r} 0 ${Math.abs(a2-a1)>180?1:0} 0 ${(cx+Math.cos(r1)*r).toFixed(1)},${(cy-Math.sin(r1)*r).toFixed(1)}`;
+function arcPathFull(cx,cy,r,a1Deg,a2Deg){
+  const a1=a2Deg*Math.PI/180,a2=a1Deg*Math.PI/180;
+  const x1=cx+Math.cos(a1)*r,y1=cy-Math.sin(a1)*r;
+  const x2=cx+Math.cos(a2)*r,y2=cy-Math.sin(a2)*r;
+  const sweep=a2Deg-a1Deg;
+  const large=Math.abs(sweep)>180?1:0;
+  return`M${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${large} 0 ${x2.toFixed(1)},${y2.toFixed(1)}`;
 }
 function renderWindGauge(d){
   const style=getGaugeStyle();
@@ -2236,8 +2240,33 @@ function drawMiniSonar(){
     ctx.beginPath();ctx.moveTo(cx+Math.cos(mvRad)*15,cy+Math.sin(mvRad)*15);ctx.lineTo(ax,ay);
     ctx.strokeStyle=hexToRgba(neonC,0.5);ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
   }
-  ctx.beginPath();ctx.arc(cx,cy,3,0,Math.PI*2);ctx.fillStyle='#00dcff';ctx.fill();
-  ctx.beginPath();ctx.arc(cx,cy,6,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.3)';ctx.lineWidth=1;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fillStyle='#00dcff';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,8,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.4)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,12,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.15)';ctx.lineWidth=0.5;ctx.stroke();
+  const ilsLen=Math.max(14,maxR*0.12);
+  ctx.beginPath();ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx-4,cy-ilsLen+6);ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx+4,cy-ilsLen+6);
+  ctx.strokeStyle='rgba(0,220,255,0.6)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,cy-ilsLen);ctx.lineTo(cx,cy+ilsLen*0.6);
+  ctx.strokeStyle='rgba(0,220,255,0.3)';ctx.lineWidth=1;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx-6,cy);ctx.lineTo(cx+6,cy);
+  ctx.strokeStyle='rgba(0,220,255,0.25)';ctx.lineWidth=0.8;ctx.stroke();
+  if(S.weather&&S.weather.wind_direction_10m!=null){
+    const wdDeg=S.weather.wind_direction_10m;
+    const wRad=(wdDeg-90)*Math.PI/180;
+    const chevR=maxR+2;
+    const chevTipX=cx+Math.cos(wRad)*chevR,chevTipY=cy+Math.sin(wRad)*chevR;
+    const chevL=8,chevW=0.35;
+    const cL1x=cx+Math.cos(wRad-chevW)*(chevR-chevL),cL1y=cy+Math.sin(wRad-chevW)*(chevR-chevL);
+    const cR1x=cx+Math.cos(wRad+chevW)*(chevR-chevL),cR1y=cy+Math.sin(wRad+chevW)*(chevR-chevL);
+    ctx.beginPath();ctx.moveTo(chevTipX,chevTipY);ctx.lineTo(cL1x,cL1y);ctx.moveTo(chevTipX,chevTipY);ctx.lineTo(cR1x,cR1y);
+    ctx.strokeStyle='rgba(0,255,136,0.7)';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.stroke();
+    const cL2x=cx+Math.cos(wRad-chevW)*(chevR-chevL*1.7),cL2y=cy+Math.sin(wRad-chevW)*(chevR-chevL*1.7);
+    const cR2x=cx+Math.cos(wRad+chevW)*(chevR-chevL*1.7),cR2y=cy+Math.sin(wRad+chevW)*(chevR-chevL*1.7);
+    const midX=cx+Math.cos(wRad)*(chevR-chevL*0.9),midY=cy+Math.sin(wRad)*(chevR-chevL*0.9);
+    ctx.beginPath();ctx.moveTo(midX,midY);ctx.lineTo(cL2x,cL2y);ctx.moveTo(midX,midY);ctx.lineTo(cR2x,cR2y);
+    ctx.strokeStyle='rgba(0,255,136,0.4)';ctx.lineWidth=2;ctx.stroke();
+    ctx.lineCap='butt';
+  }
   const infoEl=document.getElementById('mini-sonar-info');
   if(infoEl){
     if(zoneCount>0){
