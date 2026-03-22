@@ -2265,43 +2265,6 @@ function drawMiniSonar(){
   ctx.restore();
   ctx.beginPath();ctx.arc(cx,cy,11,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.6)';ctx.lineWidth=2;ctx.stroke();
   ctx.beginPath();ctx.arc(cx,cy,16,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.25)';ctx.lineWidth=1;ctx.stroke();
-  try{
-    const windDir=(S.weather&&S.weather.wind_direction_10m!=null)?S.weather.wind_direction_10m:null;
-    if(windDir!=null){
-      const ilsRad=(windDir-90)*Math.PI/180;
-      const ilsLen=Math.max(20,maxR*0.15);
-      ctx.save();ctx.shadowColor='rgba(0,220,255,0.6)';ctx.shadowBlur=6;
-      const tipX=cx+Math.cos(ilsRad)*(-ilsLen),tipY=cy+Math.sin(ilsRad)*(-ilsLen);
-      const baseX=cx+Math.cos(ilsRad)*(ilsLen*0.7),baseY=cy+Math.sin(ilsRad)*(ilsLen*0.7);
-      const perpRad=ilsRad+Math.PI/2;
-      ctx.beginPath();ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+Math.cos(ilsRad)*(9)+Math.cos(perpRad)*6,tipY+Math.sin(ilsRad)*(9)+Math.sin(perpRad)*6);
-      ctx.strokeStyle='#00ddff';ctx.lineWidth=2.5;ctx.lineCap='round';ctx.stroke();
-      ctx.beginPath();ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+Math.cos(ilsRad)*(9)+Math.cos(perpRad)*(-6),tipY+Math.sin(ilsRad)*(9)+Math.sin(perpRad)*(-6));
-      ctx.strokeStyle='#00ddff';ctx.lineWidth=2.5;ctx.stroke();
-      ctx.beginPath();ctx.moveTo(tipX,tipY);ctx.lineTo(baseX,baseY);
-      ctx.strokeStyle='rgba(0,220,255,0.5)';ctx.lineWidth=1.5;ctx.stroke();
-      const crossX=cx,crossY=cy;
-      ctx.beginPath();ctx.moveTo(crossX+Math.cos(perpRad)*9,crossY+Math.sin(perpRad)*9);ctx.lineTo(crossX+Math.cos(perpRad)*(-9),crossY+Math.sin(perpRad)*(-9));
-      ctx.strokeStyle='rgba(0,220,255,0.4)';ctx.lineWidth=1.2;ctx.stroke();
-      ctx.lineCap='butt';ctx.restore();
-      const chevR=maxR+4;
-      const chevL=Math.max(12,maxR*0.08);
-      const chevW=0.32;
-      const wRad=ilsRad;
-      ctx.save();ctx.shadowColor='rgba(0,255,136,0.7)';ctx.shadowBlur=8;
-      const chevTipX=cx+Math.cos(wRad)*chevR,chevTipY=cy+Math.sin(wRad)*chevR;
-      const cL1x=cx+Math.cos(wRad-chevW)*(chevR-chevL),cL1y=cy+Math.sin(wRad-chevW)*(chevR-chevL);
-      const cR1x=cx+Math.cos(wRad+chevW)*(chevR-chevL),cR1y=cy+Math.sin(wRad+chevW)*(chevR-chevL);
-      ctx.beginPath();ctx.moveTo(chevTipX,chevTipY);ctx.lineTo(cL1x,cL1y);ctx.moveTo(chevTipX,chevTipY);ctx.lineTo(cR1x,cR1y);
-      ctx.strokeStyle='#00ff88';ctx.lineWidth=3.5;ctx.lineCap='round';ctx.stroke();
-      const midX=cx+Math.cos(wRad)*(chevR-chevL*0.85),midY=cy+Math.sin(wRad)*(chevR-chevL*0.85);
-      const cL2x=cx+Math.cos(wRad-chevW)*(chevR-chevL*1.7),cL2y=cy+Math.sin(wRad-chevW)*(chevR-chevL*1.7);
-      const cR2x=cx+Math.cos(wRad+chevW)*(chevR-chevL*1.7),cR2y=cy+Math.sin(wRad+chevW)*(chevR-chevL*1.7);
-      ctx.beginPath();ctx.moveTo(midX,midY);ctx.lineTo(cL2x,cL2y);ctx.moveTo(midX,midY);ctx.lineTo(cR2x,cR2y);
-      ctx.strokeStyle='rgba(0,255,136,0.55)';ctx.lineWidth=2.5;ctx.stroke();
-      ctx.lineCap='butt';ctx.restore();
-    }
-  }catch(e){console.log('Sonar ILS/chevron error:',e.message)}
   const infoEl=document.getElementById('mini-sonar-info');
   if(infoEl){
     if(zoneCount>0){
