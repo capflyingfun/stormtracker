@@ -15,7 +15,41 @@ const WIND_UNITS = ['mph','kts','km/h','m/s'];
 const PRES_UNITS = ['inHg','mb','mmHg','kPa'];
 const VIS_UNITS = ['mi','km'];
 const PRECIP_UNITS = ['in','mm','cm'];
-
+let _timeFormat=localStorage.getItem('st_timeFormat')||'auto';
+function _is24h(){
+  if(_timeFormat==='24h')return true;
+  if(_timeFormat==='12h')return false;
+  try{const f=new Intl.DateTimeFormat([],{hour:'numeric'}).format(new Date(2000,0,1,13));return!f.match(/[APap]/)}catch(e){return false}
+}
+function fmtClock(d,showSec){
+  if(!(d instanceof Date))d=new Date(d);
+  const h24=_is24h();
+  const opts={hour:'2-digit',minute:'2-digit',hour12:!h24};
+  if(showSec)opts.second='2-digit';
+  return d.toLocaleTimeString([],opts);
+}
+function fmtClockShort(d){
+  if(!(d instanceof Date))d=new Date(d);
+  const h24=_is24h();
+  return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit',hour12:!h24});
+}
+function fmtHrLabel(d){
+  if(!(d instanceof Date))d=new Date(d);
+  if(_is24h()){return String(d.getHours()).padStart(2,'0')+':00'}
+  const hr=d.getHours(),ap=hr>=12?'p':'a';return(hr%12||12)+ap;
+}
+function setTimeFormat(fmt){
+  _timeFormat=fmt;localStorage.setItem('st_timeFormat',fmt);
+  syncTimeFmtBtns();reRenderActive();
+}
+function syncTimeFmtBtns(){
+  document.querySelectorAll('.tf-btn').forEach(b=>{
+    const active=b.dataset.tf===_timeFormat;
+    b.style.background=active?'rgba(0,229,255,0.15)':'rgba(255,255,255,0.04)';
+    b.style.borderColor=active?'var(--accent-cyan)':'var(--border-subtle)';
+    b.style.color=active?'var(--accent-cyan)':'var(--text-muted)';
+  });
+}
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function toast(msg,dur){
   if(S.travelMode&&!msg.startsWith('🧭')&&!msg.startsWith('📍')&&!msg.startsWith('Travel')){
@@ -68,7 +102,83 @@ function _beaufortBar(kmh){
 }
 
 let _windMinKmh=Infinity,_windMaxKmh=0;
-const _SONAR_ZOOM_LEVELS=[15,20,30,40,60,80];
+const _SONAR_ZOOM_LEVELS=[15,20,30,40,50,60,70,80];
+const _SONAR_DBZ_CLASSES=['light','moderate','heavy','intense','extreme'];
+const _SONAR_DBZ_LABELS={light:'Light (0-29)',moderate:'Moderate (30-39)',heavy:'Heavy (40-49)',intense:'Intense (50-59)',extreme:'Extreme (60+)'};
+const _SONAR_DBZ_COLORS={light:'#00ccff',moderate:'#aaff00',heavy:'#ffee00',intense:'#ff2200',extreme:'#ff00ff'};
+const _SONAR_DEFAULTS={dbzScale:{},sweepSpeed:40,fadeDur:2,alwaysOn:false,dotOpacity:100,glowInt:1,gridBright:100,dbzFloor:0,showStormArrows:true,showAloft:true,showLightning:true};
+let _sonarCfg=(function(){try{const s=JSON.parse(localStorage.getItem('st_sonarCfg'));if(s&&typeof s==='object')return Object.assign({},_SONAR_DEFAULTS,s)}catch(e){}return Object.assign({},_SONAR_DEFAULTS)})();
+function _saveSonarCfg(){localStorage.setItem('st_sonarCfg',JSON.stringify(_sonarCfg))}
+function _getDbzScale(cls){return _sonarCfg.dbzScale[cls]!=null?_sonarCfg.dbzScale[cls]:1}
+function _setDbzScale(cls,v){_sonarCfg.dbzScale[cls]=v;_saveSonarCfg()}
+function _toggleSonarSettings(){
+  let p=document.getElementById('sonar-settings-panel');
+  if(p){p.style.display=p.style.display==='none'?'block':'none';return}
+  const wrap=document.getElementById('mini-sonar-wrap');if(!wrap)return;
+  p=document.createElement('div');p.id='sonar-settings-panel';
+  p.style.cssText='position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(10,14,20,0.92);z-index:20;border-radius:8px;padding:10px 14px;overflow-y:auto;backdrop-filter:blur(4px)';
+  const sw=_sonarCfg,lb='font-size:0.55em;color:rgba(255,255,255,0.7)',tl='font-size:0.6em;color:#00eeff;font-weight:600',vl='font-size:0.5em;color:rgba(255,255,255,0.6);min-width:28px;text-align:right';
+  const spdNames={20:'Slow',40:'Medium',60:'Fast',80:'Turbo'};
+  const fadeNames={1:'Short',2:'Medium',3:'Long'};
+  const glowNames={0:'None',1:'Subtle',2:'Intense'};
+  let html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="color:#00eeff;font-weight:700;font-size:0.7em">⚙ Sonar Settings</span><button onclick="_toggleSonarSettings()" style="background:none;border:none;color:#00eeff;font-size:1em;cursor:pointer;padding:2px 6px">✕</button></div>';
+  html+='<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,220,255,0.15)">';
+  html+='<div style="'+tl+';margin-bottom:4px">Sweep</div>';
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="'+lb+'">Speed</span><div style="display:flex;gap:3px">';
+  for(const spd of [20,40,60,80])html+=`<button onclick="_setSonarOpt('sweepSpeed',${spd})" id="ss-spd-${spd}" style="font-size:0.45em;padding:2px 5px;border-radius:3px;cursor:pointer;border:1px solid ${sw.sweepSpeed===spd?'#00eeff':'rgba(0,220,255,0.3)'};background:${sw.sweepSpeed===spd?'rgba(0,220,255,0.2)':'none'};color:${sw.sweepSpeed===spd?'#00eeff':'rgba(255,255,255,0.5)'}">${spdNames[spd]}</button>`;
+  html+='</div></div>';
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="'+lb+'">Fade</span><div style="display:flex;gap:3px">';
+  for(const fd of [1,2,3])html+=`<button onclick="_setSonarOpt('fadeDur',${fd})" id="ss-fade-${fd}" style="font-size:0.45em;padding:2px 5px;border-radius:3px;cursor:pointer;border:1px solid ${sw.fadeDur===fd?'#00eeff':'rgba(0,220,255,0.3)'};background:${sw.fadeDur===fd?'rgba(0,220,255,0.2)':'none'};color:${sw.fadeDur===fd?'#00eeff':'rgba(255,255,255,0.5)'}">${fadeNames[fd]}</button>`;
+  html+='</div></div>';
+  html+=`<div style="display:flex;justify-content:space-between;align-items:center"><span style="${lb}">Always On (no sweep)</span><button onclick="_setSonarOpt('alwaysOn',!_sonarCfg.alwaysOn)" id="ss-always" style="font-size:0.45em;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid ${sw.alwaysOn?'#00ff88':'rgba(0,220,255,0.3)'};background:${sw.alwaysOn?'rgba(0,255,136,0.2)':'none'};color:${sw.alwaysOn?'#00ff88':'rgba(255,255,255,0.5)'}">${sw.alwaysOn?'ON':'OFF'}</button></div>`;
+  html+='</div>';
+  html+='<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,220,255,0.15)">';
+  html+='<div style="'+tl+';margin-bottom:4px">Visual</div>';
+  html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="${lb}">Dot Opacity</span><span id="ss-opac-v" style="${vl}">${sw.dotOpacity}%</span></div><input type="range" min="20" max="100" value="${sw.dotOpacity}" step="10" oninput="_setSonarSlider('dotOpacity',this.value,'ss-opac-v','%')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer;margin-bottom:4px">`;
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="'+lb+'">Glow</span><div style="display:flex;gap:3px">';
+  for(const gl of [0,1,2])html+=`<button onclick="_setSonarOpt('glowInt',${gl})" id="ss-glow-${gl}" style="font-size:0.45em;padding:2px 5px;border-radius:3px;cursor:pointer;border:1px solid ${sw.glowInt===gl?'#00eeff':'rgba(0,220,255,0.3)'};background:${sw.glowInt===gl?'rgba(0,220,255,0.2)':'none'};color:${sw.glowInt===gl?'#00eeff':'rgba(255,255,255,0.5)'}">${glowNames[gl]}</button>`;
+  html+='</div></div>';
+  html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="${lb}">Grid Brightness</span><span id="ss-grid-v" style="${vl}">${sw.gridBright}%</span></div><input type="range" min="0" max="200" value="${sw.gridBright}" step="20" oninput="_setSonarSlider('gridBright',this.value,'ss-grid-v','%')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer;margin-bottom:4px">`;
+  html+=`<div style="display:flex;justify-content:space-between;align-items:center"><span style="${lb}">dBZ Floor (hide below)</span><span id="ss-floor-v" style="${vl}">${sw.dbzFloor}</span></div><input type="range" min="0" max="40" value="${sw.dbzFloor}" step="5" oninput="_setSonarSlider('dbzFloor',this.value,'ss-floor-v','')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer">`;
+  html+='</div>';
+  html+='<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,220,255,0.15)">';
+  html+='<div style="'+tl+';margin-bottom:4px">Overlays</div>';
+  const togs=[['showStormArrows','Storm Arrows'],['showAloft','Aloft Wind'],['showLightning','⚡ Lightning (≥48 dBZ)']];
+  for(const[key,lbl]of togs){
+    const on=sw[key];
+    html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="${lb}">${lbl}</span><button onclick="_setSonarOpt('${key}',!_sonarCfg.${key})" id="ss-${key}" style="font-size:0.45em;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid ${on?'#00ff88':'rgba(0,220,255,0.3)'};background:${on?'rgba(0,255,136,0.2)':'none'};color:${on?'#00ff88':'rgba(255,255,255,0.5)'}">${on?'ON':'OFF'}</button></div>`;
+  }
+  html+='</div>';
+  html+='<div style="margin-bottom:6px">';
+  html+='<div style="'+tl+';margin-bottom:4px">Dot Size by dBZ</div>';
+  for(const cls of _SONAR_DBZ_CLASSES){
+    const val=Math.round(_getDbzScale(cls)*100);
+    const col=_SONAR_DBZ_COLORS[cls];
+    html+=`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1px"><span style="font-size:0.5em;color:${col};font-weight:600">${_SONAR_DBZ_LABELS[cls]}</span><span id="sonar-dbz-val-${cls}" style="${vl}">${val}%</span></div><input type="range" min="50" max="200" value="${val}" step="10" id="sonar-dbz-${cls}" oninput="_onDbzSlider('${cls}',this.value)" style="width:100%;height:14px;accent-color:${col};cursor:pointer"></div>`;
+  }
+  html+='</div>';
+  html+='<button onclick="_resetAllSonar()" style="background:none;border:1px solid rgba(0,220,255,0.3);color:rgba(0,220,255,0.6);font-size:0.5em;padding:3px 10px;border-radius:4px;cursor:pointer;width:100%">Reset All to Default</button>';
+  p.innerHTML=html;
+  wrap.style.position='relative';wrap.appendChild(p);
+}
+function _setSonarOpt(key,val){_sonarCfg[key]=val;_saveSonarCfg();const p=document.getElementById('sonar-settings-panel');if(p)p.remove();drawMiniSonar();setTimeout(()=>_toggleSonarSettings(),50)}
+function _setSonarSlider(key,val,elId,suffix){_sonarCfg[key]=Number(val);_saveSonarCfg();const el=document.getElementById(elId);if(el)el.textContent=val+suffix;drawMiniSonar()}
+function _onDbzSlider(cls,val){
+  _setDbzScale(cls,val/100);
+  const el=document.getElementById('sonar-dbz-val-'+cls);
+  if(el)el.textContent=val+'%';
+  drawMiniSonar();
+}
+function _resetAllSonar(){
+  const fresh=JSON.parse(JSON.stringify(_SONAR_DEFAULTS));
+  for(const k in _sonarCfg)delete _sonarCfg[k];
+  Object.assign(_sonarCfg,fresh);
+  _saveSonarCfg();
+  const p=document.getElementById('sonar-settings-panel');
+  if(p)p.remove();
+  drawMiniSonar();
+  setTimeout(()=>_toggleSonarSettings(),50);
+}
 let _sonarZoomMi=parseInt(localStorage.getItem('st_sonarZoom'))||80;
 if(!_SONAR_ZOOM_LEVELS.includes(_sonarZoomMi))_sonarZoomMi=80;
 function sonarZoomIn(){const i=_SONAR_ZOOM_LEVELS.indexOf(_sonarZoomMi);if(i>0){_sonarZoomMi=_SONAR_ZOOM_LEVELS[i-1];localStorage.setItem('st_sonarZoom',_sonarZoomMi);S._sonarTotalSwept=0;S._sonarSweepAngle=0;drawMiniSonar();_syncSonarZoomBtns()}}
@@ -346,7 +456,7 @@ function renderGaugeG1000(d){
   let topTxt='';
   if(strongest){
     topTxt+=`STM ${strongest.dbz||0}dBZ ${strongest.distance.toFixed(0)}${S.radarMetric?'km':'mi'}`;
-    if(mv&&mv.speed>=2)topTxt+=`  MVG ${degToDir(mv.direction)} ${mv.speed.toFixed(0)}${S.radarMetric?'km/h':'mph'}`;
+    if(mv&&mv.speed>=2)topTxt+=`  MVG ${degToDir(mv.direction)} (${Math.round(mv.direction)}°) ${mv.speed.toFixed(0)}${S.radarMetric?'km/h':'mph'}`;
   }else{topTxt='NO STORMS DETECTED'}
   svg+=`<text x="${W/2}" y="${topBar/2+1}" fill="${strongest?amber:'#5a6070'}" font-size="5" font-weight="600" text-anchor="middle" dominant-baseline="central" font-family="monospace">${topTxt}</text>`;
   svg+=`<rect x="0" y="${H-botBar}" width="${W}" height="${botBar}" rx="3" fill="#1a1a22"/>`;
@@ -459,16 +569,16 @@ function renderGaugeG1000(d){
   const gyroLabel=(_gyroEnabled&&_gyroHeading!=null)?`GYRO ${Math.round(_gyroHeading)}°`:'N UP';
   svg+=`<rect x="${compassCx-22}" y="${infoTop}" width="44" height="12" rx="2" fill="#111" stroke="${green}" stroke-width="0.8"/>`;
   svg+=`<text x="${compassCx}" y="${infoTop+6}" fill="${green}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${gyroLabel}</text>`;
-  const legY=infoTop;
   const legItems=[[magenta,`WIND ${dirDeg.toFixed(0)}°`,false]];
   if(upperDir!=null)legItems.push([yellow,`ALOFT ${Math.round((upperDir+180)%360)}°`,true]);
   if(hasStorm)legItems.push([cyan,`STM ${Math.round(strongest.bearing)}°`,false]);
-  const legX0=compassCx-compassR-2;
+  const legX0=tapeW+3;
+  const legY0=tapeTop+4;
   legItems.forEach((it,i)=>{
-    const ly=legY+i*10;
-    if(it[2]){svg+=`<line x1="${legX0}" y1="${(ly+5).toFixed(1)}" x2="${(legX0+10).toFixed(1)}" y2="${(ly+5).toFixed(1)}" stroke="${it[0]}" stroke-width="1.2" stroke-dasharray="3,2"/>`}
-    else{svg+=`<line x1="${legX0}" y1="${(ly+5).toFixed(1)}" x2="${(legX0+10).toFixed(1)}" y2="${(ly+5).toFixed(1)}" stroke="${it[0]}" stroke-width="1.5"/>`}
-    svg+=`<text x="${(legX0+13).toFixed(1)}" y="${(ly+5).toFixed(1)}" fill="${it[0]}" font-size="4" font-weight="600" text-anchor="start" dominant-baseline="central" font-family="monospace">${it[1]}</text>`;
+    const ly=legY0+i*9;
+    if(it[2]){svg+=`<line x1="${legX0}" y1="${(ly+4).toFixed(1)}" x2="${(legX0+10).toFixed(1)}" y2="${(ly+4).toFixed(1)}" stroke="${it[0]}" stroke-width="1.2" stroke-dasharray="3,2"/>`}
+    else{svg+=`<line x1="${legX0}" y1="${(ly+4).toFixed(1)}" x2="${(legX0+10).toFixed(1)}" y2="${(ly+4).toFixed(1)}" stroke="${it[0]}" stroke-width="1.5"/>`}
+    svg+=`<text x="${(legX0+13).toFixed(1)}" y="${(ly+4).toFixed(1)}" fill="${it[0]}" font-size="4" font-weight="600" text-anchor="start" dominant-baseline="central" font-family="monospace">${it[1]}</text>`;
   });
   if(hasStorm){
     const distStr=strongest.distance<10?strongest.distance.toFixed(1):strongest.distance.toFixed(0);
@@ -940,8 +1050,7 @@ function fmtCountdown(totalSec){
   return m+'m:'+String(s).padStart(2,'0')+'s';
 }
 function fmtArrivalTime(etaMin){
-  const d=new Date(Date.now()+etaMin*60000);
-  return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit',hour12:true});
+  return fmtClockShort(new Date(Date.now()+etaMin*60000));
 }
 function stormKey(s){return s.lat.toFixed(3)+','+s.lng.toFixed(3)}
 function autoScanInterval(){
@@ -1852,6 +1961,7 @@ function syncSettingsPanel(){
   syncUnitSelects();
   syncGaugeStyleBtns();
   syncGyroBtn();
+  syncTimeFmtBtns();
   const sel=document.getElementById('settings-travel-int');
   if(sel)sel.value=String(S.gpsInterval||300);
   const arSel=document.getElementById('settings-auto-refresh');
@@ -2293,6 +2403,7 @@ function renderWeather(data){
         <div style="display:flex;gap:4px;align-items:center">
           <button id="sonar-zoom-in" onclick="event.stopPropagation();sonarZoomIn()" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.7em;width:24px;height:24px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-weight:700;opacity:0.8" title="Zoom in">＋</button>
           <button id="sonar-zoom-out" onclick="event.stopPropagation();sonarZoomOut()" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.7em;width:24px;height:24px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-weight:700;opacity:0.8" title="Zoom out">ー</button>
+          <button onclick="event.stopPropagation();_toggleSonarSettings()" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.7em;width:24px;height:24px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;opacity:0.8" title="Dot size settings">⚙</button>
           <button onclick="event.stopPropagation();switchPage('radar')" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.6em;padding:3px 8px;border-radius:4px;cursor:pointer">Open Radar →</button>
         </div>
       </div>
@@ -2323,84 +2434,125 @@ function drawMiniSonar(){
   ctx.beginPath();ctx.arc(cx,cy,maxR+10,0,Math.PI*2);ctx.fill();
   const scanR=S.scanRadius||80;
   const viewR=_sonarZoomMi;
-  const nRings=4;
-  for(let i=1;i<=nRings;i++){
-    const r=maxR*(i/nRings);
-    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
-    ctx.strokeStyle='rgba(0,220,255,0.12)';ctx.lineWidth=0.5;ctx.stroke();
-    const dist=Math.round(viewR*(i/nRings));
-    const label=S.radarMetric?Math.round(dist*1.60934)+'km':dist+'mi';
-    ctx.fillStyle='rgba(0,220,255,0.35)';ctx.font=`${Math.max(8,size*0.028)}px Inter,sans-serif`;
-    ctx.textAlign='center';ctx.fillText(label,cx,cy-r+10);
-  }
-  ctx.beginPath();ctx.moveTo(cx,cy-maxR);ctx.lineTo(cx,cy+maxR);ctx.strokeStyle='rgba(0,220,255,0.08)';ctx.lineWidth=0.5;ctx.stroke();
-  ctx.beginPath();ctx.moveTo(cx-maxR,cy);ctx.lineTo(cx+maxR,cy);ctx.stroke();
-  const dirs=[['N',0],['S',180],['E',90],['W',270]];
-  ctx.fillStyle='rgba(0,220,255,0.5)';ctx.font=`bold ${Math.max(9,size*0.035)}px Inter,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
-  for(const[l,deg]of dirs){
-    const a=(deg-90)*Math.PI/180;
-    const lx=cx+Math.cos(a)*(maxR+12),ly=cy+Math.sin(a)*(maxR+12);
-    ctx.fillText(l,lx,ly);
-  }
   let zoneCount=0,maxDbz=0;
   if(S._rawScanPts&&S._rawScanPts.length){
-    const cells=polarGridBin(S._rawScanPts,S.lat,S.lon,scanR);
-    const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
+    const useRaw=viewR<=40;
     const dots=[];
-    for(const[k,c]of cells){
-      const distMi=(c.ri+0.5)*distStep;
-      if(distMi>viewR)continue;
-      const aMid=((c.ai+0.5)*angStep-90)*Math.PI/180;
-      const rMid=maxR*(distMi/viewR);
-      if(rMid<=0)continue;
-      dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid,angDeg:(c.ai+0.5)*angStep});
-      if(c.maxDbz>maxDbz)maxDbz=c.maxDbz;
-      zoneCount++;
+    if(useRaw){
+      for(const p of S._rawScanPts){
+        const distMi=haversine(S.lat,S.lon,p.lat,p.lng);
+        if(distMi>viewR)continue;
+        const bear=(bearingDeg(S.lat,S.lon,p.lat,p.lng)+360)%360;
+        const aMid=(bear-90)*Math.PI/180;
+        const rMid=maxR*(distMi/viewR);
+        if(rMid<=0)continue;
+        dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:p.dbz,dist:rMid,angDeg:bear});
+        if(p.dbz>maxDbz)maxDbz=p.dbz;
+        zoneCount++;
+      }
+    }else{
+      const cells=polarGridBin(S._rawScanPts,S.lat,S.lon,scanR);
+      const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
+      for(const[k,c]of cells){
+        const distMi=(c.ri+0.5)*distStep;
+        if(distMi>viewR)continue;
+        const aMid=((c.ai+0.5)*angStep-90)*Math.PI/180;
+        const rMid=maxR*(distMi/viewR);
+        if(rMid<=0)continue;
+        dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid,angDeg:(c.ai+0.5)*angStep});
+        if(c.maxDbz>maxDbz)maxDbz=c.maxDbz;
+        zoneCount++;
+      }
     }
     dots.sort((a,b)=>a.dbz-b.dbz);
     const sweepDeg=S._sonarSweepAngle||0;
-    const sweepStart=S._sonarSweepStart||0;
     const totalSwept=S._sonarTotalSwept||0;
-    const minDot=Math.max(2.5,size*0.012),maxDot=Math.max(6,size*0.028);
-    const sweepDps=40;
-    const holdDegs=3*sweepDps;
-    const fadeDegs=4*sweepDps;
+    const zoomScale=80/viewR;
+    const minDot=Math.max(2.5,size*0.012)*Math.min(zoomScale,6),maxDot=Math.max(6,size*0.028)*Math.min(zoomScale,6);
+    const rawDotR=useRaw?Math.max(2,size*0.007)*Math.min(zoomScale,3):0;
+    const cfg=_sonarCfg;
+    const sweepDps=cfg.sweepSpeed;
+    const holdDegs=cfg.fadeDur*sweepDps;
+    const fadeDegs=(cfg.fadeDur+1)*sweepDps;
     const totalDegs=holdDegs+fadeDegs;
+    const opacMul=cfg.dotOpacity/100;
+    const dbzFloor=cfg.dbzFloor;
+    const isAlwaysOn=cfg.alwaysOn;
+    const glowMul=cfg.glowInt;
+    const lightningDots=[];
     for(const d of dots){
+      if(d.dbz<dbzFloor)continue;
       const frac=Math.min(1,d.dist/maxR);
-      const dotR=minDot+(maxDot-minDot)*frac;
+      const dbzCls=_dbzEntry(d.dbz).cls;
+      const dbzSc=_getDbzScale(dbzCls);
+      const dotR=(useRaw?rawDotR*(0.8+0.4*frac):(minDot+(maxDot-minDot)*frac))*dbzSc;
       const hex=dbzHex(d.dbz);
-      const dotAng=(d.angDeg+90)%360;
-      let angDiff=((sweepDeg-dotAng)%360+360)%360;
-      const hasBeenSwept=totalSwept>=360||angDiff<totalSwept;
-      if(!hasBeenSwept){
-        ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
-        ctx.fillStyle='rgba(20,25,35,0.5)';ctx.fill();
-        continue;
+      let sweepAlpha=1;
+      if(!isAlwaysOn){
+        const dotAng=((d.angDeg-90)%360+360)%360;
+        let angDiff=((sweepDeg-dotAng)%360+360)%360;
+        const hasBeenSwept=totalSwept>=360||angDiff<totalSwept;
+        if(!hasBeenSwept){
+          ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
+          ctx.fillStyle='rgba(20,25,35,0.5)';ctx.fill();
+          continue;
+        }
+        if(angDiff<holdDegs){sweepAlpha=1}
+        else if(angDiff<totalDegs){sweepAlpha=Math.max(0.06,1-(angDiff-holdDegs)/fadeDegs)}
+        else{sweepAlpha=0.06}
       }
-      let sweepAlpha;
-      if(angDiff<holdDegs){sweepAlpha=1}
-      else if(angDiff<totalDegs){sweepAlpha=Math.max(0.06,1-(angDiff-holdDegs)/fadeDegs)}
-      else{sweepAlpha=0.06}
-      const baseA=Math.min(0.95,0.4+d.dbz/60);
+      const baseA=Math.min(0.95,0.4+d.dbz/60)*opacMul;
       const alpha=baseA*sweepAlpha;
       ctx.beginPath();ctx.arc(d.x,d.y,dotR,0,Math.PI*2);
       ctx.fillStyle=hexToRgba(hex,alpha);ctx.fill();
-      if(d.dbz>=40&&sweepAlpha>0.15){
-        ctx.save();ctx.shadowColor=hex;ctx.shadowBlur=dotR*3;
+      if(d.dbz>=40&&sweepAlpha>0.15&&glowMul>0){
+        ctx.save();ctx.shadowColor=hex;ctx.shadowBlur=dotR*3*glowMul;
         ctx.beginPath();ctx.arc(d.x,d.y,dotR*0.8,0,Math.PI*2);
         ctx.fillStyle=hexToRgba(hex,alpha*0.7);ctx.fill();
         ctx.restore();
-        if(sweepAlpha>0.5){
-          ctx.beginPath();ctx.arc(d.x,d.y,dotR*1.6,0,Math.PI*2);
+        if(sweepAlpha>0.5&&glowMul>=1){
+          ctx.beginPath();ctx.arc(d.x,d.y,dotR*(1+0.6*glowMul),0,Math.PI*2);
           ctx.strokeStyle=hexToRgba(hex,sweepAlpha*0.3);ctx.lineWidth=1;ctx.stroke();
         }
       }
+      if(d.dbz>=48&&sweepAlpha>0.3&&cfg.showLightning)lightningDots.push(d);
     }
+    if(cfg.showLightning&&lightningDots.length){
+      ctx.save();
+      ctx.font=`${Math.max(10,size*0.035)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.shadowColor='rgba(255,255,0,0.8)';ctx.shadowBlur=6;
+      for(const d of lightningDots){ctx.fillStyle='rgba(255,255,50,0.9)';ctx.fillText('⚡',d.x,d.y)}
+      ctx.restore();
+    }
+  }
+  const gB=(_sonarCfg.gridBright||100)/100;
+  if(gB>0){
+    const nRings=4;
+    for(let i=1;i<=nRings;i++){
+      const r=maxR*(i/nRings);
+      ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
+      ctx.strokeStyle=`rgba(0,220,255,${0.18*gB})`;ctx.lineWidth=0.8;ctx.stroke();
+      const dist=Math.round(viewR*(i/nRings));
+      const label=S.radarMetric?Math.round(dist*1.60934)+'km':dist+'mi';
+      ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
+      ctx.fillStyle=`rgba(0,220,255,${0.5*gB})`;ctx.font=`${Math.max(8,size*0.028)}px Inter,sans-serif`;
+      ctx.textAlign='center';ctx.fillText(label,cx,cy-r+10);ctx.restore();
+    }
+    ctx.beginPath();ctx.moveTo(cx,cy-maxR);ctx.lineTo(cx,cy+maxR);ctx.strokeStyle=`rgba(0,220,255,${0.1*gB})`;ctx.lineWidth=0.5;ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx-maxR,cy);ctx.lineTo(cx+maxR,cy);ctx.stroke();
+    const dirs=[['N',0],['S',180],['E',90],['W',270]];
+    ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
+    ctx.fillStyle=`rgba(0,220,255,${0.6*gB})`;ctx.font=`bold ${Math.max(9,size*0.035)}px Inter,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    for(const[l,deg]of dirs){
+      const a=(deg-90)*Math.PI/180;
+      const lx=cx+Math.cos(a)*(maxR+12),ly=cy+Math.sin(a)*(maxR+12);
+      ctx.fillText(l,lx,ly);
+    }
+    ctx.restore();
   }
   try{
     const sonarStorms=(S.storms||[]).filter(s=>s.distance<=viewR);
-    if(S.stormMovement&&S.stormMovement.speed>=2&&sonarStorms.length){
+    if(_sonarCfg.showStormArrows&&S.stormMovement&&S.stormMovement.speed>=2&&sonarStorms.length){
       const mv=S.stormMovement;
       const mvRad=(mv.direction-90)*Math.PI/180;
       const approaching=[];
@@ -2421,18 +2573,21 @@ function drawMiniSonar(){
           const neonC=dbzHex(st.dbz);
           const arrLen=Math.max(10,Math.min(20,maxR*0.12));
           const tipX=sx+Math.cos(mvRad)*arrLen,tipY=sy+Math.sin(mvRad)*arrLen;
-          ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(tipX,tipY);
-          ctx.strokeStyle=neonC;ctx.lineWidth=2;ctx.stroke();
           const headL=6,ha1=mvRad-Math.PI+0.5,ha2=mvRad-Math.PI-0.5;
+          ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=6;ctx.shadowOffsetX=1;ctx.shadowOffsetY=1;
+          ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(tipX,tipY);
+          ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
           ctx.beginPath();ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+Math.cos(ha1)*headL,tipY+Math.sin(ha1)*headL);ctx.moveTo(tipX,tipY);ctx.lineTo(tipX+Math.cos(ha2)*headL,tipY+Math.sin(ha2)*headL);
-          ctx.strokeStyle=neonC;ctx.lineWidth=2;ctx.stroke();
-          ctx.beginPath();ctx.arc(sx,sy,3,0,Math.PI*2);ctx.fillStyle=neonC;ctx.fill();
+          ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
+          ctx.beginPath();ctx.arc(sx,sy,3.5,0,Math.PI*2);ctx.fillStyle=neonC;ctx.fill();
+          ctx.restore();
         }
       }
       const neonC=pathArrowNeonColor(maxDbz);
       const arrLen=maxR*0.6;
       const ax=cx+Math.cos(mvRad)*arrLen,ay=cy+Math.sin(mvRad)*arrLen;
       const la=mvRad-Math.PI+0.4,ra=mvRad-Math.PI-0.4;
+      ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=6;
       ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(la)*12,ay+Math.sin(la)*12);ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(ra)*12,ay+Math.sin(ra)*12);
       ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
       ctx.beginPath();ctx.moveTo(cx+Math.cos(mvRad)*15,cy+Math.sin(mvRad)*15);ctx.lineTo(ax,ay);
@@ -2440,15 +2595,17 @@ function drawMiniSonar(){
       const slx=ax+Math.cos(mvRad)*10,sly=ay+Math.sin(mvRad)*10;
       ctx.fillStyle=hexToRgba(neonC,0.8);ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
       ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('STORM',slx,sly);
+      ctx.restore();
     }
     const aloftDir=S._upperWindDir;
-    if(aloftDir!=null){
+    if(_sonarCfg.showAloft&&aloftDir!=null){
       const toDir=(aloftDir+180)%360;
       const aloftRad=(toDir-90)*Math.PI/180;
       const aLen=maxR*0.55;
       const aStart=15;
       const ax1=cx+Math.cos(aloftRad)*aStart,ay1=cy+Math.sin(aloftRad)*aStart;
       const ax2=cx+Math.cos(aloftRad)*aLen,ay2=cy+Math.sin(aloftRad)*aLen;
+      ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=6;
       ctx.beginPath();ctx.moveTo(ax1,ay1);ctx.lineTo(ax2,ay2);
       ctx.strokeStyle='rgba(255,0,220,0.55)';ctx.lineWidth=1.8;ctx.setLineDash([6,4]);ctx.stroke();ctx.setLineDash([]);
       const headL=8,ha1=aloftRad-Math.PI+0.4,ha2=aloftRad-Math.PI-0.4;
@@ -2458,24 +2615,26 @@ function drawMiniSonar(){
       const lx=ax2+Math.cos(aloftRad)*10,ly=ay2+Math.sin(aloftRad)*10;
       ctx.fillStyle='rgba(255,0,220,0.8)';ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
       ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('ALOFT',lx,ly);
+      ctx.restore();
     }
   }catch(e){console.log('Sonar storm overlay error:',e.message)}
   if(!S._sonarSweepAngle)S._sonarSweepAngle=0;
-  const sweepRad=S._sonarSweepAngle*Math.PI/180;
-  const grad=ctx.createConicalGradient?null:null;
-  ctx.save();
-  const sweepEndX=cx+Math.cos(sweepRad)*maxR,sweepEndY=cy+Math.sin(sweepRad)*maxR;
-  const tailSpan=0.6;
-  for(let i=0;i<12;i++){
-    const frac=i/12;
-    const aOff=sweepRad-tailSpan*frac;
-    const ex=cx+Math.cos(aOff)*maxR,ey=cy+Math.sin(aOff)*maxR;
-    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);
-    ctx.strokeStyle=`rgba(0,220,255,${0.18*(1-frac)})`;ctx.lineWidth=1.5*(1-frac*0.5);ctx.stroke();
+  if(!_sonarCfg.alwaysOn){
+    const sweepRad=S._sonarSweepAngle*Math.PI/180;
+    ctx.save();
+    const sweepEndX=cx+Math.cos(sweepRad)*maxR,sweepEndY=cy+Math.sin(sweepRad)*maxR;
+    const tailSpan=0.6;
+    for(let i=0;i<12;i++){
+      const frac=i/12;
+      const aOff=sweepRad-tailSpan*frac;
+      const ex=cx+Math.cos(aOff)*maxR,ey=cy+Math.sin(aOff)*maxR;
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);
+      ctx.strokeStyle=`rgba(0,220,255,${0.18*(1-frac)})`;ctx.lineWidth=1.5*(1-frac*0.5);ctx.stroke();
+    }
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(sweepEndX,sweepEndY);
+    ctx.strokeStyle='rgba(0,255,255,0.35)';ctx.lineWidth=2;ctx.stroke();
+    ctx.restore();
   }
-  ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(sweepEndX,sweepEndY);
-  ctx.strokeStyle='rgba(0,255,255,0.35)';ctx.lineWidth=2;ctx.stroke();
-  ctx.restore();
   ctx.save();
   ctx.shadowColor='#00dcff';ctx.shadowBlur=10;
   ctx.beginPath();ctx.arc(cx,cy,7,0,Math.PI*2);ctx.fillStyle='#00eeff';ctx.fill();
@@ -2500,7 +2659,8 @@ function startSonarSweep(){
     if(!document.getElementById('mini-sonar-canvas')){_sonarAnimId=0;return;}
     const dt=last?ts-last:16;last=ts;
     const prevAngle=S._sonarSweepAngle||0;
-    const advance=dt*0.04;
+    if(_sonarCfg.alwaysOn){S._sonarTotalSwept=720;drawMiniSonar();_sonarAnimId=requestAnimationFrame(tick);return}
+    const advance=dt*(_sonarCfg.sweepSpeed/1000);
     S._sonarSweepAngle=(prevAngle+advance)%360;
     S._sonarTotalSwept=Math.min(720,(S._sonarTotalSwept||0)+advance);
     drawMiniSonar();
@@ -2941,7 +3101,7 @@ function buildTrendSVG(h,info){
       ly+=10;
     });
   }
-  const fmtHr=d=>{const hr=d.getHours(),ap=hr>=12?'p':'a';return(hr%12||12)+ap};
+  const fmtHr=d=>fmtHrLabel(d);
   const labelCount=7;
   for(let li=0;li<labelCount;li++){
     const idx=Math.round(li*(count-1)/(labelCount-1));
@@ -3012,8 +3172,7 @@ function renderHourlyForecast(h,d){
       const label=isToday?'Today':isTomorrow?'Tomorrow':dayStr;
       items+=`<div class="hourly-day-label">${label}</div>`;
     }
-    const hr=dt.getHours();
-    const hrStr=hr===0?'12 AM':hr<12?hr+' AM':hr===12?'12 PM':(hr-12)+' PM';
+    const hrStr=fmtHrLabel(dt);
     const tempC=h.temperature_2m[i];
     const feelsC=h.apparent_temperature?h.apparent_temperature[i]:null;
     const precip=h.precipitation_probability?h.precipitation_probability[i]:0;
@@ -3066,8 +3225,8 @@ function toggleForecastDetail(idx){
   const rain=d.precipitation_probability_max?d.precipitation_probability_max[idx]:0;
   const precip=d.precipitation_sum?d.precipitation_sum[idx]:0;
   const wind=d.wind_speed_10m_max?d.wind_speed_10m_max[idx]:0;
-  const sunrise=d.sunrise?new Date(d.sunrise[idx]).toLocaleTimeString(_curLang||'en',{hour:'numeric',minute:'2-digit'}):'—';
-  const sunset=d.sunset?new Date(d.sunset[idx]).toLocaleTimeString(_curLang||'en',{hour:'numeric',minute:'2-digit'}):'—';
+  const sunrise=d.sunrise?fmtClockShort(new Date(d.sunrise[idx])):'—';
+  const sunset=d.sunset?fmtClockShort(new Date(d.sunset[idx])):'—';
   const hiC=d.temperature_2m_max[idx],loC=d.temperature_2m_min[idx];
   const tempStr=fmtTemp(hiC)+' / '+fmtTemp(loC);
   const precipStr=fmtPrecip(precip);
@@ -3440,7 +3599,7 @@ function showRadarAnimFrame(map,idx){
   S.radarLayer=L.tileLayer(frame.url,{opacity:0.7,maxZoom:11,maxNativeZoom:maxNZ}).addTo(map);
   if(S._showZones&&S._rawScanPts&&S._rawScanPts.length>0&&!S._radarOverlayVisible&&S._zoneOverlays&&S._zoneOverlays.length>0&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
   const t=new Date(frame.time*1000);
-  const timeStr=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  const timeStr=fmtClock(t);
   const isFuture=frame.type==='forecast';
   const siteTag=frame.site||S._radarAnimSite||'';
   const srcTag=S._radarAnimSrc==='nexrad'?(siteTag?'K'+siteTag:'NEX'):'RV';
@@ -3463,7 +3622,7 @@ function showRadarLayer(map){
     if(lbl)lbl.textContent='NEXRAD (US) \u00B7 📍 Scan location \u00B7 🔍 Scan view';
     const t=new Date();
     const el=document.getElementById('radar-time');
-    if(el)el.textContent=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    if(el)el.textContent=fmtClock(t);
   }else{
     if(S.radarFrames.length){
       S.radarIdx=S.radarFrames.length-1;
@@ -3471,7 +3630,7 @@ function showRadarLayer(map){
       S.radarLayer=L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/2/1_1.png`,{opacity:0.7,maxZoom:11,maxNativeZoom:7}).addTo(map);
       const t=new Date(frame.time*1000);
       const el=document.getElementById('radar-time');
-      if(el)el.textContent=t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      if(el)el.textContent=fmtClock(t);
     }
     if(btn){btn.textContent='RV';btn.style.background=''}
     if(lbl)lbl.textContent='RainViewer \u00B7 Updated every 10 min \u00B7 📍 Scan location \u00B7 🔍 Scan view';
@@ -3859,6 +4018,7 @@ async function scanRadarHiRes(map,fromHome){
     S._rawScanPts=rawPoints;
     S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=true;
+    _sonarZoomMi=15;localStorage.setItem('st_sonarZoom',15);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_syncSonarZoomBtns();
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Hi-Res: ${S.storms.length.toLocaleString()} points in ${HIRES_RADIUS} mi`);
     await new Promise(r=>setTimeout(r,300));
@@ -4330,9 +4490,7 @@ function buildStormZones(map,rawPts){
         etaSec=Math.round(midDist/Math.max(closing,0.5)*3600);
         const now=new Date();
         const arrival=new Date(now.getTime()+etaSec*1000);
-        const hh=arrival.getHours(),mm=arrival.getMinutes();
-        const ampm=hh>=12?'PM':'AM';
-        arrivalStr=((hh%12)||12)+':'+String(mm).padStart(2,'0')+' '+ampm;
+        arrivalStr=fmtClockShort(arrival);
         approachCount++;
         const cellPt=destPt(S.lat,S.lon,midDist,midBear);
         approachSumLat+=cellPt[0]*maxDbz;
@@ -4475,8 +4633,8 @@ function _tickerWeatherPool(){
     if(d.sunrise&&d.sunrise[0]){
       const sr=new Date(d.sunrise[0]);const ss=new Date(d.sunset[0]);
       const now=new Date();
-      const srStr=sr.toLocaleTimeString(_curLang||'en',{hour:'numeric',minute:'2-digit'});
-      const ssStr=ss.toLocaleTimeString(_curLang||'en',{hour:'numeric',minute:'2-digit'});
+      const srStr=fmtClockShort(sr);
+      const ssStr=fmtClockShort(ss);
       if(now<sr)pool.push(`🌅 Sunrise at ${srStr} · Sunset at ${ssStr}. Dawn is coming! 🌄`);
       else if(now<ss){
         const minsLeft=Math.round((ss-now)/60000);
@@ -4612,8 +4770,7 @@ function updateThreatTicker(){
   function fmtEtaLive(etaMin){
     const targetMs=Date.now()+Math.round(etaMin*60)*1000;
     const arrival=new Date(targetMs);
-    const ah=arrival.getHours(),am=arrival.getMinutes();
-    const arrStr=((ah%12)||12)+':'+String(am).padStart(2,'0')+' '+(ah>=12?'PM':'AM');
+    const arrStr=fmtClockShort(arrival);
     const cdSpan=`<span class="ticker-cd" data-target="${targetMs}"></span>`;
     return{cdSpan,arrStr};
   }
@@ -5369,21 +5526,97 @@ async function scanRadarForStorms(){
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
     if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
     scheduleAutoScan();
-    const severeNearby=S.storms.some(s=>s.dbz>=50&&s.distance<=15);
-    if(severeNearby&&S.map&&!S._autoHiResActive){
-      S._autoHiResActive=true;
-      toast('⚠️ Severe cell within 15 mi — launching Hi-Res scan...');
-      setTimeout(async()=>{
-        S.map.setView([S.lat,S.lon],11,{animate:true,duration:0.5});
-        await scanRadarHiRes(S.map,true);
-        S._autoHiResActive=false;
-      },1500);
-    }else if(!severeNearby){
-      S._autoHiResActive=false;
-    }
+    _checkTieredHiRes();
   }catch(e){hideScanOverlay();toast('Radar scan failed: '+e.message);console.error('Scan error:',e)}
 }
 
+let _hiResTierDismissed={15:false,10:false,5:false};
+let _hiResPopupActive=false;
+let _hiResPopupTimer=null;
+function _resetHiResTiers(){_hiResTierDismissed={15:false,10:false,5:false}}
+function _checkTieredHiRes(){
+  if(!S.map||S._lastScanWasHiRes||_hiResPopupActive)return;
+  const severe=S.storms.filter(s=>s.dbz>=50);
+  if(!severe.length){_resetHiResTiers();return}
+  const closest=Math.min(...severe.map(s=>s.distance));
+  const tiers=[15,10,5];
+  for(const tier of tiers){
+    if(closest<=tier&&!_hiResTierDismissed[tier]){
+      if(tier===5){
+        _showHiResPopup(tier,closest,severe[0].dbz,true);
+      }else{
+        _showHiResPopup(tier,closest,severe[0].dbz,false);
+      }
+      return;
+    }
+  }
+}
+function _showHiResPopup(tierMi,distMi,peakDbz,autoTrigger){
+  _hiResPopupActive=true;
+  const existing=document.getElementById('hires-popup');
+  if(existing)existing.remove();
+  if(_hiResPopupTimer){clearTimeout(_hiResPopupTimer);_hiResPopupTimer=null}
+  const popup=document.createElement('div');popup.id='hires-popup';
+  const urgent=tierMi<=5;
+  const borderClr=urgent?'#ff3333':'#ff8800';
+  const bgClr=urgent?'rgba(40,8,8,0.96)':'rgba(20,12,4,0.96)';
+  popup.style.cssText=`position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;background:${bgClr};border:2px solid ${borderClr};border-radius:12px;padding:18px 22px;max-width:320px;width:90%;box-shadow:0 0 30px rgba(0,0,0,0.8),0 0 15px ${borderClr}40;backdrop-filter:blur(8px);text-align:center;animation:hiresPopIn 0.3s ease`;
+  const icon=urgent?'🚨':'⚠️';
+  const title=urgent?'SEVERE STORM NEARBY':'Storm Cell Detected';
+  const action=autoTrigger?'Launching deep analysis for your safety...':'Would you like a deep analysis?';
+  const distUnit=S.radarMetric?Math.round(distMi*1.60934)+' km':distMi.toFixed(1)+' mi';
+  let html=`<div style="font-size:1.4em;margin-bottom:6px">${icon}</div>`;
+  html+=`<div style="color:${borderClr};font-weight:700;font-size:0.85em;margin-bottom:6px">${title}</div>`;
+  html+=`<div style="color:#e2e8f0;font-size:0.7em;margin-bottom:4px">≥50 dBZ cell at <b>${distUnit}</b> (peak ${peakDbz} dBZ)</div>`;
+  html+=`<div style="color:rgba(255,255,255,0.6);font-size:0.6em;margin-bottom:12px">${action}</div>`;
+  if(autoTrigger){
+    html+=`<div id="hires-countdown" style="color:${borderClr};font-size:0.65em;font-weight:600;margin-bottom:8px">Scanning in 5s...</div>`;
+    html+=`<button onclick="_hiResAccept()" style="width:100%;padding:8px;border-radius:8px;border:1px solid ${borderClr};background:${borderClr}22;color:${borderClr};font-weight:700;font-size:0.7em;cursor:pointer">Scan Now</button>`;
+  }else{
+    html+=`<div id="hires-countdown" style="color:rgba(255,255,255,0.4);font-size:0.55em;margin-bottom:10px">Auto-dismiss in 30s</div>`;
+    html+=`<div style="display:flex;gap:8px">`;
+    html+=`<button onclick="_hiResAccept()" style="flex:1;padding:8px;border-radius:8px;border:1px solid #00cc44;background:rgba(0,204,68,0.15);color:#00cc44;font-weight:700;font-size:0.7em;cursor:pointer">Yes, Scan</button>`;
+    html+=`<button onclick="_hiResDecline(${tierMi})" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);font-weight:600;font-size:0.7em;cursor:pointer">Not Now</button>`;
+    html+=`</div>`;
+  }
+  popup.innerHTML=html;
+  document.body.appendChild(popup);
+  const timeoutSec=autoTrigger?5:30;
+  let remaining=timeoutSec;
+  const countEl=()=>document.getElementById('hires-countdown');
+  const interval=setInterval(()=>{
+    remaining--;
+    const el=countEl();
+    if(remaining<=0){
+      clearInterval(interval);
+      if(autoTrigger){_hiResAccept()}
+      else{_hiResDecline(tierMi)}
+      return;
+    }
+    if(el){
+      if(autoTrigger)el.textContent=`Scanning in ${remaining}s...`;
+      else el.textContent=`Auto-dismiss in ${remaining}s`;
+    }
+  },1000);
+  _hiResPopupTimer=interval;
+}
+function _hiResAccept(){
+  _hiResPopupActive=false;
+  if(_hiResPopupTimer){clearInterval(_hiResPopupTimer);_hiResPopupTimer=null}
+  const p=document.getElementById('hires-popup');if(p)p.remove();
+  _resetHiResTiers();
+  if(S.map){
+    toast('🔍 Launching Hi-Res deep analysis...');
+    S.map.setView([S.lat,S.lon],11,{animate:true,duration:0.5});
+    setTimeout(()=>scanRadarHiRes(S.map,true),800);
+  }
+}
+function _hiResDecline(tierMi){
+  _hiResPopupActive=false;
+  if(_hiResPopupTimer){clearInterval(_hiResPopupTimer);_hiResPopupTimer=null}
+  const p=document.getElementById('hires-popup');if(p)p.remove();
+  _hiResTierDismissed[tierMi]=true;
+}
 function loadImage(url){
   return fetch(url).then(r=>{
     if(!r.ok)throw new Error('HTTP '+r.status);
@@ -5482,7 +5715,7 @@ function _smartStormSummary(storms){
   const moderate=approaching.filter(s=>s.dbz>=40&&s.dbz<50);
   const severe=approaching.filter(s=>s.dbz>=50);
   const fmtEtaShort=(min)=>{const s=Math.round(min*60);const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return(h>0?String(h).padStart(2,'0')+'h:':'')+String(m).padStart(2,'0')+'m:'+String(sec).padStart(2,'0')+'s';};
-  const fmtTime=(min)=>{const d=new Date(Date.now()+min*60000);const h=d.getHours(),m=d.getMinutes();return((h%12)||12)+':'+String(m).padStart(2,'0')+(h>=12?' PM':' AM');};
+  const fmtTime=(min)=>fmtClockShort(new Date(Date.now()+min*60000));
   let lines=[];
   if(light.length){
     const first=light[0],last=light[light.length-1];
@@ -6123,7 +6356,7 @@ function renderStation(){
   const fltCat=getFltCat(visSM,s);
   const fltCls=fltCat==='VFR'?'vfr':fltCat==='MVFR'?'mvfr':fltCat==='IFR'?'ifr':'lifr';
   const stationName=s.name||S.stationId||'Weather Station';
-  const obLabel=s.obsTime?new Date(s.obsTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+  const obLabel=s.obsTime?fmtClock(new Date(s.obsTime)):'';
 
   const skyTxt=formatClouds(s);
   const wxDesc=s.wxString||skyTxt;
@@ -6762,7 +6995,7 @@ function buildWeatherContext(){
       const prec=h.precipitation?h.precipitation[i]:0;
       const wSpd=h.wind_speed_10m?(h.wind_speed_10m[i]*0.621371).toFixed(0):'?';
       const wGust=h.wind_gusts_10m?(h.wind_gusts_10m[i]*0.621371).toFixed(0):null;
-      const hr=new Date(t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+      const hr=fmtClockShort(new Date(t));
       let line=`  ${hr}: ${tF}°F, ${pop}% precip chance`;
       if(prec>0)line+=` (${prec}mm)`;
       line+=`, wind ${wSpd} mph`;
