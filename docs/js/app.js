@@ -7740,15 +7740,15 @@ function show3DView(){
         <div class="iso-info" id="iso-info"></div>
         <div class="iso-cam" id="iso-cam">
           <div class="iso-cam-pad">
-            <div></div>
+            <div aria-hidden="true"></div>
             <div class="iso-cam-btn" data-cam="up">▲</div>
-            <div></div>
+            <div aria-hidden="true"></div>
             <div class="iso-cam-btn" data-cam="left">◀</div>
             <div class="iso-cam-btn iso-cam-center" data-cam="reset">RST</div>
             <div class="iso-cam-btn" data-cam="right">▶</div>
-            <div></div>
+            <div aria-hidden="true"></div>
             <div class="iso-cam-btn" data-cam="down">▼</div>
-            <div></div>
+            <div aria-hidden="true"></div>
           </div>
           <div class="iso-cam-zoom">
             <div class="iso-cam-btn" data-cam="zout">−</div>
@@ -7996,8 +7996,8 @@ function setupIsoTouch(){
     if(!dragging)return;
     const dx=e.clientX-lastX;
     const dy=e.clientY-lastY;
-    ISO.tiltZ=(ISO.tiltZ+dx*0.3)%360;
-    ISO.tiltX=Math.max(20,Math.min(80,ISO.tiltX-dy*0.3));
+    ISO.tiltZ=(ISO.tiltZ-dx*0.3)%360;
+    ISO.tiltX=Math.max(20,Math.min(80,ISO.tiltX+dy*0.3));
     lastX=e.clientX;
     lastY=e.clientY;
     if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
