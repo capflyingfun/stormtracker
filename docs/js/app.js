@@ -7950,13 +7950,31 @@ function hide3DView(){
 ISO._stormEls=[];
 ISO._rafPending=false;
 
+function isoMergeStorms(src){
+  const pts=src.filter(p=>p.dbz>=15);
+  if(pts.length<=80)return pts;
+  pts.sort((a,b)=>b.dbz-a.dbz);
+  const out=[];
+  for(const p of pts){
+    let merged=false;
+    for(const e of out){
+      const dlat=p.lat-e.lat,dlng=(p.lng||p.lon)-(e.lng||e.lon);
+      if(dlat*dlat+dlng*dlng<0.002){if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
+    }
+    if(!merged){
+      out.push({lat:p.lat,lng:p.lng||p.lon,dbz:p.dbz,distance:p.distance||haversine(S.lat,S.lon,p.lat,p.lng||p.lon),bearing:p.bearing||bearingDeg(S.lat,S.lon,p.lat,p.lng||p.lon)});
+    }
+  }
+  return out;
+}
+
 function render3DView(){
   if(!ISO.open||!ISO.scene)return;
   const sc=ISO.scene;
   const wrap=ISO.wrap;
   const ww=wrap.clientWidth;
   const wh=wrap.clientHeight;
-  const storms=(S.storms||[]).filter(p=>p.dbz>=15);
+  const storms=isoMergeStorms(S.storms||[]);
   const useMetric=S.units==='metric';
   const unitLabel=useMetric?'km':'mi';
   const scanR=S.scanRadius||80;
@@ -7999,6 +8017,7 @@ function render3DView(){
   const oldStorms=sc.querySelectorAll('.iso-storm');
   oldStorms.forEach(el=>el.remove());
   ISO._stormEls=[];
+  ISO._windArrows=[];
 
   const showLtng=_sonarCfg.showLightning!==false;
   let stormCount=0;
@@ -8057,38 +8076,42 @@ function render3DView(){
   });
   sc.appendChild(frag);
 
-  const mvArrowLen=maxRingDist*scale*0.55;
+  let windLayer=wrap.querySelector('.iso-wind-layer');
+  if(windLayer)windLayer.remove();
+  windLayer=document.createElement('div');
+  windLayer.className='iso-wind-layer';
+  windLayer.style.cssText='position:absolute;left:50%;top:50%;pointer-events:none;z-index:20;';
+
   const mv=S.stormMovement;
   if(mv&&mv.speed>=2){
     const mvDir=mv.direction;
-    const mvRot=mvDir+ISO.tiltZ;
-    const svgSz=Math.max(60,mvArrowLen*1.2);
+    const svgSz=120;
     const arrowEl=document.createElement('div');
     arrowEl.className='iso-wind-arrow';
-    arrowEl.dataset.dir=mvDir;
-    arrowEl.dataset.type='storm';
-    arrowEl.style.cssText=`position:absolute;left:${cx}px;top:${cy}px;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg) rotate(${mvRot}deg);pointer-events:none;will-change:transform;z-index:10;`;
-    const aLen=svgSz*0.45,mid=svgSz/2;
-    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+aLen*0.1}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(0,220,255,0.7)" stroke-width="2.5" stroke-dasharray="5,3"/><polygon points="${mid},${mid-aLen} ${mid-6},${mid-aLen+12} ${mid+6},${mid-aLen+12}" fill="rgba(0,220,255,0.8)"/><text x="${mid}" y="${mid-aLen-6}" fill="rgba(0,220,255,0.9)" font-size="9" font-weight="bold" text-anchor="middle" font-family="Inter,sans-serif">STORM</text><text x="${mid}" y="${mid+aLen*0.1+14}" fill="rgba(0,220,255,0.6)" font-size="8" text-anchor="middle" font-family="Inter,sans-serif">${mv.speed.toFixed(0)} mph ${degToDir(mvDir)}</text></svg>`;
-    sc.appendChild(arrowEl);
-    ISO._stormEls.push(arrowEl);
+    arrowEl.dataset.dir=String(mvDir);
+    arrowEl.style.cssText=`position:absolute;left:0;top:0;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotate(${mvDir}deg);pointer-events:none;`;
+    const aLen=svgSz*0.4,mid=svgSz/2;
+    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+5}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(0,220,255,0.7)" stroke-width="2.5" stroke-dasharray="5,3"/><polygon points="${mid},${mid-aLen} ${mid-6},${mid-aLen+12} ${mid+6},${mid-aLen+12}" fill="rgba(0,220,255,0.8)"/><text x="${mid}" y="${mid-aLen-6}" fill="rgba(0,220,255,0.9)" font-size="9" font-weight="bold" text-anchor="middle" font-family="Inter,sans-serif">STORM</text><text x="${mid}" y="${mid+aLen*0.1+14}" fill="rgba(0,220,255,0.6)" font-size="8" text-anchor="middle" font-family="Inter,sans-serif">${mv.speed.toFixed(0)} mph ${degToDir(mvDir)}</text></svg>`;
+    windLayer.appendChild(arrowEl);
+    ISO._windArrows=ISO._windArrows||[];
+    ISO._windArrows.push(arrowEl);
   }
 
   const aloftDir=S._upperWindDir;
   if(aloftDir!=null){
     const toDir=(aloftDir+180)%360;
-    const aloftRot=toDir+ISO.tiltZ;
-    const svgSz=Math.max(55,mvArrowLen*1.1);
+    const svgSz=110;
     const arrowEl=document.createElement('div');
     arrowEl.className='iso-wind-arrow';
     arrowEl.dataset.dir=String(toDir);
-    arrowEl.dataset.type='aloft';
-    arrowEl.style.cssText=`position:absolute;left:${cx}px;top:${cy}px;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg) rotate(${aloftRot}deg);pointer-events:none;will-change:transform;z-index:9;`;
-    const aLen=svgSz*0.4,mid=svgSz/2;
-    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+aLen*0.1}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(255,0,220,0.5)" stroke-width="2" stroke-dasharray="6,4"/><polygon points="${mid},${mid-aLen} ${mid-5},${mid-aLen+10} ${mid+5},${mid-aLen+10}" fill="rgba(255,0,220,0.6)"/><text x="${mid}" y="${mid-aLen-5}" fill="rgba(255,0,220,0.8)" font-size="9" font-weight="bold" text-anchor="middle" font-family="Inter,sans-serif">ALOFT</text></svg>`;
-    sc.appendChild(arrowEl);
-    ISO._stormEls.push(arrowEl);
+    arrowEl.style.cssText=`position:absolute;left:0;top:0;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotate(${toDir}deg);pointer-events:none;`;
+    const aLen=svgSz*0.35,mid=svgSz/2;
+    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+5}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(255,0,220,0.5)" stroke-width="2" stroke-dasharray="6,4"/><polygon points="${mid},${mid-aLen} ${mid-5},${mid-aLen+10} ${mid+5},${mid-aLen+10}" fill="rgba(255,0,220,0.6)"/><text x="${mid}" y="${mid-aLen-5}" fill="rgba(255,0,220,0.8)" font-size="9" font-weight="bold" text-anchor="middle" font-family="Inter,sans-serif">ALOFT</text></svg>`;
+    windLayer.appendChild(arrowEl);
+    ISO._windArrows=ISO._windArrows||[];
+    ISO._windArrows.push(arrowEl);
   }
+  wrap.appendChild(windLayer);
 
   const info=document.getElementById('iso-info');
   if(info){
@@ -8155,17 +8178,9 @@ function buildHeadingStrip(){
 function updateIsoBillboard(){
   if(!ISO.scene)return;
   const els=ISO._stormEls;
-  const rz=-ISO.tiltZ,rx=-ISO.tiltX,tz=ISO.tiltZ;
-  const stormT=`translate(-50%,-100%) rotateZ(${rz}deg) rotateX(${rx}deg)`;
+  const t=`translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg)`;
   for(let i=0;i<els.length;i++){
-    const el=els[i];
-    if(el.classList.contains('iso-wind-arrow')){
-      const dir=parseFloat(el.dataset.dir);
-      const w=el.style.width;
-      el.style.transform=`translate(-50%,-50%) rotateZ(${rz}deg) rotateX(${rx}deg) rotate(${dir+tz}deg)`;
-    }else{
-      el.style.transform=stormT;
-    }
+    els[i].style.transform=t;
   }
 }
 function updateIsoCompass(){
