@@ -8051,11 +8051,11 @@ function render3DView(){
     const stDir=cellTrk?cellTrk.dir:(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement.direction:undefined);
     let arrowHtml='';
     if(stDir!==undefined){
-      const arr=bearingToArrow(stDir);
-      arrowHtml=`<span class="iso-arrow" style="color:${tc.color}">${arr}</span>`;
+      const arrowRot=stDir+ISO.tiltZ;
+      arrowHtml=`<span class="iso-arrow" data-dir="${stDir}" style="color:${tc.color};transform:translateX(-50%) rotate(${arrowRot}deg)">↑</span>`;
     }
 
-    let html=arrowHtml+`<span class="iso-emoji" style="font-size:${sz}em;filter:drop-shadow(0 0 ${glowSz}px ${tc.glow}) drop-shadow(0 4px 6px rgba(0,0,0,0.6));transform:translateY(-${h}px)">${emoji}</span>`;
+    let html=`<span class="iso-emoji" style="font-size:${sz}em;filter:drop-shadow(0 0 ${glowSz}px ${tc.glow}) drop-shadow(0 4px 6px rgba(0,0,0,0.6));transform:translateY(-${h-8}px)">${emoji}</span>`+arrowHtml;
     html+=`<span class="iso-glow" style="width:${glowSz*2}px;height:${glowSz*2}px;background:radial-gradient(circle,${tc.glow} 0%,transparent 70%);bottom:${-glowSz+4}px;border:1px solid ${tc.color}33;border-radius:50%"></span>`;
 
     if(showLtng&&st.dbz>=40){
@@ -8141,9 +8141,12 @@ function updateIsoBillboard(){
   if(!ISO.scene)return;
   const storms=ISO.scene.querySelectorAll('.iso-storm');
   storms.forEach(el=>{
-    const left=el.style.left;
-    const top=el.style.top;
     el.style.transform=`translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg)`;
+    const arr=el.querySelector('.iso-arrow[data-dir]');
+    if(arr){
+      const dir=parseFloat(arr.dataset.dir);
+      arr.style.transform=`translateX(-50%) rotate(${dir+ISO.tiltZ}deg)`;
+    }
   });
 }
 function updateIsoCompass(){
