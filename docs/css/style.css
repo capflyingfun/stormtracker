@@ -351,7 +351,7 @@ canvas.offscreen{display:none}
 .iso-scene-wrap{flex:1;position:relative;overflow:hidden;touch-action:none}
 .iso-scene{position:absolute;transform-style:preserve-3d;transition:transform 0.1s ease-out}
 .iso-ground{position:absolute;border-radius:50%}
-.iso-ring{position:absolute;border:1px solid rgba(0,229,255,0.1);border-radius:50%;pointer-events:none}
+.iso-ring{position:absolute;border:1px solid rgba(0,229,255,0.18);border-radius:50%;pointer-events:none}
 .iso-ring-label{position:absolute;font-size:0.5em;color:rgba(0,229,255,0.3);font-family:'JetBrains Mono',monospace;white-space:nowrap;pointer-events:none}
 .iso-north{position:absolute;font-size:0.55em;color:rgba(255,100,100,0.5);font-weight:700;pointer-events:none}
 .iso-user{position:absolute;width:12px;height:12px;border-radius:50%;background:#4488ff;box-shadow:0 0 10px #4488ff,0 0 20px rgba(68,136,255,0.4);z-index:10;transform:translate(-50%,-50%)}
@@ -396,5 +396,5 @@ canvas.offscreen{display:none}
 .iso-cam-btn.iso-cam-center{font-size:0.5em;font-weight:700;color:rgba(0,229,255,0.5);letter-spacing:0.5px}
 .iso-cam-zoom{display:flex;gap:2px;margin-top:4px}
 .iso-cam-zoom .iso-cam-btn{width:46px;height:40px;font-size:1.1em;font-weight:700}
-.iso-gyro-wrap{position:absolute;bottom:12px;left:10px;z-index:4}
+.iso-gyro-wrap{position:absolute;bottom:60px;left:10px;z-index:4}
 .iso-gyro-btn{width:auto!important;padding:0 12px!important;font-size:0.75em!important;height:36px!important;gap:4px}
