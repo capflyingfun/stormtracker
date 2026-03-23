@@ -7731,15 +7731,10 @@ function show3DView(){
           <div class="iso-legend-row"><span class="le">🌩️</span> Severe (56+)</div>
           <div class="iso-legend-row"><span class="le">⚡</span> Lightning (≥40)</div>
         </div>
-        <div class="iso-compass" id="iso-compass">
-          <div class="iso-compass-ring" id="iso-compass-ring">
-            <span class="iso-compass-n">N</span>
-            <span class="iso-compass-s">S</span>
-            <span class="iso-compass-e">E</span>
-            <span class="iso-compass-w">W</span>
-            <div class="iso-compass-needle"></div>
-            <div class="iso-compass-dot"></div>
-          </div>
+        <div class="iso-hstrip" id="iso-hstrip">
+          <div class="iso-hstrip-track" id="iso-hstrip-track"></div>
+          <div class="iso-hstrip-center"></div>
+          <div class="iso-hstrip-hdg" id="iso-hstrip-hdg">000°</div>
         </div>
         <div class="iso-info" id="iso-info"></div>
         <div class="iso-cam" id="iso-cam">
@@ -7765,6 +7760,7 @@ function show3DView(){
     ISO.scene=document.getElementById('iso-scene');
     ISO.wrap=document.getElementById('iso-scene-wrap');
     setupIsoTouch();
+    buildHeadingStrip();
   }
   ISO.open=true;
   ISO.zoom=1;
@@ -7934,9 +7930,39 @@ function showIsoPopup(st,px,py,etaKey){
   ISO.popup=pop;
 }
 
+function buildHeadingStrip(){
+  const track=document.getElementById('iso-hstrip-track');
+  if(!track)return;
+  const labels={0:'N',30:'030',45:'NE',60:'060',90:'E',120:'120',135:'SE',150:'150',180:'S',210:'210',225:'SW',240:'240',270:'W',300:'300',315:'NW',330:'330'};
+  const cardinals=[0,45,90,135,180,225,270,315];
+  const majors=[30,60,120,150,210,240,300,330];
+  let html='';
+  for(let r=0;r<3;r++){
+    for(let deg=0;deg<360;deg+=10){
+      const d=deg;
+      const isCardinal=cardinals.includes(d);
+      const isMajor=majors.includes(d);
+      const isNorth=d===0;
+      const cls=isCardinal?'cardinal'+(isNorth?' north':''):(isMajor?'major':'');
+      const lbl=labels[d]||'';
+      html+=`<div class="iso-hstrip-tick ${cls}" data-deg="${d}"><span class="iso-hstrip-lbl">${lbl}</span></div>`;
+    }
+  }
+  track.innerHTML=html;
+}
 function updateIsoCompass(){
-  const ring=document.getElementById('iso-compass-ring');
-  if(ring)ring.style.transform=`rotate(${ISO.tiltZ+45}deg)`;
+  const track=document.getElementById('iso-hstrip-track');
+  const hdg=document.getElementById('iso-hstrip-hdg');
+  if(!track)return;
+  const heading=(((-ISO.tiltZ-45)%360)+360)%360;
+  const tickW=40;
+  const totalTicks=36;
+  const totalW=totalTicks*tickW;
+  const offset=(heading/360)*totalW;
+  const stripEl=document.getElementById('iso-hstrip');
+  const centerX=stripEl?stripEl.clientWidth/2:180;
+  track.style.transform=`translateX(${centerX-offset-totalW}px)`;
+  if(hdg)hdg.textContent=`${Math.round(heading).toString().padStart(3,'0')}°`;
 }
 
 function setupIsoTouch(){
@@ -7945,7 +7971,7 @@ function setupIsoTouch(){
   let lastX,lastY;
 
   w.addEventListener('pointerdown',(e)=>{
-    if(e.target.closest('.iso-popup,.iso-legend,.iso-info,.iso-close,.iso-cam,.iso-compass'))return;
+    if(e.target.closest('.iso-popup,.iso-legend,.iso-info,.iso-close,.iso-cam,.iso-hstrip'))return;
     dragging=true;
     lastX=e.clientX;
     lastY=e.clientY;
@@ -8007,8 +8033,8 @@ function setupIsoTouch(){
     const camActions={
       up:()=>{ISO.tiltX=Math.min(80,ISO.tiltX+2);applyIso();},
       down:()=>{ISO.tiltX=Math.max(20,ISO.tiltX-2);applyIso();},
-      left:()=>{ISO.tiltZ=(ISO.tiltZ-3)%360;applyIso();},
-      right:()=>{ISO.tiltZ=(ISO.tiltZ+3)%360;applyIso();},
+      left:()=>{ISO.tiltZ=(ISO.tiltZ+3)%360;applyIso();},
+      right:()=>{ISO.tiltZ=(ISO.tiltZ-3)%360;applyIso();},
       zin:()=>{ISO.zoom=Math.min(3,ISO.zoom+0.1);applyIso();},
       zout:()=>{ISO.zoom=Math.max(0.3,ISO.zoom-0.1);applyIso();},
       reset:()=>{ISO.tiltX=55;ISO.tiltZ=-45;ISO.zoom=1;applyIso();}
