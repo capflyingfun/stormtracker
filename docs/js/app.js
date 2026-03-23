@@ -18,10 +18,18 @@ const PRECIP_UNITS = ['in','mm','cm'];
 let _timeFormat=localStorage.getItem('st_timeFormat')||'auto';
 function _detectSystem24h(){
   try{
-    const f=new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'numeric'}).format(new Date(2020,0,1,13,0));
-    if(f.includes('13'))return true;
-    const lo=f.toLowerCase();
-    if(lo.includes('am')||lo.includes('pm'))return false;
+    const d=new Date(2020,0,1,13,0,0);
+    const checks=[
+      new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'numeric'}).format(d),
+      d.toLocaleTimeString(undefined,{hour:'numeric',minute:'numeric'}),
+      d.toLocaleTimeString([],{hour:'numeric',minute:'numeric'}),
+      d.toLocaleTimeString()
+    ];
+    for(const f of checks){
+      if(/13|14|15|16|17|18|19|20|21|22|23/.test(f))return true;
+      const lo=f.toLowerCase();
+      if(lo.includes('am')||lo.includes('pm')||/[APap]\s*\.?\s*[Mm]/.test(f))return false;
+    }
     return true;
   }catch(e){return false}
 }
