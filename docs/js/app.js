@@ -1536,6 +1536,7 @@ function setLoc(lat,lon,name,fromTravel){
     if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
     showRadarLayer(S.map);
   }
+  const wEl=document.getElementById('page-weather');if(wEl)showSkel(wEl,6);
   if(_setLocTimer)clearTimeout(_setLocTimer);
   _setLocTimer=setTimeout(()=>{
     _setLocTimer=null;
@@ -1545,7 +1546,7 @@ function setLoc(lat,lon,name,fromTravel){
     fetchTerrainGrid();
     scanRadarForStorms();
     scheduleHourlyRefresh();
-  },150);
+  },0);
 }
 
 function getFavorites(){
