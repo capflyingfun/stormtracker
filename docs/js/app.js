@@ -7808,7 +7808,7 @@ function render3DView(){
   user.style.cssText=`left:${cx}px;top:${cy}px;`;
   sc.appendChild(user);
 
-  const showLtng=S._showLightning!==false;
+  const showLtng=_sonarCfg.showLightning!==false;
   let stormCount=0;
   const etas=S._stormETAs||{};
 
