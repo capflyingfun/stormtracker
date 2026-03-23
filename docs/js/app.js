@@ -1886,7 +1886,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
-  {ver:'v2.33',date:'2026-03-23',items:['3D Storm View: threat-based color glow — green (low), yellow (moderate), red (serious), magenta (extreme) halo around each storm icon','Threat score formula combines dBZ intensity (50%) with approach trajectory impact (50%) for meaningful color coding','Storm direction arrows repositioned above icons for better visibility — larger, colored to match threat level, with text shadow for contrast','Radial glow ground effect beneath each storm icon with threat-colored ring','3D view ring range now matches scan radius (80mi) — all detected storms visible','3D view uses raw scan points for consistent display with sonar/radar views','Updated Storm Intensity legend with Threat Glow color key']},
+  {ver:'v2.33',date:'2026-03-23',items:['3D Storm View: threat-based color glow — green (low), yellow (moderate), red (serious), magenta (extreme) halo around each storm icon','Threat score formula combines dBZ intensity (50%) with approach trajectory impact (50%) for meaningful color coding','Storm direction arrows repositioned above icons for better visibility — larger, colored to match threat level, with contrast shadow','Radial glow ground effect beneath each storm icon with threat-colored ring','Updated Storm Intensity legend with Threat Glow color key']},
   {ver:'v2.32',date:'2026-03-23',items:['Weather Station Alerts — set custom thresholds for wind, gusts, temperature, pressure, rainfall, humidity, visibility, and UV','10 configurable alert types with per-alert enable/disable and custom threshold values','15-minute cooldown per alert type to prevent notification spam','Browser push notifications when app is in background (via Service Worker)','Toast alerts when app is in foreground','Alert history log in Alerts tab with timestamps and clear button','Settings panel → Weather Station Alerts 🔔 section for easy configuration']},
   {ver:'v2.31e',date:'2026-03-23',items:['Fixed 3D view icon aspect ratio — storm emojis no longer squish or stretch on zoom/tilt','Changed scene transform from 2D scale to 3D scale3d for uniform scaling across all axes','Lightning, rain, and arrow indicators also maintain correct proportions at all zoom levels']},
   {ver:'v2.31d',date:'2026-03-23',items:['3D view storm arrows now use per-cell tracked movement direction from radar frame comparison','Clutter threshold raised: ≤12 returns below 22 dBZ now auto-hidden as clutter (previously ≤8 below 31 dBZ)','Inbound storm point button shows 12▶ (top 12 approaching) instead of 8▶','AI prompt updated to reflect new clutter thresholds']},
@@ -7888,6 +7888,9 @@ function show3DView(){
           <div class="iso-legend-row"><span class="le" style="color:#facc15">●</span> Moderate</div>
           <div class="iso-legend-row"><span class="le" style="color:#ff3355">●</span> Serious</div>
           <div class="iso-legend-row"><span class="le" style="color:#e040fb">●</span> Extreme</div>
+          <h4 style="margin-top:6px">Wind Arrows</h4>
+          <div class="iso-legend-row"><span class="le" style="color:rgba(0,220,255,0.9)">→</span> Storm Mvmt</div>
+          <div class="iso-legend-row"><span class="le" style="color:rgba(255,0,220,0.8)">→</span> Winds Aloft</div>
         </div>
         <div class="iso-hstrip" id="iso-hstrip">
           <div class="iso-hstrip-track" id="iso-hstrip-track"></div>
@@ -7944,29 +7947,16 @@ function hide3DView(){
   if(ISO.popup){ISO.popup.remove();ISO.popup=null;}
 }
 
+ISO._stormEls=[];
+ISO._rafPending=false;
+
 function render3DView(){
   if(!ISO.open||!ISO.scene)return;
   const sc=ISO.scene;
   const wrap=ISO.wrap;
   const ww=wrap.clientWidth;
   const wh=wrap.clientHeight;
-  const rawPts=S._rawScanPts||[];
-  const stormList=S.storms||[];
-  const allPts=rawPts.length?rawPts:stormList;
-  const pts=allPts.filter(p=>p.dbz>=15);
-  pts.sort((a,b)=>b.dbz-a.dbz);
-  const storms=[];
-  for(const p of pts){
-    let merged=false;
-    for(const e of storms){
-      if(haversine(p.lat,p.lng,e.lat,e.lng)<1.5){e.pixels=(e.pixels||1)+1;if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
-    }
-    if(!merged){
-      const dist=haversine(S.lat,S.lon,p.lat,p.lng);
-      const bear=bearingDeg(S.lat,S.lon,p.lat,p.lng);
-      storms.push({lat:p.lat,lng:p.lng,dbz:p.dbz,distance:dist,bearing:bear,pixels:1});
-    }
-  }
+  const storms=(S.storms||[]).filter(p=>p.dbz>=15);
   const useMetric=S.units==='metric';
   const unitLabel=useMetric?'km':'mi';
   const scanR=S.scanRadius||80;
@@ -7974,49 +7964,47 @@ function render3DView(){
   const ringStep=useMetric?20:(maxRingDist<=50?10:20);
   const groundSize=Math.min(ww,wh)*2.2;
   const scale=groundSize/(maxRingDist*2.4);
+  ISO._scale=scale;ISO._cx=groundSize/2;ISO._cy=groundSize/2;ISO._groundSize=groundSize;
 
   sc.style.width=groundSize+'px';
   sc.style.height=groundSize+'px';
   sc.style.left=(ww/2-groundSize/2)+'px';
   sc.style.top=(wh/2-groundSize/2)+'px';
   sc.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
-  sc.innerHTML='';
+  sc.style.willChange='transform';
+
+  let staticLayer=sc.querySelector('.iso-static');
+  if(!staticLayer){
+    sc.innerHTML='';
+    staticLayer=document.createElement('div');
+    staticLayer.className='iso-static';
+    staticLayer.style.cssText='position:absolute;left:0;top:0;width:100%;height:100%;';
+    sc.appendChild(staticLayer);
+  }
+  staticLayer.innerHTML='';
 
   const cx=groundSize/2;
   const cy=groundSize/2;
 
-  const ground=document.createElement('div');
-  ground.className='iso-ground';
-  ground.style.cssText=`width:${groundSize}px;height:${groundSize}px;left:0;top:0;background:radial-gradient(circle,rgba(10,20,40,0.9) 0%,rgba(5,10,25,0.95) 70%,rgba(2,5,15,1) 100%);`;
-  sc.appendChild(ground);
-
+  let buf=`<div class="iso-ground" style="width:${groundSize}px;height:${groundSize}px;left:0;top:0;background:radial-gradient(circle,rgba(10,20,40,0.9) 0%,rgba(5,10,25,0.95) 70%,rgba(2,5,15,1) 100%)"></div>`;
   for(let r=ringStep;r<=maxRingDist;r+=ringStep){
     const rPx=r*scale*2;
-    const ring=document.createElement('div');
-    ring.className='iso-ring';
-    ring.style.cssText=`width:${rPx}px;height:${rPx}px;left:${cx-rPx/2}px;top:${cy-rPx/2}px;`;
-    sc.appendChild(ring);
-    const lbl=document.createElement('div');
-    lbl.className='iso-ring-label';
-    lbl.textContent=`${r}${unitLabel}`;
-    lbl.style.cssText=`left:${cx+rPx/2+4}px;top:${cy-6}px;`;
-    sc.appendChild(lbl);
+    buf+=`<div class="iso-ring" style="width:${rPx}px;height:${rPx}px;left:${cx-rPx/2}px;top:${cy-rPx/2}px"></div>`;
+    buf+=`<div class="iso-ring-label" style="left:${cx+rPx/2+4}px;top:${cy-6}px">${r}${unitLabel}</div>`;
   }
+  buf+=`<div class="iso-north" style="left:${cx-8}px;top:${cy-maxRingDist*scale-18}px">▲ N</div>`;
+  buf+=`<div class="iso-user" style="left:${cx}px;top:${cy}px"></div>`;
+  staticLayer.innerHTML=buf;
 
-  const north=document.createElement('div');
-  north.className='iso-north';
-  north.textContent='▲ N';
-  north.style.cssText=`left:${cx-8}px;top:${cy-maxRingDist*scale-18}px;`;
-  sc.appendChild(north);
-
-  const user=document.createElement('div');
-  user.className='iso-user';
-  user.style.cssText=`left:${cx}px;top:${cy}px;`;
-  sc.appendChild(user);
+  const oldStorms=sc.querySelectorAll('.iso-storm');
+  oldStorms.forEach(el=>el.remove());
+  ISO._stormEls=[];
 
   const showLtng=_sonarCfg.showLightning!==false;
   let stormCount=0;
   const etas=S._stormETAs||{};
+  const etaKeys=Object.keys(etas);
+  const frag=document.createDocumentFragment();
 
   storms.forEach((st,i)=>{
     if(!st.dbz||st.dbz<15)return;
@@ -8034,7 +8022,7 @@ function render3DView(){
     const tScore=stormThreatScore(st.dbz,st.distance||0,st.bearing||0);
     const tc=threatColor(tScore);
 
-    const etaKey=Object.keys(etas).find(k=>{
+    const etaKey=etaKeys.find(k=>{
       const e=etas[k];
       if(!e)return false;
       if(e.lat!==undefined&&e.lng!==undefined)return Math.abs(e.lat-st.lat)<0.05&&Math.abs(e.lng-st.lng)<0.05;
@@ -8045,17 +8033,9 @@ function render3DView(){
     const el=document.createElement('div');
     el.className='iso-storm'+(isApproaching?' approaching':'');
     const glowSz=Math.max(8,sz*10);
-    el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);`;
+    el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);will-change:transform;`;
 
-    const cellTrk=getCellTrack(st);
-    const stDir=cellTrk?cellTrk.dir:(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement.direction:undefined);
-    let arrowHtml='';
-    if(stDir!==undefined){
-      const arr=bearingToArrow(stDir);
-      arrowHtml=`<span class="iso-arrow" style="color:${tc.color}">${arr}</span>`;
-    }
-
-    let html=arrowHtml+`<span class="iso-emoji" style="font-size:${sz}em;filter:drop-shadow(0 0 ${glowSz}px ${tc.glow}) drop-shadow(0 4px 6px rgba(0,0,0,0.6));transform:translateY(-${h}px)">${emoji}</span>`;
+    let html=`<span class="iso-emoji" style="font-size:${sz}em;filter:drop-shadow(0 0 ${glowSz}px ${tc.glow}) drop-shadow(0 4px 6px rgba(0,0,0,0.6));transform:translateY(-${h-8}px)">${emoji}</span>`;
     html+=`<span class="iso-glow" style="width:${glowSz*2}px;height:${glowSz*2}px;background:radial-gradient(circle,${tc.glow} 0%,transparent 70%);bottom:${-glowSz+4}px;border:1px solid ${tc.color}33;border-radius:50%"></span>`;
 
     if(showLtng&&st.dbz>=40){
@@ -8072,8 +8052,43 @@ function render3DView(){
       e.stopPropagation();
       showIsoPopup(st,sx,sy,isApproaching?etaKey:null);
     };
-    sc.appendChild(el);
+    frag.appendChild(el);
+    ISO._stormEls.push(el);
   });
+  sc.appendChild(frag);
+
+  const mvArrowLen=maxRingDist*scale*0.55;
+  const mv=S.stormMovement;
+  if(mv&&mv.speed>=2){
+    const mvDir=mv.direction;
+    const mvRot=mvDir+ISO.tiltZ;
+    const svgSz=Math.max(60,mvArrowLen*1.2);
+    const arrowEl=document.createElement('div');
+    arrowEl.className='iso-wind-arrow';
+    arrowEl.dataset.dir=mvDir;
+    arrowEl.dataset.type='storm';
+    arrowEl.style.cssText=`position:absolute;left:${cx}px;top:${cy}px;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg) rotate(${mvRot}deg);pointer-events:none;will-change:transform;z-index:10;`;
+    const aLen=svgSz*0.45,mid=svgSz/2;
+    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+aLen*0.1}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(0,220,255,0.7)" stroke-width="2.5" stroke-dasharray="5,3"/><polygon points="${mid},${mid-aLen} ${mid-6},${mid-aLen+12} ${mid+6},${mid-aLen+12}" fill="rgba(0,220,255,0.8)"/><text x="${mid}" y="${mid-aLen-6}" fill="rgba(0,220,255,0.9)" font-size="9" font-weight="bold" text-anchor="middle" font-family="Inter,sans-serif">STORM</text><text x="${mid}" y="${mid+aLen*0.1+14}" fill="rgba(0,220,255,0.6)" font-size="8" text-anchor="middle" font-family="Inter,sans-serif">${mv.speed.toFixed(0)} mph ${degToDir(mvDir)}</text></svg>`;
+    sc.appendChild(arrowEl);
+    ISO._stormEls.push(arrowEl);
+  }
+
+  const aloftDir=S._upperWindDir;
+  if(aloftDir!=null){
+    const toDir=(aloftDir+180)%360;
+    const aloftRot=toDir+ISO.tiltZ;
+    const svgSz=Math.max(55,mvArrowLen*1.1);
+    const arrowEl=document.createElement('div');
+    arrowEl.className='iso-wind-arrow';
+    arrowEl.dataset.dir=String(toDir);
+    arrowEl.dataset.type='aloft';
+    arrowEl.style.cssText=`position:absolute;left:${cx}px;top:${cy}px;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg) rotate(${aloftRot}deg);pointer-events:none;will-change:transform;z-index:9;`;
+    const aLen=svgSz*0.4,mid=svgSz/2;
+    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+aLen*0.1}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(255,0,220,0.5)" stroke-width="2" stroke-dasharray="6,4"/><polygon points="${mid},${mid-aLen} ${mid-5},${mid-aLen+10} ${mid+5},${mid-aLen+10}" fill="rgba(255,0,220,0.6)"/><text x="${mid}" y="${mid-aLen-5}" fill="rgba(255,0,220,0.8)" font-size="9" font-weight="bold" text-anchor="middle" font-family="Inter,sans-serif">ALOFT</text></svg>`;
+    sc.appendChild(arrowEl);
+    ISO._stormEls.push(arrowEl);
+  }
 
   const info=document.getElementById('iso-info');
   if(info){
@@ -8139,12 +8154,19 @@ function buildHeadingStrip(){
 }
 function updateIsoBillboard(){
   if(!ISO.scene)return;
-  const storms=ISO.scene.querySelectorAll('.iso-storm');
-  storms.forEach(el=>{
-    const left=el.style.left;
-    const top=el.style.top;
-    el.style.transform=`translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg)`;
-  });
+  const els=ISO._stormEls;
+  const rz=-ISO.tiltZ,rx=-ISO.tiltX,tz=ISO.tiltZ;
+  const stormT=`translate(-50%,-100%) rotateZ(${rz}deg) rotateX(${rx}deg)`;
+  for(let i=0;i<els.length;i++){
+    const el=els[i];
+    if(el.classList.contains('iso-wind-arrow')){
+      const dir=parseFloat(el.dataset.dir);
+      const w=el.style.width;
+      el.style.transform=`translate(-50%,-50%) rotateZ(${rz}deg) rotateX(${rx}deg) rotate(${dir+tz}deg)`;
+    }else{
+      el.style.transform=stormT;
+    }
+  }
 }
 function updateIsoCompass(){
   const track=document.getElementById('iso-hstrip-track');
@@ -8181,9 +8203,15 @@ function setupIsoTouch(){
     ISO.tiltX=Math.max(20,Math.min(80,ISO.tiltX+dy*0.3));
     lastX=e.clientX;
     lastY=e.clientY;
-    if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
-    updateIsoCompass();
-    updateIsoBillboard();
+    if(!ISO._rafPending){
+      ISO._rafPending=true;
+      requestAnimationFrame(()=>{
+        ISO._rafPending=false;
+        if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
+        updateIsoCompass();
+        updateIsoBillboard();
+      });
+    }
   });
   w.addEventListener('pointerup',()=>{dragging=false;});
   w.addEventListener('pointercancel',()=>{dragging=false;});
