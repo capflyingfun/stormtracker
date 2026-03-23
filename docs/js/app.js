@@ -1886,6 +1886,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.31c',date:'2026-03-23',items:['Horizontal heading strip compass replaces round compass — aviation/marine-style with scrolling tick marks and numeric heading readout','Storm movement arrows fixed — now point in direction of travel','Left/Right D-pad controls corrected — no longer reversed','Bigger D-pad and zoom buttons for easier mobile tapping','Text selection fully disabled in 2.5D overlay (CSS + JS event blocking for iOS)']},
   {ver:'v2.31a',date:'2026-03-23',items:['Camera D-pad controls: ▲▼◀▶ buttons for tilt/rotation, +/− for zoom, RST to reset — hold for continuous movement','Text selection disabled in 2.5D view to prevent accidental copy on mobile touch']},
   {ver:'v2.31',date:'2026-03-23',items:['2.5D Isometric Storm View — pure CSS/HTML bird\'s-eye perspective with weather emojis (☁️🌧️⛈️🌩️) at height-based positions scaled by dBZ intensity','Storm emoji sizing and drop-shadows scale with severity — red glow for 56+ dBZ severe cells','Approaching storms bob gently with CSS animation; ⚡ lightning overlays on cells ≥40 dBZ with strike count','Concentric distance rings (10mi/20km intervals), north arrow, and user location pulsing dot at center','Touch interaction: drag to rotate tilt (±15°), pinch to zoom, mouse wheel zoom, tap storm for popup details','Auto-updates when new scan data arrives — view stays current without reopening','Legend panel with emoji intensity guide; storm count info badge','Rain streak animations under moderate+ cells; movement arrows below each storm emoji','Tutorial section added for 2.5D Storm View']},
   {ver:'v2.30e',date:'2026-03-23',items:['AI prompt overhaul: NWS Area Forecast Discussion (AFD) fetched live from api.weather.gov for US locations — real meteorologist analysis included in AI context','Thunderstorm formation analysis: CAPE, Lifted Index, CIN from Open-Meteo with rated moisture/stability/lifting scores and overall thunderstorm potential (1-10)','Winds aloft now included in AI context with all pressure levels (surface through 500hPa) in mph and knots','Wind shear analysis (NWS/Aviation standard) with vector magnitude, severity rating, and aviation impact assessment','5-section structured AI response: Summary & AFD, Relevant Storms, General, Aviation, Boating','Dynamic urgency tone: auto-scales from calm to URGENT based on storm dBZ and alert severity','Increased AI response length (800→1500 tokens) and lowered temperature (0.7→0.4) for more thorough and consistent analysis']},
@@ -7735,8 +7736,8 @@ function show3DView(){
           <div class="iso-hstrip-track" id="iso-hstrip-track"></div>
           <div class="iso-hstrip-center"></div>
           <div class="iso-hstrip-hdg" id="iso-hstrip-hdg">000°</div>
+          <div class="iso-info" id="iso-info"></div>
         </div>
-        <div class="iso-info" id="iso-info"></div>
         <div class="iso-cam" id="iso-cam">
           <div class="iso-cam-pad">
             <div></div>
@@ -7762,6 +7763,7 @@ function show3DView(){
     ov.addEventListener('selectstart',e=>e.preventDefault());
     ov.addEventListener('contextmenu',e=>e.preventDefault());
     ov.addEventListener('copy',e=>e.preventDefault());
+    ov.addEventListener('dblclick',e=>e.preventDefault());
     setupIsoTouch();
     buildHeadingStrip();
   }
@@ -8034,8 +8036,8 @@ function setupIsoTouch(){
     let camInterval=null;
     const applyIso=()=>{if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;updateIsoCompass();};
     const camActions={
-      up:()=>{ISO.tiltX=Math.min(80,ISO.tiltX+2);applyIso();},
-      down:()=>{ISO.tiltX=Math.max(20,ISO.tiltX-2);applyIso();},
+      up:()=>{ISO.tiltX=Math.max(20,ISO.tiltX-2);applyIso();},
+      down:()=>{ISO.tiltX=Math.min(80,ISO.tiltX+2);applyIso();},
       left:()=>{ISO.tiltZ=(ISO.tiltZ+3)%360;applyIso();},
       right:()=>{ISO.tiltZ=(ISO.tiltZ-3)%360;applyIso();},
       zin:()=>{ISO.zoom=Math.min(3,ISO.zoom+0.1);applyIso();},
