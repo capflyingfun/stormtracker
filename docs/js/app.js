@@ -7908,6 +7908,11 @@ function show3DView(){
         </div>
         <div class="iso-info" id="iso-info"></div>
         <div class="iso-info iso-fps-badge" id="iso-fps" style="top:58px"></div>
+        <div class="iso-height-ctrl" id="iso-height-ctrl">
+          <label>🏔️ Height</label>
+          <input type="range" id="iso-height-slider" min="1" max="20" step="0.5" value="7">
+          <span id="iso-height-val">7×</span>
+        </div>
         <div class="iso-cam" id="iso-cam">
           <div class="iso-cam-pad">
             <div aria-hidden="true"></div>
@@ -7935,8 +7940,16 @@ function show3DView(){
     ov.addEventListener('contextmenu',e=>e.preventDefault());
     ov.addEventListener('copy',e=>e.preventDefault());
     ov.addEventListener('dblclick',e=>e.preventDefault());
-    ov.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
-    ov.addEventListener('touchstart',e=>{if(e.touches.length===1&&!e.target.closest('.iso-close,.iso-cam-btn,.iso-pop-close'))e.preventDefault();},{passive:false});
+    ov.addEventListener('touchmove',e=>{if(!e.target.closest('.iso-height-ctrl'))e.preventDefault();},{passive:false});
+    ov.addEventListener('touchstart',e=>{if(e.touches.length===1&&!e.target.closest('.iso-close,.iso-cam-btn,.iso-pop-close,.iso-height-ctrl'))e.preventDefault();},{passive:false});
+    const hSlider=document.getElementById('iso-height-slider');
+    if(hSlider){
+      hSlider.addEventListener('input',()=>{
+        ISO.heightMul=parseFloat(hSlider.value);
+        document.getElementById('iso-height-val').textContent=hSlider.value+'×';
+        ISO._dirty=true;
+      });
+    }
     setupIsoTouch();
   }
   ISO.open=true;
@@ -7964,6 +7977,7 @@ ISO._rafPending=false;
 ISO._fps={frames:0,last:performance.now(),current:60,target:45,history:[]};
 ISO._grid=null;
 ISO._dirty=true;
+ISO.heightMul=7;
 
 function isoStartLoop(){
   if(ISO._loopId)return;
@@ -8077,7 +8091,7 @@ function renderTerrain3D(){
   const hScale=Math.sin(tiltX*Math.PI/180);
   const zoom=ISO.zoom;
   const baseScale=Math.min(W,H)*0.0065*zoom;
-  const heightMul=baseScale*3.5;
+  const heightMul=baseScale*(ISO.heightMul||7);
   const cx=W/2, cy=H*0.55;
 
   const scanR=S.scanRadius||80;
@@ -8306,7 +8320,7 @@ function setupIsoTouch(){
   const markDirty=()=>{ISO._dirty=true;};
 
   w.addEventListener('pointerdown',(e)=>{
-    if(e.target.closest('.iso-popup,.iso-legend,.iso-info,.iso-close,.iso-cam'))return;
+    if(e.target.closest('.iso-popup,.iso-legend,.iso-info,.iso-close,.iso-cam,.iso-height-ctrl'))return;
     dragging=true;
     lastX=e.clientX;
     lastY=e.clientY;
