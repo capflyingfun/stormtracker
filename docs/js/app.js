@@ -16,15 +16,19 @@ const PRES_UNITS = ['inHg','mb','mmHg','kPa'];
 const VIS_UNITS = ['mi','km'];
 const PRECIP_UNITS = ['in','mm','cm'];
 let _timeFormat=localStorage.getItem('st_timeFormat')||'auto';
+function _detectSystem24h(){
+  try{
+    const f=new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'numeric'}).format(new Date(2020,0,1,13,0));
+    if(f.includes('13'))return true;
+    const lo=f.toLowerCase();
+    if(lo.includes('am')||lo.includes('pm'))return false;
+    return true;
+  }catch(e){return false}
+}
 function _is24h(){
   if(_timeFormat==='24h')return true;
   if(_timeFormat==='12h')return false;
-  try{
-    const f=new Date(2000,0,1,13,0,0).toLocaleTimeString([],{hour:'numeric'});
-    if(!(/[APap]/.test(f)))return true;
-    const f2=new Date(2000,0,1,13,0,0).toLocaleTimeString();
-    return!(/[APap]/.test(f2));
-  }catch(e){return false}
+  return _detectSystem24h();
 }
 function _pad2(n){return n<10?'0'+n:''+n}
 function fmtClock(d,showSec){
