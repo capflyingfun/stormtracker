@@ -1871,7 +1871,7 @@ function setGpsInterval(val){
 const TUTORIAL_SECTIONS=[
   {title:'🏠 Getting Started',text:'StormTracker detects storms around your location using live radar data. On first launch, allow GPS access or search for your location using the 🗺️ button in the header. The app scans for precipitation within an 80-mile radius and shows results across five tabs. All settings — units, gauge style, time format, AI, alerts, and more — are accessible via the ⚙️ gear icon in the header.'},
   {title:'🌤️ Weather Tab',text:'Your main dashboard. Shows current conditions (temperature, wind, humidity, pressure), a <b>wind gauge</b> with real-time animated direction, and a <b>Radar Sonar</b> mini-map.<br><br><b>Wind Gauge:</b> Choose from 5 switchable styles in Settings — <b>Neon</b> (default animated ring), <b>Marine</b> (nautical compass with LED digits), <b>Minimal</b> (clean arc with arrow), <b>G1000</b> (Garmin-style 3-panel with compass rose, speed tape, and pressure tape), and <b>Speedometer</b> (classic dial with sweeping needle). The G1000 also supports <b>Gyro Compass</b> mode — point your phone at a storm and the compass rotates with you.<br><br><b>Radar Sonar:</b> A bird\'s-eye view showing storm cells as colored blips and arrows for approaching storms. Use <b>+/−</b> buttons to zoom between 15 and 80 miles. Tap the ⚙️ gear on the sonar to customize sweep speed, fade duration, dot opacity, glow intensity, grid brightness, dBZ floor, and overlay toggles. Tap "Open Radar →" to jump to the full map.'},
-  {title:'📡 Radar Tab',text:'The full interactive map. Storm cells appear as colored arrows showing movement direction. The sidebar buttons control different layers:<br>• <b>🔍</b> — Scan current map view for storms<br>• <b>HiRes</b> — High-resolution 15-mile scan<br>• <b>NEX/SRC</b> — Switch between NEXRAD (US) and RainViewer (global) radar<br>• <b>MI</b> — Toggle miles/kilometers<br>• <b>✈️</b> — Show nearby airports<br>• <b>▶️</b> — Animate radar over time<br>• <b>ZN</b> — Toggle color-coded storm zones<br>• <b>➤</b> — Toggle the ILS approach cone<br>• <b>PT</b> — Cycle storm points: off → top 8 inbound → all<br>• <b>RDR</b> — Toggle radar overlay tiles<br><br><b>HD Scan System:</b> After each regular scan, the app checks for nearby storms and offers tiered high-resolution scans — <b>15mi</b> (asks), <b>10mi</b> (asks), and <b>5mi</b> (auto-triggers after 5 seconds when storms are very close). HD scans sync the sonar zoom to 15mi for maximum detail.'},
+  {title:'📡 Radar Tab',text:'The full interactive map. Storm cells appear as colored arrows showing movement direction. The sidebar buttons control different layers:<br>• <b>🔍</b> — Scan current map view for storms<br>• <b>HiRes</b> — High-resolution 15-mile scan<br>• <b>NEX/SRC</b> — Switch between NEXRAD (US) and RainViewer (global) radar<br>• <b>MI</b> — Toggle miles/kilometers<br>• <b>✈️</b> — Show nearby airports<br>• <b>▶️</b> — Animate radar over time<br>• <b>ZN</b> — Toggle color-coded storm zones<br>• <b>➤</b> — Toggle the ILS approach cone (dynamic length — extends 10mi past the farthest inbound storm)<br>• <b>8▶/PT</b> — Cycle storm points: off → top 8 inbound → all<br>• <b>RDR</b> — Toggle radar overlay tiles<br>• <b>🕳️</b> — Clutter toggle (appears when ≤8 returns below 31 dBZ are detected as likely false radar echoes). Tap to show/hide these minor returns.<br><br><b>HD Scan System:</b> After each regular scan, the app checks for nearby storms and offers tiered high-resolution scans — <b>15mi</b> (asks), <b>10mi</b> (asks), and <b>5mi</b> (auto-triggers after 5 seconds when storms are very close). HD scans sync the sonar zoom to 15mi for maximum detail.'},
   {title:'➤ ILS Approach Cone',text:'The animated cone on the radar shows where storms are heading relative to you. It\'s inspired by an airport ILS (Instrument Landing System) — a cone of dots extends from the storm source through your location. <b>White dots</b> = no storms approaching. <b>Colored dots</b> = intensity-matched to approaching storm dBZ levels. The cone is always on once wind data is received.'},
   {title:'🌩️ Storms Tab',text:'Lists all detected storm cells with details: peak dBZ, rain rate, distance, bearing, movement (direction with degrees), and ETA. Storms are grouped into <b>Approaching</b> (heading toward you) and <b>Nearby</b> (in the area but not on track). Each card shows a live countdown timer for approaching storms.<br><br><b>Storm Feedback:</b> When a countdown reaches zero, the app automatically re-checks storm data and asks "Did this storm affect your area?" with Yes/No/Unsure buttons. Your feedback helps track prediction accuracy over time.'},
   {title:'⚡ Lightning Indicators',text:'Storm cells with radar reflectivity ≥40 dBZ display a ⚡ lightning indicator. The strike count scales with intensity — stronger storms show more estimated strikes. Lightning markers appear on all three views (map, sonar, and 3D). You can toggle lightning display on or off.<br><br><i>Note: These are radar-derived estimates, not observed lightning strikes.</i>'},
@@ -4915,6 +4915,14 @@ function toggleRadarOverlay(){
   const btn=document.getElementById('btn-radar-overlay');
   if(btn)btn.style.opacity=S._radarOverlayVisible?'1':'0.4';
 }
+try{
+  const resetKey='st_defaults_v230e';
+  if(!localStorage.getItem(resetKey)){
+    localStorage.removeItem('st_pathArrows');
+    localStorage.removeItem('st_pointsMode');
+    localStorage.setItem(resetKey,'1');
+  }
+}catch(e){}
 try{const zv=localStorage.getItem('st_zones');if(zv==='0')S._showZones=false}catch(e){}
 try{const pa=localStorage.getItem('st_pathArrows');if(pa==='0')S._showPathArrows=false}catch(e){}
 try{const ps=localStorage.getItem('st_arrowStyle');if(ps==='pointer')S._pathArrowStyle='pointer'}catch(e){}
@@ -4967,7 +4975,8 @@ function buildPathArrows(map,_retries){
   const tailColor=hasInbound?centerColor:'#ffffff';
   const avgBearDeg=fromBear;
   let halfAngle=15;
-  const coneDist=80;
+  const farthestStorm=hasInbound&&ad.maxDist>0?ad.maxDist:S.scanRadius||30;
+  const coneDist=Math.max(15,Math.min(farthestStorm+10,120));
   if(hasInbound){
     let bearSpread=0;
     for(const b of ad.bearings){
@@ -4978,9 +4987,9 @@ function buildPathArrows(map,_retries){
   }
   const pane='path-arrow-pane';
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
-  const ilsCount=20;
-  const tailMi=70;
-  const tailCount=12;
+  const ilsCount=Math.max(12,Math.min(Math.round(coneDist/4),25));
+  const tailMi=Math.max(10,Math.min(coneDist*0.3,40));
+  const tailCount=Math.max(6,Math.round(tailMi/5));
   const totalCenter=ilsCount+tailCount;
   const ilsCenterDots=[];
   const ilsLeftDots=[];
