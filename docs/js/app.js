@@ -19,23 +19,36 @@ let _timeFormat=localStorage.getItem('st_timeFormat')||'auto';
 function _is24h(){
   if(_timeFormat==='24h')return true;
   if(_timeFormat==='12h')return false;
-  try{const t=new Date(2000,0,1,13,0,0).toLocaleTimeString();return!(/[APap]/.test(t))}catch(e){return false}
+  try{
+    const f=new Date(2000,0,1,13,0,0).toLocaleTimeString([],{hour:'numeric'});
+    if(!(/[APap]/.test(f)))return true;
+    const f2=new Date(2000,0,1,13,0,0).toLocaleTimeString();
+    return!(/[APap]/.test(f2));
+  }catch(e){return false}
 }
+function _pad2(n){return n<10?'0'+n:''+n}
 function fmtClock(d,showSec){
-  if(!(d instanceof Date))d=new Date(d);
-  const h24=_is24h();
-  const opts={hour:'2-digit',minute:'2-digit',hour12:!h24};
-  if(showSec)opts.second='2-digit';
-  return d.toLocaleTimeString([],opts);
+  if(!(d instanceof Date)||isNaN(d))d=new Date(d);
+  if(isNaN(d))return'--:--';
+  const h=d.getHours(),m=d.getMinutes(),s=d.getSeconds();
+  if(_is24h()){
+    return _pad2(h)+':'+_pad2(m)+(showSec?':'+_pad2(s):'');
+  }
+  const hr12=h%12||12,ap=h>=12?'PM':'AM';
+  return hr12+':'+_pad2(m)+(showSec?':'+_pad2(s):'')+' '+ap;
 }
 function fmtClockShort(d){
-  if(!(d instanceof Date))d=new Date(d);
-  const h24=_is24h();
-  return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit',hour12:!h24});
+  if(!(d instanceof Date)||isNaN(d))d=new Date(d);
+  if(isNaN(d))return'--:--';
+  const h=d.getHours(),m=d.getMinutes();
+  if(_is24h())return h+':'+_pad2(m);
+  const hr12=h%12||12,ap=h>=12?'PM':'AM';
+  return hr12+':'+_pad2(m)+' '+ap;
 }
 function fmtHrLabel(d){
-  if(!(d instanceof Date))d=new Date(d);
-  if(_is24h()){return String(d.getHours()).padStart(2,'0')+':00'}
+  if(!(d instanceof Date)||isNaN(d))d=new Date(d);
+  if(isNaN(d))return'--';
+  if(_is24h()){return _pad2(d.getHours())+':00'}
   const hr=d.getHours(),ap=hr>=12?'p':'a';return(hr%12||12)+ap;
 }
 function setTimeFormat(fmt){
@@ -967,9 +980,10 @@ function syncUnitSelects(){
 }
 
 function reRenderActive(){
-  if(S.activePage==='weather'&&S.forecast) renderWeather(S.forecast);
-  if(S.activePage==='station'&&S.station) renderStation();
-  if(S.activePage==='storms') renderStorms();
+  if(S.forecast) renderWeather(S.forecast);
+  if(S.station) renderStation();
+  renderStorms();
+  if(S.map){const el=document.getElementById('radar-time');if(el)el.textContent=fmtClock(new Date())}
   if(_curLang!=='en')setTimeout(quickTranslate,300);
 }
 
