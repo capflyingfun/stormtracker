@@ -390,6 +390,7 @@ canvas.offscreen{display:none}
 .iso-hstrip-hdg{position:absolute;top:1px;left:50%;transform:translateX(-50%);font-size:0.55em;font-weight:700;color:rgba(0,229,255,0.9);font-family:'JetBrains Mono',monospace;z-index:3;background:rgba(10,16,32,0.95);padding:1px 6px;border-radius:2px}
 .iso-cam{position:absolute;bottom:12px;right:12px;z-index:4;display:flex;flex-direction:column;align-items:center;gap:2px}
 .iso-cam-pad{display:grid;grid-template-columns:44px 44px 44px;grid-template-rows:44px 44px 44px;gap:3px}
+.iso-cam-pad>div:not(.iso-cam-btn){pointer-events:none;font-size:0;line-height:0;visibility:hidden}
 .iso-cam-btn{width:44px;height:44px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(10,16,32,0.85);color:rgba(255,255,255,0.6);font-size:0.85em;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .iso-cam-btn:active{background:rgba(0,229,255,0.15);border-color:rgba(0,229,255,0.3);color:rgba(255,255,255,0.9)}
 .iso-cam-btn.iso-cam-center{font-size:0.5em;font-weight:700;color:rgba(0,229,255,0.5);letter-spacing:0.5px}
