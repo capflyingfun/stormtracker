@@ -7828,7 +7828,9 @@ function render3DView(){
 
     const etaKey=Object.keys(etas).find(k=>{
       const e=etas[k];
-      return e&&Math.abs(e.distance-st.distance)<0.5;
+      if(!e)return false;
+      if(e.lat!==undefined&&e.lng!==undefined)return Math.abs(e.lat-st.lat)<0.05&&Math.abs(e.lng-st.lng)<0.05;
+      return Math.abs(e.distance-st.distance)<0.3&&Math.abs((e.bearing||0)-(st.bearing||0))<10;
     });
     const isApproaching=!!etaKey;
 
