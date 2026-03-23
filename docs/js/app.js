@@ -7753,7 +7753,9 @@ function show3DView(){
             <div class="iso-cam-btn" data-cam="zout">−</div>
             <div class="iso-cam-btn" data-cam="zin">+</div>
           </div>
-          <div class="iso-cam-btn iso-gyro-btn" id="iso-gyro-btn" onclick="toggleIsoGyro()" title="Toggle gyroscope">🔄</div>
+        </div>
+        <div class="iso-gyro-wrap">
+          <div class="iso-cam-btn iso-gyro-btn" id="iso-gyro-btn" title="Toggle gyroscope">🔄</div>
         </div>
       </div>`;
     document.body.appendChild(ov);
@@ -8061,6 +8063,12 @@ function setupIsoTouch(){
     camPad.addEventListener('pointercancel',stopCam);
     camPad.addEventListener('dblclick',(e)=>{e.preventDefault();e.stopPropagation();});
     camPad.addEventListener('touchstart',(e)=>{e.preventDefault();},{passive:false});
+  }
+  const gyroBtn=document.getElementById('iso-gyro-btn');
+  if(gyroBtn){
+    let _gyroTapped=false;
+    gyroBtn.addEventListener('touchstart',(e)=>{e.preventDefault();e.stopPropagation();_gyroTapped=true;toggleIsoGyro();},{passive:false});
+    gyroBtn.addEventListener('click',(e)=>{e.preventDefault();e.stopPropagation();if(!_gyroTapped)toggleIsoGyro();_gyroTapped=false;});
   }
 }
 
