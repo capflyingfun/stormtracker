@@ -7898,6 +7898,7 @@ function show3DView(){
           <div class="iso-hstrip-hdg" id="iso-hstrip-hdg">000°</div>
         </div>
         <div class="iso-info" id="iso-info"></div>
+        <div class="iso-info iso-fps-badge" id="iso-fps" style="top:58px"></div>
         <div class="iso-cam" id="iso-cam">
           <div class="iso-cam-pad">
             <div aria-hidden="true"></div>
@@ -7933,6 +7934,7 @@ function show3DView(){
   ISO.zoom=1;
   ISO.tiltX=55;
   ISO.tiltZ=0;
+  ISO._fps={frames:0,last:performance.now(),current:60,target:45,maxStorms:120,mergeR:0.001,history:[]};
   ov.classList.add('active');
   const loc=document.getElementById('iso-loc');
   if(loc)loc.textContent=S.locName||`${S.lat.toFixed(2)}, ${S.lon.toFixed(2)}`;
@@ -7948,18 +7950,48 @@ function hide3DView(){
 }
 
 ISO._stormEls=[];
+ISO._windArrows=[];
 ISO._rafPending=false;
+ISO._fps={frames:0,last:performance.now(),current:60,target:45,maxStorms:120,mergeR:0.001,history:[]};
+
+function isoFpsTick(){
+  const f=ISO._fps;
+  f.frames++;
+  const now=performance.now();
+  const dt=now-f.last;
+  if(dt>=500){
+    f.current=Math.round(f.frames/(dt/1000));
+    f.frames=0;
+    f.last=now;
+    f.history.push(f.current);
+    if(f.history.length>6)f.history.shift();
+    const avg=f.history.reduce((a,b)=>a+b,0)/f.history.length;
+    if(avg<25&&f.maxStorms>20){
+      f.maxStorms=Math.max(20,f.maxStorms-15);
+      f.mergeR=Math.min(0.02,f.mergeR*1.5);
+      if(ISO.open)render3DView();
+    }else if(avg>55&&f.maxStorms<200){
+      f.maxStorms=Math.min(200,f.maxStorms+10);
+      f.mergeR=Math.max(0.0005,f.mergeR*0.85);
+    }
+    const badge=document.getElementById('iso-fps');
+    if(badge)badge.textContent=`${f.current} fps · ${ISO._stormEls.length} cells`;
+  }
+}
 
 function isoMergeStorms(src){
+  const f=ISO._fps;
   const pts=src.filter(p=>p.dbz>=15);
-  if(pts.length<=80)return pts;
+  if(pts.length<=f.maxStorms)return pts;
   pts.sort((a,b)=>b.dbz-a.dbz);
   const out=[];
+  const mr=f.mergeR;
   for(const p of pts){
+    if(out.length>=f.maxStorms)break;
     let merged=false;
     for(const e of out){
       const dlat=p.lat-e.lat,dlng=(p.lng||p.lon)-(e.lng||e.lon);
-      if(dlat*dlat+dlng*dlng<0.002){if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
+      if(dlat*dlat+dlng*dlng<mr){if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
     }
     if(!merged){
       out.push({lat:p.lat,lng:p.lng||p.lon,dbz:p.dbz,distance:p.distance||haversine(S.lat,S.lon,p.lat,p.lng||p.lon),bearing:p.bearing||bearingDeg(S.lat,S.lon,p.lat,p.lng||p.lon)});
@@ -8177,10 +8209,19 @@ function buildHeadingStrip(){
 }
 function updateIsoBillboard(){
   if(!ISO.scene)return;
+  isoFpsTick();
   const els=ISO._stormEls;
   const t=`translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg)`;
   for(let i=0;i<els.length;i++){
     els[i].style.transform=t;
+  }
+  const arrows=ISO._windArrows;
+  if(arrows){
+    const heading=(((-ISO.tiltZ)%360)+360)%360;
+    for(let i=0;i<arrows.length;i++){
+      const dir=parseFloat(arrows[i].dataset.dir);
+      arrows[i].style.transform=`translate(-50%,-50%) rotate(${dir-heading}deg)`;
+    }
   }
 }
 function updateIsoCompass(){
