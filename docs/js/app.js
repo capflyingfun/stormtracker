@@ -7659,7 +7659,7 @@ const ISO={
   wrap:null,
   zoom:1,
   tiltX:55,
-  tiltZ:-45,
+  tiltZ:0,
   _startTilt:null,
   _startTouch:null,
   _pinchDist:null,
@@ -7759,6 +7759,9 @@ function show3DView(){
     ISO.el=ov;
     ISO.scene=document.getElementById('iso-scene');
     ISO.wrap=document.getElementById('iso-scene-wrap');
+    ov.addEventListener('selectstart',e=>e.preventDefault());
+    ov.addEventListener('contextmenu',e=>e.preventDefault());
+    ov.addEventListener('copy',e=>e.preventDefault());
     setupIsoTouch();
     buildHeadingStrip();
   }
