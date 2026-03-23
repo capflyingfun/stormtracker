@@ -7765,7 +7765,7 @@ function show3DView(){
     ov.addEventListener('copy',e=>e.preventDefault());
     ov.addEventListener('dblclick',e=>e.preventDefault());
     ov.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
-    ov.addEventListener('touchstart',e=>{if(e.touches.length===1)e.preventDefault();},{passive:false});
+    ov.addEventListener('touchstart',e=>{if(e.touches.length===1&&!e.target.closest('.iso-close,.iso-cam-btn,.iso-pop-close'))e.preventDefault();},{passive:false});
     setupIsoTouch();
     buildHeadingStrip();
   }
