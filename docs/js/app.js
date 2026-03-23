@@ -5922,6 +5922,7 @@ function spacingFilter(points,hiRes){
   const validPoints=points.filter(p=>{
     if(p.dbz>=30)return true;
     if(hiRes&&p.dbz>=20)return true;
+    if(p.dbz>=20&&points.length>=3)return true;
     const radius=p.dbz>=25?5:8;
     let nearby=0;
     for(const q of points){
@@ -7914,7 +7915,8 @@ function render3DView(){
   const wrap=ISO.wrap;
   const ww=wrap.clientWidth;
   const wh=wrap.clientHeight;
-  const storms=S.storms||[];
+  let storms=S.storms||[];
+  if(!storms.length&&S._rawScanPts&&S._rawScanPts.length){storms=S._rawScanPts.filter(p=>p.dbz>=15)}
   const useMetric=S.units==='metric';
   const unitLabel=useMetric?'km':'mi';
   const maxRingDist=useMetric?80:50;
