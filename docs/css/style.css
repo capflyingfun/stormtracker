@@ -357,7 +357,7 @@ canvas.offscreen{display:none}
 .iso-user{position:absolute;width:12px;height:12px;border-radius:50%;background:#4488ff;box-shadow:0 0 10px #4488ff,0 0 20px rgba(68,136,255,0.4);z-index:10;transform:translate(-50%,-50%)}
 .iso-user::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:2px solid rgba(68,136,255,0.4);animation:iso-pulse 2s ease-in-out infinite}
 @keyframes iso-pulse{0%,100%{transform:scale(1);opacity:0.6}50%{transform:scale(1.8);opacity:0}}
-.iso-storm{position:absolute;transform:translate(-50%,-100%);cursor:pointer;z-index:5;transition:transform 0.3s ease-out;text-align:center;line-height:1}
+.iso-storm{position:absolute;cursor:pointer;z-index:5;text-align:center;line-height:1;transform-style:preserve-3d}
 .iso-storm .iso-emoji{display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.6))}
 .iso-storm.approaching .iso-emoji{animation:iso-bob 1.5s ease-in-out infinite}
 @keyframes iso-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
