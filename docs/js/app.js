@@ -7765,7 +7765,7 @@ function show3DView(){
   ISO.open=true;
   ISO.zoom=1;
   ISO.tiltX=55;
-  ISO.tiltZ=-45;
+  ISO.tiltZ=0;
   ov.classList.add('active');
   const loc=document.getElementById('iso-loc');
   if(loc)loc.textContent=S.locName||`${S.lat.toFixed(2)}, ${S.lon.toFixed(2)}`;
@@ -7954,7 +7954,7 @@ function updateIsoCompass(){
   const track=document.getElementById('iso-hstrip-track');
   const hdg=document.getElementById('iso-hstrip-hdg');
   if(!track)return;
-  const heading=(((-ISO.tiltZ-45)%360)+360)%360;
+  const heading=(((-ISO.tiltZ)%360)+360)%360;
   const tickW=40;
   const totalTicks=36;
   const totalW=totalTicks*tickW;
@@ -8037,7 +8037,7 @@ function setupIsoTouch(){
       right:()=>{ISO.tiltZ=(ISO.tiltZ-3)%360;applyIso();},
       zin:()=>{ISO.zoom=Math.min(3,ISO.zoom+0.1);applyIso();},
       zout:()=>{ISO.zoom=Math.max(0.3,ISO.zoom-0.1);applyIso();},
-      reset:()=>{ISO.tiltX=55;ISO.tiltZ=-45;ISO.zoom=1;applyIso();}
+      reset:()=>{ISO.tiltX=55;ISO.tiltZ=0;ISO.zoom=1;applyIso();}
     };
     const startCam=(action)=>{
       if(camActions[action])camActions[action]();
