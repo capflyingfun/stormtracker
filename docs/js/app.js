@@ -7868,7 +7868,7 @@ function render3DView(){
 
     const el=document.createElement('div');
     el.className='iso-storm'+(isApproaching?' approaching':'');
-    el.style.cssText=`left:${sx}px;top:${sy}px;`;
+    el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);`;
 
     let html=`<span class="iso-emoji" style="font-size:${sz}em;filter:${shd};transform:translateY(-${h}px)">${emoji}</span>`;
 
@@ -7881,9 +7881,8 @@ function render3DView(){
       html+=`<span class="iso-rain"></span>`;
     }
 
-    if(st.bearing!==undefined){
-      const movDir=st.movementDir!==undefined?st.movementDir:(st.bearing+180)%360;
-      const arr=bearingToArrow(movDir);
+    if(st.movementDir!==undefined){
+      const arr=bearingToArrow(st.movementDir);
       html+=`<span class="iso-arrow">${arr}</span>`;
     }
 
@@ -7957,6 +7956,15 @@ function buildHeadingStrip(){
   }
   track.innerHTML=html;
 }
+function updateIsoBillboard(){
+  if(!ISO.scene)return;
+  const storms=ISO.scene.querySelectorAll('.iso-storm');
+  storms.forEach(el=>{
+    const left=el.style.left;
+    const top=el.style.top;
+    el.style.transform=`translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg)`;
+  });
+}
 function updateIsoCompass(){
   const track=document.getElementById('iso-hstrip-track');
   const hdg=document.getElementById('iso-hstrip-hdg');
@@ -7994,6 +8002,7 @@ function setupIsoTouch(){
     lastY=e.clientY;
     if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
     updateIsoCompass();
+    updateIsoBillboard();
   });
   w.addEventListener('pointerup',()=>{dragging=false;});
   w.addEventListener('pointercancel',()=>{dragging=false;});
@@ -8036,7 +8045,7 @@ function setupIsoTouch(){
   const camPad=document.getElementById('iso-cam');
   if(camPad){
     let camInterval=null;
-    const applyIso=()=>{if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;updateIsoCompass();};
+    const applyIso=()=>{if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;updateIsoCompass();updateIsoBillboard();};
     const camActions={
       up:()=>{ISO.tiltX=Math.max(20,ISO.tiltX-2);applyIso();},
       down:()=>{ISO.tiltX=Math.min(80,ISO.tiltX+2);applyIso();},
