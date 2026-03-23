@@ -4975,7 +4975,8 @@ function buildPathArrows(map,_retries){
   const tailColor=hasInbound?centerColor:'#ffffff';
   const avgBearDeg=fromBear;
   let halfAngle=15;
-  const coneDist=80;
+  const farthestStorm=hasInbound&&ad.maxDist>0?ad.maxDist:S.scanRadius||30;
+  const coneDist=Math.max(15,Math.min(farthestStorm+10,120));
   if(hasInbound){
     let bearSpread=0;
     for(const b of ad.bearings){
@@ -4986,9 +4987,9 @@ function buildPathArrows(map,_retries){
   }
   const pane='path-arrow-pane';
   if(!map.getPane(pane)){map.createPane(pane);map.getPane(pane).style.zIndex=440}
-  const ilsCount=20;
-  const tailMi=70;
-  const tailCount=12;
+  const ilsCount=Math.max(12,Math.min(Math.round(coneDist/4),25));
+  const tailMi=Math.max(10,Math.min(coneDist*0.3,40));
+  const tailCount=Math.max(6,Math.round(tailMi/5));
   const totalCenter=ilsCount+tailCount;
   const ilsCenterDots=[];
   const ilsLeftDots=[];
