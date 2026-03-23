@@ -1871,7 +1871,7 @@ function setGpsInterval(val){
 const TUTORIAL_SECTIONS=[
   {title:'🏠 Getting Started',text:'StormTracker detects storms around your location using live radar data. On first launch, allow GPS access or search for your location using the 🗺️ button in the header. The app scans for precipitation within an 80-mile radius and shows results across five tabs. All settings — units, gauge style, time format, AI, alerts, and more — are accessible via the ⚙️ gear icon in the header.'},
   {title:'🌤️ Weather Tab',text:'Your main dashboard. Shows current conditions (temperature, wind, humidity, pressure), a <b>wind gauge</b> with real-time animated direction, and a <b>Radar Sonar</b> mini-map.<br><br><b>Wind Gauge:</b> Choose from 5 switchable styles in Settings — <b>Neon</b> (default animated ring), <b>Marine</b> (nautical compass with LED digits), <b>Minimal</b> (clean arc with arrow), <b>G1000</b> (Garmin-style 3-panel with compass rose, speed tape, and pressure tape), and <b>Speedometer</b> (classic dial with sweeping needle). The G1000 also supports <b>Gyro Compass</b> mode — point your phone at a storm and the compass rotates with you.<br><br><b>Radar Sonar:</b> A bird\'s-eye view showing storm cells as colored blips and arrows for approaching storms. Use <b>+/−</b> buttons to zoom between 15 and 80 miles. Tap the ⚙️ gear on the sonar to customize sweep speed, fade duration, dot opacity, glow intensity, grid brightness, dBZ floor, and overlay toggles. Tap "Open Radar →" to jump to the full map.'},
-  {title:'📡 Radar Tab',text:'The full interactive map. Storm cells appear as colored arrows showing movement direction. The sidebar buttons control different layers:<br>• <b>🔍</b> — Scan current map view for storms<br>• <b>HiRes</b> — High-resolution 15-mile scan<br>• <b>NEX/SRC</b> — Switch between NEXRAD (US) and RainViewer (global) radar<br>• <b>MI</b> — Toggle miles/kilometers<br>• <b>✈️</b> — Show nearby airports<br>• <b>▶️</b> — Animate radar over time<br>• <b>ZN</b> — Toggle color-coded storm zones<br>• <b>➤</b> — Toggle the ILS approach cone (dynamic length — extends 10mi past the farthest inbound storm)<br>• <b>8▶/PT</b> — Cycle storm points: off → top 8 inbound → all<br>• <b>RDR</b> — Toggle radar overlay tiles<br>• <b>🕳️</b> — Clutter toggle (appears when ≤8 returns below 31 dBZ are detected as likely false radar echoes). Tap to show/hide these minor returns.<br><br><b>HD Scan System:</b> After each regular scan, the app checks for nearby storms and offers tiered high-resolution scans — <b>15mi</b> (asks), <b>10mi</b> (asks), and <b>5mi</b> (auto-triggers after 5 seconds when storms are very close). HD scans sync the sonar zoom to 15mi for maximum detail.'},
+  {title:'📡 Radar Tab',text:'The full interactive map. Storm cells appear as colored arrows showing movement direction. The sidebar buttons control different layers:<br>• <b>🔍</b> — Scan current map view for storms<br>• <b>HiRes</b> — High-resolution 15-mile scan<br>• <b>NEX/SRC</b> — Switch between NEXRAD (US) and RainViewer (global) radar<br>• <b>MI</b> — Toggle miles/kilometers<br>• <b>✈️</b> — Show nearby airports<br>• <b>▶️</b> — Animate radar over time<br>• <b>ZN</b> — Toggle color-coded storm zones<br>• <b>➤</b> — Toggle the ILS approach cone (dynamic length — extends 10mi past the farthest inbound storm)<br>• <b>12▶/PT</b> — Cycle storm points: off → top 12 inbound → all<br>• <b>RDR</b> — Toggle radar overlay tiles<br>• <b>🕳️</b> — Clutter toggle (appears when ≤12 returns below 22 dBZ or ≤8 below 31 dBZ are detected as likely false radar echoes). Tap to show/hide these minor returns.<br><br><b>HD Scan System:</b> After each regular scan, the app checks for nearby storms and offers tiered high-resolution scans — <b>15mi</b> (asks), <b>10mi</b> (asks), and <b>5mi</b> (auto-triggers after 5 seconds when storms are very close). HD scans sync the sonar zoom to 15mi for maximum detail.'},
   {title:'➤ ILS Approach Cone',text:'The animated cone on the radar shows where storms are heading relative to you. It\'s inspired by an airport ILS (Instrument Landing System) — a cone of dots extends from the storm source through your location. <b>White dots</b> = no storms approaching. <b>Colored dots</b> = intensity-matched to approaching storm dBZ levels. The cone is always on once wind data is received.'},
   {title:'🌩️ Storms Tab',text:'Lists all detected storm cells with details: peak dBZ, rain rate, distance, bearing, movement (direction with degrees), and ETA. Storms are grouped into <b>Approaching</b> (heading toward you) and <b>Nearby</b> (in the area but not on track). Each card shows a live countdown timer for approaching storms.<br><br><b>Storm Feedback:</b> When a countdown reaches zero, the app automatically re-checks storm data and asks "Did this storm affect your area?" with Yes/No/Unsure buttons. Your feedback helps track prediction accuracy over time.'},
   {title:'⚡ Lightning Indicators',text:'Storm cells with radar reflectivity ≥40 dBZ display a ⚡ lightning indicator. The strike count scales with intensity — stronger storms show more estimated strikes. Lightning markers appear on all three views (map, sonar, and 3D). You can toggle lightning display on or off.<br><br><i>Note: These are radar-derived estimates, not observed lightning strikes.</i>'},
@@ -1886,6 +1886,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.31d',date:'2026-03-23',items:['3D view storm arrows now use per-cell tracked movement direction from radar frame comparison','Clutter threshold raised: ≤12 returns below 22 dBZ now auto-hidden as clutter (previously ≤8 below 31 dBZ)','Inbound storm point button shows 12▶ (top 12 approaching) instead of 8▶','AI prompt updated to reflect new clutter thresholds']},
   {ver:'v2.31c',date:'2026-03-23',items:['Horizontal heading strip compass replaces round compass — aviation/marine-style with scrolling tick marks and numeric heading readout','Storm movement arrows fixed — now point in direction of travel','Left/Right D-pad controls corrected — no longer reversed','Bigger D-pad and zoom buttons for easier mobile tapping','Text selection fully disabled in 2.5D overlay (CSS + JS event blocking for iOS)']},
   {ver:'v2.31a',date:'2026-03-23',items:['Camera D-pad controls: ▲▼◀▶ buttons for tilt/rotation, +/− for zoom, RST to reset — hold for continuous movement','Text selection disabled in 2.5D view to prevent accidental copy on mobile touch']},
   {ver:'v2.31',date:'2026-03-23',items:['2.5D Isometric Storm View — pure CSS/HTML bird\'s-eye perspective with weather emojis (☁️🌧️⛈️🌩️) at height-based positions scaled by dBZ intensity','Storm emoji sizing and drop-shadows scale with severity — red glow for 56+ dBZ severe cells','Approaching storms bob gently with CSS animation; ⚡ lightning overlays on cells ≥40 dBZ with strike count','Concentric distance rings (10mi/20km intervals), north arrow, and user location pulsing dot at center','Touch interaction: drag to rotate tilt (±15°), pinch to zoom, mouse wheel zoom, tap storm for popup details','Auto-updates when new scan data arrives — view stays current without reopening','Legend panel with emoji intensity guide; storm count info badge','Rain streak animations under moderate+ cells; movement arrows below each storm emoji','Tutorial section added for 2.5D Storm View']},
@@ -3439,7 +3440,7 @@ function initRadar(){
     const zbtn=document.getElementById('btn-zones');if(zbtn)zbtn.style.opacity=S._showZones?'1':'0.4';
     const pbtn=document.getElementById('btn-points');
     if(pbtn){
-      if(S._pointsMode==='inbound'){pbtn.style.opacity='1';pbtn.textContent='8▶';pbtn.style.color='#ffcc00';}
+      if(S._pointsMode==='inbound'){pbtn.style.opacity='1';pbtn.textContent='12▶';pbtn.style.color='#ffcc00';}
       else if(S._pointsMode==='all'){pbtn.style.opacity='1';pbtn.textContent='PT';pbtn.style.color='var(--accent-cyan)';}
       else{pbtn.style.opacity='0.4';pbtn.textContent='PT';pbtn.style.color='var(--accent-cyan)';}
     }
@@ -4151,6 +4152,8 @@ function isClutterOnly(){
   if(!S.storms||!S.storms.length)return false;
   const sig=S.storms.filter(s=>s.dbz>=31);
   if(sig.length>0)return false;
+  const low=S.storms.filter(s=>s.dbz<22);
+  if(low.length===S.storms.length&&S.storms.length<=12)return true;
   return S.storms.length<=8;
 }
 function getVisibleStormList(){
@@ -4208,7 +4211,7 @@ function plotStormMarkers(map){
       if(eta&&eta.approaching&&eta.eta)inbound.push({storm:st,eta});
     }
     inbound.sort((a,b)=>a.storm.dbz===b.storm.dbz?(a.eta.eta-b.eta.eta):(b.storm.dbz-a.storm.dbz));
-    visibleStorms=inbound.slice(0,8).map(i=>i.storm);
+    visibleStorms=inbound.slice(0,12).map(i=>i.storm);
   }
   const visibleSet=new Set(visibleStorms);
   stormList.forEach(storm=>{
@@ -5090,7 +5093,7 @@ function toggleStormPoints(){
     if(btn){btn.style.opacity='0.4';btn.textContent='PT';btn.style.color='var(--accent-cyan)';}
   }else if(S._pointsMode==='inbound'){
     if(S.map)plotStormMarkers(S.map);
-    if(btn){btn.style.opacity='1';btn.textContent='8▶';btn.style.color='#ffcc00';}
+    if(btn){btn.style.opacity='1';btn.textContent='12▶';btn.style.color='#ffcc00';}
   }else{
     if(S.map)plotStormMarkers(S.map);
     if(btn){btn.style.opacity='1';btn.textContent='PT';btn.style.color='var(--accent-cyan)';}
@@ -7104,7 +7107,7 @@ function buildWeatherContext(){
     const lowStorms=validStorms.filter(s=>s.dbz<31);
     parts.push(`\nSTORM DATA: ${validStorms.length} radar returns detected.`);
     if(lowStorms.length>0&&sigStorms.length===0){
-      parts.push(`  NOTE: All ${lowStorms.length} returns are below 31 dBZ (max ${Math.max(...lowStorms.map(s=>s.dbz))} dBZ). ${lowStorms.length<=8?'With 8 or fewer sub-31 dBZ returns, these are most likely radar ground clutter or false positives — not real precipitation. Mention this to the user as "minor radar reflectivity/clutter" rather than rain.':'There are more than 8 low-dBZ returns which may indicate light drizzle or virga, but nothing significant.'}`);
+      parts.push(`  NOTE: All ${lowStorms.length} returns are below 31 dBZ (max ${Math.max(...lowStorms.map(s=>s.dbz))} dBZ). ${(lowStorms.every(s=>s.dbz<22)&&lowStorms.length<=12)||lowStorms.length<=8?'With '+(lowStorms.every(s=>s.dbz<22)?'12':'8')+' or fewer sub-'+(lowStorms.every(s=>s.dbz<22)?'22':'31')+' dBZ returns, these are most likely radar ground clutter or false positives — not real precipitation. Mention this to the user as "minor radar reflectivity/clutter" rather than rain.':'There are more than the clutter threshold of low-dBZ returns which may indicate light drizzle or virga, but nothing significant.'}`);
     }else if(lowStorms.length>0&&sigStorms.length>0){
       parts.push(`  ${sigStorms.length} significant cells (31+ dBZ) and ${lowStorms.length} minor returns (<31 dBZ, likely clutter).`);
     }
@@ -7881,8 +7884,10 @@ function render3DView(){
       html+=`<span class="iso-rain"></span>`;
     }
 
-    if(st.movementDir!==undefined){
-      const arr=bearingToArrow(st.movementDir);
+    const cellTrk=getCellTrack(st);
+    const stDir=cellTrk?cellTrk.dir:(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement.direction:undefined);
+    if(stDir!==undefined){
+      const arr=bearingToArrow(stDir);
       html+=`<span class="iso-arrow">${arr}</span>`;
     }
 
