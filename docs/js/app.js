@@ -3172,8 +3172,7 @@ function renderHourlyForecast(h,d){
       const label=isToday?'Today':isTomorrow?'Tomorrow':dayStr;
       items+=`<div class="hourly-day-label">${label}</div>`;
     }
-    const hr=dt.getHours();
-    const hrStr=hr===0?'12 AM':hr<12?hr+' AM':hr===12?'12 PM':(hr-12)+' PM';
+    const hrStr=fmtHrLabel(dt);
     const tempC=h.temperature_2m[i];
     const feelsC=h.apparent_temperature?h.apparent_temperature[i]:null;
     const precip=h.precipitation_probability?h.precipitation_probability[i]:0;
