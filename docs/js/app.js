@@ -1886,6 +1886,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.31e',date:'2026-03-23',items:['Fixed 3D view icon aspect ratio — storm emojis no longer squish or stretch on zoom/tilt','Changed scene transform from 2D scale to 3D scale3d for uniform scaling across all axes','Lightning, rain, and arrow indicators also maintain correct proportions at all zoom levels']},
   {ver:'v2.31d',date:'2026-03-23',items:['3D view storm arrows now use per-cell tracked movement direction from radar frame comparison','Clutter threshold raised: ≤12 returns below 22 dBZ now auto-hidden as clutter (previously ≤8 below 31 dBZ)','Inbound storm point button shows 12▶ (top 12 approaching) instead of 8▶','AI prompt updated to reflect new clutter thresholds']},
   {ver:'v2.31c',date:'2026-03-23',items:['Horizontal heading strip compass replaces round compass — aviation/marine-style with scrolling tick marks and numeric heading readout','Storm movement arrows fixed — now point in direction of travel','Left/Right D-pad controls corrected — no longer reversed','Bigger D-pad and zoom buttons for easier mobile tapping','Text selection fully disabled in 2.5D overlay (CSS + JS event blocking for iOS)']},
   {ver:'v2.31a',date:'2026-03-23',items:['Camera D-pad controls: ▲▼◀▶ buttons for tilt/rotation, +/− for zoom, RST to reset — hold for continuous movement','Text selection disabled in 2.5D view to prevent accidental copy on mobile touch']},
@@ -7808,7 +7809,7 @@ function render3DView(){
   sc.style.height=groundSize+'px';
   sc.style.left=(ww/2-groundSize/2)+'px';
   sc.style.top=(wh/2-groundSize/2)+'px';
-  sc.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
+  sc.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
   sc.innerHTML='';
 
   const cx=groundSize/2;
@@ -8005,7 +8006,7 @@ function setupIsoTouch(){
     ISO.tiltX=Math.max(20,Math.min(80,ISO.tiltX+dy*0.3));
     lastX=e.clientX;
     lastY=e.clientY;
-    if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
+    if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
     updateIsoCompass();
     updateIsoBillboard();
   });
@@ -8015,7 +8016,7 @@ function setupIsoTouch(){
   w.addEventListener('wheel',(e)=>{
     e.preventDefault();
     ISO.zoom=Math.max(0.3,Math.min(3,ISO.zoom-(e.deltaY>0?0.1:-0.1)));
-    if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
+    if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
   },{passive:false});
 
   let pinchDist=null;
@@ -8035,7 +8036,7 @@ function setupIsoTouch(){
       const ratio=newDist/pinchDist;
       ISO.zoom=Math.max(0.3,Math.min(3,ISO.zoom*ratio));
       pinchDist=newDist;
-      if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
+      if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
     }
   },{passive:false});
   w.addEventListener('touchend',()=>{pinchDist=null;});
@@ -8050,7 +8051,7 @@ function setupIsoTouch(){
   const camPad=document.getElementById('iso-cam');
   if(camPad){
     let camInterval=null;
-    const applyIso=()=>{if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;updateIsoCompass();updateIsoBillboard();};
+    const applyIso=()=>{if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;updateIsoCompass();updateIsoBillboard();};
     const camActions={
       up:()=>{ISO.tiltX=Math.max(20,ISO.tiltX-2);applyIso();},
       down:()=>{ISO.tiltX=Math.min(80,ISO.tiltX+2);applyIso();},
