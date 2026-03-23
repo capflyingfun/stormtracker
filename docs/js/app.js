@@ -7931,11 +7931,11 @@ function render3DView(){
       storms.push({lat:p.lat,lng:p.lng,dbz:p.dbz,distance:dist,bearing:bear,pixels:1});
     }
   }
-  console.log('3D render: rawPts='+rawPts.length+' stormList='+stormList.length+' filtered='+pts.length+' clustered='+storms.length);
   const useMetric=S.units==='metric';
   const unitLabel=useMetric?'km':'mi';
-  const maxRingDist=useMetric?80:50;
-  const ringStep=useMetric?20:10;
+  const scanR=S.scanRadius||80;
+  const maxRingDist=useMetric?Math.round(scanR*1.60934/20)*20||80:scanR;
+  const ringStep=useMetric?20:(maxRingDist<=50?10:20);
   const groundSize=Math.min(ww,wh)*2.2;
   const scale=groundSize/(maxRingDist*2.4);
 
