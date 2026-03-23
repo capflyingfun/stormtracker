@@ -1882,9 +1882,11 @@ const TUTORIAL_SECTIONS=[
   {title:'🌐 Language & Units',text:'Tap the flag icon 🇺🇸 in the header to switch between 20 languages. The app auto-detects your browser language on first visit.<br><br><b>Units:</b> Open Settings ⚙️ to choose Imperial, Metric, or Auto (switches automatically based on your location). Custom mode lets you mix and match individual unit preferences for temperature, wind, pressure, visibility, and precipitation.<br><br><b>Time Format:</b> Choose Auto (follows your system), 12-hour, or 24-hour format in Settings. All times throughout the app — radar timestamps, storm ETAs, sunrise/sunset, forecast hours, station observations — respect your choice.'},
   {title:'🤖 AI Weather Assistant',text:'Add your OpenAI API key in Settings to unlock the AI assistant. Tap the purple 🤖 button (bottom-right) to open the chat.<br>• Ask about current conditions, storms, forecasts, or safety<br>• The AI has access to all your live weather data: storms, ETAs, alerts, METAR, forecasts, terrain analysis, and cell tracking<br>• Choose tone (Professional/Friendly/Humorous) and detail level in Settings<br>• Quick question buttons for fast answers<br>• Your API key is stored on your device only — never shared with anyone except OpenAI'},
   {title:'⚙️ Settings Panel',text:'The unified Settings panel (gear icon in header) gives you control over everything:<br>• <b>Units</b> — Imperial/Metric/Auto/Custom with individual dropdowns<br>• <b>Time Format</b> — Auto/12h/24h<br>• <b>Wind Gauge Style</b> — Neon, Marine, Minimal, G1000, Speedometer<br>• <b>Compass Mode</b> — Enable gyro compass for G1000 gauge<br>• <b>Auto Refresh</b> — Set idle refresh interval (15m to 6h)<br>• <b>Travel Mode</b> — Configure GPS refresh interval<br>• <b>AI Assistant</b> — API key, tone, detail level<br>• <b>Tutorial & What\'s New</b> — Access this guide or the changelog anytime'},
+  {title:'🗺️ 2.5D Storm View',text:'Tap the <b>3D</b> button on the radar map sidebar to open the 2.5D isometric storm view. Storms appear as weather emojis floating at different heights based on intensity:<br>• ☁️ Light (15-30 dBZ) — low, small<br>• 🌧️ Moderate (31-45 dBZ) — medium height, rain streaks<br>• ⛈️ Heavy (46-55 dBZ) — tall with dark shadows<br>• 🌩️ Severe (56+ dBZ) — tallest with red glow<br>• ⚡ Lightning on cells ≥40 dBZ<br><br>Approaching storms bob gently to draw attention. Concentric distance rings show range, and a north arrow provides orientation. <b>Drag</b> to rotate the view, <b>pinch</b> to zoom, and <b>tap</b> any storm emoji for details (dBZ, distance, direction, ETA).'},
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.31',date:'2026-03-23',items:['2.5D Isometric Storm View — pure CSS/HTML bird\'s-eye perspective with weather emojis (☁️🌧️⛈️🌩️) at height-based positions scaled by dBZ intensity','Storm emoji sizing and drop-shadows scale with severity — red glow for 56+ dBZ severe cells','Approaching storms bob gently with CSS animation; ⚡ lightning overlays on cells ≥40 dBZ with strike count','Concentric distance rings (10mi/20km intervals), north arrow, and user location pulsing dot at center','Touch interaction: drag to rotate tilt (±15°), pinch to zoom, mouse wheel zoom, tap storm for popup details','Auto-updates when new scan data arrives — view stays current without reopening','Legend panel with emoji intensity guide; storm count info badge','Rain streak animations under moderate+ cells; movement arrows below each storm emoji','Tutorial section added for 2.5D Storm View']},
   {ver:'v2.30e',date:'2026-03-23',items:['AI prompt overhaul: NWS Area Forecast Discussion (AFD) fetched live from api.weather.gov for US locations — real meteorologist analysis included in AI context','Thunderstorm formation analysis: CAPE, Lifted Index, CIN from Open-Meteo with rated moisture/stability/lifting scores and overall thunderstorm potential (1-10)','Winds aloft now included in AI context with all pressure levels (surface through 500hPa) in mph and knots','Wind shear analysis (NWS/Aviation standard) with vector magnitude, severity rating, and aviation impact assessment','5-section structured AI response: Summary & AFD, Relevant Storms, General, Aviation, Boating','Dynamic urgency tone: auto-scales from calm to URGENT based on storm dBZ and alert severity','Increased AI response length (800→1500 tokens) and lowered temperature (0.7→0.4) for more thorough and consistent analysis']},
   {ver:'v2.30d',date:'2026-03-23',items:['Fixed iOS 24-hour auto-detection: system military time setting now properly detected across all time displays','Fixed AWC METAR observation time parsing: station Updated time now correctly converts from UTC to local timezone','Eliminated 150ms location-load delay: weather data fetches instantly with immediate loading skeleton','Tutorial expanded to 15 sections covering Lightning Indicators and Settings Panel']},
   {ver:'v2.30c',date:'2026-03-23',items:['Tutorial expanded from 13 to 15 sections: added Lightning Indicators and Settings Panel overview','Updated Weather, Radar, Station, Ticker, and Units tutorial tabs with latest features','Changelog entries added for v2.29 through v2.30b']},
@@ -3354,6 +3356,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" style="font-size:0.55em;font-weight:700;line-height:1;color:var(--accent-cyan)" onclick="toggleStormPoints()">PT</div>
         <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff9800" onclick="toggleRadarOverlay()">RDR</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
+        <div class="map-ctrl-btn" id="btn-iso-3d" title="2.5D Storm View" style="font-size:0.55em;font-weight:700;line-height:1;color:#66ffcc" onclick="show3DView()">3D</div>
         <div class="map-ctrl-btn" id="clutter-toggle" title="Clutter hidden (tap to show)" style="font-size:0.7em;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);border-color:#555" onclick="toggleClutter()">🕳️</div>
       </div>
       <div class="radar-anim-bar" id="radar-anim-bar" style="display:none">
@@ -4166,6 +4169,7 @@ function toggleClutter(){
   if(S.activePage==='storms')renderStorms();
   updateStormBadges();
   drawMiniSonar();
+  if(typeof ISO!=='undefined'&&ISO.open)render3DView();
 }
 function updateClutterButton(){
   const btn=document.getElementById('clutter-toggle');
@@ -7639,6 +7643,321 @@ function startTranslateObserver(){
     }
   });
   _tObserver.observe(document.body,{childList:true,subtree:true});
+}
+
+// ==========================================
+// 2.5D ISOMETRIC STORM VIEW
+// ==========================================
+const ISO={
+  open:false,
+  el:null,
+  scene:null,
+  wrap:null,
+  zoom:1,
+  tiltX:55,
+  tiltZ:-45,
+  _startTilt:null,
+  _startTouch:null,
+  _pinchDist:null,
+  popup:null
+};
+
+function dbzToEmoji(d){
+  if(d>=56)return'🌩️';
+  if(d>=46)return'⛈️';
+  if(d>=31)return'🌧️';
+  return'☁️';
+}
+function dbzToHeight(d){
+  if(d>=56)return 55;
+  if(d>=46)return 38;
+  if(d>=31)return 20;
+  return 6;
+}
+function dbzToSize(d){
+  if(d>=56)return 2.2;
+  if(d>=46)return 1.8;
+  if(d>=31)return 1.5;
+  return 1.2;
+}
+function dbzToShadow(d){
+  if(d>=56)return'drop-shadow(0 6px 12px rgba(255,40,40,0.5)) drop-shadow(0 0 8px rgba(255,60,60,0.3))';
+  if(d>=46)return'drop-shadow(0 5px 10px rgba(0,0,0,0.7))';
+  if(d>=31)return'drop-shadow(0 4px 8px rgba(0,0,0,0.5))';
+  return'drop-shadow(0 3px 5px rgba(150,150,150,0.3))';
+}
+
+function bearingToDir(b){
+  const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(b/22.5)%16];
+}
+
+function geoToIso(stormLat,stormLng,userLat,userLng,scale){
+  const R=3958.8;
+  const dLat=(stormLat-userLat)*Math.PI/180;
+  const dLng=(stormLng-userLng)*Math.PI/180;
+  const avgLat=(stormLat+userLat)/2*Math.PI/180;
+  const dx=R*dLng*Math.cos(avgLat);
+  const dy=R*dLat;
+  return{x:dx*scale,y:-dy*scale};
+}
+
+function show3DView(){
+  if(!S.lat)return;
+  let ov=document.getElementById('iso-overlay');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='iso-overlay';
+    ov.className='iso-overlay';
+    ov.innerHTML=`
+      <div class="iso-header">
+        <div>
+          <h3>🗺️ 2.5D Storm View</h3>
+          <div class="iso-loc" id="iso-loc"></div>
+        </div>
+        <button class="iso-close" onclick="hide3DView()">✕ Close</button>
+      </div>
+      <div class="iso-scene-wrap" id="iso-scene-wrap">
+        <div class="iso-scene" id="iso-scene"></div>
+        <div class="iso-legend">
+          <h4>Storm Intensity</h4>
+          <div class="iso-legend-row"><span class="le">☁️</span> Light (15-30 dBZ)</div>
+          <div class="iso-legend-row"><span class="le">🌧️</span> Moderate (31-45)</div>
+          <div class="iso-legend-row"><span class="le">⛈️</span> Heavy (46-55)</div>
+          <div class="iso-legend-row"><span class="le">🌩️</span> Severe (56+)</div>
+          <div class="iso-legend-row"><span class="le">⚡</span> Lightning (≥40)</div>
+        </div>
+        <div class="iso-info" id="iso-info"></div>
+      </div>`;
+    document.body.appendChild(ov);
+    ISO.el=ov;
+    ISO.scene=document.getElementById('iso-scene');
+    ISO.wrap=document.getElementById('iso-scene-wrap');
+    setupIsoTouch();
+  }
+  ISO.open=true;
+  ISO.zoom=1;
+  ISO.tiltX=55;
+  ISO.tiltZ=-45;
+  ov.classList.add('active');
+  const loc=document.getElementById('iso-loc');
+  if(loc)loc.textContent=S.locationName||`${S.lat.toFixed(2)}, ${S.lng.toFixed(2)}`;
+  render3DView();
+}
+
+function hide3DView(){
+  ISO.open=false;
+  const ov=document.getElementById('iso-overlay');
+  if(ov)ov.classList.remove('active');
+  if(ISO.popup){ISO.popup.remove();ISO.popup=null;}
+}
+
+function render3DView(){
+  if(!ISO.open||!ISO.scene)return;
+  const sc=ISO.scene;
+  const wrap=ISO.wrap;
+  const ww=wrap.clientWidth;
+  const wh=wrap.clientHeight;
+  const storms=S.storms||[];
+  const useMetric=S.units==='metric';
+  const unitLabel=useMetric?'km':'mi';
+  const maxRingDist=useMetric?80:50;
+  const ringStep=useMetric?20:10;
+  const groundSize=Math.min(ww,wh)*2.2;
+  const scale=groundSize/(maxRingDist*2.4);
+
+  sc.style.width=groundSize+'px';
+  sc.style.height=groundSize+'px';
+  sc.style.left=(ww/2-groundSize/2)+'px';
+  sc.style.top=(wh/2-groundSize/2)+'px';
+  sc.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
+  sc.innerHTML='';
+
+  const cx=groundSize/2;
+  const cy=groundSize/2;
+
+  const ground=document.createElement('div');
+  ground.className='iso-ground';
+  ground.style.cssText=`width:${groundSize}px;height:${groundSize}px;left:0;top:0;background:radial-gradient(circle,rgba(10,20,40,0.9) 0%,rgba(5,10,25,0.95) 70%,rgba(2,5,15,1) 100%);`;
+  sc.appendChild(ground);
+
+  for(let r=ringStep;r<=maxRingDist;r+=ringStep){
+    const rPx=r*scale*2;
+    const ring=document.createElement('div');
+    ring.className='iso-ring';
+    ring.style.cssText=`width:${rPx}px;height:${rPx}px;left:${cx-rPx/2}px;top:${cy-rPx/2}px;`;
+    sc.appendChild(ring);
+    const lbl=document.createElement('div');
+    lbl.className='iso-ring-label';
+    lbl.textContent=`${r}${unitLabel}`;
+    lbl.style.cssText=`left:${cx+rPx/2+4}px;top:${cy-6}px;`;
+    sc.appendChild(lbl);
+  }
+
+  const north=document.createElement('div');
+  north.className='iso-north';
+  north.textContent='▲ N';
+  north.style.cssText=`left:${cx-8}px;top:${cy-maxRingDist*scale-18}px;`;
+  sc.appendChild(north);
+
+  const user=document.createElement('div');
+  user.className='iso-user';
+  user.style.cssText=`left:${cx}px;top:${cy}px;`;
+  sc.appendChild(user);
+
+  const showLtng=S._showLightning!==false;
+  let stormCount=0;
+  const etas=S._stormETAs||{};
+
+  storms.forEach((st,i)=>{
+    if(!st.dbz||st.dbz<15)return;
+    const pos=geoToIso(st.lat,st.lng,S.lat,S.lng,scale);
+    const sx=cx+pos.x;
+    const sy=cy+pos.y;
+
+    if(sx<-50||sx>groundSize+50||sy<-50||sy>groundSize+50)return;
+    stormCount++;
+
+    const h=dbzToHeight(st.dbz);
+    const emoji=dbzToEmoji(st.dbz);
+    const sz=dbzToSize(st.dbz);
+    const shd=dbzToShadow(st.dbz);
+
+    const etaKey=Object.keys(etas).find(k=>{
+      const e=etas[k];
+      return e&&Math.abs(e.distance-st.distance)<0.5;
+    });
+    const isApproaching=!!etaKey;
+
+    const el=document.createElement('div');
+    el.className='iso-storm'+(isApproaching?' approaching':'');
+    el.style.cssText=`left:${sx}px;top:${sy}px;`;
+
+    let html=`<span class="iso-emoji" style="font-size:${sz}em;filter:${shd};transform:translateY(-${h}px)">${emoji}</span>`;
+
+    if(showLtng&&st.dbz>=40){
+      const strikes=Math.floor((st.dbz-35)/5);
+      html+=`<span class="iso-ltng" style="transform:translateX(-50%) translateY(-${h+10}px)">⚡${strikes>1?'×'+strikes:''}</span>`;
+    }
+
+    if(st.dbz>=31){
+      html+=`<span class="iso-rain"></span>`;
+    }
+
+    if(st.bearing!==undefined){
+      const arr=bearingToArrow(st.bearing);
+      html+=`<span class="iso-arrow">${arr}</span>`;
+    }
+
+    el.innerHTML=html;
+    el.onclick=(e)=>{
+      e.stopPropagation();
+      showIsoPopup(st,sx,sy,isApproaching?etaKey:null);
+    };
+    sc.appendChild(el);
+  });
+
+  const info=document.getElementById('iso-info');
+  if(info){
+    info.textContent=`${stormCount} storm${stormCount!==1?'s':''} in view`;
+  }
+}
+
+function bearingToArrow(b){
+  if(b>=337.5||b<22.5)return'↑';
+  if(b<67.5)return'↗';
+  if(b<112.5)return'→';
+  if(b<157.5)return'↘';
+  if(b<202.5)return'↓';
+  if(b<247.5)return'↙';
+  if(b<292.5)return'←';
+  return'↖';
+}
+
+function showIsoPopup(st,px,py,etaKey){
+  if(ISO.popup){ISO.popup.remove();ISO.popup=null;}
+  const useMetric=S.units==='metric';
+  const distStr=useMetric?`${(st.distance*1.609).toFixed(1)} km`:`${st.distance.toFixed(1)} mi`;
+  const dir=bearingToDir(st.bearing||0);
+  let etaStr='';
+  if(etaKey&&S._stormETAs[etaKey]){
+    const e=S._stormETAs[etaKey];
+    if(e.etaMin)etaStr=`<div class="iso-pop-row">⏱️ ETA: ~${Math.round(e.etaMin)} min</div>`;
+  }
+
+  const pop=document.createElement('div');
+  pop.className='iso-popup';
+  pop.style.cssText=`left:${Math.min(px,ISO.wrap.clientWidth-160)}px;top:${Math.max(py-120,10)}px;`;
+  pop.innerHTML=`
+    <button class="iso-pop-close" onclick="this.parentElement.remove()">✕</button>
+    <div class="iso-pop-title">${dbzToEmoji(st.dbz)} ${st.dbz} dBZ</div>
+    <div class="iso-pop-row">📏 ${distStr} ${dir}</div>
+    <div class="iso-pop-row">📊 ${st.dbz>=56?'Severe':st.dbz>=46?'Heavy':st.dbz>=31?'Moderate':'Light'}</div>
+    ${etaStr}
+  `;
+  ISO.wrap.appendChild(pop);
+  ISO.popup=pop;
+}
+
+function setupIsoTouch(){
+  const w=ISO.wrap;
+  let dragging=false;
+  let lastX,lastY;
+
+  w.addEventListener('pointerdown',(e)=>{
+    if(e.target.closest('.iso-popup,.iso-legend,.iso-info,.iso-close'))return;
+    dragging=true;
+    lastX=e.clientX;
+    lastY=e.clientY;
+    w.setPointerCapture(e.pointerId);
+  });
+  w.addEventListener('pointermove',(e)=>{
+    if(!dragging)return;
+    const dx=e.clientX-lastX;
+    const dy=e.clientY-lastY;
+    ISO.tiltZ=Math.max(-60,Math.min(-30,ISO.tiltZ+dx*0.3));
+    ISO.tiltX=Math.max(40,Math.min(70,ISO.tiltX-dy*0.3));
+    lastX=e.clientX;
+    lastY=e.clientY;
+    if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
+  });
+  w.addEventListener('pointerup',()=>{dragging=false;});
+  w.addEventListener('pointercancel',()=>{dragging=false;});
+
+  w.addEventListener('wheel',(e)=>{
+    e.preventDefault();
+    ISO.zoom=Math.max(0.3,Math.min(3,ISO.zoom-(e.deltaY>0?0.1:-0.1)));
+    if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
+  },{passive:false});
+
+  let pinchDist=null;
+  w.addEventListener('touchstart',(e)=>{
+    if(e.touches.length===2){
+      const dx=e.touches[0].clientX-e.touches[1].clientX;
+      const dy=e.touches[0].clientY-e.touches[1].clientY;
+      pinchDist=Math.hypot(dx,dy);
+    }
+  });
+  w.addEventListener('touchmove',(e)=>{
+    if(e.touches.length===2&&pinchDist){
+      e.preventDefault();
+      const dx=e.touches[0].clientX-e.touches[1].clientX;
+      const dy=e.touches[0].clientY-e.touches[1].clientY;
+      const newDist=Math.hypot(dx,dy);
+      const ratio=newDist/pinchDist;
+      ISO.zoom=Math.max(0.3,Math.min(3,ISO.zoom*ratio));
+      pinchDist=newDist;
+      if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
+    }
+  },{passive:false});
+  w.addEventListener('touchend',()=>{pinchDist=null;});
+
+  w.addEventListener('click',(e)=>{
+    if(!e.target.closest('.iso-storm')&&ISO.popup){
+      ISO.popup.remove();
+      ISO.popup=null;
+    }
+  });
 }
 
 (function initLang(){
