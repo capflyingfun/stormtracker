@@ -19,7 +19,7 @@ let _timeFormat=localStorage.getItem('st_timeFormat')||'auto';
 function _is24h(){
   if(_timeFormat==='24h')return true;
   if(_timeFormat==='12h')return false;
-  try{const f=new Intl.DateTimeFormat([],{hour:'numeric'}).format(new Date(2000,0,1,13));return!f.match(/[APap]/)}catch(e){return false}
+  try{const t=new Date(2000,0,1,13,0,0).toLocaleTimeString();return!(/[APap]/.test(t))}catch(e){return false}
 }
 function fmtClock(d,showSec){
   if(!(d instanceof Date))d=new Date(d);
