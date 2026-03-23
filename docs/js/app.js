@@ -7731,6 +7731,16 @@ function show3DView(){
           <div class="iso-legend-row"><span class="le">🌩️</span> Severe (56+)</div>
           <div class="iso-legend-row"><span class="le">⚡</span> Lightning (≥40)</div>
         </div>
+        <div class="iso-compass" id="iso-compass">
+          <div class="iso-compass-ring" id="iso-compass-ring">
+            <span class="iso-compass-n">N</span>
+            <span class="iso-compass-s">S</span>
+            <span class="iso-compass-e">E</span>
+            <span class="iso-compass-w">W</span>
+            <div class="iso-compass-needle"></div>
+            <div class="iso-compass-dot"></div>
+          </div>
+        </div>
         <div class="iso-info" id="iso-info"></div>
         <div class="iso-cam" id="iso-cam">
           <div class="iso-cam-pad">
@@ -7764,6 +7774,7 @@ function show3DView(){
   const loc=document.getElementById('iso-loc');
   if(loc)loc.textContent=S.locName||`${S.lat.toFixed(2)}, ${S.lon.toFixed(2)}`;
   render3DView();
+  updateIsoCompass();
 }
 
 function hide3DView(){
@@ -7868,7 +7879,8 @@ function render3DView(){
     }
 
     if(st.bearing!==undefined){
-      const arr=bearingToArrow(st.bearing);
+      const movDir=st.movementDir!==undefined?st.movementDir:(st.bearing+180)%360;
+      const arr=bearingToArrow(movDir);
       html+=`<span class="iso-arrow">${arr}</span>`;
     }
 
@@ -7922,13 +7934,18 @@ function showIsoPopup(st,px,py,etaKey){
   ISO.popup=pop;
 }
 
+function updateIsoCompass(){
+  const ring=document.getElementById('iso-compass-ring');
+  if(ring)ring.style.transform=`rotate(${ISO.tiltZ+45}deg)`;
+}
+
 function setupIsoTouch(){
   const w=ISO.wrap;
   let dragging=false;
   let lastX,lastY;
 
   w.addEventListener('pointerdown',(e)=>{
-    if(e.target.closest('.iso-popup,.iso-legend,.iso-info,.iso-close,.iso-cam'))return;
+    if(e.target.closest('.iso-popup,.iso-legend,.iso-info,.iso-close,.iso-cam,.iso-compass'))return;
     dragging=true;
     lastX=e.clientX;
     lastY=e.clientY;
@@ -7938,11 +7955,12 @@ function setupIsoTouch(){
     if(!dragging)return;
     const dx=e.clientX-lastX;
     const dy=e.clientY-lastY;
-    ISO.tiltZ=Math.max(-60,Math.min(-30,ISO.tiltZ+dx*0.3));
-    ISO.tiltX=Math.max(40,Math.min(70,ISO.tiltX-dy*0.3));
+    ISO.tiltZ=(ISO.tiltZ+dx*0.3)%360;
+    ISO.tiltX=Math.max(20,Math.min(80,ISO.tiltX-dy*0.3));
     lastX=e.clientX;
     lastY=e.clientY;
     if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
+    updateIsoCompass();
   });
   w.addEventListener('pointerup',()=>{dragging=false;});
   w.addEventListener('pointercancel',()=>{dragging=false;});
@@ -7985,12 +8003,12 @@ function setupIsoTouch(){
   const camPad=document.getElementById('iso-cam');
   if(camPad){
     let camInterval=null;
-    const applyIso=()=>{if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;};
+    const applyIso=()=>{if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;updateIsoCompass();};
     const camActions={
-      up:()=>{ISO.tiltX=Math.min(70,ISO.tiltX+2);applyIso();},
-      down:()=>{ISO.tiltX=Math.max(40,ISO.tiltX-2);applyIso();},
-      left:()=>{ISO.tiltZ=Math.max(-60,ISO.tiltZ-2);applyIso();},
-      right:()=>{ISO.tiltZ=Math.min(-30,ISO.tiltZ+2);applyIso();},
+      up:()=>{ISO.tiltX=Math.min(80,ISO.tiltX+2);applyIso();},
+      down:()=>{ISO.tiltX=Math.max(20,ISO.tiltX-2);applyIso();},
+      left:()=>{ISO.tiltZ=(ISO.tiltZ-3)%360;applyIso();},
+      right:()=>{ISO.tiltZ=(ISO.tiltZ+3)%360;applyIso();},
       zin:()=>{ISO.zoom=Math.min(3,ISO.zoom+0.1);applyIso();},
       zout:()=>{ISO.zoom=Math.max(0.3,ISO.zoom-0.1);applyIso();},
       reset:()=>{ISO.tiltX=55;ISO.tiltZ=-45;ISO.zoom=1;applyIso();}
