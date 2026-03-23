@@ -456,7 +456,7 @@ function renderGaugeG1000(d){
   let topTxt='';
   if(strongest){
     topTxt+=`STM ${strongest.dbz||0}dBZ ${strongest.distance.toFixed(0)}${S.radarMetric?'km':'mi'}`;
-    if(mv&&mv.speed>=2)topTxt+=`  MVG ${degToDir(mv.direction)} ${mv.speed.toFixed(0)}${S.radarMetric?'km/h':'mph'}`;
+    if(mv&&mv.speed>=2)topTxt+=`  MVG ${degToDir(mv.direction)} (${Math.round(mv.direction)}°) ${mv.speed.toFixed(0)}${S.radarMetric?'km/h':'mph'}`;
   }else{topTxt='NO STORMS DETECTED'}
   svg+=`<text x="${W/2}" y="${topBar/2+1}" fill="${strongest?amber:'#5a6070'}" font-size="5" font-weight="600" text-anchor="middle" dominant-baseline="central" font-family="monospace">${topTxt}</text>`;
   svg+=`<rect x="0" y="${H-botBar}" width="${W}" height="${botBar}" rx="3" fill="#1a1a22"/>`;
@@ -569,16 +569,16 @@ function renderGaugeG1000(d){
   const gyroLabel=(_gyroEnabled&&_gyroHeading!=null)?`GYRO ${Math.round(_gyroHeading)}°`:'N UP';
   svg+=`<rect x="${compassCx-22}" y="${infoTop}" width="44" height="12" rx="2" fill="#111" stroke="${green}" stroke-width="0.8"/>`;
   svg+=`<text x="${compassCx}" y="${infoTop+6}" fill="${green}" font-size="5.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${gyroLabel}</text>`;
-  const legY=infoTop;
   const legItems=[[magenta,`WIND ${dirDeg.toFixed(0)}°`,false]];
   if(upperDir!=null)legItems.push([yellow,`ALOFT ${Math.round((upperDir+180)%360)}°`,true]);
   if(hasStorm)legItems.push([cyan,`STM ${Math.round(strongest.bearing)}°`,false]);
-  const legX0=compassCx-compassR-2;
+  const legX0=tapeW+3;
+  const legY0=tapeTop+4;
   legItems.forEach((it,i)=>{
-    const ly=legY+i*10;
-    if(it[2]){svg+=`<line x1="${legX0}" y1="${(ly+5).toFixed(1)}" x2="${(legX0+10).toFixed(1)}" y2="${(ly+5).toFixed(1)}" stroke="${it[0]}" stroke-width="1.2" stroke-dasharray="3,2"/>`}
-    else{svg+=`<line x1="${legX0}" y1="${(ly+5).toFixed(1)}" x2="${(legX0+10).toFixed(1)}" y2="${(ly+5).toFixed(1)}" stroke="${it[0]}" stroke-width="1.5"/>`}
-    svg+=`<text x="${(legX0+13).toFixed(1)}" y="${(ly+5).toFixed(1)}" fill="${it[0]}" font-size="4" font-weight="600" text-anchor="start" dominant-baseline="central" font-family="monospace">${it[1]}</text>`;
+    const ly=legY0+i*9;
+    if(it[2]){svg+=`<line x1="${legX0}" y1="${(ly+4).toFixed(1)}" x2="${(legX0+10).toFixed(1)}" y2="${(ly+4).toFixed(1)}" stroke="${it[0]}" stroke-width="1.2" stroke-dasharray="3,2"/>`}
+    else{svg+=`<line x1="${legX0}" y1="${(ly+4).toFixed(1)}" x2="${(legX0+10).toFixed(1)}" y2="${(ly+4).toFixed(1)}" stroke="${it[0]}" stroke-width="1.5"/>`}
+    svg+=`<text x="${(legX0+13).toFixed(1)}" y="${(ly+4).toFixed(1)}" fill="${it[0]}" font-size="4" font-weight="600" text-anchor="start" dominant-baseline="central" font-family="monospace">${it[1]}</text>`;
   });
   if(hasStorm){
     const distStr=strongest.distance<10?strongest.distance.toFixed(1):strongest.distance.toFixed(0);
