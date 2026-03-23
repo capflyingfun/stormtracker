@@ -7888,6 +7888,9 @@ function show3DView(){
           <div class="iso-legend-row"><span class="le" style="color:#facc15">●</span> Moderate</div>
           <div class="iso-legend-row"><span class="le" style="color:#ff3355">●</span> Serious</div>
           <div class="iso-legend-row"><span class="le" style="color:#e040fb">●</span> Extreme</div>
+          <h4 style="margin-top:6px">Wind Arrows</h4>
+          <div class="iso-legend-row"><span class="le" style="color:rgba(0,220,255,0.9)">→</span> Storm Mvmt</div>
+          <div class="iso-legend-row"><span class="le" style="color:rgba(255,0,220,0.8)">→</span> Winds Aloft</div>
         </div>
         <div class="iso-hstrip" id="iso-hstrip">
           <div class="iso-hstrip-track" id="iso-hstrip-track"></div>
@@ -7944,36 +7947,8 @@ function hide3DView(){
   if(ISO.popup){ISO.popup.remove();ISO.popup=null;}
 }
 
-ISO._cachedStorms=null;
-ISO._lastScanId=null;
 ISO._stormEls=[];
 ISO._rafPending=false;
-
-function isoClusterStorms(){
-  const rawPts=S._rawScanPts||[];
-  const stormList=S.storms||[];
-  const allPts=rawPts.length?rawPts:stormList;
-  const scanId=allPts.length+'_'+(allPts[0]?allPts[0].dbz:0)+'_'+(allPts[allPts.length-1]?allPts[allPts.length-1].dbz:0);
-  if(ISO._lastScanId===scanId&&ISO._cachedStorms)return ISO._cachedStorms;
-  const pts=allPts.filter(p=>p.dbz>=15);
-  pts.sort((a,b)=>b.dbz-a.dbz);
-  const storms=[];
-  for(const p of pts){
-    let merged=false;
-    for(const e of storms){
-      const dlat=p.lat-e.lat,dlng=p.lng-e.lng;
-      if(dlat*dlat+dlng*dlng<0.0005){e.pixels=(e.pixels||1)+1;if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
-    }
-    if(!merged){
-      const dist=haversine(S.lat,S.lon,p.lat,p.lng);
-      const bear=bearingDeg(S.lat,S.lon,p.lat,p.lng);
-      storms.push({lat:p.lat,lng:p.lng,dbz:p.dbz,distance:dist,bearing:bear,pixels:1});
-    }
-  }
-  ISO._lastScanId=scanId;
-  ISO._cachedStorms=storms;
-  return storms;
-}
 
 function render3DView(){
   if(!ISO.open||!ISO.scene)return;
@@ -7981,7 +7956,7 @@ function render3DView(){
   const wrap=ISO.wrap;
   const ww=wrap.clientWidth;
   const wh=wrap.clientHeight;
-  const storms=isoClusterStorms();
+  const storms=(S.storms||[]).filter(p=>p.dbz>=15);
   const useMetric=S.units==='metric';
   const unitLabel=useMetric?'km':'mi';
   const scanR=S.scanRadius||80;
@@ -8060,15 +8035,7 @@ function render3DView(){
     const glowSz=Math.max(8,sz*10);
     el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);will-change:transform;`;
 
-    const cellTrk=getCellTrack(st);
-    const stDir=cellTrk?cellTrk.dir:(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement.direction:undefined);
-    let arrowHtml='';
-    if(stDir!==undefined){
-      const arrowRot=stDir+ISO.tiltZ;
-      arrowHtml=`<span class="iso-arrow" data-dir="${stDir}" style="color:${tc.color};transform:translateX(-50%) rotate(${arrowRot}deg)">↑</span>`;
-    }
-
-    let html=`<span class="iso-emoji" style="font-size:${sz}em;filter:drop-shadow(0 0 ${glowSz}px ${tc.glow}) drop-shadow(0 4px 6px rgba(0,0,0,0.6));transform:translateY(-${h-8}px)">${emoji}</span>`+arrowHtml;
+    let html=`<span class="iso-emoji" style="font-size:${sz}em;filter:drop-shadow(0 0 ${glowSz}px ${tc.glow}) drop-shadow(0 4px 6px rgba(0,0,0,0.6));transform:translateY(-${h-8}px)">${emoji}</span>`;
     html+=`<span class="iso-glow" style="width:${glowSz*2}px;height:${glowSz*2}px;background:radial-gradient(circle,${tc.glow} 0%,transparent 70%);bottom:${-glowSz+4}px;border:1px solid ${tc.color}33;border-radius:50%"></span>`;
 
     if(showLtng&&st.dbz>=40){
@@ -8081,7 +8048,6 @@ function render3DView(){
     }
 
     el.innerHTML=html;
-    el._arrowEl=el.querySelector('.iso-arrow[data-dir]');
     el.onclick=(e)=>{
       e.stopPropagation();
       showIsoPopup(st,sx,sy,isApproaching?etaKey:null);
@@ -8090,6 +8056,39 @@ function render3DView(){
     ISO._stormEls.push(el);
   });
   sc.appendChild(frag);
+
+  const mvArrowLen=maxRingDist*scale*0.55;
+  const mv=S.stormMovement;
+  if(mv&&mv.speed>=2){
+    const mvDir=mv.direction;
+    const mvRot=mvDir+ISO.tiltZ;
+    const svgSz=Math.max(60,mvArrowLen*1.2);
+    const arrowEl=document.createElement('div');
+    arrowEl.className='iso-wind-arrow';
+    arrowEl.dataset.dir=mvDir;
+    arrowEl.dataset.type='storm';
+    arrowEl.style.cssText=`position:absolute;left:${cx}px;top:${cy}px;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg) rotate(${mvRot}deg);pointer-events:none;will-change:transform;z-index:10;`;
+    const aLen=svgSz*0.45,mid=svgSz/2;
+    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+aLen*0.1}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(0,220,255,0.7)" stroke-width="2.5" stroke-dasharray="5,3"/><polygon points="${mid},${mid-aLen} ${mid-6},${mid-aLen+12} ${mid+6},${mid-aLen+12}" fill="rgba(0,220,255,0.8)"/><text x="${mid}" y="${mid-aLen-6}" fill="rgba(0,220,255,0.9)" font-size="9" font-weight="bold" text-anchor="middle" font-family="Inter,sans-serif">STORM</text><text x="${mid}" y="${mid+aLen*0.1+14}" fill="rgba(0,220,255,0.6)" font-size="8" text-anchor="middle" font-family="Inter,sans-serif">${mv.speed.toFixed(0)} mph ${degToDir(mvDir)}</text></svg>`;
+    sc.appendChild(arrowEl);
+    ISO._stormEls.push(arrowEl);
+  }
+
+  const aloftDir=S._upperWindDir;
+  if(aloftDir!=null){
+    const toDir=(aloftDir+180)%360;
+    const aloftRot=toDir+ISO.tiltZ;
+    const svgSz=Math.max(55,mvArrowLen*1.1);
+    const arrowEl=document.createElement('div');
+    arrowEl.className='iso-wind-arrow';
+    arrowEl.dataset.dir=String(toDir);
+    arrowEl.dataset.type='aloft';
+    arrowEl.style.cssText=`position:absolute;left:${cx}px;top:${cy}px;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg) rotate(${aloftRot}deg);pointer-events:none;will-change:transform;z-index:9;`;
+    const aLen=svgSz*0.4,mid=svgSz/2;
+    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+aLen*0.1}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(255,0,220,0.5)" stroke-width="2" stroke-dasharray="6,4"/><polygon points="${mid},${mid-aLen} ${mid-5},${mid-aLen+10} ${mid+5},${mid-aLen+10}" fill="rgba(255,0,220,0.6)"/><text x="${mid}" y="${mid-aLen-5}" fill="rgba(255,0,220,0.8)" font-size="9" font-weight="bold" text-anchor="middle" font-family="Inter,sans-serif">ALOFT</text></svg>`;
+    sc.appendChild(arrowEl);
+    ISO._stormEls.push(arrowEl);
+  }
 
   const info=document.getElementById('iso-info');
   if(info){
@@ -8157,11 +8156,16 @@ function updateIsoBillboard(){
   if(!ISO.scene)return;
   const els=ISO._stormEls;
   const rz=-ISO.tiltZ,rx=-ISO.tiltX,tz=ISO.tiltZ;
-  const t=`translate(-50%,-100%) rotateZ(${rz}deg) rotateX(${rx}deg)`;
+  const stormT=`translate(-50%,-100%) rotateZ(${rz}deg) rotateX(${rx}deg)`;
   for(let i=0;i<els.length;i++){
-    els[i].style.transform=t;
-    const arr=els[i]._arrowEl;
-    if(arr)arr.style.transform=`translateX(-50%) rotate(${parseFloat(arr.dataset.dir)+tz}deg)`;
+    const el=els[i];
+    if(el.classList.contains('iso-wind-arrow')){
+      const dir=parseFloat(el.dataset.dir);
+      const w=el.style.width;
+      el.style.transform=`translate(-50%,-50%) rotateZ(${rz}deg) rotateX(${rx}deg) rotate(${dir+tz}deg)`;
+    }else{
+      el.style.transform=stormT;
+    }
   }
 }
 function updateIsoCompass(){
