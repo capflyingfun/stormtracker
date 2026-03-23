@@ -6252,7 +6252,7 @@ function parseAWCobs(m){
     presPa:m.altim!=null?m.altim*100:null,
     rawMETAR:m.rawOb||'',
     clouds:(m.clouds||[]).map(c=>({amount:c.cover,base:{value:c.base!=null?c.base*0.3048:null}})),
-    obsTime:m.reportTime||m.obsTime||'',
+    obsTime:(m.reportTime||m.obsTime||'').replace(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})$/,'$1T$2Z'),
     wxString:m.wxString||'',
   };
 }
