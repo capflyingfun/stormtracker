@@ -19,19 +19,21 @@ let _timeFormat=localStorage.getItem('st_timeFormat')||'auto';
 function _detectSystem24h(){
   try{
     const d=new Date(2020,0,1,13,0,0);
-    const checks=[
-      new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'numeric'}).format(d),
-      d.toLocaleTimeString(undefined,{hour:'numeric',minute:'numeric'}),
-      d.toLocaleTimeString([],{hour:'numeric',minute:'numeric'}),
-      d.toLocaleTimeString()
-    ];
-    for(const f of checks){
-      if(/13|14|15|16|17|18|19|20|21|22|23/.test(f))return true;
+    const parts=new Intl.DateTimeFormat(undefined,{hour:'numeric'}).formatToParts(d);
+    const hasDayPeriod=parts.some(p=>p.type==='dayPeriod');
+    if(!hasDayPeriod)return true;
+    const hourPart=parts.find(p=>p.type==='hour');
+    if(hourPart&&parseInt(hourPart.value,10)>=13)return true;
+    return false;
+  }catch(e){
+    try{
+      const f=new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'numeric'}).format(d);
+      if(f.includes('13'))return true;
       const lo=f.toLowerCase();
-      if(lo.includes('am')||lo.includes('pm')||/[APap]\s*\.?\s*[Mm]/.test(f))return false;
-    }
-    return true;
-  }catch(e){return false}
+      if(lo.includes('am')||lo.includes('pm'))return false;
+      return true;
+    }catch(e2){return false}
+  }
 }
 function _is24h(){
   if(_timeFormat==='24h')return true;
