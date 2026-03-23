@@ -4915,6 +4915,14 @@ function toggleRadarOverlay(){
   const btn=document.getElementById('btn-radar-overlay');
   if(btn)btn.style.opacity=S._radarOverlayVisible?'1':'0.4';
 }
+try{
+  const resetKey='st_defaults_v230e';
+  if(!localStorage.getItem(resetKey)){
+    localStorage.removeItem('st_pathArrows');
+    localStorage.removeItem('st_pointsMode');
+    localStorage.setItem(resetKey,'1');
+  }
+}catch(e){}
 try{const zv=localStorage.getItem('st_zones');if(zv==='0')S._showZones=false}catch(e){}
 try{const pa=localStorage.getItem('st_pathArrows');if(pa==='0')S._showPathArrows=false}catch(e){}
 try{const ps=localStorage.getItem('st_arrowStyle');if(ps==='pointer')S._pathArrowStyle='pointer'}catch(e){}
