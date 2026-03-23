@@ -7755,7 +7755,7 @@ function show3DView(){
           </div>
         </div>
         <div class="iso-gyro-wrap">
-          <div class="iso-cam-btn iso-gyro-btn" id="iso-gyro-btn" title="Toggle gyroscope">🔄</div>
+          <div class="iso-cam-btn iso-gyro-btn" id="iso-gyro-btn" title="Toggle gyroscope">🔄 Gyro</div>
         </div>
       </div>`;
     document.body.appendChild(ov);
