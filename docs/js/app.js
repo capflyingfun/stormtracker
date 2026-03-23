@@ -1886,6 +1886,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.32',date:'2026-03-23',items:['Weather Station Alerts — set custom thresholds for wind, gusts, temperature, pressure, rainfall, humidity, visibility, and UV','10 configurable alert types with per-alert enable/disable and custom threshold values','15-minute cooldown per alert type to prevent notification spam','Browser push notifications when app is in background (via Service Worker)','Toast alerts when app is in foreground','Alert history log in Alerts tab with timestamps and clear button','Settings panel → Weather Station Alerts 🔔 section for easy configuration']},
   {ver:'v2.31e',date:'2026-03-23',items:['Fixed 3D view icon aspect ratio — storm emojis no longer squish or stretch on zoom/tilt','Changed scene transform from 2D scale to 3D scale3d for uniform scaling across all axes','Lightning, rain, and arrow indicators also maintain correct proportions at all zoom levels']},
   {ver:'v2.31d',date:'2026-03-23',items:['3D view storm arrows now use per-cell tracked movement direction from radar frame comparison','Clutter threshold raised: ≤12 returns below 22 dBZ now auto-hidden as clutter (previously ≤8 below 31 dBZ)','Inbound storm point button shows 12▶ (top 12 approaching) instead of 8▶','AI prompt updated to reflect new clutter thresholds']},
   {ver:'v2.31c',date:'2026-03-23',items:['Horizontal heading strip compass replaces round compass — aviation/marine-style with scrolling tick marks and numeric heading readout','Storm movement arrows fixed — now point in direction of travel','Left/Right D-pad controls corrected — no longer reversed','Bigger D-pad and zoom buttons for easier mobile tapping','Text selection fully disabled in 2.5D overlay (CSS + JS event blocking for iOS)']},
@@ -2023,6 +2024,8 @@ function syncSettingsPanel(){
   const pBtn=document.getElementById('pa-style-pointer');
   if(cBtn){cBtn.style.background=style==='chevron'?'rgba(0,229,255,0.2)':'rgba(255,255,255,0.05)';cBtn.style.borderColor=style==='chevron'?'var(--accent-cyan)':'var(--border-subtle)';}
   if(pBtn){pBtn.style.background=style==='pointer'?'rgba(0,229,255,0.2)':'rgba(255,255,255,0.05)';pBtn.style.borderColor=style==='pointer'?'var(--accent-cyan)':'var(--border-subtle)';}
+  const wxAlertEl=document.getElementById('wx-alert-settings');
+  if(wxAlertEl)wxAlertEl.innerHTML=renderWxAlertSettings();
 }
 function setAutoRefresh(val){
   const mins=parseInt(val,10);
@@ -2136,6 +2139,100 @@ async function reverseGeocode(lat,lon){
 }
 
 // ==========================================
+// WEATHER STATION ALERTS (Threshold Monitoring)
+// ==========================================
+const _WX_ALERT_DEFS=[
+  {key:'windMax',label:'Wind Speed',icon:'💨',unit:'speed',defVal:25,defOn:false,check:(c,th)=>{const kmh=c.wind_speed_10m;if(kmh==null)return null;const v=parseFloat(kmhTo(kmh,S.windUnit));return v>=th?{val:v,u:WIND_UNITS[S.windUnit],msg:`🔔 Wind speed at ${v} ${WIND_UNITS[S.windUnit]} — above your ${th} ${WIND_UNITS[S.windUnit]} threshold`}:null}},
+  {key:'gustMax',label:'Wind Gusts',icon:'🌬️',unit:'speed',defVal:35,defOn:false,check:(c,th)=>{const kmh=c.wind_gusts_10m;if(kmh==null)return null;const v=parseFloat(kmhTo(kmh,S.windUnit));return v>=th?{val:v,u:WIND_UNITS[S.windUnit],msg:`🔔 Wind gusts detected at ${v} ${WIND_UNITS[S.windUnit]} — above your ${th} ${WIND_UNITS[S.windUnit]} threshold`}:null}},
+  {key:'tempHigh',label:'Temp High',icon:'🌡️↑',unit:'temp',defVal:95,defOn:false,check:(c,th)=>{const tc=c.temperature_2m;if(tc==null)return null;const v=S.tempUnit===0?parseFloat(cToF(tc)):parseFloat(tc.toFixed(1));return v>=th?{val:v,u:TEMP_UNITS[S.tempUnit],msg:`🔔 Temperature reached ${v}${TEMP_UNITS[S.tempUnit]} — above your ${th}${TEMP_UNITS[S.tempUnit]} high threshold`}:null}},
+  {key:'tempLow',label:'Temp Low',icon:'🌡️↓',unit:'temp',defVal:32,defOn:false,dir:'below',check:(c,th)=>{const tc=c.temperature_2m;if(tc==null)return null;const v=S.tempUnit===0?parseFloat(cToF(tc)):parseFloat(tc.toFixed(1));return v<=th?{val:v,u:TEMP_UNITS[S.tempUnit],msg:`🔔 Temperature dropped to ${v}${TEMP_UNITS[S.tempUnit]} — below your ${th}${TEMP_UNITS[S.tempUnit]} low threshold`}:null}},
+  {key:'pressureDrop',label:'Pressure Drop (3hr)',icon:'📉',unit:'pressure',defVal:0.10,defOn:false,step:0.01,check:(c,th)=>{const drop=S._baroTrendMb!=null?-S._baroTrendMb:null;if(drop==null||drop<=0)return null;const dropInhg=drop*0.02953;const v=S.presUnit===0?parseFloat(dropInhg.toFixed(2)):parseFloat(drop.toFixed(1));const u=S.presUnit===0?'inHg':'mb';return v>=th?{val:v,u,msg:`🔔 Rapidly falling pressure — dropped ${v} ${u} over the last 3 hours (threshold: ${th} ${u})`}:null}},
+  {key:'rainMax',label:'Rainfall Rate',icon:'🌧️',unit:'precip',defVal:1.0,defOn:false,step:0.1,check:(c,th)=>{const mmh=c.precipitation;if(mmh==null||mmh<=0)return null;let v,u;if(S.precipUnit===0){v=parseFloat((mmh/25.4).toFixed(2));u='in/hr'}else if(S.precipUnit===2){v=parseFloat((mmh/10).toFixed(2));u='cm/hr'}else{v=parseFloat(mmh.toFixed(1));u='mm/hr'}return v>=th?{val:v,u,msg:`🔔 Rainfall rate at ${v} ${u} — above your ${th} ${u} threshold`}:null}},
+  {key:'humidHigh',label:'Humidity High',icon:'💧↑',unit:'%',defVal:90,defOn:false,check:(c,th)=>{const v=c.relative_humidity_2m;if(v==null)return null;return v>=th?{val:v,u:'%',msg:`🔔 Humidity at ${v}% — above your ${th}% high threshold`}:null}},
+  {key:'humidLow',label:'Humidity Low',icon:'💧↓',unit:'%',defVal:20,defOn:false,dir:'below',check:(c,th)=>{const v=c.relative_humidity_2m;if(v==null)return null;return v<=th?{val:v,u:'%',msg:`🔔 Humidity at ${v}% — below your ${th}% low threshold`}:null}},
+  {key:'visMin',label:'Visibility Low',icon:'👁️',unit:'vis',defVal:1.0,defOn:false,dir:'below',check:(c,th)=>{const vm=S._nwsVisM;if(vm==null)return null;let v,u;if(S.visUnit===0){v=parseFloat((vm/1609.34).toFixed(1));u='mi'}else{v=parseFloat((vm/1000).toFixed(1));u='km'}return v<=th?{val:v,u,msg:`🔔 Visibility dropped to ${v} ${u} — below your ${th} ${u} threshold`}:null}},
+  {key:'uvMax',label:'UV Index',icon:'☀️',unit:'uv',defVal:8,defOn:false,check:(c,th)=>{const uv=S._uvIndex;if(uv==null)return null;return uv>=th?{val:uv,u:'',msg:`🔔 UV Index at ${uv} — above your ${th} threshold (high exposure risk)`}:null}}
+];
+const _WX_ALERT_COOLDOWN={};
+let _wxAlertHistory=JSON.parse(localStorage.getItem('st_wxAlertHistory')||'[]');
+function _loadWxThresholds(){
+  try{const s=localStorage.getItem('st_wxThresholds');if(s)return JSON.parse(s)}catch(e){}
+  const d={};_WX_ALERT_DEFS.forEach(a=>{d[a.key]={on:a.defOn,val:a.defVal}});return d;
+}
+function _saveWxThresholds(th){try{localStorage.setItem('st_wxThresholds',JSON.stringify(th))}catch(e){}}
+function _saveWxAlertHistory(){
+  if(_wxAlertHistory.length>50)_wxAlertHistory=_wxAlertHistory.slice(-50);
+  try{localStorage.setItem('st_wxAlertHistory',JSON.stringify(_wxAlertHistory))}catch(e){}
+}
+function checkWeatherThresholds(){
+  if(!S.weather)return;
+  const th=_loadWxThresholds();
+  const now=Date.now();
+  _WX_ALERT_DEFS.forEach(def=>{
+    const cfg=th[def.key];
+    if(!cfg||!cfg.on)return;
+    const result=def.check(S.weather,cfg.val);
+    if(!result)return;
+    const lastFired=_WX_ALERT_COOLDOWN[def.key]||0;
+    if(now-lastFired<900000)return;
+    _WX_ALERT_COOLDOWN[def.key]=now;
+    toast(result.msg,6000);
+    _wxAlertHistory.push({key:def.key,label:def.label,icon:def.icon,msg:result.msg,val:result.val,u:result.u,time:now});
+    _saveWxAlertHistory();
+    _sendBrowserNotification(def.label,result.msg);
+    if(S.activePage==='alerts')renderAlerts();
+  });
+}
+function _sendBrowserNotification(title,body){
+  if(!('Notification' in window))return;
+  if(Notification.permission!=='granted')return;
+  if(document.visibilityState==='visible')return;
+  try{
+    if(navigator.serviceWorker&&navigator.serviceWorker.controller){
+      navigator.serviceWorker.controller.postMessage({type:'WX_THRESHOLD_ALERT',title:'StormTracker: '+title,body:body.replace(/🔔\s*/,'')});
+    }else{
+      new Notification('StormTracker: '+title,{body:body.replace(/🔔\s*/,''),icon:'/StormTracker/icons/icon-192x192.png',tag:'wx-threshold-'+title,renotify:true});
+    }
+  }catch(e){console.log('Browser notification error:',e.message)}
+}
+function requestNotifPermission(){
+  if(!('Notification' in window))return;
+  if(Notification.permission==='default'){Notification.requestPermission().then(p=>console.log('Notification permission:',p))}
+}
+function renderWxAlertSettings(){
+  const th=_loadWxThresholds();
+  let html='';
+  _WX_ALERT_DEFS.forEach(def=>{
+    const cfg=th[def.key]||{on:def.defOn,val:def.defVal};
+    const step=def.step||1;
+    html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px">
+      <label style="display:flex;align-items:center;gap:4px;font-size:0.7em;color:var(--text-muted);flex:1;min-width:0;cursor:pointer">
+        <input type="checkbox" ${cfg.on?'checked':''} onchange="toggleWxAlert('${def.key}',this.checked)" style="accent-color:var(--accent-cyan)">
+        <span style="white-space:nowrap">${def.icon} ${def.label}</span>
+      </label>
+      <input type="number" value="${cfg.val}" step="${step}" min="0" style="width:60px;font-size:0.7em;padding:3px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;text-align:center;font-family:var(--font-mono)" onchange="setWxAlertVal('${def.key}',this.value)" ${cfg.on?'':'disabled'}>
+    </div>`;
+  });
+  return html;
+}
+function toggleWxAlert(key,on){
+  const th=_loadWxThresholds();
+  if(!th[key]){const def=_WX_ALERT_DEFS.find(d=>d.key===key);th[key]={on,val:def?def.defVal:0}}
+  else th[key].on=on;
+  _saveWxThresholds(th);
+  if(on)requestNotifPermission();
+  const el=document.getElementById('wx-alert-settings');
+  if(el)el.innerHTML=renderWxAlertSettings();
+}
+function setWxAlertVal(key,val){
+  const th=_loadWxThresholds();
+  if(!th[key])th[key]={on:false,val:parseFloat(val)};
+  else th[key].val=parseFloat(val);
+  _saveWxThresholds(th);
+}
+function clearWxAlertHistory(){_wxAlertHistory=[];_saveWxAlertHistory();if(S.activePage==='alerts')renderAlerts();}
+
+// ==========================================
 // WEATHER (Open-Meteo)
 // ==========================================
 async function fetchWeather(){
@@ -2199,7 +2296,7 @@ async function fetchWeather(){
         console.log('Weather: NWS forecast loaded ('+nwsFc.length+' periods)');
       }
     }catch(e){console.log('Multi-source blend failed:',e.message)}
-    S.weather=omData.current;_resetMinMax();renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);
+    S.weather=omData.current;_resetMinMax();renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);
   }catch(e){el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p></div>`}
 }
 async function _fetchAWCOnce(){
@@ -6909,21 +7006,15 @@ function renderAlerts(){
   const el=document.getElementById('page-alerts');
   updateAlertBadge();
   if(!S.lat){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📍</div><p>Set your location to check alerts.</p></div>`;return}
-  const alerts=S.alerts;
-  if(!alerts.length){
-    el.innerHTML=`<div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">No Active Alerts</span><br>No NWS warnings or watches for your area.</div></div>
-      <div style="font-size:0.7em;color:var(--text-muted);text-align:center;padding:10px">NWS alerts cover US locations only.</div>`;
-    return;
-  }
+  let html='';
+  const alerts=S.alerts||[];
   const now=Date.now();
-  S.alerts=alerts.filter(a=>{const e=a.properties?.expires;return !e||new Date(e).getTime()>now});
-  updateAlertBadge();
-  if(!S.alerts.length){
-    el.innerHTML=`<div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">No Active Alerts</span><br>No NWS warnings or watches for your area.</div></div>
-      <div style="font-size:0.7em;color:var(--text-muted);text-align:center;padding:10px">NWS alerts cover US locations only.</div>`;
-    return;
+  if(alerts.length){
+    S.alerts=alerts.filter(a=>{const e=a.properties?.expires;return !e||new Date(e).getTime()>now});
+    updateAlertBadge();
   }
-  el.innerHTML=`<div class="card"><div class="card-title"><span class="icon">⚠️</span> NWS Alerts (${S.alerts.length})</div>
+  if(S.alerts&&S.alerts.length){
+    html+=`<div class="card"><div class="card-title"><span class="icon">⚠️</span> NWS Alerts (${S.alerts.length})</div>
     ${S.alerts.map((a,i)=>{
       const p=a.properties||{};const event=p.event||'Alert';const sev=(p.severity||'').toLowerCase();
       const cls=(sev==='extreme'||sev==='severe')?'':sev==='moderate'?'watch':'advisory';
@@ -6931,7 +7022,31 @@ function renderAlerts(){
       const sevIcon=sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
       return`<div class="nws-alert ${cls}"><div class="nws-alert-title">${sevIcon} ${event}</div><div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${p.expires?`<div class="nws-alert-expires">⏱️ <span id="alert-cd-${i}" data-exp="${new Date(p.expires).getTime()}"></span></div>`:''}</div>`;
     }).join('')}</div>`;
-  startAlertCountdowns();
+  }else{
+    html+=`<div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">No Active NWS Alerts</span><br>No NWS warnings or watches for your area.</div></div>
+      <div style="font-size:0.7em;color:var(--text-muted);text-align:center;padding:10px">NWS alerts cover US locations only.</div>`;
+  }
+  const hist=_wxAlertHistory.slice().reverse();
+  html+=`<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🔔</span> Station Alerts${hist.length?' ('+hist.length+')':''}</span>${hist.length?'<button onclick="clearWxAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':''}</div>`;
+  if(!hist.length){
+    html+=`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No station alerts yet. Enable thresholds in Settings ⚙️ → Weather Station Alerts 🔔</div>`;
+  }else{
+    hist.slice(0,20).forEach(h=>{
+      const d=new Date(h.time);
+      const tStr=fmtClock(d)+' · '+d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      html+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+          <span>${h.icon||'🔔'}</span>
+          <span style="font-weight:600;color:var(--text-primary)">${h.label}</span>
+          <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
+        </div>
+        <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🔔 ','')}</div>
+      </div>`;
+    });
+  }
+  html+=`</div>`;
+  el.innerHTML=html;
+  if(S.alerts&&S.alerts.length)startAlertCountdowns();
 }
 function startAlertCountdowns(){
   if(S._alertCdTimer)clearInterval(S._alertCdTimer);
