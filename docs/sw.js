@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stormtracker-v231a';
+const CACHE_NAME = 'stormtracker-v232';
 const STATIC_ASSETS = [
   '/StormTracker/',
   '/StormTracker/index.html',
@@ -100,6 +100,20 @@ self.addEventListener('push', event => {
     ]
   };
   event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'WX_THRESHOLD_ALERT') {
+    self.registration.showNotification(event.data.title || 'StormTracker Alert', {
+      body: event.data.body || 'Weather threshold breached',
+      icon: '/StormTracker/icons/icon-192x192.png',
+      badge: '/StormTracker/icons/icon-96x96.png',
+      vibrate: [200, 100, 200],
+      tag: 'wx-threshold',
+      renotify: true,
+      data: { url: '/StormTracker/' }
+    });
+  }
 });
 
 self.addEventListener('notificationclick', event => {
