@@ -7915,24 +7915,23 @@ function render3DView(){
   const ww=wrap.clientWidth;
   const wh=wrap.clientHeight;
   const rawPts=S._rawScanPts||[];
-  let storms;
-  if(rawPts.length){
-    const pts=rawPts.filter(p=>p.dbz>=15);
-    pts.sort((a,b)=>b.dbz-a.dbz);
-    const clustered=[];
-    for(const p of pts){
-      let merged=false;
-      for(const e of clustered){
-        if(haversine(p.lat,p.lng,e.lat,e.lng)<1.5){e.pixels=(e.pixels||1)+1;if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
-      }
-      if(!merged){
-        const dist=haversine(S.lat,S.lon,p.lat,p.lng);
-        const bear=bearingDeg(S.lat,S.lon,p.lat,p.lng);
-        clustered.push({lat:p.lat,lng:p.lng,dbz:p.dbz,distance:dist,bearing:bear,pixels:1});
-      }
+  const stormList=S.storms||[];
+  const allPts=rawPts.length?rawPts:stormList;
+  const pts=allPts.filter(p=>p.dbz>=15);
+  pts.sort((a,b)=>b.dbz-a.dbz);
+  const storms=[];
+  for(const p of pts){
+    let merged=false;
+    for(const e of storms){
+      if(haversine(p.lat,p.lng,e.lat,e.lng)<1.5){e.pixels=(e.pixels||1)+1;if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
     }
-    storms=clustered;
-  }else{storms=S.storms||[]}
+    if(!merged){
+      const dist=haversine(S.lat,S.lon,p.lat,p.lng);
+      const bear=bearingDeg(S.lat,S.lon,p.lat,p.lng);
+      storms.push({lat:p.lat,lng:p.lng,dbz:p.dbz,distance:dist,bearing:bear,pixels:1});
+    }
+  }
+  console.log('3D render: rawPts='+rawPts.length+' stormList='+stormList.length+' filtered='+pts.length+' clustered='+storms.length);
   const useMetric=S.units==='metric';
   const unitLabel=useMetric?'km':'mi';
   const maxRingDist=useMetric?80:50;
