@@ -5922,7 +5922,6 @@ function spacingFilter(points,hiRes){
   const validPoints=points.filter(p=>{
     if(p.dbz>=30)return true;
     if(hiRes&&p.dbz>=20)return true;
-    if(p.dbz>=20&&points.length>=3)return true;
     const radius=p.dbz>=25?5:8;
     let nearby=0;
     for(const q of points){
@@ -7915,12 +7914,28 @@ function render3DView(){
   const wrap=ISO.wrap;
   const ww=wrap.clientWidth;
   const wh=wrap.clientHeight;
-  let storms=S.storms||[];
-  if(!storms.length&&S._rawScanPts&&S._rawScanPts.length){storms=S._rawScanPts.filter(p=>p.dbz>=15)}
+  const rawPts=S._rawScanPts||[];
+  const stormList=S.storms||[];
+  const allPts=rawPts.length?rawPts:stormList;
+  const pts=allPts.filter(p=>p.dbz>=15);
+  pts.sort((a,b)=>b.dbz-a.dbz);
+  const storms=[];
+  for(const p of pts){
+    let merged=false;
+    for(const e of storms){
+      if(haversine(p.lat,p.lng,e.lat,e.lng)<1.5){e.pixels=(e.pixels||1)+1;if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
+    }
+    if(!merged){
+      const dist=haversine(S.lat,S.lon,p.lat,p.lng);
+      const bear=bearingDeg(S.lat,S.lon,p.lat,p.lng);
+      storms.push({lat:p.lat,lng:p.lng,dbz:p.dbz,distance:dist,bearing:bear,pixels:1});
+    }
+  }
   const useMetric=S.units==='metric';
   const unitLabel=useMetric?'km':'mi';
-  const maxRingDist=useMetric?80:50;
-  const ringStep=useMetric?20:10;
+  const scanR=S.scanRadius||80;
+  const maxRingDist=useMetric?Math.round(scanR*1.60934/20)*20||80:scanR;
+  const ringStep=useMetric?20:(maxRingDist<=50?10:20);
   const groundSize=Math.min(ww,wh)*2.2;
   const scale=groundSize/(maxRingDist*2.4);
 
