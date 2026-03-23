@@ -341,8 +341,8 @@ canvas.offscreen{display:none}
 .hero-compass-layout:has(.gauge-g1000){gap:6px}
 .gauge-style-btn:hover{background:rgba(0,229,255,0.08)!important;border-color:rgba(0,229,255,0.3)!important}
 @media(max-width:480px){.gauge-g1000{width:100%!important;max-width:340px!important;height:auto!important}.hero-compass-layout:has(.gauge-g1000){flex-wrap:wrap}}
-.iso-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9000;background:#080c18;display:none;flex-direction:column;overflow:hidden}
-.iso-overlay.active{display:flex}
+.iso-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9000;background:#080c18;display:flex;flex-direction:column;overflow:hidden;opacity:0;visibility:hidden;transition:opacity 0.3s ease,visibility 0.3s ease}
+.iso-overlay.active{opacity:1;visibility:visible}
 .iso-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(10,16,32,0.95);border-bottom:1px solid rgba(255,255,255,0.08);z-index:2}
 .iso-header h3{margin:0;font-size:0.85em;color:var(--text-primary);font-weight:700}
 .iso-header .iso-loc{font-size:0.65em;color:var(--text-muted);margin-top:1px}
