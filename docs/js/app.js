@@ -8039,7 +8039,7 @@ function buildTerrainGrid(){
   return{data:grid,size:GS};
 }
 
-function dbzColor(v){
+function terrainDbzRGB(v){
   if(v>=56)return[224,64,251];
   if(v>=46)return[255,51,85];
   if(v>=36)return[255,170,20];
@@ -8148,7 +8148,7 @@ function renderTerrain3D(){
       const x3=projected[i01*2],y3=projected[i01*2+1];
 
       const c1=(x1-x0)*(y3-y0)-(y1-y0)*(x3-x0);
-      const rgb=dbzColor(avgV);
+      const rgb=terrainDbzRGB(avgV);
       const bright=0.5+avgV/130;
       const shade=c1>0?0.85:1.0;
       const alpha=Math.min(0.92,0.3+avgV/80);
