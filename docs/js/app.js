@@ -2153,7 +2153,7 @@ const _WX_ALERT_DEFS=[
   {key:'visMin',label:'Visibility Low',icon:'👁️',unit:'vis',defVal:1.0,defOn:false,dir:'below',check:(c,th)=>{const vm=S._nwsVisM;if(vm==null)return null;let v,u;if(S.visUnit===0){v=parseFloat((vm/1609.34).toFixed(1));u='mi'}else{v=parseFloat((vm/1000).toFixed(1));u='km'}return v<=th?{val:v,u,msg:`🔔 Visibility dropped to ${v} ${u} — below your ${th} ${u} threshold`}:null}},
   {key:'uvMax',label:'UV Index',icon:'☀️',unit:'uv',defVal:8,defOn:false,check:(c,th)=>{const uv=S._uvIndex;if(uv==null)return null;return uv>=th?{val:uv,u:'',msg:`🔔 UV Index at ${uv} — above your ${th} threshold (high exposure risk)`}:null}}
 ];
-const _WX_ALERT_COOLDOWN={};
+const _WX_ALERT_COOLDOWN=(function(){try{const s=localStorage.getItem('st_wxAlertCooldown');if(s){const o=JSON.parse(s);const now=Date.now();Object.keys(o).forEach(k=>{if(now-o[k]>900000)delete o[k]});return o}}catch(e){}return{}})();
 let _wxAlertHistory=JSON.parse(localStorage.getItem('st_wxAlertHistory')||'[]');
 function _loadWxThresholds(){
   try{const s=localStorage.getItem('st_wxThresholds');if(s)return JSON.parse(s)}catch(e){}
@@ -2176,6 +2176,7 @@ function checkWeatherThresholds(){
     const lastFired=_WX_ALERT_COOLDOWN[def.key]||0;
     if(now-lastFired<900000)return;
     _WX_ALERT_COOLDOWN[def.key]=now;
+    try{localStorage.setItem('st_wxAlertCooldown',JSON.stringify(_WX_ALERT_COOLDOWN))}catch(e){}
     toast(result.msg,6000);
     _wxAlertHistory.push({key:def.key,label:def.label,icon:def.icon,msg:result.msg,val:result.val,u:result.u,time:now});
     _saveWxAlertHistory();
@@ -2225,9 +2226,10 @@ function toggleWxAlert(key,on){
   if(el)el.innerHTML=renderWxAlertSettings();
 }
 function setWxAlertVal(key,val){
+  const n=parseFloat(val);if(isNaN(n)||n<0)return;
   const th=_loadWxThresholds();
-  if(!th[key])th[key]={on:false,val:parseFloat(val)};
-  else th[key].val=parseFloat(val);
+  if(!th[key])th[key]={on:false,val:n};
+  else th[key].val=n;
   _saveWxThresholds(th);
 }
 function clearWxAlertHistory(){_wxAlertHistory=[];_saveWxAlertHistory();if(S.activePage==='alerts')renderAlerts();}
@@ -5920,6 +5922,7 @@ function spacingFilter(points,hiRes){
   const validPoints=points.filter(p=>{
     if(p.dbz>=30)return true;
     if(hiRes&&p.dbz>=20)return true;
+    if(p.dbz>=20&&points.length>=3)return true;
     const radius=p.dbz>=25?5:8;
     let nearby=0;
     for(const q of points){
@@ -7912,7 +7915,8 @@ function render3DView(){
   const wrap=ISO.wrap;
   const ww=wrap.clientWidth;
   const wh=wrap.clientHeight;
-  const storms=S.storms||[];
+  let storms=S.storms||[];
+  if(!storms.length&&S._rawScanPts&&S._rawScanPts.length){storms=S._rawScanPts.filter(p=>p.dbz>=15)}
   const useMetric=S.units==='metric';
   const unitLabel=useMetric?'km':'mi';
   const maxRingDist=useMetric?80:50;
