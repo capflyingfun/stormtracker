@@ -1886,6 +1886,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.31a',date:'2026-03-23',items:['Camera D-pad controls: ▲▼◀▶ buttons for tilt/rotation, +/− for zoom, RST to reset — hold for continuous movement','Text selection disabled in 2.5D view to prevent accidental copy on mobile touch']},
   {ver:'v2.31',date:'2026-03-23',items:['2.5D Isometric Storm View — pure CSS/HTML bird\'s-eye perspective with weather emojis (☁️🌧️⛈️🌩️) at height-based positions scaled by dBZ intensity','Storm emoji sizing and drop-shadows scale with severity — red glow for 56+ dBZ severe cells','Approaching storms bob gently with CSS animation; ⚡ lightning overlays on cells ≥40 dBZ with strike count','Concentric distance rings (10mi/20km intervals), north arrow, and user location pulsing dot at center','Touch interaction: drag to rotate tilt (±15°), pinch to zoom, mouse wheel zoom, tap storm for popup details','Auto-updates when new scan data arrives — view stays current without reopening','Legend panel with emoji intensity guide; storm count info badge','Rain streak animations under moderate+ cells; movement arrows below each storm emoji','Tutorial section added for 2.5D Storm View']},
   {ver:'v2.30e',date:'2026-03-23',items:['AI prompt overhaul: NWS Area Forecast Discussion (AFD) fetched live from api.weather.gov for US locations — real meteorologist analysis included in AI context','Thunderstorm formation analysis: CAPE, Lifted Index, CIN from Open-Meteo with rated moisture/stability/lifting scores and overall thunderstorm potential (1-10)','Winds aloft now included in AI context with all pressure levels (surface through 500hPa) in mph and knots','Wind shear analysis (NWS/Aviation standard) with vector magnitude, severity rating, and aviation impact assessment','5-section structured AI response: Summary & AFD, Relevant Storms, General, Aviation, Boating','Dynamic urgency tone: auto-scales from calm to URGENT based on storm dBZ and alert severity','Increased AI response length (800→1500 tokens) and lowered temperature (0.7→0.4) for more thorough and consistent analysis']},
   {ver:'v2.30d',date:'2026-03-23',items:['Fixed iOS 24-hour auto-detection: system military time setting now properly detected across all time displays','Fixed AWC METAR observation time parsing: station Updated time now correctly converts from UTC to local timezone','Eliminated 150ms location-load delay: weather data fetches instantly with immediate loading skeleton','Tutorial expanded to 15 sections covering Lightning Indicators and Settings Panel']},
@@ -7731,6 +7732,23 @@ function show3DView(){
           <div class="iso-legend-row"><span class="le">⚡</span> Lightning (≥40)</div>
         </div>
         <div class="iso-info" id="iso-info"></div>
+        <div class="iso-cam" id="iso-cam">
+          <div class="iso-cam-pad">
+            <div></div>
+            <div class="iso-cam-btn" data-cam="up">▲</div>
+            <div></div>
+            <div class="iso-cam-btn" data-cam="left">◀</div>
+            <div class="iso-cam-btn iso-cam-center" data-cam="reset">RST</div>
+            <div class="iso-cam-btn" data-cam="right">▶</div>
+            <div></div>
+            <div class="iso-cam-btn" data-cam="down">▼</div>
+            <div></div>
+          </div>
+          <div class="iso-cam-zoom">
+            <div class="iso-cam-btn" data-cam="zout">−</div>
+            <div class="iso-cam-btn" data-cam="zin">+</div>
+          </div>
+        </div>
       </div>`;
     document.body.appendChild(ov);
     ISO.el=ov;
@@ -7910,7 +7928,7 @@ function setupIsoTouch(){
   let lastX,lastY;
 
   w.addEventListener('pointerdown',(e)=>{
-    if(e.target.closest('.iso-popup,.iso-legend,.iso-info,.iso-close'))return;
+    if(e.target.closest('.iso-popup,.iso-legend,.iso-info,.iso-close,.iso-cam'))return;
     dragging=true;
     lastX=e.clientX;
     lastY=e.clientY;
@@ -7958,11 +7976,41 @@ function setupIsoTouch(){
   w.addEventListener('touchend',()=>{pinchDist=null;});
 
   w.addEventListener('click',(e)=>{
-    if(!e.target.closest('.iso-storm')&&ISO.popup){
+    if(!e.target.closest('.iso-storm')&&!e.target.closest('.iso-cam')&&ISO.popup){
       ISO.popup.remove();
       ISO.popup=null;
     }
   });
+
+  const camPad=document.getElementById('iso-cam');
+  if(camPad){
+    let camInterval=null;
+    const applyIso=()=>{if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;};
+    const camActions={
+      up:()=>{ISO.tiltX=Math.min(70,ISO.tiltX+2);applyIso();},
+      down:()=>{ISO.tiltX=Math.max(40,ISO.tiltX-2);applyIso();},
+      left:()=>{ISO.tiltZ=Math.max(-60,ISO.tiltZ-2);applyIso();},
+      right:()=>{ISO.tiltZ=Math.min(-30,ISO.tiltZ+2);applyIso();},
+      zin:()=>{ISO.zoom=Math.min(3,ISO.zoom+0.1);applyIso();},
+      zout:()=>{ISO.zoom=Math.max(0.3,ISO.zoom-0.1);applyIso();},
+      reset:()=>{ISO.tiltX=55;ISO.tiltZ=-45;ISO.zoom=1;applyIso();}
+    };
+    const startCam=(action)=>{
+      if(camActions[action])camActions[action]();
+      camInterval=setInterval(()=>{if(camActions[action])camActions[action]();},80);
+    };
+    const stopCam=()=>{if(camInterval){clearInterval(camInterval);camInterval=null;}};
+
+    camPad.addEventListener('pointerdown',(e)=>{
+      const btn=e.target.closest('[data-cam]');
+      if(!btn)return;
+      e.preventDefault();e.stopPropagation();
+      startCam(btn.dataset.cam);
+    });
+    camPad.addEventListener('pointerup',stopCam);
+    camPad.addEventListener('pointerleave',stopCam);
+    camPad.addEventListener('pointercancel',stopCam);
+  }
 }
 
 (function initLang(){
