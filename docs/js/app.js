@@ -7754,9 +7754,6 @@ function show3DView(){
             <div class="iso-cam-btn" data-cam="zin">+</div>
           </div>
         </div>
-        <div class="iso-gyro-wrap">
-          <div class="iso-cam-btn iso-gyro-btn" id="iso-gyro-btn" title="Toggle gyroscope">🔄 Gyro</div>
-        </div>
       </div>`;
     document.body.appendChild(ov);
     ISO.el=ov;
@@ -7781,7 +7778,6 @@ function show3DView(){
 
 function hide3DView(){
   ISO.open=false;
-  if(_isoGyroActive)stopIsoGyro();
   const ov=document.getElementById('iso-overlay');
   if(ov)ov.classList.remove('active');
   if(ISO.popup){ISO.popup.remove();ISO.popup=null;}
@@ -8064,44 +8060,6 @@ function setupIsoTouch(){
     camPad.addEventListener('dblclick',(e)=>{e.preventDefault();e.stopPropagation();});
     camPad.addEventListener('touchstart',(e)=>{e.preventDefault();},{passive:false});
   }
-  const gyroBtn=document.getElementById('iso-gyro-btn');
-  if(gyroBtn){
-    let _gyroTapped=false;
-    gyroBtn.addEventListener('touchstart',(e)=>{e.preventDefault();e.stopPropagation();_gyroTapped=true;toggleIsoGyro();},{passive:false});
-    gyroBtn.addEventListener('click',(e)=>{e.preventDefault();e.stopPropagation();if(!_gyroTapped)toggleIsoGyro();_gyroTapped=false;});
-  }
-}
-
-/* ── Gyroscope control for 2.5D view ── */
-let _isoGyroActive=false,_isoGyroBase=null,_isoGyroRAF=null;
-function toggleIsoGyro(){
-  if(_isoGyroActive){stopIsoGyro();return;}
-  if(!_gyroEnabled){
-    enableGyro();
-    setTimeout(()=>{if(_gyroEnabled)startIsoGyro();},500);
-  }else{startIsoGyro();}
-}
-function startIsoGyro(){
-  _isoGyroActive=true;_isoGyroBase=null;
-  _isoGyroRAF=setInterval(updateIsoFromGyro,50);
-  const btn=document.getElementById('iso-gyro-btn');
-  if(btn){btn.style.background='rgba(0,229,255,0.2)';btn.style.borderColor='rgba(0,229,255,0.5)';btn.style.color='rgba(0,229,255,0.9)';btn.textContent='🔄 Gyro ON';}
-}
-function stopIsoGyro(){
-  _isoGyroActive=false;_isoGyroBase=null;
-  if(_isoGyroRAF){clearInterval(_isoGyroRAF);_isoGyroRAF=null;}
-  const btn=document.getElementById('iso-gyro-btn');
-  if(btn){btn.style.background='';btn.style.borderColor='';btn.style.color='';btn.textContent='🔄 Gyro';}
-}
-function updateIsoFromGyro(){
-  if(!ISO.open||!ISO.scene||!_gyroEnabled||_gyroHeading==null)return;
-  if(_isoGyroBase===null)_isoGyroBase=_gyroHeading;
-  let dH=_gyroHeading-_isoGyroBase;
-  if(dH>180)dH-=360;
-  if(dH<-180)dH+=360;
-  ISO.tiltZ=(-dH)%360;
-  if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
-  updateIsoCompass();
 }
 
 (function initLang(){
