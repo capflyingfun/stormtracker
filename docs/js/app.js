@@ -7846,10 +7846,11 @@ function stormSVG(dbz,color,sz){
   return svg;
 }
 function dbzToHeight(d){
-  if(d>=56)return 55;
-  if(d>=46)return 38;
-  if(d>=31)return 20;
-  return 6;
+  if(d>=56)return 140;
+  if(d>=46)return 100;
+  if(d>=31)return 60;
+  if(d>=20)return 30;
+  return 12;
 }
 function dbzToSize(d){
   if(d>=56)return 2.2;
@@ -7954,7 +7955,7 @@ function show3DView(){
   ISO.zoom=1;
   ISO.tiltX=55;
   ISO.tiltZ=0;
-  ISO._fps={frames:0,last:performance.now(),current:60,target:45,maxStorms:120,mergeR:0.001,history:[]};
+  ISO._fps={frames:0,last:performance.now(),current:60,target:45,maxStorms:500,mergeR:0.0005,history:[]};
   ov.classList.add('active');
   const loc=document.getElementById('iso-loc');
   if(loc)loc.textContent=S.locName||`${S.lat.toFixed(2)}, ${S.lon.toFixed(2)}`;
@@ -7974,7 +7975,7 @@ function hide3DView(){
 ISO._stormEls=[];
 ISO._windArrows=[];
 ISO._rafPending=false;
-ISO._fps={frames:0,last:performance.now(),current:60,target:45,maxStorms:120,mergeR:0.001,history:[]};
+ISO._fps={frames:0,last:performance.now(),current:60,target:45,maxStorms:500,mergeR:0.0005,history:[]};
 
 function isoStartLoop(){
   if(ISO._loopId)return;
@@ -8000,13 +8001,13 @@ function isoFpsTick(){
     f.history.push(f.current);
     if(f.history.length>6)f.history.shift();
     const avg=f.history.reduce((a,b)=>a+b,0)/f.history.length;
-    if(avg<25&&f.maxStorms>20){
-      f.maxStorms=Math.max(20,f.maxStorms-15);
+    if(avg<25&&f.maxStorms>40){
+      f.maxStorms=Math.max(40,f.maxStorms-30);
       f.mergeR=Math.min(0.02,f.mergeR*1.5);
       if(ISO.open)render3DView();
-    }else if(avg>55&&f.maxStorms<200){
-      f.maxStorms=Math.min(200,f.maxStorms+10);
-      f.mergeR=Math.max(0.0005,f.mergeR*0.85);
+    }else if(avg>55&&f.maxStorms<600){
+      f.maxStorms=Math.min(600,f.maxStorms+20);
+      f.mergeR=Math.max(0.0002,f.mergeR*0.85);
     }
     const badge=document.getElementById('iso-fps');
     if(badge)badge.textContent=`${f.current} fps · ${ISO._stormEls.length} cells`;
