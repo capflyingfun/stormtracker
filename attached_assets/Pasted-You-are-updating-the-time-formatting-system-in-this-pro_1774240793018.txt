@@ -1,0 +1,127 @@
+You are updating the time formatting system in this project. The goal is to support BOTH manual 12/24‑hour selection AND automatic detection of the user's system preference. The auto‑detect must work reliably on iOS Safari, Android, and desktop browsers.
+
+===========================================================
+OBJECTIVE
+===========================================================
+Implement a unified time-format system with:
+
+1. Manual override (user chooses 12h or 24h)
+2. Automatic detection (only used when no manual override exists)
+3. Persistent storage (localStorage)
+4. A single function that returns the correct format at runtime
+
+===========================================================
+AUTO-DETECTION RULES (MUST FOLLOW)
+===========================================================
+Do NOT use:
+- resolvedOptions().hour12
+- resolvedOptions().hourCycle
+- AM/PM string detection
+These are unreliable on iOS Safari.
+
+Instead, use the ONLY reliable method:
+
+FORMAT 1 PM (13:00) using Intl.DateTimeFormat and check if the result contains “13”.
+
+Example:
+
+function detectHourFormat() {
+  const formatted = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "numeric"
+  }).format(new Date(2020, 0, 1, 13, 0));
+
+  // 24-hour if "13" appears
+  if (formatted.includes("13")) return "24";
+
+  // 12-hour if AM/PM appears
+  const lower = formatted.toLowerCase();
+  if (lower.includes("am") || lower.includes("pm")) return "12";
+
+  // Fallback: assume 24-hour
+  return "24";
+}
+
+This method works on:
+- iOS Safari
+- Android Chrome
+- Desktop browsers
+- Locales without AM/PM
+- Locales with unicode AM/PM markers
+
+===========================================================
+MANUAL OVERRIDE RULES
+===========================================================
+If the user manually selects 12h or 24h:
+- Save the choice in localStorage as "timeFormat"
+- Always use the manual choice
+- Never run auto-detect again unless the user resets to "System Default"
+
+Example:
+localStorage.setItem("timeFormat", "12");
+localStorage.setItem("timeFormat", "24");
+
+===========================================================
+SYSTEM DEFAULT MODE
+===========================================================
+If the user selects “System Default”:
+- Remove the manual override key
+- Run detectHourFormat()
+- Use the detected value
+
+Example:
+localStorage.removeItem("timeFormat");
+
+===========================================================
+UNIFIED GETTER FUNCTION
+===========================================================
+Create a single function that returns the active format:
+
+function getActiveTimeFormat() {
+  const manual = localStorage.getItem("timeFormat");
+  if (manual === "12" || manual === "24") return manual;
+  return detectHourFormat();
+}
+
+===========================================================
+TIME FORMATTING FUNCTION
+===========================================================
+Use getActiveTimeFormat() to format all times:
+
+function formatTime(date) {
+  const mode = getActiveTimeFormat();
+  const opts = {
+    hour: "numeric",
+    minute: "numeric",
+    hour12: mode === "12"
+  };
+  return new Intl.DateTimeFormat(undefined, opts).format(date);
+}
+
+===========================================================
+UI REQUIREMENTS
+===========================================================
+Provide three options in the UI:
+- 12-hour
+- 24-hour
+- System Default
+
+When the user selects:
+- 12 → save "12"
+- 24 → save "24"
+- System Default → remove key, auto-detect
+
+===========================================================
+SUMMARY OF WHAT YOU MUST IMPLEMENT
+===========================================================
+1. A reliable auto-detect using the 13:00 formatting trick.
+2. Manual override stored in localStorage.
+3. A unified getter that chooses manual OR auto.
+4. A formatting function that uses the active mode.
+5. UI controls for 12h / 24h / System Default.
+6. No reliance on hour12/hourCycle detection (iOS bug).
+7. No AM/PM string parsing (locale issues).
+
+===========================================================
+END OF SPECIFICATION
+===========================================================
