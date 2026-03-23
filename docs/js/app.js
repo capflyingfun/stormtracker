@@ -7736,8 +7736,8 @@ function show3DView(){
           <div class="iso-hstrip-track" id="iso-hstrip-track"></div>
           <div class="iso-hstrip-center"></div>
           <div class="iso-hstrip-hdg" id="iso-hstrip-hdg">000°</div>
-          <div class="iso-info" id="iso-info"></div>
         </div>
+        <div class="iso-info" id="iso-info"></div>
         <div class="iso-cam" id="iso-cam">
           <div class="iso-cam-pad">
             <div></div>
@@ -7764,6 +7764,8 @@ function show3DView(){
     ov.addEventListener('contextmenu',e=>e.preventDefault());
     ov.addEventListener('copy',e=>e.preventDefault());
     ov.addEventListener('dblclick',e=>e.preventDefault());
+    ov.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+    ov.addEventListener('touchstart',e=>{if(e.touches.length===1)e.preventDefault();},{passive:false});
     setupIsoTouch();
     buildHeadingStrip();
   }
