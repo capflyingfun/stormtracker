@@ -1886,6 +1886,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.33',date:'2026-03-23',items:['3D Storm View: threat-based color glow — green (low), yellow (moderate), red (serious), magenta (extreme) halo around each storm icon','Threat score formula combines dBZ intensity (50%) with approach trajectory impact (50%) for meaningful color coding','Storm direction arrows repositioned above icons for better visibility — larger, colored to match threat level, with text shadow for contrast','Radial glow ground effect beneath each storm icon with threat-colored ring','3D view ring range now matches scan radius (80mi) — all detected storms visible','3D view uses raw scan points for consistent display with sonar/radar views','Updated Storm Intensity legend with Threat Glow color key']},
   {ver:'v2.32',date:'2026-03-23',items:['Weather Station Alerts — set custom thresholds for wind, gusts, temperature, pressure, rainfall, humidity, visibility, and UV','10 configurable alert types with per-alert enable/disable and custom threshold values','15-minute cooldown per alert type to prevent notification spam','Browser push notifications when app is in background (via Service Worker)','Toast alerts when app is in foreground','Alert history log in Alerts tab with timestamps and clear button','Settings panel → Weather Station Alerts 🔔 section for easy configuration']},
   {ver:'v2.31e',date:'2026-03-23',items:['Fixed 3D view icon aspect ratio — storm emojis no longer squish or stretch on zoom/tilt','Changed scene transform from 2D scale to 3D scale3d for uniform scaling across all axes','Lightning, rain, and arrow indicators also maintain correct proportions at all zoom levels']},
   {ver:'v2.31d',date:'2026-03-23',items:['3D view storm arrows now use per-cell tracked movement direction from radar frame comparison','Clutter threshold raised: ≤12 returns below 22 dBZ now auto-hidden as clutter (previously ≤8 below 31 dBZ)','Inbound storm point button shows 12▶ (top 12 approaching) instead of 8▶','AI prompt updated to reflect new clutter thresholds']},
@@ -7788,6 +7789,36 @@ const ISO={
   popup:null
 };
 
+function stormThreatScore(dbz,distance,bearing){
+  const intens=Math.min(50,Math.max(0,((dbz-15)/45)*50));
+  let impactScore=0;
+  const etas=S._stormETAs||{};
+  const mv=S.stormMovement;
+  if(mv&&mv.speed>=2){
+    const bearToUser=(bearing+180)%360;
+    const diff=Math.abs(((mv.direction-bearToUser+180)%360)-180);
+    const closing=mv.speed*Math.cos(Math.min(diff,60)*Math.PI/180);
+    if(closing>0){
+      const proxBonus=Math.max(0,(80-distance)/80)*20;
+      const angleBonus=Math.max(0,(45-diff)/45)*25;
+      const speedBonus=Math.min(5,closing/4);
+      impactScore=Math.min(50,proxBonus+angleBonus+speedBonus);
+    }
+  }
+  const etaMatch=Object.values(etas).find(e=>{
+    if(!e)return false;
+    if(e.impact>0&&e.distance!==undefined)return Math.abs(e.distance-distance)<2&&Math.abs((e.bearing||0)-bearing)<15;
+    return false;
+  });
+  if(etaMatch&&etaMatch.impact>0){impactScore=Math.max(impactScore,etaMatch.impact/2)}
+  return Math.min(100,Math.round(intens+impactScore));
+}
+function threatColor(score){
+  if(score>80)return{color:'#e040fb',glow:'rgba(224,64,251,0.55)',label:'Extreme'};
+  if(score>55)return{color:'#ff3355',glow:'rgba(255,51,85,0.5)',label:'Serious'};
+  if(score>35)return{color:'#facc15',glow:'rgba(250,204,21,0.45)',label:'Moderate'};
+  return{color:'#22c55e',glow:'rgba(34,197,94,0.35)',label:'Low'};
+}
 function dbzToEmoji(d){
   if(d>=56)return'🌩️';
   if(d>=46)return'⛈️';
@@ -7852,6 +7883,11 @@ function show3DView(){
           <div class="iso-legend-row"><span class="le">⛈️</span> Heavy (46-55)</div>
           <div class="iso-legend-row"><span class="le">🌩️</span> Severe (56+)</div>
           <div class="iso-legend-row"><span class="le">⚡</span> Lightning (≥40)</div>
+          <h4 style="margin-top:6px">Threat Glow</h4>
+          <div class="iso-legend-row"><span class="le" style="color:#22c55e">●</span> Low</div>
+          <div class="iso-legend-row"><span class="le" style="color:#facc15">●</span> Moderate</div>
+          <div class="iso-legend-row"><span class="le" style="color:#ff3355">●</span> Serious</div>
+          <div class="iso-legend-row"><span class="le" style="color:#e040fb">●</span> Extreme</div>
         </div>
         <div class="iso-hstrip" id="iso-hstrip">
           <div class="iso-hstrip-track" id="iso-hstrip-track"></div>
@@ -7994,7 +8030,9 @@ function render3DView(){
     const h=dbzToHeight(st.dbz);
     const emoji=dbzToEmoji(st.dbz);
     const sz=dbzToSize(st.dbz);
-    const shd=dbzToShadow(st.dbz);
+
+    const tScore=stormThreatScore(st.dbz,st.distance||0,st.bearing||0);
+    const tc=threatColor(tScore);
 
     const etaKey=Object.keys(etas).find(k=>{
       const e=etas[k];
@@ -8006,9 +8044,19 @@ function render3DView(){
 
     const el=document.createElement('div');
     el.className='iso-storm'+(isApproaching?' approaching':'');
+    const glowSz=Math.max(8,sz*10);
     el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);`;
 
-    let html=`<span class="iso-emoji" style="font-size:${sz}em;filter:${shd};transform:translateY(-${h}px)">${emoji}</span>`;
+    const cellTrk=getCellTrack(st);
+    const stDir=cellTrk?cellTrk.dir:(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement.direction:undefined);
+    let arrowHtml='';
+    if(stDir!==undefined){
+      const arr=bearingToArrow(stDir);
+      arrowHtml=`<span class="iso-arrow" style="color:${tc.color}">${arr}</span>`;
+    }
+
+    let html=arrowHtml+`<span class="iso-emoji" style="font-size:${sz}em;filter:drop-shadow(0 0 ${glowSz}px ${tc.glow}) drop-shadow(0 4px 6px rgba(0,0,0,0.6));transform:translateY(-${h}px)">${emoji}</span>`;
+    html+=`<span class="iso-glow" style="width:${glowSz*2}px;height:${glowSz*2}px;background:radial-gradient(circle,${tc.glow} 0%,transparent 70%);bottom:${-glowSz+4}px;border:1px solid ${tc.color}33;border-radius:50%"></span>`;
 
     if(showLtng&&st.dbz>=40){
       const strikes=Math.floor((st.dbz-35)/5);
@@ -8017,13 +8065,6 @@ function render3DView(){
 
     if(st.dbz>=31){
       html+=`<span class="iso-rain"></span>`;
-    }
-
-    const cellTrk=getCellTrack(st);
-    const stDir=cellTrk?cellTrk.dir:(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement.direction:undefined);
-    if(stDir!==undefined){
-      const arr=bearingToArrow(stDir);
-      html+=`<span class="iso-arrow">${arr}</span>`;
     }
 
     el.innerHTML=html;
