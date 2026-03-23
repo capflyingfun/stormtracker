@@ -7191,7 +7191,7 @@ async function scanGsfTile(tile,frame,zoom){
         const i=(y*w+x)*4;
         if(data[i+3]<20)continue;
         const dbz=rvToDbz(data[i],data[i+1],data[i+2],data[i+3]);
-        if(dbz<25)continue;
+        if(dbz<15)continue;
         const ptLon=(tile.tx+x/w)*360/n-180;
         const ptLatRad=Math.atan(Math.sinh(Math.PI*(1-2*(tile.ty+y/h)/n)));
         const ptLat=ptLatRad*180/Math.PI;
@@ -7293,16 +7293,29 @@ ${hsStr}`;
     });
     if(!res.ok){
       const err=await res.json().catch(()=>({}));
-      if(res.status===401){if(resultsEl)resultsEl.innerHTML='<div style="padding:16px;color:var(--accent-red)">Invalid API key. Check Settings.</div>';return}
-      if(resultsEl)resultsEl.innerHTML=`<div style="padding:16px;color:var(--accent-red)">API error: ${err.error?.message||res.status}</div>`;
+      const errDiv=document.createElement('div');
+      errDiv.style.cssText='padding:16px;color:var(--accent-red)';
+      if(res.status===401){errDiv.textContent='Invalid API key. Check Settings.';}
+      else{errDiv.textContent='API error: '+(err.error?.message||'Status '+res.status);}
+      if(resultsEl){resultsEl.innerHTML='';resultsEl.appendChild(errDiv);}
       return;
     }
     const data=await res.json();
     const reply=data.choices?.[0]?.message?.content||'';
     renderGsfResults(reply);
   }catch(e){
-    if(resultsEl)resultsEl.innerHTML=`<div style="padding:16px;color:var(--accent-red)">Connection error: ${e.message}</div>`;
+    if(resultsEl){
+      const errDiv=document.createElement('div');
+      errDiv.style.cssText='padding:16px;color:var(--accent-red)';
+      errDiv.textContent='Connection error: '+e.message;
+      resultsEl.innerHTML='';resultsEl.appendChild(errDiv);
+    }
   }
+}
+
+function _gsfEsc(s){
+  if(!s)return'';
+  const d=document.createElement('div');d.textContent=String(s);return d.innerHTML;
 }
 
 function renderGsfResults(reply){
@@ -7312,39 +7325,73 @@ function renderGsfResults(reply){
   const regex=/\[STORM_RESULT\](.*?)\[\/STORM_RESULT\]/gs;
   let m;
   while((m=regex.exec(reply))!==null){
-    try{stormResults.push(JSON.parse(m[1]))}catch(e){}
+    try{
+      const parsed=JSON.parse(m[1]);
+      if(typeof parsed.lat==='number'&&typeof parsed.lon==='number'&&typeof parsed.dbz==='number'){
+        parsed.lat=Math.max(-90,Math.min(90,parsed.lat));
+        parsed.lon=Math.max(-180,Math.min(180,parsed.lon));
+        parsed.dbz=Math.max(0,Math.min(80,Math.round(parsed.dbz)));
+        parsed.region=String(parsed.region||'Unknown').slice(0,60);
+        parsed.summary=String(parsed.summary||'').slice(0,300);
+        stormResults.push(parsed);
+      }
+    }catch(e){}
   }
   let commentary=reply.replace(/\[STORM_RESULT\].*?\[\/STORM_RESULT\]/gs,'').trim();
   commentary=commentary.replace(/\n{3,}/g,'\n\n');
-  let html='';
+  resultsEl.innerHTML='';
   if(stormResults.length>0){
-    html+='<div style="margin-bottom:12px">';
+    const wrap=document.createElement('div');
+    wrap.style.marginBottom='12px';
     stormResults.forEach((sr,i)=>{
       const cat=sr.dbz>=50?{label:'Severe',color:'var(--accent-red)',bg:'rgba(239,68,68,0.12)'}:
                 sr.dbz>=40?{label:'Heavy',color:'var(--accent-orange)',bg:'rgba(255,140,0,0.12)'}:
                 sr.dbz>=30?{label:'Moderate',color:'var(--accent-yellow)',bg:'rgba(255,224,64,0.12)'}:
                            {label:'Light',color:'var(--accent-green)',bg:'rgba(0,255,136,0.12)'};
-      html+=`<div class="gsf-result-card" style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:10px;padding:12px;margin-bottom:8px;border-left:3px solid ${cat.color}">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <div>
-            <span style="font-weight:700;color:var(--text-primary);font-size:0.9em">📍 ${sr.region}</span>
-            <span style="background:${cat.bg};color:${cat.color};font-size:0.6em;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px">${sr.dbz} dBZ · ${cat.label}</span>
-          </div>
-          <button onclick="gsfGoThere(${sr.lat},${sr.lon},'${sr.region.replace(/'/g,"\\'")}')" style="padding:4px 12px;background:rgba(0,229,255,0.12);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;font-size:0.7em;font-weight:700;cursor:pointer;white-space:nowrap">Go There →</button>
-        </div>
-        <div style="font-size:0.75em;color:var(--text-secondary);line-height:1.4">${sr.summary||''}</div>
-        <div style="font-size:0.6em;color:var(--text-muted);margin-top:4px">${sr.lat.toFixed(2)}°, ${sr.lon.toFixed(2)}°</div>
-      </div>`;
+      const dist=S.lat?Math.round(haversine(S.lat,S.lon,sr.lat,sr.lon)):null;
+      const distStr=dist!==null?` · ${dist} mi away`:'';
+      const card=document.createElement('div');
+      card.className='gsf-result-card';
+      card.style.cssText='background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:10px;padding:12px;margin-bottom:8px;border-left:3px solid '+cat.color;
+      const hdr=document.createElement('div');
+      hdr.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px';
+      const info=document.createElement('div');
+      const regionSpan=document.createElement('span');
+      regionSpan.style.cssText='font-weight:700;color:var(--text-primary);font-size:0.9em';
+      regionSpan.textContent='📍 '+sr.region;
+      const badge=document.createElement('span');
+      badge.style.cssText='background:'+cat.bg+';color:'+cat.color+';font-size:0.6em;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px';
+      badge.textContent=sr.dbz+' dBZ · '+cat.label;
+      info.appendChild(regionSpan);info.appendChild(badge);
+      const btn=document.createElement('button');
+      btn.style.cssText='padding:4px 12px;background:rgba(0,229,255,0.12);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;font-size:0.7em;font-weight:700;cursor:pointer;white-space:nowrap';
+      btn.textContent='Go There →';
+      btn.addEventListener('click',()=>gsfGoThere(sr.lat,sr.lon,sr.region));
+      hdr.appendChild(info);hdr.appendChild(btn);
+      card.appendChild(hdr);
+      if(sr.summary){
+        const sumEl=document.createElement('div');
+        sumEl.style.cssText='font-size:0.75em;color:var(--text-secondary);line-height:1.4';
+        sumEl.textContent=sr.summary;
+        card.appendChild(sumEl);
+      }
+      const coords=document.createElement('div');
+      coords.style.cssText='font-size:0.6em;color:var(--text-muted);margin-top:4px';
+      coords.textContent=sr.lat.toFixed(2)+'°, '+sr.lon.toFixed(2)+'°'+distStr;
+      card.appendChild(coords);
+      wrap.appendChild(card);
     });
-    html+='</div>';
+    resultsEl.appendChild(wrap);
   }
   if(commentary){
-    html+=`<div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:10px;padding:12px;font-size:0.78em;color:var(--text-secondary);line-height:1.5">${commentary.replace(/\n/g,'<br>')}</div>`;
+    const cDiv=document.createElement('div');
+    cDiv.style.cssText='background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:10px;padding:12px;font-size:0.78em;color:var(--text-secondary);line-height:1.5';
+    cDiv.textContent=commentary;
+    resultsEl.appendChild(cDiv);
   }
   if(!stormResults.length&&!commentary){
-    html='<div style="text-align:center;padding:20px;color:var(--text-muted)">No matching storms found.</div>';
+    resultsEl.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-muted)">No matching storms found.</div>';
   }
-  resultsEl.innerHTML=html;
 }
 
 function gsfGoThere(lat,lon,name){
