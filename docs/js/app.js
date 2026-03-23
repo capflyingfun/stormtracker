@@ -3995,6 +3995,7 @@ async function scanRadarForView(){
     scanStep(3,`Plotting ${S.storms.length.toLocaleString()} storm points...`);
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
+    if(typeof ISO!=='undefined'&&ISO.open)render3DView();
     if(S.map){
       plotStormMarkers(S.map);
       if(rawPoints.length>0){autoActivateZones()}
@@ -4065,6 +4066,7 @@ async function scanRadarHiRes(map,fromHome){
     scanStep(3,`Hi-Res: ${S.storms.length.toLocaleString()} points in ${HIRES_RADIUS} mi`);
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
+    if(typeof ISO!=='undefined'&&ISO.open)render3DView();
     plotStormMarkers(map);
     if(rawPoints.length>0){autoActivateZones()}
     else{clearStormZones();if(S.radarLayer&&S.map&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}
@@ -5691,6 +5693,7 @@ async function scanRadarForStorms(){
     scanStep(3,`Plotting ${S.storms.length} storm points...`);
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
+    if(typeof ISO!=='undefined'&&ISO.open)render3DView();
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
     updateThreatTicker();
     hideScanOverlay();
@@ -7741,7 +7744,7 @@ function show3DView(){
   ISO.tiltZ=-45;
   ov.classList.add('active');
   const loc=document.getElementById('iso-loc');
-  if(loc)loc.textContent=S.locationName||`${S.lat.toFixed(2)}, ${S.lng.toFixed(2)}`;
+  if(loc)loc.textContent=S.locName||`${S.lat.toFixed(2)}, ${S.lon.toFixed(2)}`;
   render3DView();
 }
 
@@ -7811,7 +7814,7 @@ function render3DView(){
 
   storms.forEach((st,i)=>{
     if(!st.dbz||st.dbz<15)return;
-    const pos=geoToIso(st.lat,st.lng,S.lat,S.lng,scale);
+    const pos=geoToIso(st.lat,st.lng,S.lat,S.lon,scale);
     const sx=cx+pos.x;
     const sy=cy+pos.y;
 
