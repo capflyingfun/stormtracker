@@ -7883,7 +7883,7 @@ function show3DView(){
           <div class="iso-legend-row"><span class="le">⛈️</span> Heavy (46-55)</div>
           <div class="iso-legend-row"><span class="le">🌩️</span> Severe (56+)</div>
           <div class="iso-legend-row"><span class="le">⚡</span> Lightning (≥40)</div>
-          <h4 style="margin-top:6px">Threat Glow</h4>
+          <h4 style="margin-top:6px">Threat Tint</h4>
           <div class="iso-legend-row"><span class="le" style="color:#22c55e">●</span> Low</div>
           <div class="iso-legend-row"><span class="le" style="color:#facc15">●</span> Moderate</div>
           <div class="iso-legend-row"><span class="le" style="color:#ff3355">●</span> Serious</div>
@@ -8101,9 +8101,10 @@ function render3DView(){
     const glowSz=Math.max(8,sz*10);
     el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);will-change:transform;`;
 
-    const glowR=Math.max(16,sz*14);
-    let html=`<span class="iso-emoji" style="font-size:${sz}em;filter:drop-shadow(0 0 ${glowR}px ${tc.glow}) drop-shadow(0 0 ${Math.round(glowR*0.6)}px ${tc.glow}) drop-shadow(0 4px 6px rgba(0,0,0,0.6));transform:translateY(-${h-8}px)">${emoji}</span>`;
-    html+=`<span class="iso-glow" style="width:${glowR*2.5}px;height:${glowR*2.5}px;background:radial-gradient(circle,${tc.color}55 0%,${tc.glow} 30%,transparent 70%);bottom:${-glowR+2}px;border:2px solid ${tc.color}66;border-radius:50%"></span>`;
+    const tintOp=tScore>80?0.55:tScore>55?0.45:tScore>35?0.35:0.2;
+    let html=`<span class="iso-emoji" style="position:relative;font-size:${sz}em;filter:drop-shadow(0 0 6px ${tc.glow}) drop-shadow(0 4px 6px rgba(0,0,0,0.6));transform:translateY(-${h-8}px)">${emoji}<span style="position:absolute;inset:0;background:${tc.color};mix-blend-mode:color;opacity:${tintOp};pointer-events:none;border-radius:4px"></span></span>`;
+    const ringR=Math.max(10,sz*6);
+    html+=`<span class="iso-glow" style="width:${ringR}px;height:${Math.round(ringR*0.35)}px;background:radial-gradient(ellipse,${tc.color}44 0%,transparent 70%);bottom:-2px;border-radius:50%"></span>`;
 
     if(showLtng&&st.dbz>=40){
       const strikes=Math.floor((st.dbz-35)/5);
