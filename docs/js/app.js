@@ -7938,8 +7938,8 @@ function setupIsoTouch(){
     if(!dragging)return;
     const dx=e.clientX-lastX;
     const dy=e.clientY-lastY;
-    ISO.tiltZ=Math.max(-60,Math.min(-30,ISO.tiltZ+dx*0.3));
-    ISO.tiltX=Math.max(40,Math.min(70,ISO.tiltX-dy*0.3));
+    ISO.tiltZ=(ISO.tiltZ+dx*0.3)%360;
+    ISO.tiltX=Math.max(20,Math.min(80,ISO.tiltX-dy*0.3));
     lastX=e.clientX;
     lastY=e.clientY;
     if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
@@ -7987,10 +7987,10 @@ function setupIsoTouch(){
     let camInterval=null;
     const applyIso=()=>{if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;};
     const camActions={
-      up:()=>{ISO.tiltX=Math.min(70,ISO.tiltX+2);applyIso();},
-      down:()=>{ISO.tiltX=Math.max(40,ISO.tiltX-2);applyIso();},
-      left:()=>{ISO.tiltZ=Math.max(-60,ISO.tiltZ-2);applyIso();},
-      right:()=>{ISO.tiltZ=Math.min(-30,ISO.tiltZ+2);applyIso();},
+      up:()=>{ISO.tiltX=Math.min(80,ISO.tiltX+2);applyIso();},
+      down:()=>{ISO.tiltX=Math.max(20,ISO.tiltX-2);applyIso();},
+      left:()=>{ISO.tiltZ=(ISO.tiltZ-3)%360;applyIso();},
+      right:()=>{ISO.tiltZ=(ISO.tiltZ+3)%360;applyIso();},
       zin:()=>{ISO.zoom=Math.min(3,ISO.zoom+0.1);applyIso();},
       zout:()=>{ISO.zoom=Math.max(0.3,ISO.zoom-0.1);applyIso();},
       reset:()=>{ISO.tiltX=55;ISO.tiltZ=-45;ISO.zoom=1;applyIso();}
