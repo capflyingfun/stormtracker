@@ -8120,14 +8120,14 @@ function render3DView(){
     const el=document.createElement('div');
     el.className='iso-storm'+(isApproaching?' approaching':'');
     const glowSz=Math.max(8,sz*10);
-    el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);will-change:transform;`;
+    el.style.cssText=`left:${sx}px;top:${sy-h}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);will-change:transform;`;
 
     const cloudSvg=stormSVG(st.dbz,tc.color,sz);
-    let html=`<span class="iso-emoji" style="display:block;filter:drop-shadow(0 0 ${tScore>55?8:4}px ${tc.glow}) drop-shadow(0 2px 4px rgba(0,0,0,0.7));transform:translateY(-${h-8}px)">${cloudSvg}</span>`;
+    let html=`<span class="iso-emoji" style="display:block;filter:drop-shadow(0 0 ${tScore>55?8:4}px ${tc.glow}) drop-shadow(0 2px 4px rgba(0,0,0,0.7))">${cloudSvg}</span>`;
 
     if(showLtng&&st.dbz>=40){
       const strikes=Math.floor((st.dbz-35)/5);
-      html+=`<span class="iso-ltng" style="transform:translateX(-50%) translateY(-${h+10}px)">⚡${strikes>1?'×'+strikes:''}</span>`;
+      html+=`<span class="iso-ltng" style="transform:translateX(-50%) translateY(-4px)">⚡${strikes>1?'×'+strikes:''}</span>`;
     }
 
     if(st.dbz>=31){
