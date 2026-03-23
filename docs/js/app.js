@@ -8057,8 +8057,6 @@ function setupIsoTouch(){
     camPad.addEventListener('pointerup',stopCam);
     camPad.addEventListener('pointerleave',stopCam);
     camPad.addEventListener('pointercancel',stopCam);
-    camPad.addEventListener('dblclick',(e)=>{e.preventDefault();e.stopPropagation();});
-    camPad.addEventListener('touchstart',(e)=>{e.preventDefault();},{passive:false});
   }
 }
 
