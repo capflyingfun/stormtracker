@@ -8120,10 +8120,12 @@ function render3DView(){
     const el=document.createElement('div');
     el.className='iso-storm'+(isApproaching?' approaching':'');
     const glowSz=Math.max(8,sz*10);
-    el.style.cssText=`left:${sx}px;top:${sy-h}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);will-change:transform;`;
+    el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);will-change:transform;padding-bottom:${h}px;`;
 
     const cloudSvg=stormSVG(st.dbz,tc.color,sz);
-    let html=`<span class="iso-emoji" style="display:block;filter:drop-shadow(0 0 ${tScore>55?8:4}px ${tc.glow}) drop-shadow(0 2px 4px rgba(0,0,0,0.7))">${cloudSvg}</span>`;
+    const stemW=Math.max(3,sz*3);
+    let html=`<span class="iso-stem" style="position:absolute;bottom:0;left:50%;width:${stemW}px;height:${h}px;transform:translateX(-50%);background:linear-gradient(to top,${tc.color}15,${tc.color}30);border-left:1px solid ${tc.color}20;border-right:1px solid ${tc.color}20;pointer-events:none"></span>`;
+    html+=`<span class="iso-emoji" style="display:block;filter:drop-shadow(0 0 ${tScore>55?8:4}px ${tc.glow}) drop-shadow(0 2px 4px rgba(0,0,0,0.7))">${cloudSvg}</span>`;
 
     if(showLtng&&st.dbz>=40){
       const strikes=Math.floor((st.dbz-35)/5);
@@ -8131,7 +8133,8 @@ function render3DView(){
     }
 
     if(st.dbz>=31){
-      html+=`<span class="iso-rain"></span>`;
+      const rainH=Math.min(h,40);
+      html+=`<span class="iso-rain-col" style="position:absolute;bottom:0;left:50%;width:${stemW+4}px;height:${rainH}px;transform:translateX(-50%);overflow:hidden;pointer-events:none"><span style="position:absolute;inset:0;background:linear-gradient(to bottom,${tc.color}00,rgba(100,180,255,0.15));animation:iso-fall 0.6s linear infinite"></span></span>`;
     }
 
     el.innerHTML=html;
