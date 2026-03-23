@@ -7944,22 +7944,25 @@ function hide3DView(){
   if(ISO.popup){ISO.popup.remove();ISO.popup=null;}
 }
 
-function render3DView(){
-  if(!ISO.open||!ISO.scene)return;
-  const sc=ISO.scene;
-  const wrap=ISO.wrap;
-  const ww=wrap.clientWidth;
-  const wh=wrap.clientHeight;
+ISO._cachedStorms=null;
+ISO._lastScanId=null;
+ISO._stormEls=[];
+ISO._rafPending=false;
+
+function isoClusterStorms(){
   const rawPts=S._rawScanPts||[];
   const stormList=S.storms||[];
   const allPts=rawPts.length?rawPts:stormList;
+  const scanId=allPts.length+'_'+(allPts[0]?allPts[0].dbz:0)+'_'+(allPts[allPts.length-1]?allPts[allPts.length-1].dbz:0);
+  if(ISO._lastScanId===scanId&&ISO._cachedStorms)return ISO._cachedStorms;
   const pts=allPts.filter(p=>p.dbz>=15);
   pts.sort((a,b)=>b.dbz-a.dbz);
   const storms=[];
   for(const p of pts){
     let merged=false;
     for(const e of storms){
-      if(haversine(p.lat,p.lng,e.lat,e.lng)<1.5){e.pixels=(e.pixels||1)+1;if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
+      const dlat=p.lat-e.lat,dlng=p.lng-e.lng;
+      if(dlat*dlat+dlng*dlng<0.0005){e.pixels=(e.pixels||1)+1;if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
     }
     if(!merged){
       const dist=haversine(S.lat,S.lon,p.lat,p.lng);
@@ -7967,6 +7970,18 @@ function render3DView(){
       storms.push({lat:p.lat,lng:p.lng,dbz:p.dbz,distance:dist,bearing:bear,pixels:1});
     }
   }
+  ISO._lastScanId=scanId;
+  ISO._cachedStorms=storms;
+  return storms;
+}
+
+function render3DView(){
+  if(!ISO.open||!ISO.scene)return;
+  const sc=ISO.scene;
+  const wrap=ISO.wrap;
+  const ww=wrap.clientWidth;
+  const wh=wrap.clientHeight;
+  const storms=isoClusterStorms();
   const useMetric=S.units==='metric';
   const unitLabel=useMetric?'km':'mi';
   const scanR=S.scanRadius||80;
@@ -7974,49 +7989,47 @@ function render3DView(){
   const ringStep=useMetric?20:(maxRingDist<=50?10:20);
   const groundSize=Math.min(ww,wh)*2.2;
   const scale=groundSize/(maxRingDist*2.4);
+  ISO._scale=scale;ISO._cx=groundSize/2;ISO._cy=groundSize/2;ISO._groundSize=groundSize;
 
   sc.style.width=groundSize+'px';
   sc.style.height=groundSize+'px';
   sc.style.left=(ww/2-groundSize/2)+'px';
   sc.style.top=(wh/2-groundSize/2)+'px';
   sc.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
-  sc.innerHTML='';
+  sc.style.willChange='transform';
+
+  let staticLayer=sc.querySelector('.iso-static');
+  if(!staticLayer){
+    sc.innerHTML='';
+    staticLayer=document.createElement('div');
+    staticLayer.className='iso-static';
+    staticLayer.style.cssText='position:absolute;left:0;top:0;width:100%;height:100%;';
+    sc.appendChild(staticLayer);
+  }
+  staticLayer.innerHTML='';
 
   const cx=groundSize/2;
   const cy=groundSize/2;
 
-  const ground=document.createElement('div');
-  ground.className='iso-ground';
-  ground.style.cssText=`width:${groundSize}px;height:${groundSize}px;left:0;top:0;background:radial-gradient(circle,rgba(10,20,40,0.9) 0%,rgba(5,10,25,0.95) 70%,rgba(2,5,15,1) 100%);`;
-  sc.appendChild(ground);
-
+  let buf=`<div class="iso-ground" style="width:${groundSize}px;height:${groundSize}px;left:0;top:0;background:radial-gradient(circle,rgba(10,20,40,0.9) 0%,rgba(5,10,25,0.95) 70%,rgba(2,5,15,1) 100%)"></div>`;
   for(let r=ringStep;r<=maxRingDist;r+=ringStep){
     const rPx=r*scale*2;
-    const ring=document.createElement('div');
-    ring.className='iso-ring';
-    ring.style.cssText=`width:${rPx}px;height:${rPx}px;left:${cx-rPx/2}px;top:${cy-rPx/2}px;`;
-    sc.appendChild(ring);
-    const lbl=document.createElement('div');
-    lbl.className='iso-ring-label';
-    lbl.textContent=`${r}${unitLabel}`;
-    lbl.style.cssText=`left:${cx+rPx/2+4}px;top:${cy-6}px;`;
-    sc.appendChild(lbl);
+    buf+=`<div class="iso-ring" style="width:${rPx}px;height:${rPx}px;left:${cx-rPx/2}px;top:${cy-rPx/2}px"></div>`;
+    buf+=`<div class="iso-ring-label" style="left:${cx+rPx/2+4}px;top:${cy-6}px">${r}${unitLabel}</div>`;
   }
+  buf+=`<div class="iso-north" style="left:${cx-8}px;top:${cy-maxRingDist*scale-18}px">▲ N</div>`;
+  buf+=`<div class="iso-user" style="left:${cx}px;top:${cy}px"></div>`;
+  staticLayer.innerHTML=buf;
 
-  const north=document.createElement('div');
-  north.className='iso-north';
-  north.textContent='▲ N';
-  north.style.cssText=`left:${cx-8}px;top:${cy-maxRingDist*scale-18}px;`;
-  sc.appendChild(north);
-
-  const user=document.createElement('div');
-  user.className='iso-user';
-  user.style.cssText=`left:${cx}px;top:${cy}px;`;
-  sc.appendChild(user);
+  const oldStorms=sc.querySelectorAll('.iso-storm');
+  oldStorms.forEach(el=>el.remove());
+  ISO._stormEls=[];
 
   const showLtng=_sonarCfg.showLightning!==false;
   let stormCount=0;
   const etas=S._stormETAs||{};
+  const etaKeys=Object.keys(etas);
+  const frag=document.createDocumentFragment();
 
   storms.forEach((st,i)=>{
     if(!st.dbz||st.dbz<15)return;
@@ -8034,7 +8047,7 @@ function render3DView(){
     const tScore=stormThreatScore(st.dbz,st.distance||0,st.bearing||0);
     const tc=threatColor(tScore);
 
-    const etaKey=Object.keys(etas).find(k=>{
+    const etaKey=etaKeys.find(k=>{
       const e=etas[k];
       if(!e)return false;
       if(e.lat!==undefined&&e.lng!==undefined)return Math.abs(e.lat-st.lat)<0.05&&Math.abs(e.lng-st.lng)<0.05;
@@ -8045,7 +8058,7 @@ function render3DView(){
     const el=document.createElement('div');
     el.className='iso-storm'+(isApproaching?' approaching':'');
     const glowSz=Math.max(8,sz*10);
-    el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);`;
+    el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);will-change:transform;`;
 
     const cellTrk=getCellTrack(st);
     const stDir=cellTrk?cellTrk.dir:(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement.direction:undefined);
@@ -8068,12 +8081,15 @@ function render3DView(){
     }
 
     el.innerHTML=html;
+    el._arrowEl=el.querySelector('.iso-arrow[data-dir]');
     el.onclick=(e)=>{
       e.stopPropagation();
       showIsoPopup(st,sx,sy,isApproaching?etaKey:null);
     };
-    sc.appendChild(el);
+    frag.appendChild(el);
+    ISO._stormEls.push(el);
   });
+  sc.appendChild(frag);
 
   const info=document.getElementById('iso-info');
   if(info){
@@ -8139,15 +8155,14 @@ function buildHeadingStrip(){
 }
 function updateIsoBillboard(){
   if(!ISO.scene)return;
-  const storms=ISO.scene.querySelectorAll('.iso-storm');
-  storms.forEach(el=>{
-    el.style.transform=`translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg)`;
-    const arr=el.querySelector('.iso-arrow[data-dir]');
-    if(arr){
-      const dir=parseFloat(arr.dataset.dir);
-      arr.style.transform=`translateX(-50%) rotate(${dir+ISO.tiltZ}deg)`;
-    }
-  });
+  const els=ISO._stormEls;
+  const rz=-ISO.tiltZ,rx=-ISO.tiltX,tz=ISO.tiltZ;
+  const t=`translate(-50%,-100%) rotateZ(${rz}deg) rotateX(${rx}deg)`;
+  for(let i=0;i<els.length;i++){
+    els[i].style.transform=t;
+    const arr=els[i]._arrowEl;
+    if(arr)arr.style.transform=`translateX(-50%) rotate(${parseFloat(arr.dataset.dir)+tz}deg)`;
+  }
 }
 function updateIsoCompass(){
   const track=document.getElementById('iso-hstrip-track');
@@ -8184,9 +8199,15 @@ function setupIsoTouch(){
     ISO.tiltX=Math.max(20,Math.min(80,ISO.tiltX+dy*0.3));
     lastX=e.clientX;
     lastY=e.clientY;
-    if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
-    updateIsoCompass();
-    updateIsoBillboard();
+    if(!ISO._rafPending){
+      ISO._rafPending=true;
+      requestAnimationFrame(()=>{
+        ISO._rafPending=false;
+        if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
+        updateIsoCompass();
+        updateIsoBillboard();
+      });
+    }
   });
   w.addEventListener('pointerup',()=>{dragging=false;});
   w.addEventListener('pointercancel',()=>{dragging=false;});
