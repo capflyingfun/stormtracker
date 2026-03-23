@@ -7736,8 +7736,8 @@ function show3DView(){
           <div class="iso-hstrip-track" id="iso-hstrip-track"></div>
           <div class="iso-hstrip-center"></div>
           <div class="iso-hstrip-hdg" id="iso-hstrip-hdg">000°</div>
+          <div class="iso-info" id="iso-info"></div>
         </div>
-        <div class="iso-info" id="iso-info"></div>
         <div class="iso-cam" id="iso-cam">
           <div class="iso-cam-pad">
             <div></div>
@@ -7763,6 +7763,7 @@ function show3DView(){
     ov.addEventListener('selectstart',e=>e.preventDefault());
     ov.addEventListener('contextmenu',e=>e.preventDefault());
     ov.addEventListener('copy',e=>e.preventDefault());
+    ov.addEventListener('dblclick',e=>e.preventDefault());
     setupIsoTouch();
     buildHeadingStrip();
   }
@@ -8035,8 +8036,8 @@ function setupIsoTouch(){
     let camInterval=null;
     const applyIso=()=>{if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;updateIsoCompass();};
     const camActions={
-      up:()=>{ISO.tiltX=Math.min(80,ISO.tiltX+2);applyIso();},
-      down:()=>{ISO.tiltX=Math.max(20,ISO.tiltX-2);applyIso();},
+      up:()=>{ISO.tiltX=Math.max(20,ISO.tiltX-2);applyIso();},
+      down:()=>{ISO.tiltX=Math.min(80,ISO.tiltX+2);applyIso();},
       left:()=>{ISO.tiltZ=(ISO.tiltZ+3)%360;applyIso();},
       right:()=>{ISO.tiltZ=(ISO.tiltZ-3)%360;applyIso();},
       zin:()=>{ISO.zoom=Math.min(3,ISO.zoom+0.1);applyIso();},
