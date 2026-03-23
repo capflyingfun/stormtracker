@@ -1885,6 +1885,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.30e',date:'2026-03-23',items:['AI prompt overhaul: NWS Area Forecast Discussion (AFD) fetched live from api.weather.gov for US locations — real meteorologist analysis included in AI context','Thunderstorm formation analysis: CAPE, Lifted Index, CIN from Open-Meteo with rated moisture/stability/lifting scores and overall thunderstorm potential (1-10)','Winds aloft now included in AI context with all pressure levels (surface through 500hPa) in mph and knots','Wind shear analysis (NWS/Aviation standard) with vector magnitude, severity rating, and aviation impact assessment','5-section structured AI response: Summary & AFD, Relevant Storms, General, Aviation, Boating','Dynamic urgency tone: auto-scales from calm to URGENT based on storm dBZ and alert severity','Increased AI response length (800→1500 tokens) and lowered temperature (0.7→0.4) for more thorough and consistent analysis']},
   {ver:'v2.30d',date:'2026-03-23',items:['Fixed iOS 24-hour auto-detection: system military time setting now properly detected across all time displays','Fixed AWC METAR observation time parsing: station Updated time now correctly converts from UTC to local timezone','Eliminated 150ms location-load delay: weather data fetches instantly with immediate loading skeleton','Tutorial expanded to 15 sections covering Lightning Indicators and Settings Panel']},
   {ver:'v2.30c',date:'2026-03-23',items:['Tutorial expanded from 13 to 15 sections: added Lightning Indicators and Settings Panel overview','Updated Weather, Radar, Station, Ticker, and Units tutorial tabs with latest features','Changelog entries added for v2.29 through v2.30b']},
   {ver:'v2.30b',date:'2026-03-23',items:['12/24-hour time format setting: Auto, 12h, or 24h — configurable in Settings under Units','All time displays respect format: radar timestamps, storm ETAs, sunrise/sunset, forecasts, station observations, and charts','G1000 wind/aloft/storm legend moved to top-left to prevent compass clipping','Storm movement now shows exact degrees: e.g. E (91°)']},
@@ -2136,7 +2137,7 @@ async function fetchWeather(){
   try{
     const omUrl=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lon}`
       +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day`
-      +`&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility,is_day`
+      +`&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility,is_day,cape,lifted_index,convective_inhibition`
       +`&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset,wind_speed_10m_max`
       +`&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=7&past_days=2`;
     const omRes=await fetch(omUrl);const omData=await omRes.json();
@@ -5260,7 +5261,7 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     levels.forEach(l=>{
       const spd=c[l.sk],dir=c[l.dk];
       if(spd==null||dir==null)return;
-      aloftSpeeds.push({p:l.p,spd:spd*3.6,dir});
+      aloftSpeeds.push({p:l.p,spd:spd*3.6,dir,isSfc:!!l.isSfc});
       const spdKt=spd*1.944;
       const movDir=(dir+180)%360;
       const rad=movDir*Math.PI/180;
@@ -5268,6 +5269,7 @@ async function fetchWindsAloft(overrideLat,overrideLon){
       ty+=Math.cos(rad)*spdKt*l.w;
       tw+=l.w;
     });
+    S._aloftData=aloftSpeeds;
     if(aloftSpeeds.length>=2){
       const sfc=aloftSpeeds.find(a=>a.p>=1000)||aloftSpeeds[0];
       const upper=aloftSpeeds[aloftSpeeds.length-1];
@@ -5287,6 +5289,124 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     console.log('Winds aloft → storm movement: '+Math.round(dir)+'° at '+spdMph+' mph');
     if(S.map&&S._showPathArrows)buildPathArrows(S.map);
   }catch(e){console.log('Winds aloft fetch failed:',e.message)}
+}
+
+async function fetchAFD(){
+  if(!S.lat||!S.lon)return;
+  if(!isUSLocation(S.lat,S.lon)){S._afd=null;return;}
+  const cache=S._afdCache;
+  if(cache&&(Date.now()-cache.ts<60*60000)){S._afd=cache.data;return;}
+  try{
+    const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{
+      headers:{'User-Agent':'StormTracker/2.30 (weather analysis)','Accept':'application/geo+json'},
+      signal:AbortSignal.timeout(6000)
+    });
+    if(!ptRes.ok){S._afd=null;return;}
+    const ptData=await ptRes.json();
+    const office=ptData.properties?.cwa;
+    if(!office){S._afd=null;return;}
+    const prodRes=await fetch(`https://api.weather.gov/products/types/AFD/locations/${office}`,{
+      headers:{'User-Agent':'StormTracker/2.30','Accept':'application/ld+json'},
+      signal:AbortSignal.timeout(6000)
+    });
+    if(!prodRes.ok){S._afd=null;return;}
+    const prodData=await prodRes.json();
+    const products=prodData['@graph']||[];
+    if(!products.length){S._afd=null;return;}
+    const latest=products[0];
+    const afdRes=await fetch(latest['@id'],{
+      headers:{'User-Agent':'StormTracker/2.30','Accept':'application/ld+json'},
+      signal:AbortSignal.timeout(6000)
+    });
+    if(!afdRes.ok){S._afd=null;return;}
+    const afdData=await afdRes.json();
+    const fullText=afdData.productText||'';
+    let discussion='';
+    const discMatch=fullText.match(/\.DISCUSSION\.\.\.([\s\S]*?)(?=\n\.\w|\n\$\$|$)/i);
+    if(discMatch)discussion=discMatch[1].trim();
+    else{
+      const synMatch=fullText.match(/\.SYNOPSIS\.\.\.([\s\S]*?)(?=\n\.\w|\n\$\$|$)/i);
+      if(synMatch)discussion=synMatch[1].trim();
+    }
+    if(!discussion||discussion.length<50){
+      const lines=fullText.split('\n');
+      const start=lines.findIndex(l=>/^\.\w/.test(l));
+      if(start>=0)discussion=lines.slice(start,start+40).join('\n').substring(0,1500);
+    }
+    if(discussion&&discussion.length>1500)discussion=discussion.substring(0,1500);
+    const officeName=ptData.properties?.cwa||office;
+    S._afd={office:officeName,discussion,issuedAt:latest.issuanceTime||''};
+    S._afdCache={ts:Date.now(),data:S._afd};
+    console.log('AFD fetched from NWS '+officeName+' ('+discussion.length+' chars)');
+  }catch(e){
+    console.log('AFD fetch failed:',e.message);
+    S._afd=null;
+  }
+}
+
+function getStabilityData(){
+  if(!S.forecast||!S.forecast.hourly)return null;
+  const h=S.forecast.hourly;
+  if(!h.cape||!h.lifted_index)return null;
+  const now=new Date();
+  const idx=h.time?h.time.findIndex(t=>new Date(t).getHours()===now.getHours()):0;
+  if(idx<0)return null;
+  const cape=h.cape[idx];
+  const li=h.lifted_index[idx];
+  const cin=h.convective_inhibition?h.convective_inhibition[idx]:null;
+  const dewp=h.dew_point_2m?h.dew_point_2m[idx]:null;
+  const temp=h.temperature_2m?h.temperature_2m[idx]:null;
+  const humid=h.relative_humidity_2m?h.relative_humidity_2m[idx]:null;
+  let capeRat=1;
+  if(cape>=2500)capeRat=9;else if(cape>=1500)capeRat=7;else if(cape>=1000)capeRat=5;else if(cape>=500)capeRat=3;
+  let liRat=1;
+  if(li<=-6)liRat=9;else if(li<=-3)liRat=7;else if(li<=0)liRat=5;else if(li<=3)liRat=3;
+  let cinRat=1;
+  if(cin!=null){if(cin<=25)cinRat=9;else if(cin<=75)cinRat=7;else if(cin<=150)cinRat=5;else if(cin<=250)cinRat=3;}
+  const stabRat=Math.round((capeRat+liRat+cinRat)/3);
+  let stabDesc='Very stable atmosphere';
+  if(stabRat>=8)stabDesc='Extremely unstable — high thunderstorm potential';
+  else if(stabRat>=6)stabDesc='Unstable — good thunderstorm potential';
+  else if(stabRat>=4)stabDesc='Marginally unstable — some thunderstorm potential';
+  else if(stabRat>=2)stabDesc='Stable atmosphere — low thunderstorm potential';
+  let moistRat=1;
+  if(humid!=null&&dewp!=null&&temp!=null){
+    const spread=temp-dewp;
+    if(humid>=70&&spread<=3)moistRat=9;else if(humid>=60&&spread<=5)moistRat=7;else if(humid>=50&&spread<=8)moistRat=5;else if(humid>=40&&spread<=12)moistRat=3;
+  }
+  let liftRat=1;
+  if(S._windShear){
+    const shearMag=S._windShear.speedDiff;
+    if(shearMag>=20)liftRat=8;else if(shearMag>=10)liftRat=6;else if(shearMag>=5)liftRat=4;else liftRat=2;
+  }
+  const overall=Math.round((moistRat+stabRat+liftRat)/3);
+  let risk='LOW';
+  if(overall>=8)risk='EXTREME';else if(overall>=6)risk='HIGH';else if(overall>=4)risk='MODERATE';
+  return{cape,li,cin,stabRat,stabDesc,moistRat,liftRat,overall,risk,dewp,temp,humid};
+}
+
+function getWindShearAnalysis(){
+  if(!S._windShear||!S._aloftData||S._aloftData.length<2)return null;
+  const sfc=S._aloftData.find(a=>a.isSfc)||S._aloftData[0];
+  const upper=S._aloftData[S._aloftData.length-1];
+  const sfcSpdMph=(sfc.spd*0.621371).toFixed(0);
+  const upperSpdMph=(upper.spd*0.621371).toFixed(0);
+  const vecShear=S._windShear.speedDiff*0.621371;
+  let severity='Light';
+  if(vecShear>=25)severity='Strong';else if(vecShear>=15)severity='Moderate';
+  let impact='Minimal turbulence expected';
+  if(vecShear>=25)impact='Significant turbulence likely — hazardous for light aircraft';
+  else if(vecShear>=15)impact='Moderate turbulence possible — use caution';
+  else if(vecShear>=8)impact='Light chop possible';
+  const pToAlt={1013:'Surface',925:'~2,500 ft',850:'~5,000 ft',700:'~10,000 ft',500:'~18,000 ft'};
+  return{
+    vectorShear:vecShear.toFixed(1),
+    severity,
+    dirDiff:S._windShear.dirDiff,
+    surfaceWind:`${degToDir(sfc.dir)} at ${sfcSpdMph} mph`,
+    upperWind:`${degToDir(upper.dir)} at ${upperSpdMph} mph (${pToAlt[upper.p]||upper.p+'hPa'})`,
+    impact
+  };
 }
 
 function directImpactPct(diff){
@@ -5509,7 +5629,7 @@ async function scanRadarForStorms(){
   clearViewScanCircle();
   const useNexrad=S.radarSource==='nexrad';
   showScanOverlay();
-  await fetchWindsAloft();
+  await Promise.all([fetchWindsAloft(),fetchAFD()]);
   scanStep(2,'Scanning radar tiles...');
   try{
     const zoom=useNexrad?8:7;
@@ -7066,6 +7186,52 @@ function buildWeatherContext(){
     }
   }
 
+  if(S._afd&&S._afd.discussion){
+    parts.push(`\n=== AREA FORECAST DISCUSSION ===`);
+    parts.push(`NWS Office: ${S._afd.office}`);
+    if(S._afd.issuedAt)parts.push(`Issued: ${S._afd.issuedAt}`);
+    parts.push(`Forecaster Discussion:\n${S._afd.discussion}`);
+  }
+
+  if(S._aloftData&&S._aloftData.length){
+    const pToAlt={1013:'Surface (10m)',925:'~2,500 ft (925 hPa)',850:'~5,000 ft (850 hPa)',700:'~10,000 ft (700 hPa)',500:'~18,000 ft (500 hPa)'};
+    parts.push(`\n=== WINDS ALOFT (STORM STEERING) ===`);
+    for(const a of S._aloftData){
+      const alt=pToAlt[a.p]||a.p+'hPa';
+      const spdMph=(a.spd*0.621371).toFixed(0);
+      const spdKt=(a.spd*0.539957).toFixed(0);
+      parts.push(`  ${alt}: ${degToDir(a.dir)} (${Math.round(a.dir)}°) at ${spdMph} mph (${spdKt} kts)`);
+    }
+  }
+
+  const shearInfo=getWindShearAnalysis();
+  if(shearInfo){
+    parts.push(`\nWIND SHEAR ANALYSIS (NWS/Aviation Standard):`);
+    parts.push(`  Vector shear magnitude: ${shearInfo.vectorShear} mph (${shearInfo.severity})`);
+    parts.push(`  Directional change: ${shearInfo.dirDiff}°`);
+    parts.push(`  Surface: ${shearInfo.surfaceWind}`);
+    parts.push(`  Upper level: ${shearInfo.upperWind}`);
+    parts.push(`  Aviation impact: ${shearInfo.impact}`);
+  }
+
+  const stab=getStabilityData();
+  if(stab){
+    parts.push(`\n=== THUNDERSTORM FORMATION ANALYSIS ===`);
+    parts.push(`The Three Essential Conditions for Thunderstorm Development:`);
+    parts.push(`\n1. MOISTURE (${stab.moistRat}/10):`);
+    if(stab.humid!=null)parts.push(`  Relative Humidity: ${stab.humid}%`);
+    if(stab.dewp!=null)parts.push(`  Dew Point: ${stab.dewp.toFixed(1)}°C (${cToF(stab.dewp)}°F)`);
+    if(stab.temp!=null&&stab.dewp!=null)parts.push(`  Temp-Dewpoint Spread: ${(stab.temp-stab.dewp).toFixed(1)}°C`);
+    parts.push(`\n2. ATMOSPHERIC STABILITY (${stab.stabRat}/10):`);
+    parts.push(`  CAPE: ${stab.cape||0} J/kg`);
+    parts.push(`  Lifted Index: ${stab.li!=null?stab.li.toFixed(1):'?'}°C (negative = unstable)`);
+    if(stab.cin!=null)parts.push(`  Convective Inhibition (CIN): ${stab.cin} J/kg`);
+    parts.push(`  Assessment: ${stab.stabDesc}`);
+    parts.push(`\n3. LIFTING MECHANISMS (${stab.liftRat}/10):`);
+    if(S._windShear)parts.push(`  Wind shear: ${S._windShear.speedDiff.toFixed(1)} km/h speed diff, ${S._windShear.dirDiff}° directional`);
+    parts.push(`\nOVERALL THUNDERSTORM POTENTIAL: ${stab.overall}/10 (${stab.risk})`);
+  }
+
   if(S._terrainData){
     const td=S._terrainData;
     parts.push(`\nTERRAIN ANALYSIS:`);
@@ -7105,31 +7271,62 @@ function getAISystemPrompt(){
   else if(detail==='standard')detailInstr='Provide balanced detail with key data points and practical guidance.';
   else if(detail==='technical')detailInstr='Include detailed meteorological analysis with specific measurements, dBZ values, wind shear analysis, and professional terminology.';
 
-  const hasThreats=S.storms&&S.storms.some(st=>st&&st.dbz>=45);
+  const hasExtreme=S.storms&&S.storms.some(st=>st&&st.dbz>=65);
+  const hasSevere=S.storms&&S.storms.some(st=>st&&st.dbz>=55);
+  const hasHigh=S.storms&&S.storms.some(st=>st&&st.dbz>=45);
   const hasAlerts=S.alerts&&S.alerts.length>0;
-  let urgency='';
-  if(hasThreats||hasAlerts){
-    urgency='\n\nIMPORTANT: There are active weather threats. Prioritize safety information. Be direct about risks. If storms are approaching with high dBZ (≥55), use urgent language.';
+  const hasExtremeAlert=S.alerts&&S.alerts.some(a=>a.severity==='Extreme');
+  const hasSevereAlert=S.alerts&&S.alerts.some(a=>a.severity==='Severe');
+  let urgencyPrefix='Weather looks good:';
+  let urgencyStyle='Use relaxed, conversational tone.';
+  if(hasExtreme||hasExtremeAlert){
+    urgencyPrefix='URGENT WEATHER ALERT:';
+    urgencyStyle='Use direct, urgent, life-safety focused language. Be concise and clear about immediate threats. No humor. Start with active alerts and extreme storms.';
+  }else if(hasSevere||hasSevereAlert){
+    urgencyPrefix='Weather Advisory:';
+    urgencyStyle='Use professional, clear language with focus on safety guidance. Be direct but not alarming. Prioritize discussing active alerts.';
+  }else if(hasHigh||hasAlerts){
+    urgencyPrefix='Weather Update:';
+    urgencyStyle='Use balanced professional tone with clear explanations. Maintain awareness without alarm. Discuss active weather alerts before other conditions.';
   }
 
-  return `You are StormTracker AI, a weather assistant embedded in a real-time storm tracking application. You have access to live weather data, radar-detected storm cells, NWS alerts, and forecasts for the user's location.
+  return `You are StormTracker AI, an expert meteorologist embedded in a real-time storm tracking application. You have access to live radar data, atmospheric stability analysis, NWS forecaster discussions, winds aloft, storm cell tracking, and forecasts.
 
+${urgencyPrefix} ${urgencyStyle}
 ${toneInstr}
 ${detailInstr}
-${urgency}
 
-LIVE WEATHER DATA:
+=== LIVE WEATHER DATA ===
 ${ctx}
 
-Guidelines:
-- Answer questions about current conditions, storms, forecasts, and safety
-- Reference specific data points (temperature, wind, storm distances, dBZ values) when relevant
-- For storm-related questions, mention distance, direction, intensity, and movement
-- If storms are approaching, calculate approximate arrival and recommend actions
-- Use the unit preferences shown in the data
-- If asked about something not in the data, say so honestly
-- Keep responses concise unless the user asks for detail
-- For safety situations, always err on the side of caution`;
+RESPONSE STRUCTURE:
+Structure your response with these FIVE clearly labeled sections. Write each as a flowing paragraph. Skip a section ONLY if there is absolutely no relevant data for it:
+
+**Summary and AFD:**
+Overview of what is driving today's weather — fronts, pressure systems, atmospheric setup, timing of changes. If Area Forecast Discussion data is available, translate the technical meteorological jargon into accessible, conversational insights. Summarize what the NWS forecasters are watching and their confidence level.
+
+**Relevant Storm Information:**
+Active storms, their movement direction/speed, intensity (dBZ), and whether they are heading toward the user. Include ETAs if storms are approaching. Be specific about track cone analysis and direct threats. Any storm with an ETA time means potential contact — state this clearly.
+
+**General:**
+Public safety guidance, outdoor activity recommendations, comfort conditions, and what to expect. Include heat/cold advisories prominently.
+
+**Aviation:**
+Pilot-specific: list ALL available winds aloft levels (e.g. "At 5,000 ft: SW at 18 kts"). Include wind shear analysis between levels, turbulence potential, visibility, ceiling heights, flight categories, and METAR data. Be precise with altitudes and measurements.
+
+**Boating:**
+Marine conditions: wind patterns, storm approach timing, wave/swell potential, water safety considerations.
+
+CRITICAL ANALYSIS REQUIREMENTS:
+1. If there are active weather alerts, discuss them FIRST and prominently
+2. STORM TRACK: Pay special attention to storms marked as APPROACHING with ETAs — clearly state "This storm is expected to reach your area in [ETA]"
+3. HIGH IMPACT: When storms show high impact ratings, state clearly: "This storm is on a collision course with your location"
+4. THUNDERSTORM POTENTIAL: When CAPE, Lifted Index, and stability data are present, assess thunderstorm formation risk and explain what conditions favor or inhibit development
+5. WIND SHEAR: When wind shear data is present, discuss its impact on storm organization and aviation safety
+6. Do NOT use markdown formatting (no ** or ## or * for formatting) — write plain text with section headers on their own line
+7. Never mention if data sources are missing — just work with what you have
+8. For safety situations, always err on the side of caution
+9. Reference specific data points (temperature, wind, storm distances, dBZ, CAPE values) when relevant`;
 }
 
 async function sendAIChat(){
@@ -7154,7 +7351,7 @@ async function sendAIChat(){
     const res=await fetch('https://api.openai.com/v1/chat/completions',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-      body:JSON.stringify({model:'gpt-4o-mini',messages,max_tokens:800,temperature:0.7})
+      body:JSON.stringify({model:'gpt-4o-mini',messages,max_tokens:1500,temperature:0.4})
     });
 
     hideAITyping();
