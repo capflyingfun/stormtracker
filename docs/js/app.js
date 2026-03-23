@@ -7814,10 +7814,10 @@ function stormThreatScore(dbz,distance,bearing){
   return Math.min(100,Math.round(intens+impactScore));
 }
 function threatColor(score){
-  if(score>80)return{color:'#e040fb',glow:'rgba(224,64,251,0.55)',label:'Extreme'};
-  if(score>55)return{color:'#ff3355',glow:'rgba(255,51,85,0.5)',label:'Serious'};
-  if(score>35)return{color:'#facc15',glow:'rgba(250,204,21,0.45)',label:'Moderate'};
-  return{color:'#22c55e',glow:'rgba(34,197,94,0.35)',label:'Low'};
+  if(score>80)return{color:'#e040fb',glow:'rgba(224,64,251,0.8)',label:'Extreme'};
+  if(score>55)return{color:'#ff3355',glow:'rgba(255,51,85,0.75)',label:'Serious'};
+  if(score>35)return{color:'#facc15',glow:'rgba(250,204,21,0.65)',label:'Moderate'};
+  return{color:'#22c55e',glow:'rgba(34,197,94,0.5)',label:'Low'};
 }
 function dbzToEmoji(d){
   if(d>=56)return'🌩️';
@@ -7898,6 +7898,7 @@ function show3DView(){
           <div class="iso-hstrip-hdg" id="iso-hstrip-hdg">000°</div>
         </div>
         <div class="iso-info" id="iso-info"></div>
+        <div class="iso-info iso-fps-badge" id="iso-fps" style="top:58px"></div>
         <div class="iso-cam" id="iso-cam">
           <div class="iso-cam-pad">
             <div aria-hidden="true"></div>
@@ -7933,33 +7934,78 @@ function show3DView(){
   ISO.zoom=1;
   ISO.tiltX=55;
   ISO.tiltZ=0;
+  ISO._fps={frames:0,last:performance.now(),current:60,target:45,maxStorms:120,mergeR:0.001,history:[]};
   ov.classList.add('active');
   const loc=document.getElementById('iso-loc');
   if(loc)loc.textContent=S.locName||`${S.lat.toFixed(2)}, ${S.lon.toFixed(2)}`;
   render3DView();
   updateIsoCompass();
+  isoStartLoop();
 }
 
 function hide3DView(){
   ISO.open=false;
+  isoStopLoop();
   const ov=document.getElementById('iso-overlay');
   if(ov)ov.classList.remove('active');
   if(ISO.popup){ISO.popup.remove();ISO.popup=null;}
 }
 
 ISO._stormEls=[];
+ISO._windArrows=[];
 ISO._rafPending=false;
+ISO._fps={frames:0,last:performance.now(),current:60,target:45,maxStorms:120,mergeR:0.001,history:[]};
+
+function isoStartLoop(){
+  if(ISO._loopId)return;
+  function tick(){
+    if(!ISO.open){ISO._loopId=0;return;}
+    isoFpsTick();
+    ISO._loopId=requestAnimationFrame(tick);
+  }
+  ISO._loopId=requestAnimationFrame(tick);
+}
+function isoStopLoop(){
+  if(ISO._loopId){cancelAnimationFrame(ISO._loopId);ISO._loopId=0;}
+}
+function isoFpsTick(){
+  const f=ISO._fps;
+  f.frames++;
+  const now=performance.now();
+  const dt=now-f.last;
+  if(dt>=500){
+    f.current=Math.round(f.frames/(dt/1000));
+    f.frames=0;
+    f.last=now;
+    f.history.push(f.current);
+    if(f.history.length>6)f.history.shift();
+    const avg=f.history.reduce((a,b)=>a+b,0)/f.history.length;
+    if(avg<25&&f.maxStorms>20){
+      f.maxStorms=Math.max(20,f.maxStorms-15);
+      f.mergeR=Math.min(0.02,f.mergeR*1.5);
+      if(ISO.open)render3DView();
+    }else if(avg>55&&f.maxStorms<200){
+      f.maxStorms=Math.min(200,f.maxStorms+10);
+      f.mergeR=Math.max(0.0005,f.mergeR*0.85);
+    }
+    const badge=document.getElementById('iso-fps');
+    if(badge)badge.textContent=`${f.current} fps · ${ISO._stormEls.length} cells`;
+  }
+}
 
 function isoMergeStorms(src){
+  const f=ISO._fps;
   const pts=src.filter(p=>p.dbz>=15);
-  if(pts.length<=80)return pts;
+  if(pts.length<=f.maxStorms)return pts;
   pts.sort((a,b)=>b.dbz-a.dbz);
   const out=[];
+  const mr=f.mergeR;
   for(const p of pts){
+    if(out.length>=f.maxStorms)break;
     let merged=false;
     for(const e of out){
       const dlat=p.lat-e.lat,dlng=(p.lng||p.lon)-(e.lng||e.lon);
-      if(dlat*dlat+dlng*dlng<0.002){if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
+      if(dlat*dlat+dlng*dlng<mr){if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
     }
     if(!merged){
       out.push({lat:p.lat,lng:p.lng||p.lon,dbz:p.dbz,distance:p.distance||haversine(S.lat,S.lon,p.lat,p.lng||p.lon),bearing:p.bearing||bearingDeg(S.lat,S.lon,p.lat,p.lng||p.lon)});
@@ -8018,6 +8064,7 @@ function render3DView(){
   oldStorms.forEach(el=>el.remove());
   ISO._stormEls=[];
   ISO._windArrows=[];
+  ISO._windLabels=[];
 
   const showLtng=_sonarCfg.showLightning!==false;
   let stormCount=0;
@@ -8054,8 +8101,9 @@ function render3DView(){
     const glowSz=Math.max(8,sz*10);
     el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);will-change:transform;`;
 
-    let html=`<span class="iso-emoji" style="font-size:${sz}em;filter:drop-shadow(0 0 ${glowSz}px ${tc.glow}) drop-shadow(0 4px 6px rgba(0,0,0,0.6));transform:translateY(-${h-8}px)">${emoji}</span>`;
-    html+=`<span class="iso-glow" style="width:${glowSz*2}px;height:${glowSz*2}px;background:radial-gradient(circle,${tc.glow} 0%,transparent 70%);bottom:${-glowSz+4}px;border:1px solid ${tc.color}33;border-radius:50%"></span>`;
+    const glowR=Math.max(16,sz*14);
+    let html=`<span class="iso-emoji" style="font-size:${sz}em;filter:drop-shadow(0 0 ${glowR}px ${tc.glow}) drop-shadow(0 0 ${Math.round(glowR*0.6)}px ${tc.glow}) drop-shadow(0 4px 6px rgba(0,0,0,0.6));transform:translateY(-${h-8}px)">${emoji}</span>`;
+    html+=`<span class="iso-glow" style="width:${glowR*2.5}px;height:${glowR*2.5}px;background:radial-gradient(circle,${tc.color}55 0%,${tc.glow} 30%,transparent 70%);bottom:${-glowR+2}px;border:2px solid ${tc.color}66;border-radius:50%"></span>`;
 
     if(showLtng&&st.dbz>=40){
       const strikes=Math.floor((st.dbz-35)/5);
@@ -8082,6 +8130,7 @@ function render3DView(){
   windLayer.className='iso-wind-layer';
   windLayer.style.cssText='position:absolute;left:50%;top:50%;pointer-events:none;z-index:20;';
 
+  const heading=(((-ISO.tiltZ)%360)+360)%360;
   const mv=S.stormMovement;
   if(mv&&mv.speed>=2){
     const mvDir=mv.direction;
@@ -8089,12 +8138,21 @@ function render3DView(){
     const arrowEl=document.createElement('div');
     arrowEl.className='iso-wind-arrow';
     arrowEl.dataset.dir=String(mvDir);
-    arrowEl.style.cssText=`position:absolute;left:0;top:0;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotate(${mvDir}deg);pointer-events:none;`;
+    arrowEl.style.cssText=`position:absolute;left:0;top:0;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotate(${mvDir-heading}deg);pointer-events:none;`;
     const aLen=svgSz*0.4,mid=svgSz/2;
-    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+5}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(0,220,255,0.7)" stroke-width="2.5" stroke-dasharray="5,3"/><polygon points="${mid},${mid-aLen} ${mid-6},${mid-aLen+12} ${mid+6},${mid-aLen+12}" fill="rgba(0,220,255,0.8)"/><text x="${mid}" y="${mid-aLen-6}" fill="rgba(0,220,255,0.9)" font-size="9" font-weight="bold" text-anchor="middle" font-family="Inter,sans-serif">STORM</text><text x="${mid}" y="${mid+aLen*0.1+14}" fill="rgba(0,220,255,0.6)" font-size="8" text-anchor="middle" font-family="Inter,sans-serif">${mv.speed.toFixed(0)} mph ${degToDir(mvDir)}</text></svg>`;
+    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+5}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(0,220,255,0.7)" stroke-width="2.5" stroke-dasharray="5,3"/><polygon points="${mid},${mid-aLen} ${mid-6},${mid-aLen+12} ${mid+6},${mid-aLen+12}" fill="rgba(0,220,255,0.8)"/></svg>`;
     windLayer.appendChild(arrowEl);
-    ISO._windArrows=ISO._windArrows||[];
     ISO._windArrows.push(arrowEl);
+    const lbl=document.createElement('div');
+    lbl.className='iso-wind-label';
+    lbl.dataset.dir=String(mvDir);
+    lbl.dataset.radius='52';
+    const lblAngle=(mvDir-heading)*Math.PI/180;
+    lbl.style.cssText=`position:absolute;left:${Math.sin(lblAngle)*52}px;top:${-Math.cos(lblAngle)*52}px;transform:translate(-50%,-50%);color:rgba(0,220,255,0.9);font:bold 9px Inter,sans-serif;white-space:nowrap;text-shadow:0 0 6px rgba(0,0,0,0.9);`;
+    lbl.textContent=`STORM ${mv.speed.toFixed(0)}mph ${degToDir(mvDir)}`;
+    windLayer.appendChild(lbl);
+    ISO._windLabels=ISO._windLabels||[];
+    ISO._windLabels.push(lbl);
   }
 
   const aloftDir=S._upperWindDir;
@@ -8104,12 +8162,21 @@ function render3DView(){
     const arrowEl=document.createElement('div');
     arrowEl.className='iso-wind-arrow';
     arrowEl.dataset.dir=String(toDir);
-    arrowEl.style.cssText=`position:absolute;left:0;top:0;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotate(${toDir}deg);pointer-events:none;`;
+    arrowEl.style.cssText=`position:absolute;left:0;top:0;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotate(${toDir-heading}deg);pointer-events:none;`;
     const aLen=svgSz*0.35,mid=svgSz/2;
-    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+5}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(255,0,220,0.5)" stroke-width="2" stroke-dasharray="6,4"/><polygon points="${mid},${mid-aLen} ${mid-5},${mid-aLen+10} ${mid+5},${mid-aLen+10}" fill="rgba(255,0,220,0.6)"/><text x="${mid}" y="${mid-aLen-5}" fill="rgba(255,0,220,0.8)" font-size="9" font-weight="bold" text-anchor="middle" font-family="Inter,sans-serif">ALOFT</text></svg>`;
+    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+5}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(255,0,220,0.5)" stroke-width="2" stroke-dasharray="6,4"/><polygon points="${mid},${mid-aLen} ${mid-5},${mid-aLen+10} ${mid+5},${mid-aLen+10}" fill="rgba(255,0,220,0.6)"/></svg>`;
     windLayer.appendChild(arrowEl);
-    ISO._windArrows=ISO._windArrows||[];
     ISO._windArrows.push(arrowEl);
+    const lbl=document.createElement('div');
+    lbl.className='iso-wind-label';
+    lbl.dataset.dir=String(toDir);
+    lbl.dataset.radius='46';
+    const lblAngle=(toDir-heading)*Math.PI/180;
+    lbl.style.cssText=`position:absolute;left:${Math.sin(lblAngle)*46}px;top:${-Math.cos(lblAngle)*46}px;transform:translate(-50%,-50%);color:rgba(255,0,220,0.8);font:bold 9px Inter,sans-serif;white-space:nowrap;text-shadow:0 0 6px rgba(0,0,0,0.9);`;
+    lbl.textContent='ALOFT';
+    windLayer.appendChild(lbl);
+    ISO._windLabels=ISO._windLabels||[];
+    ISO._windLabels.push(lbl);
   }
   wrap.appendChild(windLayer);
 
@@ -8177,10 +8244,29 @@ function buildHeadingStrip(){
 }
 function updateIsoBillboard(){
   if(!ISO.scene)return;
+  isoFpsTick();
   const els=ISO._stormEls;
   const t=`translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg)`;
   for(let i=0;i<els.length;i++){
     els[i].style.transform=t;
+  }
+  const heading=(((-ISO.tiltZ)%360)+360)%360;
+  const arrows=ISO._windArrows;
+  if(arrows){
+    for(let i=0;i<arrows.length;i++){
+      const dir=parseFloat(arrows[i].dataset.dir);
+      arrows[i].style.transform=`translate(-50%,-50%) rotate(${dir-heading}deg)`;
+    }
+  }
+  const labels=ISO._windLabels;
+  if(labels){
+    for(let i=0;i<labels.length;i++){
+      const dir=parseFloat(labels[i].dataset.dir);
+      const r=parseFloat(labels[i].dataset.radius);
+      const angle=(dir-heading)*Math.PI/180;
+      labels[i].style.left=Math.sin(angle)*r+'px';
+      labels[i].style.top=-Math.cos(angle)*r+'px';
+    }
   }
 }
 function updateIsoCompass(){
