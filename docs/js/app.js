@@ -7825,6 +7825,26 @@ function dbzToEmoji(d){
   if(d>=31)return'🌧️';
   return'☁️';
 }
+function stormSVG(dbz,color,sz){
+  const w=Math.round(sz*20),h=Math.round(sz*14);
+  const baseC=dbz>=56?'#555':dbz>=46?'#666':dbz>=31?'#999':'#ccc';
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 40 28">`;
+  svg+=`<path d="M10 22 C4 22 0 18 0 14 C0 10 3 7 7 7 C8 3 12 0 17 0 C22 0 26 3 27 7 C27 6.8 28 6.5 29 6.5 C33 6.5 36 9.5 36 13 C36 13.5 36 14 35.8 14.5 C38 15 40 17 40 20 C40 23 38 25 35 25 L10 25 C6 25 4 23 4 22 Z" fill="${baseC}" opacity="0.5"/>`;
+  svg+=`<path d="M10 22 C4 22 0 18 0 14 C0 10 3 7 7 7 C8 3 12 0 17 0 C22 0 26 3 27 7 C27 6.8 28 6.5 29 6.5 C33 6.5 36 9.5 36 13 C36 13.5 36 14 35.8 14.5 C38 15 40 17 40 20 C40 23 38 25 35 25 L10 25 C6 25 4 23 4 22 Z" fill="${color}" opacity="0.6"/>`;
+  if(dbz>=31){
+    const drops=dbz>=56?5:dbz>=46?3:2;
+    for(let i=0;i<drops;i++){
+      const dx=10+i*(20/(drops-1||1));
+      svg+=`<line x1="${dx}" y1="25" x2="${dx-2}" y2="28" stroke="${dbz>=46?'#6cf':'#8cf'}" stroke-width="1.2" opacity="0.7"/>`;
+    }
+  }
+  if(dbz>=46){
+    svg+=`<path d="M18 24 L20 28 L22 24 Z" fill="#ff0" opacity="0.9"/>`;
+    svg+=`<line x1="20" y1="24" x2="20" y2="20" stroke="#ff0" stroke-width="1" opacity="0.7"/>`;
+  }
+  svg+=`</svg>`;
+  return svg;
+}
 function dbzToHeight(d){
   if(d>=56)return 55;
   if(d>=46)return 38;
@@ -8101,10 +8121,8 @@ function render3DView(){
     const glowSz=Math.max(8,sz*10);
     el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);will-change:transform;`;
 
-    const tintOp=tScore>80?0.55:tScore>55?0.45:tScore>35?0.35:0.2;
-    let html=`<span class="iso-emoji" style="position:relative;font-size:${sz}em;filter:drop-shadow(0 0 6px ${tc.glow}) drop-shadow(0 4px 6px rgba(0,0,0,0.6));transform:translateY(-${h-8}px)">${emoji}<span style="position:absolute;inset:0;background:${tc.color};mix-blend-mode:color;opacity:${tintOp};pointer-events:none;border-radius:4px"></span></span>`;
-    const ringR=Math.max(10,sz*6);
-    html+=`<span class="iso-glow" style="width:${ringR}px;height:${Math.round(ringR*0.35)}px;background:radial-gradient(ellipse,${tc.color}44 0%,transparent 70%);bottom:-2px;border-radius:50%"></span>`;
+    const cloudSvg=stormSVG(st.dbz,tc.color,sz);
+    let html=`<span class="iso-emoji" style="display:block;filter:drop-shadow(0 0 ${tScore>55?8:4}px ${tc.glow}) drop-shadow(0 2px 4px rgba(0,0,0,0.7));transform:translateY(-${h-8}px)">${cloudSvg}</span>`;
 
     if(showLtng&&st.dbz>=40){
       const strikes=Math.floor((st.dbz-35)/5);
