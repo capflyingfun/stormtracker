@@ -341,3 +341,37 @@ canvas.offscreen{display:none}
 .hero-compass-layout:has(.gauge-g1000){gap:6px}
 .gauge-style-btn:hover{background:rgba(0,229,255,0.08)!important;border-color:rgba(0,229,255,0.3)!important}
 @media(max-width:480px){.gauge-g1000{width:100%!important;max-width:340px!important;height:auto!important}.hero-compass-layout:has(.gauge-g1000){flex-wrap:wrap}}
+.iso-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9000;background:#080c18;display:none;flex-direction:column;overflow:hidden}
+.iso-overlay.active{display:flex}
+.iso-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(10,16,32,0.95);border-bottom:1px solid rgba(255,255,255,0.08);z-index:2}
+.iso-header h3{margin:0;font-size:0.85em;color:var(--text-primary);font-weight:700}
+.iso-header .iso-loc{font-size:0.65em;color:var(--text-muted);margin-top:1px}
+.iso-close{background:none;border:1px solid rgba(255,255,255,0.15);color:var(--text-secondary);font-size:1em;padding:4px 10px;border-radius:6px;cursor:pointer}
+.iso-scene-wrap{flex:1;position:relative;overflow:hidden;touch-action:none}
+.iso-scene{position:absolute;transform-style:preserve-3d;transition:transform 0.1s ease-out}
+.iso-ground{position:absolute;border-radius:50%}
+.iso-ring{position:absolute;border:1px solid rgba(0,229,255,0.1);border-radius:50%;pointer-events:none}
+.iso-ring-label{position:absolute;font-size:0.5em;color:rgba(0,229,255,0.3);font-family:'JetBrains Mono',monospace;white-space:nowrap;pointer-events:none}
+.iso-north{position:absolute;font-size:0.55em;color:rgba(255,100,100,0.5);font-weight:700;pointer-events:none}
+.iso-user{position:absolute;width:12px;height:12px;border-radius:50%;background:#4488ff;box-shadow:0 0 10px #4488ff,0 0 20px rgba(68,136,255,0.4);z-index:10;transform:translate(-50%,-50%)}
+.iso-user::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:2px solid rgba(68,136,255,0.4);animation:iso-pulse 2s ease-in-out infinite}
+@keyframes iso-pulse{0%,100%{transform:scale(1);opacity:0.6}50%{transform:scale(1.8);opacity:0}}
+.iso-storm{position:absolute;transform:translate(-50%,-100%);cursor:pointer;z-index:5;transition:transform 0.3s ease-out;text-align:center;line-height:1}
+.iso-storm .iso-emoji{display:block;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.6))}
+.iso-storm.approaching .iso-emoji{animation:iso-bob 1.5s ease-in-out infinite}
+@keyframes iso-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.iso-storm .iso-arrow{position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);font-size:0.5em;opacity:0.6}
+.iso-storm .iso-ltng{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:0.6em;filter:drop-shadow(0 0 4px #ffcc00);animation:iso-flash 2s ease-in-out infinite}
+@keyframes iso-flash{0%,85%,100%{opacity:0.8}90%{opacity:1}92%{opacity:0.3}95%{opacity:1}}
+.iso-storm .iso-rain{position:absolute;bottom:-14px;left:50%;width:8px;height:14px;transform:translateX(-50%);overflow:hidden;opacity:0.3}
+.iso-storm .iso-rain::before{content:'│';position:absolute;color:rgba(100,180,255,0.6);font-size:0.5em;animation:iso-fall 0.6s linear infinite;top:-10px}
+@keyframes iso-fall{0%{top:-10px;opacity:0.6}100%{top:14px;opacity:0}}
+.iso-legend{position:absolute;bottom:10px;left:10px;background:rgba(10,16,32,0.9);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 10px;z-index:3;max-width:160px}
+.iso-legend h4{margin:0 0 4px;font-size:0.6em;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
+.iso-legend-row{display:flex;align-items:center;gap:6px;font-size:0.65em;color:var(--text-secondary);line-height:1.4}
+.iso-legend-row .le{width:20px;text-align:center}
+.iso-info{position:absolute;bottom:10px;right:10px;background:rgba(10,16,32,0.9);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px 10px;z-index:3;font-size:0.6em;color:var(--text-muted);font-family:'JetBrains Mono',monospace}
+.iso-popup{position:absolute;background:rgba(10,16,32,0.95);border:1px solid rgba(0,229,255,0.2);border-radius:8px;padding:8px 10px;z-index:20;min-width:140px;font-size:0.7em;color:var(--text-primary);pointer-events:auto;box-shadow:0 4px 20px rgba(0,0,0,0.6)}
+.iso-popup .iso-pop-close{position:absolute;top:2px;right:6px;background:none;border:none;color:var(--text-muted);font-size:0.9em;cursor:pointer}
+.iso-popup .iso-pop-title{font-weight:700;color:var(--accent-cyan);margin-bottom:4px}
+.iso-popup .iso-pop-row{color:var(--text-secondary);line-height:1.5}
