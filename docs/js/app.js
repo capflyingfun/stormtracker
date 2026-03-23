@@ -7753,6 +7753,7 @@ function show3DView(){
             <div class="iso-cam-btn" data-cam="zout">−</div>
             <div class="iso-cam-btn" data-cam="zin">+</div>
           </div>
+          <div class="iso-cam-btn iso-gyro-btn" id="iso-gyro-btn" onclick="toggleIsoGyro()" title="Toggle gyroscope">🔄</div>
         </div>
       </div>`;
     document.body.appendChild(ov);
@@ -7778,6 +7779,7 @@ function show3DView(){
 
 function hide3DView(){
   ISO.open=false;
+  if(_gyroActive)stopIsoGyro();
   const ov=document.getElementById('iso-overlay');
   if(ov)ov.classList.remove('active');
   if(ISO.popup){ISO.popup.remove();ISO.popup=null;}
@@ -8057,7 +8059,47 @@ function setupIsoTouch(){
     camPad.addEventListener('pointerup',stopCam);
     camPad.addEventListener('pointerleave',stopCam);
     camPad.addEventListener('pointercancel',stopCam);
+    camPad.addEventListener('dblclick',(e)=>{e.preventDefault();e.stopPropagation();});
+    camPad.addEventListener('touchstart',(e)=>{e.preventDefault();},{passive:false});
   }
+}
+
+/* ── Gyroscope control for 2.5D view ── */
+let _gyroActive=false,_gyroBaseAlpha=null,_gyroBeta=null;
+function toggleIsoGyro(){
+  if(_gyroActive){stopIsoGyro();return;}
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    DeviceOrientationEvent.requestPermission().then(p=>{
+      if(p==='granted')startIsoGyro();
+      else console.log('Gyro permission denied');
+    }).catch(e=>console.log('Gyro error',e));
+  }else{startIsoGyro();}
+}
+function startIsoGyro(){
+  _gyroActive=true;_gyroBaseAlpha=null;_gyroBeta=null;
+  window.addEventListener('deviceorientation',onIsoGyro,true);
+  const btn=document.getElementById('iso-gyro-btn');
+  if(btn){btn.style.background='rgba(0,229,255,0.2)';btn.style.borderColor='rgba(0,229,255,0.5)';btn.style.color='rgba(0,229,255,0.9)';}
+}
+function stopIsoGyro(){
+  _gyroActive=false;_gyroBaseAlpha=null;_gyroBeta=null;
+  window.removeEventListener('deviceorientation',onIsoGyro,true);
+  const btn=document.getElementById('iso-gyro-btn');
+  if(btn){btn.style.background='';btn.style.borderColor='';btn.style.color='';}
+}
+function onIsoGyro(e){
+  if(!ISO.open||!ISO.scene)return;
+  const alpha=e.alpha,beta=e.beta;
+  if(alpha==null||beta==null)return;
+  if(_gyroBaseAlpha===null){_gyroBaseAlpha=alpha;_gyroBeta=beta;}
+  let dAlpha=alpha-_gyroBaseAlpha;
+  if(dAlpha>180)dAlpha-=360;
+  if(dAlpha<-180)dAlpha+=360;
+  ISO.tiltZ=(-dAlpha)%360;
+  const tiltRange=beta-_gyroBeta;
+  ISO.tiltX=Math.max(20,Math.min(80,55+tiltRange*0.5));
+  if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale(${ISO.zoom})`;
+  updateIsoCompass();
 }
 
 (function initLang(){

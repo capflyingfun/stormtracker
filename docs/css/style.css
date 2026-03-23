@@ -396,3 +396,4 @@ canvas.offscreen{display:none}
 .iso-cam-btn.iso-cam-center{font-size:0.5em;font-weight:700;color:rgba(0,229,255,0.5);letter-spacing:0.5px}
 .iso-cam-zoom{display:flex;gap:2px;margin-top:4px}
 .iso-cam-zoom .iso-cam-btn{width:46px;height:40px;font-size:1.1em;font-weight:700}
+.iso-gyro-btn{width:auto!important;padding:0 10px!important;margin-top:4px;font-size:0.7em!important;height:32px!important}
