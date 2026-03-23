@@ -1886,6 +1886,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.34',date:'2026-03-23',items:['3D Storm Terrain — complete rewrite using HTML5 Canvas heightmap renderer replacing DOM-based 3D','64×64 terrain grid with Gaussian smoothing maps storm dBZ to elevation peaks','True 3D projection with rotation, tilt, and zoom — drag to orbit, scroll/pinch to zoom','dBZ-colored terrain quads with back-to-front painter\'s algorithm and shading','Distance rings rendered as projected ellipses on the terrain plane','Wind arrows (storm movement + aloft) drawn directly on canvas','Animated lightning ⚡ flickers on cells ≥40 dBZ','Camera pad controls (arrows, zoom, reset) all working with canvas render']},
   {ver:'v2.33',date:'2026-03-23',items:['3D Storm View: threat-based color glow — green (low), yellow (moderate), red (serious), magenta (extreme) halo around each storm icon','Threat score formula combines dBZ intensity (50%) with approach trajectory impact (50%) for meaningful color coding','Storm direction arrows repositioned above icons for better visibility — larger, colored to match threat level, with contrast shadow','Radial glow ground effect beneath each storm icon with threat-colored ring','Updated Storm Intensity legend with Threat Glow color key']},
   {ver:'v2.32',date:'2026-03-23',items:['Weather Station Alerts — set custom thresholds for wind, gusts, temperature, pressure, rainfall, humidity, visibility, and UV','10 configurable alert types with per-alert enable/disable and custom threshold values','15-minute cooldown per alert type to prevent notification spam','Browser push notifications when app is in background (via Service Worker)','Toast alerts when app is in foreground','Alert history log in Alerts tab with timestamps and clear button','Settings panel → Weather Station Alerts 🔔 section for easy configuration']},
   {ver:'v2.31e',date:'2026-03-23',items:['Fixed 3D view icon aspect ratio — storm emojis no longer squish or stretch on zoom/tilt','Changed scene transform from 2D scale to 3D scale3d for uniform scaling across all axes','Lightning, rain, and arrow indicators also maintain correct proportions at all zoom levels']},
@@ -3460,7 +3461,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" style="font-size:0.55em;font-weight:700;line-height:1;color:var(--accent-cyan)" onclick="toggleStormPoints()">PT</div>
         <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff9800" onclick="toggleRadarOverlay()">RDR</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
-        <div class="map-ctrl-btn" id="btn-iso-3d" title="2.5D Storm View" style="font-size:0.55em;font-weight:700;line-height:1;color:#66ffcc;display:none" onclick="show3DView()">3D</div>
+        <div class="map-ctrl-btn" id="btn-iso-3d" title="3D Storm Terrain" style="font-size:0.55em;font-weight:700;line-height:1;color:#66ffcc" onclick="show3DView()">3D</div>
         <div class="map-ctrl-btn" id="clutter-toggle" title="Clutter hidden (tap to show)" style="font-size:0.7em;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);border-color:#555" onclick="toggleClutter()">🕳️</div>
       </div>
       <div class="radar-anim-bar" id="radar-anim-bar" style="display:none">
@@ -4099,7 +4100,7 @@ async function scanRadarForView(){
     scanStep(3,`Plotting ${S.storms.length.toLocaleString()} storm points...`);
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
-    if(typeof ISO!=='undefined'&&ISO.open)render3DView();
+    if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     if(S.map){
       plotStormMarkers(S.map);
       if(rawPoints.length>0){autoActivateZones()}
@@ -4170,7 +4171,7 @@ async function scanRadarHiRes(map,fromHome){
     scanStep(3,`Hi-Res: ${S.storms.length.toLocaleString()} points in ${HIRES_RADIUS} mi`);
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
-    if(typeof ISO!=='undefined'&&ISO.open)render3DView();
+    if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     plotStormMarkers(map);
     if(rawPoints.length>0){autoActivateZones()}
     else{clearStormZones();if(S.radarLayer&&S.map&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}
@@ -4277,7 +4278,7 @@ function toggleClutter(){
   if(S.activePage==='storms')renderStorms();
   updateStormBadges();
   drawMiniSonar();
-  if(typeof ISO!=='undefined'&&ISO.open)render3DView();
+  if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
 }
 function updateClutterButton(){
   const btn=document.getElementById('clutter-toggle');
@@ -5799,7 +5800,7 @@ async function scanRadarForStorms(){
     scanStep(3,`Plotting ${S.storms.length} storm points...`);
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
-    if(typeof ISO!=='undefined'&&ISO.open)render3DView();
+    if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
     updateThreatTicker();
     hideScanOverlay();
@@ -7890,33 +7891,20 @@ function show3DView(){
     ov.innerHTML=`
       <div class="iso-header">
         <div>
-          <h3>🗺️ 2.5D Storm View</h3>
+          <h3>🏔️ 3D Storm Terrain</h3>
           <div class="iso-loc" id="iso-loc"></div>
         </div>
         <button class="iso-close" onclick="hide3DView()">✕ Close</button>
       </div>
       <div class="iso-scene-wrap" id="iso-scene-wrap">
-        <div class="iso-scene" id="iso-scene"></div>
-        <div class="iso-legend">
-          <h4>Storm Intensity</h4>
-          <div class="iso-legend-row"><span class="le">☁️</span> Light (15-30 dBZ)</div>
-          <div class="iso-legend-row"><span class="le">🌧️</span> Moderate (31-45)</div>
-          <div class="iso-legend-row"><span class="le">⛈️</span> Heavy (46-55)</div>
-          <div class="iso-legend-row"><span class="le">🌩️</span> Severe (56+)</div>
+        <canvas id="iso-canvas"></canvas>
+        <div class="iso-legend" style="max-height:240px">
+          <h4>Elevation = Intensity</h4>
+          <div class="iso-legend-row"><span class="le" style="color:#22c55e">▓</span> Light (15-30 dBZ)</div>
+          <div class="iso-legend-row"><span class="le" style="color:#facc15">▓</span> Moderate (31-45)</div>
+          <div class="iso-legend-row"><span class="le" style="color:#ff3355">▓</span> Heavy (46-55)</div>
+          <div class="iso-legend-row"><span class="le" style="color:#e040fb">▓</span> Severe (56+)</div>
           <div class="iso-legend-row"><span class="le">⚡</span> Lightning (≥40)</div>
-          <h4 style="margin-top:6px">Threat Tint</h4>
-          <div class="iso-legend-row"><span class="le" style="color:#22c55e">●</span> Low</div>
-          <div class="iso-legend-row"><span class="le" style="color:#facc15">●</span> Moderate</div>
-          <div class="iso-legend-row"><span class="le" style="color:#ff3355">●</span> Serious</div>
-          <div class="iso-legend-row"><span class="le" style="color:#e040fb">●</span> Extreme</div>
-          <h4 style="margin-top:6px">Wind Arrows</h4>
-          <div class="iso-legend-row"><span class="le" style="color:rgba(0,220,255,0.9)">→</span> Storm Mvmt</div>
-          <div class="iso-legend-row"><span class="le" style="color:rgba(255,0,220,0.8)">→</span> Winds Aloft</div>
-        </div>
-        <div class="iso-hstrip" id="iso-hstrip">
-          <div class="iso-hstrip-track" id="iso-hstrip-track"></div>
-          <div class="iso-hstrip-center"></div>
-          <div class="iso-hstrip-hdg" id="iso-hstrip-hdg">000°</div>
         </div>
         <div class="iso-info" id="iso-info"></div>
         <div class="iso-info iso-fps-badge" id="iso-fps" style="top:58px"></div>
@@ -7940,8 +7928,9 @@ function show3DView(){
       </div>`;
     document.body.appendChild(ov);
     ISO.el=ov;
-    ISO.scene=document.getElementById('iso-scene');
     ISO.wrap=document.getElementById('iso-scene-wrap');
+    ISO.canvas=document.getElementById('iso-canvas');
+    ISO.ctx=ISO.canvas.getContext('2d');
     ov.addEventListener('selectstart',e=>e.preventDefault());
     ov.addEventListener('contextmenu',e=>e.preventDefault());
     ov.addEventListener('copy',e=>e.preventDefault());
@@ -7949,18 +7938,17 @@ function show3DView(){
     ov.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
     ov.addEventListener('touchstart',e=>{if(e.touches.length===1&&!e.target.closest('.iso-close,.iso-cam-btn,.iso-pop-close'))e.preventDefault();},{passive:false});
     setupIsoTouch();
-    buildHeadingStrip();
   }
   ISO.open=true;
   ISO.zoom=1;
   ISO.tiltX=55;
   ISO.tiltZ=0;
-  ISO._fps={frames:0,last:performance.now(),current:60,target:45,maxStorms:500,mergeR:0.0005,history:[]};
+  ISO._fps={frames:0,last:performance.now(),current:60,target:45,history:[]};
   ov.classList.add('active');
   const loc=document.getElementById('iso-loc');
   if(loc)loc.textContent=S.locName||`${S.lat.toFixed(2)}, ${S.lon.toFixed(2)}`;
-  render3DView();
-  updateIsoCompass();
+  ISO._grid=buildTerrainGrid();
+  ISO._dirty=true;
   isoStartLoop();
 }
 
@@ -7972,16 +7960,20 @@ function hide3DView(){
   if(ISO.popup){ISO.popup.remove();ISO.popup=null;}
 }
 
-ISO._stormEls=[];
-ISO._windArrows=[];
 ISO._rafPending=false;
-ISO._fps={frames:0,last:performance.now(),current:60,target:45,maxStorms:500,mergeR:0.0005,history:[]};
+ISO._fps={frames:0,last:performance.now(),current:60,target:45,history:[]};
+ISO._grid=null;
+ISO._dirty=true;
 
 function isoStartLoop(){
   if(ISO._loopId)return;
   function tick(){
     if(!ISO.open){ISO._loopId=0;return;}
     isoFpsTick();
+    if(ISO._dirty){
+      ISO._dirty=false;
+      renderTerrain3D();
+    }
     ISO._loopId=requestAnimationFrame(tick);
   }
   ISO._loopId=requestAnimationFrame(tick);
@@ -8000,251 +7992,251 @@ function isoFpsTick(){
     f.last=now;
     f.history.push(f.current);
     if(f.history.length>6)f.history.shift();
-    const avg=f.history.reduce((a,b)=>a+b,0)/f.history.length;
-    if(avg<25&&f.maxStorms>40){
-      f.maxStorms=Math.max(40,f.maxStorms-30);
-      f.mergeR=Math.min(0.02,f.mergeR*1.5);
-      if(ISO.open)render3DView();
-    }else if(avg>55&&f.maxStorms<600){
-      f.maxStorms=Math.min(600,f.maxStorms+20);
-      f.mergeR=Math.max(0.0002,f.mergeR*0.85);
-    }
     const badge=document.getElementById('iso-fps');
-    if(badge)badge.textContent=`${f.current} fps · ${ISO._stormEls.length} cells`;
+    if(badge)badge.textContent=`${f.current} fps`;
   }
 }
 
-function isoMergeStorms(src){
-  const f=ISO._fps;
-  const pts=src.filter(p=>p.dbz>=15);
-  if(pts.length<=f.maxStorms)return pts;
-  pts.sort((a,b)=>b.dbz-a.dbz);
-  const out=[];
-  const mr=f.mergeR;
-  for(const p of pts){
-    if(out.length>=f.maxStorms)break;
-    let merged=false;
-    for(const e of out){
-      const dlat=p.lat-e.lat,dlng=(p.lng||p.lon)-(e.lng||e.lon);
-      if(dlat*dlat+dlng*dlng<mr){if(p.dbz>e.dbz)e.dbz=p.dbz;merged=true;break}
-    }
-    if(!merged){
-      out.push({lat:p.lat,lng:p.lng||p.lon,dbz:p.dbz,distance:p.distance||haversine(S.lat,S.lon,p.lat,p.lng||p.lon),bearing:p.bearing||bearingDeg(S.lat,S.lon,p.lat,p.lng||p.lon)});
-    }
-  }
-  return out;
-}
-
-function render3DView(){
-  if(!ISO.open||!ISO.scene)return;
-  const sc=ISO.scene;
-  const wrap=ISO.wrap;
-  const ww=wrap.clientWidth;
-  const wh=wrap.clientHeight;
-  const storms=isoMergeStorms(S.storms||[]);
-  const useMetric=S.units==='metric';
-  const unitLabel=useMetric?'km':'mi';
+function buildTerrainGrid(){
+  const storms=S.storms||[];
+  const GS=64;
+  const grid=new Float32Array(GS*GS);
   const scanR=S.scanRadius||80;
-  const maxRingDist=useMetric?Math.round(scanR*1.60934/20)*20||80:scanR;
-  const ringStep=useMetric?20:(maxRingDist<=50?10:20);
-  const groundSize=Math.min(ww,wh)*2.2;
-  const scale=groundSize/(maxRingDist*2.4);
-  ISO._scale=scale;ISO._cx=groundSize/2;ISO._cy=groundSize/2;ISO._groundSize=groundSize;
-
-  sc.style.width=groundSize+'px';
-  sc.style.height=groundSize+'px';
-  sc.style.left=(ww/2-groundSize/2)+'px';
-  sc.style.top=(wh/2-groundSize/2)+'px';
-  sc.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
-  sc.style.willChange='transform';
-
-  let staticLayer=sc.querySelector('.iso-static');
-  if(!staticLayer){
-    sc.innerHTML='';
-    staticLayer=document.createElement('div');
-    staticLayer.className='iso-static';
-    staticLayer.style.cssText='position:absolute;left:0;top:0;width:100%;height:100%;';
-    sc.appendChild(staticLayer);
+  const R=3958.8;
+  storms.forEach(st=>{
+    if(!st.dbz||st.dbz<15)return;
+    const dLat=(st.lat-S.lat)*Math.PI/180;
+    const dLng=((st.lng||st.lon)-S.lon)*Math.PI/180;
+    const avgLat=(st.lat+S.lat)/2*Math.PI/180;
+    const dx=R*dLng*Math.cos(avgLat);
+    const dy=R*dLat;
+    const gx=Math.round((dx/scanR+1)*0.5*(GS-1));
+    const gy=Math.round((-dy/scanR+1)*0.5*(GS-1));
+    const spread=2;
+    for(let oy=-spread;oy<=spread;oy++){
+      for(let ox=-spread;ox<=spread;ox++){
+        const ix=gx+ox,iy=gy+oy;
+        if(ix<0||ix>=GS||iy<0||iy>=GS)continue;
+        const d=Math.sqrt(ox*ox+oy*oy);
+        const w=Math.max(0,1-d/spread);
+        const idx=iy*GS+ix;
+        grid[idx]=Math.max(grid[idx],st.dbz*w);
+      }
+    }
+  });
+  for(let pass=0;pass<2;pass++){
+    const tmp=new Float32Array(grid);
+    for(let y=1;y<GS-1;y++){
+      for(let x=1;x<GS-1;x++){
+        const i=y*GS+x;
+        tmp[i]=(grid[i]*2+grid[i-1]+grid[i+1]+grid[i-GS]+grid[i+GS])/6;
+      }
+    }
+    grid.set(tmp);
   }
-  staticLayer.innerHTML='';
+  const info=document.getElementById('iso-info');
+  if(info)info.textContent=`${storms.filter(s=>s.dbz>=15).length} storms in view`;
+  return{data:grid,size:GS};
+}
 
-  const cx=groundSize/2;
-  const cy=groundSize/2;
+function dbzColor(v){
+  if(v>=56)return[224,64,251];
+  if(v>=46)return[255,51,85];
+  if(v>=36)return[255,170,20];
+  if(v>=25)return[80,220,80];
+  if(v>=15)return[34,160,94];
+  return[20,60,40];
+}
 
-  let buf=`<div class="iso-ground" style="width:${groundSize}px;height:${groundSize}px;left:0;top:0;background:radial-gradient(circle,rgba(10,20,40,0.9) 0%,rgba(5,10,25,0.95) 70%,rgba(2,5,15,1) 100%)"></div>`;
-  for(let r=ringStep;r<=maxRingDist;r+=ringStep){
-    const rPx=r*scale*2;
-    buf+=`<div class="iso-ring" style="width:${rPx}px;height:${rPx}px;left:${cx-rPx/2}px;top:${cy-rPx/2}px"></div>`;
-    buf+=`<div class="iso-ring-label" style="left:${cx+rPx/2+4}px;top:${cy-6}px">${r}${unitLabel}</div>`;
+function renderTerrain3D(){
+  const c=ISO.canvas;
+  const ctx=ISO.ctx;
+  if(!c||!ctx)return;
+  const wrap=ISO.wrap;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const W=wrap.clientWidth;
+  const H=wrap.clientHeight;
+  c.width=W*dpr;
+  c.height=H*dpr;
+  c.style.width=W+'px';
+  c.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+
+  ctx.fillStyle='#060d1a';
+  ctx.fillRect(0,0,W,H);
+
+  const g=ISO._grid;
+  if(!g)return;
+  const GS=g.size;
+  const data=g.data;
+
+  const rotZ=ISO.tiltZ*Math.PI/180;
+  const tiltX=ISO.tiltX;
+  const cosR=Math.cos(rotZ),sinR=Math.sin(rotZ);
+  const yScale=Math.cos(tiltX*Math.PI/180);
+  const hScale=Math.sin(tiltX*Math.PI/180);
+  const zoom=ISO.zoom;
+  const baseScale=Math.min(W,H)*0.0065*zoom;
+  const heightMul=baseScale*3.5;
+  const cx=W/2, cy=H*0.55;
+
+  const scanR=S.scanRadius||80;
+  const useMetric=S.units==='metric';
+  const ringMax=useMetric?Math.round(scanR*1.60934/20)*20||80:scanR;
+  const ringStep=useMetric?20:(ringMax<=50?10:20);
+  const unitL=useMetric?'km':'mi';
+  ctx.strokeStyle='rgba(40,80,120,0.35)';
+  ctx.lineWidth=0.5;
+  for(let r=ringStep;r<=ringMax;r+=ringStep){
+    const rPx=r*baseScale*GS/scanR;
+    ctx.beginPath();
+    ctx.ellipse(cx,cy,rPx,rPx*yScale,0,0,Math.PI*2);
+    ctx.stroke();
+    ctx.fillStyle='rgba(80,140,200,0.4)';
+    ctx.font='9px Inter,sans-serif';
+    ctx.fillText(r+unitL,cx+rPx+3,cy+3);
   }
-  buf+=`<div class="iso-north" style="left:${cx-8}px;top:${cy-maxRingDist*scale-18}px">▲ N</div>`;
-  buf+=`<div class="iso-user" style="left:${cx}px;top:${cy}px"></div>`;
-  staticLayer.innerHTML=buf;
 
-  const oldStorms=sc.querySelectorAll('.iso-storm');
-  oldStorms.forEach(el=>el.remove());
-  ISO._stormEls=[];
-  ISO._windArrows=[];
-  ISO._windLabels=[];
+  ctx.fillStyle='rgba(0,200,255,0.8)';
+  ctx.beginPath();ctx.arc(cx,cy,3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(0,200,255,0.6)';
+  ctx.font='bold 9px Inter,sans-serif';
+  ctx.fillText('YOU',cx+6,cy+3);
+
+  const nAngle=-rotZ;
+  const nR=ringMax*baseScale*GS/scanR+12;
+  const nx=cx+Math.sin(nAngle)*nR;
+  const ny=cy-Math.cos(nAngle)*nR*yScale;
+  ctx.fillStyle='rgba(255,100,100,0.8)';
+  ctx.font='bold 10px Inter,sans-serif';
+  ctx.textAlign='center';
+  ctx.fillText('▲ N',nx,ny);
+  ctx.textAlign='left';
+
+  const half=(GS-1)/2;
+  const projected=new Float32Array(GS*GS*2);
+  for(let gy=0;gy<GS;gy++){
+    for(let gx=0;gx<GS;gx++){
+      const wx=(gx-half)*baseScale;
+      const wy=(gy-half)*baseScale;
+      const rx=wx*cosR-wy*sinR;
+      const ry=wx*sinR+wy*cosR;
+      const v=data[gy*GS+gx];
+      const h=v>0?(v/65)*heightMul:0;
+      const sx=cx+rx;
+      const sy=cy+ry*yScale-h*hScale;
+      const idx=(gy*GS+gx)*2;
+      projected[idx]=sx;
+      projected[idx+1]=sy;
+    }
+  }
+
+  for(let gy=GS-2;gy>=0;gy--){
+    for(let gx=0;gx<GS-1;gx++){
+      const i00=gy*GS+gx;
+      const i10=i00+1;
+      const i01=i00+GS;
+      const i11=i01+1;
+      const v00=data[i00],v10=data[i10],v01=data[i01],v11=data[i11];
+      const maxV=Math.max(v00,v10,v01,v11);
+      if(maxV<5)continue;
+      const avgV=(v00+v10+v01+v11)/4;
+
+      const x0=projected[i00*2],y0=projected[i00*2+1];
+      const x1=projected[i10*2],y1=projected[i10*2+1];
+      const x2=projected[i11*2],y2=projected[i11*2+1];
+      const x3=projected[i01*2],y3=projected[i01*2+1];
+
+      const c1=(x1-x0)*(y3-y0)-(y1-y0)*(x3-x0);
+      const rgb=dbzColor(avgV);
+      const bright=0.5+avgV/130;
+      const shade=c1>0?0.85:1.0;
+      const alpha=Math.min(0.92,0.3+avgV/80);
+      ctx.fillStyle=`rgba(${Math.round(rgb[0]*bright*shade)},${Math.round(rgb[1]*bright*shade)},${Math.round(rgb[2]*bright*shade)},${alpha})`;
+      ctx.beginPath();
+      ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineTo(x3,y3);
+      ctx.closePath();ctx.fill();
+
+      if(maxV>=20){
+        ctx.strokeStyle=`rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.15)`;
+        ctx.lineWidth=0.5;
+        ctx.stroke();
+      }
+    }
+  }
 
   const showLtng=_sonarCfg.showLightning!==false;
-  let stormCount=0;
-  const etas=S._stormETAs||{};
-  const etaKeys=Object.keys(etas);
-  const frag=document.createDocumentFragment();
-
-  storms.forEach((st,i)=>{
-    if(!st.dbz||st.dbz<15)return;
-    const pos=geoToIso(st.lat,st.lng,S.lat,S.lon,scale);
-    const sx=cx+pos.x;
-    const sy=cy+pos.y;
-
-    if(sx<-50||sx>groundSize+50||sy<-50||sy>groundSize+50)return;
-    stormCount++;
-
-    const h=dbzToHeight(st.dbz);
-    const emoji=dbzToEmoji(st.dbz);
-    const sz=dbzToSize(st.dbz);
-
-    const tScore=stormThreatScore(st.dbz,st.distance||0,st.bearing||0);
-    const tc=threatColor(tScore);
-
-    const etaKey=etaKeys.find(k=>{
-      const e=etas[k];
-      if(!e)return false;
-      if(e.lat!==undefined&&e.lng!==undefined)return Math.abs(e.lat-st.lat)<0.05&&Math.abs(e.lng-st.lng)<0.05;
-      return Math.abs(e.distance-st.distance)<0.3&&Math.abs((e.bearing||0)-(st.bearing||0))<10;
-    });
-    const isApproaching=!!etaKey;
-
-    const el=document.createElement('div');
-    el.className='iso-storm'+(isApproaching?' approaching':'');
-    const glowSz=Math.max(8,sz*10);
-    el.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-100%) rotateZ(${-ISO.tiltZ}deg) rotateX(${-ISO.tiltX}deg);will-change:transform;padding-bottom:${h}px;`;
-
-    const cloudSvg=stormSVG(st.dbz,tc.color,sz);
-    const stemW=Math.max(3,sz*3);
-    let html=`<span class="iso-stem" style="position:absolute;bottom:0;left:50%;width:${stemW}px;height:${h}px;transform:translateX(-50%);background:linear-gradient(to top,${tc.color}15,${tc.color}30);border-left:1px solid ${tc.color}20;border-right:1px solid ${tc.color}20;pointer-events:none"></span>`;
-    html+=`<span class="iso-emoji" style="display:block;filter:drop-shadow(0 0 ${tScore>55?8:4}px ${tc.glow}) drop-shadow(0 2px 4px rgba(0,0,0,0.7))">${cloudSvg}</span>`;
-
-    if(showLtng&&st.dbz>=40){
-      const strikes=Math.floor((st.dbz-35)/5);
-      html+=`<span class="iso-ltng" style="transform:translateX(-50%) translateY(-4px)">⚡${strikes>1?'×'+strikes:''}</span>`;
+  if(showLtng){
+    const time=Date.now();
+    for(let gy=0;gy<GS;gy++){
+      for(let gx=0;gx<GS;gx++){
+        const v=data[gy*GS+gx];
+        if(v<40)continue;
+        const freq=v>=56?800:1500;
+        const seed=(gx*73+gy*137)%freq;
+        if((time+seed)%freq>100)continue;
+        const idx=(gy*GS+gx)*2;
+        const lx=projected[idx],ly=projected[idx+1];
+        ctx.fillStyle='rgba(255,255,100,0.9)';
+        ctx.font='bold 12px sans-serif';
+        ctx.fillText('⚡',lx-6,ly-2);
+      }
     }
+  }
 
-    if(st.dbz>=31){
-      const rainH=Math.min(h,40);
-      html+=`<span class="iso-rain-col" style="position:absolute;bottom:0;left:50%;width:${stemW+4}px;height:${rainH}px;transform:translateX(-50%);overflow:hidden;pointer-events:none"><span style="position:absolute;inset:0;background:linear-gradient(to bottom,${tc.color}00,rgba(100,180,255,0.15));animation:iso-fall 0.6s linear infinite"></span></span>`;
-    }
-
-    el.innerHTML=html;
-    el.onclick=(e)=>{
-      e.stopPropagation();
-      showIsoPopup(st,sx,sy,isApproaching?etaKey:null);
-    };
-    frag.appendChild(el);
-    ISO._stormEls.push(el);
-  });
-  sc.appendChild(frag);
-
-  let windLayer=wrap.querySelector('.iso-wind-layer');
-  if(windLayer)windLayer.remove();
-  windLayer=document.createElement('div');
-  windLayer.className='iso-wind-layer';
-  windLayer.style.cssText='position:absolute;left:50%;top:50%;pointer-events:none;z-index:20;';
-
-  const heading=(((-ISO.tiltZ)%360)+360)%360;
   const mv=S.stormMovement;
   if(mv&&mv.speed>=2){
-    const mvDir=mv.direction;
-    const svgSz=120;
-    const arrowEl=document.createElement('div');
-    arrowEl.className='iso-wind-arrow';
-    arrowEl.dataset.dir=String(mvDir);
-    arrowEl.style.cssText=`position:absolute;left:0;top:0;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotate(${mvDir-heading}deg);pointer-events:none;`;
-    const aLen=svgSz*0.4,mid=svgSz/2;
-    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+5}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(0,220,255,0.7)" stroke-width="2.5" stroke-dasharray="5,3"/><polygon points="${mid},${mid-aLen} ${mid-6},${mid-aLen+12} ${mid+6},${mid-aLen+12}" fill="rgba(0,220,255,0.8)"/></svg>`;
-    windLayer.appendChild(arrowEl);
-    ISO._windArrows.push(arrowEl);
-    const lbl=document.createElement('div');
-    lbl.className='iso-wind-label';
-    lbl.dataset.dir=String(mvDir);
-    lbl.dataset.radius='52';
-    const lblAngle=(mvDir-heading)*Math.PI/180;
-    lbl.style.cssText=`position:absolute;left:${Math.sin(lblAngle)*52}px;top:${-Math.cos(lblAngle)*52}px;transform:translate(-50%,-50%);color:rgba(0,220,255,0.9);font:bold 9px Inter,sans-serif;white-space:nowrap;text-shadow:0 0 6px rgba(0,0,0,0.9);`;
-    lbl.textContent=`STORM ${mv.speed.toFixed(0)}mph ${degToDir(mvDir)}`;
-    windLayer.appendChild(lbl);
-    ISO._windLabels=ISO._windLabels||[];
-    ISO._windLabels.push(lbl);
+    const dir=(mv.direction)*Math.PI/180;
+    const aLen=40*zoom;
+    const ax=cx+Math.sin(dir-rotZ)*aLen;
+    const ay=cy-Math.cos(dir-rotZ)*aLen*yScale;
+    ctx.strokeStyle='rgba(0,220,255,0.7)';
+    ctx.lineWidth=2;
+    ctx.setLineDash([5,3]);
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ax,ay);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(0,220,255,0.8)';
+    ctx.beginPath();
+    const tipA=Math.atan2(ax-cx,-(ay-cy));
+    ctx.moveTo(ax,ay);
+    ctx.lineTo(ax-6*Math.sin(tipA-0.4),ay+6*Math.cos(tipA-0.4));
+    ctx.lineTo(ax-6*Math.sin(tipA+0.4),ay+6*Math.cos(tipA+0.4));
+    ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(0,220,255,0.9)';
+    ctx.font='bold 9px Inter,sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText(`STORM ${mv.speed.toFixed(0)}mph`,ax,ay-8);
+    ctx.textAlign='left';
   }
 
   const aloftDir=S._upperWindDir;
   if(aloftDir!=null){
-    const toDir=(aloftDir+180)%360;
-    const svgSz=110;
-    const arrowEl=document.createElement('div');
-    arrowEl.className='iso-wind-arrow';
-    arrowEl.dataset.dir=String(toDir);
-    arrowEl.style.cssText=`position:absolute;left:0;top:0;width:${svgSz}px;height:${svgSz}px;transform:translate(-50%,-50%) rotate(${toDir-heading}deg);pointer-events:none;`;
-    const aLen=svgSz*0.35,mid=svgSz/2;
-    arrowEl.innerHTML=`<svg width="${svgSz}" height="${svgSz}" viewBox="0 0 ${svgSz} ${svgSz}"><line x1="${mid}" y1="${mid+5}" x2="${mid}" y2="${mid-aLen}" stroke="rgba(255,0,220,0.5)" stroke-width="2" stroke-dasharray="6,4"/><polygon points="${mid},${mid-aLen} ${mid-5},${mid-aLen+10} ${mid+5},${mid-aLen+10}" fill="rgba(255,0,220,0.6)"/></svg>`;
-    windLayer.appendChild(arrowEl);
-    ISO._windArrows.push(arrowEl);
-    const lbl=document.createElement('div');
-    lbl.className='iso-wind-label';
-    lbl.dataset.dir=String(toDir);
-    lbl.dataset.radius='46';
-    const lblAngle=(toDir-heading)*Math.PI/180;
-    lbl.style.cssText=`position:absolute;left:${Math.sin(lblAngle)*46}px;top:${-Math.cos(lblAngle)*46}px;transform:translate(-50%,-50%);color:rgba(255,0,220,0.8);font:bold 9px Inter,sans-serif;white-space:nowrap;text-shadow:0 0 6px rgba(0,0,0,0.9);`;
-    lbl.textContent='ALOFT';
-    windLayer.appendChild(lbl);
-    ISO._windLabels=ISO._windLabels||[];
-    ISO._windLabels.push(lbl);
-  }
-  wrap.appendChild(windLayer);
-
-  const info=document.getElementById('iso-info');
-  if(info){
-    info.textContent=`${stormCount} storm${stormCount!==1?'s':''} in view`;
+    const toDir=((aloftDir+180)%360)*Math.PI/180;
+    const aLen=35*zoom;
+    const ax=cx+Math.sin(toDir-rotZ)*aLen;
+    const ay=cy-Math.cos(toDir-rotZ)*aLen*yScale;
+    ctx.strokeStyle='rgba(255,0,220,0.5)';
+    ctx.lineWidth=1.5;
+    ctx.setLineDash([6,4]);
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ax,ay);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,0,220,0.6)';
+    ctx.beginPath();
+    const tipA=Math.atan2(ax-cx,-(ay-cy));
+    ctx.moveTo(ax,ay);
+    ctx.lineTo(ax-5*Math.sin(tipA-0.4),ay+5*Math.cos(tipA-0.4));
+    ctx.lineTo(ax-5*Math.sin(tipA+0.4),ay+5*Math.cos(tipA+0.4));
+    ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(255,0,220,0.8)';
+    ctx.font='bold 9px Inter,sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('ALOFT',ax,ay-8);
+    ctx.textAlign='left';
   }
 }
 
-function bearingToArrow(b){
-  if(b>=337.5||b<22.5)return'↑';
-  if(b<67.5)return'↗';
-  if(b<112.5)return'→';
-  if(b<157.5)return'↘';
-  if(b<202.5)return'↓';
-  if(b<247.5)return'↙';
-  if(b<292.5)return'←';
-  return'↖';
-}
-
-function showIsoPopup(st,px,py,etaKey){
-  if(ISO.popup){ISO.popup.remove();ISO.popup=null;}
-  const useMetric=S.units==='metric';
-  const distStr=useMetric?`${(st.distance*1.609).toFixed(1)} km`:`${st.distance.toFixed(1)} mi`;
-  const dir=bearingToDir(st.bearing||0);
-  let etaStr='';
-  if(etaKey&&S._stormETAs[etaKey]){
-    const e=S._stormETAs[etaKey];
-    if(e.etaMin)etaStr=`<div class="iso-pop-row">⏱️ ETA: ~${Math.round(e.etaMin)} min</div>`;
-  }
-
-  const pop=document.createElement('div');
-  pop.className='iso-popup';
-  pop.style.cssText=`left:${Math.min(px,ISO.wrap.clientWidth-160)}px;top:${Math.max(py-120,10)}px;`;
-  pop.innerHTML=`
-    <button class="iso-pop-close" onclick="this.parentElement.remove()">✕</button>
-    <div class="iso-pop-title">${dbzToEmoji(st.dbz)} ${st.dbz} dBZ</div>
-    <div class="iso-pop-row">📏 ${distStr} ${dir}</div>
-    <div class="iso-pop-row">📊 ${st.dbz>=56?'Severe':st.dbz>=46?'Heavy':st.dbz>=31?'Moderate':'Light'}</div>
-    ${etaStr}
-  `;
-  ISO.wrap.appendChild(pop);
-  ISO.popup=pop;
-}
-
+function updateIsoBillboard(){}
+function updateIsoCompass(){}
 function buildHeadingStrip(){
   const track=document.getElementById('iso-hstrip-track');
   if(!track)return;
@@ -8311,9 +8303,10 @@ function setupIsoTouch(){
   const w=ISO.wrap;
   let dragging=false;
   let lastX,lastY;
+  const markDirty=()=>{ISO._dirty=true;};
 
   w.addEventListener('pointerdown',(e)=>{
-    if(e.target.closest('.iso-popup,.iso-legend,.iso-info,.iso-close,.iso-cam,.iso-hstrip'))return;
+    if(e.target.closest('.iso-popup,.iso-legend,.iso-info,.iso-close,.iso-cam'))return;
     dragging=true;
     lastX=e.clientX;
     lastY=e.clientY;
@@ -8324,26 +8317,18 @@ function setupIsoTouch(){
     const dx=e.clientX-lastX;
     const dy=e.clientY-lastY;
     ISO.tiltZ=(ISO.tiltZ-dx*0.3)%360;
-    ISO.tiltX=Math.max(20,Math.min(80,ISO.tiltX+dy*0.3));
+    ISO.tiltX=Math.max(15,Math.min(85,ISO.tiltX+dy*0.3));
     lastX=e.clientX;
     lastY=e.clientY;
-    if(!ISO._rafPending){
-      ISO._rafPending=true;
-      requestAnimationFrame(()=>{
-        ISO._rafPending=false;
-        if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
-        updateIsoCompass();
-        updateIsoBillboard();
-      });
-    }
+    markDirty();
   });
   w.addEventListener('pointerup',()=>{dragging=false;});
   w.addEventListener('pointercancel',()=>{dragging=false;});
 
   w.addEventListener('wheel',(e)=>{
     e.preventDefault();
-    ISO.zoom=Math.max(0.3,Math.min(3,ISO.zoom-(e.deltaY>0?0.1:-0.1)));
-    if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
+    ISO.zoom=Math.max(0.3,Math.min(4,ISO.zoom-(e.deltaY>0?0.1:-0.1)));
+    markDirty();
   },{passive:false});
 
   let pinchDist=null;
@@ -8360,33 +8345,24 @@ function setupIsoTouch(){
       const dx=e.touches[0].clientX-e.touches[1].clientX;
       const dy=e.touches[0].clientY-e.touches[1].clientY;
       const newDist=Math.hypot(dx,dy);
-      const ratio=newDist/pinchDist;
-      ISO.zoom=Math.max(0.3,Math.min(3,ISO.zoom*ratio));
+      ISO.zoom=Math.max(0.3,Math.min(4,ISO.zoom*(newDist/pinchDist)));
       pinchDist=newDist;
-      if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;
+      markDirty();
     }
   },{passive:false});
   w.addEventListener('touchend',()=>{pinchDist=null;});
 
-  w.addEventListener('click',(e)=>{
-    if(!e.target.closest('.iso-storm')&&!e.target.closest('.iso-cam')&&ISO.popup){
-      ISO.popup.remove();
-      ISO.popup=null;
-    }
-  });
-
   const camPad=document.getElementById('iso-cam');
   if(camPad){
     let camInterval=null;
-    const applyIso=()=>{if(ISO.scene)ISO.scene.style.transform=`rotateX(${ISO.tiltX}deg) rotateZ(${ISO.tiltZ}deg) scale3d(${ISO.zoom},${ISO.zoom},${ISO.zoom})`;updateIsoCompass();updateIsoBillboard();};
     const camActions={
-      up:()=>{ISO.tiltX=Math.max(20,ISO.tiltX-2);applyIso();},
-      down:()=>{ISO.tiltX=Math.min(80,ISO.tiltX+2);applyIso();},
-      left:()=>{ISO.tiltZ=(ISO.tiltZ+3)%360;applyIso();},
-      right:()=>{ISO.tiltZ=(ISO.tiltZ-3)%360;applyIso();},
-      zin:()=>{ISO.zoom=Math.min(3,ISO.zoom+0.1);applyIso();},
-      zout:()=>{ISO.zoom=Math.max(0.3,ISO.zoom-0.1);applyIso();},
-      reset:()=>{ISO.tiltX=55;ISO.tiltZ=0;ISO.zoom=1;applyIso();}
+      up:()=>{ISO.tiltX=Math.max(15,ISO.tiltX-2);markDirty();},
+      down:()=>{ISO.tiltX=Math.min(85,ISO.tiltX+2);markDirty();},
+      left:()=>{ISO.tiltZ=(ISO.tiltZ+3)%360;markDirty();},
+      right:()=>{ISO.tiltZ=(ISO.tiltZ-3)%360;markDirty();},
+      zin:()=>{ISO.zoom=Math.min(4,ISO.zoom+0.1);markDirty();},
+      zout:()=>{ISO.zoom=Math.max(0.3,ISO.zoom-0.1);markDirty();},
+      reset:()=>{ISO.tiltX=55;ISO.tiltZ=0;ISO.zoom=1;markDirty();}
     };
     const startCam=(action)=>{
       if(camActions[action])camActions[action]();
