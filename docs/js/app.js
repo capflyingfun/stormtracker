@@ -7809,7 +7809,7 @@ function render3DView(){
 
   const ground=document.createElement('div');
   ground.className='iso-ground';
-  ground.style.cssText=`width:${groundSize}px;height:${groundSize}px;left:0;top:0;background:radial-gradient(circle,rgba(10,20,40,0.9) 0%,rgba(5,10,25,0.95) 70%,rgba(2,5,15,1) 100%);`;
+  ground.style.cssText=`width:${groundSize}px;height:${groundSize}px;left:0;top:0;background:radial-gradient(circle,rgba(15,30,60,1) 0%,rgba(10,22,45,1) 40%,rgba(6,14,32,1) 70%,rgba(4,10,24,1) 100%);border:1px solid rgba(0,229,255,0.15);`;
   sc.appendChild(ground);
 
   for(let r=ringStep;r<=maxRingDist;r+=ringStep){
