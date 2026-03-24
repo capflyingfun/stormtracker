@@ -1541,8 +1541,132 @@ function updateNavForLocation(){
     b.style.flex='1';
   });
 }
+function getHomeLocation(){
+  try{return JSON.parse(localStorage.getItem('st_home_location'))}catch(e){return null}
+}
+function setHomeLocation(lat,lon,name){
+  try{localStorage.setItem('st_home_location',JSON.stringify({lat,lon,name}))}catch(e){}
+}
+function goHome(){
+  let home=getHomeLocation();
+  if(!home&&S.lat){
+    setHomeLocation(S.lat,S.lon,S.locName);
+    home={lat:S.lat,lon:S.lon,name:S.locName};
+    toast('📍 Home set: '+S.locName);
+  }
+  if(!home){toast('📍 No home location — set a location first');return}
+  clearViewScanCircle();
+  S.lat=home.lat;S.lon=home.lon;S.locName=home.name;
+  document.getElementById('location-input').value=S.locName;
+  S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
+  S.radarSource=isUSLocation(home.lat,home.lon)?'nexrad':'rainviewer';
+  S.storms=[];S._rawScanPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
+  try{localStorage.setItem('st_loc',JSON.stringify({lat:home.lat,lon:home.lon,name:home.name}))}catch(e){}
+  if(S.map){
+    S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
+    clearStormCone();
+    S.map.setView([home.lat,home.lon],8,{animate:true,duration:0.5});
+    if(S._userMarker)S._userMarker.setLatLng([home.lat,home.lon]);
+    if(S._rangeCircle)S._rangeCircle.setLatLng([home.lat,home.lon]);
+    showRadarLayer(S.map);
+  }
+  updateNavForLocation();
+  document.getElementById('status-text').textContent='Live · '+home.name;
+  fetchWeather();fetchAlerts();fetchTerrainGrid();scanRadarForStorms();scheduleHourlyRefresh();
+  toast('📍 Home: '+home.name);
+}
+function scanHere(){
+  if(!S.map){toast('Open radar map first');return}
+  const center=S.map.getCenter();
+  const cLat=center.lat,cLng=center.lng;
+  clearViewScanCircle();
+  S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});S.stormMarkers=[];
+  clearStormCone();
+  S.lat=cLat;S.lon=cLng;
+  S.locName=`${cLat.toFixed(4)}, ${cLng.toFixed(4)}`;
+  document.getElementById('location-input').value=S.locName;
+  S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
+  S.radarSource=isUSLocation(cLat,cLng)?'nexrad':'rainviewer';
+  S.storms=[];S._rawScanPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
+  try{localStorage.setItem('st_loc',JSON.stringify({lat:cLat,lon:cLng,name:S.locName}))}catch(e){}
+  if(S._userMarker)S._userMarker.setLatLng([cLat,cLng]);
+  if(S._rangeCircle)S._rangeCircle.setLatLng([cLat,cLng]);
+  showRadarLayer(S.map);
+  updateNavForLocation();
+  document.getElementById('status-text').textContent='Live · '+S.locName;
+  fetchWeather();fetchAlerts();fetchTerrainGrid();scanRadarForStorms();scheduleHourlyRefresh();
+  toast('🔍 Scanning: '+S.locName);
+}
+function showHdScanDialog(){
+  if(!S.map){toast('Open radar map first');return}
+  const home=getHomeLocation();
+  const mapCenter=S.map.getCenter();
+  const hasHome=!!home;
+  const hasSavedLoc=!!(S.lat&&S.lon);
+  let overlay=document.getElementById('hd-scan-overlay');
+  if(overlay)overlay.remove();
+  overlay=document.createElement('div');
+  overlay.id='hd-scan-overlay';
+  overlay.className='hd-scan-overlay';
+  let btns='';
+  if(hasHome){
+    btns+=`<button class="hd-scan-btn" id="hd-home"><span>🏠 Home Location</span><div class="hd-label">${home.name}</div></button>`;
+  }
+  if(hasSavedLoc&&(!hasHome||Math.abs(S.lat-home.lat)>0.01||Math.abs(S.lon-home.lon)>0.01)){
+    btns+=`<button class="hd-scan-btn" id="hd-saved"><span>📍 Current Location</span><div class="hd-label">${S.locName}</div></button>`;
+  }
+  btns+=`<button class="hd-scan-btn" id="hd-center"><span>🎯 Current Map Center</span><div class="hd-label">${mapCenter.lat.toFixed(4)}, ${mapCenter.lng.toFixed(4)}</div></button>`;
+  overlay.innerHTML=`<div class="hd-scan-box">
+    <div style="font-size:1.3em;margin-bottom:4px">🔦</div>
+    <div style="font-size:1.05em;font-weight:700;color:var(--text-primary);margin-bottom:4px">HD Scan</div>
+    <div style="font-size:0.75em;color:var(--text-muted);margin-bottom:14px">15-mile high-resolution radar analysis at zoom 12</div>
+    ${btns}
+    <button id="hd-cancel" style="width:100%;padding:10px;margin-top:8px;border-radius:8px;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);font-size:0.8em;cursor:pointer">Cancel</button>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay){overlay.remove()}});
+  document.getElementById('hd-cancel').addEventListener('click',()=>overlay.remove());
+  function prepHdTarget(lat,lon,name){
+    clearViewScanCircle();
+    S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});S.stormMarkers=[];
+    clearStormCone();
+    S.lat=lat;S.lon=lon;S.locName=name;
+    document.getElementById('location-input').value=name;
+    S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
+    S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
+    S.storms=[];S._rawScanPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
+    try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name}))}catch(e){}
+    if(S._userMarker)S._userMarker.setLatLng([lat,lon]);
+    if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
+    showRadarLayer(S.map);
+    updateNavForLocation();
+    document.getElementById('status-text').textContent='HD Scan · '+name;
+  }
+  const homeBtn=document.getElementById('hd-home');
+  if(homeBtn)homeBtn.addEventListener('click',()=>{
+    overlay.remove();
+    prepHdTarget(home.lat,home.lon,home.name);
+    S.map.setView([home.lat,home.lon],10,{animate:true,duration:0.5});
+    setTimeout(()=>{S.map.setZoom(12,{animate:true});scanRadarHiRes(S.map,true)},500);
+  });
+  const savedBtn=document.getElementById('hd-saved');
+  if(savedBtn)savedBtn.addEventListener('click',()=>{
+    overlay.remove();
+    S.map.setView([S.lat,S.lon],10,{animate:true,duration:0.5});
+    setTimeout(()=>{S.map.setZoom(12,{animate:true});scanRadarHiRes(S.map,true)},500);
+  });
+  const centerBtn=document.getElementById('hd-center');
+  if(centerBtn)centerBtn.addEventListener('click',()=>{
+    overlay.remove();
+    const ctr=S.map.getCenter();
+    prepHdTarget(ctr.lat,ctr.lng,`${ctr.lat.toFixed(4)}, ${ctr.lng.toFixed(4)}`);
+    S.map.setZoom(12,{animate:true});
+    setTimeout(()=>scanRadarHiRes(S.map,true),500);
+  });
+}
 let _setLocTimer=null;
 function setLoc(lat,lon,name,fromTravel){
+  if(!getHomeLocation()){setHomeLocation(lat,lon,name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`)}
   if(!fromTravel && S.travelMode) stopTravelMode();
   S.lat=lat;S.lon=lon;
   S.locName=name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
@@ -1871,7 +1995,7 @@ function setGpsInterval(val){
 const TUTORIAL_SECTIONS=[
   {title:'🏠 Getting Started',text:'StormTracker detects storms around your location using live radar data. On first launch, allow GPS access or search for your location using the 🗺️ button in the header. The app scans for precipitation within an 80-mile radius and shows results across five tabs. All settings — units, gauge style, time format, AI, alerts, and more — are accessible via the ⚙️ gear icon in the header.'},
   {title:'🌤️ Weather Tab',text:'Your main dashboard. Shows current conditions (temperature, wind, humidity, pressure), a <b>wind gauge</b> with real-time animated direction, and a <b>Radar Sonar</b> mini-map.<br><br><b>Wind Gauge:</b> Choose from 5 switchable styles in Settings — <b>Neon</b> (default animated ring), <b>Marine</b> (nautical compass with LED digits), <b>Minimal</b> (clean arc with arrow), <b>G1000</b> (Garmin-style 3-panel with compass rose, speed tape, and pressure tape), and <b>Speedometer</b> (classic dial with sweeping needle). The G1000 also supports <b>Gyro Compass</b> mode — point your phone at a storm and the compass rotates with you.<br><br><b>Radar Sonar:</b> A bird\'s-eye view showing storm cells as colored blips and arrows for approaching storms. Use <b>+/−</b> buttons to zoom between 15 and 80 miles. Tap the ⚙️ gear on the sonar to customize sweep speed, fade duration, dot opacity, glow intensity, grid brightness, dBZ floor, and overlay toggles. Tap "Open Radar →" to jump to the full map.'},
-  {title:'📡 Radar Tab',text:'The full interactive map. Storm cells appear as colored arrows showing movement direction. The sidebar buttons control different layers:<br>• <b>🔍</b> — Scan current map view for storms<br>• <b>HiRes</b> — High-resolution 15-mile scan<br>• <b>NEX/SRC</b> — Switch between NEXRAD (US) and RainViewer (global) radar<br>• <b>MI</b> — Toggle miles/kilometers<br>• <b>✈️</b> — Show nearby airports<br>• <b>▶️</b> — Animate radar over time<br>• <b>ZN</b> — Toggle color-coded storm zones<br>• <b>➤</b> — Toggle the ILS approach cone (dynamic length — extends 10mi past the farthest inbound storm)<br>• <b>12▶/PT</b> — Cycle storm points: off → top 12 inbound → all<br>• <b>RDR</b> — Toggle radar overlay tiles<br>• <b>🕳️</b> — Clutter toggle (appears when ≤12 returns below 22 dBZ or ≤8 below 31 dBZ are detected as likely false radar echoes). Tap to show/hide these minor returns.<br><br><b>HD Scan System:</b> After each regular scan, the app checks for nearby storms and offers tiered high-resolution scans — <b>15mi</b> (asks), <b>10mi</b> (asks), and <b>5mi</b> (auto-triggers after 5 seconds when storms are very close). HD scans sync the sonar zoom to 15mi for maximum detail.'},
+  {title:'📡 Radar Tab',text:'The full interactive map. Storm cells appear as colored arrows showing movement direction. A <b>cyan crosshair</b> marks the exact map center for precise targeting. The sidebar buttons control different layers:<br>• <b>📍</b> — Return to Home location (auto-saved from your first GPS/search)<br>• <b>🔍</b> — Scan Here: grabs current map center as new scan location<br>• <b>🔦</b> — HD Scan: opens target picker (Home / Current Location / Map Center) for 15-mile high-res analysis at zoom 12<br>• <b>NEX/SRC</b> — Switch between NEXRAD (US) and RainViewer (global) radar<br>• <b>MI</b> — Toggle miles/kilometers<br>• <b>✈️</b> — Show nearby airports<br>• <b>▶️</b> — Animate radar over time<br>• <b>ZN</b> — Toggle color-coded storm zones<br>• <b>➤</b> — Toggle the ILS approach cone (dynamic length — extends 10mi past the farthest inbound storm)<br>• <b>12▶/PT</b> — Cycle storm points: off → top 12 inbound → all<br>• <b>RDR</b> — Toggle radar overlay tiles<br>• <b>🕳️</b> — Clutter toggle (appears when ≤12 returns below 22 dBZ or ≤8 below 31 dBZ are detected as likely false radar echoes). Tap to show/hide these minor returns.<br><br><b>HD Scan System:</b> After each regular scan, the app checks for nearby storms and offers tiered high-resolution scans — <b>15mi</b> (asks), <b>10mi</b> (asks), and <b>5mi</b> (auto-triggers after 5 seconds when storms are very close). HD scans sync the sonar zoom to 15mi for maximum detail.'},
   {title:'➤ ILS Approach Cone',text:'The animated cone on the radar shows where storms are heading relative to you. It\'s inspired by an airport ILS (Instrument Landing System) — a cone of dots extends from the storm source through your location. <b>White dots</b> = no storms approaching. <b>Colored dots</b> = intensity-matched to approaching storm dBZ levels. The cone is always on once wind data is received.'},
   {title:'🌩️ Storms Tab',text:'Lists all detected storm cells with details: peak dBZ, rain rate, distance, bearing, movement (direction with degrees), and ETA. Storms are grouped into <b>Approaching</b> (heading toward you) and <b>Nearby</b> (in the area but not on track). Each card shows a live countdown timer for approaching storms.<br><br><b>Storm Feedback:</b> When a countdown reaches zero, the app automatically re-checks storm data and asks "Did this storm affect your area?" with Yes/No/Unsure buttons. Your feedback helps track prediction accuracy over time.'},
   {title:'⚡ Lightning Indicators',text:'Storm cells with radar reflectivity ≥40 dBZ display a ⚡ lightning indicator. The strike count scales with intensity — stronger storms show more estimated strikes. Lightning markers appear on all three views (map, sonar, and 3D). You can toggle lightning display on or off.<br><br><i>Note: These are radar-derived estimates, not observed lightning strikes.</i>'},
@@ -1886,6 +2010,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.35',date:'2026-03-24',items:['📍 Home button — first GPS/search location auto-saved as home; returns to home location from anywhere','🔍 Scan Here button — grabs current map center as new scan location without page reload','🔦 HD Scan dialog — choose scan target (Home / Current Location / Map Center) for 15-mile high-res analysis at zoom 12','Cyan crosshair overlay on radar map center for precise targeting','Home location persists across sessions via localStorage']},
   {ver:'v2.34',date:'2026-03-23',items:['3D Storm Terrain — complete rewrite using HTML5 Canvas heightmap renderer replacing DOM-based 3D','64×64 terrain grid with Gaussian smoothing maps storm dBZ to elevation peaks','True 3D projection with rotation, tilt, and zoom — drag to orbit, scroll/pinch to zoom','dBZ-colored terrain quads with back-to-front painter\'s algorithm and shading','Distance rings rendered as projected ellipses on the terrain plane','Wind arrows (storm movement + aloft) drawn directly on canvas','Animated lightning ⚡ flickers on cells ≥40 dBZ','Camera pad controls (arrows, zoom, reset) all working with canvas render']},
   {ver:'v2.33',date:'2026-03-23',items:['3D Storm View: threat-based color glow — green (low), yellow (moderate), red (serious), magenta (extreme) halo around each storm icon','Threat score formula combines dBZ intensity (50%) with approach trajectory impact (50%) for meaningful color coding','Storm direction arrows repositioned above icons for better visibility — larger, colored to match threat level, with contrast shadow','Radial glow ground effect beneath each storm icon with threat-colored ring','Updated Storm Intensity legend with Threat Glow color key']},
   {ver:'v2.32',date:'2026-03-23',items:['Weather Station Alerts — set custom thresholds for wind, gusts, temperature, pressure, rainfall, humidity, visibility, and UV','10 configurable alert types with per-alert enable/disable and custom threshold values','15-minute cooldown per alert type to prevent notification spam','Browser push notifications when app is in background (via Service Worker)','Toast alerts when app is in foreground','Alert history log in Alerts tab with timestamps and clear button','Settings panel → Weather Station Alerts 🔔 section for easy configuration']},
@@ -3445,11 +3570,20 @@ function initRadar(){
     <div class="card-title"><span class="icon">📡</span> ${tStr('Live Radar')}</div>
     <div class="map-container">
       <div id="radar-map"></div>
+      <div class="radar-crosshair">
+        <svg width="40" height="40" viewBox="0 0 40 40">
+          <line x1="20" y1="0" x2="20" y2="16" stroke="#00e5ff" stroke-width="1.5" opacity="0.7"/>
+          <line x1="20" y1="24" x2="20" y2="40" stroke="#00e5ff" stroke-width="1.5" opacity="0.7"/>
+          <line x1="0" y1="20" x2="16" y2="20" stroke="#00e5ff" stroke-width="1.5" opacity="0.7"/>
+          <line x1="24" y1="20" x2="40" y2="20" stroke="#00e5ff" stroke-width="1.5" opacity="0.7"/>
+          <circle cx="20" cy="20" r="3" fill="none" stroke="#00e5ff" stroke-width="1" opacity="0.5"/>
+        </svg>
+      </div>
       <div class="radar-time-label" id="radar-time">Loading...</div>
       <div class="map-controls map-controls-left">
-        <div class="map-ctrl-btn" id="radar-scan" title="Re-center & scan">📍</div>
-        <div class="map-ctrl-btn" id="radar-scan-view" title="Scan current view">🔍</div>
-        <div class="map-ctrl-btn" id="radar-scan-hires" title="Hi-Res 15mi scan" style="font-size:0.5em;font-weight:700;line-height:1;color:var(--accent-cyan)">HiRes</div>
+        <div class="map-ctrl-btn" id="radar-scan" title="Home location">📍</div>
+        <div class="map-ctrl-btn" id="radar-scan-view" title="Scan map center">🔍</div>
+        <div class="map-ctrl-btn" id="radar-scan-hires" title="HD Scan (15mi zoom 12)" style="font-size:0.75em">🔦</div>
         <div class="map-ctrl-btn" id="radar-toggle-src" title="Toggle radar source" style="font-size:0.55em;font-weight:700;line-height:1">SRC</div>
         <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km" style="font-size:0.55em;font-weight:700;line-height:1">MI</div>
         <div class="map-ctrl-btn" id="radar-toggle-airports" title="Toggle airports" style="font-size:0.75em">✈️</div>
@@ -3517,13 +3651,9 @@ function initRadar(){
       }
     }catch(e){}
     showRadarLayer(map);
-    document.getElementById('radar-scan').addEventListener('click',()=>{
-      clearViewScanCircle();
-      map.setView([S.lat,S.lon],8,{animate:true,duration:0.5});
-      scanRadarForStorms();
-    });
-    document.getElementById('radar-scan-view').addEventListener('click',()=>{scanRadarForView()});
-    document.getElementById('radar-scan-hires').addEventListener('click',()=>{scanRadarHiRes(map)});
+    document.getElementById('radar-scan').addEventListener('click',()=>{goHome()});
+    document.getElementById('radar-scan-view').addEventListener('click',()=>{scanHere()});
+    document.getElementById('radar-scan-hires').addEventListener('click',()=>{showHdScanDialog()});
     document.getElementById('radar-toggle-src').addEventListener('click',()=>{toggleRadarSource(map)});
     document.getElementById('radar-toggle-airports').addEventListener('click',()=>{toggleAirportMarkers(map)});
     document.getElementById('radar-toggle-units').addEventListener('click',()=>{
@@ -3766,7 +3896,7 @@ function showRadarLayer(map){
   if(S.radarSource==='nexrad'){
     S.radarLayer=L.tileLayer(`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`,{opacity:0.7,maxZoom:11,maxNativeZoom:8}).addTo(map);
     if(btn){btn.textContent='NEX';btn.style.background='var(--accent-blue)'}
-    if(lbl)lbl.textContent='NEXRAD (US) \u00B7 📍 Scan location \u00B7 🔍 Scan view';
+    if(lbl)lbl.textContent='NEXRAD (US) \u00B7 📍 Home \u00B7 🔍 Scan here \u00B7 🔦 HD Scan';
     const t=new Date();
     const el=document.getElementById('radar-time');
     if(el)el.textContent=fmtClock(t);
@@ -3780,7 +3910,7 @@ function showRadarLayer(map){
       if(el)el.textContent=fmtClock(t);
     }
     if(btn){btn.textContent='RV';btn.style.background=''}
-    if(lbl)lbl.textContent='RainViewer \u00B7 Updated every 10 min \u00B7 📍 Scan location \u00B7 🔍 Scan view';
+    if(lbl)lbl.textContent='RainViewer \u00B7 Updated every 10 min \u00B7 📍 Home \u00B7 🔍 Scan here \u00B7 🔦 HD Scan';
   }
   if(S._showZones&&S._rawScanPts&&S._rawScanPts.length>0&&!S._radarOverlayVisible&&S._zoneOverlays&&S._zoneOverlays.length>0&&S.radarLayer&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
 }
@@ -7530,7 +7660,10 @@ function init(){
   checkFirstLaunch();
   try{
     const saved=JSON.parse(localStorage.getItem('st_loc'));
-    if(saved&&saved.lat&&saved.lon){setLoc(saved.lat,saved.lon,saved.name);return}
+    if(saved&&saved.lat&&saved.lon){
+      if(!getHomeLocation())setHomeLocation(saved.lat,saved.lon,saved.name);
+      setLoc(saved.lat,saved.lon,saved.name);return;
+    }
   }catch(e){}
   document.getElementById('status-text').textContent='Enter a location to begin';
   document.getElementById('page-weather').innerHTML=`
