@@ -365,12 +365,19 @@ export default function StormTracker() {
   
   const {
     location,
+    homeLocation,
     isLoading: locationLoading,
     setLocationFromGPS,
     setLocationFromSearch,
     setLocationDirectly,
+    setLocationSoft,
     clearLocation,
+    goHome,
   } = useLocation();
+  
+  const [showHdScanDialog, setShowHdScanDialog] = useState(false);
+  const [hdScanLoading, setHdScanLoading] = useState(false);
+  const [mapScanLocation, setMapScanLocation] = useState<{ lat: number; lon: number; name: string } | null>(null);
 
   const {
     storms,
@@ -659,6 +666,49 @@ export default function StormTracker() {
     setLastUpdate(null);
   };
 
+  const handleGoHome = () => {
+    if (homeLocation) {
+      goHome();
+    }
+  };
+
+  const handleMapScan = () => {
+    if (!mapInstance) return;
+    const center = mapInstance.getCenter();
+    const scanLoc = {
+      lat: center.lat,
+      lon: center.lng,
+      name: `Map Scan (${center.lat.toFixed(4)}, ${center.lng.toFixed(4)})`,
+    };
+    setMapScanLocation(scanLoc);
+    setLocationSoft(scanLoc);
+    refetchStormData();
+    setLastUpdate(new Date());
+  };
+
+  const handleHdScan = async (targetLocation: { lat: number; lon: number; name: string }) => {
+    setHdScanLoading(true);
+    setShowHdScanDialog(false);
+    try {
+      setLocationSoft(targetLocation);
+      
+      refetchStormData();
+      setLastUpdate(new Date());
+      
+      if (mapInstance) {
+        setTimeout(() => {
+          mapInstance.setView([targetLocation.lat, targetLocation.lon], 12, { animate: true });
+        }, 500);
+      }
+      
+      console.log(`HD Scan started at ${targetLocation.name} (15mi radius, zoom 12)`);
+    } catch (error) {
+      console.error('HD Scan failed:', error);
+    } finally {
+      setTimeout(() => setHdScanLoading(false), 4000);
+    }
+  };
+
   const getStormImpact = (storm: any) => {
     const movementDir = storm.windsPrediction?.direction || 0;
     const movementSpeed = storm.windsPrediction?.speed || 0;
@@ -884,7 +934,7 @@ export default function StormTracker() {
                 style={{ WebkitTapHighlightColor: 'transparent' }}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-lg">📍</span>
+                  <span className="text-lg">{homeLocation && location && homeLocation.lat === location.lat && homeLocation.lon === location.lon ? '📍' : mapScanLocation && location && mapScanLocation.lat === location.lat && mapScanLocation.lon === location.lon ? '🔍' : '📍'}</span>
                   <div className="min-w-0">
                     <h2 className="text-sm font-semibold text-white truncate">{location.name}</h2>
                     <p className="text-slate-400 text-[10px]">
@@ -902,6 +952,17 @@ export default function StormTracker() {
 
               {mobileLocationExpanded && (
                 <div className="px-3 pb-3 space-y-2 border-t border-slate-700/30 pt-2">
+                  <div className="flex gap-2">
+                    <Button onClick={handleGoHome} variant="outline" size="sm" disabled={!homeLocation} className="text-xs flex-1">
+                      📍 Home
+                    </Button>
+                    <Button onClick={handleMapScan} variant="outline" size="sm" disabled={!mapInstance} className="text-xs flex-1">
+                      🔍 Scan Here
+                    </Button>
+                    <Button onClick={() => setShowHdScanDialog(true)} variant="outline" size="sm" disabled={hdScanLoading} className="text-xs flex-1">
+                      🔦 {hdScanLoading ? 'Scanning...' : 'HD Scan'}
+                    </Button>
+                  </div>
                   <div className="flex gap-2">
                     <Button onClick={resetLocation} variant="outline" size="sm" className="text-xs flex-1">
                       📍 {t.changeLocation}
@@ -1001,6 +1062,15 @@ export default function StormTracker() {
                 </div>
                 
                 <div className="flex flex-wrap gap-2">
+                  <Button onClick={handleGoHome} variant="outline" size="sm" disabled={!homeLocation} className="text-xs sm:text-sm">
+                    📍 Home
+                  </Button>
+                  <Button onClick={handleMapScan} variant="outline" size="sm" disabled={!mapInstance} className="text-xs sm:text-sm">
+                    🔍 Scan Here
+                  </Button>
+                  <Button onClick={() => setShowHdScanDialog(true)} variant="outline" size="sm" disabled={hdScanLoading} className="text-xs sm:text-sm">
+                    🔦 {hdScanLoading ? 'Scanning...' : 'HD Scan'}
+                  </Button>
                   <Button onClick={resetLocation} variant="outline" size="sm" className="text-xs sm:text-sm">
                     📍 {t.changeLocation}
                   </Button>
@@ -1661,6 +1731,70 @@ export default function StormTracker() {
                 />
               )}
             </div>
+
+            {showHdScanDialog && (
+              <div className="fixed inset-0 bg-black/60 z-[1100] flex items-center justify-center p-4" onClick={() => setShowHdScanDialog(false)}>
+                <div className="bg-slate-800 rounded-2xl border border-slate-600 p-5 max-w-sm w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                  <h3 className="text-lg font-bold text-white mb-1">🔦 HD Deep Scan</h3>
+                  <p className="text-slate-400 text-xs mb-4">High-definition radar analysis within 15 miles</p>
+                  
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => homeLocation && handleHdScan(homeLocation)}
+                      disabled={!homeLocation}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <span className="text-2xl">📍</span>
+                      <div className="text-left flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white">Scan Home</div>
+                        <div className="text-[11px] text-slate-400 truncate">{homeLocation?.name || 'No home location set'}</div>
+                      </div>
+                    </button>
+                    
+                    <button
+                      onClick={() => mapScanLocation && handleHdScan(mapScanLocation)}
+                      disabled={!mapScanLocation}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <span className="text-2xl">🔍</span>
+                      <div className="text-left flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white">Scan Map Location</div>
+                        <div className="text-[11px] text-slate-400 truncate">{mapScanLocation?.name || 'Use 🔍 Scan Here first'}</div>
+                      </div>
+                    </button>
+
+                    {mapInstance && (
+                      <button
+                        onClick={() => {
+                          const center = mapInstance.getCenter();
+                          const scanLoc = {
+                            lat: center.lat,
+                            lon: center.lng,
+                            name: `Map Center (${center.lat.toFixed(4)}, ${center.lng.toFixed(4)})`,
+                          };
+                          setMapScanLocation(scanLoc);
+                          handleHdScan(scanLoc);
+                        }}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-blue-900/30 hover:bg-blue-900/50 border border-blue-500/30 transition-colors"
+                      >
+                        <span className="text-2xl">🗺️</span>
+                        <div className="text-left flex-1 min-w-0">
+                          <div className="text-sm font-medium text-blue-300">Scan Current Map Center</div>
+                          <div className="text-[11px] text-blue-400/70">Use wherever the map is pointed right now</div>
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={() => setShowHdScanDialog(false)}
+                    className="w-full mt-3 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* === MOBILE BOTTOM TAB BAR === */}
             <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-700/50 flex justify-around items-center z-[999] backdrop-blur-xl" style={{ height: 'calc(64px + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>

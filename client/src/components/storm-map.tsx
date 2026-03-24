@@ -2448,6 +2448,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[400px] md:h-[600px] lg:h-[700px] xl:h-[800px] z-0 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
         <div ref={mapRef} className="w-full h-full" style={{ zIndex: 0 }}></div>
         
+        <div className="absolute inset-0 pointer-events-none z-[500] flex items-center justify-center">
+          <div className="relative w-8 h-8">
+            <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-cyan-400/60" />
+            <div className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-cyan-400/60" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full border border-cyan-400/80 bg-cyan-400/20" />
+          </div>
+        </div>
+        
         {/* Disabled overlay */}
         {isDisabled && (
           <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-[100]">
