@@ -7344,6 +7344,24 @@ function _extractUSState(){
   return null;
 }
 
+async function _fetchRecentPrecip(){
+  try{
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lon}&daily=precipitation_sum&past_days=30&forecast_days=0&timezone=auto`;
+    const res=await fetch(url,{signal:AbortSignal.timeout(6000)});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const daily=data.daily?.precipitation_sum||[];
+    const total30=daily.reduce((s,v)=>s+(v||0),0);
+    const monthNormals=[3.5,3.2,4.1,3.8,4.3,4.2,4.5,4.3,3.9,3.5,3.5,3.4];
+    const month=new Date().getMonth();
+    const normalMo=monthNormals[month];
+    const normalMm=normalMo*25.4;
+    const pctNormal=normalMm>0?Math.round((total30/normalMm)*100):null;
+    const totalIn=(total30/25.4).toFixed(2);
+    _hazardData.recentPrecip={total30,totalIn,pctNormal,normalIn:normalMo.toFixed(1)};
+  }catch(e){_hazardData.recentPrecip=null;console.log('Precip fetch error:',e.message)}
+}
+
 async function fetchHazards(){
   if(!S.lat||!S.lon)return;
   const now=Date.now();
@@ -7361,7 +7379,8 @@ async function fetchHazards(){
     _fetchEarthquakes(),
     isUS?_fetchDrought():Promise.resolve(),
     isUS?_fetchWildfires():Promise.resolve(),
-    isUS?_fetchRiverGauges():Promise.resolve()
+    isUS?_fetchRiverGauges():Promise.resolve(),
+    _fetchRecentPrecip()
   ]);
   if(S.activePage==='alerts')renderHazards();
 }
@@ -7631,6 +7650,7 @@ function _renderWildfireSection(){
 
 function _renderDroughtSection(){
   const dr=_hazardData.drought;
+  const precip=_hazardData.recentPrecip;
   const isUS=isUSLocation(S.lat,S.lon);
   let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
     <span>☀️ Drought Monitor</span>
@@ -7671,9 +7691,27 @@ function _renderDroughtSection(){
         <span style="margin-left:auto;font-weight:600;color:var(--text-primary)">${l.pct.toFixed(1)}%</span>
       </div>`;
     });
+    if(precip&&precip.pctNormal!==null){
+      const pctColor=precip.pctNormal>=120?'#22c55e':precip.pctNormal>=80?'#06b6d4':precip.pctNormal>=50?'#eab308':precip.pctNormal>=25?'#f97316':'#ef4444';
+      html+=`<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle);display:flex;align-items:center;gap:8px">
+        <div style="font-size:0.85em;color:var(--text-secondary)">💧 30-Day Rainfall</div>
+        <div style="margin-left:auto;font-weight:700;color:${pctColor};font-size:0.95em">${precip.pctNormal}% of normal</div>
+      </div>
+      <div style="font-size:0.8em;color:var(--text-muted);text-align:right">${precip.totalIn} in actual vs ~${precip.normalIn} in avg</div>`;
+    }
     html+=`</div>`;
   }
-  html+=`<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: US Drought Monitor</div>`;
+  if(!isUS&&precip&&precip.pctNormal!==null){
+    const pctColor=precip.pctNormal>=120?'#22c55e':precip.pctNormal>=80?'#06b6d4':precip.pctNormal>=50?'#eab308':precip.pctNormal>=25?'#f97316':'#ef4444';
+    html+=`<div style="padding:4px 8px;font-size:0.75em">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--text-secondary)">💧 30-Day Rainfall</span>
+        <span style="margin-left:auto;font-weight:700;color:${pctColor}">${precip.pctNormal}% of normal</span>
+      </div>
+      <div style="font-size:0.85em;color:var(--text-muted);text-align:right">${precip.totalIn} in actual vs ~${precip.normalIn} in avg</div>
+    </div>`;
+  }
+  html+=`<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: US Drought Monitor + Open-Meteo</div>`;
   html+=`</div></details>`;
   return html;
 }
