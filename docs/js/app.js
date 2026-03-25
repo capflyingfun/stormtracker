@@ -2010,6 +2010,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.37',date:'2026-03-25',items:['🌍 Environmental Hazard Dashboard — real-time monitoring for earthquakes, floods, wildfires, and drought','🌍 USGS Earthquake feed — M2.5+ within configurable radius (default 200 mi), with magnitude/depth/distance','🌊 Enhanced Flood Monitoring — NWS flood alerts + USGS river gauge heights from nearby stream stations','🔥 Wildfire Tracking — NIFC active fire perimeters + NWS fire weather alerts with acres/containment','☀️ US Drought Monitor — state-level D0-D4 severity with color-coded bar chart','⚙️ Settings → Environmental Hazards section with configurable earthquake radius','4-panel hazard summary grid with clear/active/warning status at a glance']},
   {ver:'v2.36',date:'2026-03-25',items:['🌩️ Storm Cell Alerts — configurable notifications when radar detects storms matching your thresholds','3 threshold parameters: Distance (miles), Intensity (dBZ), and Impact Score (%) — all must match when enabled','15-minute cooldown per storm cell to prevent notification spam','Toast alerts in foreground + browser push notifications in background','Storm cell alert history in Alerts tab with dBZ, distance, impact tier, and timestamps','Settings panel → Storm Cell Alerts 🌩️ section with toggle switches and adjustable values']},
   {ver:'v2.35',date:'2026-03-24',items:['📍 Home button — first GPS/search location auto-saved as home; returns to home location from anywhere','🔍 Scan Here button — grabs current map center as new scan location without page reload','🔦 HD Scan dialog — choose scan target (Home / Current Location / Map Center) for 15-mile high-res analysis at zoom 12','Cyan crosshair overlay on radar map center for precise targeting','Home location persists across sessions via localStorage']},
   {ver:'v2.34',date:'2026-03-23',items:['3D Storm Terrain — complete rewrite using HTML5 Canvas heightmap renderer replacing DOM-based 3D','64×64 terrain grid with Gaussian smoothing maps storm dBZ to elevation peaks','True 3D projection with rotation, tilt, and zoom — drag to orbit, scroll/pinch to zoom','dBZ-colored terrain quads with back-to-front painter\'s algorithm and shading','Distance rings rendered as projected ellipses on the terrain plane','Wind arrows (storm movement + aloft) drawn directly on canvas','Animated lightning ⚡ flickers on cells ≥40 dBZ','Camera pad controls (arrows, zoom, reset) all working with canvas render']},
@@ -2156,6 +2157,8 @@ function syncSettingsPanel(){
   if(wxAlertEl)wxAlertEl.innerHTML=renderWxAlertSettings();
   const stormAlertEl=document.getElementById('storm-alert-settings');
   if(stormAlertEl)stormAlertEl.innerHTML=renderStormCellAlertSettings();
+  const eqSel=document.getElementById('settings-eq-radius');
+  if(eqSel)eqSel.value=String(getEqRadius());
 }
 function setAutoRefresh(val){
   const mins=parseInt(val,10);
@@ -7321,7 +7324,15 @@ function renderAlerts(){
 // ==========================================
 // ENVIRONMENTAL HAZARDS
 // ==========================================
-let _hazardData={earthquakes:null,floods:null,wildfires:null,drought:null,_lastFetch:0};
+let _hazardData={earthquakes:null,floods:null,wildfires:null,drought:null,riverGauges:null,_lastFetch:0};
+
+function getEqRadius(){return parseInt(localStorage.getItem('eqRadius')||'200')}
+function setEqRadius(val){
+  localStorage.setItem('eqRadius',String(val));
+  _hazardData._lastFetch=0;_hazardData.earthquakes=null;
+  if(S.activePage==='alerts')fetchHazards();
+  toast('🌍 Earthquake radius: '+val+' mi');
+}
 
 function _extractUSState(){
   const name=S.locName||'';
@@ -7342,7 +7353,8 @@ async function fetchHazards(){
   await Promise.allSettled([
     _fetchEarthquakes(),
     isUS?_fetchDrought():Promise.resolve(),
-    isUS?_fetchWildfires():Promise.resolve()
+    isUS?_fetchWildfires():Promise.resolve(),
+    isUS?_fetchRiverGauges():Promise.resolve()
   ]);
   if(S.activePage==='alerts')renderHazards();
 }
@@ -7355,7 +7367,7 @@ async function _fetchEarthquakes(){
       const [lon,lat,depth]=f.geometry.coordinates;
       const dist=haversine(S.lat,S.lon,lat,lon);
       return{mag:f.properties.mag||0,place:f.properties.place||'Unknown',time:f.properties.time,depth:depth||0,dist:dist,lat,lon,url:f.properties.url};
-    }).filter(q=>q.dist<=500).sort((a,b)=>a.dist-b.dist).slice(0,15);
+    }).filter(q=>q.dist<=getEqRadius()).sort((a,b)=>a.dist-b.dist).slice(0,15);
     _hazardData.earthquakes=quakes;
   }catch(e){_hazardData.earthquakes=[];console.log('Earthquake fetch error:',e.message)}
 }
@@ -7393,6 +7405,30 @@ async function _fetchWildfires(){
     }).filter(f=>f.name&&f.name!=='Unknown Fire');
     _hazardData.wildfires=fires;
   }catch(e){_hazardData.wildfires=[];console.log('Wildfire fetch error:',e.message)}
+}
+
+async function _fetchRiverGauges(){
+  try{
+    const bBox=`${(S.lon-0.5).toFixed(4)},${(S.lat-0.5).toFixed(4)},${(S.lon+0.5).toFixed(4)},${(S.lat+0.5).toFixed(4)}`;
+    const url=`https://waterservices.usgs.gov/nwis/iv/?format=json&bBox=${bBox}&parameterCd=00065&siteStatus=active&siteType=ST`;
+    const res=await fetch(url,{signal:AbortSignal.timeout(8000)});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const ts=data.value?.timeSeries||[];
+    const gauges=ts.map(s=>{
+      const info=s.sourceInfo||{};
+      const name=info.siteName||'Unknown Gauge';
+      const lat2=parseFloat(info.geoLocation?.geogLocation?.latitude||0);
+      const lon2=parseFloat(info.geoLocation?.geogLocation?.longitude||0);
+      const dist=haversine(S.lat,S.lon,lat2,lon2);
+      const vals=s.values?.[0]?.value||[];
+      const latest=vals.length>0?vals[vals.length-1]:null;
+      const height=latest?parseFloat(latest.value):null;
+      const time=latest?latest.dateTime:null;
+      return{name,dist,height,time,siteCode:info.siteCode?.[0]?.value||''};
+    }).filter(g=>g.height!==null&&!isNaN(g.height)&&g.dist<=50).sort((a,b)=>a.dist-b.dist).slice(0,5);
+    _hazardData.riverGauges=gauges;
+  }catch(e){_hazardData.riverGauges=[];console.log('River gauge fetch error:',e.message)}
 }
 
 function _extractFloodAlerts(){
@@ -7470,8 +7506,9 @@ function _getDroughtStatus(dr){
 
 function _renderEarthquakeSection(){
   const eq=_hazardData.earthquakes;
+  const radius=getEqRadius();
   let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
-    <span>🌍 Earthquakes (within 500 mi)</span>
+    <span>🌍 Earthquakes (within ${radius} mi)</span>
     <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
   </summary><div style="padding:4px 0">`;
   if(eq===null){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">Loading earthquake data...</div>`}
@@ -7495,7 +7532,7 @@ function _renderEarthquakeSection(){
 
 function _renderFloodSection(){
   const fl=_hazardData.floods||[];
-  const fireAlerts=_hazardData.fireAlerts||[];
+  const gauges=_hazardData.riverGauges||[];
   let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
     <span>🌊 Flood Monitoring</span>
     <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
@@ -7517,7 +7554,20 @@ function _renderFloodSection(){
       </div>`;
     });
   }
-  html+=`<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NWS Active Alerts</div>`;
+  if(gauges.length>0){
+    html+=`<div style="font-size:0.7em;font-weight:600;color:var(--accent-blue);margin:8px 8px 4px;padding-top:6px;border-top:1px solid var(--border-subtle)">📊 Nearby Stream Gauges (USGS)</div>`;
+    gauges.forEach(g=>{
+      const distStr=S.radarMetric?Math.round(g.dist*1.60934)+' km':g.dist.toFixed(1)+' mi';
+      const heightColor=g.height>15?'#ef4444':g.height>10?'#f97316':g.height>5?'#eab308':'#22c55e';
+      const timeStr=g.time?new Date(g.time).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'';
+      html+=`<div style="padding:4px 8px;font-size:0.72em;display:flex;align-items:center;gap:6px;border-bottom:1px solid rgba(255,255,255,0.04)">
+        <div style="min-width:48px;text-align:center;padding:2px 6px;background:${heightColor}18;border:1px solid ${heightColor}44;border-radius:5px;color:${heightColor};font-weight:700;font-size:0.95em">${g.height.toFixed(1)} ft</div>
+        <div style="flex:1;min-width:0"><div style="color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name}</div>
+        <div style="color:var(--text-muted);font-size:0.85em">${distStr} away${timeStr?' · '+timeStr:''}</div></div>
+      </div>`;
+    });
+  }
+  html+=`<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NWS Active Alerts${gauges.length?' + USGS Water Services':''}</div>`;
   html+=`</div></details>`;
   return html;
 }
