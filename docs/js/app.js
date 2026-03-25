@@ -2010,6 +2010,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.36',date:'2026-03-25',items:['🌩️ Storm Cell Alerts — configurable notifications when radar detects storms matching your thresholds','3 threshold parameters: Distance (miles), Intensity (dBZ), and Impact Score (%) — all must match when enabled','15-minute cooldown per storm cell to prevent notification spam','Toast alerts in foreground + browser push notifications in background','Storm cell alert history in Alerts tab with dBZ, distance, impact tier, and timestamps','Settings panel → Storm Cell Alerts 🌩️ section with toggle switches and adjustable values']},
   {ver:'v2.35',date:'2026-03-24',items:['📍 Home button — first GPS/search location auto-saved as home; returns to home location from anywhere','🔍 Scan Here button — grabs current map center as new scan location without page reload','🔦 HD Scan dialog — choose scan target (Home / Current Location / Map Center) for 15-mile high-res analysis at zoom 12','Cyan crosshair overlay on radar map center for precise targeting','Home location persists across sessions via localStorage']},
   {ver:'v2.34',date:'2026-03-23',items:['3D Storm Terrain — complete rewrite using HTML5 Canvas heightmap renderer replacing DOM-based 3D','64×64 terrain grid with Gaussian smoothing maps storm dBZ to elevation peaks','True 3D projection with rotation, tilt, and zoom — drag to orbit, scroll/pinch to zoom','dBZ-colored terrain quads with back-to-front painter\'s algorithm and shading','Distance rings rendered as projected ellipses on the terrain plane','Wind arrows (storm movement + aloft) drawn directly on canvas','Animated lightning ⚡ flickers on cells ≥40 dBZ','Camera pad controls (arrows, zoom, reset) all working with canvas render']},
   {ver:'v2.33',date:'2026-03-23',items:['3D Storm View: threat-based color glow — green (low), yellow (moderate), red (serious), magenta (extreme) halo around each storm icon','Threat score formula combines dBZ intensity (50%) with approach trajectory impact (50%) for meaningful color coding','Storm direction arrows repositioned above icons for better visibility — larger, colored to match threat level, with contrast shadow','Radial glow ground effect beneath each storm icon with threat-colored ring','Updated Storm Intensity legend with Threat Glow color key']},
@@ -2153,6 +2154,8 @@ function syncSettingsPanel(){
   if(pBtn){pBtn.style.background=style==='pointer'?'rgba(0,229,255,0.2)':'rgba(255,255,255,0.05)';pBtn.style.borderColor=style==='pointer'?'var(--accent-cyan)':'var(--border-subtle)';}
   const wxAlertEl=document.getElementById('wx-alert-settings');
   if(wxAlertEl)wxAlertEl.innerHTML=renderWxAlertSettings();
+  const stormAlertEl=document.getElementById('storm-alert-settings');
+  if(stormAlertEl)stormAlertEl.innerHTML=renderStormCellAlertSettings();
 }
 function setAutoRefresh(val){
   const mins=parseInt(val,10);
@@ -2360,6 +2363,109 @@ function setWxAlertVal(key,val){
   _saveWxThresholds(th);
 }
 function clearWxAlertHistory(){_wxAlertHistory=[];_saveWxAlertHistory();if(S.activePage==='alerts')renderAlerts();}
+
+const _STORM_ALERT_DEFS=[
+  {key:'stormDist',label:'Distance',icon:'📏',unit:'mi',defVal:20,defOn:false,dir:'below',step:1,
+    check:(storm,th)=>{const d=storm.distance;if(d==null)return null;const v=S.radarMetric?parseFloat((d*1.60934).toFixed(1)):parseFloat(d.toFixed(1));const u=S.radarMetric?'km':'mi';return d<=th?{val:v,u,msg:`🌩️ Storm cell at ${v} ${u} — within your ${S.radarMetric?parseFloat((th*1.60934).toFixed(1)):th} ${u} threshold (${storm.dbz} dBZ)`}:null}},
+  {key:'stormDbz',label:'Intensity (dBZ)',icon:'📡',unit:'dBZ',defVal:40,defOn:false,step:5,
+    check:(storm,th)=>{const v=storm.dbz;if(v==null)return null;return v>=th?{val:v,u:'dBZ',msg:`🌩️ Storm cell at ${v} dBZ — above your ${th} dBZ intensity threshold (${parseFloat(storm.distance.toFixed(1))} mi away)`}:null}},
+  {key:'stormImpact',label:'Impact Score',icon:'🎯',unit:'%',defVal:50,defOn:false,step:5,
+    check:(storm,th)=>{const v=storm.impactPct;if(v==null||v<=0)return null;return v>=th?{val:v,u:'%',msg:`🌩️ Storm cell impact ${v}% — above your ${th}% threshold (${storm.dbz} dBZ, ${parseFloat(storm.distance.toFixed(1))} mi, tier: ${storm.impactTier})`}:null}}
+];
+const _STORM_ALERT_COOLDOWN=(function(){try{const s=localStorage.getItem('st_stormAlertCooldown');if(s){const o=JSON.parse(s);const now=Date.now();Object.keys(o).forEach(k=>{if(now-o[k]>900000)delete o[k]});return o}}catch(e){}return{}})();
+let _stormAlertHistory=JSON.parse(localStorage.getItem('st_stormAlertHistory')||'[]');
+function _loadStormThresholds(){
+  try{const s=localStorage.getItem('st_stormThresholds');if(s)return JSON.parse(s)}catch(e){}
+  const d={};_STORM_ALERT_DEFS.forEach(a=>{d[a.key]={on:a.defOn,val:a.defVal}});return d;
+}
+function _saveStormThresholds(th){try{localStorage.setItem('st_stormThresholds',JSON.stringify(th))}catch(e){}}
+function _saveStormAlertHistory(){
+  if(_stormAlertHistory.length>50)_stormAlertHistory=_stormAlertHistory.slice(-50);
+  try{localStorage.setItem('st_stormAlertHistory',JSON.stringify(_stormAlertHistory))}catch(e){}
+}
+function _calcStormImpact(storm){
+  const mv=S.stormMovement;
+  if(!mv||mv.speed<2)return{impactPct:0,impactTier:'none'};
+  const midBear=storm.bearing||0;
+  const midDist=storm.distance||0;
+  const bearToUser=(midBear+180)%360;
+  const diff=Math.abs(((mv.direction-bearToUser+180)%360)-180);
+  const closing=mv.speed*Math.cos(Math.min(diff,60)*Math.PI/180);
+  const baseWidthMi=Math.max(0,Math.min(3,(storm.dbz-20)/15));
+  const widthAngle=midDist>0.5?Math.atan2(baseWidthMi,midDist)*180/Math.PI:15;
+  const coneHalf=15+widthAngle;
+  let impactPct=0,impactTier='none';
+  if(diff<=coneHalf*0.6&&closing>1){impactTier='high';impactPct=80+Math.round(((coneHalf*0.6)-diff)/(coneHalf*0.6)*20);}
+  else if(diff<=coneHalf&&closing>0.5){impactTier='medium';impactPct=31+Math.round((coneHalf-diff)/(coneHalf*0.4)*49);}
+  else if(diff<=coneHalf+10){impactTier='low';impactPct=Math.max(5,Math.round((coneHalf+10-diff)/10*30));}
+  return{impactPct,impactTier};
+}
+function checkStormCellAlerts(){
+  if(!S.storms||!S.storms.length)return;
+  const th=_loadStormThresholds();
+  const anyOn=_STORM_ALERT_DEFS.some(d=>{const c=th[d.key];return c&&c.on});
+  if(!anyOn)return;
+  const now=Date.now();
+  S.storms.forEach(storm=>{
+    const impact=_calcStormImpact(storm);
+    storm.impactPct=impact.impactPct;
+    storm.impactTier=impact.impactTier;
+    const cellKey='sc_'+Math.round(storm.distance*10)+'_'+storm.dbz;
+    const lastFired=_STORM_ALERT_COOLDOWN[cellKey]||0;
+    if(now-lastFired<900000)return;
+    let allMatch=true;let bestMsg=null;
+    _STORM_ALERT_DEFS.forEach(def=>{
+      const cfg=th[def.key];
+      if(!cfg||!cfg.on)return;
+      const result=def.check(storm,cfg.val);
+      if(!result){allMatch=false;return}
+      if(!bestMsg)bestMsg=result;
+    });
+    if(!allMatch||!bestMsg)return;
+    _STORM_ALERT_COOLDOWN[cellKey]=now;
+    try{localStorage.setItem('st_stormAlertCooldown',JSON.stringify(_STORM_ALERT_COOLDOWN))}catch(e){}
+    const distStr=S.radarMetric?parseFloat((storm.distance*1.60934).toFixed(1))+' km':parseFloat(storm.distance.toFixed(1))+' mi';
+    const summaryMsg=`🌩️ Storm cell alert: ${storm.dbz} dBZ at ${distStr}${storm.impactPct>0?' · Impact: '+storm.impactPct+'% ('+storm.impactTier+')':''}`;
+    toast(summaryMsg,8000);
+    _stormAlertHistory.push({key:'stormCell',label:'Storm Cell',icon:'🌩️',msg:summaryMsg,val:storm.dbz,u:'dBZ',distance:storm.distance,impactPct:storm.impactPct||0,impactTier:storm.impactTier||'none',time:now});
+    _saveStormAlertHistory();
+    _sendBrowserNotification('Storm Cell Alert',summaryMsg);
+    if(S.activePage==='alerts')renderAlerts();
+  });
+}
+function renderStormCellAlertSettings(){
+  const th=_loadStormThresholds();
+  let html='';
+  _STORM_ALERT_DEFS.forEach(def=>{
+    const cfg=th[def.key]||{on:def.defOn,val:def.defVal};
+    const step=def.step||1;
+    html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px">
+      <label style="display:flex;align-items:center;gap:4px;font-size:0.7em;color:var(--text-muted);flex:1;min-width:0;cursor:pointer">
+        <input type="checkbox" ${cfg.on?'checked':''} onchange="toggleStormAlert('${def.key}',this.checked)" style="accent-color:var(--accent-cyan)">
+        <span style="white-space:nowrap">${def.icon} ${def.label}</span>
+      </label>
+      <input type="number" value="${cfg.val}" step="${step}" min="0" style="width:60px;font-size:0.7em;padding:3px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;text-align:center;font-family:var(--font-mono)" onchange="setStormAlertVal('${def.key}',this.value)" ${cfg.on?'':'disabled'}>
+    </div>`;
+  });
+  return html;
+}
+function toggleStormAlert(key,on){
+  const th=_loadStormThresholds();
+  if(!th[key]){const def=_STORM_ALERT_DEFS.find(d=>d.key===key);th[key]={on,val:def?def.defVal:0}}
+  else th[key].on=on;
+  _saveStormThresholds(th);
+  if(on)requestNotifPermission();
+  const el=document.getElementById('storm-alert-settings');
+  if(el)el.innerHTML=renderStormCellAlertSettings();
+}
+function setStormAlertVal(key,val){
+  const n=parseFloat(val);if(isNaN(n)||n<0)return;
+  const th=_loadStormThresholds();
+  if(!th[key])th[key]={on:false,val:n};
+  else th[key].val=n;
+  _saveStormThresholds(th);
+}
+function clearStormAlertHistory(){_stormAlertHistory=[];_saveStormAlertHistory();if(S.activePage==='alerts')renderAlerts();}
 
 // ==========================================
 // WEATHER (Open-Meteo)
@@ -4241,6 +4347,7 @@ async function scanRadarForView(){
     hideScanOverlay();
     toast(`${S.storms.length.toLocaleString()} cells in ${radius} mi radius (${srcLabel})`);
     scheduleAutoScan();
+    setTimeout(checkStormCellAlerts,600);
   }catch(e){hideScanOverlay();toast('View scan failed: '+e.message);console.error('ViewScan error:',e)}
 }
 
@@ -4312,6 +4419,7 @@ async function scanRadarHiRes(map,fromHome){
     hideScanOverlay();
     toast(`Hi-Res: ${S.storms.length.toLocaleString()} cells in ${HIRES_RADIUS} mi (${srcLabel})`);
     scheduleAutoScan();
+    setTimeout(checkStormCellAlerts,600);
   }catch(e){hideScanOverlay();toast('Hi-Res scan failed: '+e.message);console.error('HiRes error:',e)}
 }
 
@@ -5938,6 +6046,7 @@ async function scanRadarForStorms(){
     if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
     scheduleAutoScan();
     _checkTieredHiRes();
+    setTimeout(checkStormCellAlerts,600);
   }catch(e){hideScanOverlay();toast('Radar scan failed: '+e.message);console.error('Scan error:',e)}
 }
 
@@ -7175,6 +7284,28 @@ function renderAlerts(){
           <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
         </div>
         <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🔔 ','')}</div>
+      </div>`;
+    });
+  }
+  html+=`</div>`;
+  const stormHist=_stormAlertHistory.slice().reverse();
+  html+=`<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🌩️</span> Storm Cell Alerts${stormHist.length?' ('+stormHist.length+')':''}</span>${stormHist.length?'<button onclick="clearStormAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':''}</div>`;
+  if(!stormHist.length){
+    html+=`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No storm cell alerts yet. Enable thresholds in Settings ⚙️ → Storm Cell Alerts 🌩️</div>`;
+  }else{
+    stormHist.slice(0,20).forEach(h=>{
+      const d=new Date(h.time);
+      const tStr=fmtClock(d)+' · '+d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      const tierColors={high:'#eab308',medium:'#06b6d4',low:'#ec4899',none:'#22c55e'};
+      const tc=tierColors[h.impactTier]||'#666';
+      html+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+          <span>🌩️</span>
+          <span style="font-weight:600;color:var(--text-primary)">${h.val} dBZ</span>
+          ${h.impactPct>0?`<span style="font-size:0.8em;padding:1px 6px;border-radius:8px;background:${tc}18;color:${tc};font-weight:600">${h.impactPct}%</span>`:''}
+          <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
+        </div>
+        <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🌩️ ','')}</div>
       </div>`;
     });
   }
