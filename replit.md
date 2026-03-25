@@ -47,6 +47,14 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Reliability**: Server-side proxy for external APIs, multi-source data integration with fallback strategies, and robust error handling.
 - **Scalability**: Designed for global coverage with support for high volumes of storm data and international weather sources.
 
+### API Key Manager & Personal Weather Station
+- **API Key Management**: Centralized settings panel (🔑 button in header) for managing API keys for Ambient Weather, Weather Underground, and OpenAI. Keys stored in localStorage with `stormtracker_key_` prefix. Features add/edit/remove per key, masked display with show/hide toggle, status indicators (green = configured, empty = not set), group-level status (active/partial/empty).
+- **Bulk Import/Export**: Drag-and-drop or file picker to import keys from plain text config file (format: `AMBIENT_WEATHER_API_KEY=xxx`). Export button downloads current keys as backup text file. Safety reminder about keeping key files secure.
+- **Personal Weather Station (PWS) Viewer**: Dashboard section that auto-appears when Ambient Weather or Weather Underground keys are configured. Shows real-time station data (temperature, humidity, wind, pressure, rain, UV, solar radiation) in card grid layout. Auto-refreshes every 60 seconds. Supports multiple Ambient Weather stations with station selector dropdown. Falls back to setup prompt when keys are not configured.
+- **Server Proxy Routes**: POST `/api/pws/ambient` and POST `/api/pws/wunderground` proxy endpoints to avoid CORS. Keys sent via POST body (not query strings) for security. Error logging sanitized to prevent key leakage.
+- **Component Files**: `client/src/hooks/use-api-keys.ts`, `client/src/components/api-key-settings.tsx`, `client/src/components/personal-weather-station.tsx`
+- **Section Integration**: PWS section registered in section-reorder system (id: 'pws'). Appears in desktop layout via section ordering and in mobile layout under the Station tab.
+
 ## External Dependencies
 
 ### APIs
@@ -63,6 +71,8 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **AccuWeather API**: MinuteCast™ minute-by-minute precipitation, current conditions, 5-day/12-hour forecasts, lightning endpoint (enterprise only). Free trial: 500 core + 50 MinuteCast + 50 lightning calls/day for 14 days.
 - **CheckWX API**: International METAR/TAF data.
 - **WeatherAPI.com**: Secondary weather data provider for forecasts, air quality, UV data, etc.
+- **Ambient Weather API**: Personal weather station data via `rt.ambientweather.net/v1/devices` (user-provided API + Application keys).
+- **Weather Underground PWS API**: Personal weather station data via `api.weather.com/v2/pws/observations/current` (user-provided API key + station ID).
 
 ### Libraries
 - **React**: Frontend framework.

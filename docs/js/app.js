@@ -7576,48 +7576,50 @@ async function _fetchEarthquakes(){
   }catch(e){_hazardData.earthquakes=[];console.log('Earthquake fetch error:',e.message)}
 }
 
+const _stateFips={AL:'01',AK:'02',AZ:'04',AR:'05',CA:'06',CO:'08',CT:'09',DE:'10',FL:'12',GA:'13',HI:'15',ID:'16',IL:'17',IN:'18',IA:'19',KS:'20',KY:'21',LA:'22',ME:'23',MD:'24',MA:'25',MI:'26',MN:'27',MS:'28',MO:'29',MT:'30',NE:'31',NV:'32',NH:'33',NJ:'34',NM:'35',NY:'36',NC:'37',ND:'38',OH:'39',OK:'40',OR:'41',PA:'42',RI:'44',SC:'45',SD:'46',TN:'47',TX:'48',UT:'49',VT:'50',VA:'51',WA:'53',WV:'54',WI:'55',WY:'56',DC:'11',PR:'72'};
+
 async function _fetchDrought(){
   const st=_extractUSState();
   if(!st){_hazardData.drought={error:'state'};return}
+  const fips=_stateFips[st];
+  if(!fips){_hazardData.drought={error:'state'};return}
   try{
-    const tryDates=[];
     const now=new Date();
-    tryDates.push(new Date(now));
-    const dayOfWeek=now.getDay();
-    const lastTue=new Date(now);lastTue.setDate(now.getDate()-((dayOfWeek+5)%7||7));
-    tryDates.push(lastTue);
-    const prevTue=new Date(lastTue);prevTue.setDate(lastTue.getDate()-7);
-    tryDates.push(prevTue);
-    for(const d of tryDates){
-      const dateStr=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
-      const res=await fetch(`https://usdm.unl.edu/api/area/GetStatisticsByAreaAndDate?aoi=state:${st}&targetDate=${dateStr}`,{signal:AbortSignal.timeout(6000)});
-      if(!res.ok)continue;
-      const data=await res.json();
-      if(data&&data.length>0){
-        const r=data[0];
-        _hazardData.drought={state:st,none:parseFloat(r.None||0),d0:parseFloat(r.D0||0),d1:parseFloat(r.D1||0),d2:parseFloat(r.D2||0),d3:parseFloat(r.D3||0),d4:parseFloat(r.D4||0),date:r.mapDate||dateStr};
-        return;
-      }
-    }
-    _hazardData.drought={error:'nodata',state:st};
+    const end=`${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()}`;
+    const start30=new Date(now.getTime()-30*86400000);
+    const start=`${start30.getMonth()+1}/${start30.getDate()}/${start30.getFullYear()}`;
+    const url=`https://usdmdataservices.unl.edu/api/StateStatistics/GetDroughtSeverityStatisticsByAreaPercent?aoi=${fips}&startdate=${start}&enddate=${end}&statisticsType=1`;
+    const res=await fetch(url,{signal:AbortSignal.timeout(10000)});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const csv=await res.text();
+    if(!csv||!csv.trim()){_hazardData.drought={error:'nodata',state:st};return}
+    const lines=csv.trim().split('\n');
+    if(lines.length<2){_hazardData.drought={error:'nodata',state:st};return}
+    const headers=lines[0].split(',');
+    const mostRecent=lines[1].split(',');
+    const row={};headers.forEach((h,i)=>row[h]=mostRecent[i]||'0');
+    _hazardData.drought={state:st,none:parseFloat(row.None||0),d0:parseFloat(row.D0||0),d1:parseFloat(row.D1||0),d2:parseFloat(row.D2||0),d3:parseFloat(row.D3||0),d4:parseFloat(row.D4||0),date:row.MapDate||''};
   }catch(e){
     _hazardData.drought={error:'cors',state:st};
-    console.log('Drought fetch error (likely CORS):',e.message);
+    console.log('Drought fetch error:',e.message);
   }
 }
 
 async function _fetchWildfires(){
   try{
-    const bbox=`${S.lon-3},${S.lat-3},${S.lon+3},${S.lat+3}`;
-    const url=`https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters/FeatureServer/0/query?where=1%3D1&outFields=poly_IncidentName,poly_GISAcres,poly_PercentContained,poly_DateCurrent,irwin_FireDiscoveryDateTime&geometry=${encodeURIComponent(bbox)}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json&resultRecordCount=10`;
-    const res=await fetch(url);
+    const url=`https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters/FeatureServer/0/query?where=1%3D1&outFields=poly_IncidentName,attr_IncidentName,poly_GISAcres,poly_DateCurrent,attr_PercentContained,attr_FireDiscoveryDateTime,attr_InitialLatitude,attr_InitialLongitude,attr_POOState&returnGeometry=false&f=json&resultRecordCount=2000`;
+    const res=await fetch(url,{signal:AbortSignal.timeout(10000)});
     if(!res.ok)throw new Error('HTTP '+res.status);
     const data=await res.json();
     if(data.error){_hazardData.wildfires={error:'api'};console.log('Wildfire API error:',data.error.message);return}
+    const maxDist=300;
     const fires=(data.features||[]).map(f=>{
       const a=f.attributes;
-      return{name:a.poly_IncidentName||'Unknown Fire',acres:a.poly_GISAcres?Math.round(a.poly_GISAcres):null,contained:a.poly_PercentContained,date:a.poly_DateCurrent||a.irwin_FireDiscoveryDateTime};
-    }).filter(f=>f.name&&f.name!=='Unknown Fire');
+      const lat=a.attr_InitialLatitude;
+      const lon=a.attr_InitialLongitude;
+      const dist=(lat&&lon)?haversine(S.lat,S.lon,lat,lon):9999;
+      return{name:a.poly_IncidentName||a.attr_IncidentName||'Unknown Fire',acres:a.poly_GISAcres?Math.round(a.poly_GISAcres):null,contained:a.attr_PercentContained,date:a.poly_DateCurrent||a.attr_FireDiscoveryDateTime,dist,state:a.attr_POOState||''};
+    }).filter(f=>f.name&&f.name!=='Unknown Fire'&&f.dist<=maxDist).sort((a,b)=>a.dist-b.dist).slice(0,10);
     _hazardData.wildfires=fires;
   }catch(e){_hazardData.wildfires=[];console.log('Wildfire fetch error:',e.message)}
 }
@@ -7813,11 +7815,11 @@ function _renderWildfireSection(){
     wfArr.forEach(f=>{
       const acresStr=f.acres?f.acres.toLocaleString()+' acres':'Size unknown';
       const containStr=f.contained!=null?Math.round(f.contained)+'% contained':'Containment unknown';
-      const dateStr=f.date?new Date(f.date).toLocaleDateString():'';
+      const distStr=f.dist&&f.dist<9999?Math.round(f.dist)+' mi away':'';
       html+=`<div style="padding:6px 8px;border-bottom:1px solid var(--border-subtle);font-size:0.75em;display:flex;align-items:center;gap:8px">
         <span style="font-size:1.2em">🔥</span>
-        <div style="flex:1"><div style="font-weight:600;color:var(--text-primary)">${f.name}</div>
-        <div style="color:var(--text-muted);font-size:0.9em">${acresStr} · ${containStr}${dateStr?' · '+dateStr:''}</div></div>
+        <div style="flex:1"><div style="font-weight:600;color:var(--text-primary)">${f.name}${f.state?' <span style="color:var(--text-muted);font-weight:400;font-size:0.85em">('+f.state.replace('US-','')+')</span>':''}</div>
+        <div style="color:var(--text-muted);font-size:0.9em">${acresStr} · ${containStr}${distStr?' · '+distStr:''}</div></div>
       </div>`;
     });
   }
