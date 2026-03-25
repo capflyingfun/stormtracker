@@ -7376,15 +7376,26 @@ async function _fetchDrought(){
   const st=_extractUSState();
   if(!st){_hazardData.drought={error:'state'};return}
   try{
-    const today=new Date();
-    const dateStr=today.getFullYear()+'-'+(today.getMonth()+1).toString().padStart(2,'0')+'-'+today.getDate().toString().padStart(2,'0');
-    const res=await fetch(`https://usdm.unl.edu/api/area/GetStatisticsByAreaAndDate?aoi=state:${st}&targetDate=${dateStr}`);
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    const data=await res.json();
-    if(data&&data.length>0){
-      const d=data[0];
-      _hazardData.drought={state:st,none:parseFloat(d.None||0),d0:parseFloat(d.D0||0),d1:parseFloat(d.D1||0),d2:parseFloat(d.D2||0),d3:parseFloat(d.D3||0),d4:parseFloat(d.D4||0),date:d.mapDate};
-    }else{_hazardData.drought={error:'nodata',state:st}}
+    const tryDates=[];
+    const now=new Date();
+    tryDates.push(new Date(now));
+    const dayOfWeek=now.getDay();
+    const lastTue=new Date(now);lastTue.setDate(now.getDate()-((dayOfWeek+5)%7||7));
+    tryDates.push(lastTue);
+    const prevTue=new Date(lastTue);prevTue.setDate(lastTue.getDate()-7);
+    tryDates.push(prevTue);
+    for(const d of tryDates){
+      const dateStr=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
+      const res=await fetch(`https://usdm.unl.edu/api/area/GetStatisticsByAreaAndDate?aoi=state:${st}&targetDate=${dateStr}`,{signal:AbortSignal.timeout(6000)});
+      if(!res.ok)continue;
+      const data=await res.json();
+      if(data&&data.length>0){
+        const r=data[0];
+        _hazardData.drought={state:st,none:parseFloat(r.None||0),d0:parseFloat(r.D0||0),d1:parseFloat(r.D1||0),d2:parseFloat(r.D2||0),d3:parseFloat(r.D3||0),d4:parseFloat(r.D4||0),date:r.mapDate||dateStr};
+        return;
+      }
+    }
+    _hazardData.drought={error:'nodata',state:st};
   }catch(e){
     _hazardData.drought={error:'cors',state:st};
     console.log('Drought fetch error (likely CORS):',e.message);
@@ -7642,7 +7653,7 @@ function _renderDroughtSection(){
     ];
     const totalDrought=(dr.d0+dr.d1+dr.d2+dr.d3+dr.d4).toFixed(1);
     html+=`<div style="padding:4px 8px;font-size:0.75em">
-      <div style="font-weight:600;color:var(--text-primary);margin-bottom:6px">${dr.state} — ${totalDrought}% of state in drought</div>
+      <div style="font-weight:600;color:var(--text-primary);margin-bottom:6px">${dr.state} — ${totalDrought}% of state in drought${dr.date?' <span style="font-size:0.8em;color:var(--text-muted);font-weight:400">('+dr.date+')</span>':''}</div>
       <div style="display:flex;height:12px;border-radius:6px;overflow:hidden;margin-bottom:8px">`;
     levels.forEach(l=>{if(l.pct>0)html+=`<div style="width:${l.pct}%;background:${l.color}" title="${l.label}: ${l.pct.toFixed(1)}%"></div>`});
     html+=`</div>`;
