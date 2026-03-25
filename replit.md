@@ -64,8 +64,9 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Government Weather Services / NWS API**: Weather alerts and warnings, Area Forecast Discussions.
 - **Iowa Environmental Mesonet (IEM) mPING GeoJSON**: Crowdsourced weather reports from NOAA/NSSL mPING citizen science project, filtered by map bounds and last 3 hours.
 - **USGS Earthquake API**: Real-time earthquake data (GeoJSON feed, M2.5+ in last 24h, filtered within 500mi radius).
-- **NIFC Wildfire API**: Active fire perimeters via ArcGIS REST service (WFIGS Interagency Perimeters).
-- **US Drought Monitor API**: State-level drought statistics by category (D0-D4) from USDM/UNL.
+- **NASA EONET API**: Global natural events (volcanoes within 500mi, wildfires for non-US within 300mi) via `eonet.gsfc.nasa.gov/api/v3/events`.
+- **NIFC Wildfire API**: Active fire perimeters via ArcGIS REST service (WFIGS Interagency Perimeters) — US locations only.
+- **US Drought Monitor API**: State-level drought statistics by category (D0-D4) from USDM/UNL — US locations only.
 - **Open-Meteo API**: Current and forecasted upper atmospheric winds, atmospheric stability parameters.
 - **OpenAI GPT-4o API**: AI weather assistant and chat functionality.
 - **AccuWeather API**: MinuteCast™ minute-by-minute precipitation, current conditions, 5-day/12-hour forecasts, lightning endpoint (enterprise only). Free trial: 500 core + 50 MinuteCast + 50 lightning calls/day for 14 days.
