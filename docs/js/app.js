@@ -7236,6 +7236,8 @@ async function fetchAlerts(){
     const res=await fetch(`https://api.weather.gov/alerts/active?point=${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{headers:{'User-Agent':'StormTracker/1.50'}});
     const data=await res.json();S.alerts=data.features||[];renderAlerts();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){S.alerts=[];renderAlerts()}
+  _extractFloodAlerts();
+  if(S.activePage==='alerts')renderHazards();
 }
 
 function updateAlertBadge(){
@@ -7340,8 +7342,7 @@ async function fetchHazards(){
   await Promise.allSettled([
     _fetchEarthquakes(),
     isUS?_fetchDrought():Promise.resolve(),
-    isUS?_fetchWildfires():Promise.resolve(),
-    _extractFloodAlerts()
+    isUS?_fetchWildfires():Promise.resolve()
   ]);
   if(S.activePage==='alerts')renderHazards();
 }
@@ -7350,10 +7351,10 @@ async function _fetchEarthquakes(){
   try{
     const res=await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson');
     const data=await res.json();
-    const quakes=(data.features||[]).map(f=>{
+    const quakes=(data.features||[]).filter(f=>f.geometry&&f.geometry.coordinates&&f.properties).map(f=>{
       const [lon,lat,depth]=f.geometry.coordinates;
       const dist=haversine(S.lat,S.lon,lat,lon);
-      return{mag:f.properties.mag,place:f.properties.place,time:f.properties.time,depth:depth,dist:dist,lat,lon,url:f.properties.url};
+      return{mag:f.properties.mag||0,place:f.properties.place||'Unknown',time:f.properties.time,depth:depth||0,dist:dist,lat,lon,url:f.properties.url};
     }).filter(q=>q.dist<=500).sort((a,b)=>a.dist-b.dist).slice(0,15);
     _hazardData.earthquakes=quakes;
   }catch(e){_hazardData.earthquakes=[];console.log('Earthquake fetch error:',e.message)}
@@ -7371,7 +7372,7 @@ async function _fetchDrought(){
     if(data&&data.length>0){
       const d=data[0];
       _hazardData.drought={state:st,none:parseFloat(d.None||0),d0:parseFloat(d.D0||0),d1:parseFloat(d.D1||0),d2:parseFloat(d.D2||0),d3:parseFloat(d.D3||0),d4:parseFloat(d.D4||0),date:d.mapDate};
-    }else{_hazardData.drought={state:st,none:100,d0:0,d1:0,d2:0,d3:0,d4:0}}
+    }else{_hazardData.drought={error:'nodata',state:st}}
   }catch(e){
     _hazardData.drought={error:'cors',state:st};
     console.log('Drought fetch error (likely CORS):',e.message);
@@ -7383,7 +7384,9 @@ async function _fetchWildfires(){
     const bbox=`${S.lon-3},${S.lat-3},${S.lon+3},${S.lat+3}`;
     const url=`https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters/FeatureServer/0/query?where=1%3D1&outFields=poly_IncidentName,poly_GISAcres,poly_PercentContained,poly_DateCurrent,irwin_FireDiscoveryDateTime&geometry=${encodeURIComponent(bbox)}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json&resultRecordCount=10`;
     const res=await fetch(url);
+    if(!res.ok)throw new Error('HTTP '+res.status);
     const data=await res.json();
+    if(data.error){_hazardData.wildfires={error:'api'};console.log('Wildfire API error:',data.error.message);return}
     const fires=(data.features||[]).map(f=>{
       const a=f.attributes;
       return{name:a.poly_IncidentName||'Unknown Fire',acres:a.poly_GISAcres?Math.round(a.poly_GISAcres):null,contained:a.poly_PercentContained,date:a.poly_DateCurrent||a.irwin_FireDiscoveryDateTime};
@@ -7434,7 +7437,9 @@ function _renderHazardSummary(){
   else{const maxMag=Math.max(...eq.map(q=>q.mag));items.push({icon:maxMag>=5?'🔴':maxMag>=4?'🟠':'🟡',label:'Earthquakes',status:`${eq.length} nearby`,color:maxMag>=5?'#ef4444':maxMag>=4?'#f97316':'#eab308'})}
   if(!fl||fl.length===0)items.push({icon:'✅',label:'Flooding',status:'Clear',color:'#22c55e'});
   else items.push({icon:'🔴',label:'Flooding',status:`${fl.length} alert${fl.length>1?'s':''}`,color:'#ef4444'});
-  if(!wf||wf.length===0)items.push({icon:'✅',label:'Wildfires',status:'Clear',color:'#22c55e'});
+  if(wf===null)items.push({icon:'🔄',label:'Wildfires',status:'Loading...',color:'#666'});
+  else if(wf&&wf.error)items.push({icon:'⚠️',label:'Wildfires',status:'Data unavailable',color:'#888'});
+  else if(!wf||wf.length===0)items.push({icon:'✅',label:'Wildfires',status:'Clear',color:'#22c55e'});
   else items.push({icon:'🔥',label:'Wildfires',status:`${wf.length} active`,color:'#ff6600'});
   const droughtStatus=_getDroughtStatus(dr);
   items.push(droughtStatus);
@@ -7452,7 +7457,8 @@ function _renderHazardSummary(){
 
 function _getDroughtStatus(dr){
   if(!dr)return{icon:'🔄',label:'Drought',status:'Loading...',color:'#666'};
-  if(dr.error==='cors')return{icon:'⚠️',label:'Drought',status:'Data unavailable',color:'#666'};
+  if(dr.error==='cors')return{icon:'⚠️',label:'Drought',status:'Data unavailable',color:'#888'};
+  if(dr.error==='nodata')return{icon:'⚠️',label:'Drought',status:'No current data',color:'#888'};
   if(dr.error==='state')return{icon:'ℹ️',label:'Drought',status:'US only',color:'#666'};
   const totalDrought=dr.d0+dr.d1+dr.d2+dr.d3+dr.d4;
   if(totalDrought<5)return{icon:'✅',label:'Drought',status:'None',color:'#22c55e'};
@@ -7533,10 +7539,13 @@ function _renderWildfireSection(){
       </div>`;
     });
   }
-  if(wf.length===0&&fireAlerts.length===0){html+=`<div style="font-size:0.75em;color:var(--accent-green);padding:8px;text-align:center">✅ No active wildfires or fire weather alerts nearby</div>`}
-  else if(wf.length>0){
-    html+=`<div style="font-size:0.7em;font-weight:600;color:#ff6600;margin-bottom:6px;padding:0 8px">Active Fire Perimeters (${wf.length})</div>`;
-    wf.forEach(f=>{
+  const wfArr=Array.isArray(wf)?wf:[];
+  const wfError=wf&&wf.error;
+  if(wfError){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">⚠️ Wildfire data unavailable</div>`}
+  else if(wfArr.length===0&&fireAlerts.length===0){html+=`<div style="font-size:0.75em;color:var(--accent-green);padding:8px;text-align:center">✅ No active wildfires or fire weather alerts nearby</div>`}
+  else if(wfArr.length>0){
+    html+=`<div style="font-size:0.7em;font-weight:600;color:#ff6600;margin-bottom:6px;padding:0 8px">Active Fire Perimeters (${wfArr.length})</div>`;
+    wfArr.forEach(f=>{
       const acresStr=f.acres?f.acres.toLocaleString()+' acres':'Size unknown';
       const containStr=f.contained!=null?Math.round(f.contained)+'% contained':'Containment unknown';
       const dateStr=f.date?new Date(f.date).toLocaleDateString():'';
@@ -7561,7 +7570,12 @@ function _renderDroughtSection(){
   </summary><div style="padding:4px 0">`;
   if(!isUS){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">Drought Monitor covers US locations only</div>`}
   else if(!dr){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">Loading drought data...</div>`}
-  else if(dr.error==='cors'){
+  else if(dr.error==='nodata'){
+    html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">
+      No drought data available for today's date.<br>
+      <a href="https://droughtmonitor.unl.edu/CurrentMap/StateDroughtMonitor.aspx?${dr.state||'FL'}" target="_blank" rel="noopener" style="color:var(--accent-cyan)">View latest on US Drought Monitor →</a>
+    </div>`;
+  }else if(dr.error==='cors'){
     html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">
       Drought data requires direct access.<br>
       <a href="https://droughtmonitor.unl.edu/CurrentMap/StateDroughtMonitor.aspx?${dr.state||'FL'}" target="_blank" rel="noopener" style="color:var(--accent-cyan)">View US Drought Monitor →</a>

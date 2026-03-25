@@ -54,6 +54,9 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **RainViewer API**: Global weather radar tiles.
 - **NEXRAD (Iowa Mesonet RIDGE API)**: US high-resolution radar data.
 - **Government Weather Services / NWS API**: Weather alerts and warnings, Area Forecast Discussions.
+- **USGS Earthquake API**: Real-time earthquake data (GeoJSON feed, M2.5+ in last 24h, filtered within 500mi radius).
+- **NIFC Wildfire API**: Active fire perimeters via ArcGIS REST service (WFIGS Interagency Perimeters).
+- **US Drought Monitor API**: State-level drought statistics by category (D0-D4) from USDM/UNL.
 - **Open-Meteo API**: Current and forecasted upper atmospheric winds, atmospheric stability parameters.
 - **OpenAI GPT-4o API**: AI weather assistant and chat functionality.
 - **AccuWeather API**: MinuteCast™ minute-by-minute precipitation, current conditions, 5-day/12-hour forecasts, lightning endpoint (enterprise only). Free trial: 500 core + 50 MinuteCast + 50 lightning calls/day for 14 days.
