@@ -1573,6 +1573,7 @@ function goHome(){
   updateNavForLocation();
   document.getElementById('status-text').textContent='Live · '+home.name;
   fetchWeather();fetchAlerts();fetchHazards();fetchTerrainGrid();scanRadarForStorms();scheduleHourlyRefresh();
+  refreshMpingIfVisible();
   toast('📍 Home: '+home.name);
 }
 function scanHere(){
@@ -1595,6 +1596,7 @@ function scanHere(){
   updateNavForLocation();
   document.getElementById('status-text').textContent='Live · '+S.locName;
   fetchWeather();fetchAlerts();fetchHazards();fetchTerrainGrid();scanRadarForStorms();scheduleHourlyRefresh();
+  refreshMpingIfVisible();
   toast('🔍 Scanning: '+S.locName);
 }
 function showHdScanDialog(){
