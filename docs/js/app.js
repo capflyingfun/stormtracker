@@ -1324,7 +1324,7 @@ function switchPage(page){
   }
   if(page==='weather'){startSonarSweep()}else{stopSonarSweep()}
   if(page==='station'&&S.lat&&(!S.station||S._stationLocKey!==S.lat+','+S.lon))fetchStation();
-  if(page==='alerts'&&S.lat)fetchAlerts();
+  if(page==='alerts'&&S.lat){fetchAlerts();fetchHazards()}
   if(page==='storms'&&S.lat)renderStorms();
   if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}
 }
@@ -1572,7 +1572,7 @@ function goHome(){
   }
   updateNavForLocation();
   document.getElementById('status-text').textContent='Live · '+home.name;
-  fetchWeather();fetchAlerts();fetchTerrainGrid();scanRadarForStorms();scheduleHourlyRefresh();
+  fetchWeather();fetchAlerts();fetchHazards();fetchTerrainGrid();scanRadarForStorms();scheduleHourlyRefresh();
   toast('📍 Home: '+home.name);
 }
 function scanHere(){
@@ -1594,7 +1594,7 @@ function scanHere(){
   showRadarLayer(S.map);
   updateNavForLocation();
   document.getElementById('status-text').textContent='Live · '+S.locName;
-  fetchWeather();fetchAlerts();fetchTerrainGrid();scanRadarForStorms();scheduleHourlyRefresh();
+  fetchWeather();fetchAlerts();fetchHazards();fetchTerrainGrid();scanRadarForStorms();scheduleHourlyRefresh();
   toast('🔍 Scanning: '+S.locName);
 }
 function showHdScanDialog(){
@@ -1694,7 +1694,7 @@ function setLoc(lat,lon,name,fromTravel){
     _setLocTimer=null;
     document.getElementById('status-text').textContent='Live · '+S.locName;
     fetchWeather();
-    fetchAlerts();
+    fetchAlerts();fetchHazards();
     fetchTerrainGrid();
     scanRadarForStorms();
     scheduleHourlyRefresh();
@@ -1857,7 +1857,7 @@ function scheduleAutoRefresh(){
     S._nextRefreshAt=Date.now()+ms;
     startScanRefreshTimer();
     fetchWeather();
-    fetchAlerts();
+    fetchAlerts();fetchHazards();
     fetchTerrainGrid();
     scanRadarForStorms();
   },ms);
@@ -2251,7 +2251,7 @@ function travelDataRefresh(){
     showRadarLayer(S.map);
   }
   fetchWeather();
-  fetchAlerts();
+  fetchAlerts();fetchHazards();
   scanRadarForStorms();
 }
 async function reverseGeocode(lat,lon){
@@ -7236,6 +7236,8 @@ async function fetchAlerts(){
     const res=await fetch(`https://api.weather.gov/alerts/active?point=${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{headers:{'User-Agent':'StormTracker/1.50'}});
     const data=await res.json();S.alerts=data.features||[];renderAlerts();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){S.alerts=[];renderAlerts()}
+  _extractFloodAlerts();
+  if(S.activePage==='alerts')renderHazards();
 }
 
 function updateAlertBadge(){
@@ -7310,9 +7312,315 @@ function renderAlerts(){
     });
   }
   html+=`</div>`;
+  html+=`<div id="hazards-section"></div>`;
   el.innerHTML=html;
   if(S.alerts&&S.alerts.length)startAlertCountdowns();
+  renderHazards();
 }
+
+// ==========================================
+// ENVIRONMENTAL HAZARDS
+// ==========================================
+let _hazardData={earthquakes:null,floods:null,wildfires:null,drought:null,_lastFetch:0};
+
+function _extractUSState(){
+  const name=S.locName||'';
+  const stateMap={'Alabama':'AL','Alaska':'AK','Arizona':'AZ','Arkansas':'AR','California':'CA','Colorado':'CO','Connecticut':'CT','Delaware':'DE','Florida':'FL','Georgia':'GA','Hawaii':'HI','Idaho':'ID','Illinois':'IL','Indiana':'IN','Iowa':'IA','Kansas':'KS','Kentucky':'KY','Louisiana':'LA','Maine':'ME','Maryland':'MD','Massachusetts':'MA','Michigan':'MI','Minnesota':'MN','Mississippi':'MS','Missouri':'MO','Montana':'MT','Nebraska':'NE','Nevada':'NV','New Hampshire':'NH','New Jersey':'NJ','New Mexico':'NM','New York':'NY','North Carolina':'NC','North Dakota':'ND','Ohio':'OH','Oklahoma':'OK','Oregon':'OR','Pennsylvania':'PA','Rhode Island':'RI','South Carolina':'SC','South Dakota':'SD','Tennessee':'TN','Texas':'TX','Utah':'UT','Vermont':'VT','Virginia':'VA','Washington':'WA','West Virginia':'WV','Wisconsin':'WI','Wyoming':'WY'};
+  const abbrs=Object.values(stateMap);
+  const parts=name.split(/[,\s]+/).map(s=>s.trim()).filter(Boolean);
+  for(const p of parts){if(abbrs.includes(p.toUpperCase()))return p.toUpperCase()}
+  for(const [full,abbr] of Object.entries(stateMap)){if(name.toLowerCase().includes(full.toLowerCase()))return abbr}
+  return null;
+}
+
+async function fetchHazards(){
+  if(!S.lat||!S.lon)return;
+  const now=Date.now();
+  if(now-_hazardData._lastFetch<300000&&_hazardData.earthquakes!==null)return;
+  _hazardData._lastFetch=now;
+  const isUS=isUSLocation(S.lat,S.lon);
+  await Promise.allSettled([
+    _fetchEarthquakes(),
+    isUS?_fetchDrought():Promise.resolve(),
+    isUS?_fetchWildfires():Promise.resolve()
+  ]);
+  if(S.activePage==='alerts')renderHazards();
+}
+
+async function _fetchEarthquakes(){
+  try{
+    const res=await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson');
+    const data=await res.json();
+    const quakes=(data.features||[]).filter(f=>f.geometry&&f.geometry.coordinates&&f.properties).map(f=>{
+      const [lon,lat,depth]=f.geometry.coordinates;
+      const dist=haversine(S.lat,S.lon,lat,lon);
+      return{mag:f.properties.mag||0,place:f.properties.place||'Unknown',time:f.properties.time,depth:depth||0,dist:dist,lat,lon,url:f.properties.url};
+    }).filter(q=>q.dist<=500).sort((a,b)=>a.dist-b.dist).slice(0,15);
+    _hazardData.earthquakes=quakes;
+  }catch(e){_hazardData.earthquakes=[];console.log('Earthquake fetch error:',e.message)}
+}
+
+async function _fetchDrought(){
+  const st=_extractUSState();
+  if(!st){_hazardData.drought={error:'state'};return}
+  try{
+    const today=new Date();
+    const dateStr=today.getFullYear()+'-'+(today.getMonth()+1).toString().padStart(2,'0')+'-'+today.getDate().toString().padStart(2,'0');
+    const res=await fetch(`https://usdm.unl.edu/api/area/GetStatisticsByAreaAndDate?aoi=state:${st}&targetDate=${dateStr}`);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    if(data&&data.length>0){
+      const d=data[0];
+      _hazardData.drought={state:st,none:parseFloat(d.None||0),d0:parseFloat(d.D0||0),d1:parseFloat(d.D1||0),d2:parseFloat(d.D2||0),d3:parseFloat(d.D3||0),d4:parseFloat(d.D4||0),date:d.mapDate};
+    }else{_hazardData.drought={error:'nodata',state:st}}
+  }catch(e){
+    _hazardData.drought={error:'cors',state:st};
+    console.log('Drought fetch error (likely CORS):',e.message);
+  }
+}
+
+async function _fetchWildfires(){
+  try{
+    const bbox=`${S.lon-3},${S.lat-3},${S.lon+3},${S.lat+3}`;
+    const url=`https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters/FeatureServer/0/query?where=1%3D1&outFields=poly_IncidentName,poly_GISAcres,poly_PercentContained,poly_DateCurrent,irwin_FireDiscoveryDateTime&geometry=${encodeURIComponent(bbox)}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&returnGeometry=false&f=json&resultRecordCount=10`;
+    const res=await fetch(url);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    if(data.error){_hazardData.wildfires={error:'api'};console.log('Wildfire API error:',data.error.message);return}
+    const fires=(data.features||[]).map(f=>{
+      const a=f.attributes;
+      return{name:a.poly_IncidentName||'Unknown Fire',acres:a.poly_GISAcres?Math.round(a.poly_GISAcres):null,contained:a.poly_PercentContained,date:a.poly_DateCurrent||a.irwin_FireDiscoveryDateTime};
+    }).filter(f=>f.name&&f.name!=='Unknown Fire');
+    _hazardData.wildfires=fires;
+  }catch(e){_hazardData.wildfires=[];console.log('Wildfire fetch error:',e.message)}
+}
+
+function _extractFloodAlerts(){
+  const floodEvents=['Flood','Flash Flood','Coastal Flood','Storm Surge','River Flood','Lakeshore Flood','Hydrologic'];
+  const fireEvents=['Fire Weather','Red Flag','Fire'];
+  const floods=[];
+  const fireAlerts=[];
+  (S.alerts||[]).forEach(a=>{
+    const event=(a.properties?.event||'').toLowerCase();
+    if(floodEvents.some(e=>event.includes(e.toLowerCase())))floods.push(a);
+    if(fireEvents.some(e=>event.includes(e.toLowerCase())))fireAlerts.push(a);
+  });
+  _hazardData.floods=floods;
+  _hazardData.fireAlerts=fireAlerts;
+}
+
+function renderHazards(){
+  const el=document.getElementById('hazards-section');
+  if(!el)return;
+  if(!S.lat){el.innerHTML='';return}
+  let html=`<div class="card" style="margin-top:12px">
+    <div class="card-title"><span class="icon">🌍</span> Environmental Hazards</div>
+    <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">Real-time hazard monitoring from USGS, NWS, NIFC & USDM</div>`;
+  html+=_renderHazardSummary();
+  html+=_renderEarthquakeSection();
+  html+=_renderFloodSection();
+  html+=_renderWildfireSection();
+  html+=_renderDroughtSection();
+  html+=`<div style="text-align:center;margin-top:10px"><button onclick="fetchHazards().then(()=>renderHazards())" style="font-size:0.7em;padding:4px 14px;background:rgba(0,229,255,0.08);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.2);border-radius:6px;cursor:pointer;font-weight:600">🔄 Refresh Hazards</button></div>`;
+  html+=`</div>`;
+  el.innerHTML=html;
+}
+
+function _renderHazardSummary(){
+  const eq=_hazardData.earthquakes;
+  const fl=_hazardData.floods;
+  const wf=_hazardData.wildfires;
+  const dr=_hazardData.drought;
+  const items=[];
+  if(eq===null)items.push({icon:'🔄',label:'Earthquakes',status:'Loading...',color:'#666'});
+  else if(eq.length===0)items.push({icon:'✅',label:'Earthquakes',status:'Clear',color:'#22c55e'});
+  else{const maxMag=Math.max(...eq.map(q=>q.mag));items.push({icon:maxMag>=5?'🔴':maxMag>=4?'🟠':'🟡',label:'Earthquakes',status:`${eq.length} nearby`,color:maxMag>=5?'#ef4444':maxMag>=4?'#f97316':'#eab308'})}
+  if(!fl||fl.length===0)items.push({icon:'✅',label:'Flooding',status:'Clear',color:'#22c55e'});
+  else items.push({icon:'🔴',label:'Flooding',status:`${fl.length} alert${fl.length>1?'s':''}`,color:'#ef4444'});
+  if(wf===null)items.push({icon:'🔄',label:'Wildfires',status:'Loading...',color:'#666'});
+  else if(wf&&wf.error)items.push({icon:'⚠️',label:'Wildfires',status:'Data unavailable',color:'#888'});
+  else if(!wf||wf.length===0)items.push({icon:'✅',label:'Wildfires',status:'Clear',color:'#22c55e'});
+  else items.push({icon:'🔥',label:'Wildfires',status:`${wf.length} active`,color:'#ff6600'});
+  const droughtStatus=_getDroughtStatus(dr);
+  items.push(droughtStatus);
+  let html=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">`;
+  items.forEach(it=>{
+    html+=`<div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px">
+      <span style="font-size:1em">${it.icon}</span>
+      <div><div style="font-size:0.7em;font-weight:600;color:var(--text-primary)">${it.label}</div>
+      <div style="font-size:0.6em;color:${it.color};font-weight:600">${it.status}</div></div>
+    </div>`;
+  });
+  html+=`</div>`;
+  return html;
+}
+
+function _getDroughtStatus(dr){
+  if(!dr)return{icon:'🔄',label:'Drought',status:'Loading...',color:'#666'};
+  if(dr.error==='cors')return{icon:'⚠️',label:'Drought',status:'Data unavailable',color:'#888'};
+  if(dr.error==='nodata')return{icon:'⚠️',label:'Drought',status:'No current data',color:'#888'};
+  if(dr.error==='state')return{icon:'ℹ️',label:'Drought',status:'US only',color:'#666'};
+  const totalDrought=dr.d0+dr.d1+dr.d2+dr.d3+dr.d4;
+  if(totalDrought<5)return{icon:'✅',label:'Drought',status:'None',color:'#22c55e'};
+  if(dr.d3+dr.d4>20)return{icon:'🔴',label:'Drought',status:'Extreme',color:'#ef4444'};
+  if(dr.d2+dr.d3+dr.d4>20)return{icon:'🟠',label:'Drought',status:'Severe',color:'#f97316'};
+  if(dr.d1+dr.d2>20)return{icon:'🟡',label:'Drought',status:'Moderate',color:'#eab308'};
+  return{icon:'🟢',label:'Drought',status:'Abnormally Dry',color:'#a3e635'};
+}
+
+function _renderEarthquakeSection(){
+  const eq=_hazardData.earthquakes;
+  let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+    <span>🌍 Earthquakes (within 500 mi)</span>
+    <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
+  </summary><div style="padding:4px 0">`;
+  if(eq===null){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">Loading earthquake data...</div>`}
+  else if(eq.length===0){html+=`<div style="font-size:0.75em;color:var(--accent-green);padding:8px;text-align:center">✅ No significant earthquakes nearby in the last 24 hours</div>`}
+  else{
+    eq.forEach(q=>{
+      const magColor=q.mag>=6?'#ef4444':q.mag>=5?'#f97316':q.mag>=4?'#eab308':q.mag>=3?'#06b6d4':'#22c55e';
+      const timeAgo=_timeAgo(q.time);
+      const distStr=S.radarMetric?Math.round(q.dist*1.60934)+' km':Math.round(q.dist)+' mi';
+      html+=`<div style="padding:6px 8px;border-bottom:1px solid var(--border-subtle);font-size:0.75em;display:flex;align-items:center;gap:8px">
+        <div style="min-width:38px;text-align:center;padding:3px 6px;background:${magColor}18;border:1px solid ${magColor}44;border-radius:6px;color:${magColor};font-weight:700;font-size:1.05em">M${q.mag.toFixed(1)}</div>
+        <div style="flex:1;min-width:0"><div style="color:var(--text-primary);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${q.place||'Unknown'}</div>
+        <div style="color:var(--text-muted);font-size:0.9em">${distStr} away · ${Math.round(q.depth)} km deep · ${timeAgo}</div></div>
+      </div>`;
+    });
+  }
+  html+=`<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: USGS · M2.5+ in last 24h</div>`;
+  html+=`</div></details>`;
+  return html;
+}
+
+function _renderFloodSection(){
+  const fl=_hazardData.floods||[];
+  const fireAlerts=_hazardData.fireAlerts||[];
+  let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+    <span>🌊 Flood Monitoring</span>
+    <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
+  </summary><div style="padding:4px 0">`;
+  if(fl.length===0){html+=`<div style="font-size:0.75em;color:var(--accent-green);padding:8px;text-align:center">✅ No flood warnings, watches, or advisories active</div>`}
+  else{
+    fl.forEach(a=>{
+      const p=a.properties||{};
+      const event=p.event||'Flood Alert';
+      const sev=(p.severity||'').toLowerCase();
+      const sevColor=sev==='extreme'?'#ef4444':sev==='severe'?'#f97316':sev==='moderate'?'#eab308':'#06b6d4';
+      const sevIcon=sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
+      const desc=(p.description||'').split('\n')[0].substring(0,150);
+      const expires=p.expires?new Date(p.expires):null;
+      html+=`<div style="padding:6px 8px;border-left:3px solid ${sevColor};margin-bottom:6px;background:${sevColor}08;border-radius:0 6px 6px 0;font-size:0.75em">
+        <div style="font-weight:700;color:var(--text-primary)">${sevIcon} ${event}</div>
+        <div style="color:var(--text-secondary);font-size:0.9em;margin-top:2px">${desc}${desc.length>=150?'...':''}</div>
+        ${expires?`<div style="color:var(--text-muted);font-size:0.85em;margin-top:2px;font-family:var(--font-mono)">⏱️ Expires: ${expires.toLocaleString()}</div>`:''}
+      </div>`;
+    });
+  }
+  html+=`<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NWS Active Alerts</div>`;
+  html+=`</div></details>`;
+  return html;
+}
+
+function _renderWildfireSection(){
+  const wf=_hazardData.wildfires||[];
+  const fireAlerts=_hazardData.fireAlerts||[];
+  let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+    <span>🔥 Wildfire Activity</span>
+    <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
+  </summary><div style="padding:4px 0">`;
+  if(fireAlerts.length>0){
+    html+=`<div style="font-size:0.7em;font-weight:600;color:#ff6600;margin-bottom:6px;padding:0 8px">⚠️ Fire Weather Alerts (${fireAlerts.length})</div>`;
+    fireAlerts.forEach(a=>{
+      const p=a.properties||{};
+      html+=`<div style="padding:4px 8px;border-left:3px solid #ff6600;margin-bottom:4px;background:rgba(255,102,0,0.06);border-radius:0 6px 6px 0;font-size:0.72em">
+        <div style="font-weight:700;color:var(--text-primary)">🔥 ${p.event||'Fire Weather Alert'}</div>
+        <div style="color:var(--text-secondary);font-size:0.9em;margin-top:2px">${(p.description||'').split('\n')[0].substring(0,120)}...</div>
+      </div>`;
+    });
+  }
+  const wfArr=Array.isArray(wf)?wf:[];
+  const wfError=wf&&wf.error;
+  if(wfError){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">⚠️ Wildfire data unavailable</div>`}
+  else if(wfArr.length===0&&fireAlerts.length===0){html+=`<div style="font-size:0.75em;color:var(--accent-green);padding:8px;text-align:center">✅ No active wildfires or fire weather alerts nearby</div>`}
+  else if(wfArr.length>0){
+    html+=`<div style="font-size:0.7em;font-weight:600;color:#ff6600;margin-bottom:6px;padding:0 8px">Active Fire Perimeters (${wfArr.length})</div>`;
+    wfArr.forEach(f=>{
+      const acresStr=f.acres?f.acres.toLocaleString()+' acres':'Size unknown';
+      const containStr=f.contained!=null?Math.round(f.contained)+'% contained':'Containment unknown';
+      const dateStr=f.date?new Date(f.date).toLocaleDateString():'';
+      html+=`<div style="padding:6px 8px;border-bottom:1px solid var(--border-subtle);font-size:0.75em;display:flex;align-items:center;gap:8px">
+        <span style="font-size:1.2em">🔥</span>
+        <div style="flex:1"><div style="font-weight:600;color:var(--text-primary)">${f.name}</div>
+        <div style="color:var(--text-muted);font-size:0.9em">${acresStr} · ${containStr}${dateStr?' · '+dateStr:''}</div></div>
+      </div>`;
+    });
+  }
+  html+=`<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NIFC + NWS</div>`;
+  html+=`</div></details>`;
+  return html;
+}
+
+function _renderDroughtSection(){
+  const dr=_hazardData.drought;
+  const isUS=isUSLocation(S.lat,S.lon);
+  let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+    <span>☀️ Drought Monitor</span>
+    <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
+  </summary><div style="padding:4px 0">`;
+  if(!isUS){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">Drought Monitor covers US locations only</div>`}
+  else if(!dr){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">Loading drought data...</div>`}
+  else if(dr.error==='nodata'){
+    html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">
+      No drought data available for today's date.<br>
+      <a href="https://droughtmonitor.unl.edu/CurrentMap/StateDroughtMonitor.aspx?${dr.state||'FL'}" target="_blank" rel="noopener" style="color:var(--accent-cyan)">View latest on US Drought Monitor →</a>
+    </div>`;
+  }else if(dr.error==='cors'){
+    html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">
+      Drought data requires direct access.<br>
+      <a href="https://droughtmonitor.unl.edu/CurrentMap/StateDroughtMonitor.aspx?${dr.state||'FL'}" target="_blank" rel="noopener" style="color:var(--accent-cyan)">View US Drought Monitor →</a>
+    </div>`;
+  }else if(dr.error==='state'){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">Could not determine state for drought data</div>`}
+  else{
+    const levels=[
+      {key:'none',label:'None',pct:dr.none,color:'#22c55e'},
+      {key:'d0',label:'D0 Abnormally Dry',pct:dr.d0,color:'#ffe040'},
+      {key:'d1',label:'D1 Moderate',pct:dr.d1,color:'#ffaa00'},
+      {key:'d2',label:'D2 Severe',pct:dr.d2,color:'#ff6600'},
+      {key:'d3',label:'D3 Extreme',pct:dr.d3,color:'#ff0000'},
+      {key:'d4',label:'D4 Exceptional',pct:dr.d4,color:'#800000'}
+    ];
+    const totalDrought=(dr.d0+dr.d1+dr.d2+dr.d3+dr.d4).toFixed(1);
+    html+=`<div style="padding:4px 8px;font-size:0.75em">
+      <div style="font-weight:600;color:var(--text-primary);margin-bottom:6px">${dr.state} — ${totalDrought}% of state in drought</div>
+      <div style="display:flex;height:12px;border-radius:6px;overflow:hidden;margin-bottom:8px">`;
+    levels.forEach(l=>{if(l.pct>0)html+=`<div style="width:${l.pct}%;background:${l.color}" title="${l.label}: ${l.pct.toFixed(1)}%"></div>`});
+    html+=`</div>`;
+    levels.filter(l=>l.pct>0.5).forEach(l=>{
+      html+=`<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:0.9em">
+        <div style="width:10px;height:10px;border-radius:2px;background:${l.color};flex-shrink:0"></div>
+        <span style="color:var(--text-secondary)">${l.label}</span>
+        <span style="margin-left:auto;font-weight:600;color:var(--text-primary)">${l.pct.toFixed(1)}%</span>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+  html+=`<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: US Drought Monitor</div>`;
+  html+=`</div></details>`;
+  return html;
+}
+
+function _timeAgo(ts){
+  const diff=Date.now()-ts;
+  const mins=Math.floor(diff/60000);
+  if(mins<1)return'just now';
+  if(mins<60)return mins+'m ago';
+  const hrs=Math.floor(mins/60);
+  if(hrs<24)return hrs+'h ago';
+  const days=Math.floor(hrs/24);
+  return days+'d ago';
+}
+
 function startAlertCountdowns(){
   if(S._alertCdTimer)clearInterval(S._alertCdTimer);
   function tick(){
