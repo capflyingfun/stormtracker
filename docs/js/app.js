@@ -7347,9 +7347,16 @@ function _extractUSState(){
 async function fetchHazards(){
   if(!S.lat||!S.lon)return;
   const now=Date.now();
-  if(now-_hazardData._lastFetch<300000&&_hazardData.earthquakes!==null)return;
+  const locKey=S.lat.toFixed(2)+','+S.lon.toFixed(2);
+  if(now-_hazardData._lastFetch<300000&&_hazardData.earthquakes!==null&&_hazardData._locKey===locKey)return;
   _hazardData._lastFetch=now;
+  _hazardData._locKey=locKey;
   const isUS=isUSLocation(S.lat,S.lon);
+  if(!isUS){
+    _hazardData.drought={error:'state'};
+    _hazardData.wildfires=[];
+    _hazardData.riverGauges=[];
+  }
   await Promise.allSettled([
     _fetchEarthquakes(),
     isUS?_fetchDrought():Promise.resolve(),
