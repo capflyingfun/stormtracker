@@ -54,6 +54,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **RainViewer API**: Global weather radar tiles.
 - **NEXRAD (Iowa Mesonet RIDGE API)**: US high-resolution radar data.
 - **Government Weather Services / NWS API**: Weather alerts and warnings, Area Forecast Discussions.
+- **Iowa Environmental Mesonet (IEM) mPING GeoJSON**: Crowdsourced weather reports from NOAA/NSSL mPING citizen science project, filtered by map bounds and last 3 hours.
 - **USGS Earthquake API**: Real-time earthquake data (GeoJSON feed, M2.5+ in last 24h, filtered within 500mi radius).
 - **NIFC Wildfire API**: Active fire perimeters via ArcGIS REST service (WFIGS Interagency Perimeters).
 - **US Drought Monitor API**: State-level drought statistics by category (D0-D4) from USDM/UNL.
