@@ -2410,7 +2410,7 @@ function checkStormCellAlerts(){
     const impact=_calcStormImpact(storm);
     storm.impactPct=impact.impactPct;
     storm.impactTier=impact.impactTier;
-    const cellKey='sc_'+Math.round(storm.distance*10)+'_'+storm.dbz;
+    const cellKey='sc_'+Math.round(storm.bearing/10)+'_'+Math.round(storm.distance/3);
     const lastFired=_STORM_ALERT_COOLDOWN[cellKey]||0;
     if(now-lastFired<900000)return;
     let allMatch=true;let bestMsg=null;
