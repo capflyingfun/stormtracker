@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stormtracker-v238a';
+const CACHE_NAME = 'stormtracker-v238b';
 const STATIC_ASSETS = [
   '/StormTracker/',
   '/StormTracker/index.html',

@@ -7581,24 +7581,21 @@ const _stateFips={AL:'01',AK:'02',AZ:'04',AR:'05',CA:'06',CO:'08',CT:'09',DE:'10
 async function _fetchDrought(){
   const st=_extractUSState();
   if(!st){_hazardData.drought={error:'state'};return}
-  const fips=_stateFips[st];
-  if(!fips){_hazardData.drought={error:'state'};return}
   try{
-    const now=new Date();
-    const end=`${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()}`;
-    const start30=new Date(now.getTime()-30*86400000);
-    const start=`${start30.getMonth()+1}/${start30.getDate()}/${start30.getFullYear()}`;
-    const url=`https://usdmdataservices.unl.edu/api/StateStatistics/GetDroughtSeverityStatisticsByAreaPercent?aoi=${fips}&startdate=${start}&enddate=${end}&statisticsType=1`;
+    const d=0.01;
+    const url=`https://ndmcgeodata.unl.edu/cgi-bin/mapserv.exe?map=/ms4w/apps/usdm/map/usdm_current_wms.map&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo&LAYERS=usdm_current&QUERY_LAYERS=usdm_current&STYLES=default&CRS=EPSG:4326&BBOX=${S.lat-d},${S.lon-d},${S.lat+d},${S.lon+d}&WIDTH=2&HEIGHT=2&I=1&J=1&INFO_FORMAT=text/plain&FEATURE_COUNT=10`;
     const res=await fetch(url,{signal:AbortSignal.timeout(10000)});
     if(!res.ok)throw new Error('HTTP '+res.status);
-    const csv=await res.text();
-    if(!csv||!csv.trim()){_hazardData.drought={error:'nodata',state:st};return}
-    const lines=csv.trim().split('\n');
-    if(lines.length<2){_hazardData.drought={error:'nodata',state:st};return}
-    const headers=lines[0].split(',');
-    const mostRecent=lines[1].split(',');
-    const row={};headers.forEach((h,i)=>row[h]=mostRecent[i]||'0');
-    _hazardData.drought={state:st,none:parseFloat(row.None||0),d0:parseFloat(row.D0||0),d1:parseFloat(row.D1||0),d2:parseFloat(row.D2||0),d3:parseFloat(row.D3||0),d4:parseFloat(row.D4||0),date:row.MapDate||''};
+    const txt=await res.text();
+    const dmMatches=[...txt.matchAll(/DM\s*=\s*'(\d+)'/g)].map(m=>parseInt(m[1]));
+    if(dmMatches.length===0){
+      _hazardData.drought={state:st,level:-1,levelName:'None',d0:0,d1:0,d2:0,d3:0,d4:0};
+      return;
+    }
+    const maxDM=Math.max(...dmMatches);
+    const names=['D0 Abnormally Dry','D1 Moderate Drought','D2 Severe Drought','D3 Extreme Drought','D4 Exceptional Drought'];
+    const d0=dmMatches.includes(0)?1:0,d1=dmMatches.includes(1)?1:0,d2=dmMatches.includes(2)?1:0,d3=dmMatches.includes(3)?1:0,d4=dmMatches.includes(4)?1:0;
+    _hazardData.drought={state:st,level:maxDM,levelName:names[maxDM]||'Unknown',d0,d1,d2,d3,d4,layers:dmMatches.sort()};
   }catch(e){
     _hazardData.drought={error:'cors',state:st};
     console.log('Drought fetch error:',e.message);
@@ -7713,12 +7710,12 @@ function _getDroughtStatus(dr){
   if(dr.error==='cors')return{icon:'⚠️',label:'Drought',status:'Data unavailable',color:'#888'};
   if(dr.error==='nodata')return{icon:'⚠️',label:'Drought',status:'No current data',color:'#888'};
   if(dr.error==='state')return{icon:'ℹ️',label:'Drought',status:'US only',color:'#666'};
-  const totalDrought=dr.d0+dr.d1+dr.d2+dr.d3+dr.d4;
-  if(totalDrought<5)return{icon:'✅',label:'Drought',status:'None',color:'#22c55e'};
-  if(dr.d3+dr.d4>20)return{icon:'🔴',label:'Drought',status:'Extreme',color:'#ef4444'};
-  if(dr.d2+dr.d3+dr.d4>20)return{icon:'🟠',label:'Drought',status:'Severe',color:'#f97316'};
-  if(dr.d1+dr.d2>20)return{icon:'🟡',label:'Drought',status:'Moderate',color:'#eab308'};
-  return{icon:'🟢',label:'Drought',status:'Abnormally Dry',color:'#a3e635'};
+  if(dr.level<0)return{icon:'✅',label:'Drought',status:'None',color:'#22c55e'};
+  if(dr.level>=4)return{icon:'🔴',label:'Drought',status:'D4 Exceptional',color:'#800000'};
+  if(dr.level>=3)return{icon:'🔴',label:'Drought',status:'D3 Extreme',color:'#ef4444'};
+  if(dr.level>=2)return{icon:'🟠',label:'Drought',status:'D2 Severe',color:'#f97316'};
+  if(dr.level>=1)return{icon:'🟡',label:'Drought',status:'D1 Moderate',color:'#eab308'};
+  return{icon:'🟢',label:'Drought',status:'D0 Abn. Dry',color:'#a3e635'};
 }
 
 function _renderEarthquakeSection(){
@@ -7850,27 +7847,31 @@ function _renderDroughtSection(){
     </div>`;
   }else if(dr.error==='state'){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">Could not determine state for drought data</div>`}
   else{
-    const levels=[
-      {key:'none',label:'None',pct:dr.none,color:'#22c55e'},
-      {key:'d0',label:'D0 Abnormally Dry',pct:dr.d0,color:'#ffe040'},
-      {key:'d1',label:'D1 Moderate',pct:dr.d1,color:'#ffaa00'},
-      {key:'d2',label:'D2 Severe',pct:dr.d2,color:'#ff6600'},
-      {key:'d3',label:'D3 Extreme',pct:dr.d3,color:'#ff0000'},
-      {key:'d4',label:'D4 Exceptional',pct:dr.d4,color:'#800000'}
+    const allLevels=[
+      {dm:-1,label:'No Drought',color:'#22c55e'},
+      {dm:0,label:'D0 Abnormally Dry',color:'#ffe040'},
+      {dm:1,label:'D1 Moderate Drought',color:'#ffaa00'},
+      {dm:2,label:'D2 Severe Drought',color:'#ff6600'},
+      {dm:3,label:'D3 Extreme Drought',color:'#ff0000'},
+      {dm:4,label:'D4 Exceptional Drought',color:'#800000'}
     ];
-    const totalDrought=(dr.d0+dr.d1+dr.d2+dr.d3+dr.d4).toFixed(1);
+    const cur=allLevels.find(l=>l.dm===dr.level)||allLevels[0];
     html+=`<div style="padding:4px 8px;font-size:0.75em">
-      <div style="font-weight:600;color:var(--text-primary);margin-bottom:6px">${dr.state} — ${totalDrought}% of state in drought${dr.date?' <span style="font-size:0.8em;color:var(--text-muted);font-weight:400">('+dr.date+')</span>':''}</div>
-      <div style="display:flex;height:12px;border-radius:6px;overflow:hidden;margin-bottom:8px">`;
-    levels.forEach(l=>{if(l.pct>0)html+=`<div style="width:${l.pct}%;background:${l.color}" title="${l.label}: ${l.pct.toFixed(1)}%"></div>`});
-    html+=`</div>`;
-    levels.filter(l=>l.pct>0.5).forEach(l=>{
-      html+=`<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:0.9em">
-        <div style="width:10px;height:10px;border-radius:2px;background:${l.color};flex-shrink:0"></div>
-        <span style="color:var(--text-secondary)">${l.label}</span>
-        <span style="margin-left:auto;font-weight:600;color:var(--text-primary)">${l.pct.toFixed(1)}%</span>
+      <div style="font-weight:600;color:var(--text-primary);margin-bottom:8px">${dr.state} — Your Location</div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(0,0,0,0.15);border-radius:8px;border-left:4px solid ${cur.color};margin-bottom:8px">
+        <div style="width:16px;height:16px;border-radius:50%;background:${cur.color};flex-shrink:0"></div>
+        <div><div style="font-weight:700;color:${cur.color};font-size:1.1em">${cur.label}</div>
+        ${dr.level>=0?'<div style="color:var(--text-muted);font-size:0.85em;margin-top:2px">Drought severity at your exact location</div>':''}</div>
       </div>`;
-    });
+    if(dr.layers&&dr.layers.length>0){
+      html+=`<div style="font-size:0.85em;color:var(--text-muted);margin-bottom:6px">Active drought layers here:</div>`;
+      dr.layers.forEach(dm=>{
+        const lv=allLevels.find(l=>l.dm===dm);
+        if(lv)html+=`<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:0.9em">
+          <div style="width:10px;height:10px;border-radius:2px;background:${lv.color};flex-shrink:0"></div>
+          <span style="color:var(--text-secondary)">${lv.label}</span></div>`;
+      });
+    }
     if(precip&&precip.pctNormal!==null){
       const pctColor=precip.pctNormal>=120?'#22c55e':precip.pctNormal>=80?'#06b6d4':precip.pctNormal>=50?'#eab308':precip.pctNormal>=25?'#f97316':'#ef4444';
       html+=`<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle);display:flex;align-items:center;gap:8px">
