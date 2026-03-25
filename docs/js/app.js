@@ -3703,6 +3703,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="btn-path-arrows" title="Toggle storm path arrows" style="font-size:0.55em;font-weight:700;line-height:1;color:#ffcc00" onclick="togglePathArrows()">➤</div>
         <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" style="font-size:0.55em;font-weight:700;line-height:1;color:var(--accent-cyan)" onclick="toggleStormPoints()">PT</div>
         <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff9800" onclick="toggleRadarOverlay()">RDR</div>
+        <div class="map-ctrl-btn" id="btn-mping" title="Toggle mPING reports" style="font-size:0.55em;font-weight:700;line-height:1;color:#4fc3f7" onclick="toggleMping()">mP</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
         <div class="map-ctrl-btn" id="btn-iso-3d" title="3D Storm Terrain" style="font-size:0.55em;font-weight:700;line-height:1;color:#66ffcc" onclick="show3DView()">3D</div>
         <div class="map-ctrl-btn" id="clutter-toggle" title="Clutter hidden (tap to show)" style="font-size:0.7em;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);border-color:#555" onclick="toggleClutter()">🕳️</div>
@@ -3751,6 +3752,19 @@ function initRadar(){
       clearTimeout(_zoomReplot);
       _zoomReplot=setTimeout(()=>plotStormMarkers(map),250);
     });
+    let _mpingMoveTimer=null;
+    map.on('moveend',()=>{
+      if(!S._mpingVisible)return;
+      clearTimeout(_mpingMoveTimer);
+      _mpingMoveTimer=setTimeout(()=>{
+        S._mpingCache=null;S._mpingCacheTime=0;
+        refreshMpingIfVisible();
+      },800);
+    });
+    if(S._mpingPendingRestore){
+      S._mpingPendingRestore=false;
+      setTimeout(()=>toggleMping(),1500);
+    }
     try{
       const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
       S.radarFrames=(rv.radar?.past||[]).concat(rv.radar?.nowcast||[]);
@@ -3787,6 +3801,7 @@ function initRadar(){
     }
     const rbtn=document.getElementById('btn-radar-overlay');if(rbtn)rbtn.style.opacity=S._radarOverlayVisible?'1':'0.4';
     const pabtn=document.getElementById('btn-path-arrows');if(pabtn)pabtn.style.opacity=S._showPathArrows?'1':'0.4';
+    const mpbtn=document.getElementById('btn-mping');if(mpbtn)mpbtn.style.opacity='0.4';
     if(S.storms.length){
       plotStormMarkers(map);
       buildStormZones(map,S._rawScanPts);
@@ -5269,6 +5284,166 @@ function toggleRadarOverlay(){
   const btn=document.getElementById('btn-radar-overlay');
   if(btn)btn.style.opacity=S._radarOverlayVisible?'1':'0.4';
 }
+
+S._mpingMarkers=[];
+S._mpingVisible=false;
+S._mpingCache=null;
+S._mpingCacheTime=0;
+S._mpingPlotId=0;
+
+const MPING_ICONS={
+  'Rain':'🌧️','Heavy Rain':'🌧️','Drizzle':'🌦️',
+  'Freezing Rain':'🧊','Freezing Drizzle':'🧊',
+  'Ice Pellets/Sleet':'🧊','Ice Pellets':'🧊',
+  'Snow':'❄️','Heavy Snow':'❄️','Wet Snow':'❄️','Snow and/or Graupel':'❄️',
+  'Rain/Snow':'🌨️','Mixed Rain and Snow':'🌨️',
+  'Hail':'⚪','Small Hail':'⚪',
+  'Wind Damage':'💨','Non-Precipitation':'🌫️',
+  'Tornado':'🌪️','Funnel Cloud':'🌪️',
+  'Flooding':'🌊','Flash Flooding':'🌊',
+  'Thunder':'⚡','Lightning':'⚡',
+  'Fog':'🌫️','Blowing Snow':'🌬️','Dust/Sand':'🏜️'
+};
+
+const MPING_COLORS={
+  'Rain':'#4fc3f7','Heavy Rain':'#0288d1','Drizzle':'#81d4fa',
+  'Freezing Rain':'#e040fb','Freezing Drizzle':'#ce93d8',
+  'Ice Pellets/Sleet':'#ba68c8','Ice Pellets':'#ba68c8',
+  'Snow':'#e0e0e0','Heavy Snow':'#bdbdbd','Wet Snow':'#b0bec5','Snow and/or Graupel':'#90a4ae',
+  'Rain/Snow':'#80cbc4','Mixed Rain and Snow':'#80cbc4',
+  'Hail':'#ff5252','Small Hail':'#ff8a80',
+  'Wind Damage':'#ff9800','Non-Precipitation':'#78909c',
+  'Tornado':'#d50000','Funnel Cloud':'#ff1744',
+  'Flooding':'#1565c0','Flash Flooding':'#0d47a1',
+  'Thunder':'#ffd600','Lightning':'#ffea00',
+  'Fog':'#78909c','Blowing Snow':'#b0bec5','Dust/Sand':'#a1887f'
+};
+
+function _mpingCat(desc){
+  if(!desc)return'Other';
+  const d=desc.toLowerCase();
+  if(d.includes('tornado')||d.includes('funnel'))return'Severe';
+  if(d.includes('hail'))return'Hail';
+  if(d.includes('wind damage'))return'Severe';
+  if(d.includes('flood'))return'Flood';
+  if(d.includes('freezing')||d.includes('ice pellet')||d.includes('sleet'))return'Ice';
+  if(d.includes('snow')||d.includes('graupel')||d.includes('blowing snow'))return'Snow';
+  if(d.includes('rain')||d.includes('drizzle'))return'Rain';
+  if(d.includes('thunder')||d.includes('lightning'))return'Thunder';
+  return'Other';
+}
+
+async function fetchMpingReports(){
+  const map=S.map;if(!map)return[];
+  const now=Date.now();
+  if(S._mpingCache&&(now-S._mpingCacheTime)<300000)return S._mpingCache;
+  const bounds=map.getBounds();
+  const ets=new Date();
+  const sts=new Date(ets.getTime()-3*3600000);
+  const fmt=d=>`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}T${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}:00Z`;
+  const url=`https://mesonet.agron.iastate.edu/geojson/mping.geojson?sts=${fmt(sts)}&ets=${fmt(ets)}`;
+  try{
+    const r=await fetch(url,{signal:AbortSignal.timeout(10000)});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    const features=(data.features||[]).filter(f=>{
+      if(!f.geometry||!f.geometry.coordinates)return false;
+      const[lng,lat]=f.geometry.coordinates;
+      return lat>=bounds.getSouth()&&lat<=bounds.getNorth()&&lng>=bounds.getWest()&&lng<=bounds.getEast();
+    });
+    S._mpingCache=features;
+    S._mpingCacheTime=now;
+    return features;
+  }catch(e){
+    console.error('mPING fetch error:',e);
+    return S._mpingCache||[];
+  }
+}
+
+function plotMpingMarkers(reports){
+  const map=S.map;if(!map)return;
+  clearMpingMarkers();
+  S._mpingVisible=true;
+  const plotId=++S._mpingPlotId;
+  for(const f of reports){
+    if(S._mpingPlotId!==plotId)return;
+    const[lng,lat]=f.geometry.coordinates;
+    const props=f.properties||{};
+    const desc=props.description||props.type_text||props.category||'Unknown';
+    const icon=MPING_ICONS[desc]||'📍';
+    const color=MPING_COLORS[desc]||'#4fc3f7';
+    const ts=props.valid||props.utc_valid||'';
+    let timeAgo='';
+    if(ts){
+      const t=new Date(ts.replace(' ','T')+(ts.includes('Z')?'':'Z'));
+      const mins=Math.round((Date.now()-t.getTime())/60000);
+      timeAgo=mins<60?`${mins}m ago`:`${Math.floor(mins/60)}h ${mins%60}m ago`;
+    }
+    const cat=_mpingCat(desc);
+    const divIcon=L.divIcon({
+      className:'mping-marker',
+      html:`<div style="display:flex;flex-direction:column;align-items:center;pointer-events:auto">
+        <div style="background:${color};font-size:14px;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,0.7);box-shadow:0 0 6px ${color}80;cursor:pointer">${icon}</div>
+      </div>`,
+      iconSize:[26,26],iconAnchor:[13,13]
+    });
+    const popup=L.popup({className:'storm-popup mping-popup',maxWidth:220,closeButton:true}).setContent(`
+      <div style="font-size:0.82em;line-height:1.5">
+        <div style="font-weight:700;color:${color};margin-bottom:4px">${icon} ${desc}</div>
+        <div style="display:inline-block;background:${color}30;color:${color};padding:1px 8px;border-radius:10px;font-size:0.8em;font-weight:600;margin-bottom:4px">${cat}</div>
+        ${timeAgo?`<div style="color:var(--text-muted);font-size:0.85em">🕐 ${timeAgo}</div>`:''}
+        <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border-subtle);font-size:0.75em;color:var(--text-muted)">
+          📡 mPING citizen report<br>
+          <a href="https://mping.nssl.noaa.gov/" target="_blank" rel="noopener" style="color:var(--accent-cyan);text-decoration:none">What is mPING?</a> · 
+          <a href="https://apps.apple.com/us/app/mping/id577882748" target="_blank" rel="noopener" style="color:var(--accent-cyan);text-decoration:none">iOS</a> · 
+          <a href="https://play.google.com/store/apps/details?id=edu.ou.nssl.mping" target="_blank" rel="noopener" style="color:var(--accent-cyan);text-decoration:none">Android</a>
+        </div>
+      </div>
+    `);
+    const marker=L.marker([lat,lng],{icon:divIcon,zIndexOffset:600}).addTo(map).bindPopup(popup);
+    S._mpingMarkers.push(marker);
+  }
+}
+
+function clearMpingMarkers(){
+  const m=S.map;
+  S._mpingPlotId++;
+  S._mpingMarkers.forEach(mk=>{try{if(m)m.removeLayer(mk)}catch(e){}});
+  S._mpingMarkers=[];
+}
+
+async function toggleMping(){
+  const btn=document.getElementById('btn-mping');
+  if(S._mpingVisible){
+    clearMpingMarkers();
+    S._mpingVisible=false;
+    if(btn){btn.style.opacity='0.4';btn.style.background='';btn.style.borderColor=''}
+    try{localStorage.setItem('st_mping','0')}catch(e){}
+    return;
+  }
+  if(btn){btn.style.opacity='1';btn.style.background='rgba(79,195,247,0.2)';btn.style.borderColor='#4fc3f7'}
+  S._mpingVisible=true;
+  try{localStorage.setItem('st_mping','1')}catch(e){}
+  toast('Loading mPING reports...');
+  S._mpingCache=null;S._mpingCacheTime=0;
+  const reports=await fetchMpingReports();
+  if(!S._mpingVisible)return;
+  if(reports.length===0){
+    toast('No mPING reports in this area (last 3h)');
+    return;
+  }
+  plotMpingMarkers(reports);
+  toast(`📡 ${reports.length} mPING report${reports.length!==1?'s':''} loaded`);
+}
+
+async function refreshMpingIfVisible(){
+  if(!S._mpingVisible||!S.map)return;
+  S._mpingCache=null;S._mpingCacheTime=0;
+  const reports=await fetchMpingReports();
+  if(!S._mpingVisible)return;
+  plotMpingMarkers(reports);
+}
+
 try{
   const resetKey='st_defaults_v230e';
   if(!localStorage.getItem(resetKey)){
@@ -5283,6 +5458,7 @@ try{const ps=localStorage.getItem('st_arrowStyle');if(ps==='pointer')S._pathArro
 S._showPoints=true;
 S._pointsMode='inbound';
 try{const pv=localStorage.getItem('st_pointsMode');if(pv){S._pointsMode=pv;S._showPoints=(pv!=='off')}}catch(e){}
+try{const mv=localStorage.getItem('st_mping');if(mv==='1')S._mpingPendingRestore=true}catch(e){}
 
 function clearPathArrows(){
   if(S._pathArrowAnimInterval){clearInterval(S._pathArrowAnimInterval);S._pathArrowAnimInterval=null}
