@@ -7502,7 +7502,7 @@ function renderAlerts(){
 // ==========================================
 // ENVIRONMENTAL HAZARDS
 // ==========================================
-let _hazardData={earthquakes:null,floods:null,wildfires:null,drought:null,riverGauges:null,_lastFetch:0};
+let _hazardData={earthquakes:null,floods:null,wildfires:null,drought:null,riverGauges:null,volcanoes:null,_lastFetch:0};
 
 function getEqRadius(){return parseInt(localStorage.getItem('eqRadius')||'200')}
 function setEqRadius(val){
@@ -7548,15 +7548,16 @@ async function fetchHazards(){
   _hazardData._lastFetch=now;
   _hazardData._locKey=locKey;
   const isUS=isUSLocation(S.lat,S.lon);
+  _hazardData._isUS=isUS;
   if(!isUS){
-    _hazardData.drought={error:'state'};
-    _hazardData.wildfires=[];
+    _hazardData.drought=null;
     _hazardData.riverGauges=[];
   }
   await Promise.allSettled([
     _fetchEarthquakes(),
+    _fetchVolcanoes(),
+    _fetchWildfires(),
     isUS?_fetchDrought():Promise.resolve(),
-    isUS?_fetchWildfires():Promise.resolve(),
     isUS?_fetchRiverGauges():Promise.resolve(),
     _fetchRecentPrecip()
   ]);
@@ -7574,6 +7575,26 @@ async function _fetchEarthquakes(){
     }).filter(q=>q.dist<=getEqRadius()).sort((a,b)=>a.dist-b.dist).slice(0,15);
     _hazardData.earthquakes=quakes;
   }catch(e){_hazardData.earthquakes=[];console.log('Earthquake fetch error:',e.message)}
+}
+
+async function _fetchVolcanoes(){
+  try{
+    const res=await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=volcanoes',{signal:AbortSignal.timeout(12000)});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const volcanoes=(data.events||[]).map(e=>{
+      const geo=e.geometry&&e.geometry.length?e.geometry[e.geometry.length-1]:null;
+      if(!geo||!geo.coordinates)return null;
+      const [lon,lat]=geo.coordinates;
+      const dist=haversine(S.lat,S.lon,lat,lon);
+      const title=e.title||'Unknown Volcano';
+      const nameParts=title.replace(' Volcano','').split(',');
+      const name=nameParts[0].trim();
+      const country=nameParts.length>1?nameParts[nameParts.length-1].trim():'';
+      return{name,country,dist,lat,lon,date:geo.date?geo.date.substring(0,10):'',title};
+    }).filter(v=>v&&v.dist<=500).sort((a,b)=>a.dist-b.dist).slice(0,10);
+    _hazardData.volcanoes=volcanoes;
+  }catch(e){_hazardData.volcanoes=[];console.log('Volcano fetch error:',e.message)}
 }
 
 const _stateFips={AL:'01',AK:'02',AZ:'04',AR:'05',CA:'06',CO:'08',CT:'09',DE:'10',FL:'12',GA:'13',HI:'15',ID:'16',IL:'17',IN:'18',IA:'19',KS:'20',KY:'21',LA:'22',ME:'23',MD:'24',MA:'25',MI:'26',MN:'27',MS:'28',MO:'29',MT:'30',NE:'31',NV:'32',NH:'33',NJ:'34',NM:'35',NY:'36',NC:'37',ND:'38',OH:'39',OK:'40',OR:'41',PA:'42',RI:'44',SC:'45',SD:'46',TN:'47',TX:'48',UT:'49',VT:'50',VA:'51',WA:'53',WV:'54',WI:'55',WY:'56',DC:'11',PR:'72'};
@@ -7603,22 +7624,44 @@ async function _fetchDrought(){
 }
 
 async function _fetchWildfires(){
-  try{
-    const url=`https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters/FeatureServer/0/query?where=1%3D1&outFields=poly_IncidentName,attr_IncidentName,poly_GISAcres,poly_DateCurrent,attr_PercentContained,attr_FireDiscoveryDateTime,attr_InitialLatitude,attr_InitialLongitude,attr_POOState&returnGeometry=false&f=json&resultRecordCount=2000`;
-    const res=await fetch(url,{signal:AbortSignal.timeout(10000)});
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    const data=await res.json();
-    if(data.error){_hazardData.wildfires={error:'api'};console.log('Wildfire API error:',data.error.message);return}
-    const maxDist=300;
-    const fires=(data.features||[]).map(f=>{
-      const a=f.attributes;
-      const lat=a.attr_InitialLatitude;
-      const lon=a.attr_InitialLongitude;
-      const dist=(lat&&lon)?haversine(S.lat,S.lon,lat,lon):9999;
-      return{name:a.poly_IncidentName||a.attr_IncidentName||'Unknown Fire',acres:a.poly_GISAcres?Math.round(a.poly_GISAcres):null,contained:a.attr_PercentContained,date:a.poly_DateCurrent||a.attr_FireDiscoveryDateTime,dist,state:a.attr_POOState||''};
-    }).filter(f=>f.name&&f.name!=='Unknown Fire'&&f.dist<=maxDist).sort((a,b)=>a.dist-b.dist).slice(0,10);
-    _hazardData.wildfires=fires;
-  }catch(e){_hazardData.wildfires=[];console.log('Wildfire fetch error:',e.message)}
+  const isUS=isUSLocation(S.lat,S.lon);
+  if(isUS){
+    try{
+      const url=`https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters/FeatureServer/0/query?where=1%3D1&outFields=poly_IncidentName,attr_IncidentName,poly_GISAcres,poly_DateCurrent,attr_PercentContained,attr_FireDiscoveryDateTime,attr_InitialLatitude,attr_InitialLongitude,attr_POOState&returnGeometry=false&f=json&resultRecordCount=2000`;
+      const res=await fetch(url,{signal:AbortSignal.timeout(10000)});
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      const data=await res.json();
+      if(data.error){_hazardData.wildfires={error:'api'};console.log('Wildfire API error:',data.error.message);return}
+      const maxDist=300;
+      const fires=(data.features||[]).map(f=>{
+        const a=f.attributes;
+        const lat=a.attr_InitialLatitude;
+        const lon=a.attr_InitialLongitude;
+        const dist=(lat&&lon)?haversine(S.lat,S.lon,lat,lon):9999;
+        return{name:a.poly_IncidentName||a.attr_IncidentName||'Unknown Fire',acres:a.poly_GISAcres?Math.round(a.poly_GISAcres):null,contained:a.attr_PercentContained,date:a.poly_DateCurrent||a.attr_FireDiscoveryDateTime,dist,state:a.attr_POOState||'',source:'nifc'};
+      }).filter(f=>f.name&&f.name!=='Unknown Fire'&&f.dist<=maxDist).sort((a,b)=>a.dist-b.dist).slice(0,10);
+      _hazardData.wildfires=fires;
+    }catch(e){_hazardData.wildfires=[];console.log('Wildfire fetch error (NIFC):',e.message)}
+  }else{
+    try{
+      const res=await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=wildfires&limit=200',{signal:AbortSignal.timeout(12000)});
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      const data=await res.json();
+      const maxDist=300;
+      const fires=(data.events||[]).map(e=>{
+        const geo=e.geometry&&e.geometry.length?e.geometry[e.geometry.length-1]:null;
+        if(!geo||!geo.coordinates)return null;
+        const [lon,lat]=geo.coordinates;
+        const dist=haversine(S.lat,S.lon,lat,lon);
+        const title=e.title||'Unknown Fire';
+        const nameParts=title.split(',');
+        const name=nameParts[0].trim();
+        const country=nameParts.length>1?nameParts[nameParts.length-1].trim():'';
+        return{name,country,dist,date:geo.date?new Date(geo.date).getTime():null,source:'eonet'};
+      }).filter(f=>f&&f.dist<=maxDist).sort((a,b)=>a.dist-b.dist).slice(0,10);
+      _hazardData.wildfires=fires;
+    }catch(e){_hazardData.wildfires=[];console.log('Wildfire fetch error (EONET):',e.message)}
+  }
 }
 
 async function _fetchRiverGauges(){
@@ -7663,21 +7706,27 @@ function renderHazards(){
   const el=document.getElementById('hazards-section');
   if(!el)return;
   if(!S.lat){el.innerHTML='';return}
+  const isUS=isUSLocation(S.lat,S.lon);
+  const sources=isUS?'USGS, NWS, NIFC, USDM & NASA':'USGS, NASA EONET';
   let html=`<div class="card" style="margin-top:12px">
     <div class="card-title"><span class="icon">🌍</span> Environmental Hazards</div>
-    <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">Real-time hazard monitoring from USGS, NWS, NIFC & USDM</div>`;
+    <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">Real-time hazard monitoring from ${sources}</div>`;
   html+=_renderHazardSummary();
   html+=_renderEarthquakeSection();
-  html+=_renderFloodSection();
+  html+=_renderVolcanoSection();
+  if(isUS)html+=_renderFloodSection();
   html+=_renderWildfireSection();
-  html+=_renderDroughtSection();
+  if(isUS)html+=_renderDroughtSection();
+  else html+=_renderPrecipOnlySection();
   html+=`<div style="text-align:center;margin-top:10px"><button onclick="fetchHazards().then(()=>renderHazards())" style="font-size:0.7em;padding:4px 14px;background:rgba(0,229,255,0.08);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.2);border-radius:6px;cursor:pointer;font-weight:600">🔄 Refresh Hazards</button></div>`;
   html+=`</div>`;
   el.innerHTML=html;
 }
 
 function _renderHazardSummary(){
+  const isUS=isUSLocation(S.lat,S.lon);
   const eq=_hazardData.earthquakes;
+  const vol=_hazardData.volcanoes;
   const fl=_hazardData.floods;
   const wf=_hazardData.wildfires;
   const dr=_hazardData.drought;
@@ -7685,15 +7734,23 @@ function _renderHazardSummary(){
   if(eq===null)items.push({icon:'🔄',label:'Earthquakes',status:'Loading...',color:'#666'});
   else if(eq.length===0)items.push({icon:'✅',label:'Earthquakes',status:'Clear',color:'#22c55e'});
   else{const maxMag=Math.max(...eq.map(q=>q.mag));items.push({icon:maxMag>=5?'🔴':maxMag>=4?'🟠':'🟡',label:'Earthquakes',status:`${eq.length} nearby`,color:maxMag>=5?'#ef4444':maxMag>=4?'#f97316':'#eab308'})}
-  if(!fl||fl.length===0)items.push({icon:'✅',label:'Flooding',status:'Clear',color:'#22c55e'});
-  else items.push({icon:'🔴',label:'Flooding',status:`${fl.length} alert${fl.length>1?'s':''}`,color:'#ef4444'});
+  if(vol===null)items.push({icon:'🔄',label:'Volcanoes',status:'Loading...',color:'#666'});
+  else if(vol.length===0)items.push({icon:'✅',label:'Volcanoes',status:'Clear',color:'#22c55e'});
+  else items.push({icon:'🌋',label:'Volcanoes',status:`${vol.length} active`,color:'#ef4444'});
+  if(isUS){
+    if(!fl||fl.length===0)items.push({icon:'✅',label:'Flooding',status:'Clear',color:'#22c55e'});
+    else items.push({icon:'🔴',label:'Flooding',status:`${fl.length} alert${fl.length>1?'s':''}`,color:'#ef4444'});
+  }
   if(wf===null)items.push({icon:'🔄',label:'Wildfires',status:'Loading...',color:'#666'});
   else if(wf&&wf.error)items.push({icon:'⚠️',label:'Wildfires',status:'Data unavailable',color:'#888'});
   else if(!wf||wf.length===0)items.push({icon:'✅',label:'Wildfires',status:'Clear',color:'#22c55e'});
   else items.push({icon:'🔥',label:'Wildfires',status:`${wf.length} active`,color:'#ff6600'});
-  const droughtStatus=_getDroughtStatus(dr);
-  items.push(droughtStatus);
-  let html=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">`;
+  if(isUS){
+    const droughtStatus=_getDroughtStatus(dr);
+    items.push(droughtStatus);
+  }
+  const cols=items.length<=3?'1fr 1fr 1fr':'1fr 1fr';
+  let html=`<div style="display:grid;grid-template-columns:${cols};gap:6px;margin-bottom:12px">`;
   items.forEach(it=>{
     html+=`<div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px">
       <span style="font-size:1em">${it.icon}</span>
@@ -7742,6 +7799,50 @@ function _renderEarthquakeSection(){
   html+=`<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: USGS · M2.5+ in last 24h</div>`;
   html+=`</div></details>`;
   return html;
+}
+
+function _renderVolcanoSection(){
+  const vol=_hazardData.volcanoes;
+  let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+    <span>🌋 Volcanic Activity</span>
+    <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
+  </summary><div style="padding:4px 0">`;
+  if(vol===null){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">Loading volcano data...</div>`}
+  else if(!vol||vol.length===0){html+=`<div style="font-size:0.75em;color:var(--accent-green);padding:8px;text-align:center">✅ No active volcanic events within 500 mi</div>`}
+  else{
+    vol.forEach(v=>{
+      const distStr=S.radarMetric?Math.round(v.dist*1.60934)+' km':Math.round(v.dist)+' mi';
+      const locLabel=v.country?` · ${v.country}`:'';
+      const dateStr=v.date?` · Last report: ${v.date}`:'';
+      const distColor=v.dist<100?'#ef4444':v.dist<200?'#f97316':'#eab308';
+      html+=`<div style="padding:6px 8px;border-left:3px solid ${distColor};margin-bottom:6px;background:${distColor}08;border-radius:0 6px 6px 0;font-size:0.75em">
+        <div style="font-weight:700;color:var(--text-primary)">🌋 ${v.name}</div>
+        <div style="color:var(--text-secondary);font-size:0.9em;margin-top:2px">${distStr} away${locLabel}${dateStr}</div>
+      </div>`;
+    });
+  }
+  html+=`<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NASA EONET</div>`;
+  html+=`</div></details>`;
+  return html;
+}
+
+function _renderPrecipOnlySection(){
+  const precip=_hazardData.recentPrecip;
+  if(!precip)return '';
+  const pctNum=parseFloat(precip.pctNormal)||0;
+  const pctColor=pctNum<50?'#ef4444':pctNum<80?'#f97316':pctNum>150?'#3b82f6':pctNum>120?'#06b6d4':'#22c55e';
+  const pctLabel=pctNum<50?'Severe deficit':pctNum<80?'Below normal':pctNum>150?'Well above normal':pctNum>120?'Above normal':'Normal';
+  return `<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+    <span>🌧️ Precipitation</span>
+    <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
+  </summary><div style="padding:4px 0">
+    <div style="padding:6px 8px;font-size:0.75em;display:flex;align-items:center;gap:10px">
+      <div style="min-width:55px;text-align:center;padding:4px 8px;background:${pctColor}18;border:1px solid ${pctColor}44;border-radius:6px;color:${pctColor};font-weight:700">${precip.pctNormal}%</div>
+      <div><div style="color:var(--text-primary);font-weight:600">${pctLabel}</div>
+      <div style="color:var(--text-muted);font-size:0.85em">${precip.totalIn} in last 30d (normal: ${precip.normalIn} in)</div></div>
+    </div>
+    <div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: Open-Meteo Archive</div>
+  </div></details>`;
 }
 
 function _renderFloodSection(){
@@ -7805,22 +7906,35 @@ function _renderWildfireSection(){
   }
   const wfArr=Array.isArray(wf)?wf:[];
   const wfError=wf&&wf.error;
+  const isUS=isUSLocation(S.lat,S.lon);
   if(wfError){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">⚠️ Wildfire data unavailable</div>`}
   else if(wfArr.length===0&&fireAlerts.length===0){html+=`<div style="font-size:0.75em;color:var(--accent-green);padding:8px;text-align:center">✅ No active wildfires or fire weather alerts nearby</div>`}
   else if(wfArr.length>0){
-    html+=`<div style="font-size:0.7em;font-weight:600;color:#ff6600;margin-bottom:6px;padding:0 8px">Active Fire Perimeters (${wfArr.length})</div>`;
+    const headerLabel=isUS?`Active Fire Perimeters (${wfArr.length})`:`Active Wildfires (${wfArr.length})`;
+    html+=`<div style="font-size:0.7em;font-weight:600;color:#ff6600;margin-bottom:6px;padding:0 8px">${headerLabel}</div>`;
     wfArr.forEach(f=>{
-      const acresStr=f.acres?f.acres.toLocaleString()+' acres':'Size unknown';
-      const containStr=f.contained!=null?Math.round(f.contained)+'% contained':'Containment unknown';
-      const distStr=f.dist&&f.dist<9999?Math.round(f.dist)+' mi away':'';
-      html+=`<div style="padding:6px 8px;border-bottom:1px solid var(--border-subtle);font-size:0.75em;display:flex;align-items:center;gap:8px">
-        <span style="font-size:1.2em">🔥</span>
-        <div style="flex:1"><div style="font-weight:600;color:var(--text-primary)">${f.name}${f.state?' <span style="color:var(--text-muted);font-weight:400;font-size:0.85em">('+f.state.replace('US-','')+')</span>':''}</div>
-        <div style="color:var(--text-muted);font-size:0.9em">${acresStr} · ${containStr}${distStr?' · '+distStr:''}</div></div>
-      </div>`;
+      if(f.source==='eonet'){
+        const distStr=Math.round(f.dist)+' mi away';
+        const locLabel=f.country?` · ${f.country}`:'';
+        html+=`<div style="padding:6px 8px;border-bottom:1px solid var(--border-subtle);font-size:0.75em;display:flex;align-items:center;gap:8px">
+          <span style="font-size:1.2em">🔥</span>
+          <div style="flex:1"><div style="font-weight:600;color:var(--text-primary)">${f.name}</div>
+          <div style="color:var(--text-muted);font-size:0.9em">${distStr}${locLabel}</div></div>
+        </div>`;
+      }else{
+        const acresStr=f.acres?f.acres.toLocaleString()+' acres':'Size unknown';
+        const containStr=f.contained!=null?Math.round(f.contained)+'% contained':'Containment unknown';
+        const distStr=f.dist&&f.dist<9999?Math.round(f.dist)+' mi away':'';
+        html+=`<div style="padding:6px 8px;border-bottom:1px solid var(--border-subtle);font-size:0.75em;display:flex;align-items:center;gap:8px">
+          <span style="font-size:1.2em">🔥</span>
+          <div style="flex:1"><div style="font-weight:600;color:var(--text-primary)">${f.name}${f.state?' <span style="color:var(--text-muted);font-weight:400;font-size:0.85em">('+f.state.replace('US-','')+')</span>':''}</div>
+          <div style="color:var(--text-muted);font-size:0.9em">${acresStr} · ${containStr}${distStr?' · '+distStr:''}</div></div>
+        </div>`;
+      }
     });
   }
-  html+=`<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NIFC + NWS</div>`;
+  const wfSource=isUS?'NIFC + NWS':'NASA EONET';
+  html+=`<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: ${wfSource}</div>`;
   html+=`</div></details>`;
   return html;
 }
