@@ -205,6 +205,20 @@
         <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:8px">Get notified when radar detects storm cells matching ALL enabled thresholds. 15-min cooldown per cell.</div>
         <div id="storm-alert-settings"></div>
       </div>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
+        <div style="font-size:0.8em;font-weight:600;color:var(--accent-green);margin-bottom:8px">🌍 Environmental Hazards</div>
+        <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:8px">Configure hazard monitoring radius and data sources.</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
+          <span style="font-size:0.75em;color:var(--text-secondary)">🌍 Earthquake Radius</span>
+          <select id="settings-eq-radius" onchange="setEqRadius(this.value)" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-primary);border-radius:6px;padding:3px 8px;font-size:0.75em;font-family:var(--font-body)">
+            <option value="100">100 mi</option>
+            <option value="200">200 mi</option>
+            <option value="300">300 mi</option>
+            <option value="500">500 mi</option>
+            <option value="1000">1000 mi</option>
+          </select>
+        </div>
+      </div>
       <div style="border-top:1px solid var(--border-subtle);padding-top:12px">
         <div style="display:flex;gap:8px">
           <button onclick="showTutorial()" style="flex:1;padding:10px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.8em;font-weight:600;cursor:pointer">📖 Tutorial</button>
