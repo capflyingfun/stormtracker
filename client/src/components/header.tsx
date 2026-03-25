@@ -7,9 +7,10 @@ interface HeaderProps {
   useMetric: boolean;
   onUnitsChange: (useMetric: boolean) => void;
   onOpenSettings: () => void;
+  onOpenApiKeys?: () => void;
 }
 
-export default function Header({ useMetric, onUnitsChange, onOpenSettings }: HeaderProps) {
+export default function Header({ useMetric, onUnitsChange, onOpenSettings, onOpenApiKeys }: HeaderProps) {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const { language, setLanguage, t } = useLanguage();
   const currentLang = LANGUAGES.find(l => l.code === language);
@@ -58,6 +59,17 @@ export default function Header({ useMetric, onUnitsChange, onOpenSettings }: Hea
             <span className="text-sm">{t.ready}</span>
           </div>
           
+          {onOpenApiKeys && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setShowLangMenu(false); onOpenApiKeys(); }}
+              className="p-1.5 sm:p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 shrink-0"
+              title="API Keys"
+            >
+              🔑
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"

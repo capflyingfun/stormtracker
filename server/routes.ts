@@ -7217,6 +7217,44 @@ Guidelines:
     }
   });
 
+  app.post("/api/pws/ambient", async (req, res) => {
+    try {
+      const { apiKey, applicationKey } = req.body;
+      if (!apiKey || !applicationKey) {
+        return res.status(400).json({ error: "API key and Application key are required" });
+      }
+      const url = `https://rt.ambientweather.net/v1/devices?apiKey=${encodeURIComponent(apiKey)}&applicationKey=${encodeURIComponent(applicationKey)}`;
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!response.ok) {
+        return res.status(response.status).json({ error: `Ambient Weather API returned status ${response.status}` });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("Ambient Weather proxy error");
+      res.status(500).json({ error: "Failed to fetch Ambient Weather data" });
+    }
+  });
+
+  app.post("/api/pws/wunderground", async (req, res) => {
+    try {
+      const { apiKey, stationId } = req.body;
+      if (!apiKey || !stationId) {
+        return res.status(400).json({ error: "API key and Station ID are required" });
+      }
+      const url = `https://api.weather.com/v2/pws/observations/current?stationId=${encodeURIComponent(stationId)}&format=json&units=e&apiKey=${encodeURIComponent(apiKey)}`;
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!response.ok) {
+        return res.status(response.status).json({ error: `Weather Underground API returned status ${response.status}` });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("Weather Underground proxy error");
+      res.status(500).json({ error: "Failed to fetch Weather Underground data" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

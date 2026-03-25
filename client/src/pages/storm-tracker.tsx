@@ -17,6 +17,8 @@ import SonarRadar from "@/components/sonar-radar";
 import WeatherDashboard from "@/components/weather-dashboard";
 import WeatherStationConsole from "@/components/weather-station-console";
 import SectionReorder, { getSectionOrder } from "@/components/section-reorder";
+import ApiKeySettings from "@/components/api-key-settings";
+import PersonalWeatherStation from "@/components/personal-weather-station";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -347,6 +349,7 @@ export default function StormTracker() {
   const [showSectionReorder, setShowSectionReorder] = useState(false);
   const [showAlertSubscription, setShowAlertSubscription] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
+  const [showApiKeys, setShowApiKeys] = useState(false);
   const [windsData, setWindsData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'tracker' | 'alerts' | 'messages'>('tracker');
   const [mobileTab, setMobileTab] = useState<'radar' | 'weather' | 'station' | 'storms' | 'ai' | 'alerts'>('radar');
@@ -850,6 +853,7 @@ export default function StormTracker() {
         useMetric={useMetric}
         onUnitsChange={setUseMetric}
         onOpenSettings={() => setShowStormFilteringSettings(true)}
+        onOpenApiKeys={() => setShowApiKeys(true)}
       />
       
       {/* Storm Filtering Settings Modal */}
@@ -865,6 +869,12 @@ export default function StormTracker() {
           onUnitsChange={setUseMetric}
         />
       )}
+
+      {/* API Key Settings Modal */}
+      <ApiKeySettings
+        isOpen={showApiKeys}
+        onClose={() => setShowApiKeys(false)}
+      />
 
       {/* Alert Subscription Modal */}
       {showAlertSubscription && (
@@ -1147,6 +1157,12 @@ export default function StormTracker() {
                         lon={location.lon}
                         locationName={location.name}
                       />
+                    </div>
+                  );
+                case 'pws':
+                  return (
+                    <div key="pws">
+                      <PersonalWeatherStation onOpenApiKeys={() => setShowApiKeys(true)} />
                     </div>
                   );
                 case 'summary':
@@ -1595,11 +1611,14 @@ export default function StormTracker() {
               )}
 
               {mobileTab === 'station' && (
-                <WeatherStationConsole
-                  lat={location.lat}
-                  lon={location.lon}
-                  locationName={location.name}
-                />
+                <div className="space-y-3">
+                  <WeatherStationConsole
+                    lat={location.lat}
+                    lon={location.lon}
+                    locationName={location.name}
+                  />
+                  <PersonalWeatherStation onOpenApiKeys={() => setShowApiKeys(true)} />
+                </div>
               )}
 
               {mobileTab === 'storms' && (
