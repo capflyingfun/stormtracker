@@ -3199,13 +3199,17 @@ function startWindSim(){
   if(_windSimTimer)clearInterval(_windSimTimer);
   if(_windRefreshTimer)clearInterval(_windRefreshTimer);
   if(!S.weather)return;
-  if(!wasRunning||!_windCurSim.spd){
-    _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
+  const newSpd=S.weather.wind_speed_10m||0;
+  const newDir=S.weather.wind_direction_10m||0;
+  const newGust=S.weather.wind_gusts_10m||0;
+  const spdDrift=_windBase.spd>0?Math.abs(newSpd-_windBase.spd)/_windBase.spd:1;
+  if(!wasRunning||!_windCurSim.spd||spdDrift>0.5){
+    _windBase={spd:newSpd,dir:newDir};
     _windTarget=null;
     _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
     _gustEvents=[];
     _calmState={active:false,start:0,dur:0,nextCheck:Date.now()+30000};
-    _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:S.weather.wind_gusts_10m||0};
+    _windCurSim={spd:newSpd,dir:newDir,gust:newGust};
   }
   const seed=wasRunning?(_windSimSeed||Math.random()*1000):Math.random()*1000;
   _windSimSeed=seed;
