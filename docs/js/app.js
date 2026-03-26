@@ -7128,9 +7128,16 @@ function _tropicalStatusLabel(storm) {
   if (storm.dist != null && storm.dist <= S._nhcProxRadius) return { text: '📡 TRACKING', color: '#4fc3f7', bg: 'rgba(79,195,247,0.15)' };
   return null;
 }
+function _escStormName(name) {
+  return (name || '').replace(/['"\\<>&]/g, '');
+}
 function _renderTropicalSection() {
   const systems = _nhcData.systems;
-  if (!systems || !systems.length) {
+  if (systems === null) {
+    return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
+      <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:0.8em">🔄 Loading tropical data...</div></div>`;
+  }
+  if (!systems.length) {
     return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
       <div style="text-align:center;padding:16px;color:var(--accent-green);font-size:0.8em">✅ No active tropical systems (Atlantic/E. Pacific)</div>
       <div style="font-size:0.6em;color:var(--text-muted);text-align:center;padding:0 8px 8px">Data: National Hurricane Center (NHC) · ArcGIS + RSS</div></div>`;
@@ -7153,7 +7160,8 @@ function _renderTropicalSection() {
     const isNear = s.dist != null && s.dist <= S._nhcProxRadius;
     const status = _tropicalStatusLabel(s);
     const hasForecast = (_nhcData.forecast || []).some(t => t.stormId === s.id || t.stormName.toLowerCase() === s.name.toLowerCase());
-    html += `<div style="padding:10px;border-left:4px solid ${cat.color};background:${cat.color}08;border-radius:0 8px 8px 0;margin-bottom:8px;cursor:pointer${isNear ? ';border:1px solid ' + cat.color + '44' : ''}" onclick="_selectNHCStorm('${s.name}')">
+    const safeName = _escStormName(s.name);
+    html += `<div style="padding:10px;border-left:4px solid ${cat.color};background:${cat.color}08;border-radius:0 8px 8px 0;margin-bottom:8px;cursor:pointer${isNear ? ';border:1px solid ' + cat.color + '44' : ''}" onclick="_selectNHCStorm('${safeName}')">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
         <span style="font-size:1.3em">🌀</span>
         <div style="flex:1">
@@ -7264,7 +7272,7 @@ function plotNHCTracks(map) {
       ${s.minPressure ? `<div style="font-size:0.8em">🔵 Pressure: <b>${s.minPressure} mb</b></div>` : ''}
       ${s.moveDir ? `<div style="font-size:0.8em">➡️ Moving: <b>${s.moveDir} ${s.moveSpeed || ''} mph</b></div>` : ''}
       ${s.dist != null ? `<div style="font-size:0.75em;color:#aaa;margin-top:4px">${Math.round(s.dist)} mi from you</div>` : ''}
-      <div style="margin-top:6px"><a href="#" onclick="event.preventDefault();_selectNHCStorm('${s.name}')" style="font-size:0.75em;color:var(--accent-cyan)">Show forecast track →</a></div>
+      <div style="margin-top:6px"><a href="#" onclick="event.preventDefault();_selectNHCStorm('${_escStormName(s.name)}')" style="font-size:0.75em;color:var(--accent-cyan)">Show forecast track →</a></div>
     </div>`);
     marker.addTo(map);
     S._nhcTrackLayers.push(marker);
