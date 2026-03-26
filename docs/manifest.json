@@ -9,7 +9,7 @@
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "background_color": "#05080f",
   "theme_color": "#0a1020",
-  "orientation": "any",
+  "orientation": "portrait",
   "dir": "ltr",
   "lang": "en-US",
   "categories": ["weather", "utilities"],

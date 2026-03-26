@@ -2333,7 +2333,8 @@ function _sendBrowserNotification(title,body){
 }
 function requestNotifPermission(){
   if(!('Notification' in window))return;
-  if(Notification.permission==='default'){Notification.requestPermission().then(p=>console.log('Notification permission:',p))}
+  if(Notification.permission==='granted')return;
+  if(Notification.permission==='default')_showNotifPermissionModal();
 }
 function renderWxAlertSettings(){
   const th=_loadWxThresholds();
@@ -8492,10 +8493,111 @@ async function sendAIChat(){
 // ==========================================
 // INIT — always show welcome, explicit consent
 // ==========================================
+let _deferredInstallPrompt=null;
+function _initPWAInstallPrompt(){
+  if(window.matchMedia('(display-mode: standalone)').matches)return;
+  window.addEventListener('beforeinstallprompt',e=>{
+    e.preventDefault();
+    _deferredInstallPrompt=e;
+    const dismissed=localStorage.getItem('st_installDismissed');
+    if(dismissed&&Date.now()-parseInt(dismissed)<604800000)return;
+    _showInstallBanner();
+  });
+}
+function _showInstallBanner(){
+  if(document.getElementById('pwa-install-banner'))return;
+  const bar=document.createElement('div');
+  bar.id='pwa-install-banner';
+  bar.style.cssText='position:fixed;bottom:60px;left:8px;right:8px;z-index:9998;background:linear-gradient(135deg,rgba(10,16,32,0.97),rgba(15,25,50,0.97));border:1px solid rgba(0,229,255,0.3);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);animation:slideUp 0.3s ease-out';
+  bar.innerHTML=`<div style="font-size:1.6em">⚡</div>
+    <div style="flex:1"><div style="font-size:0.8em;font-weight:700;color:var(--text-primary)">Install StormTracker</div>
+    <div style="font-size:0.65em;color:var(--text-muted);margin-top:2px">Add to home screen for the best experience</div></div>
+    <button onclick="_acceptInstall()" style="padding:6px 14px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.4);border-radius:8px;font-size:0.75em;font-weight:700;cursor:pointer;white-space:nowrap">Install</button>
+    <button onclick="_dismissInstall()" style="padding:4px 8px;background:none;border:none;color:var(--text-muted);font-size:1.1em;cursor:pointer">✕</button>`;
+  document.body.appendChild(bar);
+}
+function _acceptInstall(){
+  const b=document.getElementById('pwa-install-banner');
+  if(b)b.remove();
+  if(_deferredInstallPrompt){_deferredInstallPrompt.prompt();_deferredInstallPrompt.userChoice.then(r=>{console.log('PWA install:',r.outcome);_deferredInstallPrompt=null})}
+}
+function _dismissInstall(){
+  const b=document.getElementById('pwa-install-banner');
+  if(b)b.remove();
+  localStorage.setItem('st_installDismissed',String(Date.now()));
+}
+
+let _isOffline=false;
+function _initOfflineDetection(){
+  _isOffline=!navigator.onLine;
+  window.addEventListener('offline',()=>{_isOffline=true;_showOfflineBanner()});
+  window.addEventListener('online',()=>{_isOffline=false;_hideOfflineBanner();toast('Back online','success')});
+  if(_isOffline)_showOfflineBanner();
+}
+function _showOfflineBanner(){
+  if(document.getElementById('offline-banner'))return;
+  const bar=document.createElement('div');
+  bar.id='offline-banner';
+  bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:10002;background:linear-gradient(90deg,#b45309,#92400e);color:#fbbf24;font-size:0.75em;font-weight:600;text-align:center;padding:6px 12px;display:flex;align-items:center;justify-content:center;gap:6px';
+  const lastFetch=_hazardData&&_hazardData._lastFetch?_hazardData._lastFetch:0;
+  const ago=lastFetch?_relativeTime(lastFetch):'';
+  bar.innerHTML=`<span>📡 Offline — showing cached data${ago?' · Last updated '+ago:''}</span>`;
+  document.body.appendChild(bar);
+  const header=document.querySelector('.app-header');
+  if(header)header.style.marginTop='30px';
+}
+function _hideOfflineBanner(){
+  const b=document.getElementById('offline-banner');
+  if(b)b.remove();
+  const header=document.querySelector('.app-header');
+  if(header)header.style.marginTop='';
+}
+function _relativeTime(ts){
+  const diff=Math.floor((Date.now()-ts)/1000);
+  if(diff<60)return 'just now';
+  if(diff<3600)return Math.floor(diff/60)+'m ago';
+  if(diff<86400)return Math.floor(diff/3600)+'h ago';
+  return Math.floor(diff/86400)+'d ago';
+}
+
+function _showNotifPermissionModal(){
+  if(!('Notification' in window))return;
+  if(Notification.permission!=='default')return;
+  const seen=localStorage.getItem('st_notifPromptSeen');
+  if(seen&&Date.now()-parseInt(seen)<86400000)return;
+  const overlay=document.createElement('div');
+  overlay.id='notif-permission-modal';
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:10001;background:rgba(5,8,15,0.88);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML=`<div style="max-width:320px;width:90%;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:14px;padding:24px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
+    <div style="font-size:2em;margin-bottom:8px">🔔</div>
+    <div style="font-size:1em;font-weight:700;color:var(--text-primary);margin-bottom:8px">Enable Notifications?</div>
+    <div style="font-size:0.78em;color:var(--text-secondary);line-height:1.5;margin-bottom:16px">Get alerted when storms approach your location or weather conditions exceed your thresholds — even when StormTracker is in the background.</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="_acceptNotifPermission()" style="flex:1;padding:10px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.85em;font-weight:700;cursor:pointer">Enable</button>
+      <button onclick="_dismissNotifPermission()" style="flex:1;padding:10px;background:rgba(255,255,255,0.04);color:var(--text-muted);border:1px solid var(--border-subtle);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">Maybe Later</button>
+    </div>
+    <div style="font-size:0.6em;color:var(--text-muted);margin-top:10px">You can change this anytime in your browser settings</div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+function _acceptNotifPermission(){
+  const m=document.getElementById('notif-permission-modal');
+  if(m)m.remove();
+  localStorage.setItem('st_notifPromptSeen',String(Date.now()));
+  Notification.requestPermission().then(p=>console.log('Notification permission:',p));
+}
+function _dismissNotifPermission(){
+  const m=document.getElementById('notif-permission-modal');
+  if(m)m.remove();
+  localStorage.setItem('st_notifPromptSeen',String(Date.now()));
+}
+
 function init(){
   loadUnits();
   updateAIFab();
   checkFirstLaunch();
+  _initPWAInstallPrompt();
+  _initOfflineDetection();
   try{
     const saved=JSON.parse(localStorage.getItem('st_loc'));
     if(saved&&saved.lat&&saved.lon){
