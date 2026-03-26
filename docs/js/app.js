@@ -2029,6 +2029,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.43',date:'2026-03-26',items:['🌍 Hurricane Region Filter — pill bar to filter storms by region (Gulf, Caribbean, Atlantic, E/W Pacific, Indian Ocean, S. Pacific)','🌏 JTWC Global Data — Western Pacific typhoons, Indian Ocean cyclones, and Southern Hemisphere systems via Joint Typhoon Warning Center','📍 Geographic Classification — storms classified by lat/lon into sub-regions (Gulf of Mexico vs open Atlantic, etc.)','🗺️ Map Filter Sync — hurricane track overlay respects region filter','💾 Persistent Filter — region preference saved in localStorage','📊 Hazard Summary Filter — tropical hazard tile and nearby alerts respect region filter']},
   {ver:'v2.42',date:'2026-03-26',items:['🧭 ILS Arrow Fix — map ILS cone direction now uses winds aloft (matches Radar Sonar ALOFT indicator)','📝 MD Distance Filter — Mesoscale Discussions limited to 200mi from your location','💨 Wind Gauge Fix — gauge starts at actual reported wind speed instead of zero','🔧 Improved wind sweep animation accuracy near storms']},
   {ver:'v2.41',date:'2026-03-26',items:['🌀 Hurricane Tracking — NHC active tropical cyclone monitoring (Atlantic + E. Pacific) with 15-min cache','🌀 Tropical Cyclones UI — Weather page section with Saffir-Simpson category scale, wind/pressure/movement details, proximity distance','🗺️ Hurricane Map Overlay — toggleable 🌀 button plots storm positions with category-colored markers, name labels, pulse rings','🌊 Storm Surge Section — Alerts page shows NWS storm surge warnings/coastal flood alerts with expected surge heights','📊 Tropical Hazard Summary — new "Tropical" tile in Environmental Hazards summary grid with active/near counts','⚠️ Proximity Alerting — push notification + toast when tropical cyclone within 200 mi (hourly cooldown)','🔗 NHC RSS Integration — parses NHC Atlantic/E. Pacific RSS feeds for storm positions, winds, pressure, movement']},
   {ver:'v2.39b',date:'2026-03-26',items:['📱 PWA Install Prompt — custom install banner with "Not now" dismiss (7-day cooldown)','📡 Offline Detection — amber banner with cached data age, stale-data labels on weather & hazard cards','🔔 Notification Permission — friendly in-app modal replaces raw browser popup','🔊 Enhanced SW Notifications — storm alerts get stronger vibration, requireInteraction, and action buttons','🤖 Android TWA — Bubblewrap config + Digital Asset Links for building native Android APK','🧭 Manifest polished — portrait orientation, categories=["weather"]']},
@@ -2841,7 +2842,7 @@ function _updateTropicalUI(){
   el.innerHTML=_renderTropicalSection();
 }
 function _renderTropicalHazardSection(){
-  const nhc=_nhcData.systems;
+  const nhc=_getFilteredSystems();
   if(!nhc||!nhc.length)return '';
   const nearStorms=nhc.filter(s=>s.dist!=null&&s.dist<=S._nhcProxRadius);
   if(!nearStorms.length)return '';
@@ -3146,14 +3147,11 @@ let _gustSamples=[];
 let _gustMax=0;
 let _gustResetT=0;
 let _windBase={spd:0,dir:0};
-let _windTarget=null;
-let _windLerpStart=0;
 let _windCurSim={spd:0,dir:0,gust:0};
 let _windSimSeed=0;
 let _windSweepRaf=null;
 let _windSweepPaused=false;
 let _windSweepAfterRender=false;
-const WIND_LERP_DUR=60000;
 let _gustEvents=[];
 let _calmState={active:false,start:0,dur:0,nextCheck:0};
 function _fBm(x,y,octaves,lacunarity,gain){
@@ -3194,20 +3192,15 @@ function _getForecastWind(now){
   return{spd,dir,gust};
 }
 function startWindSim(){
-  const wasRunning=!!_windSimTimer;
   if(_windSimTimer)clearInterval(_windSimTimer);
   if(_windRefreshTimer)clearInterval(_windRefreshTimer);
   if(!S.weather)return;
-  if(!wasRunning||!_windCurSim.spd){
-    _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
-    _windTarget=null;
-    _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
-    _gustEvents=[];
-    _calmState={active:false,start:0,dur:0,nextCheck:Date.now()+30000};
-    _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:S.weather.wind_gusts_10m||0};
-  }
-  const seed=wasRunning?(_windSimSeed||Math.random()*1000):Math.random()*1000;
-  _windSimSeed=seed;
+  _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
+  _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
+  _gustEvents=[];
+  _calmState={active:false,start:0,dur:0,nextCheck:Date.now()+30000};
+  _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:S.weather.wind_gusts_10m||0};
+  _windSimSeed=Math.random()*1000;
   _windRefreshTimer=setInterval(async()=>{
     try{
       const awc=await fetchAWCNearest();
@@ -3215,32 +3208,15 @@ function startWindSim(){
         const newSpd=awc.windKmh;
         const newDir=awc.windDir!=null?awc.windDir:_windBase.dir;
         console.log('Wind refresh from AWC·'+awc.icao+': spd='+newSpd.toFixed(1)+'kmh dir='+newDir+'°');
-        setTimeout(()=>{
-          _windTarget={spd:newSpd,dir:newDir};
-          _windLerpStart=Date.now();
-        },60000);
+        _windBase={spd:newSpd,dir:newDir};
       }
     }catch(e){console.log('Wind refresh error:',e.message)}
   },120000);
   _windSimTimer=setInterval(()=>{
     let curSpd=_windBase.spd;
     let curDir=_windBase.dir;
-    if(_windTarget){
-      const elapsed=Date.now()-_windLerpStart;
-      const p=Math.min(1,elapsed/WIND_LERP_DUR);
-      const ep=p*p*(3-2*p);
-      curSpd=_windBase.spd+((_windTarget.spd-_windBase.spd)*ep);
-      let dd=_windTarget.dir-_windBase.dir;
-      if(dd>180)dd-=360;if(dd<-180)dd+=360;
-      curDir=_windBase.dir+dd*ep;
-      curDir=((curDir%360)+360)%360;
-      if(p>=1){
-        _windBase={spd:_windTarget.spd,dir:_windTarget.dir};
-        _windTarget=null;
-      }
-    }
     const fc=_getForecastWind(Date.now());
-    if(fc&&!_windTarget){
+    if(fc){
       const blend=0.35;
       curSpd=curSpd*(1-blend)+fc.spd*blend;
       let fdd=fc.dir-curDir;if(fdd>180)fdd-=360;if(fdd<-180)fdd+=360;
@@ -3249,6 +3225,7 @@ function startWindSim(){
     const now=Date.now();
     const tSec=now/1000;
     const turbFactor=S._windShear?S._windShear.factor:1.0;
+    const seed=_windSimSeed;
     const slowNoise=_fBm(tSec*0.005+seed,0,3,2.0,0.5);
     const slowAmp=0.05*curSpd*turbFactor;
     const turbNoise=_fBm(tSec*0.15+seed+200,50,4,2.2,0.45);
@@ -6882,10 +6859,50 @@ S._nhcTrackLayers = [];
 S._nhcSelectedStorm = null;
 S._showNHCTracks = (() => { try { const v = localStorage.getItem('st_nhc_tracks'); return v === null ? true : v === '1'; } catch(e) { return true; } })();
 S._nhcProxRadius = (() => { try { const v = parseInt(localStorage.getItem('st_nhc_prox_radius')); return v > 0 ? v : 200; } catch(e) { return 200; } })();
+const _STORM_REGIONS = [
+  { id: 'all', label: 'All Basins' },
+  { id: 'gulf', label: 'Gulf of Mexico' },
+  { id: 'caribbean', label: 'Caribbean' },
+  { id: 'atlantic', label: 'Atlantic' },
+  { id: 'epac', label: 'E. Pacific' },
+  { id: 'wpac', label: 'W. Pacific' },
+  { id: 'io', label: 'Indian Ocean' },
+  { id: 'spac', label: 'S. Pacific' }
+];
+S._nhcRegionFilter = (() => { try { const v = localStorage.getItem('st_nhc_region'); return v && _STORM_REGIONS.some(r => r.id === v) ? v : 'all'; } catch(e) { return 'all'; } })();
+function _classifyStormRegion(lat, lon) {
+  if (lat == null || lon == null) return 'atlantic';
+  if (lat >= 18 && lat <= 31 && lon >= -98 && lon <= -81) return 'gulf';
+  if (lat >= 8 && lat <= 22 && lon >= -90 && lon <= -58) return 'caribbean';
+  if (lat >= 0) {
+    if (lon >= -140 && lon < -80) return 'epac';
+    if ((lon >= -180 && lon < -140) || (lon >= 100 && lon <= 180)) return 'wpac';
+    if (lon >= 40 && lon < 100) return 'io';
+    return 'atlantic';
+  }
+  if (lon >= 20 && lon < 135) return 'io';
+  if ((lon >= 135 && lon <= 180) || (lon >= -180 && lon < -120)) return 'spac';
+  return 'atlantic';
+}
+function _getFilteredSystems() {
+  const systems = _nhcData.systems;
+  if (!systems || S._nhcRegionFilter === 'all') return systems;
+  return systems.filter(s => s._region === S._nhcRegionFilter);
+}
+function setNHCRegionFilter(val) {
+  S._nhcRegionFilter = val;
+  try { localStorage.setItem('st_nhc_region', val); } catch(e) {}
+  _updateTropicalUI();
+  if (S.map) plotNHCTracks(S.map);
+  if (S.activePage === 'alerts') renderAlerts();
+  const label = (_STORM_REGIONS.find(r => r.id === val) || {}).label || val;
+  toast('Region filter: ' + label);
+}
 function _recomputeNHCUserFields() {
   if (!_nhcData.systems) return;
   _nhcData.systems.forEach(s => {
     s.category = _saffirSimpson(s.maxWind);
+    s._region = _classifyStormRegion(s.lat, s.lon);
     if (s.lat != null && s.lon != null && S.lat) s.dist = haversine(S.lat, S.lon, s.lat, s.lon);
     else s.dist = null;
     s._inCone = _isUserInCone(s);
@@ -6901,14 +6918,16 @@ async function fetchNHCData() {
   }
   _nhcData._lastFetch = now;
   try {
-    const [gisRes, rssRes, surgeRes] = await Promise.allSettled([
+    const [gisRes, rssRes, surgeRes, jtwcRes] = await Promise.allSettled([
       _fetchNHCGIS(),
       _fetchNHCActiveStorms(),
-      fetch('https://www.nhc.noaa.gov/CurrentSurges.json', { signal: AbortSignal.timeout(10000) }).then(r => r.ok ? r.json() : null).catch(() => null)
+      fetch('https://www.nhc.noaa.gov/CurrentSurges.json', { signal: AbortSignal.timeout(10000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+      _fetchJTWCStorms()
     ]);
     const gis = gisRes.status === 'fulfilled' ? gisRes.value : null;
     const rssStorms = rssRes.status === 'fulfilled' ? rssRes.value : [];
     const surgeData = surgeRes.status === 'fulfilled' ? surgeRes.value : null;
+    const jtwcStorms = jtwcRes.status === 'fulfilled' ? jtwcRes.value : [];
     let storms = [];
     if (gis && gis.positions && gis.positions.length) {
       storms = gis.positions;
@@ -6939,10 +6958,16 @@ async function fetchNHCData() {
         if (existing) existing.surgeData = surge;
       }
     }
+    if (jtwcStorms && jtwcStorms.length) {
+      for (const js of jtwcStorms) {
+        const dup = storms.find(s => s.name.toLowerCase() === js.name.toLowerCase());
+        if (!dup) storms.push(js);
+      }
+    }
     _nhcData.systems = storms;
     _nhcData.surgeRaw = surgeData;
     _recomputeNHCUserFields();
-    console.log('[NHC] Tropical systems:', storms.length, 'tracks:', (_nhcData.forecast||[]).length, 'cones:', (_nhcData.cones||[]).length);
+    console.log('[NHC+JTWC] Tropical systems:', storms.length, 'NHC tracks:', (_nhcData.forecast||[]).length, 'cones:', (_nhcData.cones||[]).length, 'JTWC:', jtwcStorms.length);
   } catch (e) {
     console.log('[NHC] Fetch error:', e.message);
     if (!_nhcData.systems) _nhcData.systems = [];
@@ -7104,6 +7129,70 @@ async function _fetchNHCActiveStorms() {
   }
   return storms;
 }
+async function _fetchJTWCStorms() {
+  const storms = [];
+  try {
+    const jtwcUrl = 'https://www.metoc.navy.mil/jtwc/rss/jtwc.rss';
+    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(jtwcUrl);
+    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) return storms;
+    const text = await res.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, 'text/xml');
+    const items = doc.querySelectorAll('item');
+    const seen = new Set();
+    items.forEach(item => {
+      const title = item.querySelector('title')?.textContent || '';
+      const desc = item.querySelector('description')?.textContent || '';
+      const link = item.querySelector('link')?.textContent || '';
+      const stormMatch = title.match(/(Typhoon|Tropical Storm|Tropical Depression|Super Typhoon|Tropical Cyclone|Post-Tropical|Subtropical)\s+(\d{2}[WSEABICP])\s*[\(:\s]+([^)]+)/i)
+        || title.match(/(Typhoon|Tropical Storm|Tropical Depression|Super Typhoon|Tropical Cyclone)\s+(.+?)(?:\s+(?:Warning|Advisory|Prognostic|TCFA))/i)
+        || title.match(/(Typhoon|Super Typhoon|Tropical Storm|Tropical Depression|Tropical Cyclone)\s+(.+)/i);
+      if (!stormMatch) return;
+      const stormType = stormMatch[1];
+      let stormName = (stormMatch[3] || stormMatch[2]).trim().replace(/\s*\(.*$/, '');
+      const stormCode = stormMatch[2] || '';
+      if (seen.has(stormName.toUpperCase())) return;
+      seen.add(stormName.toUpperCase());
+      const latMatch = desc.match(/(\d+\.?\d*)\s*°?\s*([NS])/i);
+      const lonMatch = desc.match(/(\d+\.?\d*)\s*°?\s*([EW])/i);
+      const windMatch = desc.match(/(?:max(?:imum)?\s+)?(?:sustained\s+)?winds?[:\s]+(\d+)\s*(mph|kt|knots|kph)/i);
+      const pressMatch = desc.match(/(?:min(?:imum)?\s+)?(?:central\s+)?pressure[:\s]+(\d+)\s*(?:mb|hpa)/i);
+      const moveMatch = desc.match(/(?:moving|headed?)\s+([\w-]+(?:\s*[\w-]+)?)\s+(?:at\s+)?(\d+)\s*(mph|kt|knots|kph)/i);
+      const gustMatch = desc.match(/gusts?\s+(?:up\s+to\s+)?(\d+)\s*(mph|kt|knots|kph)/i);
+      let lat = null, lon = null;
+      if (latMatch) lat = parseFloat(latMatch[1]) * (latMatch[2].toUpperCase() === 'S' ? -1 : 1);
+      if (lonMatch) lon = parseFloat(lonMatch[1]) * (lonMatch[2].toUpperCase() === 'W' ? -1 : 1);
+      const _convertWind = (v, unit) => {
+        if (!unit) return v;
+        const u = unit.toLowerCase();
+        if (u === 'kt' || u === 'knots') return Math.round(v * 1.15078);
+        if (u === 'kph') return Math.round(v * 0.621371);
+        return v;
+      };
+      const maxWind = windMatch ? _convertWind(parseInt(windMatch[1]), windMatch[2]) : null;
+      const minPressure = pressMatch ? parseInt(pressMatch[1]) : null;
+      const moveDir = moveMatch ? moveMatch[1] : null;
+      const moveSpeed = moveMatch ? _convertWind(parseInt(moveMatch[2]), moveMatch[3]) : null;
+      const gusts = gustMatch ? _convertWind(parseInt(gustMatch[1]), gustMatch[2]) : null;
+      let basin = 'wp';
+      if (stormCode.match(/\d{2}[ABI]/i)) basin = 'io';
+      else if (stormCode.match(/\d{2}[SP]/i)) basin = 'sp';
+      else if (stormCode.match(/\d{2}[C]/i)) basin = 'cp';
+      const stormId = 'JTWC_' + (stormCode || stormName.substring(0, 6).toUpperCase());
+      storms.push({
+        id: stormId, name: stormName, type: stormType, basin,
+        lat, lon, maxWind, gusts, minPressure, category: null,
+        moveDir, moveSpeed, dist: null,
+        link: link || 'https://www.metoc.navy.mil/jtwc/jtwc.html',
+        surgeData: null, _source: 'jtwc'
+      });
+    });
+  } catch (e) {
+    console.log('[JTWC] Fetch error:', e.message);
+  }
+  return storms;
+}
 function _isUserInCone(storm) {
   if (!S.lat || !S.lon || !_nhcData.cones) return false;
   const cone = _nhcData.cones.find(c => c.stormId === storm.id || c.stormName.toLowerCase() === storm.name.toLowerCase());
@@ -7164,17 +7253,24 @@ function _escStormName(name) {
   return (name || '').replace(/['"\\<>&]/g, '');
 }
 function _renderTropicalSection() {
-  const systems = _nhcData.systems;
-  if (systems === null) {
+  const allSystems = _nhcData.systems;
+  if (allSystems === null) {
     return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
       <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:0.8em">🔄 Loading tropical data...</div></div>`;
   }
-  if (!systems.length) {
+  const systems = _getFilteredSystems() || [];
+  const regionPills = _STORM_REGIONS.map(r => {
+    const count = r.id === 'all' ? allSystems.length : allSystems.filter(s => s._region === r.id).length;
+    const isActive = S._nhcRegionFilter === r.id;
+    return `<button onclick="setNHCRegionFilter('${r.id}')" style="font-size:0.6em;padding:2px 8px;border-radius:12px;border:1px solid ${isActive ? 'var(--accent-cyan)' : 'var(--border-subtle)'};background:${isActive ? 'rgba(0,229,255,0.15)' : 'var(--bg-surface)'};color:${isActive ? 'var(--accent-cyan)' : 'var(--text-muted)'};cursor:pointer;font-weight:${isActive ? '700' : '500'};white-space:nowrap">${r.label}${count ? ' (' + count + ')' : ''}</button>`;
+  }).join('');
+  if (!allSystems.length) {
     return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
-      <div style="text-align:center;padding:16px;color:var(--accent-green);font-size:0.8em">✅ No active tropical systems (Atlantic/E. Pacific)</div>
-      <div style="font-size:0.6em;color:var(--text-muted);text-align:center;padding:0 8px 8px">Data: National Hurricane Center (NHC) · ArcGIS + RSS</div></div>`;
+      <div style="text-align:center;padding:16px;color:var(--accent-green);font-size:0.8em">✅ No active tropical systems</div>
+      <div style="font-size:0.6em;color:var(--text-muted);text-align:center;padding:0 8px 8px">Data: NHC + JTWC · ArcGIS + RSS</div></div>`;
   }
-  let html = `<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🌀</span> Tropical Cyclones (${systems.length})</span><label style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${S._showNHCTracks ? 'checked' : ''} onchange="toggleNHCTracks(this.checked)" style="accent-color:var(--accent-cyan)"></label></div>`;
+  let html = `<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🌀</span> Tropical Cyclones (${systems.length}${S._nhcRegionFilter !== 'all' ? '/' + allSystems.length : ''})</span><label style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${S._showNHCTracks ? 'checked' : ''} onchange="toggleNHCTracks(this.checked)" style="accent-color:var(--accent-cyan)"></label></div>`;
+  html += `<div style="display:flex;gap:4px;margin-bottom:8px;padding:0 4px;flex-wrap:wrap;overflow-x:auto">${regionPills}</div>`;
   const catScale = `<div style="display:flex;gap:2px;margin-bottom:8px;padding:0 4px;flex-wrap:wrap">
     <span style="font-size:0.55em;padding:1px 5px;border-radius:4px;background:#90caf920;color:#90caf9;font-weight:600">TD</span>
     <span style="font-size:0.55em;padding:1px 5px;border-radius:4px;background:#4fc3f720;color:#4fc3f7;font-weight:600">TS</span>
@@ -7185,6 +7281,10 @@ function _renderTropicalSection() {
     <span style="font-size:0.55em;padding:1px 5px;border-radius:4px;background:#ff174420;color:#ff1744;font-weight:600">Cat 5</span>
   </div>`;
   html += catScale;
+  if (!systems.length) {
+    const filterLabel = (_STORM_REGIONS.find(r => r.id === S._nhcRegionFilter) || {}).label || S._nhcRegionFilter;
+    html += `<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No active systems in ${filterLabel}</div>`;
+  }
   systems.forEach((s, idx) => {
     const cat = s.category || _saffirSimpson(s.maxWind);
     const distStr = s.dist != null ? (S.radarMetric ? Math.round(s.dist * 1.60934) + ' km' : Math.round(s.dist) + ' mi') : 'Unknown';
@@ -7213,13 +7313,13 @@ function _renderTropicalSection() {
         ${s.minPressure != null ? `<div style="text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase">Pressure</div><div style="font-size:0.9em;font-weight:700;color:var(--text-primary)">${s.minPressure} mb</div></div>` : ''}
         ${s.moveDir ? `<div style="text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase">Movement</div><div style="font-size:0.9em;font-weight:700;color:var(--text-primary)">${s.moveDir}${s.moveSpeed ? ' ' + s.moveSpeed + ' mph' : ''}</div></div>` : ''}
       </div>
-      ${s.lat != null ? `<div style="font-size:0.65em;color:var(--text-muted);margin-top:4px">📍 ${Math.abs(s.lat).toFixed(1)}°${s.lat >= 0 ? 'N' : 'S'}, ${Math.abs(s.lon).toFixed(1)}°${s.lon >= 0 ? 'E' : 'W'} · Basin: ${s.basin === 'at' ? 'Atlantic' : 'E. Pacific'}${hasForecast ? ' · <span style="color:var(--accent-cyan)">Tap for forecast track</span>' : ''}</div>` : ''}
+      ${s.lat != null ? `<div style="font-size:0.65em;color:var(--text-muted);margin-top:4px">📍 ${Math.abs(s.lat).toFixed(1)}°${s.lat >= 0 ? 'N' : 'S'}, ${Math.abs(s.lon).toFixed(1)}°${s.lon >= 0 ? 'E' : 'W'} · ${(_STORM_REGIONS.find(r => r.id === s._region) || {}).label || s.basin}${s._source === 'jtwc' ? ' (JTWC)' : ''}${hasForecast ? ' · <span style="color:var(--accent-cyan)">Tap for forecast track</span>' : ''}</div>` : ''}
     </div>`;
   });
   html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px 2px">
     <div style="display:flex;align-items:center;gap:4px"><span style="font-size:0.6em;color:var(--text-muted)">Alert radius:</span>
       <select onchange="setNHCProxRadius(this.value)" style="font-size:0.6em;padding:1px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px">${[100,200,300,500,750,1000].map(r=>`<option value="${r}"${r===S._nhcProxRadius?' selected':''}>${r} mi</option>`).join('')}</select></div>
-    <span style="font-size:0.6em;color:var(--text-muted)">NHC · ArcGIS + RSS · 15-min</span></div></div>`;
+    <span style="font-size:0.6em;color:var(--text-muted)">NHC + JTWC · 15-min</span></div></div>`;
   return html;
 }
 function setNHCProxRadius(val) {
@@ -7261,9 +7361,15 @@ function plotNHCTracks(map) {
   S._nhcTrackLayers.forEach(l => { try { map.removeLayer(l); } catch(e) {} });
   S._nhcTrackLayers = [];
   if (!S._showNHCTracks || !_nhcData.systems || !_nhcData.systems.length) return;
+  const filtered = _getFilteredSystems() || [];
+  if (!filtered.length) return;
+  const filteredIds = new Set(filtered.map(s => (s.id || '').toLowerCase()));
+  const filteredNames = new Set(filtered.map(s => (s.name || '').toLowerCase()));
+  const _isStormVisible = (stormId, stormName) => filteredIds.has((stormId||'').toLowerCase()) || filteredNames.has((stormName||'').toLowerCase());
   const selectedName = S._nhcSelectedStorm;
   const showAll = !selectedName;
   for (const cone of (_nhcData.cones || [])) {
+    if (!_isStormVisible(cone.stormId, cone.stormName)) continue;
     if (!showAll && cone.stormName.toLowerCase() !== selectedName?.toLowerCase() && cone.stormId !== selectedName) continue;
     if (!cone.coords || cone.coords.length < 3) continue;
     const storm = (_nhcData.systems || []).find(s => s.id === cone.stormId || s.name.toLowerCase() === cone.stormName.toLowerCase());
@@ -7277,6 +7383,7 @@ function plotNHCTracks(map) {
     S._nhcTrackLayers.push(poly);
   }
   for (const track of (_nhcData.forecast || [])) {
+    if (!_isStormVisible(track.stormId, track.stormName)) continue;
     if (!showAll && track.stormName.toLowerCase() !== selectedName?.toLowerCase() && track.stormId !== selectedName) continue;
     if (!track.coords || track.coords.length < 2) continue;
     const storm = (_nhcData.systems || []).find(s => s.id === track.stormId || s.name.toLowerCase() === track.stormName.toLowerCase());
@@ -7289,7 +7396,7 @@ function plotNHCTracks(map) {
     line.addTo(map);
     S._nhcTrackLayers.push(line);
   }
-  for (const s of _nhcData.systems) {
+  for (const s of filtered) {
     if (s.lat == null || s.lon == null) continue;
     const cat = s.category || _saffirSimpson(s.maxWind);
     const isSelected = !!selectedName && (s.id === selectedName || s.name.toLowerCase() === selectedName.toLowerCase());
@@ -7391,9 +7498,10 @@ function _renderStormSurgeSection() {
   return html;
 }
 function _nhcProximityCheck() {
-  if (!_nhcData.systems || !_nhcData.systems.length || !S.lat) { _renderNHCBanner(null); return; }
+  const filtSystems = _getFilteredSystems();
+  if (!filtSystems || !filtSystems.length || !S.lat) { _renderNHCBanner(null); return; }
   let bannerStorm = null;
-  for (const s of _nhcData.systems) {
+  for (const s of filtSystems) {
     const cat = s.category || _saffirSimpson(s.maxWind);
     const inCone = s._inCone;
     const inRadius = s.dist != null && s.dist <= S._nhcProxRadius;
@@ -8989,9 +9097,9 @@ function _renderHazardSummary(){
       }
     }
   }
-  const nhc=_nhcData.systems;
+  const nhc=_getFilteredSystems();
   if(nhc===null)items.push({icon:'🔄',label:'Tropical',status:'Loading...',color:'#666'});
-  else if(!nhc.length)items.push({icon:'✅',label:'Tropical',status:'Clear',color:'#22c55e'});
+  else if(!nhc.length)items.push({icon:'✅',label:'Tropical',status:S._nhcRegionFilter!=='all'?'Clear (filtered)':'Clear',color:'#22c55e'});
   else{
     const inCone=nhc.filter(s=>s._inCone).length;
     const hasWarning=nhc.some(s=>s._tropAlerts&&s._tropAlerts.warnings.some(w=>w.inZone));

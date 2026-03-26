@@ -58,6 +58,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **Iowa Environmental Mesonet (IEM) mPING GeoJSON**: Crowdsourced weather reports.
 - **USGS Earthquake API**: Real-time earthquake data.
 - **NASA EONET API**: Global natural events.
+- **JTWC (Joint Typhoon Warning Center)**: Global tropical cyclone data (W. Pacific, Indian Ocean, S. Hemisphere) via RSS.
 - **NIFC Wildfire API**: Active fire perimeters (US).
 - **US Drought Monitor API**: State-level drought statistics (US).
 - **Open-Meteo API**: Upper atmospheric winds, stability parameters.
