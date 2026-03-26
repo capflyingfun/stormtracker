@@ -4713,7 +4713,7 @@ function plotStormMarkers(map){
         S.stormMarkers.push(lightning);
       }else if(p.type==='tornado'){
         const torIcon=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:22px;text-shadow:0 0 10px #ff1744,0 0 20px #ff1744;animation:tornado-pulse 1.8s ease-in-out infinite;pointer-events:none">🌪️</div>`,iconSize:[26,26],iconAnchor:[13,-8]})});
-        torIcon.addTo(map);
+        if(isVisible)torIcon.addTo(map);
         torIcon._stormRef=p.stormRef;
         S.stormMarkers.push(torIcon);
       }
@@ -6544,9 +6544,9 @@ function _isPointInSpcWatch(lat, lng, watch) {
 // ==========================================
 // SPC DATA (WATCHES, REPORTS, MESOSCALE DISCUSSIONS)
 // ==========================================
-let _spcData = { watches: null, reports: null, md: null, _lastFetch: 0 };
+let _spcData = { watches: null, reports: null, _lastFetch: 0 };
 async function fetchSPCData() {
-  if (!isUSLocation(S.lat, S.lon)) { _spcData.watches = []; _spcData.reports = []; _spcData.md = []; return; }
+  if (!isUSLocation(S.lat, S.lon)) { _spcData.watches = []; _spcData.reports = []; return; }
   const now = Date.now();
   if (now - _spcData._lastFetch < 300000 && _spcData.watches !== null) return;
   _spcData._lastFetch = now;
