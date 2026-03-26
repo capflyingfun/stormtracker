@@ -2936,6 +2936,24 @@ function drawMiniSonar(){
       for(const d of lightningDots){ctx.fillStyle='rgba(255,255,50,0.9)';ctx.fillText('⚡',d.x,d.y)}
       ctx.restore();
     }
+    const hookStorms=(S.storms||[]).filter(s=>s._hookEcho&&s.distance<=viewR);
+    if(hookStorms.length){
+      ctx.save();
+      ctx.font=`${Math.max(14,size*0.05)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.shadowColor='rgba(255,23,68,0.9)';ctx.shadowBlur=10;
+      for(const hs of hookStorms){
+        const distMi=hs.distance;
+        const bear=(bearingDeg(S.lat,S.lon,hs.lat,hs.lng)+360)%360;
+        const aMid=(bear-90)*Math.PI/180;
+        const rMid=maxR*(distMi/viewR);
+        const hx=cx+Math.cos(aMid)*rMid,hy=cy+Math.sin(aMid)*rMid;
+        ctx.fillStyle='rgba(255,23,68,0.9)';ctx.fillText('🌪️',hx,hy-Math.max(8,size*0.025));
+        ctx.font=`bold ${Math.max(7,size*0.022)}px Inter,sans-serif`;
+        ctx.fillStyle='rgba(255,23,68,0.8)';ctx.fillText('ROTATION',hx,hy+Math.max(10,size*0.03));
+        ctx.font=`${Math.max(14,size*0.05)}px sans-serif`;
+      }
+      ctx.restore();
+    }
   }
   const gB=(_sonarCfg.gridBright||100)/100;
   if(gB>0){
