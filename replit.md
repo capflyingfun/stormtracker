@@ -91,3 +91,11 @@ Preferred communication style: Simple, everyday language with customizable AI as
 ### Databases
 - **PostgreSQL**: Primary database.
 - **Neon Database**: Serverless PostgreSQL provider.
+
+## Primary Working Version (docs/ Static Site)
+
+The primary working version of StormTracker is the static HTML site in `docs/`, served via GitHub Pages at CAPFlyingFun/StormTracker. Current version: **v2.39b**.
+
+Key files: `docs/index.html`, `docs/js/app.js`, `docs/css/style.css`, `docs/sw.js`, `docs/manifest.json`.
+
+PWA features (v2.39b): Custom install banner (beforeinstallprompt), offline detection with cached-data-age indicator, friendly notification permission modal, enhanced SW notification actions and vibration patterns, portrait orientation lock.

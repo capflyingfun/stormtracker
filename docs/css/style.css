@@ -410,3 +410,4 @@ canvas.offscreen{display:none}
 .hd-scan-btn:active{background:rgba(0,229,255,0.12);border-color:var(--accent-cyan)}
 .hd-scan-btn .hd-label{font-size:0.75em;color:var(--text-muted);margin-top:2px}
 .home-btn-active{background:rgba(0,229,255,0.15)!important;border-color:var(--accent-cyan)!important}
+@keyframes slideUp{from{transform:translateY(80px);opacity:0}to{transform:translateY(0);opacity:1}}
