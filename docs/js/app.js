@@ -8523,7 +8523,7 @@ function _showInstallBanner(){
     <div style="flex:1"><div style="font-size:0.8em;font-weight:700;color:var(--text-primary)">Install StormTracker</div>
     <div style="font-size:0.65em;color:var(--text-muted);margin-top:2px">Add to home screen for the best experience</div></div>
     <button onclick="_acceptInstall()" style="padding:6px 14px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.4);border-radius:8px;font-size:0.75em;font-weight:700;cursor:pointer;white-space:nowrap">Install</button>
-    <button onclick="_dismissInstall()" style="padding:4px 8px;background:none;border:none;color:var(--text-muted);font-size:1.1em;cursor:pointer">✕</button>`;
+    <button onclick="_dismissInstall()" style="padding:4px 10px;background:none;border:none;color:var(--text-muted);font-size:0.7em;cursor:pointer;white-space:nowrap">Not now</button>`;
   document.body.appendChild(bar);
 }
 function _acceptInstall(){
@@ -8580,7 +8580,7 @@ function _showNotifPermissionModal(){
   if(!('Notification' in window))return;
   if(Notification.permission!=='default')return;
   const seen=localStorage.getItem('st_notifPromptSeen');
-  if(seen&&Date.now()-parseInt(seen)<86400000)return;
+  if(seen)return;
   const overlay=document.createElement('div');
   overlay.id='notif-permission-modal';
   overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;z-index:10001;background:rgba(5,8,15,0.88);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center';
