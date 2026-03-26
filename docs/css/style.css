@@ -178,9 +178,17 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .nws-alert{background:var(--bg-surface);border-left:3px solid var(--accent-red);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:10px 12px;margin-bottom:8px;font-size:0.8em}
 .nws-alert.watch{border-left-color:var(--accent-yellow)}
 .nws-alert.advisory{border-left-color:var(--accent-orange)}
+.nws-alert.tornado-warning{border-left-color:#ff1744;border-left-width:5px;background:rgba(255,23,68,0.08);animation:tornado-pulse 1.8s ease-in-out infinite}
+.nws-alert.svr-warning{border-left-color:#ff6d00;border-left-width:4px;background:rgba(255,109,0,0.06)}
+@keyframes tornado-pulse{0%,100%{box-shadow:0 0 4px rgba(255,23,68,0.3)}50%{box-shadow:0 0 16px rgba(255,23,68,0.6),inset 0 0 8px rgba(255,23,68,0.1)}}
 .nws-alert-title{font-weight:700;margin-bottom:4px}
 .nws-alert-detail{color:var(--text-secondary);line-height:1.4}
 .nws-alert-expires{font-size:0.75em;color:var(--text-muted);margin-top:4px;font-family:var(--font-mono)}
+.spc-watch-card{padding:10px 12px;margin-bottom:8px;border-radius:8px;font-size:0.8em;border:1px solid var(--border-subtle)}
+.spc-watch-card.tor-watch{background:rgba(255,23,68,0.08);border-color:rgba(255,23,68,0.3)}
+.spc-watch-card.svr-watch{background:rgba(255,152,0,0.08);border-color:rgba(255,152,0,0.3)}
+.spc-watch-card.md{background:rgba(0,229,255,0.06);border-color:rgba(0,229,255,0.2)}
+.hook-echo-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:10px;font-size:0.6em;font-weight:700;background:rgba(255,23,68,0.15);color:#ff4444;border:1px solid rgba(255,23,68,0.3);animation:tornado-pulse 1.8s ease-in-out infinite}
 .station-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .station-tile{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px;text-align:center;cursor:pointer;-webkit-user-select:none;user-select:none;transition:border-color 0.15s}
 .station-tile:active{border-color:var(--accent-blue)}

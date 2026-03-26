@@ -104,8 +104,16 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Primary Working Version (docs/ Static Site)
 
-The primary working version of StormTracker is the static HTML site in `docs/`, served via GitHub Pages at CAPFlyingFun/StormTracker. Current version: **v2.39b**.
+The primary working version of StormTracker is the static HTML site in `docs/`, served via GitHub Pages at CAPFlyingFun/StormTracker. Current version: **v2.40**.
 
 Key files: `docs/index.html`, `docs/js/app.js`, `docs/css/style.css`, `docs/sw.js`, `docs/manifest.json`.
 
-PWA features (v2.39b): Custom install banner (beforeinstallprompt), offline detection with cached-data-age indicator, friendly notification permission modal, enhanced SW notification actions and vibration patterns, portrait orientation lock.
+PWA features: Custom install banner (beforeinstallprompt), offline detection with cached-data-age indicator, friendly notification permission modal, enhanced SW notification actions and vibration patterns, portrait orientation lock.
+
+### Tornadic Signature Detection & SPC Severe Weather (v2.40)
+- **Hook Echo Detection**: Sector-based arc/notch analysis on raw radar scan points. Cells ≥45 dBZ scored for rotation signatures (threshold 0.45). Cross-references SPC tornado watches and NWS tornado warning polygons for bonus scoring. Storm cards show 🌪️ icon with "Possible Rotation" label and pulsing hook echo badge. Map popup and markers show animated tornado indicators.
+- **SPC Watch Integration**: Fetches active SPC watches from NOAA API (`ActiveWW.json`), plots color-coded watch polygons on map (red=tornado, orange=SVR). Alerts page shows SPC Watches section with your-area detection.
+- **SPC Storm Reports**: Fetches today's filtered severe reports from SPC CSV, plots markers on map. Alerts page shows Reports section with tornado/hail/wind breakdown.
+- **Enhanced NWS Warnings**: Tornado warnings get pulsing red border, SVR warnings get orange styling. NWS warning polygons plotted on map.
+- **Hazard Summary**: "Severe Wx" tile in hazard dashboard showing SPC watch counts and rotation detections.
+- **Global state**: `_spcData` (watches, reports, 5-min cache), `S._showSPCReports`, `S._spcReportMarkers`, `S._spcWatchPolys`, `S._nwsWarnPolys`.
