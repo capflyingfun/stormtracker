@@ -2840,7 +2840,7 @@ function _updateTropicalUI(){
 function _renderTropicalHazardSection(){
   const nhc=_nhcData.systems;
   if(!nhc||!nhc.length)return '';
-  const nearStorms=nhc.filter(s=>s.dist!=null&&s.dist<=500);
+  const nearStorms=nhc.filter(s=>s.dist!=null&&s.dist<=S._nhcProxRadius);
   if(!nearStorms.length)return '';
   let html=`<div style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:8px"><div style="font-size:0.8em;font-weight:700;color:#9333EA;margin-bottom:6px">🌀 Tropical Cyclones Nearby</div>`;
   nearStorms.forEach(s=>{
