@@ -12,7 +12,7 @@
   "orientation": "portrait",
   "dir": "ltr",
   "lang": "en-US",
-  "categories": ["weather", "utilities"],
+  "categories": ["weather"],
   "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
   "icons": [
     {"src": "/StormTracker/icons/icon-72x72.png", "sizes": "72x72", "type": "image/png", "purpose": "any"},
