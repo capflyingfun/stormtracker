@@ -4642,10 +4642,12 @@ function plotStormMarkers(map){
         mvHtml+=`<div style="font-size:0.7em;color:#6b7;margin-top:2px">${tStr('Nearby · Not approaching')}</div>`;
       }
     }
+    const hookInfo=storm._hookEcho?`<div style="font-size:0.8em;font-weight:700;color:#ff1744;margin-top:4px;padding:3px 8px;background:rgba(255,23,68,0.15);border:1px solid rgba(255,23,68,0.3);border-radius:6px;animation:tornado-pulse 1.8s ease-in-out infinite">🌪️ Possible Rotation (Hook Echo)</div>`:'';
     const popupHtml=`<div style="text-align:center;font-family:system-ui;min-width:155px">
       <div style="font-size:1.3em;font-weight:700;color:${color}">${storm.dbz} dBZ</div>
       <div style="font-size:0.8em;margin:2px 0">${tStr(cat.label)}</div>
       <div style="font-size:0.7em;color:#aaa">${cat.rain||''}</div>
+      ${hookInfo}
       <div style="font-size:0.8em;color:#ccc;margin-top:4px">${fmtStormDist(storm.distance)} ${degToDir(storm.bearing)}</div>
       ${mvHtml}
       <div style="font-size:0.65em;color:#777;margin-top:6px">${storm.lat.toFixed(3)}°, ${Math.abs(storm.lng).toFixed(3)}° · ${storm.pixels} returns</div>
@@ -4665,6 +4667,9 @@ function plotStormMarkers(map){
     }
     if(storm.dbz>=40){
       pending.push({type:'lightning',lat:storm.lat,lng:storm.lng});
+    }
+    if(storm._hookEcho){
+      pending.push({type:'tornado',lat:storm.lat,lng:storm.lng,stormRef:storm});
     }
     
   });
@@ -4706,6 +4711,11 @@ function plotStormMarkers(map){
         if(isVisible)lightning.addTo(map);
         lightning._stormRef=p.stormRef;
         S.stormMarkers.push(lightning);
+      }else if(p.type==='tornado'){
+        const torIcon=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:22px;text-shadow:0 0 10px #ff1744,0 0 20px #ff1744;animation:tornado-pulse 1.8s ease-in-out infinite;pointer-events:none">🌪️</div>`,iconSize:[26,26],iconAnchor:[13,-8]})});
+        torIcon.addTo(map);
+        torIcon._stormRef=p.stormRef;
+        S.stormMarkers.push(torIcon);
       }
     });
   })});
@@ -6243,6 +6253,7 @@ async function scanRadarForStorms(){
     S._rawScanPts=rawPoints;
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     console.log('[SCAN] after spacingFilter: '+S.storms.length+' storms');
+    detectHookEchoes(rawPoints, S.storms);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
 
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
@@ -6251,6 +6262,7 @@ async function scanRadarForStorms(){
     renderStorms();updateStormBadges();drawMiniSonar();
     if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
+    if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map)}
     updateThreatTicker();
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
@@ -6406,6 +6418,304 @@ function spacingFilter(points,hiRes){
 }
 
 // ==========================================
+// HOOK ECHO / TORNADIC SIGNATURE DETECTION
+// ==========================================
+function detectHookEchoes(rawPts, storms) {
+  if (!rawPts || rawPts.length < 20 || !storms || !storms.length) return;
+  const strongCells = storms.filter(s => s.dbz >= 45);
+  if (!strongCells.length) return;
+  for (const cell of strongCells) {
+    const score = _computeHookScore(rawPts, cell);
+    cell._hookScore = score;
+    cell._hookEcho = score >= 0.45;
+    if (cell._hookEcho) {
+      console.log('[HOOK] Possible rotation detected at', cell.lat.toFixed(3), cell.lng.toFixed(3), 'dBZ=' + cell.dbz, 'hookScore=' + score.toFixed(3));
+    }
+  }
+}
+function _computeHookScore(rawPts, cell) {
+  const coreRadius = 0.08;
+  const hookRadius = 0.22;
+  const corePts = [];
+  const ringPts = [];
+  for (const p of rawPts) {
+    const dlat = p.lat - cell.lat;
+    const dlng = (p.lng - cell.lng) * Math.cos(cell.lat * Math.PI / 180);
+    const dist = Math.sqrt(dlat * dlat + dlng * dlng);
+    if (dist <= coreRadius && p.dbz >= 35) corePts.push({ ...p, _dx: dlng, _dy: dlat, _dist: dist });
+    else if (dist <= hookRadius && p.dbz >= 15) ringPts.push({ ...p, _dx: dlng, _dy: dlat, _dist: dist });
+  }
+  if (corePts.length < 5 || ringPts.length < 3) return 0;
+  const coreAngles = corePts.map(p => Math.atan2(p._dy, p._dx));
+  const ringAngles = ringPts.map(p => Math.atan2(p._dy, p._dx));
+  const sectors = 12;
+  const sectorSize = (2 * Math.PI) / sectors;
+  const coreSectorCounts = new Array(sectors).fill(0);
+  const ringSectorCounts = new Array(sectors).fill(0);
+  const ringSectorMaxDbz = new Array(sectors).fill(0);
+  coreAngles.forEach(a => {
+    const idx = Math.floor(((a + Math.PI) / (2 * Math.PI)) * sectors) % sectors;
+    coreSectorCounts[idx]++;
+  });
+  ringPts.forEach(p => {
+    const a = Math.atan2(p._dy, p._dx);
+    const idx = Math.floor(((a + Math.PI) / (2 * Math.PI)) * sectors) % sectors;
+    ringSectorCounts[idx]++;
+    if (p.dbz > ringSectorMaxDbz[idx]) ringSectorMaxDbz[idx] = p.dbz;
+  });
+  let asymmetryScore = 0;
+  const coreFilledSectors = coreSectorCounts.filter(c => c > 0).length;
+  const coreCompactness = coreFilledSectors / sectors;
+  let bestHookRun = 0;
+  let bestGapRun = 0;
+  let hookRun = 0;
+  let gapRun = 0;
+  for (let i = 0; i < sectors * 2; i++) {
+    const idx = i % sectors;
+    if (ringSectorCounts[idx] > 0 && ringSectorMaxDbz[idx] >= 20) {
+      hookRun++;
+      if (gapRun > bestGapRun) bestGapRun = gapRun;
+      gapRun = 0;
+    } else {
+      if (hookRun > bestHookRun) bestHookRun = hookRun;
+      hookRun = 0;
+      gapRun++;
+    }
+  }
+  if (hookRun > bestHookRun) bestHookRun = hookRun;
+  if (gapRun > bestGapRun) bestGapRun = gapRun;
+  const hookArcFraction = Math.min(bestHookRun, sectors) / sectors;
+  const gapFraction = Math.min(bestGapRun, sectors) / sectors;
+  const hasArc = hookArcFraction >= 0.25 && hookArcFraction <= 0.75;
+  const hasNotch = gapFraction >= 0.15;
+  if (!hasArc) return 0;
+  const notchBonus = hasNotch ? 0.2 : 0;
+  asymmetryScore = 1 - coreCompactness;
+  const intensityBonus = cell.dbz >= 55 ? 0.15 : cell.dbz >= 50 ? 0.1 : 0;
+  let score = (hookArcFraction * 0.4) + (asymmetryScore * 0.2) + notchBonus + intensityBonus;
+  const mv = S.stormMovement;
+  if (mv && mv.speed >= 15) score += 0.05;
+  if (_spcData && _spcData.watches) {
+    const inTorWatch = _spcData.watches.some(w => w.type === 'tornado' && _isPointInSpcWatch(cell.lat, cell.lng, w));
+    if (inTorWatch) score += 0.1;
+  }
+  const torWarn = (S.alerts || []).some(a => {
+    const ev = (a.properties?.event || '').toLowerCase();
+    if (!ev.includes('tornado warning')) return false;
+    const geom = a.geometry;
+    if (!geom || !geom.coordinates) return false;
+    return _pointInAlertPoly(cell.lat, cell.lng, geom);
+  });
+  if (torWarn) score += 0.15;
+  return Math.min(score, 1.0);
+}
+function _pointInAlertPoly(lat, lng, geom) {
+  try {
+    const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+    for (const poly of polys) {
+      const ring = poly[0];
+      if (!ring) continue;
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = ring[i][0], yi = ring[i][1];
+        const xj = ring[j][0], yj = ring[j][1];
+        if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+          inside = !inside;
+        }
+      }
+      if (inside) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+function _isPointInSpcWatch(lat, lng, watch) {
+  if (!watch.coords || !watch.coords.length) return false;
+  const ring = watch.coords;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][1], yi = ring[i][0];
+    const xj = ring[j][1], yj = ring[j][0];
+    if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+// ==========================================
+// SPC DATA (WATCHES, REPORTS, MESOSCALE DISCUSSIONS)
+// ==========================================
+let _spcData = { watches: null, reports: null, md: null, _lastFetch: 0 };
+async function fetchSPCData() {
+  if (!isUSLocation(S.lat, S.lon)) { _spcData.watches = []; _spcData.reports = []; _spcData.md = []; return; }
+  const now = Date.now();
+  if (now - _spcData._lastFetch < 300000 && _spcData.watches !== null) return;
+  _spcData._lastFetch = now;
+  await Promise.allSettled([_fetchSPCWatches(), _fetchSPCReports()]);
+}
+async function _fetchSPCWatches() {
+  try {
+    const res = await fetch('https://www.spc.noaa.gov/products/watch/ActiveWW.json', { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const watches = [];
+    const features = data.features || [];
+    for (const f of features) {
+      const p = f.properties || {};
+      const geom = f.geometry;
+      let coords = [];
+      if (geom && geom.type === 'Polygon') coords = geom.coordinates[0] || [];
+      else if (geom && geom.type === 'MultiPolygon') coords = (geom.coordinates[0] || [])[0] || [];
+      const type = (p.WATCH_TYPE || '').toLowerCase().includes('tornado') ? 'tornado' : 'severe';
+      const expStr = p.EXPIRATION || p.END_TIME || '';
+      let expTime = null;
+      if (expStr) { try { expTime = new Date(expStr).getTime(); } catch (e) {} }
+      if (expTime && expTime < Date.now()) continue;
+      const watchNum = p.WATCH_NUMBER || p.WW || '';
+      watches.push({
+        type,
+        number: watchNum,
+        issued: p.ISSUED || p.START_TIME || '',
+        expires: expStr,
+        expTime,
+        states: p.STATES || '',
+        coords: coords.map(c => [c[1], c[0]])
+      });
+    }
+    _spcData.watches = watches;
+  } catch (e) {
+    console.log('[SPC] Watch fetch error:', e.message);
+    if (!_spcData.watches) _spcData.watches = [];
+  }
+}
+async function _fetchSPCReports() {
+  try {
+    const today = new Date();
+    const ymd = today.getFullYear().toString().slice(2) + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
+    const csvUrl = `https://www.spc.noaa.gov/climo/reports/${ymd}_rpts_filtered.csv`;
+    const res = await fetch(csvUrl, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) {
+      _spcData.reports = [];
+      return;
+    }
+    const text = await res.text();
+    const lines = text.trim().split('\n');
+    const reports = [];
+    let currentType = null;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      if (line.startsWith('Time,') || line.startsWith('F_Scale,') || line.startsWith('Speed,') || line.startsWith('Size,')) {
+        if (line.startsWith('F_Scale,') || (i > 0 && lines[i - 1] && lines[i - 1].toLowerCase().includes('tornado'))) currentType = 'tornado';
+        else if (line.startsWith('Speed,') || (i > 0 && lines[i - 1] && lines[i - 1].toLowerCase().includes('wind'))) currentType = 'wind';
+        else if (line.startsWith('Size,') || (i > 0 && lines[i - 1] && lines[i - 1].toLowerCase().includes('hail'))) currentType = 'hail';
+        else if (line.startsWith('Time,')) currentType = 'tornado';
+        continue;
+      }
+      const cols = line.split(',');
+      if (cols.length < 6) continue;
+      const lat = parseFloat(cols[5]);
+      const lon = parseFloat(cols[6]);
+      if (isNaN(lat) || isNaN(lon)) continue;
+      const dist = haversine(S.lat, S.lon, lat, lon);
+      if (dist > 500) continue;
+      reports.push({
+        type: currentType || 'unknown',
+        time: cols[0] || '',
+        magnitude: cols[1] || '',
+        location: cols[2] || '',
+        county: cols[3] || '',
+        state: cols[4] || '',
+        lat, lon, dist,
+        comment: cols[7] || ''
+      });
+    }
+    reports.sort((a, b) => a.dist - b.dist);
+    _spcData.reports = reports;
+  } catch (e) {
+    console.log('[SPC] Reports fetch error:', e.message);
+    if (!_spcData.reports) _spcData.reports = [];
+  }
+}
+S._spcReportMarkers = [];
+function plotSPCReports(map) {
+  S._spcReportMarkers.forEach(m => { try { map.removeLayer(m); } catch (e) {} });
+  S._spcReportMarkers = [];
+  if (!_spcData.reports || !_spcData.reports.length || !S._showSPCReports) return;
+  const reports = _spcData.reports.filter(r => r.dist <= (S.scanRadius || 80) * 2);
+  for (const r of reports.slice(0, 50)) {
+    const icon = r.type === 'tornado' ? '🌪️' : r.type === 'hail' ? '🧊' : r.type === 'wind' ? '💨' : '⚠️';
+    const color = r.type === 'tornado' ? '#ff1744' : r.type === 'hail' ? '#00e5ff' : '#ff9800';
+    const label = r.type === 'tornado' ? 'Tornado' : r.type === 'hail' ? 'Hail (' + r.magnitude + '")' : 'Wind (' + r.magnitude + ' mph)';
+    const marker = L.marker([r.lat, r.lon], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="font-size:16px;text-shadow:0 0 4px ${color};filter:drop-shadow(0 0 3px ${color})">${icon}</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      })
+    });
+    marker.bindPopup(`<div style="text-align:center;font-family:system-ui;min-width:140px">
+      <div style="font-size:1.1em;font-weight:700;color:${color}">${icon} ${label}</div>
+      <div style="font-size:0.75em;color:#ccc;margin-top:4px">${r.location}, ${r.state}</div>
+      <div style="font-size:0.7em;color:#aaa;margin-top:2px">${r.time} UTC · ${Math.round(r.dist)} mi away</div>
+      ${r.comment ? '<div style="font-size:0.65em;color:#888;margin-top:4px;font-style:italic">' + r.comment + '</div>' : ''}
+    </div>`);
+    marker.addTo(map);
+    S._spcReportMarkers.push(marker);
+  }
+}
+S._showSPCReports = true;
+S._spcWatchPolys = [];
+function plotSPCWatchPolygons(map) {
+  S._spcWatchPolys.forEach(l => { try { map.removeLayer(l); } catch (e) {} });
+  S._spcWatchPolys = [];
+  if (!_spcData.watches || !_spcData.watches.length) return;
+  for (const w of _spcData.watches) {
+    if (!w.coords || w.coords.length < 3) continue;
+    const color = w.type === 'tornado' ? '#ff1744' : '#ff9800';
+    const poly = L.polygon(w.coords, {
+      color: color,
+      fillColor: color,
+      fillOpacity: 0.08,
+      weight: 2,
+      dashArray: '6,4',
+      interactive: false
+    });
+    poly.addTo(map);
+    S._spcWatchPolys.push(poly);
+  }
+}
+S._nwsWarnPolys = [];
+function plotNWSWarningPolygons(map) {
+  S._nwsWarnPolys.forEach(l => { try { map.removeLayer(l); } catch (e) {} });
+  S._nwsWarnPolys = [];
+  if (!S.alerts || !S.alerts.length) return;
+  for (const a of S.alerts) {
+    const ev = (a.properties?.event || '').toLowerCase();
+    const isTor = ev.includes('tornado warning');
+    const isSvr = ev.includes('severe thunderstorm warning');
+    if (!isTor && !isSvr) continue;
+    const geom = a.geometry;
+    if (!geom || !geom.coordinates) continue;
+    const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+    const color = isTor ? '#ff1744' : '#ff6d00';
+    for (const coords of polys) {
+      const ring = coords[0];
+      if (!ring || ring.length < 3) continue;
+      const latlngs = ring.map(c => [c[1], c[0]]);
+      const poly = L.polygon(latlngs, {
+        color: color,
+        fillColor: color,
+        fillOpacity: isTor ? 0.15 : 0.1,
+        weight: isTor ? 3 : 2,
+        interactive: false
+      });
+      poly.addTo(map);
+      S._nwsWarnPolys.push(poly);
+    }
+  }
+}
+// ==========================================
 // STORMS DISPLAY
 // ==========================================
 function _loadStormFilter(){
@@ -6560,10 +6870,12 @@ function renderStorms(){
       }
       const hex=dbzHex(s.dbz);
       const pulse=(s.dbz>=45)?'storm-card-pulse':'';
-      const cellIcon=s.dbz>=65?'‼️':s.dbz>=56?'🚨':s.dbz>=45?'⚠️':s.dbz>=40?'🟡':s.dbz>=30?'🟢':'🔵';
-      const cellName=s.dbz>=55?tStr('Severe Cell'):s.dbz>=40?tStr('Storm Cell'):tStr('Rain Cell');
-      return`<div class="storm-cell-card ${pulse}" style="border-color:${hex};--pulse-color:${hex}">
-        <div class="storm-header"><span style="font-weight:700">${cellIcon} ${cellName}</span><span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${tStr(cat.label)}</span></div>
+      const isHook=s._hookEcho;
+      const cellIcon=isHook?'🌪️':s.dbz>=65?'‼️':s.dbz>=56?'🚨':s.dbz>=45?'⚠️':s.dbz>=40?'🟡':s.dbz>=30?'🟢':'🔵';
+      const cellName=isHook?tStr('Possible Rotation'):s.dbz>=55?tStr('Severe Cell'):s.dbz>=40?tStr('Storm Cell'):tStr('Rain Cell');
+      const hookBadge=isHook?`<span class="hook-echo-badge">🌪️ Hook Echo</span>`:'';
+      return`<div class="storm-cell-card ${pulse}" style="border-color:${isHook?'#ff1744':hex};--pulse-color:${isHook?'#ff1744':hex}${isHook?';animation:tornado-pulse 1.8s ease-in-out infinite,storm-pulse 2.5s ease-in-out infinite':''}">
+        <div class="storm-header"><span style="font-weight:700">${cellIcon} ${cellName}</span>${hookBadge}<span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${tStr(cat.label)}</span></div>
         <div class="storm-detail-grid">
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Peak dBZ')}</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>
           <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Rain Rate')}</div><div class="storm-detail-val">${cat.rain}</div><div class="tile-tap">tap</div></div>
@@ -7448,6 +7760,7 @@ async function fetchAlerts(){
     const data=await res.json();S.alerts=data.features||[];renderAlerts();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){S.alerts=[];renderAlerts()}
   _extractFloodAlerts();
+  fetchSPCData().then(()=>{if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map)}});
   if(S.activePage==='alerts')renderHazards();
 }
 
@@ -7473,15 +7786,22 @@ function renderAlerts(){
     html+=`<div class="card"><div class="card-title"><span class="icon">⚠️</span> NWS Alerts (${S.alerts.length})</div>
     ${S.alerts.map((a,i)=>{
       const p=a.properties||{};const event=p.event||'Alert';const sev=(p.severity||'').toLowerCase();
-      const cls=(sev==='extreme'||sev==='severe')?'':sev==='moderate'?'watch':'advisory';
+      const evLow=event.toLowerCase();
+      const isTorWarn=evLow.includes('tornado warning');
+      const isSvrWarn=evLow.includes('severe thunderstorm warning');
+      let cls=(sev==='extreme'||sev==='severe')?'':sev==='moderate'?'watch':'advisory';
+      if(isTorWarn)cls='tornado-warning';
+      else if(isSvrWarn)cls='svr-warning';
       const desc=(p.description||'').replace(/\n/g,'<br>');
-      const sevIcon=sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
+      const sevIcon=isTorWarn?'🌪️':isSvrWarn?'⛈️':sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
       return`<div class="nws-alert ${cls}"><div class="nws-alert-title">${sevIcon} ${event}</div><div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${p.expires?`<div class="nws-alert-expires">⏱️ <span id="alert-cd-${i}" data-exp="${new Date(p.expires).getTime()}"></span></div>`:''}</div>`;
     }).join('')}</div>`;
   }else{
     html+=`<div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">No Active NWS Alerts</span><br>No NWS warnings or watches for your area.</div></div>
       <div style="font-size:0.7em;color:var(--text-muted);text-align:center;padding:10px">NWS alerts cover US locations only.</div>`;
   }
+  html+=_renderSPCWatchSection();
+  html+=_renderSPCReportsSection();
   const hist=_wxAlertHistory.slice().reverse();
   html+=`<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🔔</span> Station Alerts${hist.length?' ('+hist.length+')':''}</span>${hist.length?'<button onclick="clearWxAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':''}</div>`;
   if(!hist.length){
@@ -7597,7 +7917,8 @@ async function fetchHazards(){
     _fetchWildfires(),
     isUS?_fetchDrought():Promise.resolve(),
     isUS?_fetchRiverGauges():Promise.resolve(),
-    _fetchRecentPrecip()
+    _fetchRecentPrecip(),
+    isUS?fetchSPCData():Promise.resolve()
   ]);
   if(S.activePage==='alerts')renderHazards();
 }
@@ -7725,6 +8046,86 @@ async function _fetchRiverGauges(){
   }catch(e){_hazardData.riverGauges=[];console.log('River gauge fetch error:',e.message)}
 }
 
+function _renderSPCWatchSection(){
+  if (!isUSLocation(S.lat, S.lon)) return '';
+  const watches = _spcData.watches;
+  if (!watches || !watches.length) {
+    return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌪️</span> SPC Watches</div>
+      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No active SPC watches for the US</div></div>`;
+  }
+  const userWatches = watches.filter(w => _isPointInSpcWatch(S.lat, S.lon, w));
+  const otherWatches = watches.filter(w => !_isPointInSpcWatch(S.lat, S.lon, w));
+  let html = `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌪️</span> SPC Watches (${watches.length})</div>`;
+  if (userWatches.length) {
+    html += `<div class="alert-banner danger" style="margin-bottom:8px;border-left:4px solid ${userWatches.some(w => w.type === 'tornado') ? '#ff1744' : '#ff9800'}"><span class="alert-icon">${userWatches.some(w => w.type === 'tornado') ? '🌪️' : '⛈️'}</span><div class="alert-text"><span class="alert-title">You are in a ${userWatches.some(w => w.type === 'tornado') ? 'TORNADO' : 'SEVERE THUNDERSTORM'} WATCH</span><br>Conditions are favorable for severe weather in your area.</div></div>`;
+  }
+  const allW = [...userWatches, ...otherWatches];
+  allW.forEach(w => {
+    const isTor = w.type === 'tornado';
+    const cls = isTor ? 'tor-watch' : 'svr-watch';
+    const icon = isTor ? '🌪️' : '⛈️';
+    const label = isTor ? 'Tornado Watch' : 'Severe Thunderstorm Watch';
+    const inArea = _isPointInSpcWatch(S.lat, S.lon, w);
+    let expStr = '';
+    if (w.expTime) {
+      const remain = w.expTime - Date.now();
+      if (remain > 0) {
+        const hrs = Math.floor(remain / 3600000);
+        const mins = Math.floor((remain % 3600000) / 60000);
+        expStr = hrs > 0 ? hrs + 'h ' + mins + 'm remaining' : mins + 'm remaining';
+      }
+    }
+    html += `<div class="spc-watch-card ${cls}">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="font-size:1.1em">${icon}</span>
+        <span style="font-weight:700;font-size:0.9em;color:${isTor ? '#ff1744' : '#ff9800'}">${label} #${w.number}</span>
+        ${inArea ? '<span style="font-size:0.6em;background:rgba(255,23,68,0.2);color:#ff4444;padding:1px 6px;border-radius:8px;font-weight:700">YOUR AREA</span>' : ''}
+      </div>
+      <div style="font-size:0.75em;color:var(--text-secondary)">${w.states || ''}</div>
+      ${expStr ? `<div style="font-size:0.7em;color:var(--text-muted);margin-top:2px">⏱️ ${expStr}</div>` : ''}
+    </div>`;
+  });
+  html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NOAA Storm Prediction Center</div></div>`;
+  return html;
+}
+function _renderSPCReportsSection(){
+  if (!isUSLocation(S.lat, S.lon)) return '';
+  const reports = _spcData.reports;
+  if (!reports || !reports.length) {
+    return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">📋</span> SPC Storm Reports (Today)</div>
+      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No severe weather reports today nearby</div></div>`;
+  }
+  const nearby = reports.filter(r => r.dist <= 200);
+  if (!nearby.length) {
+    return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">📋</span> SPC Storm Reports (Today)</div>
+      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No severe weather reports within 200 mi today</div></div>`;
+  }
+  const tornadoes = nearby.filter(r => r.type === 'tornado');
+  const hail = nearby.filter(r => r.type === 'hail');
+  const wind = nearby.filter(r => r.type === 'wind');
+  let html = `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">📋</span> SPC Storm Reports (${nearby.length} today)</div>`;
+  const summary = [];
+  if (tornadoes.length) summary.push(`🌪️ ${tornadoes.length} tornado${tornadoes.length > 1 ? 'es' : ''}`);
+  if (hail.length) summary.push(`🧊 ${hail.length} hail`);
+  if (wind.length) summary.push(`💨 ${wind.length} wind`);
+  html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;padding:0 4px">${summary.map(s => `<span style="font-size:0.75em;font-weight:600;color:var(--text-secondary)">${s}</span>`).join('<span style="color:var(--text-muted)">·</span>')}</div>`;
+  nearby.slice(0, 15).forEach(r => {
+    const icon = r.type === 'tornado' ? '🌪️' : r.type === 'hail' ? '🧊' : '💨';
+    const color = r.type === 'tornado' ? '#ff1744' : r.type === 'hail' ? '#00e5ff' : '#ff9800';
+    const label = r.type === 'tornado' ? 'Tornado' : r.type === 'hail' ? `Hail (${r.magnitude}")` : `Wind (${r.magnitude} mph)`;
+    const distStr = S.radarMetric ? Math.round(r.dist * 1.60934) + ' km' : Math.round(r.dist) + ' mi';
+    html += `<div style="padding:6px 8px;border-left:3px solid ${color};background:${color}08;border-radius:0 6px 6px 0;margin-bottom:4px;font-size:0.75em">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span>${icon}</span>
+        <span style="font-weight:700;color:var(--text-primary)">${label}</span>
+        <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">${distStr} · ${r.time} UTC</span>
+      </div>
+      <div style="font-size:0.9em;color:var(--text-secondary);margin-top:2px">${r.location}, ${r.state}${r.comment ? ' — ' + r.comment : ''}</div>
+    </div>`;
+  });
+  html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NOAA Storm Prediction Center · Today's reports</div></div>`;
+  return html;
+}
 function _extractFloodAlerts(){
   const floodEvents=['Flood','Flash Flood','Coastal Flood','Storm Surge','River Flood','Lakeshore Flood','Hydrologic'];
   const fireEvents=['Fire Weather','Red Flag','Fire'];
@@ -7796,6 +8197,18 @@ function _renderHazardSummary(){
   if(isUS){
     const droughtStatus=_getDroughtStatus(dr);
     items.push(droughtStatus);
+    const spcW=_spcData.watches;
+    const hookCount=(S.storms||[]).filter(s=>s._hookEcho).length;
+    if(!spcW)items.push({icon:'🔄',label:'Severe Wx',status:'Loading...',color:'#666'});
+    else if(!spcW.length&&!hookCount)items.push({icon:'✅',label:'Severe Wx',status:'Clear',color:'#22c55e'});
+    else{
+      const torW=spcW.filter(w=>w.type==='tornado').length;
+      const svrW=spcW.filter(w=>w.type!=='tornado').length;
+      const parts=[];
+      if(torW)parts.push(`${torW} TOR`);if(svrW)parts.push(`${svrW} SVR`);if(hookCount)parts.push(`${hookCount} rotation`);
+      const topColor=torW||hookCount?'#ff1744':svrW?'#ff9800':'#eab308';
+      items.push({icon:torW||hookCount?'🌪️':'⛈️',label:'Severe Wx',status:parts.join(' · '),color:topColor});
+    }
   }
   const cols=items.length<=3?'1fr 1fr 1fr':'1fr 1fr';
   let html=`<div style="display:grid;grid-template-columns:${cols};gap:6px;margin-bottom:12px">`;
@@ -9376,8 +9789,6 @@ function renderTerrain3D(){
   }
 }
 
-function updateIsoBillboard(){}
-function updateIsoCompass(){}
 function buildHeadingStrip(){
   const track=document.getElementById('iso-hstrip-track');
   if(!track)return;
