@@ -104,7 +104,7 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## Primary Working Version (docs/ Static Site)
 
-The primary working version of StormTracker is the static HTML site in `docs/`, served via GitHub Pages at CAPFlyingFun/StormTracker. Current version: **v2.40**.
+The primary working version of StormTracker is the static HTML site in `docs/`, served via GitHub Pages at CAPFlyingFun/StormTracker. Current version: **v2.41**.
 
 Key files: `docs/index.html`, `docs/js/app.js`, `docs/css/style.css`, `docs/sw.js`, `docs/manifest.json`.
 

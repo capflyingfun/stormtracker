@@ -2027,6 +2027,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.41',date:'2026-03-26',items:['🌀 Hurricane Tracking — NHC active tropical cyclone monitoring (Atlantic + E. Pacific) with 15-min cache','🌀 Tropical Cyclones UI — Weather page section with Saffir-Simpson category scale, wind/pressure/movement details, proximity distance','🗺️ Hurricane Map Overlay — toggleable 🌀 button plots storm positions with category-colored markers, name labels, pulse rings','🌊 Storm Surge Section — Alerts page shows NWS storm surge warnings/coastal flood alerts with expected surge heights','📊 Tropical Hazard Summary — new "Tropical" tile in Environmental Hazards summary grid with active/near counts','⚠️ Proximity Alerting — push notification + toast when tropical cyclone within 200 mi (hourly cooldown)','🔗 NHC RSS Integration — parses NHC Atlantic/E. Pacific RSS feeds for storm positions, winds, pressure, movement']},
   {ver:'v2.39b',date:'2026-03-26',items:['📱 PWA Install Prompt — custom install banner with "Not now" dismiss (7-day cooldown)','📡 Offline Detection — amber banner with cached data age, stale-data labels on weather & hazard cards','🔔 Notification Permission — friendly in-app modal replaces raw browser popup','🔊 Enhanced SW Notifications — storm alerts get stronger vibration, requireInteraction, and action buttons','🤖 Android TWA — Bubblewrap config + Digital Asset Links for building native Android APK','🧭 Manifest polished — portrait orientation, categories=["weather"]']},
   {ver:'v2.39a',date:'2026-03-26',items:['🐛 Drought fix — removed _extractUSState() dependency from _fetchDrought() that caused US-only error for valid US coordinates','WMS query is coordinate-based and doesn\'t need state code extraction']},
   {ver:'v2.39',date:'2026-03-26',items:['🌋 Volcano Monitoring — NASA EONET active volcanoes within 500mi radius','🌍 Global Hazard Support — region-aware fetchHazards() hides Flood/Drought for non-US locations','🔥 Dual Wildfire Sources — NIFC perimeters (US) + NASA EONET wildfires (global)','🌧️ Precipitation-Only Section — replaces drought monitor for non-US locations','📊 Adaptive Summary Grid — adjusts columns based on available hazard types']},
@@ -2824,10 +2825,34 @@ function renderWeather(data){
       </div>
       <div id="mini-sonar-info" style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:4px"></div>
     </div>
-    ${order.map(k=>sections[k]||'').join('')}`;
+    ${order.map(k=>sections[k]||'').join('')}
+    <div id="wx-tropical-section"></div>`;
   setTimeout(initPrecipTaps,0);
   setTimeout(()=>{startSonarSweep();_syncSonarZoomBtns()},50);
   if(!S._skipWindRestart) startWindSim();
+  _updateTropicalUI();
+}
+function _updateTropicalUI(){
+  const el=document.getElementById('wx-tropical-section');
+  if(!el)return;
+  el.innerHTML=_renderTropicalSection();
+}
+function _renderTropicalHazardSection(){
+  const nhc=_nhcData.systems;
+  if(!nhc||!nhc.length)return '';
+  const nearStorms=nhc.filter(s=>s.dist!=null&&s.dist<=500);
+  if(!nearStorms.length)return '';
+  let html=`<div style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:8px"><div style="font-size:0.8em;font-weight:700;color:#9333EA;margin-bottom:6px">🌀 Tropical Cyclones Nearby</div>`;
+  nearStorms.forEach(s=>{
+    const cat=s.category||_saffirSimpson(s.maxWind);
+    const distStr=s.dist!=null?Math.round(s.dist)+' mi':'?';
+    html+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${cat.color}0a;border-left:3px solid ${cat.color};border-radius:0 6px 6px 0;margin-bottom:4px">
+      <span style="font-size:1em">🌀</span>
+      <div style="flex:1"><div style="font-size:0.75em;font-weight:700;color:var(--text-primary)">${s.type} ${s.name}</div><div style="font-size:0.6em;color:${cat.color};font-weight:600">${cat.label} · ${distStr}</div></div>
+      ${s.maxWind?`<div style="font-size:0.7em;font-weight:700;color:${cat.color}">${s.maxWind} mph</div>`:''}</div>`;
+  });
+  html+=`</div>`;
+  return html;
 }
 function drawMiniSonar(){
   const canvas=document.getElementById('mini-sonar-canvas');
@@ -3755,6 +3780,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff9800" onclick="toggleRadarOverlay()">RDR</div>
         <div class="map-ctrl-btn" id="btn-mping" title="Toggle mPING reports" style="font-size:0.55em;font-weight:700;line-height:1;color:#4fc3f7" onclick="toggleMping()">mP</div>
         <div class="map-ctrl-btn" id="btn-alert-polys" title="Toggle NWS alert polygons" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff4444" onclick="toggleAlertPolygons()">⚠</div>
+        <div class="map-ctrl-btn" id="btn-nhc-tracks" title="Toggle hurricane tracks" style="font-size:0.55em;font-weight:700;line-height:1;color:#9333EA" onclick="toggleNHCTracks(!S._showNHCTracks)">🌀</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
         <div class="map-ctrl-btn" id="btn-iso-3d" title="3D Storm Terrain" style="font-size:0.55em;font-weight:700;line-height:1;color:#66ffcc" onclick="show3DView()">3D</div>
         <div class="map-ctrl-btn" id="clutter-toggle" title="Clutter hidden (tap to show)" style="font-size:0.7em;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);border-color:#555" onclick="toggleClutter()">🕳️</div>
@@ -6281,7 +6307,7 @@ async function scanRadarForStorms(){
     renderStorms();updateStormBadges();drawMiniSonar();
     if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
-    if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map)}
+    if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map);plotNHCTracks(S.map)}
     updateThreatTicker();
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
@@ -6822,6 +6848,251 @@ function plotNWSWarningPolygons(map) {
       poly.addTo(map);
       S._nwsWarnPolys.push(poly);
     }
+  }
+}
+// ==========================================
+// NHC TROPICAL CYCLONE TRACKING
+// ==========================================
+const _nhcData = { systems: null, _lastFetch: 0 };
+S._nhcTrackLayers = [];
+S._showNHCTracks = (() => { try { const v = localStorage.getItem('st_nhc_tracks'); return v === null ? true : v === '1'; } catch(e) { return true; } })();
+async function fetchNHCData() {
+  const now = Date.now();
+  if (now - _nhcData._lastFetch < 900000 && _nhcData.systems !== null) return;
+  _nhcData._lastFetch = now;
+  try {
+    const [atRes, epRes] = await Promise.allSettled([
+      fetch('https://www.nhc.noaa.gov/CurrentSurges.json', { signal: AbortSignal.timeout(10000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+      _fetchNHCActiveStorms()
+    ]);
+    const surgeData = atRes.status === 'fulfilled' ? atRes.value : null;
+    const storms = epRes.status === 'fulfilled' ? epRes.value : [];
+    if (surgeData && surgeData.activeStorms) {
+      for (const surge of surgeData.activeStorms) {
+        const existing = storms.find(s => s.id === surge.id || s.name === surge.name);
+        if (existing) { existing.surgeData = surge; }
+      }
+    }
+    _nhcData.systems = storms;
+    _nhcData.surgeRaw = surgeData;
+    console.log('[NHC] Tropical systems:', storms.length);
+  } catch (e) {
+    console.log('[NHC] Fetch error:', e.message);
+    if (!_nhcData.systems) _nhcData.systems = [];
+  }
+}
+async function _fetchNHCActiveStorms() {
+  const storms = [];
+  const basins = [
+    { code: 'at', url: 'https://www.nhc.noaa.gov/index-at.xml', prefix: 'AL' },
+    { code: 'ep', url: 'https://www.nhc.noaa.gov/index-ep.xml', prefix: 'EP' }
+  ];
+  for (const basin of basins) {
+    try {
+      const res = await fetch(basin.url, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) continue;
+      const text = await res.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, 'text/xml');
+      const items = doc.querySelectorAll('item');
+      const seen = new Set();
+      items.forEach(item => {
+        const title = item.querySelector('title')?.textContent || '';
+        const desc = item.querySelector('description')?.textContent || '';
+        const link = item.querySelector('link')?.textContent || '';
+        const stormMatch = title.match(/(Hurricane|Tropical Storm|Tropical Depression|Post-Tropical|Subtropical|Remnants of)\s+(.+?)(?:\s+(?:Advisory|Forecast|Update|Graphics|Key Messages))/i);
+        if (!stormMatch) return;
+        const stormType = stormMatch[1];
+        const stormName = stormMatch[2].trim();
+        if (seen.has(stormName)) return;
+        seen.add(stormName);
+        const latMatch = desc.match(/(\d+\.?\d*)\s*°?\s*([NS])/i);
+        const lonMatch = desc.match(/(\d+\.?\d*)\s*°?\s*([EW])/i);
+        const windMatch = desc.match(/(?:Max(?:imum)?\s+)?(?:sustained\s+)?winds?[:\s]+(\d+)\s*(?:mph|kt)/i);
+        const pressMatch = desc.match(/(?:min(?:imum)?\s+)?(?:central\s+)?pressure[:\s]+(\d+)\s*mb/i);
+        const moveMatch = desc.match(/(?:moving|headed?)\s+(\w+)\s+(?:at\s+)?(\d+)\s*(?:mph|kt)/i);
+        const gustMatch = desc.match(/gusts?\s+(?:up\s+to\s+)?(\d+)\s*(?:mph|kt)/i);
+        let lat = null, lon = null;
+        if (latMatch) lat = parseFloat(latMatch[1]) * (latMatch[2].toUpperCase() === 'S' ? -1 : 1);
+        if (lonMatch) lon = parseFloat(lonMatch[1]) * (lonMatch[2].toUpperCase() === 'W' ? -1 : 1);
+        const maxWind = windMatch ? parseInt(windMatch[1]) : null;
+        const minPressure = pressMatch ? parseInt(pressMatch[1]) : null;
+        const category = _saffirSimpson(maxWind);
+        const moveDir = moveMatch ? moveMatch[1] : null;
+        const moveSpeed = moveMatch ? parseInt(moveMatch[2]) : null;
+        const gusts = gustMatch ? parseInt(gustMatch[1]) : null;
+        const dist = (lat !== null && lon !== null) ? haversine(S.lat, S.lon, lat, lon) : null;
+        const idMatch = link.match(/\/([AE][LP]\d{6})/i);
+        const stormId = idMatch ? idMatch[1].toUpperCase() : basin.prefix + stormName.substring(0, 4).toUpperCase();
+        storms.push({
+          id: stormId, name: stormName, type: stormType, basin: basin.code,
+          lat, lon, maxWind, gusts, minPressure, category,
+          moveDir, moveSpeed, dist,
+          link, surgeData: null
+        });
+      });
+    } catch (e) {
+      console.log('[NHC] Basin ' + basin.code + ' fetch error:', e.message);
+    }
+  }
+  storms.sort((a, b) => (a.dist || 99999) - (b.dist || 99999));
+  return storms;
+}
+function _saffirSimpson(windMph) {
+  if (!windMph) return { cat: 'Unknown', label: 'Unknown', color: '#888', num: -1 };
+  if (windMph >= 157) return { cat: 'Cat 5', label: 'Category 5', color: '#ff1744', num: 5 };
+  if (windMph >= 130) return { cat: 'Cat 4', label: 'Category 4', color: '#ff5722', num: 4 };
+  if (windMph >= 111) return { cat: 'Cat 3', label: 'Category 3', color: '#ff9800', num: 3 };
+  if (windMph >= 96) return { cat: 'Cat 2', label: 'Category 2', color: '#ffc107', num: 2 };
+  if (windMph >= 74) return { cat: 'Cat 1', label: 'Category 1', color: '#ffeb3b', num: 1 };
+  if (windMph >= 39) return { cat: 'TS', label: 'Tropical Storm', color: '#4fc3f7', num: 0 };
+  return { cat: 'TD', label: 'Tropical Depression', color: '#90caf9', num: -1 };
+}
+function _renderTropicalSection() {
+  const systems = _nhcData.systems;
+  if (!systems || !systems.length) {
+    return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
+      <div style="text-align:center;padding:16px;color:var(--accent-green);font-size:0.8em">✅ No active tropical systems (Atlantic/E. Pacific)</div>
+      <div style="font-size:0.6em;color:var(--text-muted);text-align:center;padding:0 8px 8px">Data: National Hurricane Center (NHC)</div></div>`;
+  }
+  let html = `<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🌀</span> Tropical Cyclones (${systems.length})</span><label style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${S._showNHCTracks ? 'checked' : ''} onchange="toggleNHCTracks(this.checked)" style="accent-color:var(--accent-cyan)"></label></div>`;
+  const catScale = `<div style="display:flex;gap:2px;margin-bottom:8px;padding:0 4px;flex-wrap:wrap">
+    <span style="font-size:0.55em;padding:1px 5px;border-radius:4px;background:#90caf920;color:#90caf9;font-weight:600">TD</span>
+    <span style="font-size:0.55em;padding:1px 5px;border-radius:4px;background:#4fc3f720;color:#4fc3f7;font-weight:600">TS</span>
+    <span style="font-size:0.55em;padding:1px 5px;border-radius:4px;background:#ffeb3b20;color:#ffeb3b;font-weight:600">Cat 1</span>
+    <span style="font-size:0.55em;padding:1px 5px;border-radius:4px;background:#ffc10720;color:#ffc107;font-weight:600">Cat 2</span>
+    <span style="font-size:0.55em;padding:1px 5px;border-radius:4px;background:#ff980020;color:#ff9800;font-weight:600">Cat 3</span>
+    <span style="font-size:0.55em;padding:1px 5px;border-radius:4px;background:#ff572220;color:#ff5722;font-weight:600">Cat 4</span>
+    <span style="font-size:0.55em;padding:1px 5px;border-radius:4px;background:#ff174420;color:#ff1744;font-weight:600">Cat 5</span>
+  </div>`;
+  html += catScale;
+  systems.forEach((s, idx) => {
+    const cat = s.category || _saffirSimpson(s.maxWind);
+    const distStr = s.dist != null ? (S.radarMetric ? Math.round(s.dist * 1.60934) + ' km' : Math.round(s.dist) + ' mi') : 'Unknown';
+    const bearing = (s.lat != null && s.lon != null) ? degToDir(bearingDeg(S.lat, S.lon, s.lat, s.lon)) : '';
+    const isNear = s.dist != null && s.dist <= 500;
+    html += `<div style="padding:10px;border-left:4px solid ${cat.color};background:${cat.color}08;border-radius:0 8px 8px 0;margin-bottom:8px${isNear ? ';border:1px solid ' + cat.color + '44' : ''}" onclick="if(S.map&&${s.lat}!=null){S.map.setView([${s.lat},${s.lon}],6);switchPage('storms')}" style="cursor:pointer">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:1.3em">🌀</span>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:0.95em;color:var(--text-primary)">${s.type} ${s.name}</div>
+          <div style="font-size:0.7em;color:${cat.color};font-weight:700">${cat.label}${cat.num >= 1 ? ' (Category ' + cat.num + ')' : ''}</div>
+        </div>
+        <div style="text-align:right;font-size:0.75em">
+          <div style="color:var(--text-muted)">${distStr}</div>
+          <div style="color:var(--text-muted);font-size:0.85em">${bearing}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px">
+        ${s.maxWind != null ? `<div style="text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase">Max Wind</div><div style="font-size:0.9em;font-weight:700;color:${cat.color}">${s.maxWind} mph${s.gusts ? '<span style="font-size:0.7em;color:var(--text-muted)"> G' + s.gusts + '</span>' : ''}</div></div>` : ''}
+        ${s.minPressure != null ? `<div style="text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase">Pressure</div><div style="font-size:0.9em;font-weight:700;color:var(--text-primary)">${s.minPressure} mb</div></div>` : ''}
+        ${s.moveDir ? `<div style="text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase">Movement</div><div style="font-size:0.9em;font-weight:700;color:var(--text-primary)">${s.moveDir}${s.moveSpeed ? ' ' + s.moveSpeed + ' mph' : ''}</div></div>` : ''}
+      </div>
+      ${s.lat != null ? `<div style="font-size:0.65em;color:var(--text-muted);margin-top:4px">📍 ${Math.abs(s.lat).toFixed(1)}°${s.lat >= 0 ? 'N' : 'S'}, ${Math.abs(s.lon).toFixed(1)}°${s.lon >= 0 ? 'E' : 'W'} · Basin: ${s.basin === 'at' ? 'Atlantic' : 'E. Pacific'}</div>` : ''}
+    </div>`;
+  });
+  html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: National Hurricane Center (NHC) · 15-min cache</div></div>`;
+  return html;
+}
+function toggleNHCTracks(on) {
+  S._showNHCTracks = on;
+  try { localStorage.setItem('st_nhc_tracks', on ? '1' : '0'); } catch(e) {}
+  if (S.map) plotNHCTracks(S.map);
+  toast(on ? 'Hurricane tracks shown on map' : 'Hurricane tracks hidden');
+}
+function plotNHCTracks(map) {
+  S._nhcTrackLayers.forEach(l => { try { map.removeLayer(l); } catch(e) {} });
+  S._nhcTrackLayers = [];
+  if (!S._showNHCTracks || !_nhcData.systems || !_nhcData.systems.length) return;
+  for (const s of _nhcData.systems) {
+    if (s.lat == null || s.lon == null) continue;
+    const cat = s.category || _saffirSimpson(s.maxWind);
+    const marker = L.circleMarker([s.lat, s.lon], {
+      radius: cat.num >= 3 ? 12 : cat.num >= 1 ? 10 : 8,
+      color: cat.color,
+      fillColor: cat.color,
+      fillOpacity: 0.5,
+      weight: 3
+    });
+    marker.bindPopup(`<div style="text-align:center;font-family:system-ui;min-width:160px">
+      <div style="font-size:1.2em;font-weight:700;color:${cat.color}">🌀 ${s.type} ${s.name}</div>
+      <div style="font-size:0.85em;font-weight:600;color:${cat.color}">${cat.label}</div>
+      ${s.maxWind ? `<div style="font-size:0.8em;margin-top:4px">💨 Max Wind: <b>${s.maxWind} mph</b>${s.gusts ? ' (G' + s.gusts + ')' : ''}</div>` : ''}
+      ${s.minPressure ? `<div style="font-size:0.8em">🔵 Pressure: <b>${s.minPressure} mb</b></div>` : ''}
+      ${s.moveDir ? `<div style="font-size:0.8em">➡️ Moving: <b>${s.moveDir} ${s.moveSpeed || ''} mph</b></div>` : ''}
+      ${s.dist != null ? `<div style="font-size:0.75em;color:#aaa;margin-top:4px">${Math.round(s.dist)} mi from you</div>` : ''}
+    </div>`);
+    marker.addTo(map);
+    S._nhcTrackLayers.push(marker);
+    const labelIcon = L.divIcon({
+      className: '',
+      html: `<div style="font-size:10px;font-weight:700;color:${cat.color};text-shadow:0 0 4px rgba(0,0,0,0.9),0 0 8px rgba(0,0,0,0.7);white-space:nowrap;pointer-events:none">${s.name}</div>`,
+      iconSize: [80, 14], iconAnchor: [-8, 7]
+    });
+    const label = L.marker([s.lat, s.lon], { icon: labelIcon, interactive: false });
+    label.addTo(map);
+    S._nhcTrackLayers.push(label);
+    if (cat.num >= 0) {
+      const pulseR = cat.num >= 3 ? 30 : cat.num >= 1 ? 22 : 16;
+      const pulse = L.circleMarker([s.lat, s.lon], {
+        radius: pulseR, color: cat.color, fillColor: cat.color,
+        fillOpacity: 0.1, weight: 1, dashArray: '4,4', interactive: false,
+        className: 'nhc-pulse-ring'
+      });
+      pulse.addTo(map);
+      S._nhcTrackLayers.push(pulse);
+    }
+  }
+}
+function _renderStormSurgeSection() {
+  const surgeAlerts = (S.alerts || []).filter(a => {
+    const ev = (a.properties?.event || '').toLowerCase();
+    return ev.includes('storm surge') || ev.includes('coastal flood') || (ev.includes('hurricane') && ev.includes('warning'));
+  });
+  if (!surgeAlerts.length) return '';
+  let html = `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌊</span> Storm Surge & Coastal Flooding (${surgeAlerts.length})</div>`;
+  surgeAlerts.forEach(a => {
+    const p = a.properties || {};
+    const ev = p.event || 'Storm Surge Alert';
+    const desc = (p.description || '');
+    const surgeMatch = desc.match(/(\d+[\.\d]*)\s*(?:to\s*(\d+[\.\d]*))?\s*(?:feet|ft)\s*(?:above|of\s+storm\s+surge)/i);
+    const surgeStr = surgeMatch ? (surgeMatch[2] ? surgeMatch[1] + '-' + surgeMatch[2] + ' ft' : surgeMatch[1] + ' ft') : null;
+    const inZone = isUserInAlertZone(a);
+    const isSurgeWarn = ev.toLowerCase().includes('storm surge warning');
+    html += `<div style="padding:8px 10px;border-left:4px solid ${isSurgeWarn ? '#3b82f6' : '#06b6d4'};background:${isSurgeWarn ? 'rgba(59,130,246,0.06)' : 'rgba(6,182,212,0.06)'};border-radius:0 8px 8px 0;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="font-size:1.1em">🌊</span>
+        <span style="font-weight:700;font-size:0.85em;color:${isSurgeWarn ? '#3b82f6' : '#06b6d4'}">${ev}</span>
+        ${inZone ? '<span style="font-size:0.6em;background:rgba(59,130,246,0.2);color:#60a5fa;padding:1px 6px;border-radius:8px;font-weight:700;animation:tornado-pulse 2s ease-in-out infinite">YOUR AREA</span>' : ''}
+      </div>
+      ${surgeStr ? `<div style="font-size:0.85em;font-weight:700;color:#3b82f6;margin-bottom:4px">⬆️ Expected surge: ${surgeStr} above normal tide levels</div>` : ''}
+      <div style="font-size:0.7em;color:var(--text-secondary);max-height:80px;overflow:hidden;text-overflow:ellipsis">${desc.substring(0, 300)}${desc.length > 300 ? '...' : ''}</div>
+      ${p.expires ? `<div style="font-size:0.65em;color:var(--text-muted);margin-top:4px">⏱️ Expires: ${new Date(p.expires).toLocaleString()}</div>` : ''}
+    </div>`;
+  });
+  html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: National Weather Service</div></div>`;
+  return html;
+}
+function _nhcProximityCheck() {
+  if (!_nhcData.systems || !_nhcData.systems.length || !S.lat) return;
+  const threshold = 200;
+  for (const s of _nhcData.systems) {
+    if (s.dist == null || s.dist > threshold) continue;
+    const cat = s.category || _saffirSimpson(s.maxWind);
+    const key = 'nhc_alert_' + s.name + '_' + Math.floor(Date.now() / 3600000);
+    if (sessionStorage.getItem(key)) continue;
+    sessionStorage.setItem(key, '1');
+    const msg = `🌀 ${s.type} ${s.name} (${cat.label}) is ${Math.round(s.dist)} mi from your location!`;
+    toast(msg, 8000);
+    try {
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'WX_THRESHOLD_ALERT',
+          title: '🌀 Tropical Cyclone Alert',
+          body: msg
+        });
+      }
+    } catch (e) {}
   }
 }
 // ==========================================
@@ -7870,6 +8141,7 @@ async function fetchAlerts(){
   }catch(e){S.alerts=[];renderAlerts()}
   _extractFloodAlerts();
   fetchSPCData().then(()=>{if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map)}});
+  fetchNHCData().then(()=>{if(S.map)plotNHCTracks(S.map);_nhcProximityCheck();if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.activePage==='weather')_updateTropicalUI()});
   if(S.activePage==='alerts')renderHazards();
 }
 
@@ -7913,6 +8185,8 @@ function renderAlerts(){
     html+=`<div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">No Active NWS Alerts</span><br>No NWS warnings or watches for your area.</div></div>
       <div style="font-size:0.7em;color:var(--text-muted);text-align:center;padding:10px">NWS alerts cover US locations only.</div>`;
   }
+  html+=_renderStormSurgeSection();
+  html+=_renderTropicalSection();
   html+=_renderSPCWatchSection();
   html+=_renderSPCMDSection();
   html+=_renderSPCReportsSection();
@@ -8032,7 +8306,8 @@ async function fetchHazards(){
     isUS?_fetchDrought():Promise.resolve(),
     isUS?_fetchRiverGauges():Promise.resolve(),
     _fetchRecentPrecip(),
-    isUS?fetchSPCData():Promise.resolve()
+    isUS?fetchSPCData():Promise.resolve(),
+    fetchNHCData()
   ]);
   if(S.activePage==='alerts')renderHazards();
 }
@@ -8298,6 +8573,7 @@ function renderHazards(){
     <div class="card-title"><span class="icon">🌍</span> Environmental Hazards</div>
     <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">Real-time hazard monitoring from ${sources}</div>${_hzStale}`;
   html+=_renderHazardSummary();
+  html+=_renderTropicalHazardSection();
   html+=_renderEarthquakeSection();
   html+=_renderVolcanoSection();
   if(isUS)html+=_renderFloodSection();
@@ -8364,6 +8640,16 @@ function _renderHazardSummary(){
         items.push({icon:localTor||hookCount?'🌪️':'⛈️',label:'Severe Wx',status:parts.join(' · '),color:topColor});
       }
     }
+  }
+  const nhc=_nhcData.systems;
+  if(nhc===null)items.push({icon:'🔄',label:'Tropical',status:'Loading...',color:'#666'});
+  else if(!nhc.length)items.push({icon:'✅',label:'Tropical',status:'Clear',color:'#22c55e'});
+  else{
+    const nearCount=nhc.filter(s=>s.dist!=null&&s.dist<=500).length;
+    const maxCat=Math.max(...nhc.map(s=>(s.category||{num:-1}).num));
+    const topColor=maxCat>=3?'#ff5722':maxCat>=1?'#ffc107':'#4fc3f7';
+    const icon=maxCat>=3?'🔴':maxCat>=1?'🌀':'🌀';
+    items.push({icon,label:'Tropical',status:nearCount?`${nhc.length} active · ${nearCount} near`:`${nhc.length} active`,color:topColor});
   }
   const cols=items.length<=3?'1fr 1fr 1fr':'1fr 1fr';
   let html=`<div style="display:grid;grid-template-columns:${cols};gap:6px;margin-bottom:12px">`;
