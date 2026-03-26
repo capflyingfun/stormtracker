@@ -2537,7 +2537,7 @@ async function fetchWeather(){
         console.log('Weather: NWS forecast loaded ('+nwsFc.length+' periods)');
       }
     }catch(e){console.log('Multi-source blend failed:',e.message)}
-    S.weather=omData.current;_resetMinMax();renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);
+    S.weather=omData.current;S._lastWeatherFetch=Date.now();_resetMinMax();renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);
   }catch(e){el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p></div>`}
 }
 async function _fetchAWCOnce(){
@@ -2780,6 +2780,7 @@ function renderWeather(data){
         <span class="baro-trend ${baro.trend}" style="font-size:0.6em;color:${baro.trend==='rising'?'var(--accent-green)':baro.trend==='falling'?'var(--accent-red)':'var(--text-muted)'};text-shadow:0 0 6px ${baro.trend==='rising'?'rgba(0,255,136,0.4)':baro.trend==='falling'?'rgba(255,51,85,0.4)':'none'}">${trendArrow} ${(()=>{const isI=S.presUnit===0;if(isI){const v=Math.abs(baro.trendMb/33.8639);return(baro.trendMb>=0?'+':'-')+(v<0.05?v.toFixed(3):v.toFixed(2))+' inHg'}return(baro.trendMb>=0?'+':'')+baro.trendMb.toFixed(1)+' mb'})()}</span>
       </div>
     </div>
+    ${_staleDataLabel()}
     <div class="card" style="margin-top:8px;padding:8px" id="mini-sonar-card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <span class="card-title" style="margin:0"><span class="icon">📡</span> Radar Sonar</span>
@@ -7708,9 +7709,10 @@ function renderHazards(){
   if(!S.lat){el.innerHTML='';return}
   const isUS=isUSLocation(S.lat,S.lon);
   const sources=isUS?'USGS, NWS, NIFC, USDM & NASA':'USGS, NASA EONET';
+  const _hzStale=_isOffline&&_hazardData._lastFetch?`<div style="text-align:center;padding:4px 10px;margin:0 0 8px;background:rgba(180,83,9,0.15);border:1px solid rgba(251,191,36,0.25);border-radius:8px;font-size:0.65em;color:#fbbf24">📡 Cached data · Last updated ${_relativeTime(_hazardData._lastFetch)}</div>`:'';
   let html=`<div class="card" style="margin-top:12px">
     <div class="card-title"><span class="icon">🌍</span> Environmental Hazards</div>
-    <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">Real-time hazard monitoring from ${sources}</div>`;
+    <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">Real-time hazard monitoring from ${sources}</div>${_hzStale}`;
   html+=_renderHazardSummary();
   html+=_renderEarthquakeSection();
   html+=_renderVolcanoSection();
@@ -8558,6 +8560,12 @@ function _relativeTime(ts){
   if(diff<3600)return Math.floor(diff/60)+'m ago';
   if(diff<86400)return Math.floor(diff/3600)+'h ago';
   return Math.floor(diff/86400)+'d ago';
+}
+function _staleDataLabel(){
+  if(!_isOffline)return '';
+  const ts=S._lastWeatherFetch||0;
+  const ago=ts?_relativeTime(ts):'unknown';
+  return `<div style="text-align:center;padding:4px 10px;margin:4px 0;background:rgba(180,83,9,0.15);border:1px solid rgba(251,191,36,0.25);border-radius:8px;font-size:0.65em;color:#fbbf24">📡 Cached data · Last updated ${ago}</div>`;
 }
 
 function _showNotifPermissionModal(){
