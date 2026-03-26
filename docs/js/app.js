@@ -6858,9 +6858,23 @@ S._nhcTrackLayers = [];
 S._nhcSelectedStorm = null;
 S._showNHCTracks = (() => { try { const v = localStorage.getItem('st_nhc_tracks'); return v === null ? true : v === '1'; } catch(e) { return true; } })();
 S._nhcProxRadius = (() => { try { const v = parseInt(localStorage.getItem('st_nhc_prox_radius')); return v > 0 ? v : 200; } catch(e) { return 200; } })();
+function _recomputeNHCUserFields() {
+  if (!_nhcData.systems) return;
+  _nhcData.systems.forEach(s => {
+    s.category = _saffirSimpson(s.maxWind);
+    if (s.lat != null && s.lon != null && S.lat) s.dist = haversine(S.lat, S.lon, s.lat, s.lon);
+    else s.dist = null;
+    s._inCone = _isUserInCone(s);
+    s._tropAlerts = _getTropicalAlertsForStorm(s);
+  });
+  _nhcData.systems.sort((a, b) => (a.dist || 99999) - (b.dist || 99999));
+}
 async function fetchNHCData() {
   const now = Date.now();
-  if (now - _nhcData._lastFetch < 900000 && _nhcData.systems !== null) return;
+  if (now - _nhcData._lastFetch < 900000 && _nhcData.systems !== null) {
+    _recomputeNHCUserFields();
+    return;
+  }
   _nhcData._lastFetch = now;
   try {
     const [gisRes, rssRes, surgeRes] = await Promise.allSettled([
@@ -6901,15 +6915,9 @@ async function fetchNHCData() {
         if (existing) existing.surgeData = surge;
       }
     }
-    storms.forEach(s => {
-      s.category = _saffirSimpson(s.maxWind);
-      if (s.lat != null && s.lon != null && S.lat) s.dist = haversine(S.lat, S.lon, s.lat, s.lon);
-      s._inCone = _isUserInCone(s);
-      s._tropAlerts = _getTropicalAlertsForStorm(s);
-    });
-    storms.sort((a, b) => (a.dist || 99999) - (b.dist || 99999));
     _nhcData.systems = storms;
     _nhcData.surgeRaw = surgeData;
+    _recomputeNHCUserFields();
     console.log('[NHC] Tropical systems:', storms.length, 'tracks:', (_nhcData.forecast||[]).length, 'cones:', (_nhcData.cones||[]).length);
   } catch (e) {
     console.log('[NHC] Fetch error:', e.message);
