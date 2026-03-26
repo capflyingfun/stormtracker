@@ -6544,13 +6544,13 @@ function _isPointInSpcWatch(lat, lng, watch) {
 // ==========================================
 // SPC DATA (WATCHES, REPORTS, MESOSCALE DISCUSSIONS)
 // ==========================================
-let _spcData = { watches: null, reports: null, _lastFetch: 0 };
+let _spcData = { watches: null, reports: null, md: null, _lastFetch: 0 };
 async function fetchSPCData() {
-  if (!isUSLocation(S.lat, S.lon)) { _spcData.watches = []; _spcData.reports = []; return; }
+  if (!isUSLocation(S.lat, S.lon)) { _spcData.watches = []; _spcData.reports = []; _spcData.md = []; return; }
   const now = Date.now();
   if (now - _spcData._lastFetch < 300000 && _spcData.watches !== null) return;
   _spcData._lastFetch = now;
-  await Promise.allSettled([_fetchSPCWatches(), _fetchSPCReports()]);
+  await Promise.allSettled([_fetchSPCWatches(), _fetchSPCReports(), _fetchSPCMesoscale()]);
 }
 async function _fetchSPCWatches() {
   try {
@@ -6636,6 +6636,51 @@ async function _fetchSPCReports() {
     if (!_spcData.reports) _spcData.reports = [];
   }
 }
+async function _fetchSPCMesoscale() {
+  try {
+    const res = await fetch('https://www.spc.noaa.gov/products/md/', { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const html = await res.text();
+    const mdList = [];
+    const regex = /md(\d{4})\.html/g;
+    let match;
+    const seen = new Set();
+    while ((match = regex.exec(html)) !== null) {
+      const num = match[1];
+      if (seen.has(num)) continue;
+      seen.add(num);
+      mdList.push({ number: num });
+    }
+    const detailPromises = mdList.slice(0, 10).map(async (md) => {
+      try {
+        const dRes = await fetch(`https://www.spc.noaa.gov/products/md/md${md.number}.html`, { signal: AbortSignal.timeout(6000) });
+        if (!dRes.ok) return md;
+        const dHtml = await dRes.text();
+        const titleMatch = dHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
+        md.title = titleMatch ? titleMatch[1].trim() : 'Mesoscale Discussion #' + md.number;
+        const concernMatch = dHtml.match(/CONCERNING\.\.\.([^\n]+)/i);
+        md.concerning = concernMatch ? concernMatch[1].trim() : '';
+        const areaMatch = dHtml.match(/AREAS?\s+AFFECTED\.\.\.([^\n]+)/i) || dHtml.match(/AREAS?\s*\.\.\.([^\n]+)/i);
+        md.area = areaMatch ? areaMatch[1].trim() : '';
+        const validMatch = dHtml.match(/VALID\s+(\d{6}Z)\s*-\s*(\d{6}Z)/i);
+        if (validMatch) {
+          md.validFrom = validMatch[1];
+          md.validTo = validMatch[2];
+        }
+        const isTornado = /tornado|tornad/i.test(dHtml);
+        const isSevere = /severe|svr|hail|wind damage/i.test(dHtml);
+        md.type = isTornado ? 'tornado' : isSevere ? 'severe' : 'general';
+        return md;
+      } catch (e) { return md; }
+    });
+    const details = await Promise.allSettled(detailPromises);
+    _spcData.md = details.filter(d => d.status === 'fulfilled').map(d => d.value);
+    console.log('[SPC] Mesoscale discussions:', _spcData.md.length);
+  } catch (e) {
+    console.log('[SPC] MD fetch error:', e.message);
+    if (!_spcData.md) _spcData.md = [];
+  }
+}
 S._spcReportMarkers = [];
 function plotSPCReports(map) {
   S._spcReportMarkers.forEach(m => { try { map.removeLayer(m); } catch (e) {} });
@@ -6664,7 +6709,7 @@ function plotSPCReports(map) {
     S._spcReportMarkers.push(marker);
   }
 }
-S._showSPCReports = true;
+S._showSPCReports = (() => { try { const v = localStorage.getItem('st_spc_reports'); return v === null ? true : v === '1'; } catch(e) { return true; } })();
 S._spcWatchPolys = [];
 function plotSPCWatchPolygons(map) {
   S._spcWatchPolys.forEach(l => { try { map.removeLayer(l); } catch (e) {} });
@@ -7801,6 +7846,7 @@ function renderAlerts(){
       <div style="font-size:0.7em;color:var(--text-muted);text-align:center;padding:10px">NWS alerts cover US locations only.</div>`;
   }
   html+=_renderSPCWatchSection();
+  html+=_renderSPCMDSection();
   html+=_renderSPCReportsSection();
   const hist=_wxAlertHistory.slice().reverse();
   html+=`<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🔔</span> Station Alerts${hist.length?' ('+hist.length+')':''}</span>${hist.length?'<button onclick="clearWxAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':''}</div>`;
@@ -8103,7 +8149,8 @@ function _renderSPCReportsSection(){
   const tornadoes = nearby.filter(r => r.type === 'tornado');
   const hail = nearby.filter(r => r.type === 'hail');
   const wind = nearby.filter(r => r.type === 'wind');
-  let html = `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">📋</span> SPC Storm Reports (${nearby.length} today)</div>`;
+  const toggleChecked = S._showSPCReports ? 'checked' : '';
+  let html = `<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">📋</span> SPC Storm Reports (${nearby.length} today)</span><label style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${toggleChecked} onchange="toggleSPCReports(this.checked)" style="accent-color:var(--accent-cyan)"></label></div>`;
   const summary = [];
   if (tornadoes.length) summary.push(`🌪️ ${tornadoes.length} tornado${tornadoes.length > 1 ? 'es' : ''}`);
   if (hail.length) summary.push(`🧊 ${hail.length} hail`);
@@ -8124,6 +8171,38 @@ function _renderSPCReportsSection(){
     </div>`;
   });
   html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NOAA Storm Prediction Center · Today's reports</div></div>`;
+  return html;
+}
+function toggleSPCReports(on){
+  S._showSPCReports = on;
+  try { localStorage.setItem('st_spc_reports', on ? '1' : '0'); } catch(e) {}
+  if (S.map) plotSPCReports(S.map);
+  toast(on ? 'SPC reports shown on map' : 'SPC reports hidden from map');
+}
+function _renderSPCMDSection(){
+  if (!isUSLocation(S.lat, S.lon)) return '';
+  const mds = _spcData.md;
+  if (!mds || !mds.length) {
+    return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">📝</span> Mesoscale Discussions</div>
+      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No active mesoscale discussions</div></div>`;
+  }
+  let html = `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">📝</span> Mesoscale Discussions (${mds.length})</div>`;
+  mds.forEach(md => {
+    const isTor = md.type === 'tornado';
+    const isSvr = md.type === 'severe';
+    const color = isTor ? '#ff1744' : isSvr ? '#ff9800' : '#00e5ff';
+    const icon = isTor ? '🌪️' : isSvr ? '⛈️' : '📝';
+    html += `<div class="spc-watch-card md" style="border-left:3px solid ${color}">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="font-size:1em">${icon}</span>
+        <span style="font-weight:700;font-size:0.85em;color:var(--text-primary)">MD #${md.number}</span>
+        ${md.validFrom ? `<span style="font-size:0.65em;color:var(--text-muted);margin-left:auto">${md.validFrom} - ${md.validTo}</span>` : ''}
+      </div>
+      ${md.concerning ? `<div style="font-size:0.75em;color:${color};font-weight:600">${md.concerning}</div>` : ''}
+      ${md.area ? `<div style="font-size:0.7em;color:var(--text-secondary);margin-top:2px">📍 ${md.area}</div>` : ''}
+    </div>`;
+  });
+  html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NOAA Storm Prediction Center</div></div>`;
   return html;
 }
 function _extractFloodAlerts(){
