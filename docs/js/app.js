@@ -2012,6 +2012,10 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.39b',date:'2026-03-26',items:['📱 PWA Install Prompt — custom install banner with "Not now" dismiss (7-day cooldown)','📡 Offline Detection — amber banner with cached data age, stale-data labels on weather & hazard cards','🔔 Notification Permission — friendly in-app modal replaces raw browser popup','🔊 Enhanced SW Notifications — storm alerts get stronger vibration, requireInteraction, and action buttons','🤖 Android TWA — Bubblewrap config + Digital Asset Links for building native Android APK','🧭 Manifest polished — portrait orientation, categories=["weather"]']},
+  {ver:'v2.39a',date:'2026-03-26',items:['🐛 Drought fix — removed _extractUSState() dependency from _fetchDrought() that caused US-only error for valid US coordinates','WMS query is coordinate-based and doesn\'t need state code extraction']},
+  {ver:'v2.39',date:'2026-03-26',items:['🌋 Volcano Monitoring — NASA EONET active volcanoes within 500mi radius','🌍 Global Hazard Support — region-aware fetchHazards() hides Flood/Drought for non-US locations','🔥 Dual Wildfire Sources — NIFC perimeters (US) + NASA EONET wildfires (global)','🌧️ Precipitation-Only Section — replaces drought monitor for non-US locations','📊 Adaptive Summary Grid — adjusts columns based on available hazard types']},
+  {ver:'v2.38',date:'2026-03-25',items:['🔥 Wildfire data fix — NIFC GeoJSON endpoint updated for reliable active fire perimeters','☀️ Drought monitor fix — WMS point query with corrected BBOX calculation and pixel sampling','📊 Drought severity labels and color coding aligned with US Drought Monitor D0-D4 scale','🐛 Fixed earthquake radius persistence in Settings panel']},
   {ver:'v2.37',date:'2026-03-25',items:['🌍 Environmental Hazard Dashboard — real-time monitoring for earthquakes, floods, wildfires, and drought','🌍 USGS Earthquake feed — M2.5+ within configurable radius (default 200 mi), with magnitude/depth/distance','🌊 Enhanced Flood Monitoring — NWS flood alerts + USGS river gauge heights from nearby stream stations','🔥 Wildfire Tracking — NIFC active fire perimeters + NWS fire weather alerts with acres/containment','☀️ US Drought Monitor — state-level D0-D4 severity with color-coded bar chart','⚙️ Settings → Environmental Hazards section with configurable earthquake radius','4-panel hazard summary grid with clear/active/warning status at a glance']},
   {ver:'v2.36',date:'2026-03-25',items:['🌩️ Storm Cell Alerts — configurable notifications when radar detects storms matching your thresholds','3 threshold parameters: Distance (miles), Intensity (dBZ), and Impact Score (%) — all must match when enabled','15-minute cooldown per storm cell to prevent notification spam','Toast alerts in foreground + browser push notifications in background','Storm cell alert history in Alerts tab with dBZ, distance, impact tier, and timestamps','Settings panel → Storm Cell Alerts 🌩️ section with toggle switches and adjustable values']},
   {ver:'v2.35',date:'2026-03-24',items:['📍 Home button — first GPS/search location auto-saved as home; returns to home location from anywhere','🔍 Scan Here button — grabs current map center as new scan location without page reload','🔦 HD Scan dialog — choose scan target (Home / Current Location / Map Center) for 15-mile high-res analysis at zoom 12','Cyan crosshair overlay on radar map center for precise targeting','Home location persists across sessions via localStorage']},
@@ -7465,7 +7469,11 @@ function renderAlerts(){
   const hist=_wxAlertHistory.slice().reverse();
   html+=`<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🔔</span> Station Alerts${hist.length?' ('+hist.length+')':''}</span>${hist.length?'<button onclick="clearWxAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':''}</div>`;
   if(!hist.length){
-    html+=`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No station alerts yet. Enable thresholds in Settings ⚙️ → Weather Station Alerts 🔔</div>`;
+    const wxTh=_loadWxThresholds();
+    const wxAny=Object.values(wxTh).some(t=>t&&t.on);
+    html+=wxAny
+      ?`<div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ All clear — no weather thresholds exceeded</div>`
+      :`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No station alerts yet. Enable thresholds in Settings ⚙️ → Weather Station Alerts 🔔</div>`;
   }else{
     hist.slice(0,20).forEach(h=>{
       const d=new Date(h.time);
@@ -7484,7 +7492,11 @@ function renderAlerts(){
   const stormHist=_stormAlertHistory.slice().reverse();
   html+=`<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🌩️</span> Storm Cell Alerts${stormHist.length?' ('+stormHist.length+')':''}</span>${stormHist.length?'<button onclick="clearStormAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':''}</div>`;
   if(!stormHist.length){
-    html+=`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No storm cell alerts yet. Enable thresholds in Settings ⚙️ → Storm Cell Alerts 🌩️</div>`;
+    const stTh=_loadStormThresholds();
+    const stAny=Object.values(stTh).some(t=>t&&t.on);
+    html+=stAny
+      ?`<div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ All clear — no storms currently match your thresholds</div>`
+      :`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No storm cell alerts yet. Enable thresholds in Settings ⚙️ → Storm Cell Alerts 🌩️</div>`;
   }else{
     stormHist.slice(0,20).forEach(h=>{
       const d=new Date(h.time);
@@ -7728,9 +7740,19 @@ function renderHazards(){
   html+=_renderWildfireSection();
   if(isUS)html+=_renderDroughtSection();
   else html+=_renderPrecipOnlySection();
-  html+=`<div style="text-align:center;margin-top:10px"><button onclick="fetchHazards().then(()=>renderHazards())" style="font-size:0.7em;padding:4px 14px;background:rgba(0,229,255,0.08);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.2);border-radius:6px;cursor:pointer;font-weight:600">🔄 Refresh Hazards</button></div>`;
+  const _hzTime=_hazardData._lastFetch?new Date(_hazardData._lastFetch).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}):'';
+  html+=_hzTime?`<div style="text-align:center;font-size:0.6em;color:var(--text-muted);margin-top:8px">Data as of ${_hzTime}</div>`:'';
+  html+=`<div style="text-align:center;margin-top:6px"><button id="btn-refresh-hazards" onclick="_refreshHazardsBtn()" style="font-size:0.7em;padding:4px 14px;background:rgba(0,229,255,0.08);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.2);border-radius:6px;cursor:pointer;font-weight:600">🔄 Refresh Hazards</button></div>`;
   html+=`</div>`;
   el.innerHTML=html;
+}
+
+async function _refreshHazardsBtn(){
+  const btn=document.getElementById('btn-refresh-hazards');
+  if(btn){btn.disabled=true;btn.textContent='Updating...';btn.style.opacity='0.5'}
+  _hazardData._lastFetch=0;
+  try{await fetchHazards();renderHazards()}catch(e){console.log('Hazard refresh error:',e.message)}
+  finally{const b=document.getElementById('btn-refresh-hazards');if(b){b.disabled=false;b.textContent='🔄 Refresh Hazards';b.style.opacity='1'}}
 }
 
 function _renderHazardSummary(){
