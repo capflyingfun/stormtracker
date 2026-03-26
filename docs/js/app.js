@@ -2006,6 +2006,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.44',date:'2026-03-26',items:['💨 Wind Simulator Redesign — replaced complex fBm noise/gust/calm system with clean range-based model','📏 Floor & Ceiling — sim stays within WS−50% to WG+10% range, always bounded','🎯 Smooth Lerp — picks new Perlin target every 5s, smoothstep eases between values','🔄 Live Gust Sync — AWC refresh updates gust data for consistent range after live updates','🧹 Code Cleanup — removed fBm, gustEnvelope, gustEvents, calmState dead code (~100 lines)']},
   {ver:'v2.43',date:'2026-03-26',items:['🌍 Hurricane Region Filter — pill bar to filter storms by region (Gulf, Caribbean, Atlantic, E/W Pacific, Indian Ocean, S. Pacific)','🌏 JTWC Global Data — Western Pacific typhoons, Indian Ocean cyclones, and Southern Hemisphere systems via Joint Typhoon Warning Center','📍 Geographic Classification — storms classified by lat/lon into sub-regions (Gulf of Mexico vs open Atlantic, etc.)','🗺️ Map Filter Sync — hurricane track overlay respects region filter','💾 Persistent Filter — region preference saved in localStorage','📊 Hazard Summary Filter — tropical hazard tile and nearby alerts respect region filter']},
   {ver:'v2.42',date:'2026-03-26',items:['🧭 ILS Arrow Fix — map ILS cone direction now uses winds aloft (matches Radar Sonar ALOFT indicator)','📝 MD Distance Filter — Mesoscale Discussions limited to 200mi from your location','💨 Wind Gauge Fix — gauge starts at actual reported wind speed instead of zero','🔧 Improved wind sweep animation accuracy near storms']},
   {ver:'v2.41',date:'2026-03-26',items:['🌀 Hurricane Tracking — NHC active tropical cyclone monitoring (Atlantic + E. Pacific) with 15-min cache','🌀 Tropical Cyclones UI — Weather page section with Saffir-Simpson category scale, wind/pressure/movement details, proximity distance','🗺️ Hurricane Map Overlay — toggleable 🌀 button plots storm positions with category-colored markers, name labels, pulse rings','🌊 Storm Surge Section — Alerts page shows NWS storm surge warnings/coastal flood alerts with expected surge heights','📊 Tropical Hazard Summary — new "Tropical" tile in Environmental Hazards summary grid with active/near counts','⚠️ Proximity Alerting — push notification + toast when tropical cyclone within 200 mi (hourly cooldown)','🔗 NHC RSS Integration — parses NHC Atlantic/E. Pacific RSS feeds for storm positions, winds, pressure, movement']},
@@ -3123,7 +3124,7 @@ let _windRefreshTimer=null;
 let _gustSamples=[];
 let _gustMax=0;
 let _gustResetT=0;
-let _windBase={spd:0,dir:0};
+let _windBase={spd:0,dir:0,gust:0};
 let _windCurSim={spd:0,dir:0,gust:0};
 let _windFloor=0;
 let _windCeil=0;
@@ -3144,10 +3145,10 @@ function _pickWindTarget(){
 }
 function _updateWindRange(){
   const ws=_windBase.spd;
-  const wg=S.weather?S.weather.wind_gusts_10m||ws:ws;
+  const wg=_windBase.gust||ws;
   _windFloor=Math.max(0,ws*0.5);
-  _windCeil=wg*1.1;
-  if(_windCeil<_windFloor)_windCeil=_windFloor+1;
+  _windCeil=Math.max(wg,ws)*1.1;
+  if(_windCeil<=_windFloor)_windCeil=_windFloor+1;
 }
 function _getForecastWind(now){
   const h=S._hourlyData;
@@ -3174,7 +3175,7 @@ function startWindSim(){
   if(_windRefreshTimer)clearInterval(_windRefreshTimer);
   if(S._windPickTimer)clearInterval(S._windPickTimer);
   if(!S.weather)return;
-  _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
+  _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0,gust:S.weather.wind_gusts_10m||0};
   _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
   _updateWindRange();
   _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:S.weather.wind_gusts_10m||0};
@@ -3188,7 +3189,8 @@ function startWindSim(){
         const newSpd=awc.windKmh;
         const newDir=awc.windDir!=null?awc.windDir:_windBase.dir;
         console.log('Wind refresh from AWC·'+awc.icao+': spd='+newSpd.toFixed(1)+'kmh dir='+newDir+'°');
-        _windBase={spd:newSpd,dir:newDir};
+        const newGust=awc.gustKmh!=null?awc.gustKmh:newSpd*1.5;
+        _windBase={spd:newSpd,dir:newDir,gust:newGust};
         _updateWindRange();
       }
     }catch(e){console.log('Wind refresh error:',e.message)}
