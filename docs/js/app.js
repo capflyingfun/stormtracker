@@ -6921,14 +6921,20 @@ async function _fetchNHCGIS() {
   const q = 'where=1%3D1&outFields=*&f=geojson&resultRecordCount=500';
   const result = { positions: [], tracks: [], cones: [], windRadii: [] };
   try {
-    const [posRes, trkRes, coneRes] = await Promise.allSettled([
+    const [posRes, trkRes, coneRes, wr34Res, wr50Res, wr64Res] = await Promise.allSettled([
       fetch(`${base}/0/query?${q}`, { signal: AbortSignal.timeout(10000) }).then(r => r.ok ? r.json() : null),
       fetch(`${base}/2/query?${q}`, { signal: AbortSignal.timeout(10000) }).then(r => r.ok ? r.json() : null),
-      fetch(`${base}/3/query?${q}`, { signal: AbortSignal.timeout(10000) }).then(r => r.ok ? r.json() : null)
+      fetch(`${base}/4/query?${q}`, { signal: AbortSignal.timeout(10000) }).then(r => r.ok ? r.json() : null),
+      fetch(`${base}/7/query?${q}`, { signal: AbortSignal.timeout(10000) }).then(r => r.ok ? r.json() : null),
+      fetch(`${base}/8/query?${q}`, { signal: AbortSignal.timeout(10000) }).then(r => r.ok ? r.json() : null),
+      fetch(`${base}/9/query?${q}`, { signal: AbortSignal.timeout(10000) }).then(r => r.ok ? r.json() : null)
     ]);
     const posData = posRes.status === 'fulfilled' ? posRes.value : null;
     const trkData = trkRes.status === 'fulfilled' ? trkRes.value : null;
     const coneData = coneRes.status === 'fulfilled' ? coneRes.value : null;
+    const wr34Data = wr34Res.status === 'fulfilled' ? wr34Res.value : null;
+    const wr50Data = wr50Res.status === 'fulfilled' ? wr50Res.value : null;
+    const wr64Data = wr64Res.status === 'fulfilled' ? wr64Res.value : null;
     if (posData && posData.features) {
       const seen = new Set();
       for (const f of posData.features) {
@@ -6937,6 +6943,7 @@ async function _fetchNHCGIS() {
         if (!coords) continue;
         const name = p.STORMNAME || p.NAME || 'Unknown';
         const stormId = p.STORMID || p.ATCFID || '';
+        const tau = p.TAU || p.ADVDATE || 0;
         const key = name + '_' + stormId;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -6951,7 +6958,7 @@ async function _fetchNHCGIS() {
           minPressure: p.MSLP || null,
           moveDir: p.STORMDIR ? _degToCompass(p.STORMDIR) : null,
           moveSpeed: p.STORMSPED ? Math.round(p.STORMSPED * 1.15078) : null,
-          link: null, surgeData: null, forecastHr: p.TAU || 0
+          link: null, surgeData: null, forecastHr: tau
         });
       }
     }
@@ -6963,7 +6970,7 @@ async function _fetchNHCGIS() {
         result.tracks.push({
           stormId: p.STORMID || p.ATCFID || '',
           stormName: p.STORMNAME || '',
-          coords: Array.isArray(coords[0][0]) ? coords[0] : coords,
+          coords: Array.isArray(coords[0]) && Array.isArray(coords[0][0]) ? coords[0] : coords,
           forecastPeriod: p.FCSTPRD || '120'
         });
       }
@@ -6971,16 +6978,35 @@ async function _fetchNHCGIS() {
     if (coneData && coneData.features) {
       for (const f of coneData.features) {
         const p = f.properties || {};
-        const coords = f.geometry?.coordinates;
-        if (!coords) continue;
+        const geom = f.geometry;
+        if (!geom || !geom.coordinates) continue;
+        const polyCoords = geom.type === 'MultiPolygon' ? geom.coordinates[0][0] : (geom.type === 'Polygon' ? geom.coordinates[0] : geom.coordinates);
         result.cones.push({
           stormId: p.STORMID || p.ATCFID || '',
           stormName: p.STORMNAME || '',
-          coords: coords[0] || coords,
+          coords: polyCoords,
           forecastPeriod: p.FCSTPRD || '120'
         });
       }
     }
+    const _parseWindRadii = (data, ktLevel) => {
+      if (!data || !data.features) return;
+      for (const f of data.features) {
+        const p = f.properties || {};
+        const geom = f.geometry;
+        if (!geom || !geom.coordinates) continue;
+        const polyCoords = geom.type === 'MultiPolygon' ? geom.coordinates[0][0] : (geom.type === 'Polygon' ? geom.coordinates[0] : geom.coordinates);
+        result.windRadii.push({
+          stormId: p.STORMID || p.ATCFID || '',
+          stormName: p.STORMNAME || '',
+          ktLevel,
+          coords: polyCoords
+        });
+      }
+    };
+    _parseWindRadii(wr34Data, 34);
+    _parseWindRadii(wr50Data, 50);
+    _parseWindRadii(wr64Data, 64);
   } catch (e) {
     console.log('[NHC] ArcGIS fetch error:', e.message);
   }
@@ -7163,16 +7189,22 @@ function setNHCProxRadius(val) {
 }
 function _selectNHCStorm(name) {
   S._nhcSelectedStorm = name;
-  switchPage('storms');
+  switchPage('radar');
   const tryPlot = () => {
     if (S.map) {
       plotNHCTracks(S.map);
       const storm = (_nhcData.systems || []).find(s => s.name === name);
       if (storm && storm.lat != null) S.map.setView([storm.lat, storm.lon], 5);
+      return true;
     }
+    return false;
   };
-  if (S.map) { tryPlot(); }
-  else { setTimeout(tryPlot, 500); setTimeout(tryPlot, 1500); }
+  if (!tryPlot()) {
+    let attempts = 0;
+    const interval = setInterval(() => {
+      if (tryPlot() || ++attempts >= 10) clearInterval(interval);
+    }, 300);
+  }
   toast(`Showing forecast for ${name}`);
 }
 function toggleNHCTracks(on) {
@@ -7254,29 +7286,34 @@ function plotNHCTracks(map) {
       pulse.addTo(map);
       S._nhcTrackLayers.push(pulse);
     }
-    if (isSelected && s.maxWind >= 39) {
-      const windRadiiNmi = s.maxWind >= 64 ? [34, 50, 64] : s.maxWind >= 50 ? [34, 50] : [34];
+    if (isSelected) {
       const radiiColors = { 34: '#4fc3f7', 50: '#ffc107', 64: '#ff5722' };
-      const radiiLabels = { 34: '34 kt', 50: '50 kt', 64: '64 kt' };
-      windRadiiNmi.forEach(r => {
-        const radiusMi = r * 1.15078;
-        const radiusM = radiusMi * 1609.34;
-        const circle = L.circle([s.lat, s.lon], {
-          radius: radiusM, color: radiiColors[r], fillColor: radiiColors[r],
-          fillOpacity: 0.04, weight: 1.5, dashArray: '4,3', interactive: false
-        });
-        circle.addTo(map);
-        S._nhcTrackLayers.push(circle);
-        const labelPt = L.latLng(s.lat + (radiusMi / 69), s.lon);
-        const rLabel = L.divIcon({
-          className: '',
-          html: `<div style="font-size:8px;color:${radiiColors[r]};font-weight:600;text-shadow:0 0 3px #000;pointer-events:none">${radiiLabels[r]}</div>`,
-          iconSize: [40, 10], iconAnchor: [20, 5]
-        });
-        const rm = L.marker(labelPt, { icon: rLabel, interactive: false });
-        rm.addTo(map);
-        S._nhcTrackLayers.push(rm);
-      });
+      const radiiLabels = { 34: '34 kt (TS)', 50: '50 kt (Strong TS)', 64: '64 kt (Hurricane)' };
+      const stormRadii = (_nhcData.windRadii || []).filter(wr => wr.stormId === s.id || wr.stormName.toLowerCase() === s.name.toLowerCase());
+      if (stormRadii.length) {
+        for (const wr of stormRadii) {
+          if (!wr.coords || wr.coords.length < 3) continue;
+          const latlngs = wr.coords.map(c => [c[1], c[0]]);
+          const color = radiiColors[wr.ktLevel] || '#4fc3f7';
+          const poly = L.polygon(latlngs, {
+            color, fillColor: color, fillOpacity: 0.06, weight: 1.5, dashArray: '4,3', interactive: false
+          });
+          poly.addTo(map);
+          S._nhcTrackLayers.push(poly);
+          const bounds = poly.getBounds();
+          const labelPt = bounds.getNorth ? L.latLng(bounds.getNorth(), bounds.getCenter().lng) : null;
+          if (labelPt) {
+            const rLabel = L.divIcon({
+              className: '',
+              html: `<div style="font-size:8px;color:${color};font-weight:600;text-shadow:0 0 3px #000;pointer-events:none">${radiiLabels[wr.ktLevel] || wr.ktLevel + ' kt'}</div>`,
+              iconSize: [80, 10], iconAnchor: [40, 12]
+            });
+            const rm = L.marker(labelPt, { icon: rLabel, interactive: false });
+            rm.addTo(map);
+            S._nhcTrackLayers.push(rm);
+          }
+        }
+      }
     }
   }
 }
