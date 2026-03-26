@@ -6605,10 +6605,10 @@ async function _fetchSPCReports() {
       const line = lines[i].trim();
       if (!line) continue;
       if (line.startsWith('Time,') || line.startsWith('F_Scale,') || line.startsWith('Speed,') || line.startsWith('Size,')) {
-        if (line.startsWith('F_Scale,') || (i > 0 && lines[i - 1] && lines[i - 1].toLowerCase().includes('tornado'))) currentType = 'tornado';
-        else if (line.startsWith('Speed,') || (i > 0 && lines[i - 1] && lines[i - 1].toLowerCase().includes('wind'))) currentType = 'wind';
-        else if (line.startsWith('Size,') || (i > 0 && lines[i - 1] && lines[i - 1].toLowerCase().includes('hail'))) currentType = 'hail';
-        else if (line.startsWith('Time,')) currentType = 'tornado';
+        if (line.includes('F_Scale') || line.includes('f_scale')) currentType = 'tornado';
+        else if (line.includes('Speed') || line.includes('speed')) currentType = 'wind';
+        else if (line.includes('Size') || line.includes('size')) currentType = 'hail';
+        else currentType = currentType || 'tornado';
         continue;
       }
       const cols = line.split(',');
@@ -8279,14 +8279,22 @@ function _renderHazardSummary(){
     const spcW=_spcData.watches;
     const hookCount=(S.storms||[]).filter(s=>s._hookEcho).length;
     if(!spcW)items.push({icon:'🔄',label:'Severe Wx',status:'Loading...',color:'#666'});
-    else if(!spcW.length&&!hookCount)items.push({icon:'✅',label:'Severe Wx',status:'Clear',color:'#22c55e'});
     else{
-      const torW=spcW.filter(w=>w.type==='tornado').length;
-      const svrW=spcW.filter(w=>w.type!=='tornado').length;
-      const parts=[];
-      if(torW)parts.push(`${torW} TOR`);if(svrW)parts.push(`${svrW} SVR`);if(hookCount)parts.push(`${hookCount} rotation`);
-      const topColor=torW||hookCount?'#ff1744':svrW?'#ff9800':'#eab308';
-      items.push({icon:torW||hookCount?'🌪️':'⛈️',label:'Severe Wx',status:parts.join(' · '),color:topColor});
+      const localWatches=spcW.filter(w=>_isPointInSpcWatch(S.lat,S.lon,w));
+      const localTor=localWatches.filter(w=>w.type==='tornado').length;
+      const localSvr=localWatches.filter(w=>w.type!=='tornado').length;
+      if(!localWatches.length&&!hookCount){
+        if(spcW.length){
+          items.push({icon:'🟢',label:'Severe Wx',status:`Clear (${spcW.length} US)`,color:'#22c55e'});
+        }else{
+          items.push({icon:'✅',label:'Severe Wx',status:'Clear',color:'#22c55e'});
+        }
+      }else{
+        const parts=[];
+        if(localTor)parts.push(`TOR Watch`);if(localSvr)parts.push(`SVR Watch`);if(hookCount)parts.push(`${hookCount} rotation`);
+        const topColor=localTor||hookCount?'#ff1744':localSvr?'#ff9800':'#eab308';
+        items.push({icon:localTor||hookCount?'🌪️':'⛈️',label:'Severe Wx',status:parts.join(' · '),color:topColor});
+      }
     }
   }
   const cols=items.length<=3?'1fr 1fr 1fr':'1fr 1fr';
