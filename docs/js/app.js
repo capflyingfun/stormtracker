@@ -6857,7 +6857,7 @@ const _nhcData = { systems: null, forecast: null, cones: null, windRadii: null, 
 S._nhcTrackLayers = [];
 S._nhcSelectedStorm = null;
 S._showNHCTracks = (() => { try { const v = localStorage.getItem('st_nhc_tracks'); return v === null ? true : v === '1'; } catch(e) { return true; } })();
-S._nhcProxRadius = (() => { try { const v = parseInt(localStorage.getItem('st_nhc_prox_radius')); return v > 0 ? v : 300; } catch(e) { return 300; } })();
+S._nhcProxRadius = (() => { try { const v = parseInt(localStorage.getItem('st_nhc_prox_radius')); return v > 0 ? v : 200; } catch(e) { return 200; } })();
 async function fetchNHCData() {
   const now = Date.now();
   if (now - _nhcData._lastFetch < 900000 && _nhcData.systems !== null) return;
@@ -7064,14 +7064,16 @@ function _isUserInCone(storm) {
 function _getTropicalAlertsForStorm(storm) {
   if (!S.alerts) return { watches: [], warnings: [] };
   const name = (storm.name || '').toLowerCase();
+  const stormId = (storm.id || '').toLowerCase();
   const watches = [];
   const warnings = [];
   for (const a of S.alerts) {
     const ev = (a.properties?.event || '').toLowerCase();
     const desc = (a.properties?.description || '').toLowerCase();
+    const headline = (a.properties?.headline || '').toLowerCase();
     const isTropical = ev.includes('hurricane') || ev.includes('tropical storm') || ev.includes('storm surge') || ev.includes('tropical depression');
     if (!isTropical) continue;
-    const matchesStorm = desc.includes(name) || true;
+    const matchesStorm = (name.length >= 3 && (desc.includes(name) || headline.includes(name))) || (stormId && desc.includes(stormId));
     if (!matchesStorm) continue;
     const inZone = isUserInAlertZone(a);
     if (ev.includes('warning')) warnings.push({ event: a.properties?.event, inZone });
@@ -7155,20 +7157,22 @@ function _renderTropicalSection() {
   return html;
 }
 function setNHCProxRadius(val) {
-  S._nhcProxRadius = parseInt(val) || 300;
+  S._nhcProxRadius = parseInt(val) || 200;
   try { localStorage.setItem('st_nhc_prox_radius', String(S._nhcProxRadius)); } catch(e) {}
   if (S.activePage === 'alerts' || S.activePage === 'weather') { if (S.activePage === 'alerts') renderAlerts(); _updateTropicalUI(); }
 }
 function _selectNHCStorm(name) {
   S._nhcSelectedStorm = name;
-  if (S.map) {
-    plotNHCTracks(S.map);
-    const storm = (_nhcData.systems || []).find(s => s.name === name);
-    if (storm && storm.lat != null) {
-      S.map.setView([storm.lat, storm.lon], 5);
-      switchPage('storms');
+  switchPage('storms');
+  const tryPlot = () => {
+    if (S.map) {
+      plotNHCTracks(S.map);
+      const storm = (_nhcData.systems || []).find(s => s.name === name);
+      if (storm && storm.lat != null) S.map.setView([storm.lat, storm.lon], 5);
     }
-  }
+  };
+  if (S.map) { tryPlot(); }
+  else { setTimeout(tryPlot, 500); setTimeout(tryPlot, 1500); }
   toast(`Showing forecast for ${name}`);
 }
 function toggleNHCTracks(on) {
