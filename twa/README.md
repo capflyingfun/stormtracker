@@ -45,6 +45,16 @@ This produces two files:
 - `app-release-signed.apk` — Signed APK ready for sideloading
 - `app-release-bundle.aab` — Android App Bundle for Play Store upload
 
+If the build produces an unsigned APK (`app-release-unsigned.apk`), sign it manually:
+
+```bash
+# Create a keystore (first time only)
+keytool -genkey -v -keystore stormtracker-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias stormtracker
+
+# Sign the APK
+apksigner sign --ks stormtracker-keystore.jks --ks-key-alias stormtracker app-release-unsigned.apk
+```
+
 ## Step 4: Sideload to Your Device
 
 ### Option A: Via ADB (USB)
@@ -74,7 +84,10 @@ keytool -list -v -keystore stormtracker-keystore.jks -alias stormtracker
 
 2. Copy the SHA-256 fingerprint (looks like `AB:CD:EF:12:...`)
 
-3. Edit `docs/.well-known/assetlinks.json` — replace `YOUR_SHA256_FINGERPRINT_HERE` with your actual fingerprint
+3. Edit `docs/.well-known/assetlinks.json` — replace `YOUR_SHA256_FINGERPRINT_HERE` with your actual fingerprint. The format is colon-separated uppercase hex pairs, e.g.:
+   ```
+   "sha256_cert_fingerprints": ["AB:CD:EF:12:34:56:78:9A:BC:DE:F0:12:34:56:78:9A:BC:DE:F0:12:34:56:78:9A:BC:DE:F0:12:34:56:78:9A"]
+   ```
 
 4. Commit and push to GitHub so it's served at:
    `https://capflyingfun.github.io/StormTracker/.well-known/assetlinks.json`
