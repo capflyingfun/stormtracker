@@ -3147,7 +3147,7 @@ function _updateWindRange(){
   const ws=_windBase.spd;
   const wg=_windBase.gust||ws;
   _windFloor=Math.max(0,ws*0.5);
-  _windCeil=Math.max(wg,ws)*1.1;
+  _windCeil=wg*1.1;
   if(_windCeil<=_windFloor)_windCeil=_windFloor+1;
 }
 function _getForecastWind(now){
@@ -3189,9 +3189,12 @@ function startWindSim(){
         const newSpd=awc.windKmh;
         const newDir=awc.windDir!=null?awc.windDir:_windBase.dir;
         console.log('Wind refresh from AWC·'+awc.icao+': spd='+newSpd.toFixed(1)+'kmh dir='+newDir+'°');
-        const newGust=awc.gustKmh!=null?awc.gustKmh:newSpd*1.5;
+        const newGust=awc.gustKmh!=null?awc.gustKmh:_windBase.gust;
         _windBase={spd:newSpd,dir:newDir,gust:newGust};
         _updateWindRange();
+        _windLerpFrom={spd:_windCurSim.spd,dir:_windCurSim.dir};
+        _windLerpTo=_pickWindTarget();
+        _windLerpT0=Date.now();
       }
     }catch(e){console.log('Wind refresh error:',e.message)}
   },120000);
@@ -3206,7 +3209,7 @@ function startWindSim(){
     const p=Math.min(1,elapsed/_WIND_LERP_DUR);
     const ep=p*p*(3-2*p);
     let simSpd=_windLerpFrom.spd+(_windLerpTo.spd-_windLerpFrom.spd)*ep;
-    simSpd=Math.max(0,simSpd);
+    simSpd=Math.max(_windFloor,Math.min(_windCeil,simSpd));
     let dd=_windLerpTo.dir-_windLerpFrom.dir;
     if(dd>180)dd-=360;if(dd<-180)dd+=360;
     let simDir=((_windLerpFrom.dir+dd*ep)%360+360)%360;
