@@ -3780,7 +3780,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff9800" onclick="toggleRadarOverlay()">RDR</div>
         <div class="map-ctrl-btn" id="btn-mping" title="Toggle mPING reports" style="font-size:0.55em;font-weight:700;line-height:1;color:#4fc3f7" onclick="toggleMping()">mP</div>
         <div class="map-ctrl-btn" id="btn-alert-polys" title="Toggle NWS alert polygons" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff4444" onclick="toggleAlertPolygons()">⚠</div>
-        <div class="map-ctrl-btn" id="btn-nhc-tracks" title="Toggle hurricane tracks" style="font-size:0.55em;font-weight:700;line-height:1;color:#9333EA" onclick="toggleNHCTracks(!S._showNHCTracks)">🌀</div>
+        <div class="map-ctrl-btn" id="btn-nhc-tracks" title="Toggle hurricane tracks" style="font-size:0.55em;font-weight:700;line-height:1;color:#9333EA;opacity:${S._showNHCTracks?1:0.4}" onclick="toggleNHCTracks(!S._showNHCTracks)">🌀</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
         <div class="map-ctrl-btn" id="btn-iso-3d" title="3D Storm Terrain" style="font-size:0.55em;font-weight:700;line-height:1;color:#66ffcc" onclick="show3DView()">3D</div>
         <div class="map-ctrl-btn" id="clutter-toggle" title="Clutter hidden (tap to show)" style="font-size:0.7em;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);border-color:#555" onclick="toggleClutter()">🕳️</div>
@@ -7168,8 +7168,8 @@ function _renderTropicalSection() {
     const isNear = s.dist != null && s.dist <= S._nhcProxRadius;
     const status = _tropicalStatusLabel(s);
     const hasForecast = (_nhcData.forecast || []).some(t => t.stormId === s.id || t.stormName.toLowerCase() === s.name.toLowerCase());
-    const safeName = _escStormName(s.name);
-    html += `<div style="padding:10px;border-left:4px solid ${cat.color};background:${cat.color}08;border-radius:0 8px 8px 0;margin-bottom:8px;cursor:pointer${isNear ? ';border:1px solid ' + cat.color + '44' : ''}" onclick="_selectNHCStorm('${safeName}')">
+    const safeId = _escStormName(s.id || s.name);
+    html += `<div style="padding:10px;border-left:4px solid ${cat.color};background:${cat.color}08;border-radius:0 8px 8px 0;margin-bottom:8px;cursor:pointer${isNear ? ';border:1px solid ' + cat.color + '44' : ''}" onclick="_selectNHCStorm('${safeId}')">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
         <span style="font-size:1.3em">🌀</span>
         <div style="flex:1">
@@ -7203,13 +7203,14 @@ function setNHCProxRadius(val) {
   try { localStorage.setItem('st_nhc_prox_radius', String(S._nhcProxRadius)); } catch(e) {}
   if (S.activePage === 'alerts' || S.activePage === 'weather') { if (S.activePage === 'alerts') renderAlerts(); _updateTropicalUI(); }
 }
-function _selectNHCStorm(name) {
-  S._nhcSelectedStorm = name;
+function _selectNHCStorm(idOrName) {
+  S._nhcSelectedStorm = idOrName;
   switchPage('radar');
+  const findStorm = () => (_nhcData.systems || []).find(s => s.id === idOrName || s.name === idOrName);
   const tryPlot = () => {
     if (S.map) {
       plotNHCTracks(S.map);
-      const storm = (_nhcData.systems || []).find(s => s.name === name);
+      const storm = findStorm();
       if (storm && storm.lat != null) S.map.setView([storm.lat, storm.lon], 5);
       return true;
     }
@@ -7221,12 +7222,15 @@ function _selectNHCStorm(name) {
       if (tryPlot() || ++attempts >= 10) clearInterval(interval);
     }, 300);
   }
-  toast(`Showing forecast for ${name}`);
+  const storm = findStorm();
+  toast(`Showing forecast for ${storm ? storm.name : idOrName}`);
 }
 function toggleNHCTracks(on) {
   S._showNHCTracks = on;
   try { localStorage.setItem('st_nhc_tracks', on ? '1' : '0'); } catch(e) {}
   if (S.map) plotNHCTracks(S.map);
+  const btn = document.getElementById('btn-nhc-tracks');
+  if (btn) btn.style.opacity = on ? '1' : '0.4';
   toast(on ? 'Hurricane tracks shown on map' : 'Hurricane tracks hidden');
 }
 function plotNHCTracks(map) {
@@ -7280,7 +7284,7 @@ function plotNHCTracks(map) {
       ${s.minPressure ? `<div style="font-size:0.8em">🔵 Pressure: <b>${s.minPressure} mb</b></div>` : ''}
       ${s.moveDir ? `<div style="font-size:0.8em">➡️ Moving: <b>${s.moveDir} ${s.moveSpeed || ''} mph</b></div>` : ''}
       ${s.dist != null ? `<div style="font-size:0.75em;color:#aaa;margin-top:4px">${Math.round(s.dist)} mi from you</div>` : ''}
-      <div style="margin-top:6px"><a href="#" onclick="event.preventDefault();_selectNHCStorm('${_escStormName(s.name)}')" style="font-size:0.75em;color:var(--accent-cyan)">Show forecast track →</a></div>
+      <div style="margin-top:6px"><a href="#" onclick="event.preventDefault();_selectNHCStorm('${_escStormName(s.id||s.name)}')" style="font-size:0.75em;color:var(--accent-cyan)">Show forecast track →</a></div>
     </div>`);
     marker.addTo(map);
     S._nhcTrackLayers.push(marker);
@@ -7377,15 +7381,7 @@ function _nhcProximityCheck() {
     const reason = inCone ? 'You are inside the forecast cone!' : `${Math.round(s.dist)} mi from your location`;
     const msg = `🌀 ${s.type} ${s.name} (${cat.label}) — ${reason}`;
     toast(msg, 8000);
-    try {
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'WX_THRESHOLD_ALERT',
-          title: '🌀 Tropical Cyclone Alert',
-          body: msg
-        });
-      }
-    } catch (e) {}
+    _sendBrowserNotification('Tropical Cyclone Alert', msg);
   }
   _renderNHCBanner(bannerStorm);
 }
@@ -7397,7 +7393,7 @@ function _renderNHCBanner(data) {
   const bgColor = inCone ? 'rgba(255,152,0,0.15)' : 'rgba(79,195,247,0.1)';
   const borderColor = status ? status.color : cat.color;
   const reason = inCone ? 'You are inside the forecast cone' : `${Math.round(storm.dist)} mi away — Tracking`;
-  const html = `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${bgColor};border:1px solid ${borderColor}44;border-radius:8px;margin:8px 12px 0;cursor:pointer" onclick="_selectNHCStorm('${_escStormName(storm.name)}')">
+  const html = `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${bgColor};border:1px solid ${borderColor}44;border-radius:8px;margin:8px 12px 0;cursor:pointer" onclick="_selectNHCStorm('${_escStormName(storm.id||storm.name)}')">
     <span style="font-size:1.4em">🌀</span>
     <div style="flex:1">
       <div style="font-weight:700;font-size:0.85em;color:${borderColor}">${storm.type} ${storm.name} — ${cat.label}</div>
