@@ -7363,12 +7363,14 @@ function _renderStormSurgeSection() {
   return html;
 }
 function _nhcProximityCheck() {
-  if (!_nhcData.systems || !_nhcData.systems.length || !S.lat) return;
+  if (!_nhcData.systems || !_nhcData.systems.length || !S.lat) { _renderNHCBanner(null); return; }
+  let bannerStorm = null;
   for (const s of _nhcData.systems) {
     const cat = s.category || _saffirSimpson(s.maxWind);
     const inCone = s._inCone;
     const inRadius = s.dist != null && s.dist <= S._nhcProxRadius;
     if (!inCone && !inRadius) continue;
+    if (!bannerStorm || inCone) bannerStorm = { storm: s, inCone, cat };
     const key = 'nhc_alert_' + s.name + '_' + Math.floor(Date.now() / 3600000);
     if (sessionStorage.getItem(key)) continue;
     sessionStorage.setItem(key, '1');
@@ -7385,6 +7387,32 @@ function _nhcProximityCheck() {
       }
     } catch (e) {}
   }
+  _renderNHCBanner(bannerStorm);
+}
+function _renderNHCBanner(data) {
+  let el = document.getElementById('nhc-prox-banner');
+  if (!data) { if (el) el.remove(); return; }
+  const { storm, inCone, cat } = data;
+  const status = _tropicalStatusLabel(storm);
+  const bgColor = inCone ? 'rgba(255,152,0,0.15)' : 'rgba(79,195,247,0.1)';
+  const borderColor = status ? status.color : cat.color;
+  const reason = inCone ? 'You are inside the forecast cone' : `${Math.round(storm.dist)} mi away — Tracking`;
+  const html = `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${bgColor};border:1px solid ${borderColor}44;border-radius:8px;margin:8px 12px 0;cursor:pointer" onclick="_selectNHCStorm('${_escStormName(storm.name)}')">
+    <span style="font-size:1.4em">🌀</span>
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:0.85em;color:${borderColor}">${storm.type} ${storm.name} — ${cat.label}</div>
+      <div style="font-size:0.7em;color:var(--text-secondary)">${reason}${status ? ' · ' + status.text : ''}</div>
+    </div>
+    <span style="font-size:0.65em;color:var(--accent-cyan)">View →</span>
+  </div>`;
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'nhc-prox-banner';
+    const header = document.querySelector('.header');
+    if (header && header.nextSibling) header.parentNode.insertBefore(el, header.nextSibling);
+    else document.body.prepend(el);
+  }
+  el.innerHTML = html;
 }
 // ==========================================
 // STORMS DISPLAY
@@ -8945,7 +8973,7 @@ function _renderHazardSummary(){
     if(hasWarning){statusText='⚠️ WARNING';topColor='#ff1744';icon='🔴'}
     else if(hasWatch){statusText='👁️ WATCH';topColor='#ffc107';icon='🟡'}
     else if(inCone){statusText=`${inCone} IN CONE`;topColor='#ff9800';icon='🟠'}
-    else if(nearCount){statusText=`${nhc.length} active · ${nearCount} near`;topColor=maxCat>=3?'#ff5722':maxCat>=1?'#ffc107':'#4fc3f7';icon='🌀'}
+    else if(nearCount){statusText=`Tracking · ${nearCount} near`;topColor=maxCat>=3?'#ff5722':maxCat>=1?'#ffc107':'#4fc3f7';icon='🌀'}
     else{statusText=`${nhc.length} active`;topColor='#4fc3f7';icon='🌀'}
     items.push({icon,label:'Tropical',status:statusText,color:topColor});
   }
