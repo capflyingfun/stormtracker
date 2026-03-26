@@ -7268,7 +7268,7 @@ function plotNHCTracks(map) {
   for (const s of _nhcData.systems) {
     if (s.lat == null || s.lon == null) continue;
     const cat = s.category || _saffirSimpson(s.maxWind);
-    const isSelected = selectedName && s.name.toLowerCase() === selectedName.toLowerCase();
+    const isSelected = !!selectedName && (s.id === selectedName || s.name.toLowerCase() === selectedName.toLowerCase());
     const marker = L.circleMarker([s.lat, s.lon], {
       radius: isSelected ? 14 : (cat.num >= 3 ? 12 : cat.num >= 1 ? 10 : 8),
       color: cat.color, fillColor: cat.color,
