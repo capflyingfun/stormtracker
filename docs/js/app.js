@@ -1742,17 +1742,32 @@ function loadFavorite(idx){
   const f=favs[idx];
   if(f){setLoc(f.lat,f.lon,f.name);toggleLocOverlay(false)}
 }
+function toggleFavEmailAlert(idx){
+  const favs=getFavorites();
+  const f=favs[idx];
+  if(!f)return;
+  f.emailAlerts=f.emailAlerts===false?true:f.emailAlerts===true?false:true;
+  saveFavorites(favs);
+  renderFavorites();
+  toast(f.emailAlerts?'📬 Email alerts ON for '+f.name:'📬 Email alerts OFF for '+f.name);
+}
 function renderFavorites(){
   const el=document.getElementById('fav-list');
   if(!el)return;
   const favs=getFavorites();
   if(!favs.length){el.innerHTML='<div style="font-size:0.7em;color:#555;text-align:center;padding:4px">No favorites saved</div>';return}
-  el.innerHTML=favs.map((f,i)=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;margin:2px 0;background:rgba(255,255,255,0.03);border-radius:6px;cursor:pointer" onclick="loadFavorite(${i})">
+  const loggedIn=!!_syncToken&&!!_syncApiUrl();
+  el.innerHTML=favs.map((f,i)=>{
+    const emailOn=f.emailAlerts!==false;
+    const emailBtn=loggedIn&&_emailAlertsOn?`<button onclick="event.stopPropagation();toggleFavEmailAlert(${i})" style="background:none;border:1px solid ${emailOn?'rgba(0,200,100,0.4)':'var(--border-subtle)'};color:${emailOn?'#00cc66':'var(--text-muted)'};font-size:0.55em;cursor:pointer;padding:1px 5px;border-radius:4px;white-space:nowrap" title="${emailOn?'Email alerts ON':'Email alerts OFF'}">${emailOn?'📬':'📭'}</button>`:'';
+    return`<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;margin:2px 0;background:rgba(255,255,255,0.03);border-radius:6px;cursor:pointer" onclick="loadFavorite(${i})">
     <span style="font-size:0.8em">⭐</span>
     <span style="flex:1;font-size:0.75em;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</span>
+    ${emailBtn}
     <button onclick="event.stopPropagation();renameFavorite(${i})" style="background:none;border:none;color:var(--accent-cyan);font-size:0.7em;cursor:pointer;padding:2px 4px" title="Rename">✏️</button>
     <button onclick="event.stopPropagation();removeFavorite(${i})" style="background:none;border:none;color:#f44;font-size:0.7em;cursor:pointer;padding:2px 4px">✕</button>
-  </div>`).join('');
+  </div>`;
+  }).join('');
 }
 
 function startMapPick(){
@@ -2143,6 +2158,7 @@ function syncSettingsPanel(){
   syncGaugeStyleBtns();
   syncGyroBtn();
   syncTimeFmtBtns();
+  try { renderSyncSection(); } catch(e) {}
   const sel=document.getElementById('settings-travel-int');
   if(sel)sel.value=String(S.gpsInterval||300);
   const arSel=document.getElementById('settings-auto-refresh');
@@ -9505,6 +9521,240 @@ function setupIsoTouch(){
     camPad.addEventListener('pointerleave',stopCam);
     camPad.addEventListener('pointercancel',stopCam);
   }
+}
+
+let _syncToken = localStorage.getItem('st_syncToken') || '';
+let _syncEmail = localStorage.getItem('st_syncEmail') || '';
+let _syncLastTime = localStorage.getItem('st_syncLastTime') || '';
+let _emailAlertsOn = localStorage.getItem('st_emailAlerts') === '1';
+
+function _syncApiUrl() { return localStorage.getItem('st_syncApiUrl') || ''; }
+
+async function _syncFetch(path, opts = {}) {
+  const base = _syncApiUrl();
+  if (!base) throw new Error('Sync server URL not configured');
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (_syncToken) headers['Authorization'] = 'Bearer ' + _syncToken;
+  const res = await fetch(base + path, { ...opts, headers, signal: AbortSignal.timeout(10000) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+function _gatherSyncSettings() {
+  return {
+    favorites: (function(){try{return JSON.parse(localStorage.getItem('st_favs')||'[]')}catch(e){return[]}})(),
+    homeLocation: (function(){try{return JSON.parse(localStorage.getItem('st_home_location'))}catch(e){return null}})(),
+    wxThresholds: (function(){try{return JSON.parse(localStorage.getItem('st_wxThresholds'))}catch(e){return{}}})(),
+    stormThresholds: (function(){try{return JSON.parse(localStorage.getItem('st_stormThresholds'))}catch(e){return{}}})(),
+    units: (function(){try{return JSON.parse(localStorage.getItem('st_units'))}catch(e){return null}})(),
+    unitMode: localStorage.getItem('st_unitMode') || 'auto',
+    customUnits: (function(){try{return JSON.parse(localStorage.getItem('st_customUnits'))}catch(e){return null}})(),
+    gaugeStyle: localStorage.getItem('st_gaugeStyle') || 'neon',
+    timeFormat: localStorage.getItem('st_timeFormat') || 'auto',
+    sonarCfg: (function(){try{return JSON.parse(localStorage.getItem('st_sonarCfg'))}catch(e){return null}})(),
+    sonarZoom: parseInt(localStorage.getItem('st_sonarZoom')) || 80,
+    emailAlerts: _emailAlertsOn,
+  };
+}
+
+function _applySyncSettings(s) {
+  if (!s || typeof s !== 'object') return;
+  if (s.favorites) { try { localStorage.setItem('st_favs', JSON.stringify(s.favorites)); } catch(e){} }
+  if (s.homeLocation) { try { localStorage.setItem('st_home_location', JSON.stringify(s.homeLocation)); } catch(e){} }
+  if (s.wxThresholds) { try { localStorage.setItem('st_wxThresholds', JSON.stringify(s.wxThresholds)); } catch(e){} }
+  if (s.stormThresholds) { try { localStorage.setItem('st_stormThresholds', JSON.stringify(s.stormThresholds)); } catch(e){} }
+  if (s.units) { try { localStorage.setItem('st_units', JSON.stringify(s.units)); } catch(e){} }
+  if (s.unitMode) localStorage.setItem('st_unitMode', s.unitMode);
+  if (s.customUnits) { try { localStorage.setItem('st_customUnits', JSON.stringify(s.customUnits)); } catch(e){} }
+  if (s.gaugeStyle) localStorage.setItem('st_gaugeStyle', s.gaugeStyle);
+  if (s.timeFormat) localStorage.setItem('st_timeFormat', s.timeFormat);
+  if (s.sonarCfg) { try { localStorage.setItem('st_sonarCfg', JSON.stringify(s.sonarCfg)); } catch(e){} }
+  if (s.sonarZoom) localStorage.setItem('st_sonarZoom', String(s.sonarZoom));
+  if (s.emailAlerts !== undefined) {
+    _emailAlertsOn = !!s.emailAlerts;
+    localStorage.setItem('st_emailAlerts', _emailAlertsOn ? '1' : '0');
+  }
+}
+
+function _setSyncState(token, email) {
+  _syncToken = token || '';
+  _syncEmail = email || '';
+  localStorage.setItem('st_syncToken', _syncToken);
+  localStorage.setItem('st_syncEmail', _syncEmail);
+}
+
+function _clearSyncState() {
+  _syncToken = ''; _syncEmail = ''; _syncLastTime = '';
+  localStorage.removeItem('st_syncToken');
+  localStorage.removeItem('st_syncEmail');
+  localStorage.removeItem('st_syncLastTime');
+}
+
+async function syncSignup() {
+  const emailEl = document.getElementById('sync-email');
+  const pinEl = document.getElementById('sync-pin');
+  if (!emailEl || !pinEl) return;
+  const email = emailEl.value.trim();
+  const pin = pinEl.value.trim();
+  if (!email || !pin) return toast('Enter email and PIN');
+  if (!/^\d{4,6}$/.test(pin)) return toast('PIN must be 4-6 digits');
+  try {
+    const data = await _syncFetch('/api/signup', { method: 'POST', body: JSON.stringify({ email, pin }) });
+    _setSyncState(data.token, data.email);
+    toast('✅ Account created');
+    renderSyncSection();
+    syncPushSettings();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'Signup failed'));
+  }
+}
+
+async function syncLogin() {
+  const emailEl = document.getElementById('sync-email');
+  const pinEl = document.getElementById('sync-pin');
+  if (!emailEl || !pinEl) return;
+  const email = emailEl.value.trim();
+  const pin = pinEl.value.trim();
+  if (!email || !pin) return toast('Enter email and PIN');
+  try {
+    const data = await _syncFetch('/api/login', { method: 'POST', body: JSON.stringify({ email, pin }) });
+    _setSyncState(data.token, data.email);
+    toast('✅ Logged in');
+    renderSyncSection();
+    syncPullSettings();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'Login failed'));
+  }
+}
+
+async function syncLogout() {
+  try { await _syncFetch('/api/logout', { method: 'POST' }); } catch(e) {}
+  _clearSyncState();
+  toast('Logged out');
+  renderSyncSection();
+}
+
+async function syncPushSettings() {
+  if (!_syncToken) return toast('Not logged in');
+  try {
+    const settings = _gatherSyncSettings();
+    const data = await _syncFetch('/api/settings/sync', { method: 'POST', body: JSON.stringify({ settings }) });
+    _syncLastTime = data.updated_at || new Date().toISOString();
+    localStorage.setItem('st_syncLastTime', _syncLastTime);
+    toast('☁️ Settings uploaded');
+    renderSyncSection();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'Sync failed'));
+  }
+}
+
+async function syncPullSettings() {
+  if (!_syncToken) return toast('Not logged in');
+  try {
+    const data = await _syncFetch('/api/settings');
+    if (data.settings && Object.keys(data.settings).length > 0) {
+      _applySyncSettings(data.settings);
+      _syncLastTime = data.updated_at || '';
+      localStorage.setItem('st_syncLastTime', _syncLastTime);
+      toast('☁️ Settings restored');
+      try { loadUnits(); syncSettingsPanel(); } catch(e) {}
+    } else {
+      toast('No saved settings found — uploading current settings');
+      syncPushSettings();
+    }
+    renderSyncSection();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'Pull failed'));
+  }
+}
+
+function toggleEmailAlerts() {
+  _emailAlertsOn = !_emailAlertsOn;
+  localStorage.setItem('st_emailAlerts', _emailAlertsOn ? '1' : '0');
+  renderSyncSection();
+  if (_syncToken) syncPushSettings();
+}
+
+function setSyncApiUrl() {
+  const el = document.getElementById('sync-api-url');
+  if (!el) return;
+  const url = el.value.trim().replace(/\/+$/, '');
+  localStorage.setItem('st_syncApiUrl', url);
+  toast(url ? '🔗 Sync server URL saved' : 'Sync server URL cleared');
+  renderSyncSection();
+}
+
+async function syncDeleteAccount() {
+  if (!confirm('Delete your sync account? This removes all synced data from the server. Local settings are not affected.')) return;
+  try {
+    await _syncFetch('/api/account', { method: 'DELETE' });
+    _clearSyncState();
+    _emailAlertsOn = false;
+    localStorage.setItem('st_emailAlerts', '0');
+    toast('Account deleted');
+    renderSyncSection();
+  } catch (e) {
+    toast('❌ ' + (e.message || 'Delete failed'));
+  }
+}
+
+function renderSyncSection() {
+  const el = document.getElementById('sync-alerts-section');
+  if (!el) return;
+  const base = _syncApiUrl();
+  const loggedIn = !!_syncToken && !!base;
+
+  let html = '';
+
+  html += '<div style="margin-bottom:8px"><div style="display:flex;align-items:center;gap:4px;margin-bottom:4px"><span style="font-size:0.65em;color:var(--text-muted)">Server URL</span></div>';
+  html += `<div style="display:flex;gap:4px"><input type="text" id="sync-api-url" value="${escHtml(base)}" placeholder="https://your-worker.workers.dev" style="flex:1;font-size:0.65em;padding:4px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;font-family:var(--font-mono)"><button onclick="setSyncApiUrl()" style="font-size:0.6em;padding:4px 8px;background:rgba(167,139,250,0.12);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap">Save</button></div></div>`;
+
+  if (!base) {
+    html += '<div style="font-size:0.6em;color:var(--text-muted);padding:8px 0">Set your Cloudflare Worker URL above to enable sync & email alerts. See worker/README.md for setup instructions.</div>';
+    el.innerHTML = html;
+    return;
+  }
+
+  if (!loggedIn) {
+    html += '<div style="margin-bottom:6px"><input type="email" id="sync-email" placeholder="Email" style="width:100%;font-size:0.7em;padding:6px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;margin-bottom:4px;box-sizing:border-box">';
+    html += '<input type="password" id="sync-pin" placeholder="4-6 digit PIN" inputmode="numeric" pattern="[0-9]*" maxlength="6" style="width:100%;font-size:0.7em;padding:6px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;box-sizing:border-box"></div>';
+    html += '<div style="display:flex;gap:6px;margin-bottom:6px">';
+    html += '<button onclick="syncSignup()" style="flex:1;padding:7px;font-size:0.7em;font-weight:600;background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);border-radius:6px;cursor:pointer">Sign Up</button>';
+    html += '<button onclick="syncLogin()" style="flex:1;padding:7px;font-size:0.7em;font-weight:600;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;cursor:pointer">Log In</button>';
+    html += '</div>';
+    html += '<div style="font-size:0.55em;color:var(--text-muted)">Account is optional — the app works fully without one.</div>';
+  } else {
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:0.7em;color:var(--text-secondary)">📧 ${escHtml(_syncEmail)}</span><span style="font-size:0.55em;padding:2px 8px;background:rgba(0,200,100,0.15);color:#00cc66;border-radius:10px;font-weight:600">Connected</span></div>`;
+
+    html += '<div style="display:flex;gap:4px;margin-bottom:8px">';
+    html += '<button onclick="syncPushSettings()" style="flex:1;padding:6px;font-size:0.65em;font-weight:600;background:rgba(167,139,250,0.12);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);border-radius:6px;cursor:pointer">⬆ Upload</button>';
+    html += '<button onclick="syncPullSettings()" style="flex:1;padding:6px;font-size:0.65em;font-weight:600;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;cursor:pointer">⬇ Download</button>';
+    html += '</div>';
+
+    if (_syncLastTime) {
+      try {
+        const d = new Date(_syncLastTime);
+        html += `<div style="font-size:0.55em;color:var(--text-muted);margin-bottom:8px">Last sync: ${fmtClock(d)} · ${d.toLocaleDateString()}</div>`;
+      } catch(e) {}
+    }
+
+    const alertOn = _emailAlertsOn;
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:8px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border-subtle)">';
+    html += '<div><span style="font-size:0.7em;color:var(--text-secondary)">📬 Email Alerts</span><div style="font-size:0.55em;color:var(--text-muted);margin-top:2px">Get emailed when thresholds are exceeded</div></div>';
+    html += `<button onclick="toggleEmailAlerts()" style="font-size:0.65em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid ${alertOn?'#00cc66':'var(--border-subtle)'};background:${alertOn?'rgba(0,200,100,0.15)':'rgba(255,255,255,0.04)'};color:${alertOn?'#00cc66':'var(--text-muted)'}">${alertOn?'ON':'OFF'}</button>`;
+    html += '</div>';
+    if (alertOn) {
+      html += '<div style="font-size:0.55em;color:var(--text-muted);margin-bottom:8px;padding:0 4px">Alerts check your saved locations every 10 minutes against your Weather Station Alert thresholds above. 15-min cooldown per alert type.</div>';
+    }
+
+    html += '<div style="display:flex;gap:4px;margin-top:6px">';
+    html += '<button onclick="syncLogout()" style="flex:1;padding:5px;font-size:0.6em;font-weight:600;background:rgba(255,255,255,0.04);color:var(--text-muted);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">Log Out</button>';
+    html += '<button onclick="syncDeleteAccount()" style="flex:1;padding:5px;font-size:0.6em;font-weight:600;background:rgba(255,51,85,0.08);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer">Delete Account</button>';
+    html += '</div>';
+  }
+
+  el.innerHTML = html;
 }
 
 (function initLang(){
