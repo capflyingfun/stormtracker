@@ -7600,8 +7600,7 @@ async function _fetchVolcanoes(){
 const _stateFips={AL:'01',AK:'02',AZ:'04',AR:'05',CA:'06',CO:'08',CT:'09',DE:'10',FL:'12',GA:'13',HI:'15',ID:'16',IL:'17',IN:'18',IA:'19',KS:'20',KY:'21',LA:'22',ME:'23',MD:'24',MA:'25',MI:'26',MN:'27',MS:'28',MO:'29',MT:'30',NE:'31',NV:'32',NH:'33',NJ:'34',NM:'35',NY:'36',NC:'37',ND:'38',OH:'39',OK:'40',OR:'41',PA:'42',RI:'44',SC:'45',SD:'46',TN:'47',TX:'48',UT:'49',VT:'50',VA:'51',WA:'53',WV:'54',WI:'55',WY:'56',DC:'11',PR:'72'};
 
 async function _fetchDrought(){
-  const st=_extractUSState();
-  if(!st){_hazardData.drought={error:'state'};return}
+  const st=_extractUSState()||'';
   try{
     const d=0.01;
     const url=`https://ndmcgeodata.unl.edu/cgi-bin/mapserv.exe?map=/ms4w/apps/usdm/map/usdm_current_wms.map&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo&LAYERS=usdm_current&QUERY_LAYERS=usdm_current&STYLES=default&CRS=EPSG:4326&BBOX=${S.lat-d},${S.lon-d},${S.lat+d},${S.lon+d}&WIDTH=2&HEIGHT=2&I=1&J=1&INFO_FORMAT=text/plain&FEATURE_COUNT=10`;
@@ -7766,7 +7765,6 @@ function _getDroughtStatus(dr){
   if(!dr)return{icon:'🔄',label:'Drought',status:'Loading...',color:'#666'};
   if(dr.error==='cors')return{icon:'⚠️',label:'Drought',status:'Data unavailable',color:'#888'};
   if(dr.error==='nodata')return{icon:'⚠️',label:'Drought',status:'No current data',color:'#888'};
-  if(dr.error==='state')return{icon:'ℹ️',label:'Drought',status:'US only',color:'#666'};
   if(dr.level<0)return{icon:'✅',label:'Drought',status:'None',color:'#22c55e'};
   if(dr.level>=4)return{icon:'🔴',label:'Drought',status:'D4 Exceptional',color:'#800000'};
   if(dr.level>=3)return{icon:'🔴',label:'Drought',status:'D3 Extreme',color:'#ef4444'};
@@ -7959,7 +7957,7 @@ function _renderDroughtSection(){
       Drought data requires direct access.<br>
       <a href="https://droughtmonitor.unl.edu/CurrentMap/StateDroughtMonitor.aspx?${dr.state||'FL'}" target="_blank" rel="noopener" style="color:var(--accent-cyan)">View US Drought Monitor →</a>
     </div>`;
-  }else if(dr.error==='state'){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">Could not determine state for drought data</div>`}
+  }else if(dr.error==='state'){html+=`<div style="font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center">Drought data not available for this location</div>`}
   else{
     const allLevels=[
       {dm:-1,label:'No Drought',color:'#22c55e'},
