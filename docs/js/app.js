@@ -852,7 +852,7 @@ function windSweepAnim(){
   const numEl=document.querySelector('.wrc-num');
   const gustEl=document.querySelector('.wrc-gust');
   if(numEl)numEl.textContent=kmhTo(baseSpd,S.windUnit);
-  if(gustEl)gustEl.textContent='G'+fmtWind(baseSpd);
+  if(gustEl)gustEl.textContent='G'+fmtWind(baseGust);
   updateGaugeSegments(parseFloat(kmhTo(baseSpd,S.windUnit)),parseFloat(kmhTo(baseGust,S.windUnit)));
   const dur=500;
   const t0=performance.now();
@@ -5587,8 +5587,8 @@ function buildPathArrows(map,_retries){
     if(r<5){setTimeout(()=>{if(S._showPathArrows)buildPathArrows(map,r+1)},800)}
     return;
   }
-  const mv=hasMovement?S.stormMovement:{direction:S._upperWindDir,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10};
-  const mvDir=hasAloft?S._upperWindDir:mv.direction;
+  const mv=hasMovement?S.stormMovement:{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10};
+  const mvDir=hasAloft?(S._upperWindDir+180)%360:mv.direction;
   const fromBear=(mvDir+180)%360;
   const ad=S._approachData||{count:0,bearings:[],maxDist:0,sumDbz:0,maxDbz:0,minDbz:999};
   const hasInbound=ad.count>0&&ad.sumDbz>0;
@@ -6723,15 +6723,21 @@ async function _fetchSPCMesoscale() {
         const llMatch = dHtml.match(/LAT\.{3}LON\s+([\d\s]+)/i);
         if (llMatch) {
           const nums = llMatch[1].trim().split(/\s+/);
-          let sumLat = 0, sumLon = 0, cnt = 0;
+          const pts = [];
           for (const n of nums) {
-            if (n.length >= 8) {
+            if (n.length >= 7 && n.length <= 9) {
               const lat = parseInt(n.substring(0, 4)) / 100;
-              const lon = -parseInt(n.substring(4)) / 100;
-              if (lat > 15 && lat < 60 && lon > -130 && lon < -60) { sumLat += lat; sumLon += lon; cnt++; }
+              const lonRaw = parseInt(n.substring(4));
+              const lon = lonRaw > 999 ? -(lonRaw / 100) : -(lonRaw / 10);
+              if (lat > 15 && lat < 60 && lon > -180 && lon < -50) pts.push({ lat, lon });
             }
           }
-          if (cnt > 0) { md.lat = sumLat / cnt; md.lon = sumLon / cnt; }
+          if (pts.length > 0) {
+            md._pts = pts;
+            let sumLat = 0, sumLon = 0;
+            pts.forEach(p => { sumLat += p.lat; sumLon += p.lon; });
+            md.lat = sumLat / pts.length; md.lon = sumLon / pts.length;
+          }
         }
         return md;
       } catch (e) { return md; }
@@ -8859,6 +8865,11 @@ function _renderSPCMDSection(){
   if (!isUSLocation(S.lat, S.lon)) return '';
   const allMds = _spcData.md;
   const mds = (allMds||[]).filter(md => {
+    if (md._pts && md._pts.length) {
+      let minD = Infinity;
+      for (const p of md._pts) { const d = haversine(S.lat, S.lon, p.lat, p.lon); if (d < minD) minD = d; }
+      return minD <= 200;
+    }
     if (md.lat != null && md.lon != null) return haversine(S.lat, S.lon, md.lat, md.lon) <= 200;
     return false;
   });
