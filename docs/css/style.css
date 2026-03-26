@@ -59,6 +59,7 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .status-dot{width:6px;height:6px;border-radius:50%;background:var(--accent-yellow);animation:pulse-dot 2s ease-in-out infinite}
 .status-dot.live{background:var(--accent-green)}
 @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.4}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
 .card{background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:16px;margin-bottom:12px;box-shadow:var(--neon-glow)}
 .card:hover{border-color:rgba(0,200,255,0.25)}
 .card-title{font-size:0.8em;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-cyan);margin-bottom:12px;display:flex;align-items:center;gap:8px;text-shadow:0 0 8px rgba(0,229,255,0.3)}

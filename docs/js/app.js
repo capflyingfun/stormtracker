@@ -3754,6 +3754,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" style="font-size:0.55em;font-weight:700;line-height:1;color:var(--accent-cyan)" onclick="toggleStormPoints()">PT</div>
         <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff9800" onclick="toggleRadarOverlay()">RDR</div>
         <div class="map-ctrl-btn" id="btn-mping" title="Toggle mPING reports" style="font-size:0.55em;font-weight:700;line-height:1;color:#4fc3f7" onclick="toggleMping()">mP</div>
+        <div class="map-ctrl-btn" id="btn-alert-polys" title="Toggle NWS alert polygons" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff4444" onclick="toggleAlertPolygons()">⚠</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
         <div class="map-ctrl-btn" id="btn-iso-3d" title="3D Storm Terrain" style="font-size:0.55em;font-weight:700;line-height:1;color:#66ffcc" onclick="show3DView()">3D</div>
         <div class="map-ctrl-btn" id="clutter-toggle" title="Clutter hidden (tap to show)" style="font-size:0.7em;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);border-color:#555" onclick="toggleClutter()">🕳️</div>
@@ -6749,19 +6750,60 @@ function plotSPCWatchPolygons(map) {
   }
 }
 S._nwsWarnPolys = [];
+S._showAlertPolygons = true;
+function _alertPolyColor(ev) {
+  const t = (ev || '').toLowerCase();
+  if (t.includes('tornado')) return '#DC2626';
+  if (t.includes('severe thunderstorm')) return '#F97316';
+  if (t.includes('flash flood') || t.includes('flood')) return '#3B82F6';
+  if (t.includes('hurricane') || t.includes('typhoon') || t.includes('tropical storm')) return '#9333EA';
+  if (t.includes('winter storm') || t.includes('blizzard') || t.includes('ice storm')) return '#06B6D4';
+  if (t.includes('fire') || t.includes('red flag')) return '#B91C1C';
+  if (t.includes('watch')) return '#EAB308';
+  if (t.includes('warning')) return '#F97316';
+  if (t.includes('advisory')) return '#A3E635';
+  return '#F59E0B';
+}
+function _pointInRingHTML(lat, lon, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][1], yi = ring[i][0];
+    const xj = ring[j][1], yj = ring[j][0];
+    if (((yi > lon) !== (yj > lon)) && (lat < (xj - xi) * (lon - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+function isUserInAlertZone(alert) {
+  if (!S.lat || !S.lon) return false;
+  const geom = alert.geometry;
+  if (!geom || !geom.coordinates) return false;
+  const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+  for (const rings of polys) {
+    if (!rings[0] || rings[0].length < 3) continue;
+    if (!_pointInRingHTML(S.lat, S.lon, rings[0])) continue;
+    let inHole = false;
+    for (let h = 1; h < rings.length; h++) { if (_pointInRingHTML(S.lat, S.lon, rings[h])) { inHole = true; break; } }
+    if (!inHole) return true;
+  }
+  return false;
+}
+function toggleAlertPolygons() {
+  S._showAlertPolygons = !S._showAlertPolygons;
+  const btn = document.getElementById('btn-alert-polys');
+  if (btn) btn.style.opacity = S._showAlertPolygons ? '1' : '0.4';
+  if (S.map) plotNWSWarningPolygons(S.map);
+}
 function plotNWSWarningPolygons(map) {
   S._nwsWarnPolys.forEach(l => { try { map.removeLayer(l); } catch (e) {} });
   S._nwsWarnPolys = [];
-  if (!S.alerts || !S.alerts.length) return;
+  if (!S._showAlertPolygons || !S.alerts || !S.alerts.length) return;
   for (const a of S.alerts) {
-    const ev = (a.properties?.event || '').toLowerCase();
-    const isTor = ev.includes('tornado warning');
-    const isSvr = ev.includes('severe thunderstorm warning');
-    if (!isTor && !isSvr) continue;
+    const ev = a.properties?.event || '';
     const geom = a.geometry;
     if (!geom || !geom.coordinates) continue;
     const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : [];
-    const color = isTor ? '#ff1744' : '#ff6d00';
+    const color = _alertPolyColor(ev);
+    const isTor = ev.toLowerCase().includes('tornado warning');
     for (const coords of polys) {
       const ring = coords[0];
       if (!ring || ring.length < 3) continue;
@@ -6769,10 +6811,14 @@ function plotNWSWarningPolygons(map) {
       const poly = L.polygon(latlngs, {
         color: color,
         fillColor: color,
-        fillOpacity: isTor ? 0.15 : 0.1,
+        fillOpacity: isTor ? 0.18 : 0.15,
         weight: isTor ? 3 : 2,
-        interactive: false
+        dashArray: isTor ? null : '4,4'
       });
+      const sev = a.properties?.severity || '';
+      const headline = a.properties?.headline || ev;
+      const expires = a.properties?.expires ? new Date(a.properties.expires).toLocaleString() : 'Unknown';
+      poly.bindPopup(`<div style="max-width:260px;font-family:system-ui,sans-serif"><div style="font-weight:700;font-size:13px;color:${color};margin-bottom:3px">${escHtml(ev)}</div><div style="font-size:11px;margin-bottom:5px">${escHtml(headline)}</div><div style="font-size:10px;color:#888"><b>Severity:</b> ${escHtml(sev)}<br><b>Expires:</b> ${expires}</div></div>`);
       poly.addTo(map);
       S._nwsWarnPolys.push(poly);
     }
@@ -7846,7 +7892,9 @@ function renderAlerts(){
     updateAlertBadge();
   }
   if(S.alerts&&S.alerts.length){
-    html+=`<div class="card"><div class="card-title"><span class="icon">⚠️</span> NWS Alerts (${S.alerts.length})</div>
+    const zoneAlerts=S.alerts.filter(a=>isUserInAlertZone(a));
+    const zoneBanner=zoneAlerts.length?`<div style="background:rgba(220,38,38,0.2);border:1px solid rgba(220,38,38,0.5);border-radius:8px;padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px;animation:pulse 2s infinite"><span style="font-size:1.2em">🔴</span><span style="font-size:0.8em;font-weight:700;color:#fca5a5">Your location is inside ${zoneAlerts.length} active alert zone${zoneAlerts.length>1?'s':''}: ${zoneAlerts.map(a=>escHtml(a.properties?.event||'Alert')).join(', ')}</span></div>`:'';
+    html+=`<div class="card"><div class="card-title"><span class="icon">⚠️</span> NWS Alerts (${S.alerts.length})</div>${zoneBanner}
     ${S.alerts.map((a,i)=>{
       const p=a.properties||{};const event=p.event||'Alert';const sev=(p.severity||'').toLowerCase();
       const evLow=event.toLowerCase();
@@ -7857,7 +7905,9 @@ function renderAlerts(){
       else if(isSvrWarn)cls='svr-warning';
       const desc=(p.description||'').replace(/\n/g,'<br>');
       const sevIcon=isTorWarn?'🌪️':isSvrWarn?'⛈️':sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
-      return`<div class="nws-alert ${cls}"><div class="nws-alert-title">${sevIcon} ${event}</div><div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${p.expires?`<div class="nws-alert-expires">⏱️ <span id="alert-cd-${i}" data-exp="${new Date(p.expires).getTime()}"></span></div>`:''}</div>`;
+      const inZone=isUserInAlertZone(a);
+      const zoneBadge=inZone?'<span style="display:inline-block;background:#dc2626;color:#fff;font-size:0.55em;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:6px;animation:pulse 2s infinite;vertical-align:middle">IN YOUR ZONE</span>':'';
+      return`<div class="nws-alert ${cls}" style="${inZone?'border-color:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.3)':''}"><div class="nws-alert-title">${sevIcon} ${event}${zoneBadge}</div><div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${p.expires?`<div class="nws-alert-expires">⏱️ <span id="alert-cd-${i}" data-exp="${new Date(p.expires).getTime()}"></span></div>`:''}</div>`;
     }).join('')}</div>`;
   }else{
     html+=`<div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">No Active NWS Alerts</span><br>No NWS warnings or watches for your area.</div></div>

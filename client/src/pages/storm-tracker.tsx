@@ -396,6 +396,20 @@ export default function StormTracker() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: nwsAlertsForMap = [] } = useQuery({
+    queryKey: ['/api/nws-alerts', location?.lat, location?.lon, 'map-polygons'],
+    enabled: !!location,
+    queryFn: async () => {
+      if (!location) return [];
+      const response = await fetch(`/api/nws-alerts?lat=${location.lat}&lon=${location.lon}`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.alerts || [];
+    },
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  });
+
   // Get winds aloft data for AI assistant
   const { data: windsAloftData } = useQuery({
     queryKey: ['/api/winds-aloft', location?.lat, location?.lon],
@@ -1365,6 +1379,7 @@ export default function StormTracker() {
                       showTimeLabels={showTimeLabels}
                       onMapInstanceReady={setMapInstance}
                       showLightning={showLightning}
+                      nwsAlerts={nwsAlertsForMap}
                     />
                   )}
                   
@@ -1508,6 +1523,7 @@ export default function StormTracker() {
                         showTimeLabels={showTimeLabels}
                         onMapInstanceReady={setMapInstance}
                         showLightning={showLightning}
+                        nwsAlerts={nwsAlertsForMap}
                       />
                     )}
                     {viewMode === 'sonar' && (
