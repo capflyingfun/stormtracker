@@ -2477,7 +2477,9 @@ function clearStormAlertHistory(){_stormAlertHistory=[];_saveStormAlertHistory()
 // WEATHER (Open-Meteo)
 // ==========================================
 async function fetchWeather(){
-  const el=document.getElementById('page-weather');showSkel(el,6);
+  const el=document.getElementById('page-weather');
+  if(_isOffline&&S._lastWeatherData){renderWeather(S._lastWeatherData);return}
+  showSkel(el,6);
   try{
     const omUrl=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lon}`
       +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day`
@@ -2537,8 +2539,14 @@ async function fetchWeather(){
         console.log('Weather: NWS forecast loaded ('+nwsFc.length+' periods)');
       }
     }catch(e){console.log('Multi-source blend failed:',e.message)}
-    S.weather=omData.current;S._lastWeatherFetch=Date.now();_resetMinMax();renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);
-  }catch(e){el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p></div>`}
+    S.weather=omData.current;S._lastWeatherFetch=Date.now();S._lastWeatherData=omData;_resetMinMax();renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);
+  }catch(e){
+    if(_isOffline&&S._lastWeatherData){
+      renderWeather(S._lastWeatherData);
+    } else {
+      el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p></div>`;
+    }
+  }
 }
 async function _fetchAWCOnce(){
   let data=[];
@@ -8532,8 +8540,8 @@ function _dismissInstall(){
 let _isOffline=false;
 function _initOfflineDetection(){
   _isOffline=!navigator.onLine;
-  window.addEventListener('offline',()=>{_isOffline=true;_showOfflineBanner()});
-  window.addEventListener('online',()=>{_isOffline=false;_hideOfflineBanner();toast('Back online','success')});
+  window.addEventListener('offline',()=>{_isOffline=true;_showOfflineBanner();if(S._lastWeatherData)renderWeather(S._lastWeatherData);renderHazards()});
+  window.addEventListener('online',()=>{_isOffline=false;_hideOfflineBanner();toast('Back online','success');if(S.lat)fetchWeather()});
   if(_isOffline)_showOfflineBanner();
 }
 function _showOfflineBanner(){
