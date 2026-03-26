@@ -3147,14 +3147,11 @@ let _gustSamples=[];
 let _gustMax=0;
 let _gustResetT=0;
 let _windBase={spd:0,dir:0};
-let _windTarget=null;
-let _windLerpStart=0;
 let _windCurSim={spd:0,dir:0,gust:0};
 let _windSimSeed=0;
 let _windSweepRaf=null;
 let _windSweepPaused=false;
 let _windSweepAfterRender=false;
-const WIND_LERP_DUR=60000;
 let _gustEvents=[];
 let _calmState={active:false,start:0,dur:0,nextCheck:0};
 function _fBm(x,y,octaves,lacunarity,gain){
@@ -3195,24 +3192,15 @@ function _getForecastWind(now){
   return{spd,dir,gust};
 }
 function startWindSim(){
-  const wasRunning=!!_windSimTimer;
   if(_windSimTimer)clearInterval(_windSimTimer);
   if(_windRefreshTimer)clearInterval(_windRefreshTimer);
   if(!S.weather)return;
-  const newSpd=S.weather.wind_speed_10m||0;
-  const newDir=S.weather.wind_direction_10m||0;
-  const newGust=S.weather.wind_gusts_10m||0;
-  const spdDrift=_windBase.spd>0?Math.abs(newSpd-_windBase.spd)/_windBase.spd:1;
-  if(!wasRunning||!_windCurSim.spd||spdDrift>0.5){
-    _windBase={spd:newSpd,dir:newDir};
-    _windTarget=null;
-    _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
-    _gustEvents=[];
-    _calmState={active:false,start:0,dur:0,nextCheck:Date.now()+30000};
-    _windCurSim={spd:newSpd,dir:newDir,gust:newGust};
-  }
-  const seed=wasRunning?(_windSimSeed||Math.random()*1000):Math.random()*1000;
-  _windSimSeed=seed;
+  _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
+  _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
+  _gustEvents=[];
+  _calmState={active:false,start:0,dur:0,nextCheck:Date.now()+30000};
+  _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:S.weather.wind_gusts_10m||0};
+  _windSimSeed=Math.random()*1000;
   _windRefreshTimer=setInterval(async()=>{
     try{
       const awc=await fetchAWCNearest();
@@ -3220,32 +3208,15 @@ function startWindSim(){
         const newSpd=awc.windKmh;
         const newDir=awc.windDir!=null?awc.windDir:_windBase.dir;
         console.log('Wind refresh from AWC·'+awc.icao+': spd='+newSpd.toFixed(1)+'kmh dir='+newDir+'°');
-        setTimeout(()=>{
-          _windTarget={spd:newSpd,dir:newDir};
-          _windLerpStart=Date.now();
-        },60000);
+        _windBase={spd:newSpd,dir:newDir};
       }
     }catch(e){console.log('Wind refresh error:',e.message)}
   },120000);
   _windSimTimer=setInterval(()=>{
     let curSpd=_windBase.spd;
     let curDir=_windBase.dir;
-    if(_windTarget){
-      const elapsed=Date.now()-_windLerpStart;
-      const p=Math.min(1,elapsed/WIND_LERP_DUR);
-      const ep=p*p*(3-2*p);
-      curSpd=_windBase.spd+((_windTarget.spd-_windBase.spd)*ep);
-      let dd=_windTarget.dir-_windBase.dir;
-      if(dd>180)dd-=360;if(dd<-180)dd+=360;
-      curDir=_windBase.dir+dd*ep;
-      curDir=((curDir%360)+360)%360;
-      if(p>=1){
-        _windBase={spd:_windTarget.spd,dir:_windTarget.dir};
-        _windTarget=null;
-      }
-    }
     const fc=_getForecastWind(Date.now());
-    if(fc&&!_windTarget){
+    if(fc){
       const blend=0.35;
       curSpd=curSpd*(1-blend)+fc.spd*blend;
       let fdd=fc.dir-curDir;if(fdd>180)fdd-=360;if(fdd<-180)fdd+=360;
