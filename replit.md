@@ -92,6 +92,16 @@ Preferred communication style: Simple, everyday language with customizable AI as
 - **PostgreSQL**: Primary database.
 - **Neon Database**: Serverless PostgreSQL provider.
 
+### Cloudflare Worker (Notification Server)
+- **Location**: `worker/` directory
+- **Runtime**: Cloudflare Workers with D1 (SQLite) database
+- **Auth**: Email + PIN (SHA-256 hashed), session tokens
+- **Settings Sync**: Upload/download all app settings as JSON blob to D1
+- **Email Alerts**: Cron trigger every 10 minutes checks weather via Open-Meteo for saved locations, sends email via Resend API when thresholds exceeded, 15-min cooldown per alert type
+- **Client Integration**: "Sync & Alerts" section in Settings panel (`docs/js/app.js`) with signup/login, upload/download settings, email alert toggle
+- **Deployment**: `wrangler deploy` (see `worker/README.md` for full setup instructions)
+- **Tables**: users, sessions, user_settings, alert_log
+
 ## Primary Working Version (docs/ Static Site)
 
 The primary working version of StormTracker is the static HTML site in `docs/`, served via GitHub Pages at CAPFlyingFun/StormTracker. Current version: **v2.39b**.
