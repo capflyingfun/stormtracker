@@ -847,36 +847,13 @@ function windSweepAnim(){
   _windSweepPaused=true;
   const targetSpd=_windCurSim.spd;
   const targetGust=_windCurSim.gust;
-  const baseSpd=_windBase?_windBase.spd:0;
-  const baseGust=Math.min(baseSpd*1.2,targetGust);
   const numEl=document.querySelector('.wrc-num');
   const gustEl=document.querySelector('.wrc-gust');
-  if(numEl)numEl.textContent=kmhTo(baseSpd,S.windUnit);
-  if(gustEl)gustEl.textContent='G'+fmtWind(baseGust);
-  updateGaugeSegments(parseFloat(kmhTo(baseSpd,S.windUnit)),parseFloat(kmhTo(baseGust,S.windUnit)));
-  const dur=500;
-  const t0=performance.now();
-  function ease(t){return t<0.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1}
-  function tick(now){
-    const elapsed=now-t0;
-    const p=Math.min(elapsed/dur,1);
-    const ep=ease(p);
-    const curSpd=baseSpd+(targetSpd-baseSpd)*ep;
-    const curGust=baseGust+(targetGust-baseGust)*ep;
-    if(numEl)numEl.textContent=kmhTo(curSpd,S.windUnit);
-    if(gustEl)gustEl.textContent='G'+kmhTo(curGust,S.windUnit)+' '+WIND_UNITS[S.windUnit];
-    const maxSegs=S._gaugeMaxSegs||10;
-    const simSpdDisp=parseFloat(kmhTo(curSpd,S.windUnit));
-    const gustDisp2=parseFloat(kmhTo(curGust,S.windUnit));
-    updateGaugeSegments(simSpdDisp,gustDisp2);
-    if(p<1){
-      _windSweepRaf=requestAnimationFrame(tick);
-    }else{
-      _windSweepRaf=null;
-      _windSweepPaused=false;
-    }
-  }
-  _windSweepRaf=requestAnimationFrame(tick);
+  if(numEl)numEl.textContent=kmhTo(targetSpd,S.windUnit);
+  if(gustEl)gustEl.textContent=targetGust>0?'G'+fmtWind(targetGust):'';
+  updateGaugeSegments(parseFloat(kmhTo(targetSpd,S.windUnit)),parseFloat(kmhTo(targetGust,S.windUnit)));
+  _windSweepRaf=null;
+  _windSweepPaused=false;
 }
 function loadUnits(){
   const mode=localStorage.getItem('st_unitMode');
@@ -3148,28 +3125,29 @@ let _gustMax=0;
 let _gustResetT=0;
 let _windBase={spd:0,dir:0};
 let _windCurSim={spd:0,dir:0,gust:0};
-let _windSimSeed=0;
+let _windFloor=0;
+let _windCeil=0;
+let _windLerpFrom={spd:0,dir:0};
+let _windLerpTo={spd:0,dir:0};
+let _windLerpT0=0;
+const _WIND_LERP_DUR=5000;
 let _windSweepRaf=null;
 let _windSweepPaused=false;
 let _windSweepAfterRender=false;
-let _gustEvents=[];
-let _calmState={active:false,start:0,dur:0,nextCheck:0};
-function _fBm(x,y,octaves,lacunarity,gain){
-  let val=0,amp=1,freq=1,maxAmp=0;
-  for(let i=0;i<octaves;i++){
-    val+=_wn.noise(x*freq,y*freq)*amp;
-    maxAmp+=amp;
-    amp*=gain;
-    freq*=lacunarity;
-  }
-  return val/maxAmp;
+function _pickWindTarget(){
+  const tSec=Date.now()/1000;
+  const n=_wn.noise(tSec*0.2,0);
+  const spd=_windFloor+((n+1)/2)*(_windCeil-_windFloor);
+  const dn=_wn.noise(tSec*0.2,100);
+  const dir=((_windBase.dir+dn*5)%360+360)%360;
+  return{spd,dir};
 }
-function _gustEnvelope(t,start,dur){
-  const el=(t-start)/dur;
-  if(el<0||el>1)return 0;
-  const rise=0.15;
-  if(el<rise)return el/rise;
-  return Math.exp(-3.5*(el-rise)/(1-rise));
+function _updateWindRange(){
+  const ws=_windBase.spd;
+  const wg=S.weather?S.weather.wind_gusts_10m||ws:ws;
+  _windFloor=Math.max(0,ws*0.5);
+  _windCeil=wg*1.1;
+  if(_windCeil<_windFloor)_windCeil=_windFloor+1;
 }
 function _getForecastWind(now){
   const h=S._hourlyData;
@@ -3194,13 +3172,15 @@ function _getForecastWind(now){
 function startWindSim(){
   if(_windSimTimer)clearInterval(_windSimTimer);
   if(_windRefreshTimer)clearInterval(_windRefreshTimer);
+  if(S._windPickTimer)clearInterval(S._windPickTimer);
   if(!S.weather)return;
   _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0};
   _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
-  _gustEvents=[];
-  _calmState={active:false,start:0,dur:0,nextCheck:Date.now()+30000};
+  _updateWindRange();
   _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:S.weather.wind_gusts_10m||0};
-  _windSimSeed=Math.random()*1000;
+  _windLerpFrom={spd:_windBase.spd,dir:_windBase.dir};
+  _windLerpTo=_pickWindTarget();
+  _windLerpT0=Date.now();
   _windRefreshTimer=setInterval(async()=>{
     try{
       const awc=await fetchAWCNearest();
@@ -3209,63 +3189,25 @@ function startWindSim(){
         const newDir=awc.windDir!=null?awc.windDir:_windBase.dir;
         console.log('Wind refresh from AWC·'+awc.icao+': spd='+newSpd.toFixed(1)+'kmh dir='+newDir+'°');
         _windBase={spd:newSpd,dir:newDir};
+        _updateWindRange();
       }
     }catch(e){console.log('Wind refresh error:',e.message)}
   },120000);
+  S._windPickTimer=setInterval(()=>{
+    _windLerpFrom={spd:_windCurSim.spd,dir:_windCurSim.dir};
+    _windLerpTo=_pickWindTarget();
+    _windLerpT0=Date.now();
+  },_WIND_LERP_DUR);
   _windSimTimer=setInterval(()=>{
-    let curSpd=_windBase.spd;
-    let curDir=_windBase.dir;
-    const fc=_getForecastWind(Date.now());
-    if(fc){
-      const blend=0.35;
-      curSpd=curSpd*(1-blend)+fc.spd*blend;
-      let fdd=fc.dir-curDir;if(fdd>180)fdd-=360;if(fdd<-180)fdd+=360;
-      curDir=((curDir+fdd*blend)%360+360)%360;
-    }
     const now=Date.now();
-    const tSec=now/1000;
-    const turbFactor=S._windShear?S._windShear.factor:1.0;
-    const seed=_windSimSeed;
-    const slowNoise=_fBm(tSec*0.005+seed,0,3,2.0,0.5);
-    const slowAmp=0.05*curSpd*turbFactor;
-    const turbNoise=_fBm(tSec*0.15+seed+200,50,4,2.2,0.45);
-    const turbAmp=Math.max(0.5,0.25*curSpd)*turbFactor;
-    const dirSlow=_fBm(tSec*0.008+seed+100,200,3,2.0,0.5);
-    const dirTurb=_fBm(tSec*0.08+seed+300,150,2,2.0,0.5);
-    const dirWobble=(dirSlow*5+dirTurb*3)*turbFactor;
-    const gustRate=curSpd>15?0.015:curSpd>5?0.01:0.005;
-    const dt=0.1;
-    if(Math.random()<gustRate*dt*turbFactor){
-      const amp=curSpd*(0.3+Math.random()*0.7)*turbFactor;
-      const dur=2+Math.random()*10;
-      _gustEvents.push({start:tSec,dur,amp});
-    }
-    let gustSum=0;
-    _gustEvents=_gustEvents.filter(g=>{
-      const env=_gustEnvelope(tSec,g.start,g.dur);
-      if(env<=0.001)return false;
-      gustSum+=g.amp*env;
-      return true;
-    });
-    let calmMult=1;
-    if(curSpd<8){
-      const calmRate=curSpd<3?0.004:0.001;
-      if(_calmState.active){
-        const cElapsed=(now-_calmState.start)/1000;
-        if(cElapsed>=_calmState.dur){_calmState.active=false;_calmState.nextCheck=now+15000}
-        else{
-          const half=_calmState.dur/2;
-          const rawMult=cElapsed<half?Math.max(0,1-cElapsed/half):Math.min(1,(cElapsed-half)/half);
-          calmMult=0.3+rawMult*0.7;
-        }
-      }else if(now>_calmState.nextCheck&&Math.random()<calmRate*dt){
-        _calmState={active:true,start:now,dur:3+Math.random()*12,nextCheck:0};
-      }
-    }else{
-      if(_calmState.active){_calmState.active=false;_calmState.nextCheck=now+30000}
-    }
-    let simSpd=Math.max(0,(curSpd+slowNoise*slowAmp+turbNoise*turbAmp+gustSum)*calmMult);
-    let simDir=((curDir+dirWobble)%360+360)%360;
+    const elapsed=now-_windLerpT0;
+    const p=Math.min(1,elapsed/_WIND_LERP_DUR);
+    const ep=p*p*(3-2*p);
+    let simSpd=_windLerpFrom.spd+(_windLerpTo.spd-_windLerpFrom.spd)*ep;
+    simSpd=Math.max(0,simSpd);
+    let dd=_windLerpTo.dir-_windLerpFrom.dir;
+    if(dd>180)dd-=360;if(dd<-180)dd+=360;
+    let simDir=((_windLerpFrom.dir+dd*ep)%360+360)%360;
     _gustSamples.push(simSpd);
     if(now-_gustResetT>=30000){
       _gustMax=Math.max(..._gustSamples);
