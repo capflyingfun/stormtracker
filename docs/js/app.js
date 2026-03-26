@@ -6900,27 +6900,29 @@ async function _fetchNHCActiveStorms() {
         const title = item.querySelector('title')?.textContent || '';
         const desc = item.querySelector('description')?.textContent || '';
         const link = item.querySelector('link')?.textContent || '';
-        const stormMatch = title.match(/(Hurricane|Tropical Storm|Tropical Depression|Post-Tropical|Subtropical|Remnants of)\s+(.+?)(?:\s+(?:Advisory|Forecast|Update|Graphics|Key Messages))/i);
+        const stormMatch = title.match(/(Hurricane|Tropical Storm|Tropical Depression|Post-Tropical|Subtropical|Remnants of)\s+(.+?)(?:\s+(?:Advisory|Forecast|Update|Graphics|Key Messages|Discussion|Watches|Warnings|Wind Speed|Public|Intermediate|Special))/i)
+          || title.match(/(Hurricane|Tropical Storm|Tropical Depression|Post-Tropical|Subtropical|Remnants of)\s+(\w[\w\s-]*\w)/i);
         if (!stormMatch) return;
         const stormType = stormMatch[1];
-        const stormName = stormMatch[2].trim();
+        const stormName = stormMatch[2].trim().replace(/\s+(Advisory|Forecast|Update|Public).*$/i, '');
         if (seen.has(stormName)) return;
         seen.add(stormName);
         const latMatch = desc.match(/(\d+\.?\d*)\s*°?\s*([NS])/i);
         const lonMatch = desc.match(/(\d+\.?\d*)\s*°?\s*([EW])/i);
-        const windMatch = desc.match(/(?:Max(?:imum)?\s+)?(?:sustained\s+)?winds?[:\s]+(\d+)\s*(?:mph|kt)/i);
+        const windMatch = desc.match(/(?:Max(?:imum)?\s+)?(?:sustained\s+)?winds?[:\s]+(\d+)\s*(mph|kt|knots)/i);
         const pressMatch = desc.match(/(?:min(?:imum)?\s+)?(?:central\s+)?pressure[:\s]+(\d+)\s*mb/i);
-        const moveMatch = desc.match(/(?:moving|headed?)\s+(\w+)\s+(?:at\s+)?(\d+)\s*(?:mph|kt)/i);
-        const gustMatch = desc.match(/gusts?\s+(?:up\s+to\s+)?(\d+)\s*(?:mph|kt)/i);
+        const moveMatch = desc.match(/(?:moving|headed?)\s+([\w-]+(?:\s*[\w-]+)?)\s+(?:at\s+)?(\d+)\s*(mph|kt|knots)/i);
+        const gustMatch = desc.match(/gusts?\s+(?:up\s+to\s+)?(\d+)\s*(mph|kt|knots)/i);
         let lat = null, lon = null;
         if (latMatch) lat = parseFloat(latMatch[1]) * (latMatch[2].toUpperCase() === 'S' ? -1 : 1);
         if (lonMatch) lon = parseFloat(lonMatch[1]) * (lonMatch[2].toUpperCase() === 'W' ? -1 : 1);
-        const maxWind = windMatch ? parseInt(windMatch[1]) : null;
+        const _ktToMph = (v, unit) => (unit && (unit.toLowerCase() === 'kt' || unit.toLowerCase() === 'knots')) ? Math.round(v * 1.15078) : v;
+        const maxWind = windMatch ? _ktToMph(parseInt(windMatch[1]), windMatch[2]) : null;
         const minPressure = pressMatch ? parseInt(pressMatch[1]) : null;
         const category = _saffirSimpson(maxWind);
         const moveDir = moveMatch ? moveMatch[1] : null;
-        const moveSpeed = moveMatch ? parseInt(moveMatch[2]) : null;
-        const gusts = gustMatch ? parseInt(gustMatch[1]) : null;
+        const moveSpeed = moveMatch ? _ktToMph(parseInt(moveMatch[2]), moveMatch[3]) : null;
+        const gusts = gustMatch ? _ktToMph(parseInt(gustMatch[1]), gustMatch[2]) : null;
         const dist = (lat !== null && lon !== null) ? haversine(S.lat, S.lon, lat, lon) : null;
         const idMatch = link.match(/\/([AE][LP]\d{6})/i);
         const stormId = idMatch ? idMatch[1].toUpperCase() : basin.prefix + stormName.substring(0, 4).toUpperCase();
@@ -6971,7 +6973,7 @@ function _renderTropicalSection() {
     const distStr = s.dist != null ? (S.radarMetric ? Math.round(s.dist * 1.60934) + ' km' : Math.round(s.dist) + ' mi') : 'Unknown';
     const bearing = (s.lat != null && s.lon != null) ? degToDir(bearingDeg(S.lat, S.lon, s.lat, s.lon)) : '';
     const isNear = s.dist != null && s.dist <= 500;
-    html += `<div style="padding:10px;border-left:4px solid ${cat.color};background:${cat.color}08;border-radius:0 8px 8px 0;margin-bottom:8px${isNear ? ';border:1px solid ' + cat.color + '44' : ''}" onclick="if(S.map&&${s.lat}!=null){S.map.setView([${s.lat},${s.lon}],6);switchPage('storms')}" style="cursor:pointer">
+    html += `<div style="padding:10px;border-left:4px solid ${cat.color};background:${cat.color}08;border-radius:0 8px 8px 0;margin-bottom:8px;cursor:pointer${isNear ? ';border:1px solid ' + cat.color + '44' : ''}" onclick="if(S.map&&${s.lat}!=null){S.map.setView([${s.lat},${s.lon}],6);switchPage('storms')}">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
         <span style="font-size:1.3em">🌀</span>
         <div style="flex:1">
