@@ -3225,6 +3225,7 @@ function startWindSim(){
     const now=Date.now();
     const tSec=now/1000;
     const turbFactor=S._windShear?S._windShear.factor:1.0;
+    const seed=_windSimSeed;
     const slowNoise=_fBm(tSec*0.005+seed,0,3,2.0,0.5);
     const slowAmp=0.05*curSpd*turbFactor;
     const turbNoise=_fBm(tSec*0.15+seed+200,50,4,2.2,0.45);
