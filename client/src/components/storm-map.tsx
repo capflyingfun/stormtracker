@@ -20,6 +20,25 @@ interface Storm {
   detectedAt?: number; // Timestamp for age-based coloring
 }
 
+interface NWSAlertWithGeometry {
+  id: string;
+  type: string;
+  severity: string;
+  urgency: string;
+  certainty: string;
+  headline: string;
+  description: string;
+  instruction?: string;
+  areas: string;
+  effective: string;
+  expires: string;
+  senderName: string;
+  geometry: {
+    type: string;
+    coordinates: number[][][];
+  } | null;
+}
+
 interface StormMapProps {
   location: Location;
   storms: Storm[];
@@ -42,6 +61,7 @@ interface StormMapProps {
   showTimeLabels?: boolean;
   onMapInstanceReady?: (mapInstance: any) => void;
   showLightning?: boolean;
+  nwsAlerts?: NWSAlertWithGeometry[];
 }
 
 function getLightningCount(dbz: number): number {
@@ -60,7 +80,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks, showTimeLabels = true, onMapInstanceReady, showLightning = true }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks, showTimeLabels = true, onMapInstanceReady, showLightning = true, nwsAlerts = [] }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -132,6 +152,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const stormConeLayerRef = useRef<any>(null);
   const allStormConesLayerRef = useRef<any>(null);
   
+  // NWS alert polygon overlay state
+  const [showAlertPolygons, setShowAlertPolygons] = useState(true);
+  const alertPolygonLayerRef = useRef<any>(null);
+
   // Authentic precipitation storms from backend API
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
 
@@ -638,6 +662,90 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       addSectorGrid();
     }
   }, [location, radarRange, showSectorGrid]);
+
+  const getAlertPolygonColor = (eventType: string): string => {
+    const type = (eventType || '').toLowerCase();
+    if (type.includes('tornado')) return '#DC2626';
+    if (type.includes('severe thunderstorm')) return '#F97316';
+    if (type.includes('flash flood') || type.includes('flood')) return '#3B82F6';
+    if (type.includes('hurricane') || type.includes('typhoon') || type.includes('tropical storm')) return '#9333EA';
+    if (type.includes('winter storm') || type.includes('blizzard') || type.includes('ice storm')) return '#06B6D4';
+    if (type.includes('fire') || type.includes('red flag')) return '#B91C1C';
+    if (type.includes('watch')) return '#EAB308';
+    if (type.includes('warning')) return '#F97316';
+    if (type.includes('advisory')) return '#A3E635';
+    return '#F59E0B';
+  };
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.L) return;
+
+    if (alertPolygonLayerRef.current) {
+      map.removeLayer(alertPolygonLayerRef.current);
+      alertPolygonLayerRef.current = null;
+    }
+
+    if (!showAlertPolygons || !nwsAlerts || nwsAlerts.length === 0) return;
+
+    const alertsWithGeometry = nwsAlerts.filter(a => a.geometry && a.geometry.coordinates && a.geometry.coordinates.length > 0);
+    if (alertsWithGeometry.length === 0) return;
+
+    const alertGroup = window.L.layerGroup();
+
+    alertsWithGeometry.forEach((alert) => {
+      const color = getAlertPolygonColor(alert.type);
+
+      try {
+        const geoJsonFeature = {
+          type: 'Feature' as const,
+          geometry: alert.geometry,
+          properties: {
+            headline: alert.headline,
+            event: alert.type,
+            severity: alert.severity,
+            expires: alert.expires
+          }
+        };
+
+        const layer = window.L.geoJSON(geoJsonFeature, {
+          style: {
+            color: color,
+            weight: 2,
+            opacity: 0.8,
+            fillColor: color,
+            fillOpacity: 0.2,
+            dashArray: '4,4'
+          },
+          onEachFeature: (_feature: any, layer: any) => {
+            const expiresStr = alert.expires
+              ? new Date(alert.expires).toLocaleString()
+              : 'Unknown';
+            const popupContent = `
+              <div style="max-width:280px;font-family:system-ui,sans-serif;">
+                <div style="font-weight:700;font-size:14px;color:${color};margin-bottom:4px;">${alert.type}</div>
+                <div style="font-size:12px;margin-bottom:6px;">${alert.headline}</div>
+                <div style="font-size:11px;color:#666;">
+                  <div><b>Severity:</b> ${alert.severity}</div>
+                  <div><b>Expires:</b> ${expiresStr}</div>
+                </div>
+              </div>
+            `;
+            layer.bindPopup(popupContent);
+          }
+        });
+
+        alertGroup.addLayer(layer);
+      } catch (e) {
+        console.warn('Failed to render alert polygon:', alert.type, e);
+      }
+    });
+
+    alertPolygonLayerRef.current = alertGroup;
+    alertGroup.addTo(map);
+
+    console.log(`Rendered ${alertsWithGeometry.length} NWS alert polygon(s) on map`);
+  }, [nwsAlerts, showAlertPolygons]);
 
   // Calculate distance between two lat/lon points in miles
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -2413,6 +2521,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             className="text-xs px-2"
           >
             {showSectorGrid ? "Hide" : "Show"} Grid
+          </Button>
+          <Button
+            onClick={() => setShowAlertPolygons(!showAlertPolygons)}
+            variant={showAlertPolygons ? "default" : "outline"}
+            size="sm"
+            className="text-xs px-2"
+          >
+            {showAlertPolygons ? "Hide" : "Show"} Alerts
           </Button>
 
           <Button

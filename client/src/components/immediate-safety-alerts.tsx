@@ -83,6 +83,47 @@ interface NWSAlert {
   effective: string;
   expires: string;
   senderName: string;
+  geometry?: {
+    type: string;
+    coordinates: number[][][];
+  } | null;
+}
+
+function pointInRing(lat: number, lon: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][1], yi = ring[i][0];
+    const xj = ring[j][1], yj = ring[j][0];
+    const intersect = ((yi > lon) !== (yj > lon)) &&
+      (lat < (xj - xi) * (lon - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInPolygonRings(lat: number, lon: number, rings: number[][][]): boolean {
+  if (!rings || rings.length === 0) return false;
+  if (!pointInRing(lat, lon, rings[0])) return false;
+  for (let i = 1; i < rings.length; i++) {
+    if (pointInRing(lat, lon, rings[i])) return false;
+  }
+  return true;
+}
+
+function isLocationInAlertZone(lat: number, lon: number, alert: NWSAlert): boolean {
+  if (!alert.geometry || !alert.geometry.coordinates) return false;
+  const geomType = alert.geometry.type;
+  if (geomType === 'Polygon') {
+    return pointInPolygonRings(lat, lon, alert.geometry.coordinates as unknown as number[][][]);
+  }
+  if (geomType === 'MultiPolygon') {
+    const multiCoords = alert.geometry.coordinates as unknown as number[][][][];
+    for (const polygonRings of multiCoords) {
+      if (pointInPolygonRings(lat, lon, polygonRings)) return true;
+    }
+    return false;
+  }
+  return false;
 }
 
 interface ImmediateSafetyAlertsProps {
@@ -289,6 +330,10 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
 
   const totalAlerts = filteredNwsAlerts.length + uniqueThreats.length;
 
+  const alertsUserIsInside = location
+    ? displayAlerts.filter((alert: NWSAlert) => isLocationInAlertZone(location.lat, location.lon, alert))
+    : [];
+
   // Skeleton loader component
   const SkeletonLoader = () => (
     <div className="animate-pulse space-y-3">
@@ -363,6 +408,15 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
         )}
       </div>
 
+      {!alertsLoading && alertsUserIsInside.length > 0 && (
+        <div className="bg-red-700/30 border border-red-500/60 rounded-lg p-2 mb-3 flex items-center gap-2 animate-pulse">
+          <span className="text-lg">🔴</span>
+          <span className="text-sm font-semibold text-red-200">
+            Your location is inside {alertsUserIsInside.length} active alert zone{alertsUserIsInside.length > 1 ? 's' : ''}: {alertsUserIsInside.map((a: NWSAlert) => a.type).join(', ')}
+          </span>
+        </div>
+      )}
+
       {alertsLoading ? (
         <SkeletonLoader />
       ) : totalAlerts === 0 ? (
@@ -394,10 +448,14 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
       ) : (
         <div className="space-y-3">
           {/* NWS Alerts */}
-          {sortedNwsAlerts.map((alert: NWSAlert, index: number) => (
+          {sortedNwsAlerts.map((alert: NWSAlert, index: number) => {
+            const userInZone = location && alert.geometry
+              ? isLocationInAlertZone(location.lat, location.lon, alert)
+              : false;
+            return (
             <div 
               key={`nws-${index}`} 
-              className="bg-red-900/40 rounded-lg p-3 border border-red-600/30 animate-slideInUp"
+              className={`bg-red-900/40 rounded-lg p-3 border animate-slideInUp ${userInZone ? 'border-red-500 ring-1 ring-red-500/50' : 'border-red-600/30'}`}
               style={{
                 animationDelay: `${index * 150}ms`,
                 animationFillMode: 'both'
@@ -406,6 +464,11 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
                 <div className="text-lg">🚨</div>
                 <div className={`w-3 h-3 rounded-full ${getSeverityColor(alert.severity || '')}`}></div>
                 <span className="font-semibold text-red-200">{translateWeatherText(alert.type, language)}</span>
+                {userInZone && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-600 text-white animate-pulse">
+                    YOU ARE IN THIS ZONE
+                  </span>
+                )}
               </div>
               
               <p className="text-sm text-red-100 mb-2">{alert.headline}</p>
@@ -584,7 +647,8 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
 
           {/* Collision Course / Severe Proximity Storms */}
           {uniqueThreats.map((storm, index) => (

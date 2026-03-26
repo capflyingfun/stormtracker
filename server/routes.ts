@@ -41,7 +41,8 @@ async function fetchNWSAlerts(lat: number, lon: number) {
         areas: alert.properties.areaDesc,
         effective: alert.properties.effective,
         expires: alert.properties.expires,
-        senderName: alert.properties.senderName
+        senderName: alert.properties.senderName,
+        geometry: alert.geometry || null
       })),
       error: null
     };
