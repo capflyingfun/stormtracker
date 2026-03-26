@@ -847,11 +847,13 @@ function windSweepAnim(){
   _windSweepPaused=true;
   const targetSpd=_windCurSim.spd;
   const targetGust=_windCurSim.gust;
+  const baseSpd=_windBase?_windBase.spd:0;
+  const baseGust=Math.min(baseSpd*1.2,targetGust);
   const numEl=document.querySelector('.wrc-num');
   const gustEl=document.querySelector('.wrc-gust');
-  if(numEl)numEl.textContent=kmhTo(0,S.windUnit);
-  if(gustEl)gustEl.textContent='G'+fmtWind(0);
-  updateGaugeSegments(0,0);
+  if(numEl)numEl.textContent=kmhTo(baseSpd,S.windUnit);
+  if(gustEl)gustEl.textContent='G'+fmtWind(baseSpd);
+  updateGaugeSegments(parseFloat(kmhTo(baseSpd,S.windUnit)),parseFloat(kmhTo(baseGust,S.windUnit)));
   const dur=500;
   const t0=performance.now();
   function ease(t){return t<0.5?4*t*t*t:(t-1)*(2*t-2)*(2*t-2)+1}
@@ -859,8 +861,8 @@ function windSweepAnim(){
     const elapsed=now-t0;
     const p=Math.min(elapsed/dur,1);
     const ep=ease(p);
-    const curSpd=targetSpd*ep;
-    const curGust=targetGust*ep;
+    const curSpd=baseSpd+(targetSpd-baseSpd)*ep;
+    const curGust=baseGust+(targetGust-baseGust)*ep;
     if(numEl)numEl.textContent=kmhTo(curSpd,S.windUnit);
     if(gustEl)gustEl.textContent='G'+kmhTo(curGust,S.windUnit)+' '+WIND_UNITS[S.windUnit];
     const maxSegs=S._gaugeMaxSegs||10;
@@ -2027,6 +2029,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.42',date:'2026-03-26',items:['🧭 ILS Arrow Fix — map ILS cone direction now uses winds aloft (matches Radar Sonar ALOFT indicator)','📝 MD Distance Filter — Mesoscale Discussions limited to 200mi from your location','💨 Wind Gauge Fix — gauge starts at actual reported wind speed instead of zero','🔧 Improved wind sweep animation accuracy near storms']},
   {ver:'v2.41',date:'2026-03-26',items:['🌀 Hurricane Tracking — NHC active tropical cyclone monitoring (Atlantic + E. Pacific) with 15-min cache','🌀 Tropical Cyclones UI — Weather page section with Saffir-Simpson category scale, wind/pressure/movement details, proximity distance','🗺️ Hurricane Map Overlay — toggleable 🌀 button plots storm positions with category-colored markers, name labels, pulse rings','🌊 Storm Surge Section — Alerts page shows NWS storm surge warnings/coastal flood alerts with expected surge heights','📊 Tropical Hazard Summary — new "Tropical" tile in Environmental Hazards summary grid with active/near counts','⚠️ Proximity Alerting — push notification + toast when tropical cyclone within 200 mi (hourly cooldown)','🔗 NHC RSS Integration — parses NHC Atlantic/E. Pacific RSS feeds for storm positions, winds, pressure, movement']},
   {ver:'v2.39b',date:'2026-03-26',items:['📱 PWA Install Prompt — custom install banner with "Not now" dismiss (7-day cooldown)','📡 Offline Detection — amber banner with cached data age, stale-data labels on weather & hazard cards','🔔 Notification Permission — friendly in-app modal replaces raw browser popup','🔊 Enhanced SW Notifications — storm alerts get stronger vibration, requireInteraction, and action buttons','🤖 Android TWA — Bubblewrap config + Digital Asset Links for building native Android APK','🧭 Manifest polished — portrait orientation, categories=["weather"]']},
   {ver:'v2.39a',date:'2026-03-26',items:['🐛 Drought fix — removed _extractUSState() dependency from _fetchDrought() that caused US-only error for valid US coordinates','WMS query is coordinate-based and doesn\'t need state code extraction']},
@@ -5577,13 +5580,15 @@ function pathArrowNeonColor(maxDbz){
 function buildPathArrows(map,_retries){
   clearPathArrows();
   if(!map||!S._showPathArrows)return;
-  if(!S.stormMovement||!S.stormMovement.speed||S.stormMovement.speed<1){
+  const hasMovement=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=1;
+  const hasAloft=S._upperWindDir!=null;
+  if(!hasMovement&&!hasAloft){
     const r=(_retries||0);
     if(r<5){setTimeout(()=>{if(S._showPathArrows)buildPathArrows(map,r+1)},800)}
     return;
   }
-  const mv=S.stormMovement;
-  const mvDir=mv.direction;
+  const mv=hasMovement?S.stormMovement:{direction:S._upperWindDir,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10};
+  const mvDir=hasAloft?S._upperWindDir:mv.direction;
   const fromBear=(mvDir+180)%360;
   const ad=S._approachData||{count:0,bearings:[],maxDist:0,sumDbz:0,maxDbz:0,minDbz:999};
   const hasInbound=ad.count>0&&ad.sumDbz>0;
@@ -6715,6 +6720,19 @@ async function _fetchSPCMesoscale() {
         const isTornado = /tornado|tornad/i.test(dHtml);
         const isSevere = /severe|svr|hail|wind damage/i.test(dHtml);
         md.type = isTornado ? 'tornado' : isSevere ? 'severe' : 'general';
+        const llMatch = dHtml.match(/LAT\.{3}LON\s+([\d\s]+)/i);
+        if (llMatch) {
+          const nums = llMatch[1].trim().split(/\s+/);
+          let sumLat = 0, sumLon = 0, cnt = 0;
+          for (const n of nums) {
+            if (n.length >= 8) {
+              const lat = parseInt(n.substring(0, 4)) / 100;
+              const lon = -parseInt(n.substring(4)) / 100;
+              if (lat > 15 && lat < 60 && lon > -130 && lon < -60) { sumLat += lat; sumLon += lon; cnt++; }
+            }
+          }
+          if (cnt > 0) { md.lat = sumLat / cnt; md.lon = sumLon / cnt; }
+        }
         return md;
       } catch (e) { return md; }
     });
@@ -8839,10 +8857,14 @@ function toggleSPCReports(on){
 }
 function _renderSPCMDSection(){
   if (!isUSLocation(S.lat, S.lon)) return '';
-  const mds = _spcData.md;
-  if (!mds || !mds.length) {
+  const allMds = _spcData.md;
+  const mds = (allMds||[]).filter(md => {
+    if (md.lat != null && md.lon != null) return haversine(S.lat, S.lon, md.lat, md.lon) <= 200;
+    return false;
+  });
+  if (!mds.length) {
     return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">📝</span> Mesoscale Discussions</div>
-      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No active mesoscale discussions</div></div>`;
+      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No active mesoscale discussions nearby</div></div>`;
   }
   let html = `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">📝</span> Mesoscale Discussions (${mds.length})</div>`;
   mds.forEach(md => {
