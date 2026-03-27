@@ -1189,7 +1189,8 @@ function toggleForecastDetail(idx){
   const fi=document.querySelector(`.forecast-item[data-fi="${idx}"]`);
   if(fi)fi.classList.add('selected');
   const dt=new Date(d.time[idx]+'T12:00');
-  const dayName=idx===0?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'long',month:'short',day:'numeric'});
+  const nowL=new Date();const todayS=nowL.getFullYear()+'-'+String(nowL.getMonth()+1).padStart(2,'0')+'-'+String(nowL.getDate()).padStart(2,'0');
+  const dayName=d.time[idx]===todayS?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'long',month:'short',day:'numeric'});
   const hi=fmtTemp(d.temperature_2m_max[idx]),lo=fmtTemp(d.temperature_2m_min[idx]);
   const rain=d.precipitation_probability_max?d.precipitation_probability_max[idx]:0;
   const precip=d.precipitation_sum?d.precipitation_sum[idx]:0;
