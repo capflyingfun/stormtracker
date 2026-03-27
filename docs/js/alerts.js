@@ -1,6 +1,13 @@
 // ==========================================
 // ALERTS (NWS)
 // ==========================================
+function fmtAlertTime(d){
+  if(!(d instanceof Date)||isNaN(d))return'';
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const day=days[d.getDay()];const mon=months[d.getMonth()];const date=d.getDate();
+  return`${day} ${mon} ${date}, ${fmtClockShort(d)}`;
+}
 async function fetchAlerts(){
   const el=document.getElementById('page-alerts');showSkel(el,3);
   if(!isNWSCoverage(S.lat,S.lon)){S.alerts=[];renderAlerts();return}
@@ -82,7 +89,11 @@ function renderAlerts(){
       const sevIcon=isTorWarn?'🌪️':isSvrWarn?'⛈️':sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
       const inZone=isUserInAlertZone(a);
       const zoneBadge=inZone?'<span style="display:inline-block;background:#dc2626;color:#fff;font-size:0.55em;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:6px;animation:pulse 2s infinite;vertical-align:middle">IN YOUR ZONE</span>':'';
-      return`<div class="nws-alert ${cls}" style="${inZone?'border-color:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.3)':''}"><div class="nws-alert-title">${sevIcon} ${event}${zoneBadge}</div><div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${p.expires?`<div class="nws-alert-expires">⏱️ <span id="alert-cd-${i}" data-exp="${new Date(p.expires).getTime()}"></span></div>`:''}</div>`;
+      const effRaw=p.onset||p.effective;
+      const effStr=effRaw?fmtAlertTime(new Date(effRaw)):'';
+      const expStr=p.expires?fmtAlertTime(new Date(p.expires)):'';
+      const timeLine=(effStr||expStr)?`<div style="font-size:0.75em;color:var(--text-muted);margin:4px 0 2px;line-height:1.5">${effStr?'<span style="color:var(--accent-cyan)">Effective:</span> '+effStr:''}${effStr&&expStr?' &nbsp;·&nbsp; ':''}${expStr?'<span style="color:var(--accent-orange)">Expires:</span> '+expStr:''}</div>`:'';
+      return`<div class="nws-alert ${cls}" style="${inZone?'border-color:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.3)':''}"><div class="nws-alert-title">${sevIcon} ${event}${zoneBadge}</div>${timeLine}<div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${p.expires?`<div class="nws-alert-expires">⏱️ <span id="alert-cd-${i}" data-exp="${new Date(p.expires).getTime()}"></span></div>`:''}</div>`;
     }).join('');
   }else{
     nwsBody+=`<div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">No Active NWS Alerts</span><br>No NWS warnings or watches for your area.</div></div>`;

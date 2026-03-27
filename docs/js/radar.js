@@ -1464,11 +1464,6 @@ function _tickerWeatherPool(){
     }
     if(st.rawOb)pool.push(`📋 Latest METAR: ${escHtml(st.rawOb.substring(0,80))}${st.rawOb.length>80?'...':''}`);
   }
-  if(S.alerts&&S.alerts.length){
-    for(const a of S.alerts.slice(0,3)){
-      pool.push(`⚠️ NWS: ${escHtml(a.event||a.headline||'Weather Alert')} in effect${a.severity?' — Severity: '+escHtml(a.severity):''}`);
-    }
-  }
   pool.push('✅ StormTracker is actively monitoring your area. We\'ll alert you the moment conditions change. 🛡️');
   pool.push('✅ All quiet on the weather front. Sit back and relax — we\'re watching the skies for you. 🌌');
   pool.push('✅ No significant weather activity right now. Great conditions for whatever you have planned today! 🎯');
@@ -1502,11 +1497,6 @@ function _tickerNearbyPool(sigStormCount){
   }
   pool.push(`🔔 Storm activity nearby but no threats heading your way. Weather changes fast — we\'ll alert you if anything shifts. 👀`);
   pool.push(`🔔 Radar shows ${sigStormCount} cell${sigStormCount>1?'s':''} in range. All moving away or stationary. Keeping watch for you. 🛰️`);
-  if(S.alerts&&S.alerts.length){
-    for(const a of S.alerts.slice(0,3)){
-      pool.push(`⚠️ NWS: ${escHtml(a.event||a.headline||'Weather Alert')} in effect${a.severity?' — Severity: '+escHtml(a.severity):''} · ${sigStormCount} cell${sigStormCount>1?'s':''} nearby but not approaching.`);
-    }
-  }
   return pool;
 }
 function updateThreatTicker(){
@@ -1523,6 +1513,30 @@ function updateThreatTicker(){
     bar.style.display='block';
     bar.style.borderColor=borderColor;
     bar.style.background=bg;
+  }
+  if(S.alerts&&S.alerts.length){
+    const nwsMsgs=[];
+    for(const a of S.alerts){
+      const p=a.properties||a;
+      const ev=p.event||p.headline||'Weather Alert';
+      const sev=(p.severity||'').toLowerCase();
+      let expLabel='';
+      if(p.expires){
+        const exp=new Date(p.expires);
+        if(!isNaN(exp)){
+          const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+          expLabel=` — until ${days[exp.getDay()]} ${fmtClockShort(exp)}`;
+        }
+      }
+      const sevIcon=sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
+      nwsMsgs.push(`${sevIcon} NWS: ${escHtml(ev)} in effect${expLabel}`);
+    }
+    if(nwsMsgs.length){
+      const sep='<span style="color:#664400;margin:0 40px">│</span>';
+      const html=nwsMsgs.map(m=>`<span style="color:#fbbf24">${m}</span>`).join(sep);
+      showTicker(html,'#fbbf24','rgba(251,191,36,0.3)','linear-gradient(90deg,rgba(30,20,0,0.95),rgba(45,30,5,0.95),rgba(30,20,0,0.95))');
+      return;
+    }
   }
   const alertMinDbz=31;
   const sigStormCount=S.storms?S.storms.filter(s=>s.dbz>=alertMinDbz).length:0;
