@@ -1029,6 +1029,7 @@ const _ICON_PACKS={
   glossy:{name:'Glossy 3D',desc:'Shiny 3D icons'},
   neon:{name:'Neon',desc:'Neon glow weather icons'},
   globe:{name:'3D Globe',desc:'Miniature world diorama icons'},
+  'globe-animated':{name:'Animated Globe',desc:'Animated 3D globe diorama icons'},
   custom:{name:'Custom',desc:'Your own uploaded icons'}
 };
 const _CUSTOM_ICON_CACHE={};
@@ -1089,7 +1090,7 @@ function _clearAllCustomIcons(){
     });
   });
 }
-const _BUILTIN_PACKS=['basmilius','emoji','flat-filled','flat-outline','glossy','neon','globe'];
+const _BUILTIN_PACKS=['basmilius','emoji','flat-filled','flat-outline','glossy','neon','globe','globe-animated'];
 function _getCustomBasePack(){const p=localStorage.getItem('st_customBasePack');return(p&&_BUILTIN_PACKS.includes(p))?p:'basmilius'}
 function _setCustomBasePack(p){if(_BUILTIN_PACKS.includes(p))localStorage.setItem('st_customBasePack',p)}
 function _resizeImageToSquare(file,size){
@@ -1208,7 +1209,8 @@ const _ICON_PACK_FILES={
   'flat-outline':['clear-day','clear-night','few-clouds-day-rain','few-clouds-day-snow','few-clouds-night','partly-cloudy-day','partly-cloudy-day-snow','partly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm-night','snow-night','crescent-night','cloudy-night-snow','starry-night-rain','starry-night-snow','starry-night-thunder','rain','rain-heavy','snow','blizzard','overcast','tornado','fog','thunderstorm-lightning','thunderstorm','cloud-small','haze','thunderstorm-rain','overcast-dark'],
   glossy:['clear-day','clear-night','few-clouds-day','few-clouds-night','partly-cloudy-day','overcast','rain','rain-night','thunderstorm','thunderstorm-night','snow','sleet','blizzard','hot','cold','wind'],
   neon:['clear-day','clear-night','cloud-light','cloud-small','partly-cloudy-day','partly-cloudy-day-snow','overcast','overcast-dark','few-clouds-day-rain','few-clouds-day-snow','rain','rain-heavy','thunderstorm','thunderstorm-rain','thunderstorm-lightning','snow','blizzard','fog','haze','mostly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy'],
-  globe:['clear-day','clear-night','partly-cloudy-day','partly-cloudy-day-snow','overcast','overcast-dark','cloud-light','cloud-small','few-clouds-day-rain','few-clouds-day-snow','rain','rain-heavy','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm','thunderstorm-rain','thunderstorm-lightning','thunderstorm-night','snow','snow-night','blizzard','fog','haze','tornado']
+  globe:['clear-day','clear-night','partly-cloudy-day','partly-cloudy-day-snow','overcast','overcast-dark','cloud-light','cloud-small','few-clouds-day-rain','few-clouds-day-snow','rain','rain-heavy','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm','thunderstorm-rain','thunderstorm-lightning','thunderstorm-night','snow','snow-night','blizzard','fog','haze','tornado'],
+  'globe-animated':['clear-day','clear-night','partly-cloudy-day','partly-cloudy-day-snow','overcast','overcast-dark','cloud-light','cloud-small','few-clouds-day-rain','few-clouds-day-snow','rain','rain-heavy','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm','thunderstorm-rain','thunderstorm-lightning','thunderstorm-night','snow','snow-night','blizzard','fog','haze','tornado']
 };
 const _WMO_TO_COND={};
 function _buildWmoCondMap(isDay){
@@ -1254,6 +1256,17 @@ function getWeatherIcon(cond,sz,forcePack){
   }
   if(pack==='emoji')return`<span style="font-size:${cssSize};line-height:1;display:inline-block;vertical-align:middle">${_condToEmoji(cond)}</span>`;
   if(pack==='basmilius'){const bm=_condToBasmilius(cond);return hasCssUnit?`<img src="${BMCDN}${bm}.svg" style="width:${cssSize};height:${cssSize};display:inline-block;vertical-align:middle" alt="" loading="lazy">`:`<img src="${BMCDN}${bm}.svg" width="${numSize}" height="${numSize}" alt="" style="display:inline-block;vertical-align:middle" loading="lazy">`}
+  const _VIDEO_PACKS=['globe-animated'];
+  if(_VIDEO_PACKS.includes(pack)){
+    const best=_findBestPackIcon(pack,cond);
+    if(best){
+      const vidSrc=`icons/${pack}/${best}.mp4`;
+      const fallbackSrc=`icons/globe/${best}.png`;
+      const sizeStyle=hasCssUnit?`width:${cssSize};height:${cssSize}`:`width:${numSize}px;height:${numSize}px`;
+      return`<video autoplay loop muted playsinline style="${sizeStyle};display:inline-block;vertical-align:middle;object-fit:cover;border-radius:50%" src="${vidSrc}" poster="${fallbackSrc}" onerror="this.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${sizeStyle};display:inline-block;vertical-align:middle&quot; alt=&quot;${cond}&quot;>'"></video>`;
+    }
+    return getWeatherIcon(cond,sz,'globe');
+  }
   const best=_findBestPackIcon(pack,cond);
   const src=best?`icons/${pack}/${best}.png`:`${BMCDN}${_condToBasmilius(cond)}.svg`;
   return hasCssUnit?`<img src="${src}" style="width:${cssSize};height:${cssSize};display:inline-block;vertical-align:middle" alt="${cond}" loading="lazy">`:`<img src="${src}" width="${numSize}" height="${numSize}" alt="${cond}" style="display:inline-block;vertical-align:middle" loading="lazy">`;
