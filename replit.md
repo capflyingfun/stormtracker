@@ -29,7 +29,8 @@ Preferred communication style: Simple, everyday language with customizable AI as
     - **AI Weather Assistant**: OpenAI GPT-4o integration for risk assessment, comprehensive weather analysis, and chat functionality.
     - **Lightning Detection**: Radar-derived indicators with customizable display.
     - **Alert System**: Personalized, real-time risk alerts based on intensity and distance, integrated with NWS alerts, chronological sorting, and AI-powered translation. Features impact threshold filters, color-coded borders, and live countdown timers.
-    - **Wind Speed Simulator**: Range-based model (Floor=WS−50%, Ceiling=WG+10%) with 5-second Perlin noise target picking and smoothstep lerp. Rolling 30s peak window for gust display. AWC refresh syncs both speed and gust data.
+    - **Wind Speed Simulator**: Range-based model (Floor=WS−50%, Ceiling=WG+10%) with configurable sim interval target picking and smoothstep lerp. Configurable rolling gust/avg windows. AWC refresh syncs both speed and gust data. Wind trend arrows (↑↓→) on all gauge styles.
+    - **Sonar Point Clustering**: Grid-based spatial hash (`_clusterSonarPoints()`) reduces 2K-5K raw scan points to ~300-800 clustered points for sonar rendering. Resolution adapts to zoom level. Preserves `_rawScanPts` for storm detection/zones. Cluster dot size scales with merged count.
     - **Storm Feedback System**: Collects user feedback on storm impact to refine prediction accuracy.
     - **Messaging System**: Database-driven inbox for alerts.
     - **Aviation Weather**: Multi-source METAR data and AI analysis.
