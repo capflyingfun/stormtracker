@@ -2000,9 +2000,9 @@ function renderStorms(){
   }
   const severe=storms.some(s=>s.dbz>=45);
   const mv=S.stormMovement;
-  const stormsWithEta=storms.map(s=>({...s,_eta:calcStormETA(s)}));
+  storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)});
   const sf=S._stormFilter||_loadStormFilter();
-  const filtered=_applyStormFilter(stormsWithEta,sf);
+  const filtered=_applyStormFilter(storms,sf);
   const prevOpen={};
   el.querySelectorAll('.storm-group').forEach(d=>{const k=d.getAttribute('data-grp');if(k)prevOpen[k]=d.open});
   function isApproaching(s){const e=s._eta;return e&&e.approaching&&e.impact>0&&e.eta!=null}
@@ -2067,12 +2067,11 @@ function renderStorms(){
   let inboundCapped,overhead,nearby;
   if(S._topStormAnalysis&&S._topStormAnalysis.inbound){
     const a=S._topStormAnalysis;
-    const fSet=new Set(filtered);
-    inboundCapped=a.inbound.filter(s=>fSet.has(s));
-    overhead=a.overhead.filter(s=>fSet.has(s));
-    nearby=a.nearby.filter(s=>fSet.has(s));
-    const unclassified=filtered.filter(s=>!inboundCapped.includes(s)&&!overhead.includes(s)&&!nearby.includes(s));
-    nearby=nearby.concat(unclassified);
+    const inKeys=new Set(a.inbound.map(stormKey));
+    const ohKeys=new Set(a.overhead.map(stormKey));
+    inboundCapped=filtered.filter(s=>inKeys.has(stormKey(s)));
+    overhead=filtered.filter(s=>ohKeys.has(stormKey(s)));
+    nearby=filtered.filter(s=>!inKeys.has(stormKey(s))&&!ohKeys.has(stormKey(s)));
   }else{
     const approaching=filtered.filter(s=>isApproaching(s));
     overhead=filtered.filter(s=>isOverhead(s));
@@ -2165,9 +2164,9 @@ function renderStorms(){
   }
   const stormCount=inboundCapped.length+overhead.length+nearby.length;
   const filteredCount=filtered.length;
-  const totalCount=stormsWithEta.length;
+  const totalCount=storms.length;
   const filterNote=filteredCount<totalCount?` <span style="color:var(--text-muted);font-size:0.85em">(showing ${filteredCount}/${totalCount})</span>`:'';
-  const smartSummary=_smartStormSummary(stormsWithEta);
+  const smartSummary=_smartStormSummary(storms);
   el.innerHTML=`${zoneAlert}
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>

@@ -1518,7 +1518,7 @@ function updateThreatTicker(){
     const textLen=inner.textContent?inner.textContent.length:60;
     const autoDur=Math.max(18,Math.round(textLen*0.322));
     const tickerSpeed=parseInt(localStorage.getItem('st_tickerSpeed'))||100;
-    const speedMult=100/Math.max(50,Math.min(200,tickerSpeed));
+    const speedMult=Math.max(50,Math.min(200,tickerSpeed))/100;
     inner.style.animationDuration=Math.round((dur||autoDur)*speedMult)+'s';
     bar.style.display='block';
     bar.style.borderColor=borderColor;
