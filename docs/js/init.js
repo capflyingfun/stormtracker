@@ -985,33 +985,7 @@ let _syncToken = localStorage.getItem('st_syncToken') || '';
 let _syncEmail = localStorage.getItem('st_syncEmail') || '';
 let _syncLastTime = localStorage.getItem('st_syncLastTime') || '';
 let _emailAlertsOn = localStorage.getItem('st_emailAlerts') === '1';
-const _smsGateways=[
-  {name:'Verizon (MMS)',domain:'vzwpix.com'},
-  {name:'Verizon (SMS)',domain:'vtext.com'},
-  {name:'AT&T (MMS)',domain:'mms.att.net'},
-  {name:'AT&T (SMS)',domain:'txt.att.net'},
-  {name:'T-Mobile (MMS)',domain:'tmomail.net'},
-  {name:'T-Mobile (SMS)',domain:'tmomail.net'},
-  {name:'Sprint (MMS)',domain:'pm.sprint.com'},
-  {name:'Sprint (SMS)',domain:'messaging.sprintpcs.com'},
-  {name:'US Cellular (MMS)',domain:'mms.uscc.net'},
-  {name:'US Cellular (SMS)',domain:'email.uscc.net'},
-  {name:'Cricket',domain:'mms.cricketwireless.net'},
-  {name:'Boost Mobile',domain:'sms.myboostmobile.com'},
-  {name:'Metro by T-Mobile',domain:'mymetropcs.com'},
-  {name:'Google Fi',domain:'msg.fi.google.com'},
-  {name:'Mint Mobile',domain:'tmomail.net'},
-  {name:'Visible',domain:'vzwpix.com'},
-  {name:'Xfinity Mobile',domain:'vtext.com'},
-  {name:'Consumer Cellular',domain:'mailmymobile.net'},
-  {name:'Straight Talk',domain:'vtext.com'},
-  {name:'TracFone',domain:'mmst5.tracfone.com'},
-  {name:'Republic Wireless',domain:'text.republicwireless.com'},
-];
-let _syncInputMode=localStorage.getItem('st_syncInputMode')||'email';
 let _syncFormMode='signup';
-function _buildSmsEmail(){const ph=(document.getElementById('sync-phone')||{}).value||'';const sel=(document.getElementById('sync-carrier')||{}).value||'';const digits=ph.replace(/\D/g,'');if(!digits||!sel)return'';return digits+'@'+sel}
-function _syncInputChanged(mode){_syncInputMode=mode;localStorage.setItem('st_syncInputMode',mode);renderSyncSection()}
 function _syncFormModeChanged(mode){_syncFormMode=mode;renderSyncSection()}
 
 function _syncApiUrl() {
@@ -1083,11 +1057,6 @@ function _clearSyncState() {
 }
 
 function _getSyncEmail(){
-  if(_syncInputMode==='text'){
-    const e=_buildSmsEmail();
-    if(!e)return{err:'Enter phone number and select carrier'};
-    return{email:e};
-  }
   const el=document.getElementById('sync-email');
   const v=(el?el.value:'').trim();
   if(!v)return{err:'Enter email address'};
@@ -1118,7 +1087,7 @@ async function syncLogin() {
   const pinEl = document.getElementById('sync-pin');
   if (!emailEl || !pinEl) return;
   const email = emailEl.value.trim();
-  if (!email) return toast('Enter your email or phone@carrier address');
+  if (!email) return toast('Enter your email address');
   const pin = pinEl.value.trim();
   if (!pin) return toast('Enter your PIN');
   try {
@@ -1246,37 +1215,19 @@ function renderSyncSection() {
     html+='</div>';
     html+='<div style="margin-bottom:6px;padding:8px;border:1px solid var(--border-subtle);border-radius:0 0 6px 6px;background:rgba(255,255,255,0.02)">';
     if(isSignup){
-      const isEmail=_syncInputMode==='email';
-      const inputTab=(label,active,mode)=>`<button onclick="_syncInputChanged('${mode}')" style="flex:1;padding:4px;font-size:0.6em;font-weight:600;cursor:pointer;border-radius:4px;border:1px solid ${active?'rgba(0,229,255,0.4)':'var(--border-subtle)'};background:${active?'rgba(0,229,255,0.1)':'transparent'};color:${active?'var(--accent-cyan)':'var(--text-muted)'}">${label}</button>`;
-      html+='<div style="display:flex;gap:4px;margin-bottom:6px">';
-      html+=inputTab('📧 Email',isEmail,'email');
-      html+=inputTab('📱 Text',!isEmail,'text');
-      html+='</div>';
-      if(isEmail){
-        html+='<input type="email" id="sync-email" placeholder="you@email.com" style="width:100%;font-size:0.7em;padding:6px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;margin-bottom:4px;box-sizing:border-box">';
-      }else{
-        html+='<input type="tel" id="sync-phone" placeholder="Phone number (e.g. 5551234567)" inputmode="tel" style="width:100%;font-size:0.7em;padding:6px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;margin-bottom:4px;box-sizing:border-box">';
-        html+='<select id="sync-carrier" style="width:100%;font-size:0.7em;padding:6px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;margin-bottom:4px;box-sizing:border-box;appearance:auto">';
-        html+='<option value="">Select your carrier...</option>';
-        _smsGateways.forEach(g=>{html+=`<option value="${g.domain}">${g.name}</option>`});
-        html+='</select>';
-        html+='<div style="font-size:0.5em;color:var(--text-muted);margin-bottom:2px">Alerts sent as text via your carrier\'s email-to-SMS gateway</div>';
-      }
+      html+='<input type="email" id="sync-email" placeholder="you@email.com" style="width:100%;font-size:0.7em;padding:6px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;margin-bottom:4px;box-sizing:border-box">';
       html+='<input type="password" id="sync-pin" placeholder="Create a 4-6 digit PIN" inputmode="numeric" pattern="[0-9]*" maxlength="6" style="width:100%;font-size:0.7em;padding:6px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;box-sizing:border-box">';
       html+='</div>';
       html+='<button onclick="syncSignup()" style="width:100%;padding:7px;font-size:0.7em;font-weight:600;background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);border-radius:6px;cursor:pointer;margin-bottom:6px">Create Account</button>';
     }else{
-      html+='<input type="email" id="sync-email" placeholder="Email or phone@carrier (from signup)" style="width:100%;font-size:0.7em;padding:6px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;margin-bottom:4px;box-sizing:border-box">';
+      html+='<input type="email" id="sync-email" placeholder="you@email.com" style="width:100%;font-size:0.7em;padding:6px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;margin-bottom:4px;box-sizing:border-box">';
       html+='<input type="password" id="sync-pin" placeholder="Your PIN" inputmode="numeric" pattern="[0-9]*" maxlength="6" style="width:100%;font-size:0.7em;padding:6px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;box-sizing:border-box">';
       html+='</div>';
       html+='<button onclick="syncLogin()" style="width:100%;padding:7px;font-size:0.7em;font-weight:600;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;cursor:pointer;margin-bottom:6px">Log In</button>';
     }
     html += '<div style="font-size:0.55em;color:var(--text-muted)">Account is optional — the app works fully without one.</div>';
   } else {
-    const isSmsAcct=_smsGateways.some(g=>_syncEmail.endsWith('@'+g.domain));
-    const acctIcon=isSmsAcct?'📱':'📧';
-    const acctLabel=isSmsAcct?_syncEmail.split('@')[0].replace(/(\d{3})(\d{3})(\d{4})/,'($1) $2-$3'):_syncEmail;
-    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:0.7em;color:var(--text-secondary)">${acctIcon} ${escHtml(acctLabel)}</span><span style="font-size:0.55em;padding:2px 8px;background:rgba(0,200,100,0.15);color:#00cc66;border-radius:10px;font-weight:600">Connected</span></div>`;
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:0.7em;color:var(--text-secondary)">📧 ${escHtml(_syncEmail)}</span><span style="font-size:0.55em;padding:2px 8px;background:rgba(0,200,100,0.15);color:#00cc66;border-radius:10px;font-weight:600">Connected</span></div>`;
 
     html += '<div style="display:flex;gap:4px;margin-bottom:8px">';
     html += '<button onclick="syncPushSettings()" style="flex:1;padding:6px;font-size:0.65em;font-weight:600;background:rgba(167,139,250,0.12);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);border-radius:6px;cursor:pointer">⬆ Upload</button>';
@@ -1292,12 +1243,10 @@ function renderSyncSection() {
 
     const alertOn = _emailAlertsOn;
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:8px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border-subtle)">';
-    const alertLabel=isSmsAcct?'📱 Text Alerts':'📬 Email Alerts';
-    const alertDesc=isSmsAcct?'Get texts when thresholds are exceeded':'Get emailed when thresholds are exceeded';
-    html += `<div><span style="font-size:0.7em;color:var(--text-secondary)">${alertLabel}</span><div style="font-size:0.55em;color:var(--text-muted);margin-top:2px">${alertDesc}</div></div>`;
+    html += '<div><span style="font-size:0.7em;color:var(--text-secondary)">📬 Email Alerts</span><div style="font-size:0.55em;color:var(--text-muted);margin-top:2px">Get emailed when thresholds are exceeded</div></div>';
     html += `<button onclick="toggleEmailAlerts()" style="font-size:0.65em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid ${alertOn?'#00cc66':'var(--border-subtle)'};background:${alertOn?'rgba(0,200,100,0.15)':'rgba(255,255,255,0.04)'};color:${alertOn?'#00cc66':'var(--text-muted)'}">${alertOn?'ON':'OFF'}</button>`;
     html += '</div>';
-    html += `<button onclick="sendTestAlert()" id="btn-test-alert" style="width:100%;padding:6px;font-size:0.65em;font-weight:600;background:rgba(255,165,0,0.12);color:#ffa500;border:1px solid rgba(255,165,0,0.3);border-radius:6px;cursor:pointer;margin-bottom:8px">📨 Send Test ${isSmsAcct?'Text':'Email'}</button>`;
+    html += '<button onclick="sendTestAlert()" id="btn-test-alert" style="width:100%;padding:6px;font-size:0.65em;font-weight:600;background:rgba(255,165,0,0.12);color:#ffa500;border:1px solid rgba(255,165,0,0.3);border-radius:6px;cursor:pointer;margin-bottom:8px">📨 Send Test Email</button>';
     if (alertOn) {
       html += '<div style="font-size:0.55em;color:var(--text-muted);margin-bottom:8px;padding:0 4px">Alerts check your saved locations every 10 minutes against your Weather Station Alert thresholds above. 15-min cooldown per alert type.</div>';
     }
