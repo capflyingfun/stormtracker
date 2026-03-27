@@ -1026,8 +1026,180 @@ const _ICON_PACKS={
   emoji:{name:'Emoji',desc:'Native emoji icons'},
   'flat-filled':{name:'Flat Filled',desc:'Colorful flat icons'},
   'flat-outline':{name:'Flat Outline',desc:'Outlined flat icons'},
-  glossy:{name:'Glossy 3D',desc:'Shiny 3D icons'}
+  glossy:{name:'Glossy 3D',desc:'Shiny 3D icons'},
+  custom:{name:'Custom',desc:'Your own uploaded icons'}
 };
+const _CUSTOM_ICON_CACHE={};
+let _customIconDB=null;
+const _ALL_CONDITIONS=['clear-day','clear-night','few-clouds-day','few-clouds-night','partly-cloudy-day','partly-cloudy-night','overcast','fog','haze','rain','rain-heavy','snow','blizzard','sleet','thunderstorm','thunderstorm-night','thunderstorm-rain','thunderstorm-lightning','tornado','hot','cold','wind','few-clouds-day-rain','few-clouds-day-snow','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','partly-cloudy-day-snow','snow-night'];
+const _COND_LABELS={'clear-day':'Clear Day','clear-night':'Clear Night','few-clouds-day':'Few Clouds','few-clouds-night':'Few Clouds Night','partly-cloudy-day':'Partly Cloudy','partly-cloudy-night':'Partly Cloudy Night','overcast':'Overcast','fog':'Fog','haze':'Haze','rain':'Rain','rain-heavy':'Heavy Rain','snow':'Snow','blizzard':'Blizzard','sleet':'Sleet','thunderstorm':'Thunderstorm','thunderstorm-night':'T-Storm Night','thunderstorm-rain':'T-Storm Rain','thunderstorm-lightning':'Lightning','tornado':'Tornado','hot':'Hot','cold':'Cold','wind':'Wind','few-clouds-day-rain':'Light Rain','few-clouds-day-snow':'Light Snow','mostly-cloudy-day-rain':'Cloudy Rain','mostly-cloudy-day-rain-heavy':'Heavy Cloudy Rain','mostly-cloudy-night':'Cloudy Night','mostly-cloudy-night-rain':'Night Rain','mostly-cloudy-night-rain-heavy':'Heavy Night Rain','mostly-cloudy-night-snow':'Night Snow','partly-cloudy-day-snow':'Cloudy Snow','snow-night':'Snow Night'};
+function _openCustomIconDB(){
+  return new Promise((resolve,reject)=>{
+    if(_customIconDB){resolve(_customIconDB);return}
+    const req=indexedDB.open('StormTrackerIcons',1);
+    req.onupgradeneeded=e=>{e.target.result.createObjectStore('custom-icons')};
+    req.onsuccess=e=>{_customIconDB=e.target.result;resolve(_customIconDB)};
+    req.onerror=e=>reject(e);
+  });
+}
+function _putCustomIcon(cond,dataUrl){
+  return _openCustomIconDB().then(db=>{
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('custom-icons','readwrite');
+      tx.objectStore('custom-icons').put(dataUrl,cond);
+      tx.oncomplete=()=>{_CUSTOM_ICON_CACHE[cond]=dataUrl;resolve()};
+      tx.onerror=e=>reject(e);
+    });
+  });
+}
+function _deleteCustomIcon(cond){
+  return _openCustomIconDB().then(db=>{
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('custom-icons','readwrite');
+      tx.objectStore('custom-icons').delete(cond);
+      tx.oncomplete=()=>{delete _CUSTOM_ICON_CACHE[cond];resolve()};
+      tx.onerror=e=>reject(e);
+    });
+  });
+}
+function _loadAllCustomIcons(){
+  return _openCustomIconDB().then(db=>{
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('custom-icons','readonly');
+      const store=tx.objectStore('custom-icons');
+      const req=store.openCursor();
+      req.onsuccess=e=>{
+        const cursor=e.target.result;
+        if(cursor){_CUSTOM_ICON_CACHE[cursor.key]=cursor.value;cursor.continue()}
+        else resolve(_CUSTOM_ICON_CACHE);
+      };
+      req.onerror=e=>reject(e);
+    });
+  });
+}
+function _clearAllCustomIcons(){
+  return _openCustomIconDB().then(db=>{
+    return new Promise((resolve,reject)=>{
+      const tx=db.transaction('custom-icons','readwrite');
+      tx.objectStore('custom-icons').clear();
+      tx.oncomplete=()=>{Object.keys(_CUSTOM_ICON_CACHE).forEach(k=>delete _CUSTOM_ICON_CACHE[k]);resolve()};
+      tx.onerror=e=>reject(e);
+    });
+  });
+}
+function _getCustomBasePack(){return localStorage.getItem('st_customBasePack')||'basmilius'}
+function _setCustomBasePack(p){localStorage.setItem('st_customBasePack',p)}
+function _resizeImageToSquare(file,size){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const c=document.createElement('canvas');c.width=size;c.height=size;
+        const ctx=c.getContext('2d');
+        const s=Math.min(img.width,img.height);
+        const sx=(img.width-s)/2,sy=(img.height-s)/2;
+        ctx.drawImage(img,sx,sy,s,s,0,0,size,size);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror=reject;
+      img.src=e.target.result;
+    };
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+function uploadCustomIcon(cond){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='image/png,image/jpeg,image/svg+xml,image/webp';
+  inp.onchange=async()=>{
+    const f=inp.files[0];if(!f)return;
+    try{
+      const dataUrl=await _resizeImageToSquare(f,128);
+      await _putCustomIcon(cond,dataUrl);
+      syncCustomIconGrid();
+      if(_getIconPack()==='custom')reRenderActive();
+      showToast('Icon saved','success');
+    }catch(e){showToast('Failed to process image','error')}
+  };
+  inp.click();
+}
+function removeCustomIcon(cond){
+  _deleteCustomIcon(cond).then(()=>{
+    syncCustomIconGrid();
+    if(_getIconPack()==='custom')reRenderActive();
+    showToast('Icon removed','success');
+  });
+}
+function resetAllCustomIcons(){
+  if(!confirm('Remove all custom icons? This cannot be undone.'))return;
+  _clearAllCustomIcons().then(()=>{
+    syncCustomIconGrid();
+    if(_getIconPack()==='custom')reRenderActive();
+    showToast('All custom icons cleared','success');
+  });
+}
+function exportCustomPack(){
+  const data={version:1,basePack:_getCustomBasePack(),icons:{}};
+  let count=0;
+  _ALL_CONDITIONS.forEach(c=>{if(_CUSTOM_ICON_CACHE[c]){data.icons[c]=_CUSTOM_ICON_CACHE[c];count++}});
+  if(!count){showToast('No custom icons to export','error');return}
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='stormtracker-custom-icons.json';a.click();
+  URL.revokeObjectURL(a.href);
+  showToast(`Exported ${count} custom icons`,'success');
+}
+function importCustomPack(){
+  const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';
+  inp.onchange=async()=>{
+    const f=inp.files[0];if(!f)return;
+    try{
+      const text=await f.text();
+      const data=JSON.parse(text);
+      if(!data.icons||typeof data.icons!=='object'){showToast('Invalid pack file','error');return}
+      if(data.basePack&&_ICON_PACKS[data.basePack])_setCustomBasePack(data.basePack);
+      const entries=Object.entries(data.icons);
+      for(const[cond,url]of entries){
+        if(_ALL_CONDITIONS.includes(cond))await _putCustomIcon(cond,url);
+      }
+      setIconPack('custom');
+      syncCustomIconGrid();
+      showToast(`Imported ${entries.length} icons`,'success');
+    }catch(e){showToast('Failed to import pack','error')}
+  };
+  inp.click();
+}
+function _getCustomIconHtml(cond,sz){
+  const url=_CUSTOM_ICON_CACHE[cond];
+  if(!url)return null;
+  const raw=String(sz||32);
+  const hasCssUnit=/[a-z%]/.test(raw);
+  const cssSize=hasCssUnit?raw:(parseInt(raw)||32)+'px';
+  const numSize=parseInt(raw)||32;
+  return hasCssUnit?`<img src="${url}" style="width:${cssSize};height:${cssSize};display:inline-block;vertical-align:middle" alt="${cond}" loading="lazy">`:`<img src="${url}" width="${numSize}" height="${numSize}" alt="${cond}" style="display:inline-block;vertical-align:middle" loading="lazy">`;
+}
+function syncCustomIconGrid(){
+  const grid=document.getElementById('custom-icon-grid');if(!grid)return;
+  const bp=_getCustomBasePack();
+  const bpSel=document.getElementById('custom-base-pack');
+  if(bpSel)bpSel.value=bp;
+  let h='';
+  _ALL_CONDITIONS.forEach(c=>{
+    const hasCustom=!!_CUSTOM_ICON_CACHE[c];
+    const icon=hasCustom?_getCustomIconHtml(c,40):getWeatherIcon(c,40,bp);
+    h+=`<div class="custom-icon-slot${hasCustom?' has-custom':''}" onclick="uploadCustomIcon('${c}')">
+      <div class="custom-icon-img">${icon}</div>
+      <div class="custom-icon-label">${_COND_LABELS[c]||c}</div>
+      ${hasCustom?`<button class="custom-icon-remove" onclick="event.stopPropagation();removeCustomIcon('${c}')" title="Remove">&times;</button>`:''}
+    </div>`;
+  });
+  grid.innerHTML=h;
+}
+function changeCustomBasePack(val){
+  _setCustomBasePack(val);
+  syncCustomIconGrid();
+  if(_getIconPack()==='custom')reRenderActive();
+}
 const _ICON_PACK_FILES={
   'flat-filled':['clear-day','clear-night','few-clouds-day-rain','few-clouds-day-snow','few-clouds-night','partly-cloudy-day','partly-cloudy-day-snow','partly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm-night','snow-night','crescent-night','cloudy-night-snow','starry-night-rain','starry-night-snow','starry-night-thunder','rain','rain-heavy','snow','blizzard','overcast','cloud-light','tornado','fog','thunderstorm-lightning','thunderstorm','cloud-small','haze','thunderstorm-rain','overcast-dark'],
   'flat-outline':['clear-day','clear-night','few-clouds-day-rain','few-clouds-day-snow','few-clouds-night','partly-cloudy-day','partly-cloudy-day-snow','partly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm-night','snow-night','crescent-night','cloudy-night-snow','starry-night-rain','starry-night-snow','starry-night-thunder','rain','rain-heavy','snow','blizzard','overcast','cloud-light','tornado','fog','thunderstorm-lightning','thunderstorm','cloud-small','haze','thunderstorm-rain','overcast-dark'],
@@ -1064,12 +1236,17 @@ function _findBestPackIcon(pack,cond){
   if(alt&&_packHasIcon(pack,alt))return alt;
   return null;
 }
-function getWeatherIcon(cond,sz){
-  const pack=_getIconPack();
+function getWeatherIcon(cond,sz,forcePack){
+  const pack=forcePack||_getIconPack();
   const raw=String(sz||32);
   const hasCssUnit=/[a-z%]/.test(raw);
   const cssSize=hasCssUnit?raw:(parseInt(raw)||32)+'px';
   const numSize=parseInt(raw)||32;
+  if(pack==='custom'){
+    const customHtml=_getCustomIconHtml(cond,sz);
+    if(customHtml)return customHtml;
+    return getWeatherIcon(cond,sz,_getCustomBasePack());
+  }
   if(pack==='emoji')return`<span style="font-size:${cssSize};line-height:1;display:inline-block;vertical-align:middle">${_condToEmoji(cond)}</span>`;
   if(pack==='basmilius'){const bm=_condToBasmilius(cond);return hasCssUnit?`<img src="${BMCDN}${bm}.svg" style="width:${cssSize};height:${cssSize};display:inline-block;vertical-align:middle" alt="" loading="lazy">`:`<img src="${BMCDN}${bm}.svg" width="${numSize}" height="${numSize}" alt="" style="display:inline-block;vertical-align:middle" loading="lazy">`}
   const best=_findBestPackIcon(pack,cond);
@@ -1087,6 +1264,9 @@ function syncIconPackUI(){
   });
   const prev=document.getElementById('icon-pack-preview');
   if(prev){let h='';_ICON_PREVIEW_CONDS.forEach(c=>{h+=getWeatherIcon(c,28)});prev.innerHTML=h}
+  const customSection=document.getElementById('custom-icon-section');
+  if(customSection)customSection.style.display=pack==='custom'?'block':'none';
+  if(pack==='custom')syncCustomIconGrid();
 }
 function wmoIcon(code,isDay){return _condToEmoji(wmoToCondition(code,isDay))}
 const BMCDN='https://cdn.jsdelivr.net/gh/basmilius/weather-icons@dev/production/fill/svg/';

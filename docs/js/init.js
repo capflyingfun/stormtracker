@@ -107,6 +107,7 @@ function _dismissNotifPermission(){
 }
 
 function init(){
+  _loadAllCustomIcons().catch(()=>{});
   loadUnits();
   updateAIFab();
   checkFirstLaunch();
@@ -1026,6 +1027,7 @@ function _gatherSyncSettings() {
     sonarZoom: parseInt(localStorage.getItem('st_sonarZoom')) || 80,
     tickerSpeed: parseInt(localStorage.getItem('st_tickerSpeed')) || 100,
     iconPack: localStorage.getItem('st_iconPack') || 'basmilius',
+    customBasePack: localStorage.getItem('st_customBasePack') || 'basmilius',
     emailAlerts: _emailAlertsOn,
   };
 }
@@ -1045,6 +1047,7 @@ function _applySyncSettings(s) {
   if (s.sonarZoom) localStorage.setItem('st_sonarZoom', String(s.sonarZoom));
   if (s.tickerSpeed) localStorage.setItem('st_tickerSpeed', String(s.tickerSpeed));
   if (s.iconPack) localStorage.setItem('st_iconPack', s.iconPack);
+  if (s.customBasePack) localStorage.setItem('st_customBasePack', s.customBasePack);
   if (s.emailAlerts !== undefined) {
     _emailAlertsOn = !!s.emailAlerts;
     localStorage.setItem('st_emailAlerts', _emailAlertsOn ? '1' : '0');

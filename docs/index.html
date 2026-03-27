@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v2.61</title>
+<title>StormTracker v2.62</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <meta name="theme-color" content="#0a1020">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=261">
+<link rel="stylesheet" href="css/style.css?v=262">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -28,7 +28,7 @@
     <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
   <div class="header-center">
-    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v2.61</span></h1>
+    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v2.62</span></h1>
     <div class="header-status">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Initializing...</span>
@@ -167,9 +167,29 @@
           <button class="icon-pack-btn" data-pack="flat-filled" onclick="setIconPack('flat-filled')" style="flex:1;min-width:50px;padding:5px 3px;font-size:0.62em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);transition:all 0.2s;text-align:center">🎨 Flat</button>
           <button class="icon-pack-btn" data-pack="flat-outline" onclick="setIconPack('flat-outline')" style="flex:1;min-width:50px;padding:5px 3px;font-size:0.62em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);transition:all 0.2s;text-align:center">✏️ Outline</button>
           <button class="icon-pack-btn" data-pack="glossy" onclick="setIconPack('glossy')" style="flex:1;min-width:50px;padding:5px 3px;font-size:0.62em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);transition:all 0.2s;text-align:center">💎 Glossy</button>
+          <button class="icon-pack-btn" data-pack="custom" onclick="setIconPack('custom')" style="flex:1;min-width:50px;padding:5px 3px;font-size:0.62em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);transition:all 0.2s;text-align:center">🖌️ Custom</button>
         </div>
         <div id="icon-pack-preview" style="display:flex;gap:6px;justify-content:center;align-items:center;padding:8px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:4px"></div>
         <div style="font-size:0.55em;color:var(--text-muted)">Changes weather icons across the entire app</div>
+        <div id="custom-icon-section" style="display:none;margin-top:10px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="font-size:0.7em;color:var(--text-muted)">Base Pack:</span>
+            <select id="custom-base-pack" onchange="changeCustomBasePack(this.value)" style="font-size:0.7em;padding:3px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
+              <option value="basmilius">Animated</option>
+              <option value="emoji">Emoji</option>
+              <option value="flat-filled">Flat Filled</option>
+              <option value="flat-outline">Flat Outline</option>
+              <option value="glossy">Glossy</option>
+            </select>
+          </div>
+          <div id="custom-icon-grid" class="custom-icon-grid"></div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+            <button onclick="exportCustomPack()" style="flex:1;min-width:70px;padding:5px 6px;font-size:0.6em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted)">📤 Export</button>
+            <button onclick="importCustomPack()" style="flex:1;min-width:70px;padding:5px 6px;font-size:0.6em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted)">📥 Import</button>
+            <button onclick="resetAllCustomIcons()" style="flex:1;min-width:70px;padding:5px 6px;font-size:0.6em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid rgba(255,51,85,0.3);background:rgba(255,51,85,0.08);color:var(--accent-red)">🗑️ Reset All</button>
+          </div>
+          <div style="font-size:0.5em;color:var(--text-muted);margin-top:6px">Tap any condition to upload your own icon. Custom icons are stored on this device only.</div>
+        </div>
       </div>
       <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
         <div style="font-size:0.8em;font-weight:600;color:var(--accent-green);margin-bottom:8px">🔄 Auto Refresh</div>
@@ -409,14 +429,14 @@
   <button class="nav-item" data-page="alerts" style="position:relative" id="nav-alerts"><span class="nav-icon">⚠️</span><span class="nav-label">Alerts</span><span class="nav-badge" id="nav-alert-badge">0</span></button>
 </nav>
 
-<script src="js/core.js?v=261"></script>
-<script src="js/weather.js?v=261"></script>
-<script src="js/radar.js?v=261"></script>
-<script src="js/storms.js?v=261"></script>
-<script src="js/station.js?v=261"></script>
-<script src="js/alerts.js?v=261"></script>
-<script src="js/ai.js?v=261"></script>
-<script src="js/init.js?v=261"></script>
+<script src="js/core.js?v=262"></script>
+<script src="js/weather.js?v=262"></script>
+<script src="js/radar.js?v=262"></script>
+<script src="js/storms.js?v=262"></script>
+<script src="js/station.js?v=262"></script>
+<script src="js/alerts.js?v=262"></script>
+<script src="js/ai.js?v=262"></script>
+<script src="js/init.js?v=262"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(r=>console.log('SW registered')).catch(e=>console.log('SW failed:',e))}</script>
 </body>
 </html>
