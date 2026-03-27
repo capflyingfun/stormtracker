@@ -237,34 +237,7 @@
         <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:8px">Get notified when radar detects storm cells matching ALL enabled thresholds. 15-min cooldown per cell.</div>
         <div id="storm-alert-settings"></div>
       </div>
-      <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
-        <div style="font-size:0.8em;font-weight:600;color:#7dd3fc;margin-bottom:8px">🌧️ Rain Alert</div>
-        <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:8px">Get notified when radar detects rain approaching or nearby. Works with auto-refresh and travel mode scans.</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <label style="display:flex;align-items:center;gap:4px;font-size:0.7em;color:var(--text-muted);cursor:pointer">
-            <input type="checkbox" id="rain-alert-toggle" onchange="toggleRainAlert(this.checked)" style="accent-color:#7dd3fc">
-            <span>Enable Rain Alerts</span>
-          </label>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <span style="font-size:0.7em;color:var(--text-muted)">Sensitivity</span>
-          <select id="rain-alert-sensitivity" onchange="setRainSensitivity(this.value)" disabled style="font-size:0.7em;padding:3px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
-            <option value="light">Light (20+ dBZ)</option>
-            <option value="moderate" selected>Moderate (30+ dBZ)</option>
-            <option value="heavy">Heavy (40+ dBZ)</option>
-          </select>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <span style="font-size:0.7em;color:var(--text-muted)">Cooldown</span>
-          <select id="rain-alert-cooldown" onchange="setRainCooldown(this.value)" disabled style="font-size:0.7em;padding:3px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
-            <option value="15">15 min</option>
-            <option value="30" selected>30 min</option>
-            <option value="60">1 hour</option>
-            <option value="120">2 hours</option>
-          </select>
-        </div>
-        <div style="font-size:0.55em;color:var(--text-muted);margin-top:2px">Sensitivity: minimum rain intensity to trigger. Cooldown: time between repeat alerts.</div>
-      </div>
+      <!-- Rain Alert settings hidden — feature removed for now -->
       <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
         <div style="font-size:0.8em;font-weight:600;color:var(--accent-green);margin-bottom:8px">🌍 Environmental Hazards</div>
         <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:8px">Configure hazard monitoring radius and data sources.</div>
@@ -291,11 +264,8 @@
           <a href="https://play.google.com/store/apps/details?id=edu.ou.nssl.mping" target="_blank" rel="noopener" style="flex:1;padding:6px;background:rgba(79,195,247,0.1);color:#4fc3f7;border:1px solid rgba(79,195,247,0.3);border-radius:6px;font-size:0.7em;font-weight:600;text-align:center;text-decoration:none">🤖 Android App</a>
         </div>
       </div>
-      <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
-        <div style="font-size:0.8em;font-weight:600;color:#a78bfa;margin-bottom:8px">☁️ Sync & Alerts</div>
-        <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:10px;line-height:1.5">Create an account to sync settings across devices and receive email weather alerts. Only email and a PIN are needed — no personal info required.</div>
-        <div id="sync-alerts-section"></div>
-      </div>
+      <!-- Sync & Alerts section hidden — planned for future redesign -->
+      <div id="sync-alerts-section" style="display:none"></div>
       <div style="border-top:1px solid var(--border-subtle);padding-top:12px">
         <div style="display:flex;gap:8px">
           <button onclick="showTutorial()" style="flex:1;padding:10px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.8em;font-weight:600;cursor:pointer">📖 Tutorial</button>

@@ -697,7 +697,7 @@ async function scanRadarForView(){
     hideScanOverlay();
     toast(`${S.storms.length.toLocaleString()} cells in ${radius} mi radius (${srcLabel})`);
     scheduleAutoScan();
-    setTimeout(()=>{checkStormCellAlerts();checkRainAlert()},600);
+    setTimeout(()=>{checkStormCellAlerts()},600);
   }catch(e){hideScanOverlay();toast('View scan failed: '+e.message);console.error('ViewScan error:',e)}
 }
 
@@ -770,7 +770,7 @@ async function scanRadarHiRes(map,fromHome){
     hideScanOverlay();
     toast(`Hi-Res: ${S.storms.length.toLocaleString()} cells in ${HIRES_RADIUS} mi (${srcLabel})`);
     scheduleAutoScan();
-    setTimeout(()=>{checkStormCellAlerts();checkRainAlert()},600);
+    setTimeout(()=>{checkStormCellAlerts()},600);
   }catch(e){hideScanOverlay();toast('Hi-Res scan failed: '+e.message);console.error('HiRes error:',e)}
 }
 
@@ -841,6 +841,8 @@ function clearStormCone(){
 }
 function flyToStormAlert(lat,lng){
   if(lat==null||lng==null)return;
+  const dist=haversine(S.lat,S.lon,lat,lng);
+  if(dist>100){toast('Storm alert location is too far from current position');return;}
   switchPage('radar');
   setTimeout(()=>{
     if(!S.map)return;

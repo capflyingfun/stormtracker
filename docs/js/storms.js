@@ -617,7 +617,7 @@ async function scanRadarForStorms(){
     if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
     scheduleAutoScan();
     _checkTieredHiRes();
-    setTimeout(()=>{checkStormCellAlerts();checkRainAlert()},600);
+    setTimeout(()=>{checkStormCellAlerts()},600);
   }catch(e){hideScanOverlay();toast('Radar scan failed: '+e.message);console.error('Scan error:',e)}
 }
 
