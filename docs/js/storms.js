@@ -565,9 +565,10 @@ function computeTopStorms(){
   }
   inbound.sort((a,b)=>b.dbz===a.dbz?(a._eta.eta-b._eta.eta):(b.dbz-a.dbz));
   S._topStorms=inbound.slice(0,12);
+  const overflow=inbound.slice(12);
   S._topStormAnalysis.inbound=S._topStorms;
   S._topStormAnalysis.overhead=overhead;
-  S._topStormAnalysis.nearby=nearby;
+  S._topStormAnalysis.nearby=nearby.concat(overflow);
 }
 
 async function scanRadarForStorms(){
