@@ -1066,13 +1066,15 @@ function _findBestPackIcon(pack,cond){
 }
 function getWeatherIcon(cond,sz){
   const pack=_getIconPack();
-  const s=parseInt(sz)||32;
-  if(pack==='emoji')return`<span style="font-size:${s}px;line-height:1;display:inline-block;vertical-align:middle">${_condToEmoji(cond)}</span>`;
-  if(pack==='basmilius'){const bm=_condToBasmilius(cond);return`<img src="${BMCDN}${bm}.svg" width="${s}" height="${s}" alt="" style="display:inline-block;vertical-align:middle" loading="lazy">`}
+  const raw=String(sz||32);
+  const hasCssUnit=/[a-z%]/.test(raw);
+  const cssSize=hasCssUnit?raw:(parseInt(raw)||32)+'px';
+  const numSize=parseInt(raw)||32;
+  if(pack==='emoji')return`<span style="font-size:${cssSize};line-height:1;display:inline-block;vertical-align:middle">${_condToEmoji(cond)}</span>`;
+  if(pack==='basmilius'){const bm=_condToBasmilius(cond);return hasCssUnit?`<img src="${BMCDN}${bm}.svg" style="width:${cssSize};height:${cssSize};display:inline-block;vertical-align:middle" alt="" loading="lazy">`:`<img src="${BMCDN}${bm}.svg" width="${numSize}" height="${numSize}" alt="" style="display:inline-block;vertical-align:middle" loading="lazy">`}
   const best=_findBestPackIcon(pack,cond);
-  if(best)return`<img src="icons/${pack}/${best}.png" width="${s}" height="${s}" alt="${cond}" style="display:inline-block;vertical-align:middle" loading="lazy">`;
-  const bm2=_condToBasmilius(cond);
-  return`<img src="${BMCDN}${bm2}.svg" width="${s}" height="${s}" alt="" style="display:inline-block;vertical-align:middle" loading="lazy">`;
+  const src=best?`icons/${pack}/${best}.png`:`${BMCDN}${_condToBasmilius(cond)}.svg`;
+  return hasCssUnit?`<img src="${src}" style="width:${cssSize};height:${cssSize};display:inline-block;vertical-align:middle" alt="${cond}" loading="lazy">`:`<img src="${src}" width="${numSize}" height="${numSize}" alt="${cond}" style="display:inline-block;vertical-align:middle" loading="lazy">`;
 }
 const _ICON_PREVIEW_CONDS=['clear-day','few-clouds-day','rain','thunderstorm','snow','clear-night'];
 function syncIconPackUI(){
