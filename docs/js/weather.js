@@ -497,11 +497,10 @@ function drawMiniSonar(){
         if(now>=fs.nextToggle){
           if(fs.on){
             fs.on=false;
-            fs.nextToggle=now+150+Math.random()*250;
+            fs.nextToggle=now+1200+Math.random()*1800;
           }else{
-            const doFlash=Math.random()<0.3;
-            fs.on=doFlash;
-            fs.nextToggle=now+(doFlash?100:(1500+Math.random()*1500));
+            fs.on=true;
+            fs.nextToggle=now+150+Math.random()*250;
           }
         }
         if(!fs.on)continue;
