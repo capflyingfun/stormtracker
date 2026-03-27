@@ -853,7 +853,7 @@ function windSweepAnim(){
   const numEl=document.querySelector('.wrc-num');
   const gustEl=document.querySelector('.wrc-gust');
   if(numEl)numEl.textContent=kmhTo(targetSpd,S.windUnit);
-  if(gustEl)gustEl.textContent=targetGust>0?'G'+fmtWind(targetGust):'';
+  if(gustEl)gustEl.textContent=targetGust>0?'G'+fmtWind(targetGust)+' ('+_fmtWindowLabel(_getGustWindow())+')':'';
   updateGaugeSegments(parseFloat(kmhTo(targetSpd,S.windUnit)),parseFloat(kmhTo(targetGust,S.windUnit)));
   _windSweepRaf=null;
   _windSweepPaused=false;
