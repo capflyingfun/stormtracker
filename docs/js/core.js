@@ -1243,6 +1243,8 @@ function _findBestPackIcon(pack,cond){
   if(alt&&_packHasIcon(pack,alt))return alt;
   return null;
 }
+function _initPingPong(v){v._ppDir=1;v._ppDur=v.duration}
+function _ppUpdate(v){if(v._ppDir===1&&v.currentTime>=v._ppDur-0.05){v.pause();v._ppDir=-1;v._ppRaf=()=>{if(v._ppDir!==-1)return;v.currentTime=Math.max(0,v.currentTime-0.033);if(v.currentTime<=0.05){v._ppDir=1;v.currentTime=0;v.play();return}requestAnimationFrame(v._ppRaf)};requestAnimationFrame(v._ppRaf)}}
 function getWeatherIcon(cond,sz,forcePack){
   const pack=forcePack||_getIconPack();
   const raw=String(sz||32);
@@ -1263,7 +1265,7 @@ function getWeatherIcon(cond,sz,forcePack){
       const vidSrc=`icons/${pack}/${best}.mp4`;
       const fallbackSrc=`icons/globe/${best}.png`;
       const sizeStyle=hasCssUnit?`width:${cssSize};height:${cssSize}`:`width:${numSize}px;height:${numSize}px`;
-      return`<video autoplay muted playsinline style="${sizeStyle};display:inline-block;vertical-align:middle;object-fit:cover;border-radius:50%" src="${vidSrc}" poster="${fallbackSrc}" onloadedmetadata="this._ppDir=1;this._ppDur=this.duration" ontimeupdate="if(this._ppDir===1&&this.currentTime>=this._ppDur-0.05){this.pause();this._ppDir=-1;this._ppRaf=()=>{if(this._ppDir!==-1)return;this.currentTime=Math.max(0,this.currentTime-0.033);if(this.currentTime<=0.05){this._ppDir=1;this.currentTime=0;this.play();return};requestAnimationFrame(this._ppRaf)};requestAnimationFrame(this._ppRaf)}" onerror="this.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${sizeStyle};display:inline-block;vertical-align:middle&quot; alt=&quot;${cond}&quot;>'"></video>`;
+      return`<video autoplay muted playsinline style="${sizeStyle};display:inline-block;vertical-align:middle;object-fit:cover;border-radius:50%" src="${vidSrc}" poster="${fallbackSrc}" onloadedmetadata="_initPingPong(this)" ontimeupdate="_ppUpdate(this)" onerror="this.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${sizeStyle};display:inline-block;vertical-align:middle&quot; alt=&quot;${cond}&quot;>'"></video>`;
     }
     return getWeatherIcon(cond,sz,'globe');
   }
