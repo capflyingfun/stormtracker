@@ -5,7 +5,15 @@ const STATIC_ASSETS = [
   '/StormTracker/offline.html',
   '/StormTracker/manifest.json',
   '/StormTracker/icons/icon-192x192.png',
-  '/StormTracker/icons/icon-512x512.png'
+  '/StormTracker/icons/icon-512x512.png',
+  '/StormTracker/js/core.js',
+  '/StormTracker/js/weather.js',
+  '/StormTracker/js/radar.js',
+  '/StormTracker/js/storms.js',
+  '/StormTracker/js/station.js',
+  '/StormTracker/js/alerts.js',
+  '/StormTracker/js/ai.js',
+  '/StormTracker/js/init.js'
 ];
 
 self.addEventListener('install', event => {
@@ -27,7 +35,17 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
-    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request, { ignoreSearch: true }))
+    );
     return;
   }
   if (event.request.mode === 'navigate') {
