@@ -1028,6 +1028,7 @@ const _ICON_PACKS={
   'flat-outline':{name:'Flat Outline',desc:'Outlined flat icons'},
   glossy:{name:'Glossy 3D',desc:'Shiny 3D icons'},
   neon:{name:'Neon',desc:'Neon glow weather icons'},
+  globe:{name:'3D Globe',desc:'Miniature world diorama icons'},
   custom:{name:'Custom',desc:'Your own uploaded icons'}
 };
 const _CUSTOM_ICON_CACHE={};
@@ -1088,7 +1089,7 @@ function _clearAllCustomIcons(){
     });
   });
 }
-const _BUILTIN_PACKS=['basmilius','emoji','flat-filled','flat-outline','glossy','neon'];
+const _BUILTIN_PACKS=['basmilius','emoji','flat-filled','flat-outline','glossy','neon','globe'];
 function _getCustomBasePack(){const p=localStorage.getItem('st_customBasePack');return(p&&_BUILTIN_PACKS.includes(p))?p:'basmilius'}
 function _setCustomBasePack(p){if(_BUILTIN_PACKS.includes(p))localStorage.setItem('st_customBasePack',p)}
 function _resizeImageToSquare(file,size){
@@ -1206,7 +1207,8 @@ const _ICON_PACK_FILES={
   'flat-filled':['clear-day','clear-night','few-clouds-day-rain','few-clouds-day-snow','few-clouds-night','partly-cloudy-day','partly-cloudy-day-snow','partly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm-night','snow-night','crescent-night','cloudy-night-snow','starry-night-rain','starry-night-snow','starry-night-thunder','rain','rain-heavy','snow','blizzard','overcast','cloud-light','tornado','fog','thunderstorm-lightning','thunderstorm','haze','thunderstorm-rain','overcast-dark'],
   'flat-outline':['clear-day','clear-night','few-clouds-day-rain','few-clouds-day-snow','few-clouds-night','partly-cloudy-day','partly-cloudy-day-snow','partly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm-night','snow-night','crescent-night','cloudy-night-snow','starry-night-rain','starry-night-snow','starry-night-thunder','rain','rain-heavy','snow','blizzard','overcast','tornado','fog','thunderstorm-lightning','thunderstorm','cloud-small','haze','thunderstorm-rain','overcast-dark'],
   glossy:['clear-day','clear-night','few-clouds-day','few-clouds-night','partly-cloudy-day','overcast','rain','rain-night','thunderstorm','thunderstorm-night','snow','sleet','blizzard','hot','cold','wind'],
-  neon:['clear-day','clear-night','cloud-light','cloud-small','partly-cloudy-day','partly-cloudy-day-snow','overcast','overcast-dark','few-clouds-day-rain','few-clouds-day-snow','rain','rain-heavy','thunderstorm','thunderstorm-rain','thunderstorm-lightning','snow','blizzard','fog','haze','mostly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy']
+  neon:['clear-day','clear-night','cloud-light','cloud-small','partly-cloudy-day','partly-cloudy-day-snow','overcast','overcast-dark','few-clouds-day-rain','few-clouds-day-snow','rain','rain-heavy','thunderstorm','thunderstorm-rain','thunderstorm-lightning','snow','blizzard','fog','haze','mostly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy'],
+  globe:['clear-day','clear-night','partly-cloudy-day','partly-cloudy-day-snow','overcast','overcast-dark','cloud-light','cloud-small','few-clouds-day-rain','few-clouds-day-snow','rain','rain-heavy','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm','thunderstorm-rain','thunderstorm-lightning','thunderstorm-night','snow','snow-night','blizzard','fog','haze','tornado']
 };
 const _WMO_TO_COND={};
 function _buildWmoCondMap(isDay){
@@ -1312,7 +1314,7 @@ function neonWx(code,isDay,sz){
   return getWeatherIcon(cond,parseInt(sz)||32);
 }
 function animEmoji(code,isDay,size){
-  const px=size==='1.2em'?38:size==='1em'?30:28;
+  const px=typeof size==='string'&&size.endsWith('px')?parseInt(size):size==='1.2em'?38:size==='1em'?30:parseInt(size)||28;
   return neonWx(code,isDay,px);
 }
 function wmoDesc(code){const m={0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Rime fog',51:'Light drizzle',53:'Moderate drizzle',55:'Dense drizzle',56:'Freezing drizzle',57:'Dense freezing drizzle',61:'Slight rain',63:'Moderate rain',65:'Heavy rain',66:'Freezing rain',67:'Heavy freezing rain',71:'Slight snow',73:'Moderate snow',75:'Heavy snow',77:'Snow grains',80:'Rain showers',81:'Mod rain showers',82:'Violent rain showers',85:'Snow showers',86:'Heavy snow showers',95:'Thunderstorm',96:'T-storm w/ hail',99:'T-storm w/ heavy hail'};return m[code]||'Unknown'}
