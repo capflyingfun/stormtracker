@@ -2269,14 +2269,13 @@ function setAvgWindow(val){
     toast('💨 Avg window set to '+_fmtWindowLabel(v*1000));
   }
 }
-function setTickerSpeed(val){
+function setTickerSpeed(val,final){
   const v=parseInt(val,10);
   if(v>=50&&v<=200){
     localStorage.setItem('st_tickerSpeed',String(v));
     const lbl=document.getElementById('ticker-speed-val');
     if(lbl)lbl.textContent=v+'%';
-    updateThreatTicker();
-    toast('📰 Ticker speed set to '+v+'%');
+    if(final){updateThreatTicker();toast('📰 Ticker speed set to '+v+'%')}
   }
 }
 function setAutoRefresh(val){
