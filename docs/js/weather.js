@@ -483,16 +483,7 @@ function drawMiniSonar(){
       for(let gi=0;gi<lGroups.length;gi++){
         const g=lGroups[gi];
         const gx=g.sx/g.n,gy=g.sy/g.n;
-        let clusterVisible=isAlwaysOn;
-        if(!isAlwaysOn){
-          for(const d of g.dots){
-            const dotAng=((d.angDeg-90)%360+360)%360;
-            const angDiff=((sweepDeg-dotAng)%360+360)%360;
-            const hasBeenSwept=totalSwept>=360||angDiff<totalSwept;
-            if(hasBeenSwept&&angDiff<totalDegs){clusterVisible=true;break}
-          }
-        }
-        if(!clusterVisible)continue;
+        
         const fs=_lightningFlashState[gi];
         if(now>=fs.nextToggle){
           fs.on=!fs.on;
