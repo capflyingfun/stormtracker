@@ -1542,8 +1542,8 @@ function updateThreatTicker(){
             expLabel=` — until ${days[exp.getDay()]} ${fmtClockShort(exp)}`;
           }
         }
-        const sevIcon=sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
-        nwsMsgs.push(`${sevIcon} NWS: ${escHtml(ev)} in effect${expLabel}`);
+        const icon=typeof getAlertIcon==='function'?getAlertIcon(ev,sev):(sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵');
+        nwsMsgs.push(`${icon} NWS: ${escHtml(ev)} in effect${expLabel}`);
       }
       if(nwsMsgs.length){
         const sep='<span style="color:#664400;margin:0 40px">│</span>';
