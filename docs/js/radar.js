@@ -697,7 +697,7 @@ async function scanRadarForView(){
     hideScanOverlay();
     toast(`${S.storms.length.toLocaleString()} cells in ${radius} mi radius (${srcLabel})`);
     scheduleAutoScan();
-    setTimeout(checkStormCellAlerts,600);
+    setTimeout(()=>{checkStormCellAlerts();checkRainAlert()},600);
   }catch(e){hideScanOverlay();toast('View scan failed: '+e.message);console.error('ViewScan error:',e)}
 }
 
@@ -770,7 +770,7 @@ async function scanRadarHiRes(map,fromHome){
     hideScanOverlay();
     toast(`Hi-Res: ${S.storms.length.toLocaleString()} cells in ${HIRES_RADIUS} mi (${srcLabel})`);
     scheduleAutoScan();
-    setTimeout(checkStormCellAlerts,600);
+    setTimeout(()=>{checkStormCellAlerts();checkRainAlert()},600);
   }catch(e){hideScanOverlay();toast('Hi-Res scan failed: '+e.message);console.error('HiRes error:',e)}
 }
 

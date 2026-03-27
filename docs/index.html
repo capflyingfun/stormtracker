@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v2.57</title>
+<title>StormTracker v2.58</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <meta name="theme-color" content="#0a1020">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=257">
+<link rel="stylesheet" href="css/style.css?v=258">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -28,7 +28,7 @@
     <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
   <div class="header-center">
-    <h1>⚡ StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v2.57</span></h1>
+    <h1>⚡ StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v2.58</span></h1>
     <div class="header-status">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Initializing...</span>
@@ -238,6 +238,34 @@
         <div id="storm-alert-settings"></div>
       </div>
       <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
+        <div style="font-size:0.8em;font-weight:600;color:#7dd3fc;margin-bottom:8px">🌧️ Rain Alert</div>
+        <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:8px">Get notified when radar detects rain approaching or nearby. Works with auto-refresh and travel mode scans.</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label style="display:flex;align-items:center;gap:4px;font-size:0.7em;color:var(--text-muted);cursor:pointer">
+            <input type="checkbox" id="rain-alert-toggle" onchange="toggleRainAlert(this.checked)" style="accent-color:#7dd3fc">
+            <span>Enable Rain Alerts</span>
+          </label>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:0.7em;color:var(--text-muted)">Sensitivity</span>
+          <select id="rain-alert-sensitivity" onchange="setRainSensitivity(this.value)" disabled style="font-size:0.7em;padding:3px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
+            <option value="light">Light (20+ dBZ)</option>
+            <option value="moderate" selected>Moderate (30+ dBZ)</option>
+            <option value="heavy">Heavy (40+ dBZ)</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:0.7em;color:var(--text-muted)">Cooldown</span>
+          <select id="rain-alert-cooldown" onchange="setRainCooldown(this.value)" disabled style="font-size:0.7em;padding:3px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer">
+            <option value="15">15 min</option>
+            <option value="30" selected>30 min</option>
+            <option value="60">1 hour</option>
+            <option value="120">2 hours</option>
+          </select>
+        </div>
+        <div style="font-size:0.55em;color:var(--text-muted);margin-top:2px">Sensitivity: minimum rain intensity to trigger. Cooldown: time between repeat alerts.</div>
+      </div>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
         <div style="font-size:0.8em;font-weight:600;color:var(--accent-green);margin-bottom:8px">🌍 Environmental Hazards</div>
         <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:8px">Configure hazard monitoring radius and data sources.</div>
         <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
@@ -390,14 +418,14 @@
   <button class="nav-item" data-page="alerts" style="position:relative" id="nav-alerts"><span class="nav-icon">⚠️</span><span class="nav-label">Alerts</span><span class="nav-badge" id="nav-alert-badge">0</span></button>
 </nav>
 
-<script src="js/core.js?v=257"></script>
-<script src="js/weather.js?v=257"></script>
-<script src="js/radar.js?v=257"></script>
-<script src="js/storms.js?v=257"></script>
-<script src="js/station.js?v=257"></script>
-<script src="js/alerts.js?v=257"></script>
-<script src="js/ai.js?v=257"></script>
-<script src="js/init.js?v=257"></script>
+<script src="js/core.js?v=258"></script>
+<script src="js/weather.js?v=258"></script>
+<script src="js/radar.js?v=258"></script>
+<script src="js/storms.js?v=258"></script>
+<script src="js/station.js?v=258"></script>
+<script src="js/alerts.js?v=258"></script>
+<script src="js/ai.js?v=258"></script>
+<script src="js/init.js?v=258"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(r=>console.log('SW registered')).catch(e=>console.log('SW failed:',e))}</script>
 </body>
 </html>
