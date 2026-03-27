@@ -1014,7 +1014,12 @@ function _buildSmsEmail(){const ph=(document.getElementById('sync-phone')||{}).v
 function _syncInputChanged(mode){_syncInputMode=mode;localStorage.setItem('st_syncInputMode',mode);renderSyncSection()}
 function _syncFormModeChanged(mode){_syncFormMode=mode;renderSyncSection()}
 
-function _syncApiUrl() { return localStorage.getItem('st_syncApiUrl') || ''; }
+function _syncApiUrl() {
+  const saved = localStorage.getItem('st_syncApiUrl');
+  if (saved) return saved;
+  if (location.hostname.includes('workers.dev')) return location.origin;
+  return '';
+}
 
 async function _syncFetch(path, opts = {}) {
   const base = _syncApiUrl();

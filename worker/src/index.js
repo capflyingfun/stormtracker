@@ -542,6 +542,21 @@ export default {
       if (path === '/api/test-alert' && request.method === 'POST') return await handleTestAlert(request, db, env);
       if (path === '/api/health') return json({ status: 'ok', time: new Date().toISOString() });
 
+      const ghPages = 'https://capflyingfun.github.io/StormTracker';
+      const assetPath = path === '/' || path === '' ? '/index.html' : path;
+      const ghUrl = ghPages + assetPath + url.search;
+      try {
+        const ghRes = await fetch(ghUrl, {
+          headers: { 'User-Agent': 'StormTracker-Worker' },
+          redirect: 'follow',
+        });
+        if (ghRes.ok) {
+          const resp = new Response(ghRes.body, { status: ghRes.status, headers: new Headers(ghRes.headers) });
+          resp.headers.set('Access-Control-Allow-Origin', '*');
+          resp.headers.set('Cache-Control', 'public, max-age=60');
+          return resp;
+        }
+      } catch {}
       return err('Not found', 404);
     } catch (e) {
       console.error('Worker error:', e);
