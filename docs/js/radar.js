@@ -381,7 +381,7 @@ function toggleRadarSource(map){
   }
   clearStormCone();
   clearStormZones();
-  S.storms=[];S._rawScanPts=[];S._sonarClusteredPts=[];
+  S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];
   S.stormMarkers.forEach(m=>map.removeLayer(m));
   S.stormMarkers=[];
   renderStorms();updateStormBadges();

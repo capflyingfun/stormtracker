@@ -1587,7 +1587,7 @@ function goHome(){
   document.getElementById('location-input').value=S.locName;
   S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
   S.radarSource=isUSLocation(home.lat,home.lon)?'nexrad':'rainviewer';
-  S.storms=[];S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
+  S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
   try{localStorage.setItem('st_loc',JSON.stringify({lat:home.lat,lon:home.lon,name:home.name}))}catch(e){}
   if(S.map){
     S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
@@ -1615,7 +1615,7 @@ function scanHere(){
   document.getElementById('location-input').value=S.locName;
   S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
   S.radarSource=isUSLocation(cLat,cLng)?'nexrad':'rainviewer';
-  S.storms=[];S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
+  S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
   try{localStorage.setItem('st_loc',JSON.stringify({lat:cLat,lon:cLng,name:S.locName}))}catch(e){}
   if(S._userMarker)S._userMarker.setLatLng([cLat,cLng]);
   if(S._rangeCircle)S._rangeCircle.setLatLng([cLat,cLng]);
@@ -1663,7 +1663,7 @@ function showHdScanDialog(){
     document.getElementById('location-input').value=name;
     S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
     S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
-    S.storms=[];S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
+    S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
     try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name}))}catch(e){}
     if(S._userMarker)S._userMarker.setLatLng([lat,lon]);
     if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
@@ -1709,7 +1709,7 @@ function setLoc(lat,lon,name,fromTravel){
     S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
     clearStormCone();
   }
-  S.storms=[];S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
+  S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
   const _locChanged=S._prevLat!=null&&(Math.abs(S._prevLat-lat)>0.01||Math.abs(S._prevLon-lon)>0.01);
   S._prevLat=lat;S._prevLon=lon;
   if(_locChanged){
