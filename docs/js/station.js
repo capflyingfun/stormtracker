@@ -193,6 +193,23 @@ async function fetchStationGlobal(){
   S.nearbyStations=stationList;
   await loadStationObsAWC(stationList[0].icao);
 }
+function _extractMetarWx(raw){
+  if(!raw)return '';
+  const parts=raw.split(/\s+/);
+  const found=[];
+  for(const p of parts){
+    if(p.match(/^[-+]?(VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(RA|SN|DZ|GR|GS|PL|IC|PE|SG|UP|FG|BR|HZ|FU|SA|DU|VA|PO|SQ|FC|SS|DS)+$/))found.push(p);
+  }
+  if(!found.length)return '';
+  const decode={'RA':'Rain','SN':'Snow','DZ':'Drizzle','GR':'Hail','GS':'Small Hail','TS':'Thunderstorm','FG':'Fog','BR':'Mist','HZ':'Haze','FU':'Smoke','SA':'Sand','DU':'Dust','SQ':'Squall','FC':'Funnel Cloud','VA':'Volcanic Ash','PO':'Dust Whirls','SS':'Sandstorm','DS':'Duststorm','SH':'Showers','FZ':'Freezing','PL':'Ice Pellets','IC':'Ice Crystals','PE':'Ice Pellets','SG':'Snow Grains','UP':'Unknown Precip','BL':'Blowing','DR':'Drifting','MI':'Shallow','PR':'Partial','BC':'Patches'};
+  return found.map(wx=>{
+    let intensity=wx.startsWith('+')?'Heavy ':wx.startsWith('-')?'Light ':'';
+    let clean=wx.replace(/^[-+]/,'').replace(/^VC/,'Vicinity ');
+    let desc='';
+    while(clean.length>=2){const cd=clean.substring(0,2);desc+=(desc?' ':'')+(decode[cd]||cd);clean=clean.substring(2)}
+    return intensity+desc;
+  }).join(', ');
+}
 function parseRawMetar(raw,station){
   const parts=raw.split(/\s+/);
   let temp=null,dewp=null,windDir=null,windKt=null,gustKt=null,vis=null,altim=null,slp=null;
@@ -348,7 +365,7 @@ async function loadStationObs(icao){
       rawMETAR:p.rawMessage||buildSyntheticMetar(icao,p),
       clouds:p.cloudLayers||[],
       obsTime:p.timestamp||'',
-      wxString:_validateWxString(p.textDescription||'',p.rawMessage||''),
+      wxString:_extractMetarWx(p.rawMessage||'')||_validateWxString(p.textDescription||'',p.rawMessage||''),
     };
     renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){

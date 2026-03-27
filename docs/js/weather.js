@@ -1170,9 +1170,11 @@ function renderHourlyForecast(h,d){
 }
 function renderDailyForecast(d){
   if(!d||!d.time)return'';
+  const nowLocal=new Date();
+  const todayStr=nowLocal.getFullYear()+'-'+String(nowLocal.getMonth()+1).padStart(2,'0')+'-'+String(nowLocal.getDate()).padStart(2,'0');
   return`<div class="card"><div class="card-title"><span class="icon">📊</span> ${tStr('7-Day Forecast')}</div>
     <div class="forecast-scroll">${d.time.map((t,i)=>{
-      const dt=new Date(t+'T12:00'),day=i===0?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'short'});
+      const dt=new Date(t+'T12:00'),day=t===todayStr?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'short'});
       const hi=fmtTempShort(d.temperature_2m_max[i]),lo=fmtTempShort(d.temperature_2m_min[i]);
       const rain=d.precipitation_probability_max?d.precipitation_probability_max[i]:0;
       return`<div class="forecast-item" onclick="toggleForecastDetail(${i})" data-fi="${i}"><div class="forecast-time">${day}</div><div class="forecast-icon">${animEmoji(d.weather_code[i],true,'1em')}</div><div class="forecast-temp" style="font-weight:700;color:var(--accent-red);text-shadow:0 0 8px rgba(255,51,85,0.4)">${hi}</div><div style="font-size:0.7em;font-weight:600;color:var(--accent-cyan);text-shadow:0 0 6px rgba(0,229,255,0.3)">${lo}</div>${rain>0?`<div style="font-size:0.55em;color:var(--accent-blue);margin-top:2px">💧${rain}%</div>`:''}</div>`;
