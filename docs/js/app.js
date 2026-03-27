@@ -219,9 +219,9 @@ function _clusterSonarPoints(){
   const cells=new Map();
   for(let i=0;i<pts.length;i++){
     const p=pts[i];
-    const gx=(p.lat*inv)|0;
-    const gy=(p.lng*inv)|0;
-    const k=gx*1000000+gy;
+    const gx=Math.floor(p.lat*inv);
+    const gy=Math.floor(p.lng*inv);
+    const k=gx+','+gy;
     const c=cells.get(k);
     if(c){c.sLat+=p.lat;c.sLng+=p.lng;if(p.dbz>c.dbz)c.dbz=p.dbz;c.n++}
     else{cells.set(k,{sLat:p.lat,sLng:p.lng,dbz:p.dbz,n:1})}
@@ -6312,6 +6312,7 @@ async function scanRadarForStorms(){
     console.log('[SCAN] rawPoints='+rawPoints.length+' from '+tileResults.length+' tiles (non-empty: '+tileResults.filter(t=>t.length>0).length+')');
 
     S._rawScanPts=rawPoints;
+    _clusterSonarPoints();
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     console.log('[SCAN] after spacingFilter: '+S.storms.length+' storms');
     detectHookEchoes(rawPoints, S.storms);
