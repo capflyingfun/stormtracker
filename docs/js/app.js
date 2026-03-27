@@ -70,6 +70,7 @@ function reformatNwsTimes(text){
   }
   text=text.replace(/(\d{1,2}):(\d{2})\s*(AM|PM)\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT|AKST|AKDT|HST|AST)/gi,(m,hh,mm,ap,tz)=>_fmt(hh,mm,ap,tz));
   text=text.replace(/(\d{1,2})(\d{2})\s*(AM|PM)\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT|AKST|AKDT|HST|AST)/gi,(m,hh,mm,ap,tz)=>_fmt(hh,mm,ap,tz));
+  text=text.replace(/(?<![:\d])(\d{1,2})\s+(AM|PM)\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT|AKST|AKDT|HST|AST)/gi,(m,hh,ap,tz)=>_fmt(hh,'0',ap,tz));
   return text;
 }
 function fmtHrLabel(d){
@@ -2060,6 +2061,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.53',date:'2026-03-27',items:['📦 Smart Alert Condensing — multiple same-scan storm cell alerts are batched into one summary toast showing count, direction, heading, speed, strongest dBZ, and nearest ETA','📏 Live Distance Countdown — alert history rows now show a live-updating distance to each approaching storm cell','🕐 NWS Hour-Only Times — time formats like "11 PM EDT" (no minutes) are now correctly parsed and reformatted']},
   {ver:'v2.52',date:'2026-03-27',items:['🧠 Threat-Priority Sorting — storm cell alerts now sort by threat score (dBZ×2 + impact×1.5 − distance×0.5) instead of chronologically','⏱ Group ETA — grouped storm cell batches show nearest ETA countdown on the header row','⏱ Per-Cell ETA — expanded cells in grouped rows show individual live ETA countdowns','🎯 Ticker Threat Sort — severe storm ticker now prioritizes strongest/highest-impact storms over nearest','🔄 Location Reset — changing location clears stale storm/weather alert history, cooldowns, and SPC reports','🕐 NWS Time Reformat — alert descriptions convert NWS timezone times (e.g. 430 PM CDT) to your local format respecting 12h/24h preference']},
   {ver:'v2.51',date:'2026-03-27',items:['🧊 SPC Hail Size Fix — hail reports now display correctly as inches (e.g., 1.00") instead of raw hundredths value','🕐 Storm Cell Timestamps — expanded individual cells in grouped alerts now show per-cell timestamps']},
   {ver:'v2.50',date:'2026-03-27',items:['📦 Alert Consolidation — storm cell alerts grouped by scan batch (±5s) into collapsible rows showing cell count, dBZ range, distance range, and peak impact','📍 Alert → Radar Navigation — tap 📍 on any storm alert to fly to its location on the radar map with a pulsing highlight ring','🗺️ Storm Card → Radar — "📍 Map" button on each storm card switches to radar and highlights the cell with approach cone','🔗 Cross-Navigation — seamless jumping between Alerts ↔ Radar ↔ Storms tabs']},
@@ -2511,6 +2513,7 @@ function checkStormCellAlerts(){
   const anyOn=_STORM_ALERT_DEFS.some(d=>{const c=th[d.key];return c&&c.on});
   if(!anyOn)return;
   const now=Date.now();
+  const batch=[];
   S.storms.forEach(storm=>{
     const impact=_calcStormImpact(storm);
     storm.impactPct=impact.impactPct;
@@ -2528,18 +2531,43 @@ function checkStormCellAlerts(){
     });
     if(!allMatch||!bestMsg)return;
     _STORM_ALERT_COOLDOWN[cellKey]=now;
-    try{localStorage.setItem('st_stormAlertCooldown',JSON.stringify(_STORM_ALERT_COOLDOWN))}catch(e){}
+    let etaMin=null,arrivalMs=null,closingMph=0;
+    try{const se=calcStormETA(storm);if(se&&se.approaching&&se.eta!=null&&se.eta>0){etaMin=se.eta;arrivalMs=now+se.eta*60000;closingMph=se.closingSpeed||0}}catch(e){}
     const distStr=S.radarMetric?parseFloat((storm.distance*1.60934).toFixed(1))+' km':parseFloat(storm.distance.toFixed(1))+' mi';
-    let etaMin=null,arrivalMs=null;
-    try{const se=calcStormETA(storm);if(se&&se.approaching&&se.eta!=null&&se.eta>0){etaMin=se.eta;arrivalMs=now+se.eta*60000}}catch(e){}
     const etaStr=etaMin!=null?' · ETA '+fmtCountdown(Math.round(etaMin*60))+' ('+fmtClockShort(new Date(arrivalMs))+')':'';
-    const summaryMsg=`🌩️ Storm cell alert: ${storm.dbz} dBZ at ${distStr}${storm.impactPct>0?' · Impact: '+storm.impactPct+'% ('+storm.impactTier+')':''}${etaStr}`;
-    toast(summaryMsg,8000);
-    _stormAlertHistory.push({key:'stormCell',label:'Storm Cell',icon:'🌩️',msg:summaryMsg,val:storm.dbz,u:'dBZ',distance:storm.distance,impactPct:storm.impactPct||0,impactTier:storm.impactTier||'none',time:now,etaMin:etaMin,arrivalMs:arrivalMs,lat:storm.lat,lng:storm.lng,bearing:storm.bearing});
-    _saveStormAlertHistory();
-    _sendBrowserNotification('Storm Cell Alert',summaryMsg);
-    if(S.activePage==='alerts')renderAlerts();
+    const cellMsg=`🌩️ Storm cell alert: ${storm.dbz} dBZ at ${distStr}${storm.impactPct>0?' · Impact: '+storm.impactPct+'% ('+storm.impactTier+')':''}${etaStr}`;
+    batch.push({storm,etaMin,arrivalMs,closingMph,cellMsg});
+    _stormAlertHistory.push({key:'stormCell',label:'Storm Cell',icon:'🌩️',msg:cellMsg,val:storm.dbz,u:'dBZ',distance:storm.distance,impactPct:storm.impactPct||0,impactTier:storm.impactTier||'none',time:now,etaMin:etaMin,arrivalMs:arrivalMs,closingMph:closingMph,lat:storm.lat,lng:storm.lng,bearing:storm.bearing});
   });
+  if(!batch.length)return;
+  try{localStorage.setItem('st_stormAlertCooldown',JSON.stringify(_STORM_ALERT_COOLDOWN))}catch(e){}
+  _saveStormAlertHistory();
+  if(batch.length===1){
+    toast(batch[0].cellMsg,8000);
+    _sendBrowserNotification('Storm Cell Alert',batch[0].cellMsg);
+  }else{
+    const topDbz=Math.max(...batch.map(b=>b.storm.dbz));
+    const peakImp=Math.max(...batch.map(b=>b.storm.impactPct||0));
+    const closestDist=Math.min(...batch.map(b=>b.storm.distance));
+    const distStr=S.radarMetric?parseFloat((closestDist*1.60934).toFixed(1))+' km':parseFloat(closestDist.toFixed(1))+' mi';
+    const bearings=batch.map(b=>b.storm.bearing);
+    const avgBear=Math.round(Math.atan2(bearings.reduce((s,b)=>s+Math.sin(b*Math.PI/180),0)/bearings.length,bearings.reduce((s,b)=>s+Math.cos(b*Math.PI/180),0)/bearings.length)*180/Math.PI+360)%360;
+    const dirFrom=degToDir(avgBear);
+    const mv=S.stormMovement;
+    let moveStr='';
+    if(mv&&mv.speed>=2){
+      const travelDir=degToDir(mv.direction);
+      const spdU=S.radarMetric?'km/h':'mph';
+      const spdV=S.radarMetric?Math.round(mv.speed*1.60934):Math.round(mv.speed);
+      moveStr=` traveling ${travelDir} (${Math.round(mv.direction)}°) ~${spdV} ${spdU}`;
+    }
+    const bestEta=batch.filter(b=>b.etaMin!=null).sort((a,b)=>a.etaMin-b.etaMin)[0];
+    const etaPart=bestEta?`, ETA ${fmtCountdown(Math.round(bestEta.etaMin*60))}`:'';
+    const summaryMsg=`🌩️ ${batch.length} storm cells to the ${dirFrom}${moveStr} — strongest ${topDbz} dBZ at ${distStr}, ${peakImp}% impact${etaPart}`;
+    toast(summaryMsg,10000);
+    _sendBrowserNotification('Storm Cell Alert',summaryMsg);
+  }
+  if(S.activePage==='alerts')renderAlerts();
 }
 function renderStormCellAlertSettings(){
   const th=_loadStormThresholds();
@@ -8849,6 +8877,13 @@ function renderAlerts(){
           if(remSec>0)etaHtml=`<span class="tier-eta-cd" data-tier-target="${h.arrivalMs}" style="font-size:0.8em;color:#ffcc00;font-weight:600;margin-left:6px">⏱ <b>${fmtCountdown(remSec)}</b> (${fmtClockShort(new Date(h.arrivalMs))})</span>`;
           else etaHtml=`<span style="font-size:0.8em;color:var(--text-muted);margin-left:6px">⏱ arrived ${fmtClockShort(new Date(h.arrivalMs))}</span>`;
         }
+        let sDistLive='';
+        const sCMph=h.closingMph||0;
+        if(sCMph>0&&h.arrivalMs&&h.arrivalMs>Date.now()){
+          const sCurDist=Math.max(0,(h.arrivalMs-Date.now())/3600000*sCMph);
+          const sDv=S.radarMetric?(sCurDist*1.60934).toFixed(1)+' km':sCurDist.toFixed(1)+' mi';
+          sDistLive=`<span data-dist-mi="1" data-closing-mph="${sCMph}" data-target-ms="${h.arrivalMs}" style="font-size:0.8em;color:#60a5fa;font-weight:600;margin-left:4px">📏${sDv}</span>`;
+        }
         const hasLoc=h.lat!=null;
         const rowClick=hasLoc?`onclick="flyToStormAlert(${h.lat},${h.lng})" style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em;cursor:pointer"`:`style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em"`;
         html+=`<div ${rowClick}>
@@ -8856,7 +8891,7 @@ function renderAlerts(){
             <span>🌩️</span>
             <span style="font-weight:600;color:var(--text-primary)">${h.val} dBZ</span>
             ${h.impactPct>0?`<span style="font-size:0.8em;padding:1px 6px;border-radius:8px;background:${tc}18;color:${tc};font-weight:600">${h.impactPct}%</span>`:''}
-            ${etaHtml}${hasLoc?'<span style="font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Tap to show on radar">📍</span>':''}
+            ${etaHtml}${sDistLive}${hasLoc?'<span style="font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Tap to show on radar">📍</span>':''}
             <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
           </div>
           <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🌩️ ','').replace(/ · ETA \d+[hm:][\d:hms]+\s*\([^)]+\)/,'')}</div>
@@ -8902,8 +8937,15 @@ function renderAlerts(){
             if(rs>0)hEta=`<span class="tier-eta-cd" data-tier-target="${h.arrivalMs}" style="font-size:0.85em;color:#ffcc00;font-weight:600">⏱${fmtCountdown(rs)}</span>`;
             else hEta=`<span style="font-size:0.85em;color:var(--text-muted)">⏱arrived</span>`;
           }
+          let hDistLive='';
+          const cMph=h.closingMph||0;
+          if(cMph>0&&h.arrivalMs&&h.arrivalMs>Date.now()){
+            const curDist=Math.max(0,(h.arrivalMs-Date.now())/3600000*cMph);
+            const dv=S.radarMetric?(curDist*1.60934).toFixed(1)+' km':curDist.toFixed(1)+' mi';
+            hDistLive=`<span data-dist-mi="1" data-closing-mph="${cMph}" data-target-ms="${h.arrivalMs}" style="font-size:0.85em;color:#60a5fa;font-weight:600">📏${dv}</span>`;
+          }
           html+=`<div style="font-size:0.9em;padding:3px 0;color:var(--text-secondary);border-top:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-            <span>${h.val} dBZ · ${((h.distance||0)*mFactor).toFixed(1)} ${distU}${h.impactPct>0?' · <span style="color:'+hTc+'">'+h.impactPct+'%</span>':''}</span>${hEta}${hNav}
+            <span>${h.val} dBZ · ${((h.distance||0)*mFactor).toFixed(1)} ${distU}${h.impactPct>0?' · <span style="color:'+hTc+'">'+h.impactPct+'%</span>':''}</span>${hEta}${hDistLive}${hNav}
           </div>`;
         });
         html+=`</div></div>`;
