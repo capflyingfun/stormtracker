@@ -1354,16 +1354,17 @@ function switchPage(page){
   if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}
 }
 function updateStormBadges(){
-  const vis=getVisibleStormList().length;
+  const inbound=S._topStorms?S._topStorms.length:0;
+  const total=getVisibleStormList().length;
   const hdr=document.getElementById('header-storm-count');
   const nav=document.getElementById('nav-storm-badge');
   if(hdr){
-    hdr.textContent=`🌪️ ${vis}`;
-    hdr.style.background=vis?'#22c55e':'#6b7280';
+    hdr.textContent=inbound?`🌪️ ${inbound} inbound`:`🌪️ ${total}`;
+    hdr.style.background=inbound?'#ef4444':total?'#22c55e':'#6b7280';
   }
   if(nav){
-    nav.textContent=vis.toString();
-    nav.style.background=vis?'#ef4444':'#6b7280';
+    nav.textContent=inbound?inbound.toString():total.toString();
+    nav.style.background=inbound?'#ef4444':total?'#22c55e':'#6b7280';
   }
 }
 document.getElementById('location-input').addEventListener('keypress',e=>{if(e.key==='Enter'){hideSuggestions();searchLoc()}});
@@ -2206,6 +2207,8 @@ function syncSettingsPanel(){
   syncGyroBtn();
   syncTimeFmtBtns();
   try { renderSyncSection(); } catch(e) {}
+  const tsSel=document.getElementById('settings-ticker-speed');
+  if(tsSel){const tsVal=parseInt(localStorage.getItem('st_tickerSpeed'))||100;tsSel.value=String(tsVal);const tsLbl=document.getElementById('ticker-speed-val');if(tsLbl)tsLbl.textContent=tsVal+'%'}
   const sel=document.getElementById('settings-travel-int');
   if(sel)sel.value=String(S.gpsInterval||300);
   const arSel=document.getElementById('settings-auto-refresh');
@@ -2263,6 +2266,16 @@ function setAvgWindow(val){
   if([10,30,60,120].includes(v)){
     localStorage.setItem('st_avgWindow',String(v));
     toast('💨 Avg window set to '+_fmtWindowLabel(v*1000));
+  }
+}
+function setTickerSpeed(val){
+  const v=parseInt(val,10);
+  if(v>=50&&v<=200){
+    localStorage.setItem('st_tickerSpeed',String(v));
+    const lbl=document.getElementById('ticker-speed-val');
+    if(lbl)lbl.textContent=v+'%';
+    updateThreatTicker();
+    toast('📰 Ticker speed set to '+v+'%');
   }
 }
 function setAutoRefresh(val){
@@ -2510,13 +2523,14 @@ function _calcStormImpact(storm){
   return{impactPct,impactTier};
 }
 function checkStormCellAlerts(){
-  if(!S.storms||!S.storms.length)return;
+  const stormList=S._topStorms&&S._topStorms.length?S._topStorms:S.storms;
+  if(!stormList||!stormList.length)return;
   const th=_loadStormThresholds();
   const anyOn=_STORM_ALERT_DEFS.some(d=>{const c=th[d.key];return c&&c.on});
   if(!anyOn)return;
   const now=Date.now();
   const batch=[];
-  S.storms.forEach(storm=>{
+  stormList.forEach(storm=>{
     const impact=_calcStormImpact(storm);
     storm.impactPct=impact.impactPct;
     storm.impactTier=impact.impactTier;
