@@ -4796,6 +4796,14 @@ function plotStormMarkers(map){
     if(storm.dbz>=40){
       pending.push({type:'lightning',lat:storm.lat,lng:storm.lng});
     }
+    if(S._stormAlertHistory&&S._stormAlertHistory.length){
+      const hasAlert=S._stormAlertHistory.some(h=>{
+        if(h.lat==null)return false;
+        const dlat=Math.abs(h.lat-storm.lat),dlng=Math.abs(h.lng-storm.lng);
+        return dlat<0.05&&dlng<0.05&&(Date.now()-h.ts<600000);
+      });
+      if(hasAlert)pending.push({type:'alertBadge',lat:storm.lat,lng:storm.lng,stormRef:storm});
+    }
     if(storm._hookEcho){
       pending.push({type:'tornado',lat:storm.lat,lng:storm.lng,stormRef:storm});
     }
@@ -4839,6 +4847,11 @@ function plotStormMarkers(map){
         if(isVisible)lightning.addTo(map);
         lightning._stormRef=p.stormRef;
         S.stormMarkers.push(lightning);
+      }else if(p.type==='alertBadge'){
+        const badge=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:10px;font-weight:700;color:#fff;background:#e53935;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 4px #e53935;pointer-events:none">⚠</div>`,iconSize:[16,16],iconAnchor:[-4,-4]})});
+        if(isVisible)badge.addTo(map);
+        badge._stormRef=p.stormRef;
+        S.stormMarkers.push(badge);
       }else if(p.type==='tornado'){
         const torIcon=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:22px;text-shadow:0 0 10px #ff1744,0 0 20px #ff1744;animation:tornado-pulse 1.8s ease-in-out infinite;pointer-events:none">🌪️</div>`,iconSize:[26,26],iconAnchor:[13,-8]})});
         if(isVisible)torIcon.addTo(map);
@@ -8799,13 +8812,14 @@ function renderAlerts(){
           if(remSec>0)etaHtml=`<span class="tier-eta-cd" data-tier-target="${h.arrivalMs}" style="font-size:0.8em;color:#ffcc00;font-weight:600;margin-left:6px">⏱ <b>${fmtCountdown(remSec)}</b> (${fmtClockShort(new Date(h.arrivalMs))})</span>`;
           else etaHtml=`<span style="font-size:0.8em;color:var(--text-muted);margin-left:6px">⏱ arrived ${fmtClockShort(new Date(h.arrivalMs))}</span>`;
         }
-        const navBtn=h.lat!=null?`<span onclick="flyToStormAlert(${h.lat},${h.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Show on radar">📍</span>`:'';
-        html+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em">
+        const hasLoc=h.lat!=null;
+        const rowClick=hasLoc?`onclick="flyToStormAlert(${h.lat},${h.lng})" style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em;cursor:pointer"`:`style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em"`;
+        html+=`<div ${rowClick}>
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
             <span>🌩️</span>
             <span style="font-weight:600;color:var(--text-primary)">${h.val} dBZ</span>
             ${h.impactPct>0?`<span style="font-size:0.8em;padding:1px 6px;border-radius:8px;background:${tc}18;color:${tc};font-weight:600">${h.impactPct}%</span>`:''}
-            ${etaHtml}${navBtn}
+            ${etaHtml}${hasLoc?'<span style="font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Tap to show on radar">📍</span>':''}
             <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
           </div>
           <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🌩️ ','').replace(/ · ETA \d+[hm:][\d:hms]+\s*\([^)]+\)/,'')}</div>
@@ -8821,18 +8835,18 @@ function renderAlerts(){
         const tc=tierColors[peakTier]||'#666';
         const best=items.reduce((a,b)=>(b.impactPct||0)>(a.impactPct||0)?b:a,items[0]);
         const distU=S.radarMetric?'km':'mi';
-        const navBtn=best.lat!=null?`<span onclick="flyToStormAlert(${best.lat},${best.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Show on radar">📍</span>`:'';
+        const hasLoc=best.lat!=null;
         const gid='sa-grp-'+bi;
         html+=`<div style="border-bottom:1px solid var(--border-subtle)">
-          <div onclick="document.getElementById('${gid}').style.display=document.getElementById('${gid}').style.display==='none'?'block':'none';this.querySelector('.sa-chev').textContent=document.getElementById('${gid}').style.display==='none'?'▸':'▾'" style="padding:8px 10px;font-size:0.78em;cursor:pointer;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <div style="padding:8px 10px;font-size:0.78em;display:flex;align-items:center;gap:6px;flex-wrap:wrap${hasLoc?';cursor:pointer':''}"${hasLoc?` onclick="flyToStormAlert(${best.lat},${best.lng})"`:''}>
             <span>🌩️</span>
             <span style="font-weight:700;color:var(--text-primary)">${items.length} storm cells</span>
             <span style="color:var(--text-secondary)">${dbzMin===dbzMax?dbzMin:dbzMin+'–'+dbzMax} dBZ</span>
             <span style="color:var(--text-secondary)">${distMin===distMax?distMin:distMin+'–'+distMax} ${distU}</span>
             ${peakImp>0?`<span style="font-size:0.8em;padding:1px 6px;border-radius:8px;background:${tc}18;color:${tc};font-weight:600">${peakImp}%</span>`:''}
-            ${navBtn}
+            ${hasLoc?'<span style="font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Tap to show on radar">📍</span>':''}
             <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
-            <span class="sa-chev" style="color:var(--text-muted);font-size:0.8em">▸</span>
+            <span class="sa-chev" onclick="event.stopPropagation();const d=document.getElementById('${gid}');d.style.display=d.style.display==='none'?'block':'none';this.textContent=d.style.display==='none'?'▸':'▾'" style="color:var(--text-muted);font-size:0.8em;cursor:pointer;padding:2px 6px">▸</span>
           </div>
           <div id="${gid}" style="display:none;padding:0 10px 6px 24px">`;
         items.forEach(h=>{
