@@ -1146,12 +1146,14 @@ function startEtaCountdowns(){
       if(sinceLastScan<30000){
         expiredKeys.forEach(k=>{delete S._stormETAs[k]});
         S.storms=S.storms.filter(s=>!expiredKeys.includes(stormKey(s)));
+        computeTopStorms();
         renderStorms();updateStormBadges();
         if(S.map)plotStormMarkers(S.map);
         return;
       }
       expiredKeys.forEach(k=>{delete S._stormETAs[k]});
       S.storms=S.storms.filter(s=>!expiredKeys.includes(stormKey(s)));
+      computeTopStorms();
       renderStorms();updateStormBadges();
       if(S.map)plotStormMarkers(S.map);
       S._etaRescanInProgress=true;
@@ -1355,16 +1357,15 @@ function switchPage(page){
 }
 function updateStormBadges(){
   const inbound=S._topStorms?S._topStorms.length:0;
-  const total=getVisibleStormList().length;
   const hdr=document.getElementById('header-storm-count');
   const nav=document.getElementById('nav-storm-badge');
   if(hdr){
-    hdr.textContent=inbound?`🌪️ ${inbound} inbound`:`🌪️ ${total}`;
-    hdr.style.background=inbound?'#ef4444':total?'#22c55e':'#6b7280';
+    hdr.textContent=inbound?`🌪️ ${inbound} inbound`:'🌪️ 0';
+    hdr.style.background=inbound?'#ef4444':'#6b7280';
   }
   if(nav){
-    nav.textContent=inbound?inbound.toString():total.toString();
-    nav.style.background=inbound?'#ef4444':total?'#22c55e':'#6b7280';
+    nav.textContent=inbound.toString();
+    nav.style.background=inbound?'#ef4444':'#6b7280';
   }
 }
 document.getElementById('location-input').addEventListener('keypress',e=>{if(e.key==='Enter'){hideSuggestions();searchLoc()}});
@@ -2523,8 +2524,8 @@ function _calcStormImpact(storm){
   return{impactPct,impactTier};
 }
 function checkStormCellAlerts(){
-  const stormList=S._topStorms&&S._topStorms.length?S._topStorms:S.storms;
-  if(!stormList||!stormList.length)return;
+  if(!S._topStorms||!S._topStorms.length)return;
+  const stormList=S._topStorms;
   const th=_loadStormThresholds();
   const anyOn=_STORM_ALERT_DEFS.some(d=>{const c=th[d.key];return c&&c.on});
   if(!anyOn)return;

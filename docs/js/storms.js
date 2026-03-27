@@ -554,10 +554,11 @@ function computeTopStorms(){
   S._topStorms=[];
   S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};
   if(!S.storms||!S.storms.length)return;
-  const allWithEta=S.storms.filter(s=>s.dbz>=31).map(s=>({...s,_eta:calcStormETA(s)}));
-  S._topStormAnalysis.allWithEta=allWithEta;
+  const sig=S.storms.filter(s=>s.dbz>=31);
+  for(const s of sig){s._eta=calcStormETA(s)}
+  S._topStormAnalysis.allWithEta=sig;
   const inbound=[],overhead=[],nearby=[];
-  for(const s of allWithEta){
+  for(const s of sig){
     const e=s._eta;
     if(e&&e.proximity){overhead.push(s)}
     else if(e&&e.approaching&&e.impact>0&&e.eta!=null){inbound.push(s)}
@@ -2063,19 +2064,23 @@ function renderStorms(){
         </div>
       </div>`;
   }
-  const topSet=S._topStorms?new Set(S._topStorms.map(s=>s.lat+','+s.lng+','+s.dbz)):null;
-  const approaching=filtered.filter(s=>isApproaching(s));
-  const overhead=filtered.filter(s=>isOverhead(s));
-  const nearby=filtered.filter(s=>isNearby(s));
-  let groupHtml='';
-  let inboundCapped;
-  if(topSet&&topSet.size>0){
-    inboundCapped=approaching.filter(s=>topSet.has(s.lat+','+s.lng+','+s.dbz));
-    inboundCapped.sort((a,b)=>b.dbz===a.dbz?((a._eta?a._eta.eta:9999)-(b._eta?b._eta.eta:9999)):(b.dbz-a.dbz));
+  let inboundCapped,overhead,nearby;
+  if(S._topStormAnalysis&&S._topStormAnalysis.inbound){
+    const a=S._topStormAnalysis;
+    const fSet=new Set(filtered);
+    inboundCapped=a.inbound.filter(s=>fSet.has(s));
+    overhead=a.overhead.filter(s=>fSet.has(s));
+    nearby=a.nearby.filter(s=>fSet.has(s));
+    const unclassified=filtered.filter(s=>!inboundCapped.includes(s)&&!overhead.includes(s)&&!nearby.includes(s));
+    nearby=nearby.concat(unclassified);
   }else{
+    const approaching=filtered.filter(s=>isApproaching(s));
+    overhead=filtered.filter(s=>isOverhead(s));
+    nearby=filtered.filter(s=>isNearby(s));
     approaching.sort((a,b)=>b.dbz===a.dbz?((a._eta?a._eta.eta:9999)-(b._eta?b._eta.eta:9999)):(b.dbz-a.dbz));
     inboundCapped=approaching.slice(0,12);
   }
+  let groupHtml='';
   const sections=[
     {key:'approaching',items:inboundCapped,label:'⏱️ Inbound',color:'#ef4444',open:true},
     {key:'overhead',items:overhead,label:'⚠️ Overhead / Arrived',color:'#f97316',open:false},
