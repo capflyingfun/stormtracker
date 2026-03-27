@@ -2534,7 +2534,7 @@ function checkStormCellAlerts(){
     let etaMin=null,arrivalMs=null,closingMph=0;
     try{const se=calcStormETA(storm);if(se&&se.approaching&&se.eta!=null&&se.eta>0){etaMin=se.eta;arrivalMs=now+se.eta*60000;closingMph=se.closingSpeed||0}}catch(e){}
     const distStr=S.radarMetric?parseFloat((storm.distance*1.60934).toFixed(1))+' km':parseFloat(storm.distance.toFixed(1))+' mi';
-    const etaStr=etaMin!=null?' · ETA '+fmtCountdown(Math.round(etaMin*60))+' ('+fmtClockShort(new Date(arrivalMs))+')':'';
+    const etaStr=etaMin!=null?' · ETA ~'+Math.ceil(etaMin)+' min ('+fmtClockShort(new Date(arrivalMs))+')':'';
     const cellMsg=`🌩️ Storm cell alert: ${storm.dbz} dBZ at ${distStr}${storm.impactPct>0?' · Impact: '+storm.impactPct+'% ('+storm.impactTier+')':''}${etaStr}`;
     batch.push({storm,etaMin,arrivalMs,closingMph,cellMsg});
     _stormAlertHistory.push({key:'stormCell',label:'Storm Cell',icon:'🌩️',msg:cellMsg,val:storm.dbz,u:'dBZ',distance:storm.distance,impactPct:storm.impactPct||0,impactTier:storm.impactTier||'none',time:now,etaMin:etaMin,arrivalMs:arrivalMs,closingMph:closingMph,lat:storm.lat,lng:storm.lng,bearing:storm.bearing});
@@ -2562,7 +2562,7 @@ function checkStormCellAlerts(){
       moveStr=` traveling ${travelDir} (${Math.round(mv.direction)}°) ~${spdV} ${spdU}`;
     }
     const bestEta=batch.filter(b=>b.etaMin!=null).sort((a,b)=>a.etaMin-b.etaMin)[0];
-    const etaPart=bestEta?`, ETA ${fmtCountdown(Math.round(bestEta.etaMin*60))}`:'';
+    const etaPart=bestEta?`, ETA ~${Math.ceil(bestEta.etaMin)} min`:'';
     const summaryMsg=`🌩️ ${batch.length} storm cells to the ${dirFrom}${moveStr} — strongest ${topDbz} dBZ at ${distStr}, ${peakImp}% impact${etaPart}`;
     toast(summaryMsg,10000);
     _sendBrowserNotification('Storm Cell Alert',summaryMsg);
