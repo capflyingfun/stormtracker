@@ -293,13 +293,12 @@ function renderWeather(data){
 
   el.innerHTML=`
     <div class="weather-hero">
+      <div class="hero-icon-showcase">${animEmoji(c.weather_code,isDay,'200px')}</div>
+      <div style="font-size:2.8em;font-weight:800;line-height:1;background:linear-gradient(180deg,var(--text-primary) 0%,var(--text-secondary) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:6px 0 2px">${fmtTempShort(tempC)}</div>
+      <div style="font-size:0.85em;color:var(--text-secondary);margin-bottom:2px">${c._nwsDesc||desc}</div>
+      ${c._source?`<div style="font-size:0.55em;color:var(--accent-cyan);opacity:0.7;margin-bottom:4px">${c._source}${c._sourceCount>1?' (×'+c._sourceCount+' avg)':''}</div>`:''}
       <div class="hero-stats-grid">
-        <div class="hero-main-stat">
-          <div style="font-size:1.8em;margin-bottom:2px">${animEmoji(c.weather_code,isDay,'1em')}</div>
-          <div style="font-size:1.5em;font-weight:800;color:var(--text-primary);line-height:1">${fmtTempShort(tempC)}</div>
-          <div style="font-size:0.7em;color:var(--text-secondary);margin-top:3px">${c._nwsDesc||desc}</div>
-          ${c._source?`<div style="font-size:0.5em;color:var(--accent-cyan);margin-top:1px;opacity:0.7">${c._source}${c._sourceCount>1?' (×'+c._sourceCount+' avg)':''}</div>`:''}
-        </div>
+        <div style="display:none"></div>
         <div class="hero-stat-cell"><div class="hero-side-label">Feels Like</div><div class="hero-side-val">${fmtTemp(feelsC)}</div></div>
         <div class="hero-stat-cell"><div class="hero-side-label">Humidity</div><div class="hero-side-val">${Math.min(100,c.relative_humidity_2m)}%</div></div>
         <div class="hero-stat-cell"><div class="hero-side-label">☁️ Clouds</div><div class="hero-side-val">${c.cloud_cover}%</div></div>
