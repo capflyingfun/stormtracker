@@ -1027,6 +1027,7 @@ const _ICON_PACKS={
   'flat-filled':{name:'Flat Filled',desc:'Colorful flat icons'},
   'flat-outline':{name:'Flat Outline',desc:'Outlined flat icons'},
   glossy:{name:'Glossy 3D',desc:'Shiny 3D icons'},
+  neon:{name:'Neon',desc:'Neon glow weather icons'},
   custom:{name:'Custom',desc:'Your own uploaded icons'}
 };
 const _CUSTOM_ICON_CACHE={};
@@ -1087,7 +1088,7 @@ function _clearAllCustomIcons(){
     });
   });
 }
-const _BUILTIN_PACKS=['basmilius','emoji','flat-filled','flat-outline','glossy'];
+const _BUILTIN_PACKS=['basmilius','emoji','flat-filled','flat-outline','glossy','neon'];
 function _getCustomBasePack(){const p=localStorage.getItem('st_customBasePack');return(p&&_BUILTIN_PACKS.includes(p))?p:'basmilius'}
 function _setCustomBasePack(p){if(_BUILTIN_PACKS.includes(p))localStorage.setItem('st_customBasePack',p)}
 function _resizeImageToSquare(file,size){
@@ -1204,7 +1205,8 @@ function changeCustomBasePack(val){
 const _ICON_PACK_FILES={
   'flat-filled':['clear-day','clear-night','few-clouds-day-rain','few-clouds-day-snow','few-clouds-night','partly-cloudy-day','partly-cloudy-day-snow','partly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm-night','snow-night','crescent-night','cloudy-night-snow','starry-night-rain','starry-night-snow','starry-night-thunder','rain','rain-heavy','snow','blizzard','overcast','cloud-light','tornado','fog','thunderstorm-lightning','thunderstorm','cloud-small','haze','thunderstorm-rain','overcast-dark'],
   'flat-outline':['clear-day','clear-night','few-clouds-day-rain','few-clouds-day-snow','few-clouds-night','partly-cloudy-day','partly-cloudy-day-snow','partly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm-night','snow-night','crescent-night','cloudy-night-snow','starry-night-rain','starry-night-snow','starry-night-thunder','rain','rain-heavy','snow','blizzard','overcast','cloud-light','tornado','fog','thunderstorm-lightning','thunderstorm','cloud-small','haze','thunderstorm-rain','overcast-dark'],
-  glossy:['clear-day','clear-night','few-clouds-day','few-clouds-night','partly-cloudy-day','overcast','rain','rain-night','thunderstorm','thunderstorm-night','snow','sleet','blizzard','hot','cold','wind']
+  glossy:['clear-day','clear-night','few-clouds-day','few-clouds-night','partly-cloudy-day','overcast','rain','rain-night','thunderstorm','thunderstorm-night','snow','sleet','blizzard','hot','cold','wind'],
+  neon:['clear-day','clear-night','cloud-light','cloud-small','partly-cloudy-day','partly-cloudy-day-snow','overcast','overcast-dark','few-clouds-day-rain','few-clouds-day-snow','rain','rain-heavy','thunderstorm','thunderstorm-rain','thunderstorm-lightning','snow','blizzard','fog','haze','mostly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy']
 };
 const _WMO_TO_COND={};
 function _buildWmoCondMap(isDay){
