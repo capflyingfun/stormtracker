@@ -2038,6 +2038,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.50',date:'2026-03-27',items:['📦 Alert Consolidation — storm cell alerts grouped by scan batch (±5s) into collapsible rows showing cell count, dBZ range, distance range, and peak impact','📍 Alert → Radar Navigation — tap 📍 on any storm alert to fly to its location on the radar map with a pulsing highlight ring','🗺️ Storm Card → Radar — "📍 Map" button on each storm card switches to radar and highlights the cell with approach cone','🔗 Cross-Navigation — seamless jumping between Alerts ↔ Radar ↔ Storms tabs']},
   {ver:'v2.49',date:'2026-03-27',items:['⏱ Tier Summary Live Countdown — 🔵🟡🔴 ETA lines now count down every second in real-time','⚡ Sonar Lightning Clustering — nearby ⚡ icons merged into single ⚡ with count badge (e.g. ⚡3)','🌩️ Storm Alert ETA — storm cell alerts now include ETA countdown and arrival time','📍 Alert ETA respects 12h/24h time format setting']},
   {ver:'v2.47',date:'2026-03-27',items:['📈 Wind Trend Arrow — forecast-based ↑↓→ arrow next to speed on all gauge styles (green=rising, red=declining, grey=steady)','⚙️ Sim Speed Setting — choose target pick interval (5s-30s) for lively or calm gauge needle','💨 Configurable Gust Window — 30s/1m/2m/5m rolling peak window with time label','📊 Configurable Avg Window — 10s/30s/1m/2m rolling average with time label','🏷️ Window Labels — gust and avg displays now show their timeframe (e.g. G13.0 (1m))']},
   {ver:'v2.46',date:'2026-03-27',items:['🔮 Forecast-Aware Wind Bias — sim uses hourly forecast trend to shift target distribution','📉 Declining Winds — when forecast shows lower winds, gauge naturally drifts lower','📈 Rising Winds — when forecast shows higher winds, gauge favors higher targets','⚖️ Trend Blending — 30% blend factor keeps forecast influence subtle, not overpowering']},
@@ -4629,6 +4630,41 @@ function clearStormCone(){
   }
   const btn=document.getElementById('radar-clear-cone');
   if(btn)btn.style.display='none';
+}
+function flyToStormAlert(lat,lng){
+  if(!lat||!lng)return;
+  switchPage('radar');
+  setTimeout(()=>{
+    if(!S.map)return;
+    S.map.flyTo([lat,lng],11,{duration:0.8});
+    if(S._alertHighlight){S.map.removeLayer(S._alertHighlight);S._alertHighlight=null}
+    const ring=L.circleMarker([lat,lng],{radius:22,color:'#00eeff',weight:3,fillColor:'#00eeff',fillOpacity:0.1,interactive:false,className:'alert-highlight-ring'});
+    ring.addTo(S.map);
+    S._alertHighlight=ring;
+    let pulseCount=0;
+    const pulseTimer=setInterval(()=>{
+      pulseCount++;
+      const op=pulseCount%2===0?0.12:0.25;
+      try{ring.setStyle({fillOpacity:op,weight:pulseCount%2===0?2:3.5})}catch(e){}
+      if(pulseCount>=10){clearInterval(pulseTimer);try{S.map.removeLayer(ring)}catch(e){};S._alertHighlight=null}
+    },500);
+  },300);
+}
+function flyToStorm(lat,lng){
+  if(!lat||!lng)return;
+  switchPage('radar');
+  setTimeout(()=>{
+    if(!S.map)return;
+    S.map.flyTo([lat,lng],11,{duration:0.8});
+    const storm=(S.storms||[]).find(s=>Math.abs(s.lat-lat)<0.01&&Math.abs(s.lng-lng)<0.01);
+    if(storm)setTimeout(()=>showStormCone(S.map,storm),900);
+    else{
+      if(S._alertHighlight){S.map.removeLayer(S._alertHighlight);S._alertHighlight=null}
+      const ring=L.circleMarker([lat,lng],{radius:22,color:'#00eeff',weight:3,fillColor:'#00eeff',fillOpacity:0.1,interactive:false});
+      ring.addTo(S.map);S._alertHighlight=ring;
+      setTimeout(()=>{try{S.map.removeLayer(ring)}catch(e){};S._alertHighlight=null},5000);
+    }
+  },300);
 }
 function isClutterOnly(){
   if(!S.storms||!S.storms.length)return false;
@@ -7781,8 +7817,11 @@ function renderStorms(){
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Bearing')}</div><div class="storm-detail-val">${degToDir(s.bearing)}</div></div>
           ${mvLine}
         </div>
-        <div style="font-size:0.6em;color:var(--text-muted);margin-top:6px;text-align:center">
-          ${s.lat.toFixed(3)}°N, ${Math.abs(s.lng).toFixed(3)}°${s.lng<0?'W':'E'} &middot; ${s.pixels} returns
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+          <span style="font-size:0.6em;color:var(--text-muted)">
+            ${s.lat.toFixed(3)}°N, ${Math.abs(s.lng).toFixed(3)}°${s.lng<0?'W':'E'} &middot; ${s.pixels} returns
+          </span>
+          <button onclick="flyToStorm(${s.lat},${s.lng})" style="font-size:0.55em;padding:2px 8px;background:rgba(0,229,255,0.08);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.25);border-radius:5px;cursor:pointer;font-weight:600;white-space:nowrap">📍 Map</button>
         </div>
       </div>`;
   }
@@ -8740,30 +8779,69 @@ function renderAlerts(){
       ?`<div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ All clear — no storms currently match your thresholds</div>`
       :`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No storm cell alerts yet. Enable thresholds in Settings ⚙️ → Storm Cell Alerts 🌩️</div>`;
   }else{
-    stormHist.slice(0,20).forEach(h=>{
-      const d=new Date(h.time);
+    const batches=[];
+    stormHist.forEach(h=>{
+      const last=batches.length?batches[batches.length-1]:null;
+      if(last&&Math.abs(h.time-last.time)<5000){last.items.push(h)}
+      else{batches.push({time:h.time,items:[h]})}
+    });
+    batches.slice(0,20).forEach((batch,bi)=>{
+      const items=batch.items;
+      const d=new Date(batch.time);
       const tStr=fmtClock(d)+' · '+d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
-      const tierColors={high:'#eab308',medium:'#06b6d4',low:'#ec4899',none:'#22c55e'};
-      const tc=tierColors[h.impactTier]||'#666';
-      let etaHtml='';
-      if(h.arrivalMs){
-        const remSec=Math.max(0,Math.round((h.arrivalMs-Date.now())/1000));
-        if(remSec>0){
-          etaHtml=`<span class="tier-eta-cd" data-tier-target="${h.arrivalMs}" style="font-size:0.8em;color:#ffcc00;font-weight:600;margin-left:6px">⏱ <b>${fmtCountdown(remSec)}</b> (${fmtClockShort(new Date(h.arrivalMs))})</span>`;
-        }else{
-          etaHtml=`<span style="font-size:0.8em;color:var(--text-muted);margin-left:6px">⏱ arrived ${fmtClockShort(new Date(h.arrivalMs))}</span>`;
+      if(items.length===1){
+        const h=items[0];
+        const tierColors={high:'#eab308',medium:'#06b6d4',low:'#ec4899',none:'#22c55e'};
+        const tc=tierColors[h.impactTier]||'#666';
+        let etaHtml='';
+        if(h.arrivalMs){
+          const remSec=Math.max(0,Math.round((h.arrivalMs-Date.now())/1000));
+          if(remSec>0)etaHtml=`<span class="tier-eta-cd" data-tier-target="${h.arrivalMs}" style="font-size:0.8em;color:#ffcc00;font-weight:600;margin-left:6px">⏱ <b>${fmtCountdown(remSec)}</b> (${fmtClockShort(new Date(h.arrivalMs))})</span>`;
+          else etaHtml=`<span style="font-size:0.8em;color:var(--text-muted);margin-left:6px">⏱ arrived ${fmtClockShort(new Date(h.arrivalMs))}</span>`;
         }
+        const navBtn=h.lat?`<span onclick="flyToStormAlert(${h.lat},${h.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Show on radar">📍</span>`:'';
+        html+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
+            <span>🌩️</span>
+            <span style="font-weight:600;color:var(--text-primary)">${h.val} dBZ</span>
+            ${h.impactPct>0?`<span style="font-size:0.8em;padding:1px 6px;border-radius:8px;background:${tc}18;color:${tc};font-weight:600">${h.impactPct}%</span>`:''}
+            ${etaHtml}${navBtn}
+            <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
+          </div>
+          <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🌩️ ','').replace(/ · ETA \d+[hm:][\d:hms]+\s*\([^)]+\)/,'')}</div>
+        </div>`;
+      }else{
+        const dbzMin=Math.min(...items.map(h=>h.val)),dbzMax=Math.max(...items.map(h=>h.val));
+        const distMin=Math.min(...items.map(h=>h.distance||0)).toFixed(1),distMax=Math.max(...items.map(h=>h.distance||0)).toFixed(1);
+        const peakImp=Math.max(...items.map(h=>h.impactPct||0));
+        const peakTier=items.reduce((t,h)=>{const ord={high:3,medium:2,low:1,none:0};return(ord[h.impactTier]||0)>(ord[t]||0)?h.impactTier:t},'none');
+        const tierColors={high:'#eab308',medium:'#06b6d4',low:'#ec4899',none:'#22c55e'};
+        const tc=tierColors[peakTier]||'#666';
+        const best=items.reduce((a,b)=>(b.impactPct||0)>(a.impactPct||0)?b:a,items[0]);
+        const distU=S.radarMetric?'km':'mi';
+        const navBtn=best.lat?`<span onclick="flyToStormAlert(${best.lat},${best.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Show on radar">📍</span>`:'';
+        const gid='sa-grp-'+bi;
+        html+=`<div style="border-bottom:1px solid var(--border-subtle)">
+          <div onclick="document.getElementById('${gid}').style.display=document.getElementById('${gid}').style.display==='none'?'block':'none';this.querySelector('.sa-chev').textContent=document.getElementById('${gid}').style.display==='none'?'▸':'▾'" style="padding:8px 10px;font-size:0.78em;cursor:pointer;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span>🌩️</span>
+            <span style="font-weight:700;color:var(--text-primary)">${items.length} storm cells</span>
+            <span style="color:var(--text-secondary)">${dbzMin===dbzMax?dbzMin:dbzMin+'–'+dbzMax} dBZ</span>
+            <span style="color:var(--text-secondary)">${distMin===distMax?distMin:distMin+'–'+distMax} ${distU}</span>
+            ${peakImp>0?`<span style="font-size:0.8em;padding:1px 6px;border-radius:8px;background:${tc}18;color:${tc};font-weight:600">${peakImp}%</span>`:''}
+            ${navBtn}
+            <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
+            <span class="sa-chev" style="color:var(--text-muted);font-size:0.8em">▸</span>
+          </div>
+          <div id="${gid}" style="display:none;padding:0 10px 6px 24px">`;
+        items.forEach(h=>{
+          const hTc=tierColors[h.impactTier]||'#666';
+          const hNav=h.lat?`<span onclick="event.stopPropagation();flyToStormAlert(${h.lat},${h.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:3px" title="Show on radar">📍</span>`:'';
+          html+=`<div style="font-size:0.9em;padding:3px 0;color:var(--text-secondary);border-top:1px solid rgba(255,255,255,0.04)">
+            ${h.val} dBZ · ${(h.distance||0).toFixed(1)} ${distU}${h.impactPct>0?' · <span style="color:'+hTc+'">'+h.impactPct+'%</span>':''}${hNav}
+          </div>`;
+        });
+        html+=`</div></div>`;
       }
-      html+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
-          <span>🌩️</span>
-          <span style="font-weight:600;color:var(--text-primary)">${h.val} dBZ</span>
-          ${h.impactPct>0?`<span style="font-size:0.8em;padding:1px 6px;border-radius:8px;background:${tc}18;color:${tc};font-weight:600">${h.impactPct}%</span>`:''}
-          ${etaHtml}
-          <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
-        </div>
-        <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🌩️ ','')}</div>
-      </div>`;
     });
   }
   html+=`</div>`;
