@@ -198,11 +198,15 @@ function buildWeatherContext(){
   if(S.alerts&&S.alerts.length){
     parts.push(`\nACTIVE NWS ALERTS (${S.alerts.length}):`);
     for(const a of S.alerts.slice(0,8)){
-      let line=`  ⚠ ${a.event||a.headline||'Alert'}`;
-      if(a.severity)line+=` [Severity: ${a.severity}]`;
-      if(a.urgency)line+=` [Urgency: ${a.urgency}]`;
-      if(a.description){
-        const desc=a.description.replace(/\n/g,' ').substring(0,300);
+      const p=a.properties||a;
+      let line=`  ⚠ ${p.event||p.headline||'Alert'}`;
+      if(p.severity)line+=` [Severity: ${p.severity}]`;
+      if(p.urgency)line+=` [Urgency: ${p.urgency}]`;
+      if(p.onset)line+=` [Onset: ${p.onset}]`;
+      else if(p.effective)line+=` [Effective: ${p.effective}]`;
+      if(p.expires)line+=` [Expires: ${p.expires}]`;
+      if(p.description){
+        const desc=p.description.replace(/\n/g,' ').substring(0,300);
         line+=`\n    ${desc}`;
       }
       parts.push(line);
@@ -343,8 +347,8 @@ function getAISystemPrompt(){
   const hasSevere=S.storms&&S.storms.some(st=>st&&st.dbz>=55);
   const hasHigh=S.storms&&S.storms.some(st=>st&&st.dbz>=45);
   const hasAlerts=S.alerts&&S.alerts.length>0;
-  const hasExtremeAlert=S.alerts&&S.alerts.some(a=>a.severity==='Extreme');
-  const hasSevereAlert=S.alerts&&S.alerts.some(a=>a.severity==='Severe');
+  const hasExtremeAlert=S.alerts&&S.alerts.some(a=>(a.properties||a).severity==='Extreme');
+  const hasSevereAlert=S.alerts&&S.alerts.some(a=>(a.properties||a).severity==='Severe');
   let urgencyPrefix='Weather looks good:';
   let urgencyStyle='Use relaxed, conversational tone.';
   if(hasExtreme||hasExtremeAlert){
