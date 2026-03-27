@@ -1357,16 +1357,21 @@ function switchPage(page){
 }
 function updateStormBadges(){
   const inbound=S._topStorms?S._topStorms.length:0;
+  const maxDbz=S._topStorms&&S._topStorms.length?Math.max(...S._topStorms.map(s=>s.dbz)):0;
+  const sevIcon=maxDbz>=65?'‼️':maxDbz>=56?'🚨':maxDbz>=45?'⚠️':maxDbz>=40?'🟡':maxDbz>=30?'🟢':'🔵';
+  const sevBg=maxDbz>=56?'#ef4444':maxDbz>=45?'#f97316':maxDbz>=30?'#eab308':'#6b7280';
   const hdr=document.getElementById('header-storm-count');
   const nav=document.getElementById('nav-storm-badge');
   if(hdr){
-    hdr.textContent=inbound?`🌪️ ${inbound} inbound`:'🌪️ 0';
-    hdr.style.background=inbound?'#ef4444':'#6b7280';
+    hdr.textContent=inbound?`${sevIcon} ${inbound} inbound`:'🌪️ 0';
+    hdr.style.background=inbound?sevBg:'#6b7280';
   }
   if(nav){
     nav.textContent=inbound.toString();
-    nav.style.background=inbound?'#ef4444':'#6b7280';
+    nav.style.background=inbound?sevBg:'#6b7280';
   }
+  const navIcon=document.getElementById('nav-storms-icon');
+  if(navIcon)navIcon.textContent=inbound>0?sevIcon:'🌪️';
   const hdrLightning=document.getElementById('header-lightning');
   if(hdrLightning)hdrLightning.className=inbound>0?'lightning-active':'';
 }
