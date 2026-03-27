@@ -1554,7 +1554,8 @@ function updateThreatTicker(){
     }
   }
   const topStorms=S._topStorms||[];
-  const sigStormCount=S.storms?S.storms.filter(s=>s.dbz>=31).length:0;
+  const analysis=S._topStormAnalysis||{};
+  const sigStormCount=(analysis.allWithEta?analysis.allWithEta.filter(s=>s.dbz>=31).length:0)||(S.storms?S.storms.filter(s=>s.dbz>=31).length:0);
   let gridZoneCount=0,gridZoneMaxDbz=0;
   if(S._rawScanPts&&S._rawScanPts.length&&S.lat!=null){
     const gzCells=polarGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
