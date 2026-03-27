@@ -1330,6 +1330,8 @@ function animEmoji(code,isDay,size){
   const px=typeof size==='string'&&size.endsWith('px')?parseInt(size):size==='1.2em'?38:size==='1em'?30:parseInt(size)||28;
   return neonWx(code,isDay,px);
 }
+function _metarHasWxCodes(raw){if(!raw)return false;const parts=raw.split(/\s+/);for(const p of parts){if(p.match(/^[-+]?(VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(RA|SN|DZ|GR|GS|PL|IC|PE|SG|UP|FG|BR|HZ|FU|SA|DU|VA|PO|SQ|FC|SS|DS)+$/))return true}return false}
+function _validateWxString(wxStr,rawMetar){if(!wxStr||!rawMetar)return wxStr;if(_metarHasWxCodes(rawMetar))return wxStr;if(/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower|precip/i.test(wxStr))return '';return wxStr}
 function wmoDesc(code){const m={0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Rime fog',51:'Light drizzle',53:'Moderate drizzle',55:'Dense drizzle',56:'Freezing drizzle',57:'Dense freezing drizzle',61:'Slight rain',63:'Moderate rain',65:'Heavy rain',66:'Freezing rain',67:'Heavy freezing rain',71:'Slight snow',73:'Moderate snow',75:'Heavy snow',77:'Snow grains',80:'Rain showers',81:'Mod rain showers',82:'Violent rain showers',85:'Snow showers',86:'Heavy snow showers',95:'Thunderstorm',96:'T-storm w/ hail',99:'T-storm w/ heavy hail'};return m[code]||'Unknown'}
 
 const DBZ_SCALE=[
