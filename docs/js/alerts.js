@@ -34,7 +34,7 @@ function getAlertIcon(event,sev){
   if(e.includes('gale'))return'🌊💨';
   if(e.includes('small craft'))return'⛵';
   if(e.includes('special marine'))return'⚠️🌊';
-  if(e.includes('storm warning')&&e.includes('marine'))return'⛈️🌊';
+  if(e.includes('storm warning'))return'⛈️🌊';
   if(e.includes('dust storm'))return'🏜️';
   if(e.includes('dust'))return'🏜️';
   const s=(sev||'').toLowerCase();
