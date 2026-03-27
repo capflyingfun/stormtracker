@@ -1,6 +1,45 @@
 // ==========================================
 // ALERTS (NWS)
 // ==========================================
+function getAlertIcon(event,sev){
+  const e=(event||'').toLowerCase();
+  if(e.includes('tornado'))return'🌪️';
+  if(e.includes('severe thunderstorm'))return'⛈️';
+  if(e.includes('hurricane force wind'))return'🌀💨';
+  if(e.includes('hurricane'))return'🌀';
+  if(e.includes('tropical storm'))return'🌀';
+  if(e.includes('storm surge'))return'🌊';
+  if(e.includes('red flag'))return'🚩🔥';
+  if(e.includes('fire weather'))return'🔥';
+  if(e.includes('excessive heat'))return'🔥🌡️';
+  if(e.includes('heat'))return'🌡️';
+  if(e.includes('blizzard'))return'🌨️';
+  if(e.includes('ice storm'))return'🧊';
+  if(e.includes('snow squall'))return'🌬️❄️';
+  if(e.includes('winter storm'))return'❄️';
+  if(e.includes('winter weather'))return'🌨️';
+  if(e.includes('extreme cold'))return'🥶';
+  if(e.includes('cold weather'))return'🥶';
+  if(e.includes('freeze'))return'🥶';
+  if(e.includes('frost'))return'🥶';
+  if(e.includes('extreme wind'))return'🌪️💨';
+  if(e.includes('high wind'))return'💨';
+  if(e.includes('wind'))return'💨';
+  if(e.includes('dense fog'))return'🌫️';
+  if(e.includes('fog'))return'🌫️';
+  if(e.includes('flash flood'))return'🌊⚡';
+  if(e.includes('coastal flood'))return'🌊';
+  if(e.includes('river flood'))return'🏞️';
+  if(e.includes('flood'))return'🌊';
+  if(e.includes('gale'))return'🌊💨';
+  if(e.includes('small craft'))return'⛵';
+  if(e.includes('special marine'))return'⚠️🌊';
+  if(e.includes('storm warning')&&e.includes('marine'))return'⛈️🌊';
+  if(e.includes('dust storm'))return'🏜️';
+  if(e.includes('dust'))return'🏜️';
+  const s=(sev||'').toLowerCase();
+  return s==='extreme'?'🔴':s==='severe'?'🟠':s==='moderate'?'🟡':'🔵';
+}
 function fmtAlertTime(d){
   if(!(d instanceof Date)||isNaN(d))return'';
   const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -86,7 +125,7 @@ function renderAlerts(){
       let cls=(sev==='extreme'||sev==='severe')?'':sev==='moderate'?'watch':'advisory';
       if(isTorWarn)cls='tornado-warning';else if(isSvrWarn)cls='svr-warning';
       const desc=reformatNwsTimes((p.description||'')).replace(/\n/g,'<br>');
-      const sevIcon=isTorWarn?'🌪️':isSvrWarn?'⛈️':sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
+      const sevIcon=getAlertIcon(event,sev);
       const inZone=isUserInAlertZone(a);
       const zoneBadge=inZone?'<span style="display:inline-block;background:#dc2626;color:#fff;font-size:0.55em;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:6px;animation:pulse 2s infinite;vertical-align:middle">IN YOUR ZONE</span>':'';
       const hasOnset=!!p.onset;
@@ -783,7 +822,7 @@ function _renderFloodSection(){
       const event=p.event||'Flood Alert';
       const sev=(p.severity||'').toLowerCase();
       const sevColor=sev==='extreme'?'#ef4444':sev==='severe'?'#f97316':sev==='moderate'?'#eab308':'#06b6d4';
-      const sevIcon=sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
+      const sevIcon=getAlertIcon(event,sev);
       const desc=(p.description||'').split('\n')[0].substring(0,150);
       const expires=p.expires?new Date(p.expires):null;
       html+=`<div style="padding:6px 8px;border-left:3px solid ${sevColor};margin-bottom:6px;background:${sevColor}08;border-radius:0 6px 6px 0;font-size:0.75em">
