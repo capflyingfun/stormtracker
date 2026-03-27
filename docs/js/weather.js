@@ -293,7 +293,7 @@ function renderWeather(data){
 
   el.innerHTML=`
     <div class="weather-hero">
-      <div class="hero-icon-showcase">${animEmoji(c.weather_code,isDay,'200px')}</div>
+      <div class="hero-icon-showcase">${animEmoji(c.weather_code,isDay,'280px')}</div>
       <div style="font-size:2.8em;font-weight:800;line-height:1;background:linear-gradient(180deg,var(--text-primary) 0%,var(--text-secondary) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:6px 0 2px">${fmtTempShort(tempC)}</div>
       <div style="font-size:0.85em;color:var(--text-secondary);margin-bottom:2px">${c._nwsDesc||desc}</div>
       ${c._source?`<div style="font-size:0.55em;color:var(--accent-cyan);opacity:0.7;margin-bottom:4px">${c._source}${c._sourceCount>1?' (×'+c._sourceCount+' avg)':''}</div>`:''}
@@ -307,7 +307,7 @@ function renderWeather(data){
         <div class="hero-stat-cell"><div class="hero-side-label">Spread</div><div class="hero-side-val">${fmtTempDiff(tempC-dewC)}</div><div style="font-size:0.42em;color:var(--text-muted);margin-top:1px;line-height:1.2">${(tempC-dewC)<=2?'Fog/mist likely':(tempC-dewC)<=5?'Very humid, clouds low':(tempC-dewC)<=10?'Moderate moisture':'Dry air, low rain chance'}</div></div>
       </div>
       <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0 0">
-        ${(()=>{const bc={0:0,1:1,2:2,3:3};const bm={'☀️':0,'🌤️':1,'⛅':2,'🌥️':3,'☁️':3,'🌦️':51,'🌧️':61,'⛈️':95};const bc2=bm[baro.icon]!=null?bm[baro.icon]:3;return neonWx(bc2,true,28)})()}
+        <span style="position:relative;display:inline-flex;align-items:center">${(()=>{const bm={'☀️':0,'🌤️':1,'⛅':2,'🌥️':3,'☁️':3,'🌦️':51,'🌧️':61,'⛈️':95};const bc2=bm[baro.icon]!=null?bm[baro.icon]:3;return neonWx(bc2,true,36)})()}<span style="position:absolute;bottom:-2px;right:-4px;font-size:8px;background:rgba(0,180,255,0.25);color:var(--accent-cyan);border-radius:3px;padding:0 3px;line-height:1.4;font-weight:700;letter-spacing:0.03em;border:1px solid rgba(0,229,255,0.3)">FCST</span></span>
         <span style="font-size:0.75em;font-weight:600;color:var(--text-secondary)">${baro.prediction}</span>
         <span class="baro-trend ${baro.trend}" style="font-size:0.6em;color:${baro.trend==='rising'?'var(--accent-green)':baro.trend==='falling'?'var(--accent-red)':'var(--text-muted)'};text-shadow:0 0 6px ${baro.trend==='rising'?'rgba(0,255,136,0.4)':baro.trend==='falling'?'rgba(255,51,85,0.4)':'none'}">${trendArrow} ${(()=>{const isI=S.presUnit===0;if(isI){const v=Math.abs(baro.trendMb/33.8639);return(baro.trendMb>=0?'+':'-')+(v<0.05?v.toFixed(3):v.toFixed(2))+' inHg'}return(baro.trendMb>=0?'+':'')+baro.trendMb.toFixed(1)+' mb'})()}</span>
       </div>

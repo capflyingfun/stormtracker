@@ -338,9 +338,9 @@ canvas.offscreen{display:none}
 @keyframes aiDot{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1.1)}}
 #ai-fab{animation:aiFabPulse 3s ease-in-out infinite}
 @keyframes aiFabPulse{0%,100%{box-shadow:0 4px 16px rgba(124,58,237,0.4)}50%{box-shadow:0 4px 24px rgba(124,58,237,0.7)}}
-.hero-icon-showcase{display:flex;justify-content:center;align-items:center;margin:0 auto 4px;max-width:220px}
-.hero-icon-showcase img,.hero-icon-showcase svg{width:200px!important;height:200px!important;display:block;filter:drop-shadow(0 4px 20px rgba(0,180,255,0.15))}
-@media(max-width:380px){.hero-icon-showcase img,.hero-icon-showcase svg{width:160px!important;height:160px!important}}
+.hero-icon-showcase{display:flex;justify-content:center;align-items:center;margin:0 auto 4px;max-width:300px}
+.hero-icon-showcase img,.hero-icon-showcase svg,.hero-icon-showcase video{width:280px!important;height:280px!important;display:block;filter:drop-shadow(0 4px 24px rgba(0,180,255,0.18))}
+@media(max-width:380px){.hero-icon-showcase img,.hero-icon-showcase svg,.hero-icon-showcase video{width:220px!important;height:220px!important}}
 .hero-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:4px 0}
 .hero-main-stat{grid-column:1/-1;text-align:center;padding:6px 0 4px}
 .hero-stat-cell{background:rgba(255,255,255,0.03);border-radius:8px;padding:8px 6px;text-align:center;border:1px solid rgba(255,255,255,0.04)}
