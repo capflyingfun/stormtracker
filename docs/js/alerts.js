@@ -426,12 +426,12 @@ function _renderSPCWatchSection(){
   if (!isUSLocation(S.lat, S.lon)) return '';
   const watches = _spcData.watches;
   if (!watches || !watches.length) {
-    return `<div id="hz-severe-wx" class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌪️</span> SPC Watches</div>
-      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No active SPC watches for the US</div></div>`;
+    return `<details id="hz-severe-wx" class="card" style="margin-top:12px" open><summary class="card-title" style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🌪️</span> SPC Watches</span><span style="color:var(--text-muted);font-size:0.8em">▾</span></summary>
+      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No active SPC watches for the US</div></details>`;
   }
   const userWatches = watches.filter(w => _isPointInSpcWatch(S.lat, S.lon, w));
   const otherWatches = watches.filter(w => !_isPointInSpcWatch(S.lat, S.lon, w));
-  let html = `<div id="hz-severe-wx" class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌪️</span> SPC Watches (${watches.length})</div>`;
+  let html = `<details id="hz-severe-wx" class="card" style="margin-top:12px" open><summary class="card-title" style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🌪️</span> SPC Watches (${watches.length})</span><span style="color:var(--text-muted);font-size:0.8em">▾</span></summary>`;
   if (userWatches.length) {
     html += `<div class="alert-banner danger" style="margin-bottom:8px;border-left:4px solid ${userWatches.some(w => w.type === 'tornado') ? '#ff1744' : '#ff9800'}"><span class="alert-icon">${userWatches.some(w => w.type === 'tornado') ? '🌪️' : '⛈️'}</span><div class="alert-text"><span class="alert-title">You are in a ${userWatches.some(w => w.type === 'tornado') ? 'TORNADO' : 'SEVERE THUNDERSTORM'} WATCH</span><br>Conditions are favorable for severe weather in your area.</div></div>`;
   }
@@ -461,26 +461,26 @@ function _renderSPCWatchSection(){
       ${expStr ? `<div style="font-size:0.7em;color:var(--text-muted);margin-top:2px">⏱️ ${expStr}</div>` : ''}
     </div>`;
   });
-  html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NOAA Storm Prediction Center</div></div>`;
+  html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NOAA Storm Prediction Center</div></details>`;
   return html;
 }
 function _renderSPCReportsSection(){
   if (!isUSLocation(S.lat, S.lon)) return '';
   const reports = _spcData.reports;
   if (!reports || !reports.length) {
-    return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">📋</span> SPC Storm Reports (Today)</div>
-      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No severe weather reports today nearby</div></div>`;
+    return `<details class="card" style="margin-top:12px" open><summary class="card-title" style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span><span class="icon">📋</span> SPC Storm Reports (Today)</span><span style="color:var(--text-muted);font-size:0.8em">▾</span></summary>
+      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No severe weather reports today nearby</div></details>`;
   }
   const nearby = reports.filter(r => r.dist <= 200);
   if (!nearby.length) {
-    return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">📋</span> SPC Storm Reports (Today)</div>
-      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No severe weather reports within 200 mi today</div></div>`;
+    return `<details class="card" style="margin-top:12px" open><summary class="card-title" style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span><span class="icon">📋</span> SPC Storm Reports (Today)</span><span style="color:var(--text-muted);font-size:0.8em">▾</span></summary>
+      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No severe weather reports within 200 mi today</div></details>`;
   }
   const tornadoes = nearby.filter(r => r.type === 'tornado');
   const hail = nearby.filter(r => r.type === 'hail');
   const wind = nearby.filter(r => r.type === 'wind');
   const toggleChecked = S._showSPCReports ? 'checked' : '';
-  let html = `<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">📋</span> SPC Storm Reports (${nearby.length} today)</span><label style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${toggleChecked} onchange="toggleSPCReports(this.checked)" style="accent-color:var(--accent-cyan)"></label></div>`;
+  let html = `<details class="card" style="margin-top:12px" open><summary class="card-title" style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span><span class="icon">📋</span> SPC Storm Reports (${nearby.length} today)</span><span style="display:flex;align-items:center;gap:6px"><label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${toggleChecked} onchange="toggleSPCReports(this.checked)" style="accent-color:var(--accent-cyan)"></label><span style="color:var(--text-muted);font-size:0.8em">▾</span></span></summary>`;
   const summary = [];
   if (tornadoes.length) summary.push(`🌪️ ${tornadoes.length} tornado${tornadoes.length > 1 ? 'es' : ''}`);
   if (hail.length) summary.push(`🧊 ${hail.length} hail`);
@@ -501,7 +501,7 @@ function _renderSPCReportsSection(){
       <div style="font-size:0.9em;color:var(--text-secondary);margin-top:2px">${r.location}, ${r.state}${r.comment ? ' — ' + r.comment : ''}</div>
     </div>`;
   });
-  html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NOAA Storm Prediction Center · Today's reports</div></div>`;
+  html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NOAA Storm Prediction Center · Today's reports</div></details>`;
   return html;
 }
 function toggleSPCReports(on){
@@ -523,10 +523,10 @@ function _renderSPCMDSection(){
     return false;
   });
   if (!mds.length) {
-    return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">📝</span> Mesoscale Discussions</div>
-      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No active mesoscale discussions nearby</div></div>`;
+    return `<details class="card" style="margin-top:12px" open><summary class="card-title" style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span><span class="icon">📝</span> Mesoscale Discussions</span><span style="color:var(--text-muted);font-size:0.8em">▾</span></summary>
+      <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No active mesoscale discussions nearby</div></details>`;
   }
-  let html = `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">📝</span> Mesoscale Discussions (${mds.length})</div>`;
+  let html = `<details class="card" style="margin-top:12px" open><summary class="card-title" style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center"><span><span class="icon">📝</span> Mesoscale Discussions (${mds.length})</span><span style="color:var(--text-muted);font-size:0.8em">▾</span></summary>`;
   mds.forEach(md => {
     const isTor = md.type === 'tornado';
     const isSvr = md.type === 'severe';
@@ -542,7 +542,7 @@ function _renderSPCMDSection(){
       ${md.area ? `<div style="font-size:0.7em;color:var(--text-secondary);margin-top:2px">📍 ${md.area}</div>` : ''}
     </div>`;
   });
-  html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NOAA Storm Prediction Center</div></div>`;
+  html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: NOAA Storm Prediction Center</div></details>`;
   return html;
 }
 function _extractFloodAlerts(){
@@ -632,7 +632,9 @@ function _renderHazardSummary(){
         const parts=[];
         if(localTor)parts.push(`TOR Watch`);if(localSvr)parts.push(`SVR Watch`);if(hookCount)parts.push(`${hookCount} rotation`);
         const topColor=localTor||hookCount?'#ff1744':localSvr?'#ff9800':'#eab308';
-        items.push({icon:localTor||hookCount?'🌪️':'⛈️',label:'Severe Wx',status:parts.join(' · '),color:topColor,target:'hz-severe-wx'});
+        const sevTarget=hookCount&&!localWatches.length?null:'hz-severe-wx';
+        const sevAction=hookCount&&!localWatches.length?"switchPage('storms')":null;
+        items.push({icon:localTor||hookCount?'🌪️':'⛈️',label:'Severe Wx',status:parts.join(' · '),color:topColor,target:sevTarget,action:sevAction});
       }
     }
   }
@@ -656,7 +658,8 @@ function _renderHazardSummary(){
   const cols=items.length<=3?'1fr 1fr 1fr':'1fr 1fr';
   let html=`<div style="display:grid;grid-template-columns:${cols};gap:6px;margin-bottom:12px">`;
   items.forEach(it=>{
-    html+=`<div onclick="${it.target?`scrollToHazardSection('${it.target}')`:''}" style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px${it.target?';cursor:pointer':''}">
+    const clickAction=it.action||((it.target)?`scrollToHazardSection('${it.target}')`:``);
+    html+=`<div onclick="${clickAction}" style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px${clickAction?';cursor:pointer':''}">
       <span style="font-size:1em">${it.icon}</span>
       <div><div style="font-size:0.7em;font-weight:600;color:var(--text-primary)">${it.label}</div>
       <div style="font-size:0.6em;color:${it.color};font-weight:600">${it.status}</div></div>

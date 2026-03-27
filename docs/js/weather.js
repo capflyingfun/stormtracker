@@ -722,8 +722,14 @@ function _pickWindTarget(){
     const shift=trendRatio*0.3;
     center=Math.max(0.01,Math.min(0.99,center+shift));
   }else{_windTrend=0;}
+  const dn=_wn.noise(tSec*0.2,100);
+  const dir=((_windBase.dir+dn*5)%360+360)%360;
+  if(Math.random()<0.08){
+    const gustSpd=_windCeil-(Math.random()*range*0.08);
+    return{spd:Math.max(_windFloor,Math.min(_windCeil,gustSpd)),dir};
+  }
   const d=u-center;
-  const exp=2.5;
+  const exp=1.8;
   let biased;
   if(d<0){
     const nd=Math.min(1,Math.abs(d)/center);
@@ -734,8 +740,6 @@ function _pickWindTarget(){
   }
   if(!Number.isFinite(biased))biased=center;
   const spd=_windFloor+Math.max(0,Math.min(1,biased))*range;
-  const dn=_wn.noise(tSec*0.2,100);
-  const dir=((_windBase.dir+dn*5)%360+360)%360;
   return{spd,dir};
 }
 function _updateWindRange(){
@@ -771,9 +775,11 @@ function startWindSim(){
   if(S._windPickTimer)clearInterval(S._windPickTimer);
   if(!S.weather)return;
   _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0,gust:S.weather.wind_gusts_10m||0};
-  _gustSamples=[];
   _updateWindRange();
-  _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:S.weather.wind_gusts_10m||0};
+  const initGust=Number(S.weather.wind_gusts_10m)||_windBase.spd;
+  const now=Date.now();
+  _gustSamples=[{t:now,v:initGust}];
+  _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:initGust};
   _windLerpFrom={spd:_windBase.spd,dir:_windBase.dir};
   _windLerpTo=_pickWindTarget();
   _windLerpT0=Date.now();
