@@ -289,7 +289,7 @@ function parseAWCobs(m){
     rawMETAR:m.rawOb||'',
     clouds:(m.clouds||[]).map(c=>({amount:c.cover,base:{value:c.base!=null?c.base*0.3048:null}})),
     obsTime:(m.reportTime||m.obsTime||'').replace(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})$/,'$1T$2Z'),
-    wxString:m.wxString||'',
+    wxString:_validateWxString(m.wxString||'',m.rawOb||''),
   };
 }
 function loadStationFromAWC(awcData,stInfo){
@@ -348,7 +348,7 @@ async function loadStationObs(icao){
       rawMETAR:p.rawMessage||buildSyntheticMetar(icao,p),
       clouds:p.cloudLayers||[],
       obsTime:p.timestamp||'',
-      wxString:p.textDescription||'',
+      wxString:_validateWxString(p.textDescription||'',p.rawMessage||''),
     };
     renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){

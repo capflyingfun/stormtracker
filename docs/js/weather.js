@@ -172,7 +172,7 @@ async function fetchNWSCurrent(){
       temp:p.temperature.value,dewp:p.dewpoint?.value,
       windKmh:p.windSpeed?.value,windDir:p.windDirection?.value,
       gustKmh:p.windGust?.value,presPa:p.barometricPressure?.value,
-      visMeter:p.visibility?.value,wxString:p.textDescription||'',
+      visMeter:p.visibility?.value,wxString:_validateWxString(p.textDescription||'',p.rawMessage||''),
       feelsC:p.windChill?.value??p.heatIndex?.value??null,
       station:icao
     };
