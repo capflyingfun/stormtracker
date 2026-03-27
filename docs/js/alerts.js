@@ -54,6 +54,7 @@ async function fetchAlerts(){
     const res=await fetch(`https://api.weather.gov/alerts/active?point=${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{headers:{'User-Agent':'StormTracker/1.50'}});
     const data=await res.json();S.alerts=data.features||[];renderAlerts();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){S.alerts=[];renderAlerts()}
+  if(typeof updateThreatTicker==='function')updateThreatTicker();
   _extractFloodAlerts();
   fetchSPCData().then(()=>{if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map)}});
   fetchNHCData().then(()=>{if(S.map)plotNHCTracks(S.map);_nhcProximityCheck();if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.activePage==='weather')_updateTropicalUI()});
