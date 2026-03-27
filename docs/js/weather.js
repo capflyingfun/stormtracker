@@ -496,7 +496,7 @@ function drawMiniSonar(){
         const fs=_lightningFlashState[gi];
         if(now>=fs.nextToggle){
           fs.on=!fs.on;
-          fs.nextToggle=now+(fs.on?(250+Math.random()*150):(600+Math.random()*300));
+          fs.nextToggle=now+(fs.on?(150+Math.random()*250):(1500+Math.random()*1500));
         }
         if(!fs.on)continue;
         const flashAlpha=0.7+Math.random()*0.3;
