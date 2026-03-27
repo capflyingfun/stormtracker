@@ -29,11 +29,12 @@ function _alertSecBtns(key){return`<div class="sec-btns" onclick="event.stopProp
 function _applyAlertAutoPriority(){
   if(localStorage.getItem('st_alert_manual_order'))return;
   const hasNws=S.alerts&&S.alerts.length>0;
-  const hasHighImpact=_stormAlertHistory.some(h=>h.impactTier==='high'||h.impactTier==='medium');
+  const activeStorms=(S.storms||[]).filter(s=>s.impactTier==='high'||s.impactTier==='medium');
+  const hasHighImpact=activeStorms.length>0;
   if(!hasNws&&!hasHighImpact)return;
   const order=[];
   if(hasNws)order.push('nws');
-  if(_stormAlertHistory.length)order.push('storms');
+  if(hasHighImpact||(S.storms&&S.storms.length))order.push('storms');
   _defaultAlertSecOrder.forEach(k=>{if(!order.includes(k))order.push(k)});
   try{localStorage.setItem('st_alert_sec_order',JSON.stringify(order))}catch(e){}
   const coll=_getAlertCollapsed();
@@ -141,7 +142,7 @@ function renderAlerts(){
           const sCurDist=Math.max(0,(h.arrivalMs-Date.now())/3600000*sCMph);
           const sDv=S.radarMetric?(sCurDist*1.60934).toFixed(1)+' km':sCurDist.toFixed(1)+' mi';
           sDistLive=`<span data-dist-mi="1" data-closing-mph="${sCMph}" data-target-ms="${h.arrivalMs}" style="font-size:0.8em;color:#60a5fa;font-weight:600;margin-left:4px">📏${sDv}</span>`;
-        }else if(hDist>0){
+        }else if(hDist!=null&&hDist>=0){
           const sDv=S.radarMetric?(hDist*1.60934).toFixed(1)+' km':hDist.toFixed(1)+' mi';
           sDistLive=`<span style="font-size:0.8em;color:#60a5fa;font-weight:600;margin-left:4px">📏${sDv}</span>`;
         }
@@ -205,7 +206,7 @@ function renderAlerts(){
             const curDist=Math.max(0,(h.arrivalMs-Date.now())/3600000*cMph);
             const dv=S.radarMetric?(curDist*1.60934).toFixed(1)+' km':curDist.toFixed(1)+' mi';
             hDistLive=`<span data-dist-mi="1" data-closing-mph="${cMph}" data-target-ms="${h.arrivalMs}" style="font-size:0.85em;color:#60a5fa;font-weight:600">📏${dv}</span>`;
-          }else if(hcDist>0){
+          }else if(hcDist!=null&&hcDist>=0){
             const dv=S.radarMetric?(hcDist*1.60934).toFixed(1)+' km':hcDist.toFixed(1)+' mi';
             hDistLive=`<span style="font-size:0.85em;color:#60a5fa;font-weight:600">📏${dv}</span>`;
           }
