@@ -2063,7 +2063,7 @@ const TUTORIAL_SECTIONS=[
 const CHANGELOG=[
   {ver:'v2.53',date:'2026-03-27',items:['📦 Smart Alert Condensing — multiple same-scan storm cell alerts are batched into one summary toast showing count, direction, heading, speed, strongest dBZ, and nearest ETA','📏 Live Distance Countdown — alert history rows now show a live-updating distance to each approaching storm cell','🕐 NWS Hour-Only Times — time formats like "11 PM EDT" (no minutes) are now correctly parsed and reformatted']},
   {ver:'v2.52',date:'2026-03-27',items:['🧠 Threat-Priority Sorting — storm cell alerts now sort by threat score (dBZ×2 + impact×1.5 − distance×0.5) instead of chronologically','⏱ Group ETA — grouped storm cell batches show nearest ETA countdown on the header row','⏱ Per-Cell ETA — expanded cells in grouped rows show individual live ETA countdowns','🎯 Ticker Threat Sort — severe storm ticker now prioritizes strongest/highest-impact storms over nearest','🔄 Location Reset — changing location clears stale storm/weather alert history, cooldowns, and SPC reports','🕐 NWS Time Reformat — alert descriptions convert NWS timezone times (e.g. 430 PM CDT) to your local format respecting 12h/24h preference']},
-  {ver:'v2.58',date:'2026-03-27',items:['🌧️ Rain Alert — push notifications when rain detected on radar nearby','🌧️ Sensitivity Levels — Light (20 dBZ), Moderate (30 dBZ), Heavy (40 dBZ) configurable thresholds','⏱ Cooldown Timer — configurable 5/15/30/60 minute cooldown between rain alerts','🔔 Rain Alert History — alerts tab shows rain detection history with timestamps','⚙️ Rain Alert Settings — dedicated settings section with toggle, sensitivity, and cooldown controls']},
+  {ver:'v2.58',date:'2026-03-27',items:['🌩️ Improved storm cell alert direction and location accuracy','📍 Storm alert click-to-map now uses most recent alert position','🔧 Sync & Alerts section hidden — planned for future redesign','🧹 Removed SMS/texting features — email-only alerts']},
   {ver:'v2.51',date:'2026-03-27',items:['🧊 SPC Hail Size Fix — hail reports now display correctly as inches (e.g., 1.00") instead of raw hundredths value','🕐 Storm Cell Timestamps — expanded individual cells in grouped alerts now show per-cell timestamps']},
   {ver:'v2.50',date:'2026-03-27',items:['📦 Alert Consolidation — storm cell alerts grouped by scan batch (±5s) into collapsible rows showing cell count, dBZ range, distance range, and peak impact','📍 Alert → Radar Navigation — tap 📍 on any storm alert to fly to its location on the radar map with a pulsing highlight ring','🗺️ Storm Card → Radar — "📍 Map" button on each storm card switches to radar and highlights the cell with approach cone','🔗 Cross-Navigation — seamless jumping between Alerts ↔ Radar ↔ Storms tabs']},
   {ver:'v2.49',date:'2026-03-27',items:['⏱ Tier Summary Live Countdown — 🔵🟡🔴 ETA lines now count down every second in real-time','⚡ Sonar Lightning Clustering — nearby ⚡ icons merged into single ⚡ with count badge (e.g. ⚡3)','🌩️ Storm Alert ETA — storm cell alerts now include ETA countdown and arrival time','📍 Alert ETA respects 12h/24h time format setting']},
@@ -2622,67 +2622,7 @@ function _saveRainAlertHistory(){
   if(_rainAlertHistory.length>30)_rainAlertHistory=_rainAlertHistory.slice(-30);
   try{localStorage.setItem('st_rainAlertHistory',JSON.stringify(_rainAlertHistory))}catch(e){}
 }
-function checkRainAlert(){
-  const cfg=_loadRainAlertCfg();
-  if(!cfg.on)return;
-  if(!S.storms||!S.storms.length)return;
-  const now=Date.now();
-  const cooldownMs=(cfg.cooldownMin||30)*60000;
-  if(now-_rainAlertCooldown<cooldownMs)return;
-  const minDbz=_RAIN_SENSITIVITY[cfg.sensitivity]||30;
-  const approaching=[];
-  const overhead=[];
-  const nearby=[];
-  for(const storm of S.storms){
-    if(storm.dbz<minDbz)continue;
-    const eta=calcStormETA(storm);
-    if(eta&&eta.approaching&&eta.impact>0&&eta.eta!=null&&eta.eta>0){
-      approaching.push({storm,eta});
-    }else if(eta&&eta.proximity){
-      overhead.push({storm,eta});
-    }else if(storm.distance<=30){
-      nearby.push(storm);
-    }
-  }
-  if(approaching.length===0&&overhead.length===0&&nearby.length===0)return;
-  _rainAlertCooldown=now;
-  try{localStorage.setItem('st_rainAlertCooldown',String(now))}catch(e){}
-  let msg;
-  if(overhead.length>0){
-    const strongest=overhead.reduce((a,b)=>a.storm.dbz>b.storm.dbz?a:b);
-    const intensity=strongest.storm.dbz>=45?'Heavy':strongest.storm.dbz>=30?'Moderate':'Light';
-    msg=`🌧️ ${intensity} rain overhead! ${overhead.length} cell${overhead.length>1?'s':''} directly over your area.`;
-  }else if(approaching.length>0){
-    approaching.sort((a,b)=>a.eta.eta-b.eta.eta);
-    const top=approaching[0];
-    const distStr=S.radarMetric?parseFloat((top.storm.distance*1.60934).toFixed(1))+' km':parseFloat(top.storm.distance.toFixed(1))+' mi';
-    const etaMin=Math.ceil(top.eta.eta);
-    const arrStr=fmtClockShort(new Date(now+top.eta.eta*60000));
-    const mv=S.stormMovement;
-    const cellTrack=typeof getCellTrack==='function'?getCellTrack(top.storm):null;
-    const mDir=cellTrack?cellTrack.dir:(mv?mv.direction:0);
-    const fromDir=degToDir((mDir+180)%360);
-    const intensity=top.storm.dbz>=45?'Heavy':top.storm.dbz>=30?'Moderate':'Light';
-    const impLbl=impactLabel(top.eta.impact);
-    if(approaching.length===1){
-      msg=`🌧️ ${intensity} rain heading your way from the ${fromDir} — ${distStr}, ETA ~${etaMin} min (${arrStr}), ${top.eta.impact}% ${impLbl.text}`;
-    }else{
-      const topDbz=Math.max(...approaching.map(a=>a.storm.dbz));
-      const peakIntensity=topDbz>=45?'Heavy':topDbz>=30?'Moderate':'Light';
-      msg=`🌧️ ${approaching.length} rain cells heading your way from the ${fromDir} — closest ${distStr}, ETA ~${etaMin} min (${arrStr}), peak ${peakIntensity}`;
-    }
-  }else{
-    const strongest=nearby.reduce((a,b)=>a.dbz>b.dbz?a:b);
-    const distStr=S.radarMetric?parseFloat((strongest.distance*1.60934).toFixed(1))+' km':parseFloat(strongest.distance.toFixed(1))+' mi';
-    const intensity=strongest.dbz>=45?'Heavy':strongest.dbz>=30?'Moderate':'Light';
-    msg=`🌧️ ${intensity} rain detected ${distStr} away${nearby.length>1?' ('+nearby.length+' cells nearby)':''}. Not heading your way.`;
-  }
-  toast(msg,8000);
-  _sendBrowserNotification('Rain Alert',msg);
-  _rainAlertHistory.push({msg,time:now,approaching:approaching.length,overhead:overhead.length,nearby:nearby.length});
-  _saveRainAlertHistory();
-  if(S.activePage==='alerts')renderAlerts();
-}
+function checkRainAlert(){}
 function toggleRainAlert(on){
   const cfg=_loadRainAlertCfg();
   cfg.on=on;

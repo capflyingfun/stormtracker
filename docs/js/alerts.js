@@ -28,7 +28,7 @@ function updateAlertBadge(){
   badge.textContent=n;
   badge.style.background=n>0?'#ef4444':'#6b7280';
 }
-const _defaultAlertSecOrder=['nws','storms','rain','station','hazards'];
+const _defaultAlertSecOrder=['nws','storms','station','hazards'];
 function _getAlertSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_alert_sec_order'));if(Array.isArray(o)&&o.length>=2){const filtered=o.filter(k=>_defaultAlertSecOrder.includes(k));_defaultAlertSecOrder.forEach(k=>{if(!filtered.includes(k))filtered.push(k)});return filtered}}catch(e){}return _defaultAlertSecOrder.slice()}
 function moveAlertSection(key,dir){const full=_getAlertSecOrder();const visible=full.filter(k=>k==='nws'?isNWSCoverage(S.lat,S.lon):true);const vi=visible.indexOf(key);if(vi<0)return;const vni=vi+dir;if(vni<0||vni>=visible.length)return;const fi=full.indexOf(visible[vi]),fni=full.indexOf(visible[vni]);[full[fi],full[fni]]=[full[fni],full[fi]];try{localStorage.setItem('st_alert_sec_order',JSON.stringify(full));localStorage.setItem('st_alert_manual_order','1')}catch(e){}renderAlerts()}
 function toggleAlertSection(key){const c=_getAlertCollapsed();if(c.includes(key))c.splice(c.indexOf(key),1);else c.push(key);try{localStorage.setItem('st_alert_collapsed',JSON.stringify(c))}catch(e){}renderAlerts()}
@@ -239,21 +239,7 @@ function renderAlerts(){
   const scClear=stormHist.length?'<button onclick="event.stopPropagation();clearStormAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':'';
   sec.storms=`<div class="card" style="margin-top:12px" data-alert-sec="storms"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleAlertSection('storms')"><span><span class="icon">🌩️</span> Storm Cell Alerts${stormHist.length?' ('+stormHist.length+')':''}</span><span style="display:flex;align-items:center;gap:4px">${scClear}${_alertSecBtns('storms')}<span style="color:var(--text-muted)">${coll.includes('storms')?'▸':'▾'}</span></span></div>${coll.includes('storms')?'':scBody}</div>`; }
 
-  { const rainHist=_rainAlertHistory.slice().reverse();
-  let rainBody='';
-  const rainCfg=_loadRainAlertCfg();
-  if(!rainHist.length){
-    rainBody+=rainCfg.on?`<div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ Rain alerts enabled — no rain detected yet</div>`:`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No rain alerts yet. Enable in Settings ⚙️ → Rain Alert 🌧️</div>`;
-  }else{
-    rainHist.slice(0,20).forEach(h=>{
-      const d=new Date(h.time);
-      const tStr=fmtClock(d)+' · '+d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
-      const rLabel=h.overhead>0?'Overhead':(h.approaching>0?h.approaching+' approaching':'Nearby');
-      rainBody+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em"><div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span>🌧️</span><span style="font-weight:600;color:var(--text-primary)">${rLabel}</span><span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span></div><div style="color:var(--text-secondary);font-size:0.9em">${escHtml(h.msg).replace('🌧️ ','')}</div></div>`;
-    });
-  }
-  const rainClear=rainHist.length?'<button onclick="event.stopPropagation();clearRainAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':'';
-  sec.rain=`<div class="card" style="margin-top:12px" data-alert-sec="rain"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleAlertSection('rain')"><span><span class="icon">🌧️</span> Rain Alerts${rainHist.length?' ('+rainHist.length+')':''}</span><span style="display:flex;align-items:center;gap:4px">${rainClear}${_alertSecBtns('rain')}<span style="color:var(--text-muted)">${coll.includes('rain')?'▸':'▾'}</span></span></div>${coll.includes('rain')?'':rainBody}</div>`; }
+  /* Rain Alerts section hidden — feature removed for now */
 
   sec.hazards=`<div class="card" style="margin-top:12px" data-alert-sec="hazards"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleAlertSection('hazards')"><span><span class="icon">🌍</span> Environmental Hazards</span><span style="display:flex;align-items:center;gap:4px">${_alertSecBtns('hazards')}<span style="color:var(--text-muted)">${coll.includes('hazards')?'▸':'▾'}</span></span></div>${coll.includes('hazards')?'':'<div id="hazards-section"></div>'}</div>`;
 
