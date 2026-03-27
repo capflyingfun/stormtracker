@@ -343,10 +343,10 @@ function _updateTropicalUI(){
 }
 function _renderTropicalHazardSection(){
   const nhc=_getFilteredSystems();
-  if(!nhc||!nhc.length)return '';
+  if(!nhc||!nhc.length)return '<div id="hz-tropical"></div>';
   const nearStorms=nhc.filter(s=>s.dist!=null&&s.dist<=S._nhcProxRadius);
-  if(!nearStorms.length)return '';
-  let html=`<div style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:8px"><div style="font-size:0.8em;font-weight:700;color:#9333EA;margin-bottom:6px">🌀 Tropical Cyclones Nearby</div>`;
+  if(!nearStorms.length)return '<div id="hz-tropical"></div>';
+  let html=`<div id="hz-tropical" style="border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:8px"><div style="font-size:0.8em;font-weight:700;color:#9333EA;margin-bottom:6px">🌀 Tropical Cyclones Nearby</div>`;
   nearStorms.forEach(s=>{
     const cat=s.category||_saffirSimpson(s.maxWind);
     const distStr=s.dist!=null?Math.round(s.dist)+' mi':'?';

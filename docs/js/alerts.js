@@ -20,76 +20,94 @@ function updateAlertBadge(){
   badge.textContent=n;
   badge.style.background=n>0?'#ef4444':'#6b7280';
 }
+const _defaultAlertSecOrder=['nws','storms','station','hazards'];
+function _getAlertSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_alert_sec_order'));if(Array.isArray(o)&&o.length>=2){const filtered=o.filter(k=>_defaultAlertSecOrder.includes(k));_defaultAlertSecOrder.forEach(k=>{if(!filtered.includes(k))filtered.push(k)});return filtered}}catch(e){}return _defaultAlertSecOrder.slice()}
+function moveAlertSection(key,dir){const order=_getAlertSecOrder();const i=order.indexOf(key);if(i<0)return;const ni=i+dir;if(ni<0||ni>=order.length)return;[order[i],order[ni]]=[order[ni],order[i]];try{localStorage.setItem('st_alert_sec_order',JSON.stringify(order));localStorage.setItem('st_alert_manual_order','1')}catch(e){}renderAlerts()}
+function toggleAlertSection(key){const c=_getAlertCollapsed();if(c.includes(key))c.splice(c.indexOf(key),1);else c.push(key);try{localStorage.setItem('st_alert_collapsed',JSON.stringify(c))}catch(e){}renderAlerts()}
+function _getAlertCollapsed(){try{const c=JSON.parse(localStorage.getItem('st_alert_collapsed'));if(Array.isArray(c))return c}catch(e){}return[]}
+function _alertSecBtns(key){return`<div class="sec-btns" onclick="event.stopPropagation()"><button onclick="moveAlertSection('${key}',-1)" title="Move up">▲</button><button onclick="moveAlertSection('${key}',1)" title="Move down">▼</button></div>`}
+function _applyAlertAutoPriority(){
+  if(localStorage.getItem('st_alert_manual_order'))return;
+  const hasNws=S.alerts&&S.alerts.length>0;
+  const hasHighImpact=_stormAlertHistory.some(h=>h.impactTier==='high'||h.impactTier==='medium');
+  if(!hasNws&&!hasHighImpact)return;
+  const order=[];
+  if(hasNws)order.push('nws');
+  if(_stormAlertHistory.length)order.push('storms');
+  _defaultAlertSecOrder.forEach(k=>{if(!order.includes(k))order.push(k)});
+  try{localStorage.setItem('st_alert_sec_order',JSON.stringify(order))}catch(e){}
+  const coll=_getAlertCollapsed();
+  const eq=_hazardData.earthquakes;const vol=_hazardData.volcanoes;const wf=_hazardData.wildfires;
+  const eqLoaded=Array.isArray(eq);const volLoaded=Array.isArray(vol);const wfLoaded=Array.isArray(wf);
+  const hazClear=eqLoaded&&eq.length===0&&volLoaded&&vol.length===0&&wfLoaded&&wf.length===0;
+  if(hazClear&&!coll.includes('hazards')){coll.push('hazards');try{localStorage.setItem('st_alert_collapsed',JSON.stringify(coll))}catch(e){}}
+}
+function scrollToHazardSection(id){
+  let target=document.getElementById(id);
+  if(!target){
+    const coll=_getAlertCollapsed();
+    if(coll.length>0){try{localStorage.setItem('st_alert_collapsed',JSON.stringify([]))}catch(e){}renderAlerts();setTimeout(()=>scrollToHazardSection(id),150);return}
+    return;
+  }
+  if(target.tagName==='DETAILS')target.open=true;
+  target.scrollIntoView({behavior:'smooth',block:'start'});
+  target.style.outline='2px solid var(--accent-cyan)';setTimeout(()=>{target.style.outline=''},2000);
+}
+
 function renderAlerts(){
   const el=document.getElementById('page-alerts');
   updateAlertBadge();
   if(!S.lat){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📍</div><p>Set your location to check alerts.</p></div>`;return}
-  let html='';
+  _applyAlertAutoPriority();
+  const coll=_getAlertCollapsed();
+  const order=_getAlertSecOrder();
   const alerts=S.alerts||[];
   const now=Date.now();
-  if(alerts.length){
-    S.alerts=alerts.filter(a=>{const e=a.properties?.expires;return !e||new Date(e).getTime()>now});
-    updateAlertBadge();
-  }
+  if(alerts.length){S.alerts=alerts.filter(a=>{const e=a.properties?.expires;return !e||new Date(e).getTime()>now});updateAlertBadge()}
+  const sec={};
+
+  { let nwsBody='';
   if(S.alerts&&S.alerts.length){
     const zoneAlerts=S.alerts.filter(a=>isUserInAlertZone(a));
-    const zoneBanner=zoneAlerts.length?`<div style="background:rgba(220,38,38,0.2);border:1px solid rgba(220,38,38,0.5);border-radius:8px;padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px;animation:pulse 2s infinite"><span style="font-size:1.2em">🔴</span><span style="font-size:0.8em;font-weight:700;color:#fca5a5">Your location is inside ${zoneAlerts.length} active alert zone${zoneAlerts.length>1?'s':''}: ${zoneAlerts.map(a=>escHtml(a.properties?.event||'Alert')).join(', ')}</span></div>`:'';
-    html+=`<div class="card"><div class="card-title"><span class="icon">⚠️</span> NWS Alerts (${S.alerts.length})</div>${zoneBanner}
-    ${S.alerts.map((a,i)=>{
+    if(zoneAlerts.length)nwsBody+=`<div style="background:rgba(220,38,38,0.2);border:1px solid rgba(220,38,38,0.5);border-radius:8px;padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px;animation:pulse 2s infinite"><span style="font-size:1.2em">🔴</span><span style="font-size:0.8em;font-weight:700;color:#fca5a5">Your location is inside ${zoneAlerts.length} active alert zone${zoneAlerts.length>1?'s':''}: ${zoneAlerts.map(a=>escHtml(a.properties?.event||'Alert')).join(', ')}</span></div>`;
+    nwsBody+=S.alerts.map((a,i)=>{
       const p=a.properties||{};const event=p.event||'Alert';const sev=(p.severity||'').toLowerCase();
-      const evLow=event.toLowerCase();
-      const isTorWarn=evLow.includes('tornado warning');
-      const isSvrWarn=evLow.includes('severe thunderstorm warning');
+      const evLow=event.toLowerCase();const isTorWarn=evLow.includes('tornado warning');const isSvrWarn=evLow.includes('severe thunderstorm warning');
       let cls=(sev==='extreme'||sev==='severe')?'':sev==='moderate'?'watch':'advisory';
-      if(isTorWarn)cls='tornado-warning';
-      else if(isSvrWarn)cls='svr-warning';
+      if(isTorWarn)cls='tornado-warning';else if(isSvrWarn)cls='svr-warning';
       const desc=reformatNwsTimes((p.description||'')).replace(/\n/g,'<br>');
       const sevIcon=isTorWarn?'🌪️':isSvrWarn?'⛈️':sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
       const inZone=isUserInAlertZone(a);
       const zoneBadge=inZone?'<span style="display:inline-block;background:#dc2626;color:#fff;font-size:0.55em;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:6px;animation:pulse 2s infinite;vertical-align:middle">IN YOUR ZONE</span>':'';
       return`<div class="nws-alert ${cls}" style="${inZone?'border-color:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.3)':''}"><div class="nws-alert-title">${sevIcon} ${event}${zoneBadge}</div><div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${p.expires?`<div class="nws-alert-expires">⏱️ <span id="alert-cd-${i}" data-exp="${new Date(p.expires).getTime()}"></span></div>`:''}</div>`;
-    }).join('')}</div>`;
+    }).join('');
   }else{
-    html+=`<div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">No Active NWS Alerts</span><br>No NWS warnings or watches for your area.</div></div>
-      <div style="font-size:0.7em;color:var(--text-muted);text-align:center;padding:10px">NWS alerts cover US locations only.</div>`;
+    nwsBody+=`<div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">No Active NWS Alerts</span><br>No NWS warnings or watches for your area.</div></div><div style="font-size:0.7em;color:var(--text-muted);text-align:center;padding:10px">NWS alerts cover US locations only.</div>`;
   }
-  html+=_renderStormSurgeSection();
-  html+=_renderTropicalSection();
-  html+=_renderSPCWatchSection();
-  html+=_renderSPCMDSection();
-  html+=_renderSPCReportsSection();
-  const hist=_wxAlertHistory.slice().reverse();
-  html+=`<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🔔</span> Station Alerts${hist.length?' ('+hist.length+')':''}</span>${hist.length?'<button onclick="clearWxAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':''}</div>`;
+  nwsBody+=_renderStormSurgeSection()+_renderTropicalSection()+_renderSPCWatchSection()+_renderSPCMDSection()+_renderSPCReportsSection();
+  const nwsCnt=(S.alerts||[]).length;
+  sec.nws=`<div class="card" style="margin-top:12px" data-alert-sec="nws"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleAlertSection('nws')"><span><span class="icon">⚠️</span> NWS Alerts${nwsCnt?' ('+nwsCnt+')':''}</span><span style="display:flex;align-items:center;gap:4px">${_alertSecBtns('nws')}<span style="color:var(--text-muted)">${coll.includes('nws')?'▸':'▾'}</span></span></div>${coll.includes('nws')?'':nwsBody}</div>`; }
+
+  { const hist=_wxAlertHistory.slice().reverse();
+  let stBody='';
   if(!hist.length){
-    const wxTh=_loadWxThresholds();
-    const wxAny=Object.values(wxTh).some(t=>t&&t.on);
-    html+=wxAny
-      ?`<div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ All clear — no weather thresholds exceeded</div>`
-      :`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No station alerts yet. Enable thresholds in Settings ⚙️ → Weather Station Alerts 🔔</div>`;
+    const wxTh=_loadWxThresholds();const wxAny=Object.values(wxTh).some(t=>t&&t.on);
+    stBody+=wxAny?`<div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ All clear — no weather thresholds exceeded</div>`:`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No station alerts yet. Enable thresholds in Settings ⚙️ → Weather Station Alerts 🔔</div>`;
   }else{
     hist.slice(0,20).forEach(h=>{
-      const d=new Date(h.time);
-      const tStr=fmtClock(d)+' · '+d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
-      html+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
-          <span>${h.icon||'🔔'}</span>
-          <span style="font-weight:600;color:var(--text-primary)">${h.label}</span>
-          <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
-        </div>
-        <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🔔 ','')}</div>
-      </div>`;
+      const d=new Date(h.time);const tStr=fmtClock(d)+' · '+d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      stBody+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em"><div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span>${h.icon||'🔔'}</span><span style="font-weight:600;color:var(--text-primary)">${h.label}</span><span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span></div><div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🔔 ','')}</div></div>`;
     });
   }
-  html+=`</div>`;
-  function _stormThreatCmp(a,b){const dd=(b.val||0)-(a.val||0);if(dd!==0)return dd;const di=(b.impactPct||0)-(a.impactPct||0);if(di!==0)return di;return(a.distance||0)-(b.distance||0)}
+  const stClear=hist.length?'<button onclick="event.stopPropagation();clearWxAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':'';
+  sec.station=`<div class="card" style="margin-top:12px" data-alert-sec="station"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleAlertSection('station')"><span><span class="icon">🔔</span> Station Alerts${hist.length?' ('+hist.length+')':''}</span><span style="display:flex;align-items:center;gap:4px">${stClear}${_alertSecBtns('station')}<span style="color:var(--text-muted)">${coll.includes('station')?'▸':'▾'}</span></span></div>${coll.includes('station')?'':stBody}</div>`; }
+
+  { function _stormThreatCmp(a,b){const dd=(b.val||0)-(a.val||0);if(dd!==0)return dd;const di=(b.impactPct||0)-(a.impactPct||0);if(di!==0)return di;return(a.distance||0)-(b.distance||0)}
   const stormHist=_stormAlertHistory.slice().reverse();
-  html+=`<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🌩️</span> Storm Cell Alerts${stormHist.length?' ('+stormHist.length+')':''}</span>${stormHist.length?'<button onclick="clearStormAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':''}</div>`;
+  let scBody='';
   if(!stormHist.length){
-    const stTh=_loadStormThresholds();
-    const stAny=Object.values(stTh).some(t=>t&&t.on);
-    html+=stAny
-      ?`<div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ All clear — no storms currently match your thresholds</div>`
-      :`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No storm cell alerts yet. Enable thresholds in Settings ⚙️ → Storm Cell Alerts 🌩️</div>`;
+    const stTh=_loadStormThresholds();const stAny=Object.values(stTh).some(t=>t&&t.on);
+    scBody+=stAny?`<div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ All clear — no storms currently match your thresholds</div>`:`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No storm cell alerts yet. Enable thresholds in Settings ⚙️ → Storm Cell Alerts 🌩️</div>`;
   }else{
     const batches=[];
     stormHist.forEach(h=>{
@@ -111,10 +129,11 @@ function renderAlerts(){
         const tierColors={high:'#eab308',medium:'#06b6d4',low:'#ec4899',none:'#22c55e'};
         const tc=tierColors[h.impactTier]||'#666';
         let etaHtml='';
+        const hDist=h.distance||0;
         if(h.arrivalMs){
           const remSec=Math.max(0,Math.round((h.arrivalMs-Date.now())/1000));
           if(remSec>0)etaHtml=`<span class="tier-eta-cd" data-tier-target="${h.arrivalMs}" style="font-size:0.8em;color:#ffcc00;font-weight:600;margin-left:6px">⏱ <b>${fmtCountdown(remSec)}</b> (${fmtClockShort(new Date(h.arrivalMs))})</span>`;
-          else etaHtml=`<span style="font-size:0.8em;color:var(--text-muted);margin-left:6px">⏱ arrived ${fmtClockShort(new Date(h.arrivalMs))}</span>`;
+          else if(hDist<1.5)etaHtml=`<span style="font-size:0.8em;color:var(--text-muted);margin-left:6px">⏱ arrived ${fmtClockShort(new Date(h.arrivalMs))}</span>`;
         }
         let sDistLive='';
         const sCMph=h.closingMph||0;
@@ -122,10 +141,13 @@ function renderAlerts(){
           const sCurDist=Math.max(0,(h.arrivalMs-Date.now())/3600000*sCMph);
           const sDv=S.radarMetric?(sCurDist*1.60934).toFixed(1)+' km':sCurDist.toFixed(1)+' mi';
           sDistLive=`<span data-dist-mi="1" data-closing-mph="${sCMph}" data-target-ms="${h.arrivalMs}" style="font-size:0.8em;color:#60a5fa;font-weight:600;margin-left:4px">📏${sDv}</span>`;
+        }else if(hDist>0){
+          const sDv=S.radarMetric?(hDist*1.60934).toFixed(1)+' km':hDist.toFixed(1)+' mi';
+          sDistLive=`<span style="font-size:0.8em;color:#60a5fa;font-weight:600;margin-left:4px">📏${sDv}</span>`;
         }
         const hasLoc=h.lat!=null;
         const rowClick=hasLoc?`onclick="flyToStormAlert(${h.lat},${h.lng})" style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em;cursor:pointer"`:`style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em"`;
-        html+=`<div ${rowClick}>
+        scBody+=`<div ${rowClick}>
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
             <span>🌩️</span>
             <span style="font-weight:600;color:var(--text-primary)">${h.val} dBZ</span>
@@ -154,7 +176,7 @@ function renderAlerts(){
           grpEtaHtml=`<span class="tier-eta-cd" data-tier-target="${bestEta.arrivalMs}" style="font-size:0.8em;color:#ffcc00;font-weight:600">⏱ <b>${fmtCountdown(remSec)}</b></span>`;
         }
         const gid='sa-grp-'+bi;
-        html+=`<div style="border-bottom:1px solid var(--border-subtle)">
+        scBody+=`<div style="border-bottom:1px solid var(--border-subtle)">
           <div style="padding:8px 10px;font-size:0.78em;display:flex;align-items:center;gap:6px;flex-wrap:wrap${hasLoc?';cursor:pointer':''}"${hasLoc?` onclick="flyToStormAlert(${best.lat},${best.lng})"`:''}>
             <span>🌩️</span>
             <span style="font-weight:700;color:var(--text-primary)">${items.length} storm cells</span>
@@ -171,10 +193,11 @@ function renderAlerts(){
           const hTc=tierColors[h.impactTier]||'#666';
           const hNav=h.lat!=null?`<span onclick="event.stopPropagation();flyToStormAlert(${h.lat},${h.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:3px" title="Show on radar">📍</span>`:'';
           let hEta='';
+          const hcDist=h.distance||0;
           if(h.arrivalMs){
             const rs=Math.max(0,Math.round((h.arrivalMs-Date.now())/1000));
             if(rs>0)hEta=`<span class="tier-eta-cd" data-tier-target="${h.arrivalMs}" style="font-size:0.85em;color:#ffcc00;font-weight:600">⏱${fmtCountdown(rs)}</span>`;
-            else hEta=`<span style="font-size:0.85em;color:var(--text-muted)">⏱arrived</span>`;
+            else if(hcDist<1.5)hEta=`<span style="font-size:0.85em;color:var(--text-muted)">⏱arrived</span>`;
           }
           let hDistLive='';
           const cMph=h.closingMph||0;
@@ -182,17 +205,25 @@ function renderAlerts(){
             const curDist=Math.max(0,(h.arrivalMs-Date.now())/3600000*cMph);
             const dv=S.radarMetric?(curDist*1.60934).toFixed(1)+' km':curDist.toFixed(1)+' mi';
             hDistLive=`<span data-dist-mi="1" data-closing-mph="${cMph}" data-target-ms="${h.arrivalMs}" style="font-size:0.85em;color:#60a5fa;font-weight:600">📏${dv}</span>`;
+          }else if(hcDist>0){
+            const dv=S.radarMetric?(hcDist*1.60934).toFixed(1)+' km':hcDist.toFixed(1)+' mi';
+            hDistLive=`<span style="font-size:0.85em;color:#60a5fa;font-weight:600">📏${dv}</span>`;
           }
-          html+=`<div style="font-size:0.9em;padding:3px 0;color:var(--text-secondary);border-top:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+          scBody+=`<div style="font-size:0.9em;padding:3px 0;color:var(--text-secondary);border-top:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:4px;flex-wrap:wrap">
             <span>${h.val} dBZ · ${((h.distance||0)*mFactor).toFixed(1)} ${distU}${h.impactPct>0?' · <span style="color:'+hTc+'">'+h.impactPct+'%</span>':''}</span>${hEta}${hDistLive}${hNav}
           </div>`;
         });
-        html+=`</div></div>`;
+        scBody+=`</div></div>`;
       }
     });
   }
-  html+=`</div>`;
-  html+=`<div id="hazards-section"></div>`;
+  const scClear=stormHist.length?'<button onclick="event.stopPropagation();clearStormAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':'';
+  sec.storms=`<div class="card" style="margin-top:12px" data-alert-sec="storms"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleAlertSection('storms')"><span><span class="icon">🌩️</span> Storm Cell Alerts${stormHist.length?' ('+stormHist.length+')':''}</span><span style="display:flex;align-items:center;gap:4px">${scClear}${_alertSecBtns('storms')}<span style="color:var(--text-muted)">${coll.includes('storms')?'▸':'▾'}</span></span></div>${coll.includes('storms')?'':scBody}</div>`; }
+
+  sec.hazards=`<div class="card" style="margin-top:12px" data-alert-sec="hazards"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleAlertSection('hazards')"><span><span class="icon">🌍</span> Environmental Hazards</span><span style="display:flex;align-items:center;gap:4px">${_alertSecBtns('hazards')}<span style="color:var(--text-muted)">${coll.includes('hazards')?'▸':'▾'}</span></span></div>${coll.includes('hazards')?'':'<div id="hazards-section"></div>'}</div>`;
+
+  let html='';
+  order.forEach(k=>{if(sec[k])html+=sec[k]});
   el.innerHTML=html;
   if(S.alerts&&S.alerts.length)startAlertCountdowns();
   renderHazards();
@@ -392,12 +423,12 @@ function _renderSPCWatchSection(){
   if (!isUSLocation(S.lat, S.lon)) return '';
   const watches = _spcData.watches;
   if (!watches || !watches.length) {
-    return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌪️</span> SPC Watches</div>
+    return `<div id="hz-severe-wx" class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌪️</span> SPC Watches</div>
       <div style="text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em">✅ No active SPC watches for the US</div></div>`;
   }
   const userWatches = watches.filter(w => _isPointInSpcWatch(S.lat, S.lon, w));
   const otherWatches = watches.filter(w => !_isPointInSpcWatch(S.lat, S.lon, w));
-  let html = `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌪️</span> SPC Watches (${watches.length})</div>`;
+  let html = `<div id="hz-severe-wx" class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌪️</span> SPC Watches (${watches.length})</div>`;
   if (userWatches.length) {
     html += `<div class="alert-banner danger" style="margin-bottom:8px;border-left:4px solid ${userWatches.some(w => w.type === 'tornado') ? '#ff1744' : '#ff9800'}"><span class="alert-icon">${userWatches.some(w => w.type === 'tornado') ? '🌪️' : '⛈️'}</span><div class="alert-text"><span class="alert-title">You are in a ${userWatches.some(w => w.type === 'tornado') ? 'TORNADO' : 'SEVERE THUNDERSTORM'} WATCH</span><br>Conditions are favorable for severe weather in your area.</div></div>`;
   }
@@ -532,9 +563,7 @@ function renderHazards(){
   const isUS=isUSLocation(S.lat,S.lon);
   const sources=isUS?'USGS, NWS, NIFC, USDM & NASA':'USGS, NASA EONET';
   const _hzStale=_isOffline&&_hazardData._lastFetch?`<div style="text-align:center;padding:4px 10px;margin:0 0 8px;background:rgba(180,83,9,0.15);border:1px solid rgba(251,191,36,0.25);border-radius:8px;font-size:0.65em;color:#fbbf24">📡 Cached data · Last updated ${_relativeTime(_hazardData._lastFetch)}</div>`:'';
-  let html=`<div class="card" style="margin-top:12px">
-    <div class="card-title"><span class="icon">🌍</span> Environmental Hazards</div>
-    <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">Real-time hazard monitoring from ${sources}</div>${_hzStale}`;
+  let html=`<div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">Real-time hazard monitoring from ${sources}</div>${_hzStale}`;
   html+=_renderHazardSummary();
   html+=_renderTropicalHazardSection();
   html+=_renderEarthquakeSection();
@@ -546,7 +575,6 @@ function renderHazards(){
   const _hzTime=_hazardData._lastFetch?new Date(_hazardData._lastFetch).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}):'';
   html+=_hzTime?`<div style="text-align:center;font-size:0.6em;color:var(--text-muted);margin-top:8px">Data as of ${_hzTime}</div>`:'';
   html+=`<div style="text-align:center;margin-top:6px"><button id="btn-refresh-hazards" onclick="_refreshHazardsBtn()" style="font-size:0.7em;padding:4px 14px;background:rgba(0,229,255,0.08);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.2);border-radius:6px;cursor:pointer;font-weight:600">🔄 Refresh Hazards</button></div>`;
-  html+=`</div>`;
   el.innerHTML=html;
 }
 
@@ -566,47 +594,48 @@ function _renderHazardSummary(){
   const wf=_hazardData.wildfires;
   const dr=_hazardData.drought;
   const items=[];
-  if(eq===null)items.push({icon:'🔄',label:'Earthquakes',status:'Loading...',color:'#666'});
-  else if(eq.length===0)items.push({icon:'✅',label:'Earthquakes',status:'Clear',color:'#22c55e'});
-  else{const maxMag=Math.max(...eq.map(q=>q.mag));items.push({icon:maxMag>=5?'🔴':maxMag>=4?'🟠':'🟡',label:'Earthquakes',status:`${eq.length} nearby`,color:maxMag>=5?'#ef4444':maxMag>=4?'#f97316':'#eab308'})}
-  if(vol===null)items.push({icon:'🔄',label:'Volcanoes',status:'Loading...',color:'#666'});
-  else if(vol.length===0)items.push({icon:'✅',label:'Volcanoes',status:'Clear',color:'#22c55e'});
-  else items.push({icon:'🌋',label:'Volcanoes',status:`${vol.length} active`,color:'#ef4444'});
+  if(eq===null)items.push({icon:'🔄',label:'Earthquakes',status:'Loading...',color:'#666',target:'hz-earthquakes'});
+  else if(eq.length===0)items.push({icon:'✅',label:'Earthquakes',status:'Clear',color:'#22c55e',target:'hz-earthquakes'});
+  else{const maxMag=Math.max(...eq.map(q=>q.mag));items.push({icon:maxMag>=5?'🔴':maxMag>=4?'🟠':'🟡',label:'Earthquakes',status:`${eq.length} nearby`,color:maxMag>=5?'#ef4444':maxMag>=4?'#f97316':'#eab308',target:'hz-earthquakes'})}
+  if(vol===null)items.push({icon:'🔄',label:'Volcanoes',status:'Loading...',color:'#666',target:'hz-volcanoes'});
+  else if(vol.length===0)items.push({icon:'✅',label:'Volcanoes',status:'Clear',color:'#22c55e',target:'hz-volcanoes'});
+  else items.push({icon:'🌋',label:'Volcanoes',status:`${vol.length} active`,color:'#ef4444',target:'hz-volcanoes'});
   if(isUS){
-    if(!fl||fl.length===0)items.push({icon:'✅',label:'Flooding',status:'Clear',color:'#22c55e'});
-    else items.push({icon:'🔴',label:'Flooding',status:`${fl.length} alert${fl.length>1?'s':''}`,color:'#ef4444'});
+    if(!fl||fl.length===0)items.push({icon:'✅',label:'Flooding',status:'Clear',color:'#22c55e',target:'hz-flooding'});
+    else items.push({icon:'🔴',label:'Flooding',status:`${fl.length} alert${fl.length>1?'s':''}`,color:'#ef4444',target:'hz-flooding'});
   }
-  if(wf===null)items.push({icon:'🔄',label:'Wildfires',status:'Loading...',color:'#666'});
-  else if(wf&&wf.error)items.push({icon:'⚠️',label:'Wildfires',status:'Data unavailable',color:'#888'});
-  else if(!wf||wf.length===0)items.push({icon:'✅',label:'Wildfires',status:'Clear',color:'#22c55e'});
-  else items.push({icon:'🔥',label:'Wildfires',status:`${wf.length} active`,color:'#ff6600'});
+  if(wf===null)items.push({icon:'🔄',label:'Wildfires',status:'Loading...',color:'#666',target:'hz-wildfires'});
+  else if(wf&&wf.error)items.push({icon:'⚠️',label:'Wildfires',status:'Data unavailable',color:'#888',target:'hz-wildfires'});
+  else if(!wf||wf.length===0)items.push({icon:'✅',label:'Wildfires',status:'Clear',color:'#22c55e',target:'hz-wildfires'});
+  else items.push({icon:'🔥',label:'Wildfires',status:`${wf.length} active`,color:'#ff6600',target:'hz-wildfires'});
   if(isUS){
     const droughtStatus=_getDroughtStatus(dr);
+    droughtStatus.target='hz-drought';
     items.push(droughtStatus);
     const spcW=_spcData.watches;
     const hookCount=(S.storms||[]).filter(s=>s._hookEcho).length;
-    if(!spcW)items.push({icon:'🔄',label:'Severe Wx',status:'Loading...',color:'#666'});
+    if(!spcW)items.push({icon:'🔄',label:'Severe Wx',status:'Loading...',color:'#666',target:'hz-severe-wx'});
     else{
       const localWatches=spcW.filter(w=>_isPointInSpcWatch(S.lat,S.lon,w));
       const localTor=localWatches.filter(w=>w.type==='tornado').length;
       const localSvr=localWatches.filter(w=>w.type!=='tornado').length;
       if(!localWatches.length&&!hookCount){
         if(spcW.length){
-          items.push({icon:'🟢',label:'Severe Wx',status:`Clear (${spcW.length} US)`,color:'#22c55e'});
+          items.push({icon:'🟢',label:'Severe Wx',status:`Clear (${spcW.length} US)`,color:'#22c55e',target:'hz-severe-wx'});
         }else{
-          items.push({icon:'✅',label:'Severe Wx',status:'Clear',color:'#22c55e'});
+          items.push({icon:'✅',label:'Severe Wx',status:'Clear',color:'#22c55e',target:'hz-severe-wx'});
         }
       }else{
         const parts=[];
         if(localTor)parts.push(`TOR Watch`);if(localSvr)parts.push(`SVR Watch`);if(hookCount)parts.push(`${hookCount} rotation`);
         const topColor=localTor||hookCount?'#ff1744':localSvr?'#ff9800':'#eab308';
-        items.push({icon:localTor||hookCount?'🌪️':'⛈️',label:'Severe Wx',status:parts.join(' · '),color:topColor});
+        items.push({icon:localTor||hookCount?'🌪️':'⛈️',label:'Severe Wx',status:parts.join(' · '),color:topColor,target:'hz-severe-wx'});
       }
     }
   }
   const nhc=_getFilteredSystems();
-  if(nhc===null)items.push({icon:'🔄',label:'Tropical',status:'Loading...',color:'#666'});
-  else if(!nhc.length)items.push({icon:'✅',label:'Tropical',status:S._nhcRegionFilter!=='all'?'Clear (filtered)':'Clear',color:'#22c55e'});
+  if(nhc===null)items.push({icon:'🔄',label:'Tropical',status:'Loading...',color:'#666',target:'hz-tropical'});
+  else if(!nhc.length)items.push({icon:'✅',label:'Tropical',status:S._nhcRegionFilter!=='all'?'Clear (filtered)':'Clear',color:'#22c55e',target:'hz-tropical'});
   else{
     const inCone=nhc.filter(s=>s._inCone).length;
     const hasWarning=nhc.some(s=>s._tropAlerts&&s._tropAlerts.warnings.some(w=>w.inZone));
@@ -619,12 +648,12 @@ function _renderHazardSummary(){
     else if(inCone){statusText=`${inCone} IN CONE`;topColor='#ff9800';icon='🟠'}
     else if(nearCount){statusText=`Tracking · ${nearCount} near`;topColor=maxCat>=3?'#ff5722':maxCat>=1?'#ffc107':'#4fc3f7';icon='🌀'}
     else{statusText=`${nhc.length} active`;topColor='#4fc3f7';icon='🌀'}
-    items.push({icon,label:'Tropical',status:statusText,color:topColor});
+    items.push({icon,label:'Tropical',status:statusText,color:topColor,target:'hz-tropical'});
   }
   const cols=items.length<=3?'1fr 1fr 1fr':'1fr 1fr';
   let html=`<div style="display:grid;grid-template-columns:${cols};gap:6px;margin-bottom:12px">`;
   items.forEach(it=>{
-    html+=`<div style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px">
+    html+=`<div onclick="${it.target?`scrollToHazardSection('${it.target}')`:''}" style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px${it.target?';cursor:pointer':''}">
       <span style="font-size:1em">${it.icon}</span>
       <div><div style="font-size:0.7em;font-weight:600;color:var(--text-primary)">${it.label}</div>
       <div style="font-size:0.6em;color:${it.color};font-weight:600">${it.status}</div></div>
@@ -649,7 +678,7 @@ function _getDroughtStatus(dr){
 function _renderEarthquakeSection(){
   const eq=_hazardData.earthquakes;
   const radius=getEqRadius();
-  let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+  let html=`<details id="hz-earthquakes" style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
     <span>🌍 Earthquakes (within ${radius} mi)</span>
     <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
   </summary><div style="padding:4px 0">`;
@@ -674,7 +703,7 @@ function _renderEarthquakeSection(){
 
 function _renderVolcanoSection(){
   const vol=_hazardData.volcanoes;
-  let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+  let html=`<details id="hz-volcanoes" style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
     <span>🌋 Volcanic Activity</span>
     <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
   </summary><div style="padding:4px 0">`;
@@ -703,7 +732,7 @@ function _renderPrecipOnlySection(){
   const pctNum=parseFloat(precip.pctNormal)||0;
   const pctColor=pctNum<50?'#ef4444':pctNum<80?'#f97316':pctNum>150?'#3b82f6':pctNum>120?'#06b6d4':'#22c55e';
   const pctLabel=pctNum<50?'Severe deficit':pctNum<80?'Below normal':pctNum>150?'Well above normal':pctNum>120?'Above normal':'Normal';
-  return `<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+  return `<details id="hz-drought" style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
     <span>🌧️ Precipitation</span>
     <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
   </summary><div style="padding:4px 0">
@@ -719,7 +748,7 @@ function _renderPrecipOnlySection(){
 function _renderFloodSection(){
   const fl=_hazardData.floods||[];
   const gauges=_hazardData.riverGauges||[];
-  let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+  let html=`<details id="hz-flooding" style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
     <span>🌊 Flood Monitoring</span>
     <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
   </summary><div style="padding:4px 0">`;
@@ -761,7 +790,7 @@ function _renderFloodSection(){
 function _renderWildfireSection(){
   const wf=_hazardData.wildfires||[];
   const fireAlerts=_hazardData.fireAlerts||[];
-  let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+  let html=`<details id="hz-wildfires" style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
     <span>🔥 Wildfire Activity</span>
     <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
   </summary><div style="padding:4px 0">`;
@@ -814,7 +843,7 @@ function _renderDroughtSection(){
   const dr=_hazardData.drought;
   const precip=_hazardData.recentPrecip;
   const isUS=isUSLocation(S.lat,S.lon);
-  let html=`<details style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
+  let html=`<details id="hz-drought" style="margin-bottom:8px"><summary style="font-size:0.78em;font-weight:600;color:var(--accent-cyan);cursor:pointer;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px;user-select:none">
     <span>☀️ Drought Monitor</span>
     <span style="margin-left:auto;font-size:0.85em;color:var(--text-muted)">▸</span>
   </summary><div style="padding:4px 0">`;
