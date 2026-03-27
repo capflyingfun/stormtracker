@@ -248,7 +248,8 @@ function renderAlerts(){
     rainHist.slice(0,20).forEach(h=>{
       const d=new Date(h.time);
       const tStr=fmtClock(d)+' · '+d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
-      rainBody+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em"><div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span>🌧️</span><span style="font-weight:600;color:var(--text-primary)">${h.approaching>0?h.approaching+' approaching':'Nearby'}</span><span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span></div><div style="color:var(--text-secondary);font-size:0.9em">${escHtml(h.msg).replace('🌧️ ','')}</div></div>`;
+      const rLabel=h.overhead>0?'Overhead':(h.approaching>0?h.approaching+' approaching':'Nearby');
+      rainBody+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em"><div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span>🌧️</span><span style="font-weight:600;color:var(--text-primary)">${rLabel}</span><span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span></div><div style="color:var(--text-secondary);font-size:0.9em">${escHtml(h.msg).replace('🌧️ ','')}</div></div>`;
     });
   }
   const rainClear=rainHist.length?'<button onclick="event.stopPropagation();clearRainAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':'';
