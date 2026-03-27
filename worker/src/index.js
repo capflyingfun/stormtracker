@@ -1,3 +1,5 @@
+import { connect } from 'cloudflare:sockets';
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
@@ -299,24 +301,63 @@ function buildSmtpPayload(from, to, subject, body) {
   return lines.join('\r\n');
 }
 
+async function smtpReadLine(reader) {
+  let line = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    line += new TextDecoder().decode(value);
+    if (line.includes('\r\n')) break;
+  }
+  return line.trim();
+}
+
+async function smtpSend(writer, cmd) {
+  await writer.write(new TextEncoder().encode(cmd + '\r\n'));
+}
+
 async function sendViaGmail(env, to, subject, html) {
   if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) return { ok: false, error: 'Gmail credentials not configured' };
-  const raw = buildSmtpPayload(env.GMAIL_USER, to, subject, html);
-  const b64 = btoa(unescape(encodeURIComponent(raw))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   try {
-    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + btoa(env.GMAIL_USER + ':' + env.GMAIL_APP_PASSWORD),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ raw: b64 }),
-    });
-    if (res.ok) return { ok: true };
-    const txt = await res.text();
-    return { ok: false, error: `Gmail API ${res.status}: ${txt.substring(0, 200)}` };
+    const socket = connect('smtp.gmail.com:465', { secureTransport: 'on' });
+    const reader = socket.readable.getReader();
+    const writer = socket.writable.getWriter();
+
+    let resp = await smtpReadLine(reader);
+    if (!resp.startsWith('220')) return { ok: false, error: 'SMTP connect failed: ' + resp };
+
+    await smtpSend(writer, 'EHLO stormtracker');
+    resp = await smtpReadLine(reader);
+
+    await smtpSend(writer, 'AUTH LOGIN');
+    resp = await smtpReadLine(reader);
+
+    await smtpSend(writer, btoa(env.GMAIL_USER));
+    resp = await smtpReadLine(reader);
+
+    await smtpSend(writer, btoa(env.GMAIL_APP_PASSWORD));
+    resp = await smtpReadLine(reader);
+    if (!resp.startsWith('235')) return { ok: false, error: 'SMTP auth failed: ' + resp };
+
+    await smtpSend(writer, `MAIL FROM:<${env.GMAIL_USER}>`);
+    resp = await smtpReadLine(reader);
+
+    await smtpSend(writer, `RCPT TO:<${to}>`);
+    resp = await smtpReadLine(reader);
+
+    await smtpSend(writer, 'DATA');
+    resp = await smtpReadLine(reader);
+
+    const msg = buildSmtpPayload(env.GMAIL_USER, to, subject, html);
+    await writer.write(new TextEncoder().encode(msg + '\r\n.\r\n'));
+    resp = await smtpReadLine(reader);
+    const ok = resp.startsWith('250');
+
+    await smtpSend(writer, 'QUIT');
+    try { reader.releaseLock(); writer.releaseLock(); socket.close(); } catch {}
+    return ok ? { ok: true } : { ok: false, error: 'SMTP send failed: ' + resp };
   } catch (e) {
-    return { ok: false, error: e.message };
+    return { ok: false, error: 'SMTP error: ' + e.message };
   }
 }
 
