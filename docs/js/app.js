@@ -5424,9 +5424,9 @@ function updateThreatTicker(){
   const maxDbz=Math.max(...allApproaching.map(a=>a.storm.dbz));
   const label=maxDbz>=30?'moderate rain':'light rain';
   const lightMsgs=[
-    `🌧️ ${allApproaching.length} ${label} cell${allApproaching.length>1?'s':''} heading your way from the ${fromDir} at ${spd} ${spdUnit}. Nearest ETA ⏱️${cdSpan} (~${arrStr}). Might want to grab an umbrella! ☂️`,
+    `🌧️ ${allApproaching.length} ${label} cell${allApproaching.length>1?'s':''} heading your way from the ${fromDir} at ${spd} ${spdUnit}. Strongest ETA ⏱️${cdSpan} (~${arrStr}). Might want to grab an umbrella! ☂️`,
     `🌦️ Light precipitation approaching — ${allApproaching.length} cell${allApproaching.length>1?'s':''} inbound (${maxDbz} dBZ max). ETA ⏱️${cdSpan} (~${arrStr}). Nothing severe, but stay dry! 💧`,
-    `☔ Heads up! ${allApproaching.length} rain area${allApproaching.length>1?'s':''} moving toward you (${maxDbz} dBZ). First arrival ⏱️${cdSpan} (~${arrStr}). Not dangerous, just wet. 🌂`
+    `☔ Heads up! ${allApproaching.length} rain area${allApproaching.length>1?'s':''} moving toward you (${maxDbz} dBZ). Top-threat ETA ⏱️${cdSpan} (~${arrStr}). Not dangerous, just wet. 🌂`
   ];
   const msg=lightMsgs[Math.floor(Date.now()/60000)%lightMsgs.length];
   showTicker(`<span style="color:#7dd3fc">${msg}</span>`,'#7dd3fc','rgba(125,211,252,0.2)','linear-gradient(90deg,rgba(0,8,25,0.95),rgba(5,15,35,0.95),rgba(0,8,25,0.95))');
