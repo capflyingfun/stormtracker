@@ -3144,8 +3144,8 @@ function _pickWindTarget(){
   return{spd,dir};
 }
 function _updateWindRange(){
-  const ws=_windBase.spd;
-  const wg=_windBase.gust||ws;
+  const ws=Number(_windBase.spd)||0;
+  const wg=Number(_windBase.gust)||ws;
   _windFloor=Math.max(0,ws*0.5);
   _windCeil=wg*1.1;
   if(_windCeil<=_windFloor)_windCeil=_windFloor+1;
