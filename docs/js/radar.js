@@ -1515,27 +1515,31 @@ function updateThreatTicker(){
     bar.style.background=bg;
   }
   if(S.alerts&&S.alerts.length){
-    const nwsMsgs=[];
-    for(const a of S.alerts){
-      const p=a.properties||a;
-      const ev=p.event||p.headline||'Weather Alert';
-      const sev=(p.severity||'').toLowerCase();
-      let expLabel='';
-      if(p.expires){
-        const exp=new Date(p.expires);
-        if(!isNaN(exp)){
-          const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-          expLabel=` — until ${days[exp.getDay()]} ${fmtClockShort(exp)}`;
+    const cycleMin=Math.floor(Date.now()/60000);
+    const alertPhase=(cycleMin%3)!==2;
+    if(alertPhase){
+      const nwsMsgs=[];
+      for(const a of S.alerts){
+        const p=a.properties||a;
+        const ev=p.event||p.headline||'Weather Alert';
+        const sev=(p.severity||'').toLowerCase();
+        let expLabel='';
+        if(p.expires){
+          const exp=new Date(p.expires);
+          if(!isNaN(exp)){
+            const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            expLabel=` — until ${days[exp.getDay()]} ${fmtClockShort(exp)}`;
+          }
         }
+        const sevIcon=sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
+        nwsMsgs.push(`${sevIcon} NWS: ${escHtml(ev)} in effect${expLabel}`);
       }
-      const sevIcon=sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵';
-      nwsMsgs.push(`${sevIcon} NWS: ${escHtml(ev)} in effect${expLabel}`);
-    }
-    if(nwsMsgs.length){
-      const sep='<span style="color:#664400;margin:0 40px">│</span>';
-      const html=nwsMsgs.map(m=>`<span style="color:#fbbf24">${m}</span>`).join(sep);
-      showTicker(html,'#fbbf24','rgba(251,191,36,0.3)','linear-gradient(90deg,rgba(30,20,0,0.95),rgba(45,30,5,0.95),rgba(30,20,0,0.95))');
-      return;
+      if(nwsMsgs.length){
+        const sep='<span style="color:#664400;margin:0 40px">│</span>';
+        const html=nwsMsgs.map(m=>`<span style="color:#fbbf24">${m}</span>`).join(sep);
+        showTicker(html,'#fbbf24','rgba(251,191,36,0.3)','linear-gradient(90deg,rgba(30,20,0,0.95),rgba(45,30,5,0.95),rgba(30,20,0,0.95))');
+        return;
+      }
     }
   }
   const alertMinDbz=31;
