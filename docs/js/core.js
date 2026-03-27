@@ -1265,7 +1265,7 @@ function getWeatherIcon(cond,sz,forcePack){
       const vidSrc=`icons/${pack}/${best}.mp4`;
       const fallbackSrc=`icons/globe/${best}.png`;
       const sizeStyle=hasCssUnit?`width:${cssSize};height:${cssSize}`:`width:${numSize}px;height:${numSize}px`;
-      return`<video autoplay muted playsinline style="${sizeStyle};display:inline-block;vertical-align:middle;object-fit:cover;border-radius:50%" src="${vidSrc}" poster="${fallbackSrc}" onloadedmetadata="_initPingPong(this)" ontimeupdate="_ppUpdate(this)" onerror="this.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${sizeStyle};display:inline-block;vertical-align:middle&quot; alt=&quot;${cond}&quot;>'"></video>`;
+      return`<video autoplay muted playsinline style="${sizeStyle};display:inline-block;vertical-align:middle;object-fit:cover;border-radius:50%" src="${vidSrc}" poster="${fallbackSrc}" onloadedmetadata="_initPingPong(this)" ontimeupdate="_ppUpdate(this)" onended="_ppUpdate(this)" onerror="this.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${sizeStyle};display:inline-block;vertical-align:middle&quot; alt=&quot;${cond}&quot;>'"></video>`;
     }
     return getWeatherIcon(cond,sz,'globe');
   }
