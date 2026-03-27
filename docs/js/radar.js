@@ -841,6 +841,8 @@ function clearStormCone(){
 }
 function flyToStormAlert(lat,lng){
   if(lat==null||lng==null)return;
+  const dist=haversine(S.lat,S.lon,lat,lng);
+  if(dist>100){toast('Storm alert location is too far from current position');return;}
   switchPage('radar');
   setTimeout(()=>{
     if(!S.map)return;

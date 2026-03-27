@@ -164,7 +164,7 @@ function renderAlerts(){
           const sDv=S.radarMetric?(hDist*1.60934).toFixed(1)+' km':hDist.toFixed(1)+' mi';
           sDistLive=`<span style="font-size:0.8em;color:#60a5fa;font-weight:600;margin-left:4px">📏${sDv}</span>`;
         }
-        const hasLoc=h.lat!=null;
+        const hasLoc=h.lat!=null&&(Date.now()-(h.time||0)<1800000);
         const rowClick=hasLoc?`onclick="flyToStormAlert(${h.lat},${h.lng})" style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em;cursor:pointer"`:`style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em"`;
         scBody+=`<div ${rowClick}>
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
@@ -185,9 +185,9 @@ function renderAlerts(){
         const peakTier=items.reduce((t,h)=>{const ord={high:3,medium:2,low:1,none:0};return(ord[h.impactTier]||0)>(ord[t]||0)?h.impactTier:t},'none');
         const tierColors={high:'#eab308',medium:'#06b6d4',low:'#ec4899',none:'#22c55e'};
         const tc=tierColors[peakTier]||'#666';
-        const best=items[0];
+        const best=items.reduce((a,b)=>(b.time||0)>(a.time||0)?b:a,items[0]);
         const distU=S.radarMetric?'km':'mi';
-        const hasLoc=best.lat!=null;
+        const hasLoc=best.lat!=null&&(Date.now()-(best.time||0)<1800000);
         let grpEtaHtml='';
         const bestEta=items.filter(h=>h.arrivalMs&&h.arrivalMs>Date.now()).sort((a,b)=>a.arrivalMs-b.arrivalMs)[0];
         if(bestEta){

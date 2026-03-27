@@ -2630,14 +2630,34 @@ function checkRainAlert(){
   const cooldownMs=(cfg.cooldownMin||30)*60000;
   if(now-_rainAlertCooldown<cooldownMs)return;
   const minDbz=_RAIN_SENSITIVITY[cfg.sensitivity]||30;
+  const mv=S.stormMovement;
+  const hasMovement=mv&&mv.speed>=2;
+  const movDir=hasMovement?mv.direction:0;
+  const RAIN_MAX_DIST=15;
   const approaching=[];
   const nearby=[];
   for(const storm of S.storms){
     if(storm.dbz<minDbz)continue;
-    const eta=calcStormETA(storm);
-    if(eta&&eta.approaching&&eta.eta!=null&&eta.eta>0){
-      approaching.push({storm,eta});
-    }else if(storm.distance<=30){
+    if(storm.distance>RAIN_MAX_DIST)continue;
+    if(hasMovement){
+      const bearingToUser=(storm.bearing+180)%360;
+      const diff=Math.abs(((movDir-bearingToUser+180)%360)-180);
+      const cellTrack=typeof getCellTrack==='function'?getCellTrack(storm):null;
+      const cDir=cellTrack?cellTrack.dir:movDir;
+      const cDiff=Math.abs(((cDir-bearingToUser+180)%360)-180);
+      const useDiff=Math.min(diff,cDiff);
+      if(useDiff<=45){
+        const closingSpeed=(cellTrack?cellTrack.speed:mv.speed)*Math.cos(useDiff*Math.PI/180);
+        if(closingSpeed>2){
+          const etaMin=storm.distance/closingSpeed*60;
+          approaching.push({storm,etaMin,closingSpeed});
+        }else{
+          nearby.push(storm);
+        }
+      }else{
+        nearby.push(storm);
+      }
+    }else{
       nearby.push(storm);
     }
   }
@@ -2646,17 +2666,17 @@ function checkRainAlert(){
   try{localStorage.setItem('st_rainAlertCooldown',String(now))}catch(e){}
   let msg;
   if(approaching.length>0){
-    approaching.sort((a,b)=>a.eta.eta-b.eta.eta);
+    approaching.sort((a,b)=>a.etaMin-b.etaMin);
     const top=approaching[0];
     const distStr=S.radarMetric?parseFloat((top.storm.distance*1.60934).toFixed(1))+' km':parseFloat(top.storm.distance.toFixed(1))+' mi';
-    const etaMin=Math.ceil(top.eta.eta);
-    const arrStr=fmtClockShort(new Date(now+top.eta.eta*60000));
-    const dir=degToDir((top.storm.bearing+180)%360);
+    const etaMin=Math.ceil(top.etaMin);
+    const arrStr=fmtClockShort(new Date(now+top.etaMin*60000));
+    const fromDir=degToDir((movDir+180)%360);
     const intensity=top.storm.dbz>=45?'Heavy':top.storm.dbz>=30?'Moderate':'Light';
     if(approaching.length===1){
-      msg=`🌧️ ${intensity} rain approaching from the ${dir} — ${distStr} away, ETA ~${etaMin} min (${arrStr})`;
+      msg=`🌧️ ${intensity} rain heading your way from the ${fromDir} — ${distStr} away, ETA ~${etaMin} min (${arrStr})`;
     }else{
-      msg=`🌧️ ${approaching.length} rain cells approaching — closest from ${dir} at ${distStr}, ETA ~${etaMin} min (${arrStr})`;
+      msg=`🌧️ ${approaching.length} rain cells heading your way from the ${fromDir} — closest ${distStr}, ETA ~${etaMin} min (${arrStr})`;
     }
   }else{
     const strongest=nearby.reduce((a,b)=>a.dbz>b.dbz?a:b);
