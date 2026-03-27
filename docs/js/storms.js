@@ -6,6 +6,16 @@
 function isUSLocation(lat,lon){
   return lat>=24&&lat<=50&&lon>=-125&&lon<=-66;
 }
+function isNWSCoverage(lat,lon){
+  if(lat>=24&&lat<=50&&lon>=-125&&lon<=-66)return true;
+  if(lat>=51&&lat<=72&&lon>=-180&&lon<=-129)return true;
+  if(lat>=18.5&&lat<=22.5&&lon>=-161&&lon<=-154)return true;
+  if(lat>=17.5&&lat<=18.7&&lon>=-67.5&&lon<=-65)return true;
+  if(lat>=17&&lat<=19&&lon>=-65.5&&lon<=-64)return true;
+  if(lat>=13&&lat<=14&&lon>=144&&lon<=145)return true;
+  if(lat>=-15&&lat<=-14&&lon>=-171&&lon<=-170)return true;
+  return false;
+}
 
 function loadTileImage(url){
   return new Promise((resolve)=>{

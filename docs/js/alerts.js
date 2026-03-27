@@ -3,7 +3,7 @@
 // ==========================================
 async function fetchAlerts(){
   const el=document.getElementById('page-alerts');showSkel(el,3);
-  if(!isUSLocation(S.lat,S.lon)){S.alerts=[];renderAlerts();return}
+  if(!isNWSCoverage(S.lat,S.lon)){S.alerts=[];renderAlerts();return}
   try{
     const res=await fetch(`https://api.weather.gov/alerts/active?point=${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{headers:{'User-Agent':'StormTracker/1.50'}});
     const data=await res.json();S.alerts=data.features||[];renderAlerts();if(_curLang!=='en')setTimeout(quickTranslate,300);
@@ -23,7 +23,7 @@ function updateAlertBadge(){
 }
 const _defaultAlertSecOrder=['nws','storms','station','hazards'];
 function _getAlertSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_alert_sec_order'));if(Array.isArray(o)&&o.length>=2){const filtered=o.filter(k=>_defaultAlertSecOrder.includes(k));_defaultAlertSecOrder.forEach(k=>{if(!filtered.includes(k))filtered.push(k)});return filtered}}catch(e){}return _defaultAlertSecOrder.slice()}
-function moveAlertSection(key,dir){const order=_getAlertSecOrder();const i=order.indexOf(key);if(i<0)return;const ni=i+dir;if(ni<0||ni>=order.length)return;[order[i],order[ni]]=[order[ni],order[i]];try{localStorage.setItem('st_alert_sec_order',JSON.stringify(order));localStorage.setItem('st_alert_manual_order','1')}catch(e){}renderAlerts()}
+function moveAlertSection(key,dir){const full=_getAlertSecOrder();const visible=full.filter(k=>k==='nws'?isNWSCoverage(S.lat,S.lon):true);const vi=visible.indexOf(key);if(vi<0)return;const vni=vi+dir;if(vni<0||vni>=visible.length)return;const fi=full.indexOf(visible[vi]),fni=full.indexOf(visible[vni]);[full[fi],full[fni]]=[full[fni],full[fi]];try{localStorage.setItem('st_alert_sec_order',JSON.stringify(full));localStorage.setItem('st_alert_manual_order','1')}catch(e){}renderAlerts()}
 function toggleAlertSection(key){const c=_getAlertCollapsed();if(c.includes(key))c.splice(c.indexOf(key),1);else c.push(key);try{localStorage.setItem('st_alert_collapsed',JSON.stringify(c))}catch(e){}renderAlerts()}
 function _getAlertCollapsed(){try{const c=JSON.parse(localStorage.getItem('st_alert_collapsed'));if(Array.isArray(c))return c}catch(e){}return[]}
 function _alertSecBtns(key){return`<div class="sec-btns" onclick="event.stopPropagation()"><button onclick="moveAlertSection('${key}',-1)" title="Move up">▲</button><button onclick="moveAlertSection('${key}',1)" title="Move down">▼</button></div>`}
@@ -62,14 +62,14 @@ function renderAlerts(){
   if(!S.lat){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📍</div><p>Set your location to check alerts.</p></div>`;return}
   _applyAlertAutoPriority();
   const coll=_getAlertCollapsed();
-  const _isUS=isUSLocation(S.lat,S.lon);
-  const order=_getAlertSecOrder().filter(k=>_isUS||k!=='nws');
+  const _isNWS=isNWSCoverage(S.lat,S.lon);
+  const order=_getAlertSecOrder().filter(k=>_isNWS||k!=='nws');
   const alerts=S.alerts||[];
   const now=Date.now();
   if(alerts.length){S.alerts=alerts.filter(a=>{const e=a.properties?.expires;return !e||new Date(e).getTime()>now});updateAlertBadge()}
   const sec={};
 
-  if(_isUS){ let nwsBody='';
+  if(_isNWS){ let nwsBody='';
   if(S.alerts&&S.alerts.length){
     const zoneAlerts=S.alerts.filter(a=>isUserInAlertZone(a));
     if(zoneAlerts.length)nwsBody+=`<div style="background:rgba(220,38,38,0.2);border:1px solid rgba(220,38,38,0.5);border-radius:8px;padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px;animation:pulse 2s infinite"><span style="font-size:1.2em">🔴</span><span style="font-size:0.8em;font-weight:700;color:#fca5a5">Your location is inside ${zoneAlerts.length} active alert zone${zoneAlerts.length>1?'s':''}: ${zoneAlerts.map(a=>escHtml(a.properties?.event||'Alert')).join(', ')}</span></div>`;
@@ -158,7 +158,7 @@ function renderAlerts(){
             ${etaHtml}${sDistLive}${hasLoc?'<span style="font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Tap to show on radar">📍</span>':''}
             <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
           </div>
-          <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🌩️ ','').replace(/ · ETA \d+[hm:][\d:hms]+\s*\([^)]+\)/,'')}</div>
+          <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🌩️ ','').replace(/ · ETA .+$/,'')}</div>
         </div>`;
       }else{
         const dbzMin=Math.min(...items.map(h=>h.val)),dbzMax=Math.max(...items.map(h=>h.val));
