@@ -2006,6 +2006,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.46',date:'2026-03-27',items:['🔮 Forecast-Aware Wind Bias — sim uses hourly forecast trend to shift target distribution','📉 Declining Winds — when forecast shows lower winds, gauge naturally drifts lower','📈 Rising Winds — when forecast shows higher winds, gauge favors higher targets','⚖️ Trend Blending — 30% blend factor keeps forecast influence subtle, not overpowering']},
   {ver:'v2.45',date:'2026-03-27',items:['🎯 Weighted Wind Distribution — sim needle favors actual wind speed with power-curve bias (exp 2.5)','📊 Probability Weighting — ±10% from WS ~80% of the time, ±50% ~20%, matching real wind behavior','💨 Gust Spikes — occasional excursions toward gust ceiling while mostly staying near reported speed','📐 Asymmetric Range — below-WS dips and above-WS gusts use separate scaling relative to floor/ceiling']},
   {ver:'v2.44',date:'2026-03-26',items:['💨 Wind Simulator Redesign — replaced complex fBm noise/gust/calm system with clean range-based model','📏 Floor & Ceiling — sim stays within WS−50% to WG+10% range, always bounded','🎯 Smooth Lerp — picks new Perlin target every 5s, smoothstep eases between values','🔄 Live Gust Sync — AWC refresh updates gust data for consistent range after live updates','🧹 Code Cleanup — removed fBm, gustEnvelope, gustEvents, calmState dead code (~100 lines)']},
   {ver:'v2.43',date:'2026-03-26',items:['🌍 Hurricane Region Filter — pill bar to filter storms by region (Gulf, Caribbean, Atlantic, E/W Pacific, Indian Ocean, S. Pacific)','🌏 JTWC Global Data — Western Pacific typhoons, Indian Ocean cyclones, and Southern Hemisphere systems via Joint Typhoon Warning Center','📍 Geographic Classification — storms classified by lat/lon into sub-regions (Gulf of Mexico vs open Atlantic, etc.)','🗺️ Map Filter Sync — hurricane track overlay respects region filter','💾 Persistent Filter — region preference saved in localStorage','📊 Hazard Summary Filter — tropical hazard tile and nearby alerts respect region filter']},
@@ -3143,7 +3144,13 @@ function _pickWindTarget(){
   const range=_windCeil-_windFloor;
   if(!Number.isFinite(range)||range<=0)return{spd:_windFloor||0,dir:_windBase.dir||0};
   const ws=Number(_windBase.spd)||0;
-  const center=Math.max(0.01,Math.min(0.99,(ws-_windFloor)/range));
+  let center=Math.max(0.01,Math.min(0.99,(ws-_windFloor)/range));
+  const fc=_getForecastWind();
+  if(fc&&Number.isFinite(fc.spd)&&ws>0){
+    const trendRatio=Math.max(-0.5,Math.min(0.5,(fc.spd-ws)/ws));
+    const shift=trendRatio*0.3;
+    center=Math.max(0.01,Math.min(0.99,center+shift));
+  }
   const d=u-center;
   const exp=2.5;
   let biased;
