@@ -282,15 +282,18 @@ async function toggleRadarAnim(map){
   const slider=document.getElementById('radar-anim-slider');
   slider.min=0;slider.max=animFrames.length-1;
   S._radarAnimIdx=0;
+  S._radarAnimDir=1;
   slider.value=0;
   showRadarAnimFrame(map,0);
   startRadarAnimLoop(map);
 }
 function startRadarAnimLoop(map){
   clearInterval(S._radarAnimTimer);
+  if(!S._radarAnimDir) S._radarAnimDir=1;
   S._radarAnimTimer=setInterval(()=>{
-    S._radarAnimIdx++;
-    if(S._radarAnimIdx>=S._radarAnimFrames.length) S._radarAnimIdx=0;
+    S._radarAnimIdx+=S._radarAnimDir;
+    if(S._radarAnimIdx>=S._radarAnimFrames.length-1){S._radarAnimIdx=S._radarAnimFrames.length-1;S._radarAnimDir=-1;}
+    else if(S._radarAnimIdx<=0){S._radarAnimIdx=0;S._radarAnimDir=1;}
     document.getElementById('radar-anim-slider').value=S._radarAnimIdx;
     showRadarAnimFrame(map,S._radarAnimIdx);
   },700);
@@ -298,6 +301,7 @@ function startRadarAnimLoop(map){
 function stopRadarAnim(map){
   S._radarAnimPlaying=false;
   S._radarAnimPaused=false;
+  S._radarAnimDir=1;
   clearInterval(S._radarAnimTimer);
   S._radarAnimFrames=[];
   const btn=document.getElementById('radar-anim-btn');
