@@ -270,6 +270,15 @@ function _led7(num,color,sz,dec){
   });
   return{svg,width:xOff};
 }
+function _getSimInterval(){const v=parseInt(localStorage.getItem('st_windSimInterval'),10);return(v>=5&&v<=30)?v*1000:5000;}
+function _getGustWindow(){const v=parseInt(localStorage.getItem('st_gustWindow'),10);return[30,60,120,300].includes(v)?v*1000:30000;}
+function _getAvgWindow(){const v=parseInt(localStorage.getItem('st_avgWindow'),10);return[10,30,60,120].includes(v)?v*1000:10000;}
+function _fmtWindowLabel(ms){if(ms>=120000)return(ms/60000)+'m';if(ms>=60000)return'1m';return(ms/1000)+'s';}
+function _trendArrowHtml(){
+  if(Math.abs(_windTrend)<0.05)return'<span style="color:#94a3b8;font-size:0.6em;margin-left:2px">→</span>';
+  if(_windTrend>=0.05)return'<span style="color:#22c55e;font-size:0.6em;margin-left:2px">↑</span>';
+  return'<span style="color:#ef4444;font-size:0.6em;margin-left:2px">↓</span>';
+}
 function renderGaugeNeon(d){
   const{windSpd,wd,windDisp,gustDisp,gustRaw,windNum,windUnit,gustStr,bf,simActive}=d;
   const cx=50,cy=50,r=42,ri=36;
@@ -338,7 +347,7 @@ function renderGaugeNeon(d){
     <svg viewBox="-12 -12 124 124">${g}</svg>
     <div class="wind-rose-labels"><span class="wr-n">N</span><span class="wr-s">S</span><span class="wr-e">E</span><span class="wr-w">W</span></div>
     <div class="wind-rose-center">
-      <div class="wrc-speed"><span class="wrc-num">${windNum}</span><span class="wrc-unit">${windUnit}</span></div>
+      <div class="wrc-speed"><span class="wrc-num">${windNum}</span><span class="wrc-unit">${windUnit}</span><span class="wrc-trend">${_trendArrowHtml()}</span></div>
       <div class="wrc-dir">${dirStr}</div>
       ${gustStr?`<div class="wrc-gust">${gustStr}</div>`:''}
       <div class="wrc-avg"></div>
@@ -385,6 +394,9 @@ function renderGaugeMarine(d){
   const spdLed=_led7(parseFloat(windNum),'#ff2222',18);
   svg+=`<g transform="translate(${cx-spdLed.width/2},${cy-30})">${spdLed.svg}</g>`;
   svg+=`<text x="${cx+spdLed.width/2+4}" y="${cy-18}" fill="#cc3333" font-size="5" text-anchor="start" font-family="monospace">${windUnit}</text>`;
+  const _mtClr=Math.abs(_windTrend)<0.05?'#888':_windTrend>=0.05?'#22c55e':'#ff4444';
+  const _mtSym=Math.abs(_windTrend)<0.05?'→':_windTrend>=0.05?'↑':'↓';
+  svg+=`<text x="${cx+spdLed.width/2+4}" y="${cy-24}" fill="${_mtClr}" font-size="7" font-weight="700" text-anchor="start" font-family="monospace">${_mtSym}</text>`;
   svg+=`<text x="${cx}" y="${cy+2}" fill="#888" font-size="6" font-weight="600" text-anchor="middle" font-family="monospace">WIND FORCE</text>`;
   const bfBarW=120,bfBarX=cx-bfBarW/2,bfBarY=cy+5;
   for(let i=1;i<=12;i++){
@@ -456,7 +468,7 @@ function renderGaugeMinimal(d){
   return`<div class="wind-rose gauge-minimal" data-gauge="minimal" style="cursor:pointer;width:200px;height:200px;flex-shrink:0;position:relative">
     <svg viewBox="-8 -8 116 116" style="width:100%;height:100%">${svg}</svg>
     <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
-      <div style="font-size:1.6em;font-weight:800;color:#e2e8f0;line-height:1" class="wrc-num">${windNum}</div>
+      <div style="font-size:1.6em;font-weight:800;color:#e2e8f0;line-height:1"><span class="wrc-num">${windNum}</span>${_trendArrowHtml()}</div>
       <div style="font-size:0.55em;font-weight:600;color:#94a3b8;margin-top:1px" class="wrc-unit">${windUnit}</div>
       <div style="font-size:0.5em;color:#94a3b8;margin-top:2px" class="wrc-dir">${dirStr}</div>
       <div style="font-size:0.45em;color:#ef4444;margin-top:1px" class="wrc-gust">${gustStr||''}</div>
@@ -532,6 +544,9 @@ function renderGaugeG1000(d){
   }
   svg+=`<polygon points="${tapeW},${(tapeCenter-7).toFixed(1)} ${tapeW+13},${(tapeCenter-7).toFixed(1)} ${tapeW+17},${tapeCenter.toFixed(1)} ${tapeW+13},${(tapeCenter+7).toFixed(1)} ${tapeW},${(tapeCenter+7).toFixed(1)}" fill="#111" stroke="${green}" stroke-width="1"/>`;
   svg+=`<text x="${tapeW+8}" y="${tapeCenter.toFixed(1)}" fill="${green}" font-size="8" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${parseFloat(windNum).toFixed(0)}</text>`;
+  const _gtClr=Math.abs(_windTrend)<0.05?'#5a6070':_windTrend>=0.05?'#22c55e':'#ff4444';
+  const _gtSym=Math.abs(_windTrend)<0.05?'→':_windTrend>=0.05?'↑':'↓';
+  svg+=`<text x="${tapeW+8}" y="${(tapeCenter-12).toFixed(1)}" fill="${_gtClr}" font-size="7" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace">${_gtSym}</text>`;
   svg+=`<text x="${tapeW/2+1}" y="${tapeTop+8}" fill="${cyan}" font-size="5" font-weight="600" text-anchor="middle" font-family="monospace">${windUnit.toUpperCase()}</text>`;
   svg+=`<rect x="${W-tapeW-1}" y="${tapeTop}" width="${tapeW}" height="${tapeH}" fill="#0c0e14" stroke="#2a2e38" stroke-width="0.5"/>`;
   const pMax=S.presUnit===0?31.5:1060;const pMin=S.presUnit===0?28.5:960;
@@ -674,7 +689,10 @@ function renderGaugeSpeedo(d){
   svg+=`<circle cx="${nx.toFixed(1)}" cy="${ny.toFixed(1)}" r="1.5" fill="#ff6666"/>`;
   svg+=`<circle cx="${cx}" cy="${cy}" r="5" fill="#333" stroke="#888" stroke-width="1"/>`;
   svg+=`<circle cx="${cx}" cy="${cy}" r="2.5" fill="#ff3333"/>`;
+  const _stClr=Math.abs(_windTrend)<0.05?'#888':_windTrend>=0.05?'#22c55e':'#ff4444';
+  const _stSym=Math.abs(_windTrend)<0.05?'→':_windTrend>=0.05?'↑':'↓';
   svg+=`<text x="${cx}" y="${cy-22}" fill="#00ddff" font-size="6" font-weight="600" text-anchor="middle" font-family="sans-serif">${windUnit.toUpperCase()}</text>`;
+  svg+=`<text x="${cx+20}" y="${cy-22}" fill="${_stClr}" font-size="7" font-weight="700" text-anchor="start" font-family="sans-serif">${_stSym}</text>`;
   svg+=`<rect x="${cx-30}" y="${cy+12}" width="60" height="16" rx="3" fill="#0a0a15" stroke="#444" stroke-width="0.8"/>`;
   svg+=`<text x="${cx}" y="${cy+21}" fill="#00ff00" font-size="7.5" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="monospace" class="wrc-dir">${degToDir(dirDeg)} ${dirDeg.toFixed(0)}°</text>`;
   const bfClr=_BFT_CLR[bf];
@@ -768,7 +786,7 @@ function updateGaugeSegments(windVal,gustVal){
   if(!g)return;
   const now=Date.now();
   _gaugeAvgSamples.push({t:now,v:windVal});
-  while(_gaugeAvgSamples.length&&now-_gaugeAvgSamples[0].t>10000)_gaugeAvgSamples.shift();
+  while(_gaugeAvgSamples.length&&now-_gaugeAvgSamples[0].t>_getAvgWindow())_gaugeAvgSamples.shift();
   if(_gaugeAvgSamples.length>0){
     _gaugePrevAvg=_gaugeAvg;
     _gaugeAvg=_gaugeAvgSamples.reduce((s,p)=>s+p.v,0)/_gaugeAvgSamples.length;
@@ -823,24 +841,9 @@ function updateGaugeSegments(windVal,gustVal){
     tickG.innerHTML=tickHtml;
   }
   const avgEl=document.querySelector('.wrc-avg');
-  if(avgEl)avgEl.textContent='A'+avgDisp.toFixed(1)+' '+WIND_UNITS[S.windUnit];
+  if(avgEl)avgEl.textContent='A'+avgDisp.toFixed(1)+' '+WIND_UNITS[S.windUnit]+' ('+_fmtWindowLabel(_getAvgWindow())+')';
   const trendEl=document.querySelector('.wrc-trend');
-  if(trendEl)trendEl.innerHTML='';
-  if(false&&trendEl&&_gaugeAvgHistory.length>=3){
-    const span=(now-_gaugeAvgHistory[0].t)/1000;
-    if(span>=0.5){
-      const first=_gaugeAvgHistory[0].v;
-      const last=_gaugeAvgHistory[_gaugeAvgHistory.length-1].v;
-      const rate=(last-first)/span;
-      if(Math.abs(rate)>0.05){
-        const isUp=rate>0;
-        const absR=Math.abs(rate).toFixed(1);
-        trendEl.innerHTML=(isUp?'<span style="color:#FF0000">⤴ +'+absR+'</span>':'<span style="color:#00FF00">⤵ -'+absR+'</span>');
-      }else{
-        trendEl.innerHTML='<span style="color:rgba(0,220,255,0.6)">— 0.0</span>';
-      }
-    }
-  }
+  if(trendEl)trendEl.innerHTML=_trendArrowHtml();
 }
 function windSweepAnim(){
   if(_windSweepRaf){cancelAnimationFrame(_windSweepRaf);_windSweepRaf=null}
@@ -850,7 +853,7 @@ function windSweepAnim(){
   const numEl=document.querySelector('.wrc-num');
   const gustEl=document.querySelector('.wrc-gust');
   if(numEl)numEl.textContent=kmhTo(targetSpd,S.windUnit);
-  if(gustEl)gustEl.textContent=targetGust>0?'G'+fmtWind(targetGust):'';
+  if(gustEl)gustEl.textContent=targetGust>0?'G'+fmtWind(targetGust)+' ('+_fmtWindowLabel(_getGustWindow())+')':'';
   updateGaugeSegments(parseFloat(kmhTo(targetSpd,S.windUnit)),parseFloat(kmhTo(targetGust,S.windUnit)));
   _windSweepRaf=null;
   _windSweepPaused=false;
@@ -2006,6 +2009,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.47',date:'2026-03-27',items:['📈 Wind Trend Arrow — forecast-based ↑↓→ arrow next to speed on all gauge styles (green=rising, red=declining, grey=steady)','⚙️ Sim Speed Setting — choose target pick interval (5s-30s) for lively or calm gauge needle','💨 Configurable Gust Window — 30s/1m/2m/5m rolling peak window with time label','📊 Configurable Avg Window — 10s/30s/1m/2m rolling average with time label','🏷️ Window Labels — gust and avg displays now show their timeframe (e.g. G13.0 (1m))']},
   {ver:'v2.46',date:'2026-03-27',items:['🔮 Forecast-Aware Wind Bias — sim uses hourly forecast trend to shift target distribution','📉 Declining Winds — when forecast shows lower winds, gauge naturally drifts lower','📈 Rising Winds — when forecast shows higher winds, gauge favors higher targets','⚖️ Trend Blending — 30% blend factor keeps forecast influence subtle, not overpowering']},
   {ver:'v2.45',date:'2026-03-27',items:['🎯 Weighted Wind Distribution — sim needle favors actual wind speed with power-curve bias (exp 2.5)','📊 Probability Weighting — ±10% from WS ~80% of the time, ±50% ~20%, matching real wind behavior','💨 Gust Spikes — occasional excursions toward gust ceiling while mostly staying near reported speed','📐 Asymmetric Range — below-WS dips and above-WS gusts use separate scaling relative to floor/ceiling']},
   {ver:'v2.44',date:'2026-03-26',items:['💨 Wind Simulator Redesign — replaced complex fBm noise/gust/calm system with clean range-based model','📏 Floor & Ceiling — sim stays within WS−50% to WG+10% range, always bounded','🎯 Smooth Lerp — picks new Perlin target every 5s, smoothstep eases between values','🔄 Live Gust Sync — AWC refresh updates gust data for consistent range after live updates','🧹 Code Cleanup — removed fBm, gustEnvelope, gustEvents, calmState dead code (~100 lines)']},
@@ -2166,6 +2170,41 @@ function syncSettingsPanel(){
   if(stormAlertEl)stormAlertEl.innerHTML=renderStormCellAlertSettings();
   const eqSel=document.getElementById('settings-eq-radius');
   if(eqSel)eqSel.value=String(getEqRadius());
+  const simIntSel=document.getElementById('settings-sim-interval');
+  if(simIntSel)simIntSel.value=String(_getSimInterval()/1000);
+  const gustWSel=document.getElementById('settings-gust-window');
+  if(gustWSel)gustWSel.value=String(_getGustWindow()/1000);
+  const avgWSel=document.getElementById('settings-avg-window');
+  if(avgWSel)avgWSel.value=String(_getAvgWindow()/1000);
+}
+function setSimInterval(val){
+  const v=parseInt(val,10);
+  if(v>=5&&v<=30){
+    localStorage.setItem('st_windSimInterval',String(v));
+    _WIND_LERP_DUR=v*1000;
+    if(S._windPickTimer){clearInterval(S._windPickTimer);
+      S._windPickTimer=setInterval(()=>{
+        _windLerpFrom={spd:_windCurSim.spd,dir:_windCurSim.dir};
+        _windLerpTo=_pickWindTarget();
+        _windLerpT0=Date.now();
+      },_WIND_LERP_DUR);
+    }
+    toast('💨 Sim speed set to '+v+'s');
+  }
+}
+function setGustWindow(val){
+  const v=parseInt(val,10);
+  if([30,60,120,300].includes(v)){
+    localStorage.setItem('st_gustWindow',String(v));
+    toast('💨 Gust window set to '+_fmtWindowLabel(v*1000));
+  }
+}
+function setAvgWindow(val){
+  const v=parseInt(val,10);
+  if([10,30,60,120].includes(v)){
+    localStorage.setItem('st_avgWindow',String(v));
+    toast('💨 Avg window set to '+_fmtWindowLabel(v*1000));
+  }
 }
 function setAutoRefresh(val){
   const mins=parseInt(val,10);
@@ -3124,8 +3163,6 @@ const _wn={p:[151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,
 let _windSimTimer=null;
 let _windRefreshTimer=null;
 let _gustSamples=[];
-let _gustMax=0;
-let _gustResetT=0;
 let _windBase={spd:0,dir:0,gust:0};
 let _windCurSim={spd:0,dir:0,gust:0};
 let _windFloor=0;
@@ -3133,7 +3170,8 @@ let _windCeil=0;
 let _windLerpFrom={spd:0,dir:0};
 let _windLerpTo={spd:0,dir:0};
 let _windLerpT0=0;
-const _WIND_LERP_DUR=5000;
+let _WIND_LERP_DUR=5000;
+let _windTrend=0;
 let _windSweepRaf=null;
 let _windSweepPaused=false;
 let _windSweepAfterRender=false;
@@ -3148,9 +3186,10 @@ function _pickWindTarget(){
   const fc=_getForecastWind();
   if(fc&&Number.isFinite(fc.spd)&&ws>0){
     const trendRatio=Math.max(-0.5,Math.min(0.5,(fc.spd-ws)/ws));
+    _windTrend=trendRatio;
     const shift=trendRatio*0.3;
     center=Math.max(0.01,Math.min(0.99,center+shift));
-  }
+  }else{_windTrend=0;}
   const d=u-center;
   const exp=2.5;
   let biased;
@@ -3200,7 +3239,7 @@ function startWindSim(){
   if(S._windPickTimer)clearInterval(S._windPickTimer);
   if(!S.weather)return;
   _windBase={spd:S.weather.wind_speed_10m||0,dir:S.weather.wind_direction_10m||0,gust:S.weather.wind_gusts_10m||0};
-  _gustSamples=[];_gustMax=0;_gustResetT=Date.now();
+  _gustSamples=[];
   _updateWindRange();
   _windCurSim={spd:_windBase.spd,dir:_windBase.dir,gust:S.weather.wind_gusts_10m||0};
   _windLerpFrom={spd:_windBase.spd,dir:_windBase.dir};
@@ -3222,6 +3261,7 @@ function startWindSim(){
       }
     }catch(e){console.log('Wind refresh error:',e.message)}
   },120000);
+  _WIND_LERP_DUR=_getSimInterval();
   S._windPickTimer=setInterval(()=>{
     _windLerpFrom={spd:_windCurSim.spd,dir:_windCurSim.dir};
     _windLerpTo=_pickWindTarget();
@@ -3237,13 +3277,10 @@ function startWindSim(){
     let dd=_windLerpTo.dir-_windLerpFrom.dir;
     if(dd>180)dd-=360;if(dd<-180)dd+=360;
     let simDir=((_windLerpFrom.dir+dd*ep)%360+360)%360;
-    _gustSamples.push(simSpd);
-    if(now-_gustResetT>=30000){
-      _gustMax=Math.max(..._gustSamples);
-      _gustSamples=[];
-      _gustResetT=now;
-    }
-    const displayGust=_gustSamples.length>0?Math.max(_gustMax,Math.max(..._gustSamples)):_gustMax;
+    _gustSamples.push({t:now,v:simSpd});
+    const gw=_getGustWindow();
+    while(_gustSamples.length&&now-_gustSamples[0].t>gw)_gustSamples.shift();
+    const displayGust=_gustSamples.length>0?Math.max(..._gustSamples.map(s=>s.v)):0;
     _windCurSim={spd:simSpd,dir:simDir,gust:displayGust};
     _trackMinMax(simSpd);
     const gStyle=getGaugeStyle();
@@ -3255,7 +3292,7 @@ function startWindSim(){
         const numEl=document.querySelector('.wrc-num');
         const gustEl=document.querySelector('.wrc-gust');
         if(numEl)numEl.textContent=kmhTo(simSpd,S.windUnit);
-        if(gustEl)gustEl.textContent=displayGust>0?'G'+fmtWind(displayGust):'';
+        if(gustEl)gustEl.textContent=displayGust>0?'G'+fmtWind(displayGust)+' ('+_fmtWindowLabel(_getGustWindow())+')':'';
         const simSpdDisp=parseFloat(kmhTo(simSpd,S.windUnit));
         const gustDispSim=parseFloat(kmhTo(displayGust,S.windUnit));
         updateGaugeSegments(simSpdDisp,gustDispSim);
@@ -3285,7 +3322,7 @@ function startWindSim(){
           const wn2=kmhTo(simSpd,S.windUnit);
           const wu2=WIND_UNITS[S.windUnit];
           const gd2=parseFloat(kmhTo(displayGust,S.windUnit));
-          const gs2=displayGust>0?'G'+fmtWind(displayGust):'';
+          const gs2=displayGust>0?'G'+fmtWind(displayGust)+' ('+_fmtWindowLabel(_getGustWindow())+')':'';
           const bf2=beaufortFromKmh(simSpd);
           const d2={windSpd:simSpd,wd:simDir,windDisp:parseFloat(wn2),gustDisp:gd2,gustRaw:displayGust,windNum:wn2,windUnit:wu2,gustStr:gs2,bf:bf2,simActive:true,pressure:c2.pressure_msl};
           const newHtml=renderWindGauge(d2);
