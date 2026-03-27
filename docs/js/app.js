@@ -2038,6 +2038,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.51',date:'2026-03-27',items:['🧊 SPC Hail Size Fix — hail reports now display correctly as inches (e.g., 1.00") instead of raw hundredths value','🕐 Storm Cell Timestamps — expanded individual cells in grouped alerts now show per-cell timestamps']},
   {ver:'v2.50',date:'2026-03-27',items:['📦 Alert Consolidation — storm cell alerts grouped by scan batch (±5s) into collapsible rows showing cell count, dBZ range, distance range, and peak impact','📍 Alert → Radar Navigation — tap 📍 on any storm alert to fly to its location on the radar map with a pulsing highlight ring','🗺️ Storm Card → Radar — "📍 Map" button on each storm card switches to radar and highlights the cell with approach cone','🔗 Cross-Navigation — seamless jumping between Alerts ↔ Radar ↔ Storms tabs']},
   {ver:'v2.49',date:'2026-03-27',items:['⏱ Tier Summary Live Countdown — 🔵🟡🔴 ETA lines now count down every second in real-time','⚡ Sonar Lightning Clustering — nearby ⚡ icons merged into single ⚡ with count badge (e.g. ⚡3)','🌩️ Storm Alert ETA — storm cell alerts now include ETA countdown and arrival time','📍 Alert ETA respects 12h/24h time format setting']},
   {ver:'v2.47',date:'2026-03-27',items:['📈 Wind Trend Arrow — forecast-based ↑↓→ arrow next to speed on all gauge styles (green=rising, red=declining, grey=steady)','⚙️ Sim Speed Setting — choose target pick interval (5s-30s) for lively or calm gauge needle','💨 Configurable Gust Window — 30s/1m/2m/5m rolling peak window with time label','📊 Configurable Avg Window — 10s/30s/1m/2m rolling average with time label','🏷️ Window Labels — gust and avg displays now show their timeframe (e.g. G13.0 (1m))']},
@@ -6854,7 +6855,8 @@ function plotSPCReports(map) {
   for (const r of reports.slice(0, 50)) {
     const icon = r.type === 'tornado' ? '🌪️' : r.type === 'hail' ? '🧊' : r.type === 'wind' ? '💨' : '⚠️';
     const color = r.type === 'tornado' ? '#ff1744' : r.type === 'hail' ? '#00e5ff' : '#ff9800';
-    const label = r.type === 'tornado' ? 'Tornado' : r.type === 'hail' ? 'Hail (' + r.magnitude + '")' : 'Wind (' + r.magnitude + ' mph)';
+    const hailIn = r.type === 'hail' && r.magnitude ? (parseFloat(r.magnitude) / 100).toFixed(2) : r.magnitude;
+    const label = r.type === 'tornado' ? 'Tornado' : r.type === 'hail' ? 'Hail (' + hailIn + '")' : 'Wind (' + r.magnitude + ' mph)';
     const marker = L.marker([r.lat, r.lon], {
       icon: L.divIcon({
         className: '',
@@ -8852,8 +8854,10 @@ function renderAlerts(){
         items.forEach(h=>{
           const hTc=tierColors[h.impactTier]||'#666';
           const hNav=h.lat!=null?`<span onclick="event.stopPropagation();flyToStormAlert(${h.lat},${h.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:3px" title="Show on radar">📍</span>`:'';
-          html+=`<div style="font-size:0.9em;padding:3px 0;color:var(--text-secondary);border-top:1px solid rgba(255,255,255,0.04)">
-            ${h.val} dBZ · ${((h.distance||0)*mFactor).toFixed(1)} ${distU}${h.impactPct>0?' · <span style="color:'+hTc+'">'+h.impactPct+'%</span>':''}${hNav}
+          const hTime=new Date(h.time);
+          const hTStr=fmtClock(hTime);
+          html+=`<div style="font-size:0.9em;padding:3px 0;color:var(--text-secondary);border-top:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+            <span>${h.val} dBZ · ${((h.distance||0)*mFactor).toFixed(1)} ${distU}${h.impactPct>0?' · <span style="color:'+hTc+'">'+h.impactPct+'%</span>':''}</span>${hNav}<span style="margin-left:auto;font-size:0.85em;color:var(--text-muted);font-family:var(--font-mono)">${hTStr}</span>
           </div>`;
         });
         html+=`</div></div>`;
@@ -9124,7 +9128,8 @@ function _renderSPCReportsSection(){
   nearby.slice(0, 15).forEach(r => {
     const icon = r.type === 'tornado' ? '🌪️' : r.type === 'hail' ? '🧊' : '💨';
     const color = r.type === 'tornado' ? '#ff1744' : r.type === 'hail' ? '#00e5ff' : '#ff9800';
-    const label = r.type === 'tornado' ? 'Tornado' : r.type === 'hail' ? `Hail (${r.magnitude}")` : `Wind (${r.magnitude} mph)`;
+    const hailIn = r.type === 'hail' && r.magnitude ? (parseFloat(r.magnitude) / 100).toFixed(2) : r.magnitude;
+    const label = r.type === 'tornado' ? 'Tornado' : r.type === 'hail' ? `Hail (${hailIn}")` : `Wind (${r.magnitude} mph)`;
     const distStr = S.radarMetric ? Math.round(r.dist * 1.60934) + ' km' : Math.round(r.dist) + ' mi';
     html += `<div style="padding:6px 8px;border-left:3px solid ${color};background:${color}08;border-radius:0 6px 6px 0;margin-bottom:4px;font-size:0.75em">
       <div style="display:flex;align-items:center;gap:6px">
