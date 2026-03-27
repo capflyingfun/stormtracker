@@ -73,7 +73,7 @@ function renderAlerts(){
   const order=_getAlertSecOrder().filter(k=>_isNWS||k!=='nws');
   const alerts=S.alerts||[];
   const now=Date.now();
-  if(alerts.length){S.alerts=alerts.filter(a=>{const e=a.properties?.expires;return !e||new Date(e).getTime()>now});updateAlertBadge()}
+  if(alerts.length){S.alerts=alerts.filter(a=>{const e=a.properties?.ends||a.properties?.expires;return !e||new Date(e).getTime()>now});updateAlertBadge()}
   const sec={};
 
   if(_isNWS){ let nwsBody='';
