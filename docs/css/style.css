@@ -109,6 +109,8 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 .storm-group{margin-bottom:8px;border-radius:var(--radius-sm);overflow:hidden}
 .storm-group-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(255,255,255,0.04);font-size:0.8em;font-weight:600;cursor:pointer;list-style:none;user-select:none;border-radius:var(--radius-sm)}
 .storm-group-header::-webkit-details-marker{display:none}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary{list-style:none}
 .storm-group-header::after{content:'▸';font-size:0.9em;color:var(--text-muted);transition:transform 0.2s}
 .storm-group[open] .storm-group-header::after{transform:rotate(90deg)}
 .storm-group-count{background:rgba(255,255,255,0.1);border-radius:10px;padding:1px 8px;font-size:0.85em;color:var(--text-muted);margin-left:auto;margin-right:8px}
