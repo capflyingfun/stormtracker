@@ -8762,7 +8762,7 @@ function renderAlerts(){
           ${etaHtml}
           <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
         </div>
-        <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🌩️ ','')}</div>
+        <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🌩️ ','').replace(/ · ETA \d+[hm:][\d:hms]+\s*\([^)]+\)/,'')}</div>
       </div>`;
     });
   }
