@@ -550,6 +550,26 @@ function impactLabel(pct){
   return{text:'NONE',color:'#6b7280'};
 }
 
+function computeTopStorms(){
+  S._topStorms=[];
+  S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};
+  if(!S.storms||!S.storms.length)return;
+  const allWithEta=S.storms.filter(s=>s.dbz>=31).map(s=>({...s,_eta:calcStormETA(s)}));
+  S._topStormAnalysis.allWithEta=allWithEta;
+  const inbound=[],overhead=[],nearby=[];
+  for(const s of allWithEta){
+    const e=s._eta;
+    if(e&&e.proximity){overhead.push(s)}
+    else if(e&&e.approaching&&e.impact>0&&e.eta!=null){inbound.push(s)}
+    else{nearby.push(s)}
+  }
+  inbound.sort((a,b)=>b.dbz===a.dbz?(a._eta.eta-b._eta.eta):(b.dbz-a.dbz));
+  S._topStorms=inbound.slice(0,12);
+  S._topStormAnalysis.inbound=S._topStorms;
+  S._topStormAnalysis.overhead=overhead;
+  S._topStormAnalysis.nearby=nearby;
+}
+
 async function scanRadarForStorms(){
   if(S._radarAnimPlaying)stopRadarAnim(S.map);
   if(!S.lat)return;
@@ -603,6 +623,7 @@ async function scanRadarForStorms(){
     console.log('[SCAN] after spacingFilter: '+S.storms.length+' storms');
     detectHookEchoes(rawPoints, S.storms);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
+    computeTopStorms();
 
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Plotting ${S.storms.length} storm points...`);
@@ -2042,14 +2063,23 @@ function renderStorms(){
         </div>
       </div>`;
   }
+  const topSet=S._topStorms?new Set(S._topStorms.map(s=>s.lat+','+s.lng+','+s.dbz)):null;
   const approaching=filtered.filter(s=>isApproaching(s));
   const overhead=filtered.filter(s=>isOverhead(s));
   const nearby=filtered.filter(s=>isNearby(s));
   let groupHtml='';
+  let inboundCapped;
+  if(topSet&&topSet.size>0){
+    inboundCapped=approaching.filter(s=>topSet.has(s.lat+','+s.lng+','+s.dbz));
+    inboundCapped.sort((a,b)=>b.dbz===a.dbz?((a._eta?a._eta.eta:9999)-(b._eta?b._eta.eta:9999)):(b.dbz-a.dbz));
+  }else{
+    approaching.sort((a,b)=>b.dbz===a.dbz?((a._eta?a._eta.eta:9999)-(b._eta?b._eta.eta:9999)):(b.dbz-a.dbz));
+    inboundCapped=approaching.slice(0,12);
+  }
   const sections=[
-    {key:'approaching',items:approaching,label:'⏱️ Approaching',color:'#ef4444',open:true},
-    {key:'overhead',items:overhead,label:'⚠️ Overhead · Moving Away',color:'#f97316',open:true},
-    {key:'nearby',items:nearby,label:'🟢 Nearby · Not Approaching',color:'#4ade80',open:false}
+    {key:'approaching',items:inboundCapped,label:'⏱️ Inbound',color:'#ef4444',open:true},
+    {key:'overhead',items:overhead,label:'⚠️ Overhead / Arrived',color:'#f97316',open:false},
+    {key:'nearby',items:nearby,label:'🟢 Nearby / Outbound',color:'#4ade80',open:false}
   ];
   for(const sec of sections){
     if(!sec.items.length)continue;
@@ -2128,7 +2158,7 @@ function renderStorms(){
       </div>`;
     }
   }
-  const stormCount=approaching.length+overhead.length+nearby.length;
+  const stormCount=inboundCapped.length+overhead.length+nearby.length;
   const filteredCount=filtered.length;
   const totalCount=stormsWithEta.length;
   const filterNote=filteredCount<totalCount?` <span style="color:var(--text-muted);font-size:0.85em">(showing ${filteredCount}/${totalCount})</span>`:'';
@@ -2136,7 +2166,7 @@ function renderStorms(){
   el.innerHTML=`${zoneAlert}
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
-      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${filterNote}${approaching.length?' · <span style="color:#ef4444">'+approaching.length+' approaching</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
+      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${filterNote}${inboundCapped.length?' · <span style="color:#ef4444">'+inboundCapped.length+' inbound</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
     </div>
     ${smartSummary}
     ${_renderFilterBar(sf)}

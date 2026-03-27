@@ -1019,6 +1019,7 @@ function _gatherSyncSettings() {
     timeFormat: localStorage.getItem('st_timeFormat') || 'auto',
     sonarCfg: (function(){try{return JSON.parse(localStorage.getItem('st_sonarCfg'))}catch(e){return null}})(),
     sonarZoom: parseInt(localStorage.getItem('st_sonarZoom')) || 80,
+    tickerSpeed: parseInt(localStorage.getItem('st_tickerSpeed')) || 100,
     emailAlerts: _emailAlertsOn,
   };
 }
@@ -1036,6 +1037,7 @@ function _applySyncSettings(s) {
   if (s.timeFormat) localStorage.setItem('st_timeFormat', s.timeFormat);
   if (s.sonarCfg) { try { localStorage.setItem('st_sonarCfg', JSON.stringify(s.sonarCfg)); } catch(e){} }
   if (s.sonarZoom) localStorage.setItem('st_sonarZoom', String(s.sonarZoom));
+  if (s.tickerSpeed) localStorage.setItem('st_tickerSpeed', String(s.tickerSpeed));
   if (s.emailAlerts !== undefined) {
     _emailAlertsOn = !!s.emailAlerts;
     localStorage.setItem('st_emailAlerts', _emailAlertsOn ? '1' : '0');

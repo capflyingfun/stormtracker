@@ -681,6 +681,7 @@ async function scanRadarForView(){
     _clusterSonarPoints();
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
+    computeTopStorms();
     recordScanSnapshot();
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Plotting ${S.storms.length.toLocaleString()} storm points...`);
@@ -753,6 +754,7 @@ async function scanRadarHiRes(map,fromHome){
     S._rawScanPts=rawPoints;
     S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=true;
+    computeTopStorms();
     _sonarZoomMi=15;localStorage.setItem('st_sonarZoom',15);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_syncSonarZoomBtns();
     _clusterSonarPoints();
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
@@ -933,13 +935,17 @@ function plotStormMarkers(map){
   const pending=[];
   let visibleStorms=stormList;
   if(S._pointsMode==='inbound'){
-    const inbound=[];
-    for(const st of stormList){
-      const eta=calcStormETA(st);
-      if(eta&&eta.approaching&&eta.eta)inbound.push({storm:st,eta});
+    if(S._topStorms&&S._topStorms.length){
+      visibleStorms=S._topStorms;
+    }else{
+      const inbound=[];
+      for(const st of stormList){
+        const eta=calcStormETA(st);
+        if(eta&&eta.approaching&&eta.eta)inbound.push({storm:st,eta});
+      }
+      inbound.sort((a,b)=>a.storm.dbz===b.storm.dbz?(a.eta.eta-b.eta.eta):(b.storm.dbz-a.storm.dbz));
+      visibleStorms=inbound.slice(0,12).map(i=>i.storm);
     }
-    inbound.sort((a,b)=>a.storm.dbz===b.storm.dbz?(a.eta.eta-b.eta.eta):(b.storm.dbz-a.storm.dbz));
-    visibleStorms=inbound.slice(0,12).map(i=>i.storm);
   }
   const visibleSet=new Set(visibleStorms);
   stormList.forEach(storm=>{
@@ -1511,7 +1517,9 @@ function updateThreatTicker(){
     inner.innerHTML=html;
     const textLen=inner.textContent?inner.textContent.length:60;
     const autoDur=Math.max(18,Math.round(textLen*0.322));
-    inner.style.animationDuration=(dur||autoDur)+'s';
+    const tickerSpeed=parseInt(localStorage.getItem('st_tickerSpeed'))||100;
+    const speedMult=100/Math.max(50,Math.min(200,tickerSpeed));
+    inner.style.animationDuration=Math.round((dur||autoDur)*speedMult)+'s';
     bar.style.display='block';
     bar.style.borderColor=borderColor;
     bar.style.background=bg;
@@ -1545,8 +1553,8 @@ function updateThreatTicker(){
       }
     }
   }
-  const alertMinDbz=31;
-  const sigStormCount=S.storms?S.storms.filter(s=>s.dbz>=alertMinDbz).length:0;
+  const topStorms=S._topStorms||[];
+  const sigStormCount=S.storms?S.storms.filter(s=>s.dbz>=31).length:0;
   let gridZoneCount=0,gridZoneMaxDbz=0;
   if(S._rawScanPts&&S._rawScanPts.length&&S.lat!=null){
     const gzCells=polarGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
@@ -1569,15 +1577,8 @@ function updateThreatTicker(){
     showTicker(`<span style="color:#4ade80">${msg}</span>`,'#4ade80','rgba(74,222,128,0.2)','linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))',Math.max(15,Math.round(msg.length*0.18)));
     return;
   }
-  const allApproaching=[];
-  const severeApproaching=[];
-  for(const storm of S.storms){
-    if(storm.dbz<alertMinDbz)continue;
-    const eta=calcStormETA(storm);
-    if(!eta||!eta.approaching||!eta.eta)continue;
-    allApproaching.push({storm,eta});
-    if(storm.dbz>=45)severeApproaching.push({storm,eta});
-  }
+  const allApproaching=topStorms.map(s=>({storm:s,eta:s._eta||calcStormETA(s)}));
+  const severeApproaching=allApproaching.filter(t=>t.storm.dbz>=45);
   if(allApproaching.length===0){
     const pool=_tickerNearbyPool(sigStormCount);
     const msg=pool[Math.floor(Date.now()/60000)%pool.length];

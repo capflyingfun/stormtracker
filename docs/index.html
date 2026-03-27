@@ -178,6 +178,15 @@
         <div style="font-size:0.65em;color:var(--text-muted)">How often weather, radar & storms auto-update when idle</div>
       </div>
       <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
+        <div style="font-size:0.8em;font-weight:600;color:var(--accent-green);margin-bottom:8px">📰 Ticker Speed</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:0.75em;color:var(--text-muted)">Scroll Speed</span>
+          <span id="ticker-speed-val" style="font-size:0.75em;color:var(--text-primary);font-family:var(--font-mono);min-width:38px;text-align:right">100%</span>
+        </div>
+        <input type="range" id="settings-ticker-speed" min="50" max="200" step="10" value="100" oninput="setTickerSpeed(this.value)" style="width:100%;accent-color:var(--accent-cyan);cursor:pointer">
+        <div style="font-size:0.65em;color:var(--text-muted)">50% = slower scroll, 200% = faster scroll</div>
+      </div>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:14px">
         <div style="font-size:0.8em;font-weight:600;color:var(--accent-cyan);margin-bottom:8px">🧭 Travel Mode</div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <span style="font-size:0.75em;color:var(--text-muted)">Travel Refresh Interval</span>
