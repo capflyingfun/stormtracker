@@ -700,11 +700,19 @@ function metarDescToBasmilius(desc,isDay){
   if(d.includes('wind'))return'wind';
   return null;
 }
+function _basmiliusToCond(bm){
+  const m={'clear-day':'clear-day','clear-night':'clear-night','partly-cloudy-day':'partly-cloudy-day','partly-cloudy-night':'partly-cloudy-night','overcast':'overcast','fog-day':'fog','fog-night':'fog','haze-day':'haze','haze-night':'haze','dust-day':'haze','dust-night':'haze','drizzle':'rain','rain':'rain','extreme-rain':'rain-heavy','extreme-day-rain':'rain-heavy','extreme-night-rain':'rain-heavy','partly-cloudy-day-rain':'few-clouds-day-rain','partly-cloudy-night-rain':'mostly-cloudy-night-rain','overcast-day-rain':'mostly-cloudy-day-rain','overcast-night-rain':'mostly-cloudy-night-rain','snow':'snow','extreme-snow':'blizzard','extreme-day-snow':'blizzard','extreme-night-snow':'blizzard','partly-cloudy-day-snow':'partly-cloudy-day-snow','partly-cloudy-night-snow':'mostly-cloudy-night-snow','overcast-day-snow':'mostly-cloudy-night-snow','overcast-night-snow':'snow-night','sleet':'sleet','thunderstorms-day':'thunderstorm','thunderstorms-night':'thunderstorm-night','thunderstorms-day-rain':'thunderstorm','thunderstorms-night-rain':'thunderstorm-night','thunderstorms-day-extreme-rain':'thunderstorm-rain','thunderstorms-night-extreme-rain':'thunderstorm-night','tornado':'tornado','hurricane':'tornado','wind':'overcast','cloudy':'overcast','extreme-day-hail':'thunderstorm','extreme-night-hail':'thunderstorm-night'};
+  return m[bm]||'overcast';
+}
 function stationNeonIcon(desc,sz){
   const s=parseInt(sz)||24;
   const dn=isCurrentlyDay();
   const bm=metarDescToBasmilius(desc,dn);
-  if(bm)return bmIcon(bm,s);
+  if(bm){
+    const pack=_getIconPack();
+    if(pack==='basmilius')return bmIcon(bm,s);
+    return getWeatherIcon(_basmiliusToCond(bm),s);
+  }
   return neonWx(wxDescToCode(desc),dn,s);
 }
 
