@@ -2063,6 +2063,7 @@ const TUTORIAL_SECTIONS=[
 const CHANGELOG=[
   {ver:'v2.53',date:'2026-03-27',items:['📦 Smart Alert Condensing — multiple same-scan storm cell alerts are batched into one summary toast showing count, direction, heading, speed, strongest dBZ, and nearest ETA','📏 Live Distance Countdown — alert history rows now show a live-updating distance to each approaching storm cell','🕐 NWS Hour-Only Times — time formats like "11 PM EDT" (no minutes) are now correctly parsed and reformatted']},
   {ver:'v2.52',date:'2026-03-27',items:['🧠 Threat-Priority Sorting — storm cell alerts now sort by threat score (dBZ×2 + impact×1.5 − distance×0.5) instead of chronologically','⏱ Group ETA — grouped storm cell batches show nearest ETA countdown on the header row','⏱ Per-Cell ETA — expanded cells in grouped rows show individual live ETA countdowns','🎯 Ticker Threat Sort — severe storm ticker now prioritizes strongest/highest-impact storms over nearest','🔄 Location Reset — changing location clears stale storm/weather alert history, cooldowns, and SPC reports','🕐 NWS Time Reformat — alert descriptions convert NWS timezone times (e.g. 430 PM CDT) to your local format respecting 12h/24h preference']},
+  {ver:'v2.58',date:'2026-03-27',items:['🌧️ Rain Alert — push notifications when rain detected on radar nearby','🌧️ Sensitivity Levels — Light (20 dBZ), Moderate (30 dBZ), Heavy (40 dBZ) configurable thresholds','⏱ Cooldown Timer — configurable 5/15/30/60 minute cooldown between rain alerts','🔔 Rain Alert History — alerts tab shows rain detection history with timestamps','⚙️ Rain Alert Settings — dedicated settings section with toggle, sensitivity, and cooldown controls']},
   {ver:'v2.51',date:'2026-03-27',items:['🧊 SPC Hail Size Fix — hail reports now display correctly as inches (e.g., 1.00") instead of raw hundredths value','🕐 Storm Cell Timestamps — expanded individual cells in grouped alerts now show per-cell timestamps']},
   {ver:'v2.50',date:'2026-03-27',items:['📦 Alert Consolidation — storm cell alerts grouped by scan batch (±5s) into collapsible rows showing cell count, dBZ range, distance range, and peak impact','📍 Alert → Radar Navigation — tap 📍 on any storm alert to fly to its location on the radar map with a pulsing highlight ring','🗺️ Storm Card → Radar — "📍 Map" button on each storm card switches to radar and highlights the cell with approach cone','🔗 Cross-Navigation — seamless jumping between Alerts ↔ Radar ↔ Storms tabs']},
   {ver:'v2.49',date:'2026-03-27',items:['⏱ Tier Summary Live Countdown — 🔵🟡🔴 ETA lines now count down every second in real-time','⚡ Sonar Lightning Clustering — nearby ⚡ icons merged into single ⚡ with count badge (e.g. ⚡3)','🌩️ Storm Alert ETA — storm cell alerts now include ETA countdown and arrival time','📍 Alert ETA respects 12h/24h time format setting']},
@@ -2225,6 +2226,7 @@ function syncSettingsPanel(){
   if(wxAlertEl)wxAlertEl.innerHTML=renderWxAlertSettings();
   const stormAlertEl=document.getElementById('storm-alert-settings');
   if(stormAlertEl)stormAlertEl.innerHTML=renderStormCellAlertSettings();
+  syncRainAlertUI();
   const eqSel=document.getElementById('settings-eq-radius');
   if(eqSel)eqSel.value=String(getEqRadius());
   const simIntSel=document.getElementById('settings-sim-interval');
@@ -2603,3 +2605,96 @@ function setStormAlertVal(key,val){
 }
 function clearStormAlertHistory(){_stormAlertHistory=[];_saveStormAlertHistory();if(S.activePage==='alerts')renderAlerts();}
 
+// ==========================================
+// RAIN ALERT
+// ==========================================
+const _RAIN_SENSITIVITY={light:20,moderate:30,heavy:40};
+let _rainAlertCooldown=0;
+try{_rainAlertCooldown=parseInt(localStorage.getItem('st_rainAlertCooldown'))||0}catch(e){}
+let _rainAlertHistory=[];
+try{const h=localStorage.getItem('st_rainAlertHistory');if(h)_rainAlertHistory=JSON.parse(h)}catch(e){}
+function _loadRainAlertCfg(){
+  try{const s=localStorage.getItem('st_rainAlertCfg');if(s)return JSON.parse(s)}catch(e){}
+  return{on:false,sensitivity:'moderate',cooldownMin:30};
+}
+function _saveRainAlertCfg(cfg){try{localStorage.setItem('st_rainAlertCfg',JSON.stringify(cfg))}catch(e){}}
+function _saveRainAlertHistory(){
+  if(_rainAlertHistory.length>30)_rainAlertHistory=_rainAlertHistory.slice(-30);
+  try{localStorage.setItem('st_rainAlertHistory',JSON.stringify(_rainAlertHistory))}catch(e){}
+}
+function checkRainAlert(){
+  const cfg=_loadRainAlertCfg();
+  if(!cfg.on)return;
+  if(!S.storms||!S.storms.length)return;
+  const now=Date.now();
+  const cooldownMs=(cfg.cooldownMin||30)*60000;
+  if(now-_rainAlertCooldown<cooldownMs)return;
+  const minDbz=_RAIN_SENSITIVITY[cfg.sensitivity]||30;
+  const approaching=[];
+  const nearby=[];
+  for(const storm of S.storms){
+    if(storm.dbz<minDbz)continue;
+    const eta=calcStormETA(storm);
+    if(eta&&eta.approaching&&eta.eta!=null&&eta.eta>0){
+      approaching.push({storm,eta});
+    }else if(storm.distance<=30){
+      nearby.push(storm);
+    }
+  }
+  if(approaching.length===0&&nearby.length===0)return;
+  _rainAlertCooldown=now;
+  try{localStorage.setItem('st_rainAlertCooldown',String(now))}catch(e){}
+  let msg;
+  if(approaching.length>0){
+    approaching.sort((a,b)=>a.eta.eta-b.eta.eta);
+    const top=approaching[0];
+    const distStr=S.radarMetric?parseFloat((top.storm.distance*1.60934).toFixed(1))+' km':parseFloat(top.storm.distance.toFixed(1))+' mi';
+    const etaMin=Math.ceil(top.eta.eta);
+    const arrStr=fmtClockShort(new Date(now+top.eta.eta*60000));
+    const dir=degToDir((top.storm.bearing+180)%360);
+    const intensity=top.storm.dbz>=45?'Heavy':top.storm.dbz>=30?'Moderate':'Light';
+    if(approaching.length===1){
+      msg=`🌧️ ${intensity} rain approaching from the ${dir} — ${distStr} away, ETA ~${etaMin} min (${arrStr})`;
+    }else{
+      msg=`🌧️ ${approaching.length} rain cells approaching — closest from ${dir} at ${distStr}, ETA ~${etaMin} min (${arrStr})`;
+    }
+  }else{
+    const strongest=nearby.reduce((a,b)=>a.dbz>b.dbz?a:b);
+    const distStr=S.radarMetric?parseFloat((strongest.distance*1.60934).toFixed(1))+' km':parseFloat(strongest.distance.toFixed(1))+' mi';
+    const intensity=strongest.dbz>=45?'Heavy':strongest.dbz>=30?'Moderate':'Light';
+    msg=`🌧️ ${intensity} rain detected ${distStr} away${nearby.length>1?' ('+nearby.length+' cells nearby)':''}. Not approaching but stay aware.`;
+  }
+  toast(msg,8000);
+  _sendBrowserNotification('Rain Alert',msg);
+  _rainAlertHistory.push({msg,time:now,approaching:approaching.length,nearby:nearby.length});
+  _saveRainAlertHistory();
+  if(S.activePage==='alerts')renderAlerts();
+}
+function toggleRainAlert(on){
+  const cfg=_loadRainAlertCfg();
+  cfg.on=on;
+  _saveRainAlertCfg(cfg);
+  if(on)requestNotifPermission();
+  syncRainAlertUI();
+}
+function setRainSensitivity(val){
+  const cfg=_loadRainAlertCfg();
+  cfg.sensitivity=val;
+  _saveRainAlertCfg(cfg);
+}
+function setRainCooldown(val){
+  const n=parseInt(val);if(isNaN(n)||n<5)return;
+  const cfg=_loadRainAlertCfg();
+  cfg.cooldownMin=n;
+  _saveRainAlertCfg(cfg);
+}
+function syncRainAlertUI(){
+  const cfg=_loadRainAlertCfg();
+  const tog=document.getElementById('rain-alert-toggle');
+  if(tog)tog.checked=cfg.on;
+  const sens=document.getElementById('rain-alert-sensitivity');
+  if(sens){sens.value=cfg.sensitivity;sens.disabled=!cfg.on}
+  const cd=document.getElementById('rain-alert-cooldown');
+  if(cd){cd.value=String(cfg.cooldownMin||30);cd.disabled=!cfg.on}
+}
+function clearRainAlertHistory(){_rainAlertHistory=[];_saveRainAlertHistory();if(S.activePage==='alerts')renderAlerts();}
