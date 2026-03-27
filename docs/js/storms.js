@@ -597,7 +597,7 @@ async function scanRadarForStorms(){
         S.radarFrames=allFrames;
         S._rvTilePath=allFrames.length?allFrames[allFrames.length-1].path:null;
       }catch(e){S._rvTilePath=null}
-      if(!S._rvTilePath){toast('No radar data available');S.storms=[];renderStorms();return}
+      if(!S._rvTilePath){toast('No radar data available');S.storms=[];computeTopStorms();renderStorms();updateStormBadges();return}
     }
 
     const colorFn=useNexrad?nexradToDbz:rvToDbz;
