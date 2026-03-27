@@ -1155,6 +1155,14 @@ function startEtaCountdowns(){
       const remain=Math.max(0,Math.round((target-now)/1000));
       el.textContent=fmtCountdown(remain);
     });
+    document.querySelectorAll('.tier-eta-cd').forEach(el=>{
+      const target=parseInt(el.getAttribute('data-tier-target'));
+      if(!target||isNaN(target))return;
+      const remain=Math.max(0,Math.round((target-now)/1000));
+      const cd=fmtCountdown(remain);
+      const arr=fmtClockShort(new Date(target));
+      el.innerHTML='<b>'+cd+'</b> ('+arr+')';
+    });
     document.querySelectorAll('[data-dist-mi]').forEach(el=>{
       const closSpd=parseFloat(el.getAttribute('data-closing-mph')||'0');
       const targetMs=parseInt(el.getAttribute('data-target-ms')||'0');
@@ -2030,6 +2038,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v2.49',date:'2026-03-27',items:['⏱ Tier Summary Live Countdown — 🔵🟡🔴 ETA lines now count down every second in real-time','⚡ Sonar Lightning Clustering — nearby ⚡ icons merged into single ⚡ with count badge (e.g. ⚡3)','🌩️ Storm Alert ETA — storm cell alerts now include ETA countdown and arrival time','📍 Alert ETA respects 12h/24h time format setting']},
   {ver:'v2.47',date:'2026-03-27',items:['📈 Wind Trend Arrow — forecast-based ↑↓→ arrow next to speed on all gauge styles (green=rising, red=declining, grey=steady)','⚙️ Sim Speed Setting — choose target pick interval (5s-30s) for lively or calm gauge needle','💨 Configurable Gust Window — 30s/1m/2m/5m rolling peak window with time label','📊 Configurable Avg Window — 10s/30s/1m/2m rolling average with time label','🏷️ Window Labels — gust and avg displays now show their timeframe (e.g. G13.0 (1m))']},
   {ver:'v2.46',date:'2026-03-27',items:['🔮 Forecast-Aware Wind Bias — sim uses hourly forecast trend to shift target distribution','📉 Declining Winds — when forecast shows lower winds, gauge naturally drifts lower','📈 Rising Winds — when forecast shows higher winds, gauge favors higher targets','⚖️ Trend Blending — 30% blend factor keeps forecast influence subtle, not overpowering']},
   {ver:'v2.45',date:'2026-03-27',items:['🎯 Weighted Wind Distribution — sim needle favors actual wind speed with power-curve bias (exp 2.5)','📊 Probability Weighting — ±10% from WS ~80% of the time, ±50% ~20%, matching real wind behavior','💨 Gust Spikes — occasional excursions toward gust ceiling while mostly staying near reported speed','📐 Asymmetric Range — below-WS dips and above-WS gusts use separate scaling relative to floor/ceiling']},
@@ -2496,9 +2505,12 @@ function checkStormCellAlerts(){
     _STORM_ALERT_COOLDOWN[cellKey]=now;
     try{localStorage.setItem('st_stormAlertCooldown',JSON.stringify(_STORM_ALERT_COOLDOWN))}catch(e){}
     const distStr=S.radarMetric?parseFloat((storm.distance*1.60934).toFixed(1))+' km':parseFloat(storm.distance.toFixed(1))+' mi';
-    const summaryMsg=`🌩️ Storm cell alert: ${storm.dbz} dBZ at ${distStr}${storm.impactPct>0?' · Impact: '+storm.impactPct+'% ('+storm.impactTier+')':''}`;
+    let etaMin=null,arrivalMs=null;
+    try{const se=calcStormETA(storm);if(se&&se.approaching&&se.eta!=null&&se.eta>0){etaMin=se.eta;arrivalMs=now+se.eta*60000}}catch(e){}
+    const etaStr=etaMin!=null?' · ETA '+fmtCountdown(Math.round(etaMin*60))+' ('+fmtClockShort(new Date(arrivalMs))+')':'';
+    const summaryMsg=`🌩️ Storm cell alert: ${storm.dbz} dBZ at ${distStr}${storm.impactPct>0?' · Impact: '+storm.impactPct+'% ('+storm.impactTier+')':''}${etaStr}`;
     toast(summaryMsg,8000);
-    _stormAlertHistory.push({key:'stormCell',label:'Storm Cell',icon:'🌩️',msg:summaryMsg,val:storm.dbz,u:'dBZ',distance:storm.distance,impactPct:storm.impactPct||0,impactTier:storm.impactTier||'none',time:now});
+    _stormAlertHistory.push({key:'stormCell',label:'Storm Cell',icon:'🌩️',msg:summaryMsg,val:storm.dbz,u:'dBZ',distance:storm.distance,impactPct:storm.impactPct||0,impactTier:storm.impactTier||'none',time:now,etaMin:etaMin,arrivalMs:arrivalMs,lat:storm.lat,lng:storm.lng,bearing:storm.bearing});
     _saveStormAlertHistory();
     _sendBrowserNotification('Storm Cell Alert',summaryMsg);
     if(S.activePage==='alerts')renderAlerts();
@@ -3001,10 +3013,32 @@ function drawMiniSonar(){
       if(d.dbz>=48&&sweepAlpha>0.3&&cfg.showLightning)lightningDots.push(d);
     }
     if(cfg.showLightning&&lightningDots.length){
+      const clR=Math.max(15,size*0.06);
+      const lGroups=[];
+      for(const d of lightningDots){
+        let merged=false;
+        for(const g of lGroups){
+          const dx=d.x-g.sx/g.n,dy=d.y-g.sy/g.n;
+          if(dx*dx+dy*dy<clR*clR){g.sx+=d.x;g.sy+=d.y;g.n++;merged=true;break}
+        }
+        if(!merged)lGroups.push({sx:d.x,sy:d.y,n:1});
+      }
       ctx.save();
-      ctx.font=`${Math.max(10,size*0.035)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+      const boltSz=Math.max(10,size*0.035);
+      ctx.font=`${boltSz}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.shadowColor='rgba(255,255,0,0.8)';ctx.shadowBlur=6;
-      for(const d of lightningDots){ctx.fillStyle='rgba(255,255,50,0.9)';ctx.fillText('⚡',d.x,d.y)}
+      for(const g of lGroups){
+        const gx=g.sx/g.n,gy=g.sy/g.n;
+        ctx.fillStyle='rgba(255,255,50,0.9)';ctx.fillText('⚡',gx,gy);
+        if(g.n>1){
+          ctx.save();ctx.shadowBlur=0;
+          ctx.font=`bold ${Math.max(7,boltSz*0.55)}px Inter,sans-serif`;
+          ctx.fillStyle='rgba(255,255,50,0.95)';ctx.strokeStyle='rgba(0,0,0,0.6)';ctx.lineWidth=2;
+          const tx=gx+boltSz*0.45,ty=gy-boltSz*0.35;
+          ctx.strokeText(String(g.n),tx,ty);ctx.fillText(String(g.n),tx,ty);
+          ctx.restore();
+        }
+      }
       ctx.restore();
     }
     const hookStorms=(S.storms||[]).filter(s=>s._hookEcho&&s.distance<=viewR);
@@ -7617,20 +7651,22 @@ function _smartStormSummary(storms){
   const light=approaching.filter(s=>s.dbz<40);
   const moderate=approaching.filter(s=>s.dbz>=40&&s.dbz<50);
   const severe=approaching.filter(s=>s.dbz>=50);
+  const now=Date.now();
   const fmtEtaShort=(min)=>{const s=Math.round(min*60);const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return(h>0?String(h).padStart(2,'0')+'h:':'')+String(m).padStart(2,'0')+'m:'+String(sec).padStart(2,'0')+'s';};
-  const fmtTime=(min)=>fmtClockShort(new Date(Date.now()+min*60000));
+  const fmtTime=(min)=>fmtClockShort(new Date(now+min*60000));
+  const tierSpan=(min,label)=>{const tgt=now+min*60000;return`<span class="tier-eta-cd" data-tier-target="${tgt}"><b>${fmtEtaShort(min)}</b> (${fmtTime(min)})</span>`};
   let lines=[];
   if(light.length){
-    const first=light[0],last=light[light.length-1];
-    lines.push(`<span style="color:#00ffcc">🔵 Light rain</span> inbound starting in <b>${fmtEtaShort(first._eta.eta)}</b> (${fmtTime(first._eta.eta)})${light.length>1?' — '+light.length+' cells':''}`);
+    const first=light[0];
+    lines.push(`<span style="color:#00ffcc">🔵 Light rain</span> inbound starting in ${tierSpan(first._eta.eta)}${light.length>1?' — '+light.length+' cells':''}`);
   }
   if(moderate.length){
     const first=moderate[0];
-    lines.push(`<span style="color:#ffee00">🟡 Moderate to heavy</span> cells inbound, ETA <b>${fmtEtaShort(first._eta.eta)}</b> (${fmtTime(first._eta.eta)})${moderate.length>1?' — '+moderate.length+' cells':''}`);
+    lines.push(`<span style="color:#ffee00">🟡 Moderate to heavy</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${moderate.length>1?' — '+moderate.length+' cells':''}`);
   }
   if(severe.length){
     const first=severe[0];
-    lines.push(`<span style="color:#ff0033">🔴 Severe/intense</span> cells inbound, ETA <b>${fmtEtaShort(first._eta.eta)}</b> (${fmtTime(first._eta.eta)})${severe.length>1?' — '+severe.length+' cells':''}`);
+    lines.push(`<span style="color:#ff0033">🔴 Severe/intense</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${severe.length>1?' — '+severe.length+' cells':''}`);
   }
   return`<div style="padding:8px 12px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:8px;font-size:0.78em;line-height:1.6;margin-bottom:8px">${lines.join('<br>')}</div>`;
 }
@@ -8709,11 +8745,21 @@ function renderAlerts(){
       const tStr=fmtClock(d)+' · '+d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
       const tierColors={high:'#eab308',medium:'#06b6d4',low:'#ec4899',none:'#22c55e'};
       const tc=tierColors[h.impactTier]||'#666';
+      let etaHtml='';
+      if(h.arrivalMs){
+        const remSec=Math.max(0,Math.round((h.arrivalMs-Date.now())/1000));
+        if(remSec>0){
+          etaHtml=`<span class="tier-eta-cd" data-tier-target="${h.arrivalMs}" style="font-size:0.8em;color:#ffcc00;font-weight:600;margin-left:6px">⏱ <b>${fmtCountdown(remSec)}</b> (${fmtClockShort(new Date(h.arrivalMs))})</span>`;
+        }else{
+          etaHtml=`<span style="font-size:0.8em;color:var(--text-muted);margin-left:6px">⏱ arrived ${fmtClockShort(new Date(h.arrivalMs))}</span>`;
+        }
+      }
       html+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
           <span>🌩️</span>
           <span style="font-weight:600;color:var(--text-primary)">${h.val} dBZ</span>
           ${h.impactPct>0?`<span style="font-size:0.8em;padding:1px 6px;border-radius:8px;background:${tc}18;color:${tc};font-weight:600">${h.impactPct}%</span>`:''}
+          ${etaHtml}
           <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
         </div>
         <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🌩️ ','')}</div>
