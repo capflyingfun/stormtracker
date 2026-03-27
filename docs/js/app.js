@@ -62,20 +62,25 @@ function fmtClockShort(d){
 function reformatNwsTimes(text){
   if(!text)return text;
   const tzMap={EST:-5,EDT:-4,CST:-6,CDT:-5,MST:-7,MDT:-6,PST:-8,PDT:-7,AKST:-9,AKDT:-8,HST:-10,AST:-4};
-  return text.replace(/(\d{1,2})(\d{2})\s*(AM|PM)\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT|AKST|AKDT|HST|AST)/gi,(m,hh,mm,ap,tz)=>{
-    let h=parseInt(hh,10);const mi=parseInt(mm,10);
+  function _cvt(h,mi,ap,tz){
     if(ap.toUpperCase()==='PM'&&h<12)h+=12;
     if(ap.toUpperCase()==='AM'&&h===12)h=0;
     const off=tzMap[tz.toUpperCase()];
-    if(off==null)return m;
+    if(off==null)return null;
     const now=new Date();
-    const utcH=h-off;
     const d=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-    d.setUTCHours(utcH,mi,0,0);
+    d.setUTCHours(h-off,mi,0,0);
     const lh=d.getHours(),lm=d.getMinutes();
-    if(_is24h())return _pad2(lh)+':'+_pad2(lm);
-    const hr12=lh%12||12;return hr12+':'+_pad2(lm)+' '+(lh>=12?'PM':'AM');
+    const local=_is24h()?_pad2(lh)+':'+_pad2(lm):(lh%12||12)+':'+_pad2(lm)+' '+(lh>=12?'PM':'AM');
+    return local+' '+tz.toUpperCase();
+  }
+  text=text.replace(/(\d{1,2}):(\d{2})\s*(AM|PM)\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT|AKST|AKDT|HST|AST)/gi,(m,hh,mm,ap,tz)=>{
+    const r=_cvt(parseInt(hh,10),parseInt(mm,10),ap,tz);return r||m;
   });
+  text=text.replace(/(\d{1,2})(\d{2})\s*(AM|PM)\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT|AKST|AKDT|HST|AST)/gi,(m,hh,mm,ap,tz)=>{
+    const r=_cvt(parseInt(hh,10),parseInt(mm,10),ap,tz);return r||m;
+  });
+  return text;
 }
 function fmtHrLabel(d){
   if(!(d instanceof Date)||isNaN(d))d=new Date(d);
@@ -1712,10 +1717,15 @@ function setLoc(lat,lon,name,fromTravel){
     clearStormCone();
   }
   S.storms=[];S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
-  _stormAlertHistory=[];_saveStormAlertHistory();
-  _wxAlertHistory=[];_saveWxAlertHistory();
-  _STORM_ALERT_COOLDOWN={};try{localStorage.removeItem('st_stormAlertCooldown')}catch(e){}
-  if(_spcData){_spcData.reports=null;_spcData._lastFetch=0}
+  const _locChanged=S._prevLat!=null&&(Math.abs(S._prevLat-lat)>0.01||Math.abs(S._prevLon-lon)>0.01);
+  S._prevLat=lat;S._prevLon=lon;
+  if(_locChanged){
+    _stormAlertHistory=[];_saveStormAlertHistory();
+    _wxAlertHistory=[];_saveWxAlertHistory();
+    _STORM_ALERT_COOLDOWN={};try{localStorage.removeItem('st_stormAlertCooldown')}catch(e){}
+    if(_spcData){_spcData.reports=null;_spcData._lastFetch=0}
+    if(S.activePage==='alerts')renderAlerts();
+  }
   try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:S.locName}))}catch(e){}
   if(S.map){
     S.map.setView([lat,lon],S.map.getZoom());
@@ -5397,9 +5407,9 @@ function updateThreatTicker(){
   }
   if(severeApproaching.length>0){
     severeApproaching.sort((a,b)=>{
-      const sa=a.storm.dbz*2+(a.eta.impact||0)*1.5;
-      const sb=b.storm.dbz*2+(b.eta.impact||0)*1.5;
-      return sb-sa;
+      const dd=b.storm.dbz-a.storm.dbz;if(dd!==0)return dd;
+      const di=(b.eta.impact||0)-(a.eta.impact||0);if(di!==0)return di;
+      return a.eta.eta-b.eta.eta;
     });
     const msgs=severeApproaching.map(t=>{
       const s=t.storm;const{cdSpan,arrStr}=fmtEtaLive(t.eta.eta);
@@ -5416,7 +5426,11 @@ function updateThreatTicker(){
     _startTickerCountdown();
     return;
   }
-  allApproaching.sort((a,b)=>a.eta.eta-b.eta.eta);
+  allApproaching.sort((a,b)=>{
+    const dd=b.storm.dbz-a.storm.dbz;if(dd!==0)return dd;
+    const di=(b.eta.impact||0)-(a.eta.impact||0);if(di!==0)return di;
+    return a.eta.eta-b.eta.eta;
+  });
   const closest=allApproaching[0];
   const{cdSpan,arrStr}=fmtEtaLive(closest.eta.eta);
   const maxDbz=Math.max(...allApproaching.map(a=>a.storm.dbz));
@@ -8812,8 +8826,8 @@ function renderAlerts(){
     });
   }
   html+=`</div>`;
-  function _stormThreatScore(h){return(h.val||0)*2+(h.impactPct||0)*1.5-(h.distance||0)*0.5}
-  const stormHist=_stormAlertHistory.slice().sort((a,b)=>_stormThreatScore(b)-_stormThreatScore(a));
+  function _stormThreatCmp(a,b){const dd=(b.val||0)-(a.val||0);if(dd!==0)return dd;const di=(b.impactPct||0)-(a.impactPct||0);if(di!==0)return di;return(a.distance||0)-(b.distance||0)}
+  const stormHist=_stormAlertHistory.slice().sort(_stormThreatCmp);
   html+=`<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🌩️</span> Storm Cell Alerts${stormHist.length?' ('+stormHist.length+')':''}</span>${stormHist.length?'<button onclick="clearStormAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':''}</div>`;
   if(!stormHist.length){
     const stTh=_loadStormThresholds();
@@ -8829,12 +8843,12 @@ function renderAlerts(){
       else{batches.push({time:h.time,items:[h]})}
     });
     batches.sort((a,b)=>{
-      const aMax=Math.max(...a.items.map(i=>_stormThreatScore(i)));
-      const bMax=Math.max(...b.items.map(i=>_stormThreatScore(i)));
-      return bMax-aMax;
+      const at=a.items.slice().sort(_stormThreatCmp)[0];
+      const bt=b.items.slice().sort(_stormThreatCmp)[0];
+      return _stormThreatCmp(at,bt);
     });
     batches.slice(0,20).forEach((batch,bi)=>{
-      const items=batch.items.slice().sort((a,b)=>_stormThreatScore(b)-_stormThreatScore(a));
+      const items=batch.items.slice().sort(_stormThreatCmp);
       const d=new Date(batch.time);
       const tStr=fmtClock(d)+' · '+d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
       if(items.length===1){
@@ -8868,7 +8882,7 @@ function renderAlerts(){
         const peakTier=items.reduce((t,h)=>{const ord={high:3,medium:2,low:1,none:0};return(ord[h.impactTier]||0)>(ord[t]||0)?h.impactTier:t},'none');
         const tierColors={high:'#eab308',medium:'#06b6d4',low:'#ec4899',none:'#22c55e'};
         const tc=tierColors[peakTier]||'#666';
-        const best=items.reduce((a,b)=>_stormThreatScore(b)>_stormThreatScore(a)?b:a,items[0]);
+        const best=items[0];
         const distU=S.radarMetric?'km':'mi';
         const hasLoc=best.lat!=null;
         let grpEtaHtml='';
