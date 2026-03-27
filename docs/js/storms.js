@@ -2066,10 +2066,12 @@ function renderStorms(){
   let inboundCapped,overhead,nearby;
   if(S._topStormAnalysis&&S._topStormAnalysis.inbound){
     const a=S._topStormAnalysis;
-    const inKeys=new Set(a.inbound.map(stormKey));
+    const fKeys=new Set(filtered.map(stormKey));
+    const fMap=new Map(filtered.map(s=>[stormKey(s),s]));
+    inboundCapped=a.inbound.filter(s=>fKeys.has(stormKey(s))).map(s=>fMap.get(stormKey(s)));
     const ohKeys=new Set(a.overhead.map(stormKey));
-    inboundCapped=filtered.filter(s=>inKeys.has(stormKey(s)));
     overhead=filtered.filter(s=>ohKeys.has(stormKey(s)));
+    const inKeys=new Set(a.inbound.map(stormKey));
     nearby=filtered.filter(s=>!inKeys.has(stormKey(s))&&!ohKeys.has(stormKey(s)));
   }else{
     const approaching=filtered.filter(s=>isApproaching(s));
