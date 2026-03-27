@@ -1359,7 +1359,7 @@ function updateStormBadges(){
   const inbound=S._topStorms?S._topStorms.length:0;
   const maxDbz=S._topStorms&&S._topStorms.length?Math.max(...S._topStorms.map(s=>s.dbz)):0;
   const sevIcon=maxDbz>=65?'‼️':maxDbz>=56?'🚨':maxDbz>=45?'⚠️':maxDbz>=40?'🟡':maxDbz>=30?'🟢':'🔵';
-  const sevBg=maxDbz>=56?'#ef4444':maxDbz>=45?'#f97316':maxDbz>=30?'#eab308':'#6b7280';
+  const sevBg=maxDbz>=65?'#dc2626':maxDbz>=56?'#ef4444':maxDbz>=45?'#f97316':maxDbz>=40?'#eab308':maxDbz>=30?'#22c55e':'#6b7280';
   const hdr=document.getElementById('header-storm-count');
   const nav=document.getElementById('nav-storm-badge');
   if(hdr){
