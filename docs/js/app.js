@@ -4508,10 +4508,10 @@ async function scanRadarHiRes(map,fromHome){
     S.lat=savedLat;S.lon=savedLon;
 
     S._rawScanPts=rawPoints;
-    _clusterSonarPoints();
     S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=true;
     _sonarZoomMi=15;localStorage.setItem('st_sonarZoom',15);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_syncSonarZoomBtns();
+    _clusterSonarPoints();
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Hi-Res: ${S.storms.length.toLocaleString()} points in ${HIRES_RADIUS} mi`);
     await new Promise(r=>setTimeout(r,300));
