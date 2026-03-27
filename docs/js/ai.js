@@ -204,7 +204,8 @@ function buildWeatherContext(){
       if(p.urgency)line+=` [Urgency: ${p.urgency}]`;
       if(p.onset)line+=` [Onset: ${p.onset}]`;
       else if(p.effective)line+=` [Effective: ${p.effective}]`;
-      if(p.expires)line+=` [Expires: ${p.expires}]`;
+      if(p.ends)line+=` [Ends: ${p.ends}]`;
+      else if(p.expires)line+=` [Expires: ${p.expires}]`;
       if(p.description){
         const desc=p.description.replace(/\n/g,' ').substring(0,300);
         line+=`\n    ${desc}`;
