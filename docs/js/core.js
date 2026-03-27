@@ -1087,8 +1087,9 @@ function _clearAllCustomIcons(){
     });
   });
 }
-function _getCustomBasePack(){return localStorage.getItem('st_customBasePack')||'basmilius'}
-function _setCustomBasePack(p){localStorage.setItem('st_customBasePack',p)}
+const _BUILTIN_PACKS=['basmilius','emoji','flat-filled','flat-outline','glossy'];
+function _getCustomBasePack(){const p=localStorage.getItem('st_customBasePack');return(p&&_BUILTIN_PACKS.includes(p))?p:'basmilius'}
+function _setCustomBasePack(p){if(_BUILTIN_PACKS.includes(p))localStorage.setItem('st_customBasePack',p)}
 function _resizeImageToSquare(file,size){
   return new Promise((resolve,reject)=>{
     const reader=new FileReader();
@@ -1157,7 +1158,7 @@ function importCustomPack(){
       const text=await f.text();
       const data=JSON.parse(text);
       if(!data.icons||typeof data.icons!=='object'){showToast('Invalid pack file','error');return}
-      if(data.basePack&&_ICON_PACKS[data.basePack])_setCustomBasePack(data.basePack);
+      if(data.basePack&&_BUILTIN_PACKS.includes(data.basePack))_setCustomBasePack(data.basePack);
       const entries=Object.entries(data.icons);
       for(const[cond,url]of entries){
         if(_ALL_CONDITIONS.includes(cond))await _putCustomIcon(cond,url);
