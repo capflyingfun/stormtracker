@@ -5,7 +5,15 @@ const STATIC_ASSETS = [
   '/StormTracker/offline.html',
   '/StormTracker/manifest.json',
   '/StormTracker/icons/icon-192x192.png',
-  '/StormTracker/icons/icon-512x512.png'
+  '/StormTracker/icons/icon-512x512.png',
+  '/StormTracker/js/core.js',
+  '/StormTracker/js/weather.js',
+  '/StormTracker/js/radar.js',
+  '/StormTracker/js/storms.js',
+  '/StormTracker/js/station.js',
+  '/StormTracker/js/alerts.js',
+  '/StormTracker/js/ai.js',
+  '/StormTracker/js/init.js'
 ];
 
 self.addEventListener('install', event => {
