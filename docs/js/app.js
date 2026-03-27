@@ -5395,12 +5395,14 @@ function updateThreatTicker(){
     const h=Math.floor(remain/3600),m=Math.floor((remain%3600)/60),s=remain%60;
     return h>0?h+'h:'+String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s':m+'m:'+String(s).padStart(2,'0')+'s';
   }
+  function _tickerThreatScore(t){
+    const dbzNorm=Math.min((t.storm.dbz-30)/30,1);
+    const impNorm=Math.min((t.eta.impact||0)/100,1);
+    const etaPen=Math.min(t.eta.eta/60,1)*0.2;
+    return dbzNorm*0.5+impNorm*0.35-etaPen;
+  }
   if(severeApproaching.length>0){
-    severeApproaching.sort((a,b)=>{
-      const dd=b.storm.dbz-a.storm.dbz;if(dd!==0)return dd;
-      const di=(b.eta.impact||0)-(a.eta.impact||0);if(di!==0)return di;
-      return a.eta.eta-b.eta.eta;
-    });
+    severeApproaching.sort((a,b)=>_tickerThreatScore(b)-_tickerThreatScore(a));
     const msgs=severeApproaching.map(t=>{
       const s=t.storm;const{cdSpan,arrStr}=fmtEtaLive(t.eta.eta);
       if(s.dbz>=55)return`<span style="color:#ff3355">🚨 WARNING: Extremely dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Seek shelter immediately. 🚨</span>`;
@@ -5416,11 +5418,7 @@ function updateThreatTicker(){
     _startTickerCountdown();
     return;
   }
-  allApproaching.sort((a,b)=>{
-    const dd=b.storm.dbz-a.storm.dbz;if(dd!==0)return dd;
-    const di=(b.eta.impact||0)-(a.eta.impact||0);if(di!==0)return di;
-    return a.eta.eta-b.eta.eta;
-  });
+  allApproaching.sort((a,b)=>_tickerThreatScore(b)-_tickerThreatScore(a));
   const closest=allApproaching[0];
   const{cdSpan,arrStr}=fmtEtaLive(closest.eta.eta);
   const maxDbz=Math.max(...allApproaching.map(a=>a.storm.dbz));
