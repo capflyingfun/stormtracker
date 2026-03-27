@@ -1021,7 +1021,74 @@ function reRenderActive(){
 function haversine(lat1,lon1,lat2,lon2){const R=3959,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
 function bearingDeg(lat1,lon1,lat2,lon2){const dLon=(lon2-lon1)*Math.PI/180;const y=Math.sin(dLon)*Math.cos(lat2*Math.PI/180);const x=Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180)-Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);return((Math.atan2(y,x)*180/Math.PI)+360)%360}
 
-function wmoIcon(code,isDay){const m={0:isDay?'☀️':'🌙',1:isDay?'🌤️':'🌙',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',56:'🌧️',57:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',66:'🧊',67:'🧊',71:'🌨️',73:'🌨️',75:'❄️',77:'🌨️',80:'🌦️',81:'🌧️',82:'🌧️',85:'🌨️',86:'❄️',95:'⛈️',96:'⛈️',99:'⛈️'};return m[code]||'🌡️'}
+const _ICON_PACKS={
+  basmilius:{name:'Animated',desc:'Basmilius animated SVG'},
+  emoji:{name:'Emoji',desc:'Native emoji icons'},
+  'flat-filled':{name:'Flat Filled',desc:'Colorful flat icons'},
+  'flat-outline':{name:'Flat Outline',desc:'Outlined flat icons'},
+  glossy:{name:'Glossy 3D',desc:'Shiny 3D icons'}
+};
+const _ICON_PACK_FILES={
+  'flat-filled':['clear-day','clear-night','few-clouds-day-rain','few-clouds-day-snow','few-clouds-night','partly-cloudy-day','partly-cloudy-day-snow','partly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm-night','snow-night','crescent-night','cloudy-night-snow','starry-night-rain','starry-night-snow','starry-night-thunder','rain','rain-heavy','snow','blizzard','overcast','cloud-light','tornado','fog','thunderstorm-lightning','thunderstorm','cloud-small','haze','thunderstorm-rain','overcast-dark'],
+  'flat-outline':['clear-day','clear-night','few-clouds-day-rain','few-clouds-day-snow','few-clouds-night','partly-cloudy-day','partly-cloudy-day-snow','partly-cloudy-night','mostly-cloudy-day-rain','mostly-cloudy-day-rain-heavy','mostly-cloudy-night','mostly-cloudy-night-rain','mostly-cloudy-night-rain-heavy','mostly-cloudy-night-snow','thunderstorm-night','snow-night','crescent-night','cloudy-night-snow','starry-night-rain','starry-night-snow','starry-night-thunder','rain','rain-heavy','snow','blizzard','overcast','cloud-light','tornado','fog','thunderstorm-lightning','thunderstorm','cloud-small','haze','thunderstorm-rain','overcast-dark'],
+  glossy:['clear-day','clear-night','few-clouds-day','few-clouds-night','partly-cloudy-day','overcast','rain','rain-night','thunderstorm','thunderstorm-night','snow','sleet','blizzard','hot','cold','wind']
+};
+const _WMO_TO_COND={};
+function _buildWmoCondMap(isDay){
+  return{0:isDay?'clear-day':'clear-night',1:isDay?'few-clouds-day':'few-clouds-night',2:isDay?'partly-cloudy-day':'partly-cloudy-night',3:'overcast',45:'fog',48:'fog',51:isDay?'few-clouds-day-rain':'mostly-cloudy-night-rain',53:isDay?'few-clouds-day-rain':'mostly-cloudy-night-rain',55:isDay?'mostly-cloudy-day-rain':'mostly-cloudy-night-rain',56:'sleet',57:'sleet',61:isDay?'few-clouds-day-rain':'mostly-cloudy-night-rain',63:'rain',65:'rain-heavy',66:'sleet',67:'sleet',71:isDay?'few-clouds-day-snow':'snow-night',73:'snow',75:'blizzard',77:'snow',80:isDay?'few-clouds-day-rain':'mostly-cloudy-night-rain',81:isDay?'mostly-cloudy-day-rain':'mostly-cloudy-night-rain',82:isDay?'mostly-cloudy-day-rain-heavy':'mostly-cloudy-night-rain-heavy',85:isDay?'partly-cloudy-day-snow':'mostly-cloudy-night-snow',86:'blizzard',95:isDay?'thunderstorm':'thunderstorm-night',96:isDay?'thunderstorm-rain':'thunderstorm-night',99:isDay?'thunderstorm-rain':'thunderstorm-night'};
+}
+function wmoToCondition(code,isDay){return _buildWmoCondMap(isDay)[code]||'overcast'}
+function _getIconPack(){return S.iconPack||localStorage.getItem('st_iconPack')||'basmilius'}
+function setIconPack(pack){
+  S.iconPack=pack;
+  localStorage.setItem('st_iconPack',pack);
+  syncIconPackUI();
+  if(S.lat&&S.weather)renderWeather(S.weather);
+  const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
+  if(wxNavBtn&&S.weather){const c=S.weather.current;const hr=new Date().getHours();const isD=hr>=6&&hr<20;wxNavBtn.innerHTML=getWeatherIcon(wmoToCondition(c.weather_code,isD),20)}
+}
+function _condToEmoji(cond){
+  const m={'clear-day':'☀️','clear-night':'🌙','few-clouds-day':'🌤️','few-clouds-day-rain':'🌦️','few-clouds-day-snow':'🌨️','few-clouds-night':'🌙','partly-cloudy-day':'⛅','partly-cloudy-day-snow':'🌨️','partly-cloudy-night':'☁️','mostly-cloudy-day-rain':'🌧️','mostly-cloudy-day-rain-heavy':'🌧️','mostly-cloudy-night':'☁️','mostly-cloudy-night-rain':'🌧️','mostly-cloudy-night-rain-heavy':'🌧️','mostly-cloudy-night-snow':'🌨️','overcast':'☁️','fog':'🌫️','rain':'🌧️','rain-heavy':'🌧️','rain-night':'🌧️','snow':'🌨️','snow-night':'🌨️','blizzard':'❄️','sleet':'🧊','thunderstorm':'⛈️','thunderstorm-night':'⛈️','thunderstorm-rain':'⛈️','thunderstorm-lightning':'🌩️','tornado':'🌪️','hot':'🌡️','cold':'🌡️','wind':'💨','haze':'🌫️','crescent-night':'🌙','starry-night-rain':'🌧️','starry-night-snow':'🌨️','starry-night-thunder':'⛈️','cloudy-night-snow':'🌨️','cloud-light':'☁️','cloud-small':'☁️','overcast-dark':'☁️'};
+  return m[cond]||'🌡️';
+}
+function _condToBasmilius(cond){
+  const m={'clear-day':'clear-day','clear-night':'clear-night','few-clouds-day':'partly-cloudy-day','few-clouds-day-rain':'partly-cloudy-day-rain','few-clouds-day-snow':'partly-cloudy-day-snow','few-clouds-night':'partly-cloudy-night','partly-cloudy-day':'partly-cloudy-day','partly-cloudy-day-snow':'overcast-day-snow','partly-cloudy-night':'partly-cloudy-night','mostly-cloudy-day-rain':'overcast-day-rain','mostly-cloudy-day-rain-heavy':'extreme-rain','mostly-cloudy-night':'overcast-night','mostly-cloudy-night-rain':'overcast-night-rain','mostly-cloudy-night-rain-heavy':'extreme-rain','mostly-cloudy-night-snow':'overcast-night-snow','overcast':'overcast','fog':'fog','rain':'rain','rain-heavy':'extreme-rain','rain-night':'overcast-night-rain','snow':'snow','snow-night':'overcast-night-snow','blizzard':'extreme-snow','sleet':'sleet','thunderstorm':'thunderstorms-day-rain','thunderstorm-night':'thunderstorms-night-rain','thunderstorm-rain':'thunderstorms-day-extreme-rain','thunderstorm-lightning':'thunderstorms-rain','tornado':'tornado','hot':'thermometer-warmer','cold':'thermometer-colder','wind':'wind','haze':'haze','crescent-night':'clear-night','starry-night-rain':'overcast-night-rain','starry-night-snow':'overcast-night-snow','starry-night-thunder':'thunderstorms-night-rain','cloudy-night-snow':'overcast-night-snow','cloud-light':'overcast','cloud-small':'overcast','overcast-dark':'overcast'};
+  return m[cond]||'not-available';
+}
+function _packHasIcon(pack,cond){
+  const files=_ICON_PACK_FILES[pack];
+  return files&&files.includes(cond);
+}
+function _findBestPackIcon(pack,cond){
+  if(_packHasIcon(pack,cond))return cond;
+  const fb={'few-clouds-day':'clear-day','few-clouds-night':'clear-night','few-clouds-day-rain':'rain','few-clouds-day-snow':'snow','partly-cloudy-day-snow':'snow','mostly-cloudy-day-rain':'rain','mostly-cloudy-day-rain-heavy':'rain-heavy','mostly-cloudy-night':'overcast','mostly-cloudy-night-rain':'rain','mostly-cloudy-night-rain-heavy':'rain-heavy','mostly-cloudy-night-snow':'snow','rain-night':'rain','snow-night':'snow','thunderstorm-night':'thunderstorm','thunderstorm-rain':'thunderstorm','thunderstorm-lightning':'thunderstorm','starry-night-rain':'rain','starry-night-snow':'snow','starry-night-thunder':'thunderstorm','cloudy-night-snow':'snow','crescent-night':'clear-night','cloud-light':'overcast','cloud-small':'overcast','overcast-dark':'overcast','haze':'fog','sleet':'snow','blizzard':'snow','hot':'clear-day','cold':'snow','wind':'overcast','tornado':'thunderstorm'};
+  const alt=fb[cond];
+  if(alt&&_packHasIcon(pack,alt))return alt;
+  return null;
+}
+function getWeatherIcon(cond,sz){
+  const pack=_getIconPack();
+  const s=parseInt(sz)||32;
+  if(pack==='emoji')return`<span style="font-size:${s}px;line-height:1;display:inline-block;vertical-align:middle">${_condToEmoji(cond)}</span>`;
+  if(pack==='basmilius'){const bm=_condToBasmilius(cond);return`<img src="${BMCDN}${bm}.svg" width="${s}" height="${s}" alt="" style="display:inline-block;vertical-align:middle" loading="lazy">`}
+  const best=_findBestPackIcon(pack,cond);
+  if(best)return`<img src="icons/${pack}/${best}.png" width="${s}" height="${s}" alt="${cond}" style="display:inline-block;vertical-align:middle" loading="lazy">`;
+  const bm2=_condToBasmilius(cond);
+  return`<img src="${BMCDN}${bm2}.svg" width="${s}" height="${s}" alt="" style="display:inline-block;vertical-align:middle" loading="lazy">`;
+}
+const _ICON_PREVIEW_CONDS=['clear-day','few-clouds-day','rain','thunderstorm','snow','clear-night'];
+function syncIconPackUI(){
+  const pack=_getIconPack();
+  document.querySelectorAll('.icon-pack-btn').forEach(btn=>{
+    const p=btn.dataset.pack;
+    btn.style.background=p===pack?'rgba(0,229,255,0.2)':'rgba(255,255,255,0.04)';
+    btn.style.borderColor=p===pack?'var(--accent-cyan)':'var(--border-subtle)';
+    btn.style.color=p===pack?'var(--accent-cyan)':'var(--text-muted)';
+  });
+  const prev=document.getElementById('icon-pack-preview');
+  if(prev){let h='';_ICON_PREVIEW_CONDS.forEach(c=>{h+=getWeatherIcon(c,28)});prev.innerHTML=h}
+}
+function wmoIcon(code,isDay){return _condToEmoji(wmoToCondition(code,isDay))}
 const BMCDN='https://cdn.jsdelivr.net/gh/basmilius/weather-icons@dev/production/fill/svg/';
 function wmoToBasmilius(code,isDay){
   const d=isDay;
@@ -1058,7 +1125,8 @@ function bmIcon(name,sz){
   return`<img src="${BMCDN}${name}.svg" width="${s}" height="${s}" alt="" style="display:inline-block;vertical-align:middle" loading="lazy">`;
 }
 function neonWx(code,isDay,sz){
-  return bmIcon(wmoToBasmilius(code,isDay),parseInt(sz)||32);
+  const cond=wmoToCondition(code,isDay);
+  return getWeatherIcon(cond,parseInt(sz)||32);
 }
 function animEmoji(code,isDay,size){
   const px=size==='1.2em'?38:size==='1em'?30:28;
@@ -2246,6 +2314,7 @@ function syncSettingsPanel(){
   if(gustWSel)gustWSel.value=String(_getGustWindow()/1000);
   const avgWSel=document.getElementById('settings-avg-window');
   if(avgWSel)avgWSel.value=String(_getAvgWindow()/1000);
+  syncIconPackUI();
 }
 function setSimInterval(val){
   const v=parseInt(val,10);
