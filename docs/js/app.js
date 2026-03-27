@@ -208,8 +208,29 @@ function _resetAllSonar(){
 }
 let _sonarZoomMi=parseInt(localStorage.getItem('st_sonarZoom'))||80;
 if(!_SONAR_ZOOM_LEVELS.includes(_sonarZoomMi))_sonarZoomMi=80;
-function sonarZoomIn(){const i=_SONAR_ZOOM_LEVELS.indexOf(_sonarZoomMi);if(i>0){_sonarZoomMi=_SONAR_ZOOM_LEVELS[i-1];localStorage.setItem('st_sonarZoom',_sonarZoomMi);S._sonarTotalSwept=0;S._sonarSweepAngle=0;drawMiniSonar();_syncSonarZoomBtns()}}
-function sonarZoomOut(){const i=_SONAR_ZOOM_LEVELS.indexOf(_sonarZoomMi);if(i<_SONAR_ZOOM_LEVELS.length-1){_sonarZoomMi=_SONAR_ZOOM_LEVELS[i+1];localStorage.setItem('st_sonarZoom',_sonarZoomMi);S._sonarTotalSwept=0;S._sonarSweepAngle=0;drawMiniSonar();_syncSonarZoomBtns()}}
+function sonarZoomIn(){const i=_SONAR_ZOOM_LEVELS.indexOf(_sonarZoomMi);if(i>0){_sonarZoomMi=_SONAR_ZOOM_LEVELS[i-1];localStorage.setItem('st_sonarZoom',_sonarZoomMi);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_clusterSonarPoints();drawMiniSonar();_syncSonarZoomBtns()}}
+function sonarZoomOut(){const i=_SONAR_ZOOM_LEVELS.indexOf(_sonarZoomMi);if(i<_SONAR_ZOOM_LEVELS.length-1){_sonarZoomMi=_SONAR_ZOOM_LEVELS[i+1];localStorage.setItem('st_sonarZoom',_sonarZoomMi);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_clusterSonarPoints();drawMiniSonar();_syncSonarZoomBtns()}}
+function _clusterSonarPoints(){
+  const pts=S._rawScanPts;
+  if(!pts||!pts.length){S._sonarClusteredPts=[];return}
+  const viewR=_sonarZoomMi;
+  const res=viewR<=20?0.003:viewR<=40?0.005:0.01;
+  const inv=1/res;
+  const cells=new Map();
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i];
+    const gx=(p.lat*inv)|0;
+    const gy=(p.lng*inv)|0;
+    const k=gx*1000000+gy;
+    const c=cells.get(k);
+    if(c){c.sLat+=p.lat;c.sLng+=p.lng;if(p.dbz>c.dbz)c.dbz=p.dbz;c.n++}
+    else{cells.set(k,{sLat:p.lat,sLng:p.lng,dbz:p.dbz,n:1})}
+  }
+  const out=new Array(cells.size);
+  let idx=0;
+  for(const c of cells.values()){out[idx++]={lat:c.sLat/c.n,lng:c.sLng/c.n,dbz:c.dbz,count:c.n}}
+  S._sonarClusteredPts=out;
+}
 function _syncSonarZoomBtns(){const zi=document.getElementById('sonar-zoom-in');const zo=document.getElementById('sonar-zoom-out');if(zi)zi.style.opacity=_sonarZoomMi<=_SONAR_ZOOM_LEVELS[0]?'0.3':'0.8';if(zo)zo.style.opacity=_sonarZoomMi>=_SONAR_ZOOM_LEVELS[_SONAR_ZOOM_LEVELS.length-1]?'0.3':'0.8'}
 let _gyroHeading=null,_gyroEnabled=false,_gyroRaw=null,_gyroSmooth=null;
 function initGyroCompass(){
@@ -1542,7 +1563,7 @@ function goHome(){
   document.getElementById('location-input').value=S.locName;
   S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
   S.radarSource=isUSLocation(home.lat,home.lon)?'nexrad':'rainviewer';
-  S.storms=[];S._rawScanPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
+  S.storms=[];S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
   try{localStorage.setItem('st_loc',JSON.stringify({lat:home.lat,lon:home.lon,name:home.name}))}catch(e){}
   if(S.map){
     S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
@@ -1570,7 +1591,7 @@ function scanHere(){
   document.getElementById('location-input').value=S.locName;
   S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
   S.radarSource=isUSLocation(cLat,cLng)?'nexrad':'rainviewer';
-  S.storms=[];S._rawScanPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
+  S.storms=[];S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
   try{localStorage.setItem('st_loc',JSON.stringify({lat:cLat,lon:cLng,name:S.locName}))}catch(e){}
   if(S._userMarker)S._userMarker.setLatLng([cLat,cLng]);
   if(S._rangeCircle)S._rangeCircle.setLatLng([cLat,cLng]);
@@ -1618,7 +1639,7 @@ function showHdScanDialog(){
     document.getElementById('location-input').value=name;
     S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
     S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
-    S.storms=[];S._rawScanPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
+    S.storms=[];S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
     try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name}))}catch(e){}
     if(S._userMarker)S._userMarker.setLatLng([lat,lon]);
     if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
@@ -1664,7 +1685,7 @@ function setLoc(lat,lon,name,fromTravel){
     S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
     clearStormCone();
   }
-  S.storms=[];S._rawScanPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
+  S.storms=[];S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;clearStormZones();
   try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:S.locName}))}catch(e){}
   if(S.map){
     S.map.setView([lat,lon],S.map.getZoom());
@@ -2899,14 +2920,15 @@ function drawMiniSonar(){
     const useRaw=viewR<=40;
     const dots=[];
     if(useRaw){
-      for(const p of S._rawScanPts){
+      const src=S._sonarClusteredPts&&S._sonarClusteredPts.length?S._sonarClusteredPts:S._rawScanPts;
+      for(const p of src){
         const distMi=haversine(S.lat,S.lon,p.lat,p.lng);
         if(distMi>viewR)continue;
         const bear=(bearingDeg(S.lat,S.lon,p.lat,p.lng)+360)%360;
         const aMid=(bear-90)*Math.PI/180;
         const rMid=maxR*(distMi/viewR);
         if(rMid<=0)continue;
-        dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:p.dbz,dist:rMid,angDeg:bear});
+        dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:p.dbz,dist:rMid,angDeg:bear,count:p.count||1});
         if(p.dbz>maxDbz)maxDbz=p.dbz;
         zoneCount++;
       }
@@ -2945,7 +2967,8 @@ function drawMiniSonar(){
       const frac=Math.min(1,d.dist/maxR);
       const dbzCls=_dbzEntry(d.dbz).cls;
       const dbzSc=_getDbzScale(dbzCls);
-      const dotR=(useRaw?rawDotR*(0.8+0.4*frac):(minDot+(maxDot-minDot)*frac))*dbzSc;
+      const cntSc=useRaw?Math.min(1.8,1+Math.log2(d.count||1)*0.15):1;
+      const dotR=(useRaw?rawDotR*(0.8+0.4*frac):(minDot+(maxDot-minDot)*frac))*dbzSc*cntSc;
       const hex=dbzHex(d.dbz);
       let sweepAlpha=1;
       if(!isAlwaysOn){
@@ -4115,7 +4138,7 @@ function toggleRadarSource(map){
   }
   clearStormCone();
   clearStormZones();
-  S.storms=[];S._rawScanPts=[];
+  S.storms=[];S._rawScanPts=[];S._sonarClusteredPts=[];
   S.stormMarkers.forEach(m=>map.removeLayer(m));
   S.stormMarkers=[];
   renderStorms();updateStormBadges();
@@ -4412,6 +4435,7 @@ async function scanRadarForView(){
     S.lat=savedLat;S.lon=savedLon;
 
     S._rawScanPts=rawPoints;
+    _clusterSonarPoints();
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
     recordScanSnapshot();
@@ -4484,6 +4508,7 @@ async function scanRadarHiRes(map,fromHome){
     S.lat=savedLat;S.lon=savedLon;
 
     S._rawScanPts=rawPoints;
+    _clusterSonarPoints();
     S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=true;
     _sonarZoomMi=15;localStorage.setItem('st_sonarZoom',15);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_syncSonarZoomBtns();
@@ -4756,6 +4781,7 @@ function plotStormMarkers(map){
 
 S._stormZoneLayers=[];
 S._rawScanPts=[];
+S._sonarClusteredPts=[];
 S._showZones=true;
 S._showPathArrows=true;
 S._pathArrowStyle='chevron';
