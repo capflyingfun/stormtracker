@@ -365,7 +365,7 @@ async function loadStationObs(icao){
       rawMETAR:p.rawMessage||buildSyntheticMetar(icao,p),
       clouds:p.cloudLayers||[],
       obsTime:p.timestamp||'',
-      wxString:_extractMetarWx(p.rawMessage||'')||_validateWxString(p.textDescription||'',p.rawMessage||''),
+      wxString:_extractMetarWx(p.rawMessage||''),
     };
     renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){
