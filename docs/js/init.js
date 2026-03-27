@@ -408,10 +408,15 @@ function threatColor(score){
   return{color:'#22c55e',glow:'rgba(34,197,94,0.5)',label:'Low'};
 }
 function dbzToEmoji(d){
-  if(d>=56)return'🌩️';
-  if(d>=46)return'⛈️';
-  if(d>=31)return'🌧️';
-  return'☁️';
+  const pack=_getIconPack();
+  if(pack==='emoji'||pack==='basmilius'){
+    if(d>=56)return'🌩️';
+    if(d>=46)return'⛈️';
+    if(d>=31)return'🌧️';
+    return'☁️';
+  }
+  const cond=d>=56?'thunderstorm-lightning':d>=46?'thunderstorm':d>=31?'rain':'overcast';
+  return getWeatherIcon(cond,20);
 }
 function stormSVG(dbz,color,sz){
   const w=Math.round(sz*20),h=Math.round(sz*14);
@@ -1020,6 +1025,7 @@ function _gatherSyncSettings() {
     sonarCfg: (function(){try{return JSON.parse(localStorage.getItem('st_sonarCfg'))}catch(e){return null}})(),
     sonarZoom: parseInt(localStorage.getItem('st_sonarZoom')) || 80,
     tickerSpeed: parseInt(localStorage.getItem('st_tickerSpeed')) || 100,
+    iconPack: localStorage.getItem('st_iconPack') || 'basmilius',
     emailAlerts: _emailAlertsOn,
   };
 }
@@ -1038,6 +1044,7 @@ function _applySyncSettings(s) {
   if (s.sonarCfg) { try { localStorage.setItem('st_sonarCfg', JSON.stringify(s.sonarCfg)); } catch(e){} }
   if (s.sonarZoom) localStorage.setItem('st_sonarZoom', String(s.sonarZoom));
   if (s.tickerSpeed) localStorage.setItem('st_tickerSpeed', String(s.tickerSpeed));
+  if (s.iconPack) localStorage.setItem('st_iconPack', s.iconPack);
   if (s.emailAlerts !== undefined) {
     _emailAlertsOn = !!s.emailAlerts;
     localStorage.setItem('st_emailAlerts', _emailAlertsOn ? '1' : '0');
