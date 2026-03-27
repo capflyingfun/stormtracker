@@ -1172,6 +1172,23 @@ function toggleEmailAlerts() {
   if (_syncToken) syncPushSettings();
 }
 
+async function sendTestAlert() {
+  if (!_syncToken) return toast('Not logged in');
+  const btn = document.getElementById('btn-test-alert');
+  if (btn) { btn.disabled = true; btn.textContent = '📨 Sending...'; }
+  try {
+    const data = await _syncFetch('/api/test-alert', { method: 'POST' });
+    if (data.ok) {
+      toast('✅ Test sent via ' + (data.provider || 'email') + ' to ' + (data.to || ''));
+    } else {
+      toast('❌ ' + (data.error || 'Send failed'));
+    }
+  } catch (e) {
+    toast('❌ ' + (e.message || 'Test failed'));
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '📨 Send Test'; }
+}
+
 function setSyncApiUrl() {
   const el = document.getElementById('sync-api-url');
   if (!el) return;
@@ -1262,6 +1279,7 @@ function renderSyncSection() {
     html += `<div><span style="font-size:0.7em;color:var(--text-secondary)">${alertLabel}</span><div style="font-size:0.55em;color:var(--text-muted);margin-top:2px">${alertDesc}</div></div>`;
     html += `<button onclick="toggleEmailAlerts()" style="font-size:0.65em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid ${alertOn?'#00cc66':'var(--border-subtle)'};background:${alertOn?'rgba(0,200,100,0.15)':'rgba(255,255,255,0.04)'};color:${alertOn?'#00cc66':'var(--text-muted)'}">${alertOn?'ON':'OFF'}</button>`;
     html += '</div>';
+    html += `<button onclick="sendTestAlert()" id="btn-test-alert" style="width:100%;padding:6px;font-size:0.65em;font-weight:600;background:rgba(255,165,0,0.12);color:#ffa500;border:1px solid rgba(255,165,0,0.3);border-radius:6px;cursor:pointer;margin-bottom:8px">📨 Send Test ${isSmsAcct?'Text':'Email'}</button>`;
     if (alertOn) {
       html += '<div style="font-size:0.55em;color:var(--text-muted);margin-bottom:8px;padding:0 4px">Alerts check your saved locations every 10 minutes against your Weather Station Alert thresholds above. 15-min cooldown per alert type.</div>';
     }

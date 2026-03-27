@@ -275,6 +275,75 @@ function evaluateThresholds(weather, thresholds, units) {
   return alerts;
 }
 
+function buildSmtpPayload(from, to, subject, body) {
+  const boundary = 'stb' + Date.now();
+  const lines = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    '',
+    body.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').substring(0, 300),
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset=UTF-8',
+    '',
+    body,
+    '',
+    `--${boundary}--`,
+  ];
+  return lines.join('\r\n');
+}
+
+async function sendViaGmail(env, to, subject, html) {
+  if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) return { ok: false, error: 'Gmail credentials not configured' };
+  const raw = buildSmtpPayload(env.GMAIL_USER, to, subject, html);
+  const b64 = btoa(unescape(encodeURIComponent(raw))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  try {
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + btoa(env.GMAIL_USER + ':' + env.GMAIL_APP_PASSWORD),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ raw: b64 }),
+    });
+    if (res.ok) return { ok: true };
+    const txt = await res.text();
+    return { ok: false, error: `Gmail API ${res.status}: ${txt.substring(0, 200)}` };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+async function sendViaSmtp2Go(env, to, subject, html) {
+  if (!env.SMTP2GO_API_KEY) return null;
+  const sender = env.SMTP2GO_SENDER || env.GMAIL_USER || 'alerts@stormtracker.dev';
+  try {
+    const res = await fetch('https://api.smtp2go.com/v3/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: env.SMTP2GO_API_KEY,
+        to: [to],
+        sender,
+        subject,
+        html_body: html,
+        text_body: html.replace(/<[^>]+>/g, '').substring(0, 300),
+      }),
+    });
+    if (res.ok) return { ok: true };
+    const txt = await res.text();
+    return { ok: false, error: `SMTP2GO ${res.status}: ${txt.substring(0, 200)}` };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 async function sendAlertEmail(env, to, locationName, alerts, appUrl) {
   const alertRows = alerts.map(a => {
     const dir = a.direction === 'below' ? 'dropped to' : 'reached';
@@ -310,24 +379,92 @@ async function sendAlertEmail(env, to, locationName, alerts, appUrl) {
 </body>
 </html>`;
 
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'StormTracker <alerts@' + (env.RESEND_DOMAIN || 'stormtracker.dev') + '>',
-        to: [to],
-        subject: `⚡ Weather Alert: ${alerts.map(a => a.label).join(', ')} — ${locationName}`,
-        html,
-      }),
-    });
-    return res.ok;
-  } catch {
-    return false;
+  const subject = `⚡ Weather Alert: ${alerts.map(a => a.label).join(', ')} — ${locationName}`;
+
+  if (env.RESEND_API_KEY) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'StormTracker <alerts@' + (env.RESEND_DOMAIN || 'stormtracker.dev') + '>',
+          to: [to],
+          subject,
+          html,
+        }),
+      });
+      if (res.ok) return true;
+    } catch {}
   }
+
+  const smtp2go = await sendViaSmtp2Go(env, to, subject, html);
+  if (smtp2go && smtp2go.ok) return true;
+
+  const gmail = await sendViaGmail(env, to, subject, html);
+  return gmail.ok;
+}
+
+async function handleTestAlert(req, db, env) {
+  const user = await getUser(db, req.headers.get('Authorization'));
+  if (!user) return err('Not authenticated', 401);
+
+  const subject = '⚡ StormTracker Test Alert';
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#0a1020;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+<div style="max-width:520px;margin:0 auto;padding:20px">
+  <div style="background:linear-gradient(135deg,#0d1530,#1a2545);border:1px solid #1a2a50;border-radius:12px;padding:24px;margin-bottom:16px">
+    <div style="font-size:24px;font-weight:700;color:#00e5ff;margin-bottom:4px">⚡ StormTracker</div>
+    <div style="font-size:14px;color:#6688aa">Test Alert</div>
+  </div>
+  <div style="background:#0d1530;border:1px solid #1a2a50;border-radius:12px;padding:20px;margin-bottom:16px">
+    <div style="font-size:16px;color:#e0e8f0;text-align:center;padding:12px">✅ Your alerts are working! This is a test message from StormTracker.</div>
+    <div style="font-size:12px;color:#6688aa;text-align:center;margin-top:8px">${new Date().toISOString()}</div>
+  </div>
+  <div style="text-align:center;margin-bottom:16px">
+    <a href="${env.APP_URL || 'https://capflyingfun.github.io/StormTracker/'}" style="display:inline-block;background:linear-gradient(135deg,#00c8ff,#0088cc);color:#fff;font-weight:600;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none">Open StormTracker →</a>
+  </div>
+</div>
+</body>
+</html>`;
+
+  const providers = [];
+  if (env.RESEND_API_KEY) providers.push('resend');
+  if (env.SMTP2GO_API_KEY) providers.push('smtp2go');
+  if (env.GMAIL_USER && env.GMAIL_APP_PASSWORD) providers.push('gmail');
+
+  if (providers.length === 0) {
+    return json({ ok: false, error: 'No email provider configured. Add GMAIL_USER + GMAIL_APP_PASSWORD, RESEND_API_KEY, or SMTP2GO_API_KEY as Worker secrets.' }, 500);
+  }
+
+  let result;
+  if (env.RESEND_API_KEY) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'StormTracker <alerts@' + (env.RESEND_DOMAIN || 'stormtracker.dev') + '>',
+          to: [user.email], subject, html,
+        }),
+      });
+      if (res.ok) return json({ ok: true, provider: 'resend', to: user.email });
+      result = await res.text();
+    } catch (e) { result = e.message; }
+  }
+
+  const smtp2go = await sendViaSmtp2Go(env, user.email, subject, html);
+  if (smtp2go && smtp2go.ok) return json({ ok: true, provider: 'smtp2go', to: user.email });
+
+  const gmail = await sendViaGmail(env, user.email, subject, html);
+  if (gmail.ok) return json({ ok: true, provider: 'gmail', to: user.email });
+
+  return json({ ok: false, error: gmail.error || result || 'All providers failed', providers, to: user.email }, 500);
 }
 
 async function handleCron(env) {
@@ -402,6 +539,7 @@ export default {
       if (path === '/api/settings' && request.method === 'GET') return await handleGetSettings(request, db);
       if (path === '/api/settings/sync' && request.method === 'POST') return await handleSyncSettings(request, db);
       if (path === '/api/account' && request.method === 'DELETE') return await handleDeleteAccount(request, db);
+      if (path === '/api/test-alert' && request.method === 'POST') return await handleTestAlert(request, db, env);
       if (path === '/api/health') return json({ status: 'ok', time: new Date().toISOString() });
 
       return err('Not found', 404);
