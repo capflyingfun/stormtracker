@@ -496,10 +496,13 @@ function drawMiniSonar(){
         const fs=_lightningFlashState[gi];
         if(now>=fs.nextToggle){
           if(fs.on){
-            const goOff=Math.random()<0.35;
-            fs.on=!goOff;
-            fs.nextToggle=now+(goOff?(80+Math.random()*70):(100+Math.random()*700));
-          }else{fs.on=true;fs.nextToggle=now+100+Math.random()*700}
+            fs.on=false;
+            fs.nextToggle=now+150+Math.random()*250;
+          }else{
+            const doFlash=Math.random()<0.3;
+            fs.on=doFlash;
+            fs.nextToggle=now+(doFlash?100:(1500+Math.random()*1500));
+          }
         }
         if(!fs.on)continue;
         const flashAlpha=0.7+Math.random()*0.3;
