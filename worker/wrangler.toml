@@ -1,4 +1,4 @@
-name = "stormtracker-notifications"
+name = "stormtracker"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
 
@@ -8,7 +8,7 @@ crons = ["*/10 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "stormtracker-db"
-database_id = "YOUR_D1_DATABASE_ID"
+database_id = "fd95afbc-7de7-4231-9cd3-9c326eb565a5"
 
 [vars]
-APP_URL = "https://your-username.github.io/StormTracker/"
+APP_URL = "https://capflyingfun.github.io/StormTracker/"

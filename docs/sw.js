@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stormtracker-v258';
+const CACHE_NAME = 'stormtracker-v258b';
 const STATIC_ASSETS = [
   '/StormTracker/',
   '/StormTracker/index.html',
@@ -34,6 +34,9 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
+  if (url.hostname.includes('workers.dev') || url.pathname.startsWith('/api/')) {
+    return;
+  }
   if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
     event.respondWith(
       fetch(event.request)

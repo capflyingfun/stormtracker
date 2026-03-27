@@ -226,7 +226,7 @@ details.card>summary{list-style:none}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 @keyframes hiresPopIn{0%{opacity:0;transform:translate(-50%,-50%) scale(0.85)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 .skel-line{height:16px;margin-bottom:8px}
-.toast-container{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast-container{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
 .toast{background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:10px 18px;font-size:0.8em;color:var(--text-primary);box-shadow:var(--shadow-md);opacity:0;transform:translateY(-10px);animation:toast-in 0.25s ease forwards;pointer-events:auto}
 @keyframes toast-in{to{opacity:1;transform:translateY(0)}}
 .toast.out{animation:toast-out 0.2s ease forwards}
