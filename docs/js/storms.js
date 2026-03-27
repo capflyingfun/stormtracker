@@ -554,14 +554,13 @@ function computeTopStorms(){
   S._topStorms=[];
   S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};
   if(!S.storms||!S.storms.length)return;
-  const sig=S.storms.filter(s=>s.dbz>=31);
-  for(const s of sig){s._eta=calcStormETA(s)}
-  S._topStormAnalysis.allWithEta=sig;
+  for(const s of S.storms){s._eta=calcStormETA(s)}
+  S._topStormAnalysis.allWithEta=S.storms;
   const inbound=[],overhead=[],nearby=[];
-  for(const s of sig){
+  for(const s of S.storms){
     const e=s._eta;
     if(e&&e.proximity){overhead.push(s)}
-    else if(e&&e.approaching&&e.impact>0&&e.eta!=null){inbound.push(s)}
+    else if(s.dbz>=31&&e&&e.approaching&&e.impact>0&&e.eta!=null){inbound.push(s)}
     else{nearby.push(s)}
   }
   inbound.sort((a,b)=>b.dbz===a.dbz?(a._eta.eta-b._eta.eta):(b.dbz-a.dbz));
