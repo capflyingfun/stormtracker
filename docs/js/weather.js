@@ -1232,9 +1232,11 @@ function renderNWSForecast(periods){
       const hiStr=fmtTempShort(p.unit==='F'?(tempF-32)*5/9:tempF);
       const loStr=pair.night?fmtTempShort(pair.night.unit==='F'?(pair.night.temp-32)*5/9:pair.night.temp):'';
       const rain=p.precip||0;
-      const emojiMap={'Sunny':'☀️','Clear':'🌙','Mostly Sunny':'🌤️','Mostly Clear':'🌤️','Partly Sunny':'⛅','Partly Cloudy':'⛅','Mostly Cloudy':'🌥️','Cloudy':'☁️','Overcast':'☁️',
-        'Rain':'🌧️','Showers':'🌦️','Chance Rain':'🌦️','Slight Chance Rain':'🌦️','Thunderstorms':'⛈️','Chance Thunderstorms':'⛈️','Snow':'❄️','Chance Snow':'🌨️','Fog':'🌫️','Haze':'🌫️','Windy':'💨','Hot':'🔥','Cold':'🥶'};
-      let em='🌤️';for(const[k,v]of Object.entries(emojiMap)){if(p.short.toLowerCase().includes(k.toLowerCase())){em=v;break}}
+      const nwsCondMap={'sunny':'clear-day','clear':'clear-night','mostly sunny':'few-clouds-day','mostly clear':'few-clouds-night','partly sunny':'partly-cloudy-day','partly cloudy':'partly-cloudy-night','mostly cloudy':'overcast','cloudy':'overcast','overcast':'overcast',
+        'rain':'rain','showers':'few-clouds-day-rain','chance rain':'few-clouds-day-rain','slight chance rain':'few-clouds-day-rain','thunderstorms':'thunderstorm','chance thunderstorms':'thunderstorm','snow':'snow','chance snow':'partly-cloudy-day-snow','fog':'fog','haze':'haze','windy':'overcast','hot':'clear-day','cold':'snow'};
+      const isD=!(p.name||'').toLowerCase().includes('night');
+      let cond='partly-cloudy-day';const sh=p.short.toLowerCase();for(const[k,c]of Object.entries(nwsCondMap)){if(sh.includes(k)){cond=c;break}}
+      const em=getWeatherIcon(cond,'1em');
       return`<div class="forecast-item" onclick="toggleNWSDetail(${pair.idx})" data-nfi="${pair.idx}"><div class="forecast-time">${p.name.replace(/ Night$/,'').replace(/This /,'')}</div><div class="forecast-icon">${em}</div><div class="forecast-temp" style="font-weight:700;color:var(--accent-red);text-shadow:0 0 8px rgba(255,51,85,0.4)">${hiStr}</div>${loStr?`<div style="font-size:0.7em;font-weight:600;color:var(--accent-cyan);text-shadow:0 0 6px rgba(0,229,255,0.3)">${loStr}</div>`:''}${rain>0?`<div style="font-size:0.55em;color:var(--accent-blue);margin-top:2px">💧${rain}%</div>`:''}</div>`;
     }).join('')}</div><div id="nws-detail-box"></div>
     <div style="text-align:right;font-size:0.55em;color:var(--text-muted);margin-top:4px;padding-right:4px">Source: National Weather Service</div></div>`;

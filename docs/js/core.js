@@ -1043,9 +1043,7 @@ function setIconPack(pack){
   S.iconPack=pack;
   localStorage.setItem('st_iconPack',pack);
   syncIconPackUI();
-  if(S.lat&&S.weather)renderWeather(S.weather);
-  const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
-  if(wxNavBtn&&S.weather){const c=S.weather.current;const hr=new Date().getHours();const isD=hr>=6&&hr<20;wxNavBtn.innerHTML=getWeatherIcon(wmoToCondition(c.weather_code,isD),20)}
+  reRenderActive();
 }
 function _condToEmoji(cond){
   const m={'clear-day':'☀️','clear-night':'🌙','few-clouds-day':'🌤️','few-clouds-day-rain':'🌦️','few-clouds-day-snow':'🌨️','few-clouds-night':'🌙','partly-cloudy-day':'⛅','partly-cloudy-day-snow':'🌨️','partly-cloudy-night':'☁️','mostly-cloudy-day-rain':'🌧️','mostly-cloudy-day-rain-heavy':'🌧️','mostly-cloudy-night':'☁️','mostly-cloudy-night-rain':'🌧️','mostly-cloudy-night-rain-heavy':'🌧️','mostly-cloudy-night-snow':'🌨️','overcast':'☁️','fog':'🌫️','rain':'🌧️','rain-heavy':'🌧️','rain-night':'🌧️','snow':'🌨️','snow-night':'🌨️','blizzard':'❄️','sleet':'🧊','thunderstorm':'⛈️','thunderstorm-night':'⛈️','thunderstorm-rain':'⛈️','thunderstorm-lightning':'🌩️','tornado':'🌪️','hot':'🌡️','cold':'🌡️','wind':'💨','haze':'🌫️','crescent-night':'🌙','starry-night-rain':'🌧️','starry-night-snow':'🌨️','starry-night-thunder':'⛈️','cloudy-night-snow':'🌨️','cloud-light':'☁️','cloud-small':'☁️','overcast-dark':'☁️'};
