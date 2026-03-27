@@ -4632,7 +4632,7 @@ function clearStormCone(){
   if(btn)btn.style.display='none';
 }
 function flyToStormAlert(lat,lng){
-  if(!lat||!lng)return;
+  if(lat==null||lng==null)return;
   switchPage('radar');
   setTimeout(()=>{
     if(!S.map)return;
@@ -4651,7 +4651,7 @@ function flyToStormAlert(lat,lng){
   },300);
 }
 function flyToStorm(lat,lng){
-  if(!lat||!lng)return;
+  if(lat==null||lng==null)return;
   switchPage('radar');
   setTimeout(()=>{
     if(!S.map)return;
@@ -8799,7 +8799,7 @@ function renderAlerts(){
           if(remSec>0)etaHtml=`<span class="tier-eta-cd" data-tier-target="${h.arrivalMs}" style="font-size:0.8em;color:#ffcc00;font-weight:600;margin-left:6px">⏱ <b>${fmtCountdown(remSec)}</b> (${fmtClockShort(new Date(h.arrivalMs))})</span>`;
           else etaHtml=`<span style="font-size:0.8em;color:var(--text-muted);margin-left:6px">⏱ arrived ${fmtClockShort(new Date(h.arrivalMs))}</span>`;
         }
-        const navBtn=h.lat?`<span onclick="flyToStormAlert(${h.lat},${h.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Show on radar">📍</span>`:'';
+        const navBtn=h.lat!=null?`<span onclick="flyToStormAlert(${h.lat},${h.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Show on radar">📍</span>`:'';
         html+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
             <span>🌩️</span>
@@ -8812,14 +8812,16 @@ function renderAlerts(){
         </div>`;
       }else{
         const dbzMin=Math.min(...items.map(h=>h.val)),dbzMax=Math.max(...items.map(h=>h.val));
-        const distMin=Math.min(...items.map(h=>h.distance||0)).toFixed(1),distMax=Math.max(...items.map(h=>h.distance||0)).toFixed(1);
+        const rawDistMin=Math.min(...items.map(h=>h.distance||0)),rawDistMax=Math.max(...items.map(h=>h.distance||0));
+        const mFactor=S.radarMetric?1.60934:1;
+        const distMin=(rawDistMin*mFactor).toFixed(1),distMax=(rawDistMax*mFactor).toFixed(1);
         const peakImp=Math.max(...items.map(h=>h.impactPct||0));
         const peakTier=items.reduce((t,h)=>{const ord={high:3,medium:2,low:1,none:0};return(ord[h.impactTier]||0)>(ord[t]||0)?h.impactTier:t},'none');
         const tierColors={high:'#eab308',medium:'#06b6d4',low:'#ec4899',none:'#22c55e'};
         const tc=tierColors[peakTier]||'#666';
         const best=items.reduce((a,b)=>(b.impactPct||0)>(a.impactPct||0)?b:a,items[0]);
         const distU=S.radarMetric?'km':'mi';
-        const navBtn=best.lat?`<span onclick="flyToStormAlert(${best.lat},${best.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Show on radar">📍</span>`:'';
+        const navBtn=best.lat!=null?`<span onclick="flyToStormAlert(${best.lat},${best.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Show on radar">📍</span>`:'';
         const gid='sa-grp-'+bi;
         html+=`<div style="border-bottom:1px solid var(--border-subtle)">
           <div onclick="document.getElementById('${gid}').style.display=document.getElementById('${gid}').style.display==='none'?'block':'none';this.querySelector('.sa-chev').textContent=document.getElementById('${gid}').style.display==='none'?'▸':'▾'" style="padding:8px 10px;font-size:0.78em;cursor:pointer;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -8835,9 +8837,9 @@ function renderAlerts(){
           <div id="${gid}" style="display:none;padding:0 10px 6px 24px">`;
         items.forEach(h=>{
           const hTc=tierColors[h.impactTier]||'#666';
-          const hNav=h.lat?`<span onclick="event.stopPropagation();flyToStormAlert(${h.lat},${h.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:3px" title="Show on radar">📍</span>`:'';
+          const hNav=h.lat!=null?`<span onclick="event.stopPropagation();flyToStormAlert(${h.lat},${h.lng})" style="cursor:pointer;font-size:0.75em;color:var(--accent-cyan);margin-left:3px" title="Show on radar">📍</span>`:'';
           html+=`<div style="font-size:0.9em;padding:3px 0;color:var(--text-secondary);border-top:1px solid rgba(255,255,255,0.04)">
-            ${h.val} dBZ · ${(h.distance||0).toFixed(1)} ${distU}${h.impactPct>0?' · <span style="color:'+hTc+'">'+h.impactPct+'%</span>':''}${hNav}
+            ${h.val} dBZ · ${((h.distance||0)*mFactor).toFixed(1)} ${distU}${h.impactPct>0?' · <span style="color:'+hTc+'">'+h.impactPct+'%</span>':''}${hNav}
           </div>`;
         });
         html+=`</div></div>`;
