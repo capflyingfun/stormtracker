@@ -1367,6 +1367,8 @@ function updateStormBadges(){
     nav.textContent=inbound.toString();
     nav.style.background=inbound?'#ef4444':'#6b7280';
   }
+  const hdrLightning=document.getElementById('header-lightning');
+  if(hdrLightning)hdrLightning.className=inbound>0?'lightning-active':'';
 }
 document.getElementById('location-input').addEventListener('keypress',e=>{if(e.key==='Enter'){hideSuggestions();searchLoc()}});
 let _sugTimer=null,_sugIdx=-1,_sugResults=[];

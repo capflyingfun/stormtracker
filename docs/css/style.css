@@ -104,6 +104,8 @@ body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text-pri
 @keyframes pulseFlow{0%{stroke-dashoffset:40}100%{stroke-dashoffset:0}}
 .approaching-pulse-line{animation:pulseFlow 1.2s linear infinite;opacity:0.6}
 .ils-dot,.ils-bar{border-radius:50%;transition:opacity 0.12s ease,transform 0.12s ease}
+@keyframes lightning-flash{0%,65%{opacity:0}66%,70%{opacity:1}71%,75%{opacity:0}76%,82%{opacity:1}83%,100%{opacity:0}}
+.lightning-active{animation:lightning-flash 3.5s ease-in-out infinite}
 .storm-lightning-icon,.storm-lightning-icon *{pointer-events:none!important}
 .storm-arrow-icon{background:none!important;border:none!important}
 .storm-group{margin-bottom:8px;border-radius:var(--radius-sm);overflow:hidden}
