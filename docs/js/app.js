@@ -61,25 +61,15 @@ function fmtClockShort(d){
 }
 function reformatNwsTimes(text){
   if(!text)return text;
-  const tzMap={EST:-5,EDT:-4,CST:-6,CDT:-5,MST:-7,MDT:-6,PST:-8,PDT:-7,AKST:-9,AKDT:-8,HST:-10,AST:-4};
-  function _cvt(h,mi,ap,tz){
-    if(ap.toUpperCase()==='PM'&&h<12)h+=12;
-    if(ap.toUpperCase()==='AM'&&h===12)h=0;
-    const off=tzMap[tz.toUpperCase()];
-    if(off==null)return null;
-    const now=new Date();
-    const d=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-    d.setUTCHours(h-off,mi,0,0);
-    const lh=d.getHours(),lm=d.getMinutes();
-    const local=_is24h()?_pad2(lh)+':'+_pad2(lm):(lh%12||12)+':'+_pad2(lm)+' '+(lh>=12?'PM':'AM');
-    return local+' '+tz.toUpperCase();
+  function _fmt(h,mi,ap,tz){
+    let h24=parseInt(h,10);const m=parseInt(mi,10);
+    if(ap.toUpperCase()==='PM'&&h24<12)h24+=12;
+    if(ap.toUpperCase()==='AM'&&h24===12)h24=0;
+    if(_is24h())return _pad2(h24)+':'+_pad2(m)+' '+tz.toUpperCase();
+    const hr12=h24%12||12;return hr12+':'+_pad2(m)+' '+(h24>=12?'PM':'AM')+' '+tz.toUpperCase();
   }
-  text=text.replace(/(\d{1,2}):(\d{2})\s*(AM|PM)\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT|AKST|AKDT|HST|AST)/gi,(m,hh,mm,ap,tz)=>{
-    const r=_cvt(parseInt(hh,10),parseInt(mm,10),ap,tz);return r||m;
-  });
-  text=text.replace(/(\d{1,2})(\d{2})\s*(AM|PM)\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT|AKST|AKDT|HST|AST)/gi,(m,hh,mm,ap,tz)=>{
-    const r=_cvt(parseInt(hh,10),parseInt(mm,10),ap,tz);return r||m;
-  });
+  text=text.replace(/(\d{1,2}):(\d{2})\s*(AM|PM)\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT|AKST|AKDT|HST|AST)/gi,(m,hh,mm,ap,tz)=>_fmt(hh,mm,ap,tz));
+  text=text.replace(/(\d{1,2})(\d{2})\s*(AM|PM)\s+(EST|EDT|CST|CDT|MST|MDT|PST|PDT|AKST|AKDT|HST|AST)/gi,(m,hh,mm,ap,tz)=>_fmt(hh,mm,ap,tz));
   return text;
 }
 function fmtHrLabel(d){
@@ -8827,7 +8817,7 @@ function renderAlerts(){
   }
   html+=`</div>`;
   function _stormThreatCmp(a,b){const dd=(b.val||0)-(a.val||0);if(dd!==0)return dd;const di=(b.impactPct||0)-(a.impactPct||0);if(di!==0)return di;return(a.distance||0)-(b.distance||0)}
-  const stormHist=_stormAlertHistory.slice().sort(_stormThreatCmp);
+  const stormHist=_stormAlertHistory.slice().reverse();
   html+=`<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🌩️</span> Storm Cell Alerts${stormHist.length?' ('+stormHist.length+')':''}</span>${stormHist.length?'<button onclick="clearStormAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':''}</div>`;
   if(!stormHist.length){
     const stTh=_loadStormThresholds();
