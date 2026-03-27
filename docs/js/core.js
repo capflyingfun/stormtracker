@@ -1263,7 +1263,7 @@ function getWeatherIcon(cond,sz,forcePack){
       const vidSrc=`icons/${pack}/${best}.mp4`;
       const fallbackSrc=`icons/globe/${best}.png`;
       const sizeStyle=hasCssUnit?`width:${cssSize};height:${cssSize}`:`width:${numSize}px;height:${numSize}px`;
-      return`<video autoplay loop muted playsinline style="${sizeStyle};display:inline-block;vertical-align:middle;object-fit:cover;border-radius:50%" src="${vidSrc}" poster="${fallbackSrc}" onerror="this.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${sizeStyle};display:inline-block;vertical-align:middle&quot; alt=&quot;${cond}&quot;>'"></video>`;
+      return`<video autoplay muted playsinline style="${sizeStyle};display:inline-block;vertical-align:middle;object-fit:cover;border-radius:50%" src="${vidSrc}" poster="${fallbackSrc}" onloadedmetadata="this._ppDir=1;this._ppDur=this.duration" ontimeupdate="if(this._ppDir===1&&this.currentTime>=this._ppDur-0.05){this.pause();this._ppDir=-1;this._ppRaf=()=>{if(this._ppDir!==-1)return;this.currentTime=Math.max(0,this.currentTime-0.033);if(this.currentTime<=0.05){this._ppDir=1;this.currentTime=0;this.play();return};requestAnimationFrame(this._ppRaf)};requestAnimationFrame(this._ppRaf)}" onerror="this.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${sizeStyle};display:inline-block;vertical-align:middle&quot; alt=&quot;${cond}&quot;>'"></video>`;
     }
     return getWeatherIcon(cond,sz,'globe');
   }
