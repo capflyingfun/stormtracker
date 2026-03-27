@@ -1524,8 +1524,9 @@ function updateThreatTicker(){
         const ev=p.event||p.headline||'Weather Alert';
         const sev=(p.severity||'').toLowerCase();
         let expLabel='';
-        if(p.expires){
-          const exp=new Date(p.expires);
+        const endVal=p.ends||p.expires;
+        if(endVal){
+          const exp=new Date(endVal);
           if(!isNaN(exp)){
             const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
             expLabel=` — until ${days[exp.getDay()]} ${fmtClockShort(exp)}`;
