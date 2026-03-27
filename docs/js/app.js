@@ -3141,8 +3141,9 @@ function _pickWindTarget(){
   const n=_wn.noise(tSec*0.2,0);
   const u=(n+1)/2;
   const range=_windCeil-_windFloor;
+  if(!Number.isFinite(range)||range<=0)return{spd:_windFloor||0,dir:_windBase.dir||0};
   const ws=Number(_windBase.spd)||0;
-  const center=range>0?Math.max(0.01,Math.min(0.99,(ws-_windFloor)/range)):0.5;
+  const center=Math.max(0.01,Math.min(0.99,(ws-_windFloor)/range));
   const d=u-center;
   const exp=2.5;
   let biased;
@@ -3153,6 +3154,7 @@ function _pickWindTarget(){
     const nd=Math.min(1,d/(1-center));
     biased=center+Math.pow(nd,exp)*(1-center);
   }
+  if(!Number.isFinite(biased))biased=center;
   const spd=_windFloor+Math.max(0,Math.min(1,biased))*range;
   const dn=_wn.noise(tSec*0.2,100);
   const dir=((_windBase.dir+dn*5)%360+360)%360;
