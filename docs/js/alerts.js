@@ -208,7 +208,7 @@ function renderAlerts(){
   }
   nwsBody+=_renderStormSurgeSection()+_renderTropicalSection()+_renderSPCWatchSection()+_renderSPCMDSection()+_renderSPCReportsSection();
   const nwsCnt=(S.alerts||[]).length;
-  const _sortDir=_getAlertSortOrder();const _sortLabel=_sortDir==='desc'?'New→Old':'Old→New';const _sortBtn=nwsCnt?`<button onclick="event.stopPropagation();toggleAlertSort()" title="Sort order: ${_sortLabel}" style="padding:2px 7px;font-size:0.6em;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.08);color:var(--accent-cyan);white-space:nowrap">${_sortDir==='desc'?'⏷':'⏶'} ${_sortLabel}</button>`:'';
+  const _sortDir=_getAlertSortOrder();const _sortLabel=_sortDir==='desc'?'Old→New':'New→Old';const _sortBtn=nwsCnt?`<button onclick="event.stopPropagation();toggleAlertSort()" title="Currently: ${_sortDir==='desc'?'Newest first':'Oldest first'}. Click to switch." style="padding:2px 7px;font-size:0.6em;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.08);color:var(--accent-cyan);white-space:nowrap">${_sortDir==='desc'?'⏷':'⏶'} ${_sortLabel}</button>`:'';
   sec.nws=`<div class="card" style="margin-top:12px" data-alert-sec="nws"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleAlertSection('nws')"><span><span class="icon">⚠️</span> NWS Alerts${nwsCnt?' ('+nwsCnt+')':''}</span><span style="display:flex;align-items:center;gap:4px">${_sortBtn}${_alertSecBtns('nws')}<span style="color:var(--text-muted)">${coll.includes('nws')?'▸':'▾'}</span></span></div>${coll.includes('nws')?'':nwsBody}</div>`; }
 
   { const hist=_wxAlertHistory.slice().reverse();
