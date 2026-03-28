@@ -1576,12 +1576,16 @@ function updateThreatTicker(){
   const _sf=S._stormFilter||{minDbz:0,maxDist:0,approachOnly:false,sort1:'threat',sort2:'eta'};
   const _allStorms=S.storms||[];
   const _filteredStorms=(typeof _applyStormFilter==='function')?_applyStormFilter(_allStorms,_sf):_allStorms;
-  const topStorms=(S._topStorms||[]).filter(s=>{
-    if(_sf.minDbz>0&&s.dbz<_sf.minDbz)return false;
-    if(_sf.maxDist>0&&s.distance>_sf.maxDist)return false;
-    return true;
-  });
   const sigStormCount=_filteredStorms.filter(s=>s.dbz>=31).length;
+  const _filteredInbound=_filteredStorms.filter(s=>{
+    const e=s._eta||calcStormETA(s);
+    s._eta=e;
+    return s.dbz>=31&&e&&e.approaching&&e.impact>0&&e.eta!=null;
+  });
+  if(typeof _stormSortFn==='function'){
+    _filteredInbound.sort((a,b)=>{const r=_stormSortFn(a,b,_sf.sort1);return r!==0?r:_stormSortFn(a,b,_sf.sort2)});
+  }
+  const topStorms=_filteredInbound.slice(0,12);
   let gridZoneCount=0,gridZoneMaxDbz=0;
   if(S._rawScanPts&&S._rawScanPts.length&&S.lat!=null){
     const gzCells=polarGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
