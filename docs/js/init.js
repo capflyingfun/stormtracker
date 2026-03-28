@@ -107,6 +107,7 @@ function _dismissNotifPermission(){
 }
 
 function init(){
+  _pruneExpiredAlerts();
   _loadAllCustomIcons().catch(()=>{});
   loadUnits();
   updateAIFab();

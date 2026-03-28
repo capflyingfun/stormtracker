@@ -2506,6 +2506,8 @@ function syncSettingsPanel(){
   if(wxAlertEl)wxAlertEl.innerHTML=renderWxAlertSettings();
   const stormAlertEl=document.getElementById('storm-alert-settings');
   if(stormAlertEl)stormAlertEl.innerHTML=renderStormCellAlertSettings();
+  const expSel=document.getElementById('settings-alert-expiry');
+  if(expSel){const ev=parseInt(localStorage.getItem('st_alertExpiry'),10);expSel.value=String([30,60,120,240,360].includes(ev)?ev:120)}
   syncRainAlertUI();
   const eqSel=document.getElementById('settings-eq-radius');
   if(eqSel)eqSel.value=String(getEqRadius());
@@ -2682,6 +2684,21 @@ const _WX_ALERT_DEFS=[
   {key:'uvMax',label:'UV Index',icon:'☀️',unit:'uv',defVal:8,defOn:false,check:(c,th)=>{const uv=S._uvIndex;if(uv==null)return null;return uv>=th?{val:uv,u:'',msg:`🔔 UV Index at ${uv} — above your ${th} threshold (high exposure risk)`}:null}}
 ];
 const _WX_ALERT_COOLDOWN=(function(){try{const s=localStorage.getItem('st_wxAlertCooldown');if(s){const o=JSON.parse(s);const now=Date.now();Object.keys(o).forEach(k=>{if(now-o[k]>900000)delete o[k]});return o}}catch(e){}return{}})();
+function _getAlertExpiryMs(){const v=parseInt(localStorage.getItem('st_alertExpiry'),10);return[30,60,120,240,360].includes(v)?v*60000:120*60000}
+function setAlertExpiry(val){const n=parseInt(val,10);if([30,60,120,240,360].includes(n)){localStorage.setItem('st_alertExpiry',n);_pruneExpiredAlerts()}}
+function _pruneExpiredAlerts(){
+  const ex=_getAlertExpiryMs();const now=Date.now();
+  const sLen=_stormAlertHistory.length;
+  _stormAlertHistory=_stormAlertHistory.filter(a=>now-a.time<ex);
+  if(_stormAlertHistory.length!==sLen)_saveStormAlertHistory();
+  const wLen=_wxAlertHistory.length;
+  _wxAlertHistory=_wxAlertHistory.filter(a=>{
+    if(a.fellBelowTime)return now-a.fellBelowTime<ex;
+    return true;
+  });
+  if(_wxAlertHistory.length!==wLen)_saveWxAlertHistory();
+  if(S.activePage==='alerts')renderAlerts();
+}
 let _wxAlertHistory=JSON.parse(localStorage.getItem('st_wxAlertHistory')||'[]');
 function _loadWxThresholds(){
   try{const s=localStorage.getItem('st_wxThresholds');if(s)return JSON.parse(s)}catch(e){}
@@ -2696,21 +2713,28 @@ function checkWeatherThresholds(){
   if(!S.weather)return;
   const th=_loadWxThresholds();
   const now=Date.now();
+  let histDirty=false;
   _WX_ALERT_DEFS.forEach(def=>{
     const cfg=th[def.key];
     if(!cfg||!cfg.on)return;
     const result=def.check(S.weather,cfg.val);
-    if(!result)return;
+    if(!result){
+      _wxAlertHistory.forEach(a=>{if(a.key===def.key&&!a.fellBelowTime){a.fellBelowTime=now;histDirty=true}});
+      return;
+    }
+    _wxAlertHistory.forEach(a=>{if(a.key===def.key&&a.fellBelowTime){delete a.fellBelowTime;histDirty=true}});
     const lastFired=_WX_ALERT_COOLDOWN[def.key]||0;
     if(now-lastFired<900000)return;
     _WX_ALERT_COOLDOWN[def.key]=now;
     try{localStorage.setItem('st_wxAlertCooldown',JSON.stringify(_WX_ALERT_COOLDOWN))}catch(e){}
     toast(result.msg,6000);
     _wxAlertHistory.push({key:def.key,label:def.label,icon:def.icon,msg:result.msg,val:result.val,u:result.u,time:now});
-    _saveWxAlertHistory();
+    histDirty=true;
     _sendBrowserNotification(def.label,result.msg);
     if(S.activePage==='alerts')renderAlerts();
   });
+  if(histDirty)_saveWxAlertHistory();
+  _pruneExpiredAlerts();
 }
 function _sendBrowserNotification(title,body){
   if(!('Notification' in window))return;
@@ -2861,6 +2885,7 @@ function checkStormCellAlerts(){
     _sendBrowserNotification('Storm Cell Alert',summaryMsg);
   }
   if(S.activePage==='alerts')renderAlerts();
+  _pruneExpiredAlerts();
 }
 function renderStormCellAlertSettings(){
   const th=_loadStormThresholds();
