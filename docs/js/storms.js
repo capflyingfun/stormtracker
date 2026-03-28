@@ -690,7 +690,7 @@ function _showHiResPopup(tierMi,distMi,peakDbz,autoTrigger){
     html+=`<button onclick="_hiResAccept()" style="width:100%;padding:8px;border-radius:8px;border:1px solid ${borderClr};background:${borderClr}22;color:${borderClr};font-weight:700;font-size:0.7em;cursor:pointer">Scan Now</button>`;
   }else{
     html+=`<div id="hires-countdown" style="color:rgba(255,255,255,0.4);font-size:0.55em;margin-bottom:10px">Auto-dismiss in 30s</div>`;
-    html+=`<div style="display:flex;gap:8px">`;
+    html+=`<div class="flex-gap-8">`;
     html+=`<button onclick="_hiResAccept()" style="flex:1;padding:8px;border-radius:8px;border:1px solid #00cc44;background:rgba(0,204,68,0.15);color:#00cc44;font-weight:700;font-size:0.7em;cursor:pointer">Yes, Scan</button>`;
     html+=`<button onclick="_hiResDecline(${tierMi})" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.5);font-weight:600;font-size:0.7em;cursor:pointer">Not Now</button>`;
     html+=`</div>`;
@@ -1602,7 +1602,7 @@ function _escStormName(name) {
 function _renderTropicalSection() {
   const allSystems = _nhcData.systems;
   if (allSystems === null) {
-    return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
+    return `<div class="card" class="mt-12"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
       <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:0.8em">🔄 Loading tropical data...</div></div>`;
   }
   const systems = _getFilteredSystems() || [];
@@ -1612,11 +1612,11 @@ function _renderTropicalSection() {
     return `<button onclick="setNHCRegionFilter('${r.id}')" style="font-size:0.6em;padding:2px 8px;border-radius:12px;border:1px solid ${isActive ? 'var(--accent-cyan)' : 'var(--border-subtle)'};background:${isActive ? 'rgba(0,229,255,0.15)' : 'var(--bg-surface)'};color:${isActive ? 'var(--accent-cyan)' : 'var(--text-muted)'};cursor:pointer;font-weight:${isActive ? '700' : '500'};white-space:nowrap">${r.label}${count ? ' (' + count + ')' : ''}</button>`;
   }).join('');
   if (!allSystems.length) {
-    return `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
+    return `<div class="card" class="mt-12"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
       <div style="text-align:center;padding:16px;color:var(--accent-green);font-size:0.8em">✅ No active tropical systems</div>
       <div style="font-size:0.6em;color:var(--text-muted);text-align:center;padding:0 8px 8px">Data: NHC + JTWC · ArcGIS + RSS</div></div>`;
   }
-  let html = `<div class="card" style="margin-top:12px"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center"><span><span class="icon">🌀</span> Tropical Cyclones (${systems.length}${S._nhcRegionFilter !== 'all' ? '/' + allSystems.length : ''})</span><label style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${S._showNHCTracks ? 'checked' : ''} onchange="toggleNHCTracks(this.checked)" style="accent-color:var(--accent-cyan)"></label></div>`;
+  let html = `<div class="card" class="mt-12"><div class="card-title" class="flex-between"><span><span class="icon">🌀</span> Tropical Cyclones (${systems.length}${S._nhcRegionFilter !== 'all' ? '/' + allSystems.length : ''})</span><label style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${S._showNHCTracks ? 'checked' : ''} onchange="toggleNHCTracks(this.checked)" style="accent-color:var(--accent-cyan)"></label></div>`;
   html += `<div style="display:flex;gap:4px;margin-bottom:8px;padding:0 4px;flex-wrap:wrap;overflow-x:auto">${regionPills}</div>`;
   const catScale = `<div style="display:flex;gap:2px;margin-bottom:8px;padding:0 4px;flex-wrap:wrap">
     <span style="font-size:0.55em;padding:1px 5px;border-radius:4px;background:#90caf920;color:#90caf9;font-weight:600">TD</span>
@@ -1630,7 +1630,7 @@ function _renderTropicalSection() {
   html += catScale;
   if (!systems.length) {
     const filterLabel = (_STORM_REGIONS.find(r => r.id === S._nhcRegionFilter) || {}).label || S._nhcRegionFilter;
-    html += `<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No active systems in ${filterLabel}</div>`;
+    html += `<div class="text-center-hint">No active systems in ${filterLabel}</div>`;
   }
   systems.forEach((s, idx) => {
     const cat = s.category || _saffirSimpson(s.maxWind);
@@ -1643,7 +1643,7 @@ function _renderTropicalSection() {
     html += `<div style="padding:10px;border-left:4px solid ${cat.color};background:${cat.color}08;border-radius:0 8px 8px 0;margin-bottom:8px;cursor:pointer${isNear ? ';border:1px solid ' + cat.color + '44' : ''}" onclick="_selectNHCStorm('${safeId}')">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
         <span style="font-size:1.3em">🌀</span>
-        <div style="flex:1">
+        <div class="flex-1">
           <div style="font-weight:700;font-size:0.95em;color:var(--text-primary)">${s.type} ${s.name}</div>
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <span style="font-size:0.7em;color:${cat.color};font-weight:700">${cat.label}${cat.num >= 1 ? ' (Category ' + cat.num + ')' : ''}</span>
@@ -1651,7 +1651,7 @@ function _renderTropicalSection() {
           </div>
         </div>
         <div style="text-align:right;font-size:0.75em">
-          <div style="color:var(--text-muted)">${distStr}</div>
+          <div class="c-muted">${distStr}</div>
           <div style="color:var(--text-muted);font-size:0.85em">${bearing}</div>
         </div>
       </div>
@@ -1660,13 +1660,13 @@ function _renderTropicalSection() {
         ${s.minPressure != null ? `<div style="text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase">Pressure</div><div style="font-size:0.9em;font-weight:700;color:var(--text-primary)">${s.minPressure} mb</div></div>` : ''}
         ${s.moveDir ? `<div style="text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase">Movement</div><div style="font-size:0.9em;font-weight:700;color:var(--text-primary)">${s.moveDir}${s.moveSpeed ? ' ' + s.moveSpeed + ' mph' : ''}</div></div>` : ''}
       </div>
-      ${s.lat != null ? `<div style="font-size:0.65em;color:var(--text-muted);margin-top:4px">📍 ${Math.abs(s.lat).toFixed(1)}°${s.lat >= 0 ? 'N' : 'S'}, ${Math.abs(s.lon).toFixed(1)}°${s.lon >= 0 ? 'E' : 'W'} · ${(_STORM_REGIONS.find(r => r.id === s._region) || {}).label || s.basin}${s._source === 'jtwc' ? ' (JTWC)' : ''}${hasForecast ? ' · <span style="color:var(--accent-cyan)">Tap for forecast track</span>' : ''}</div>` : ''}
+      ${s.lat != null ? `<div style="font-size:0.65em;color:var(--text-muted);margin-top:4px">📍 ${Math.abs(s.lat).toFixed(1)}°${s.lat >= 0 ? 'N' : 'S'}, ${Math.abs(s.lon).toFixed(1)}°${s.lon >= 0 ? 'E' : 'W'} · ${(_STORM_REGIONS.find(r => r.id === s._region) || {}).label || s.basin}${s._source === 'jtwc' ? ' (JTWC)' : ''}${hasForecast ? ' · <span class="c-cyan">Tap for forecast track</span>' : ''}</div>` : ''}
     </div>`;
   });
   html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px 2px">
-    <div style="display:flex;align-items:center;gap:4px"><span style="font-size:0.6em;color:var(--text-muted)">Alert radius:</span>
+    <div class="flex-center-gap4"><span class="text-hint">Alert radius:</span>
       <select onchange="setNHCProxRadius(this.value)" style="font-size:0.6em;padding:1px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px">${[100,200,300,500,750,1000].map(r=>`<option value="${r}"${r===S._nhcProxRadius?' selected':''}>${r} mi</option>`).join('')}</select></div>
-    <span style="font-size:0.6em;color:var(--text-muted)">NHC + JTWC · 15-min</span></div></div>`;
+    <span class="text-hint">NHC + JTWC · 15-min</span></div></div>`;
   return html;
 }
 function setNHCProxRadius(val) {
@@ -1759,8 +1759,8 @@ function plotNHCTracks(map) {
       <div style="font-size:0.85em;font-weight:600;color:${cat.color}">${cat.label}</div>
       ${status ? `<div style="font-size:0.7em;font-weight:700;color:${status.color};margin:2px 0">${status.text}</div>` : ''}
       ${s.maxWind ? `<div style="font-size:0.8em;margin-top:4px">💨 Max Wind: <b>${s.maxWind} mph</b>${s.gusts ? ' (G' + s.gusts + ')' : ''}</div>` : ''}
-      ${s.minPressure ? `<div style="font-size:0.8em">🔵 Pressure: <b>${s.minPressure} mb</b></div>` : ''}
-      ${s.moveDir ? `<div style="font-size:0.8em">➡️ Moving: <b>${s.moveDir} ${s.moveSpeed || ''} mph</b></div>` : ''}
+      ${s.minPressure ? `<div class="text-sm">🔵 Pressure: <b>${s.minPressure} mb</b></div>` : ''}
+      ${s.moveDir ? `<div class="text-sm">➡️ Moving: <b>${s.moveDir} ${s.moveSpeed || ''} mph</b></div>` : ''}
       ${s.dist != null ? `<div style="font-size:0.75em;color:#aaa;margin-top:4px">${Math.round(s.dist)} mi from you</div>` : ''}
       <div style="margin-top:6px"><a href="#" onclick="event.preventDefault();_selectNHCStorm('${_escStormName(s.id||s.name)}')" style="font-size:0.75em;color:var(--accent-cyan)">Show forecast track →</a></div>
     </div>`);
@@ -1821,7 +1821,7 @@ function _renderStormSurgeSection() {
     return ev.includes('storm surge') || ev.includes('coastal flood') || (ev.includes('hurricane') && ev.includes('warning'));
   });
   if (!surgeAlerts.length) return '';
-  let html = `<div class="card" style="margin-top:12px"><div class="card-title"><span class="icon">🌊</span> Storm Surge & Coastal Flooding (${surgeAlerts.length})</div>`;
+  let html = `<div class="card" class="mt-12"><div class="card-title"><span class="icon">🌊</span> Storm Surge & Coastal Flooding (${surgeAlerts.length})</div>`;
   surgeAlerts.forEach(a => {
     const p = a.properties || {};
     const ev = p.event || 'Storm Surge Alert';
@@ -1841,7 +1841,7 @@ function _renderStormSurgeSection() {
       ${p.expires ? `<div style="font-size:0.65em;color:var(--text-muted);margin-top:4px">⏱️ Expires: ${new Date(p.expires).toLocaleString()}</div>` : ''}
     </div>`;
   });
-  html += `<div style="font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right">Data: National Weather Service</div></div>`;
+  html += `<div class="text-hint-right">Data: National Weather Service</div></div>`;
   return html;
 }
 function _nhcProximityCheck() {
@@ -1874,7 +1874,7 @@ function _renderNHCBanner(data) {
   const reason = inCone ? 'You are inside the forecast cone' : `${Math.round(storm.dist)} mi away — Tracking`;
   const html = `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${bgColor};border:1px solid ${borderColor}44;border-radius:8px;margin:8px 12px 0;cursor:pointer" onclick="_selectNHCStorm('${_escStormName(storm.id||storm.name)}')">
     <span style="font-size:1.4em">🌀</span>
-    <div style="flex:1">
+    <div class="flex-1">
       <div style="font-weight:700;font-size:0.85em;color:${borderColor}">${storm.type} ${storm.name} — ${cat.label}</div>
       <div style="font-size:0.7em;color:var(--text-secondary)">${reason}${status ? ' · ' + status.text : ''}</div>
     </div>
@@ -1957,7 +1957,7 @@ function _renderFilterBar(f){
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:0.72em">
       <span style="font-weight:700;color:var(--text-secondary)">Sort:</span>
       <select id="sf-sort1" onchange="updateStormFilter()" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em">${mkOpts(f.sort1)}</select>
-      <span style="color:var(--text-muted)">then</span>
+      <span class="c-muted">then</span>
       <select id="sf-sort2" onchange="updateStormFilter()" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em">${mkOpts(f.sort2)}</select>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:0.72em;margin-top:6px">
@@ -1967,7 +1967,7 @@ function _renderFilterBar(f){
       </label>
       <label style="display:flex;align-items:center;gap:3px;color:var(--text-secondary)">Max dist
         <input id="sf-maxdist" type="number" min="0" max="200" step="5" value="${f.maxDist||0}" onchange="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
-        <span style="color:var(--text-muted)">${S.radarMetric?'km':'mi'}</span>
+        <span class="c-muted">${S.radarMetric?'km':'mi'}</span>
       </label>
       <label style="display:flex;align-items:center;gap:3px;cursor:pointer;color:var(--text-secondary)">
         <input id="sf-approach" type="checkbox" ${f.approachOnly?'checked':''} onchange="updateStormFilter()"> Approaching only
@@ -2062,7 +2062,7 @@ function renderStorms(){
           ${mvLine}
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
-          <span style="font-size:0.6em;color:var(--text-muted)">
+          <span class="text-hint">
             ${s.lat.toFixed(3)}°N, ${Math.abs(s.lng).toFixed(3)}°${s.lng<0?'W':'E'} &middot; ${s.pixels} returns
           </span>
           <button onclick="flyToStorm(${s.lat},${s.lng})" style="font-size:0.55em;padding:2px 8px;background:rgba(0,229,255,0.08);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.25);border-radius:5px;cursor:pointer;font-weight:600;white-space:nowrap">📍 Map</button>

@@ -18,7 +18,7 @@ function _showInstallBanner(){
   bar.id='pwa-install-banner';
   bar.style.cssText='position:fixed;bottom:60px;left:8px;right:8px;z-index:9998;background:linear-gradient(135deg,rgba(10,16,32,0.97),rgba(15,25,50,0.97));border:1px solid rgba(0,229,255,0.3);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,0.5);backdrop-filter:blur(10px);animation:slideUp 0.3s ease-out';
   bar.innerHTML=`<div style="font-size:1.6em">⚡</div>
-    <div style="flex:1"><div style="font-size:0.8em;font-weight:700;color:var(--text-primary)">Install StormTracker</div>
+    <div class="flex-1"><div style="font-size:0.8em;font-weight:700;color:var(--text-primary)">Install StormTracker</div>
     <div style="font-size:0.65em;color:var(--text-muted);margin-top:2px">Add to home screen for the best experience</div></div>
     <button onclick="_acceptInstall()" style="padding:6px 14px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.4);border-radius:8px;font-size:0.75em;font-weight:700;cursor:pointer;white-space:nowrap">Install</button>
     <button onclick="_dismissInstall()" style="padding:4px 10px;background:none;border:none;color:var(--text-muted);font-size:0.7em;cursor:pointer;white-space:nowrap">Not now</button>`;
@@ -86,7 +86,7 @@ function _showNotifPermissionModal(){
     <div style="font-size:2em;margin-bottom:8px">🔔</div>
     <div style="font-size:1em;font-weight:700;color:var(--text-primary);margin-bottom:8px">Enable Notifications?</div>
     <div style="font-size:0.78em;color:var(--text-secondary);line-height:1.5;margin-bottom:16px">Get alerted when storms approach your location or weather conditions exceed your thresholds — even when StormTracker is in the background.</div>
-    <div style="display:flex;gap:8px">
+    <div class="flex-gap-8">
       <button onclick="_acceptNotifPermission()" style="flex:1;padding:10px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.85em;font-weight:700;cursor:pointer">Enable</button>
       <button onclick="_dismissNotifPermission()" style="flex:1;padding:10px;background:rgba(255,255,255,0.04);color:var(--text-muted);border:1px solid var(--border-subtle);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">Maybe Later</button>
     </div>
@@ -1210,7 +1210,7 @@ function renderSyncSection() {
 
   let html = '';
 
-  html += '<div style="margin-bottom:8px"><div style="display:flex;align-items:center;gap:4px;margin-bottom:4px"><span style="font-size:0.65em;color:var(--text-muted)">Server URL</span></div>';
+  html += '<div class="mb-8"><div style="display:flex;align-items:center;gap:4px;margin-bottom:4px"><span style="font-size:0.65em;color:var(--text-muted)">Server URL</span></div>';
   html += `<div style="display:flex;gap:4px"><input type="text" id="sync-api-url" value="${escHtml(base)}" placeholder="https://your-worker.workers.dev" style="flex:1;font-size:0.65em;padding:4px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;font-family:var(--font-mono)"><button onclick="setSyncApiUrl()" style="font-size:0.6em;padding:4px 8px;background:rgba(167,139,250,0.12);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap">Save</button></div></div>`;
 
   if (!base) {
