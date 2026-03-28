@@ -413,7 +413,8 @@ function renderStation(){
   const rh=(tempC!=null&&dpC!=null)?Math.round(100*Math.exp((17.27*dpC)/(237.7+dpC))/Math.exp((17.27*tempC)/(237.7+tempC))):null;
   const dist=(s.lat!=null&&s.lon!=null)?haversine(S.lat,S.lon,s.lat,s.lon).toFixed(1):'?';
   const raw=s.rawMETAR||'';
-  const fltCat=getFltCat(visSM,s);
+  const _fltInfo=getFltCatDetail(visSM,s);
+  const fltCat=_fltInfo.cat;
   const fltCls=fltCat==='VFR'?'vfr':fltCat==='MVFR'?'mvfr':fltCat==='IFR'?'ifr':'lifr';
   const stationName=s.name||S.stationId||'Weather Station';
   const obLabel=s.obsTime?fmtClock(new Date(s.obsTime)):'';
@@ -434,7 +435,7 @@ function renderStation(){
         <div style="flex:1">
           <div style="font-weight:700;font-size:0.95em">${S.stationId} — ${stationName}</div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:2px;flex-wrap:wrap">
-            <span class="flt-cat flt-${fltCls}" style="font-size:0.7em;padding:1px 8px">${fltCat==='VFR'?'●':'◉'} ${fltCat}</span>
+            <span class="flt-cat flt-${fltCls}" style="font-size:0.7em;padding:1px 8px" title="${_fltInfo.reason}">${fltCat==='VFR'?'●':'◉'} ${fltCat}</span><span style="font-size:0.55em;color:var(--text-muted)">${_fltInfo.reason}</span>
             <span style="font-size:0.65em;color:var(--text-muted)">${S.visUnit===1?(dist*1.60934).toFixed(1)+' km':dist+' mi'} away</span>
             ${obLabel?`<span style="font-size:0.6em;color:var(--text-muted);font-family:var(--font-mono)">Updated: ${obLabel}</span>`:''}
           </div>
@@ -482,6 +483,20 @@ function renderStation(){
         </div>
       </div>
 
+      ${(()=>{
+        if(tempC==null||dpC==null)return'';
+        const _sp=tempC-dpC;const _wk=windKmh!=null?(windKmh/1.852):null;
+        const _dy=true;
+        const _cc=null;
+        const _fog=getFogRisk(_sp,_wk,_dy,_cc);
+        const _inv=detectInversion(_sp,_wk,_dy,_cc);
+        let html='<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">';
+        html+=`<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">🌫️ Fog Risk</div><div style="font-size:0.9em;font-weight:700;color:${_fog.color}">${_fog.level}</div><div style="font-size:0.6em;color:var(--text-muted)">${_fog.desc}</div></div>`;
+        html+=`<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">☁️ Cloud Base</div><div style="font-size:0.9em;font-weight:700;color:var(--accent-cyan)">${fmtAlt(calcCloudBase(_sp))}</div><div style="font-size:0.6em;color:var(--text-muted)">Estimated AGL</div></div>`;
+        html+='</div>';
+        if(_inv.detected)html+=`<div style="background:rgba(255,152,0,0.1);border:1px solid rgba(255,152,0,0.3);border-radius:8px;padding:6px 10px;margin-bottom:10px;font-size:0.72em;color:var(--accent-orange);text-align:center">⚠️ ${_inv.text}</div>`;
+        return html;
+      })()}
       ${raw?`<div class="metar-raw" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'" style="cursor:pointer">${raw} <span style="font-size:0.75em;color:var(--text-muted)">▼ tap to decode</span></div><div class="metar-decoded" style="display:none">${decodeMetar(raw)}</div>`:''}
     </div>
     ${renderNearbyStations()}`; 
@@ -551,6 +566,7 @@ function decodeMetar(raw){
   };
   const parts=raw.trim().split(/\s+/);
   const rows=[];
+  let _lastMetarTempC=null;
   const c=(color,label,val,extra)=>`<div style="display:flex;align-items:baseline;gap:8px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="font-family:var(--font-mono);font-weight:700;color:${color};min-width:70px;font-size:0.85em">${label}</span><span style="color:${color};font-weight:600;font-size:0.9em">${val}</span>${extra?`<span style="font-size:0.7em;color:var(--text-muted)">${extra}</span>`:''}</div>`;
 
   for(let i=0;i<parts.length;i++){
@@ -628,17 +644,47 @@ function decodeMetar(raw){
       const [t,d]=p.split('/');
       const tc=t.startsWith('M')?-parseInt(t.slice(1)):parseInt(t);
       const dc=d.startsWith('M')?-parseInt(d.slice(1)):parseInt(d);
-      const tf=(tc*9/5+32).toFixed(0),df=(dc*9/5+32).toFixed(0);
-      rows.push(c('#00e5ff','Temp/Dew',`${tc}°C (${tf}°F) / ${dc}°C (${df}°F)`,`Spread: ${(tc-dc).toFixed(0)}°C`));continue;
+      _lastMetarTempC=tc;
+      const spreadC=tc-dc;
+      const cbFt=calcCloudBase(spreadC);
+      rows.push(c('#00e5ff','Temp/Dew',`${fmtTemp(tc)} / ${fmtTemp(dc)}`,`Spread: ${fmtTempDiff(spreadC)} — ${getSpreadLabel(spreadC)}<br>Est. cloud base: ~${fmtAlt(cbFt)} AGL`));continue;
     }
     if(/^A\d{4}$/.test(p)){
       const inhg=(parseInt(p.slice(1))/100).toFixed(2);
       const mb=(parseFloat(inhg)*33.8639).toFixed(1);
-      rows.push(c('#a78bfa','Altimeter',`${inhg} inHg (${mb} mb)`,''));continue;
+      const elevM=S._terrainData?S._terrainData.userElev:null;
+      const elevFt=elevM!=null?elevM*3.281:null;
+      let altExtra='';
+      if(elevFt!=null){
+        const pa=calcPressureAlt(elevFt,parseFloat(inhg));
+        altExtra+=`<br>Pressure Alt: ${fmtAlt(pa)}`;
+        const metarTempC=_lastMetarTempC;
+        if(metarTempC!=null){
+          const da=calcDensityAlt(elevFt,parseFloat(inhg),metarTempC);
+          const daAbove=da-elevFt;
+          const daColor=daAbove>6000?'var(--accent-red)':daAbove>4000?'var(--accent-orange)':daAbove>2000?'var(--accent-yellow)':'var(--accent-green)';
+          altExtra+=`<br><span style="color:${daColor}">Density Alt: ${fmtAlt(da)}</span>`;
+        }
+      }
+      rows.push(c('#a78bfa','Altimeter',`${inhg} inHg (${mb} mb)`,altExtra));continue;
     }
     if(/^Q\d{4}$/.test(p)){
       const mb=parseInt(p.slice(1));
-      rows.push(c('#a78bfa','QNH',`${mb} hPa`,''));continue;
+      const qInHg=(mb/33.8639).toFixed(2);
+      const elevM=S._terrainData?S._terrainData.userElev:null;
+      const elevFt=elevM!=null?elevM*3.281:null;
+      let qExtra='';
+      if(elevFt!=null){
+        const pa=calcPressureAlt(elevFt,parseFloat(qInHg));
+        qExtra+=`<br>Pressure Alt: ${fmtAlt(pa)}`;
+        if(_lastMetarTempC!=null){
+          const da=calcDensityAlt(elevFt,parseFloat(qInHg),_lastMetarTempC);
+          const daAbove=da-elevFt;
+          const daColor=daAbove>6000?'var(--accent-red)':daAbove>4000?'var(--accent-orange)':daAbove>2000?'var(--accent-yellow)':'var(--accent-green)';
+          qExtra+=`<br><span style="color:${daColor}">Density Alt: ${fmtAlt(da)}</span>`;
+        }
+      }
+      rows.push(c('#a78bfa','QNH',`${mb} hPa (${qInHg} inHg)`,qExtra));continue;
     }
     if(p==='RMK'){
       const rmk=parts.slice(i+1).join(' ');
@@ -759,7 +805,8 @@ function renderMetarDecoded(s){
   return`<div style="display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:12px;font-size:0.7em;color:var(--text-secondary)">${parts.join('')}</div>`;
 }
 
-function getFltCat(visSM,s){
+function getFltCat(visSM,s){return getFltCatDetail(visSM,s).cat}
+function getFltCatDetail(visSM,s){
   let effCeil=99999;
   if(s.clouds&&s.clouds.length){
     for(const c of s.clouds){
@@ -768,9 +815,20 @@ function getFltCat(visSM,s){
       if((amt==='BKN'||amt==='OVC'||amt==='VV')&&baseFt!=null){effCeil=Math.min(effCeil,baseFt);break}
     }
   }
-  if((visSM!=null&&visSM<1)||effCeil<500)return'LIFR';
-  if((visSM!=null&&visSM<3)||effCeil<1000)return'IFR';
-  if((visSM!=null&&visSM<=5)||effCeil<=3000)return'MVFR';
-  return'VFR';
+  const ceilLim=effCeil<99999;
+  const visLim=visSM!=null;
+  if((visLim&&visSM<1)||effCeil<500){
+    const r=[];if(effCeil<500)r.push('Ceiling '+fmtAlt(effCeil));if(visLim&&visSM<1)r.push('Vis '+fmtVis(visSM));
+    return{cat:'LIFR',reason:r.join(', ')||'Low IFR conditions'};
+  }
+  if((visLim&&visSM<3)||effCeil<1000){
+    const r=[];if(effCeil<1000)r.push('Ceiling '+fmtAlt(effCeil));if(visLim&&visSM<3)r.push('Vis '+fmtVis(visSM));
+    return{cat:'IFR',reason:r.join(', ')||'IFR conditions'};
+  }
+  if((visLim&&visSM<=5)||effCeil<=3000){
+    const r=[];if(ceilLim&&effCeil<=3000)r.push('Ceiling '+fmtAlt(effCeil));if(visLim&&visSM<=5)r.push('Vis '+fmtVis(visSM));
+    return{cat:'MVFR',reason:r.join(', ')||'Marginal VFR'};
+  }
+  return{cat:'VFR',reason:ceilLim?'Ceiling '+fmtAlt(effCeil):'Clear'};
 }
 
