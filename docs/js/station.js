@@ -481,11 +481,11 @@ function renderStation(){
       <div class="station-grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
         <div class="station-tile" style="padding:8px 6px">
           <div class="tile-label-upper">Pressure</div>
-          <div class="station-val" class="text-1">${presMb!=null?fmtPres(presMb):'--'}</div>
+          <div class="station-val text-1">${presMb!=null?fmtPres(presMb):'--'}</div>
         </div>
         <div class="station-tile" style="padding:8px 6px">
           <div class="tile-label-upper">Visibility</div>
-          <div class="station-val" class="text-1">${visSM!=null?fmtVis(visSM):'--'}</div>
+          <div class="station-val text-1">${visSM!=null?fmtVis(visSM):'--'}</div>
         </div>
         <div class="station-tile" style="padding:8px 6px">
           <div class="tile-label-upper">Sky</div>
