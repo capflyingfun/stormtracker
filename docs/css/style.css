@@ -504,3 +504,14 @@ canvas.offscreen{display:none}
 .fw600-primary{font-weight:600;color:var(--text-primary)}
 .text-muted-65{font-size:0.65em;color:var(--text-muted)}
 .accent-cyan-check{accent-color:var(--accent-cyan)}
+.text-center-box{text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)}
+.flex-gap-3{display:flex;gap:3px}
+.flex-center-gap8{display:flex;align-items:center;gap:8px}
+.detail-row{padding:6px 8px;border-bottom:1px solid var(--border-subtle);font-size:0.75em;display:flex;align-items:center;gap:8px}
+.flex-label-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.text-secondary-sm{font-size:0.7em;color:var(--text-secondary)}
+.text-muted-sm{font-size:0.7em;color:var(--text-muted)}
+.text-075{font-size:0.75em}
+.px-6-py-8{padding:8px 6px}
+.text-13{font-size:1.3em}
+.m-0{margin:0}

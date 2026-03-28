@@ -1630,7 +1630,7 @@ function _renderTropicalSection() {
   html += catScale;
   if (!systems.length) {
     const filterLabel = (_STORM_REGIONS.find(r => r.id === S._nhcRegionFilter) || {}).label || S._nhcRegionFilter;
-    html += `<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No active systems in ${filterLabel}</div>`;
+    html += `<div class="text-center-muted" style="padding:12px">No active systems in ${filterLabel}</div>`;
   }
   systems.forEach((s, idx) => {
     const cat = s.category || _saffirSimpson(s.maxWind);
@@ -1642,7 +1642,7 @@ function _renderTropicalSection() {
     const safeId = _escStormName(s.id || s.name);
     html += `<div style="padding:10px;border-left:4px solid ${cat.color};background:${cat.color}08;border-radius:0 8px 8px 0;margin-bottom:8px;cursor:pointer${isNear ? ';border:1px solid ' + cat.color + '44' : ''}" onclick="_selectNHCStorm('${safeId}')">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-        <span style="font-size:1.3em">🌀</span>
+        <span class="text-13">🌀</span>
         <div class="flex-1">
           <div style="font-weight:700;font-size:0.95em;color:var(--text-primary)">${s.type} ${s.name}</div>
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -1656,9 +1656,9 @@ function _renderTropicalSection() {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px">
-        ${s.maxWind != null ? `<div style="text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase">Max Wind</div><div style="font-size:0.9em;font-weight:700;color:${cat.color}">${s.maxWind} mph${s.gusts ? '<span style="font-size:0.7em;color:var(--text-muted)"> G' + s.gusts + '</span>' : ''}</div></div>` : ''}
-        ${s.minPressure != null ? `<div style="text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase">Pressure</div><div style="font-size:0.9em;font-weight:700;color:var(--text-primary)">${s.minPressure} mb</div></div>` : ''}
-        ${s.moveDir ? `<div style="text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase">Movement</div><div style="font-size:0.9em;font-weight:700;color:var(--text-primary)">${s.moveDir}${s.moveSpeed ? ' ' + s.moveSpeed + ' mph' : ''}</div></div>` : ''}
+        ${s.maxWind != null ? `<div class="text-center-box"><div class="tile-label-upper" style="letter-spacing:normal">Max Wind</div><div style="font-size:0.9em;font-weight:700;color:${cat.color}">${s.maxWind} mph${s.gusts ? '<span class="text-muted-sm"> G' + s.gusts + '</span>' : ''}</div></div>` : ''}
+        ${s.minPressure != null ? `<div class="text-center-box"><div class="tile-label-upper" style="letter-spacing:normal">Pressure</div><div style="font-size:0.9em;font-weight:700;color:var(--text-primary)">${s.minPressure} mb</div></div>` : ''}
+        ${s.moveDir ? `<div class="text-center-box"><div class="tile-label-upper" style="letter-spacing:normal">Movement</div><div style="font-size:0.9em;font-weight:700;color:var(--text-primary)">${s.moveDir}${s.moveSpeed ? ' ' + s.moveSpeed + ' mph' : ''}</div></div>` : ''}
       </div>
       ${s.lat != null ? `<div style="font-size:0.65em;color:var(--text-muted);margin-top:4px">📍 ${Math.abs(s.lat).toFixed(1)}°${s.lat >= 0 ? 'N' : 'S'}, ${Math.abs(s.lon).toFixed(1)}°${s.lon >= 0 ? 'E' : 'W'} · ${(_STORM_REGIONS.find(r => r.id === s._region) || {}).label || s.basin}${s._source === 'jtwc' ? ' (JTWC)' : ''}${hasForecast ? ' · <span class="c-cyan">Tap for forecast track</span>' : ''}</div>` : ''}
     </div>`;
@@ -1759,8 +1759,8 @@ function plotNHCTracks(map) {
       <div style="font-size:0.85em;font-weight:600;color:${cat.color}">${cat.label}</div>
       ${status ? `<div style="font-size:0.7em;font-weight:700;color:${status.color};margin:2px 0">${status.text}</div>` : ''}
       ${s.maxWind ? `<div style="font-size:0.8em;margin-top:4px">💨 Max Wind: <b>${s.maxWind} mph</b>${s.gusts ? ' (G' + s.gusts + ')' : ''}</div>` : ''}
-      ${s.minPressure ? `<div style="font-size:0.8em">🔵 Pressure: <b>${s.minPressure} mb</b></div>` : ''}
-      ${s.moveDir ? `<div style="font-size:0.8em">➡️ Moving: <b>${s.moveDir} ${s.moveSpeed || ''} mph</b></div>` : ''}
+      ${s.minPressure ? `<div class="text-sm">🔵 Pressure: <b>${s.minPressure} mb</b></div>` : ''}
+      ${s.moveDir ? `<div class="text-sm">➡️ Moving: <b>${s.moveDir} ${s.moveSpeed || ''} mph</b></div>` : ''}
       ${s.dist != null ? `<div style="font-size:0.75em;color:#aaa;margin-top:4px">${Math.round(s.dist)} mi from you</div>` : ''}
       <div style="margin-top:6px"><a href="#" onclick="event.preventDefault();_selectNHCStorm('${_escStormName(s.id||s.name)}')" style="font-size:0.75em;color:var(--accent-cyan)">Show forecast track →</a></div>
     </div>`);
@@ -1831,7 +1831,7 @@ function _renderStormSurgeSection() {
     const inZone = isUserInAlertZone(a);
     const isSurgeWarn = ev.toLowerCase().includes('storm surge warning');
     html += `<div style="padding:8px 10px;border-left:4px solid ${isSurgeWarn ? '#3b82f6' : '#06b6d4'};background:${isSurgeWarn ? 'rgba(59,130,246,0.06)' : 'rgba(6,182,212,0.06)'};border-radius:0 8px 8px 0;margin-bottom:6px">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+      <div class="flex-label-row">
         <span style="font-size:1.1em">🌊</span>
         <span style="font-weight:700;font-size:0.85em;color:${isSurgeWarn ? '#3b82f6' : '#06b6d4'}">${ev}</span>
         ${inZone ? '<span style="font-size:0.6em;background:rgba(59,130,246,0.2);color:#60a5fa;padding:1px 6px;border-radius:8px;font-weight:700;animation:tornado-pulse 2s ease-in-out infinite">YOUR AREA</span>' : ''}
@@ -1876,7 +1876,7 @@ function _renderNHCBanner(data) {
     <span style="font-size:1.4em">🌀</span>
     <div class="flex-1">
       <div style="font-weight:700;font-size:0.85em;color:${borderColor}">${storm.type} ${storm.name} — ${cat.label}</div>
-      <div style="font-size:0.7em;color:var(--text-secondary)">${reason}${status ? ' · ' + status.text : ''}</div>
+      <div class="text-secondary-sm">${reason}${status ? ' · ' + status.text : ''}</div>
     </div>
     <span style="font-size:0.65em;color:var(--accent-cyan)">View →</span>
   </div>`;
@@ -2147,9 +2147,9 @@ function renderStorms(){
           etaStr=`<span style="color:#ef4444;font-weight:600;font-family:var(--font-mono);font-size:0.85em">⏱ ${h>0?h+'h:'+String(m).padStart(2,'0')+'m':m+'m:'+String(s).padStart(2,'0')+'s'}</span>`;
         }
         return`<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-left:3px solid ${z.hex};background:${z.hex}08;border-radius:4px;margin-bottom:4px">
-          <div style="flex:1;min-width:0">
+          <div class="flex-1" style="min-width:0">
             <div style="font-weight:600;font-size:0.8em">${dir} <span style="color:var(--text-muted);font-weight:400">${bearStr}</span></div>
-            <div style="font-size:0.7em;color:var(--text-muted)">${distStr} · ${z.count} return${z.count>1?'s':''}</div>
+            <div class="text-muted-sm">${distStr} · ${z.count} return${z.count>1?'s':''}</div>
           </div>
           <div style="text-align:right">
             <span style="font-size:0.75em;font-weight:600;color:${z.hex}">${z.maxDbz} dBZ</span>

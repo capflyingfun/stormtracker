@@ -1238,9 +1238,9 @@ function renderSyncSection() {
       html+='</div>';
       html+='<button onclick="syncLogin()" style="width:100%;padding:7px;font-size:0.7em;font-weight:600;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;cursor:pointer;margin-bottom:6px">Log In</button>';
     }
-    html += '<div style="font-size:0.55em;color:var(--text-muted)">Account is optional — the app works fully without one.</div>';
+    html += '<div class="text-hint" style="font-size:0.55em">Account is optional — the app works fully without one.</div>';
   } else {
-    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:0.7em;color:var(--text-secondary)">📧 ${escHtml(_syncEmail)}</span><span style="font-size:0.55em;padding:2px 8px;background:rgba(0,200,100,0.15);color:#00cc66;border-radius:10px;font-weight:600">Connected</span></div>`;
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span class="text-secondary-sm">📧 ${escHtml(_syncEmail)}</span><span style="font-size:0.55em;padding:2px 8px;background:rgba(0,200,100,0.15);color:#00cc66;border-radius:10px;font-weight:600">Connected</span></div>`;
 
     html += '<div style="display:flex;gap:4px;margin-bottom:8px">';
     html += '<button onclick="syncPushSettings()" style="flex:1;padding:6px;font-size:0.65em;font-weight:600;background:rgba(167,139,250,0.12);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);border-radius:6px;cursor:pointer">⬆ Upload</button>';
@@ -1256,7 +1256,7 @@ function renderSyncSection() {
 
     const alertOn = _emailAlertsOn;
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:8px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border-subtle)">';
-    html += '<div><span style="font-size:0.7em;color:var(--text-secondary)">📬 Email Alerts</span><div style="font-size:0.55em;color:var(--text-muted);margin-top:2px">Get emailed when thresholds are exceeded</div></div>';
+    html += '<div><span class="text-secondary-sm">📬 Email Alerts</span><div style="font-size:0.55em;color:var(--text-muted);margin-top:2px">Get emailed when thresholds are exceeded</div></div>';
     html += `<button onclick="toggleEmailAlerts()" style="font-size:0.65em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid ${alertOn?'#00cc66':'var(--border-subtle)'};background:${alertOn?'rgba(0,200,100,0.15)':'rgba(255,255,255,0.04)'};color:${alertOn?'#00cc66':'var(--text-muted)'}">${alertOn?'ON':'OFF'}</button>`;
     html += '</div>';
     html += '<button onclick="sendTestAlert()" id="btn-test-alert" style="width:100%;padding:6px;font-size:0.65em;font-weight:600;background:rgba(255,165,0,0.12);color:#ffa500;border:1px solid rgba(255,165,0,0.3);border-radius:6px;cursor:pointer;margin-bottom:8px">📨 Send Test Email</button>';

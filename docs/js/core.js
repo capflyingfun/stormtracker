@@ -262,26 +262,26 @@ function _toggleSonarSettings(){
   const fadeNames={1:'Short',2:'Medium',3:'Long'};
   const glowNames={0:'None',1:'Subtle',2:'Intense'};
   let html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="color:#00eeff;font-weight:700;font-size:0.7em">⚙ Sonar Settings</span><button onclick="_toggleSonarSettings()" style="background:none;border:none;color:#00eeff;font-size:1em;cursor:pointer;padding:2px 6px">✕</button></div>';
-  html+='<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,220,255,0.15)">';
+  html+='<div class="sub-section-sep">';
   html+='<div style="'+tl+';margin-bottom:4px">Sweep</div>';
-  html+='<div class="flex-between-mb3"><span style="'+lb+'">Speed</span><div style="display:flex;gap:3px">';
+  html+='<div class="flex-between-mb3"><span style="'+lb+'">Speed</span><div class="flex-gap-3">';
   for(const spd of [20,40,60,80])html+=`<button onclick="_setSonarOpt('sweepSpeed',${spd})" id="ss-spd-${spd}" style="font-size:0.45em;padding:2px 5px;border-radius:3px;cursor:pointer;border:1px solid ${sw.sweepSpeed===spd?'#00eeff':'rgba(0,220,255,0.3)'};background:${sw.sweepSpeed===spd?'rgba(0,220,255,0.2)':'none'};color:${sw.sweepSpeed===spd?'#00eeff':'rgba(255,255,255,0.5)'}">${spdNames[spd]}</button>`;
   html+='</div></div>';
-  html+='<div class="flex-between-mb3"><span style="'+lb+'">Fade</span><div style="display:flex;gap:3px">';
+  html+='<div class="flex-between-mb3"><span style="'+lb+'">Fade</span><div class="flex-gap-3">';
   for(const fd of [1,2,3])html+=`<button onclick="_setSonarOpt('fadeDur',${fd})" id="ss-fade-${fd}" style="font-size:0.45em;padding:2px 5px;border-radius:3px;cursor:pointer;border:1px solid ${sw.fadeDur===fd?'#00eeff':'rgba(0,220,255,0.3)'};background:${sw.fadeDur===fd?'rgba(0,220,255,0.2)':'none'};color:${sw.fadeDur===fd?'#00eeff':'rgba(255,255,255,0.5)'}">${fadeNames[fd]}</button>`;
   html+='</div></div>';
   html+=`<div class="flex-between"><span style="${lb}">Always On (no sweep)</span><button onclick="_setSonarOpt('alwaysOn',!_sonarCfg.alwaysOn)" id="ss-always" style="font-size:0.45em;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid ${sw.alwaysOn?'#00ff88':'rgba(0,220,255,0.3)'};background:${sw.alwaysOn?'rgba(0,255,136,0.2)':'none'};color:${sw.alwaysOn?'#00ff88':'rgba(255,255,255,0.5)'}">${sw.alwaysOn?'ON':'OFF'}</button></div>`;
   html+='</div>';
-  html+='<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,220,255,0.15)">';
+  html+='<div class="sub-section-sep">';
   html+='<div style="'+tl+';margin-bottom:4px">Visual</div>';
   html+=`<div class="flex-between-mb3"><span style="${lb}">Dot Opacity</span><span id="ss-opac-v" style="${vl}">${sw.dotOpacity}%</span></div><input type="range" min="20" max="100" value="${sw.dotOpacity}" step="10" oninput="_setSonarSlider('dotOpacity',this.value,'ss-opac-v','%')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer;margin-bottom:4px">`;
-  html+='<div class="flex-between-mb3"><span style="'+lb+'">Glow</span><div style="display:flex;gap:3px">';
+  html+='<div class="flex-between-mb3"><span style="'+lb+'">Glow</span><div class="flex-gap-3">';
   for(const gl of [0,1,2])html+=`<button onclick="_setSonarOpt('glowInt',${gl})" id="ss-glow-${gl}" style="font-size:0.45em;padding:2px 5px;border-radius:3px;cursor:pointer;border:1px solid ${sw.glowInt===gl?'#00eeff':'rgba(0,220,255,0.3)'};background:${sw.glowInt===gl?'rgba(0,220,255,0.2)':'none'};color:${sw.glowInt===gl?'#00eeff':'rgba(255,255,255,0.5)'}">${glowNames[gl]}</button>`;
   html+='</div></div>';
   html+=`<div class="flex-between-mb3"><span style="${lb}">Grid Brightness</span><span id="ss-grid-v" style="${vl}">${sw.gridBright}%</span></div><input type="range" min="0" max="200" value="${sw.gridBright}" step="20" oninput="_setSonarSlider('gridBright',this.value,'ss-grid-v','%')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer;margin-bottom:4px">`;
   html+=`<div class="flex-between"><span style="${lb}">dBZ Floor (hide below)</span><span id="ss-floor-v" style="${vl}">${sw.dbzFloor}</span></div><input type="range" min="0" max="40" value="${sw.dbzFloor}" step="5" oninput="_setSonarSlider('dbzFloor',this.value,'ss-floor-v','')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer">`;
   html+='</div>';
-  html+='<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,220,255,0.15)">';
+  html+='<div class="sub-section-sep">';
   html+='<div style="'+tl+';margin-bottom:4px">Overlays</div>';
   const togs=[['showStormArrows','Storm Arrows'],['showAloft','Aloft Wind'],['showLightning','⚡ Lightning (≥48 dBZ)']];
   for(const[key,lbl]of togs){
@@ -2179,7 +2179,7 @@ function renderFavorites(){
     const emailOn=f.emailAlerts!==false;
     const emailBtn=loggedIn&&_emailAlertsOn?`<button onclick="event.stopPropagation();toggleFavEmailAlert(${i})" style="background:none;border:1px solid ${emailOn?'rgba(0,200,100,0.4)':'var(--border-subtle)'};color:${emailOn?'#00cc66':'var(--text-muted)'};font-size:0.55em;cursor:pointer;padding:1px 5px;border-radius:4px;white-space:nowrap" title="${emailOn?'Email alerts ON':'Email alerts OFF'}">${emailOn?'📬':'📭'}</button>`:'';
     return`<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;margin:2px 0;background:rgba(255,255,255,0.03);border-radius:6px;cursor:pointer" onclick="loadFavorite(${i})">
-    <span style="font-size:0.8em">⭐</span>
+    <span class="text-sm">⭐</span>
     <span style="flex:1;font-size:0.75em;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</span>
     ${emailBtn}
     <button onclick="event.stopPropagation();renameFavorite(${i})" style="background:none;border:none;color:var(--accent-cyan);font-size:0.7em;cursor:pointer;padding:2px 4px" title="Rename">✏️</button>

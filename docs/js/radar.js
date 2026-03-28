@@ -21,11 +21,11 @@ function initRadar(){
       <div class="map-controls map-controls-left">
         <div class="map-ctrl-btn" id="radar-scan" title="Home location">📍</div>
         <div class="map-ctrl-btn" id="radar-scan-view" title="Scan map center">🔍</div>
-        <div class="map-ctrl-btn" id="radar-scan-hires" title="HD Scan (15mi zoom 12)" style="font-size:0.75em">🔦</div>
+        <div class="map-ctrl-btn text-075" id="radar-scan-hires" title="HD Scan (15mi zoom 12)">🔦</div>
         <div class="map-ctrl-btn" id="radar-toggle-src" title="Toggle radar source" style="font-size:0.55em;font-weight:700;line-height:1">SRC</div>
         <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km" style="font-size:0.55em;font-weight:700;line-height:1">MI</div>
-        <div class="map-ctrl-btn" id="radar-toggle-airports" title="Toggle airports" style="font-size:0.75em">✈️</div>
-        <div class="map-ctrl-btn" id="radar-anim-btn" title="Animate radar" style="font-size:0.75em">▶️</div>
+        <div class="map-ctrl-btn text-075" id="radar-toggle-airports" title="Toggle airports">✈️</div>
+        <div class="map-ctrl-btn text-075" id="radar-anim-btn" title="Animate radar">▶️</div>
       </div>
       <div class="map-controls map-controls-right">
         <div class="map-ctrl-btn" id="btn-zones" title="Toggle storm zones" style="font-size:0.55em;font-weight:700;line-height:1;color:#cc00ff" onclick="toggleStormZones()">ZN</div>
