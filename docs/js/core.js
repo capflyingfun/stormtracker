@@ -2686,6 +2686,7 @@ const _WX_ALERT_DEFS=[
 const _WX_ALERT_COOLDOWN=(function(){try{const s=localStorage.getItem('st_wxAlertCooldown');if(s){const o=JSON.parse(s);const now=Date.now();Object.keys(o).forEach(k=>{if(now-o[k]>900000)delete o[k]});return o}}catch(e){}return{}})();
 function _getAlertExpiryMs(){const v=parseInt(localStorage.getItem('st_alertExpiry'),10);return[30,60,120,240,360].includes(v)?v*60000:120*60000}
 function setAlertExpiry(val){const n=parseInt(val,10);if([30,60,120,240,360].includes(n)){localStorage.setItem('st_alertExpiry',n);_pruneExpiredAlerts()}}
+let _wxCheckedOnce=false;
 function _pruneExpiredAlerts(){
   const ex=_getAlertExpiryMs();const now=Date.now();
   const sLen=_stormAlertHistory.length;
@@ -2694,6 +2695,7 @@ function _pruneExpiredAlerts(){
   const wLen=_wxAlertHistory.length;
   _wxAlertHistory=_wxAlertHistory.filter(a=>{
     if(a.fellBelowTime)return now-a.fellBelowTime<ex;
+    if(_wxCheckedOnce)return true;
     return now-a.time<ex;
   });
   if(_wxAlertHistory.length!==wLen)_saveWxAlertHistory();
@@ -2736,6 +2738,7 @@ function checkWeatherThresholds(){
     if(S.activePage==='alerts')renderAlerts();
   });
   if(histDirty)_saveWxAlertHistory();
+  _wxCheckedOnce=true;
   _pruneExpiredAlerts();
 }
 function _sendBrowserNotification(title,body){
