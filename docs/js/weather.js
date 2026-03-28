@@ -376,6 +376,7 @@ function drawMiniSonar(){
   const scanR=S.scanRadius||80;
   const viewR=_sonarZoomMi;
   let zoneCount=0,maxDbz=0;
+  let allLightningDots=[];
   if(S._rawScanPts&&S._rawScanPts.length){
     const useRaw=viewR<=40;
     const dots=[];
@@ -421,7 +422,7 @@ function drawMiniSonar(){
     const dbzFloor=cfg.dbzFloor;
     const isAlwaysOn=cfg.alwaysOn;
     const glowMul=cfg.glowInt;
-    const allLightningDots=[];
+    allLightningDots=[];
     for(const d of dots){
       if(d.dbz<dbzFloor)continue;
       if(d.dbz>=48&&cfg.showLightning)allLightningDots.push(d);
@@ -460,49 +461,6 @@ function drawMiniSonar(){
         }
       }
     }
-    if(cfg.showLightning&&allLightningDots.length){
-      const clR=Math.max(15,size*0.06);
-      const lGroups=[];
-      for(const d of allLightningDots){
-        let merged=false;
-        for(const g of lGroups){
-          const dx=d.x-g.sx/g.n,dy=d.y-g.sy/g.n;
-          if(dx*dx+dy*dy<clR*clR){g.sx+=d.x;g.sy+=d.y;g.n++;g.dots.push(d);merged=true;break}
-        }
-        if(!merged)lGroups.push({sx:d.x,sy:d.y,n:1,dots:[d]});
-      }
-      const now=performance.now();
-      if(!_lightningFlashState)_lightningFlashState=[];
-      while(_lightningFlashState.length<lGroups.length)_lightningFlashState.push({on:true,nextToggle:now+100+Math.random()*700});
-      _lightningFlashState.length=lGroups.length;
-      ctx.save();
-      const boltSz=Math.max(10,size*0.035);
-      ctx.font=`${boltSz}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.shadowColor='rgba(255,255,0,0.8)';ctx.shadowBlur=6;
-      for(let gi=0;gi<lGroups.length;gi++){
-        const g=lGroups[gi];
-        const gx=g.sx/g.n,gy=g.sy/g.n;
-        
-        const fs=_lightningFlashState[gi];
-        if(now>=fs.nextToggle){
-          fs.on=!fs.on;
-          fs.nextToggle=now+(fs.on?(150+Math.random()*250):(1500+Math.random()*1500));
-        }
-        if(!fs.on)continue;
-        const flashAlpha=0.7+Math.random()*0.3;
-        ctx.fillStyle=`rgba(255,255,50,${flashAlpha})`;ctx.fillText('⚡',gx,gy);
-        if(g.n>1){
-          ctx.save();ctx.shadowBlur=0;
-          ctx.font=`bold ${Math.max(7,boltSz*0.55)}px Inter,sans-serif`;
-          ctx.fillStyle=`rgba(255,255,50,${Math.min(1,flashAlpha+0.05)})`;ctx.strokeStyle='rgba(0,0,0,0.6)';ctx.lineWidth=2;
-          const tx=gx+boltSz*0.45,ty=gy-boltSz*0.35;
-          ctx.strokeText(String(g.n),tx,ty);ctx.fillText(String(g.n),tx,ty);
-          ctx.restore();
-          ctx.font=`${boltSz}px sans-serif`;
-        }
-      }
-      ctx.restore();
-    }else{_lightningFlashState=null}
     const hookStorms=(S.storms||[]).filter(s=>s._hookEcho&&s.distance<=viewR);
     if(hookStorms.length){
       ctx.save();
@@ -638,6 +596,48 @@ function drawMiniSonar(){
   ctx.restore();
   ctx.beginPath();ctx.arc(cx,cy,11,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.6)';ctx.lineWidth=2;ctx.stroke();
   ctx.beginPath();ctx.arc(cx,cy,16,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.25)';ctx.lineWidth=1;ctx.stroke();
+  if(_sonarCfg.showLightning&&allLightningDots.length){
+    const clR=Math.max(15,size*0.06);
+    const lGroups=[];
+    for(const d of allLightningDots){
+      let merged=false;
+      for(const g of lGroups){
+        const dx=d.x-g.sx/g.n,dy=d.y-g.sy/g.n;
+        if(dx*dx+dy*dy<clR*clR){g.sx+=d.x;g.sy+=d.y;g.n++;g.dots.push(d);merged=true;break}
+      }
+      if(!merged)lGroups.push({sx:d.x,sy:d.y,n:1,dots:[d]});
+    }
+    const now=performance.now();
+    if(!_lightningFlashState)_lightningFlashState=[];
+    while(_lightningFlashState.length<lGroups.length)_lightningFlashState.push({on:true,nextToggle:now+100+Math.random()*700});
+    _lightningFlashState.length=lGroups.length;
+    ctx.save();
+    const boltSz=Math.max(10,size*0.035);
+    ctx.font=`${boltSz}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.shadowColor='rgba(255,255,0,0.8)';ctx.shadowBlur=6;
+    for(let gi=0;gi<lGroups.length;gi++){
+      const g=lGroups[gi];
+      const gx=g.sx/g.n,gy=g.sy/g.n;
+      const fs=_lightningFlashState[gi];
+      if(now>=fs.nextToggle){
+        fs.on=!fs.on;
+        fs.nextToggle=now+(fs.on?(150+Math.random()*250):(1500+Math.random()*1500));
+      }
+      if(!fs.on)continue;
+      const flashAlpha=0.7+Math.random()*0.3;
+      ctx.fillStyle=`rgba(255,255,50,${flashAlpha})`;ctx.fillText('⚡',gx,gy);
+      if(g.n>1){
+        ctx.save();ctx.shadowBlur=0;
+        ctx.font=`bold ${Math.max(7,boltSz*0.55)}px Inter,sans-serif`;
+        ctx.fillStyle=`rgba(255,255,50,${Math.min(1,flashAlpha+0.05)})`;ctx.strokeStyle='rgba(0,0,0,0.6)';ctx.lineWidth=2;
+        const tx=gx+boltSz*0.45,ty=gy-boltSz*0.35;
+        ctx.strokeText(String(g.n),tx,ty);ctx.fillText(String(g.n),tx,ty);
+        ctx.restore();
+        ctx.font=`${boltSz}px sans-serif`;
+      }
+    }
+    ctx.restore();
+  }else{_lightningFlashState=null}
   const infoEl=document.getElementById('mini-sonar-info');
   if(infoEl){
     if(zoneCount>0){
