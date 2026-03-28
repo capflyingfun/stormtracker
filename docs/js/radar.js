@@ -1529,21 +1529,37 @@ function updateThreatTicker(){
     const alertPhase=(cycleMin%3)!==2;
     if(alertPhase){
       const nwsMsgs=[];
+      function _relDur(ms){
+        const m=Math.ceil(ms/60000);
+        if(m<1)return'<1m';
+        if(m<60)return'~'+m+'m';
+        const h=Math.ceil(m/60);
+        return'~'+h+'h';
+      }
+      const now=Date.now();
       for(const a of S.alerts){
         const p=a.properties||a;
         const ev=p.event||p.headline||'Weather Alert';
         const sev=(p.severity||'').toLowerCase();
-        let expLabel='';
+        const startVal=p.onset||p.effective;
         const endVal=p.ends||p.expires;
-        if(endVal){
-          const exp=new Date(endVal);
-          if(!isNaN(exp)){
-            const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-            expLabel=` — until ${days[exp.getDay()]} ${fmtClockShort(exp)}`;
-          }
+        const startMs=startVal?new Date(startVal).getTime():NaN;
+        const endMs=endVal?new Date(endVal).getTime():NaN;
+        let timeLabel='';
+        if(!isNaN(startMs)&&startMs>now){
+          const durMs=(!isNaN(endMs)&&endMs>startMs)?(endMs-startMs):0;
+          timeLabel=` — starts in ${_relDur(startMs-now)}${durMs?', lasts '+_relDur(durMs):''}`;
+        }else if(!isNaN(endMs)&&endMs>now){
+          const remain=endMs-now;
+          if(remain<=1800000)timeLabel=' — ending soon';
+          else timeLabel=` — in effect, ends in ${_relDur(remain)}`;
+        }else if(!isNaN(endMs)){
+          timeLabel=' — expired';
+        }else{
+          timeLabel=' — in effect';
         }
         const icon=typeof getAlertIcon==='function'?getAlertIcon(ev,sev):(sev==='extreme'?'🔴':sev==='severe'?'🟠':sev==='moderate'?'🟡':'🔵');
-        nwsMsgs.push(`${icon} NWS: ${escHtml(ev)} in effect${expLabel}`);
+        nwsMsgs.push(`${icon} NWS: ${escHtml(ev)}${timeLabel}`);
       }
       if(nwsMsgs.length){
         const sep='<span style="color:#664400;margin:0 40px">│</span>';
