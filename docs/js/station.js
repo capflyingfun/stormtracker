@@ -8,6 +8,13 @@
 // ==========================================
 const NWS_HDR={headers:{'User-Agent':'StormTracker/1.50','Accept':'application/geo+json'}};
 
+async function _fetchStationElev(lat,lon){
+  try{
+    const r=await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`,{signal:AbortSignal.timeout(5000)});
+    if(r.ok){const d=await r.json();if(d.elevation&&d.elevation[0]!=null&&S.station){S.station.elev=d.elevation[0];renderStation()}}
+  }catch(e){console.log('Station elev fetch error:',e.message)}
+}
+
 let _globalAirports=null;
 async function _loadGlobalAirports(){
   if(_globalAirports)return _globalAirports;
@@ -296,6 +303,7 @@ function parseAWCobs(m){
     icao:m.icaoId,
     name:m.name||m.icaoId,
     lat:m.lat,lon:m.lon,
+    elev:m.elev!=null?m.elev:null,
     temp:m.temp!=null?m.temp:null,
     dewp:m.dewp!=null?m.dewp:null,
     windKmh:m.wspd!=null?m.wspd*1.852:null,
@@ -355,6 +363,7 @@ async function loadStationObs(icao){
       name:stInfo?.name||S._airportDataCache?.find(a=>a.icao===icao)?.name||icao,
       lat:sLat,
       lon:sLon,
+      elev:p.elevation?.value!=null?p.elevation.value:null,
       temp:p.temperature?.value,
       dewp:p.dewpoint?.value,
       windKmh:p.windSpeed?.value,
@@ -367,6 +376,7 @@ async function loadStationObs(icao){
       obsTime:p.timestamp||'',
       wxString:_extractMetarWx(p.rawMessage||''),
     };
+    if(S.station.elev==null)_fetchStationElev(sLat,sLon);
     renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){
     console.error('Obs fetch error:',e);
@@ -391,7 +401,7 @@ async function loadStationObsAWC(icao){
   }else{
     console.log('loadStationObsAWC: No METAR for',icao,'— showing station without obs');
     S.station={
-      icao,name:stInfo?.name||icao,lat:stInfo?.lat||S.lat,lon:stInfo?.lon||S.lon,
+      icao,name:stInfo?.name||icao,lat:stInfo?.lat||S.lat,lon:stInfo?.lon||S.lon,elev:null,
       temp:null,dewp:null,windKmh:null,windDir:null,gustKmh:null,visMeter:null,presPa:null,
       rawMETAR:'',clouds:[],obsTime:'',wxString:'',_noMetar:true,_reason:'No recent METAR available'
     };
@@ -486,8 +496,8 @@ function renderStation(){
       ${(()=>{
         if(tempC==null||dpC==null)return'';
         const _sp=tempC-dpC;const _wk=windKmh!=null?(windKmh/1.852):null;
-        const _dy=true;
-        const _cc=null;
+        const _dy=_isDaytimeNow();
+        const _cc=_stationCloudPct(s);
         const _fog=getFogRisk(_sp,_wk,_dy,_cc);
         const _inv=detectInversion(_sp,_wk,_dy,_cc);
         let html='<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">';
@@ -652,7 +662,7 @@ function decodeMetar(raw){
     if(/^A\d{4}$/.test(p)){
       const inhg=(parseInt(p.slice(1))/100).toFixed(2);
       const mb=(parseFloat(inhg)*33.8639).toFixed(1);
-      const elevM=S._terrainData?S._terrainData.userElev:null;
+      const elevM=S.station?.elev!=null?S.station.elev:(S._terrainData?S._terrainData.userElev:null);
       const elevFt=elevM!=null?elevM*3.281:null;
       let altExtra='';
       if(elevFt!=null){
@@ -671,7 +681,7 @@ function decodeMetar(raw){
     if(/^Q\d{4}$/.test(p)){
       const mb=parseInt(p.slice(1));
       const qInHg=(mb/33.8639).toFixed(2);
-      const elevM=S._terrainData?S._terrainData.userElev:null;
+      const elevM=S.station?.elev!=null?S.station.elev:(S._terrainData?S._terrainData.userElev:null);
       const elevFt=elevM!=null?elevM*3.281:null;
       let qExtra='';
       if(elevFt!=null){
@@ -805,30 +815,6 @@ function renderMetarDecoded(s){
   return`<div style="display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:12px;font-size:0.7em;color:var(--text-secondary)">${parts.join('')}</div>`;
 }
 
-function getFltCat(visSM,s){return getFltCatDetail(visSM,s).cat}
-function getFltCatDetail(visSM,s){
-  let effCeil=99999;
-  if(s.clouds&&s.clouds.length){
-    for(const c of s.clouds){
-      const amt=(c.amount||c.cover||'').toUpperCase();
-      const baseFt=(c.base!=null&&typeof c.base==='object'&&c.base.value!=null)?c.base.value*3.281:(typeof c.base==='number'?c.base:null);
-      if((amt==='BKN'||amt==='OVC'||amt==='VV')&&baseFt!=null){effCeil=Math.min(effCeil,baseFt);break}
-    }
-  }
-  const ceilLim=effCeil<99999;
-  const visLim=visSM!=null;
-  if((visLim&&visSM<1)||effCeil<500){
-    const r=[];if(effCeil<500)r.push('Ceiling '+fmtAlt(effCeil));if(visLim&&visSM<1)r.push('Vis '+fmtVis(visSM));
-    return{cat:'LIFR',reason:r.join(', ')||'Low IFR conditions'};
-  }
-  if((visLim&&visSM<3)||effCeil<1000){
-    const r=[];if(effCeil<1000)r.push('Ceiling '+fmtAlt(effCeil));if(visLim&&visSM<3)r.push('Vis '+fmtVis(visSM));
-    return{cat:'IFR',reason:r.join(', ')||'IFR conditions'};
-  }
-  if((visLim&&visSM<=5)||effCeil<=3000){
-    const r=[];if(ceilLim&&effCeil<=3000)r.push('Ceiling '+fmtAlt(effCeil));if(visLim&&visSM<=5)r.push('Vis '+fmtVis(visSM));
-    return{cat:'MVFR',reason:r.join(', ')||'Marginal VFR'};
-  }
-  return{cat:'VFR',reason:ceilLim?'Ceiling '+fmtAlt(effCeil):'Clear'};
-}
+function getFltCat(visSM,s){return getFlightCatBadge(visSM,s).cat}
+function getFltCatDetail(visSM,s){return getFlightCatBadge(visSM,s)}
 
