@@ -40,7 +40,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="clutter-toggle" title="Clutter hidden (tap to show)" style="font-size:0.7em;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);border-color:#555" onclick="toggleClutter()">🕳️</div>
       </div>
       <div class="radar-anim-bar" id="radar-anim-bar" style="display:none">
-        <input type="range" id="radar-anim-slider" min="0" max="0" value="0" class="flex-1">
+        <input type="range" id="radar-anim-slider" min="0" max="0" value="0" style="flex:1">
         <span id="radar-anim-time" style="font-size:0.65em;color:var(--text-secondary);min-width:50px;text-align:right"></span>
       </div>
       <div class="map-legend">
