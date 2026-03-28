@@ -1244,6 +1244,8 @@ function _findBestPackIcon(pack,cond){
   return null;
 }
 function _initCrossFade(w){
+  if(w._xf)return;
+  w._xf=1;
   const vids=w.querySelectorAll('video');
   if(vids.length<2)return;
   const a=vids[0],b=vids[1];
@@ -1305,7 +1307,7 @@ function getWeatherIcon(cond,sz,forcePack){
       const sizeStyle=hasCssUnit?`width:${cssSize};height:${cssSize}`:`width:${numSize}px;height:${numSize}px`;
       const vStyle=`position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;border-radius:50%`;
       const errFb=`this.parentElement.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${sizeStyle};display:inline-block;vertical-align:middle&quot; alt=&quot;${cond}&quot;>'`;
-      return`<div class="vid-xfade" style="${sizeStyle};position:relative;display:inline-block;vertical-align:middle;border-radius:50%;overflow:hidden" onmouseenter="if(!this._xf)_initCrossFade(this)"><video autoplay muted playsinline style="${vStyle};opacity:1" src="${vidSrc}" poster="${fallbackSrc}" onloadedmetadata="if(!this.parentElement._xf){this.parentElement._xf=1;_initCrossFade(this.parentElement)}" onerror="${errFb}"></video><video muted playsinline style="${vStyle};opacity:0" src="${vidSrc}" poster="${fallbackSrc}" onerror="this.remove()"></video></div>`;
+      return`<div class="vid-xfade" style="${sizeStyle};position:relative;display:inline-block;vertical-align:middle;border-radius:50%;overflow:hidden"><video autoplay muted playsinline style="${vStyle};opacity:1" src="${vidSrc}" poster="${fallbackSrc}" onloadedmetadata="_initCrossFade(this.parentElement)" onerror="${errFb}"></video><video muted playsinline style="${vStyle};opacity:0" src="${vidSrc}" poster="${fallbackSrc}" onerror="this.remove()"></video></div>`;
     }
     return getWeatherIcon(cond,sz,'globe');
   }
