@@ -264,29 +264,29 @@ function _toggleSonarSettings(){
   let html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="color:#00eeff;font-weight:700;font-size:0.7em">⚙ Sonar Settings</span><button onclick="_toggleSonarSettings()" style="background:none;border:none;color:#00eeff;font-size:1em;cursor:pointer;padding:2px 6px">✕</button></div>';
   html+='<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,220,255,0.15)">';
   html+='<div style="'+tl+';margin-bottom:4px">Sweep</div>';
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="'+lb+'">Speed</span><div style="display:flex;gap:3px">';
+  html+='<div class="flex-between-mb3"><span style="'+lb+'">Speed</span><div style="display:flex;gap:3px">';
   for(const spd of [20,40,60,80])html+=`<button onclick="_setSonarOpt('sweepSpeed',${spd})" id="ss-spd-${spd}" style="font-size:0.45em;padding:2px 5px;border-radius:3px;cursor:pointer;border:1px solid ${sw.sweepSpeed===spd?'#00eeff':'rgba(0,220,255,0.3)'};background:${sw.sweepSpeed===spd?'rgba(0,220,255,0.2)':'none'};color:${sw.sweepSpeed===spd?'#00eeff':'rgba(255,255,255,0.5)'}">${spdNames[spd]}</button>`;
   html+='</div></div>';
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="'+lb+'">Fade</span><div style="display:flex;gap:3px">';
+  html+='<div class="flex-between-mb3"><span style="'+lb+'">Fade</span><div style="display:flex;gap:3px">';
   for(const fd of [1,2,3])html+=`<button onclick="_setSonarOpt('fadeDur',${fd})" id="ss-fade-${fd}" style="font-size:0.45em;padding:2px 5px;border-radius:3px;cursor:pointer;border:1px solid ${sw.fadeDur===fd?'#00eeff':'rgba(0,220,255,0.3)'};background:${sw.fadeDur===fd?'rgba(0,220,255,0.2)':'none'};color:${sw.fadeDur===fd?'#00eeff':'rgba(255,255,255,0.5)'}">${fadeNames[fd]}</button>`;
   html+='</div></div>';
-  html+=`<div style="display:flex;justify-content:space-between;align-items:center"><span style="${lb}">Always On (no sweep)</span><button onclick="_setSonarOpt('alwaysOn',!_sonarCfg.alwaysOn)" id="ss-always" style="font-size:0.45em;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid ${sw.alwaysOn?'#00ff88':'rgba(0,220,255,0.3)'};background:${sw.alwaysOn?'rgba(0,255,136,0.2)':'none'};color:${sw.alwaysOn?'#00ff88':'rgba(255,255,255,0.5)'}">${sw.alwaysOn?'ON':'OFF'}</button></div>`;
+  html+=`<div class="flex-between"><span style="${lb}">Always On (no sweep)</span><button onclick="_setSonarOpt('alwaysOn',!_sonarCfg.alwaysOn)" id="ss-always" style="font-size:0.45em;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid ${sw.alwaysOn?'#00ff88':'rgba(0,220,255,0.3)'};background:${sw.alwaysOn?'rgba(0,255,136,0.2)':'none'};color:${sw.alwaysOn?'#00ff88':'rgba(255,255,255,0.5)'}">${sw.alwaysOn?'ON':'OFF'}</button></div>`;
   html+='</div>';
   html+='<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,220,255,0.15)">';
   html+='<div style="'+tl+';margin-bottom:4px">Visual</div>';
-  html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="${lb}">Dot Opacity</span><span id="ss-opac-v" style="${vl}">${sw.dotOpacity}%</span></div><input type="range" min="20" max="100" value="${sw.dotOpacity}" step="10" oninput="_setSonarSlider('dotOpacity',this.value,'ss-opac-v','%')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer;margin-bottom:4px">`;
-  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="'+lb+'">Glow</span><div style="display:flex;gap:3px">';
+  html+=`<div class="flex-between-mb3"><span style="${lb}">Dot Opacity</span><span id="ss-opac-v" style="${vl}">${sw.dotOpacity}%</span></div><input type="range" min="20" max="100" value="${sw.dotOpacity}" step="10" oninput="_setSonarSlider('dotOpacity',this.value,'ss-opac-v','%')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer;margin-bottom:4px">`;
+  html+='<div class="flex-between-mb3"><span style="'+lb+'">Glow</span><div style="display:flex;gap:3px">';
   for(const gl of [0,1,2])html+=`<button onclick="_setSonarOpt('glowInt',${gl})" id="ss-glow-${gl}" style="font-size:0.45em;padding:2px 5px;border-radius:3px;cursor:pointer;border:1px solid ${sw.glowInt===gl?'#00eeff':'rgba(0,220,255,0.3)'};background:${sw.glowInt===gl?'rgba(0,220,255,0.2)':'none'};color:${sw.glowInt===gl?'#00eeff':'rgba(255,255,255,0.5)'}">${glowNames[gl]}</button>`;
   html+='</div></div>';
-  html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="${lb}">Grid Brightness</span><span id="ss-grid-v" style="${vl}">${sw.gridBright}%</span></div><input type="range" min="0" max="200" value="${sw.gridBright}" step="20" oninput="_setSonarSlider('gridBright',this.value,'ss-grid-v','%')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer;margin-bottom:4px">`;
-  html+=`<div style="display:flex;justify-content:space-between;align-items:center"><span style="${lb}">dBZ Floor (hide below)</span><span id="ss-floor-v" style="${vl}">${sw.dbzFloor}</span></div><input type="range" min="0" max="40" value="${sw.dbzFloor}" step="5" oninput="_setSonarSlider('dbzFloor',this.value,'ss-floor-v','')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer">`;
+  html+=`<div class="flex-between-mb3"><span style="${lb}">Grid Brightness</span><span id="ss-grid-v" style="${vl}">${sw.gridBright}%</span></div><input type="range" min="0" max="200" value="${sw.gridBright}" step="20" oninput="_setSonarSlider('gridBright',this.value,'ss-grid-v','%')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer;margin-bottom:4px">`;
+  html+=`<div class="flex-between"><span style="${lb}">dBZ Floor (hide below)</span><span id="ss-floor-v" style="${vl}">${sw.dbzFloor}</span></div><input type="range" min="0" max="40" value="${sw.dbzFloor}" step="5" oninput="_setSonarSlider('dbzFloor',this.value,'ss-floor-v','')" style="width:100%;height:14px;accent-color:#00eeff;cursor:pointer">`;
   html+='</div>';
   html+='<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(0,220,255,0.15)">';
   html+='<div style="'+tl+';margin-bottom:4px">Overlays</div>';
   const togs=[['showStormArrows','Storm Arrows'],['showAloft','Aloft Wind'],['showLightning','⚡ Lightning (≥48 dBZ)']];
   for(const[key,lbl]of togs){
     const on=sw[key];
-    html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><span style="${lb}">${lbl}</span><button onclick="_setSonarOpt('${key}',!_sonarCfg.${key})" id="ss-${key}" style="font-size:0.45em;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid ${on?'#00ff88':'rgba(0,220,255,0.3)'};background:${on?'rgba(0,255,136,0.2)':'none'};color:${on?'#00ff88':'rgba(255,255,255,0.5)'}">${on?'ON':'OFF'}</button></div>`;
+    html+=`<div class="flex-between-mb3"><span style="${lb}">${lbl}</span><button onclick="_setSonarOpt('${key}',!_sonarCfg.${key})" id="ss-${key}" style="font-size:0.45em;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid ${on?'#00ff88':'rgba(0,220,255,0.3)'};background:${on?'rgba(0,255,136,0.2)':'none'};color:${on?'#00ff88':'rgba(255,255,255,0.5)'}">${on?'ON':'OFF'}</button></div>`;
   }
   html+='</div>';
   html+='<div style="margin-bottom:6px">';
@@ -556,7 +556,7 @@ function renderGaugeMarine(d){
   svg+=`<polygon points="${(cx+Math.cos(pAng)*(ri-2)).toFixed(1)},${(cy+Math.sin(pAng)*(ri-2)).toFixed(1)} ${(cx+Math.cos(pAng-0.15)*18).toFixed(1)},${(cy+Math.sin(pAng-0.15)*18).toFixed(1)} ${(cx+Math.cos(pAng+0.15)*18).toFixed(1)},${(cy+Math.sin(pAng+0.15)*18).toFixed(1)}" fill="rgba(255,100,150,0.7)" stroke="#ff6699" stroke-width="0.5"/>`;
   svg+=`<circle cx="${cx}" cy="${cy}" r="4" fill="#222" stroke="#ff6699" stroke-width="1"/>`;
   return`<div class="wind-rose gauge-marine" data-gauge="marine" style="cursor:pointer;width:200px;height:200px;flex-shrink:0;position:relative">
-    <svg viewBox="0 0 200 200" style="width:100%;height:100%">${svg}</svg>
+    <svg viewBox="0 0 200 200" class="full-size">${svg}</svg>
   </div>`;
 }
 function renderGaugeMinimal(d){
@@ -600,7 +600,7 @@ function renderGaugeMinimal(d){
   const bfClr=_BFT_CLR[bf];
   const dirStr=degToDir(dirDeg)+' '+dirDeg.toFixed(0)+'°';
   return`<div class="wind-rose gauge-minimal" data-gauge="minimal" style="cursor:pointer;width:200px;height:200px;flex-shrink:0;position:relative">
-    <svg viewBox="-8 -8 116 116" style="width:100%;height:100%">${svg}</svg>
+    <svg viewBox="-8 -8 116 116" class="full-size">${svg}</svg>
     <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none">
       <div style="font-size:1.6em;font-weight:800;color:#e2e8f0;line-height:1"><span class="wrc-num">${windNum}</span>${_trendArrowHtml()}</div>
       <div style="font-size:0.55em;font-weight:600;color:#94a3b8;margin-top:1px" class="wrc-unit">${windUnit}</div>
@@ -771,7 +771,7 @@ function renderGaugeG1000(d){
     svg+=`<text x="${compassCx}" y="${infoBot+6}" fill="#5a6070" font-size="5" text-anchor="middle" font-family="monospace">NORTH UP · NO STORMS</text>`;
   }
   return`<div class="wind-rose gauge-g1000" data-gauge="g1000" style="cursor:pointer;width:300px;height:280px;flex-shrink:0;position:relative">
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%">${svg}</svg>
+    <svg viewBox="0 0 ${W} ${H}" class="full-size">${svg}</svg>
   </div>`;
 }
 function renderGaugeSpeedo(d){
@@ -836,7 +836,7 @@ function renderGaugeSpeedo(d){
     svg+=`<text x="${cx+38}" y="${cy+37}" fill="#ff4444" font-size="4.5" font-weight="600" text-anchor="start" font-family="monospace">G${parseFloat(kmhTo(d.gustRaw,S.windUnit)).toFixed(0)}</text>`;
   }
   return`<div class="wind-rose gauge-speedo" data-gauge="speedo" style="cursor:pointer;width:200px;height:200px;flex-shrink:0;position:relative">
-    <svg viewBox="0 0 200 200" style="width:100%;height:100%">${svg}</svg>
+    <svg viewBox="0 0 200 200" class="full-size">${svg}</svg>
   </div>`;
 }
 function arcPathFull(cx,cy,r,a1Deg,a2Deg){
@@ -1279,7 +1279,7 @@ function _getCustomIconHtml(cond,sz){
   const hasCssUnit=/[a-z%]/.test(raw);
   const cssSize=hasCssUnit?raw:(parseInt(raw)||32)+'px';
   const numSize=parseInt(raw)||32;
-  return hasCssUnit?`<img src="${url}" style="width:${cssSize};height:${cssSize};display:inline-block;vertical-align:middle" alt="${cond}" loading="lazy">`:`<img src="${url}" width="${numSize}" height="${numSize}" alt="${cond}" style="display:inline-block;vertical-align:middle" loading="lazy">`;
+  return hasCssUnit?`<img src="${url}" style="width:${cssSize};height:${cssSize};display:inline-block;vertical-align:middle" alt="${cond}" loading="lazy">`:`<img src="${url}" width="${numSize}" height="${numSize}" alt="${cond}" class="inline-icon" loading="lazy">`;
 }
 function syncCustomIconGrid(){
   const grid=document.getElementById('custom-icon-grid');if(!grid)return;
@@ -1354,7 +1354,7 @@ function getWeatherIcon(cond,sz,forcePack){
     return getWeatherIcon(cond,sz,_getCustomBasePack());
   }
   if(pack==='emoji')return`<span style="font-size:${cssSize};line-height:1;display:inline-block;vertical-align:middle">${_condToEmoji(cond)}</span>`;
-  if(pack==='basmilius'){const bm=_condToBasmilius(cond);return hasCssUnit?`<img src="${BMCDN}${bm}.svg" style="width:${cssSize};height:${cssSize};display:inline-block;vertical-align:middle" alt="" loading="lazy">`:`<img src="${BMCDN}${bm}.svg" width="${numSize}" height="${numSize}" alt="" style="display:inline-block;vertical-align:middle" loading="lazy">`}
+  if(pack==='basmilius'){const bm=_condToBasmilius(cond);return hasCssUnit?`<img src="${BMCDN}${bm}.svg" style="width:${cssSize};height:${cssSize};display:inline-block;vertical-align:middle" alt="" loading="lazy">`:`<img src="${BMCDN}${bm}.svg" width="${numSize}" height="${numSize}" alt="" class="inline-icon" loading="lazy">`}
   const _VIDEO_PACKS=['globe-animated'];
   if(_VIDEO_PACKS.includes(pack)){
     const best=_findBestPackIcon(pack,cond);
@@ -1368,7 +1368,7 @@ function getWeatherIcon(cond,sz,forcePack){
   }
   const best=_findBestPackIcon(pack,cond);
   const src=best?`icons/${pack}/${best}.png`:`${BMCDN}${_condToBasmilius(cond)}.svg`;
-  return hasCssUnit?`<img src="${src}" style="width:${cssSize};height:${cssSize};display:inline-block;vertical-align:middle" alt="${cond}" loading="lazy">`:`<img src="${src}" width="${numSize}" height="${numSize}" alt="${cond}" style="display:inline-block;vertical-align:middle" loading="lazy">`;
+  return hasCssUnit?`<img src="${src}" style="width:${cssSize};height:${cssSize};display:inline-block;vertical-align:middle" alt="${cond}" loading="lazy">`:`<img src="${src}" width="${numSize}" height="${numSize}" alt="${cond}" class="inline-icon" loading="lazy">`;
 }
 const _ICON_PREVIEW_CONDS=['clear-day','few-clouds-day','rain','thunderstorm','snow','clear-night'];
 function syncIconPackUI(){
@@ -1419,7 +1419,7 @@ function wmoToBasmilius(code,isDay){
 }
 function bmIcon(name,sz){
   const s=parseInt(sz)||32;
-  return`<img src="${BMCDN}${name}.svg" width="${s}" height="${s}" alt="" style="display:inline-block;vertical-align:middle" loading="lazy">`;
+  return`<img src="${BMCDN}${name}.svg" width="${s}" height="${s}" alt="" class="inline-icon" loading="lazy">`;
 }
 function nwsDescToCond(desc,isDay){
   if(!desc)return null;
@@ -2220,7 +2220,7 @@ function startMapPick(){
         <span style="color:#00ff88;font-size:0.9em">⊕</span>
         <span id="map-pick-addr" style="color:#fff;font-size:0.85em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Resolving...</span>
       </div>
-      <div style="display:flex;gap:8px">
+      <div class="flex-gap-8">
         <button id="map-pick-cancel" style="flex:1;padding:12px;background:transparent;border:1px solid #475569;color:#cbd5e1;border-radius:8px;font-size:0.9em;font-weight:600;cursor:pointer">Cancel</button>
         <button id="map-pick-confirm" style="flex:1;padding:12px;background:#00cc6a;border:none;color:#fff;border-radius:8px;font-size:0.9em;font-weight:700;cursor:pointer">⊕ Set This Location</button>
       </div>
@@ -2378,7 +2378,7 @@ function showGpsRelocateConfirm(distMi,gpsLat,gpsLon){
         Your GPS is <strong>${distStr}</strong> from the current location.<br>
         Travel Mode will reset everything to your actual GPS position.
       </p>
-      <div style="display:flex;gap:8px">
+      <div class="flex-gap-8">
         <button id="gps-reloc-no" style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);font-weight:600;cursor:pointer">Stay Here</button>
         <button id="gps-reloc-yes" style="flex:1;padding:10px;border-radius:8px;border:none;background:var(--accent-cyan);color:#000;font-weight:700;cursor:pointer">Use GPS 📍</button>
       </div>
@@ -2546,7 +2546,7 @@ function checkFirstLaunch(){
     const ask=document.createElement('div');
     ask.id='tutorial-prompt';
     ask.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10000;background:var(--bg-card);border:1px solid var(--accent-cyan);border-radius:12px;padding:14px 18px;max-width:320px;width:90%;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.5)';
-    ask.innerHTML=`<div style="font-size:0.9em;font-weight:600;color:var(--text-primary);margin-bottom:10px">👋 Welcome to StormTracker!</div><div style="font-size:0.78em;color:var(--text-secondary);margin-bottom:12px">Would you like a quick tutorial on how everything works?</div><div style="display:flex;gap:8px"><button onclick="document.getElementById('tutorial-prompt').remove();showTutorialDirect()" style="flex:1;padding:8px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">📖 Yes, show me!</button><button onclick="document.getElementById('tutorial-prompt').remove()" style="flex:1;padding:8px;background:rgba(255,255,255,0.05);color:var(--text-muted);border:1px solid var(--border-subtle);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">Skip</button></div>`;
+    ask.innerHTML=`<div style="font-size:0.9em;font-weight:600;color:var(--text-primary);margin-bottom:10px">👋 Welcome to StormTracker!</div><div style="font-size:0.78em;color:var(--text-secondary);margin-bottom:12px">Would you like a quick tutorial on how everything works?</div><div class="flex-gap-8"><button onclick="document.getElementById('tutorial-prompt').remove();showTutorialDirect()" style="flex:1;padding:8px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">📖 Yes, show me!</button><button onclick="document.getElementById('tutorial-prompt').remove()" style="flex:1;padding:8px;background:rgba(255,255,255,0.05);color:var(--text-muted);border:1px solid var(--border-subtle);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">Skip</button></div>`;
     document.body.appendChild(ask);
     setTimeout(()=>{const el=document.getElementById('tutorial-prompt');if(el)el.remove()},20000);
   },3000);
@@ -2874,7 +2874,7 @@ function renderWxAlertSettings(){
     const step=def.step||1;
     html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px">
       <label style="display:flex;align-items:center;gap:4px;font-size:0.7em;color:var(--text-muted);flex:1;min-width:0;cursor:pointer">
-        <input type="checkbox" ${cfg.on?'checked':''} onchange="toggleWxAlert('${def.key}',this.checked)" style="accent-color:var(--accent-cyan)">
+        <input type="checkbox" ${cfg.on?'checked':''} onchange="toggleWxAlert('${def.key}',this.checked)" class="accent-cyan-check">
         <span style="white-space:nowrap">${def.icon} ${def.label}</span>
       </label>
       <input type="number" value="${cfg.val}" step="${step}" min="0" style="width:60px;font-size:0.7em;padding:3px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;text-align:center;font-family:var(--font-mono)" onchange="setWxAlertVal('${def.key}',this.value)" ${cfg.on?'':'disabled'}>
@@ -3008,7 +3008,7 @@ function renderStormCellAlertSettings(){
     const step=def.step||1;
     html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px">
       <label style="display:flex;align-items:center;gap:4px;font-size:0.7em;color:var(--text-muted);flex:1;min-width:0;cursor:pointer">
-        <input type="checkbox" ${cfg.on?'checked':''} onchange="toggleStormAlert('${def.key}',this.checked)" style="accent-color:var(--accent-cyan)">
+        <input type="checkbox" ${cfg.on?'checked':''} onchange="toggleStormAlert('${def.key}',this.checked)" class="accent-cyan-check">
         <span style="white-space:nowrap">${def.icon} ${def.label}</span>
       </label>
       <input type="number" value="${cfg.val}" step="${step}" min="0" style="width:60px;font-size:0.7em;padding:3px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;text-align:center;font-family:var(--font-mono)" onchange="setStormAlertVal('${def.key}',this.value)" ${cfg.on?'':'disabled'}>

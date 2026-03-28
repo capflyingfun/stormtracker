@@ -40,7 +40,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="clutter-toggle" title="Clutter hidden (tap to show)" style="font-size:0.7em;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);border-color:#555" onclick="toggleClutter()">🕳️</div>
       </div>
       <div class="radar-anim-bar" id="radar-anim-bar" style="display:none">
-        <input type="range" id="radar-anim-slider" min="0" max="0" value="0" style="flex:1">
+        <input type="range" id="radar-anim-slider" min="0" max="0" value="0" class="flex-1">
         <span id="radar-anim-time" style="font-size:0.65em;color:var(--text-secondary);min-width:50px;text-align:right"></span>
       </div>
       <div class="map-legend">
@@ -1833,7 +1833,7 @@ function plotMpingMarkers(reports){
       <div style="font-size:0.82em;line-height:1.5">
         <div style="font-weight:700;color:${color};margin-bottom:4px">${icon} ${desc}</div>
         <div style="display:inline-block;background:${color}30;color:${color};padding:1px 8px;border-radius:10px;font-size:0.8em;font-weight:600;margin-bottom:4px">${cat}</div>
-        ${timeAgo?`<div style="color:var(--text-muted);font-size:0.85em">🕐 ${timeAgo}</div>`:''}
+        ${timeAgo?`<div class="c-muted-85">🕐 ${timeAgo}</div>`:''}
         <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border-subtle);font-size:0.75em;color:var(--text-muted)">
           📡 mPING citizen report<br>
           <a href="https://mping.nssl.noaa.gov/" target="_blank" rel="noopener" style="color:var(--accent-cyan);text-decoration:none">What is mPING?</a> · 
