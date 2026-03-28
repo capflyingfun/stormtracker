@@ -330,7 +330,7 @@ function showRadarAnimFrame(map,idx){
   if(S.radarLayer){map.removeLayer(S.radarLayer);S.radarLayer=null}
   const maxNZ=S._radarAnimSrc==='nexrad'?8:7;
   S.radarLayer=L.tileLayer(frame.url,{opacity:0.7,maxZoom:11,maxNativeZoom:maxNZ}).addTo(map);
-  if(S._showZones&&S._rawScanPts&&S._rawScanPts.length>0&&!S._radarOverlayVisible&&S._zoneOverlays&&S._zoneOverlays.length>0&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
+  if(S._showZones&&S._rawScanPts&&S._rawScanPts.length>0&&!S._radarOverlayVisible&&S._zoneOverlays&&S._zoneOverlays.length>0&&_shouldAutoHideRadar()&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
   const t=new Date(frame.time*1000);
   const timeStr=fmtClock(t);
   const isFuture=frame.type==='forecast';
@@ -368,7 +368,7 @@ function showRadarLayer(map){
     if(btn){btn.textContent='RV';btn.style.background=''}
     if(lbl)lbl.textContent='RainViewer \u00B7 Updated every 10 min \u00B7 📍 Home \u00B7 🔍 Scan here \u00B7 🔦 HD Scan';
   }
-  if(S._showZones&&S._rawScanPts&&S._rawScanPts.length>0&&!S._radarOverlayVisible&&S._zoneOverlays&&S._zoneOverlays.length>0&&S.radarLayer&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
+  if(S._showZones&&S._rawScanPts&&S._rawScanPts.length>0&&!S._radarOverlayVisible&&S._zoneOverlays&&S._zoneOverlays.length>0&&_shouldAutoHideRadar()&&S.radarLayer&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
 }
 
 function toggleRadarSource(map){
@@ -1227,6 +1227,8 @@ function gridArrowSvg(deg,color,size){
     <polygon points="20,6 28,28 20,22 12,28" fill="${color}" fill-opacity="0.9" stroke="rgba(0,0,0,0.4)" stroke-width="1"/>
   </svg>`;
 }
+function _scanMaxDbz(){return(S._rawScanPts||[]).reduce((mx,p)=>Math.max(mx,p.dbz||0),0)}
+function _shouldAutoHideRadar(){return _scanMaxDbz()>=40}
 function buildStormZones(map,rawPts){
   clearStormZones();
   S._arrowCells=[];
@@ -1236,7 +1238,7 @@ function buildStormZones(map,rawPts){
     return;
   }
   drawRadarGrid(map,maxR);
-  if(!S._radarOverlayVisible&&S.radarLayer&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
+  if(!S._radarOverlayVisible&&S.radarLayer&&map.hasLayer(S.radarLayer)&&_shouldAutoHideRadar()){try{map.removeLayer(S.radarLayer)}catch(e){}}
   const t0=performance.now();
   const cells=polarGridBin(rawPts,S.lat,S.lon,maxR);
   const paneName='zone-pane';
@@ -1702,7 +1704,10 @@ function autoActivateZones(){
     const btn=document.getElementById('btn-points');
     if(btn){btn.style.opacity='0.4';btn.textContent='PT';btn.style.color='var(--accent-cyan)';}
   }
-  if(!S._radarOverlayVisible&&S.radarLayer&&S.map){try{S.map.removeLayer(S.radarLayer)}catch(e){}}
+  if(!S._radarOverlayVisible&&S.radarLayer&&S.map){
+    if(_shouldAutoHideRadar()){try{S.map.removeLayer(S.radarLayer)}catch(e){}}
+    else{try{if(!S.map.hasLayer(S.radarLayer))S.radarLayer.addTo(S.map)}catch(e){}}
+  }
   if(S.map)buildStormZones(S.map,S._rawScanPts);
 }
 function checkUserInZone(){

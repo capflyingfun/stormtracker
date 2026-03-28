@@ -431,6 +431,13 @@ function fmtCountdown(totalSec){
 function fmtArrivalTime(etaMin){
   return fmtClockShort(new Date(Date.now()+etaMin*60000));
 }
+function formatStormEta(etaMin){
+  if(etaMin==null||etaMin<=0)return'NOW';
+  const totalSec=Math.round(etaMin*60);
+  const h=Math.floor(totalSec/3600),m=Math.floor((totalSec%3600)/60),s=totalSec%60;
+  if(h>0)return _pad2(h)+'h:'+_pad2(m)+'m';
+  return _pad2(m)+'m:'+_pad2(s)+'s';
+}
 function stormKey(s){return s.lat.toFixed(3)+','+s.lng.toFixed(3)}
 function autoScanInterval(){
   const n=S.storms.length;
