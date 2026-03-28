@@ -58,6 +58,7 @@ function _alertGlobeFile(event){
   if(e.includes('dust storm')||e.includes('dust'))return'dust-storm';
   if(e.includes('thunderstorm')||e.includes('storm warning'))return'thunderstorm';
   if(e.includes('special marine'))return'storm-surge';
+  if(e.includes('special weather'))return'special-weather';
   return null;
 }
 function getAlertCardIcon(event,sev){
