@@ -184,18 +184,11 @@ async function fetchWindsAloft(overrideLat,overrideLon){
       {p:700,sk:'wind_speed_700hPa',dk:'wind_direction_700hPa',w:2.5},
       {p:500,sk:'wind_speed_500hPa',dk:'wind_direction_500hPa',w:1.5}
     ];
-    let tx=0,ty=0,tw=0;
     const aloftSpeeds=[];
     levels.forEach(l=>{
       const spd=c[l.sk],dir=c[l.dk];
       if(spd==null||dir==null)return;
-      aloftSpeeds.push({p:l.p,spd:spd*3.6,dir,isSfc:!!l.isSfc});
-      const spdKt=spd*1.944;
-      const movDir=(dir+180)%360;
-      const rad=movDir*Math.PI/180;
-      tx+=Math.sin(rad)*spdKt*l.w;
-      ty+=Math.cos(rad)*spdKt*l.w;
-      tw+=l.w;
+      aloftSpeeds.push({p:l.p,spd:spd*3.6,dir,rawMs:spd,isSfc:!!l.isSfc});
     });
     S._aloftData=aloftSpeeds;
     if(aloftSpeeds.length>=2){
@@ -207,14 +200,24 @@ async function fetchWindsAloft(overrideLat,overrideLon){
       S._upperWindDir=upper.dir;S._upperWindSpd=upper.spd;
       console.log('Wind shear: Δspd='+shearSpd.toFixed(1)+'km/h Δdir='+dd+'° turbFactor='+S._windShear.factor.toFixed(2));
     }
-    if(tw===0)return;
-    const ax=tx/tw,ay=ty/tw;
-    const spd=Math.sqrt(ax*ax+ay*ay);
+    const steering=aloftSpeeds.filter(a=>a.p<=850);
+    if(!steering.length)return;
+    let tx=0,ty=0;
+    steering.forEach(a=>{
+      const spdKt=a.rawMs*1.944;
+      const movDir=(a.dir+180)%360;
+      const rad=movDir*Math.PI/180;
+      tx+=Math.sin(rad)*spdKt;
+      ty+=Math.cos(rad)*spdKt;
+    });
+    const ax=tx/steering.length,ay=ty/steering.length;
+    const spdKt=Math.sqrt(ax*ax+ay*ay);
     let dir=(Math.atan2(ax,ay)*180/Math.PI+360)%360;
-    const spdMph=Math.round(spd*1.151*0.7);
+    const spdMph=Math.round(spdKt*1.151);
     S.stormMovement={direction:Math.round(dir),speed:spdMph};
     S._windCache={lat,lon,ts:Date.now(),dir:Math.round(dir),speed:spdMph};
-    console.log('Winds aloft → storm movement: '+Math.round(dir)+'° at '+spdMph+' mph');
+    console.log('[WindsAloft] Per-level: '+aloftSpeeds.map(a=>a.p+'hPa='+a.rawMs.toFixed(1)+'m/s@'+a.dir+'°').join(', '));
+    console.log('[WindsAloft] Steering (850-500hPa): '+steering.map(a=>a.p+'hPa').join(',')+' → mean '+spdKt.toFixed(1)+'kt '+Math.round(dir)+'° → '+spdMph+' mph');
     if(S.map&&S._showPathArrows)buildPathArrows(S.map);
   }catch(e){console.log('Winds aloft fetch failed:',e.message)}
 }
@@ -1913,7 +1916,9 @@ function _applyStormFilter(storms,f){
   let out=storms;
   if(f.minDbz>0)out=out.filter(s=>s.dbz>=f.minDbz);
   if(f.maxDist>0)out=out.filter(s=>s.distance<=f.maxDist);
-  if(f.approachOnly)out=out.filter(s=>{const e=s._eta;return e&&e.approaching&&e.eta!=null});
+  const noMv=!S.stormMovement||S.stormMovement.speed<2;
+  if(f.approachOnly&&!noMv)out=out.filter(s=>{const e=s._eta;return e&&e.approaching&&e.eta!=null});
+  S._filterApproachBypassed=f.approachOnly&&noMv;
   out.sort((a,b)=>{const r=_stormSortFn(a,b,f.sort1);return r!==0?r:_stormSortFn(a,b,f.sort2)});
   return out;
 }
@@ -2169,12 +2174,13 @@ function renderStorms(){
   const totalCount=storms.length;
   const filterNote=filteredCount<totalCount?` <span style="color:var(--text-muted);font-size:0.85em">(showing ${filteredCount}/${totalCount})</span>`:'';
   const smartSummary=_smartStormSummary(storms);
+  const noWindBanner=(!mv||mv.speed<2)?`<div style="padding:8px 12px;background:rgba(255,204,0,0.08);border:1px solid rgba(255,204,0,0.2);border-radius:8px;font-size:0.78em;line-height:1.5;margin-bottom:8px;color:#facc15">💨 Wind data unavailable or calm — ETA, approach direction, and storm arrows cannot be calculated.${S._filterApproachBypassed?' <strong>"Approaching only" filter bypassed</strong> — showing all storms.':''}</div>`:'';
   el.innerHTML=`${zoneAlert}
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
       <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${filterNote}${inboundCapped.length?' · <span style="color:#ef4444">'+inboundCapped.length+' inbound</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" style="font-size:0.8em;color:var(--text-muted)"></span></div>
     </div>
-    ${smartSummary}
+    ${noWindBanner}${smartSummary}
     ${_renderFilterBar(sf)}
     <div class="card"><div class="card-title"><span class="icon">🌪️</span> Storm Points</div>
       ${groupHtml}
