@@ -217,7 +217,7 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     S.stormMovement={direction:Math.round(dir),speed:spdMph};
     S._windCache={lat,lon,ts:Date.now(),dir:Math.round(dir),speed:spdMph};
     console.log('[WindsAloft] Per-level: '+aloftSpeeds.map(a=>a.p+'hPa='+a.rawMs.toFixed(1)+'m/s@'+a.dir+'°').join(', '));
-    console.log('[WindsAloft] Steering (850-500hPa): '+steering.map(a=>a.p+'hPa').join(',')+' → mean '+spdKt.toFixed(1)+'kt '+Math.round(dir)+'° → '+spdMph+' mph');
+    console.log('[WindsAloft] Steering (850-500hPa): '+steering.map(a=>a.p+'hPa').join(',')+' Vx='+ax.toFixed(2)+' Vy='+ay.toFixed(2)+' → '+spdKt.toFixed(1)+'kt '+Math.round(dir)+'° → '+spdMph+' mph');
     if(S.map&&S._showPathArrows)buildPathArrows(S.map);
   }catch(e){console.log('Winds aloft fetch failed:',e.message)}
 }
@@ -2174,7 +2174,7 @@ function renderStorms(){
   const totalCount=storms.length;
   const filterNote=filteredCount<totalCount?` <span style="color:var(--text-muted);font-size:0.85em">(showing ${filteredCount}/${totalCount})</span>`:'';
   const smartSummary=_smartStormSummary(storms);
-  const noWindBanner=(!mv||mv.speed<2)?`<div style="padding:8px 12px;background:rgba(255,204,0,0.08);border:1px solid rgba(255,204,0,0.2);border-radius:8px;font-size:0.78em;line-height:1.5;margin-bottom:8px;color:#facc15">💨 Wind data unavailable or calm — ETA, approach direction, and storm arrows cannot be calculated.${S._filterApproachBypassed?' <strong>"Approaching only" filter bypassed</strong> — showing all storms.':''}</div>`:'';
+  const noWindBanner=(!mv||mv.speed<2)?`<div style="padding:8px 12px;background:rgba(255,204,0,0.08);border:1px solid rgba(255,204,0,0.2);border-radius:8px;font-size:0.78em;line-height:1.5;margin-bottom:8px;color:#facc15">💨 Wind data unavailable or calm — ETA and approach calculations are limited.${S._filterApproachBypassed?' <strong>"Approaching only" filter bypassed</strong> — showing all storms.':''}</div>`:'';
   el.innerHTML=`${zoneAlert}
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
