@@ -930,7 +930,9 @@ function plotStormMarkers(map){
   updateClutterButton();
   const stormList=getVisibleStormList();
   if(!stormList.length)return;
-  const mv=S.stormMovement;
+  const hasMovement=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
+  const hasAloft=S._upperWindDir!=null;
+  const mv=hasMovement?S.stormMovement:(hasAloft?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
   const sc=zoomScale(map);
   const pending=[];
   let visibleStorms=stormList;
