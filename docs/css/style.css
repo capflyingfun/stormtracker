@@ -454,7 +454,7 @@ canvas.offscreen{display:none}
 .text-hint-right{font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right}
 .text-center-ok{text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em}
 .text-center-hint{text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em}
-.text-center-muted-sm{font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center}
+.text-center-muted-sm,.text-center-muted{font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center}
 .small-btn{font-size:0.75em;padding:4px 8px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer}
 .small-btn-sm{font-size:0.7em;padding:3px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer}
 .mini-btn{padding:3px 7px;font-size:0.6em;font-weight:600;border-radius:4px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);transition:all 0.2s}
@@ -493,8 +493,6 @@ canvas.offscreen{display:none}
 .text-1{font-size:1em}
 .text-sm{font-size:0.8em}
 .hidden{display:none}
-.text-hint-right{font-size:0.6em;color:var(--text-muted);padding:6px 8px 2px;text-align:right}
-.text-center-muted{font-size:0.75em;color:var(--text-muted);padding:8px;text-align:center}
 .c-muted-sm{color:var(--text-muted);font-size:0.8em}
 .c-muted-85{color:var(--text-muted);font-size:0.85em}
 .text-center-green-sm{text-align:center;padding:12px;color:var(--accent-green);font-size:0.75em}
