@@ -620,9 +620,9 @@ function decodeMetar(raw){
       const cov=p.match(/^(CLR|SKC|FEW|SCT|BKN|OVC|VV)/)[1];
       const ht=p.replace(cov,'');
       const htFt=ht?parseInt(ht)*100:null;
-      const covNames={CLR:'Clear (below 12000ft)',SKC:'Sky Clear',FEW:'Few (1-2 oktas)',SCT:'Scattered (3-4 oktas)',BKN:'Broken (5-7 oktas)',OVC:'Overcast (8 oktas)',VV:'Vertical Visibility'};
+      const covNames={CLR:htFt!=null?'Clear (below '+htFt.toLocaleString()+'ft)':'Clear',SKC:'Sky Clear',FEW:'Few (1-2 oktas)',SCT:'Scattered (3-4 oktas)',BKN:'Broken (5-7 oktas)',OVC:'Overcast (8 oktas)',VV:'Vertical Visibility'};
       const sev=(cov==='OVC'||cov==='BKN')&&htFt&&htFt<1000?'var(--accent-orange)':cov==='VV'?'var(--accent-red)':'#64748b';
-      rows.push(c(sev,'Clouds',`${covNames[cov]||cov}${htFt!=null?' at '+htFt.toLocaleString()+' ft':''}`,''));continue;
+      rows.push(c(sev,'Clouds',`${covNames[cov]||cov}${htFt!=null&&cov!=='CLR'?' at '+htFt.toLocaleString()+' ft':''}`,''));continue;
     }
     if(/^M?\d{2}\/M?\d{2}$/.test(p)){
       const [t,d]=p.split('/');
