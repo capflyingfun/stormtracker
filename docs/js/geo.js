@@ -7,11 +7,17 @@ document.getElementById('location-input').addEventListener('input',e=>{
   _sugTimer=setTimeout(()=>fetchSuggestions(q),300);
 });
 document.getElementById('location-input').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    e.preventDefault();
+    const box=document.getElementById('loc-suggestions');
+    if(box.classList.contains('active')&&_sugIdx>=0){selectSuggestion(_sugResults[_sugIdx])}
+    else{hideSuggestions();searchLoc()}
+    return;
+  }
   const box=document.getElementById('loc-suggestions');
   if(!box.classList.contains('active'))return;
   if(e.key==='ArrowDown'){e.preventDefault();_sugIdx=Math.min(_sugIdx+1,_sugResults.length-1);highlightSug()}
   else if(e.key==='ArrowUp'){e.preventDefault();_sugIdx=Math.max(_sugIdx-1,0);highlightSug()}
-  else if(e.key==='Enter'&&_sugIdx>=0){e.preventDefault();selectSuggestion(_sugResults[_sugIdx])}
   else if(e.key==='Escape'){hideSuggestions()}
 });
 function cleanQ(q){return q.replace(/\./g,'').replace(/\s+/g,' ').trim()}
