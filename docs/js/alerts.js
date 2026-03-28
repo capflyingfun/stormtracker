@@ -72,10 +72,12 @@ function getAlertCardIcon(event,sev){
     const vidSrc=`icons/globe-animated/${globeFile}.mp4`;
     const fallbackSrc=`icons/globe/${globeFile}.png`;
     const safeAlt=escHtml(event).replace(/'/g,'&#39;');
-    return`<video autoplay loop muted playsinline style="${imgStyle}" src="${vidSrc}" poster="${fallbackSrc}" onerror="this.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${imgStyle}&quot; alt=&quot;${safeAlt}&quot;>'"></video>`;
+    const emojiFallback=getAlertIcon(event,sev).replace(/'/g,'&#39;');
+    return`<video autoplay loop muted playsinline style="${imgStyle}" src="${vidSrc}" poster="${fallbackSrc}" onerror="this.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${imgStyle}&quot; alt=&quot;${safeAlt}&quot; onerror=&quot;this.outerHTML=\\&#39;${emojiFallback}\\&#39;&quot;>'"></video>`;
   }
   const imgSrc=`icons/globe/${globeFile}.png`;
-  return`<img src="${imgSrc}" style="${imgStyle}" alt="${escHtml(event)}" loading="lazy">`;
+  const emojiFallback=getAlertIcon(event,sev).replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+  return`<img src="${imgSrc}" style="${imgStyle}" alt="${escHtml(event)}" loading="lazy" onerror="this.outerHTML='${emojiFallback}'">`;
 }
 function fmtAlertTime(d){
   if(!(d instanceof Date)||isNaN(d))return'';
