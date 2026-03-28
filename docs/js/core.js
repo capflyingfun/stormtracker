@@ -997,7 +997,7 @@ function loadUnits(){
   try{
     const u=JSON.parse(localStorage.getItem('st_units'));
     if(u!=null&&mode&&mode!=='auto'){S.tempUnit=u.t||0;S.windUnit=u.w||0;S.presUnit=u.p||0;S.visUnit=u.v||0;S.precipUnit=u.pr||0;return}
-  }catch(e){}
+  }catch(e){console.warn('Unit prefs parse error:',e)}
   autoDetectUnits();
 }
 const IMPERIAL_CC=['US','LR','MM','PR','GU','VI','AS','MP','FM','MH','PW'];
@@ -1017,7 +1017,7 @@ function autoDetectUnits(){
       const parts=loc.split('-');
       if(parts.length>=2)cc=parts[parts.length-1].toUpperCase();
     }
-  }catch(e){}
+  }catch(e){console.warn('Auto-detect units error:',e)}
   applyUnitsForCountry(cc);
   console.log('[Units] Auto-detected: '+(IMPERIAL_CC.includes(cc)?'Imperial':'Metric')+' ('+cc+')');
 }
@@ -1125,7 +1125,7 @@ const _ICON_PACKS={
   emoji:{name:'Emoji',desc:'Native emoji icons'},
   'flat-filled':{name:'Flat Filled',desc:'Colorful flat icons'},
   'flat-outline':{name:'Flat Outline',desc:'Outlined flat icons'},
-  glossy:{name:'Glossy 3D',desc:'Shiny 3D icons'},
+  glossy:{name:'Glossy 3D',desc:'Shiny 3D icons (16 conditions — others use emoji fallback)'},
   neon:{name:'Neon',desc:'Neon glow weather icons'},
   globe:{name:'3D Globe',desc:'Miniature world diorama icons'},
   'globe-animated':{name:'Animated Globe',desc:'Animated 3D globe diorama icons'},

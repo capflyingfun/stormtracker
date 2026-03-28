@@ -183,7 +183,7 @@ function buildWeatherContext(){
             if(eta.approaching)line+=` APPROACHING - ETA ${eta.etaMin?.toFixed(0)||'?'} min, impact ${eta.impact!=null?((eta.impact*100).toFixed(0)):'?'}%`;
             else line+=' moving away/lateral';
           }
-        }catch(e){}
+        }catch(e){console.warn('AI storm ETA calc error:',e)}
         parts.push(line);
       }
       if(sigStorms.length>top.length)parts.push(`  ... and ${sigStorms.length-top.length} more significant storm cells`);
