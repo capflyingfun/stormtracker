@@ -37,6 +37,17 @@ function getAlertIcon(event,sev){
   if(e.includes('storm warning'))return'⛈️🌊';
   if(e.includes('dust storm'))return'🏜️';
   if(e.includes('dust'))return'🏜️';
+  if(e.includes('rip current'))return'🌊⚠️';
+  if(e.includes('beach hazard'))return'🏖️⚠️';
+  if(e.includes('tsunami'))return'🌊🔴';
+  if(e.includes('avalanche'))return'🏔️❄️';
+  if(e.includes('lake effect snow'))return'🌨️💨';
+  if(e.includes('wind chill'))return'🥶💨';
+  if(e.includes('air quality'))return'😷';
+  if(e.includes('ashfall'))return'🌋';
+  if(e.includes('hazardous seas')||e.includes('heavy freezing spray'))return'🌊🧊';
+  if(e.includes('lakeshore flood'))return'🌊';
+  if(e.includes('hydrologic'))return'💧';
   const s=(sev||'').toLowerCase();
   return s==='extreme'?'🔴':s==='severe'?'🟠':s==='moderate'?'🟡':'🔵';
 }
@@ -59,6 +70,15 @@ function _alertGlobeFile(event){
   if(e.includes('thunderstorm')||e.includes('storm warning'))return'thunderstorm';
   if(e.includes('special marine'))return'storm-surge';
   if(e.includes('special weather'))return'special-weather';
+  if(e.includes('rip current')||e.includes('beach hazard'))return'rip-current';
+  if(e.includes('tsunami'))return'tsunami';
+  if(e.includes('avalanche'))return'avalanche';
+  if(e.includes('lake effect snow'))return'snow';
+  if(e.includes('wind chill'))return'wind-chill';
+  if(e.includes('small craft')||e.includes('hazardous seas'))return'small-craft';
+  if(e.includes('air quality')||e.includes('ashfall'))return'air-quality';
+  if(e.includes('heavy freezing spray'))return'ice';
+  if(e.includes('lakeshore flood')||e.includes('hydrologic'))return'flood';
   return null;
 }
 function getAlertCardIcon(event,sev){
