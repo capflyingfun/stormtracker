@@ -1539,7 +1539,8 @@ function updateThreatTicker(){
         return'~'+h+'h';
       }
       const now=Date.now();
-      for(const a of S.alerts){
+      const _tickerAlerts=(typeof _sortAlertsByDate==='function')?_sortAlertsByDate(S.alerts):S.alerts;
+      for(const a of _tickerAlerts){
         const p=a.properties||a;
         const ev=p.event||p.headline||'Weather Alert';
         const sev=(p.severity||'').toLowerCase();

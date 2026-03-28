@@ -133,6 +133,9 @@ function moveAlertSection(key,dir){const full=_getAlertSecOrder();const visible=
 function toggleAlertSection(key){const c=_getAlertCollapsed();if(c.includes(key))c.splice(c.indexOf(key),1);else c.push(key);try{localStorage.setItem('st_alert_collapsed',JSON.stringify(c))}catch(e){}renderAlerts()}
 function _getAlertCollapsed(){try{const c=JSON.parse(localStorage.getItem('st_alert_collapsed'));if(Array.isArray(c))return c}catch(e){}return[]}
 function _alertSecBtns(key){return`<div class="sec-btns" onclick="event.stopPropagation()"><button onclick="moveAlertSection('${key}',-1)" title="Move up">▲</button><button onclick="moveAlertSection('${key}',1)" title="Move down">▼</button></div>`}
+function _getAlertSortOrder(){try{const v=localStorage.getItem('st_alert_sort');if(v==='asc')return'asc'}catch(e){}return'desc'}
+function toggleAlertSort(){const cur=_getAlertSortOrder();const next=cur==='desc'?'asc':'desc';try{localStorage.setItem('st_alert_sort',next)}catch(e){}renderAlerts()}
+function _sortAlertsByDate(alerts){const dir=_getAlertSortOrder();const sorted=alerts.slice().sort((a,b)=>{const ta=new Date(a.properties?.onset||a.properties?.effective||0).getTime();const tb=new Date(b.properties?.onset||b.properties?.effective||0).getTime();return dir==='desc'?tb-ta:ta-tb});return sorted}
 function _applyAlertAutoPriority(){
   if(localStorage.getItem('st_alert_manual_order'))return;
   const hasNws=S.alerts&&S.alerts.length>0;
@@ -177,9 +180,10 @@ function renderAlerts(){
 
   if(_isNWS){ let nwsBody='';
   if(S.alerts&&S.alerts.length){
-    const zoneAlerts=S.alerts.filter(a=>isUserInAlertZone(a));
+    const sortedAlerts=_sortAlertsByDate(S.alerts);
+    const zoneAlerts=sortedAlerts.filter(a=>isUserInAlertZone(a));
     if(zoneAlerts.length)nwsBody+=`<div style="background:rgba(220,38,38,0.2);border:1px solid rgba(220,38,38,0.5);border-radius:8px;padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px;animation:pulse 2s infinite"><span style="font-size:1.2em">🔴</span><span style="font-size:0.8em;font-weight:700;color:#fca5a5">Your location is inside ${zoneAlerts.length} active alert zone${zoneAlerts.length>1?'s':''}: ${zoneAlerts.map(a=>escHtml(a.properties?.event||'Alert')).join(', ')}</span></div>`;
-    nwsBody+=S.alerts.map((a,i)=>{
+    nwsBody+=sortedAlerts.map((a,i)=>{
       const p=a.properties||{};const event=p.event||'Alert';const sev=(p.severity||'').toLowerCase();
       const evLow=event.toLowerCase();const isTorWarn=evLow.includes('tornado warning');const isSvrWarn=evLow.includes('severe thunderstorm warning');
       let cls=(sev==='extreme'||sev==='severe')?'':sev==='moderate'?'watch':'advisory';
@@ -204,7 +208,8 @@ function renderAlerts(){
   }
   nwsBody+=_renderStormSurgeSection()+_renderTropicalSection()+_renderSPCWatchSection()+_renderSPCMDSection()+_renderSPCReportsSection();
   const nwsCnt=(S.alerts||[]).length;
-  sec.nws=`<div class="card" style="margin-top:12px" data-alert-sec="nws"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleAlertSection('nws')"><span><span class="icon">⚠️</span> NWS Alerts${nwsCnt?' ('+nwsCnt+')':''}</span><span style="display:flex;align-items:center;gap:4px">${_alertSecBtns('nws')}<span style="color:var(--text-muted)">${coll.includes('nws')?'▸':'▾'}</span></span></div>${coll.includes('nws')?'':nwsBody}</div>`; }
+  const _sortDir=_getAlertSortOrder();const _sortLabel=_sortDir==='desc'?'New→Old':'Old→New';const _sortBtn=nwsCnt?`<button onclick="event.stopPropagation();toggleAlertSort()" title="Sort order: ${_sortLabel}" style="padding:2px 7px;font-size:0.6em;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.08);color:var(--accent-cyan);white-space:nowrap">${_sortDir==='desc'?'⏷':'⏶'} ${_sortLabel}</button>`:'';
+  sec.nws=`<div class="card" style="margin-top:12px" data-alert-sec="nws"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleAlertSection('nws')"><span><span class="icon">⚠️</span> NWS Alerts${nwsCnt?' ('+nwsCnt+')':''}</span><span style="display:flex;align-items:center;gap:4px">${_sortBtn}${_alertSecBtns('nws')}<span style="color:var(--text-muted)">${coll.includes('nws')?'▸':'▾'}</span></span></div>${coll.includes('nws')?'':nwsBody}</div>`; }
 
   { const hist=_wxAlertHistory.slice().reverse();
   let stBody='';
