@@ -163,6 +163,55 @@ function detectInversion(spreadC,windKt,isDaytime,cloudPct){
   }
   return{detected:false,text:''};
 }
+function getFlightCatBadge(visSM,station){
+  let effCeil=99999;
+  if(station.clouds&&station.clouds.length){
+    for(const c of station.clouds){
+      const amt=(c.amount||c.cover||'').toUpperCase();
+      const baseFt=(c.base!=null&&typeof c.base==='object'&&c.base.value!=null)?c.base.value*3.281:(typeof c.base==='number'?c.base:null);
+      if((amt==='BKN'||amt==='OVC'||amt==='VV')&&baseFt!=null){effCeil=Math.min(effCeil,baseFt);break}
+    }
+  }
+  const ceilLim=effCeil<99999;
+  const visLim=visSM!=null;
+  if((visLim&&visSM<1)||effCeil<500){
+    const r=[];if(effCeil<500)r.push('Ceiling '+fmtAlt(effCeil));if(visLim&&visSM<1)r.push('Vis '+fmtVis(visSM));
+    return{cat:'LIFR',reason:r.join(', ')||'Low IFR conditions'};
+  }
+  if((visLim&&visSM<3)||effCeil<1000){
+    const r=[];if(effCeil<1000)r.push('Ceiling '+fmtAlt(effCeil));if(visLim&&visSM<3)r.push('Vis '+fmtVis(visSM));
+    return{cat:'IFR',reason:r.join(', ')||'IFR conditions'};
+  }
+  if((visLim&&visSM<=5)||effCeil<=3000){
+    const r=[];if(ceilLim&&effCeil<=3000)r.push('Ceiling '+fmtAlt(effCeil));if(visLim&&visSM<=5)r.push('Vis '+fmtVis(visSM));
+    return{cat:'MVFR',reason:r.join(', ')||'Marginal VFR'};
+  }
+  return{cat:'VFR',reason:ceilLim?'Ceiling '+fmtAlt(effCeil):'Clear'};
+}
+function _stationCloudPct(station){
+  if(!station||!station.clouds||!station.clouds.length)return null;
+  let maxPct=0;
+  for(const c of station.clouds){
+    const amt=(c.amount||c.cover||'').toUpperCase();
+    if(amt==='OVC'||amt==='VV')maxPct=Math.max(maxPct,100);
+    else if(amt==='BKN')maxPct=Math.max(maxPct,75);
+    else if(amt==='SCT')maxPct=Math.max(maxPct,50);
+    else if(amt==='FEW')maxPct=Math.max(maxPct,25);
+  }
+  return maxPct;
+}
+function _isDaytimeNow(){
+  const f=S.forecast;
+  if(f&&f.current&&f.current.is_day!=null)return f.current.is_day===1;
+  if(f&&f.daily&&f.daily.sunrise&&f.daily.sunset){
+    const now=Date.now();
+    const sr=new Date(f.daily.sunrise[0]).getTime();
+    const ss=new Date(f.daily.sunset[0]).getTime();
+    return now>=sr&&now<=ss;
+  }
+  const h=new Date().getHours();
+  return h>=6&&h<20;
+}
 
 function kmhTo(kmh,unit){
   if(unit===0) return (kmh/1.609).toFixed(1);
