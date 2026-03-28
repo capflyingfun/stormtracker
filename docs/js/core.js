@@ -1322,12 +1322,20 @@ function bmIcon(name,sz){
   const s=parseInt(sz)||32;
   return`<img src="${BMCDN}${name}.svg" width="${s}" height="${s}" alt="" style="display:inline-block;vertical-align:middle" loading="lazy">`;
 }
+function nwsDescToCond(desc,isDay){
+  if(!desc)return null;
+  const sh=desc.toLowerCase();
+  const map=[['thunderstorm',isDay?'thunderstorm':'thunderstorm-night'],['thunder',isDay?'thunderstorm':'thunderstorm-night'],['blizzard','blizzard'],['freezing rain','sleet'],['sleet','sleet'],['ice pellet','sleet'],['heavy snow','blizzard'],['snow shower',isDay?'partly-cloudy-day-snow':'mostly-cloudy-night-snow'],['snow','snow'],['heavy rain','rain-heavy'],['rain shower',isDay?'few-clouds-day-rain':'mostly-cloudy-night-rain'],['showers',isDay?'few-clouds-day-rain':'mostly-cloudy-night-rain'],['drizzle',isDay?'few-clouds-day-rain':'mostly-cloudy-night-rain'],['rain','rain'],['fog','fog'],['haze','haze'],['smoke','haze'],['dust','haze'],['sunny','clear-day'],['mostly sunny','few-clouds-day'],['mostly clear',isDay?'few-clouds-day':'few-clouds-night'],['partly sunny','partly-cloudy-day'],['partly cloudy',isDay?'partly-cloudy-day':'partly-cloudy-night'],['mostly cloudy',isDay?'overcast':'mostly-cloudy-night'],['cloudy',isDay?'overcast':'overcast-dark'],['overcast',isDay?'overcast':'overcast-dark'],['clear',isDay?'clear-day':'clear-night'],['windy','wind'],['breezy','wind'],['hot','clear-day'],['cold','snow']];
+  for(const[k,c]of map){if(sh.includes(k))return c}
+  return null;
+}
 function neonWx(code,isDay,sz){
   const cond=wmoToCondition(code,isDay);
   return getWeatherIcon(cond,parseInt(sz)||32);
 }
-function animEmoji(code,isDay,size){
+function animEmoji(code,isDay,size,nwsDesc){
   const px=typeof size==='string'&&size.endsWith('px')?parseInt(size):size==='1.2em'?38:size==='1em'?30:parseInt(size)||28;
+  if(nwsDesc){const nc=nwsDescToCond(nwsDesc,isDay);if(nc)return getWeatherIcon(nc,px)}
   return neonWx(code,isDay,px);
 }
 function _metarHasWxCodes(raw){if(!raw)return false;const parts=raw.split(/\s+/);for(const p of parts){if(p.match(/^[-+]?(VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(RA|SN|DZ|GR|GS|PL|IC|PE|SG|UP|FG|BR|HZ|FU|SA|DU|VA|PO|SQ|FC|SS|DS)+$/))return true}return false}
