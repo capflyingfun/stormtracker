@@ -180,7 +180,7 @@ function buildWeatherContext(){
           const key=`${st.lat.toFixed(2)}_${st.lon.toFixed(2)}`;
           const eta=S._stormETAs[key];
           if(eta){
-            if(eta.approaching)line+=` APPROACHING - ETA ${eta.etaMin?.toFixed(0)||'?'} min, impact ${eta.impact!=null?((eta.impact*100).toFixed(0)):'?'}%`;
+            if(eta.approaching)line+=` APPROACHING - ETA ${formatStormEta(eta.etaMin)}, impact ${eta.impact!=null?((eta.impact*100).toFixed(0)):'?'}%`;
             else line+=' moving away/lateral';
           }
         }catch(e){console.warn('AI storm ETA calc error:',e)}

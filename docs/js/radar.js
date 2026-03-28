@@ -1702,7 +1702,11 @@ function autoActivateZones(){
     const btn=document.getElementById('btn-points');
     if(btn){btn.style.opacity='0.4';btn.textContent='PT';btn.style.color='var(--accent-cyan)';}
   }
-  if(!S._radarOverlayVisible&&S.radarLayer&&S.map){try{S.map.removeLayer(S.radarLayer)}catch(e){}}
+  if(!S._radarOverlayVisible&&S.radarLayer&&S.map){
+    const maxDbz=S._rawScanPts.reduce((mx,p)=>Math.max(mx,p.dbz||0),0);
+    if(maxDbz>=40){try{S.map.removeLayer(S.radarLayer)}catch(e){}}
+    else{try{if(!S.map.hasLayer(S.radarLayer))S.radarLayer.addTo(S.map)}catch(e){}}
+  }
   if(S.map)buildStormZones(S.map,S._rawScanPts);
 }
 function checkUserInZone(){
