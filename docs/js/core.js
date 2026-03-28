@@ -2829,6 +2829,7 @@ function _calcStormImpact(storm){
   return{impactPct,impactTier};
 }
 function checkStormCellAlerts(){
+  _pruneExpiredAlerts();
   if(!S._topStorms||!S._topStorms.length)return;
   const stormList=S._topStorms;
   const th=_loadStormThresholds();
@@ -2890,7 +2891,6 @@ function checkStormCellAlerts(){
     _sendBrowserNotification('Storm Cell Alert',summaryMsg);
   }
   if(S.activePage==='alerts')renderAlerts();
-  _pruneExpiredAlerts();
 }
 function renderStormCellAlertSettings(){
   const th=_loadStormThresholds();
