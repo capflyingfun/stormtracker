@@ -70,9 +70,9 @@
         <div class="setting-heading">📐 Units</div>
         <div class="seg-row-wrap" id="unit-preset-btns">
           <button onclick="applyUnitPreset('auto')" id="up-auto" class="unit-preset-btn" style="flex:1;min-width:55px;padding:5px 4px;font-size:0.68em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(0,229,255,0.08);color:var(--accent-cyan);transition:all 0.2s">🌐 Auto</button>
-          <button onclick="applyUnitPreset('imperial')" id="up-imperial" class="unit-preset-btn" style="flex:1;min-width:55px;padding:5px 4px;font-size:0.68em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);transition:all 0.2s">🇺🇸 Imperial</button>
-          <button onclick="applyUnitPreset('metric')" id="up-metric" class="unit-preset-btn" style="flex:1;min-width:55px;padding:5px 4px;font-size:0.68em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);transition:all 0.2s">🌍 Metric</button>
-          <button onclick="applyUnitPreset('custom')" id="up-custom" class="unit-preset-btn" style="flex:1;min-width:55px;padding:5px 4px;font-size:0.68em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);transition:all 0.2s">⚙️ Custom</button>
+          <button onclick="applyUnitPreset('imperial')" id="up-imperial" class="unit-preset-btn seg-btn">🇺🇸 Imperial</button>
+          <button onclick="applyUnitPreset('metric')" id="up-metric" class="unit-preset-btn seg-btn">🌍 Metric</button>
+          <button onclick="applyUnitPreset('custom')" id="up-custom" class="unit-preset-btn seg-btn">⚙️ Custom</button>
         </div>
         <div class="setting-hint" id="unit-preset-desc">Auto mode switches units when you change location</div>
         <div id="settings-unit-details" style="margin-bottom:4px">
@@ -238,7 +238,7 @@
           </select>
         </div>
         <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">GPS tracks live · this controls data refresh while traveling</div>
-        <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="flex-between">
           <span class="text-xxs-muted">Travel Mode</span>
           <button id="settings-travel-toggle" onclick="toggleTravelMode();syncSettingsPanel()" style="font-size:0.75em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid var(--accent-cyan);background:rgba(0,229,255,0.08);color:var(--accent-cyan)">OFF</button>
         </div>
@@ -371,8 +371,8 @@
     <button class="loc-btn-map" onclick="startMapPick()" style="width:100%;margin-top:6px;padding:8px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">📌 Set Location from Map</button>
     <button class="travel-btn" id="travel-btn" onclick="toggleTravelMode();toggleLocOverlay(false)">🧭 Travel Mode — Follow GPS Live</button>
     <div id="gps-interval-row" style="display:none;margin-top:6px;padding:6px 10px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.15);border-radius:8px">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:0.75em;color:var(--text-muted);font-weight:600">🔄 Data Refresh Interval</span>
+      <div class="flex-between">
+        <span class="text-075" style="color:var(--text-muted);font-weight:600">🔄 Data Refresh Interval</span>
         <select id="gps-interval-sel" onchange="setGpsInterval(this.value)" style="font-size:0.75em;padding:2px 6px;background:var(--bg-card);color:var(--text-primary);border:1px solid rgba(0,229,255,0.3);border-radius:6px;cursor:pointer">
           <option value="300" selected>5m</option>
           <option value="600">10m</option>
@@ -385,7 +385,7 @@
       <div style="font-size:0.65em;color:var(--text-muted);margin-top:2px">GPS tracks live · this controls weather/radar/storm refresh rate</div>
     </div>
     <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between">
-      <span style="font-size:0.75em;color:var(--text-muted);font-weight:600">⭐ Favorites</span>
+      <span class="text-075" style="color:var(--text-muted);font-weight:600">⭐ Favorites</span>
       <button id="fav-save-btn" onclick="saveFavorite()" style="font-size:0.7em;padding:2px 8px;background:rgba(0,255,136,0.1);color:var(--accent-green);border:1px solid rgba(0,255,136,0.3);border-radius:6px;cursor:pointer;font-weight:600">+ Save Current</button>
     </div>
     <div id="fav-list" style="margin-top:4px"></div>

@@ -275,7 +275,7 @@ function renderWeather(data){
   const gaugeHtml=renderWindGauge(gaugeData);
 
   const sections={
-    wind:`<div class="weather-section" data-sec="wind"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">💨</span> Wind</span>${secBtns('wind')}</div>
+    wind:`<div class="weather-section" data-sec="wind"><div class="sec-header"><span class="card-title m-0"><span class="icon">💨</span> Wind</span>${secBtns('wind')}</div>
       <div class="wind-gauge-full">${gaugeHtml}</div>
       <div class="wind-stats-2x2">
         <div class="wind-stat-cell"><div class="wind-stat-label">Speed</div><div class="wind-stat-val">${windNum} ${windUnit}</div></div>
@@ -283,9 +283,9 @@ function renderWeather(data){
         <div class="wind-stat-cell"><div class="wind-stat-label">Gusts</div><div class="wind-stat-val">${hasGust?kmhTo(c.wind_gusts_10m,S.windUnit)+' '+windUnit:'--'}</div></div>
         <div class="wind-stat-cell"><div class="wind-stat-label">Beaufort</div><div class="wind-stat-val" style="color:${_BFT_CLR[bf]}">F${bf} ${_BFT_NAME[bf]}</div></div>
       </div></div>`,
-    trends:`<div class="weather-section" data-sec="trends"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">📈</span> 48h Trends</span>${secBtns('trends')}</div>
+    trends:`<div class="weather-section" data-sec="trends"><div class="sec-header"><span class="card-title m-0"><span class="icon">📈</span> 48h Trends</span>${secBtns('trends')}</div>
       ${renderTrendCharts(hourly)}</div>`,
-    hourly:`<div class="weather-section" data-sec="hourly"><div class="sec-header"><span class="card-title" style="margin:0"><span class="icon">🕐</span> 72h Hourly Forecast</span>${secBtns('hourly')}</div>
+    hourly:`<div class="weather-section" data-sec="hourly"><div class="sec-header"><span class="card-title m-0"><span class="icon">🕐</span> 72h Hourly Forecast</span>${secBtns('hourly')}</div>
       ${renderHourlyForecast(hourly,daily)}</div>`,
     forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${data._nwsForecast?renderNWSForecast(data._nwsForecast):renderDailyForecast(daily)}</div>`
   };
@@ -316,7 +316,7 @@ function renderWeather(data){
     ${_staleDataLabel()}
     <div class="card" style="margin-top:8px;padding:8px" id="mini-sonar-card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span class="card-title" style="margin:0"><span class="icon">📡</span> Radar Sonar</span>
+        <span class="card-title m-0"><span class="icon">📡</span> Radar Sonar</span>
         <div style="display:flex;gap:4px;align-items:center">
           <button id="sonar-zoom-in" onclick="event.stopPropagation();sonarZoomIn()" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.7em;width:24px;height:24px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-weight:700;opacity:0.8" title="Zoom in">＋</button>
           <button id="sonar-zoom-out" onclick="event.stopPropagation();sonarZoomOut()" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.7em;width:24px;height:24px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;font-weight:700;opacity:0.8" title="Zoom out">ー</button>
@@ -351,7 +351,7 @@ function _renderTropicalHazardSection(){
     const cat=s.category||_saffirSimpson(s.maxWind);
     const distStr=s.dist!=null?Math.round(s.dist)+' mi':'?';
     html+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${cat.color}0a;border-left:3px solid ${cat.color};border-radius:0 6px 6px 0;margin-bottom:4px">
-      <span style="font-size:1em">🌀</span>
+      <span class="text-1">🌀</span>
       <div class="flex-1"><div style="font-size:0.75em;font-weight:700;color:var(--text-primary)">${s.type} ${s.name}</div><div style="font-size:0.6em;color:${cat.color};font-weight:600">${cat.label} · ${distStr}</div></div>
       ${s.maxWind?`<div style="font-size:0.7em;font-weight:700;color:${cat.color}">${s.maxWind} mph</div>`:''}</div>`;
   });

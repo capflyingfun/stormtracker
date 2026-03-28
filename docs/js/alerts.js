@@ -201,7 +201,7 @@ function renderAlerts(){
       const endLabel=p.ends?'Ends:':'Expires:';
       const timeLine=(effStr||endStr)?`<div style="font-size:0.75em;color:var(--text-muted);margin:4px 0 2px;line-height:1.5">${effStr?'<span class="c-cyan">'+effLabel+'</span> '+effStr:''}${effStr&&endStr?' &nbsp;·&nbsp; ':''}${endStr?'<span style="color:var(--accent-orange)">'+endLabel+'</span> '+endStr:''}</div>`:'';
       const cdExp=p.ends||p.expires;
-      return`<div class="nws-alert ${cls}" style="${inZone?'border-color:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.3)':''}"><div class="nws-alert-title" style="display:flex;align-items:center;gap:8px">${sevIcon} <span>${event}${zoneBadge}</span></div>${timeLine}<div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${cdExp?`<div class="nws-alert-expires">⏱️ <span id="alert-cd-${i}" data-exp="${new Date(cdExp).getTime()}"></span></div>`:''}</div>`;
+      return`<div class="nws-alert ${cls}" style="${inZone?'border-color:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.3)':''}"><div class="nws-alert-title flex-center-gap8">${sevIcon} <span>${event}${zoneBadge}</span></div>${timeLine}<div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${cdExp?`<div class="nws-alert-expires">⏱️ <span id="alert-cd-${i}" data-exp="${new Date(cdExp).getTime()}"></span></div>`:''}</div>`;
     }).join('');
   }else{
     nwsBody+=`<div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">No Active NWS Alerts</span><br>No NWS warnings or watches for your area.</div></div>`;
@@ -215,11 +215,11 @@ function renderAlerts(){
   let stBody='';
   if(!hist.length){
     const wxTh=_loadWxThresholds();const wxAny=Object.values(wxTh).some(t=>t&&t.on);
-    stBody+=wxAny?`<div class="text-center-green-sm">✅ All clear — no weather thresholds exceeded</div>`:`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No station alerts yet. Enable thresholds in Settings ⚙️ → Weather Station Alerts 🔔</div>`;
+    stBody+=wxAny?`<div class="text-center-green-sm">✅ All clear — no weather thresholds exceeded</div>`:`<div class="text-center-muted" style="padding:12px">No station alerts yet. Enable thresholds in Settings ⚙️ → Weather Station Alerts 🔔</div>`;
   }else{
     hist.slice(0,20).forEach(h=>{
       const d=new Date(h.time);const tStr=fmtClock(d)+' · '+d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
-      stBody+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em"><div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span>${h.icon||'🔔'}</span><span class="fw600-primary">${h.label}</span><span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span></div><div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🔔 ','')}</div></div>`;
+      stBody+=`<div style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.78em"><div style="display:flex;align-items:center;gap:6px;margin-bottom:2px"><span>${h.icon||'🔔'}</span><span class="fw600-primary">${h.label}</span><span class="alert-row-time">${tStr}</span></div><div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🔔 ','')}</div></div>`;
     });
   }
   const stClear=hist.length?'<button onclick="event.stopPropagation();clearWxAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':'';
@@ -230,7 +230,7 @@ function renderAlerts(){
   let scBody='';
   if(!stormHist.length){
     const stTh=_loadStormThresholds();const stAny=Object.values(stTh).some(t=>t&&t.on);
-    scBody+=stAny?`<div class="text-center-green-sm">✅ All clear — no storms currently match your thresholds</div>`:`<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.75em">No storm cell alerts yet. Enable thresholds in Settings ⚙️ → Storm Cell Alerts 🌩️</div>`;
+    scBody+=stAny?`<div class="text-center-green-sm">✅ All clear — no storms currently match your thresholds</div>`:`<div class="text-center-muted" style="padding:12px">No storm cell alerts yet. Enable thresholds in Settings ⚙️ → Storm Cell Alerts 🌩️</div>`;
   }else{
     const batches=[];
     stormHist.forEach(h=>{
@@ -276,7 +276,7 @@ function renderAlerts(){
             <span class="fw600-primary">${h.val} dBZ</span>
             ${h.impactPct>0?`<span style="font-size:0.8em;padding:1px 6px;border-radius:8px;background:${tc}18;color:${tc};font-weight:600">${h.impactPct}%</span>`:''}
             ${etaHtml}${sDistLive}${hasLoc?'<span style="font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Tap to show on radar">📍</span>':''}
-            <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
+            <span class="alert-row-time">${tStr}</span>
           </div>
           <div style="color:var(--text-secondary);font-size:0.9em">${h.msg.replace('🌩️ ','').replace(/ · ETA .+$/,'')}</div>
         </div>`;
@@ -308,7 +308,7 @@ function renderAlerts(){
             ${peakImp>0?`<span style="font-size:0.8em;padding:1px 6px;border-radius:8px;background:${tc}18;color:${tc};font-weight:600">${peakImp}%</span>`:''}
             ${grpEtaHtml}
             ${hasLoc?'<span style="font-size:0.75em;color:var(--accent-cyan);margin-left:4px" title="Tap to show on radar">📍</span>':''}
-            <span style="margin-left:auto;font-size:0.8em;color:var(--text-muted);font-family:var(--font-mono)">${tStr}</span>
+            <span class="alert-row-time">${tStr}</span>
             <span class="sa-chev" onclick="event.stopPropagation();const d=document.getElementById('${gid}');d.style.display=d.style.display==='none'?'block':'none';this.textContent=d.style.display==='none'?'▸':'▾'" style="color:var(--text-muted);font-size:0.8em;cursor:pointer;padding:2px 6px">▸</span>
           </div>
           <div id="${gid}" style="display:none;padding:0 10px 6px 24px">`;
@@ -567,14 +567,14 @@ function _renderSPCWatchSection(){
     let expStr = '';
     if (w.expTime) {
       const remain = w.expTime - Date.now();
-      if (remain> 0) {
+      if (remain > 0) {
         const hrs = Math.floor(remain / 3600000);
         const mins = Math.floor((remain % 3600000) / 60000);
-        expStr = hrs> 0 ? hrs + 'h ' + mins + 'm remaining' : mins + 'm remaining';
+        expStr = hrs > 0 ? hrs + 'h ' + mins + 'm remaining' : mins + 'm remaining';
       }
     }
     html += `<div class="spc-watch-card ${cls}">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+      <div class="flex-label-row">
         <span style="font-size:1.1em">${icon}</span>
         <span style="font-weight:700;font-size:0.9em;color:${isTor ? '#ff1744' : '#ff9800'}">${label} #${w.number}</span>
         ${inArea ? '<span style="font-size:0.6em;background:rgba(255,23,68,0.2);color:#ff4444;padding:1px 6px;border-radius:8px;font-weight:700">YOUR AREA</span>' : ''}
@@ -604,7 +604,7 @@ function _renderSPCReportsSection(){
   const toggleChecked = S._showSPCReports ? 'checked' : '';
   let html = `<details class="card mt-12" open><summary class="card-title detail-summary"><span><span class="icon">📋</span> SPC Storm Reports (${nearby.length} today)</span><span style="display:flex;align-items:center;gap:6px"><label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${toggleChecked} onchange="toggleSPCReports(this.checked)" class="accent-cyan-check"></label><span class="c-muted-sm">▾</span></span></summary>`;
   const summary = [];
-  if (tornadoes.length) summary.push(`🌪️ ${tornadoes.length} tornado${tornadoes.length> 1 ? 'es' : ''}`);
+  if (tornadoes.length) summary.push(`🌪️ ${tornadoes.length} tornado${tornadoes.length > 1 ? 'es' : ''}`);
   if (hail.length) summary.push(`🧊 ${hail.length} hail`);
   if (wind.length) summary.push(`💨 ${wind.length} wind`);
   html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;padding:0 4px">${summary.map(s => `<span style="font-size:0.75em;font-weight:600;color:var(--text-secondary)">${s}</span>`).join('<span class="c-muted">·</span>')}</div>`;
@@ -655,8 +655,8 @@ function _renderSPCMDSection(){
     const color = isTor ? '#ff1744' : isSvr ? '#ff9800' : '#00e5ff';
     const icon = isTor ? '🌪️' : isSvr ? '⛈️' : '📝';
     html += `<div class="spc-watch-card md" style="border-left:3px solid ${color}">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-        <span style="font-size:1em">${icon}</span>
+      <div class="flex-label-row">
+        <span class="text-1">${icon}</span>
         <span style="font-weight:700;font-size:0.85em;color:var(--text-primary)">MD #${md.number}</span>
         ${md.validFrom ? `<span style="font-size:0.65em;color:var(--text-muted);margin-left:auto">${md.validFrom} - ${md.validTo}</span>` : ''}
       </div>
@@ -782,7 +782,7 @@ function _renderHazardSummary(){
   items.forEach(it=>{
     const clickAction=it.action||((it.target)?`scrollToHazardSection('${it.target}')`:``);
     html+=`<div onclick="${clickAction}" style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px${clickAction?';cursor:pointer':''}">
-      <span style="font-size:1em">${it.icon}</span>
+      <span class="text-1">${it.icon}</span>
       <div><div style="font-size:0.7em;font-weight:600;color:var(--text-primary)">${it.label}</div>
       <div style="font-size:0.6em;color:${it.color};font-weight:600">${it.status}</div></div>
     </div>`;
@@ -817,9 +817,9 @@ function _renderEarthquakeSection(){
       const magColor=q.mag>=6?'#ef4444':q.mag>=5?'#f97316':q.mag>=4?'#eab308':q.mag>=3?'#06b6d4':'#22c55e';
       const timeAgo=_timeAgo(q.time);
       const distStr=S.radarMetric?Math.round(q.dist*1.60934)+' km':Math.round(q.dist)+' mi';
-      html+=`<div style="padding:6px 8px;border-bottom:1px solid var(--border-subtle);font-size:0.75em;display:flex;align-items:center;gap:8px">
+      html+=`<div class="detail-row">
         <div style="min-width:38px;text-align:center;padding:3px 6px;background:${magColor}18;border:1px solid ${magColor}44;border-radius:6px;color:${magColor};font-weight:700;font-size:1.05em">M${q.mag.toFixed(1)}</div>
-        <div style="flex:1;min-width:0"><div style="color:var(--text-primary);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${q.place||'Unknown'}</div>
+        <div class="flex-1" style="min-width:0"><div style="color:var(--text-primary);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${q.place||'Unknown'}</div>
         <div style="color:var(--text-muted);font-size:0.9em">${distStr} away · ${Math.round(q.depth)} km deep · ${timeAgo}</div></div>
       </div>`;
     });
@@ -905,7 +905,7 @@ function _renderFloodSection(){
       const timeStr=g.time?new Date(g.time).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'';
       html+=`<div style="padding:4px 8px;font-size:0.72em;display:flex;align-items:center;gap:6px;border-bottom:1px solid rgba(255,255,255,0.04)">
         <div style="min-width:48px;text-align:center;padding:2px 6px;background:${heightColor}18;border:1px solid ${heightColor}44;border-radius:5px;color:${heightColor};font-weight:700;font-size:0.95em">${g.height.toFixed(1)} ft</div>
-        <div style="flex:1;min-width:0"><div style="color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name}</div>
+        <div class="flex-1" style="min-width:0"><div style="color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.name}</div>
         <div class="c-muted-85">${distStr} away${timeStr?' · '+timeStr:''}</div></div>
       </div>`;
     });
@@ -944,7 +944,7 @@ function _renderWildfireSection(){
       if(f.source==='eonet'){
         const distStr=Math.round(f.dist)+' mi away';
         const locLabel=f.country?` · ${f.country}`:'';
-        html+=`<div style="padding:6px 8px;border-bottom:1px solid var(--border-subtle);font-size:0.75em;display:flex;align-items:center;gap:8px">
+        html+=`<div class="detail-row">
           <span class="text-1-2">🔥</span>
           <div class="flex-1"><div class="fw600-primary">${f.name}</div>
           <div style="color:var(--text-muted);font-size:0.9em">${distStr}${locLabel}</div></div>
@@ -953,7 +953,7 @@ function _renderWildfireSection(){
         const acresStr=f.acres?f.acres.toLocaleString()+' acres':'Size unknown';
         const containStr=f.contained!=null?Math.round(f.contained)+'% contained':'Containment unknown';
         const distStr=f.dist&&f.dist<9999?Math.round(f.dist)+' mi away':'';
-        html+=`<div style="padding:6px 8px;border-bottom:1px solid var(--border-subtle);font-size:0.75em;display:flex;align-items:center;gap:8px">
+        html+=`<div class="detail-row">
           <span class="text-1-2">🔥</span>
           <div class="flex-1"><div class="fw600-primary">${f.name}${f.state?' <span style="color:var(--text-muted);font-weight:400;font-size:0.85em">('+f.state.replace('US-','')+')</span>':''}</div>
           <div style="color:var(--text-muted);font-size:0.9em">${acresStr} · ${containStr}${distStr?' · '+distStr:''}</div></div>
@@ -1027,7 +1027,7 @@ function _renderDroughtSection(){
   if(!isUS&&precip&&precip.pctNormal!==null){
     const pctColor=precip.pctNormal>=120?'#22c55e':precip.pctNormal>=80?'#06b6d4':precip.pctNormal>=50?'#eab308':precip.pctNormal>=25?'#f97316':'#ef4444';
     html+=`<div style="padding:4px 8px;font-size:0.75em">
-      <div style="display:flex;align-items:center;gap:8px">
+      <div class="flex-center-gap8">
         <span class="c-secondary">💧 30-Day Rainfall</span>
         <span style="margin-left:auto;font-weight:700;color:${pctColor}">${precip.pctNormal}% of normal</span>
       </div>

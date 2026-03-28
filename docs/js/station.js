@@ -445,7 +445,7 @@ function renderStation(){
         <div class="flex-1">
           <div style="font-weight:700;font-size:0.95em">${S.stationId} — ${stationName}</div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:2px;flex-wrap:wrap">
-            <span class="flt-cat flt-${fltCls}" style="font-size:0.7em;padding:1px 8px" title="${_fltInfo.reason}">${fltCat==='VFR'?'●':'◉'} ${fltCat}</span><span style="font-size:0.55em;color:var(--text-muted)">${_fltInfo.reason}</span>
+            <span class="flt-cat flt-${fltCls}" style="font-size:0.7em;padding:1px 8px" title="${_fltInfo.reason}">${fltCat==='VFR'?'●':'◉'} ${fltCat}</span><span class="text-hint" style="font-size:0.55em">${_fltInfo.reason}</span>
             <span class="text-muted-65">${S.visUnit===1?(dist*1.60934).toFixed(1)+' km':dist+' mi'} away</span>
             ${obLabel?`<span style="font-size:0.6em;color:var(--text-muted);font-family:var(--font-mono)">Updated: ${obLabel}</span>`:''}
           </div>
@@ -468,26 +468,26 @@ function renderStation(){
       <div class="station-grid" style="grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px">
         <div class="station-tile" style="padding:10px">
           <div style="font-size:0.6em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Temperature</div>
-          <div class="station-val" style="font-size:1.3em">${tempC!=null?fmtTemp(tempC):'--'}</div>
+          <div class="station-val text-13">${tempC!=null?fmtTemp(tempC):'--'}</div>
           ${feelsLike!=null&&Math.abs(feelsLike-tempC)>1?`<div class="text-muted-65">Feels ${fmtTemp(feelsLike)}</div>`:''}
         </div>
         <div class="station-tile" style="padding:10px">
           <div style="font-size:0.6em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Dew Point</div>
-          <div class="station-val" style="font-size:1.3em">${dpC!=null?fmtTemp(dpC):'--'}</div>
+          <div class="station-val text-13">${dpC!=null?fmtTemp(dpC):'--'}</div>
           <div class="text-muted-65">${rh!=null?rh+'% RH':''}</div>
         </div>
       </div>
 
       <div class="station-grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
-        <div class="station-tile" style="padding:8px 6px">
+        <div class="station-tile px-6-py-8">
           <div class="tile-label-upper">Pressure</div>
           <div class="station-val text-1">${presMb!=null?fmtPres(presMb):'--'}</div>
         </div>
-        <div class="station-tile" style="padding:8px 6px">
+        <div class="station-tile px-6-py-8">
           <div class="tile-label-upper">Visibility</div>
           <div class="station-val text-1">${visSM!=null?fmtVis(visSM):'--'}</div>
         </div>
-        <div class="station-tile" style="padding:8px 6px">
+        <div class="station-tile px-6-py-8">
           <div class="tile-label-upper">Sky</div>
           <div class="station-val" style="font-size:${skyTxt.length>10?'0.75':'1'}em">${skyTxt}</div>
         </div>
@@ -577,7 +577,7 @@ function decodeMetar(raw){
   const parts=raw.trim().split(/\s+/);
   const rows=[];
   let _lastMetarTempC=null;
-  const c=(color,label,val,extra)=>`<div style="display:flex;align-items:baseline;gap:8px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="font-family:var(--font-mono);font-weight:700;color:${color};min-width:70px;font-size:0.85em">${label}</span><span style="color:${color};font-weight:600;font-size:0.9em">${val}</span>${extra?`<span style="font-size:0.7em;color:var(--text-muted)">${extra}</span>`:''}</div>`;
+  const c=(color,label,val,extra)=>`<div style="display:flex;align-items:baseline;gap:8px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="font-family:var(--font-mono);font-weight:700;color:${color};min-width:70px;font-size:0.85em">${label}</span><span style="color:${color};font-weight:600;font-size:0.9em">${val}</span>${extra?`<span class="text-muted-sm">${extra}</span>`:''}</div>`;
 
   for(let i=0;i<parts.length;i++){
     const p=parts[i];
