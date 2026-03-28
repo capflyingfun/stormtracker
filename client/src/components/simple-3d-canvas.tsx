@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { formatStormEta } from '@shared/storm-utils';
 
 interface Simple3DCanvasProps {
   location: { lat: number; lon: number; city?: string; name?: string; } | null;
@@ -600,12 +601,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           });
         }
 
-        // Helper to format ETA as HH:MM
-        const formatETA = (minutes: number): string => {
-          const hrs = Math.floor(minutes / 60);
-          const mins = Math.round(minutes % 60);
-          return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-        };
+        const formatETA = (minutes: number): string => formatStormEta(minutes);
         
         // Helper for compass direction
         const getCompassDir = (degrees: number): string => {
@@ -994,7 +990,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         
         const tier = highest.score >= 80 ? 'extreme' : highest.score >= 60 ? 'severe' : highest.score >= 40 ? 'high' : highest.score >= 20 ? 'moderate' : 'low';
         const tierColors: Record<string, string> = { low: '#22C55E', moderate: '#EAB308', high: '#F97316', severe: '#EF4444', extreme: '#8B5CF6' };
-        const etaText = highest.etaMin < 60 ? `${Math.round(highest.etaMin)}m` : `${Math.floor(highest.etaMin / 60)}h`;
+        const etaText = highest.etaMin < 999 ? formatStormEta(highest.etaMin) : 'N/A';
         
         return (
           <div 

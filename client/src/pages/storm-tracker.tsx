@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { getStormCategory, getCompassDirection, calculateApproachAngle, isStormApproaching, calculateETA } from "@shared/storm-utils";
+import { getStormCategory, getCompassDirection, calculateApproachAngle, isStormApproaching, calculateETA, formatStormEta } from "@shared/storm-utils";
 import { useLocation } from "@/hooks/use-location";
 import { useStormData } from "@/hooks/use-storm-data";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
@@ -739,7 +739,7 @@ export default function StormTracker() {
     if (approaching && movementSpeed > 0) {
       const etaMin = calculateETA(storm.distance, movementSpeed);
       if (etaMin < 999) {
-        eta = etaMin < 60 ? `${Math.round(etaMin)}min` : `${(etaMin / 60).toFixed(1)}hr`;
+        eta = formatStormEta(etaMin);
         impactChance = approachAngle <= 15 ? 'High' : 'Medium';
       }
     }
