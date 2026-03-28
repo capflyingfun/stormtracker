@@ -1551,8 +1551,8 @@ function updateThreatTicker(){
           timeLabel=` — starts in ${_relDur(startMs-now)}${durMs?', lasts '+_relDur(durMs):''}`;
         }else if(!isNaN(endMs)&&endMs>now){
           const remain=endMs-now;
-          if(remain<=1800000)timeLabel=` — ending soon, expires in ${_relDur(remain)}`;
-          else timeLabel=` — in effect, ends in ${_relDur(remain)}`;
+          if(remain<=1800000)timeLabel=` — ending soon — expires in ${_relDur(remain)}`;
+          else timeLabel=` — in effect — ends in ${_relDur(remain)}`;
         }else if(!isNaN(endMs)){
           timeLabel=' — expired';
         }else{
