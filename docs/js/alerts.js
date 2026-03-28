@@ -64,7 +64,7 @@ function getAlertCardIcon(event,sev){
   const globeFile=_alertGlobeFile(event);
   if(!globeFile)return getAlertIcon(event,sev);
   const pack=typeof _getIconPack==='function'?_getIconPack():'globe';
-  const sz=40;
+  const sz=80;
   const sizeStyle=`width:${sz}px;height:${sz}px`;
   const imgStyle=`${sizeStyle};display:inline-block;vertical-align:middle;object-fit:cover;border-radius:50%`;
   if(pack==='globe-animated'){
