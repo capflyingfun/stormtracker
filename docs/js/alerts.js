@@ -135,7 +135,7 @@ function _getAlertCollapsed(){try{const c=JSON.parse(localStorage.getItem('st_al
 function _alertSecBtns(key){return`<div class="sec-btns" onclick="event.stopPropagation()"><button onclick="moveAlertSection('${key}',-1)" title="Move up">▲</button><button onclick="moveAlertSection('${key}',1)" title="Move down">▼</button></div>`}
 function _getAlertSortOrder(){try{const v=localStorage.getItem('st_alert_sort');if(v==='asc')return'asc'}catch(e){}return'desc'}
 function toggleAlertSort(){const cur=_getAlertSortOrder();const next=cur==='desc'?'asc':'desc';try{localStorage.setItem('st_alert_sort',next)}catch(e){}renderAlerts()}
-function _sortAlertsByDate(alerts){const dir=_getAlertSortOrder();const sorted=alerts.slice().sort((a,b)=>{const ta=new Date(a.properties?.onset||a.properties?.effective||0).getTime();const tb=new Date(b.properties?.onset||b.properties?.effective||0).getTime();return dir==='desc'?tb-ta:ta-tb});return sorted}
+function _sortAlertsByDate(alerts){const dir=_getAlertSortOrder();const sorted=alerts.slice().sort((a,b)=>{const ta=new Date(a.properties?.onset||a.properties?.effective||0).getTime();const tb=new Date(b.properties?.onset||b.properties?.effective||0).getTime();return dir==='desc'?ta-tb:tb-ta});return sorted}
 function _applyAlertAutoPriority(){
   if(localStorage.getItem('st_alert_manual_order'))return;
   const hasNws=S.alerts&&S.alerts.length>0;
@@ -208,7 +208,7 @@ function renderAlerts(){
   }
   nwsBody+=_renderStormSurgeSection()+_renderTropicalSection()+_renderSPCWatchSection()+_renderSPCMDSection()+_renderSPCReportsSection();
   const nwsCnt=(S.alerts||[]).length;
-  const _sortDir=_getAlertSortOrder();const _sortLabel=_sortDir==='desc'?'Old→New':'New→Old';const _sortBtn=nwsCnt?`<button onclick="event.stopPropagation();toggleAlertSort()" title="Currently: ${_sortDir==='desc'?'Newest first':'Oldest first'}. Click to switch." style="padding:2px 7px;font-size:0.6em;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.08);color:var(--accent-cyan);white-space:nowrap">${_sortDir==='desc'?'⏷':'⏶'} ${_sortLabel}</button>`:'';
+  const _sortDir=_getAlertSortOrder();const _sortLabel=_sortDir==='desc'?'Latest First':'Soonest First';const _sortBtn=nwsCnt?`<button onclick="event.stopPropagation();toggleAlertSort()" title="Currently: ${_sortDir==='desc'?'Soonest first':'Latest first'}. Click to switch." style="padding:2px 7px;font-size:0.6em;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.08);color:var(--accent-cyan);white-space:nowrap">${_sortDir==='desc'?'⏶':'⏷'} ${_sortLabel}</button>`:'';
   sec.nws=`<div class="card" style="margin-top:12px" data-alert-sec="nws"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleAlertSection('nws')"><span><span class="icon">⚠️</span> NWS Alerts${nwsCnt?' ('+nwsCnt+')':''}</span><span style="display:flex;align-items:center;gap:4px">${_sortBtn}${_alertSecBtns('nws')}<span style="color:var(--text-muted)">${coll.includes('nws')?'▸':'▾'}</span></span></div>${coll.includes('nws')?'':nwsBody}</div>`; }
 
   { const hist=_wxAlertHistory.slice().reverse();
