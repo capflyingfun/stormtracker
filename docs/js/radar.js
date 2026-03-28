@@ -241,10 +241,11 @@ async function buildNexradFrames(lat,lon){
       return recent.map(scan=>{
         const dt=new Date(scan.ts);
         const time=Math.floor(dt.getTime()/1000);
+        if(isNaN(time))return null;
         const tileTs=dt.getUTCFullYear()+pad2(dt.getUTCMonth()+1)+pad2(dt.getUTCDate())+pad2(dt.getUTCHours())+pad2(dt.getUTCMinutes());
         const tileUrl=`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/ridge::${site}-${prod}-${tileTs}/{z}/{x}/{y}.png`;
         return{time,type:'past',site,url:tileUrl};
-      });
+      }).filter(Boolean);
     }catch(e){console.warn('[NEXRAD-ANIM] '+prod+' failed:',e)}
   }
   toast(`No NEXRAD scans found for K${site}`);

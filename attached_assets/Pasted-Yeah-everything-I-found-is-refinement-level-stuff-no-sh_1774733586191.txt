@@ -1,0 +1,25 @@
+Yeah, everything I found is refinement-level stuff — no showstoppers. Here’s a consolidated prompt you can give Replit:
+
+StormTracker HTML App — Polish & Enhancement Fixes
+1. Service Worker missing CSS cache
+In docs/sw.js, add '/StormTracker/css/style.css' to the STATIC_ASSETS array. Without it, offline mode renders unstyled.
+2. Move inline styles from index.html to style.css
+The settings panel, travel mode popup, AI chat overlay, and location overlay are all built with hundreds of inline style="" attributes in index.html. Extract these into named classes in css/style.css. This doesn’t change any functionality but makes future theming and maintenance much easier — right now changing a color or spacing means hunting through HTML instead of one CSS file.
+3. Guard against bad NEXRAD scan timestamps
+In docs/js/radar.js line 242, new Date(scan.ts) could produce NaN if the Iowa Mesonet API returns an unexpected format. Add a guard after parsing:
+
+const dt = new Date(scan.ts);
+const time = Math.floor(dt.getTime()/1000);
+if(isNaN(time)) continue;
+
+
+4. Fill out the glossy icon pack
+The glossy theme only has 16 icons while globe-animated has 43 and flat-filled has 34. Users switching to glossy will see fallback emoji for many conditions (thunderstorm-rain, haze, blizzard, snow-night, etc.). Either generate the missing glossy icons or add a visible note in the icon theme picker that glossy is a “compact” set.
+5. Version string consistency
+The HTML title says v2.84, the service worker cache name says stormtracker-v285, and the cache-busting query strings say ?v=285. Pick one version number and use it everywhere so the service worker always invalidates correctly on updates.
+6. Silent catch blocks
+ai.js line 186 has catch(e){} which swallows errors completely. At minimum add console.warn('AI parse error:', e) so issues are debuggable. Same pattern appears in core.js lines 1000 and 1020.
+7. Consider splitting core.js
+core.js is 3,082 lines with 240 functions — it’s the catch-all for icons, themes, settings, gauges, utilities, compass, tutorial, changelog, geolocation, favorites, translations, and more. If the app keeps growing, splitting the icon/theme system and the settings/preferences logic into their own modules (e.g. icons.js and settings.js) would keep things maintainable. Not urgent but good to plan for.
+
+That’s really it. The app is in great shape — solid architecture, working NEXRAD + RainViewer radar, impressive feature depth for a zero-backend PWA. These are all “make it even better” items, not “it’s broken” items.​​​​​​​​​​​​​​​​

@@ -1,3 +1,4 @@
+// Version: v2.84 (display) | cache-bust counter: 285 (used in ?v= query strings and SW cache name)
 const CACHE_NAME = 'stormtracker-v285';
 const STATIC_ASSETS = [
   '/StormTracker/',
@@ -13,7 +14,8 @@ const STATIC_ASSETS = [
   '/StormTracker/js/station.js',
   '/StormTracker/js/alerts.js',
   '/StormTracker/js/ai.js',
-  '/StormTracker/js/init.js'
+  '/StormTracker/js/init.js',
+  '/StormTracker/css/style.css'
 ];
 
 self.addEventListener('install', event => {
