@@ -351,8 +351,8 @@ function _renderTropicalHazardSection(){
     const cat=s.category||_saffirSimpson(s.maxWind);
     const distStr=s.dist!=null?Math.round(s.dist)+' mi':'?';
     html+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:${cat.color}0a;border-left:3px solid ${cat.color};border-radius:0 6px 6px 0;margin-bottom:4px">
-      <span style="font-size:1em">🌀</span>
-      <div style="flex:1"><div style="font-size:0.75em;font-weight:700;color:var(--text-primary)">${s.type} ${s.name}</div><div style="font-size:0.6em;color:${cat.color};font-weight:600">${cat.label} · ${distStr}</div></div>
+      <span class="text-1">🌀</span>
+      <div class="flex-1"><div style="font-size:0.75em;font-weight:700;color:var(--text-primary)">${s.type} ${s.name}</div><div style="font-size:0.6em;color:${cat.color};font-weight:600">${cat.label} · ${distStr}</div></div>
       ${s.maxWind?`<div style="font-size:0.7em;font-weight:700;color:${cat.color}">${s.maxWind} mph</div>`:''}</div>`;
   });
   html+=`</div>`;
@@ -1204,12 +1204,12 @@ function toggleForecastDetail(idx){
   const windStr=fmtWind(wind);
   box.innerHTML=`<div class="forecast-detail">
     <div style="font-weight:700;margin-bottom:6px">${animEmoji(d.weather_code[idx],true,'1.2em')} ${dayName} — ${tStr(wmoDesc(d.weather_code[idx]))}</div>
-    <div class="fd-row"><span>🌡️ ${tStr('High / Low')}</span><span style="font-weight:600"><span style="color:var(--accent-red)">${fmtTemp(hiC)}</span> / <span style="color:var(--accent-cyan)">${fmtTemp(loC)}</span></span></div>
-    <div class="fd-row"><span>💧 ${tStr('Rain Chance')}</span><span style="font-weight:600">${rain}%</span></div>
-    <div class="fd-row"><span>🌧️ ${tStr('Precipitation')}</span><span style="font-weight:600">${precipStr}</span></div>
-    <div class="fd-row"><span>💨 ${tStr('Max Wind')}</span><span style="font-weight:600">${windStr}</span></div>
-    <div class="fd-row"><span>🌅 ${tStr('Sunrise')}</span><span style="font-weight:600">${sunrise}</span></div>
-    <div class="fd-row"><span>🌇 ${tStr('Sunset')}</span><span style="font-weight:600">${sunset}</span></div>
+    <div class="fd-row"><span>🌡️ ${tStr('High / Low')}</span><span class="fw600"><span style="color:var(--accent-red)">${fmtTemp(hiC)}</span> / <span class="c-cyan">${fmtTemp(loC)}</span></span></div>
+    <div class="fd-row"><span>💧 ${tStr('Rain Chance')}</span><span class="fw600">${rain}%</span></div>
+    <div class="fd-row"><span>🌧️ ${tStr('Precipitation')}</span><span class="fw600">${precipStr}</span></div>
+    <div class="fd-row"><span>💨 ${tStr('Max Wind')}</span><span class="fw600">${windStr}</span></div>
+    <div class="fd-row"><span>🌅 ${tStr('Sunrise')}</span><span class="fw600">${sunrise}</span></div>
+    <div class="fd-row"><span>🌇 ${tStr('Sunset')}</span><span class="fw600">${sunset}</span></div>
   </div>`;
   if(_curLang!=='en')setTimeout(quickTranslate,100);
 }
@@ -1255,9 +1255,9 @@ function toggleNWSDetail(idx){
   const tempC=p.unit==='F'?(p.temp-32)*5/9:p.temp;
   box.innerHTML=`<div class="forecast-detail">
     <div style="font-weight:700;margin-bottom:6px">${p.name} — ${p.short}</div>
-    <div class="fd-row"><span>🌡️ Temperature</span><span style="font-weight:600">${fmtTemp(tempC)}</span></div>
-    <div class="fd-row"><span>💨 Wind</span><span style="font-weight:600">${p.wind} ${p.windDir}</span></div>
-    ${p.precip>0?`<div class="fd-row"><span>💧 Rain Chance</span><span style="font-weight:600">${p.precip}%</span></div>`:''}
+    <div class="fd-row"><span>🌡️ Temperature</span><span class="fw600">${fmtTemp(tempC)}</span></div>
+    <div class="fd-row"><span>💨 Wind</span><span class="fw600">${p.wind} ${p.windDir}</span></div>
+    ${p.precip>0?`<div class="fd-row"><span>💧 Rain Chance</span><span class="fw600">${p.precip}%</span></div>`:''}
     <div style="font-size:0.8em;color:var(--text-secondary);margin-top:8px;line-height:1.4;border-top:1px solid var(--border-subtle);padding-top:8px">${p.detail}</div>
   </div>`;
 }
