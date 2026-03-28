@@ -2694,7 +2694,7 @@ function _pruneExpiredAlerts(){
   const wLen=_wxAlertHistory.length;
   _wxAlertHistory=_wxAlertHistory.filter(a=>{
     if(a.fellBelowTime)return now-a.fellBelowTime<ex;
-    return true;
+    return now-a.time<ex;
   });
   if(_wxAlertHistory.length!==wLen)_saveWxAlertHistory();
   if(S.activePage==='alerts')renderAlerts();
@@ -2716,13 +2716,15 @@ function checkWeatherThresholds(){
   let histDirty=false;
   _WX_ALERT_DEFS.forEach(def=>{
     const cfg=th[def.key];
-    if(!cfg||!cfg.on)return;
+    if(!cfg||!cfg.on){
+      _wxAlertHistory.forEach(a=>{if(a.key===def.key&&!a.fellBelowTime){a.fellBelowTime=now;histDirty=true}});
+      return;
+    }
     const result=def.check(S.weather,cfg.val);
     if(!result){
       _wxAlertHistory.forEach(a=>{if(a.key===def.key&&!a.fellBelowTime){a.fellBelowTime=now;histDirty=true}});
       return;
     }
-    _wxAlertHistory.forEach(a=>{if(a.key===def.key&&a.fellBelowTime){delete a.fellBelowTime;histDirty=true}});
     const lastFired=_WX_ALERT_COOLDOWN[def.key]||0;
     if(now-lastFired<900000)return;
     _WX_ALERT_COOLDOWN[def.key]=now;
