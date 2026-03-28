@@ -2694,7 +2694,7 @@ function _pruneExpiredAlerts(){
   const wLen=_wxAlertHistory.length;
   _wxAlertHistory=_wxAlertHistory.filter(a=>{
     if(a.fellBelowTime)return now-a.fellBelowTime<ex;
-    return now-a.time<ex;
+    return true;
   });
   if(_wxAlertHistory.length!==wLen)_saveWxAlertHistory();
   if(S.activePage==='alerts')renderAlerts();
