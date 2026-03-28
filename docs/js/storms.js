@@ -303,7 +303,7 @@ function getStabilityData(){
   let moistRat=1;
   if(humid!=null&&dewp!=null&&temp!=null){
     const spread=temp-dewp;
-    if(humid>=70&&spread<=2)moistRat=9;else if(humid>=60&&spread<=4)moistRat=7;else if(humid>=50&&spread<=8)moistRat=5;else if(humid>=40&&spread<=12)moistRat=3;
+    if(humid>=70&&spread<=2)moistRat=9;else if(humid>=60&&spread<=4)moistRat=7;else if(humid>=50&&spread<=8)moistRat=5;else if(humid>=40)moistRat=2;
   }
   let liftRat=1;
   if(S._windShear){
