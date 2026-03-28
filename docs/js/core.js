@@ -1243,48 +1243,6 @@ function _findBestPackIcon(pack,cond){
   if(alt&&_packHasIcon(pack,alt))return alt;
   return null;
 }
-function _initCrossFade(w){
-  if(w._xf)return;
-  w._xf=1;
-  const vids=w.querySelectorAll('video');
-  if(vids.length<2)return;
-  const a=vids[0],b=vids[1];
-  a.style.opacity='1';b.style.opacity='0';
-  let active=a,standby=b,fading=false;
-  const FADE=0.5;
-  function onTime(){
-    if(fading)return;
-    if(active.duration&&active.currentTime>=active.duration-FADE){
-      fading=true;
-      standby.currentTime=0;
-      standby.play().catch(()=>{});
-      standby.style.transition=`opacity ${FADE}s ease`;
-      active.style.transition=`opacity ${FADE}s ease`;
-      standby.style.opacity='1';
-      active.style.opacity='0';
-      setTimeout(()=>{
-        active.pause();active.currentTime=0;
-        const tmp=active;active=standby;standby=tmp;
-        fading=false;
-      },FADE*1000+50);
-    }
-  }
-  function onEnd(){
-    if(!fading){
-      active.pause();active.style.opacity='0';
-      standby.currentTime=0;
-      standby.play().catch(()=>{});
-      standby.style.transition='opacity 0.3s ease';
-      standby.style.opacity='1';
-      const tmp=active;active=standby;standby=tmp;
-    }
-  }
-  a.addEventListener('timeupdate',onTime);
-  b.addEventListener('timeupdate',onTime);
-  a.addEventListener('ended',onEnd);
-  b.addEventListener('ended',onEnd);
-  a.play().catch(()=>{});
-}
 function getWeatherIcon(cond,sz,forcePack){
   const pack=forcePack||_getIconPack();
   const raw=String(sz||32);
@@ -1305,9 +1263,7 @@ function getWeatherIcon(cond,sz,forcePack){
       const vidSrc=`icons/${pack}/${best}.mp4`;
       const fallbackSrc=`icons/globe/${best}.png`;
       const sizeStyle=hasCssUnit?`width:${cssSize};height:${cssSize}`:`width:${numSize}px;height:${numSize}px`;
-      const vStyle=`position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;border-radius:50%`;
-      const errFb=`this.parentElement.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${sizeStyle};display:inline-block;vertical-align:middle&quot; alt=&quot;${cond}&quot;>'`;
-      return`<div class="vid-xfade" style="${sizeStyle};position:relative;display:inline-block;vertical-align:middle;border-radius:50%;overflow:hidden"><video autoplay muted playsinline style="${vStyle};opacity:1" src="${vidSrc}" poster="${fallbackSrc}" onloadedmetadata="_initCrossFade(this.parentElement)" onerror="${errFb}"></video><video muted playsinline style="${vStyle};opacity:0" src="${vidSrc}" poster="${fallbackSrc}" onerror="this.remove()"></video></div>`;
+      return`<video autoplay loop muted playsinline style="${sizeStyle};display:inline-block;vertical-align:middle;object-fit:cover;border-radius:50%" src="${vidSrc}" poster="${fallbackSrc}" onerror="this.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${sizeStyle};display:inline-block;vertical-align:middle&quot; alt=&quot;${cond}&quot;>'"></video>`;
     }
     return getWeatherIcon(cond,sz,'globe');
   }
