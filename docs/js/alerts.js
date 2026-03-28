@@ -40,6 +40,41 @@ function getAlertIcon(event,sev){
   const s=(sev||'').toLowerCase();
   return s==='extreme'?'🔴':s==='severe'?'🟠':s==='moderate'?'🟡':'🔵';
 }
+function _alertGlobeFile(event){
+  const e=(event||'').toLowerCase();
+  if(e.includes('tornado'))return'tornado';
+  if(e.includes('severe thunderstorm'))return'thunderstorm-lightning';
+  if(e.includes('hurricane')||e.includes('tropical storm'))return'hurricane';
+  if(e.includes('storm surge'))return'storm-surge';
+  if(e.includes('red flag')||e.includes('fire weather'))return'fire';
+  if(e.includes('excessive heat')||e.includes('heat'))return'heat';
+  if(e.includes('blizzard'))return'blizzard';
+  if(e.includes('ice storm'))return'ice';
+  if(e.includes('snow squall')||e.includes('winter storm')||e.includes('winter weather'))return'snow';
+  if(e.includes('extreme cold')||e.includes('cold weather')||e.includes('freeze')||e.includes('frost'))return'ice';
+  if(e.includes('extreme wind')||e.includes('high wind')||e.includes('wind')||e.includes('gale'))return'wind';
+  if(e.includes('dense fog')||e.includes('fog'))return'fog';
+  if(e.includes('flash flood')||e.includes('coastal flood')||e.includes('river flood')||e.includes('flood'))return'flood';
+  if(e.includes('dust storm')||e.includes('dust'))return'dust-storm';
+  if(e.includes('thunderstorm')||e.includes('storm warning'))return'thunderstorm';
+  if(e.includes('special marine'))return'storm-surge';
+  return null;
+}
+function getAlertCardIcon(event,sev){
+  const globeFile=_alertGlobeFile(event);
+  if(!globeFile)return getAlertIcon(event,sev);
+  const pack=typeof _getIconPack==='function'?_getIconPack():'globe';
+  const sz=40;
+  const sizeStyle=`width:${sz}px;height:${sz}px`;
+  const imgStyle=`${sizeStyle};display:inline-block;vertical-align:middle;object-fit:cover;border-radius:50%`;
+  if(pack==='globe-animated'){
+    const vidSrc=`icons/globe-animated/${globeFile}.mp4`;
+    const fallbackSrc=`icons/globe/${globeFile}.png`;
+    return`<video autoplay loop muted playsinline style="${imgStyle}" src="${vidSrc}" poster="${fallbackSrc}" onerror="this.outerHTML='<img src=&quot;${fallbackSrc}&quot; style=&quot;${imgStyle}&quot; alt=&quot;${escHtml(event)}&quot;>'"></video>`;
+  }
+  const imgSrc=`icons/globe/${globeFile}.png`;
+  return`<img src="${imgSrc}" style="${imgStyle}" alt="${escHtml(event)}" loading="lazy">`;
+}
 function fmtAlertTime(d){
   if(!(d instanceof Date)||isNaN(d))return'';
   const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -127,7 +162,7 @@ function renderAlerts(){
       let cls=(sev==='extreme'||sev==='severe')?'':sev==='moderate'?'watch':'advisory';
       if(isTorWarn)cls='tornado-warning';else if(isSvrWarn)cls='svr-warning';
       const desc=reformatNwsTimes((p.description||'')).replace(/\n/g,'<br>');
-      const sevIcon=getAlertIcon(event,sev);
+      const sevIcon=getAlertCardIcon(event,sev);
       const inZone=isUserInAlertZone(a);
       const zoneBadge=inZone?'<span style="display:inline-block;background:#dc2626;color:#fff;font-size:0.55em;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:6px;animation:pulse 2s infinite;vertical-align:middle">IN YOUR ZONE</span>':'';
       const hasOnset=!!p.onset;
@@ -139,7 +174,7 @@ function renderAlerts(){
       const endLabel=p.ends?'Ends:':'Expires:';
       const timeLine=(effStr||endStr)?`<div style="font-size:0.75em;color:var(--text-muted);margin:4px 0 2px;line-height:1.5">${effStr?'<span style="color:var(--accent-cyan)">'+effLabel+'</span> '+effStr:''}${effStr&&endStr?' &nbsp;·&nbsp; ':''}${endStr?'<span style="color:var(--accent-orange)">'+endLabel+'</span> '+endStr:''}</div>`:'';
       const cdExp=p.ends||p.expires;
-      return`<div class="nws-alert ${cls}" style="${inZone?'border-color:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.3)':''}"><div class="nws-alert-title">${sevIcon} ${event}${zoneBadge}</div>${timeLine}<div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${cdExp?`<div class="nws-alert-expires">⏱️ <span id="alert-cd-${i}" data-exp="${new Date(cdExp).getTime()}"></span></div>`:''}</div>`;
+      return`<div class="nws-alert ${cls}" style="${inZone?'border-color:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.3)':''}"><div class="nws-alert-title" style="display:flex;align-items:center;gap:8px">${sevIcon} <span>${event}${zoneBadge}</span></div>${timeLine}<div class="nws-alert-detail" style="white-space:pre-wrap;word-break:break-word">${desc}</div>${cdExp?`<div class="nws-alert-expires">⏱️ <span id="alert-cd-${i}" data-exp="${new Date(cdExp).getTime()}"></span></div>`:''}</div>`;
     }).join('');
   }else{
     nwsBody+=`<div class="alert-banner safe"><span class="alert-icon">✅</span><div class="alert-text"><span class="alert-title">No Active NWS Alerts</span><br>No NWS warnings or watches for your area.</div></div>`;
