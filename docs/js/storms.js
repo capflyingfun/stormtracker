@@ -1963,10 +1963,10 @@ function _renderFilterBar(f){
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:0.72em;margin-top:6px">
       <span style="font-weight:700;color:var(--text-secondary)">Filter:</span>
       <label style="display:flex;align-items:center;gap:3px;color:var(--text-secondary)">Min dBZ
-        <input id="sf-mindbz" type="number" min="0" max="75" step="5" value="${f.minDbz||0}" onchange="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
+        <input id="sf-mindbz" type="number" min="0" max="75" step="5" value="${f.minDbz||0}" oninput="updateStormFilter()" onchange="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
       </label>
       <label style="display:flex;align-items:center;gap:3px;color:var(--text-secondary)">Max dist
-        <input id="sf-maxdist" type="number" min="0" max="200" step="5" value="${f.maxDist||0}" onchange="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
+        <input id="sf-maxdist" type="number" min="0" max="200" step="5" value="${f.maxDist||0}" oninput="updateStormFilter()" onchange="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
         <span class="c-muted">${S.radarMetric?'km':'mi'}</span>
       </label>
       <label style="display:flex;align-items:center;gap:3px;cursor:pointer;color:var(--text-secondary)">
@@ -1985,6 +1985,7 @@ function updateStormFilter(){
   };
   _saveStormFilter(f);
   renderStorms();
+  if(typeof updateThreatTicker==='function')updateThreatTicker();
 }
 S._stormFilter=_loadStormFilter();
 function renderStorms(){
