@@ -72,11 +72,11 @@ async function fetchStation(){
           S.nearbyStations=nearest;
           await loadStationObsAWC(nearest[0].icao);
         }else{
-          el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No weather stations found within 300 mi.<br><span style="font-size:0.8em;color:var(--text-muted)">Try a location closer to an airport</span></p></div>`;
+          el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No weather stations found within 300 mi.<br><span class="c-muted-sm">Try a location closer to an airport</span></p></div>`;
         }
       }catch(e3){
         console.error('Global airport fallback error:',e3);
-        el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No weather stations found nearby.<br><span style="font-size:0.8em;color:var(--text-muted)">Try a location closer to an airport</span></p></div>`;
+        el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>No weather stations found nearby.<br><span class="c-muted-sm">Try a location closer to an airport</span></p></div>`;
       }
     }
   }
@@ -438,15 +438,15 @@ function renderStation(){
 
   el.innerHTML=`
     <div class="card" style="padding-bottom:8px">
-      ${!isHome?`<div style="margin-bottom:8px"><button onclick="switchStation('${homeIcao}')" style="padding:4px 10px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;font-size:0.75em;cursor:pointer;font-weight:600">← Back to ${homeIcao}</button></div>`:''}
-      ${s._noMetar?`<div style="background:rgba(255,193,7,0.12);border:1px solid rgba(255,193,7,0.35);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.78em;color:#ffc107;display:flex;align-items:center;gap:6px"><span style="font-size:1.2em">📡</span><span><b>${s.icao||S.stationId}</b> found — ${s._reason||'No recent METAR available'}. International stations may report infrequently.</span></div>`:''}
+      ${!isHome?`<div class="mb-8"><button onclick="switchStation('${homeIcao}')" style="padding:4px 10px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;font-size:0.75em;cursor:pointer;font-weight:600">← Back to ${homeIcao}</button></div>`:''}
+      ${s._noMetar?`<div style="background:rgba(255,193,7,0.12);border:1px solid rgba(255,193,7,0.35);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.78em;color:#ffc107;display:flex;align-items:center;gap:6px"><span class="text-1-2">📡</span><span><b>${s.icao||S.stationId}</b> found — ${s._reason||'No recent METAR available'}. International stations may report infrequently.</span></div>`:''}
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
         ${stationNeonIcon(wxDesc,32)}
-        <div style="flex:1">
+        <div class="flex-1">
           <div style="font-weight:700;font-size:0.95em">${S.stationId} — ${stationName}</div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:2px;flex-wrap:wrap">
             <span class="flt-cat flt-${fltCls}" style="font-size:0.7em;padding:1px 8px" title="${_fltInfo.reason}">${fltCat==='VFR'?'●':'◉'} ${fltCat}</span><span style="font-size:0.55em;color:var(--text-muted)">${_fltInfo.reason}</span>
-            <span style="font-size:0.65em;color:var(--text-muted)">${S.visUnit===1?(dist*1.60934).toFixed(1)+' km':dist+' mi'} away</span>
+            <span class="text-muted-65">${S.visUnit===1?(dist*1.60934).toFixed(1)+' km':dist+' mi'} away</span>
             ${obLabel?`<span style="font-size:0.6em;color:var(--text-muted);font-family:var(--font-mono)">Updated: ${obLabel}</span>`:''}
           </div>
         </div>
@@ -460,7 +460,7 @@ function renderStation(){
         </div>
         <div style="text-align:left">
           <div style="font-size:1.4em;font-weight:700">${windKmh!=null?fmtWind(windKmh):'Calm'}</div>
-          <div style="font-size:0.8em;color:var(--text-muted)">${wDir!=null?degToDir(wDir)+' wind':'Calm'}</div>
+          <div class="c-muted-sm">${wDir!=null?degToDir(wDir)+' wind':'Calm'}</div>
           ${gustKmh?`<div style="font-size:0.8em;color:var(--accent-orange);font-weight:600">Gusts ${fmtWind(gustKmh)}</div>`:''}
         </div>
       </div>
@@ -469,26 +469,26 @@ function renderStation(){
         <div class="station-tile" style="padding:10px">
           <div style="font-size:0.6em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Temperature</div>
           <div class="station-val" style="font-size:1.3em">${tempC!=null?fmtTemp(tempC):'--'}</div>
-          ${feelsLike!=null&&Math.abs(feelsLike-tempC)>1?`<div style="font-size:0.65em;color:var(--text-muted)">Feels ${fmtTemp(feelsLike)}</div>`:''}
+          ${feelsLike!=null&&Math.abs(feelsLike-tempC)>1?`<div class="text-muted-65">Feels ${fmtTemp(feelsLike)}</div>`:''}
         </div>
         <div class="station-tile" style="padding:10px">
           <div style="font-size:0.6em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Dew Point</div>
           <div class="station-val" style="font-size:1.3em">${dpC!=null?fmtTemp(dpC):'--'}</div>
-          <div style="font-size:0.65em;color:var(--text-muted)">${rh!=null?rh+'% RH':''}</div>
+          <div class="text-muted-65">${rh!=null?rh+'% RH':''}</div>
         </div>
       </div>
 
       <div class="station-grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
         <div class="station-tile" style="padding:8px 6px">
-          <div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Pressure</div>
+          <div class="tile-label-upper">Pressure</div>
           <div class="station-val text-1">${presMb!=null?fmtPres(presMb):'--'}</div>
         </div>
         <div class="station-tile" style="padding:8px 6px">
-          <div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Visibility</div>
+          <div class="tile-label-upper">Visibility</div>
           <div class="station-val text-1">${visSM!=null?fmtVis(visSM):'--'}</div>
         </div>
         <div class="station-tile" style="padding:8px 6px">
-          <div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Sky</div>
+          <div class="tile-label-upper">Sky</div>
           <div class="station-val" style="font-size:${skyTxt.length>10?'0.75':'1'}em">${skyTxt}</div>
         </div>
       </div>
@@ -501,8 +501,8 @@ function renderStation(){
         const _fog=getFogRisk(_sp,_wk,_dy,_cc);
         const _inv=detectInversion(_sp,_wk,_dy,_cc);
         let html='<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">';
-        html+=`<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">🌫️ Fog Risk</div><div style="font-size:0.9em;font-weight:700;color:${_fog.color}">${_fog.level}</div><div style="font-size:0.6em;color:var(--text-muted)">${_fog.desc}</div></div>`;
-        html+=`<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">☁️ Cloud Base</div><div style="font-size:0.9em;font-weight:700;color:var(--accent-cyan)">${fmtAlt(calcCloudBase(_sp))}</div><div style="font-size:0.6em;color:var(--text-muted)">Estimated AGL</div></div>`;
+        html+=`<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div class="tile-label-upper">🌫️ Fog Risk</div><div style="font-size:0.9em;font-weight:700;color:${_fog.color}">${_fog.level}</div><div class="text-hint">${_fog.desc}</div></div>`;
+        html+=`<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div class="tile-label-upper">☁️ Cloud Base</div><div style="font-size:0.9em;font-weight:700;color:var(--accent-cyan)">${fmtAlt(calcCloudBase(_sp))}</div><div class="text-hint">Estimated AGL</div></div>`;
         html+='</div>';
         if(_inv.detected)html+=`<div style="background:rgba(255,152,0,0.1);border:1px solid rgba(255,152,0,0.3);border-radius:8px;padding:6px 10px;margin-bottom:10px;font-size:0.72em;color:var(--accent-orange);text-align:center">⚠️ ${_inv.text}</div>`;
         return html;
@@ -519,8 +519,8 @@ function renderNearbyStations(){
       ${S.nearbyStations.map(st=>{
         const active=st.icao===S.stationId;
         return`<div onclick="switchStation('${st.icao}')" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:${active?'var(--bg-elevated)':'var(--bg-surface)'};border:1px solid ${active?'var(--accent-blue)':'var(--border-subtle)'};border-radius:var(--radius-sm);cursor:pointer;font-size:0.8em">
-          <div><span style="font-weight:700;color:${active?'var(--accent-cyan)':'var(--text-primary)'}">${st.icao}</span> <span style="color:var(--text-muted)">${st.name||''}</span></div>
-          <span style="color:var(--text-muted);font-size:0.85em">${st.dist.toFixed(1)} mi</span>
+          <div><span style="font-weight:700;color:${active?'var(--accent-cyan)':'var(--text-primary)'}">${st.icao}</span> <span class="c-muted">${st.name||''}</span></div>
+          <span class="c-muted-85">${st.dist.toFixed(1)} mi</span>
         </div>`;
       }).join('')}
     </div></div>`;
@@ -560,7 +560,7 @@ async function switchStation(code){
   }catch(e){
     console.error('switchStation error for',icao,':',e.message);
     const el=document.getElementById('page-station');
-    if(el)el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Could not load ${icao}.<br><span style="font-size:0.8em;color:var(--text-muted)">${e.message}</span></p></div>`;
+    if(el)el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Could not load ${icao}.<br><span class="c-muted-sm">${e.message}</span></p></div>`;
   }
 }
 
