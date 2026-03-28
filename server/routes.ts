@@ -5,6 +5,7 @@ import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema, r
 import { storage } from "./storage";
 import { db } from "./db";
 import { sendStormAlert, sendTestAlert, sendSMSAlert, sendTestSMS } from "./email";
+import { formatStormEta } from "@shared/storm-utils";
 import { generateWeatherAssessment } from "./ai-assistant";
 
 // NWS Alerts API integration
@@ -183,7 +184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Include impact prediction if available
         const impact = impactPredictions?.[i];
         const impactInfo = impact ? `, impact score ${impact.impactScore}/100, ${impact.recommendedAction}` : '';
-        return `${intensity} rain from ${s.direction} (${Math.round(s.distance)}mi, ${urgency}, ETA ~${Math.round(s.etaMinutes)}min${impactInfo})`;
+        return `${intensity} rain from ${s.direction} (${Math.round(s.distance)}mi, ${urgency}, ETA ~${formatStormEta(s.etaMinutes)}${impactInfo})`;
       }).join('; ');
       
       // Determine overall urgency and personalization
@@ -364,8 +365,7 @@ Return ONLY a JSON array of 5 strings.`;
           directionFromUser,
           distance: Math.round(distance * 10) / 10,
           etaMinutes: Math.round(etaMinutes),
-          etaFormatted: etaMinutes < 999 ? 
-            `${Math.floor(etaMinutes / 60)}h ${Math.round(etaMinutes % 60)}m` : 'N/A',
+          etaFormatted: etaMinutes < 999 ? formatStormEta(etaMinutes) : 'N/A',
           intensityNow: intensity,
           intensityAtArrival,
           durationMinutes,
@@ -2141,7 +2141,7 @@ Return ONLY a JSON array of 5 strings.`;
             direction: stormMovement.direction,
             speed: stormMovement.speed,
             confidence: stormMovement.confidence || 'medium',
-            eta: calculateETA(storm.distance, stormMovement.speed),
+            eta: calculateETAFormatted(storm.distance, stormMovement.speed),
             impact: calculateImpactLevel(storm.distance, stormMovement.direction, bearing)
           } : null
         });
@@ -3734,16 +3734,11 @@ Return ONLY a JSON array of 5 strings.`;
     return 'Unknown';
   }
 
-  // Helper function to calculate ETA
-  function calculateETA(distanceMiles: number, speedMph: number): string | null {
+  function calculateETAFormatted(distanceMiles: number, speedMph: number): string | null {
     if (speedMph <= 0) return null;
-    const etaHours = distanceMiles / speedMph;
-    if (etaHours < 1) {
-      return `${Math.round(etaHours * 60)} min`;
-    } else if (etaHours < 24) {
-      return `${etaHours.toFixed(1)} hr`;
-    }
-    return null;
+    const etaMinutes = (distanceMiles / speedMph) * 60;
+    if (etaMinutes >= 1440) return null;
+    return formatStormEta(etaMinutes);
   }
 
   // Helper function to calculate impact level
@@ -5264,13 +5259,9 @@ Guidelines:
         else if (angleDifference <= 20) impact = 'medium';
         else impact = 'low';
         
-        // Format ETA
         let eta: string | null = null;
-        if (hoursToArrival < 1) {
-          const minutes = Math.round(hoursToArrival * 60);
-          eta = `${minutes}min`;
-        } else if (hoursToArrival < 24) {
-          eta = `${hoursToArrival.toFixed(1)}hr`;
+        if (hoursToArrival < 24) {
+          eta = formatStormEta(hoursToArrival * 60);
         }
         
         return { 

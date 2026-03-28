@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, Navigation, Clock, ArrowUpDown } from "lucide-react";
-import { getStormCategory, getCompassDirection, calculateETA, calculateApproachAngle, isStormApproaching } from "@shared/storm-utils";
+import { getStormCategory, getCompassDirection, calculateETA, calculateApproachAngle, isStormApproaching, formatStormEta } from "@shared/storm-utils";
 import { useLanguage } from "@/hooks/use-language";
 import { translateWeatherText } from "@/lib/i18n";
 
@@ -191,13 +191,9 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
       }))
     : nwsAlerts;
 
-  // Format ETA minutes into a human-readable string
   const formatEta = (minutes: number): string => {
     if (minutes < 1) return 'Imminent';
-    if (minutes < 60) return `~${Math.round(minutes)} min`;
-    const h = Math.floor(minutes / 60);
-    const m = Math.round(minutes % 60);
-    return m > 0 ? `~${h}h ${m}m` : `~${h}h`;
+    return `~${formatStormEta(minutes)}`;
   };
 
   const stormsWithMovement = storms.map(storm => {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Cloud, CloudRain, CloudDrizzle, Zap, CloudSnow } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAutoTranslate } from "@/hooks/use-auto-translate";
+import { formatStormEta } from "@shared/storm-utils";
 
 interface Storm {
   id: string;
@@ -130,20 +131,7 @@ const calculateStormImpact = (storm: Storm, userLat: number, userLon: number): {
   else if (angleDifference <= 20) impactChance = 'medium';
   else impactChance = 'low';
   
-  // Format ETA
-  let eta: string;
-  if (hoursToArrival < 1) {
-    const minutes = Math.round(hoursToArrival * 60);
-    eta = `${minutes} min`;
-  } else if (hoursToArrival < 24) {
-    const hours = Math.floor(hoursToArrival);
-    const minutes = Math.round((hoursToArrival - hours) * 60);
-    eta = hours > 0 ? `${hours}h ${minutes}m` : `${minutes} min`;
-  } else {
-    const days = Math.floor(hoursToArrival / 24);
-    const hours = Math.round(hoursToArrival % 24);
-    eta = `${days}d ${hours}h`;
-  }
+  const eta = formatStormEta(hoursToArrival * 60);
   
   return { willImpact: true, eta, impactChance };
 };
