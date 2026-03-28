@@ -2,7 +2,7 @@
 
 ## Overview
 
-StormTracker is a real-time storm detection web application providing live weather radar maps, storm tracking, and weather alerts. It uses GPS or manual location input to monitor storm activity within a customizable radius. The application is enhanced with AI-powered weather analysis, integrating National Weather Service Area Forecast Discussions for comprehensive meteorological assessments. The project aims to deliver a professional, reliable, and user-friendly tool for anticipating and reacting to severe weather, with a vision to become a leading platform for public safety and meteorological insight. Current version: **v2.84** (cache bust ?v=287, SW cache stormtracker-v287).
+StormTracker is a real-time storm detection web application providing live weather radar maps, storm tracking, and weather alerts. It uses GPS or manual location input to monitor storm activity within a customizable radius. The application is enhanced with AI-powered weather analysis, integrating National Weather Service Area Forecast Discussions for comprehensive meteorological assessments. The project aims to deliver a professional, reliable, and user-friendly tool for anticipating and reacting to severe weather, with a vision to become a leading platform for public safety and meteorological insight. Current version: **v2.84** (cache bust ?v=288, SW cache stormtracker-v288).
 
 ## User Preferences
 
@@ -37,6 +37,22 @@ Preferred communication style: Simple, everyday language with customizable AI as
     - **Weather Station (PWS Console)**: Dedicated interface for real-time METAR data from AWC, including wind compass, various gauges, barometric pressure trends, precipitation, cloud cover, moon phase, forecast icon strip, and a METAR decoder. Features 24-hour history with sparkline charts, pressure tendency charts, wind distribution charts, and a condition timeline. Supports multi-station TAFs and station favoriting.
     - **Global Timezone System**: Comprehensive timezone handling.
     - **Location Management System**: Three-tier system for managing and scanning locations (Home, Scan Here, HD Scan).
+
+### JavaScript Module Structure (docs/js/)
+The frontend is a static HTML site with global-scope script tags (no ES modules). Load order matters:
+1. **core.js** (~711 lines) — Global state object `S`, unit constants, time/clock formatting, basic utilities (toast, escHtml, degToDir), temperature/wind/altitude/visibility formatters, FAA weather theory (cloud base, density alt, flight categories), Beaufort scale, unit system management, storm DBZ/ETA utilities, pixel-to-dBZ radar converters, page switching
+2. **gauges.js** (~724 lines) — Sonar radar configuration, gyro compass, wind min/max tracking, 5 gauge renderers (neon, marine, minimal, G1000, speedo), LED7 display, wind gauge animation, gauge style management
+3. **icons.js** (~322 lines) — Icon pack system (8 built-in packs), custom icon upload/import/export via IndexedDB, WMO code mapping, weather condition icons, Basmilius CDN integration
+4. **geo.js** (~791 lines) — Geolocation search (Nominatim/Photon/Open-Meteo fallback), autocomplete suggestions, location confirmation, favorites system, map picker, home/scan/HD-scan, travel mode with GPS tracking, reverse geocoding
+5. **settings.js** (~239 lines) — Tutorial overlay, changelog, first launch detection, settings panel rendering, wind sim/gust/avg/ticker speed controls, auto-refresh configuration, travel interval popup
+6. **thresholds.js** (~302 lines) — Weather threshold alerts (temp, wind, pressure, humidity, visibility), storm cell alerts (distance, dBZ, ETA, closing speed), rain alerts, browser notification system, alert history management
+7. **weather.js** — Weather data fetching, rendering, wind simulation
+8. **radar.js** — Radar tile management, sonar rendering
+9. **storms.js** — Storm detection, tracking, rendering
+10. **station.js** — METAR/TAF station console
+11. **alerts.js** — NWS alerts rendering, alert page
+12. **ai.js** — AI weather assistant
+13. **init.js** — App initialization, event binding
 
 ### Key Architectural Decisions
 - **Monorepo Structure**: Shared types and schemas between frontend and backend.
