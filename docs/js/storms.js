@@ -795,12 +795,12 @@ function spacingFilter(points,hiRes){
 // ==========================================
 function detectHookEchoes(rawPts, storms) {
   if (!rawPts || rawPts.length < 20 || !storms || !storms.length) return;
-  const strongCells = storms.filter(s => s.dbz >= 45);
+  const strongCells = storms.filter(s => s.dbz>= 45);
   if (!strongCells.length) return;
   for (const cell of strongCells) {
     const score = _computeHookScore(rawPts, cell);
     cell._hookScore = score;
-    cell._hookEcho = score >= 0.45;
+    cell._hookEcho = score>= 0.45;
     if (cell._hookEcho) {
       console.log('[HOOK] Possible rotation detected at', cell.lat.toFixed(3), cell.lng.toFixed(3), 'dBZ=' + cell.dbz, 'hookScore=' + score.toFixed(3));
     }
@@ -815,8 +815,8 @@ function _computeHookScore(rawPts, cell) {
     const dlat = p.lat - cell.lat;
     const dlng = (p.lng - cell.lng) * Math.cos(cell.lat * Math.PI / 180);
     const dist = Math.sqrt(dlat * dlat + dlng * dlng);
-    if (dist <= coreRadius && p.dbz >= 35) corePts.push({ ...p, _dx: dlng, _dy: dlat, _dist: dist });
-    else if (dist <= hookRadius && p.dbz >= 15) ringPts.push({ ...p, _dx: dlng, _dy: dlat, _dist: dist });
+    if (dist <= coreRadius && p.dbz>= 35) corePts.push({ ...p, _dx: dlng, _dy: dlat, _dist: dist });
+    else if (dist <= hookRadius && p.dbz>= 15) ringPts.push({ ...p, _dx: dlng, _dy: dlat, _dist: dist });
   }
   if (corePts.length < 5 || ringPts.length < 3) return 0;
   const coreAngles = corePts.map(p => Math.atan2(p._dy, p._dx));
@@ -834,10 +834,10 @@ function _computeHookScore(rawPts, cell) {
     const a = Math.atan2(p._dy, p._dx);
     const idx = Math.floor(((a + Math.PI) / (2 * Math.PI)) * sectors) % sectors;
     ringSectorCounts[idx]++;
-    if (p.dbz > ringSectorMaxDbz[idx]) ringSectorMaxDbz[idx] = p.dbz;
+    if (p.dbz> ringSectorMaxDbz[idx]) ringSectorMaxDbz[idx] = p.dbz;
   });
   let asymmetryScore = 0;
-  const coreFilledSectors = coreSectorCounts.filter(c => c > 0).length;
+  const coreFilledSectors = coreSectorCounts.filter(c => c> 0).length;
   const coreCompactness = coreFilledSectors / sectors;
   let bestHookRun = 0;
   let bestGapRun = 0;
@@ -845,29 +845,29 @@ function _computeHookScore(rawPts, cell) {
   let gapRun = 0;
   for (let i = 0; i < sectors * 2; i++) {
     const idx = i % sectors;
-    if (ringSectorCounts[idx] > 0 && ringSectorMaxDbz[idx] >= 20) {
+    if (ringSectorCounts[idx]> 0 && ringSectorMaxDbz[idx]>= 20) {
       hookRun++;
-      if (gapRun > bestGapRun) bestGapRun = gapRun;
+      if (gapRun> bestGapRun) bestGapRun = gapRun;
       gapRun = 0;
     } else {
-      if (hookRun > bestHookRun) bestHookRun = hookRun;
+      if (hookRun> bestHookRun) bestHookRun = hookRun;
       hookRun = 0;
       gapRun++;
     }
   }
-  if (hookRun > bestHookRun) bestHookRun = hookRun;
-  if (gapRun > bestGapRun) bestGapRun = gapRun;
+  if (hookRun> bestHookRun) bestHookRun = hookRun;
+  if (gapRun> bestGapRun) bestGapRun = gapRun;
   const hookArcFraction = Math.min(bestHookRun, sectors) / sectors;
   const gapFraction = Math.min(bestGapRun, sectors) / sectors;
-  const hasArc = hookArcFraction >= 0.25 && hookArcFraction <= 0.75;
-  const hasNotch = gapFraction >= 0.15;
+  const hasArc = hookArcFraction>= 0.25 && hookArcFraction <= 0.75;
+  const hasNotch = gapFraction>= 0.15;
   if (!hasArc) return 0;
   const notchBonus = hasNotch ? 0.2 : 0;
   asymmetryScore = 1 - coreCompactness;
-  const intensityBonus = cell.dbz >= 55 ? 0.15 : cell.dbz >= 50 ? 0.1 : 0;
+  const intensityBonus = cell.dbz>= 55 ? 0.15 : cell.dbz>= 50 ? 0.1 : 0;
   let score = (hookArcFraction * 0.4) + (asymmetryScore * 0.2) + notchBonus + intensityBonus;
   const mv = S.stormMovement;
-  if (mv && mv.speed >= 15) score += 0.05;
+  if (mv && mv.speed>= 15) score += 0.05;
   if (_spcData && _spcData.watches) {
     const inTorWatch = _spcData.watches.some(w => w.type === 'tornado' && _isPointInSpcWatch(cell.lat, cell.lng, w));
     if (inTorWatch) score += 0.1;
@@ -892,7 +892,7 @@ function _pointInAlertPoly(lat, lng, geom) {
       for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
         const xi = ring[i][0], yi = ring[i][1];
         const xj = ring[j][0], yj = ring[j][1];
-        if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+        if (((yi> lat) !== (yj> lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
           inside = !inside;
         }
       }
@@ -908,7 +908,7 @@ function _isPointInSpcWatch(lat, lng, watch) {
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const xi = ring[i][1], yi = ring[i][0];
     const xj = ring[j][1], yj = ring[j][0];
-    if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+    if (((yi> lat) !== (yj> lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
       inside = !inside;
     }
   }
@@ -990,7 +990,7 @@ async function _fetchSPCReports() {
       const lon = parseFloat(cols[6]);
       if (isNaN(lat) || isNaN(lon)) continue;
       const dist = haversine(S.lat, S.lon, lat, lon);
-      if (dist > 500) continue;
+      if (dist> 500) continue;
       reports.push({
         type: currentType || 'unknown',
         time: cols[0] || '',
@@ -1048,14 +1048,14 @@ async function _fetchSPCMesoscale() {
           const nums = llMatch[1].trim().split(/\s+/);
           const pts = [];
           for (const n of nums) {
-            if (n.length >= 7 && n.length <= 9) {
+            if (n.length>= 7 && n.length <= 9) {
               const lat = parseInt(n.substring(0, 4)) / 100;
               const lonRaw = parseInt(n.substring(4));
-              const lon = lonRaw > 999 ? -(lonRaw / 100) : -(lonRaw / 10);
-              if (lat > 15 && lat < 60 && lon > -180 && lon < -50) pts.push({ lat, lon });
+              const lon = lonRaw> 999 ? -(lonRaw / 100) : -(lonRaw / 10);
+              if (lat> 15 && lat < 60 && lon> -180 && lon < -50) pts.push({ lat, lon });
             }
           }
-          if (pts.length > 0) {
+          if (pts.length> 0) {
             md._pts = pts;
             let sumLat = 0, sumLon = 0;
             pts.forEach(p => { sumLat += p.lat; sumLon += p.lon; });
@@ -1143,7 +1143,7 @@ function _pointInRingHTML(lat, lon, ring) {
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const xi = ring[i][1], yi = ring[i][0];
     const xj = ring[j][1], yj = ring[j][0];
-    if (((yi > lon) !== (yj > lon)) && (lat < (xj - xi) * (lon - yi) / (yj - yi) + xi)) inside = !inside;
+    if (((yi> lon) !== (yj> lon)) && (lat < (xj - xi) * (lon - yi) / (yj - yi) + xi)) inside = !inside;
   }
   return inside;
 }
@@ -1205,7 +1205,7 @@ const _nhcData = { systems: null, forecast: null, cones: null, windRadii: null, 
 S._nhcTrackLayers = [];
 S._nhcSelectedStorm = null;
 S._showNHCTracks = (() => { try { const v = localStorage.getItem('st_nhc_tracks'); return v === null ? true : v === '1'; } catch(e) { return true; } })();
-S._nhcProxRadius = (() => { try { const v = parseInt(localStorage.getItem('st_nhc_prox_radius')); return v > 0 ? v : 200; } catch(e) { return 200; } })();
+S._nhcProxRadius = (() => { try { const v = parseInt(localStorage.getItem('st_nhc_prox_radius')); return v> 0 ? v : 200; } catch(e) { return 200; } })();
 const _STORM_REGIONS = [
   { id: 'all', label: 'All Basins' },
   { id: 'gulf', label: 'Gulf of Mexico' },
@@ -1219,16 +1219,16 @@ const _STORM_REGIONS = [
 S._nhcRegionFilter = (() => { try { const v = localStorage.getItem('st_nhc_region'); return v && _STORM_REGIONS.some(r => r.id === v) ? v : 'all'; } catch(e) { return 'all'; } })();
 function _classifyStormRegion(lat, lon) {
   if (lat == null || lon == null) return 'atlantic';
-  if (lat >= 18 && lat <= 31 && lon >= -98 && lon <= -81) return 'gulf';
-  if (lat >= 8 && lat <= 22 && lon >= -90 && lon <= -58) return 'caribbean';
-  if (lat >= 0) {
-    if (lon >= -140 && lon < -80) return 'epac';
-    if ((lon >= -180 && lon < -140) || (lon >= 100 && lon <= 180)) return 'wpac';
-    if (lon >= 40 && lon < 100) return 'io';
+  if (lat>= 18 && lat <= 31 && lon>= -98 && lon <= -81) return 'gulf';
+  if (lat>= 8 && lat <= 22 && lon>= -90 && lon <= -58) return 'caribbean';
+  if (lat>= 0) {
+    if (lon>= -140 && lon < -80) return 'epac';
+    if ((lon>= -180 && lon < -140) || (lon>= 100 && lon <= 180)) return 'wpac';
+    if (lon>= 40 && lon < 100) return 'io';
     return 'atlantic';
   }
-  if (lon >= 20 && lon < 135) return 'io';
-  if ((lon >= 135 && lon <= 180) || (lon >= -180 && lon < -120)) return 'spac';
+  if (lon>= 20 && lon < 135) return 'io';
+  if ((lon>= 135 && lon <= 180) || (lon>= -180 && lon < -120)) return 'spac';
   return 'atlantic';
 }
 function _getFilteredSystems() {
@@ -1353,7 +1353,7 @@ async function _fetchNHCGIS() {
         seen.add(key);
         const windKt = p.MAXWIND || p.INTENSITY || null;
         const maxWind = windKt ? Math.round(windKt * 1.15078) : null;
-        const stormType = p.STORMTYPE || (maxWind >= 74 ? 'Hurricane' : maxWind >= 39 ? 'Tropical Storm' : 'Tropical Depression');
+        const stormType = p.STORMTYPE || (maxWind>= 74 ? 'Hurricane' : maxWind>= 39 ? 'Tropical Storm' : 'Tropical Depression');
         const basin = stormId.startsWith('EP') ? 'ep' : 'at';
         result.positions.push({
           id: stormId, name, type: stormType, basin,
@@ -1551,7 +1551,7 @@ function _isUserInCone(storm) {
     const yi = ring[i][0] != null ? ring[i][0] : ring[i][1];
     const xj = ring[j][1] != null ? ring[j][1] : ring[j][0];
     const yj = ring[j][0] != null ? ring[j][0] : ring[j][1];
-    if (((yi > S.lon) !== (yj > S.lon)) && (S.lat < (xj - xi) * (S.lon - yi) / (yj - yi) + xi)) inside = !inside;
+    if (((yi> S.lon) !== (yj> S.lon)) && (S.lat < (xj - xi) * (S.lon - yi) / (yj - yi) + xi)) inside = !inside;
   }
   return inside;
 }
@@ -1567,7 +1567,7 @@ function _getTropicalAlertsForStorm(storm) {
     const headline = (a.properties?.headline || '').toLowerCase();
     const isTropical = ev.includes('hurricane') || ev.includes('tropical storm') || ev.includes('storm surge') || ev.includes('tropical depression');
     if (!isTropical) continue;
-    const matchesStorm = (name.length >= 3 && (desc.includes(name) || headline.includes(name))) || (stormId && desc.includes(stormId));
+    const matchesStorm = (name.length>= 3 && (desc.includes(name) || headline.includes(name))) || (stormId && desc.includes(stormId));
     if (!matchesStorm) continue;
     const inZone = isUserInAlertZone(a);
     if (ev.includes('warning')) warnings.push({ event: a.properties?.event, inZone });
@@ -1577,12 +1577,12 @@ function _getTropicalAlertsForStorm(storm) {
 }
 function _saffirSimpson(windMph) {
   if (!windMph) return { cat: 'Unknown', label: 'Unknown', color: '#888', num: -1 };
-  if (windMph >= 157) return { cat: 'Cat 5', label: 'Category 5', color: '#ff1744', num: 5 };
-  if (windMph >= 130) return { cat: 'Cat 4', label: 'Category 4', color: '#ff5722', num: 4 };
-  if (windMph >= 111) return { cat: 'Cat 3', label: 'Category 3', color: '#ff9800', num: 3 };
-  if (windMph >= 96) return { cat: 'Cat 2', label: 'Category 2', color: '#ffc107', num: 2 };
-  if (windMph >= 74) return { cat: 'Cat 1', label: 'Category 1', color: '#ffeb3b', num: 1 };
-  if (windMph >= 39) return { cat: 'TS', label: 'Tropical Storm', color: '#4fc3f7', num: 0 };
+  if (windMph>= 157) return { cat: 'Cat 5', label: 'Category 5', color: '#ff1744', num: 5 };
+  if (windMph>= 130) return { cat: 'Cat 4', label: 'Category 4', color: '#ff5722', num: 4 };
+  if (windMph>= 111) return { cat: 'Cat 3', label: 'Category 3', color: '#ff9800', num: 3 };
+  if (windMph>= 96) return { cat: 'Cat 2', label: 'Category 2', color: '#ffc107', num: 2 };
+  if (windMph>= 74) return { cat: 'Cat 1', label: 'Category 1', color: '#ffeb3b', num: 1 };
+  if (windMph>= 39) return { cat: 'TS', label: 'Tropical Storm', color: '#4fc3f7', num: 0 };
   return { cat: 'TD', label: 'Tropical Depression', color: '#90caf9', num: -1 };
 }
 function _tropicalStatusLabel(storm) {
@@ -1602,7 +1602,7 @@ function _escStormName(name) {
 function _renderTropicalSection() {
   const allSystems = _nhcData.systems;
   if (allSystems === null) {
-    return `<div class="card" class="mt-12"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
+    return `<div class="card mt-12"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
       <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:0.8em">🔄 Loading tropical data...</div></div>`;
   }
   const systems = _getFilteredSystems() || [];
@@ -1612,11 +1612,11 @@ function _renderTropicalSection() {
     return `<button onclick="setNHCRegionFilter('${r.id}')" style="font-size:0.6em;padding:2px 8px;border-radius:12px;border:1px solid ${isActive ? 'var(--accent-cyan)' : 'var(--border-subtle)'};background:${isActive ? 'rgba(0,229,255,0.15)' : 'var(--bg-surface)'};color:${isActive ? 'var(--accent-cyan)' : 'var(--text-muted)'};cursor:pointer;font-weight:${isActive ? '700' : '500'};white-space:nowrap">${r.label}${count ? ' (' + count + ')' : ''}</button>`;
   }).join('');
   if (!allSystems.length) {
-    return `<div class="card" class="mt-12"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
+    return `<div class="card mt-12"><div class="card-title"><span class="icon">🌀</span> Tropical Cyclones</div>
       <div style="text-align:center;padding:16px;color:var(--accent-green);font-size:0.8em">✅ No active tropical systems</div>
       <div style="font-size:0.6em;color:var(--text-muted);text-align:center;padding:0 8px 8px">Data: NHC + JTWC · ArcGIS + RSS</div></div>`;
   }
-  let html = `<div class="card" class="mt-12"><div class="card-title" class="flex-between"><span><span class="icon">🌀</span> Tropical Cyclones (${systems.length}${S._nhcRegionFilter !== 'all' ? '/' + allSystems.length : ''})</span><label style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${S._showNHCTracks ? 'checked' : ''} onchange="toggleNHCTracks(this.checked)" style="accent-color:var(--accent-cyan)"></label></div>`;
+  let html = `<div class="card mt-12"><div class="card-title flex-between"><span><span class="icon">🌀</span> Tropical Cyclones (${systems.length}${S._nhcRegionFilter !== 'all' ? '/' + allSystems.length : ''})</span><label style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${S._showNHCTracks ? 'checked' : ''} onchange="toggleNHCTracks(this.checked)" style="accent-color:var(--accent-cyan)"></label></div>`;
   html += `<div style="display:flex;gap:4px;margin-bottom:8px;padding:0 4px;flex-wrap:wrap;overflow-x:auto">${regionPills}</div>`;
   const catScale = `<div style="display:flex;gap:2px;margin-bottom:8px;padding:0 4px;flex-wrap:wrap">
     <span style="font-size:0.55em;padding:1px 5px;border-radius:4px;background:#90caf920;color:#90caf9;font-weight:600">TD</span>
@@ -1646,7 +1646,7 @@ function _renderTropicalSection() {
         <div class="flex-1">
           <div style="font-weight:700;font-size:0.95em;color:var(--text-primary)">${s.type} ${s.name}</div>
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span style="font-size:0.7em;color:${cat.color};font-weight:700">${cat.label}${cat.num >= 1 ? ' (Category ' + cat.num + ')' : ''}</span>
+            <span style="font-size:0.7em;color:${cat.color};font-weight:700">${cat.label}${cat.num>= 1 ? ' (Category ' + cat.num + ')' : ''}</span>
             ${status ? `<span style="font-size:0.55em;padding:1px 6px;border-radius:8px;background:${status.bg};color:${status.color};font-weight:700">${status.text}</span>` : ''}
           </div>
         </div>
@@ -1660,7 +1660,7 @@ function _renderTropicalSection() {
         ${s.minPressure != null ? `<div style="text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase">Pressure</div><div style="font-size:0.9em;font-weight:700;color:var(--text-primary)">${s.minPressure} mb</div></div>` : ''}
         ${s.moveDir ? `<div style="text-align:center;padding:4px;background:var(--bg-surface);border-radius:6px;border:1px solid var(--border-subtle)"><div style="font-size:0.55em;color:var(--text-muted);text-transform:uppercase">Movement</div><div style="font-size:0.9em;font-weight:700;color:var(--text-primary)">${s.moveDir}${s.moveSpeed ? ' ' + s.moveSpeed + ' mph' : ''}</div></div>` : ''}
       </div>
-      ${s.lat != null ? `<div style="font-size:0.65em;color:var(--text-muted);margin-top:4px">📍 ${Math.abs(s.lat).toFixed(1)}°${s.lat >= 0 ? 'N' : 'S'}, ${Math.abs(s.lon).toFixed(1)}°${s.lon >= 0 ? 'E' : 'W'} · ${(_STORM_REGIONS.find(r => r.id === s._region) || {}).label || s.basin}${s._source === 'jtwc' ? ' (JTWC)' : ''}${hasForecast ? ' · <span class="c-cyan">Tap for forecast track</span>' : ''}</div>` : ''}
+      ${s.lat != null ? `<div style="font-size:0.65em;color:var(--text-muted);margin-top:4px">📍 ${Math.abs(s.lat).toFixed(1)}°${s.lat>= 0 ? 'N' : 'S'}, ${Math.abs(s.lon).toFixed(1)}°${s.lon>= 0 ? 'E' : 'W'} · ${(_STORM_REGIONS.find(r => r.id === s._region) || {}).label || s.basin}${s._source === 'jtwc' ? ' (JTWC)' : ''}${hasForecast ? ' · <span class="c-cyan">Tap for forecast track</span>' : ''}</div>` : ''}
     </div>`;
   });
   html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px 2px">
@@ -1690,7 +1690,7 @@ function _selectNHCStorm(idOrName) {
   if (!tryPlot()) {
     let attempts = 0;
     const interval = setInterval(() => {
-      if (tryPlot() || ++attempts >= 10) clearInterval(interval);
+      if (tryPlot() || ++attempts>= 10) clearInterval(interval);
     }, 300);
   }
   const storm = findStorm();
@@ -1748,7 +1748,7 @@ function plotNHCTracks(map) {
     const cat = s.category || _saffirSimpson(s.maxWind);
     const isSelected = !!selectedName && (s.id === selectedName || s.name.toLowerCase() === selectedName.toLowerCase());
     const marker = L.circleMarker([s.lat, s.lon], {
-      radius: isSelected ? 14 : (cat.num >= 3 ? 12 : cat.num >= 1 ? 10 : 8),
+      radius: isSelected ? 14 : (cat.num>= 3 ? 12 : cat.num>= 1 ? 10 : 8),
       color: cat.color, fillColor: cat.color,
       fillOpacity: isSelected ? 0.7 : 0.5,
       weight: isSelected ? 4 : 3
@@ -1774,8 +1774,8 @@ function plotNHCTracks(map) {
     const label = L.marker([s.lat, s.lon], { icon: labelIcon, interactive: false });
     label.addTo(map);
     S._nhcTrackLayers.push(label);
-    if (cat.num >= 0) {
-      const pulseR = cat.num >= 3 ? 30 : cat.num >= 1 ? 22 : 16;
+    if (cat.num>= 0) {
+      const pulseR = cat.num>= 3 ? 30 : cat.num>= 1 ? 22 : 16;
       const pulse = L.circleMarker([s.lat, s.lon], {
         radius: pulseR, color: cat.color, fillColor: cat.color,
         fillOpacity: 0.1, weight: 1, dashArray: '4,4', interactive: false,
@@ -1821,7 +1821,7 @@ function _renderStormSurgeSection() {
     return ev.includes('storm surge') || ev.includes('coastal flood') || (ev.includes('hurricane') && ev.includes('warning'));
   });
   if (!surgeAlerts.length) return '';
-  let html = `<div class="card" class="mt-12"><div class="card-title"><span class="icon">🌊</span> Storm Surge & Coastal Flooding (${surgeAlerts.length})</div>`;
+  let html = `<div class="card mt-12"><div class="card-title"><span class="icon">🌊</span> Storm Surge & Coastal Flooding (${surgeAlerts.length})</div>`;
   surgeAlerts.forEach(a => {
     const p = a.properties || {};
     const ev = p.event || 'Storm Surge Alert';
@@ -1837,7 +1837,7 @@ function _renderStormSurgeSection() {
         ${inZone ? '<span style="font-size:0.6em;background:rgba(59,130,246,0.2);color:#60a5fa;padding:1px 6px;border-radius:8px;font-weight:700;animation:tornado-pulse 2s ease-in-out infinite">YOUR AREA</span>' : ''}
       </div>
       ${surgeStr ? `<div style="font-size:0.85em;font-weight:700;color:#3b82f6;margin-bottom:4px">⬆️ Expected surge: ${surgeStr} above normal tide levels</div>` : ''}
-      <div style="font-size:0.7em;color:var(--text-secondary);max-height:80px;overflow:hidden;text-overflow:ellipsis">${desc.substring(0, 300)}${desc.length > 300 ? '...' : ''}</div>
+      <div style="font-size:0.7em;color:var(--text-secondary);max-height:80px;overflow:hidden;text-overflow:ellipsis">${desc.substring(0, 300)}${desc.length> 300 ? '...' : ''}</div>
       ${p.expires ? `<div style="font-size:0.65em;color:var(--text-muted);margin-top:4px">⏱️ Expires: ${new Date(p.expires).toLocaleString()}</div>` : ''}
     </div>`;
   });

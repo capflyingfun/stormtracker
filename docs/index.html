@@ -99,9 +99,9 @@
           <div class="setting-row">
             <span class="text-xs-muted">🕐 Time Format</span>
             <div class="seg-row" id="ubg-timefmt">
-              <button onclick="setTimeFormat('auto')" class="tf-btn" data-tf="auto" class="mini-btn">Auto</button>
-              <button onclick="setTimeFormat('12h')" class="tf-btn" data-tf="12h" class="mini-btn">12h</button>
-              <button onclick="setTimeFormat('24h')" class="tf-btn" data-tf="24h" class="mini-btn">24h</button>
+              <button onclick="setTimeFormat('auto')" class="tf-btn mini-btn" data-tf="auto">Auto</button>
+              <button onclick="setTimeFormat('12h')" class="tf-btn mini-btn" data-tf="12h">12h</button>
+              <button onclick="setTimeFormat('24h')" class="tf-btn mini-btn" data-tf="24h">24h</button>
             </div>
           </div>
           <div id="unit-save-row" style="display:none;margin-top:8px;text-align:center">
@@ -112,11 +112,11 @@
       <div class="setting-sep">
         <div class="setting-heading">🎨 Wind Gauge Style</div>
         <div class="seg-row-wrap" id="gauge-style-btns">
-          <button class="gauge-style-btn" data-style="neon" onclick="setGaugeStyle('neon')" class="seg-btn">⚡ Neon</button>
-          <button class="gauge-style-btn" data-style="marine" onclick="setGaugeStyle('marine')" class="seg-btn">⚓ Marine</button>
-          <button class="gauge-style-btn" data-style="minimal" onclick="setGaugeStyle('minimal')" class="seg-btn">◯ Minimal</button>
-          <button class="gauge-style-btn" data-style="g1000" onclick="setGaugeStyle('g1000')" class="seg-btn">✈️ G1000</button>
-          <button class="gauge-style-btn" data-style="speedo" onclick="setGaugeStyle('speedo')" class="seg-btn">🏎️ Speedo</button>
+          <button class="gauge-style-btn seg-btn" data-style="neon" onclick="setGaugeStyle('neon')">⚡ Neon</button>
+          <button class="gauge-style-btn seg-btn" data-style="marine" onclick="setGaugeStyle('marine')">⚓ Marine</button>
+          <button class="gauge-style-btn seg-btn" data-style="minimal" onclick="setGaugeStyle('minimal')">◯ Minimal</button>
+          <button class="gauge-style-btn seg-btn" data-style="g1000" onclick="setGaugeStyle('g1000')">✈️ G1000</button>
+          <button class="gauge-style-btn seg-btn" data-style="speedo" onclick="setGaugeStyle('speedo')">🏎️ Speedo</button>
         </div>
         <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:4px" id="gauge-style-desc"></div>
         <div style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.06);padding-top:8px">
@@ -162,15 +162,15 @@
       <div class="setting-sep">
         <div class="setting-heading">🎨 Weather Icons</div>
         <div class="seg-row-wrap" id="icon-pack-btns">
-          <button class="icon-pack-btn" data-pack="basmilius" onclick="setIconPack('basmilius')" class="seg-btn">✨ Animated</button>
-          <button class="icon-pack-btn" data-pack="emoji" onclick="setIconPack('emoji')" class="seg-btn">😀 Emoji</button>
-          <button class="icon-pack-btn" data-pack="flat-filled" onclick="setIconPack('flat-filled')" class="seg-btn-hidden">🎨 Flat</button>
-          <button class="icon-pack-btn" data-pack="flat-outline" onclick="setIconPack('flat-outline')" class="seg-btn-hidden">✏️ Outline</button>
-          <button class="icon-pack-btn" data-pack="glossy" onclick="setIconPack('glossy')" class="seg-btn-hidden">💎 Glossy</button>
-          <button class="icon-pack-btn" data-pack="neon" onclick="setIconPack('neon')" class="seg-btn-hidden">💡 Neon</button>
-          <button class="icon-pack-btn" data-pack="globe" onclick="setIconPack('globe')" class="seg-btn">🌍 Globe</button>
-          <button class="icon-pack-btn" data-pack="globe-animated" onclick="setIconPack('globe-animated')" class="seg-btn">🎬 Globe HD</button>
-          <button class="icon-pack-btn" data-pack="custom" onclick="setIconPack('custom')" class="seg-btn">🖌️ Custom</button>
+          <button class="icon-pack-btn seg-btn" data-pack="basmilius" onclick="setIconPack('basmilius')">✨ Animated</button>
+          <button class="icon-pack-btn seg-btn" data-pack="emoji" onclick="setIconPack('emoji')">😀 Emoji</button>
+          <button class="icon-pack-btn seg-btn-hidden" data-pack="flat-filled" onclick="setIconPack('flat-filled')">🎨 Flat</button>
+          <button class="icon-pack-btn seg-btn-hidden" data-pack="flat-outline" onclick="setIconPack('flat-outline')">✏️ Outline</button>
+          <button class="icon-pack-btn seg-btn-hidden" data-pack="glossy" onclick="setIconPack('glossy')">💎 Glossy</button>
+          <button class="icon-pack-btn seg-btn-hidden" data-pack="neon" onclick="setIconPack('neon')">💡 Neon</button>
+          <button class="icon-pack-btn seg-btn" data-pack="globe" onclick="setIconPack('globe')">🌍 Globe</button>
+          <button class="icon-pack-btn seg-btn" data-pack="globe-animated" onclick="setIconPack('globe-animated')">🎬 Globe HD</button>
+          <button class="icon-pack-btn seg-btn" data-pack="custom" onclick="setIconPack('custom')">🖌️ Custom</button>
         </div>
         <div id="icon-pack-preview" style="display:flex;gap:6px;justify-content:center;align-items:center;padding:8px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:4px"></div>
         <div style="font-size:0.55em;color:var(--text-muted)">Changes weather icons across the entire app</div>

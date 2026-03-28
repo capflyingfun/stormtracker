@@ -209,7 +209,7 @@ function renderAlerts(){
   nwsBody+=_renderStormSurgeSection()+_renderTropicalSection()+_renderSPCWatchSection()+_renderSPCMDSection()+_renderSPCReportsSection();
   const nwsCnt=(S.alerts||[]).length;
   const _sortDir=_getAlertSortOrder();const _sortLabel=_sortDir==='desc'?'Soonest First':'Latest First';const _sortBtn=nwsCnt?`<button onclick="event.stopPropagation();toggleAlertSort()" title="Click to switch to ${_sortDir==='desc'?'latest':'soonest'} first" style="padding:2px 7px;font-size:0.6em;font-weight:600;border-radius:5px;cursor:pointer;border:1px solid rgba(0,229,255,0.25);background:rgba(0,229,255,0.08);color:var(--accent-cyan);white-space:nowrap">${_sortDir==='desc'?'⏶':'⏷'} ${_sortLabel}</button>`:'';
-  sec.nws=`<div class="card" class="mt-12" data-alert-sec="nws"><div class="card-title" class="flex-between" style="cursor:pointer" onclick="toggleAlertSection('nws')"><span><span class="icon">⚠️</span> NWS Alerts${nwsCnt?' ('+nwsCnt+')':''}</span><span class="flex-center-gap4">${_sortBtn}${_alertSecBtns('nws')}<span class="c-muted">${coll.includes('nws')?'▸':'▾'}</span></span></div>${coll.includes('nws')?'':nwsBody}</div>`; }
+  sec.nws=`<div class="card mt-12"  data-alert-sec="nws"><div class="card-title flex-between"  style="cursor:pointer" onclick="toggleAlertSection('nws')"><span><span class="icon">⚠️</span> NWS Alerts${nwsCnt?' ('+nwsCnt+')':''}</span><span class="flex-center-gap4">${_sortBtn}${_alertSecBtns('nws')}<span class="c-muted">${coll.includes('nws')?'▸':'▾'}</span></span></div>${coll.includes('nws')?'':nwsBody}</div>`; }
 
   { const hist=_wxAlertHistory.slice().reverse();
   let stBody='';
@@ -223,7 +223,7 @@ function renderAlerts(){
     });
   }
   const stClear=hist.length?'<button onclick="event.stopPropagation();clearWxAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':'';
-  sec.station=`<div class="card" class="mt-12" data-alert-sec="station"><div class="card-title" class="flex-between" style="cursor:pointer" onclick="toggleAlertSection('station')"><span><span class="icon">🔔</span> Station Alerts${hist.length?' ('+hist.length+')':''}</span><span class="flex-center-gap4">${stClear}${_alertSecBtns('station')}<span class="c-muted">${coll.includes('station')?'▸':'▾'}</span></span></div>${coll.includes('station')?'':stBody}</div>`; }
+  sec.station=`<div class="card mt-12"  data-alert-sec="station"><div class="card-title flex-between"  style="cursor:pointer" onclick="toggleAlertSection('station')"><span><span class="icon">🔔</span> Station Alerts${hist.length?' ('+hist.length+')':''}</span><span class="flex-center-gap4">${stClear}${_alertSecBtns('station')}<span class="c-muted">${coll.includes('station')?'▸':'▾'}</span></span></div>${coll.includes('station')?'':stBody}</div>`; }
 
   { function _stormThreatCmp(a,b){const dd=(b.val||0)-(a.val||0);if(dd!==0)return dd;const di=(b.impactPct||0)-(a.impactPct||0);if(di!==0)return di;return(a.distance||0)-(b.distance||0)}
   const stormHist=_stormAlertHistory.slice().reverse();
@@ -341,11 +341,11 @@ function renderAlerts(){
     });
   }
   const scClear=stormHist.length?'<button onclick="event.stopPropagation();clearStormAlertHistory()" style="font-size:0.7em;padding:2px 8px;background:rgba(255,51,85,0.1);color:var(--accent-red);border:1px solid rgba(255,51,85,0.3);border-radius:6px;cursor:pointer;font-weight:600;text-transform:none;letter-spacing:0">Clear</button>':'';
-  sec.storms=`<div class="card" class="mt-12" data-alert-sec="storms"><div class="card-title" class="flex-between" style="cursor:pointer" onclick="toggleAlertSection('storms')"><span><span class="icon">🌩️</span> Storm Cell Alerts${stormHist.length?' ('+stormHist.length+')':''}</span><span class="flex-center-gap4">${scClear}${_alertSecBtns('storms')}<span class="c-muted">${coll.includes('storms')?'▸':'▾'}</span></span></div>${coll.includes('storms')?'':scBody}</div>`; }
+  sec.storms=`<div class="card mt-12"  data-alert-sec="storms"><div class="card-title flex-between"  style="cursor:pointer" onclick="toggleAlertSection('storms')"><span><span class="icon">🌩️</span> Storm Cell Alerts${stormHist.length?' ('+stormHist.length+')':''}</span><span class="flex-center-gap4">${scClear}${_alertSecBtns('storms')}<span class="c-muted">${coll.includes('storms')?'▸':'▾'}</span></span></div>${coll.includes('storms')?'':scBody}</div>`; }
 
   /* Rain Alerts section hidden — feature removed for now */
 
-  sec.hazards=`<div class="card" class="mt-12" data-alert-sec="hazards"><div class="card-title" class="flex-between" style="cursor:pointer" onclick="toggleAlertSection('hazards')"><span><span class="icon">🌍</span> Environmental Hazards</span><span class="flex-center-gap4">${_alertSecBtns('hazards')}<span class="c-muted">${coll.includes('hazards')?'▸':'▾'}</span></span></div>${coll.includes('hazards')?'':'<div id="hazards-section"></div>'}</div>`;
+  sec.hazards=`<div class="card mt-12"  data-alert-sec="hazards"><div class="card-title flex-between"  style="cursor:pointer" onclick="toggleAlertSection('hazards')"><span><span class="icon">🌍</span> Environmental Hazards</span><span class="flex-center-gap4">${_alertSecBtns('hazards')}<span class="c-muted">${coll.includes('hazards')?'▸':'▾'}</span></span></div>${coll.includes('hazards')?'':'<div id="hazards-section"></div>'}</div>`;
 
   let html='';
   order.forEach(k=>{if(sec[k])html+=sec[k]});
@@ -548,12 +548,12 @@ function _renderSPCWatchSection(){
   if (!isUSLocation(S.lat, S.lon)) return '';
   const watches = _spcData.watches;
   if (!watches || !watches.length) {
-    return `<details id="hz-severe-wx" class="card" class="mt-12" open><summary class="card-title" class="detail-summary"><span><span class="icon">🌪️</span> SPC Watches</span><span class="c-muted text-xs">▾</span></summary>
+    return `<details id="hz-severe-wx" class="card mt-12"  open><summary class="card-title detail-summary"><span><span class="icon">🌪️</span> SPC Watches</span><span class="c-muted text-xs">▾</span></summary>
       <div class="text-center-ok">✅ No active SPC watches for the US</div></details>`;
   }
   const userWatches = watches.filter(w => _isPointInSpcWatch(S.lat, S.lon, w));
   const otherWatches = watches.filter(w => !_isPointInSpcWatch(S.lat, S.lon, w));
-  let html = `<details id="hz-severe-wx" class="card" class="mt-12" open><summary class="card-title" class="detail-summary"><span><span class="icon">🌪️</span> SPC Watches (${watches.length})</span><span class="c-muted text-xs">▾</span></summary>`;
+  let html = `<details id="hz-severe-wx" class="card mt-12"  open><summary class="card-title detail-summary"><span><span class="icon">🌪️</span> SPC Watches (${watches.length})</span><span class="c-muted text-xs">▾</span></summary>`;
   if (userWatches.length) {
     html += `<div class="alert-banner danger" style="margin-bottom:8px;border-left:4px solid ${userWatches.some(w => w.type === 'tornado') ? '#ff1744' : '#ff9800'}"><span class="alert-icon">${userWatches.some(w => w.type === 'tornado') ? '🌪️' : '⛈️'}</span><div class="alert-text"><span class="alert-title">You are in a ${userWatches.some(w => w.type === 'tornado') ? 'TORNADO' : 'SEVERE THUNDERSTORM'} WATCH</span><br>Conditions are favorable for severe weather in your area.</div></div>`;
   }
@@ -567,10 +567,10 @@ function _renderSPCWatchSection(){
     let expStr = '';
     if (w.expTime) {
       const remain = w.expTime - Date.now();
-      if (remain > 0) {
+      if (remain> 0) {
         const hrs = Math.floor(remain / 3600000);
         const mins = Math.floor((remain % 3600000) / 60000);
-        expStr = hrs > 0 ? hrs + 'h ' + mins + 'm remaining' : mins + 'm remaining';
+        expStr = hrs> 0 ? hrs + 'h ' + mins + 'm remaining' : mins + 'm remaining';
       }
     }
     html += `<div class="spc-watch-card ${cls}">
@@ -590,21 +590,21 @@ function _renderSPCReportsSection(){
   if (!isUSLocation(S.lat, S.lon)) return '';
   const reports = _spcData.reports;
   if (!reports || !reports.length) {
-    return `<details class="card" class="mt-12" open><summary class="card-title" class="detail-summary"><span><span class="icon">📋</span> SPC Storm Reports (Today)</span><span class="c-muted text-xs">▾</span></summary>
+    return `<details class="card mt-12"  open><summary class="card-title detail-summary"><span><span class="icon">📋</span> SPC Storm Reports (Today)</span><span class="c-muted text-xs">▾</span></summary>
       <div class="text-center-ok">✅ No severe weather reports today nearby</div></details>`;
   }
   const nearby = reports.filter(r => r.dist <= 200);
   if (!nearby.length) {
-    return `<details class="card" class="mt-12" open><summary class="card-title" class="detail-summary"><span><span class="icon">📋</span> SPC Storm Reports (Today)</span><span class="c-muted text-xs">▾</span></summary>
+    return `<details class="card mt-12"  open><summary class="card-title detail-summary"><span><span class="icon">📋</span> SPC Storm Reports (Today)</span><span class="c-muted text-xs">▾</span></summary>
       <div class="text-center-ok">✅ No severe weather reports within 200 mi today</div></details>`;
   }
   const tornadoes = nearby.filter(r => r.type === 'tornado');
   const hail = nearby.filter(r => r.type === 'hail');
   const wind = nearby.filter(r => r.type === 'wind');
   const toggleChecked = S._showSPCReports ? 'checked' : '';
-  let html = `<details class="card" class="mt-12" open><summary class="card-title" class="detail-summary"><span><span class="icon">📋</span> SPC Storm Reports (${nearby.length} today)</span><span style="display:flex;align-items:center;gap:6px"><label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${toggleChecked} onchange="toggleSPCReports(this.checked)" style="accent-color:var(--accent-cyan)"></label><span class="c-muted text-xs">▾</span></span></summary>`;
+  let html = `<details class="card mt-12"  open><summary class="card-title detail-summary"><span><span class="icon">📋</span> SPC Storm Reports (${nearby.length} today)</span><span style="display:flex;align-items:center;gap:6px"><label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:4px;font-size:0.65em;font-weight:500;color:var(--text-muted);cursor:pointer"><span>Map</span><input type="checkbox" ${toggleChecked} onchange="toggleSPCReports(this.checked)" style="accent-color:var(--accent-cyan)"></label><span class="c-muted text-xs">▾</span></span></summary>`;
   const summary = [];
-  if (tornadoes.length) summary.push(`🌪️ ${tornadoes.length} tornado${tornadoes.length > 1 ? 'es' : ''}`);
+  if (tornadoes.length) summary.push(`🌪️ ${tornadoes.length} tornado${tornadoes.length> 1 ? 'es' : ''}`);
   if (hail.length) summary.push(`🧊 ${hail.length} hail`);
   if (wind.length) summary.push(`💨 ${wind.length} wind`);
   html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;padding:0 4px">${summary.map(s => `<span style="font-size:0.75em;font-weight:600;color:var(--text-secondary)">${s}</span>`).join('<span class="c-muted">·</span>')}</div>`;
@@ -645,10 +645,10 @@ function _renderSPCMDSection(){
     return false;
   });
   if (!mds.length) {
-    return `<details class="card" class="mt-12" open><summary class="card-title" class="detail-summary"><span><span class="icon">📝</span> Mesoscale Discussions</span><span class="c-muted text-xs">▾</span></summary>
+    return `<details class="card mt-12"  open><summary class="card-title detail-summary"><span><span class="icon">📝</span> Mesoscale Discussions</span><span class="c-muted text-xs">▾</span></summary>
       <div class="text-center-ok">✅ No active mesoscale discussions nearby</div></details>`;
   }
-  let html = `<details class="card" class="mt-12" open><summary class="card-title" class="detail-summary"><span><span class="icon">📝</span> Mesoscale Discussions (${mds.length})</span><span class="c-muted text-xs">▾</span></summary>`;
+  let html = `<details class="card mt-12"  open><summary class="card-title detail-summary"><span><span class="icon">📝</span> Mesoscale Discussions (${mds.length})</span><span class="c-muted text-xs">▾</span></summary>`;
   mds.forEach(md => {
     const isTor = md.type === 'tornado';
     const isSvr = md.type === 'severe';
