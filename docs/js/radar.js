@@ -1515,7 +1515,6 @@ function updateThreatTicker(){
   const inner=document.getElementById('threat-ticker-inner');
   if(!bar||!inner)return;
   const mv=S.stormMovement;
-  const stormCount=S.storms?S.storms.length:0;
   function showTicker(html,color,borderColor,bg,dur){
     inner.innerHTML=html;
     const textLen=inner.textContent?inner.textContent.length:60;
@@ -1574,19 +1573,26 @@ function updateThreatTicker(){
       }
     }
   }
-  const topStorms=S._topStorms||[];
-  const analysis=S._topStormAnalysis||{};
-  const sigStormCount=(analysis.allWithEta?analysis.allWithEta.filter(s=>s.dbz>=31).length:0)||(S.storms?S.storms.filter(s=>s.dbz>=31).length:0);
+  const _sf=S._stormFilter||{minDbz:0,maxDist:0,approachOnly:false,sort1:'threat',sort2:'eta'};
+  const _allStorms=S.storms||[];
+  const _filteredStorms=(typeof _applyStormFilter==='function')?_applyStormFilter(_allStorms,_sf):_allStorms;
+  const topStorms=(S._topStorms||[]).filter(s=>{
+    if(_sf.minDbz>0&&s.dbz<_sf.minDbz)return false;
+    if(_sf.maxDist>0&&s.distance>_sf.maxDist)return false;
+    return true;
+  });
+  const sigStormCount=_filteredStorms.filter(s=>s.dbz>=31).length;
   let gridZoneCount=0,gridZoneMaxDbz=0;
   if(S._rawScanPts&&S._rawScanPts.length&&S.lat!=null){
     const gzCells=polarGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
     gridZoneCount=gzCells.size;
     for(const[,c]of gzCells){if(c.maxDbz>gridZoneMaxDbz)gridZoneMaxDbz=c.maxDbz}
   }
+  const stormCount=_filteredStorms.length;
   if(sigStormCount===0){
     const pool=_tickerWeatherPool();
     if(stormCount>0){
-      const maxClutter=Math.max(...S.storms.map(s=>s.dbz));
+      const maxClutter=Math.max(..._filteredStorms.map(s=>s.dbz));
       pool.unshift(`✅ ${stormCount} minor radar return${stormCount>1?'s':''} detected (max ${maxClutter} dBZ) — likely ground clutter, not real precipitation. All clear! 🌤️`);
       pool.unshift(`✅ Light radar reflectivity picked up (${stormCount} return${stormCount>1?'s':''}, peak ${maxClutter} dBZ). Nothing significant — enjoy your day! ☀️`);
       pool.unshift(`✅ Minor clutter on radar — ${stormCount} point${stormCount>1?'s':''} below 31 dBZ. No meaningful weather activity. 😎`);
