@@ -124,7 +124,9 @@ function showLocationConfirm(){
     navigator.geolocation.getCurrentPosition(
       pos=>{
         toast('📍 GPS locked — accuracy ±'+Math.round(pos.coords.accuracy)+'m');
-        reverseGeo(pos.coords.latitude,pos.coords.longitude);
+        if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;
+        S._gpsLocating=true;
+        reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{S._gpsLocating=false});
       },
       err=>{
         if(err.code===1){
@@ -134,7 +136,7 @@ function showLocationConfirm(){
         }else if(err.code===3){
           toast('📍 GPS timed out — trying again with lower accuracy...');
           navigator.geolocation.getCurrentPosition(
-            pos=>{toast('📍 Location found');reverseGeo(pos.coords.latitude,pos.coords.longitude);},
+            pos=>{toast('📍 Location found');if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;S._gpsLocating=true;reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{S._gpsLocating=false});},
             err2=>{toast('📍 Still cannot get location — try searching for your city instead');},
             {enableHighAccuracy:false,timeout:15000,maximumAge:120000}
           );
@@ -219,6 +221,7 @@ function goHome(){
   }
   if(!home){toast('📍 No home location — set a location first');return}
   clearViewScanCircle();
+  S._gpsAltitude=null;
   S.lat=home.lat;S.lon=home.lon;S.locName=home.name;
   document.getElementById('location-input').value=S.locName;
   S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
@@ -246,6 +249,7 @@ function scanHere(){
   clearViewScanCircle();
   S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});S.stormMarkers=[];
   clearStormCone();
+  S._gpsAltitude=null;
   S.lat=cLat;S.lon=cLng;
   S.locName=`${cLat.toFixed(4)}, ${cLng.toFixed(4)}`;
   document.getElementById('location-input').value=S.locName;
@@ -333,6 +337,7 @@ let _setLocTimer=null;
 function setLoc(lat,lon,name,fromTravel){
   if(!getHomeLocation()){setHomeLocation(lat,lon,name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`)}
   if(!fromTravel && S.travelMode) stopTravelMode();
+  if(!fromTravel&&!S._gpsLocating)S._gpsAltitude=null;
   S.lat=lat;S.lon=lon;
   S.locName=name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
   document.getElementById('location-input').value=S.locName;
@@ -581,6 +586,7 @@ async function toggleTravelMode(){
     gpsPos=await new Promise((resolve,reject)=>{
       navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:10000});
     });
+    if(gpsPos&&gpsPos.coords.altitude!=null)S._gpsAltitude=gpsPos.coords.altitude;
   }catch(err){
     if(err.code===1){
       toast('📍 Location access denied — Travel Mode requires GPS permission');
@@ -642,7 +648,8 @@ function showGpsRelocateConfirm(distMi,gpsLat,gpsLon){
     document.getElementById('gps-reloc-yes').addEventListener('click',()=>{
       overlay.remove();
       toast('📍 Relocating to GPS position...');
-      reverseGeo(gpsLat,gpsLon);
+      S._gpsLocating=true;
+      reverseGeo(gpsLat,gpsLon).finally(()=>{S._gpsLocating=false});
       resolve(true);
     });
     overlay.addEventListener('click',e=>{if(e.target===overlay){overlay.remove();resolve(false)}});
@@ -706,9 +713,10 @@ function pickTravelInterval(val){
 async function startTravelModeAfterPick(){
   if(!navigator.geolocation) return toast('GPS not available on this device');
   try{
-    await new Promise((resolve,reject)=>{
+    const _gp=await new Promise((resolve,reject)=>{
       navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:10000});
     });
+    if(_gp&&_gp.coords.altitude!=null)S._gpsAltitude=_gp.coords.altitude;
   }catch(err){
     if(err.code===1)toast('📍 Location access denied — Travel Mode requires GPS permission');
     else toast('📍 Could not get GPS position — please try again');
@@ -749,6 +757,7 @@ function startGpsWatch(){
 }
 function onTravelPosition(pos){
   if(!S.travelMode) return;
+  if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;
   const lat=pos.coords.latitude, lon=pos.coords.longitude;
   const acc=pos.coords.accuracy;
   const now=Date.now();

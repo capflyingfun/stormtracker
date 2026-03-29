@@ -528,7 +528,16 @@ function renderStation(){
         const _inv=detectInversion(_sp,_wk,_dy,_cc);
         let html='<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">';
         html+=`<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div class="tile-label-upper">🌫️ Fog Risk</div><div style="font-size:0.9em;font-weight:700;color:${_fog.color}">${_fog.level}</div><div class="text-hint">${_fog.desc}</div></div>`;
-        html+=`<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div class="tile-label-upper">☁️ Cloud Base</div><div style="font-size:0.9em;font-weight:700;color:var(--accent-cyan)">${fmtAlt(calcCloudBase(_sp))}</div><div class="text-hint">Estimated AGL</div></div>`;
+        html+='<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div class="tile-label-upper">☁️ Cloud Base</div>';
+        const _ceil=getMetarCeilingFt(s);
+        if(_ceil!=null){
+          const _adjCeil=adjustCloudBaseForUser(_ceil);
+          html+=`<div style="font-size:0.9em;font-weight:700;color:var(--accent-cyan)">${fmtAlt(_adjCeil)}</div><div class="text-hint">Reported ceiling AGL</div>`;
+          html+=`<div style="font-size:0.65em;color:var(--text-muted);margin-top:2px">Est. ${fmtAlt(adjustCloudBaseForUser(calcCloudBase(_sp)))}</div>`;
+        }else{
+          html+=`<div style="font-size:0.9em;font-weight:700;color:var(--accent-cyan)">${fmtAlt(adjustCloudBaseForUser(calcCloudBase(_sp)))}</div><div class="text-hint">Estimated AGL</div>`;
+        }
+        html+='</div>';
         html+='</div>';
         if(_inv.detected)html+=`<div style="background:rgba(255,152,0,0.1);border:1px solid rgba(255,152,0,0.3);border-radius:8px;padding:6px 10px;margin-bottom:10px;font-size:0.72em;color:var(--accent-orange);text-align:center">⚠️ ${_inv.text}</div>`;
         return html;
@@ -676,8 +685,14 @@ function decodeMetar(raw){
       if(d&&d.length){
         const dc=d.startsWith('M')?-parseInt(d.slice(1)):parseInt(d);
         const spreadC=tc-dc;
-        const cbFt=calcCloudBase(spreadC);
-        rows.push(c('#00e5ff','Temp/Dew',`${fmtTemp(tc)} / ${fmtTemp(dc)}`,`Spread: ${fmtTempDiff(spreadC)} — ${getSpreadLabel(spreadC)}<br>Est. cloud base: ~${fmtAlt(cbFt)} AGL`));
+        const cbFt=adjustCloudBaseForUser(calcCloudBase(spreadC));
+        const _mCeil=getMetarCeilingFt(S.station);
+        let cbLine=`Spread: ${fmtTempDiff(spreadC)} — ${getSpreadLabel(spreadC)}<br>Est. cloud base: ~${fmtAlt(cbFt)} AGL`;
+        if(_mCeil!=null){
+          const _adjMCeil=adjustCloudBaseForUser(_mCeil);
+          cbLine+=`<br>Reported ceiling: ${fmtAlt(_adjMCeil)} AGL`;
+        }
+        rows.push(c('#00e5ff','Temp/Dew',`${fmtTemp(tc)} / ${fmtTemp(dc)}`,cbLine));
       }else{
         rows.push(c('#00e5ff','Temp/Dew',`${fmtTemp(tc)} / --`,'Dew point not reported'));
       }
