@@ -312,7 +312,7 @@ function buildWeatherContext(){
     if(stab.temp!=null&&stab.dewp!=null)parts.push(`  Temp-Dewpoint Spread: ${fmtTempDiff(stab.temp-stab.dewp)}`);
     parts.push(`\n2. ATMOSPHERIC STABILITY (${stab.stabRat}/10):`);
     parts.push(`  CAPE: ${stab.cape||0} J/kg`);
-    parts.push(`  Lifted Index: ${stab.li!=null?stab.li.toFixed(1):'?'}°C (negative = unstable)`);
+    parts.push(`  Lifted Index: ${stab.li!=null?stab.li.toFixed(1)+'°C ('+cToF(stab.li)+'°F)':'?'} (negative = unstable)`);
     if(stab.cin!=null)parts.push(`  Convective Inhibition (CIN): ${stab.cin} J/kg`);
     parts.push(`  Assessment: ${stab.stabDesc}`);
     parts.push(`\n3. LIFTING MECHANISMS (${stab.liftRat}/10):`);
@@ -408,11 +408,8 @@ Only include if storms >= 31 dBZ exist OR active NWS alerts are present. Lead wi
 Public Safety & Outdoor Guidance
 Practical advice for the general public. Should you be outside? Driving risks? Heat/cold concerns? What to watch for and when conditions change. Keep this conversational and actionable.
 
-Aviation Briefing
-Pilot-focused. Flight category and limiting factor (ceiling vs visibility). All available winds aloft with altitudes. IMPORTANT: Always report aviation winds in knots — if the user's wind unit is not knots, show knots in parentheses alongside their preferred unit (e.g. "SW at 35 km/h (19 kts)"). Wind shear assessment between levels — note any shear exceeding 25 kts per 2,000 ft. Turbulence potential. Density altitude if available. METAR decode highlights. Thunderstorm avoidance guidance if applicable.
-
-Marine Conditions
-Mariner-focused. Surface wind sustained and gusts — always include knots alongside the user's preferred wind unit if it is not knots (e.g. "N at 7 mph (6 kts)"). Gale or small craft advisory relevance. Visibility over water. Storm approach timing for open-water exposure. Sea state estimation from wind data.
+Aviation & Marine Briefing
+Combined section for pilots and mariners. IMPORTANT: Always include knots alongside the user's preferred wind unit if it is not knots (e.g. "SW at 35 km/h (19 kts)"). Start with flight category and limiting factor (ceiling vs visibility). Report winds aloft with altitudes. Wind shear assessment — note any shear exceeding 25 kts per 2,000 ft. Turbulence potential. Density altitude if available. METAR highlights. Then transition to marine conditions: surface wind sustained and gusts, small craft advisory or gale relevance, visibility over water, sea state estimation, storm approach timing for open-water exposure. Thunderstorm avoidance guidance if applicable.
 
 RULES:
 - IMPORTANT: Use the units specified in USER UNITS for ALL measurements in your response. If the user has wind set to km/h, report winds in km/h — not mph or knots. If temperature is °C, use °C. If distance is km, use km. Match their preferences exactly.
