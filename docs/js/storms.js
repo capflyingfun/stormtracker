@@ -320,22 +320,21 @@ function getWindShearAnalysis(){
   if(!S._windShear||!S._aloftData||S._aloftData.length<2)return null;
   const sfc=S._aloftData.find(a=>a.isSfc)||S._aloftData[0];
   const upper=S._aloftData[S._aloftData.length-1];
-  const sfcSpdMph=(sfc.spd*0.621371).toFixed(0);
-  const upperSpdMph=(upper.spd*0.621371).toFixed(0);
-  const vecShear=S._windShear.speedDiff*0.621371;
+  const vecShearKmh=S._windShear.speedDiff;
+  const vecShearMph=vecShearKmh*0.621371;
   let severity='Light';
-  if(vecShear>=25)severity='Strong';else if(vecShear>=15)severity='Moderate';
+  if(vecShearMph>=25)severity='Strong';else if(vecShearMph>=15)severity='Moderate';
   let impact='Minimal turbulence expected';
-  if(vecShear>=25)impact='Significant turbulence likely — hazardous for light aircraft';
-  else if(vecShear>=15)impact='Moderate turbulence possible — use caution';
-  else if(vecShear>=8)impact='Light chop possible';
+  if(vecShearMph>=25)impact='Significant turbulence likely — hazardous for light aircraft';
+  else if(vecShearMph>=15)impact='Moderate turbulence possible — use caution';
+  else if(vecShearMph>=8)impact='Light chop possible';
   const pToAlt={1013:'Surface',925:'~2,500 ft',850:'~5,000 ft',700:'~10,000 ft',500:'~18,000 ft'};
   return{
-    vectorShear:vecShear.toFixed(1),
+    vectorShear:fmtWind(vecShearKmh),
     severity,
     dirDiff:S._windShear.dirDiff,
-    surfaceWind:`${degToDir(sfc.dir)} at ${sfcSpdMph} mph`,
-    upperWind:`${degToDir(upper.dir)} at ${upperSpdMph} mph (${pToAlt[upper.p]||upper.p+'hPa'})`,
+    surfaceWind:`${degToDir(sfc.dir)} at ${fmtWind(sfc.spd)}`,
+    upperWind:`${degToDir(upper.dir)} at ${fmtWind(upper.spd)} (${pToAlt[upper.p]||upper.p+'hPa'})`,
     impact
   };
 }
@@ -1906,8 +1905,8 @@ function _stormSortFn(a,b,key){
     return ea-eb;
   }
   if(key==='threat'){
-    const ta=(a.dbz||0)*(a._eta&&a._eta.approaching?2:0.5)/(Math.max(a.distance,1));
-    const tb=(b.dbz||0)*(b._eta&&b._eta.approaching?2:0.5)/(Math.max(b.distance,1));
+    const ta=Math.pow(a.dbz||0,2)*(a._eta&&a._eta.approaching?2:0.5)/Math.sqrt(Math.max(a.distance,0.5));
+    const tb=Math.pow(b.dbz||0,2)*(b._eta&&b._eta.approaching?2:0.5)/Math.sqrt(Math.max(b.distance,0.5));
     return tb-ta;
   }
   return 0;
@@ -1956,17 +1955,17 @@ function _renderFilterBar(f){
   return`<div class="card" style="padding:8px 10px;margin-bottom:8px">
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:0.72em">
       <span style="font-weight:700;color:var(--text-secondary)">Sort:</span>
-      <select id="sf-sort1" onchange="updateStormFilter()" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em">${mkOpts(f.sort1)}</select>
+      <select id="sf-sort1" onchange="updateStormFilter()" oninput="updateStormFilter()" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em">${mkOpts(f.sort1)}</select>
       <span class="c-muted">then</span>
-      <select id="sf-sort2" onchange="updateStormFilter()" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em">${mkOpts(f.sort2)}</select>
+      <select id="sf-sort2" onchange="updateStormFilter()" oninput="updateStormFilter()" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em">${mkOpts(f.sort2)}</select>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:0.72em;margin-top:6px">
       <span style="font-weight:700;color:var(--text-secondary)">Filter:</span>
       <label style="display:flex;align-items:center;gap:3px;color:var(--text-secondary)">Min dBZ
-        <input id="sf-mindbz" type="number" min="0" max="75" step="5" value="${f.minDbz||0}" oninput="updateStormFilter()" onchange="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
+        <input id="sf-mindbz" type="number" inputmode="numeric" min="0" max="75" step="5" value="${f.minDbz||0}" oninput="updateStormFilter()" onchange="updateStormFilter()" onblur="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
       </label>
       <label style="display:flex;align-items:center;gap:3px;color:var(--text-secondary)">Max dist
-        <input id="sf-maxdist" type="number" min="0" max="200" step="5" value="${f.maxDist||0}" oninput="updateStormFilter()" onchange="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
+        <input id="sf-maxdist" type="number" inputmode="numeric" min="0" max="200" step="5" value="${f.maxDist||0}" oninput="updateStormFilter()" onchange="updateStormFilter()" onblur="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
         <span class="c-muted">${S.radarMetric?'km':'mi'}</span>
       </label>
       <label style="display:flex;align-items:center;gap:3px;cursor:pointer;color:var(--text-secondary)">
@@ -1975,6 +1974,7 @@ function _renderFilterBar(f){
     </div>
   </div>`;
 }
+let _sfDebounce=null;
 function updateStormFilter(){
   const f={
     sort1:document.getElementById('sf-sort1')?.value||'threat',
@@ -1984,8 +1984,12 @@ function updateStormFilter(){
     approachOnly:document.getElementById('sf-approach')?.checked||false
   };
   _saveStormFilter(f);
-  renderStorms();
   if(typeof updateThreatTicker==='function')updateThreatTicker();
+  if(_sfDebounce)clearTimeout(_sfDebounce);
+  _sfDebounce=setTimeout(()=>{
+    _sfDebounce=null;
+    renderStorms();
+  },150);
 }
 S._stormFilter=_loadStormFilter();
 function renderStorms(){
@@ -2006,7 +2010,7 @@ function renderStorms(){
   }
   const severe=storms.some(s=>s.dbz>=45);
   const mv=S.stormMovement;
-  storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)});
+  if(mv&&mv.speed>=2){storms.forEach(s=>{s._eta=calcStormETA(s)})}else{storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)})}
   const sf=S._stormFilter||_loadStormFilter();
   const filtered=_applyStormFilter(storms,sf);
   const prevOpen={};
@@ -2058,8 +2062,8 @@ function renderStorms(){
         <div class="storm-detail-grid">
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Peak dBZ')}</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>
           <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Rain Rate')}</div><div class="storm-detail-val">${cat.rain}</div><div class="tile-tap">tap</div></div>
-          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Distance')}</div><div class="storm-detail-val"><span data-dist-mi="${s.distance}" data-closing-mph="${eta&&eta.closingSpeed?eta.closingSpeed:0}" data-target-ms="${eta&&eta._targetMs?eta._targetMs:0}">${fmtStormDist(s.distance)}</span></div><div class="tile-tap">tap</div></div>
-          <div class="storm-detail"><div class="storm-detail-label">${tStr('Bearing')}</div><div class="storm-detail-val">${degToDir(s.bearing)}</div></div>
+          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Distance')}</div><div class="storm-detail-val"><span data-dist-mi="${s.distance}" data-closing-mph="${eta&&eta.closingSpeed?eta.closingSpeed:0}" data-target-ms="${eta&&eta._targetMs?eta._targetMs:0}">${(()=>{const cs=eta&&eta.closingSpeed?eta.closingSpeed:0;const tgt=eta&&eta._targetMs?eta._targetMs:0;if(cs>0&&tgt>Date.now()){const rh=Math.max(0,(tgt-Date.now())/3600000);return fmtStormDist(rh*cs)}return fmtStormDist(s.distance)})()}</span></div><div class="tile-tap">tap</div></div>
+          <div class="storm-detail"><div class="storm-detail-label">${tStr('Bearing')}</div><div class="storm-detail-val">${degToDir(s.bearing)} (${String(Math.round(s.bearing)).padStart(3,'0')}°)</div></div>
           ${mvLine}
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
@@ -2071,20 +2075,21 @@ function renderStorms(){
       </div>`;
   }
   let inboundCapped,overhead,nearby;
-  if(S._topStormAnalysis&&S._topStormAnalysis.inbound){
+  if(S._topStormAnalysis&&S._topStormAnalysis.inbound&&S._topStormAnalysis.inbound.length>0&&!(mv&&mv.speed>=2)){
     const a=S._topStormAnalysis;
     const fKeys=new Set(filtered.map(stormKey));
-    const fMap=new Map(filtered.map(s=>[stormKey(s),s]));
-    inboundCapped=a.inbound.filter(s=>fKeys.has(stormKey(s))).map(s=>fMap.get(stormKey(s)));
-    const ohKeys=new Set(a.overhead.map(stormKey));
-    overhead=filtered.filter(s=>ohKeys.has(stormKey(s)));
-    const inKeys=new Set(a.inbound.map(stormKey));
-    nearby=filtered.filter(s=>!inKeys.has(stormKey(s))&&!ohKeys.has(stormKey(s)));
+    const inKeySet=new Set(a.inbound.map(stormKey));
+    const ohKeySet=new Set(a.overhead.map(stormKey));
+    const inFiltered=filtered.filter(s=>inKeySet.has(stormKey(s))&&fKeys.has(stormKey(s)));
+    inFiltered.sort((x,y)=>{const r=_stormSortFn(x,y,sf.sort1);return r!==0?r:_stormSortFn(x,y,sf.sort2)});
+    inboundCapped=inFiltered.slice(0,12);
+    overhead=filtered.filter(s=>ohKeySet.has(stormKey(s)));
+    nearby=filtered.filter(s=>!inKeySet.has(stormKey(s))&&!ohKeySet.has(stormKey(s)));
   }else{
     const approaching=filtered.filter(s=>isApproaching(s));
     overhead=filtered.filter(s=>isOverhead(s));
     nearby=filtered.filter(s=>isNearby(s));
-    approaching.sort((a,b)=>b.dbz===a.dbz?((a._eta?a._eta.eta:9999)-(b._eta?b._eta.eta:9999)):(b.dbz-a.dbz));
+    approaching.sort((x,y)=>{const r=_stormSortFn(x,y,sf.sort1);return r!==0?r:_stormSortFn(x,y,sf.sort2)});
     inboundCapped=approaching.slice(0,12);
   }
   let groupHtml='';

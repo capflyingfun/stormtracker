@@ -1,5 +1,5 @@
-// Version: v2.88 (display) | cache-bust counter: 292 (used in ?v= query strings and SW cache name)
-const CACHE_NAME = 'stormtracker-v292';
+// Version: v2.99 (display) | cache-bust counter: 293 (used in ?v= query strings and SW cache name)
+const CACHE_NAME = 'stormtracker-v303';
 const STATIC_ASSETS = [
   '/StormTracker/',
   '/StormTracker/index.html',
@@ -28,6 +28,12 @@ self.addEventListener('install', event => {
     caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
   );
   self.skipWaiting();
+});
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', event => {

@@ -1621,7 +1621,8 @@ function updateThreatTicker(){
   }
   const spdUnit=S.radarMetric?'km/h':'mph';
   const spdVal=(spd)=>S.radarMetric?Math.round(spd*1.60934):spd;
-  const fromDir=mv?degToDir((mv.direction+180)%360):'';
+  const _fromDeg=mv?((mv.direction+180)%360):0;
+  const fromDir=mv?degToDir(_fromDeg)+' ('+String(Math.round(_fromDeg)).padStart(3,'0')+'°)':'';
   const spd=mv?spdVal(mv.speed):0;
   function fmtEtaLive(etaMin){
     const targetMs=Date.now()+Math.round(etaMin*60)*1000;

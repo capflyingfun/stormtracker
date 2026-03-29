@@ -85,6 +85,50 @@ function getTutorialHtml(){
 function getChangelogHtml(){
   return CHANGELOG.map(c=>`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border-subtle)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-weight:700;color:var(--accent-cyan);font-size:1em">${c.ver}</span><span style="font-size:0.75em;color:var(--text-muted)">${c.date}</span></div><ul style="margin:0;padding-left:18px">${c.items.map(i=>`<li style="margin-bottom:3px">${i}</li>`).join('')}</ul></div>`).join('');
 }
+async function forceAppUpdate(){
+  const btn=document.getElementById('btn-check-update');
+  if(!btn)return;
+  btn.disabled=true;
+  const startTime=Date.now();
+  let timerInt;
+  function updateTimer(prefix){
+    const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+    btn.textContent=`${prefix} ${elapsed}s`;
+  }
+  btn.textContent='🔄 Checking... 0.0s';
+  btn.style.color='#66bb6a';
+  timerInt=setInterval(()=>updateTimer('🔄 Checking...'),100);
+  try{
+    const keys=await caches.keys();
+    await Promise.all(keys.map(k=>caches.delete(k)));
+    if('serviceWorker' in navigator){
+      const reg=await navigator.serviceWorker.getRegistration();
+      if(reg){
+        await reg.update();
+        const waiting=reg.waiting||reg.installing;
+        if(waiting){
+          if(waiting.state==='installed')waiting.postMessage({type:'SKIP_WAITING'});
+          waiting.addEventListener('statechange',function(){
+            if(this.state==='activated'){clearInterval(timerInt);location.reload();}
+          });
+        }
+        await reg.unregister();
+      }
+    }
+    clearInterval(timerInt);
+    const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+    btn.textContent=`✅ Refreshing... ${elapsed}s`;
+    btn.style.color='#4caf50';
+    setTimeout(()=>location.reload(),300);
+  }catch(e){
+    console.error('Update check failed:',e);
+    clearInterval(timerInt);
+    const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+    btn.textContent=`🔄 Refreshing... ${elapsed}s`;
+    btn.style.color='#ff9800';
+    setTimeout(()=>location.reload(),300);
+  }
+}
 function showTutorial(){
   const o=document.getElementById('tutorial-overlay');if(!o)return;
   document.getElementById('tutorial-content').innerHTML=getTutorialHtml();
