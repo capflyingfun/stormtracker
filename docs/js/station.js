@@ -49,7 +49,7 @@ async function fetchStation(){
     const stData=await stRes.json();
     const features=stData.features||stData.observationStations||[];
     if(!features.length)throw new Error('NWS_INTL');
-    S._stationSource='nws';
+    S._stationSource='awc';
     S.nearbyStations=features.slice(0,10).map(f=>({
       icao:f.properties.stationIdentifier,
       name:f.properties.name||'',
@@ -348,52 +348,44 @@ async function loadStationObs(icao){
     const st=S.nearbyStations?.find(s=>s.icao===icao)||{icao,name:icao,lat:S.lat,lon:S.lon};
     return loadStationVatsim(st);
   }
-  if(S._stationSource==='awc'){return loadStationObsAWC(icao)}
   try{
-    const obsRes=await fetch(`https://api.weather.gov/stations/${icao}/observations/latest`,NWS_HDR);
-    if(!obsRes.ok)throw new Error('Obs returned '+obsRes.status);
-    const obsData=await obsRes.json();
-    const p=obsData.properties||{};
-    const stInfo=S.nearbyStations?.find(s=>s.icao===icao);
-    const geo=obsData.geometry?.coordinates;
-    const sLat=stInfo?.lat||(geo?geo[1]:S.lat);
-    const sLon=stInfo?.lon||(geo?geo[0]:S.lon);
-    S.station={
-      icao:icao,
-      name:stInfo?.name||S._airportDataCache?.find(a=>a.icao===icao)?.name||icao,
-      lat:sLat,
-      lon:sLon,
-      elev:p.elevation?.value!=null?p.elevation.value:null,
-      temp:p.temperature?.value,
-      dewp:p.dewpoint?.value,
-      windKmh:p.windSpeed?.value,
-      windDir:p.windDirection?.value,
-      gustKmh:p.windGust?.value,
-      visMeter:p.visibility?.value,
-      presPa:p.barometricPressure?.value,
-      rawMETAR:p.rawMessage||buildSyntheticMetar(icao,p),
-      clouds:p.cloudLayers||[],
-      obsTime:p.timestamp||'',
-      wxString:_extractMetarWx(p.rawMessage||''),
-    };
-    const nwsRaw=p.rawMessage||'';
-    if(!nwsRaw){
-      console.log('NWS no rawMessage for',icao,'— redirecting to AWC path');
-      return await loadStationObsAWC(icao);
-    }
-    if(nwsRaw){
-      const parsed=parseRawMetar(nwsRaw,{icao,name:S.station.name,lat:S.station.lat,lon:S.station.lon});
-      if(parsed.windKmh!=null&&S.station.windKmh==null)S.station.windKmh=parsed.windKmh;
-      if(parsed.windDir!=null&&S.station.windDir==null)S.station.windDir=parsed.windDir;
-      if(parsed.gustKmh!=null&&S.station.gustKmh==null)S.station.gustKmh=parsed.gustKmh;
-      if(parsed.dewp!=null&&S.station.dewp==null)S.station.dewp=parsed.dewp;
-      if(parsed.temp!=null&&S.station.temp==null)S.station.temp=parsed.temp;
-    }
-    if(S.station.elev==null)_fetchStationElev(sLat,sLon);
-    renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
+    await loadStationObsAWC(icao);
   }catch(e){
-    console.error('Obs fetch error:',e);
-    try{await loadStationObsAWC(icao)}catch(e2){
+    console.log('AWC failed for',icao,', trying NWS:',e.message);
+    try{
+      const obsRes=await fetch(`https://api.weather.gov/stations/${icao}/observations/latest`,NWS_HDR);
+      if(!obsRes.ok)throw new Error('Obs returned '+obsRes.status);
+      const obsData=await obsRes.json();
+      const p=obsData.properties||{};
+      const stInfo=S.nearbyStations?.find(s=>s.icao===icao);
+      const geo=obsData.geometry?.coordinates;
+      const sLat=stInfo?.lat||(geo?geo[1]:S.lat);
+      const sLon=stInfo?.lon||(geo?geo[0]:S.lon);
+      S.station={
+        icao:icao,
+        name:stInfo?.name||S._airportDataCache?.find(a=>a.icao===icao)?.name||icao,
+        lat:sLat,lon:sLon,
+        elev:p.elevation?.value!=null?p.elevation.value:null,
+        temp:p.temperature?.value,dewp:p.dewpoint?.value,
+        windKmh:p.windSpeed?.value,windDir:p.windDirection?.value,
+        gustKmh:p.windGust?.value,visMeter:p.visibility?.value,
+        presPa:p.barometricPressure?.value,
+        rawMETAR:p.rawMessage||buildSyntheticMetar(icao,p),
+        clouds:p.cloudLayers||[],obsTime:p.timestamp||'',
+        wxString:_extractMetarWx(p.rawMessage||''),
+      };
+      const nwsRaw=p.rawMessage||'';
+      if(nwsRaw){
+        const parsed=parseRawMetar(nwsRaw,{icao,name:S.station.name,lat:S.station.lat,lon:S.station.lon});
+        if(parsed.windKmh!=null&&S.station.windKmh==null)S.station.windKmh=parsed.windKmh;
+        if(parsed.windDir!=null&&S.station.windDir==null)S.station.windDir=parsed.windDir;
+        if(parsed.gustKmh!=null&&S.station.gustKmh==null)S.station.gustKmh=parsed.gustKmh;
+        if(parsed.dewp!=null&&S.station.dewp==null)S.station.dewp=parsed.dewp;
+        if(parsed.temp!=null&&S.station.temp==null)S.station.temp=parsed.temp;
+      }
+      if(S.station.elev==null)_fetchStationElev(sLat,sLon);
+      renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
+    }catch(e2){
       el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Could not load observations for ${icao}.</p></div>`;
     }
   }
@@ -559,17 +551,9 @@ async function switchStation(code){
   }
   toast('Loading '+icao+'...');
   S.stationId=icao;
-  const isUS=/^K[A-Z]{3}$/.test(icao)||/^P[A-Z]{3}$/.test(icao)||/^TJ[A-Z]{2}$/.test(icao)||/^PH[A-Z]{2}$/.test(icao);
-  if(isUS){
-    S._stationSource='nws';
-    try{
-      await loadStationObs(icao);
-      return;
-    }catch(e){console.log('switchStation: NWS failed for',icao,', trying AWC:',e.message)}
-  }
   S._stationSource='awc';
   try{
-    await loadStationObsAWC(icao);
+    await loadStationObs(icao);
   }catch(e){
     console.error('switchStation error for',icao,':',e.message);
     const el=document.getElementById('page-station');
