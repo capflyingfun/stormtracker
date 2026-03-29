@@ -571,11 +571,14 @@ canvas.offscreen{display:none}
   /* Header sits above wider content naturally — just widen the sticky width */
   .app-header{max-width:min(1360px,calc(100vw - 112px));margin:0 auto}
 
-  /* Weather page: 2-column grid */
-  #page-weather{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
-  #page-weather .weather-hero,
-  #page-weather #mini-sonar-card,
-  #page-weather #wx-tropical-section{grid-column:1 / -1}
+  /* Weather page: 2-column grid — MUST use .visible so display:none still works on hidden tabs */
+  #page-weather.visible{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
+  #page-weather.visible .weather-hero,
+  #page-weather.visible #mini-sonar-card,
+  #page-weather.visible #wx-tropical-section{grid-column:1 / -1}
+
+  /* Cap mini sonar height so the canvas doesn't blow up on wide screens */
+  #mini-sonar-card{max-width:700px;justify-self:start;width:100%}
 
   /* Hero stats: up to 6 columns on desktop */
   .hero-stats-grid{grid-template-columns:repeat(6,1fr)!important}
