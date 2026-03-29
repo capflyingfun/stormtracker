@@ -459,9 +459,9 @@ function renderStation(){
           <div class="wind-arrow" style="transform:rotate(${wDir||0}deg)"></div>
         </div>
         <div style="text-align:left">
-          <div style="font-size:1.4em;font-weight:700">${windKmh!=null?fmtWind(windKmh):'Calm'}</div>
-          <div class="c-muted-sm">${wDir!=null?degToDir(wDir)+' wind':'Calm'}</div>
-          ${gustKmh?`<div style="font-size:0.8em;color:var(--accent-orange);font-weight:600">Gusts ${fmtWind(gustKmh)}</div>`:''}
+          <div style="font-size:1.4em;font-weight:700">${windKmh!=null?fmtWind(windKmh):(gustKmh?fmtWind(gustKmh):'Calm')}</div>
+          <div class="c-muted-sm">${wDir!=null?degToDir(wDir)+' wind':(windKmh!=null||gustKmh?'Wind':'Calm')}</div>
+          ${gustKmh&&windKmh!=null?`<div style="font-size:0.8em;color:var(--accent-orange);font-weight:600">Gusts ${fmtWind(gustKmh)}</div>`:''}
         </div>
       </div>
 
@@ -610,7 +610,7 @@ function decodeMetar(raw){
     if(/^\d{3}V\d{3}$/.test(p)){
       rows.push(c('#22c55e','Wind Var',`${p.slice(0,3)}° to ${p.slice(4)}°`,'Variable direction'));continue;
     }
-    if(/^M?\d+(\/)?(SM)?$/.test(p)||/^\d+\/\d+SM$/.test(p)||/^\d+SM$/.test(p)||p==='M1/4SM'||/^\d+ \d+\/\d+SM$/.test(p)){
+    if(/^\d+SM$/.test(p)||/^\d+\/\d+SM$/.test(p)||p==='M1/4SM'||p==='P6SM'){
       let vis=p.replace('SM','');
       if(vis.startsWith('M'))vis='Less than '+vis.slice(1);
       const visMi=parseFloat(vis)||10;
@@ -650,14 +650,19 @@ function decodeMetar(raw){
       const sev=(cov==='OVC'||cov==='BKN')&&htFt&&htFt<1000?'var(--accent-orange)':cov==='VV'?'var(--accent-red)':'#64748b';
       rows.push(c(sev,'Clouds',`${covNames[cov]||cov}${htFt!=null&&cov!=='CLR'?' at '+htFt.toLocaleString()+' ft':''}`,''));continue;
     }
-    if(/^M?\d{2}\/M?\d{2}$/.test(p)){
+    if(/^M?\d{1,2}\/M?\d{0,2}$/.test(p)){
       const [t,d]=p.split('/');
       const tc=t.startsWith('M')?-parseInt(t.slice(1)):parseInt(t);
-      const dc=d.startsWith('M')?-parseInt(d.slice(1)):parseInt(d);
       _lastMetarTempC=tc;
-      const spreadC=tc-dc;
-      const cbFt=calcCloudBase(spreadC);
-      rows.push(c('#00e5ff','Temp/Dew',`${fmtTemp(tc)} / ${fmtTemp(dc)}`,`Spread: ${fmtTempDiff(spreadC)} — ${getSpreadLabel(spreadC)}<br>Est. cloud base: ~${fmtAlt(cbFt)} AGL`));continue;
+      if(d&&d.length){
+        const dc=d.startsWith('M')?-parseInt(d.slice(1)):parseInt(d);
+        const spreadC=tc-dc;
+        const cbFt=calcCloudBase(spreadC);
+        rows.push(c('#00e5ff','Temp/Dew',`${fmtTemp(tc)} / ${fmtTemp(dc)}`,`Spread: ${fmtTempDiff(spreadC)} — ${getSpreadLabel(spreadC)}<br>Est. cloud base: ~${fmtAlt(cbFt)} AGL`));
+      }else{
+        rows.push(c('#00e5ff','Temp/Dew',`${fmtTemp(tc)} / --`,'Dew point not reported'));
+      }
+      continue;
     }
     if(/^A\d{4}$/.test(p)){
       const inhg=(parseInt(p.slice(1))/100).toFixed(2);
