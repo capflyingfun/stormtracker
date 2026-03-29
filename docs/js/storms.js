@@ -1896,6 +1896,15 @@ function _loadStormFilter(){
   return{minDbz:0,maxDist:0,approachOnly:false,sort1:'threat',sort2:'eta'};
 }
 function _saveStormFilter(f){localStorage.setItem('st_stormFilter',JSON.stringify(f));S._stormFilter=f}
+function _threatScoreRaw(s){
+  const e=s._eta;
+  return Math.pow(s.dbz||0,2)*(e&&e.approaching?2:0.5)/Math.sqrt(Math.max(s.distance,0.5));
+}
+function stormThreatScore10(s){
+  const raw=_threatScoreRaw(s);
+  const scaled=Math.log10(Math.max(raw,1))/Math.log10(12100)*10;
+  return Math.max(1,Math.min(10,Math.round(scaled*10)/10));
+}
 function _stormSortFn(a,b,key){
   if(key==='dbz')return b.dbz-a.dbz;
   if(key==='dist')return a.distance-b.distance;
@@ -1905,9 +1914,12 @@ function _stormSortFn(a,b,key){
     return ea-eb;
   }
   if(key==='threat'){
-    const ta=Math.pow(a.dbz||0,2)*(a._eta&&a._eta.approaching?2:0.5)/Math.sqrt(Math.max(a.distance,0.5));
-    const tb=Math.pow(b.dbz||0,2)*(b._eta&&b._eta.approaching?2:0.5)/Math.sqrt(Math.max(b.distance,0.5));
-    return tb-ta;
+    return _threatScoreRaw(b)-_threatScoreRaw(a);
+  }
+  if(key==='impact'){
+    const ia=a._eta?a._eta.impact||0:0;
+    const ib=b._eta?b._eta.impact||0:0;
+    return ib-ia;
   }
   return 0;
 }
@@ -1950,7 +1962,7 @@ function _smartStormSummary(storms){
   return`<div style="padding:8px 12px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:8px;font-size:0.78em;line-height:1.6;margin-bottom:8px">${lines.join('<br>')}</div>`;
 }
 function _renderFilterBar(f){
-  const sortOpts=[['threat','Threat Score'],['dbz','Strongest'],['eta','Soonest ETA'],['dist','Closest']];
+  const sortOpts=[['threat','Threat Score'],['impact','Highest Impact'],['dbz','Strongest'],['eta','Soonest ETA'],['dist','Closest']];
   const mkOpts=(sel)=>sortOpts.map(([v,l])=>`<option value="${v}"${sel===v?' selected':''}>${l}</option>`).join('');
   return`<div class="card" style="padding:8px 10px;margin-bottom:8px">
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:0.72em">
@@ -2057,8 +2069,12 @@ function renderStorms(){
       const cellIcon=isHook?'🌪️':s.dbz>=65?'‼️':s.dbz>=56?'🚨':s.dbz>=45?'⚠️':s.dbz>=40?'🟡':s.dbz>=30?'🟢':'🔵';
       const cellName=isHook?tStr('Possible Rotation'):s.dbz>=55?tStr('Severe Cell'):s.dbz>=40?tStr('Storm Cell'):tStr('Rain Cell');
       const hookBadge=isHook?`<span class="hook-echo-badge">🌪️ Hook Echo</span>`:'';
+      const ts10=stormThreatScore10(s);
+      const tsColor=ts10>=8?'#ef4444':ts10>=6?'#f97316':ts10>=4?'#facc15':'#4ade80';
+      const tsLabel=ts10>=8?'EXTREME':ts10>=6?'HIGH':ts10>=4?'MODERATE':'LOW';
       return`<div class="storm-cell-card ${pulse}" style="border-color:${isHook?'#ff1744':hex};--pulse-color:${isHook?'#ff1744':hex}${isHook?';animation:tornado-pulse 1.8s ease-in-out infinite,storm-pulse 2.5s ease-in-out infinite':''}">
         <div class="storm-header"><span style="font-weight:700">${cellIcon} ${cellName}</span>${hookBadge}<span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${tStr(cat.label)}</span></div>
+        <div style="display:flex;align-items:center;gap:6px;margin:4px 0 2px;font-size:0.7em"><span style="font-weight:700;color:var(--text-secondary)">Threat:</span><span style="color:${tsColor};font-weight:700;font-size:1.1em">${ts10.toFixed(1)}</span><span style="color:${tsColor};font-size:0.85em;font-weight:600">/10 ${tsLabel}</span></div>
         <div class="storm-detail-grid">
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Peak dBZ')}</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>
           <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Rain Rate')}</div><div class="storm-detail-val">${cat.rain}</div><div class="tile-tap">tap</div></div>
