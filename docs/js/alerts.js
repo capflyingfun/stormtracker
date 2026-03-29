@@ -115,8 +115,8 @@ async function fetchAlerts(){
   if(S.alerts&&S.alerts.length)S._alertsShownOnce=false;
   if(typeof updateThreatTicker==='function')updateThreatTicker();
   _extractFloodAlerts();
-  fetchSPCData().then(()=>{if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map)}});
-  fetchNHCData().then(()=>{if(S.map)plotNHCTracks(S.map);_nhcProximityCheck();if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.activePage==='weather')_updateTropicalUI()});
+  fetchSPCData().then(()=>{if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map)}}).catch(e=>console.warn('SPC fetch error:',e));
+  fetchNHCData().then(()=>{if(S.map)plotNHCTracks(S.map);_nhcProximityCheck();if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.activePage==='weather')_updateTropicalUI()}).catch(e=>console.warn('NHC fetch error:',e));
   if(S.activePage==='alerts')renderHazards();
 }
 
