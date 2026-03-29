@@ -1984,11 +1984,11 @@ function updateStormFilter(){
     approachOnly:document.getElementById('sf-approach')?.checked||false
   };
   _saveStormFilter(f);
+  if(typeof updateThreatTicker==='function')updateThreatTicker();
   if(_sfDebounce)clearTimeout(_sfDebounce);
   _sfDebounce=setTimeout(()=>{
     _sfDebounce=null;
     renderStorms();
-    if(typeof updateThreatTicker==='function')updateThreatTicker();
   },150);
 }
 S._stormFilter=_loadStormFilter();
@@ -2062,7 +2062,7 @@ function renderStorms(){
         <div class="storm-detail-grid">
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Peak dBZ')}</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>
           <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Rain Rate')}</div><div class="storm-detail-val">${cat.rain}</div><div class="tile-tap">tap</div></div>
-          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Distance')}</div><div class="storm-detail-val"><span data-dist-mi="${s.distance}" data-closing-mph="${eta&&eta.closingSpeed?eta.closingSpeed:0}" data-target-ms="${eta&&eta._targetMs?eta._targetMs:0}">${fmtStormDist(s.distance)}</span></div><div class="tile-tap">tap</div></div>
+          <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Distance')}</div><div class="storm-detail-val"><span data-dist-mi="${s.distance}" data-closing-mph="${eta&&eta.closingSpeed?eta.closingSpeed:0}" data-target-ms="${eta&&eta._targetMs?eta._targetMs:0}">${(()=>{const cs=eta&&eta.closingSpeed?eta.closingSpeed:0;const tgt=eta&&eta._targetMs?eta._targetMs:0;if(cs>0&&tgt>Date.now()){const rh=Math.max(0,(tgt-Date.now())/3600000);return fmtStormDist(rh*cs)}return fmtStormDist(s.distance)})()}</span></div><div class="tile-tap">tap</div></div>
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Bearing')}</div><div class="storm-detail-val">${degToDir(s.bearing)}</div></div>
           ${mvLine}
         </div>
@@ -2078,17 +2078,18 @@ function renderStorms(){
   if(S._topStormAnalysis&&S._topStormAnalysis.inbound){
     const a=S._topStormAnalysis;
     const fKeys=new Set(filtered.map(stormKey));
-    const fMap=new Map(filtered.map(s=>[stormKey(s),s]));
-    inboundCapped=a.inbound.filter(s=>fKeys.has(stormKey(s))).map(s=>fMap.get(stormKey(s)));
-    const ohKeys=new Set(a.overhead.map(stormKey));
-    overhead=filtered.filter(s=>ohKeys.has(stormKey(s)));
-    const inKeys=new Set(a.inbound.map(stormKey));
-    nearby=filtered.filter(s=>!inKeys.has(stormKey(s))&&!ohKeys.has(stormKey(s)));
+    const inKeySet=new Set(a.inbound.map(stormKey));
+    const ohKeySet=new Set(a.overhead.map(stormKey));
+    const inFiltered=filtered.filter(s=>inKeySet.has(stormKey(s))&&fKeys.has(stormKey(s)));
+    inFiltered.sort((x,y)=>{const r=_stormSortFn(x,y,sf.sort1);return r!==0?r:_stormSortFn(x,y,sf.sort2)});
+    inboundCapped=inFiltered.slice(0,12);
+    overhead=filtered.filter(s=>ohKeySet.has(stormKey(s)));
+    nearby=filtered.filter(s=>!inKeySet.has(stormKey(s))&&!ohKeySet.has(stormKey(s)));
   }else{
     const approaching=filtered.filter(s=>isApproaching(s));
     overhead=filtered.filter(s=>isOverhead(s));
     nearby=filtered.filter(s=>isNearby(s));
-    approaching.sort((a,b)=>b.dbz===a.dbz?((a._eta?a._eta.eta:9999)-(b._eta?b._eta.eta:9999)):(b.dbz-a.dbz));
+    approaching.sort((x,y)=>{const r=_stormSortFn(x,y,sf.sort1);return r!==0?r:_stormSortFn(x,y,sf.sort2)});
     inboundCapped=approaching.slice(0,12);
   }
   let groupHtml='';
