@@ -711,7 +711,7 @@ function renderTerrain3D(){
   ctx.font='bold 9px Inter,sans-serif';
   ctx.fillText('YOU',cx+6,cy+3);
 
-  const nAngle=-rotZ;
+  const nAngle=-rotZ+Math.PI;
   const nR=ringMax*baseScale*GS/scanR+12;
   const nx=cx+Math.sin(nAngle)*nR;
   const ny=cy-Math.cos(nAngle)*nR*yScale;
@@ -796,8 +796,8 @@ function renderTerrain3D(){
   if(mv&&mv.speed>=2){
     const dir=(mv.direction)*Math.PI/180;
     const aLen=40*zoom;
-    const ax=cx+Math.sin(dir-rotZ)*aLen;
-    const ay=cy-Math.cos(dir-rotZ)*aLen*yScale;
+    const ax=cx+Math.sin(dir-rotZ+Math.PI)*aLen;
+    const ay=cy-Math.cos(dir-rotZ+Math.PI)*aLen*yScale;
     ctx.strokeStyle='rgba(0,220,255,0.7)';
     ctx.lineWidth=2;
     ctx.setLineDash([5,3]);
@@ -821,8 +821,8 @@ function renderTerrain3D(){
   if(aloftDir!=null){
     const toDir=((aloftDir+180)%360)*Math.PI/180;
     const aLen=35*zoom;
-    const ax=cx+Math.sin(toDir-rotZ)*aLen;
-    const ay=cy-Math.cos(toDir-rotZ)*aLen*yScale;
+    const ax=cx+Math.sin(toDir-rotZ+Math.PI)*aLen;
+    const ay=cy-Math.cos(toDir-rotZ+Math.PI)*aLen*yScale;
     ctx.strokeStyle='rgba(255,0,220,0.5)';
     ctx.lineWidth=1.5;
     ctx.setLineDash([6,4]);
