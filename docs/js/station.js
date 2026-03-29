@@ -350,6 +350,7 @@ async function loadStationObs(icao){
     const st=S.nearbyStations?.find(s=>s.icao===icao)||{icao,name:icao,lat:S.lat,lon:S.lon};
     return loadStationVatsim(st);
   }
+  if(S._stationSource==='awc'){return loadStationObsAWC(icao)}
   try{
     const obsRes=await fetch(`https://api.weather.gov/stations/${icao}/observations/latest`,NWS_HDR);
     if(!obsRes.ok)throw new Error('Obs returned '+obsRes.status);
