@@ -376,6 +376,13 @@ async function loadStationObs(icao){
       obsTime:p.timestamp||'',
       wxString:_extractMetarWx(p.rawMessage||''),
     };
+    const raw=S.station.rawMETAR||'';
+    const hasWind=S.station.windKmh!=null||S.station.windDir!=null;
+    const hasTemp=S.station.temp!=null;
+    if(!raw&&!hasWind&&!hasTemp){
+      console.log('NWS returned sparse data for',icao,'— falling back to AWC');
+      throw new Error('NWS data incomplete');
+    }
     if(S.station.elev==null)_fetchStationElev(sLat,sLon);
     renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){
