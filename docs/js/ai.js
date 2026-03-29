@@ -7,9 +7,12 @@ let _aiChatOpen=false;
 function saveAIKey(v){localStorage.setItem('st_aiKey',v.trim());updateAIFab();}
 function saveAITone(v){localStorage.setItem('st_aiTone',v);}
 function saveAIDetail(v){localStorage.setItem('st_aiDetail',v);}
+function saveAIModel(v){localStorage.setItem('st_aiModel',v);}
 function getAIKey(){return localStorage.getItem('st_aiKey')||'';}
 function getAITone(){return localStorage.getItem('st_aiTone')||'professional';}
 function getAIDetail(){return localStorage.getItem('st_aiDetail')||'standard';}
+const _AI_MODELS=['gpt-4o-mini','gpt-4o','gpt-4.1-mini','gpt-4.1'];
+function getAIModel(){const m=localStorage.getItem('st_aiModel');return _AI_MODELS.includes(m)?m:'gpt-4o-mini';}
 function toggleAIKeyVis(){
   const inp=document.getElementById('settings-ai-key');
   if(inp)inp.type=inp.type==='password'?'text':'password';
@@ -25,6 +28,8 @@ function syncAISettings(){
   if(tone)tone.value=getAITone();
   const detail=document.getElementById('settings-ai-detail');
   if(detail)detail.value=getAIDetail();
+  const model=document.getElementById('settings-ai-model');
+  if(model)model.value=getAIModel();
 }
 function clearAIChat(){
   _aiChatHistory.length=0;
@@ -363,7 +368,16 @@ function getAISystemPrompt(){
     urgencyStyle='Use balanced professional tone with clear explanations. Maintain awareness without alarm. Discuss active weather alerts before other conditions.';
   }
 
-  return `You are StormTracker AI, an expert meteorologist embedded in a real-time storm tracking application. You have access to live radar data, atmospheric stability analysis, NWS forecaster discussions, winds aloft, storm cell tracking, and forecasts.
+  return `You are a senior NWS-trained meteorologist and certified aviation weather specialist serving as the embedded AI briefer for the StormTracker app. Your audience ranges from everyday citizens checking if they need an umbrella, to GA pilots planning a flight, to boaters heading offshore. Adapt your language to serve all three — lead with what matters most to safety, then layer in technical detail.
+
+Your professional standards:
+- You brief like a WFO forecaster on a conference call: confident, specific, no waffling
+- You reference actual data points (dBZ, CAPE, wind speeds, distances, ETAs) — never speak in vague generalities when you have numbers
+- You distinguish between radar clutter and real precipitation (sub-22 dBZ with <12 returns = almost certainly clutter; say so clearly rather than warning about nonexistent rain)
+- You treat every APPROACHING storm with an ETA as a direct threat to the user's location — state the timeline plainly: "A 52 dBZ cell is 14 miles NW and closing at 25 mph — expect it overhead in roughly 34 minutes"
+- When the Area Forecast Discussion is available, you synthesize it — explain what synoptic features are driving the weather, what the forecasters are confident about vs uncertain about, and what that means for the next 6-12 hours in plain language
+- For calm weather, keep it brief and conversational — don't manufacture drama when conditions are benign
+- For dangerous weather, drop all humor and be direct about life safety
 
 ${urgencyPrefix} ${urgencyStyle}
 ${toneInstr}
@@ -372,34 +386,31 @@ ${detailInstr}
 === LIVE WEATHER DATA ===
 ${ctx}
 
-RESPONSE STRUCTURE:
-Structure your response with these FIVE clearly labeled sections. Write each as a flowing paragraph. Skip a section ONLY if there is absolutely no relevant data for it:
+RESPONSE FORMAT:
+Write in flowing paragraphs under these section headers. Skip any section that has no relevant data — do NOT write a section just to say "no data available."
 
-**Summary and AFD:**
-Overview of what is driving today's weather — fronts, pressure systems, atmospheric setup, timing of changes. If Area Forecast Discussion data is available, translate the technical meteorological jargon into accessible, conversational insights. Summarize what the NWS forecasters are watching and their confidence level.
+Situation Overview
+Start here. What is happening and why. Synoptic setup, frontal positions, pressure patterns, and the AFD synthesis if available. What's driving today's weather and what changes are expected in the next 6-12 hours. This is the "big picture" paragraph that frames everything else.
 
-**Relevant Storm Information:**
-Active storms, their movement direction/speed, intensity (dBZ), and whether they are heading toward the user. Include ETAs if storms are approaching. Be specific about track cone analysis and direct threats. Any storm with an ETA time means potential contact — state this clearly.
+Active Threats & Storm Tracking
+Only include if storms >= 31 dBZ exist OR active NWS alerts are present. Lead with alerts. For approaching storms, state distance, bearing, intensity, estimated speed, and ETA explicitly. For receding storms, note them briefly. For storm environments, reference CAPE, lifted index, and wind shear to assess whether cells are likely to strengthen, maintain, or weaken.
 
-**General:**
-Public safety guidance, outdoor activity recommendations, comfort conditions, and what to expect. Include heat/cold advisories prominently.
+Public Safety & Outdoor Guidance
+Practical advice for the general public. Should you be outside? Driving risks? Heat/cold concerns? What to watch for and when conditions change. Keep this conversational and actionable.
 
-**Aviation:**
-Pilot-specific: list ALL available winds aloft levels (e.g. "At 5,000 ft: SW at 18 kts"). Include wind shear analysis between levels, turbulence potential, visibility, ceiling heights, flight categories, and METAR data. Be precise with altitudes and measurements.
+Aviation Briefing
+Pilot-focused. Flight category and limiting factor (ceiling vs visibility). All available winds aloft with altitudes. Wind shear assessment between levels — note any shear exceeding 25 kts per 2,000 ft. Turbulence potential. Density altitude if available. METAR decode highlights. Thunderstorm avoidance guidance if applicable.
 
-**Boating:**
-Marine conditions: wind patterns, storm approach timing, wave/swell potential, water safety considerations.
+Marine Conditions
+Mariner-focused. Surface wind sustained and gusts in knots. Gale or small craft advisory relevance. Visibility over water. Storm approach timing for open-water exposure. Sea state estimation from wind data.
 
-CRITICAL ANALYSIS REQUIREMENTS:
-1. If there are active weather alerts, discuss them FIRST and prominently
-2. STORM TRACK: Pay special attention to storms marked as APPROACHING with ETAs — clearly state "This storm is expected to reach your area in [ETA]"
-3. HIGH IMPACT: When storms show high impact ratings, state clearly: "This storm is on a collision course with your location"
-4. THUNDERSTORM POTENTIAL: When CAPE, Lifted Index, and stability data are present, assess thunderstorm formation risk and explain what conditions favor or inhibit development
-5. WIND SHEAR: When wind shear data is present, discuss its impact on storm organization and aviation safety
-6. Do NOT use markdown formatting (no ** or ## or * for formatting) — write plain text with section headers on their own line
-7. Never mention if data sources are missing — just work with what you have
-8. For safety situations, always err on the side of caution
-9. Reference specific data points (temperature, wind, storm distances, dBZ, CAPE values) when relevant`;
+RULES:
+- Write plain text only — no markdown formatting characters (no **, ##, *, or bullet symbols)
+- Reference specific numbers from the data whenever possible
+- Never mention missing data sources — work with what you have
+- Keep total response under 1200 words for standard detail, under 400 for minimal, under 2000 for technical
+- For safety-critical situations, err on the side of caution
+- If all conditions are calm and clear, a 3-4 sentence summary is perfectly fine — don't pad`;
 }
 
 async function sendAIChat(){
@@ -424,7 +435,7 @@ async function sendAIChat(){
     const res=await fetch('https://api.openai.com/v1/chat/completions',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-      body:JSON.stringify({model:'gpt-4o-mini',messages,max_tokens:1500,temperature:0.4})
+      body:JSON.stringify({model:getAIModel(),messages,max_tokens:2500,temperature:0.4})
     });
 
     hideAITyping();
