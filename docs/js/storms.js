@@ -1905,8 +1905,8 @@ function _stormSortFn(a,b,key){
     return ea-eb;
   }
   if(key==='threat'){
-    const ta=(a.dbz||0)*(a._eta&&a._eta.approaching?2:0.5)/(Math.max(a.distance,1));
-    const tb=(b.dbz||0)*(b._eta&&b._eta.approaching?2:0.5)/(Math.max(b.distance,1));
+    const ta=Math.pow(a.dbz||0,2)*(a._eta&&a._eta.approaching?2:0.5)/Math.sqrt(Math.max(a.distance,0.5));
+    const tb=Math.pow(b.dbz||0,2)*(b._eta&&b._eta.approaching?2:0.5)/Math.sqrt(Math.max(b.distance,0.5));
     return tb-ta;
   }
   return 0;
