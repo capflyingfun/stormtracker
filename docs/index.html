@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<title>StormTracker v3.04</title>
+<meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
+<meta name="theme-color" content="#0a1020">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="StormTracker">
+<link rel="apple-touch-icon" href="icons/icon-192x192.png">
+<link rel="manifest" href="manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
+<link rel="stylesheet" href="css/style.css?v=310">
+</head>
+<body>
+<div class="toast-container" id="toast-container"></div>
+<canvas id="radarCanvas" class="offscreen" width="256" height="256"></canvas>
+
+<header class="app-header">
+  <div class="header-left">
+    <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
+  </div>
+  <div class="header-center">
+    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v3.04</span></h1>
+    <div class="header-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Initializing...</span>
+    </div>
+  </div>
+  <div class="header-loc-btn" id="btn-travel" onclick="toggleTravelMode()" title="Travel Mode" style="opacity:0.5">🧭</div>
+  <div class="header-loc-btn" id="btn-lang" onclick="toggleLangMenu()" title="Language">🇺🇸</div>
+  <div class="header-loc-btn" id="btn-loc-open" onclick="toggleLocOverlay(true)" title="Change location">🗺️</div>
+  <div class="header-loc-btn" id="btn-settings" onclick="toggleSettingsPanel()" title="Settings" style="opacity:0.7">⚙️</div>
+  <div id="threat-ticker" style="display:none;overflow:hidden;white-space:nowrap;font-size:0.72em;font-weight:600;height:24px;line-height:24px;position:absolute;bottom:0;left:0;right:0;z-index:99;border-top:1px solid rgba(0,220,255,0.1)"><div id="threat-ticker-inner" style="display:inline-block;padding-left:100%;animation:tickerScroll 30s linear infinite"></div></div>
+</header>
+<div class="lang-menu" id="lang-menu"></div>
+<div class="travel-indicator" id="travel-indicator"><div class="t-dot"></div><span id="travel-status">🧭 Travel Mode</span><button onclick="toggleTravelMode()" style="background:rgba(255,51,85,0.2);color:var(--accent-red);border:1px solid var(--accent-red);border-radius:6px;padding:2px 10px;font-size:0.85em;font-weight:600;cursor:pointer;margin-left:4px">Stop</button></div>
+<div id="travel-toast-bar" style="position:fixed;bottom:60px;left:0;right:0;text-align:center;font-size:0.7em;color:var(--text-muted);padding:2px 12px;pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:9998"></div>
+<div id="travel-interval-popup" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;background:rgba(5,8,15,0.85);backdrop-filter:blur(6px);align-items:center;justify-content:center">
+  <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:20px;max-width:300px;width:90%;text-align:center">
+    <div style="font-size:1.1em;font-weight:700;color:var(--text-primary);margin-bottom:4px">🧭 Travel Mode</div>
+    <div style="font-size:0.8em;color:var(--text-muted);margin-bottom:14px">How often should weather, radar & storms refresh while traveling?</div>
+    <div style="font-size:0.7em;color:var(--text-muted);margin-bottom:10px">GPS position tracks live — this controls data refresh rate</div>
+    <div id="travel-int-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+      <button onclick="pickTravelInterval(300)" class="tint-btn">5 min</button>
+      <button onclick="pickTravelInterval(600)" class="tint-btn">10 min</button>
+      <button onclick="pickTravelInterval(900)" class="tint-btn">15 min</button>
+      <button onclick="pickTravelInterval(1800)" class="tint-btn">30 min</button>
+      <button onclick="pickTravelInterval(2700)" class="tint-btn">45 min</button>
+      <button onclick="pickTravelInterval(3600)" class="tint-btn">1 hour</button>
+    </div>
+    <button onclick="closeTravelIntervalPopup()" style="padding:6px 16px;background:var(--bg-elevated);color:var(--text-muted);border:1px solid var(--border-subtle);border-radius:8px;font-size:0.8em;cursor:pointer">Cancel</button>
+  </div>
+</div>
+<div id="settings-panel" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(5,8,15,0.88);backdrop-filter:blur(8px);align-items:center;justify-content:center;touch-action:none" ontouchmove="if(event.target===this)event.preventDefault()">
+  <div style="display:flex;flex-direction:column;max-width:360px;width:92%;max-height:80vh;margin:auto;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:14px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(180deg,rgba(10,16,32,0.98),rgba(10,16,32,0.92));border-bottom:1px solid var(--border-subtle);flex-shrink:0" ontouchmove="event.preventDefault()">
+      <span style="font-size:1.05em;font-weight:700;color:var(--text-primary)">⚙️ Settings</span>
+      <button onclick="toggleSettingsPanel()" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid var(--border-subtle);color:var(--text-muted);font-size:1.1em;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <div id="settings-scroll-area" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:16px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain">
+      <div style="margin-bottom:14px">
+        <div class="setting-heading">📐 Units</div>
+        <div class="seg-row-wrap" id="unit-preset-btns">
+          <button onclick="applyUnitPreset('auto')" id="up-auto" class="unit-preset-btn" style="flex:1;min-width:55px;padding:5px 4px;font-size:0.68em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(0,229,255,0.08);color:var(--accent-cyan);transition:all 0.2s">🌐 Auto</button>
+          <button onclick="applyUnitPreset('imperial')" id="up-imperial" class="unit-preset-btn" style="flex:1;min-width:55px;padding:5px 4px;font-size:0.68em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);transition:all 0.2s">🇺🇸 Imperial</button>
+          <button onclick="applyUnitPreset('metric')" id="up-metric" class="unit-preset-btn" style="flex:1;min-width:55px;padding:5px 4px;font-size:0.68em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);transition:all 0.2s">🌍 Metric</button>
+          <button onclick="applyUnitPreset('custom')" id="up-custom" class="unit-preset-btn" style="flex:1;min-width:55px;padding:5px 4px;font-size:0.68em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);transition:all 0.2s">⚙️ Custom</button>
+        </div>
+        <div class="setting-hint" id="unit-preset-desc">Auto mode switches units when you change location</div>
+        <div id="settings-unit-details" style="margin-bottom:4px">
+          <div class="setting-row">
+            <span class="text-xs-muted">🌡️ Temperature</span>
+            <div class="seg-row" id="ubg-temp"></div>
+          </div>
+          <div class="setting-row">
+            <span class="text-xs-muted">💨 Wind Speed</span>
+            <div class="seg-row" id="ubg-wind"></div>
+          </div>
+          <div class="setting-row">
+            <span class="text-xs-muted">🔵 Pressure</span>
+            <div class="seg-row" id="ubg-pres"></div>
+          </div>
+          <div class="setting-row">
+            <span class="text-xs-muted">👁️ Visibility</span>
+            <div class="seg-row" id="ubg-vis"></div>
+          </div>
+          <div class="setting-row">
+            <span class="text-xs-muted">🌧️ Precipitation</span>
+            <div class="seg-row" id="ubg-precip"></div>
+          </div>
+          <div class="setting-row">
+            <span class="text-xs-muted">🕐 Time Format</span>
+            <div class="seg-row" id="ubg-timefmt">
+              <button onclick="setTimeFormat('auto')" class="tf-btn mini-btn" data-tf="auto">Auto</button>
+              <button onclick="setTimeFormat('12h')" class="tf-btn mini-btn" data-tf="12h">12h</button>
+              <button onclick="setTimeFormat('24h')" class="tf-btn mini-btn" data-tf="24h">24h</button>
+            </div>
+          </div>
+          <div id="unit-save-row" style="display:none;margin-top:8px;text-align:center">
+            <button onclick="saveCustomUnits()" style="padding:4px 14px;font-size:0.7em;font-weight:600;background:rgba(0,229,255,0.12);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:6px;cursor:pointer">💾 Save as Custom Preset</button>
+          </div>
+        </div>
+      </div>
+      <div class="setting-sep">
+        <div class="setting-heading">🎨 Wind Gauge Style</div>
+        <div class="seg-row-wrap" id="gauge-style-btns">
+          <button class="gauge-style-btn seg-btn" data-style="neon" onclick="setGaugeStyle('neon')">⚡ Neon</button>
+          <button class="gauge-style-btn seg-btn" data-style="marine" onclick="setGaugeStyle('marine')">⚓ Marine</button>
+          <button class="gauge-style-btn seg-btn" data-style="minimal" onclick="setGaugeStyle('minimal')">◯ Minimal</button>
+          <button class="gauge-style-btn seg-btn" data-style="g1000" onclick="setGaugeStyle('g1000')">✈️ G1000</button>
+          <button class="gauge-style-btn seg-btn" data-style="speedo" onclick="setGaugeStyle('speedo')">🏎️ Speedo</button>
+        </div>
+        <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:4px" id="gauge-style-desc"></div>
+        <div style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.06);padding-top:8px">
+          <div style="font-size:0.7em;font-weight:600;color:var(--accent-cyan);margin-bottom:6px">💨 Wind Sim Settings</div>
+          <div class="setting-row">
+            <span class="text-xs-muted">Sim Speed</span>
+            <select id="settings-sim-interval" onchange="setSimInterval(this.value)" class="small-btn-sm">
+              <option value="5">5s</option>
+              <option value="10">10s</option>
+              <option value="15">15s</option>
+              <option value="20">20s</option>
+              <option value="30">30s</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <span class="text-xs-muted">Gust Window</span>
+            <select id="settings-gust-window" onchange="setGustWindow(this.value)" class="small-btn-sm">
+              <option value="30">30s</option>
+              <option value="60">1m</option>
+              <option value="120">2m</option>
+              <option value="300">5m</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <span class="text-xs-muted">Avg Window</span>
+            <select id="settings-avg-window" onchange="setAvgWindow(this.value)" class="small-btn-sm">
+              <option value="10">10s</option>
+              <option value="30">30s</option>
+              <option value="60">1m</option>
+              <option value="120">2m</option>
+            </select>
+          </div>
+          <div style="font-size:0.55em;color:var(--text-muted);margin-top:2px">Sim Speed: how often the needle picks a new target. Gust/Avg: rolling window for peak and average values.</div>
+        </div>
+      </div>
+      <div class="setting-sep">
+        <div class="setting-heading">🧭 Compass Mode (G1000)</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button id="gyro-toggle-btn" onclick="toggleGyroCompass()" style="flex:1;padding:6px 8px;font-size:0.65em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);transition:all 0.2s;text-align:center">🔄 Enable Gyro Compass</button>
+        </div>
+        <div style="font-size:0.55em;color:var(--text-muted);margin-top:4px">Point your phone at a storm — compass rotates with you. Requires motion sensor permission on iOS.</div>
+      </div>
+      <div class="setting-sep">
+        <div class="setting-heading">🎨 Weather Icons</div>
+        <div class="seg-row-wrap" id="icon-pack-btns">
+          <button class="icon-pack-btn seg-btn" data-pack="basmilius" onclick="setIconPack('basmilius')">✨ Animated</button>
+          <button class="icon-pack-btn seg-btn" data-pack="emoji" onclick="setIconPack('emoji')">😀 Emoji</button>
+          <button class="icon-pack-btn seg-btn-hidden" data-pack="flat-filled" onclick="setIconPack('flat-filled')">🎨 Flat</button>
+          <button class="icon-pack-btn seg-btn-hidden" data-pack="flat-outline" onclick="setIconPack('flat-outline')">✏️ Outline</button>
+          <button class="icon-pack-btn seg-btn-hidden" data-pack="glossy" onclick="setIconPack('glossy')">💎 Glossy</button>
+          <button class="icon-pack-btn seg-btn-hidden" data-pack="neon" onclick="setIconPack('neon')">💡 Neon</button>
+          <button class="icon-pack-btn seg-btn" data-pack="globe" onclick="setIconPack('globe')">🌍 Globe</button>
+          <button class="icon-pack-btn seg-btn" data-pack="globe-animated" onclick="setIconPack('globe-animated')">🎬 Globe HD</button>
+          <button class="icon-pack-btn seg-btn" data-pack="custom" onclick="setIconPack('custom')">🖌️ Custom</button>
+        </div>
+        <div id="icon-pack-preview" style="display:flex;gap:6px;justify-content:center;align-items:center;padding:8px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:4px"></div>
+        <div style="font-size:0.55em;color:var(--text-muted)">Changes weather icons across the entire app</div>
+        <div id="custom-icon-section" style="display:none;margin-top:10px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span class="text-xs-muted">Base Pack:</span>
+            <select id="custom-base-pack" onchange="changeCustomBasePack(this.value)" class="small-btn-sm">
+              <option value="basmilius">Animated</option>
+              <option value="emoji">Emoji</option>
+              <option value="flat-filled" style="display:none">Flat Filled</option>
+              <option value="flat-outline" style="display:none">Flat Outline</option>
+              <option value="glossy" style="display:none">Glossy</option>
+              <option value="neon" style="display:none">Neon</option>
+              <option value="globe">3D Globe</option>
+              <option value="globe-animated">Animated Globe</option>
+            </select>
+          </div>
+          <div id="custom-icon-grid" class="custom-icon-grid"></div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+            <button onclick="exportCustomPack()" style="flex:1;min-width:70px;padding:5px 6px;font-size:0.6em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted)">📤 Export</button>
+            <button onclick="importCustomPack()" style="flex:1;min-width:70px;padding:5px 6px;font-size:0.6em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted)">📥 Import</button>
+            <button onclick="resetAllCustomIcons()" style="flex:1;min-width:70px;padding:5px 6px;font-size:0.6em;font-weight:600;border-radius:6px;cursor:pointer;border:1px solid rgba(255,51,85,0.3);background:rgba(255,51,85,0.08);color:var(--accent-red)">🗑️ Reset All</button>
+          </div>
+          <div style="font-size:0.5em;color:var(--text-muted);margin-top:6px">Tap any condition to upload your own icon. Custom icons are stored on this device only.</div>
+        </div>
+      </div>
+      <div class="setting-sep">
+        <div class="setting-heading-green">🔄 Auto Refresh</div>
+        <div class="setting-row-6">
+          <span class="text-xxs-muted">Refresh Interval</span>
+          <select id="settings-auto-refresh" onchange="setAutoRefresh(this.value)" class="small-btn">
+            <option value="0">Off</option>
+            <option value="15">15m</option>
+            <option value="30">30m</option>
+            <option value="45">45m</option>
+            <option value="60" selected>60m</option>
+            <option value="90">90m</option>
+            <option value="120">2h</option>
+            <option value="240">4h</option>
+            <option value="360">6h</option>
+          </select>
+        </div>
+        <div class="text-xxs-muted">How often weather, radar & storms auto-update when idle</div>
+      </div>
+      <div class="setting-sep">
+        <div class="setting-heading-green">📰 Ticker Speed</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span class="text-xxs-muted">Scroll Speed</span>
+          <span id="ticker-speed-val" style="font-size:0.75em;color:var(--text-primary);font-family:var(--font-mono);min-width:38px;text-align:right">100%</span>
+        </div>
+        <input type="range" id="settings-ticker-speed" min="50" max="200" step="10" value="100" oninput="setTickerSpeed(this.value)" onchange="setTickerSpeed(this.value,true)" style="width:100%;accent-color:var(--accent-cyan);cursor:pointer">
+        <div class="text-xxs-muted">50% = faster scroll, 200% = slower scroll</div>
+      </div>
+      <div class="setting-sep">
+        <div class="setting-heading">🧭 Travel Mode</div>
+        <div class="setting-row-6">
+          <span class="text-xxs-muted">Travel Refresh Interval</span>
+          <select id="settings-travel-int" onchange="setGpsInterval(this.value)" class="small-btn">
+            <option value="300">5m</option>
+            <option value="600">10m</option>
+            <option value="900">15m</option>
+            <option value="1800">30m</option>
+            <option value="2700">45m</option>
+            <option value="3600">1h</option>
+          </select>
+        </div>
+        <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:10px">GPS tracks live · this controls data refresh while traveling</div>
+        <div class="flex-between">
+          <span class="text-xxs-muted">Travel Mode</span>
+          <button id="settings-travel-toggle" onclick="toggleTravelMode();syncSettingsPanel()" style="font-size:0.75em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid var(--accent-cyan);background:rgba(0,229,255,0.08);color:var(--accent-cyan)">OFF</button>
+        </div>
+      </div>
+      <div class="setting-sep">
+        <div style="font-size:0.8em;font-weight:600;color:#a855f7;margin-bottom:8px">🤖 AI Weather Assistant</div>
+        <div class="setting-row-6">
+          <span class="text-xxs-muted">OpenAI API Key</span>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="password" id="settings-ai-key" placeholder="sk-..." style="font-size:0.7em;padding:3px 6px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;width:130px;font-family:var(--font-mono)" onchange="saveAIKey(this.value)">
+            <button onclick="toggleAIKeyVis()" style="font-size:0.7em;padding:3px 6px;background:rgba(255,255,255,0.05);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;color:var(--text-muted)">👁</button>
+          </div>
+        </div>
+        <div class="setting-hint">Stored locally on your device only — never sent anywhere except OpenAI</div>
+        <div class="setting-row-6">
+          <span class="text-xxs-muted">AI Tone</span>
+          <select id="settings-ai-tone" onchange="saveAITone(this.value)" class="small-btn">
+            <option value="professional">Professional</option>
+            <option value="friendly">Friendly</option>
+            <option value="humorous">Humorous</option>
+          </select>
+        </div>
+        <div class="setting-row-6">
+          <span class="text-xxs-muted">Detail Level</span>
+          <select id="settings-ai-detail" onchange="saveAIDetail(this.value)" class="small-btn">
+            <option value="standard">Standard</option>
+            <option value="minimal">Brief</option>
+            <option value="technical">Technical</option>
+          </select>
+        </div>
+        <div class="setting-row-6">
+          <span class="text-xxs-muted">AI Model</span>
+          <select id="settings-ai-model" onchange="saveAIModel(this.value)" class="small-btn">
+            <option value="gpt-4o-mini">GPT-4o Mini</option>
+            <option value="gpt-4o">GPT-4o</option>
+            <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
+            <option value="gpt-4.1">GPT-4.1</option>
+          </select>
+        </div>
+        <div class="setting-hint">4o Mini is fastest/cheapest. Full 4o and 4.1 give deeper meteorological analysis.</div>
+      </div>
+      <div class="setting-sep">
+        <div style="font-size:0.8em;font-weight:600;color:var(--accent-orange);margin-bottom:8px">🔔 Weather Station Alerts</div>
+        <div class="setting-hint">Set thresholds — get notified when conditions exceed your limits. 15-min cooldown per alert.</div>
+        <div id="wx-alert-settings"></div>
+      </div>
+      <div class="setting-sep">
+        <div style="font-size:0.8em;font-weight:600;color:var(--accent-yellow);margin-bottom:8px">🌩️ Storm Cell Alerts</div>
+        <div class="setting-hint">Get notified when radar detects storm cells matching ALL enabled thresholds. 15-min cooldown per cell.</div>
+        <div id="storm-alert-settings"></div>
+      </div>
+      <div class="setting-sep">
+        <div class="setting-heading">⏱️ Alert History Expiry</div>
+        <div class="setting-row-6">
+          <span class="text-xxs-muted">Auto-delete after</span>
+          <select id="settings-alert-expiry" onchange="setAlertExpiry(this.value)" class="small-btn">
+            <option value="30">30m</option>
+            <option value="60">1h</option>
+            <option value="120" selected>2h</option>
+            <option value="240">4h</option>
+            <option value="360">6h</option>
+          </select>
+        </div>
+        <div class="text-hint">Storm cell alerts expire by age. Station alerts expire after the condition drops below threshold.</div>
+      </div>
+      <!-- Rain Alert settings hidden — feature removed for now -->
+      <div class="setting-sep">
+        <div class="setting-heading-green">🌍 Environmental Hazards</div>
+        <div class="setting-hint">Configure hazard monitoring radius and data sources.</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
+          <span style="font-size:0.75em;color:var(--text-secondary)">🌍 Earthquake Radius</span>
+          <select id="settings-eq-radius" onchange="setEqRadius(this.value)" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-primary);border-radius:6px;padding:3px 8px;font-size:0.75em;font-family:var(--font-body)">
+            <option value="100">100 mi</option>
+            <option value="200">200 mi</option>
+            <option value="300">300 mi</option>
+            <option value="500">500 mi</option>
+            <option value="1000">1000 mi</option>
+          </select>
+        </div>
+      </div>
+      <div class="setting-sep">
+        <div style="font-size:0.8em;font-weight:600;color:#4fc3f7;margin-bottom:8px">📡 mPING Weather Reports</div>
+        <div style="font-size:0.6em;color:var(--text-muted);margin-bottom:8px;line-height:1.5">
+          mPING (Meteorological Phenomena Identification Near the Ground) is a citizen science project by NOAA/NSSL. 
+          Tap the <span style="color:#4fc3f7;font-weight:700">mP</span> button on the radar map to view real-time reports from people near you.
+        </div>
+        <div class="setting-hint">Want to submit your own reports? Download the official mPING app:</div>
+        <div style="display:flex;gap:6px">
+          <a href="https://apps.apple.com/us/app/mping/id577882748" target="_blank" rel="noopener" style="flex:1;padding:6px;background:rgba(79,195,247,0.1);color:#4fc3f7;border:1px solid rgba(79,195,247,0.3);border-radius:6px;font-size:0.7em;font-weight:600;text-align:center;text-decoration:none">🍎 iOS App</a>
+          <a href="https://play.google.com/store/apps/details?id=edu.ou.nssl.mping" target="_blank" rel="noopener" style="flex:1;padding:6px;background:rgba(79,195,247,0.1);color:#4fc3f7;border:1px solid rgba(79,195,247,0.3);border-radius:6px;font-size:0.7em;font-weight:600;text-align:center;text-decoration:none">🤖 Android App</a>
+        </div>
+      </div>
+      <!-- Sync & Alerts section hidden — planned for future redesign -->
+      <div id="sync-alerts-section" class="hidden"></div>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:12px">
+        <button id="btn-check-update" onclick="forceAppUpdate()" style="width:100%;padding:10px;background:rgba(76,175,80,0.1);color:#66bb6a;border:1px solid rgba(76,175,80,0.3);border-radius:8px;font-size:0.8em;font-weight:600;cursor:pointer;margin-bottom:8px">🔄 Check for Updates</button>
+        <div class="flex-gap-8">
+          <button onclick="showTutorial()" style="flex:1;padding:10px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.8em;font-weight:600;cursor:pointer">📖 Tutorial</button>
+          <button onclick="showChangelog()" style="flex:1;padding:10px;background:rgba(168,85,247,0.1);color:#a855f7;border:1px solid rgba(168,85,247,0.3);border-radius:8px;font-size:0.8em;font-weight:600;cursor:pointer">📋 What's New</button>
+        </div>
+        <div style="font-size:0.65em;color:var(--text-muted);margin-top:6px;text-align:center">Learn how to use StormTracker or see recent updates</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tutorial-overlay" class="settings-overlay" onclick="if(event.target===this)closeTutorial()">
+  <button onclick="closeTutorial()" style="position:fixed;top:16px;right:16px;z-index:10002;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:#fff;font-size:1.3em;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);box-shadow:0 2px 12px rgba(0,0,0,0.4)">✕</button>
+  <div class="settings-panel">
+    <div class="overlay-header">
+      <span class="overlay-title">📖 How to Use StormTracker</span>
+      <button onclick="closeTutorial()" class="overlay-close-btn">✕</button>
+    </div>
+    <div id="tutorial-content" class="overlay-body"></div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button onclick="closeTutorial()" style="flex:1;padding:10px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">Got it!</button>
+      <label style="display:flex;align-items:center;gap:4px;font-size:0.7em;color:var(--text-muted);cursor:pointer"><input type="checkbox" id="tutorial-skip-cb" onchange="setTutorialSkip(this.checked)"> Don't show on startup</label>
+    </div>
+  </div>
+</div>
+
+<div id="changelog-overlay" class="settings-overlay" onclick="if(event.target===this)closeChangelog()">
+  <div class="settings-panel">
+    <div class="overlay-header">
+      <span class="overlay-title">📋 What's New</span>
+      <button onclick="closeChangelog()" class="overlay-close-btn">✕</button>
+    </div>
+    <div id="changelog-content" class="overlay-body"></div>
+  </div>
+</div>
+
+<div class="loc-overlay" id="loc-overlay" onclick="if(event.target===this)toggleLocOverlay(false)">
+  <div class="loc-overlay-inner">
+    <input type="text" id="location-input" placeholder="Search city, ZIP, or address..." autocomplete="off">
+    <div id="loc-suggestions" class="loc-suggestions"></div>
+    <div class="loc-overlay-btns">
+      <button class="loc-btn-gps" onclick="showLocationConfirm();toggleLocOverlay(false)">🛰️ GPS</button>
+      <button class="loc-btn-search" onclick="searchLoc();toggleLocOverlay(false)">🔍 Search</button>
+      <button class="loc-btn-close" onclick="toggleLocOverlay(false)">✕</button>
+    </div>
+    <button class="loc-btn-map" onclick="startMapPick()" style="width:100%;margin-top:6px;padding:8px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">📌 Set Location from Map</button>
+    <button class="travel-btn" id="travel-btn" onclick="toggleTravelMode();toggleLocOverlay(false)">🧭 Travel Mode — Follow GPS Live</button>
+    <div id="gps-interval-row" style="display:none;margin-top:6px;padding:6px 10px;background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.15);border-radius:8px">
+      <div class="flex-between">
+        <span class="text-075" style="color:var(--text-muted);font-weight:600">🔄 Data Refresh Interval</span>
+        <select id="gps-interval-sel" onchange="setGpsInterval(this.value)" style="font-size:0.75em;padding:2px 6px;background:var(--bg-card);color:var(--text-primary);border:1px solid rgba(0,229,255,0.3);border-radius:6px;cursor:pointer">
+          <option value="300" selected>5m</option>
+          <option value="600">10m</option>
+          <option value="900">15m</option>
+          <option value="1800">30m</option>
+          <option value="2700">45m</option>
+          <option value="3600">1h</option>
+        </select>
+      </div>
+      <div style="font-size:0.65em;color:var(--text-muted);margin-top:2px">GPS tracks live · this controls weather/radar/storm refresh rate</div>
+    </div>
+    <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between">
+      <span class="text-075" style="color:var(--text-muted);font-weight:600">⭐ Favorites</span>
+      <button id="fav-save-btn" onclick="saveFavorite()" style="font-size:0.7em;padding:2px 8px;background:rgba(0,255,136,0.1);color:var(--accent-green);border:1px solid rgba(0,255,136,0.3);border-radius:6px;cursor:pointer;font-weight:600">+ Save Current</button>
+    </div>
+    <div id="fav-list" style="margin-top:4px"></div>
+  </div>
+</div>
+
+<div class="container">
+  <div id="page-weather" class="section-page visible"></div>
+  <div id="page-radar" class="section-page"></div>
+  <div id="page-storms" class="section-page"></div>
+  <div id="page-station" class="section-page"></div>
+  <div id="page-alerts" class="section-page"></div>
+</div>
+
+<div class="powered-by">
+  100% free &middot; No API keys &middot; No account required<br>
+  <a href="https://open-meteo.com" target="_blank">Open-Meteo</a> &middot;
+  <a href="https://www.rainviewer.com" target="_blank">RainViewer</a> &middot;
+  <a href="https://www.weather.gov" target="_blank">NWS</a> &middot;
+  <a href="https://aviationweather.gov" target="_blank">AWC</a>
+</div>
+
+<button id="ai-fab" onclick="toggleAIChat()" style="display:none;position:fixed;bottom:72px;right:14px;z-index:997;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#a855f7);border:2px solid rgba(168,85,247,0.4);color:#fff;font-size:1.4em;cursor:pointer;box-shadow:0 4px 16px rgba(124,58,237,0.4);transition:transform 0.2s" title="AI Weather Assistant">🤖</button>
+
+<div id="ai-chat-overlay" style="display:none;position:fixed;bottom:0;left:0;right:0;top:0;z-index:9998;background:rgba(5,8,15,0.92);backdrop-filter:blur(8px)" onclick="if(event.target===this)toggleAIChat()">
+  <div style="position:absolute;bottom:0;left:0;right:0;max-height:85vh;background:var(--bg-card);border-top-left-radius:16px;border-top-right-radius:16px;border:1px solid rgba(168,85,247,0.3);border-bottom:none;display:flex;flex-direction:column">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border-subtle)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="text-1-2">🤖</span>
+        <span style="font-size:0.95em;font-weight:700;color:var(--text-primary)">AI Weather Assistant</span>
+        <span id="ai-status-dot" style="width:6px;height:6px;border-radius:50%;background:#4ade80;display:inline-block"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="clearAIChat()" title="Clear chat" style="background:none;border:none;color:var(--text-muted);font-size:0.9em;cursor:pointer;padding:4px 8px;border-radius:6px;border:1px solid var(--border-subtle)">🗑️</button>
+        <button onclick="toggleAIChat()" class="overlay-close-btn">✕</button>
+      </div>
+    </div>
+    <div id="ai-chat-messages" style="flex:1;overflow-y:auto;padding:12px 16px;min-height:200px;max-height:55vh;-webkit-overflow-scrolling:touch"></div>
+    <div id="ai-quick-questions" style="padding:6px 16px;display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--border-subtle)">
+      <button class="ai-qq" onclick="aiQuickQ('What is the current weather situation?')">Current conditions</button>
+      <button class="ai-qq" onclick="aiQuickQ('Are any storms heading my way?')">Storms approaching?</button>
+      <button class="ai-qq" onclick="aiQuickQ('What should I expect in the next few hours?')">Next few hours?</button>
+      <button class="ai-qq" onclick="aiQuickQ('Is it safe to be outdoors right now?')">Safe outdoors?</button>
+      <button class="ai-qq" onclick="aiQuickQ('Give me a full weather analysis with risk assessment')">Full analysis</button>
+    </div>
+    <div style="padding:8px 16px 12px;display:flex;gap:8px;border-top:1px solid var(--border-subtle)">
+      <input type="text" id="ai-chat-input" placeholder="Ask about the weather..." style="flex:1;padding:10px 14px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:10px;font-size:0.85em;outline:none" onkeydown="if(event.key==='Enter')sendAIChat()">
+      <button onclick="sendAIChat()" style="padding:10px 16px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:10px;font-size:0.85em;font-weight:600;cursor:pointer">Send</button>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <button class="nav-item active" data-page="weather"><span class="nav-icon">🌤️</span><span class="nav-label">Weather</span></button>
+  <button class="nav-item" data-page="radar"><span class="nav-icon">📡</span><span class="nav-label">Radar</span></button>
+  <button class="nav-item" data-page="storms" style="position:relative"><span class="nav-icon" id="nav-storms-icon">🌪️</span><span class="nav-label">Storms</span><span class="nav-badge" id="nav-storm-badge"></span></button>
+  <button class="nav-item" data-page="station" id="nav-station"><span class="nav-icon">✈️</span><span class="nav-label">Station</span></button>
+  <button class="nav-item" data-page="alerts" style="position:relative" id="nav-alerts"><span class="nav-icon">⚠️</span><span class="nav-label">Alerts</span><span class="nav-badge" id="nav-alert-badge">0</span></button>
+</nav>
+
+<script src="js/core.js?v=310"></script>
+<script src="js/gauges.js?v=310"></script>
+<script src="js/icons.js?v=310"></script>
+<script src="js/geo.js?v=310"></script>
+<script src="js/settings.js?v=310"></script>
+<script src="js/thresholds.js?v=310"></script>
+<script src="js/weather.js?v=310"></script>
+<script src="js/radar.js?v=310"></script>
+<script src="js/storms.js?v=310"></script>
+<script src="js/station.js?v=310"></script>
+<script src="js/alerts.js?v=310"></script>
+<script src="js/ai.js?v=310"></script>
+<script src="js/init.js?v=310"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').then(r=>console.log('SW registered')).catch(e=>console.log('SW failed:',e))}</script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+{
+  "packageId": "com.stormtracker.app",
+  "host": "capflyingfun.github.io",
+  "name": "StormTracker - Real-Time Storm Detection",
+  "launcherName": "StormTracker",
+  "display": "standalone",
+  "themeColor": "#0a1020",
+  "navigationColor": "#05080f",
+  "navigationColorDark": "#05080f",
+  "navigationDividerColor": "#05080f",
+  "navigationDividerColorDark": "#05080f",
+  "backgroundColor": "#05080f",
+  "enableNotifications": true,
+  "startUrl": "/StormTracker/",
+  "iconUrl": "https://capflyingfun.github.io/StormTracker/icons/icon-512x512.png",
+  "maskableIconUrl": "https://capflyingfun.github.io/StormTracker/icons/icon-512x512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "stormtracker-keystore.jks",
+    "alias": "stormtracker"
+  },
+  "appVersionCode": 1,
+  "appVersionName": "2.39b",
+  "shortcuts": [
+    {
+      "name": "View Radar",
+      "shortName": "Radar",
+      "url": "/StormTracker/#radar",
+      "chosenIconUrl": "https://capflyingfun.github.io/StormTracker/icons/icon-96x96.png"
+    },
+    {
+      "name": "Storm Tracker",
+      "shortName": "Storms",
+      "url": "/StormTracker/#storms",
+      "chosenIconUrl": "https://capflyingfun.github.io/StormTracker/icons/icon-96x96.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://capflyingfun.github.io/StormTracker/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": {
+      "enabled": true
+    },
+    "playBilling": {
+      "enabled": false
+    }
+  },
+  "alphaDependency": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://capflyingfun.github.io/StormTracker/",
+  "minSdkVersion": 19,
+  "orientation": "portrait"
+}

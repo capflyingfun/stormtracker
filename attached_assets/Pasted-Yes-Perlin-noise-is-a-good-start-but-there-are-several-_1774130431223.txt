@@ -1,0 +1,83 @@
+Yes — Perlin noise is a good start, but there are several improved approaches that give more realistic gusts, pauses to zero, and occasional sudden shifts. Below I give a concise, practical recipe you can drop into your app, plus alternatives and tuning tips.
+
+Practical simulation (recommended)
+- Components: base (slow trend), turbulence (mid-frequency gusts), gust events (occasional short bursts), and a zero-crossing modulator to allow drops to 0.
+- Update cadence: sample continuous noise at high frequency (e.g., 10 Hz) but only display/interpolate at your UI frame rate; combine with your real update schedule (you said real updates every 2 min with a 1 min delayed lerp).
+
+Algorithm (implementable with Perlin/Simplex noise + random events)
+1. Inputs/constants
+   - wind_obs_t: observed wind at last API time
+   - wind_obs_t_next: next observed wind (when available)
+   - interp_delay: 60s (delay before lerp)
+   - interp_duration: 60s (lerp length)
+   - sampling_time: time since last observed (continuous)
+   - freq_base ~ 0.001–0.01 Hz (very slow drift)
+   - freq_turb ~ 0.05–0.5 Hz (turbulence/gust texture)
+   - gust_rate ≈ 0.005–0.02 events/sec (1 event every 50–200s)
+   - gust_strength scale relative to observed wind (0.2–2.0)
+   - zero_prob and zero_duration distribution to allow drops to 0
+
+2. Base trend (smoothly moves between observations)
+   - If sampling_time < interp_delay: base = wind_obs_t
+   - Else if sampling_time < interp_delay + interp_duration:
+       base = lerp(wind_obs_t, wind_obs_t_next, (sampling_time - interp_delay)/interp_duration)
+   - Else: base = wind_obs_t_next
+
+3. Slow noise (Perlin/Simplex)
+   - slow = perlin1D(t * freq_base + seed1) * A_base
+   - Choose A_base small, e.g., 0.05 * base (adds subtle drift)
+
+4. Turbulence (higher frequency noise)
+   - turb = perlin1D(t * freq_turb + seed2) * A_turb
+   - A_turb can be proportional to base: A_turb = max(0.1, 0.3 * base)
+
+5. Gust events (Poisson process)
+   - Trigger events with probability gust_rate * dt each timestep.
+   - Each event has amplitude = base * gust_strength * random(0.3..1.0), duration = random(2..12)s, envelope (rise ~0.5s, exponential decay).
+   - Sum active gusts to get gust_sum.
+
+6. Zero-crossing modulator (allows full calm)
+   - Model a calm state as rare events where wind is multiplied by a fade to zero:
+     - Trigger calm with low probability (calm_rate), duration random(5–90s).
+     - During calm, multiply total wind by a smooth envelope that goes to 0 (e.g., raised cosine or smoothstep).
+   - Alternatively: make a separate Perlin noise channel that modulates a multiplier m(t) in [0,1]; when it goes near 0, clamp smaller values to 0 to simulate stops.
+
+7. Combine
+   - raw = base + slow + turb + gust_sum
+   - raw = max(0, raw)   (no negative wind speed)
+   - output = raw * m(t) where m(t) is the zero-crossing multiplier
+   - Optionally add small random jitter each frame
+
+Implementation notes
+- Use fractional Brownian motion (fBm) by summing multiple octaves of Perlin/Simplex for better spectra than single-octave Perlin.
+- Simplex is faster and less artifact-prone than classic Perlin.
+- Keep noise seeds per-location so different locations vary independently.
+- Normalize noise outputs so A_base/A_turb/gust scales behave consistently across ranges.
+- Ensure continuity at observation times: blend noise phases or zero mean noise around obs to avoid sudden discontinuities; you already delay and lerp which helps.
+- Consider modeling gusts as a filtered shot-noise process (Poisson impulses convolved with an exponential kernel) — this produces realistic intermittent bursts and is conceptually cleaner than ad-hoc per-event code.
+
+Alternative approaches
+- Ornstein–Uhlenbeck (OU) process: a mean-reverting stochastic differential equation good for smooth random wandering; combine an OU for slow trend with shot-noise gusts for bursts.
+- ARMA/AR(1) with noise: if you want statistically calibrated temporal autocorrelation from real data.
+- Spectral synthesis: create wind time series from a target power spectral density (PSD) (e.g., Kaimal spectrum for atmospheric turbulence) for physically realistic behavior — more complex but more realistic for engineering use.
+- Markov-switching model: alternate between “gusty”, “steady”, and “calm” states with different internal dynamics.
+
+Simple compact recipe (code-ready pseudocode)
+- base = obs/lerp as above
+- slow = fBm(t*freq_base) * (0.05*base)
+- turb = fBm(t*freq_turb) * (0.25*base)
+- if random_event(gust_rate): spawn_gust(amplitude, duration)
+- gust_sum = sum_active_gusts(t)
+- calm_multiplier = if random_event(calm_rate) then fade_to_zero_envelope else 1
+- wind = max(0, base + slow + turb + gust_sum) * calm_multiplier
+
+Tuning suggestions
+- For light breezes (0–5 m/s): gust_strength higher relative to base to feel lively; allow calm events more often.
+- For strong winds: reduce relative turbulence percent, gusts as percentage rather than absolute.
+- Sample and tune using logs from your real wind updates (autocorrelation, gust factor) and adjust parameters to match observed statistics (mean, variance, gust factor).
+
+If you want, I can:
+- provide example code (JavaScript, Swift, or Python) implementing the above, or
+- generate parameter presets (calm, normal, gusty, storm) you can drop in.
+
+Which language would you like the example in?
