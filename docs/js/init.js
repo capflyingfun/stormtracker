@@ -711,7 +711,7 @@ function renderTerrain3D(){
   ctx.font='bold 9px Inter,sans-serif';
   ctx.fillText('YOU',cx+6,cy+3);
 
-  const nAngle=-rotZ;
+  const nAngle=rotZ;
   const nR=ringMax*baseScale*GS/scanR+12;
   const nx=cx+Math.sin(nAngle)*nR;
   const ny=cy-Math.cos(nAngle)*nR*yScale;
@@ -796,8 +796,8 @@ function renderTerrain3D(){
   if(mv&&mv.speed>=2){
     const dir=(mv.direction)*Math.PI/180;
     const aLen=40*zoom;
-    const ax=cx+Math.sin(dir-rotZ)*aLen;
-    const ay=cy-Math.cos(dir-rotZ)*aLen*yScale;
+    const ax=cx+Math.sin(dir+rotZ)*aLen;
+    const ay=cy-Math.cos(dir+rotZ)*aLen*yScale;
     ctx.strokeStyle='rgba(0,220,255,0.7)';
     ctx.lineWidth=2;
     ctx.setLineDash([5,3]);
@@ -821,8 +821,8 @@ function renderTerrain3D(){
   if(aloftDir!=null){
     const toDir=((aloftDir+180)%360)*Math.PI/180;
     const aLen=35*zoom;
-    const ax=cx+Math.sin(toDir-rotZ)*aLen;
-    const ay=cy-Math.cos(toDir-rotZ)*aLen*yScale;
+    const ax=cx+Math.sin(toDir+rotZ)*aLen;
+    const ay=cy-Math.cos(toDir+rotZ)*aLen*yScale;
     ctx.strokeStyle='rgba(255,0,220,0.5)';
     ctx.lineWidth=1.5;
     ctx.setLineDash([6,4]);
@@ -922,7 +922,7 @@ function setupIsoTouch(){
     if(!dragging)return;
     const dx=e.clientX-lastX;
     const dy=e.clientY-lastY;
-    ISO.tiltZ=(ISO.tiltZ-dx*0.3)%360;
+    ISO.tiltZ=(ISO.tiltZ+dx*0.3)%360;
     ISO.tiltX=Math.max(15,Math.min(85,ISO.tiltX+dy*0.3));
     lastX=e.clientX;
     lastY=e.clientY;
@@ -964,8 +964,8 @@ function setupIsoTouch(){
     const camActions={
       up:()=>{ISO.tiltX=Math.max(15,ISO.tiltX-2);markDirty();},
       down:()=>{ISO.tiltX=Math.min(85,ISO.tiltX+2);markDirty();},
-      left:()=>{ISO.tiltZ=(ISO.tiltZ+3)%360;markDirty();},
-      right:()=>{ISO.tiltZ=(ISO.tiltZ-3)%360;markDirty();},
+      left:()=>{ISO.tiltZ=(ISO.tiltZ-3)%360;markDirty();},
+      right:()=>{ISO.tiltZ=(ISO.tiltZ+3)%360;markDirty();},
       zin:()=>{ISO.zoom=Math.min(4,ISO.zoom+0.1);markDirty();},
       zout:()=>{ISO.zoom=Math.max(0.3,ISO.zoom-0.1);markDirty();},
       reset:()=>{ISO.tiltX=55;ISO.tiltZ=0;ISO.zoom=1;markDirty();}
