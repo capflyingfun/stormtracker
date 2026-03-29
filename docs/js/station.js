@@ -372,7 +372,7 @@ async function loadStationObs(icao){
         presPa:p.barometricPressure?.value,
         rawMETAR:p.rawMessage||buildSyntheticMetar(icao,p),
         clouds:p.cloudLayers||[],obsTime:p.timestamp||'',
-        wxString:_extractMetarWx(p.rawMessage||''),
+        wxString:p.rawMessage?_extractMetarWx(p.rawMessage):(p.textDescription||''),
       };
       const nwsRaw=p.rawMessage||'';
       if(nwsRaw){
@@ -400,17 +400,9 @@ async function loadStationObsAWC(icao){
   }
   const stInfo=S.nearbyStations?.find(s=>s.icao===icao);
   S.stationId=icao;
-  if(data.length){
-    S.station=parseAWCobs(data[0]);
-    if(stInfo?.name)S.station.name=stInfo.name;
-  }else{
-    console.log('loadStationObsAWC: No METAR for',icao,'— showing station without obs');
-    S.station={
-      icao,name:stInfo?.name||icao,lat:stInfo?.lat||S.lat,lon:stInfo?.lon||S.lon,elev:null,
-      temp:null,dewp:null,windKmh:null,windDir:null,gustKmh:null,visMeter:null,presPa:null,
-      rawMETAR:'',clouds:[],obsTime:'',wxString:'',_noMetar:true,_reason:'No recent METAR available'
-    };
-  }
+  if(!data.length)throw new Error('AWC returned no METAR for '+icao);
+  S.station=parseAWCobs(data[0]);
+  if(stInfo?.name)S.station.name=stInfo.name;
   renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
 }
 
