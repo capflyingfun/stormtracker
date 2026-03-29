@@ -162,6 +162,7 @@ async function fetchWeather(){
     }catch(e){console.log('Multi-source blend failed:',e.message)}
     S.weather=omData.current;S._lastWeatherFetch=Date.now();S._lastWeatherData=omData;_resetMinMax();renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);
   }catch(e){
+    if(typeof hideLoadingScreen==='function')hideLoadingScreen();
     if(_isOffline&&S._lastWeatherData){
       renderWeather(S._lastWeatherData);
     } else {
