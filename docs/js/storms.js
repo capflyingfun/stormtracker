@@ -539,6 +539,7 @@ function calcStormETA(storm){
   if(storm.distance<=5&&diff<=15)pct=Math.max(pct,92);
   else if(storm.distance<=10&&diff<=15)pct=Math.max(pct,82);
   else if(storm.distance<=20&&diff<=12)pct=Math.max(pct,72);
+  if(storm._hookEcho)pct=Math.max(pct,Math.min(100,pct+15));
   if(hasSevereWarning)pct=Math.max(pct,Math.min(95,pct+20));
   if(storm.distance<=proxRange)pct=Math.max(pct,Math.round(75+(proxRange-storm.distance)/proxRange*20));
   return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed*100)/100,angleDiff:Math.round(diff),cellTrack:!!cellTrack,trackDir:cellTrack?cellTrack.dir:null,trackSpd:cellTrack?cellTrack.speed:null,nwsWarnings,terrain:terrain.desc};
@@ -1898,7 +1899,8 @@ function _loadStormFilter(){
 function _saveStormFilter(f){localStorage.setItem('st_stormFilter',JSON.stringify(f));S._stormFilter=f}
 function _threatScoreRaw(s){
   const e=s._eta;
-  return Math.pow(s.dbz||0,2)*(e&&e.approaching?2:0.5)/Math.sqrt(Math.max(s.distance,0.5));
+  const hookMult=s._hookEcho?2.5:1;
+  return Math.pow(s.dbz||0,2)*(e&&e.approaching?2:0.5)/Math.sqrt(Math.max(s.distance,0.5))*hookMult;
 }
 function stormThreatScore10(s){
   const raw=_threatScoreRaw(s);
