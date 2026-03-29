@@ -101,27 +101,48 @@ async function forceAppUpdate(){
   btn.style.color='#66bb6a';
   timerInt=setInterval(()=>updateTimer('🔄 Checking...'),100);
   try{
-    // Detect current installed version from SW cache keys
+    // 1. Current installed version from SW cache keys
     const keys=await caches.keys();
     const currentKey=keys.find(k=>k.startsWith('stormtracker-v'))||'';
     const currentVer=currentKey?currentKey.replace('stormtracker-',''):'unknown';
 
-    // Fetch latest sw.js from network bypassing cache to read its version
-    let latestVer=currentVer;
+    // 2. Current display version from page header (e.g. "StormTracker v3.38" → "v3.38")
+    const titleMatch=document.title.match(/v(\d+\.\d+)/);
+    const currentDisplayVer=titleMatch?`v${titleMatch[1]}`:'';
+
+    // 3. Fetch latest sw.js from network bypassing cache
+    let latestSwVer=currentVer;
     try{
       const r=await fetch('sw.js?_='+Date.now(),{cache:'no-store'});
       if(r.ok){
         const txt=await r.text();
         const m=txt.match(/CACHE_NAME\s*=\s*['"]stormtracker-(v\d+)['"]/);
-        if(m)latestVer=m[1];
+        if(m)latestSwVer=m[1];
       }
     }catch(e){console.warn('Could not fetch sw.js for version check:',e);}
 
+    // 4. Fetch latest index.html header version from network
+    let latestDisplayVer=currentDisplayVer;
+    try{
+      const r=await fetch('index.html?_='+Date.now(),{cache:'no-store'});
+      if(r.ok){
+        const txt=await r.text();
+        const m=txt.match(/<title>[^<]*v(\d+\.\d+)[^<]*<\/title>/i);
+        if(m)latestDisplayVer=`v${m[1]}`;
+      }
+    }catch(e){console.warn('Could not fetch index.html for version check:',e);}
+
     clearInterval(timerInt);
 
-    if(latestVer===currentVer&&currentVer!=='unknown'){
-      // Already on the latest version — no reload needed
-      btn.textContent=`✅ Up to date (${currentVer})`;
+    // Update needed if SW cache version differs OR page header version differs
+    const swOutdated=latestSwVer!==currentVer&&currentVer!=='unknown';
+    const pageOutdated=latestDisplayVer&&currentDisplayVer&&latestDisplayVer!==currentDisplayVer;
+    const updateNeeded=swOutdated||pageOutdated;
+
+    if(!updateNeeded&&currentVer!=='unknown'){
+      // Already on the latest version
+      const dispVer=currentDisplayVer||currentVer;
+      btn.textContent=`✅ Up to date (${dispVer})`;
       btn.style.color='#4caf50';
       btn.disabled=false;
       return;
@@ -129,9 +150,15 @@ async function forceAppUpdate(){
 
     // New version available — show comparison then clear caches and reload
     const elapsed=((Date.now()-startTime)/1000).toFixed(1);
-    btn.textContent=currentVer!=='unknown'
-      ?`🆕 ${currentVer} → ${latestVer} (${elapsed}s)`
-      :`🆕 Update available (${elapsed}s)`;
+    let label;
+    if(pageOutdated&&currentDisplayVer&&latestDisplayVer){
+      label=`🆕 ${currentDisplayVer} → ${latestDisplayVer} (${elapsed}s)`;
+    }else if(swOutdated){
+      label=`🆕 ${currentVer} → ${latestSwVer} (${elapsed}s)`;
+    }else{
+      label=`🆕 Update available (${elapsed}s)`;
+    }
+    btn.textContent=label;
     btn.style.color='#00e5ff';
 
     await Promise.all(keys.map(k=>caches.delete(k)));
