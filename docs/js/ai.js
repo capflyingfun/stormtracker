@@ -92,7 +92,8 @@ function buildWeatherContext(){
   const now=new Date();
   parts.push(`Current time: ${now.toLocaleString()}`);
   if(S.locName)parts.push(`Location: ${S.locName} (${S.lat?.toFixed(4)}, ${S.lon?.toFixed(4)})`);
-  parts.push(`Scan radius: ${S.scanRadius} miles`);
+  parts.push(`Scan radius: ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' miles'}`);
+  parts.push(`USER UNITS: temperature=${TEMP_UNITS[S.tempUnit]}, wind=${WIND_UNITS[S.windUnit]}, pressure=${PRES_UNITS[S.presUnit]}, visibility=${VIS_UNITS[S.visUnit]}, precipitation=${PRECIP_UNITS[S.precipUnit]}, distance=${S.radarMetric?'km':'mi'}`);
 
   try{
   if(S.weather){
@@ -402,9 +403,10 @@ Aviation Briefing
 Pilot-focused. Flight category and limiting factor (ceiling vs visibility). All available winds aloft with altitudes. Wind shear assessment between levels — note any shear exceeding 25 kts per 2,000 ft. Turbulence potential. Density altitude if available. METAR decode highlights. Thunderstorm avoidance guidance if applicable.
 
 Marine Conditions
-Mariner-focused. Surface wind sustained and gusts in knots. Gale or small craft advisory relevance. Visibility over water. Storm approach timing for open-water exposure. Sea state estimation from wind data.
+Mariner-focused. Surface wind sustained and gusts in the user's preferred wind unit. Gale or small craft advisory relevance. Visibility over water. Storm approach timing for open-water exposure. Sea state estimation from wind data.
 
 RULES:
+- IMPORTANT: Use the units specified in USER UNITS for ALL measurements in your response. If the user has wind set to km/h, report winds in km/h — not mph or knots. If temperature is °C, use °C. If distance is km, use km. Match their preferences exactly.
 - Write plain text only — no markdown formatting characters (no **, ##, *, or bullet symbols)
 - Reference specific numbers from the data whenever possible
 - Never mention missing data sources — work with what you have
