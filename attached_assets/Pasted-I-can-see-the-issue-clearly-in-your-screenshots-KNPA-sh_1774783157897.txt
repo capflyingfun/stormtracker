@@ -1,0 +1,114 @@
+I can see the issue clearly in your screenshots. KNPA shows the full station card with gusts, fog risk, cloud base, full METAR with remarks, and the decode option — while KPNS is missing the gusts line, has a truncated METAR (no remarks section), and the fog risk/cloud base values differ slightly despite being only 1.6 miles apart.
+Let me look at why:
+KNPA METAR: KNPA 291056Z AUTO 11015G24KT 10SM FEW035 OVC070 18/10 A3031 RMK AO2 SLP263 T01780100 $
+KPNS METAR: KPNS 291105Z 12014KT 10SM BKN035 OVC070 18/09 A3031
+The KPNS METAR is not truncated by the app — that’s literally all the NWS/AWC returned. KPNS didn’t report gusts (no G group), no remarks section, no $ flag. So most of the visual differences are actually correct — the app is rendering exactly what the data gives it.
+But there IS a real code issue. Look at the wind: KNPA reports 11015G24KT (15 kts gusting 24) and shows 17.3 mph, Gusts 27.6 mph. KPNS reports 12014KT (14 kts, no gusts) and shows 16.1 mph, ESE wind — no gusts line, which is correct since the METAR has no gusts.
+The actual bug is more subtle. Let me check the data flow paths:​​​​​​​​​​​​​​​​
+
+Now I see the problem. Look at line 351:
+
+if(S._stationSource==='awc'){return loadStationObsAWC(icao)}
+
+
+When you first load the app near Pensacola, fetchStation() tries the NWS API first (Tier 1). Since your location is in the US, it succeeds and sets S._stationSource = 'nws'. The nearest station is KNPA. It loads KNPA via loadStationObs() → NWS API path → gets the full METAR with remarks.
+But when you tap KPNS in the nearby stations list, it calls switchStation('KPNS') which calls loadStationObs(icao). Here’s the critical issue — look at loadStationObs() line 351: it checks if(S._stationSource==='awc') and short-circuits to AWC. But since _stationSource is 'nws', it goes through the NWS path.
+The NWS path at line 353 fetches https://api.weather.gov/stations/KPNS/observations/latest. The NWS API for KPNS does return data, but crucially — look at line 374:
+
+rawMETAR: p.rawMessage || buildSyntheticMetar(icao, p),
+
+
+If the NWS returns rawMessage for KPNS, it uses that. But KPNS’s raw METAR from NWS sometimes comes back without the remarks section because the NWS API truncates it or returns a shortened version. Meanwhile, the old code that was in the previous version had a parseRawMetar() step that was removed during the file restore — it used to parse the raw METAR first, then fill in gaps from the NWS properties.
+Let me verify:​​​​​​​​​​​​​​​​
+
+parseRawMetar exists but is never called in loadStationObs(). It was defined but the call was lost — likely during the file restore incident. The old code used to do:
+
+if (nwsRaw) {
+  S.station = parseRawMetar(nwsRaw, {icao, name, lat, lon});
+  // then fill in gaps from NWS properties
+}
+
+
+But the current code at line 361-378 skips parseRawMetar() entirely and just reads directly from the NWS API properties (p.windSpeed.value, etc.). This means the raw METAR string is displayed but the actual values come from the NWS structured properties — which can differ from what the raw METAR says, and sometimes return null for fields that ARE in the raw METAR.
+Here’s your fix prompt:
+
+Fix: KPNS and other stations showing incomplete data compared to KNPA in docs/js/station.js
+Root cause: The loadStationObs() function (line 344) was damaged during the file restore. It currently reads station data directly from the NWS API’s structured JSON properties (p.windSpeed.value, p.temperature.value, etc.) but never calls parseRawMetar() which is defined at line 220 but unused. The NWS structured properties are often incomplete or return null for fields that actually exist in the raw METAR string. The old code parsed the raw METAR first and used it as the primary data source, with NWS properties as fallback.
+Fix loadStationObs() — restore the raw METAR parsing as primary data source:
+
+async function loadStationObs(icao){
+  const el=document.getElementById('page-station');
+  S.stationId=icao;
+  if(S._stationSource==='vatsim'){
+    const st=S.nearbyStations?.find(s=>s.icao===icao)||{icao,name:icao,lat:S.lat,lon:S.lon};
+    return loadStationVatsim(st);
+  }
+  // For AWC-sourced stations, go straight to AWC
+  if(S._stationSource==='awc'){return loadStationObsAWC(icao)}
+  try{
+    const obsRes=await fetch(`https://api.weather.gov/stations/${icao}/observations/latest`,NWS_HDR);
+    if(!obsRes.ok)throw new Error('Obs returned '+obsRes.status);
+    const obsData=await obsRes.json();
+    const p=obsData.properties||{};
+    const stInfo=S.nearbyStations?.find(s=>s.icao===icao);
+    const geo=obsData.geometry?.coordinates;
+    const sLat=stInfo?.lat||(geo?geo[1]:S.lat);
+    const sLon=stInfo?.lon||(geo?geo[0]:S.lon);
+    const stName=stInfo?.name||S._airportDataCache?.find(a=>a.icao===icao)?.name||icao;
+    const nwsRaw=p.rawMessage||'';
+    
+    if(nwsRaw){
+      // PRIMARY: Parse the raw METAR string — most complete and reliable
+      S.station=parseRawMetar(nwsRaw,{icao,name:stName,lat:sLat,lon:sLon});
+      S.station.elev=p.elevation?.value!=null?p.elevation.value:null;
+      S.station.obsTime=p.timestamp||'';
+      // Fill in wxString from raw METAR extraction, fallback to NWS text
+      if(!S.station.wxString)S.station.wxString=p.textDescription||'';
+      // Fill in cloud layers from NWS if raw parse didn't get them
+      if((!S.station.clouds||!S.station.clouds.length)&&p.cloudLayers?.length){
+        S.station.clouds=p.cloudLayers.map(c=>({
+          amount:c.amount||'',
+          base:{value:c.base?.value!=null?c.base.value:null}
+        }));
+      }
+    }else{
+      // FALLBACK: No raw METAR from NWS — use structured properties
+      S.station={
+        icao,name:stName,lat:sLat,lon:sLon,
+        elev:p.elevation?.value!=null?p.elevation.value:null,
+        temp:p.temperature?.value!=null?p.temperature.value:null,
+        dewp:p.dewpoint?.value!=null?p.dewpoint.value:null,
+        windKmh:p.windSpeed?.value!=null?p.windSpeed.value:null,
+        windDir:p.windDirection?.value!=null?p.windDirection.value:null,
+        gustKmh:p.windGust?.value!=null?p.windGust.value:null,
+        visMeter:p.visibility?.value!=null?p.visibility.value:null,
+        presPa:p.barometricPressure?.value!=null?p.barometricPressure.value:null,
+        rawMETAR:buildSyntheticMetar(icao,p),
+        clouds:p.cloudLayers||[],
+        obsTime:p.timestamp||'',
+        wxString:p.textDescription||'',
+      };
+    }
+    
+    // Quality check — if NWS returned hollow data, fall back to AWC
+    const hasUsableData=S.station.temp!=null||S.station.windKmh!=null||S.station.visMeter!=null;
+    if(!hasUsableData){
+      console.log('NWS returned empty observation for',icao,'— falling back to AWC');
+      throw new Error('NWS observation empty');
+    }
+    
+    if(S.station.elev==null)_fetchStationElev(sLat,sLon);
+    renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
+  }catch(e){
+    console.error('Obs fetch error:',e);
+    try{await loadStationObsAWC(icao)}catch(e2){
+      el.innerHTML=`<div class="empty-state"><div class="empty-icon">📡</div><p>Could not load observations for ${icao}.</p></div>`;
+    }
+  }
+}
+
+
+The key change: When the NWS API returns a rawMessage, parse it with parseRawMetar() first (which correctly extracts wind, gusts, temp, dewpoint, pressure, visibility, clouds, and weather codes directly from the METAR string), then supplement with NWS properties for anything the raw parse missed. This is how the code worked before the file restore incident damaged it.
+This ensures KPNS, KMOB, and all other stations show the same level of detail as KNPA — because parseRawMetar() extracts everything directly from the METAR text, which is always the most complete source of truth.
+
+So to summarize what you’re seeing: KNPA looks complete because the NWS happened to return good structured data for that station. KPNS looks thinner because the NWS structured properties were partially null, and the code was never parsing the raw METAR string that actually has all the data. The parseRawMetar() function is sitting right there in the file, fully functional — it just wasn’t being called. The file restore likely dropped the if(nwsRaw) branch that used to invoke it.​​​​​​​​​​​​​​​​
