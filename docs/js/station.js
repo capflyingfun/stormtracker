@@ -532,8 +532,11 @@ function renderStation(){
         const _ceil=getMetarCeilingFt(s);
         if(_ceil!=null){
           const _adjCeil=adjustCloudBaseForUser(_ceil);
-          html+=`<div style="font-size:0.9em;font-weight:700;color:var(--accent-cyan)">${fmtAlt(_adjCeil)}</div><div class="text-hint">Reported ceiling AGL</div>`;
-          html+=`<div style="font-size:0.65em;color:var(--text-muted);margin-top:2px">Est. ${fmtAlt(adjustCloudBaseForUser(calcCloudBase(_sp)))}</div>`;
+          const _estCb=adjustCloudBaseForUser(calcCloudBase(_sp));
+          const _cbLower=_adjCeil<_estCb;
+          const _cbArrow=_cbLower?'<span style="color:#ff3355;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(255,51,85,0.6)">↓</span>':'<span style="color:#39ff14;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(57,255,20,0.6)">↑</span>';
+          html+=`<div style="font-size:0.9em;font-weight:700;color:var(--accent-cyan)">${fmtAlt(_adjCeil)} ${_cbArrow}</div><div class="text-hint">Reported ceiling AGL</div>`;
+          html+=`<div style="font-size:0.65em;color:var(--text-muted);margin-top:2px">Est. ${fmtAlt(_estCb)}</div>`;
         }else{
           html+=`<div style="font-size:0.9em;font-weight:700;color:var(--accent-cyan)">${fmtAlt(adjustCloudBaseForUser(calcCloudBase(_sp)))}</div><div class="text-hint">Estimated AGL</div>`;
         }
