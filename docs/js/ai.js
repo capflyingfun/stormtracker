@@ -67,12 +67,28 @@ function addAIMsg(role,text){
   const d=document.createElement('div');
   d.className='ai-msg '+role;
   if(role==='assistant'){
-    d.innerHTML=fmtAIText(text);
+    d.dataset.rawText=text;
+    d.innerHTML=`<div class="ai-msg-actions"><button class="ai-copy-btn" onclick="copyAIMsg(this)" title="Copy to clipboard">📋</button></div>`+fmtAIText(text);
   }else{
     d.textContent=text;
   }
   c.appendChild(d);
   c.scrollTop=c.scrollHeight;
+}
+function copyAIMsg(btn){
+  const msg=btn.closest('.ai-msg');if(!msg)return;
+  const raw=msg.dataset.rawText||msg.textContent;
+  const header=`StormTracker Weather Briefing\n${S.locName||'Unknown Location'} — ${new Date().toLocaleString()}\n${'─'.repeat(40)}\n\n`;
+  const fullText=header+raw;
+  navigator.clipboard.writeText(fullText).then(()=>{
+    btn.textContent='✅';setTimeout(()=>{btn.textContent='📋'},1500);
+  }).catch(()=>{
+    const ta=document.createElement('textarea');
+    ta.value=fullText;ta.style.cssText='position:fixed;opacity:0';
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent='✅';setTimeout(()=>{btn.textContent='📋'},1500);
+  });
 }
 function showAITyping(){
   const c=document.getElementById('ai-chat-messages');if(!c)return;
@@ -393,7 +409,7 @@ Public Safety & Outdoor Guidance
 Practical advice for the general public. Should you be outside? Driving risks? Heat/cold concerns? What to watch for and when conditions change. Keep this conversational and actionable.
 
 Aviation Briefing
-Pilot-focused. Flight category and limiting factor (ceiling vs visibility). All available winds aloft with altitudes. Wind shear assessment between levels — note any shear exceeding 25 kts per 2,000 ft. Turbulence potential. Density altitude if available. METAR decode highlights. Thunderstorm avoidance guidance if applicable.
+Pilot-focused. Flight category and limiting factor (ceiling vs visibility). All available winds aloft with altitudes. IMPORTANT: Always report aviation winds in knots — if the user's wind unit is not knots, show knots in parentheses alongside their preferred unit (e.g. "SW at 35 km/h (19 kts)"). Wind shear assessment between levels — note any shear exceeding 25 kts per 2,000 ft. Turbulence potential. Density altitude if available. METAR decode highlights. Thunderstorm avoidance guidance if applicable.
 
 Marine Conditions
 Mariner-focused. Surface wind sustained and gusts in the user's preferred wind unit. Gale or small craft advisory relevance. Visibility over water. Storm approach timing for open-water exposure. Sea state estimation from wind data.
