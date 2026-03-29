@@ -1,0 +1,107 @@
+{
+  "id": "/StormTracker/",
+  "name": "StormTracker - Real-Time Storm Detection",
+  "short_name": "StormTracker",
+  "description": "Real-time storm detection with live radar, weather alerts, AI weather assistant, and storm tracking. Free, no account required.",
+  "start_url": "/StormTracker/",
+  "scope": "/StormTracker/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#05080f",
+  "theme_color": "#0a1020",
+  "orientation": "portrait",
+  "dir": "ltr",
+  "lang": "en-US",
+  "categories": ["weather"],
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
+  "icons": [
+    {"src": "/StormTracker/icons/icon-72x72.png", "sizes": "72x72", "type": "image/png", "purpose": "any"},
+    {"src": "/StormTracker/icons/icon-96x96.png", "sizes": "96x96", "type": "image/png", "purpose": "any"},
+    {"src": "/StormTracker/icons/icon-128x128.png", "sizes": "128x128", "type": "image/png", "purpose": "any"},
+    {"src": "/StormTracker/icons/icon-144x144.png", "sizes": "144x144", "type": "image/png", "purpose": "any"},
+    {"src": "/StormTracker/icons/icon-152x152.png", "sizes": "152x152", "type": "image/png", "purpose": "any"},
+    {"src": "/StormTracker/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/StormTracker/icons/icon-384x384.png", "sizes": "384x384", "type": "image/png", "purpose": "any"},
+    {"src": "/StormTracker/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/StormTracker/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
+    {"src": "/StormTracker/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ],
+  "screenshots": [
+    {"src": "/StormTracker/icons/screenshot-wide.png", "sizes": "1280x720", "type": "image/png", "form_factor": "wide", "label": "StormTracker Weather Dashboard"},
+    {"src": "/StormTracker/icons/screenshot-narrow.png", "sizes": "390x844", "type": "image/png", "form_factor": "narrow", "label": "StormTracker Mobile View"}
+  ],
+  "shortcuts": [
+    {
+      "name": "View Radar",
+      "short_name": "Radar",
+      "url": "/StormTracker/#radar",
+      "icons": [{"src": "/StormTracker/icons/icon-96x96.png", "sizes": "96x96"}]
+    },
+    {
+      "name": "Storm Tracker",
+      "short_name": "Storms",
+      "url": "/StormTracker/#storms",
+      "icons": [{"src": "/StormTracker/icons/icon-96x96.png", "sizes": "96x96"}]
+    }
+  ],
+  "share_target": {
+    "action": "/StormTracker/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+weather",
+      "url": "/StormTracker/?location=%s"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/StormTracker/",
+      "accept": {
+        "application/json": [".json"],
+        "text/plain": [".metar", ".taf"]
+      }
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 480
+  },
+  "scope_extensions": [
+    {"origin": "https://api.open-meteo.com"},
+    {"origin": "https://api.rainviewer.com"},
+    {"origin": "https://api.weather.gov"}
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://capflyingfun.github.io/StormTracker/manifest.json"
+    }
+  ],
+  "handle_links": "preferred",
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "widgets": [
+    {
+      "name": "StormTracker Current Weather",
+      "short_name": "Weather",
+      "description": "Shows current weather conditions at your location",
+      "tag": "weather-current",
+      "ms_ac_template": "widget/weather",
+      "type": "application/json",
+      "data": "/StormTracker/",
+      "screenshots": [
+        {"src": "/StormTracker/icons/screenshot-narrow.png", "sizes": "390x844", "type": "image/png"}
+      ],
+      "icons": [
+        {"src": "/StormTracker/icons/icon-96x96.png", "sizes": "96x96"}
+      ]
+    }
+  ]
+}

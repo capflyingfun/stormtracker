@@ -1,0 +1,93 @@
+Here’s your prompt for Replit:
+
+Two enhancements for the AI Weather Assistant in docs/js/ai.js:
+1. Aviation knots alongside user’s wind unit
+In the system prompt’s Aviation Briefing section instruction, add a note so the AI always includes knots for aviation context. Change the Aviation Briefing description to:
+
+Aviation Briefing
+Pilot-focused. Flight category and limiting factor (ceiling vs visibility). All available winds aloft with altitudes. IMPORTANT: Always report aviation winds in knots — if the user's wind unit is not knots, show knots in parentheses alongside their preferred unit (e.g. "SW at 35 km/h (19 kts)"). Wind shear assessment between levels — note any shear exceeding 25 kts per 2,000 ft. Turbulence potential. Density altitude if available. METAR decode highlights. Thunderstorm avoidance guidance if applicable.
+
+
+2. Copy button on AI assistant responses
+Add a copy-to-clipboard button on each AI assistant message so users can share the weather briefing with others.
+In the addAIMsg() function, when role === 'assistant', wrap the message in a container that includes a copy button in the top-right corner. The button should copy the raw plain text (not the HTML-formatted version) to the clipboard.
+Replace the assistant message rendering in addAIMsg() with something like:
+
+function addAIMsg(role, text) {
+  const c = document.getElementById('ai-chat-messages');
+  if (!c) return;
+  const d = document.createElement('div');
+  d.className = 'ai-msg ' + role;
+  if (role === 'assistant') {
+    // Store raw text for copying
+    d.dataset.rawText = text;
+    d.innerHTML = `<div class="ai-msg-actions"><button class="ai-copy-btn" onclick="copyAIMsg(this)" title="Copy to clipboard">📋</button></div>` + fmtAIText(text);
+  } else {
+    d.textContent = text;
+  }
+  c.appendChild(d);
+  c.scrollTop = c.scrollHeight;
+}
+
+function copyAIMsg(btn) {
+  const msg = btn.closest('.ai-msg');
+  if (!msg) return;
+  const raw = msg.dataset.rawText || msg.textContent;
+  // Prepend a header with location and timestamp
+  const header = `StormTracker Weather Briefing\n${S.locName || 'Unknown Location'} — ${new Date().toLocaleString()}\n${'─'.repeat(40)}\n\n`;
+  const fullText = header + raw;
+  navigator.clipboard.writeText(fullText).then(() => {
+    btn.textContent = '✅';
+    setTimeout(() => { btn.textContent = '📋'; }, 1500);
+  }).catch(() => {
+    // Fallback for older browsers / iOS quirks
+    const ta = document.createElement('textarea');
+    ta.value = fullText;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = '✅';
+    setTimeout(() => { btn.textContent = '📋'; }, 1500);
+  });
+}
+
+
+Add the following CSS for the copy button (in docs/css/style.css or inline):
+
+.ai-msg.assistant {
+  position: relative;
+}
+.ai-msg-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  opacity: 0.4;
+  transition: opacity 0.2s;
+}
+.ai-msg.assistant:hover .ai-msg-actions,
+.ai-msg.assistant:active .ai-msg-actions {
+  opacity: 1;
+}
+.ai-copy-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 0.75em;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.15s;
+}
+.ai-copy-btn:active {
+  background: rgba(0,229,255,0.15);
+  border-color: var(--accent-cyan);
+}
+
+
+Note for iOS/Edge: Since Joshua uses Edge shortcut on iOS as a PWA, the navigator.clipboard.writeText may not work in all contexts — that’s why the textarea fallback is included. Also add user-select: text to .ai-msg.assistant in CSS so users can manually long-press to select text on mobile as an alternative.
+
+The copy button gives users a quick way to share weather briefings — tapping it copies the full text with a “StormTracker Weather Briefing” header, location, and timestamp prepended so it looks clean when pasted into a text message or group chat. The button stays subtle (low opacity) until you hover or tap near it so it doesn’t clutter the chat UI.​​​​​​​​​​​​​​​​
