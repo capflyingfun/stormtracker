@@ -129,19 +129,19 @@ function buildWeatherContext(){
   if(S.station){
     const st=S.station;
     parts.push(`\nMETAR STATION DATA (${S.stationId||'unknown'}):`);
-    if(st.rawOb)parts.push(`  Raw METAR: ${st.rawOb}`);
+    if(st.rawMETAR)parts.push(`  Raw METAR: ${st.rawMETAR}`);
     if(st.name)parts.push(`  Station: ${st.name}`);
     if(st.temp!=null)parts.push(`  METAR Temp: ${fmtTemp(st.temp)}`);
     if(st.dewp!=null)parts.push(`  Dew point: ${fmtTemp(st.dewp)}`);
-    if(st.windSpd!=null){
+    if(st.windKmh!=null){
       const wDir=st.windDir!=null?degToDir(st.windDir):'VRB';
-      parts.push(`  METAR Wind: ${wDir} at ${fmtWind(st.windSpd*1.852)}${st.gustSpd?' gusts '+fmtWind(st.gustSpd*1.852):''}`);
+      parts.push(`  METAR Wind: ${wDir} at ${fmtWind(st.windKmh)}${st.gustKmh!=null?' gusts '+fmtWind(st.gustKmh):''}`);
     }
-    if(st.visMi!=null)parts.push(`  Visibility: ${fmtVis(st.visMi)}`);
-    else if(st.visM!=null)parts.push(`  Visibility: ${fmtVis(st.visM/1609.34)}`);
-    if(st.altimInHg!=null)parts.push(`  Altimeter: ${fmtPres(st.altimInHg/0.02953)}`);
-    else if(st.presMb!=null)parts.push(`  Pressure: ${fmtPres(st.presMb)}`);
-    if(st.fltCat)parts.push(`  Flight category: ${st.fltCat}`);
+    if(st.visMeter!=null)parts.push(`  Visibility: ${fmtVis(st.visMeter/1609.34)}`);
+    if(st.presPa!=null)parts.push(`  Pressure: ${fmtPres(st.presPa/100)}`);
+    const visSM=st.visMeter!=null?(st.visMeter/1609.34):null;
+    const fltInfo=getFltCatDetail(visSM,st);
+    if(fltInfo)parts.push(`  Flight category: ${fltInfo.cat}`);
     if(st.wxString)parts.push(`  Weather: ${st.wxString}`);
     if(st.clouds&&st.clouds.length){
       const cStr=st.clouds.map(c=>`${c.amount||'?'} at ${c.base?.value!=null?fmtAlt(c.base.value*3.28084):'?'}`).join(', ');
