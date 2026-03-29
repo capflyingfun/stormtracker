@@ -106,6 +106,31 @@ function _dismissNotifPermission(){
   localStorage.setItem('st_notifPromptSeen',String(Date.now()));
 }
 
+// ==========================================
+// LOADING SCREEN
+// ==========================================
+let _loadingScreenTimer=null;
+function showLoadingScreen(locName){
+  const el=document.getElementById('app-loading');
+  if(!el)return;
+  const locEl=document.getElementById('loading-loc');
+  const msgEl=document.getElementById('loading-status-msg');
+  if(locEl)locEl.textContent=locName?'📍 '+locName:'';
+  if(msgEl)msgEl.textContent='Fetching weather data…';
+  el.classList.remove('fade-out');
+  el.style.display='flex';
+  // Safety auto-hide after 15s in case something goes wrong
+  clearTimeout(_loadingScreenTimer);
+  _loadingScreenTimer=setTimeout(()=>hideLoadingScreen(),15000);
+}
+function hideLoadingScreen(){
+  clearTimeout(_loadingScreenTimer);
+  const el=document.getElementById('app-loading');
+  if(!el||el.style.display==='none')return;
+  el.classList.add('fade-out');
+  setTimeout(()=>{el.style.display='none';el.classList.remove('fade-out')},420);
+}
+
 function init(){
   _pruneExpiredAlerts();
   _loadAllCustomIcons().catch(()=>{});

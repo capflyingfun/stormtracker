@@ -517,3 +517,75 @@ canvas.offscreen{display:none}
 .px-6-py-8{padding:8px 6px}
 .text-13{font-size:1.3em}
 .m-0{margin:0}
+
+/* ==========================================
+   LOADING SCREEN
+   ========================================== */
+#app-loading{position:fixed;inset:0;z-index:9999;background:radial-gradient(ellipse at 40% 30%,rgba(0,40,70,0.98),rgba(5,8,15,0.99) 70%);display:flex;align-items:center;justify-content:center}
+.loading-inner{text-align:center;padding:20px}
+.loading-rings{position:relative;width:130px;height:130px;margin:0 auto 24px}
+.lr{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(0,229,255,0.45);animation:lr-pulse 2.1s ease-out infinite}
+.lr1{animation-delay:0s}.lr2{animation-delay:0.7s}.lr3{animation-delay:1.4s}
+@keyframes lr-pulse{0%{transform:scale(0.25);opacity:1}100%{transform:scale(1.6);opacity:0}}
+.loading-bolt{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:2.8em;animation:bolt-pulse 1.8s ease-in-out infinite}
+@keyframes bolt-pulse{0%,100%{opacity:0.65;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.12)}}
+.loading-title{font-size:1.5em;font-weight:800;color:var(--accent-cyan);letter-spacing:0.06em;text-shadow:0 0 20px rgba(0,229,255,0.4);margin-bottom:6px}
+#loading-loc{font-size:0.88em;color:var(--text-secondary);margin-bottom:10px;min-height:1.2em}
+#loading-status-msg{font-size:0.72em;color:var(--text-muted);animation:msg-fade 1.6s ease-in-out infinite}
+@keyframes msg-fade{0%,100%{opacity:0.45}50%{opacity:1}}
+#app-loading.fade-out{opacity:0;transition:opacity 0.4s ease}
+
+/* ==========================================
+   TABLET — 768px+
+   ========================================== */
+@media(min-width:768px){
+  .container{max-width:740px}
+  .hero-stats-grid{grid-template-columns:repeat(4,1fr)!important}
+  .weather-grid{grid-template-columns:1fr 1fr 1fr}
+  .station-grid{grid-template-columns:repeat(4,1fr)}
+}
+
+/* ==========================================
+   DESKTOP — 1024px+  (side nav layout)
+   ========================================== */
+@media(min-width:1024px){
+  /* Shift page content right to make room for side nav */
+  body{padding-left:92px;padding-bottom:12px}
+
+  /* Transform bottom nav → left sidebar */
+  .bottom-nav{
+    position:fixed;left:0;top:0;bottom:0;right:auto;
+    width:92px;height:100vh;
+    flex-direction:column;justify-content:center;align-items:center;
+    gap:6px;padding:20px 0;
+    border-right:1px solid rgba(0,200,255,0.1);border-top:none;
+    background:rgba(5,8,15,0.97)
+  }
+  .nav-item{flex:unset;max-width:unset;width:84px;flex-direction:column;padding:10px 4px;border-radius:10px}
+  .nav-item .nav-icon{font-size:1.45em}
+  .nav-item .nav-label{font-size:0.58em}
+
+  /* Wider content container */
+  .container{max-width:min(1360px,calc(100vw - 112px));padding:0 20px}
+
+  /* Header sits above wider content naturally — just widen the sticky width */
+  .app-header{max-width:min(1360px,calc(100vw - 112px));margin:0 auto}
+
+  /* Weather page: 2-column grid */
+  #page-weather{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
+  #page-weather .weather-hero,
+  #page-weather #mini-sonar-card,
+  #page-weather #wx-tropical-section{grid-column:1 / -1}
+
+  /* Hero stats: up to 6 columns on desktop */
+  .hero-stats-grid{grid-template-columns:repeat(6,1fr)!important}
+
+  /* Station grid wider */
+  .station-grid{grid-template-columns:repeat(4,1fr)}
+
+  /* Alerts: 2-col for alert list */
+  #page-alerts .card + .card{margin-top:0}
+
+  /* Settings panel wider */
+  .settings-panel{max-width:600px}
+}
