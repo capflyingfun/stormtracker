@@ -1899,12 +1899,12 @@ function _loadStormFilter(){
 function _saveStormFilter(f){localStorage.setItem('st_stormFilter',JSON.stringify(f));S._stormFilter=f}
 function _threatScoreRaw(s){
   const e=s._eta;
-  const hookMult=s._hookEcho?2.5:1;
-  return Math.pow(s.dbz||0,2)*(e&&e.approaching?2:0.5)/Math.sqrt(Math.max(s.distance,0.5))*hookMult;
+  return Math.pow(s.dbz||0,2)*(e&&e.approaching?2:0.5)/Math.sqrt(Math.max(s.distance,0.5));
 }
 function stormThreatScore10(s){
   const raw=_threatScoreRaw(s);
-  const scaled=Math.log10(Math.max(raw,1))/Math.log10(12100)*10;
+  let scaled=Math.log10(Math.max(raw,1))/Math.log10(12100)*10;
+  if(s._hookEcho)scaled=scaled*1.25;
   return Math.max(1,Math.min(10,Math.round(scaled*10)/10));
 }
 function _stormSortFn(a,b,key){
