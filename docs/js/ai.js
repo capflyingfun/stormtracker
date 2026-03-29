@@ -11,7 +11,8 @@ function saveAIModel(v){localStorage.setItem('st_aiModel',v);}
 function getAIKey(){return localStorage.getItem('st_aiKey')||'';}
 function getAITone(){return localStorage.getItem('st_aiTone')||'professional';}
 function getAIDetail(){return localStorage.getItem('st_aiDetail')||'standard';}
-function getAIModel(){return localStorage.getItem('st_aiModel')||'gpt-4o-mini';}
+const _AI_MODELS=['gpt-4o-mini','gpt-4o','gpt-4.1-mini','gpt-4.1'];
+function getAIModel(){const m=localStorage.getItem('st_aiModel');return _AI_MODELS.includes(m)?m:'gpt-4o-mini';}
 function toggleAIKeyVis(){
   const inp=document.getElementById('settings-ai-key');
   if(inp)inp.type=inp.type==='password'?'text':'password';
