@@ -85,6 +85,40 @@ function getTutorialHtml(){
 function getChangelogHtml(){
   return CHANGELOG.map(c=>`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border-subtle)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-weight:700;color:var(--accent-cyan);font-size:1em">${c.ver}</span><span style="font-size:0.75em;color:var(--text-muted)">${c.date}</span></div><ul style="margin:0;padding-left:18px">${c.items.map(i=>`<li style="margin-bottom:3px">${i}</li>`).join('')}</ul></div>`).join('');
 }
+async function forceAppUpdate(){
+  const btn=document.getElementById('btn-check-update');
+  if(btn){btn.textContent='🔄 Checking...';btn.disabled=true;}
+  try{
+    if('serviceWorker' in navigator&&navigator.serviceWorker.controller){
+      const reg=await navigator.serviceWorker.getRegistration();
+      if(reg){
+        await reg.update();
+        const waiting=reg.waiting||reg.installing;
+        if(waiting){
+          waiting.addEventListener('statechange',function(){
+            if(this.state==='activated')location.reload();
+          });
+          if(waiting.state==='installed'){
+            waiting.postMessage({type:'SKIP_WAITING'});
+          }
+          if(btn){btn.textContent='🔄 Updating...';btn.style.color='#4caf50';}
+          setTimeout(()=>location.reload(),2500);
+          return;
+        }
+      }
+    }
+    const keys=await caches.keys();
+    await Promise.all(keys.map(k=>caches.delete(k)));
+    if(btn){btn.textContent='✅ Up to date!';btn.style.color='#4caf50';}
+    setTimeout(()=>location.reload(),800);
+  }catch(e){
+    console.error('Update check failed:',e);
+    const keys=await caches.keys().catch(()=>[]);
+    await Promise.all(keys.map(k=>caches.delete(k))).catch(()=>{});
+    if(btn){btn.textContent='🔄 Refreshing...';btn.style.color='#ff9800';}
+    setTimeout(()=>location.reload(),500);
+  }
+}
 function showTutorial(){
   const o=document.getElementById('tutorial-overlay');if(!o)return;
   document.getElementById('tutorial-content').innerHTML=getTutorialHtml();
