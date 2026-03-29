@@ -2094,24 +2094,16 @@ function renderStorms(){
         </div>
       </div>`;
   }
-  let inboundCapped,overhead,nearby;
-  if(S._topStormAnalysis&&S._topStormAnalysis.inbound&&S._topStormAnalysis.inbound.length>0&&!(mv&&mv.speed>=2)){
-    const a=S._topStormAnalysis;
-    const fKeys=new Set(filtered.map(stormKey));
-    const inKeySet=new Set(a.inbound.map(stormKey));
-    const ohKeySet=new Set(a.overhead.map(stormKey));
-    const inFiltered=filtered.filter(s=>inKeySet.has(stormKey(s))&&fKeys.has(stormKey(s)));
-    inFiltered.sort((x,y)=>{const r=_stormSortFn(x,y,sf.sort1);return r!==0?r:_stormSortFn(x,y,sf.sort2)});
-    inboundCapped=inFiltered.slice(0,12);
-    overhead=filtered.filter(s=>ohKeySet.has(stormKey(s)));
-    nearby=filtered.filter(s=>!inKeySet.has(stormKey(s))&&!ohKeySet.has(stormKey(s)));
-  }else{
-    const approaching=filtered.filter(s=>isApproaching(s));
-    overhead=filtered.filter(s=>isOverhead(s));
-    nearby=filtered.filter(s=>isNearby(s));
-    approaching.sort((x,y)=>{const r=_stormSortFn(x,y,sf.sort1);return r!==0?r:_stormSortFn(x,y,sf.sort2)});
-    inboundCapped=approaching.slice(0,12);
-  }
+  computeTopStorms();
+  const fKeys=new Set(filtered.map(stormKey));
+  const a=S._topStormAnalysis;
+  const inKeySet=new Set(a.inbound.map(stormKey));
+  const ohKeySet=new Set(a.overhead.map(stormKey));
+  let inboundCapped=filtered.filter(s=>inKeySet.has(stormKey(s)));
+  inboundCapped.sort((x,y)=>{const r=_stormSortFn(x,y,sf.sort1);return r!==0?r:_stormSortFn(x,y,sf.sort2)});
+  inboundCapped=inboundCapped.slice(0,12);
+  const overhead=filtered.filter(s=>ohKeySet.has(stormKey(s)));
+  const nearby=filtered.filter(s=>!inKeySet.has(stormKey(s))&&!ohKeySet.has(stormKey(s)));
   let groupHtml='';
   const sections=[
     {key:'approaching',items:inboundCapped,label:'⏱️ Inbound',color:'#ef4444',open:true},

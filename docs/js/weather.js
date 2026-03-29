@@ -508,20 +508,13 @@ function drawMiniSonar(){
     ctx.restore();
   }
   try{
-    const sonarStorms=(S.storms||[]).filter(s=>s.distance<=viewR);
-    if(_sonarCfg.showStormArrows&&S.stormMovement&&S.stormMovement.speed>=2&&sonarStorms.length){
+    const topInbound=(S._topStorms||[]).filter(s=>s.distance<=viewR);
+    if(_sonarCfg.showStormArrows&&S.stormMovement&&S.stormMovement.speed>=2&&topInbound.length){
       const mv=S.stormMovement;
       const mvRad=(mv.direction-90)*Math.PI/180;
-      const approaching=[];
-      for(const st of sonarStorms){
-        const eta=calcStormETA(st);
-        if(eta&&eta.approaching&&eta.eta){approaching.push({storm:st,eta});}
-      }
-      if(approaching.length>0){
-        approaching.sort((a,b)=>b.storm.dbz-a.storm.dbz);
-        const shown=approaching.slice(0,8);
-        for(const item of shown){
-          const st=item.storm;
+      if(topInbound.length>0){
+        const shown=topInbound.slice(0,12);
+        for(const st of shown){
           const dist=st.distance||0;
           const bearing=st.bearing||0;
           const stAng=(bearing-90)*Math.PI/180;
