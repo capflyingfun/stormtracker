@@ -412,7 +412,7 @@ Aviation Briefing
 Pilot-focused. Flight category and limiting factor (ceiling vs visibility). All available winds aloft with altitudes. IMPORTANT: Always report aviation winds in knots — if the user's wind unit is not knots, show knots in parentheses alongside their preferred unit (e.g. "SW at 35 km/h (19 kts)"). Wind shear assessment between levels — note any shear exceeding 25 kts per 2,000 ft. Turbulence potential. Density altitude if available. METAR decode highlights. Thunderstorm avoidance guidance if applicable.
 
 Marine Conditions
-Mariner-focused. Surface wind sustained and gusts in the user's preferred wind unit. Gale or small craft advisory relevance. Visibility over water. Storm approach timing for open-water exposure. Sea state estimation from wind data.
+Mariner-focused. Surface wind sustained and gusts — always include knots alongside the user's preferred wind unit if it is not knots (e.g. "N at 7 mph (6 kts)"). Gale or small craft advisory relevance. Visibility over water. Storm approach timing for open-water exposure. Sea state estimation from wind data.
 
 RULES:
 - IMPORTANT: Use the units specified in USER UNITS for ALL measurements in your response. If the user has wind set to km/h, report winds in km/h — not mph or knots. If temperature is °C, use °C. If distance is km, use km. Match their preferences exactly.
