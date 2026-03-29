@@ -376,10 +376,9 @@ async function loadStationObs(icao){
       obsTime:p.timestamp||'',
       wxString:_extractMetarWx(p.rawMessage||''),
     };
-    const raw=S.station.rawMETAR||'';
+    const nwsRaw=p.rawMessage||'';
     const hasWind=S.station.windKmh!=null||S.station.windDir!=null;
-    const hasTemp=S.station.temp!=null;
-    if(!raw&&!hasWind&&!hasTemp){
+    if(!nwsRaw||(!hasWind&&S.station.gustKmh!=null)){
       console.log('NWS returned sparse data for',icao,'— falling back to AWC');
       throw new Error('NWS data incomplete');
     }
