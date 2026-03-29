@@ -320,22 +320,21 @@ function getWindShearAnalysis(){
   if(!S._windShear||!S._aloftData||S._aloftData.length<2)return null;
   const sfc=S._aloftData.find(a=>a.isSfc)||S._aloftData[0];
   const upper=S._aloftData[S._aloftData.length-1];
-  const sfcSpdMph=(sfc.spd*0.621371).toFixed(0);
-  const upperSpdMph=(upper.spd*0.621371).toFixed(0);
-  const vecShear=S._windShear.speedDiff*0.621371;
+  const vecShearKmh=S._windShear.speedDiff;
+  const vecShearMph=vecShearKmh*0.621371;
   let severity='Light';
-  if(vecShear>=25)severity='Strong';else if(vecShear>=15)severity='Moderate';
+  if(vecShearMph>=25)severity='Strong';else if(vecShearMph>=15)severity='Moderate';
   let impact='Minimal turbulence expected';
-  if(vecShear>=25)impact='Significant turbulence likely — hazardous for light aircraft';
-  else if(vecShear>=15)impact='Moderate turbulence possible — use caution';
-  else if(vecShear>=8)impact='Light chop possible';
+  if(vecShearMph>=25)impact='Significant turbulence likely — hazardous for light aircraft';
+  else if(vecShearMph>=15)impact='Moderate turbulence possible — use caution';
+  else if(vecShearMph>=8)impact='Light chop possible';
   const pToAlt={1013:'Surface',925:'~2,500 ft',850:'~5,000 ft',700:'~10,000 ft',500:'~18,000 ft'};
   return{
-    vectorShear:vecShear.toFixed(1),
+    vectorShear:fmtWind(vecShearKmh),
     severity,
     dirDiff:S._windShear.dirDiff,
-    surfaceWind:`${degToDir(sfc.dir)} at ${sfcSpdMph} mph`,
-    upperWind:`${degToDir(upper.dir)} at ${upperSpdMph} mph (${pToAlt[upper.p]||upper.p+'hPa'})`,
+    surfaceWind:`${degToDir(sfc.dir)} at ${fmtWind(sfc.spd)}`,
+    upperWind:`${degToDir(upper.dir)} at ${fmtWind(upper.spd)} (${pToAlt[upper.p]||upper.p+'hPa'})`,
     impact
   };
 }
