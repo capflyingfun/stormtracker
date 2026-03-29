@@ -52,6 +52,19 @@ export function calculateETA(distanceMiles: number, speedMph: number): number {
   return (distanceMiles / speedMph) * 60;
 }
 
+export function formatStormEta(totalMinutes: number): string {
+  if (totalMinutes < 60) {
+    const totalSeconds = Math.round(totalMinutes * 60);
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m.toString().padStart(2, '0')}m:${s.toString().padStart(2, '0')}s`;
+  }
+  const totalMins = Math.round(totalMinutes);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${h.toString().padStart(2, '0')}h:${m.toString().padStart(2, '0')}m`;
+}
+
 export function isStormApproaching(stormBearingFromUser: number, movementDirection: number, movementSpeed: number, thresholdDegrees = 30): boolean {
   if (movementSpeed <= 3) return false;
   return calculateApproachAngle(stormBearingFromUser, movementDirection) <= thresholdDegrees;

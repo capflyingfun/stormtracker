@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { ArrowLeft, Mail, MessageSquare, Clock, MapPin, Trash2, MailOpen } from "lucide-react";
 import type { MessageInbox, AlertSubscription } from "@shared/schema";
+import { useAutoTranslate } from "@/hooks/use-auto-translate";
 
 export default function MessageInboxPage() {
+  const { at } = useAutoTranslate();
   const [selectedMessage, setSelectedMessage] = useState<MessageInbox | null>(null);
   const [searchEmail, setSearchEmail] = useState("");
   const queryClient = useQueryClient();

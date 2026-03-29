@@ -83,22 +83,48 @@ export function useLocation() {
   });
   const [isLoading, setIsLoading] = useState(false);
 
+  const [homeLocation, setHomeLocation] = useState<Location | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('stormtracker-home-location');
+      if (saved) return JSON.parse(saved);
+      const currentLoc = localStorage.getItem('stormtracker-location');
+      if (currentLoc) {
+        localStorage.setItem('stormtracker-home-location', currentLoc);
+        return JSON.parse(currentLoc);
+      }
+    }
+    return null;
+  });
+
+  const saveHomeLocation = (loc: Location) => {
+    setHomeLocation(loc);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('stormtracker-home-location', JSON.stringify(loc));
+    }
+  };
+
   // Helper function to update location and persist to localStorage
-  const updateLocation = (newLocation: Location | null) => {
+  const updateLocation = (newLocation: Location | null, isInitial = false) => {
     setLocation(newLocation);
     if (typeof window !== 'undefined') {
       if (newLocation) {
+        if (isInitial || !homeLocation) {
+          saveHomeLocation(newLocation);
+        }
         const locationJson = JSON.stringify(newLocation);
         localStorage.setItem('stormtracker-location', locationJson);
-        // Embed location in URL hash BEFORE reloading — this acts as a fallback
-        // carrier for privacy-strict browsers (e.g. DuckDuckGo app mode) that
-        // may wipe localStorage on navigation. Hash fragments survive reloads.
         window.location.hash = `loc=${encodeURIComponent(locationJson)}`;
         setTimeout(() => window.location.reload(), 300);
       } else {
         localStorage.removeItem('stormtracker-location');
         history.replaceState(null, '', window.location.pathname + window.location.search);
       }
+    }
+  };
+
+  const goHome = () => {
+    if (homeLocation) {
+      updateLocation(homeLocation);
     }
   };
 
@@ -162,9 +188,8 @@ export function useLocation() {
         country: locationData.country,
       };
       
-      updateLocation(location);
+      updateLocation(location, true);
       
-      // Return location with radar source info for GPS usage
       const locationWithRadarInfo = {
         ...location,
         recommendedRadarSource: locationData.recommendedRadarSource,
@@ -197,7 +222,7 @@ export function useLocation() {
         country: locationData.country,
       };
       
-      updateLocation(location);
+      updateLocation(location, true);
       
       // Emit location data with recommended radar source for search usage
       if (locationData.recommendedRadarSource) {
@@ -227,16 +252,28 @@ export function useLocation() {
     });
   };
 
+  const setLocationSoft = (locationData: { lat: number; lon: number; name: string }) => {
+    const loc = { lat: locationData.lat, lon: locationData.lon, name: locationData.name };
+    setLocation(loc);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('stormtracker-location', JSON.stringify(loc));
+    }
+  };
+
   const clearLocation = () => {
     updateLocation(null);
   };
 
   return {
     location,
+    homeLocation,
     isLoading,
     setLocationFromGPS,
     setLocationFromSearch,
     setLocationDirectly,
+    setLocationSoft,
     clearLocation,
+    goHome,
+    saveHomeLocation,
   };
 }

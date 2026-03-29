@@ -2,7 +2,7 @@
 
 ## Overview
 
-StormTracker is a real-time storm detection web application providing live weather radar maps, storm tracking, and weather alerts. It utilizes GPS or manual location input to monitor storm activity within a customizable radius, enhanced with AI-powered weather analysis integrating National Weather Service Area Forecast Discussions for comprehensive meteorological assessments. The project aims to deliver a professional, reliable, and user-friendly tool for anticipating and reacting to severe weather.
+StormTracker is a real-time storm detection web application providing live weather radar maps, storm tracking, and weather alerts. It uses GPS or manual location input to monitor storm activity within a customizable radius. The application is enhanced with AI-powered weather analysis, integrating National Weather Service Area Forecast Discussions for comprehensive meteorological assessments. The project aims to deliver a professional, reliable, and user-friendly tool for anticipating and reacting to severe weather, with a vision to become a leading platform for public safety and meteorological insight. Current version: **v3.04** (cache bust ?v=308, SW cache stormtracker-v308).
 
 ## User Preferences
 
@@ -11,73 +11,102 @@ Preferred communication style: Simple, everyday language with customizable AI as
 ## System Architecture
 
 ### Frontend
-- **Framework**: React 18 with TypeScript
-- **Styling**: Tailwind CSS with shadcn/ui and Radix UI
-- **State Management**: React Query
-- **Routing**: Wouter
-- **Build Tool**: Vite
-- **UI/UX**: Mobile-first, responsive design with interactive Leaflet-based maps, real-time storm tracking panels, and an intuitive alert system. Features include a sonar-style radar display, 3D storm visualization with height-based cloud rendering, and a comprehensive view mode toggle. UI emphasizes clean design and accessibility with professional meteorological color schemes and animations for visual feedback.
+- **Framework**: React 18 with TypeScript.
+- **Styling**: Tailwind CSS with shadcn/ui and Radix UI for a modern, responsive design.
+- **State Management**: React Query.
+- **Routing**: Wouter.
+- **UI/UX**: Mobile-first design featuring interactive Leaflet-based maps, real-time storm tracking panels, and an intuitive alert system. Includes sonar-style radar, 3D storm visualization, and professional meteorological color schemes.
+- **Multilingual Support**: Supports 20 languages with auto-detection, persistence, RTL support, and a dynamic auto-translation system using OpenAI's GPT-4o-mini for UI strings.
 
 ### Backend
-- **Runtime**: Node.js with Express.js
-- **Language**: TypeScript
-- **Database**: PostgreSQL with Drizzle ORM (Neon Database for serverless)
-- **Authentication**: Replit Auth (OpenID Connect) via `server/replit_integrations/auth/` — uses `auth_users` table (varchar UUID IDs), `sessions` table, passport.js with OIDC strategy. Login/logout in header. Non-blocking: app remains fully accessible without sign-in.
-- **Session Management**: `connect-pg-simple`
-- **Build Tool**: esbuild
+- **Runtime**: Node.js with Express.js.
+- **Language**: TypeScript.
+- **Database**: PostgreSQL with Drizzle ORM (Neon Database for serverless).
 - **Core Features**:
-    - **Location Services**: GPS detection and OpenWeather geocoding for manual search.
-    - **Weather Data Integration**: OpenWeather API for primary data, RainViewer (global) and NEXRAD (US) for radar, and government weather services for alerts.
-    - **Storm Detection System**: Multi-source data integration, sector-based search, direct pixel sampling, and intelligent clustering for precipitation waypoints. Features dynamic adaptive sampling and 5-category dBZ classification.
-    - **Storm Tracking**: Frame-by-frame radar comparison for movement calculation, directional SVG arrows, and 30° storm movement cones with ETA impact assessment.
-    - **AI Weather Assistant**: OpenAI GPT-4o integration for risk assessment, comprehensive weather analysis (including wind shear, thunderstorm formation, NWS AFD), and an integrated chat. Features dynamic tone adjustment based on weather severity and unit preference integration.
-    - **Alert System**: Personalized, real-time risk alerts based on storm intensity, distance, and lightning. Includes visual storm highlighting, NWS alerts integration with chronological sorting, and an automated threat detection system.
-    - **Messaging System**: Built-in, database-driven `message_inbox` for storing and managing storm alerts.
-    - **Aviation Weather**: Multi-source METAR data from nearest airports, integrated with AI for comprehensive atmospheric analysis.
-    - **Global Timezone System**: Comprehensive timezone detection and conversion.
+    - **Location Services**: GPS detection and OpenWeather geocoding.
+    - **Weather Data Integration**: Multiple sources including OpenWeather, RainViewer, NEXRAD, and government weather services.
+    - **Storm Detection & Tracking**: Multi-source data integration, sector-based analysis, pixel sampling, intelligent clustering, frame-by-frame radar comparison, and directional movement predictions.
+    - **AI Weather Assistant**: OpenAI GPT-4o integration for risk assessment, comprehensive weather analysis, and chat functionality.
+    - **Lightning Detection**: Radar-derived indicators with customizable display.
+    - **Alert System**: Personalized, real-time risk alerts based on intensity and distance, integrated with NWS alerts, chronological sorting, and AI-powered translation. Features impact threshold filters, color-coded borders, and live countdown timers.
+    - **Wind Speed Simulator**: Range-based model (Floor=WS−50%, Ceiling=WG+10%) with configurable sim interval target picking and smoothstep lerp. Configurable rolling gust/avg windows. AWC refresh syncs both speed and gust data. Wind trend arrows (↑↓→) on all gauge styles.
+    - **Sonar Point Clustering**: Grid-based spatial hash (`_clusterSonarPoints()`) reduces 2K-5K raw scan points to ~300-800 clustered points for sonar rendering. Resolution adapts to zoom level. Preserves `_rawScanPts` for storm detection/zones. Cluster dot size scales with merged count.
+    - **Storm Feedback System**: Collects user feedback on storm impact to refine prediction accuracy.
+    - **Messaging System**: Database-driven inbox for alerts.
+    - **Aviation Weather**: Multi-source METAR data and AI analysis.
+    - **Weather Station (PWS Console)**: Dedicated interface for real-time METAR data from AWC, including wind compass, various gauges, barometric pressure trends, precipitation, cloud cover, moon phase, forecast icon strip, and a METAR decoder. Features 24-hour history with sparkline charts, pressure tendency charts, wind distribution charts, and a condition timeline. Supports multi-station TAFs and station favoriting.
+    - **Global Timezone System**: Comprehensive timezone handling.
+    - **Location Management System**: Three-tier system for managing and scanning locations (Home, Scan Here, HD Scan).
+
+### JavaScript Module Structure (docs/js/)
+The frontend is a static HTML site with global-scope script tags (no ES modules). Load order matters:
+1. **core.js** (~711 lines) — Global state object `S`, unit constants, time/clock formatting, basic utilities (toast, escHtml, degToDir), temperature/wind/altitude/visibility formatters, FAA weather theory (cloud base, density alt, flight categories), Beaufort scale, unit system management, storm DBZ/ETA utilities, pixel-to-dBZ radar converters, page switching
+2. **gauges.js** (~724 lines) — Sonar radar configuration, gyro compass, wind min/max tracking, 5 gauge renderers (neon, marine, minimal, G1000, speedo), LED7 display, wind gauge animation, gauge style management
+3. **icons.js** (~322 lines) — Icon pack system (8 built-in packs), custom icon upload/import/export via IndexedDB, WMO code mapping, weather condition icons, Basmilius CDN integration
+4. **geo.js** (~791 lines) — Geolocation search (Nominatim/Photon/Open-Meteo fallback), autocomplete suggestions, location confirmation, favorites system, map picker, home/scan/HD-scan, travel mode with GPS tracking, reverse geocoding
+5. **settings.js** (~239 lines) — Tutorial overlay, changelog, first launch detection, settings panel rendering, wind sim/gust/avg/ticker speed controls, auto-refresh configuration, travel interval popup
+6. **thresholds.js** (~302 lines) — Weather threshold alerts (temp, wind, pressure, humidity, visibility), storm cell alerts (distance, dBZ, ETA, closing speed), rain alerts, browser notification system, alert history management
+7. **weather.js** — Weather data fetching, rendering, wind simulation
+8. **radar.js** — Radar tile management, sonar rendering
+9. **storms.js** — Storm detection, tracking, rendering
+10. **station.js** — METAR/TAF station console
+11. **alerts.js** — NWS alerts rendering, alert page
+12. **ai.js** — AI weather assistant
+13. **init.js** — App initialization, event binding
 
 ### Key Architectural Decisions
 - **Monorepo Structure**: Shared types and schemas between frontend and backend.
-- **Shared Storm Utilities**: `shared/storm-utils.ts` centralizes storm category classification (dBZ thresholds), color mapping, compass directions, approach angle math, and ETA calculations. Used by both server and client.
-- **Unified AI Client**: `server/ai-client.ts` provides `aiChat()` function with 3-tier fallback: OpenRouter (free Llama 3.3 70B) → Groq (free) → OpenAI (GPT-4o). All 3 AI call sites (ticker, chat, assessment) use this unified client. `getProviderInfo()` exposes current provider to frontend.
-- **Comprehensive Weather Briefing**: `WeatherSummary` component (`client/src/components/weather-summary.tsx`) fetches all weather data points via `/api/ai-summary` and displays AI-generated briefing with condensed/expanded sections. Shows AI provider badge (Groq/OpenAI), source count, and timestamps.
-- **Centralized Ticker**: AI ticker messages are fetched once in `storm-tracker.tsx` and passed as props to both Sonar and 3D views (eliminating duplicate AI API calls).
-- **Single Winds-Aloft Fetch**: `storm-tracker.tsx` fetches winds-aloft data once via React Query and passes to child components (safety alerts, AI assistant) instead of duplicate fetches.
-- **Real-time Updates**: React Query with refetch intervals.
-- **Performance**: Optimized map rendering, adaptive intelligent sampling, and optimized API timeouts.
-- **Reliability**: Server-side proxy for external APIs, multi-source data integration with fallback strategies, and robust error handling.
-- **Scalability**: Designed for global coverage with support for high volumes of storm data and international weather sources.
-- **Multi-Model Regional Forecasting**: `getRegionalModels()` in `server/routes.ts` maps coordinates to the best available weather models per region (16 regions: US, Canada, Mexico, Europe, UK, Scandinavia, Japan, China, India, Australia, New Zealand, South America, Africa, Southeast Asia, plus global fallback). Forecasts are blended by averaging daily highs/lows/wind/precip across Open-Meteo base + 2 regional models (+ NWS for US), with source count and model names passed to frontend for display.
-- **Hybrid Forecast UI**: `buildHybridForecast()` in `weather-dashboard.tsx` merges NWS day/night periods with blended Open-Meteo daily data; badge shows region flag emoji, model names, and source count; expandable rows show NWS detail for US locations.
+- **Real-time Updates**: Achieved via React Query.
+- **Performance**: Optimized map rendering, adaptive sampling, and API timeouts.
+- **Reliability**: Server-side proxy, multi-source data with fallbacks, and robust error handling.
+- **Scalability**: Designed for global coverage and high data volumes.
+
+### API Key Manager & Personal Weather Station
+- **API Key Management**: Centralized settings for managing API keys (Ambient Weather, Weather Underground, OpenAI) stored in localStorage, with bulk import/export.
+- **Personal Weather Station (PWS) Viewer**: Dashboard section displaying real-time PWS data when keys are configured, supporting multiple stations.
+- **Server Proxy Routes**: Secure proxy endpoints for PWS APIs to prevent CORS issues.
 
 ## External Dependencies
 
 ### APIs
-- **OpenWeather API**: Weather data, geocoding, radar information.
+- **OpenWeather API**: Weather data, geocoding, radar.
 - **RainViewer API**: Global weather radar tiles.
-- **NEXRAD (Iowa Mesonet RIDGE API)**: US high-resolution radar data.
-- **Government Weather Services / NWS API**: Weather alerts and warnings, Area Forecast Discussions.
-- **Open-Meteo API**: Primary global forecast data with multi-model regional blending. Queries region-specific weather models (GFS, GEM, ICON, Météo-France, UK Met Office, MET Norway, JMA, CMA, BOM) based on location coordinates, then averages temperatures, wind, and precipitation across 2-3 models for improved accuracy.
-- **OpenRouter API (Primary AI)**: Free AI inference using Llama 3.3 70B Instruct via OpenRouter — handles ticker, chat, risk assessment, and comprehensive weather briefing. Falls back to Groq then OpenAI if unavailable.
-- **Groq API (Secondary AI)**: Free AI inference using Llama 3.3 70B. Second fallback after OpenRouter. 14,400 req/day free tier.
-- **OpenAI GPT-4o API (Final Fallback)**: AI weather assistant and chat functionality. Used when both OpenRouter and Groq are unavailable.
-- **Blitzortung.org / Lightning Maps / WWLLN**: Real-time lightning detection.
+- **NEXRAD (Iowa Mesonet RIDGE API)**: US high-resolution radar.
+- **Government Weather Services / NWS API**: Weather alerts, Area Forecast Discussions.
+- **Iowa Environmental Mesonet (IEM) mPING GeoJSON**: Crowdsourced weather reports.
+- **USGS Earthquake API**: Real-time earthquake data.
+- **NASA EONET API**: Global natural events.
+- **JTWC (Joint Typhoon Warning Center)**: Global tropical cyclone data (W. Pacific, Indian Ocean, S. Hemisphere) via RSS.
+- **NIFC Wildfire API**: Active fire perimeters (US).
+- **US Drought Monitor API**: State-level drought statistics (US).
+- **Open-Meteo API**: Upper atmospheric winds, stability parameters.
+- **OpenAI GPT-4o API**: AI weather assistant, chat.
+- **AccuWeather API**: MinuteCast™, forecasts, current conditions, lightning (enterprise).
 - **CheckWX API**: International METAR/TAF data.
-- **WeatherAPI.com**: Global weather data provider (free tier: 1M calls/month). Provides 3-day forecast blended into hybrid forecast, plus air quality (AQI with 6 pollutants) and astronomy data (moon phase, illumination, moonrise/moonset).
+- **WeatherAPI.com**: Secondary weather data.
+- **Ambient Weather API**: Personal weather station data.
+- **Weather Underground PWS API**: Personal weather station data.
+- **Resend API**: For email alerts from the Cloudflare Worker.
 
 ### Libraries
 - **React**: Frontend framework.
 - **Tailwind CSS**: Styling.
-- **shadcn/ui, Radix UI**: UI component libraries.
+- **shadcn/ui, Radix UI**: UI components.
 - **React Query (@tanstack/react-query)**: Server state management.
 - **Wouter**: Client-side routing.
-- **Leaflet**: Interactive mapping library.
-- **Drizzle ORM**: Type-safe database operations.
+- **Leaflet**: Interactive mapping.
+- **Drizzle ORM**: Database operations.
 - **Zod**: Runtime schema validation.
 - **@react-three/fiber, @react-three/drei**: 3D visualization.
-- **Sharp**: Image processing for radar tile parsing.
+- **Sharp**: Image processing.
 - **connect-pg-simple**: PostgreSQL session store.
 
 ### Databases
 - **PostgreSQL**: Primary database.
 - **Neon Database**: Serverless PostgreSQL provider.
+- **Cloudflare D1 (SQLite)**: Used by the Notification Server for user settings and alert logs.
+
+### Cloudflare Worker (Notification Server)
+- **Runtime**: Cloudflare Workers with D1.
+- **Auth**: Email + PIN, session tokens.
+- **Functionality**: Settings sync, email alerts based on weather thresholds, and user management.

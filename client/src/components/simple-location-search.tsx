@@ -3,6 +3,7 @@ import { Search, Navigation, Loader2, Map } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import MapLocationPicker from "./map-location-picker";
+import { useLanguage } from "@/hooks/use-language";
 
 interface SimpleLocationSearchProps {
   onLocationSelect: (location: { 
@@ -21,7 +22,7 @@ interface SimpleLocationSearchProps {
 export default function SimpleLocationSearch({
   onLocationSelect,
   onUseCurrentLocation,
-  placeholder = "Enter address, city, state, or ZIP...",
+  placeholder,
   className = ""
 }: SimpleLocationSearchProps) {
   const [query, setQuery] = useState("");
@@ -34,6 +35,7 @@ export default function SimpleLocationSearch({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestTimer = useRef<any>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -50,7 +52,8 @@ export default function SimpleLocationSearch({
     if (q.trim().length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
     suggestTimer.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/address-suggest?q=${encodeURIComponent(q.trim())}`);
+        const params = new URLSearchParams({ q: q.trim() });
+        const res = await fetch(`/api/address-suggest?${params}`);
         if (res.ok) {
           const data = await res.json();
           setSuggestions(data.suggestions || []);
@@ -124,7 +127,7 @@ export default function SimpleLocationSearch({
         <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }}>
           <Input
             type="text"
-            placeholder={placeholder}
+            placeholder={placeholder || t.enterAddress}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -169,7 +172,7 @@ export default function SimpleLocationSearch({
           ) : (
             <Search className="h-4 w-4 mr-2" />
           )}
-          Search Location
+          {t.search}
         </Button>
       </div>
 
@@ -182,7 +185,7 @@ export default function SimpleLocationSearch({
           style={{ WebkitTapHighlightColor: 'transparent' }}
         >
           <Map className="h-4 w-4 mr-2 shrink-0" />
-          <span className="text-sm">Pick on Map</span>
+          <span className="text-sm">{t.map}</span>
         </Button>
 
         {onUseCurrentLocation && (
@@ -224,7 +227,7 @@ export default function SimpleLocationSearch({
             ) : (
               <Navigation className="h-4 w-4 mr-2" />
             )}
-            <span className="text-sm">{isGPSLoading ? 'Getting GPS...' : 'Use GPS'}</span>
+            <span className="text-sm">{isGPSLoading ? t.loading : t.gps}</span>
           </Button>
         )}
       </div>
@@ -242,10 +245,6 @@ export default function SimpleLocationSearch({
           ⚠️ {gpsError}
         </div>
       )}
-
-      <div className="text-xs text-slate-400">
-        Examples: "New York", "90210", "1600 Pennsylvania Ave", "Miami, FL", "London, UK"
-      </div>
 
       {showMapPicker && (
         <MapLocationPicker

@@ -1,7 +1,55 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, Navigation, Clock, ArrowUpDown } from "lucide-react";
-import { getStormCategory, getCompassDirection, calculateETA, calculateApproachAngle, isStormApproaching } from "@shared/storm-utils";
+import { getStormCategory, getCompassDirection, calculateETA, calculateApproachAngle, isStormApproaching, formatStormEta } from "@shared/storm-utils";
+import { useLanguage } from "@/hooks/use-language";
+import { translateWeatherText } from "@/lib/i18n";
+
+function CountdownTimer({ etaMinutes, label }: { etaMinutes: number; label?: string }) {
+  const [now, setNow] = useState(Date.now());
+  const startRef = useRef(Date.now());
+  const etaRef = useRef(etaMinutes);
+
+  useEffect(() => {
+    startRef.current = Date.now();
+    etaRef.current = etaMinutes;
+  }, [etaMinutes]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const elapsedMin = (now - startRef.current) / 60000;
+  const remaining = Math.max(0, etaRef.current - elapsedMin);
+  const totalSec = Math.floor(remaining * 60);
+  const hours = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+
+  const isUrgent = remaining <= 10;
+  const isWarning = remaining <= 20;
+
+  const timeStr = hours > 0
+    ? `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+    : `${mins}:${String(secs).padStart(2, '0')}`;
+
+  if (remaining <= 0) {
+    return (
+      <span className="font-mono font-bold text-red-400 animate-pulse">
+        {label || 'ETA'}: ARRIVING
+      </span>
+    );
+  }
+
+  return (
+    <span className={`font-mono font-bold ${
+      isUrgent ? 'text-red-400 animate-pulse' : isWarning ? 'text-orange-300' : 'text-yellow-300'
+    }`}>
+      {label || 'ETA'}: {timeStr}
+    </span>
+  );
+}
 
 interface Storm {
   lat: number;
@@ -35,16 +83,47 @@ interface NWSAlert {
   effective: string;
   expires: string;
   senderName: string;
+  geometry?: {
+    type: string;
+    coordinates: number[][][];
+  } | null;
 }
 
-interface NWSForecastPeriod {
-  name: string;
-  temperature: number;
-  temperatureUnit: string;
-  windSpeed: string;
-  shortForecast: string;
-  detailedForecast: string;
-  isDaytime: boolean;
+function pointInRing(lat: number, lon: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][1], yi = ring[i][0];
+    const xj = ring[j][1], yj = ring[j][0];
+    const intersect = ((yi > lon) !== (yj > lon)) &&
+      (lat < (xj - xi) * (lon - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInPolygonRings(lat: number, lon: number, rings: number[][][]): boolean {
+  if (!rings || rings.length === 0) return false;
+  if (!pointInRing(lat, lon, rings[0])) return false;
+  for (let i = 1; i < rings.length; i++) {
+    if (pointInRing(lat, lon, rings[i])) return false;
+  }
+  return true;
+}
+
+function isLocationInAlertZone(lat: number, lon: number, alert: NWSAlert): boolean {
+  if (!alert.geometry || !alert.geometry.coordinates) return false;
+  const geomType = alert.geometry.type;
+  if (geomType === 'Polygon') {
+    return pointInPolygonRings(lat, lon, alert.geometry.coordinates as unknown as number[][][]);
+  }
+  if (geomType === 'MultiPolygon') {
+    const multiCoords = alert.geometry.coordinates as unknown as number[][][][];
+    for (const polygonRings of multiCoords) {
+      if (pointInPolygonRings(lat, lon, polygonRings)) return true;
+    }
+    return false;
+  }
+  return false;
 }
 
 interface ImmediateSafetyAlertsProps {
@@ -52,35 +131,6 @@ interface ImmediateSafetyAlertsProps {
   storms: Storm[];
   isLoading: boolean;
   windsAloftData?: any;
-  nwsForecast?: NWSForecastPeriod[] | null;
-  useMetric?: boolean;
-}
-
-function fToC(f: number): number { return Math.round((f - 32) * 5 / 9); }
-function mphToKmh(mph: number): number { return Math.round(mph * 1.60934); }
-
-function dualTemp(temp: number, unit: string, useMetric?: boolean): string {
-  if (unit === 'F') {
-    const c = fToC(temp);
-    return useMetric ? `${c}°C (${temp}°F)` : `${temp}°F (${c}°C)`;
-  }
-  const f = Math.round(temp * 9 / 5 + 32);
-  return useMetric ? `${temp}°C (${f}°F)` : `${f}°F (${temp}°C)`;
-}
-
-function dualWind(windStr: string, useMetric?: boolean): string {
-  const match = windStr.match(/(\d+)\s*(to\s*(\d+)\s*)?mph/i);
-  if (!match) return windStr;
-  const lo = parseInt(match[1]);
-  const hi = match[3] ? parseInt(match[3]) : null;
-  if (hi) {
-    return useMetric
-      ? `${mphToKmh(lo)} to ${mphToKmh(hi)} km/h (${lo}-${hi} mph)`
-      : `${lo} to ${hi} mph (${mphToKmh(lo)}-${mphToKmh(hi)} km/h)`;
-  }
-  return useMetric
-    ? `${mphToKmh(lo)} km/h (${lo} mph)`
-    : `${lo} mph (${mphToKmh(lo)} km/h)`;
 }
 
 const getSeverityColor = (severity: string): string => {
@@ -98,118 +148,14 @@ const getSeverityColor = (severity: string): string => {
 const getDirectionName = getCompassDirection;
 const getIntensityCategory = getStormCategory;
 
-interface HazardEntry {
-  keyword: string;
-  emoji: string;
-  label: string;
-  tier: 'warning' | 'watch' | 'advisory';
-}
-
-const NWS_HAZARDS: HazardEntry[] = [
-  { keyword: 'tornado',              emoji: '🌪️', label: 'Tornado',              tier: 'warning' },
-  { keyword: 'severe thunderstorm',  emoji: '⛈️',  label: 'Severe Thunderstorm',  tier: 'warning' },
-  { keyword: 'hurricane',            emoji: '🌀', label: 'Hurricane',             tier: 'warning' },
-  { keyword: 'typhoon',              emoji: '🌀', label: 'Typhoon',               tier: 'warning' },
-  { keyword: 'tropical storm',       emoji: '🌀', label: 'Tropical Storm',        tier: 'warning' },
-  { keyword: 'flash flood',          emoji: '🌊', label: 'Flash Flood',           tier: 'warning' },
-  { keyword: 'flood warning',        emoji: '🌊', label: 'Flood Warning',         tier: 'warning' },
-  { keyword: 'blizzard',             emoji: '🌨️', label: 'Blizzard',              tier: 'warning' },
-  { keyword: 'ice storm',            emoji: '🧊', label: 'Ice Storm',             tier: 'warning' },
-  { keyword: 'winter storm',         emoji: '❄️',  label: 'Winter Storm',          tier: 'warning' },
-  { keyword: 'extreme cold',         emoji: '🥶', label: 'Extreme Cold',          tier: 'warning' },
-  { keyword: 'excessive heat',       emoji: '🔥', label: 'Excessive Heat',        tier: 'warning' },
-  { keyword: 'extreme heat',         emoji: '🔥', label: 'Extreme Heat',          tier: 'warning' },
-  { keyword: 'damaging wind',        emoji: '🌬️', label: 'Damaging Winds',        tier: 'warning' },
-  { keyword: 'destructive',          emoji: '💥', label: 'Destructive',           tier: 'warning' },
-  { keyword: 'life-threatening',     emoji: '☠️',  label: 'Life-Threatening',      tier: 'warning' },
-  { keyword: 'large hail',           emoji: '🧊', label: 'Large Hail',            tier: 'warning' },
-  { keyword: 'storm surge',          emoji: '🌊', label: 'Storm Surge',           tier: 'warning' },
-  { keyword: 'high wind',            emoji: '🌬️', label: 'High Wind',             tier: 'watch' },
-  { keyword: 'wind advisory',        emoji: '🌬️', label: 'Wind Advisory',         tier: 'watch' },
-  { keyword: 'gale',                 emoji: '🌬️', label: 'Gale',                  tier: 'watch' },
-  { keyword: 'severe weather',       emoji: '⛈️',  label: 'Severe Weather',        tier: 'watch' },
-  { keyword: 'flooding',             emoji: '🌊', label: 'Flooding',              tier: 'watch' },
-  { keyword: 'winter weather',       emoji: '❄️',  label: 'Winter Weather',        tier: 'watch' },
-  { keyword: 'freeze warning',       emoji: '🥶', label: 'Freeze Warning',        tier: 'watch' },
-  { keyword: 'heat advisory',        emoji: '🌡️', label: 'Heat Advisory',         tier: 'watch' },
-  { keyword: 'fire weather',         emoji: '🔥', label: 'Fire Weather',          tier: 'watch' },
-  { keyword: 'red flag',             emoji: '🔥', label: 'Red Flag',              tier: 'watch' },
-  { keyword: 'rip current',          emoji: '🌊', label: 'Rip Current',           tier: 'watch' },
-  { keyword: 'coastal flood',        emoji: '🌊', label: 'Coastal Flood',         tier: 'watch' },
-  { keyword: 'dense fog',            emoji: '🌫️', label: 'Dense Fog',             tier: 'advisory' },
-  { keyword: 'fog',                  emoji: '🌫️', label: 'Fog',                   tier: 'advisory' },
-  { keyword: 'freezing rain',        emoji: '🧊', label: 'Freezing Rain',         tier: 'advisory' },
-  { keyword: 'sleet',                emoji: '🧊', label: 'Sleet',                 tier: 'advisory' },
-  { keyword: 'wintry mix',           emoji: '🧊', label: 'Wintry Mix',            tier: 'advisory' },
-  { keyword: 'frost',                emoji: '❄️',  label: 'Frost',                 tier: 'advisory' },
-  { keyword: 'wind chill',           emoji: '🥶', label: 'Wind Chill',            tier: 'advisory' },
-  { keyword: 'thunderstorm',         emoji: '⛈️',  label: 'Thunderstorms',         tier: 'advisory' },
-  { keyword: 'strong storms',        emoji: '⛈️',  label: 'Strong Storms',         tier: 'advisory' },
-  { keyword: 'scattered storms',     emoji: '🌩️', label: 'Scattered Storms',      tier: 'advisory' },
-  { keyword: 'isolated storms',      emoji: '🌩️', label: 'Isolated Storms',       tier: 'advisory' },
-  { keyword: 'gusty wind',           emoji: '💨', label: 'Gusty Winds',           tier: 'advisory' },
-  { keyword: 'heavy rain',           emoji: '🌧️', label: 'Heavy Rain',            tier: 'advisory' },
-  { keyword: 'hail',                 emoji: '🧊', label: 'Hail',                  tier: 'advisory' },
-  { keyword: 'dust storm',           emoji: '🌪️', label: 'Dust Storm',            tier: 'advisory' },
-  { keyword: 'waterspout',           emoji: '🌪️', label: 'Waterspout',            tier: 'advisory' },
-];
-
-interface DetectedHazard {
-  emoji: string;
-  label: string;
-  tier: 'warning' | 'watch' | 'advisory';
-}
-
-interface ForecastWarning {
-  period: NWSForecastPeriod;
-  severity: 'warning' | 'watch' | 'advisory';
-  hazards: DetectedHazard[];
-}
-
-function detectForecastWarnings(periods: NWSForecastPeriod[]): ForecastWarning[] {
-  const warnings: ForecastWarning[] = [];
-  for (const p of periods) {
-    const text = `${p.shortForecast} ${p.detailedForecast}`.toLowerCase();
-    const seen = new Set<string>();
-    const hazards: DetectedHazard[] = [];
-    for (const h of NWS_HAZARDS) {
-      if (text.includes(h.keyword) && !seen.has(h.label)) {
-        seen.add(h.label);
-        hazards.push({ emoji: h.emoji, label: h.label, tier: h.tier });
-      }
-    }
-    if (hazards.length > 0) {
-      const topTier = hazards.some(h => h.tier === 'warning') ? 'warning'
-        : hazards.some(h => h.tier === 'watch') ? 'watch' : 'advisory';
-      warnings.push({ period: p, severity: topTier, hazards });
-    }
-  }
-  return warnings;
-}
-
-export default function ImmediateSafetyAlerts({ location, storms, isLoading, windsAloftData, nwsForecast, useMetric }: ImmediateSafetyAlertsProps) {
-  const [showAlerts, setShowAlerts] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [alertsLoaded, setAlertsLoaded] = useState(false);
+export default function ImmediateSafetyAlerts({ location, storms, isLoading, windsAloftData }: ImmediateSafetyAlertsProps) {
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
-
-  // Delay showing alerts for 3 seconds to allow storm calculations to complete
-  useEffect(() => {
-    if (location && storms.length >= 0) {
-      setIsAnimating(true);
-      const timer = setTimeout(() => {
-        setShowAlerts(true);
-        setIsAnimating(false);
-      }, 3000); // 3 second delay
-      
-      return () => clearTimeout(timer);
-    }
-  }, [location, storms.length]);
+  const { language } = useLanguage();
 
   // Get NWS alerts after delay
   const { data: nwsAlerts = [], isLoading: alertsLoading } = useQuery({
     queryKey: ['/api/nws-alerts', location?.lat, location?.lon],
-    enabled: !!location && showAlerts,
+    enabled: !!location,
     queryFn: async () => {
       if (!location) return [];
       const response = await fetch(`/api/nws-alerts?lat=${location.lat}&lon=${location.lon}`);
@@ -221,13 +167,33 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     refetchInterval: 5 * 60 * 1000 // Refresh every 5 minutes
   });
 
-  // Format ETA minutes into a human-readable string
+  const { data: translatedAlerts } = useQuery({
+    queryKey: ['/api/translate-alerts', language, nwsAlerts],
+    enabled: language !== 'en' && nwsAlerts.length > 0,
+    queryFn: async () => {
+      const response = await fetch('/api/translate-alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alerts: nwsAlerts, language })
+      });
+      if (!response.ok) return nwsAlerts;
+      const data = await response.json();
+      return data.translatedAlerts || nwsAlerts;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const displayAlerts = (language !== 'en' && translatedAlerts) 
+    ? translatedAlerts.map((ta: any, i: number) => ({
+        ...nwsAlerts[i],
+        headline: ta.headline || nwsAlerts[i]?.headline,
+        description: ta.description || nwsAlerts[i]?.description,
+      }))
+    : nwsAlerts;
+
   const formatEta = (minutes: number): string => {
     if (minutes < 1) return 'Imminent';
-    if (minutes < 60) return `~${Math.round(minutes)} min`;
-    const h = Math.floor(minutes / 60);
-    const m = Math.round(minutes % 60);
-    return m > 0 ? `~${h}h ${m}m` : `~${h}h`;
+    return `~${formatStormEta(minutes)}`;
   };
 
   const stormsWithMovement = storms.map(storm => {
@@ -241,19 +207,25 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
 
     if (!rawMovement || rawMovement.speed == null) return storm;
 
+    const angleDiff = calculateApproachAngle(storm.direction, rawMovement.direction);
+    const inCone = angleDiff <= 30;
     const approaching = isStormApproaching(storm.direction, rawMovement.direction, rawMovement.speed);
     const etaMinutes = approaching && rawMovement.speed > 0
       ? calculateETA(storm.distance, rawMovement.speed)
-      : null;
+      : inCone && rawMovement.speed > 0
+        ? calculateETA(storm.distance, rawMovement.speed)
+        : null;
 
-    const angleDiff = calculateApproachAngle(storm.direction, rawMovement.direction);
     const impact: 'high' | 'medium' | 'low' =
       approaching && rawMovement.speed > 5 && angleDiff <= 15 ? 'high'
-      : approaching ? 'medium'
+      : inCone && approaching ? 'medium'
+      : inCone ? 'medium'
       : 'low';
 
     return {
       ...storm,
+      inCone,
+      angleDiff,
       movement: {
         direction: rawMovement.direction,
         speed: rawMovement.speed,
@@ -265,15 +237,21 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
   });
 
   const immediateThreats = stormsWithMovement.filter(storm => {
+    if (storm.intensity <= 45) return false;
     const mov = storm.movement;
-    if (!mov || mov.etaMinutes == null) return false;
-    return mov.etaMinutes <= 45;
+    if (mov?.etaMinutes != null && mov.etaMinutes <= 45) return true;
+    if ((storm as any).inCone && mov?.etaMinutes != null && mov.etaMinutes <= 45) return true;
+    return false;
   });
 
   const approachingButNotImminent = stormsWithMovement.filter(storm => {
+    if (storm.intensity <= 45) return false;
     const mov = storm.movement;
+    const inCone = (storm as any).inCone;
     if (!mov || mov.etaMinutes == null) return false;
-    return mov.etaMinutes > 45;
+    if (inCone && mov.etaMinutes > 45) return true;
+    if (!inCone && mov.etaMinutes > 45) return false;
+    return false;
   });
 
   // Remove duplicate storms (within 0.01 degree proximity)
@@ -286,8 +264,30 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     (a.movement?.etaMinutes ?? Infinity) - (b.movement?.etaMinutes ?? Infinity)
   );
 
+  const dangerousAlertTypes = [
+    'tornado', 'severe thunderstorm', 'hurricane', 'typhoon', 'tropical storm',
+    'flash flood', 'tsunami', 'storm surge', 'extreme wind', 'blizzard',
+    'ice storm', 'dust storm', 'fire weather', 'red flag',
+    'severe weather', 'special weather'
+  ];
+
+  const filteredNwsAlerts = displayAlerts.filter((alert: NWSAlert) => {
+    const type = (alert.type || '').toLowerCase();
+    const severity = (alert.severity || '').toLowerCase();
+    const urgency = (alert.urgency || '').toLowerCase();
+
+    const isWarningOrWatch = type.includes('warning') || type.includes('watch');
+    const isSevereLevel = severity === 'extreme' || severity === 'severe';
+    const isUrgent = urgency === 'immediate' || urgency === 'expected';
+    const isDangerousType = dangerousAlertTypes.some(dt => type.includes(dt));
+
+    return (isWarningOrWatch && (isSevereLevel || isDangerousType)) ||
+           (isSevereLevel && isUrgent) ||
+           isDangerousType;
+  });
+
   // Sort NWS alerts by effective date and headline content
-  const sortedNwsAlerts = [...nwsAlerts].sort((a, b) => {
+  const sortedNwsAlerts = [...filteredNwsAlerts].sort((a, b) => {
     const dateA = new Date(a.effective).getTime();
     const dateB = new Date(b.effective).getTime();
     
@@ -324,8 +324,11 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     return sortOrder === 'newest' ? b.type.localeCompare(a.type) : a.type.localeCompare(b.type);
   });
 
-  const forecastWarnings = nwsForecast ? detectForecastWarnings(nwsForecast) : [];
-  const totalAlerts = nwsAlerts.length + uniqueThreats.length + forecastWarnings.length;
+  const totalAlerts = filteredNwsAlerts.length + uniqueThreats.length;
+
+  const alertsUserIsInside = location
+    ? displayAlerts.filter((alert: NWSAlert) => isLocationInAlertZone(location.lat, location.lon, alert))
+    : [];
 
   // Skeleton loader component
   const SkeletonLoader = () => (
@@ -351,15 +354,24 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
     </div>
   );
 
-  if (!location) return null;
+  if (!location) {
+    return (
+      <div className="bg-red-900/30 rounded-xl p-3 sm:p-4 border border-red-600/30 mb-4 sm:mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <Loader2 className="h-5 w-5 text-red-400 animate-spin" />
+          <h3 className="text-lg font-semibold text-red-200">Immediate Safety Alerts</h3>
+          <span className="bg-slate-600/50 text-slate-400 px-2 py-1 rounded-full text-xs">Locating…</span>
+        </div>
+        <SkeletonLoader />
+      </div>
+    );
+  }
 
   return (
-    <div className={`bg-red-900/30 rounded-xl p-3 sm:p-4 border border-red-600/30 mb-4 sm:mb-6 transition-all duration-500 select-none ${
-      showAlerts ? 'opacity-100 transform translate-y-0' : 'opacity-0 transform translate-y-2'
-    }`}>
+    <div className="bg-red-900/30 rounded-xl p-3 sm:p-4 border border-red-600/30 mb-4 sm:mb-6 select-none">
       <div className="flex items-center justify-between mb-3 select-none">
         <div className="flex items-center gap-2 select-none">
-          {isAnimating ? (
+          {alertsLoading ? (
             <Loader2 className="h-5 w-5 text-red-400 animate-spin select-none" />
           ) : (
             <AlertTriangle className="h-5 w-5 text-red-400 select-none" />
@@ -367,12 +379,12 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
           <h3 className="text-lg font-semibold text-red-200 select-none">
             Immediate Safety Alerts
           </h3>
-          {!isAnimating && totalAlerts > 0 && (
-            <span className="bg-red-600 text-white px-2 py-1 rounded-full text-xs font-bold animate-fadeIn">
+          {!alertsLoading && totalAlerts > 0 && (
+            <span className="bg-red-600 text-white px-2 py-1 rounded-full text-xs font-bold">
               {totalAlerts}
             </span>
           )}
-          {isAnimating && (
+          {alertsLoading && (
             <span className="bg-slate-600/50 text-slate-400 px-2 py-1 rounded-full text-xs">
               Loading...
             </span>
@@ -380,7 +392,7 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
         </div>
         
         {/* Sort button for NWS alerts */}
-        {!isAnimating && nwsAlerts.length > 1 && (
+        {!alertsLoading && filteredNwsAlerts.length > 1 && (
           <button
             onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
             className="flex items-center gap-1 px-2 py-1 text-xs text-red-300 hover:text-red-100 bg-red-900/30 hover:bg-red-900/50 rounded transition-colors"
@@ -392,25 +404,54 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
         )}
       </div>
 
-      {isAnimating || alertsLoading ? (
+      {!alertsLoading && alertsUserIsInside.length > 0 && (
+        <div className="bg-red-700/30 border border-red-500/60 rounded-lg p-2 mb-3 flex items-center gap-2 animate-pulse">
+          <span className="text-lg">🔴</span>
+          <span className="text-sm font-semibold text-red-200">
+            Your location is inside {alertsUserIsInside.length} active alert zone{alertsUserIsInside.length > 1 ? 's' : ''}: {alertsUserIsInside.map((a: NWSAlert) => a.type).join(', ')}
+          </span>
+        </div>
+      )}
+
+      {alertsLoading ? (
         <SkeletonLoader />
       ) : totalAlerts === 0 ? (
         <div className="text-center py-2 animate-fadeIn">
           {approachingButNotImminent.length > 0 ? (
-            <p className="text-yellow-400/80 text-sm">
-              {approachingButNotImminent.length} storm{approachingButNotImminent.length > 1 ? 's' : ''} approaching but not imminent (ETA {'>'} 45 min)
-            </p>
+            <>
+              <p className="text-yellow-400/80 text-sm">
+                {approachingButNotImminent.length} strong storm{approachingButNotImminent.length > 1 ? 's' : ''} ({'>'}45 dBZ) in your cone but ETA {'>'} 45 min
+              </p>
+              {(() => {
+                const nearest = [...approachingButNotImminent].sort(
+                  (a, b) => (a.movement?.etaMinutes ?? Infinity) - (b.movement?.etaMinutes ?? Infinity)
+                )[0];
+                return nearest?.movement?.etaMinutes != null ? (
+                  <div className="flex items-center justify-center gap-1.5 mt-1.5 text-sm">
+                    <span className="text-slate-500">⏱</span>
+                    <CountdownTimer etaMinutes={nearest.movement.etaMinutes} label="Nearest" />
+                  </div>
+                ) : null;
+              })()}
+            </>
           ) : (
             <p className="text-slate-300 text-sm">No immediate weather threats detected</p>
           )}
+          <p className="text-slate-500 text-[10px] mt-1">
+            Alerts: storms {'>'}45 dBZ in 30° cone with ETA {'<'}45 min, or severe NWS warnings/watches
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
           {/* NWS Alerts */}
-          {sortedNwsAlerts.map((alert: NWSAlert, index: number) => (
+          {sortedNwsAlerts.map((alert: NWSAlert, index: number) => {
+            const userInZone = location && alert.geometry
+              ? isLocationInAlertZone(location.lat, location.lon, alert)
+              : false;
+            return (
             <div 
               key={`nws-${index}`} 
-              className="bg-red-900/40 rounded-lg p-3 border border-red-600/30 animate-slideInUp"
+              className={`bg-red-900/40 rounded-lg p-3 border animate-slideInUp ${userInZone ? 'border-red-500 ring-1 ring-red-500/50' : 'border-red-600/30'}`}
               style={{
                 animationDelay: `${index * 150}ms`,
                 animationFillMode: 'both'
@@ -418,7 +459,12 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
               <div className="flex items-center gap-2 mb-2">
                 <div className="text-lg">🚨</div>
                 <div className={`w-3 h-3 rounded-full ${getSeverityColor(alert.severity || '')}`}></div>
-                <span className="font-semibold text-red-200">{alert.type}</span>
+                <span className="font-semibold text-red-200">{translateWeatherText(alert.type, language)}</span>
+                {userInZone && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-600 text-white animate-pulse">
+                    YOU ARE IN THIS ZONE
+                  </span>
+                )}
               </div>
               
               <p className="text-sm text-red-100 mb-2">{alert.headline}</p>
@@ -597,7 +643,8 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
 
           {/* Collision Course / Severe Proximity Storms */}
           {uniqueThreats.map((storm, index) => (
@@ -637,20 +684,19 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
                 {/* ETA + threat classification box */}
                 {storm.movement && (
                   <div className="mt-2 p-2 bg-orange-950/50 rounded text-xs space-y-1">
-                    {/* ETA — shown whenever we have one, regardless of impact level */}
-                    {storm.movement.eta && (
-                      <div className="flex items-center gap-1.5 text-yellow-300 font-semibold">
+                    {storm.movement.etaMinutes != null && (
+                      <div className="flex items-center gap-1.5">
                         <span>⏱</span>
-                        <span>ETA: {storm.movement.eta}</span>
+                        <CountdownTimer etaMinutes={storm.movement.etaMinutes} />
                       </div>
                     )}
                     {storm.movement.impact === 'high' ? (
                       <div className="text-red-300">
-                        <strong>🎯 COLLISION COURSE:</strong> Storm on direct track to your location
+                        <strong>🎯 COLLISION COURSE:</strong> Storm on direct track — you are in the 30° cone
                       </div>
                     ) : storm.movement.impact === 'medium' ? (
                       <div className="text-orange-300">
-                        <strong>⚠️ APPROACHING:</strong> Storm moving toward your area
+                        <strong>⚠️ IN YOUR CONE:</strong> Storm approaching within 30° of your location
                       </div>
                     ) : (
                       <div className="text-orange-300">
@@ -665,60 +711,6 @@ export default function ImmediateSafetyAlerts({ location, storms, isLoading, win
               </div>
             </div>
           ))}
-
-          {/* NWS Forecast-Based Warnings */}
-          {forecastWarnings.map((fw, index) => {
-            const tierColors = fw.severity === 'warning'
-              ? { bg: 'bg-red-900/30', border: 'border-red-600/30', title: 'text-red-200', text: 'text-red-100', detail: 'text-red-300/80', badge: 'bg-red-800/60 text-red-200', tierBadge: 'bg-red-700/70 text-red-100' }
-              : fw.severity === 'watch'
-              ? { bg: 'bg-orange-900/30', border: 'border-orange-600/30', title: 'text-orange-200', text: 'text-orange-100', detail: 'text-orange-300/80', badge: 'bg-orange-800/60 text-orange-200', tierBadge: 'bg-orange-700/70 text-orange-100' }
-              : { bg: 'bg-yellow-900/30', border: 'border-yellow-600/30', title: 'text-yellow-200', text: 'text-yellow-100', detail: 'text-yellow-300/80', badge: 'bg-yellow-800/60 text-yellow-200', tierBadge: 'bg-yellow-700/70 text-yellow-100' };
-            const leadEmoji = fw.hazards[0]?.emoji || '⚠️';
-            const tierLabel = fw.severity === 'warning' ? 'WARNING' : fw.severity === 'watch' ? 'WATCH' : 'ADVISORY';
-            return (
-              <div
-                key={`forecast-${index}`}
-                className={`rounded-lg p-3 border animate-slideInUp ${tierColors.bg} ${tierColors.border}`}
-                style={{
-                  animationDelay: `${(sortedNwsAlerts.length + uniqueThreats.length + index) * 150}ms`,
-                  animationFillMode: 'both'
-                }}
-              >
-                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                  <span className="text-lg">{leadEmoji}</span>
-                  <span className={`font-semibold text-sm ${tierColors.title}`}>
-                    {fw.period.name}
-                  </span>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide ${tierColors.tierBadge}`}>
-                    {tierLabel}
-                  </span>
-                  <span className={`text-xs px-1.5 py-0.5 rounded flex items-center gap-1 ${tierColors.badge}`}>
-                    {fw.period.isDaytime ? '⤴️' : '⤵️'}
-                    {fw.period.isDaytime ? 'High' : 'Low'}: {dualTemp(fw.period.temperature, fw.period.temperatureUnit, useMetric)}
-                  </span>
-                </div>
-                <p className={`text-sm mb-1.5 ${tierColors.text}`}>
-                  {fw.period.shortForecast}
-                  {fw.period.windSpeed && <span className="text-xs opacity-70"> · Wind: {dualWind(fw.period.windSpeed, useMetric)}</span>}
-                </p>
-                <div className="flex flex-wrap gap-1.5 mb-1.5">
-                  {fw.hazards.slice(0, 4).map((hz, hi) => (
-                    <span key={hi} className={`text-xs px-1.5 py-0.5 rounded flex items-center gap-1 ${tierColors.badge}`}>
-                      <span>{hz.emoji}</span>
-                      <span>{hz.label}</span>
-                    </span>
-                  ))}
-                </div>
-                {fw.period.detailedForecast && (
-                  <p className={`text-xs leading-relaxed ${tierColors.detail}`}>
-                    {fw.period.detailedForecast.length > 200
-                      ? fw.period.detailedForecast.slice(0, 200) + '...'
-                      : fw.period.detailedForecast}
-                  </p>
-                )}
-              </div>
-            );
-          })}
         </div>
       )}
     </div>

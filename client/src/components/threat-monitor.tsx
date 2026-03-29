@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
 import { useQuery } from '@tanstack/react-query';
+import { useAutoTranslate } from '@/hooks/use-auto-translate';
 
 interface ThreatMonitorProps {
   userLocation?: {
@@ -46,6 +47,7 @@ interface ThreatDetectionResult {
 }
 
 export function ThreatMonitor({ userLocation, storms = [], lightningCount = 0 }: ThreatMonitorProps) {
+  const { at } = useAutoTranslate();
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
 

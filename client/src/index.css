@@ -419,3 +419,23 @@ input[type="range"]::-moz-range-thumb {
 .animate-spin {
   animation: spin 1s linear infinite;
 }
+
+@keyframes lightning-pulse {
+  0% { opacity: 1; box-shadow: 0 0 15px 5px rgba(255, 255, 255, 0.8); }
+  50% { opacity: 0.6; box-shadow: 0 0 8px 3px rgba(255, 255, 200, 0.5); }
+  100% { opacity: 1; box-shadow: 0 0 15px 5px rgba(255, 255, 255, 0.8); }
+}
+
+.lightning-flash {
+  animation: lightning-pulse 0.3s ease-in-out 3;
+}
+
+.lightning-emoji-marker {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

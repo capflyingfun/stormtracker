@@ -1,11 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { formatStormEta } from '@shared/storm-utils';
 
 interface Simple3DCanvasProps {
   location: { lat: number; lon: number; city?: string; name?: string; } | null;
   precipitationStorms: any[];
   setViewMode: (mode: 'map' | 'sonar' | '3d') => void;
   tickerMessages?: string[];
+  showLightning?: boolean;
+}
+
+function getLightningCount(dbz: number): number {
+  if (dbz < 40) return 0;
+  const rand = Math.random();
+  if (dbz >= 60) return 3 + Math.floor(rand * 5);
+  if (dbz >= 55) return 2 + Math.floor(rand * 4);
+  if (dbz >= 50) return 1 + Math.floor(rand * 3);
+  if (dbz >= 45) return 1 + Math.floor(rand * 2);
+  return rand > 0.4 ? 1 : 0;
 }
 
 // 3D perspective transformation
@@ -99,7 +111,7 @@ interface StormInfo {
   movementDir?: string;
 }
 
-export default function Simple3DCanvas({ location, precipitationStorms, setViewMode, tickerMessages: externalTickerMessages }: Simple3DCanvasProps) {
+export default function Simple3DCanvas({ location, precipitationStorms, setViewMode, tickerMessages: externalTickerMessages, showLightning = true }: Simple3DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showWaypoints, setShowWaypoints] = useState(false);
   const [showLegend, setShowLegend] = useState(false); // Collapsible legend
@@ -156,9 +168,9 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
+    if (canvas.width < 10 || canvas.height < 10) return;
 
     const cameraDistance = 20; // Balanced view distance
 
@@ -509,7 +521,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           }
           
           // Lightning flash effect for severe storms (55+ dBZ)
-          if (intensity >= 55) {
+          if (showLightning && intensity >= 55) {
             const lightningTime = Date.now() * 0.001;
             // Random flash trigger - roughly every 2-4 seconds per storm
             const flashSeed = Math.floor(lightningTime + intensity) % 100;
@@ -554,12 +566,42 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
           }
         });
         
-        // Helper to format ETA as HH:MM
-        const formatETA = (minutes: number): string => {
-          const hrs = Math.floor(minutes / 60);
-          const mins = Math.round(minutes % 60);
-          return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-        };
+        // ── Lightning ⚡ overlay on storm cells ≥40 dBZ ───────────────────────
+        if (showLightning && location) {
+          precipitationStorms.forEach(storm => {
+            const dbz = storm.dbz || storm.intensity || 0;
+            const count = getLightningCount(dbz);
+            if (count === 0) return;
+
+            const pos3D = geoTo3D(storm.lat, storm.lon, location.lat, location.lon);
+            const height = dbzToHeight(dbz);
+            const rotatedPos = rotateY(pos3D, currentRotation);
+            const topPt = project3D({ x: rotatedPos.x, y: height - cameraHeight, z: rotatedPos.z }, cameraDistance, canvas.width, canvas.height);
+            const boltScale = cameraDistance / (cameraDistance + Math.abs(rotatedPos.z) + 1);
+
+            if (boltScale > 0.05) {
+              const fontSize = Math.max(10, Math.round(14 * boltScale));
+              ctx.globalAlpha = 0.9;
+              ctx.fillStyle = '#ffd700';
+              ctx.font = `${fontSize}px sans-serif`;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.shadowColor = '#ffd700';
+              ctx.shadowBlur = 6;
+              ctx.fillText('⚡', topPt.x, topPt.y - 4 * boltScale);
+              if (count > 1) {
+                ctx.font = `bold ${Math.max(8, Math.round(10 * boltScale))}px sans-serif`;
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = 0;
+                ctx.fillText(`×${count}`, topPt.x + fontSize * 0.5, topPt.y - 4 * boltScale);
+              }
+              ctx.shadowBlur = 0;
+              ctx.globalAlpha = 1;
+            }
+          });
+        }
+
+        const formatETA = (minutes: number): string => formatStormEta(minutes);
         
         // Helper for compass direction
         const getCompassDir = (degrees: number): string => {
@@ -817,7 +859,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
       canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [location, precipitationStorms, showWaypoints, isRotating, rotationSpeed]);
+  }, [location, precipitationStorms, showWaypoints, isRotating, rotationSpeed, showLightning]);
 
   if (!location) {
     return (
@@ -948,7 +990,7 @@ export default function Simple3DCanvas({ location, precipitationStorms, setViewM
         
         const tier = highest.score >= 80 ? 'extreme' : highest.score >= 60 ? 'severe' : highest.score >= 40 ? 'high' : highest.score >= 20 ? 'moderate' : 'low';
         const tierColors: Record<string, string> = { low: '#22C55E', moderate: '#EAB308', high: '#F97316', severe: '#EF4444', extreme: '#8B5CF6' };
-        const etaText = highest.etaMin < 60 ? `${Math.round(highest.etaMin)}m` : `${Math.floor(highest.etaMin / 60)}h`;
+        const etaText = highest.etaMin < 999 ? formatStormEta(highest.etaMin) : 'N/A';
         
         return (
           <div 

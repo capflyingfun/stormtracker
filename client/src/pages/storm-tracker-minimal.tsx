@@ -234,6 +234,7 @@ export default function StormTracker() {
       <Header 
         useMetric={useMetric}
         onUnitsChange={setUseMetric}
+        onOpenSettings={() => setShowAlertSettings(true)}
       />
       
       {/* Alert Settings Modal */}
@@ -243,6 +244,10 @@ export default function StormTracker() {
           onClose={() => setShowAlertSettings(false)}
           preferences={preferences}
           onSave={handleAlertSettingsSave}
+          impactThreshold={0}
+          onImpactThresholdChange={() => {}}
+          useMetric={useMetric}
+          onUnitsChange={setUseMetric}
         />
       )}
       

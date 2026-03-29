@@ -1,4 +1,8 @@
-import { aiChat, getProviderInfo } from "./ai-client";
+import OpenAI from "openai";
+
+const openai = new OpenAI({ 
+  apiKey: process.env.OPENAI_API_KEY 
+});
 
 // Dynamic AI tone based on weather severity - prioritize alerts first
 function getDynamicTone(storms: StormData[], threatData: any, activeAlerts: any[]) {
@@ -96,15 +100,15 @@ interface WeatherAssessmentRequest {
   regionalStorms?: StormData[]; // 50-mile regional context
   winds: WindData[];
   radarSource: string;
-  threatData?: any;
-  useMetric?: boolean;
+  threatData?: any; // Optional threat detection data for enhanced analysis
+  useMetric?: boolean; // Unit preference for temperature display
   userSettings?: {
     aiTone: string;
     detailLevel: string;
     includeHumor: boolean;
     simplifiedLanguage: boolean;
+    preferredLanguage?: string;
   };
-  nwsForecast?: any[] | null;
 }
 
 export async function generateWeatherAssessment(data: WeatherAssessmentRequest): Promise<{
@@ -130,7 +134,7 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
         console.log(`AI Assistant: Thunderstorm potential: ${thunderstormConditions.thunderstormPotential.overall}/10`);
       }
     } catch (error) {
-      console.log('AI Assistant: Thunderstorm analysis unavailable:', error.message);
+      console.log('AI Assistant: Thunderstorm analysis unavailable:', (error as Error).message);
     }
 
     // Fetch aviation weather data from nearby airports
@@ -561,7 +565,34 @@ export async function generateWeatherAssessment(data: WeatherAssessmentRequest):
       ? 'Use a warm, conversational tone like chatting with a knowledgeable friend about the weather.'
       : 'Use a professional but approachable meteorological tone.';
 
+    const detailLevel = data.userSettings?.detailLevel || 'standard';
+    const includeHumor = data.userSettings?.includeHumor ?? false;
+    const simplifiedLanguage = data.userSettings?.simplifiedLanguage ?? false;
+    const preferredLanguage = data.userSettings?.preferredLanguage || 'en';
+
+    const detailInstruction = detailLevel === 'minimal'
+      ? 'Keep your response very concise - only essential safety info and key conditions.'
+      : detailLevel === 'technical'
+      ? 'Provide detailed meteorological analysis with technical terminology, model references, and specific parameters.'
+      : 'Provide balanced, informative weather analysis with clear explanations.';
+
+    const humorInstruction = includeHumor
+      ? 'Feel free to include tasteful weather humor, puns, or witty observations when conditions are not severe.'
+      : '';
+
+    const simplifiedInstruction = simplifiedLanguage
+      ? 'Use simple, everyday language. Avoid jargon and technical terms. Explain as if to someone with no weather knowledge.'
+      : '';
+
+    const languageInstruction = preferredLanguage !== 'en'
+      ? `IMPORTANT: Respond entirely in the language with code "${preferredLanguage}". All section headers, analysis, and recommendations must be in that language.`
+      : '';
+
     const prompt = `You are an expert meteorologist providing comprehensive weather analysis. Your response MUST be structured in these FIVE clearly labeled sections as flowing paragraphs.
+${detailInstruction}
+${humorInstruction}
+${simplifiedInstruction}
+${languageInstruction}
 
 CRITICAL FORMATTING RULES:
 - Use plain text section headers on their own line, followed by the paragraph content
@@ -604,14 +635,6 @@ NWS Office: ${areaForecastDiscussion.office} (${areaForecastDiscussion.officeCod
 Forecaster's Discussion:
 ${areaForecastDiscussion.discussion.substring(0, 1200)}
 (Summarize the key insights from this discussion in a ${toneStyle} tone)` : 
-  ''}
-
-${data.nwsForecast && data.nwsForecast.length > 0 ?
-  `=== NWS FORECAST PERIODS ===
-${data.nwsForecast.slice(0, 6).map(p => 
-  `• ${p.name}: ${p.temperature}°${p.temperatureUnit} — ${p.shortForecast} (Wind: ${p.windSpeed || 'N/A'})`
-).join('\n')}
-(Use these NWS forecast periods to inform your upcoming conditions analysis)` :
   ''}
 
 === ACTIVE ALERTS & ADVISORIES ===
@@ -741,10 +764,8 @@ Provide your assessment in this exact JSON format:
   "detailedAnalysis": "Structure your response with these FIVE clearly labeled sections, each as a flowing paragraph:\n\n**Summary and AFD:**\n[Conversational summary of forecaster discussion with ${toneStyle} tone - what NWS meteorologists are watching, key weather drivers, timing, confidence. If AFD available, translate the technical jargon into accessible insights.]\n\n**Relevant Storm Information:**\n[Active storms, movement direction/speed, intensity, direct threats, ETAs, track cone analysis. Be specific about whether storms are heading toward user.]\n\n**General:**\n[Public safety guidance, outdoor activity recommendations, comfort conditions, what to expect.]\n\n**Aviation:**\n[Winds aloft, wind shear (NWS vector method), turbulence, visibility, ceilings, METAR data. Be precise with altitudes and measurements.]\n\n**Boating:**\n[Marine conditions, wind patterns, storm timing, wave potential, water safety.]\n\nWrite each section as a flowing paragraph. Include active weather alerts prominently in the relevant sections."
 }`;
 
-    const providerInfo = getProviderInfo();
-    console.log(`🤖 AI Assessment using ${providerInfo.provider} (${providerInfo.model})${providerInfo.free ? ' [FREE]' : ''}`);
-
-    const aiResult = await aiChat({
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages: [
         {
           role: "system",
@@ -756,11 +777,11 @@ Provide your assessment in this exact JSON format:
         }
       ],
       response_format: { type: "json_object" },
-      temperature: 0.3,
-      max_tokens: 5000,
+      temperature: 0.3, // Lower temperature for more consistent, factual responses
+      max_tokens: 5000 // Increased for comprehensive weather analysis with full winds aloft table
     });
 
-    const result = JSON.parse(aiResult.content || '{}');
+    const result = JSON.parse(response.choices[0].message.content || '{}');
     
     // Validate and ensure required fields
     return {
@@ -774,7 +795,7 @@ Provide your assessment in this exact JSON format:
 
   } catch (error) {
     console.error('AI weather assessment error:', error);
-    console.error('Error details:', error.message);
+    console.error('Error details:', (error as Error).message);
     
     // Smart fallback assessment based on actual storm data
     const highIntensityStorms = data.storms.filter(s => s.intensity >= 55);

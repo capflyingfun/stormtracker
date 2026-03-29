@@ -1,9 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
-import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema, riskAssessmentSchema, userAlertPreferences, riskAlerts, insertRiskAlertSchema, insertUserAlertPreferencesSchema, updateUserAlertPreferencesSchema, insertAlertSubscriptionSchema } from "@shared/schema";
+import { locationSearchSchema, weatherDataRequestSchema, insertLocationSchema, riskAssessmentSchema, userAlertPreferences, riskAlerts, insertRiskAlertSchema, insertUserAlertPreferencesSchema, updateUserAlertPreferencesSchema, insertAlertSubscriptionSchema, stormFeedback, syncProfiles } from "@shared/schema";
 import { storage } from "./storage";
+import { db } from "./db";
 import { sendStormAlert, sendTestAlert, sendSMSAlert, sendTestSMS } from "./email";
+import { formatStormEta } from "@shared/storm-utils";
 import { generateWeatherAssessment } from "./ai-assistant";
 
 // NWS Alerts API integration
@@ -40,13 +42,14 @@ async function fetchNWSAlerts(lat: number, lon: number) {
         areas: alert.properties.areaDesc,
         effective: alert.properties.effective,
         expires: alert.properties.expires,
-        senderName: alert.properties.senderName
+        senderName: alert.properties.senderName,
+        geometry: alert.geometry || null
       })),
       error: null
     };
   } catch (error) {
     console.error('NWS Alerts API error:', error);
-    return { alerts: [], error: error.message };
+    return { alerts: [], error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
 
@@ -54,13 +57,62 @@ async function fetchNWSAlerts(lat: number, lon: number) {
 const tickerMessageCache: Map<string, { messages: string[]; timestamp: number }> = new Map();
 const TICKER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// AccuWeather location key cache (location keys don't change, cache for 24h)
+const accuLocationCache: Map<string, { key: string; timestamp: number }> = new Map();
+const ACCU_LOCATION_TTL = 24 * 60 * 60 * 1000;
+// AccuWeather current conditions cache (15 min to conserve 50 calls/day on free plan)
+const accuCurrentCache: Map<string, { data: any; timestamp: number }> = new Map();
+const ACCU_CURRENT_TTL = 15 * 60 * 1000;
+// AccuWeather forecast cache (30 min — forecasts change slowly)
+const accuForecastCache: Map<string, { data: any; timestamp: number }> = new Map();
+const ACCU_FORECAST_TTL = 30 * 60 * 1000;
+// AccuWeather MinuteCast cache (15 min by rounded coords)
+const accuMinutecastCache: Map<string, { data: any; timestamp: number }> = new Map();
+const ACCU_MINUTECAST_TTL = 15 * 60 * 1000;
+// AccuWeather daily quota guard (50 calls/day on free plan, reserve 5 for safety)
+let accuDailyCallCount = 0;
+let accuDailyResetDate = new Date().toISOString().substring(0, 10);
+const ACCU_DAILY_LIMIT = 45;
+function accuCanCall(): boolean {
+  const today = new Date().toISOString().substring(0, 10);
+  if (today !== accuDailyResetDate) {
+    accuDailyCallCount = 0;
+    accuDailyResetDate = today;
+  }
+  return accuDailyCallCount < ACCU_DAILY_LIMIT;
+}
+function accuRecordCall() {
+  accuDailyCallCount++;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
-  // API Keys - these would normally come from environment variables
   const API_KEYS = {
-    openweather: process.env.OPENWEATHER_API_KEY || '49f87b43ad1ddba1821a5cdac7d6965e',
-    weatherapi: process.env.WEATHERAPI_KEY || null, // WeatherAPI.com free tier: 1M calls/month
+    openweather: process.env.OPENWEATHER_API_KEY || '',
+    weatherapi: process.env.WEATHERAPI_KEY || '',
+    opencage: process.env.OPENCAGE_API_KEY || '',
   };
+
+  app.get("/api/owm-tile/:z/:x/:y", async (req, res) => {
+    try {
+      const { z, x, y } = req.params;
+      const apiKey = API_KEYS.openweather;
+      if (!apiKey) {
+        return res.status(503).json({ error: 'OpenWeather API key not configured' });
+      }
+      const tileUrl = `https://tile.openweathermap.org/map/precipitation_new/${z}/${x}/${y}.png?appid=${apiKey}`;
+      const response = await fetch(tileUrl);
+      if (!response.ok) {
+        return res.status(response.status).end();
+      }
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.send(buffer);
+    } catch (error) {
+      res.status(500).end();
+    }
+  });
 
   // AI-powered ticker messages endpoint - generates personalized conversational weather updates
   app.post("/api/ticker-messages", async (req, res) => {
@@ -122,7 +174,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ messages: cached.messages });
       }
       
-      const { aiChat: aiChatFn } = await import("./ai-client");
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       
       // Build personalized storm summary with impact data - ONLY approaching storms
       const stormSummary = approachingStorms.map((s: any, i: number) => {
@@ -131,7 +184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Include impact prediction if available
         const impact = impactPredictions?.[i];
         const impactInfo = impact ? `, impact score ${impact.impactScore}/100, ${impact.recommendedAction}` : '';
-        return `${intensity} rain from ${s.direction} (${Math.round(s.distance)}mi, ${urgency}, ETA ~${Math.round(s.etaMinutes)}min${impactInfo})`;
+        return `${intensity} rain from ${s.direction} (${Math.round(s.distance)}mi, ${urgency}, ETA ~${formatStormEta(s.etaMinutes)}${impactInfo})`;
       }).join('; ');
       
       // Determine overall urgency and personalization
@@ -167,13 +220,14 @@ Examples of good personalized tone:
 Return ONLY a JSON array of 5 strings.`;
 
       try {
-        const aiResult = await aiChatFn({
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 400,
           temperature: 0.85
         });
         
-        const content = aiResult.content || '[]';
+        const content = completion.choices[0]?.message?.content || '[]';
         const jsonMatch = content.match(/\[[\s\S]*\]/);
         const messages = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
         
@@ -311,8 +365,7 @@ Return ONLY a JSON array of 5 strings.`;
           directionFromUser,
           distance: Math.round(distance * 10) / 10,
           etaMinutes: Math.round(etaMinutes),
-          etaFormatted: etaMinutes < 999 ? 
-            `${Math.floor(etaMinutes / 60)}h ${Math.round(etaMinutes % 60)}m` : 'N/A',
+          etaFormatted: etaMinutes < 999 ? formatStormEta(etaMinutes) : 'N/A',
           intensityNow: intensity,
           intensityAtArrival,
           durationMinutes,
@@ -432,10 +485,13 @@ Return ONLY a JSON array of 5 strings.`;
       
       console.log(`🌧️ Fetching Visual Crossing high-resolution radar data for ${latitude}, ${longitude}`);
       
-      // Visual Crossing Timeline API with radar-specific elements
-      // Free tier: 1000 records/day, no API key needed for testing
+      const vcKey = process.env.VISUAL_CROSSING_API_KEY;
+      if (!vcKey) {
+        return res.status(503).json({ error: 'Visual Crossing API key not configured' });
+      }
+
       const response = await fetch(
-        `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=YourAPIKey&elements=precipremote,reflectivity,precip,precipprob,preciptype&include=remote&options=nonulls&unitGroup=us`,
+        `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=${vcKey}&elements=precipremote,reflectivity,precip,precipprob,preciptype&include=remote&options=nonulls&unitGroup=us`,
         {
           headers: {
             'User-Agent': 'StormTracker Weather App'
@@ -515,9 +571,10 @@ Return ONLY a JSON array of 5 strings.`;
       };
 
       // Test Visual Crossing (if API key available)
-      try {
+      const vcCompareKey = process.env.VISUAL_CROSSING_API_KEY;
+      if (vcCompareKey) try {
         const vcResponse = await fetch(
-          `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=YourAPIKey&elements=precipremote,reflectivity,precip&include=remote&options=nonulls`,
+          `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${latitude},${longitude}?key=${vcCompareKey}&elements=precipremote,reflectivity,precip&include=remote&options=nonulls`,
           { signal: AbortSignal.timeout(5000) }
         );
         
@@ -704,7 +761,6 @@ Return ONLY a JSON array of 5 strings.`;
 
   // Thunderstorm formation analysis endpoint
   app.get("/api/thunderstorm-conditions", async (req, res) => {
-    try {
       const { lat, lon } = req.query;
       
       if (!lat || !lon) {
@@ -824,14 +880,9 @@ Return ONLY a JSON array of 5 strings.`;
         console.error('Error fetching thunderstorm conditions:', error);
         res.status(500).json({ 
           error: 'Failed to fetch atmospheric data',
-          message: error.message 
+          message: error instanceof Error ? error.message : 'Unknown error'
         });
       }
-      
-    } catch (error) {
-      console.error('Thunderstorm conditions endpoint error:', error);
-      res.status(500).json({ error: error.message });
-    }
   });
 
   // Helper functions for thunderstorm analysis
@@ -1098,121 +1149,236 @@ Return ONLY a JSON array of 5 strings.`;
   // Address auto-suggest endpoint for smart search
   app.get("/api/address-suggest", async (req, res) => {
     try {
-      const { q: query } = req.query;
+      const { q: query, region } = req.query;
       
       if (!query || typeof query !== 'string' || query.length < 2) {
         return res.json({ suggestions: [] });
       }
+
+      const regionBias = typeof region === 'string' ? region.toUpperCase() : '';
+
+      const REGION_COUNTRIES: Record<string, string[]> = {
+        US: ['US'],
+        EU: ['GB','DE','FR','IT','ES','NL','BE','AT','CH','PL','SE','NO','DK','FI','IE','PT','GR','CZ','RO','HU','BG','HR','SK','SI','LT','LV','EE','LU','MT','CY','IS'],
+        AS: ['JP','CN','IN','KR','TW','TH','VN','PH','MY','SG','ID','BD','PK','LK','MM','KH','LA','NP','MN','KZ','UZ'],
+        OC: ['AU','NZ','FJ','PG','WS','TO','VU','SB','FM','MH','PW','KI','NR','TV'],
+        SA: ['BR','AR','CL','CO','PE','VE','EC','BO','PY','UY','GY','SR','GF'],
+        AF: ['ZA','NG','KE','EG','GH','TZ','ET','MA','TN','DZ','SN','CI','CM','UG','MZ','ZW','RW','AO','SD','LY'],
+      };
+
+      const regionCountries = regionBias && REGION_COUNTRIES[regionBias] ? REGION_COUNTRIES[regionBias] : null;
       
-      const suggestions = [];
+      const suggestions: any[] = [];
       
-      // Try OpenWeatherMap geocoding for comprehensive results
-      const response = await fetch(
-        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=8&appid=${API_KEYS.openweather}`,
-        {
-          signal: AbortSignal.timeout(3000) // 3 second timeout for faster response
-        }
-      );
+      const looksLikeStreetAddress = /\d+\s+\w/.test(query) || /\b(st|ave|blvd|dr|rd|ln|ct|way|pl|cir|pkwy|hwy|drive|road|street|avenue|boulevard|lane|court|place|circle)\b/i.test(query);
       
-      if (response.ok) {
-        const locations = await response.json();
-        
-        for (const location of locations) {
-          // Format address like Google/Apple Maps
-          let displayName = location.name;
-          
-          if (location.state && location.country === 'US') {
-            displayName += `, ${location.state}`;
-          }
-          if (location.country && location.country !== 'US') {
-            displayName += `, ${location.country}`;
-          }
-          
-          suggestions.push({
-            id: `${location.lat}_${location.lon}`,
-            display_name: displayName,
-            lat: location.lat,
-            lon: location.lon,
-            type: 'place',
-            importance: 1.0 - (suggestions.length * 0.1), // Decrease importance for later results
-            address: {
-              city: location.name,
-              state: location.state,
-              country: location.country
+      const fetchPromisesGeo: Promise<void>[] = [];
+
+      fetchPromisesGeo.push(
+        fetch(
+          `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(query)}&limit=8&appid=${API_KEYS.openweather}`,
+          { signal: AbortSignal.timeout(3000) }
+        ).then(r => r.ok ? r.json() : []).then((locations: any[]) => {
+          for (const location of locations) {
+            let displayName = location.name;
+            if (location.state && location.country === 'US') {
+              displayName += `, ${location.state}`;
             }
-          });
-        }
-      }
-      
-      if (suggestions.length === 0 && query.length >= 3) {
-        try {
-          const photonRes = await fetch(
+            if (location.country && location.country !== 'US') {
+              displayName += `, ${location.country}`;
+            }
+            const isInRegion = !regionCountries || regionCountries.includes(location.country);
+            suggestions.push({
+              id: `${location.lat}_${location.lon}`,
+              display_name: displayName,
+              lat: location.lat,
+              lon: location.lon,
+              type: 'place',
+              importance: isInRegion ? (looksLikeStreetAddress ? 0.8 : 1.5) - (suggestions.length * 0.05) : 0.5 - (suggestions.length * 0.05),
+              address: {
+                city: location.name,
+                state: location.state,
+                country: location.country
+              },
+              _inRegion: isInRegion
+            });
+          }
+        }).catch(() => {})
+      );
+
+      if (query.length >= 3) {
+        fetchPromisesGeo.push(
+          fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`,
+            { headers: { 'User-Agent': 'StormTracker/1.0 (Weather Application)' }, signal: AbortSignal.timeout(3000) }
+          ).then(r => r.ok ? r.json() : []).then((nomData: any[]) => {
+            if (!nomData?.length) return;
+            for (const loc of nomData) {
+              const lat = parseFloat(loc.lat);
+              const lon = parseFloat(loc.lon);
+              const coordId = `${lat.toFixed(5)}_${lon.toFixed(5)}`;
+              const isDuplicate = suggestions.some(s => {
+                const existingId = `${parseFloat(s.lat).toFixed(5)}_${parseFloat(s.lon).toFixed(5)}`;
+                return existingId === coordId;
+              });
+              if (isDuplicate) continue;
+              const addr = loc.address || {};
+              const parts = [];
+              if (addr.house_number && addr.road) parts.push(`${addr.house_number} ${addr.road}`);
+              else if (addr.road) parts.push(addr.road);
+              else if (loc.display_name) parts.push(loc.display_name.split(',')[0]);
+              const city = addr.city || addr.town || addr.village || '';
+              if (city) parts.push(city);
+              if (addr.state) parts.push(addr.state);
+              const cc = (addr.country_code || '').toUpperCase();
+              if (cc && cc !== 'US') parts.push(cc);
+              if (parts.length === 0) continue;
+              const isInRegion = !regionCountries || regionCountries.includes(cc);
+              const hasStreetDetail = !!(addr.house_number || addr.road);
+              suggestions.push({
+                id: coordId,
+                display_name: parts.join(', '),
+                lat, lon,
+                type: hasStreetDetail ? 'address' : 'place',
+                importance: isInRegion ? (hasStreetDetail ? 1.9 : 1.1) : 0.4,
+                address: { city, state: addr.state || '', country: cc },
+                _inRegion: isInRegion
+              });
+            }
+          }).catch(() => {})
+        );
+
+        fetchPromisesGeo.push(
+          fetch(
             `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6`,
             { signal: AbortSignal.timeout(3000) }
-          );
-          if (photonRes.ok) {
-            const photonData = await photonRes.json();
-            if (photonData.features) {
-              for (const f of photonData.features) {
-                const p = f.properties || {};
-                const parts = [];
-                if (p.housenumber && p.street) parts.push(`${p.housenumber} ${p.street}`);
-                else if (p.street) parts.push(p.street);
-                else if (p.name) parts.push(p.name);
-                if (p.city || p.town || p.village) parts.push(p.city || p.town || p.village);
-                if (p.state) parts.push(p.state);
-                const cc = (p.countrycode || '').toUpperCase();
-                if (cc && cc !== 'US') parts.push(cc);
-                if (parts.length === 0) continue;
+          ).then(r => r.ok ? r.json() : { features: [] }).then((photonData: any) => {
+            if (!photonData.features) return;
+            for (const f of photonData.features) {
+              const p = f.properties || {};
+              const parts = [];
+              if (p.housenumber && p.street) parts.push(`${p.housenumber} ${p.street}`);
+              else if (p.street) parts.push(p.street);
+              else if (p.name) parts.push(p.name);
+              if (p.city || p.town || p.village) parts.push(p.city || p.town || p.village);
+              if (p.state) parts.push(p.state);
+              const cc = (p.countrycode || '').toUpperCase();
+              if (cc && cc !== 'US') parts.push(cc);
+              if (parts.length === 0) return;
+              const coordId = `${f.geometry.coordinates[1].toFixed(5)}_${f.geometry.coordinates[0].toFixed(5)}`;
+              const isDuplicate = suggestions.some(s => {
+                const existingId = `${parseFloat(s.lat).toFixed(5)}_${parseFloat(s.lon).toFixed(5)}`;
+                return existingId === coordId;
+              });
+              if (isDuplicate) return;
+              const isInRegion = !regionCountries || regionCountries.includes(cc);
+              const hasStreetDetail = !!(p.housenumber && p.street);
+              suggestions.push({
+                id: coordId,
+                display_name: parts.join(', '),
+                lat: f.geometry.coordinates[1],
+                lon: f.geometry.coordinates[0],
+                type: hasStreetDetail ? 'address' : 'place',
+                importance: isInRegion ? (hasStreetDetail ? 1.8 : 1.0) : 0.4,
+                address: {
+                  city: p.city || p.town || p.village || p.name || '',
+                  state: p.state || '',
+                  country: cc
+                },
+                _inRegion: isInRegion
+              });
+            }
+          }).catch(() => {})
+        );
+
+        if (API_KEYS.opencage) {
+          fetchPromisesGeo.push(
+            fetch(
+              `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(query)}&limit=5&no_annotations=1&key=${API_KEYS.opencage}`,
+              { signal: AbortSignal.timeout(3000) }
+            ).then(r => r.ok ? r.json() : { results: [] }).then((ocData: any) => {
+              if (!ocData.results) return;
+              for (const result of ocData.results) {
+                const geo = result.geometry;
+                if (!geo) continue;
+                const coordId = `${geo.lat.toFixed(5)}_${geo.lng.toFixed(5)}`;
+                const isDuplicate = suggestions.some(s => {
+                  const existingId = `${parseFloat(s.lat).toFixed(5)}_${parseFloat(s.lon).toFixed(5)}`;
+                  return existingId === coordId;
+                });
+                if (isDuplicate) continue;
+                const comp = result.components || {};
+                const displayParts = [];
+                if (comp.house_number && (comp.road || comp.street)) displayParts.push(`${comp.house_number} ${comp.road || comp.street}`);
+                else if (comp.road || comp.street) displayParts.push(comp.road || comp.street);
+                else if (result.formatted) displayParts.push(result.formatted.split(',')[0]);
+                const city = comp.city || comp.town || comp.village || '';
+                if (city) displayParts.push(city);
+                if (comp.state) displayParts.push(comp.state);
+                const cc = (comp.country_code || '').toUpperCase();
+                if (cc && cc !== 'US') displayParts.push(cc);
+                if (displayParts.length === 0) continue;
+                const isInRegion = !regionCountries || regionCountries.includes(cc);
+                const hasStreetDetail = !!(comp.house_number && (comp.road || comp.street));
                 suggestions.push({
-                  id: `${f.geometry.coordinates[1]}_${f.geometry.coordinates[0]}`,
-                  display_name: parts.join(', '),
-                  lat: f.geometry.coordinates[1],
-                  lon: f.geometry.coordinates[0],
-                  type: 'place',
-                  importance: 0.8 - (suggestions.length * 0.1),
+                  id: coordId,
+                  display_name: displayParts.join(', '),
+                  lat: geo.lat,
+                  lon: geo.lng,
+                  type: hasStreetDetail ? 'address' : 'place',
+                  importance: isInRegion ? (hasStreetDetail ? 2.0 : 1.2) : 0.45,
                   address: {
-                    city: p.city || p.town || p.village || p.name || '',
-                    state: p.state || '',
+                    city,
+                    state: comp.state || '',
                     country: cc
-                  }
+                  },
+                  _inRegion: isInRegion
                 });
               }
-            }
-          }
-        } catch (e) { /* Photon fallback failed, continue */ }
+            }).catch(() => {})
+          );
+        }
       }
+
+      await Promise.allSettled(fetchPromisesGeo);
 
       const zipMatch = query.match(/^\d{1,5}$/);
       if (zipMatch && query.length >= 3) {
+        const zipCountry = regionBias === 'US' || !regionBias ? 'US' : regionBias === 'EU' ? 'DE' : 'US';
         try {
           const zipResponse = await fetch(
-            `https://api.openweathermap.org/geo/1.0/zip?zip=${query},US&appid=${API_KEYS.openweather}`
+            `https://api.openweathermap.org/geo/1.0/zip?zip=${query},${zipCountry}&appid=${API_KEYS.openweather}`,
+            { signal: AbortSignal.timeout(3000) }
           );
           
           if (zipResponse.ok) {
             const zipData = await zipResponse.json();
             suggestions.unshift({
               id: `zip_${query}`,
-              display_name: `${query} - ${zipData.name}`,
+              display_name: `${query} - ${zipData.name}${zipData.country && zipData.country !== 'US' ? `, ${zipData.country}` : ''}`,
               lat: zipData.lat,
               lon: zipData.lon,
               type: 'postal_code',
-              importance: 1.1,
+              importance: 2.0,
               address: {
                 postal_code: query,
                 city: zipData.name,
-                country: 'US'
-              }
+                country: zipData.country || zipCountry
+              },
+              _inRegion: true
             });
           }
         } catch (e) {
-          // ZIP lookup failed, continue with regular suggestions
+          // ZIP lookup failed
         }
       }
       
+      suggestions.sort((a, b) => b.importance - a.importance);
+      
+      const cleaned = suggestions.map(({ _inRegion, ...rest }) => rest);
+      
       res.json({ 
-        suggestions: suggestions.slice(0, 6), // Limit to 6 suggestions like major mapping services
+        suggestions: cleaned.slice(0, 6),
         query: query 
       });
     } catch (error) {
@@ -1229,10 +1395,47 @@ Return ONLY a JSON array of 5 strings.`;
       query = parsedBody.query;
       console.log(`Geocoding search for: "${query}"`);
       
-      // Try different geocoding approaches starting with most reliable free services
       let locations = [];
       
-      // First try Nominatim (OpenStreetMap) - most reliable and supports detailed addresses
+      if (API_KEYS.opencage) {
+        console.log('Trying OpenCage for address search (primary)');
+        try {
+          const ocResponse = await fetch(
+            `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(query)}&limit=5&no_annotations=1&key=${API_KEYS.opencage}`,
+            { signal: AbortSignal.timeout(3000) }
+          );
+          if (ocResponse.ok) {
+            const ocData = await ocResponse.json();
+            if (ocData.results && ocData.results.length > 0) {
+              locations = ocData.results.map((result: any) => {
+                const comp = result.components || {};
+                const geo = result.geometry || {};
+                const hasHouseNum = !!(comp.house_number && (comp.road || comp.street));
+                let name = '';
+                if (hasHouseNum) {
+                  const road = comp.road || comp.street;
+                  const city = comp.city || comp.town || comp.village || '';
+                  name = `${comp.house_number} ${road}${city ? ', ' + city : ''}`;
+                } else {
+                  name = comp.city || comp.town || comp.village || (result.formatted || '').split(',')[0];
+                }
+                return {
+                  lat: geo.lat,
+                  lon: geo.lng,
+                  name,
+                  state: comp.state || '',
+                  country: comp.country || '',
+                  countryCode: (comp.country_code || '').toUpperCase()
+                };
+              });
+            }
+          }
+        } catch (ocError) {
+          console.log('OpenCage geocode failed:', ocError);
+        }
+      }
+
+      if (locations.length === 0) {
       console.log('Trying Nominatim for address search');
       try {
         // Add retry logic for improved reliability
@@ -1284,6 +1487,7 @@ Return ONLY a JSON array of 5 strings.`;
         }
       } catch (nominatimError) {
         console.log('Nominatim fallback failed:', nominatimError);
+      }
       }
       
       // If no results from Nominatim, try Photon (another OpenStreetMap-based geocoder)
@@ -1520,6 +1724,74 @@ Return ONLY a JSON array of 5 strings.`;
     }
   });
 
+  const translateRateLimit = new Map<string, number>();
+  app.post("/api/translate-alerts", async (req, res) => {
+    try {
+      const { alerts, language } = req.body;
+      
+      if (!alerts || !language || language === 'en' || !Array.isArray(alerts) || alerts.length === 0) {
+        return res.json({ translatedAlerts: alerts || [] });
+      }
+
+      if (alerts.length > 20) {
+        return res.status(400).json({ translatedAlerts: alerts.slice(0, 20) });
+      }
+
+      const clientIp = req.ip || 'unknown';
+      const now = Date.now();
+      const lastCall = translateRateLimit.get(clientIp) || 0;
+      if (now - lastCall < 30000) {
+        return res.json({ translatedAlerts: alerts });
+      }
+      translateRateLimit.set(clientIp, now);
+
+      const langNames: Record<string, string> = {
+        es: 'Spanish', fr: 'French', de: 'German', it: 'Italian', pt: 'Portuguese',
+        nl: 'Dutch', pl: 'Polish', ru: 'Russian', tr: 'Turkish', ar: 'Arabic',
+        hi: 'Hindi', id: 'Indonesian', ms: 'Malay', th: 'Thai', vi: 'Vietnamese',
+        ja: 'Japanese', ko: 'Korean', zh: 'Chinese', sw: 'Swahili'
+      };
+      
+      const targetLang = langNames[language] || 'English';
+      
+      const alertTexts = alerts.map((a: any, i: number) => 
+        `[${i}] TYPE: ${a.type}\nHEADLINE: ${a.headline}\nDESCRIPTION: ${a.description || ''}`
+      ).join('\n---\n');
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Translate weather alerts to ${targetLang}. Return JSON array with objects having "type", "headline", and "description" fields. Keep alert severity/urgency clear. Translate naturally, not word-for-word. Return ONLY the JSON array, no markdown.`
+          },
+          { role: "user", content: alertTexts }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000
+      });
+
+      const responseText = completion.choices[0]?.message?.content || '[]';
+      const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const translated = JSON.parse(cleaned);
+      
+      const merged = alerts.map((original: any, i: number) => ({
+        ...original,
+        type: translated[i]?.type || original.type,
+        headline: translated[i]?.headline || original.headline,
+        description: translated[i]?.description || original.description,
+      }));
+
+      res.json({ translatedAlerts: merged });
+    } catch (error) {
+      console.error("Translation error:", error);
+      res.json({ translatedAlerts: req.body.alerts || [] });
+    }
+  });
+
   // Legacy NWS alerts endpoint (for backward compatibility)
   app.post("/api/alerts", async (req, res) => {
     try {
@@ -1564,6 +1836,68 @@ Return ONLY a JSON array of 5 strings.`;
     }
   });
 
+  app.post("/api/storm-feedback", async (req, res) => {
+    try {
+      const schema = z.object({
+        lat: z.number().min(-90).max(90),
+        lon: z.number().min(-180).max(180),
+        predictedDbz: z.number(),
+        predictedImpactPct: z.number(),
+        predictedEtaMinutes: z.number().optional(),
+        stormDirection: z.string().optional(),
+        stormSpeed: z.number().optional(),
+        feedback: z.enum(['yes', 'no', 'unsure']),
+        recheckedStillActive: z.boolean().optional(),
+        notes: z.string().optional(),
+      });
+      const data = schema.parse(req.body);
+      
+      await db.insert(stormFeedback).values({
+        lat: data.lat,
+        lon: data.lon,
+        predictedDbz: Math.round(data.predictedDbz),
+        predictedImpactPct: Math.round(data.predictedImpactPct),
+        predictedEtaMinutes: data.predictedEtaMinutes != null ? Math.round(data.predictedEtaMinutes) : undefined,
+        stormDirection: data.stormDirection,
+        stormSpeed: data.stormSpeed,
+        feedback: data.feedback,
+        recheckedStillActive: data.recheckedStillActive,
+        notes: data.notes,
+      });
+      
+      const allFeedback = await db.select().from(stormFeedback).orderBy(stormFeedback.createdAt);
+      const total = allFeedback.length;
+      const correct = allFeedback.filter(f => f.feedback === 'yes').length;
+      const incorrect = allFeedback.filter(f => f.feedback === 'no').length;
+      const accuracy = total > 0 ? Math.round((correct / (correct + incorrect || 1)) * 100) : 0;
+      
+      res.json({ 
+        success: true, 
+        stats: { total, correct, incorrect, accuracy },
+        adjustmentFactor: incorrect > 3 && accuracy < 50 ? 0.85 : incorrect > 5 && accuracy < 70 ? 0.9 : 1.0
+      });
+    } catch (error) {
+      console.error("Storm feedback error:", error);
+      res.status(500).json({ message: "Failed to save feedback" });
+    }
+  });
+
+  app.get("/api/storm-feedback/stats", async (_req, res) => {
+    try {
+      const allFeedback = await db.select().from(stormFeedback).orderBy(stormFeedback.createdAt);
+      const total = allFeedback.length;
+      const correct = allFeedback.filter(f => f.feedback === 'yes').length;
+      const incorrect = allFeedback.filter(f => f.feedback === 'no').length;
+      const unsure = allFeedback.filter(f => f.feedback === 'unsure').length;
+      const accuracy = total > 0 ? Math.round((correct / (correct + incorrect || 1)) * 100) : 0;
+      
+      res.json({ total, correct, incorrect, unsure, accuracy });
+    } catch (error) {
+      console.error("Storm feedback stats error:", error);
+      res.status(500).json({ message: "Failed to get feedback stats" });
+    }
+  });
+
   // Automated threat detection and alert system
   app.post("/api/threat-detection", async (req, res) => {
     try {
@@ -1604,9 +1938,11 @@ Return ONLY a JSON array of 5 strings.`;
             if (currentWeather.conditions) {
               console.log('🔍 Conditions keys:', Object.keys(currentWeather.conditions));
               console.log(`🌡️ Threat detection using ${currentWeather.source} temp: ${currentWeather.conditions.temperature}°F`);
+              const tempF = currentWeather.conditions.temperature || 75;
               weatherData = {
-                temperature: currentWeather.conditions.temperature || 75,
-                heatIndex: (currentWeather.conditions.temperature || 75) + 5, // Rough estimate
+                temperature: tempF,
+                temperature_c: (tempF - 32) * 5/9,
+                heatIndex: tempF + 5,
                 humidity: (typeof currentWeather.conditions.humidity === 'number') ? currentWeather.conditions.humidity : 50,
                 windSpeed: currentWeather.conditions.windSpeed || 0,
                 conditions: currentWeather.conditions.weather || 'Clear',
@@ -1627,15 +1963,38 @@ Return ONLY a JSON array of 5 strings.`;
           throw new Error('Aviation weather request failed');
         }
       } catch (error) {
-        console.log('Aviation weather failed, using fallback data for threat analysis');
-        weatherData = {
-          temperature: 75,
-          humidity: 60,
-          windSpeed: 5,
-          conditions: 'Variable',
-          uvIndex: null,
-          airQuality: null
-        };
+        console.log('Aviation weather failed, trying direct OpenWeather fallback');
+        try {
+          const owRes = await fetch(
+            `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEYS.openweather}&units=imperial`,
+            { signal: AbortSignal.timeout(5000) }
+          );
+          if (owRes.ok) {
+            const ow = await owRes.json();
+            weatherData = {
+              temperature: ow.main?.temp ?? 75,
+              temperature_c: ow.main?.temp != null ? (ow.main.temp - 32) * 5/9 : null,
+              humidity: ow.main?.humidity ?? 60,
+              windSpeed: ow.wind?.speed ?? 5,
+              conditions: ow.weather?.[0]?.description || 'Variable',
+              uvIndex: null,
+              airQuality: null
+            };
+            console.log(`✅ OpenWeather fallback: ${weatherData.temperature}°F`);
+          } else {
+            throw new Error('OpenWeather fallback failed');
+          }
+        } catch {
+          console.log('All weather sources failed, using fallback data for threat analysis');
+          weatherData = {
+            temperature: 75,
+            humidity: 60,
+            windSpeed: 5,
+            conditions: 'Variable',
+            uvIndex: null,
+            airQuality: null
+          };
+        }
       }
       
       // Run automated threat detection analysis with NWS alerts
@@ -1678,6 +2037,7 @@ Return ONLY a JSON array of 5 strings.`;
         threats: threatSummary,
         weatherConditions: {
           temperature: weatherData.temperature,
+          temperature_c: weatherData.temperature_c ?? ((weatherData.temperature - 32) * 5/9),
           humidity: weatherData.humidity,
           conditions: weatherData.conditions,
           windSpeed: weatherData.windSpeed
@@ -1702,7 +2062,7 @@ Return ONLY a JSON array of 5 strings.`;
       console.error("Automated threat detection error:", error);
       res.status(500).json({ 
         error: "Failed to perform threat detection",
-        message: error.message,
+        message: error instanceof Error ? error.message : 'Unknown error',
         alertsGenerated: 0
       });
     }
@@ -1781,7 +2141,7 @@ Return ONLY a JSON array of 5 strings.`;
             direction: stormMovement.direction,
             speed: stormMovement.speed,
             confidence: stormMovement.confidence || 'medium',
-            eta: calculateETA(storm.distance, stormMovement.speed),
+            eta: calculateETAFormatted(storm.distance, stormMovement.speed),
             impact: calculateImpactLevel(storm.distance, stormMovement.direction, bearing)
           } : null
         });
@@ -1918,7 +2278,7 @@ Return ONLY a JSON array of 5 strings.`;
       return dbz;
       
     } catch (error) {
-      console.log(`❌ Radar tile parsing error: ${error.message}`);
+      console.log(`❌ Radar tile parsing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return 0;
     }
   }
@@ -3288,7 +3648,7 @@ Return ONLY a JSON array of 5 strings.`;
 
   // Final fallback: OpenWeather surface winds
   async function getFallbackWindData(lat: number, lon: number) {
-    const apiKey = process.env.OPENWEATHER_API_KEY || 'a8f3a8e5a1a3b3d5e9a8f3a8e5a1a3b3';
+    const apiKey = process.env.OPENWEATHER_API_KEY || '';
     
     try {
       const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric`);
@@ -3374,16 +3734,11 @@ Return ONLY a JSON array of 5 strings.`;
     return 'Unknown';
   }
 
-  // Helper function to calculate ETA
-  function calculateETA(distanceMiles: number, speedMph: number): string | null {
+  function calculateETAFormatted(distanceMiles: number, speedMph: number): string | null {
     if (speedMph <= 0) return null;
-    const etaHours = distanceMiles / speedMph;
-    if (etaHours < 1) {
-      return `${Math.round(etaHours * 60)} min`;
-    } else if (etaHours < 24) {
-      return `${etaHours.toFixed(1)} hr`;
-    }
-    return null;
+    const etaMinutes = (distanceMiles / speedMph) * 60;
+    if (etaMinutes >= 1440) return null;
+    return formatStormEta(etaMinutes);
   }
 
   // Helper function to calculate impact level
@@ -3640,7 +3995,7 @@ Return ONLY a JSON array of 5 strings.`;
               }
             }
           } catch (error) {
-            console.log(`AWC API failed for ${airport.icao}: ${error.message}`);
+            console.log(`AWC API failed for ${airport.icao}: ${(error as Error).message}`);
           }
           
           // Fallback: CheckWX API for additional coverage
@@ -3675,7 +4030,7 @@ Return ONLY a JSON array of 5 strings.`;
                 }
               }
             } catch (error) {
-              console.log(`CheckWX API failed for ${airport.icao}: ${error.message}`);
+              console.log(`CheckWX API failed for ${airport.icao}: ${(error as Error).message}`);
             }
           }
           
@@ -3758,7 +4113,7 @@ Return ONLY a JSON array of 5 strings.`;
             });
           }
         } catch (error) {
-          console.log(`Failed to fetch METAR for ${airport.icao}: ${error.message}`);
+          console.log(`Failed to fetch METAR for ${airport.icao}: ${(error as Error).message}`);
         }
       }
       
@@ -3826,9 +4181,9 @@ Return ONLY a JSON array of 5 strings.`;
                         humidity: props.relativeHumidity?.value ? Math.round(props.relativeHumidity.value) : 'Unknown',
                         pressure: props.barometricPressure?.value ? Math.round(props.barometricPressure.value / 100) : 'Unknown', // Convert Pa to hPa
                         visibility: props.visibility?.value ? (props.visibility.value / 1000).toFixed(1) + ' km' : 'Unknown',
-                        windSpeed: props.windSpeed?.value ? Math.round(props.windSpeed.value * 2.237) : 0, // Convert m/s to mph
+                        windSpeed: props.windSpeed?.value ? Math.round(props.windSpeed.value / 1.60934) : 0, // Convert km/h to mph
                         windDirection: props.windDirection?.value || 0,
-                        windGust: props.windGust?.value ? Math.round(props.windGust.value * 2.237) : null,
+                        windGust: props.windGust?.value ? Math.round(props.windGust.value / 1.60934) : null,
                         weather: props.textDescription || 'Clear',
                         cloudCover: props.cloudLayers?.[0]?.amount || 'Unknown',
                         dewPoint: props.dewpoint?.value ? Math.round((props.dewpoint.value * 9/5) + 32) : 'Unknown'
@@ -3891,7 +4246,7 @@ Return ONLY a JSON array of 5 strings.`;
         }
 
         // Fallback to OpenWeather if other APIs fail and we have a key
-        if (!currentWeather && API_KEYS.openweather && API_KEYS.openweather !== 'a8f3a8e5a1a3b3d5e9a8f3a8e5a1a3b3') {
+        if (!currentWeather && API_KEYS.openweather) {
           console.log('🌤️ Falling back to OpenWeather API...');
           const owmResponse = await fetch(
             `https://api.openweathermap.org/data/2.5/weather?lat=${userLat}&lon=${userLon}&appid=${API_KEYS.openweather}&units=metric`
@@ -4394,7 +4749,7 @@ Return ONLY a JSON array of 5 strings.`;
         }))
       };
     } catch (error) {
-      console.log('NWS forecast error:', error.message);
+      console.log('NWS forecast error:', (error as Error).message);
       return null;
     }
   }
@@ -4425,7 +4780,7 @@ Return ONLY a JSON array of 5 strings.`;
         })) || []
       };
     } catch (error) {
-      console.log('Open-Meteo forecast error:', error.message);
+      console.log('Open-Meteo forecast error:', (error as Error).message);
       return null;
     }
   }
@@ -4481,7 +4836,7 @@ Return ONLY a JSON array of 5 strings.`;
         fullText: productText
       };
     } catch (error) {
-      console.log('AFD fetch error:', error.message);
+      console.log('AFD fetch error:', (error as Error).message);
       return null;
     }
   }
@@ -4496,7 +4851,7 @@ Return ONLY a JSON array of 5 strings.`;
   // Interactive AI Weather Chat endpoint
   app.post("/api/ai-chat", async (req, res) => {
     try {
-      const { question, userLocation, useMetric, storms, stormCount, nwsForecast } = req.body;
+      const { question, userLocation, useMetric, storms, stormCount, preferredLanguage, simplifiedLanguage } = req.body;
       
       if (!question || typeof question !== 'string') {
         return res.status(400).json({ error: 'Question is required' });
@@ -4590,8 +4945,7 @@ Return ONLY a JSON array of 5 strings.`;
       }
       const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : { alerts: [] };
       const winds = windsResult.status === 'fulfilled' ? windsResult.value : null;
-      const fetchedNwsForecast = nwsForecastResult.status === 'fulfilled' ? nwsForecastResult.value : null;
-      const resolvedNwsForecast = fetchedNwsForecast || nwsForecast || null;
+      const nwsForecast = nwsForecastResult.status === 'fulfilled' ? nwsForecastResult.value : null;
       const openMeteoForecast = openMeteoForecastResult.status === 'fulfilled' ? openMeteoForecastResult.value : null;
       const afd = afdResult.status === 'fulfilled' ? afdResult.value : null;
       
@@ -4604,18 +4958,23 @@ Return ONLY a JSON array of 5 strings.`;
         thunderstormConditions: thunderstorm,
         activeAlerts: alerts.alerts || [],
         winds: winds,
-        nwsForecast: resolvedNwsForecast,
+        nwsForecast: nwsForecast,
         openMeteoForecast: openMeteoForecast,
         afd: afd,
         useMetric: useMetric || false
       };
       
-      // Generate AI response using Groq (free) with OpenAI fallback
-      const { aiChat: aiChatFn, getProviderInfo } = await import("./ai-client");
-      const providerInfo = getProviderInfo();
-      console.log(`🤖 AI Chat using ${providerInfo.provider} (${providerInfo.model})${providerInfo.free ? ' [FREE]' : ''}`);
+      // Generate AI response using OpenAI
+      const openai = new (await import('openai')).default({ 
+        apiKey: process.env.OPENAI_API_KEY 
+      });
       
-      const systemContent = `You are an expert meteorologist providing comprehensive weather analysis for pilots, boaters, and the general public. Use ALL available weather data to answer questions with detailed insights for aviation, marine, and general safety.
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert meteorologist providing comprehensive weather analysis for pilots, boaters, and the general public. Use ALL available weather data to answer questions with detailed insights for aviation, marine, and general safety.${preferredLanguage && preferredLanguage !== 'en' ? `\nIMPORTANT: Respond entirely in the language with code "${preferredLanguage}".` : ''}${simplifiedLanguage ? '\nUse simple, everyday language. Avoid jargon and technical terms.' : ''}
 
 Complete weather briefing data for ${userLocation.address || `${userLocation.lat}, ${userLocation.lon}`}:
 ${weatherContext.currentWeather ? `
@@ -4704,8 +5063,8 @@ ${(() => {
 
 ${weatherContext.nwsForecast ? `
 FORECAST (National Weather Service):
-${(Array.isArray(weatherContext.nwsForecast) ? weatherContext.nwsForecast : weatherContext.nwsForecast.periods || []).map(period => 
-  `• ${period.name}: ${period.shortForecast}, ${useMetric ? period.temperature + '°C' : period.temperature + '°F'}, Wind: ${period.windSpeed || 'N/A'}`
+${weatherContext.nwsForecast.periods.map(period => 
+  `• ${period.name}: ${period.shortForecast}, ${useMetric ? period.temperature + '°C' : period.temperature + '°F'}, ${period.precipitationProbability}% chance of rain`
 ).join('\n')}
 ` : ''}
 
@@ -4750,18 +5109,18 @@ Guidelines:
 - Only mention multiple sources when specifically asked about data reliability or accuracy
 - Keep responses natural and confident, as if coming from a single authoritative weather expert
 - Keep responses concise (2-4 sentences) unless detailed explanation is requested
-- Never mention missing data sections or say "data unavailable" - just work with what you have`;
-
-      const aiResult = await aiChatFn({
-        messages: [
-          { role: "system", content: systemContent },
-          { role: "user", content: question }
+- Never mention missing data sections or say "data unavailable" - just work with what you have`
+          },
+          {
+            role: "user", 
+            content: question
+          }
         ],
-        max_tokens: 2300,
+        max_tokens: 2300, // Increased by 1500 tokens for comprehensive weather analysis
         temperature: 0.7
       });
       
-      const aiResponse = aiResult.content;
+      const aiResponse = response.choices[0].message.content;
       
       console.log(`🤖 AI Chat Response generated for: "${question.substring(0, 50)}..."`);
       
@@ -4787,215 +5146,10 @@ Guidelines:
     }
   });
 
-  app.get("/api/ai-provider", async (_req, res) => {
-    const { getProviderInfo } = await import("./ai-client");
-    res.json(getProviderInfo());
-  });
-
-  app.post("/api/ai-summary", async (req, res) => {
-    try {
-      const { lat, lon, locationName, useMetric, tone } = req.body;
-      if (lat == null || lon == null) {
-        return res.status(400).json({ error: "Latitude and longitude required" });
-      }
-
-      const { aiChat: aiChatFn, getProviderInfo } = await import("./ai-client");
-      const providerInfo = getProviderInfo();
-      const toneLabel = tone || 'friendly';
-      console.log(`📋 Generating comprehensive weather summary via ${providerInfo.provider}${providerInfo.free ? ' [FREE]' : ''} (tone: ${toneLabel})`);
-
-      const fetchWithTimeout = (url: string, timeout = 6000) =>
-        fetch(url, { signal: AbortSignal.timeout(timeout) }).then(r => r.ok ? r.json() : null).catch(() => null);
-
-      const [forecast, storms, aviation, thunderstorm, alerts, winds] = await Promise.all([
-        fetchWithTimeout(`http://localhost:5000/api/forecast?lat=${lat}&lon=${lon}`),
-        fetch(`http://localhost:5000/api/storms`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat, lon, radius: 50 }),
-          signal: AbortSignal.timeout(10000),
-        }).then(r => r.ok ? r.json() : null).catch(() => null),
-        fetchWithTimeout(`http://localhost:5000/api/aviation-weather?lat=${lat}&lon=${lon}`),
-        fetchWithTimeout(`http://localhost:5000/api/thunderstorm-conditions?lat=${lat}&lon=${lon}`),
-        fetchWithTimeout(`http://localhost:5000/api/nws-alerts?lat=${lat}&lon=${lon}`),
-        fetchWithTimeout(`http://localhost:5000/api/winds-aloft?lat=${lat}&lon=${lon}`),
-      ]);
-
-      const toF = (c: number) => Math.round((c * 9/5) + 32);
-      const toC = (f: number) => Math.round((f - 32) * 5 / 9);
-      const toKmh = (mph: number) => Math.round(mph * 1.609);
-      const dualTemp = (valC: number) => `${toF(valC)}°F (${Math.round(valC)}°C)`;
-      const dualWind = (mph: number) => `${Math.round(mph)} mph (${toKmh(mph)} km/h)`;
-
-      let dataContext = `COMPREHENSIVE WEATHER DATA FOR: ${locationName || `${lat}, ${lon}`}\n\n`;
-
-      if (forecast?.current) {
-        const c = forecast.current;
-        dataContext += `CURRENT CONDITIONS:\n`;
-        dataContext += `• Temperature: ${dualTemp(c.temperature_2m)} (Feels like: ${dualTemp(c.apparent_temperature)})\n`;
-        dataContext += `• Humidity: ${c.relative_humidity_2m}%, Dew Point: ${dualTemp(c.dew_point_2m)}\n`;
-        dataContext += `• Wind: ${dualWind(c.wind_speed_10m)} from ${c.wind_direction_10m}°, Gusts: ${dualWind(c.wind_gusts_10m)}\n`;
-        dataContext += `• Pressure: ${c.surface_pressure} hPa, Cloud Cover: ${c.cloud_cover}%\n`;
-        dataContext += `• UV Index: ${c.uv_index}, Visibility: ${Math.round(c.visibility / 5280)} mi (${Math.round(c.visibility / 1000)} km)\n`;
-        dataContext += `• Precipitation: ${c.precipitation} in (${Math.round(c.precipitation * 25.4)} mm)\n\n`;
-      }
-
-      if (forecast?.daily) {
-        const d = forecast.daily;
-        const sources = forecast.forecastSources?.join(' + ') || 'Open-Meteo';
-        dataContext += `7-DAY FORECAST (Blended from ${sources} — ${forecast.forecastSourceCount || 1} sources):\n`;
-        for (let i = 0; i < d.time.length; i++) {
-          const date = new Date(d.time[i] + 'T12:00:00');
-          const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : date.toLocaleDateString('en-US', { weekday: 'long' });
-          dataContext += `• ${dayName}: High ${dualTemp(d.tempMax[i])}, Low ${dualTemp(d.tempMin[i])}, `;
-          dataContext += `Wind: ${dualWind(d.windMax[i])}, Precip: ${d.precipProbMax[i]}%, UV: ${d.uvMax[i]}\n`;
-        }
-        dataContext += '\n';
-      }
-
-      if (forecast?.nwsForecast) {
-        dataContext += `NWS DETAILED FORECAST:\n`;
-        for (const p of forecast.nwsForecast.slice(0, 8)) {
-          dataContext += `• ${p.name}: ${p.shortForecast}, ${p.temperature}°${p.temperatureUnit}, Wind: ${p.windSpeed}\n`;
-          dataContext += `  ${p.detailedForecast}\n`;
-        }
-        dataContext += '\n';
-      }
-
-      if (storms?.storms?.length > 0) {
-        dataContext += `ACTIVE STORMS (${storms.storms.length} detected within ${storms.radius || 50} miles):\n`;
-        for (const s of storms.storms.slice(0, 15)) {
-          dataContext += `• ${s.category} storm: ${s.intensity} dBZ, ${s.direction} @ ${s.distance?.toFixed(1)} mi (${(s.distance * 1.609).toFixed(1)} km)`;
-          if (s.movement) dataContext += `, moving ${s.movement.direction}° at ${dualWind(s.movement.speed)}`;
-          if (s.movement?.eta) dataContext += `, ETA: ${s.movement.eta}`;
-          dataContext += '\n';
-        }
-        dataContext += '\n';
-      } else {
-        dataContext += `STORMS: No active storms detected within 50 miles (80 km).\n\n`;
-      }
-
-      const alertsList = alerts?.alerts || (Array.isArray(alerts) ? alerts : []);
-      if (alertsList.length > 0) {
-        dataContext += `NWS ALERTS (${alertsList.length} active):\n`;
-        for (const a of alertsList.slice(0, 5)) {
-          dataContext += `• ${a.event} (${a.severity}): ${a.headline || a.description?.substring(0, 200)}\n`;
-        }
-        dataContext += '\n';
-      }
-
-      if (aviation?.stations?.length > 0) {
-        dataContext += `AVIATION WEATHER (${aviation.stations.length} nearby airports):\n`;
-        for (const s of aviation.stations.slice(0, 3)) {
-          dataContext += `• ${s.station}: ${s.rawMETAR || `${s.conditions?.weather}, ${s.conditions?.temperature}°F, Wind: ${s.conditions?.windSpeed}kts`}\n`;
-        }
-        dataContext += '\n';
-      }
-
-      if (thunderstorm?.thunderstormPotential) {
-        const tp = thunderstorm.thunderstormPotential;
-        dataContext += `THUNDERSTORM POTENTIAL: ${tp.overall}/10\n`;
-        dataContext += `• Moisture: ${tp.moisture}/10, Instability: ${tp.instability}/10, Lift: ${tp.lift}/10\n`;
-        if (thunderstorm.cape) dataContext += `• CAPE: ${thunderstorm.cape} J/kg\n`;
-        dataContext += '\n';
-      }
-
-      if (winds?.winds?.length > 0) {
-        dataContext += `WINDS ALOFT:\n`;
-        for (const w of winds.winds) {
-          dataContext += `• ${w.level}: ${w.direction}° @ ${w.speed} kts (${Math.round(w.speed * 1.852)} km/h)\n`;
-        }
-        dataContext += '\n';
-      }
-
-      if (forecast?.astronomy) {
-        dataContext += `ASTRONOMY: Moon Phase: ${forecast.astronomy.moonPhase}, ${forecast.astronomy.moonIllumination}% illumination\n`;
-        dataContext += `• Moonrise: ${forecast.astronomy.moonrise}, Moonset: ${forecast.astronomy.moonset}\n\n`;
-      }
-
-      if (forecast?.airQuality) {
-        const aq = forecast.airQuality;
-        const epaLabel = aq.usEpaIndex <= 1 ? 'Good' : aq.usEpaIndex <= 2 ? 'Moderate' : aq.usEpaIndex <= 3 ? 'Unhealthy for Sensitive Groups' : 'Unhealthy';
-        dataContext += `AIR QUALITY: EPA Index ${aq.usEpaIndex} (${epaLabel})\n`;
-        dataContext += `• PM2.5: ${aq.pm25?.toFixed(1)}, PM10: ${aq.pm10?.toFixed(1)}, O3: ${aq.o3?.toFixed(1)}\n\n`;
-      }
-
-      const toneInstructions = toneLabel === 'professional'
-        ? 'Write in a formal meteorological briefing style. Be precise, clinical, and data-driven. Use proper meteorological terminology.'
-        : toneLabel === 'humorous'
-        ? 'Write in a fun, witty style similar to Carrot Weather — include weather-related humor, playful commentary, and personality while still being accurate. Make weather fun!'
-        : 'Write in a warm, conversational tone. Be approachable and helpful, like a friendly local weather expert explaining things to a neighbor.';
-
-      const aiResult = await aiChatFn({
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert meteorologist writing a comprehensive weather briefing. ${toneInstructions}
-
-Write in plain text (NO markdown, NO asterisks, NO bullet points with *). Use simple dashes (-) for lists if needed.
-
-IMPORTANT: Always show BOTH measurement systems together for all values — format as "imperial (metric)" like: 72°F (22°C), 15 mph (24 km/h), 10 miles (16 km).
-
-Structure your briefing with these sections, each as a flowing narrative:
-
-RIGHT NOW: Current conditions summary — temperature, feels-like, humidity, wind, sky conditions, and how it feels outside right now.
-
-TODAY & TONIGHT: What to expect for the rest of today and tonight. Include timing of any changes.
-
-WEEK AHEAD: Summarize the 7-day trend — warming/cooling patterns, rain chances, any significant weather events coming.
-
-STORM WATCH: Active storm status — are storms nearby, approaching, or clear? Movement, intensity, ETAs if applicable. If no storms, say so confidently.
-
-ALERTS & WARNINGS: Any active NWS alerts or advisories. If none, skip this section entirely.
-
-AVIATION BRIEF: Ceilings, visibility, winds aloft, wind shear, turbulence potential — what pilots need to know.
-
-MARINE & OUTDOOR: Boating conditions, outdoor activity recommendations, UV exposure guidance.
-
-ATMOSPHERE: Thunderstorm potential, atmospheric stability, air quality, and moon phase for nighttime visibility.
-
-BOTTOM LINE: 2-3 sentence "what you need to know" takeaway for the average person.
-
-Write each section as a natural paragraph. Be authoritative and specific with data.`
-          },
-          {
-            role: "user",
-            content: `Generate a complete weather briefing using ALL of this data:\n\n${dataContext}`
-          }
-        ],
-        max_tokens: 4000,
-        temperature: toneLabel === 'humorous' ? 0.7 : toneLabel === 'professional' ? 0.3 : 0.4,
-      });
-
-      console.log(`📋 Weather summary generated: ${aiResult.content.length} chars via ${aiResult.provider}`);
-
-      res.json({
-        summary: aiResult.content,
-        provider: aiResult.provider,
-        model: aiResult.model,
-        free: aiResult.provider === 'openrouter' || aiResult.provider === 'groq',
-        dataPointsUsed: {
-          forecast: !!forecast,
-          storms: storms?.storms?.length || 0,
-          aviation: aviation?.stations?.length || 0,
-          thunderstorm: !!thunderstorm,
-          alerts: alertsList.length,
-          winds: winds?.winds?.length || 0,
-          astronomy: !!forecast?.astronomy,
-          airQuality: !!forecast?.airQuality,
-        },
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error: any) {
-      console.error('AI Summary error:', error.message);
-      res.status(500).json({ error: 'Failed to generate weather summary' });
-    }
-  });
-
   // AI Weather Assistant endpoint
   app.post("/api/ai-assessment", async (req, res) => {
     try {
-      const { userLocation, storms, winds, radarSource, includeAlerts = false, lightningCount = 0, useMetric = false, userSettings, nwsForecast } = req.body;
+      const { userLocation, storms, winds, radarSource, includeAlerts = false, lightningCount = 0, useMetric = false, userSettings } = req.body;
       
       if (!userLocation || !Array.isArray(storms) || !Array.isArray(winds)) {
         return res.status(400).json({ error: "Missing required weather data" });
@@ -5018,14 +5172,13 @@ Write each section as a natural paragraph. Be authoritative and specific with da
           if (threatResult.threatCount > 0) {
             const assessment = await generateWeatherAssessment({
               userLocation,
-              storms,
-              regionalStorms: [],
+              storms, // 30-mile immediate threats  
+              regionalStorms: [], // Skip regional fetch for faster threat response
               winds,
               radarSource: radarSource || 'Unknown',
-              threatData: threatResult,
+              threatData: threatResult, // Include threat data for enhanced analysis
               useMetric,
-              userSettings,
-              nwsForecast
+              userSettings // Pass user's tone preferences for AFD summary
             });
             
             console.log(`Enhanced AI assessment with ${threatResult.threatCount} threats: ${assessment.riskLevel} risk`);
@@ -5106,13 +5259,9 @@ Write each section as a natural paragraph. Be authoritative and specific with da
         else if (angleDifference <= 20) impact = 'medium';
         else impact = 'low';
         
-        // Format ETA
         let eta: string | null = null;
-        if (hoursToArrival < 1) {
-          const minutes = Math.round(hoursToArrival * 60);
-          eta = `${minutes}min`;
-        } else if (hoursToArrival < 24) {
-          eta = `${hoursToArrival.toFixed(1)}hr`;
+        if (hoursToArrival < 24) {
+          eta = formatStormEta(hoursToArrival * 60);
         }
         
         return { 
@@ -5137,13 +5286,12 @@ Write each section as a natural paragraph. Be authoritative and specific with da
 
       const assessment = await generateWeatherAssessment({
         userLocation,
-        storms: enhancedStorms,
-        regionalStorms,
+        storms: enhancedStorms, // Enhanced storms with impact calculations
+        regionalStorms, // 50-mile regional context
         winds,
         radarSource: radarSource || 'Unknown',
         useMetric,
-        userSettings,
-        nwsForecast
+        userSettings // Pass user's tone preferences for AFD summary
       });
 
       console.log(`AI assessment generated: ${assessment.riskLevel} risk level with ${assessment.confidence} confidence`);
@@ -5401,6 +5549,631 @@ Write each section as a natural paragraph. Be authoritative and specific with da
     }
   });
 
+  app.get("/api/weather-forecast", async (req, res) => {
+    try {
+      const { lat, lon } = req.query;
+      if (!lat || !lon) return res.status(400).json({ error: "lat and lon required" });
+
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lon as string);
+
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+          latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+        return res.status(400).json({ error: "Invalid coordinates" });
+      }
+
+      const isUS = latitude >= 24.5 && latitude <= 49.5 && longitude >= -125 && longitude <= -66.5;
+      const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+      const degToDir = (deg: number) => dirs[Math.round(deg / 22.5) % 16];
+      const fToC = (f: number) => (f - 32) * 5/9;
+      const cToF = (c: number) => c * 9/5 + 32;
+      const mpsToMph = (mps: number) => mps * 2.237;
+      const mpsToKph = (mps: number) => mps * 3.6;
+      const wmoConditions: Record<number, string> = {
+        0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',
+        45:'Fog',48:'Depositing rime fog',51:'Light drizzle',53:'Moderate drizzle',55:'Dense drizzle',
+        61:'Slight rain',63:'Moderate rain',65:'Heavy rain',
+        71:'Slight snow',73:'Moderate snow',75:'Heavy snow',77:'Snow grains',
+        80:'Slight showers',81:'Moderate showers',82:'Violent showers',
+        85:'Slight snow showers',86:'Heavy snow showers',
+        95:'Thunderstorm',96:'Thunderstorm with slight hail',99:'Thunderstorm with heavy hail'
+      };
+
+      interface SourceReading {
+        temp_f: number; temp_c: number; feelslike_f: number; feelslike_c: number;
+        humidity: number; pressure_mb: number; pressure_in: number;
+        wind_mph: number; wind_kph: number; wind_degree: number; wind_dir: string;
+        gust_mph: number; gust_kph: number;
+        visibility_km: number; visibility_miles: number;
+        cloud: number; condition: string;
+        dew_point_f?: number; dew_point_c?: number;
+      }
+
+      const sourceReadings: { name: string; data: SourceReading }[] = [];
+      let openMeteoForecast: any[] = [];
+      let weatherApiForecast: any[] = [];
+      let forecastData: any[] = [];
+      let alertsData: any[] = [];
+      let nwsPeriods: any[] = [];
+      let nwsAlerts: any[] = [];
+      let airQuality: any = null;
+      let astroData: any = null;
+      let uvIndex: number = 0;
+      let precipIn = 0;
+      let precipMm = 0;
+
+      const fetchPromises: Promise<void>[] = [];
+
+      fetchPromises.push(
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,dew_point_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset,uv_index_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`, {
+          signal: AbortSignal.timeout(8000)
+        }).then(r => r.ok ? r.json() : null).then(om => {
+          if (!om?.current) return;
+          const c = om.current;
+          const tempF = c.temperature_2m;
+          const tempC = fToC(tempF);
+          const feelsF = c.apparent_temperature;
+          const feelsC = fToC(feelsF);
+          const windMph = c.wind_speed_10m;
+          const windKph = windMph * 1.60934;
+          const gustMph = c.wind_gusts_10m || windMph;
+          const pressureMb = c.surface_pressure;
+          sourceReadings.push({
+            name: 'Open-Meteo',
+            data: {
+              temp_f: tempF, temp_c: tempC, feelslike_f: feelsF, feelslike_c: feelsC,
+              humidity: c.relative_humidity_2m, pressure_mb: pressureMb, pressure_in: pressureMb * 0.02953,
+              wind_mph: windMph, wind_kph: windKph, wind_degree: c.wind_direction_10m,
+              wind_dir: degToDir(c.wind_direction_10m),
+              gust_mph: gustMph, gust_kph: gustMph * 1.60934,
+              visibility_km: 10, visibility_miles: 6.2,
+              cloud: c.cloud_cover, condition: wmoConditions[c.weather_code] || 'Unknown',
+              dew_point_f: c.dew_point_2m, dew_point_c: fToC(c.dew_point_2m)
+            }
+          });
+          precipIn = c.precipitation || 0;
+          precipMm = precipIn * 25.4;
+          uvIndex = om.daily?.uv_index_max?.[0] || 0;
+
+          if (om.daily) {
+            openMeteoForecast = om.daily.time.map((date: string, i: number) => {
+              const hiF = om.daily.temperature_2m_max[i];
+              const loF = om.daily.temperature_2m_min[i];
+              return {
+                date,
+                day: {
+                  maxtemp_f: hiF, maxtemp_c: fToC(hiF), mintemp_f: loF, mintemp_c: fToC(loF),
+                  maxwind_mph: om.daily.wind_speed_10m_max[i], maxwind_kph: om.daily.wind_speed_10m_max[i] * 1.60934,
+                  totalprecip_in: om.daily.precipitation_sum[i], totalprecip_mm: om.daily.precipitation_sum[i] * 25.4,
+                  avghumidity: 0, daily_chance_of_rain: om.daily.precipitation_probability_max[i] || 0,
+                  daily_chance_of_snow: 0,
+                  condition: wmoConditions[om.daily.weather_code[i]] || 'Unknown',
+                  uv: om.daily.uv_index_max[i]
+                },
+                astro: {
+                  sunrise: om.daily.sunrise?.[i] ? new Date(om.daily.sunrise[i]).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+                  sunset: om.daily.sunset?.[i] ? new Date(om.daily.sunset[i]).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+                  moonrise: '', moonset: '', moon_phase: '', moon_illumination: ''
+                }
+              };
+            });
+          }
+        }).catch(e => console.log('Open-Meteo fetch error:', (e as Error).message))
+      );
+
+      fetchPromises.push(
+        fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${API_KEYS.openweather}&units=metric`, {
+          signal: AbortSignal.timeout(6000)
+        }).then(r => r.ok ? r.json() : null).then(ow => {
+          if (!ow?.main) return;
+          const tempC = ow.main.temp;
+          const feelsC = ow.main.feels_like;
+          const windMps = ow.wind?.speed || 0;
+          const gustMps = ow.wind?.gust || windMps;
+          sourceReadings.push({
+            name: 'OpenWeather',
+            data: {
+              temp_f: cToF(tempC), temp_c: tempC, feelslike_f: cToF(feelsC), feelslike_c: feelsC,
+              humidity: ow.main.humidity, pressure_mb: ow.main.pressure, pressure_in: ow.main.pressure * 0.02953,
+              wind_mph: mpsToMph(windMps), wind_kph: mpsToKph(windMps),
+              wind_degree: ow.wind?.deg || 0, wind_dir: degToDir(ow.wind?.deg || 0),
+              gust_mph: mpsToMph(gustMps), gust_kph: mpsToKph(gustMps),
+              visibility_km: (ow.visibility || 10000) / 1000, visibility_miles: (ow.visibility || 10000) / 1609.34,
+              cloud: ow.clouds?.all || 0,
+              condition: ow.weather?.[0]?.description || 'Unknown',
+              dew_point_f: undefined, dew_point_c: undefined
+            }
+          });
+        }).catch(e => console.log('OpenWeather fetch error:', (e as Error).message))
+      );
+
+      if (API_KEYS.weatherapi) {
+        fetchPromises.push(
+          fetch(`https://api.weatherapi.com/v1/forecast.json?key=${API_KEYS.weatherapi}&q=${latitude},${longitude}&days=7&aqi=yes&alerts=yes`, {
+            signal: AbortSignal.timeout(8000)
+          }).then(r => r.ok ? r.json() : null).then(wa => {
+            if (!wa?.current) return;
+            const d = wa.current;
+            sourceReadings.push({
+              name: 'WeatherAPI',
+              data: {
+                temp_f: d.temp_f, temp_c: d.temp_c, feelslike_f: d.feelslike_f, feelslike_c: d.feelslike_c,
+                humidity: d.humidity, pressure_mb: d.pressure_mb, pressure_in: d.pressure_in,
+                wind_mph: d.wind_mph, wind_kph: d.wind_kph,
+                wind_degree: d.wind_degree, wind_dir: d.wind_dir,
+                gust_mph: d.gust_mph, gust_kph: d.gust_kph,
+                visibility_km: d.vis_km, visibility_miles: d.vis_miles,
+                cloud: d.cloud, condition: d.condition.text,
+                dew_point_f: undefined, dew_point_c: undefined
+              }
+            });
+            precipIn = Math.max(precipIn, d.precip_in || 0);
+            precipMm = Math.max(precipMm, d.precip_mm || 0);
+            if (d.uv > uvIndex) uvIndex = d.uv;
+
+            if (wa.forecast?.forecastday) {
+              weatherApiForecast = wa.forecast.forecastday.map((day: any) => ({
+                date: day.date,
+                day: {
+                  maxtemp_c: day.day.maxtemp_c, maxtemp_f: day.day.maxtemp_f,
+                  mintemp_c: day.day.mintemp_c, mintemp_f: day.day.mintemp_f,
+                  maxwind_mph: day.day.maxwind_mph, maxwind_kph: day.day.maxwind_kph,
+                  totalprecip_mm: day.day.totalprecip_mm, totalprecip_in: day.day.totalprecip_in,
+                  avghumidity: day.day.avghumidity,
+                  daily_chance_of_rain: day.day.daily_chance_of_rain,
+                  daily_chance_of_snow: day.day.daily_chance_of_snow,
+                  condition: day.day.condition.text, uv: day.day.uv
+                },
+                astro: {
+                  sunrise: day.astro.sunrise, sunset: day.astro.sunset,
+                  moonrise: day.astro.moonrise, moonset: day.astro.moonset,
+                  moon_phase: day.astro.moon_phase,
+                  moon_illumination: day.astro.moon_illumination
+                }
+              }));
+            }
+
+            alertsData = wa.alerts?.alert?.map((a: any) => ({
+              event: a.event, headline: a.headline, description: a.desc,
+              severity: a.severity, effective: a.effective, expires: a.expires
+            })) || [];
+
+            if (d.air_quality) {
+              airQuality = {
+                pm2_5: d.air_quality.pm2_5, pm10: d.air_quality.pm10,
+                o3: d.air_quality.o3, us_epa_index: d.air_quality['us-epa-index']
+              };
+            }
+          }).catch(e => console.log('WeatherAPI fetch error:', (e as Error).message))
+        );
+      }
+
+      if (isUS) {
+        fetchPromises.push(
+          fetch(`https://api.weather.gov/points/${latitude.toFixed(4)},${longitude.toFixed(4)}`, {
+            headers: { 'User-Agent': 'StormTracker/1.0 (weather app)' },
+            signal: AbortSignal.timeout(5000)
+          }).then(r => r.ok ? r.json() : null).then(async (points) => {
+            if (!points?.properties) return;
+
+            const subFetches: Promise<void>[] = [];
+
+            if (points.properties.observationStations) {
+              subFetches.push(
+                fetch(points.properties.observationStations, {
+                  headers: { 'User-Agent': 'StormTracker/1.0 (weather app)' },
+                  signal: AbortSignal.timeout(5000)
+                }).then(r => r.ok ? r.json() : null).then(async (stations) => {
+                  const stationId = stations?.features?.[0]?.properties?.stationIdentifier;
+                  if (!stationId) return;
+                  const obsRes = await fetch(`https://api.weather.gov/stations/${stationId}/observations/latest`, {
+                    headers: { 'User-Agent': 'StormTracker/1.0 (weather app)' },
+                    signal: AbortSignal.timeout(5000)
+                  });
+                  if (!obsRes.ok) return;
+                  const obs = await obsRes.json();
+                  const p = obs.properties;
+                  if (!p?.temperature?.value && p?.temperature?.value !== 0) return;
+                  const tempC = p.temperature.value;
+                  const windKph = p.windSpeed?.value || 0; // NWS reports wind in km/h
+                  const gustKph = p.windGust?.value || windKph;
+                  const visMet = p.visibility?.value || 10000;
+                  const pressPa = p.barometricPressure?.value;
+                  const pressMb = pressPa ? pressPa / 100 : 1013;
+                  sourceReadings.push({
+                    name: 'NWS',
+                    data: {
+                      temp_f: cToF(tempC), temp_c: tempC,
+                      feelslike_f: p.windChill?.value != null ? cToF(p.windChill.value) : cToF(tempC),
+                      feelslike_c: p.windChill?.value ?? tempC,
+                      humidity: p.relativeHumidity?.value ? Math.round(p.relativeHumidity.value) : 50,
+                      pressure_mb: pressMb, pressure_in: pressMb * 0.02953,
+                      wind_mph: Math.round(windKph / 1.60934), wind_kph: Math.round(windKph),
+                      wind_degree: p.windDirection?.value || 0, wind_dir: degToDir(p.windDirection?.value || 0),
+                      gust_mph: Math.round(gustKph / 1.60934), gust_kph: Math.round(gustKph),
+                      visibility_km: visMet / 1000, visibility_miles: visMet / 1609.34,
+                      cloud: 0, condition: p.textDescription || 'Unknown',
+                      dew_point_f: p.dewpoint?.value != null ? cToF(p.dewpoint.value) : undefined,
+                      dew_point_c: p.dewpoint?.value ?? undefined
+                    }
+                  });
+                }).catch(() => {})
+              );
+            }
+
+            if (points.properties.forecast) {
+              subFetches.push(
+                fetch(points.properties.forecast, {
+                  headers: { 'User-Agent': 'StormTracker/1.0 (weather app)' },
+                  signal: AbortSignal.timeout(6000)
+                }).then(r => r.ok ? r.json() : null).then(fc => {
+                  if (!fc?.properties?.periods) return;
+                  const severeWeatherKeywords = ['thunderstorm','tornado','hurricane','tropical storm','flood','blizzard','ice storm','hail','winter storm','severe'];
+                  nwsPeriods = fc.properties.periods.slice(0, 14).map((p: any) => {
+                    const tempF = p.temperature;
+                    const tempC = Math.round(fToC(tempF));
+                    const forecast = (p.shortForecast || '').toLowerCase();
+                    const weatherTags = severeWeatherKeywords.filter(k => forecast.includes(k));
+                    return {
+                      name: p.name,
+                      isDaytime: p.isDaytime,
+                      temperature_f: tempF,
+                      temperature_c: tempC,
+                      windSpeed: p.windSpeed,
+                      windDirection: p.windDirection,
+                      shortForecast: p.shortForecast,
+                      detailedForecast: p.detailedForecast,
+                      precipChance: p.probabilityOfPrecipitation?.value || 0,
+                      weatherTags: weatherTags,
+                      hasAdvisory: false
+                    };
+                  });
+                }).catch(() => {})
+              );
+            }
+
+            subFetches.push(
+              fetch(`https://api.weather.gov/alerts/active?point=${latitude.toFixed(4)},${longitude.toFixed(4)}`, {
+                headers: { 'User-Agent': 'StormTracker/1.0 (weather app)' },
+                signal: AbortSignal.timeout(5000)
+              }).then(r => r.ok ? r.json() : null).then(al => {
+                if (!al?.features) return;
+                nwsAlerts = al.features.slice(0, 10).map((f: any) => {
+                  const p = f.properties;
+                  return {
+                    event: p.event,
+                    headline: p.headline,
+                    severity: p.severity,
+                    urgency: p.urgency,
+                    certainty: p.certainty,
+                    senderName: p.senderName,
+                    areaDesc: p.areaDesc,
+                    effective: p.effective,
+                    expires: p.expires,
+                    description: p.description?.substring(0, 500),
+                    instruction: p.instruction?.substring(0, 500),
+                    category: p.category
+                  };
+                });
+              }).catch(() => {})
+            );
+
+            await Promise.allSettled(subFetches);
+          }).catch(e => console.log('NWS fetch error:', (e as Error).message))
+        );
+      }
+
+      // AccuWeather as additional source (with aggressive caching to stay within 50 calls/day free plan)
+      const accu_key = process.env.ACCUWEATHER_API;
+      if (accu_key) {
+        fetchPromises.push(
+          (async () => {
+            try {
+              const coordKey = `${latitude.toFixed(2)},${longitude.toFixed(2)}`;
+
+              // Get location key (cached 24h)
+              let locationKey: string | null = null;
+              const cachedLoc = accuLocationCache.get(coordKey);
+              if (cachedLoc && Date.now() - cachedLoc.timestamp < ACCU_LOCATION_TTL) {
+                locationKey = cachedLoc.key;
+              } else {
+                if (!accuCanCall()) return;
+                const locResp = await fetch(
+                  `https://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey=${accu_key}&q=${latitude},${longitude}`,
+                  { signal: AbortSignal.timeout(6000) }
+                );
+                accuRecordCall();
+                if (locResp.ok) {
+                  const locData = await locResp.json();
+                  locationKey = locData.Key || null;
+                  if (locationKey) {
+                    accuLocationCache.set(coordKey, { key: locationKey, timestamp: Date.now() });
+                  }
+                }
+              }
+              if (!locationKey) return;
+
+              // Fetch current conditions (cached 15 min)
+              const cachedCurrent = accuCurrentCache.get(locationKey);
+              let currentData: any = null;
+              if (cachedCurrent && Date.now() - cachedCurrent.timestamp < ACCU_CURRENT_TTL) {
+                currentData = cachedCurrent.data;
+              } else {
+                if (!accuCanCall()) return;
+                const curResp = await fetch(
+                  `https://dataservice.accuweather.com/currentconditions/v1/${locationKey}?apikey=${accu_key}&details=true`,
+                  { signal: AbortSignal.timeout(6000) }
+                );
+                accuRecordCall();
+                if (curResp.ok) {
+                  const arr = await curResp.json();
+                  currentData = arr?.[0] || null;
+                  if (currentData) {
+                    accuCurrentCache.set(locationKey, { data: currentData, timestamp: Date.now() });
+                  }
+                }
+              }
+
+              if (currentData) {
+                const d = currentData;
+                const tempF = d.Temperature?.Imperial?.Value;
+                const tempC = d.Temperature?.Metric?.Value;
+                if (tempF != null && tempC != null) {
+                  const windMph = d.Wind?.Speed?.Imperial?.Value || 0;
+                  const windKph = d.Wind?.Speed?.Metric?.Value || 0;
+                  const gustMph = d.WindGust?.Speed?.Imperial?.Value || windMph;
+                  const gustKph = d.WindGust?.Speed?.Metric?.Value || windKph;
+                  const pressMb = d.Pressure?.Metric?.Value || 1013;
+                  const pressIn = d.Pressure?.Imperial?.Value || 29.92;
+                  const visKm = d.Visibility?.Metric?.Value || 10;
+                  const visMi = d.Visibility?.Imperial?.Value || 6.2;
+                  const dewF = d.DewPoint?.Imperial?.Value;
+                  const dewC = d.DewPoint?.Metric?.Value;
+
+                  sourceReadings.push({
+                    name: 'AccuWeather',
+                    data: {
+                      temp_f: tempF, temp_c: tempC,
+                      feelslike_f: d.RealFeelTemperature?.Imperial?.Value ?? tempF,
+                      feelslike_c: d.RealFeelTemperature?.Metric?.Value ?? tempC,
+                      humidity: d.RelativeHumidity || 50,
+                      pressure_mb: pressMb, pressure_in: pressIn,
+                      wind_mph: windMph, wind_kph: windKph,
+                      wind_degree: d.Wind?.Direction?.Degrees || 0,
+                      wind_dir: d.Wind?.Direction?.English || degToDir(d.Wind?.Direction?.Degrees || 0),
+                      gust_mph: gustMph, gust_kph: gustKph,
+                      visibility_km: visKm, visibility_miles: visMi,
+                      cloud: d.CloudCover || 0,
+                      condition: d.WeatherText || 'Unknown',
+                      dew_point_f: dewF, dew_point_c: dewC
+                    }
+                  });
+
+                  if (d.UVIndex > uvIndex) uvIndex = d.UVIndex;
+                  if (d.HasPrecipitation && d.Precip1hr?.Imperial?.Value) {
+                    precipIn = Math.max(precipIn, d.Precip1hr.Imperial.Value);
+                    precipMm = Math.max(precipMm, d.Precip1hr.Metric?.Value || precipIn * 25.4);
+                  }
+                }
+              }
+
+              // Fetch 5-day forecast (cached 30 min) — enrich forecastData with AccuWeather-specific fields
+              const cachedForecast = accuForecastCache.get(locationKey);
+              let forecastResp: any = null;
+              if (cachedForecast && Date.now() - cachedForecast.timestamp < ACCU_FORECAST_TTL) {
+                forecastResp = cachedForecast.data;
+              } else {
+                if (!accuCanCall()) { forecastResp = null; } else {
+                  const fcResp = await fetch(
+                    `https://dataservice.accuweather.com/forecasts/v1/daily/5day/${locationKey}?apikey=${accu_key}&details=true`,
+                    { signal: AbortSignal.timeout(8000) }
+                  );
+                  accuRecordCall();
+                  if (fcResp.ok) {
+                    forecastResp = await fcResp.json();
+                    if (forecastResp) {
+                      accuForecastCache.set(locationKey, { data: forecastResp, timestamp: Date.now() });
+                    }
+                  }
+                }
+              }
+
+              if (forecastResp?.DailyForecasts && forecastData.length > 0) {
+                for (let idx = 0; idx < forecastResp.DailyForecasts.length; idx++) {
+                  const acDay = forecastResp.DailyForecasts[idx];
+                  const acDate = acDay.Date?.substring(0, 10);
+                  const match = forecastData.find((f: any) => f.date === acDate);
+                  if (match) {
+                    match.accuweather = {
+                      thunderstormProbability: acDay.Day?.ThunderstormProbability || 0,
+                      rainProbability: acDay.Day?.RainProbability || 0,
+                      snowProbability: acDay.Day?.SnowProbability || 0,
+                      iceProbability: acDay.Day?.IceProbability || 0,
+                      shortPhrase: acDay.Day?.ShortPhrase || '',
+                      longPhrase: acDay.Day?.LongPhrase || '',
+                      nightShortPhrase: acDay.Night?.ShortPhrase || '',
+                      nightLongPhrase: acDay.Night?.LongPhrase || '',
+                      hoursOfSun: acDay.HoursOfSun || 0,
+                      airAndPollen: acDay.AirAndPollen || [],
+                      realFeelMax_f: acDay.RealFeelTemperature?.Maximum?.Value,
+                      realFeelMin_f: acDay.RealFeelTemperature?.Minimum?.Value,
+                      windGustDay_mph: acDay.Day?.WindGust?.Speed?.Value,
+                      windGustNight_mph: acDay.Night?.WindGust?.Speed?.Value,
+                      precipDay_in: acDay.Day?.TotalLiquid?.Value || 0,
+                      precipNight_in: acDay.Night?.TotalLiquid?.Value || 0,
+                      moonPhase: acDay.Moon?.Phase || '',
+                    };
+                  }
+                }
+              } else if (forecastResp?.DailyForecasts && forecastData.length === 0) {
+                forecastData = forecastResp.DailyForecasts.map((acDay: any) => ({
+                  date: acDay.Date?.substring(0, 10),
+                  day: {
+                    maxtemp_f: acDay.Temperature?.Maximum?.Value,
+                    maxtemp_c: fToC(acDay.Temperature?.Maximum?.Value || 70),
+                    mintemp_f: acDay.Temperature?.Minimum?.Value,
+                    mintemp_c: fToC(acDay.Temperature?.Minimum?.Value || 50),
+                    maxwind_mph: acDay.Day?.Wind?.Speed?.Value || 0,
+                    maxwind_kph: (acDay.Day?.Wind?.Speed?.Value || 0) * 1.60934,
+                    totalprecip_in: (acDay.Day?.TotalLiquid?.Value || 0) + (acDay.Night?.TotalLiquid?.Value || 0),
+                    totalprecip_mm: ((acDay.Day?.TotalLiquid?.Value || 0) + (acDay.Night?.TotalLiquid?.Value || 0)) * 25.4,
+                    avghumidity: 0,
+                    daily_chance_of_rain: acDay.Day?.RainProbability || 0,
+                    daily_chance_of_snow: acDay.Day?.SnowProbability || 0,
+                    condition: acDay.Day?.IconPhrase || 'Unknown',
+                    uv: acDay.AirAndPollen?.find((a: any) => a.Name === 'UVIndex')?.Value || 0
+                  },
+                  astro: {
+                    sunrise: acDay.Sun?.Rise ? new Date(acDay.Sun.Rise).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+                    sunset: acDay.Sun?.Set ? new Date(acDay.Sun.Set).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+                    moonrise: acDay.Moon?.Rise ? new Date(acDay.Moon.Rise).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+                    moonset: acDay.Moon?.Set ? new Date(acDay.Moon.Set).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '',
+                    moon_phase: acDay.Moon?.Phase || '',
+                    moon_illumination: ''
+                  },
+                  accuweather: {
+                    thunderstormProbability: acDay.Day?.ThunderstormProbability || 0,
+                    rainProbability: acDay.Day?.RainProbability || 0,
+                    snowProbability: acDay.Day?.SnowProbability || 0,
+                    iceProbability: acDay.Day?.IceProbability || 0,
+                    shortPhrase: acDay.Day?.ShortPhrase || '',
+                    longPhrase: acDay.Day?.LongPhrase || '',
+                    nightShortPhrase: acDay.Night?.ShortPhrase || '',
+                    nightLongPhrase: acDay.Night?.LongPhrase || '',
+                    hoursOfSun: acDay.HoursOfSun || 0,
+                    airAndPollen: acDay.AirAndPollen || [],
+                    realFeelMax_f: acDay.RealFeelTemperature?.Maximum?.Value,
+                    realFeelMin_f: acDay.RealFeelTemperature?.Minimum?.Value,
+                    windGustDay_mph: acDay.Day?.WindGust?.Speed?.Value,
+                    windGustNight_mph: acDay.Night?.WindGust?.Speed?.Value,
+                    precipDay_in: acDay.Day?.TotalLiquid?.Value || 0,
+                    precipNight_in: acDay.Night?.TotalLiquid?.Value || 0,
+                    moonPhase: acDay.Moon?.Phase || '',
+                  }
+                }));
+              }
+            } catch (e) {
+              console.log('AccuWeather forecast source error:', (e as Error).message);
+            }
+          })()
+        );
+      }
+
+      await Promise.allSettled(fetchPromises);
+
+      if (openMeteoForecast.length > 0 && weatherApiForecast.length > 0) {
+        forecastData = openMeteoForecast.map((omDay) => {
+          const waDay = weatherApiForecast.find(w => w.date === omDay.date);
+          if (waDay) {
+            return {
+              date: omDay.date,
+              day: {
+                maxtemp_f: Math.round((omDay.day.maxtemp_f + waDay.day.maxtemp_f) / 2),
+                maxtemp_c: Math.round((omDay.day.maxtemp_c + waDay.day.maxtemp_c) / 2),
+                mintemp_f: Math.round((omDay.day.mintemp_f + waDay.day.mintemp_f) / 2),
+                mintemp_c: Math.round((omDay.day.mintemp_c + waDay.day.mintemp_c) / 2),
+                maxwind_mph: Math.round((omDay.day.maxwind_mph + waDay.day.maxwind_mph) / 2),
+                maxwind_kph: Math.round((omDay.day.maxwind_kph + waDay.day.maxwind_kph) / 2),
+                totalprecip_in: Math.max(omDay.day.totalprecip_in || 0, waDay.day.totalprecip_in || 0),
+                totalprecip_mm: Math.max(omDay.day.totalprecip_mm || 0, waDay.day.totalprecip_mm || 0),
+                avghumidity: waDay.day.avghumidity || omDay.day.avghumidity || 0,
+                daily_chance_of_rain: Math.round((omDay.day.daily_chance_of_rain + waDay.day.daily_chance_of_rain) / 2),
+                daily_chance_of_snow: Math.round(((omDay.day.daily_chance_of_snow || 0) + (waDay.day.daily_chance_of_snow || 0)) / 2),
+                condition: waDay.day.condition || omDay.day.condition,
+                uv: Math.max(omDay.day.uv || 0, waDay.day.uv || 0)
+              },
+              astro: waDay.astro?.sunrise ? waDay.astro : omDay.astro
+            };
+          }
+          return omDay;
+        });
+      } else if (openMeteoForecast.length > 0) {
+        forecastData = openMeteoForecast;
+      } else if (weatherApiForecast.length > 0) {
+        forecastData = weatherApiForecast;
+      }
+
+      if (sourceReadings.length === 0) {
+        return res.status(503).json({ error: "No weather data sources available" });
+      }
+
+      const sourcePriority: Record<string, number> = { 'NWS': 1, 'OpenWeather': 2, 'AccuWeather': 3, 'WeatherAPI': 4, 'Open-Meteo': 5 };
+      sourceReadings.sort((a, b) => (sourcePriority[a.name] || 99) - (sourcePriority[b.name] || 99));
+
+      const avg = (vals: number[]) => vals.reduce((a, b) => a + b, 0) / vals.length;
+      const readings = sourceReadings.map(s => s.data);
+      const sourcesUsed = sourceReadings.map(s => s.name);
+
+      const consensus = {
+        temp_f: avg(readings.map(r => r.temp_f)),
+        temp_c: avg(readings.map(r => r.temp_c)),
+        feelslike_f: avg(readings.map(r => r.feelslike_f)),
+        feelslike_c: avg(readings.map(r => r.feelslike_c)),
+        humidity: Math.round(avg(readings.map(r => r.humidity))),
+        pressure_mb: avg(readings.map(r => r.pressure_mb)),
+        pressure_in: avg(readings.map(r => r.pressure_in)),
+        wind_mph: avg(readings.map(r => r.wind_mph)),
+        wind_kph: avg(readings.map(r => r.wind_kph)),
+        wind_degree: readings[0].wind_degree,
+        wind_dir: readings[0].wind_dir,
+        gust_mph: Math.max(...readings.map(r => r.gust_mph)),
+        gust_kph: Math.max(...readings.map(r => r.gust_kph)),
+        visibility_km: avg(readings.map(r => r.visibility_km)),
+        visibility_miles: avg(readings.map(r => r.visibility_miles)),
+        cloud: Math.round(avg(readings.map(r => r.cloud))),
+        condition: readings[0].condition,
+        uv: uvIndex,
+        precip_in: precipIn,
+        precip_mm: precipMm,
+        dew_point_f: readings.find(r => r.dew_point_f != null)?.dew_point_f,
+        dew_point_c: readings.find(r => r.dew_point_c != null)?.dew_point_c
+      };
+
+      const perSource = sourceReadings.map(s => ({
+        name: s.name,
+        temp_f: Math.round(s.data.temp_f * 10) / 10,
+        temp_c: Math.round(s.data.temp_c * 10) / 10,
+        humidity: s.data.humidity,
+        wind_mph: Math.round(s.data.wind_mph * 10) / 10,
+        pressure_mb: Math.round(s.data.pressure_mb * 10) / 10,
+        condition: s.data.condition
+      }));
+
+      if (nwsAlerts.length > 0 && nwsPeriods.length > 0) {
+        nwsPeriods.forEach((p: any) => {
+          const periodForecast = ((p.shortForecast || '') + ' ' + (p.detailedForecast || '')).toLowerCase();
+          const matched = nwsAlerts.some((a: any) => {
+            const eventWords = (a.event || '').toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
+            return eventWords.length > 0 && eventWords.every((w: string) => periodForecast.includes(w));
+          });
+          if (matched) {
+            p.hasAdvisory = true;
+          }
+        });
+      }
+
+      const allAlerts = alertsData.length > 0 ? alertsData : nwsAlerts.map((a: any) => ({
+        event: a.event, headline: a.headline, description: a.description,
+        severity: a.severity, effective: a.effective, expires: a.expires
+      }));
+
+      return res.json({
+        source: sourcesUsed.join(' + '),
+        sources_detail: perSource,
+        sources_count: sourcesUsed.length,
+        current: consensus,
+        forecast: forecastData,
+        alerts: allAlerts,
+        nws_periods: nwsPeriods,
+        nws_alerts: nwsAlerts,
+        air_quality: airQuality,
+      });
+    } catch (error) {
+      console.error('Weather forecast endpoint error:', error);
+      res.status(500).json({ error: "Failed to fetch weather forecast" });
+    }
+  });
+
   // AI Assistant Settings API
   app.get("/api/user-settings/:sessionId", async (req, res) => {
     try {
@@ -5413,7 +6186,8 @@ Write each section as a natural paragraph. Be authoritative and specific with da
           aiTone: 'professional',
           detailLevel: 'standard',
           includeHumor: false,
-          simplifiedLanguage: false
+          simplifiedLanguage: false,
+          preferredLanguage: 'en'
         });
       }
       
@@ -5426,7 +6200,7 @@ Write each section as a natural paragraph. Be authoritative and specific with da
 
   app.post("/api/user-settings", async (req, res) => {
     try {
-      const { sessionId, aiTone, detailLevel, includeHumor, simplifiedLanguage } = req.body;
+      const { sessionId, aiTone, detailLevel, includeHumor, simplifiedLanguage, preferredLanguage } = req.body;
       
       if (!sessionId) {
         return res.status(400).json({ error: 'Session ID is required' });
@@ -5437,7 +6211,8 @@ Write each section as a natural paragraph. Be authoritative and specific with da
         aiTone: aiTone || 'professional',
         detailLevel: detailLevel || 'standard',
         includeHumor: includeHumor || false,
-        simplifiedLanguage: simplifiedLanguage || false
+        simplifiedLanguage: simplifiedLanguage || false,
+        preferredLanguage: preferredLanguage || 'en'
       });
       
       res.json(settings);
@@ -5447,235 +6222,1028 @@ Write each section as a natural paragraph. Be authoritative and specific with da
     }
   });
 
-  function getRegionalModels(lat: number, lon: number): { models: string[]; region: string; label: string } {
-    if (lat >= 24.5 && lat <= 49.5 && lon >= -125 && lon <= -66.5) {
-      return { models: ['gfs_seamless', 'gem_seamless'], region: 'us', label: 'GFS + GEM' };
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AccuWeather API Integration
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  const ACCUWEATHER_API_KEY = process.env.ACCUWEATHER_API;
+  
+  async function getAccuWeatherLocationKey(lat: number, lon: number): Promise<string | null> {
+    if (!ACCUWEATHER_API_KEY) return null;
+    try {
+      const coordKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+      const cached = accuLocationCache.get(coordKey);
+      if (cached && Date.now() - cached.timestamp < ACCU_LOCATION_TTL) {
+        return cached.key;
+      }
+      const resp = await fetch(
+        `https://dataservice.accuweather.com/locations/v1/cities/geoposition/search?apikey=${ACCUWEATHER_API_KEY}&q=${lat},${lon}`,
+        { signal: AbortSignal.timeout(8000) }
+      );
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const key = data.Key || null;
+      if (key) {
+        accuLocationCache.set(coordKey, { key, timestamp: Date.now() });
+      }
+      return key;
+    } catch {
+      return null;
     }
-    if (lat >= 50 && lat <= 72 && lon >= -145 && lon <= -50) {
-      return { models: ['gem_seamless', 'gfs_seamless'], region: 'canada', label: 'GEM + GFS' };
-    }
-    if (lat >= 14 && lat <= 33 && lon >= -120 && lon <= -85) {
-      return { models: ['gfs_seamless', 'gem_seamless'], region: 'mexico', label: 'GFS + GEM' };
-    }
-    if (lat >= 50 && lat <= 62 && lon >= -12 && lon <= 3) {
-      return { models: ['ukmo_seamless', 'icon_seamless'], region: 'uk', label: 'UK Met Office + ICON' };
-    }
-    if (lat >= 55 && lat <= 72 && lon >= 4 && lon <= 32) {
-      return { models: ['icon_seamless', 'metno_seamless'], region: 'scandinavia', label: 'ICON + MET Norway' };
-    }
-    if (lat >= 35 && lat <= 72 && lon >= -12 && lon <= 45) {
-      return { models: ['icon_seamless', 'meteofrance_seamless'], region: 'europe', label: 'ICON + Météo-France' };
-    }
-    if (lat >= 24 && lat <= 46 && lon >= 122 && lon <= 146) {
-      return { models: ['jma_seamless', 'gfs_seamless'], region: 'japan', label: 'JMA + GFS' };
-    }
-    if (lat >= 18 && lat <= 54 && lon >= 73 && lon <= 135) {
-      return { models: ['cma_grapes_global', 'gfs_seamless'], region: 'china', label: 'CMA + GFS' };
-    }
-    if (lat >= 6 && lat <= 38 && lon >= 68 && lon <= 98) {
-      return { models: ['gfs_seamless', 'icon_seamless'], region: 'india', label: 'GFS + ICON' };
-    }
-    if (lat >= -47 && lat <= -10 && lon >= 112 && lon <= 155) {
-      return { models: ['bom_access_global', 'gfs_seamless'], region: 'australia', label: 'BOM + GFS' };
-    }
-    if (lat >= -48 && lat <= -34 && lon >= 165 && lon <= 180) {
-      return { models: ['gfs_seamless', 'icon_seamless'], region: 'newzealand', label: 'GFS + ICON' };
-    }
-    if (lat >= -56 && lat <= 13 && lon >= -82 && lon <= -34) {
-      return { models: ['gfs_seamless', 'icon_seamless'], region: 'southamerica', label: 'GFS + ICON' };
-    }
-    if (lat >= -35 && lat <= 38 && lon >= -20 && lon <= 55) {
-      return { models: ['gfs_seamless', 'icon_seamless'], region: 'africa', label: 'GFS + ICON' };
-    }
-    if (lat >= 1 && lat <= 21 && lon >= 98 && lon <= 145) {
-      return { models: ['gfs_seamless', 'icon_seamless'], region: 'southeast_asia', label: 'GFS + ICON' };
-    }
-    return { models: ['gfs_seamless', 'icon_seamless'], region: 'global', label: 'GFS + ICON' };
   }
 
-  app.get("/api/forecast", async (req, res) => {
+  app.get("/api/accuweather/minutecast", async (req, res) => {
+    if (!ACCUWEATHER_API_KEY) {
+      return res.status(503).json({ error: "AccuWeather API key not configured" });
+    }
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: "lat and lon required" });
+    }
     try {
-      const { lat, lon } = req.query;
-      if (!lat || !lon) {
-        return res.status(400).json({ error: "Latitude and longitude required" });
+      const cacheKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+      const cached = accuMinutecastCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < ACCU_MINUTECAST_TTL) {
+        return res.json(cached.data);
       }
-      const latitude = parseFloat(lat as string);
-      const longitude = parseFloat(lon as string);
-      const isUS = latitude >= 24.5 && latitude <= 49.5 && longitude >= -125 && longitude <= -66.5;
-
-      const regional = getRegionalModels(latitude, longitude);
-      const baseParams = `latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,cloud_cover,visibility,uv_index,is_day,dew_point_2m&hourly=temperature_2m,weather_code,precipitation_probability,wind_speed_10m,relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=7`;
-
-      const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?${baseParams}`;
-
-      const modelUrls = regional.models.map(model =>
-        `https://api.open-meteo.com/v1/forecast?${baseParams}&models=${model}`
+      if (!accuCanCall()) {
+        return res.status(429).json({ error: "AccuWeather daily quota reached" });
+      }
+      const resp = await fetch(
+        `https://dataservice.accuweather.com/forecasts/v1/minute?apikey=${ACCUWEATHER_API_KEY}&q=${lat},${lon}`,
+        { signal: AbortSignal.timeout(10000) }
       );
+      accuRecordCall();
+      if (!resp.ok) {
+        const text = await resp.text();
+        console.error(`AccuWeather MinuteCast error ${resp.status}:`, text);
+        return res.status(resp.status).json({ error: "MinuteCast request failed" });
+      }
+      const data = await resp.json();
+      accuMinutecastCache.set(cacheKey, { data, timestamp: Date.now() });
+      res.json(data);
+    } catch (err: any) {
+      console.error("AccuWeather MinuteCast error:", err.message);
+      res.status(500).json({ error: "MinuteCast request failed" });
+    }
+  });
 
-      const fetches: Promise<any>[] = [
-        fetch(openMeteoUrl, { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null).catch(() => null),
-        ...modelUrls.map(url =>
-          fetch(url, { signal: AbortSignal.timeout(8000) }).then(r => r.ok ? r.json() : null).catch(() => null)
-        ),
-      ];
+  app.get("/api/accuweather/current", async (req, res) => {
+    if (!ACCUWEATHER_API_KEY) {
+      return res.status(503).json({ error: "AccuWeather API key not configured" });
+    }
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: "lat and lon required" });
+    }
+    try {
+      const locationKey = await getAccuWeatherLocationKey(lat, lon);
+      if (!locationKey) {
+        return res.status(404).json({ error: "Location not found" });
+      }
+      const cachedCur = accuCurrentCache.get(locationKey);
+      if (cachedCur && Date.now() - cachedCur.timestamp < ACCU_CURRENT_TTL) {
+        return res.json([cachedCur.data]);
+      }
+      if (!accuCanCall()) {
+        return res.status(429).json({ error: "AccuWeather daily quota reached" });
+      }
+      const resp = await fetch(
+        `https://dataservice.accuweather.com/currentconditions/v1/${locationKey}?apikey=${ACCUWEATHER_API_KEY}&details=true`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      accuRecordCall();
+      if (!resp.ok) {
+        return res.status(resp.status).json({ error: "Current conditions request failed" });
+      }
+      const data = await resp.json();
+      if (data?.[0]) {
+        accuCurrentCache.set(locationKey, { data: data[0], timestamp: Date.now() });
+      }
+      res.json(data);
+    } catch (err: any) {
+      console.error("AccuWeather current conditions error:", err.message);
+      res.status(500).json({ error: "Current conditions request failed" });
+    }
+  });
 
-      const weatherApiFetchIndex = fetches.length;
-      if (API_KEYS.weatherapi) {
-        fetches.push(
-          fetch(`https://api.weatherapi.com/v1/forecast.json?key=${API_KEYS.weatherapi}&q=${latitude},${longitude}&days=3&aqi=yes&alerts=yes`, {
-            signal: AbortSignal.timeout(5000),
-          }).then(r => r.ok ? r.json() : null).catch(() => null)
-        );
+  app.get("/api/accuweather/lightning", async (req, res) => {
+    if (!ACCUWEATHER_API_KEY) {
+      return res.status(503).json({ error: "AccuWeather API key not configured" });
+    }
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+    const radius = parseInt(req.query.radius as string) || 50;
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: "lat and lon required" });
+    }
+    try {
+      const resp = await fetch(
+        `https://apidev.accuweather.com/lightning/v1/strikes/radius?apikey=${ACCUWEATHER_API_KEY}&latitude=${lat}&longitude=${lon}&radius=${Math.min(radius, 60)}`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      if (!resp.ok) {
+        return res.status(resp.status).json({ 
+          error: "Lightning API not available on this plan",
+          source: "radar-derived"
+        });
+      }
+      const data = await resp.json();
+      res.json({ strikes: data, source: "accuweather" });
+    } catch (err: any) {
+      console.error("AccuWeather lightning error:", err.message);
+      res.status(500).json({ error: "Lightning request failed", source: "radar-derived" });
+    }
+  });
+
+  app.get("/api/accuweather/forecast/5day", async (req, res) => {
+    if (!ACCUWEATHER_API_KEY) {
+      return res.status(503).json({ error: "AccuWeather API key not configured" });
+    }
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: "lat and lon required" });
+    }
+    try {
+      const locationKey = await getAccuWeatherLocationKey(lat, lon);
+      if (!locationKey) {
+        return res.status(404).json({ error: "Location not found" });
+      }
+      const cachedFc = accuForecastCache.get(locationKey);
+      if (cachedFc && Date.now() - cachedFc.timestamp < ACCU_FORECAST_TTL) {
+        return res.json(cachedFc.data);
+      }
+      if (!accuCanCall()) {
+        return res.status(429).json({ error: "AccuWeather daily quota reached" });
+      }
+      const resp = await fetch(
+        `https://dataservice.accuweather.com/forecasts/v1/daily/5day/${locationKey}?apikey=${ACCUWEATHER_API_KEY}&details=true`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      accuRecordCall();
+      if (!resp.ok) {
+        return res.status(resp.status).json({ error: "5-day forecast request failed" });
+      }
+      const data = await resp.json();
+      if (data) {
+        accuForecastCache.set(locationKey, { data, timestamp: Date.now() });
+      }
+      res.json(data);
+    } catch (err: any) {
+      console.error("AccuWeather 5-day forecast error:", err.message);
+      res.status(500).json({ error: "5-day forecast request failed" });
+    }
+  });
+
+  app.get("/api/accuweather/forecast/12hour", async (req, res) => {
+    if (!ACCUWEATHER_API_KEY) {
+      return res.status(503).json({ error: "AccuWeather API key not configured" });
+    }
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: "lat and lon required" });
+    }
+    try {
+      const locationKey = await getAccuWeatherLocationKey(lat, lon);
+      if (!locationKey) {
+        return res.status(404).json({ error: "Location not found" });
+      }
+      if (!accuCanCall()) {
+        return res.status(429).json({ error: "AccuWeather daily quota reached" });
+      }
+      const resp = await fetch(
+        `https://dataservice.accuweather.com/forecasts/v1/hourly/12hour/${locationKey}?apikey=${ACCUWEATHER_API_KEY}&details=true`,
+        { signal: AbortSignal.timeout(10000) }
+      );
+      accuRecordCall();
+      if (!resp.ok) {
+        return res.status(resp.status).json({ error: "12-hour forecast request failed" });
+      }
+      const data = await resp.json();
+      res.json(data);
+    } catch (err: any) {
+      console.error("AccuWeather 12-hour forecast error:", err.message);
+      res.status(500).json({ error: "12-hour forecast request failed" });
+    }
+  });
+
+  // ===== WEATHER STATION (PWS Console) ENDPOINTS =====
+
+  app.get("/api/nearby-stations", async (req, res) => {
+    try {
+      const { lat, lon, radius } = req.query;
+      if (!lat || !lon) return res.status(400).json({ error: "lat and lon required" });
+      const userLat = parseFloat(lat as string);
+      const userLon = parseFloat(lon as string);
+      const r = Math.min(parseFloat((radius as string) || '1.5'), 5);
+      if (isNaN(userLat) || isNaN(userLon) || isNaN(r)) return res.status(400).json({ error: "Invalid lat, lon, or radius" });
+
+      const awcUrl = `https://aviationweather.gov/api/data/metar?bbox=${userLat - r},${userLon - r},${userLat + r},${userLon + r}&format=json&taf=false&hours=1`;
+      const response = await fetch(awcUrl, { signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error(`AWC returned ${response.status}`);
+      const data = await response.json();
+
+      const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 3959;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      };
+
+      const stations = (data || []).map((m: any) => ({
+        icao: m.icaoId,
+        name: m.name || m.icaoId,
+        lat: m.lat,
+        lon: m.lon,
+        distance: Math.round(haversine(userLat, userLon, m.lat, m.lon) * 10) / 10,
+        tempC: m.temp,
+        tempF: m.temp != null ? Math.round(m.temp * 9 / 5 + 32) : null,
+        dewC: m.dewp,
+        dewF: m.dewp != null ? Math.round(m.dewp * 9 / 5 + 32) : null,
+        humidity: m.temp != null && m.dewp != null ? Math.round(100 * Math.exp((17.625 * m.dewp) / (243.04 + m.dewp)) / Math.exp((17.625 * m.temp) / (243.04 + m.temp))) : null,
+        windDir: m.wdir,
+        windSpeed: m.wspd,
+        windGust: m.wgst,
+        visibility: m.visib,
+        altimeter: m.altim,
+        slp: m.slp,
+        wxString: m.wxString,
+        clouds: m.clouds,
+        rawOb: m.rawOb,
+        obsTime: m.obsTime,
+        elev: m.elev,
+      })).sort((a: any, b: any) => a.distance - b.distance);
+
+      res.json({ stations, count: stations.length });
+    } catch (error: any) {
+      console.error("Nearby stations error:", error.message);
+      res.status(500).json({ error: "Failed to fetch nearby stations" });
+    }
+  });
+
+  app.get("/api/station-data/:icao", async (req, res) => {
+    try {
+      const icao = req.params.icao.toUpperCase();
+      if (!/^[A-Z0-9]{3,4}$/.test(icao)) return res.status(400).json({ error: "Invalid ICAO code format" });
+      const awcUrl = `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&taf=false&hours=24`;
+      const response = await fetch(awcUrl, { signal: AbortSignal.timeout(12000) });
+      if (!response.ok) throw new Error(`AWC returned ${response.status}`);
+      const data = await response.json();
+      if (!data || data.length === 0) return res.status(404).json({ error: "Station not found" });
+
+      const current = data[0];
+      const previous = data.length > 1 ? data[1] : null;
+
+      const pressureTrend = current.altim && previous?.altim
+        ? current.altim > previous.altim + 0.3 ? 'rising' : current.altim < previous.altim - 0.3 ? 'falling' : 'steady'
+        : 'unknown';
+
+      const tempC = current.temp;
+      const tempF = tempC != null ? Math.round((tempC * 9 / 5 + 32) * 10) / 10 : null;
+      const dewC = current.dewp;
+      const dewF = dewC != null ? Math.round((dewC * 9 / 5 + 32) * 10) / 10 : null;
+
+      const humidity = tempC != null && dewC != null
+        ? Math.round(100 * Math.exp((17.625 * dewC) / (243.04 + dewC)) / Math.exp((17.625 * tempC) / (243.04 + tempC)))
+        : null;
+
+      const windSpeedKts = current.wspd ?? 0;
+      const windSpeedMph = Math.round(windSpeedKts * 1.15078);
+      const windGustKts = current.wgst;
+      const windGustMph = windGustKts != null ? Math.round(windGustKts * 1.15078) : null;
+
+      const windChillOrHeatIdx = (() => {
+        if (tempF == null) return null;
+        if (tempF <= 50 && windSpeedMph >= 3) {
+          const wc = 35.74 + 0.6215 * tempF - 35.75 * Math.pow(windSpeedMph, 0.16) + 0.4275 * tempF * Math.pow(windSpeedMph, 0.16);
+          return { type: 'windchill', f: Math.round(wc), c: Math.round((wc - 32) * 5 / 9) };
+        }
+        if (tempF >= 80 && humidity != null && humidity >= 40) {
+          const hi = -42.379 + 2.04901523 * tempF + 10.14333127 * humidity - 0.22475541 * tempF * humidity - 0.00683783 * tempF * tempF - 0.05481717 * humidity * humidity + 0.00122874 * tempF * tempF * humidity + 0.00085282 * tempF * humidity * humidity - 0.00000199 * tempF * tempF * humidity * humidity;
+          return { type: 'heatindex', f: Math.round(hi), c: Math.round((hi - 32) * 5 / 9) };
+        }
+        return { type: 'feelslike', f: Math.round(tempF), c: tempC != null ? Math.round(tempC) : null };
+      })();
+
+      const pressureMb = current.altim ? Math.round(current.altim * 10) / 10 : null;
+      const pressureInHg = pressureMb ? Math.round((pressureMb * 0.02953) * 100) / 100 : null;
+      const pressureMmHg = pressureMb ? Math.round(pressureMb * 0.75006) : null;
+      const pressureKpa = pressureMb ? Math.round(pressureMb / 10 * 100) / 100 : null;
+
+      const parseVisibility = (v: any): { miles: number; km: number; meters: number; nauticalMiles: number } | null => {
+        if (v == null) return null;
+        let miles: number;
+        if (typeof v === 'string') {
+          miles = parseFloat(v.replace('+', ''));
+          if (v.includes('+')) miles = miles;
+        } else {
+          miles = v;
+        }
+        if (isNaN(miles)) return null;
+        return {
+          miles: Math.round(miles * 10) / 10,
+          km: Math.round(miles * 1.60934 * 10) / 10,
+          meters: Math.round(miles * 1609.34),
+          nauticalMiles: Math.round(miles * 0.868976 * 10) / 10,
+        };
+      };
+
+      const getBeaufort = (kts: number): { scale: number; description: string } => {
+        if (kts < 1) return { scale: 0, description: 'Calm' };
+        if (kts <= 3) return { scale: 1, description: 'Light Air' };
+        if (kts <= 6) return { scale: 2, description: 'Light Breeze' };
+        if (kts <= 10) return { scale: 3, description: 'Gentle Breeze' };
+        if (kts <= 16) return { scale: 4, description: 'Moderate Breeze' };
+        if (kts <= 21) return { scale: 5, description: 'Fresh Breeze' };
+        if (kts <= 27) return { scale: 6, description: 'Strong Breeze' };
+        if (kts <= 33) return { scale: 7, description: 'Near Gale' };
+        if (kts <= 40) return { scale: 8, description: 'Gale' };
+        if (kts <= 47) return { scale: 9, description: 'Strong Gale' };
+        if (kts <= 55) return { scale: 10, description: 'Storm' };
+        if (kts <= 63) return { scale: 11, description: 'Violent Storm' };
+        return { scale: 12, description: 'Hurricane Force' };
+      };
+
+      const decodeMetar = (raw: string) => {
+        const parts: { label: string; value: string; severity?: string }[] = [];
+        if (!raw) return parts;
+
+        const wxCodes: Record<string, string> = {
+          'RA': 'Rain', 'SN': 'Snow', 'DZ': 'Drizzle', 'TS': 'Thunderstorm',
+          'FG': 'Fog', 'BR': 'Mist', 'HZ': 'Haze', 'FU': 'Smoke',
+          'GR': 'Hail', 'GS': 'Small Hail', 'PE': 'Ice Pellets', 'PL': 'Ice Pellets',
+          'SH': 'Showers', 'FZ': 'Freezing', 'VA': 'Volcanic Ash', 'DU': 'Dust',
+          'SA': 'Sand', 'SQ': 'Squall', 'FC': 'Tornado/Waterspout', 'SS': 'Sandstorm',
+          'DS': 'Duststorm', 'PO': 'Dust Devils', 'UP': 'Unknown Precip',
+          'IC': 'Ice Crystals', 'SG': 'Snow Grains',
+        };
+
+        const intensityLabels: Record<string, string> = { '+': 'Heavy', '-': 'Light', '': 'Moderate' };
+
+        const tokens = raw.split(/\s+/);
+        let isRmk = false;
+
+        for (let i = 0; i < tokens.length; i++) {
+          const t = tokens[i];
+
+          if (t === 'METAR' || t === 'SPECI') {
+            parts.push({ label: 'Report Type', value: t === 'SPECI' ? 'Special (unscheduled)' : 'Routine' });
+            continue;
+          }
+
+          if (/^[A-Z]{4}$/.test(t) && i <= 2) {
+            parts.push({ label: 'Station', value: t });
+            continue;
+          }
+
+          if (/^\d{6}Z$/.test(t)) {
+            const day = t.slice(0, 2);
+            const hour = t.slice(2, 4);
+            const min = t.slice(4, 6);
+            parts.push({ label: 'Observation Time', value: `Day ${day}, ${hour}:${min} UTC` });
+            continue;
+          }
+
+          if (t === 'AUTO') {
+            parts.push({ label: 'Automated', value: 'Automated observation (no human observer)' });
+            continue;
+          }
+
+          const windMatch = t.match(/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT$/);
+          if (windMatch) {
+            const dir = windMatch[1] === 'VRB' ? 'Variable' : `${windMatch[1]}°`;
+            const spd = parseInt(windMatch[2]);
+            const gst = windMatch[4] ? parseInt(windMatch[4]) : null;
+            let windDesc = `${dir} at ${spd} kt (${Math.round(spd * 1.15078)} mph, ${Math.round(spd * 1.852)} km/h)`;
+            if (gst) windDesc += `, gusting ${gst} kt (${Math.round(gst * 1.15078)} mph)`;
+            const bf = getBeaufort(spd);
+            windDesc += ` — Beaufort ${bf.scale} (${bf.description})`;
+            parts.push({ label: 'Wind', value: windDesc, severity: spd >= 25 ? 'warning' : gst && gst >= 35 ? 'warning' : undefined });
+            continue;
+          }
+
+          const varWindMatch = t.match(/^(\d{3})V(\d{3})$/);
+          if (varWindMatch) {
+            parts.push({ label: 'Wind Variable', value: `Between ${varWindMatch[1]}° and ${varWindMatch[2]}°` });
+            continue;
+          }
+
+          const visMatch = t.match(/^(\d+)(SM)?$/);
+          if (visMatch && !isRmk && (t.endsWith('SM') || (parseInt(t) <= 10 && i > 2))) {
+            if (t.endsWith('SM')) {
+              const miles = parseFloat(t.replace('SM', '').replace('P', '>'));
+              const isPlus = t.startsWith('P');
+              parts.push({ label: 'Visibility', value: `${isPlus ? '>' : ''}${miles} SM (${Math.round(miles * 1.609)} km)`, severity: miles < 3 ? 'danger' : miles < 5 ? 'warning' : undefined });
+            }
+            continue;
+          }
+
+          if (/^(M?\d+\/(M?\d+))$/.test(t) && t.includes('/') && !isRmk) {
+            const fracMatch = t.match(/^(M?\d+)\/(M?\d+)$/);
+            if (fracMatch) {
+              const rawTempC = fracMatch[1].replace('M', '-');
+              const rawDewC = fracMatch[2].replace('M', '-');
+              const tc = parseFloat(rawTempC);
+              const dc = parseFloat(rawDewC);
+              parts.push({ label: 'Temp / Dewpoint', value: `${tc}°C (${Math.round(tc * 9/5 + 32)}°F) / ${dc}°C (${Math.round(dc * 9/5 + 32)}°F)` });
+              continue;
+            }
+          }
+
+          if (/^A\d{4}$/.test(t)) {
+            const raw_inhg = parseInt(t.slice(1)) / 100;
+            const mb = Math.round(raw_inhg / 0.02953 * 10) / 10;
+            parts.push({ label: 'Altimeter', value: `${raw_inhg.toFixed(2)} inHg (${mb} mb)` });
+            continue;
+          }
+
+          if (/^Q\d{4}$/.test(t)) {
+            const qnh = parseInt(t.slice(1));
+            parts.push({ label: 'QNH', value: `${qnh} hPa (${(qnh * 0.02953).toFixed(2)} inHg)` });
+            continue;
+          }
+
+          const cloudMatch = t.match(/^(SKC|CLR|FEW|SCT|BKN|OVC|VV)(\d{3})?$/);
+          if (cloudMatch) {
+            const covers: Record<string, string> = { 'SKC': 'Sky Clear', 'CLR': 'Clear below 12,000', 'FEW': 'Few (1-2 oktas)', 'SCT': 'Scattered (3-4 oktas)', 'BKN': 'Broken (5-7 oktas)', 'OVC': 'Overcast (8 oktas)', 'VV': 'Vertical Visibility' };
+            const base = cloudMatch[2] ? `at ${parseInt(cloudMatch[2]) * 100} ft AGL` : '';
+            parts.push({ label: 'Clouds', value: `${covers[cloudMatch[1]] || cloudMatch[1]} ${base}`.trim() });
+            continue;
+          }
+
+          if (t === 'RMK') { isRmk = true; parts.push({ label: 'Remarks', value: '—' }); continue; }
+
+          if (isRmk) {
+            if (t === 'AO2') { parts.push({ label: 'Station Type', value: 'Automated with precipitation sensor' }); continue; }
+            if (t === 'AO1') { parts.push({ label: 'Station Type', value: 'Automated without precipitation sensor' }); continue; }
+            if (t.startsWith('SLP')) { const slp = parseFloat(t.slice(3)); const full = slp < 500 ? 1000 + slp / 10 : 900 + slp / 10; parts.push({ label: 'Sea Level Pressure', value: `${full.toFixed(1)} mb` }); continue; }
+            if (/^T\d{8}$/.test(t)) {
+              const ts = parseInt(t[1]) === 1 ? -1 : 1;
+              const tc2 = ts * parseInt(t.slice(2, 5)) / 10;
+              const ds = parseInt(t[5]) === 1 ? -1 : 1;
+              const dc2 = ds * parseInt(t.slice(6, 9)) / 10;
+              parts.push({ label: 'Precise Temp/Dew', value: `${tc2.toFixed(1)}°C / ${dc2.toFixed(1)}°C` });
+              continue;
+            }
+            if (/^LTG/.test(t)) {
+              let ltgDesc = t.replace('LTGIC', 'In-Cloud Lightning').replace('LTGCG', 'Cloud-to-Ground Lightning').replace('LTGCC', 'Cloud-to-Cloud Lightning').replace('LTG', 'Lightning');
+              const nextTokens = [];
+              for (let j = i + 1; j < Math.min(i + 4, tokens.length); j++) {
+                if (/^(DSNT|VC|OHD|ALQDS?|[NESW]{1,3}(-[NESW]{1,3})?)$/.test(tokens[j])) {
+                  const locMap: Record<string, string> = { 'DSNT': 'Distant', 'VC': 'Vicinity', 'OHD': 'Overhead', 'ALQDS': 'All Quadrants', 'ALQD': 'All Quadrants' };
+                  nextTokens.push(locMap[tokens[j]] || tokens[j]);
+                } else break;
+              }
+              if (nextTokens.length) ltgDesc += ` — ${nextTokens.join(', ')}`;
+              parts.push({ label: '⚡ Lightning', value: ltgDesc, severity: 'danger' });
+              continue;
+            }
+            if (/^(CB|TCU)/.test(t)) {
+              parts.push({ label: 'Significant Clouds', value: t === 'CB' ? 'Cumulonimbus (thunderstorm)' : 'Towering Cumulus', severity: 'warning' });
+              continue;
+            }
+            if (/^\$/.test(t)) { parts.push({ label: 'Maintenance', value: 'Station needs maintenance' }); continue; }
+          }
+
+          const wxIntensity = t.startsWith('+') ? '+' : t.startsWith('-') ? '-' : '';
+          const wxBody = t.replace(/^[+-]/, '');
+          const wxPairs = wxBody.match(/.{2}/g);
+          if (wxPairs && wxPairs.every(p => wxCodes[p])) {
+            const desc = wxPairs.map(p => wxCodes[p]).join(' ');
+            const severity = wxBody.includes('TS') || wxBody.includes('FC') || wxBody.includes('GR') ? 'danger' :
+              wxBody.includes('FZ') || wxBody.includes('SN') || wxBody.includes('SQ') ? 'warning' : undefined;
+            parts.push({ label: 'Weather', value: `${intensityLabels[wxIntensity]} ${desc}`, severity });
+            continue;
+          }
+        }
+        return parts;
+      };
+
+      const moonPhase = (() => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth() + 1;
+        const day = now.getDate();
+        const c = Math.floor(365.25 * year);
+        const e = Math.floor(30.6 * month);
+        const jd = c + e + day - 694039.09;
+        const phase = jd / 29.5305882;
+        const normalized = phase - Math.floor(phase);
+        const age = Math.round(normalized * 29.5);
+        let name = 'Waxing Crescent';
+        let icon = '🌒';
+        if (age <= 1 || age >= 29) { name = 'New Moon'; icon = '🌑'; }
+        else if (age <= 6) { name = 'Waxing Crescent'; icon = '🌒'; }
+        else if (age <= 8) { name = 'First Quarter'; icon = '🌓'; }
+        else if (age <= 13) { name = 'Waxing Gibbous'; icon = '🌔'; }
+        else if (age <= 16) { name = 'Full Moon'; icon = '🌕'; }
+        else if (age <= 21) { name = 'Waning Gibbous'; icon = '🌖'; }
+        else if (age <= 23) { name = 'Last Quarter'; icon = '🌗'; }
+        else { name = 'Waning Crescent'; icon = '🌘'; }
+        return { name, icon, age, illumination: Math.round(50 * (1 - Math.cos(normalized * 2 * Math.PI))) };
+      })();
+
+      const fltCat = current.fltCat || null;
+
+      const history = data.map((obs: any) => {
+        const oTempC = obs.temp;
+        const oTempF = oTempC != null ? Math.round((oTempC * 9 / 5 + 32) * 10) / 10 : null;
+        const oDewC = obs.dewp;
+        const oHumidity = oTempC != null && oDewC != null
+          ? Math.round(100 * Math.exp((17.625 * oDewC) / (243.04 + oDewC)) / Math.exp((17.625 * oTempC) / (243.04 + oTempC)))
+          : null;
+        const oWindKts = obs.wspd ?? 0;
+        const oWindMph = Math.round(oWindKts * 1.15078);
+        const oPressureMb = obs.altim ? Math.round(obs.altim * 10) / 10 : null;
+        const oPressureInHg = oPressureMb ? Math.round((oPressureMb * 0.02953) * 100) / 100 : null;
+        const oVis = parseVisibility(obs.visib);
+        const oFeelsLike = (() => {
+          if (oTempF == null) return null;
+          if (oTempF <= 50 && oWindMph >= 3) {
+            const wc = 35.74 + 0.6215 * oTempF - 35.75 * Math.pow(oWindMph, 0.16) + 0.4275 * oTempF * Math.pow(oWindMph, 0.16);
+            return Math.round(wc);
+          }
+          if (oTempF >= 80 && oHumidity != null && oHumidity >= 40) {
+            const hi = -42.379 + 2.04901523 * oTempF + 10.14333127 * oHumidity - 0.22475541 * oTempF * oHumidity - 0.00683783 * oTempF * oTempF - 0.05481717 * oHumidity * oHumidity + 0.00122874 * oTempF * oTempF * oHumidity + 0.00085282 * oTempF * oHumidity * oHumidity - 0.00000199 * oTempF * oTempF * oHumidity * oHumidity;
+            return Math.round(hi);
+          }
+          return oTempF != null ? Math.round(oTempF) : null;
+        })();
+        return {
+          time: obs.obsTime,
+          tempF: oTempF != null ? Math.round(oTempF) : null,
+          tempC: oTempC != null ? Math.round(oTempC) : null,
+          feelsLikeF: oFeelsLike,
+          humidity: oHumidity,
+          windSpeedKts: oWindKts,
+          windSpeedMph: oWindMph,
+          windGustKts: obs.wgst ?? null,
+          windDir: obs.wdir ?? null,
+          pressureMb: oPressureMb,
+          pressureInHg: oPressureInHg,
+          visibilityMi: oVis?.miles ?? null,
+          wxString: obs.wxString || null,
+          fltCat: obs.fltCat || null,
+          clouds: obs.clouds || [],
+        };
+      }).reverse();
+
+      const station = {
+        icao: current.icaoId,
+        name: current.name || current.icaoId,
+        lat: current.lat,
+        lon: current.lon,
+        elev: current.elev,
+        obsTime: current.obsTime,
+        rawOb: current.rawOb,
+        tempF: tempF != null ? Math.round(tempF) : null,
+        tempC: tempC != null ? Math.round(tempC) : null,
+        dewF: dewF != null ? Math.round(dewF) : null,
+        dewC: dewC != null ? Math.round(dewC) : null,
+        humidity,
+        feelsLike: windChillOrHeatIdx,
+        fltCat,
+        wind: {
+          direction: current.wdir,
+          dirLabel: current.wdir != null ? getDirectionFromBearing(current.wdir) : 'Calm',
+          speedKts: windSpeedKts,
+          gustKts: windGustKts,
+          speedMph: windSpeedMph,
+          gustMph: windGustMph,
+          speedKmh: Math.round(windSpeedKts * 1.852),
+          gustKmh: windGustKts != null ? Math.round(windGustKts * 1.852) : null,
+          speedMs: Math.round(windSpeedKts * 0.51444 * 10) / 10,
+          gustMs: windGustKts != null ? Math.round(windGustKts * 0.51444 * 10) / 10 : null,
+          beaufort: getBeaufort(windSpeedKts),
+          gustBeaufort: windGustKts != null ? getBeaufort(windGustKts) : null,
+        },
+        pressure: {
+          inHg: pressureInHg,
+          mb: pressureMb,
+          mmHg: pressureMmHg,
+          kPa: pressureKpa,
+          trend: pressureTrend,
+          previousMb: previous?.altim ? Math.round(previous.altim * 10) / 10 : null,
+        },
+        visibility: parseVisibility(current.visib),
+        clouds: current.clouds,
+        wxString: current.wxString,
+        precip: current.precip,
+        moonPhase,
+        decoded: decodeMetar(current.rawOb || ''),
+        history,
+      };
+
+      res.json(station);
+    } catch (error: any) {
+      console.error("Station data error:", error.message);
+      res.status(500).json({ error: "Failed to fetch station data" });
+    }
+  });
+
+  app.get("/api/favorite-stations", async (_req, res) => {
+    try {
+      const { favoriteStations } = await import("@shared/schema");
+      const favorites = await db.select().from(favoriteStations).orderBy(favoriteStations.createdAt);
+      res.json(favorites);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch favorites" });
+    }
+  });
+
+  app.post("/api/favorite-stations", async (req, res) => {
+    try {
+      const { favoriteStations } = await import("@shared/schema");
+      const { icao, name, lat, lon } = req.body;
+      if (!icao || !name) return res.status(400).json({ error: "icao and name required" });
+      const [fav] = await db.insert(favoriteStations).values({ icao, name, lat: lat || 0, lon: lon || 0 }).returning();
+      res.json(fav);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to save favorite" });
+    }
+  });
+
+  app.delete("/api/favorite-stations/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id) || id <= 0) return res.status(400).json({ error: "Invalid station ID" });
+      const { favoriteStations } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.delete(favoriteStations).where(eq(favoriteStations.id, id));
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete favorite" });
+    }
+  });
+
+  const translationCache = new Map<string, Record<string, string>>();
+  const translateBatchRL = new Map<string, { count: number; resetAt: number }>();
+
+  app.post("/api/translate", async (req, res) => {
+    try {
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      const now = Date.now();
+      const rl = translateBatchRL.get(clientIp);
+      if (rl && rl.resetAt > now) {
+        if (rl.count >= 30) {
+          return res.status(429).json({ error: "Rate limit exceeded", translations: req.body.texts || [] });
+        }
+        rl.count++;
+      } else {
+        translateBatchRL.set(clientIp, { count: 1, resetAt: now + 60000 });
+      }
+      if (translateBatchRL.size > 1000) {
+        for (const [key, val] of translateBatchRL) {
+          if (val.resetAt < now) translateBatchRL.delete(key);
+        }
       }
 
-      const nwsFetchIndex = fetches.length;
-      if (isUS) {
-        fetches.push(
-          fetch(`https://api.weather.gov/points/${latitude},${longitude}`, {
-            headers: { 'User-Agent': 'StormTracker/1.0 (weather-app)', Accept: 'application/geo+json' },
-            signal: AbortSignal.timeout(5000),
-          })
-            .then(async r => {
-              if (!r.ok) return null;
-              const pts = await r.json();
-              const forecastUrl = pts.properties?.forecast;
-              if (!forecastUrl) return null;
-              const fRes = await fetch(forecastUrl, {
-                headers: { 'User-Agent': 'StormTracker/1.0 (weather-app)', Accept: 'application/geo+json' },
-                signal: AbortSignal.timeout(5000),
-              });
-              if (!fRes.ok) return null;
-              const fd = await fRes.json();
-              return fd.properties?.periods || null;
-            })
-            .catch(() => null)
-        );
+      const { texts, lang } = req.body;
+      if (!texts || !Array.isArray(texts) || !lang || lang === 'en') {
+        return res.json({ translations: texts || [] });
+      }
+      if (texts.length > 100) return res.status(400).json({ error: "Max 100 texts per request" });
+
+      const results: string[] = [];
+      const toTranslate: { idx: number; text: string }[] = [];
+
+      for (let i = 0; i < texts.length; i++) {
+        const text = texts[i];
+        if (!text || typeof text !== 'string' || text.trim().length === 0) {
+          results[i] = text || '';
+          continue;
+        }
+        const cacheKey = `${lang}:${text}`;
+        const cached = translationCache.get(cacheKey);
+        if (cached) {
+          results[i] = cached[lang] || text;
+        } else {
+          results[i] = '';
+          toTranslate.push({ idx: i, text });
+        }
       }
 
-      const results = await Promise.all(fetches);
-      const data = results[0];
-      if (!data) throw new Error('Open-Meteo unavailable');
+      if (toTranslate.length === 0) {
+        return res.json({ translations: results });
+      }
 
-      const modelResults = results.slice(1, weatherApiFetchIndex).filter(Boolean);
-      const weatherApiData = API_KEYS.weatherapi ? results[weatherApiFetchIndex] : null;
-      const nwsPeriods = isUS ? results[nwsFetchIndex] : null;
+      const langNames: Record<string, string> = {
+        es: 'Spanish', fr: 'French', de: 'German', it: 'Italian', pt: 'Portuguese',
+        nl: 'Dutch', pl: 'Polish', ru: 'Russian', tr: 'Turkish', ar: 'Arabic',
+        hi: 'Hindi', id: 'Indonesian', ms: 'Malay', th: 'Thai', vi: 'Vietnamese',
+        ja: 'Japanese', ko: 'Korean', zh: 'Chinese (Simplified)', sw: 'Swahili',
+      };
 
-      const weatherApiDays: { hiF: number; loF: number; windMph: number; precipChance: number }[] = [];
-      if (weatherApiData?.forecast?.forecastday) {
-        for (const fd of weatherApiData.forecast.forecastday) {
-          weatherApiDays.push({
-            hiF: fd.day.maxtemp_f,
-            loF: fd.day.mintemp_f,
-            windMph: fd.day.maxwind_mph,
-            precipChance: fd.day.daily_chance_of_rain || 0,
+      const langName = langNames[lang] || lang;
+      const batch = toTranslate.map(t => t.text);
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a weather app UI translator. Translate the following UI strings to ${langName}. Keep technical terms (METAR, TAF, ICAO, VFR, IFR, dBZ, UTC, mb, inHg, kt, mph, etc.) untranslated. Keep numbers, units, and formatting intact. Return ONLY a JSON array of translated strings in the same order, no explanations.`
+          },
+          { role: "user", content: JSON.stringify(batch) }
+        ],
+        temperature: 0.1,
+        max_tokens: 4000,
+      });
+
+      const content = completion.choices[0]?.message?.content?.trim() || '[]';
+      let translated: string[];
+      try {
+        translated = JSON.parse(content);
+      } catch {
+        const match = content.match(/\[[\s\S]*\]/);
+        translated = match ? JSON.parse(match[0]) : batch;
+      }
+
+      for (let i = 0; i < toTranslate.length; i++) {
+        const { idx, text } = toTranslate[i];
+        const result = translated[i] || text;
+        results[idx] = result;
+        translationCache.set(`${lang}:${text}`, { [lang]: result });
+      }
+
+      if (translationCache.size > 5000) {
+        const keys = Array.from(translationCache.keys());
+        for (let i = 0; i < 1000; i++) translationCache.delete(keys[i]);
+      }
+
+      res.json({ translations: results });
+    } catch (error: any) {
+      console.error('Translation error:', error.message);
+      res.json({ translations: req.body.texts || [] });
+    }
+  });
+
+  app.get("/api/nearby-tafs", async (req, res) => {
+    try {
+      const lat = parseFloat(req.query.lat as string);
+      const lon = parseFloat(req.query.lon as string);
+      if (isNaN(lat) || isNaN(lon)) return res.status(400).json({ error: "lat/lon required" });
+
+      const stationsUrl = `https://aviationweather.gov/api/data/stationinfo?bbox=${lat - 1},${lon - 1.5},${lat + 1},${lon + 1.5}&format=json`;
+      const stResp = await fetch(stationsUrl, { signal: AbortSignal.timeout(6000) });
+      if (!stResp.ok) return res.json({ stations: [] });
+      const stData = await stResp.json();
+      if (!Array.isArray(stData)) return res.json({ stations: [] });
+
+      const hasDist = (s: any) => {
+        const dlat = s.lat - lat;
+        const dlon = (s.lon - lon) * Math.cos(lat * Math.PI / 180);
+        return Math.sqrt(dlat * dlat + dlon * dlon) * 69;
+      };
+      const nearby = stData
+        .filter((s: any) => s.icaoId && s.icaoId.length === 4)
+        .map((s: any) => ({ icao: s.icaoId, name: s.name || s.icaoId, dist: Math.round(hasDist(s)) }))
+        .sort((a: any, b: any) => a.dist - b.dist)
+        .slice(0, 8);
+
+      res.json({ stations: nearby });
+    } catch (error: any) {
+      console.error('Nearby TAFs error:', error.message);
+      res.json({ stations: [] });
+    }
+  });
+
+  app.get("/api/taf/:icao", async (req, res) => {
+    try {
+      const icao = req.params.icao.toUpperCase();
+      if (!/^[A-Z0-9]{3,4}$/.test(icao)) return res.status(400).json({ error: "Invalid ICAO code" });
+
+      const awcUrl = `https://aviationweather.gov/api/data/taf?ids=${icao}&format=json`;
+      const response = await fetch(awcUrl, { signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error(`AWC TAF returned ${response.status}`);
+      const data = await response.json();
+      if (!data || data.length === 0) return res.status(404).json({ error: "No TAF available for this station" });
+
+      const taf = data[0];
+      const rawTaf = taf.rawTAF || '';
+
+      const toIso = (v: any): string | null => {
+        if (!v) return null;
+        if (typeof v === 'string') return v;
+        if (typeof v === 'number') return new Date(v * 1000).toISOString();
+        return null;
+      };
+
+      const periods: any[] = [];
+      if (taf.fcsts && Array.isArray(taf.fcsts)) {
+        for (const f of taf.fcsts) {
+          const fromTime = toIso(f.timeFrom);
+          const toTime = toIso(f.timeTo);
+          const changeType = f.fcstChange || 'FM';
+
+          const wxString = f.wxString || '';
+          const wxCodes = wxString ? wxString.split(/\s+/).filter(Boolean) : [];
+
+          const clouds = (f.clouds || []).map((c: any) => ({
+            cover: c.cover,
+            base: c.base,
+            type: c.type || null,
+          }));
+
+          const coverPriority: Record<string, number> = { SKC: 0, CLR: 0, FEW: 1, SCT: 2, BKN: 3, OVC: 4, VV: 5 };
+          const maxCover = clouds.reduce((max: string, c: any) => {
+            return (coverPriority[c.cover] || 0) > (coverPriority[max] || 0) ? c.cover : max;
+          }, 'SKC');
+
+          let condition = 'Clear';
+          if (wxCodes.some((w: string) => /TS/.test(w))) condition = 'Thunderstorm';
+          else if (wxCodes.some((w: string) => /SN|GS|GR/.test(w))) condition = 'Snow';
+          else if (wxCodes.some((w: string) => /RA|DZ|SH/.test(w))) condition = 'Rain';
+          else if (wxCodes.some((w: string) => /FG|BR/.test(w))) condition = 'Fog';
+          else if (wxCodes.some((w: string) => /HZ/.test(w))) condition = 'Haze';
+          else if (maxCover === 'OVC' || maxCover === 'VV') condition = 'Overcast';
+          else if (maxCover === 'BKN') condition = 'Mostly Cloudy';
+          else if (maxCover === 'SCT') condition = 'Partly Cloudy';
+          else if (maxCover === 'FEW') condition = 'Few Clouds';
+
+          const visNum = typeof f.visib === 'string' ? parseFloat(f.visib.replace('+', '')) : (f.visib ?? null);
+
+          periods.push({
+            from: fromTime,
+            to: toTime,
+            changeType,
+            windDir: f.wdir ?? null,
+            windSpeedKts: f.wspd ?? null,
+            windGustKts: f.wgst ?? null,
+            visibilitySM: visNum,
+            condition,
+            wxCodes,
+            clouds,
+            maxCover,
           });
         }
       }
 
-      const sourceLabels: string[] = ['Open-Meteo'];
-      if (modelResults.length > 0) sourceLabels.push(regional.label);
-      if (weatherApiDays.length > 0) sourceLabels.push('WeatherAPI');
-      if (nwsPeriods) sourceLabels.push('NWS');
-      const sourceCount = sourceLabels.length;
-
-      const blendedDaily = { ...data.daily };
-      const numDays = data.daily.time.length;
-      for (let d = 0; d < numDays; d++) {
-        let hiSum = data.daily.temperature_2m_max[d];
-        let loSum = data.daily.temperature_2m_min[d];
-        let windSum = data.daily.wind_speed_10m_max[d];
-        let precipSum = data.daily.precipitation_probability_max[d];
-        let count = 1;
-        for (const m of modelResults) {
-          if (m?.daily?.temperature_2m_max?.[d] != null) {
-            hiSum += m.daily.temperature_2m_max[d];
-            loSum += m.daily.temperature_2m_min[d];
-            windSum += (m.daily.wind_speed_10m_max?.[d] ?? data.daily.wind_speed_10m_max[d]);
-            precipSum += (m.daily.precipitation_probability_max?.[d] ?? data.daily.precipitation_probability_max[d]);
-            count++;
-          }
-        }
-        if (d < weatherApiDays.length) {
-          hiSum += weatherApiDays[d].hiF;
-          loSum += weatherApiDays[d].loF;
-          windSum += weatherApiDays[d].windMph;
-          precipSum += weatherApiDays[d].precipChance;
-          count++;
-        }
-        blendedDaily.temperature_2m_max[d] = Math.round((hiSum / count) * 10) / 10;
-        blendedDaily.temperature_2m_min[d] = Math.round((loSum / count) * 10) / 10;
-        blendedDaily.wind_speed_10m_max[d] = Math.round((windSum / count) * 10) / 10;
-        blendedDaily.precipitation_probability_max[d] = Math.round(precipSum / count);
-      }
-
-      const weatherApiAstro = weatherApiData?.forecast?.forecastday?.[0]?.astro || null;
-      const weatherApiAqi = weatherApiData?.current?.air_quality || null;
-
-      console.log(`🌍 Forecast for ${latitude.toFixed(2)},${longitude.toFixed(2)} — Region: ${regional.region}, Sources: ${sourceLabels.join(' + ')} (${sourceCount} total)${weatherApiDays.length > 0 ? ` [WeatherAPI: ${weatherApiDays.length}-day blend]` : ''}`);
+      const issueTime = toIso(taf.issueTime);
+      const validFrom = toIso(taf.validTimeFrom);
+      const validTo = toIso(taf.validTimeTo);
 
       res.json({
-        source: "Open-Meteo",
-        timezone: data.timezone,
-        timezoneAbbr: data.timezone_abbreviation,
-        elevation: data.elevation,
-        isUS,
-        region: regional.region,
-        forecastSources: sourceLabels,
-        forecastSourceCount: sourceCount,
-        regionalModels: regional.label,
-        current: data.current,
-        currentUnits: data.current_units,
-        hourly: {
-          time: data.hourly.time.slice(0, 48),
-          temperature: data.hourly.temperature_2m.slice(0, 48),
-          weatherCode: data.hourly.weather_code.slice(0, 48),
-          precipProbability: data.hourly.precipitation_probability.slice(0, 48),
-          windSpeed: data.hourly.wind_speed_10m.slice(0, 48),
-          humidity: data.hourly.relative_humidity_2m.slice(0, 48),
-        },
-        daily: {
-          time: data.daily.time,
-          weatherCode: data.daily.weather_code,
-          tempMax: blendedDaily.temperature_2m_max,
-          tempMin: blendedDaily.temperature_2m_min,
-          sunrise: data.daily.sunrise,
-          sunset: data.daily.sunset,
-          uvMax: data.daily.uv_index_max,
-          precipSum: data.daily.precipitation_sum,
-          precipProbMax: blendedDaily.precipitation_probability_max,
-          windMax: blendedDaily.wind_speed_10m_max,
-        },
-        nwsForecast: nwsPeriods ? nwsPeriods.slice(0, 14).map((p: any) => ({
-          name: p.name,
-          temperature: p.temperature,
-          temperatureUnit: p.temperatureUnit,
-          windSpeed: p.windSpeed,
-          windDirection: p.shortForecast ? undefined : p.windDirection,
-          icon: p.icon,
-          shortForecast: p.shortForecast,
-          detailedForecast: p.detailedForecast,
-          isDaytime: p.isDaytime,
-        })) : null,
-        astronomy: weatherApiAstro ? {
-          moonPhase: weatherApiAstro.moon_phase,
-          moonIllumination: weatherApiAstro.moon_illumination,
-          moonrise: weatherApiAstro.moonrise,
-          moonset: weatherApiAstro.moonset,
-        } : null,
-        airQuality: weatherApiAqi ? {
-          usEpaIndex: weatherApiAqi['us-epa-index'],
-          pm25: weatherApiAqi.pm2_5,
-          pm10: weatherApiAqi.pm10,
-          o3: weatherApiAqi.o3,
-          no2: weatherApiAqi.no2,
-          co: weatherApiAqi.co,
-          so2: weatherApiAqi.so2,
-        } : null,
-        timestamp: new Date().toISOString(),
+        icao,
+        rawTaf,
+        issueTime,
+        validFrom,
+        validTo,
+        periods,
       });
-    } catch (error) {
-      console.error("Forecast API error:", error);
-      res.status(500).json({ error: "Failed to fetch forecast data" });
+    } catch (error: any) {
+      console.error('TAF fetch error:', error.message);
+      res.status(500).json({ error: "Failed to fetch TAF data" });
+    }
+  });
+
+  // ==========================================
+  // CLOUD SYNC API
+  // ==========================================
+
+  // Register a new sync profile
+  app.post("/api/sync/register", async (req, res) => {
+    try {
+      const { username, pin } = req.body;
+      if (!username || !pin || !/^\d{4}$/.test(pin)) {
+        return res.status(400).json({ error: "Username and 4-digit PIN required" });
+      }
+      if (username.length < 3 || username.length > 30 || !/^[a-zA-Z0-9_-]+$/.test(username)) {
+        return res.status(400).json({ error: "Username must be 3-30 chars (letters, numbers, _ or -)" });
+      }
+      const existing = await db.select().from(syncProfiles).where(eq(syncProfiles.username, username.toLowerCase())).limit(1);
+      if (existing.length > 0) {
+        return res.status(409).json({ error: "Username already taken" });
+      }
+      const [profile] = await db.insert(syncProfiles).values({
+        username: username.toLowerCase(),
+        pin,
+        favorites: [],
+        lastLocation: null,
+        settings: {},
+      }).returning();
+      res.json({ success: true, username: profile.username });
+    } catch (error: any) {
+      console.error("Sync register error:", error.message);
+      res.status(500).json({ error: "Registration failed" });
+    }
+  });
+
+  // Login / authenticate
+  app.post("/api/sync/login", async (req, res) => {
+    try {
+      const { username, pin } = req.body;
+      if (!username || !pin) {
+        return res.status(400).json({ error: "Username and PIN required" });
+      }
+      const [profile] = await db.select().from(syncProfiles).where(eq(syncProfiles.username, username.toLowerCase())).limit(1);
+      if (!profile || profile.pin !== pin) {
+        return res.status(401).json({ error: "Invalid username or PIN" });
+      }
+      res.json({
+        success: true,
+        username: profile.username,
+        favorites: profile.favorites || [],
+        lastLocation: profile.lastLocation,
+        settings: profile.settings || {},
+        lastSyncAt: profile.lastSyncAt,
+      });
+    } catch (error: any) {
+      console.error("Sync login error:", error.message);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Save/sync data to cloud
+  app.post("/api/sync/save", async (req, res) => {
+    try {
+      const { username, pin, favorites, lastLocation, settings } = req.body;
+      if (!username || !pin) {
+        return res.status(400).json({ error: "Username and PIN required" });
+      }
+      const [profile] = await db.select().from(syncProfiles).where(eq(syncProfiles.username, username.toLowerCase())).limit(1);
+      if (!profile || profile.pin !== pin) {
+        return res.status(401).json({ error: "Invalid username or PIN" });
+      }
+      const updateData: any = { lastSyncAt: new Date() };
+      if (favorites !== undefined) updateData.favorites = favorites;
+      if (lastLocation !== undefined) updateData.lastLocation = lastLocation;
+      if (settings !== undefined) updateData.settings = settings;
+      await db.update(syncProfiles).set(updateData).where(eq(syncProfiles.id, profile.id));
+      res.json({ success: true, lastSyncAt: updateData.lastSyncAt });
+    } catch (error: any) {
+      console.error("Sync save error:", error.message);
+      res.status(500).json({ error: "Save failed" });
+    }
+  });
+
+  // Load data from cloud
+  app.post("/api/sync/load", async (req, res) => {
+    try {
+      const { username, pin } = req.body;
+      if (!username || !pin) {
+        return res.status(400).json({ error: "Username and PIN required" });
+      }
+      const [profile] = await db.select().from(syncProfiles).where(eq(syncProfiles.username, username.toLowerCase())).limit(1);
+      if (!profile || profile.pin !== pin) {
+        return res.status(401).json({ error: "Invalid username or PIN" });
+      }
+      res.json({
+        success: true,
+        favorites: profile.favorites || [],
+        lastLocation: profile.lastLocation,
+        settings: profile.settings || {},
+        lastSyncAt: profile.lastSyncAt,
+      });
+    } catch (error: any) {
+      console.error("Sync load error:", error.message);
+      res.status(500).json({ error: "Load failed" });
+    }
+  });
+
+  app.post("/api/pws/ambient", async (req, res) => {
+    try {
+      const { apiKey, applicationKey } = req.body;
+      if (!apiKey || !applicationKey) {
+        return res.status(400).json({ error: "API key and Application key are required" });
+      }
+      const url = `https://rt.ambientweather.net/v1/devices?apiKey=${encodeURIComponent(apiKey)}&applicationKey=${encodeURIComponent(applicationKey)}`;
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!response.ok) {
+        return res.status(response.status).json({ error: `Ambient Weather API returned status ${response.status}` });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("Ambient Weather proxy error");
+      res.status(500).json({ error: "Failed to fetch Ambient Weather data" });
+    }
+  });
+
+  app.post("/api/pws/wunderground", async (req, res) => {
+    try {
+      const { apiKey, stationId } = req.body;
+      if (!apiKey || !stationId) {
+        return res.status(400).json({ error: "API key and Station ID are required" });
+      }
+      const url = `https://api.weather.com/v2/pws/observations/current?stationId=${encodeURIComponent(stationId)}&format=json&units=e&apiKey=${encodeURIComponent(apiKey)}`;
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!response.ok) {
+        return res.status(response.status).json({ error: `Weather Underground API returned status ${response.status}` });
+      }
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("Weather Underground proxy error");
+      res.status(500).json({ error: "Failed to fetch Weather Underground data" });
     }
   });
 

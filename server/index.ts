@@ -4,7 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 
 // Environment variable validation for production
 function validateEnvironment() {
-  const required = ['DATABASE_URL', 'SESSION_SECRET'];
+  const required = ['DATABASE_URL'];
   const optional = ['OPENWEATHER_API_KEY'];
   
   const missing = required.filter(key => !process.env[key]);
@@ -25,30 +25,53 @@ function validateEnvironment() {
   log(`Environment validation passed - all required variables present`);
 }
 
-// Database connection validation
+// Database connection validation with retry logic for Neon cold starts
 async function validateDatabaseConnection() {
-  try {
-    if (!process.env.DATABASE_URL) {
-      throw new Error('DATABASE_URL environment variable is not set');
-    }
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL environment variable is not set');
+  }
 
-    // Import the db from our db module for consistent connection
-    const { db, sql } = await import('./db.js');
-    
-    // Test database connection with a simple query
-    await sql`SELECT 1`;
-    log('Database connection validated successfully');
-    
-    return { sql, db };
-  } catch (error) {
-    console.error('Database connection failed:', error);
-    throw new Error(`Database connection error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  const { db, sql } = await import('./db.js');
+
+  const maxAttempts = 5;
+  const baseDelayMs = 2000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await sql`SELECT 1`;
+      log('Database connection validated successfully');
+      return { sql, db };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      if (attempt < maxAttempts) {
+        const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+        log(`Database connection attempt ${attempt}/${maxAttempts} failed: ${message}. Retrying in ${delayMs / 1000}s...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      } else {
+        console.error(`Database connection failed after ${maxAttempts} attempts:`, error);
+        throw new Error(`Database connection error after ${maxAttempts} attempts: ${message}`);
+      }
+    }
   }
 }
 
 const app = express();
 app.use(express.json({ limit: '10mb' })); // Increase limit for AI assistant payloads
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+
+// CORS for GitHub Pages static frontend
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && (origin.includes('github.io') || origin.includes('localhost'))) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 // Serve attached assets
 app.use('/attached_assets', express.static('attached_assets'));
@@ -91,11 +114,6 @@ app.use((req, res, next) => {
     // Validate database connection
     const { sql, db } = await validateDatabaseConnection();
 
-    // Setup Replit Auth BEFORE routes
-    const { setupAuth, registerAuthRoutes } = await import("./replit_integrations/auth");
-    await setupAuth(app);
-    registerAuthRoutes(app);
-
     const server = await registerRoutes(app);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -103,7 +121,7 @@ app.use((req, res, next) => {
       const message = err.message || "Internal Server Error";
 
       res.status(status).json({ message });
-      throw err;
+      console.error('Unhandled error:', err);
     });
 
     // importantly only setup vite in development and after

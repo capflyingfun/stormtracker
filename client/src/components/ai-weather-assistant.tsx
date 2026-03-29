@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import { Brain, AlertTriangle, CheckCircle, Clock, MapPin, Wind, Plane, RefreshCw, Send, MessageCircle, BookOpen, ChevronDown, ChevronUp, Cpu, Zap } from "lucide-react";
+import { Brain, AlertTriangle, CheckCircle, Clock, MapPin, Wind, Plane, RefreshCw, Send, MessageCircle } from "lucide-react";
+import { useLanguage } from "@/hooks/use-language";
 
 interface StormData {
   id: string;
@@ -43,6 +44,9 @@ interface WeatherAssessment {
 interface UserSettings {
   aiTone: 'professional' | 'friendly' | 'humorous';
   detailLevel?: 'minimal' | 'standard' | 'technical';
+  includeHumor?: boolean;
+  simplifiedLanguage?: boolean;
+  preferredLanguage?: string;
 }
 
 interface AIWeatherAssistantProps {
@@ -57,58 +61,6 @@ interface AIWeatherAssistantProps {
   lightningCount?: number;
   useMetric?: boolean;
   userSettings?: UserSettings;
-  nwsForecast?: any[] | null;
-}
-
-interface Section {
-  title: string;
-  content: string;
-}
-
-function parseSections(text: string): Section[] {
-  const sections: Section[] = [];
-  const lines = text.split('\n');
-  let currentTitle = '';
-  let currentContent: string[] = [];
-
-  for (const line of lines) {
-    const headerMatch = line.match(/^(?:\*\*)?([A-Z][A-Z &/]+(?:[A-Z]))(?:\*\*)?:?\s*(.*)/);
-    if (headerMatch && line.trim().length < 60) {
-      if (currentTitle || currentContent.length > 0) {
-        sections.push({
-          title: currentTitle || 'Overview',
-          content: currentContent.join('\n').trim(),
-        });
-      }
-      currentTitle = headerMatch[1].replace(/\*\*/g, '').trim();
-      currentContent = headerMatch[2] ? [headerMatch[2]] : [];
-    } else {
-      currentContent.push(line);
-    }
-  }
-
-  if (currentTitle || currentContent.length > 0) {
-    sections.push({
-      title: currentTitle || 'Overview',
-      content: currentContent.join('\n').trim(),
-    });
-  }
-
-  return sections.filter(s => s.content.trim().length > 0);
-}
-
-function getTitleColor(title: string): string {
-  const t = title.toLowerCase();
-  if (t.includes('right now') || t.includes('current')) return 'text-cyan-400';
-  if (t.includes('today')) return 'text-blue-400';
-  if (t.includes('week') || t.includes('ahead')) return 'text-indigo-400';
-  if (t.includes('storm')) return 'text-amber-400';
-  if (t.includes('alert') || t.includes('warning')) return 'text-red-400';
-  if (t.includes('aviation')) return 'text-sky-400';
-  if (t.includes('marine') || t.includes('outdoor')) return 'text-teal-400';
-  if (t.includes('atmosphere')) return 'text-purple-400';
-  if (t.includes('bottom line') || t.includes('takeaway')) return 'text-green-400';
-  return 'text-slate-400';
 }
 
 export default function AIWeatherAssistant({
@@ -118,12 +70,9 @@ export default function AIWeatherAssistant({
   radarSource,
   lightningCount = 0,
   useMetric = false,
-  userSettings,
-  nwsForecast
+  userSettings
 }: AIWeatherAssistantProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [briefingExpanded, setBriefingExpanded] = useState(false);
-  const [cardCollapsed, setCardCollapsed] = useState(true);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
   const [isDataReady, setIsDataReady] = useState(false);
@@ -134,7 +83,9 @@ export default function AIWeatherAssistant({
   const [aiTone, setAiTone] = useState<'professional' | 'friendly' | 'humorous'>(
     userSettings?.aiTone || 'friendly'
   );
+  const { t, language } = useLanguage();
 
+  // Fetch aviation weather data
   const { data: aviationData } = useQuery({
     queryKey: ['/api/aviation-weather', userLocation.lat, userLocation.lon],
     queryFn: async () => {
@@ -142,9 +93,10 @@ export default function AIWeatherAssistant({
       return response.json();
     },
     enabled: !!(userLocation.lat && userLocation.lon),
-    refetchInterval: 300000,
+    refetchInterval: 300000, // Refresh every 5 minutes
   });
 
+  // Threat detection query for monitoring
   const { data: threatData, refetch: refetchThreats } = useQuery({
     queryKey: ['/api/threat-detection', userLocation.lat, userLocation.lon],
     queryFn: async () => {
@@ -166,28 +118,13 @@ export default function AIWeatherAssistant({
       
       return response.json();
     },
-    enabled: false,
+    enabled: false, // Only run when manually triggered
   });
 
-  const { data: summaryData, isLoading: summaryLoading, refetch: refetchSummary, isFetching: summaryFetching } = useQuery({
-    queryKey: ['/api/ai-summary', userLocation.lat, userLocation.lon, aiTone],
-    queryFn: async () => {
-      const res = await apiRequest('POST', '/api/ai-summary', {
-        lat: userLocation.lat,
-        lon: userLocation.lon,
-        locationName: userLocation.address,
-        useMetric,
-        tone: aiTone,
-      });
-      return res.json();
-    },
-    staleTime: 1000 * 60 * 10,
-    refetchOnWindowFocus: false,
-    retry: 1,
-  });
-
+  // AI Assessment mutation
   const assessmentMutation = useMutation({
     mutationFn: async () => {
+      // First fetch fresh threat data directly
       let currentThreatData = null;
       try {
         const threatResponse = await fetch('/api/threat-detection', {
@@ -204,18 +141,20 @@ export default function AIWeatherAssistant({
         
         if (threatResponse.ok) {
           currentThreatData = await threatResponse.json();
+          console.log('AI Assessment: Fresh threat data fetched for AI analysis');
         }
       } catch (error) {
         console.log('AI Assessment: Could not fetch threat data:', error);
       }
       
+      // Optimize payload by sending only essential storm data
       const optimizedStorms = storms.slice(0, 200).map(storm => ({
         lat: storm.lat,
         lon: storm.lon,
         intensity: storm.intensity,
         distance: storm.distance,
         direction: storm.direction,
-        type: storm.type,
+        category: storm.category,
         movement: storm.movement ? {
           direction: storm.movement.direction,
           speed: storm.movement.speed,
@@ -224,34 +163,32 @@ export default function AIWeatherAssistant({
         } : null
       }));
       
-      const nwsForecastSummary = nwsForecast?.slice(0, 6).map(p => ({
-        name: p.name,
-        temperature: p.temperature,
-        temperatureUnit: p.temperatureUnit,
-        windSpeed: p.windSpeed,
-        shortForecast: p.shortForecast,
-        detailedForecast: p.detailedForecast?.slice(0, 300)
-      })) || null;
-
       const response = await apiRequest("POST", "/api/ai-assessment", {
         userLocation,
         storms: optimizedStorms,
         stormCount: storms.length,
         winds,
         radarSource,
-        includeAlerts: true,
+        includeAlerts: true, // Enhanced to include alert analysis
         lightningCount,
         useMetric,
         threatData: currentThreatData,
-        userSettings: { aiTone },
-        nwsForecast: nwsForecastSummary
+        userSettings: {
+          aiTone,
+          detailLevel: userSettings?.detailLevel || 'standard',
+          includeHumor: userSettings?.includeHumor || false,
+          simplifiedLanguage: userSettings?.simplifiedLanguage || false,
+          preferredLanguage: userSettings?.preferredLanguage || language
+        }
       });
       return response.json();
     },
   });
 
+  // Chat mutation for conversational questions
   const chatMutation = useMutation({
     mutationFn: async (question: string) => {
+      // Include real-time storm data in chat context
       const optimizedStorms = storms.slice(0, 50).map(storm => ({
         lat: storm.lat,
         lon: storm.lon,
@@ -261,30 +198,26 @@ export default function AIWeatherAssistant({
         category: storm.category
       }));
       
-      const nwsForecastSummary = nwsForecast?.slice(0, 4).map(p => ({
-        name: p.name,
-        shortForecast: p.shortForecast,
-        temperature: p.temperature,
-        temperatureUnit: p.temperatureUnit,
-        windSpeed: p.windSpeed
-      })) || null;
-
       const response = await apiRequest("POST", "/api/ai-chat", {
         question,
         userLocation,
         useMetric,
         storms: optimizedStorms,
         stormCount: storms.length,
-        nwsForecast: nwsForecastSummary
+        preferredLanguage: userSettings?.preferredLanguage || language,
+        simplifiedLanguage: userSettings?.simplifiedLanguage || false
       });
       const result = await response.json();
+      console.log('Chat API response with live storm data:', result);
       return result as { response: string; contextUsed: any };
     },
     onSuccess: (data) => {
+      console.log('Chat response data:', data);
       setChatResponse(data.response);
     }
   });
 
+  // Handle chat form submission
   const handleChatSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (chatQuestion.trim()) {
@@ -293,6 +226,7 @@ export default function AIWeatherAssistant({
     }
   };
 
+  // Start/Stop monitoring functionality
   const handleStartMonitoring = () => {
     setIsMonitoring(true);
     setLastCheck(new Date());
@@ -308,21 +242,25 @@ export default function AIWeatherAssistant({
     refetchThreats();
   };
 
+  // Auto-monitor every 10 minutes when monitoring is active
   useEffect(() => {
     if (!isMonitoring) return;
     
     const interval = setInterval(() => {
       setLastCheck(new Date());
       refetchThreats();
-    }, 10 * 60 * 1000);
+    }, 10 * 60 * 1000); // 10 minutes
     
     return () => clearInterval(interval);
   }, [isMonitoring, refetchThreats]);
 
+  // Loading timer and data readiness logic
   useEffect(() => {
+    // Reset timer when location changes
     setIsDataReady(false);
     setLoadingTimer(5);
     
+    // Start countdown timer
     const timer = setInterval(() => {
       setLoadingTimer(prev => {
         if (prev <= 1) {
@@ -337,8 +275,10 @@ export default function AIWeatherAssistant({
     return () => clearInterval(timer);
   }, [userLocation.lat, userLocation.lon]);
 
+  // Check if storms have loaded and enable early if ready
   useEffect(() => {
     if (storms && storms.length >= 0 && winds && winds.length >= 0 && aviationData) {
+      // Data is ready - enable early if timer is under 2 seconds
       if (loadingTimer <= 2) {
         setIsDataReady(true);
         setLoadingTimer(0);
@@ -368,54 +308,32 @@ export default function AIWeatherAssistant({
     }
   };
 
-  const summarySections = summaryData?.summary ? parseSections(summaryData.summary) : [];
-  const condensedSections = summarySections.slice(0, 3);
-  const remainingSections = summarySections.slice(3);
-  const summaryProviderLabel = summaryData?.provider === 'openrouter' ? 'OpenRouter' : summaryData?.provider === 'groq' ? 'Groq' : 'OpenAI';
-  const summaryProviderColor = summaryData?.free ? 'text-green-400' : 'text-amber-400';
-  const dataPointCount = summaryData?.dataPointsUsed ? Object.values(summaryData.dataPointsUsed).filter(v => v && v !== 0).length : 0;
-
   return (
     <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-600">
       <CardHeader>
-        <CardTitle className="text-white cursor-pointer" onClick={() => setCardCollapsed(!cardCollapsed)}>
+        <CardTitle className="text-white">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="flex items-center gap-2">
               <Brain className="w-5 h-5 text-blue-400" />
-              AI Weather Assistant
-              {cardCollapsed ? (
-                <ChevronDown className="w-4 h-4 text-slate-400" />
-              ) : (
-                <ChevronUp className="w-4 h-4 text-slate-400" />
-              )}
+              {t.aiWeatherAssistant}
               {isMonitoring && (
                 <Badge variant="default" className="bg-green-100 text-green-800 text-xs">
-                  Monitoring
+                  {t.monitoring}
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-1 flex-wrap">
-              {assessment && (
-                <Badge className={`w-fit ${getRiskColor(assessment.riskLevel)}`}>
-                  {getRiskIcon(assessment.riskLevel)}
-                  {assessment.riskLevel.toUpperCase()} RISK
-                </Badge>
-              )}
-              {summaryData && (
-                <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400">
-                  <Cpu className="w-3 h-3 mr-1" />
-                  <span className={summaryProviderColor}>{summaryProviderLabel}</span>
-                  {summaryData.free && <Zap className="w-3 h-3 ml-1 text-green-400" />}
-                </Badge>
-              )}
-            </div>
+            {assessment && (
+              <Badge className={`w-fit ${getRiskColor(assessment.riskLevel)}`}>
+                {getRiskIcon(assessment.riskLevel)}
+                {assessment.riskLevel.toUpperCase()} RISK
+              </Badge>
+            )}
           </div>
         </CardTitle>
-        {!cardCollapsed && (
-        <>
         <div className="flex flex-col sm:flex-row gap-2 mt-2">
+          {/* AI Tone Selector */}
           <div className="flex items-center gap-1 px-2 py-1 bg-slate-700/50 border border-slate-600 rounded-md">
-            <span className="text-xs text-slate-400 mr-1">Tone:</span>
+            <span className="text-xs text-slate-400 mr-1">{t.tone}:</span>
             <button
               onClick={() => setAiTone('professional')}
               className={`px-2 py-0.5 text-xs rounded transition-colors ${
@@ -423,9 +341,8 @@ export default function AIWeatherAssistant({
                   ? 'bg-blue-600 text-white' 
                   : 'text-slate-400 hover:text-white hover:bg-slate-600'
               }`}
-              title="Professional meteorological tone"
             >
-              📊 Pro
+              📊 {t.professional}
             </button>
             <button
               onClick={() => setAiTone('friendly')}
@@ -434,9 +351,8 @@ export default function AIWeatherAssistant({
                   ? 'bg-green-600 text-white' 
                   : 'text-slate-400 hover:text-white hover:bg-slate-600'
               }`}
-              title="Friendly conversational tone"
             >
-              😊 Friendly
+              😊 {t.friendly}
             </button>
             <button
               onClick={() => setAiTone('humorous')}
@@ -445,9 +361,8 @@ export default function AIWeatherAssistant({
                   ? 'bg-purple-600 text-white' 
                   : 'text-slate-400 hover:text-white hover:bg-slate-600'
               }`}
-              title="Fun Carrot Weather style"
             >
-              😄 Fun
+              😄 {t.fun}
             </button>
           </div>
           <Button
@@ -460,10 +375,10 @@ export default function AIWeatherAssistant({
             className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:flex-1"
           >
             {assessmentMutation.isPending 
-              ? 'Analyzing...' 
+              ? t.analyzing 
               : !isDataReady 
-                ? `Loading data... (${loadingTimer}s)`
-                : 'Analyze Weather & Alerts'
+                ? `${t.loadingDataTimer} (${loadingTimer}s)`
+                : t.analyzeWeather
             }
           </Button>
           {isMonitoring ? (
@@ -473,7 +388,7 @@ export default function AIWeatherAssistant({
               variant="destructive"
               className="w-full sm:flex-1"
             >
-              Stop Monitoring
+              {t.stopMonitoring}
             </Button>
           ) : (
             <Button
@@ -482,131 +397,42 @@ export default function AIWeatherAssistant({
               size="sm"
               className="bg-green-600 hover:bg-green-700 text-white w-full sm:flex-1"
             >
-              Start Monitoring
+              {t.startMonitoring}
             </Button>
           )}
         </div>
         {lastCheck && (
           <p className="text-xs text-slate-400 mt-1">
-            Last check: {lastCheck.toLocaleTimeString()}
+            {t.lastCheck}: {lastCheck.toLocaleTimeString()}
           </p>
         )}
-        </>
-        )}
       </CardHeader>
-      {!cardCollapsed && (
       <CardContent className="space-y-4">
-        {/* === WEATHER BRIEFING SECTION === */}
-        <div className="border border-cyan-500/20 rounded-lg bg-slate-900/50 p-3">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-semibold text-cyan-400 flex items-center gap-2">
-              <BookOpen className="w-4 h-4" />
-              Weather Briefing
-            </h4>
-            <div className="flex items-center gap-2">
-              {dataPointCount > 0 && (
-                <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400">
-                  {dataPointCount} sources
-                </Badge>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 text-slate-400 hover:text-cyan-400"
-                onClick={() => refetchSummary()}
-                disabled={summaryFetching}
-              >
-                <RefreshCw className={`w-3 h-3 ${summaryFetching ? 'animate-spin' : ''}`} />
-              </Button>
-            </div>
-          </div>
-
-          {summaryLoading && (
-            <div className="space-y-2">
-              <div className="h-3 bg-slate-700 rounded animate-pulse w-full" />
-              <div className="h-3 bg-slate-700 rounded animate-pulse w-5/6" />
-              <div className="h-3 bg-slate-700 rounded animate-pulse w-4/6" />
-              <div className="h-3 bg-slate-700 rounded animate-pulse w-full" />
-              <div className="h-3 bg-slate-700 rounded animate-pulse w-3/6" />
-            </div>
-          )}
-
-          {!summaryLoading && !summaryData?.summary && (
-            <p className="text-slate-400 text-sm">Weather briefing will generate automatically...</p>
-          )}
-
-          {!summaryLoading && summarySections.length > 0 && (
-            <div className="space-y-3">
-              {condensedSections.map((section, i) => (
-                <div key={i}>
-                  <h5 className={`text-xs font-semibold uppercase tracking-wider mb-1 ${getTitleColor(section.title)}`}>
-                    {section.title}
-                  </h5>
-                  <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
-                    {section.content}
-                  </p>
-                </div>
-              ))}
-
-              {remainingSections.length > 0 && (
-                <>
-                  {briefingExpanded && remainingSections.map((section, i) => (
-                    <div key={`exp-${i}`}>
-                      <h5 className={`text-xs font-semibold uppercase tracking-wider mb-1 ${getTitleColor(section.title)}`}>
-                        {section.title}
-                      </h5>
-                      <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
-                        {section.content}
-                      </p>
-                    </div>
-                  ))}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-cyan-400 hover:text-cyan-300 hover:bg-slate-800/50 text-xs"
-                    onClick={() => setBriefingExpanded(!briefingExpanded)}
-                  >
-                    {briefingExpanded ? (
-                      <>Show Less <ChevronUp className="w-3 h-3 ml-1" /></>
-                    ) : (
-                      <>Show Full Briefing ({remainingSections.length} more sections) <ChevronDown className="w-3 h-3 ml-1" /></>
-                    )}
-                  </Button>
-                </>
-              )}
-
-              {summaryData?.timestamp && (
-                <div className="text-[10px] text-slate-500 text-right">
-                  {new Date(summaryData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  {' · '}{summaryData.model}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <Separator className="bg-slate-600" />
-
-        {/* === THREAT DETECTION STATUS === */}
+        {/* Threat Detection Status */}
         {threatData && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm border-b border-slate-600 pb-4">
             <div className="text-center">
               <div className="font-semibold text-lg text-white">{threatData.threatCount}</div>
-              <div className="text-slate-400">Active Threats</div>
+              <div className="text-slate-400">{t.activeThreats}</div>
             </div>
             <div className="text-center">
               <div className="font-semibold text-lg text-white">{threatData.alertsGenerated}</div>
-              <div className="text-slate-400">Alerts Sent</div>
+              <div className="text-slate-400">{t.alertsSent}</div>
             </div>
             <div className="text-center">
-              <div className="font-semibold text-lg text-white">{threatData.weatherConditions.temperature.toFixed(1)}°F</div>
+              <div className="font-semibold text-lg text-white">
+                {Math.round(threatData.weatherConditions.temperature)}°F
+                <span className="text-slate-400 text-sm ml-1">
+                  ({Math.round(threatData.weatherConditions.temperature_c ?? ((threatData.weatherConditions.temperature - 32) * 5/9))}°C)
+                </span>
+              </div>
               <div className="text-slate-400">Temperature</div>
             </div>
             <div className="text-center">
               <div className="font-semibold text-lg">
                 {threatData.dataQuality.openweather_available ? '✅' : '⚠️'}
               </div>
-              <div className="text-slate-400">Data Status</div>
+              <div className="text-slate-400">{t.dataStatus}</div>
             </div>
           </div>
         )}
@@ -617,15 +443,15 @@ export default function AIWeatherAssistant({
               <div className="py-4">
                 <Clock className="w-6 h-6 animate-pulse mx-auto mb-2 text-blue-400" />
                 <p className="text-slate-300 mb-2">
-                  Loading storm data and weather information...
+                  {t.loadingStormData}
                 </p>
                 <p className="text-slate-400 text-sm">
-                  {loadingTimer > 0 ? `Ready in ${loadingTimer} seconds` : 'Almost ready...'}
+                  {loadingTimer > 0 ? `${t.ready} ${loadingTimer}s` : t.almostReady}
                 </p>
               </div>
             ) : (
               <p className="text-slate-300 mb-4">
-                Get comprehensive AI analysis of weather risks, storm threats, and active alerts/advisories
+                {t.getAIAnalysis}
               </p>
             )}
           </div>
@@ -642,10 +468,11 @@ export default function AIWeatherAssistant({
 
         {assessment && (
           <div className="space-y-4">
+            {/* Risk Summary */}
             <div>
               <h4 className="font-semibold mb-2 flex items-center gap-2 text-white">
                 {getRiskIcon(assessment.riskLevel)}
-                Risk Assessment
+                {t.riskAssessment}
               </h4>
               <p className="text-sm text-slate-200">{assessment.summary}</p>
               {assessment.timeToImpact && (
@@ -658,6 +485,7 @@ export default function AIWeatherAssistant({
 
             <Separator />
 
+            {/* Data Context */}
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-slate-400" />
@@ -682,6 +510,7 @@ export default function AIWeatherAssistant({
               <>
                 <Separator />
                 
+                {/* Detailed Analysis */}
                 <div>
                   <h4 className="font-semibold mb-2 text-white">Detailed Analysis</h4>
                   <p className="text-sm whitespace-pre-line text-slate-200">{assessment.detailedAnalysis}</p>
@@ -689,6 +518,7 @@ export default function AIWeatherAssistant({
 
                 <Separator className="bg-slate-600" />
 
+                {/* Recommendations */}
                 <div>
                   <h4 className="font-semibold mb-2 text-white">Safety Recommendations</h4>
                   <ul className="space-y-1">
@@ -703,6 +533,7 @@ export default function AIWeatherAssistant({
 
                 <Separator className="bg-slate-600" />
 
+                {/* Confidence & Refresh */}
                 <div className="flex items-center justify-between">
                   <div className="text-xs text-slate-400">
                     Confidence: {Math.round(assessment.confidence * 100)}%
@@ -720,22 +551,24 @@ export default function AIWeatherAssistant({
               </>
             )}
 
+            {/* Toggle Details */}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setIsExpanded(!isExpanded)}
               className="w-full text-slate-200 hover:bg-slate-700"
             >
-              {isExpanded ? 'Show Less' : 'Show Detailed Analysis'}
+              {isExpanded ? t.showLess : t.showDetailedAnalysis}
             </Button>
 
             <Separator />
 
+            {/* Chat Interface */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-semibold text-white flex items-center gap-2">
                   <MessageCircle className="w-4 h-4" />
-                  Ask Weather Questions
+                  {t.askWeatherQuestions}
                 </h4>
                 <Button
                   variant="ghost"
@@ -743,12 +576,13 @@ export default function AIWeatherAssistant({
                   onClick={() => setShowChatMode(!showChatMode)}
                   className="text-xs text-slate-300 hover:bg-slate-700"
                 >
-                  {showChatMode ? 'Hide Chat' : 'Show Chat'}
+                  {showChatMode ? t.hideChat : t.showChat}
                 </Button>
               </div>
 
               {showChatMode && (
                 <div className="space-y-3">
+                  {/* Quick Questions */}
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       "What's the temperature?",
@@ -772,11 +606,12 @@ export default function AIWeatherAssistant({
                     ))}
                   </div>
 
+                  {/* Chat Input */}
                   <form onSubmit={handleChatSubmit} className="flex gap-2">
                     <Input
                       value={chatQuestion}
                       onChange={(e) => setChatQuestion(e.target.value)}
-                      placeholder="Ask about weather conditions..."
+                      placeholder={t.chatPlaceholder}
                       disabled={chatMutation.isPending}
                       className="bg-slate-800 border-slate-600 text-slate-200 placeholder-slate-400"
                     />
@@ -790,10 +625,11 @@ export default function AIWeatherAssistant({
                     </Button>
                   </form>
 
+                  {/* Chat Response */}
                   {chatMutation.isPending && (
                     <div className="flex items-center gap-2 text-sm text-slate-400">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-400"></div>
-                      Analyzing weather data...
+                      {t.analyzing}
                     </div>
                   )}
 
@@ -831,7 +667,6 @@ export default function AIWeatherAssistant({
           </div>
         )}
       </CardContent>
-      )}
     </Card>
   );
 }

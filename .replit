@@ -15,6 +15,14 @@ run = ["npm", "run", "start"]
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 5173
+externalPort = 5173
+
+[[ports]]
+localPort = 5174
+externalPort = 3001
+
 [env]
 PORT = "5000"
 
@@ -36,13 +44,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run dev"
+args = "npm run dev:server"
 waitForPort = 5000
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [agent]
-integrations = ["github:1.0.0", "javascript_log_in_with_replit:2.0.0"]
+integrations = ["github:1.0.0"]
 
-[userenv]
-
-[userenv.shared]
-WEATHERAPI_KEY = "7b546adb612c48018bc55154261503"
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000

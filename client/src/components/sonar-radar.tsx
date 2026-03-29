@@ -35,6 +35,17 @@ interface SonarRadarProps {
   useMetric: boolean;
   onStormClick?: (storm: Storm) => void;
   className?: string;
+  showLightning?: boolean;
+}
+
+function getLightningCount(dbz: number): number {
+  if (dbz < 40) return 0;
+  const rand = Math.random();
+  if (dbz >= 60) return 3 + Math.floor(rand * 5);
+  if (dbz >= 55) return 2 + Math.floor(rand * 4);
+  if (dbz >= 50) return 1 + Math.floor(rand * 3);
+  if (dbz >= 45) return 1 + Math.floor(rand * 2);
+  return rand > 0.4 ? 1 : 0;
 }
 
 export default function SonarRadar({
@@ -45,6 +56,7 @@ export default function SonarRadar({
   useMetric,
   onStormClick,
   className = "",
+  showLightning = true,
 }: SonarRadarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -86,12 +98,13 @@ export default function SonarRadar({
 
     const W = canvas.clientWidth;
     const H = canvas.clientHeight;
+    if (W < 10 || H < 10) return;
     const cx = W / 2;
     const cy = H / 2;
 
-    // Storm field radius — leave room for compass ring outside it
-    const compassRingR = Math.min(cx, cy) - 8;   // outer compass ring, near canvas edge
-    const maxRadius = compassRingR - 22;           // storm field ends here
+    const compassRingR = Math.min(cx, cy) - 8;
+    const maxRadius = compassRingR - 22;
+    if (maxRadius < 5) return;
 
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -178,6 +191,36 @@ export default function SonarRadar({
       }
       ctx.globalAlpha = 1;
     });
+
+    // ── Lightning ⚡ overlay on cells ≥40 dBZ ──────────────────────────────────
+    if (showLightning) {
+      sorted.forEach(storm => {
+        const count = getLightningCount(storm.intensity);
+        if (count === 0 || storm.distance > radarRange) return;
+        const r = ((storm.direction - 90) * Math.PI) / 180;
+        const dist = (storm.distance / radarRange) * maxRadius;
+        const sx = cx + Math.cos(r) * dist;
+        const sy = cy + Math.sin(r) * dist;
+        const sz = getStormSize(storm.intensity);
+
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = '#ffd700';
+        ctx.font = `${Math.max(8, sz)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 4;
+        ctx.fillText('⚡', sx, sy - sz - 2);
+        if (count > 1) {
+          ctx.font = 'bold 7px sans-serif';
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowBlur = 0;
+          ctx.fillText(`×${count}`, sx + sz * 0.6, sy - sz - 2);
+        }
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      });
+    }
 
     // ── Center dot (user) ─────────────────────────────────────────────────────
     ctx.fillStyle = '#3b82f6'; ctx.shadowColor = '#3b82f6'; ctx.shadowBlur = 10;
@@ -270,7 +313,7 @@ export default function SonarRadar({
       ctx.arc(dotX, dotY, 2.5, 0, 2 * Math.PI);
       ctx.fill();
     }
-  }, [sweepAngle, storms, selectedStorm, hoveredStorm, radarRange, useMetric, isScanning]);
+  }, [sweepAngle, storms, selectedStorm, hoveredStorm, radarRange, useMetric, isScanning, showLightning, location]);
 
   const getStormAtPoint = (px: number, py: number, canvas: HTMLCanvasElement) => {
     const W = canvas.clientWidth;
@@ -323,6 +366,7 @@ export default function SonarRadar({
     const resize = () => {
       const wr = wrapper.getBoundingClientRect();
       // Fill card width, cap height to keep sonar card compact on phones
+      if (wr.width < 10) return;
       const size = Math.max(Math.min(wr.width, window.innerHeight * 0.35), 60);
       const dpr = window.devicePixelRatio || 1;
       canvas.width = size * dpr;
@@ -400,13 +444,22 @@ export default function SonarRadar({
               <span className="text-slate-300">{l}</span>
             </div>
           ))}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] shrink-0">⚡</span>
+            <span className="text-slate-300">Lightning</span>
+          </div>
         </div>
+        {showLightning && storms.some(s => s.intensity >= 40) && (
+          <p className="text-[9px] text-slate-500 italic">⚡ Lightning is radar-derived (approximate, not observed)</p>
+        )}
 
         {/* Storm count + nearest storm + movement */}
         <div className="space-y-1 text-xs">
           <div className="flex items-center justify-between">
             <span className="text-slate-400">
-              {storms.length > 0 ? `${storms.length} storm${storms.length !== 1 ? 's' : ''} within ${formatDistance(radarRange)}` : 'No storms detected'}
+              {storms.length > 0 ? `${storms.length} storm${storms.length !== 1 ? 's' : ''}` : 'No storms'}
+              {showLightning && storms.some(s => s.intensity >= 40) ? ` · ⚡${storms.filter(s => s.intensity >= 40).length}` : ''}
+              {` within ${formatDistance(radarRange)}`}
             </span>
             {dominantWind && dominantWind.speed > 2 && (
               <span className="text-amber-400/90 font-medium">

@@ -20,6 +20,25 @@ interface Storm {
   detectedAt?: number; // Timestamp for age-based coloring
 }
 
+interface NWSAlertWithGeometry {
+  id: string;
+  type: string;
+  severity: string;
+  urgency: string;
+  certainty: string;
+  headline: string;
+  description: string;
+  instruction?: string;
+  areas: string;
+  effective: string;
+  expires: string;
+  senderName: string;
+  geometry: {
+    type: string;
+    coordinates: number[][][];
+  } | null;
+}
+
 interface StormMapProps {
   location: Location;
   storms: Storm[];
@@ -41,6 +60,18 @@ interface StormMapProps {
   showAllStormTracks?: boolean;
   showTimeLabels?: boolean;
   onMapInstanceReady?: (mapInstance: any) => void;
+  showLightning?: boolean;
+  nwsAlerts?: NWSAlertWithGeometry[];
+}
+
+function getLightningCount(dbz: number): number {
+  if (dbz < 40) return 0;
+  const rand = Math.random();
+  if (dbz >= 60) return 3 + Math.floor(rand * 5);
+  if (dbz >= 55) return 2 + Math.floor(rand * 4);
+  if (dbz >= 50) return 1 + Math.floor(rand * 3);
+  if (dbz >= 45) return 1 + Math.floor(rand * 2);
+  return rand > 0.4 ? 1 : 0;
 }
 
 declare global {
@@ -49,7 +80,7 @@ declare global {
   }
 }
 
-export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks, showTimeLabels = true, onMapInstanceReady }: StormMapProps) {
+export default function StormMap({ location, storms, radarRange, formatDistance, formatSpeed, stormFilters: externalStormFilters, onRadarSourceChange, radarSource: externalRadarSource, isDisabled, alertPreferences, showAllStormTracks: externalShowAllStormTracks, showTimeLabels = true, onMapInstanceReady, showLightning = true, nwsAlerts = [] }: StormMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const radarLayerRef = useRef<any>(null);
@@ -67,6 +98,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const [nexradSite, setNexradSite] = useState<string>('');
   const animationIntervalRef = useRef<NodeJS.Timeout>();
   const animationSpeedRef = useRef<number>(800); // ms between frames
+  const nexradLayerTimeoutRef = useRef<NodeJS.Timeout>();
   const [sectorDbzData, setSectorDbzData] = useState<{[key: string]: number}>({});
   
   // Auto-sampling state
@@ -120,6 +152,10 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   const stormConeLayerRef = useRef<any>(null);
   const allStormConesLayerRef = useRef<any>(null);
   
+  // NWS alert polygon overlay state
+  const [showAlertPolygons, setShowAlertPolygons] = useState(true);
+  const alertPolygonLayerRef = useRef<any>(null);
+
   // Authentic precipitation storms from backend API
   const [precipitationStorms, setPrecipitationStorms] = useState<any[]>([]);
 
@@ -201,47 +237,71 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
   // Initialize radar frames based on source
   useEffect(() => {
+    // Cancel any pending NEXRAD layer timeout from previous source
+    if (nexradLayerTimeoutRef.current) {
+      clearTimeout(nexradLayerTimeoutRef.current);
+      nexradLayerTimeoutRef.current = undefined;
+    }
+    
+    // Clear existing radar layer and frames immediately to prevent stale rendering
+    if (radarLayerRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeLayer(radarLayerRef.current);
+      radarLayerRef.current = null;
+    }
+    setRadarFrames([]);
+    setCurrentFrameIndex(-1);
+    
+    // Stop any running animation
+    if (animationIntervalRef.current) {
+      clearInterval(animationIntervalRef.current);
+      animationIntervalRef.current = undefined;
+      setIsAnimating(false);
+    }
+    
+    let cancelled = false;
+    
     const loadRadarFrames = async () => {
       if (radarSource === 'rainviewer') {
         try {
           const response = await fetch('/api/rainviewer');
+          if (cancelled) return;
           const data = await response.json();
+          if (cancelled) return;
           if (data.radar && data.radar.past) {
             const frames = data.radar.past.map((frame: any) => frame.time);
             setRadarFrames(frames);
             setCurrentFrame(Math.max(0, frames.length - 1));
-            setCurrentFrameIndex(frames.length - 1); // Start with most recent frame
+            setCurrentFrameIndex(frames.length - 1);
             
             console.log(`Loaded ${frames.length} radar frames for animation`);
           }
         } catch (error) {
+          if (cancelled) return;
           console.error('Failed to load RainViewer frames:', error);
-          // Fallback to NEXRAD
-          setRadarSource('nexrad');
         }
       } else {
-        // For NEXRAD, use static current radar display
         try {
           if (!location) {
             console.log('NEXRAD: Waiting for location...');
-            return; // Wait for location before loading NEXRAD
+            return;
           }
           
-          // Find nearest radar site for proper attribution
           const nearbyResponse = await fetch('/api/nexrad/nearby', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ lat: location.lat, lon: location.lon })
           });
           
+          if (cancelled) return;
+          
           if (!nearbyResponse.ok) {
             throw new Error('Failed to find nearby radar');
           }
           
           const { site } = await nearbyResponse.json();
+          if (cancelled) return;
           setNexradSite(site);
           
-          // Use static current NEXRAD radar (no animation)
           const frames = ['current'];
           setRadarFrames(frames);
           setCurrentFrame(0);
@@ -249,48 +309,44 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           
           console.log(`NEXRAD: Using static current radar for site ${site}`);
           
-          // Immediately load the radar layer for better initial display
-          setTimeout(() => {
-            if (mapInstanceRef.current && window.L) {
-              const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
-              
-              // Remove existing radar layer
-              if (radarLayerRef.current) {
-                mapInstanceRef.current.removeLayer(radarLayerRef.current);
-              }
-              
-              // Add NEXRAD layer immediately
-              radarLayerRef.current = window.L.tileLayer(nexradUrl, {
-                opacity: 0.7,
-                zIndex: 200,
-                attribution: `NEXRAD (${site})`,
-                updateWhenIdle: true,
-                updateWhenZooming: false,
-                // Force reload to ensure fresh tiles
-                updateInterval: 0
-              });
-              
-              radarLayerRef.current.addTo(mapInstanceRef.current);
-              console.log(`NEXRAD radar layer loaded for site ${site}`);
-              
-              // Give additional time for tiles to load before enabling sampling
-              setTimeout(() => {
-                console.log('NEXRAD radar tiles should be loaded now');
-              }, 1000);
+          nexradLayerTimeoutRef.current = setTimeout(() => {
+            if (cancelled || !mapInstanceRef.current || !window.L) return;
+            const nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
+            
+            if (radarLayerRef.current) {
+              mapInstanceRef.current.removeLayer(radarLayerRef.current);
             }
-          }, 1000); // Increased delay to 1 second for slower connections
+            
+            radarLayerRef.current = window.L.tileLayer(nexradUrl, {
+              opacity: 0.7,
+              zIndex: 200,
+              attribution: `NEXRAD (${site})`,
+              updateWhenIdle: true,
+              updateWhenZooming: false,
+              updateInterval: 0
+            });
+            
+            radarLayerRef.current.addTo(mapInstanceRef.current);
+            console.log(`NEXRAD radar layer loaded for site ${site}`);
+          }, 1000);
           
         } catch (error) {
+          if (cancelled) return;
           console.error('Failed to load NEXRAD radar:', error);
-          // Fall back to RainViewer
-          console.log('Switching to RainViewer due to NEXRAD issues');
-          setRadarSource('rainviewer');
         }
       }
     };
 
     loadRadarFrames();
-  }, [radarSource, location]); // Added location dependency
+    
+    return () => {
+      cancelled = true;
+      if (nexradLayerTimeoutRef.current) {
+        clearTimeout(nexradLayerTimeoutRef.current);
+        nexradLayerTimeoutRef.current = undefined;
+      }
+    };
+  }, [radarSource, location]);
 
   // Animation functions
   const startAnimation = () => {
@@ -329,53 +385,56 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
 
   // Update radar display when animation frame changes
   useEffect(() => {
-    if (currentFrameIndex >= 0 && radarFrames[currentFrameIndex]) {
-      const timestamp = radarFrames[currentFrameIndex];
-      // Load radar layer for this frame
-      if (radarLayerRef.current && mapInstanceRef.current) {
-        mapInstanceRef.current.removeLayer(radarLayerRef.current);
-        radarLayerRef.current = null;
-      }
-      
-      // Load new radar layer for this timestamp
-      const map = mapInstanceRef.current;
-      if (map && window.L) {
-        if (radarSource === 'rainviewer') {
-          const tileUrlTemplate = `/api/rainviewer/tile/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`;
-          radarLayerRef.current = window.L.tileLayer(tileUrlTemplate, {
-            opacity: 0.6,
-            zIndex: 200,
-            attribution: 'RainViewer'
-          });
+    if (currentFrameIndex < 0 || !radarFrames[currentFrameIndex] || radarFrames.length === 0) return;
+    
+    const timestamp = radarFrames[currentFrameIndex];
+    
+    // Validate: don't render RainViewer tiles with NEXRAD frames or vice versa
+    if (radarSource === 'rainviewer' && timestamp === 'current') return;
+    if (radarSource !== 'rainviewer' && typeof timestamp === 'number' && timestamp > 1000000000) return;
+    
+    // Load radar layer for this frame
+    if (radarLayerRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeLayer(radarLayerRef.current);
+      radarLayerRef.current = null;
+    }
+    
+    const map = mapInstanceRef.current;
+    if (map && window.L) {
+      if (radarSource === 'rainviewer') {
+        const tileUrlTemplate = `/api/rainviewer/tile/${timestamp}/256/{z}/{x}/{y}/2/1_1.png`;
+        radarLayerRef.current = window.L.tileLayer(tileUrlTemplate, {
+          opacity: 0.6,
+          zIndex: 200,
+          attribution: 'RainViewer',
+          maxNativeZoom: 7,
+          maxZoom: 18,
+          errorTileUrl: ''
+        });
+      } else {
+        const timestampStr = String(timestamp);
+        let nexradUrl;
+        
+        if (timestampStr.startsWith('current') || !nexradSite) {
+          nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
         } else {
-          // NEXRAD: Use RIDGE API for site-specific historical data
-          const timestampStr = String(timestamp);
-          let nexradUrl;
-          
-          if (timestampStr.startsWith('current') || !nexradSite) {
-            // Fallback to current composite radar
-            nexradUrl = `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`;
-          } else {
-            // Use RIDGE API for historical site-specific data
-            nexradUrl = `/api/nexrad/tile/${nexradSite}/${timestamp}/{z}/{x}/{y}.png`;
-          }
-          
-          radarLayerRef.current = window.L.tileLayer(nexradUrl, {
-            opacity: 0.7,
-            zIndex: 200,
-            attribution: `NEXRAD ${nexradSite ? `(${nexradSite})` : ''}`,
-            updateWhenIdle: true,
-            updateWhenZooming: false
-          });
+          nexradUrl = `/api/nexrad/tile/${nexradSite}/${timestamp}/{z}/{x}/{y}.png`;
         }
         
-        radarLayerRef.current.addTo(map);
+        radarLayerRef.current = window.L.tileLayer(nexradUrl, {
+          opacity: 0.7,
+          zIndex: 200,
+          attribution: `NEXRAD ${nexradSite ? `(${nexradSite})` : ''}`,
+          updateWhenIdle: true,
+          updateWhenZooming: false
+        });
       }
       
-      // Sample precipitation data for this frame only when not animating
-      if (!isAnimating) {
-        setTimeout(() => sampleRadarDbz(), 1000);
-      }
+      radarLayerRef.current.addTo(map);
+    }
+    
+    if (!isAnimating) {
+      setTimeout(() => sampleRadarDbz(), 1000);
     }
   }, [currentFrameIndex, radarFrames, radarSource]);
 
@@ -383,6 +442,12 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
   useEffect(() => {
     // Only trigger if we have a map and location
     if (!mapInstanceRef.current || !location) return;
+    
+    // Clear existing radar layer immediately to prevent ghost tiles
+    if (radarLayerRef.current && mapInstanceRef.current) {
+      mapInstanceRef.current.removeLayer(radarLayerRef.current);
+      radarLayerRef.current = null;
+    }
     
     // Clear existing waypoints when switching sources
     setPrecipitationPoints([]);
@@ -398,7 +463,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     const refreshTimer = setTimeout(() => {
       console.log(`Radar source switched to ${radarSource.toUpperCase()} - sampling precipitation data`);
       sampleRadarDbz();
-    }, 1500); // Give time for radar tiles to load
+    }, 2000);
     
     return () => clearTimeout(refreshTimer);
   }, [radarSource]);
@@ -597,6 +662,90 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       addSectorGrid();
     }
   }, [location, radarRange, showSectorGrid]);
+
+  const getAlertPolygonColor = (eventType: string): string => {
+    const type = (eventType || '').toLowerCase();
+    if (type.includes('tornado')) return '#DC2626';
+    if (type.includes('severe thunderstorm')) return '#F97316';
+    if (type.includes('flash flood') || type.includes('flood')) return '#3B82F6';
+    if (type.includes('hurricane') || type.includes('typhoon') || type.includes('tropical storm')) return '#9333EA';
+    if (type.includes('winter storm') || type.includes('blizzard') || type.includes('ice storm')) return '#06B6D4';
+    if (type.includes('fire') || type.includes('red flag')) return '#B91C1C';
+    if (type.includes('watch')) return '#EAB308';
+    if (type.includes('warning')) return '#F97316';
+    if (type.includes('advisory')) return '#A3E635';
+    return '#F59E0B';
+  };
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.L) return;
+
+    if (alertPolygonLayerRef.current) {
+      map.removeLayer(alertPolygonLayerRef.current);
+      alertPolygonLayerRef.current = null;
+    }
+
+    if (!showAlertPolygons || !nwsAlerts || nwsAlerts.length === 0) return;
+
+    const alertsWithGeometry = nwsAlerts.filter(a => a.geometry && a.geometry.coordinates && a.geometry.coordinates.length > 0);
+    if (alertsWithGeometry.length === 0) return;
+
+    const alertGroup = window.L.layerGroup();
+
+    alertsWithGeometry.forEach((alert) => {
+      const color = getAlertPolygonColor(alert.type);
+
+      try {
+        const geoJsonFeature = {
+          type: 'Feature' as const,
+          geometry: alert.geometry,
+          properties: {
+            headline: alert.headline,
+            event: alert.type,
+            severity: alert.severity,
+            expires: alert.expires
+          }
+        };
+
+        const layer = window.L.geoJSON(geoJsonFeature, {
+          style: {
+            color: color,
+            weight: 2,
+            opacity: 0.8,
+            fillColor: color,
+            fillOpacity: 0.2,
+            dashArray: '4,4'
+          },
+          onEachFeature: (_feature: any, layer: any) => {
+            const expiresStr = alert.expires
+              ? new Date(alert.expires).toLocaleString()
+              : 'Unknown';
+            const popupContent = `
+              <div style="max-width:280px;font-family:system-ui,sans-serif;">
+                <div style="font-weight:700;font-size:14px;color:${color};margin-bottom:4px;">${alert.type}</div>
+                <div style="font-size:12px;margin-bottom:6px;">${alert.headline}</div>
+                <div style="font-size:11px;color:#666;">
+                  <div><b>Severity:</b> ${alert.severity}</div>
+                  <div><b>Expires:</b> ${expiresStr}</div>
+                </div>
+              </div>
+            `;
+            layer.bindPopup(popupContent);
+          }
+        });
+
+        alertGroup.addLayer(layer);
+      } catch (e) {
+        console.warn('Failed to render alert polygon:', alert.type, e);
+      }
+    });
+
+    alertPolygonLayerRef.current = alertGroup;
+    alertGroup.addTo(map);
+
+    console.log(`Rendered ${alertsWithGeometry.length} NWS alert polygon(s) on map`);
+  }, [nwsAlerts, showAlertPolygons]);
 
   // Calculate distance between two lat/lon points in miles
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -1402,6 +1551,19 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
                       />
               `}
             </svg>
+            ${showLightning && getLightningCount(point.dbz) > 0 ? `
+              <div style="
+                position: absolute;
+                top: -6px;
+                right: -8px;
+                transform: rotate(${-(movementDirection || 0)}deg);
+                font-size: 11px;
+                line-height: 1;
+                filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.8));
+                pointer-events: none;
+                white-space: nowrap;
+              ">⚡${getLightningCount(point.dbz) > 1 ? `<span style="font-size:8px;color:#fff;font-weight:bold;">×${getLightningCount(point.dbz)}</span>` : ''}</div>
+            ` : ''}
           </div>
           
           <style>
@@ -1580,7 +1742,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
         addDbzWaypoints();
       }
     }
-  }, [precipitationPoints, showSectorGrid, location, stormFilters]);
+  }, [precipitationPoints, showSectorGrid, location, stormFilters, showLightning]);
 
 
 
@@ -1613,7 +1775,9 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
           opacity: 0.6,
           transparent: true,
           zIndex: 1000,
-          maxZoom: 12
+          maxNativeZoom: 7,
+          maxZoom: 18,
+          errorTileUrl: ''
         });
       } else {
         // NEXRAD radar overlay
@@ -1637,7 +1801,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       // Fallback to OpenWeatherMap
       radarLayerRef.current = window.L.tileLayer(
-        `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=49f87b43ad1ddba1821a5cdac7d6965e`,
+        `/api/owm-tile/{z}/{x}/{y}`,
         {
           opacity: 0.9,
           transparent: true,
@@ -2062,7 +2226,8 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     try {
       // Get map bounds and center
       const center = map.getCenter();
-      const zoom = map.getZoom();
+      const rawZoom = map.getZoom();
+      const zoom = Math.min(rawZoom, 7);
 
       // Calculate the 50-mile radius boundary
       const radiusInDegrees = 50 / 69.0; // 50 miles in degrees
@@ -2323,6 +2488,7 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
     return 'Live';
   };
 
+
   return (
     <div className="bg-slate-900/80 rounded-xl p-3 sm:p-4 border border-slate-600/50">
 
@@ -2355,6 +2521,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
             className="text-xs px-2"
           >
             {showSectorGrid ? "Hide" : "Show"} Grid
+          </Button>
+          <Button
+            onClick={() => setShowAlertPolygons(!showAlertPolygons)}
+            variant={showAlertPolygons ? "default" : "outline"}
+            size="sm"
+            className="text-xs px-2"
+          >
+            {showAlertPolygons ? "Hide" : "Show"} Alerts
           </Button>
 
           <Button
@@ -2389,6 +2563,14 @@ export default function StormMap({ location, storms, radarRange, formatDistance,
       
       <div className={`relative bg-slate-900 rounded-lg border border-slate-600 overflow-hidden h-[400px] md:h-[600px] lg:h-[700px] xl:h-[800px] z-0 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
         <div ref={mapRef} className="w-full h-full" style={{ zIndex: 0 }}></div>
+        
+        <div className="absolute inset-0 pointer-events-none z-[500] flex items-center justify-center">
+          <div className="relative w-8 h-8">
+            <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-cyan-400/60" />
+            <div className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-cyan-400/60" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full border border-cyan-400/80 bg-cyan-400/20" />
+          </div>
+        </div>
         
         {/* Disabled overlay */}
         {isDisabled && (

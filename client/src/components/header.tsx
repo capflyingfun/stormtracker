@@ -1,131 +1,85 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/use-auth";
-import { LogIn, LogOut, User } from "lucide-react";
+import { useLanguage } from "@/hooks/use-language";
+import { LANGUAGES, type Language } from "@/lib/i18n";
 
 interface HeaderProps {
   useMetric: boolean;
   onUnitsChange: (useMetric: boolean) => void;
+  onOpenSettings: () => void;
+  onOpenApiKeys?: () => void;
 }
 
-export default function Header({ useMetric, onUnitsChange }: HeaderProps) {
-  const [showConfig, setShowConfig] = useState(false);
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+export default function Header({ useMetric, onUnitsChange, onOpenSettings, onOpenApiKeys }: HeaderProps) {
+  const [showLangMenu, setShowLangMenu] = useState(false);
+  const { language, setLanguage, t } = useLanguage();
+  const currentLang = LANGUAGES.find(l => l.code === language);
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 p-4 select-none">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 text-yellow-400 select-none">⚡</div>
-          <div className="select-none">
-            <h1 className="text-2xl font-bold select-none">StormTracker <span className="text-sm font-normal text-slate-400">v1.32</span></h1>
-            <p className="text-sm text-slate-300 select-none">Real-time storm cell detection with live radar</p>
+    <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 p-3 sm:p-4 select-none relative z-[55]">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
+          <div className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400 select-none shrink-0">⚡</div>
+          <div className="select-none min-w-0">
+            <h1 className="text-lg sm:text-2xl font-bold select-none leading-tight">StormTracker <span className="text-xs sm:text-sm font-normal text-slate-400">v1.50</span></h1>
+            <p className="text-xs sm:text-sm text-slate-300 select-none truncate">{t.realTimeStorm}</p>
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-gray-400">
-            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
-            <span className="text-sm">Ready</span>
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setShowLangMenu(!showLangMenu); }}
+              className="px-1.5 sm:px-2 py-1 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 text-xs sm:text-sm max-w-[120px] sm:max-w-none"
+              title={t.language}
+            >
+              <span className="truncate">{currentLang?.flag} {currentLang?.nativeName}</span>
+            </Button>
+            {showLangMenu && (
+              <div className="absolute right-0 top-full mt-1 z-[60] bg-slate-800 border border-slate-600 rounded-lg shadow-xl py-1 min-w-[180px] max-h-[320px] overflow-y-auto">
+                {LANGUAGES.map(lang => (
+                  <button
+                    key={lang.code}
+                    onClick={() => { setLanguage(lang.code as Language); setShowLangMenu(false); }}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-700 flex items-center gap-2 ${language === lang.code ? 'bg-slate-700/60 text-blue-400' : 'text-slate-200'}`}
+                  >
+                    <span>{lang.flag}</span>
+                    <span>{lang.nativeName}</span>
+                    <span className="text-slate-400 text-xs ml-auto">{lang.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {!isLoading && (
-            isAuthenticated && user ? (
-              <div className="flex items-center gap-2">
-                {user.profileImageUrl ? (
-                  <img
-                    src={user.profileImageUrl}
-                    alt={user.firstName || "User"}
-                    className="w-7 h-7 rounded-full border border-slate-500"
-                  />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-slate-600 flex items-center justify-center">
-                    <User className="w-4 h-4 text-slate-300" />
-                  </div>
-                )}
-                <span className="text-sm text-slate-300 hidden sm:inline">
-                  {user.firstName || "User"}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => logout()}
-                  className="p-1.5 rounded-lg bg-slate-700/50 hover:bg-slate-600/50"
-                  title="Sign out"
-                >
-                  <LogOut className="w-4 h-4" />
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { window.location.href = "/api/login"; }}
-                className="p-2 rounded-lg bg-blue-600/30 hover:bg-blue-500/40 text-blue-300"
-              >
-                <LogIn className="w-4 h-4 mr-1.5" />
-                <span className="text-sm">Sign in</span>
-              </Button>
-            )
-          )}
+          <div className="hidden sm:flex items-center gap-1.5 text-gray-400">
+            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
+            <span className="text-sm">{t.ready}</span>
+          </div>
           
+          {onOpenApiKeys && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setShowLangMenu(false); onOpenApiKeys(); }}
+              className="p-1.5 sm:p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 shrink-0"
+              title="API Keys"
+            >
+              🔑
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setShowConfig(!showConfig)}
-            className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600/50"
+            onClick={() => { setShowLangMenu(false); onOpenSettings(); }}
+            className="p-1.5 sm:p-2 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 shrink-0"
           >
             ⚙️
           </Button>
         </div>
       </div>
-
-      {/* API Status Panel */}
-      {showConfig && (
-        <div className="mt-4 p-4 bg-slate-700/30 rounded-lg border border-slate-600/30 select-none">
-          <h3 className="text-lg font-semibold mb-3 select-none">Settings & API Status</h3>
-          
-          {/* Units Toggle */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-300 mb-2">Units</label>
-            <div className="flex gap-2">
-              <Button
-                variant={!useMetric ? "default" : "secondary"}
-                size="sm"
-                onClick={() => onUnitsChange(false)}
-              >
-                Imperial (mph, mi, in)
-              </Button>
-              <Button
-                variant={useMetric ? "default" : "secondary"}
-                size="sm"
-                onClick={() => onUnitsChange(true)}
-              >
-                Metric (km/h, km, mm)
-              </Button>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-400"></div>
-              <span>OpenWeather: Active</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-400"></div>
-              <span>NWS: Active</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-400"></div>
-              <span>RainViewer: Active</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-400"></div>
-              <span>Map: Active</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,8 +1,6 @@
-import { pgTable, text, serial, integer, boolean, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, real, varchar, numeric, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-
-export * from "./models/auth";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -131,32 +129,48 @@ export const alertSubscriptions = pgTable("alert_subscriptions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Storm feedback for self-correcting predictions
+export const stormFeedback = pgTable("storm_feedback", {
+  id: serial("id").primaryKey(),
+  lat: real("lat").notNull(),
+  lon: real("lon").notNull(),
+  predictedDbz: integer("predicted_dbz").notNull(),
+  predictedImpactPct: integer("predicted_impact_pct").notNull(),
+  predictedEtaMinutes: integer("predicted_eta_minutes"),
+  stormDirection: text("storm_direction"),
+  stormSpeed: real("storm_speed"),
+  feedback: text("feedback").notNull(), // 'yes', 'no', 'unsure'
+  recheckedStillActive: boolean("rechecked_still_active"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Built-in message inbox system for email/text alerts
 export const messageInbox = pgTable("message_inbox", {
   id: serial("id").primaryKey(),
   subscriptionId: integer("subscription_id").references(() => alertSubscriptions.id),
   
   // Message details
-  messageType: text("message_type").notNull(), // 'email' or 'sms'
+  messageType: varchar("message_type", { length: 20 }).notNull(), // 'email' or 'sms'
   subject: text("subject").notNull(),
   content: text("content").notNull(),
   htmlContent: text("html_content"), // Rich HTML content for emails
   
   // Recipient info
-  recipientEmail: text("recipient_email"),
-  recipientPhone: text("recipient_phone"),
-  recipientName: text("recipient_name").notNull(),
+  recipientEmail: varchar("recipient_email", { length: 255 }),
+  recipientPhone: varchar("recipient_phone", { length: 20 }),
+  recipientName: varchar("recipient_name", { length: 255 }),
   
   // Storm/alert context
   stormCount: integer("storm_count").default(0),
-  maxIntensity: real("max_intensity").default(0),
-  nearestDistance: real("nearest_distance").default(0),
+  maxIntensity: numeric("max_intensity", { precision: 5, scale: 2 }).default("0"),
+  nearestDistance: numeric("nearest_distance", { precision: 8, scale: 2 }).default("0"),
   alertLocation: text("alert_location"),
   
   // Message status
   isRead: boolean("is_read").default(false),
   isDelivered: boolean("is_delivered").default(true), // Always true for database storage
-  deliveryMethod: text("delivery_method").default("database"), // 'database', 'email', 'sms'
+  deliveryMethod: varchar("delivery_method", { length: 50 }).default("database"), // 'database', 'email', 'sms'
   
   // Timestamps
   sentAt: timestamp("sent_at").defaultNow(),
@@ -347,16 +361,17 @@ export type InsertThreatDetection = z.infer<typeof insertThreatDetectionSchema>;
 // AI assistant preferences for personalized communication style
 export const userSettings = pgTable("user_settings", {
   id: serial("id").primaryKey(),
-  sessionId: text("session_id").notNull().unique(),
+  sessionId: varchar("session_id", { length: 255 }).notNull().unique(),
   
   // AI tone customization (like Carrot Weather app)
-  aiTone: text("ai_tone").default("professional"), // professional, friendly, humorous
-  detailLevel: text("detail_level").default("standard"), // minimal, standard, technical
+  aiTone: varchar("ai_tone", { length: 50 }).default("professional"), // professional, friendly, humorous
+  detailLevel: varchar("detail_level", { length: 50 }).default("standard"), // minimal, standard, technical
   
   // User preferences
   includeHumor: boolean("include_humor").default(false),
   simplifiedLanguage: boolean("simplified_language").default(false),
-  
+  preferredLanguage: text("preferred_language").default("en"),
+
   // Timestamps
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -370,3 +385,58 @@ export const insertUserSettingsSchema = createInsertSchema(userSettings).omit({
 
 export type UserSettings = typeof userSettings.$inferSelect;
 export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
+
+export const favoriteStations = pgTable("favorite_stations", {
+  id: serial("id").primaryKey(),
+  icao: text("icao").notNull(),
+  name: text("name").notNull(),
+  lat: real("lat").notNull(),
+  lon: real("lon").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertFavoriteStationSchema = createInsertSchema(favoriteStations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type FavoriteStation = typeof favoriteStations.$inferSelect;
+export type InsertFavoriteStation = z.infer<typeof insertFavoriteStationSchema>;
+
+// Cloud sync profiles — simple username + PIN for cross-device sync
+export const syncProfiles = pgTable("sync_profiles", {
+  id: serial("id").primaryKey(),
+  username: varchar("username", { length: 50 }).notNull().unique(),
+  pin: varchar("pin", { length: 4 }).notNull(),
+  favorites: jsonb("favorites").default([]),
+  lastLocation: jsonb("last_location"),
+  settings: jsonb("settings").default({}),
+  lastSyncAt: timestamp("last_sync_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSyncProfileSchema = createInsertSchema(syncProfiles).omit({
+  id: true,
+  lastSyncAt: true,
+  createdAt: true,
+});
+
+export type SyncProfile = typeof syncProfiles.$inferSelect;
+export type InsertSyncProfile = z.infer<typeof insertSyncProfileSchema>;
+
+// Legacy tables retained for schema compatibility (not actively used)
+export const authUsers = pgTable("auth_users", {
+  id: varchar("id").primaryKey(),
+  email: varchar("email"),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const sessions = pgTable("sessions", {
+  sid: varchar("sid").primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire").notNull(),
+});
