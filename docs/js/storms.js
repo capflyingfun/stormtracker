@@ -2010,7 +2010,7 @@ function renderStorms(){
   }
   const severe=storms.some(s=>s.dbz>=45);
   const mv=S.stormMovement;
-  storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)});
+  if(mv&&mv.speed>=2){storms.forEach(s=>{s._eta=calcStormETA(s)})}else{storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)})}
   const sf=S._stormFilter||_loadStormFilter();
   const filtered=_applyStormFilter(storms,sf);
   const prevOpen={};
@@ -2075,7 +2075,7 @@ function renderStorms(){
       </div>`;
   }
   let inboundCapped,overhead,nearby;
-  if(S._topStormAnalysis&&S._topStormAnalysis.inbound){
+  if(S._topStormAnalysis&&S._topStormAnalysis.inbound&&S._topStormAnalysis.inbound.length>0&&!(mv&&mv.speed>=2)){
     const a=S._topStormAnalysis;
     const fKeys=new Set(filtered.map(stormKey));
     const inKeySet=new Set(a.inbound.map(stormKey));
