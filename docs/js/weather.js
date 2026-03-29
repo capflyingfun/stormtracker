@@ -473,9 +473,6 @@ function drawMiniSonar(){
         const rMid=maxR*(distMi/viewR);
         const hx=cx+Math.cos(aMid)*rMid,hy=cy+Math.sin(aMid)*rMid;
         ctx.fillStyle='rgba(255,23,68,0.9)';ctx.fillText('🌪️',hx,hy-Math.max(8,size*0.025));
-        ctx.font=`bold ${Math.max(7,size*0.022)}px Inter,sans-serif`;
-        ctx.fillStyle='rgba(255,23,68,0.8)';ctx.fillText('ROTATION',hx,hy+Math.max(10,size*0.03));
-        ctx.font=`${Math.max(14,size*0.05)}px sans-serif`;
       }
       ctx.restore();
     }
@@ -487,24 +484,11 @@ function drawMiniSonar(){
       const r=maxR*(i/nRings);
       ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
       ctx.strokeStyle=`rgba(0,220,255,${0.18*gB})`;ctx.lineWidth=0.8;ctx.stroke();
-      const dist=Math.round(viewR*(i/nRings));
-      const label=S.radarMetric?Math.round(dist*1.60934)+'km':dist+'mi';
-      ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
-      ctx.fillStyle=`rgba(0,220,255,${0.5*gB})`;ctx.font=`${Math.max(8,size*0.028)}px Inter,sans-serif`;
-      ctx.textAlign='center';ctx.fillText(label,cx,cy-r+10);ctx.restore();
     }
     ctx.beginPath();ctx.moveTo(cx,cy-maxR);ctx.lineTo(cx,cy+maxR);ctx.strokeStyle=`rgba(0,220,255,${0.1*gB})`;ctx.lineWidth=0.5;ctx.stroke();
     ctx.beginPath();ctx.moveTo(cx-maxR,cy);ctx.lineTo(cx+maxR,cy);ctx.stroke();
-    const dirs=[['N',0],['S',180],['E',90],['W',270]];
-    ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
-    ctx.fillStyle=`rgba(0,220,255,${0.6*gB})`;ctx.font=`bold ${Math.max(9,size*0.035)}px Inter,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
-    for(const[l,deg]of dirs){
-      const a=(deg-90)*Math.PI/180;
-      const lx=cx+Math.cos(a)*(maxR+12),ly=cy+Math.sin(a)*(maxR+12);
-      ctx.fillText(l,lx,ly);
-    }
-    ctx.restore();
   }
+  let _stormLabelPos=null,_aloftLabelPos=null;
   try{
     const sonarStorms=(S.storms||[]).filter(s=>s.distance<=viewR);
     if(_sonarCfg.showStormArrows&&S.stormMovement&&S.stormMovement.speed>=2&&sonarStorms.length){
@@ -547,9 +531,7 @@ function drawMiniSonar(){
       ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
       ctx.beginPath();ctx.moveTo(cx+Math.cos(mvRad)*15,cy+Math.sin(mvRad)*15);ctx.lineTo(ax,ay);
       ctx.strokeStyle=hexToRgba(neonC,0.5);ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
-      const slx=ax+Math.cos(mvRad)*10,sly=ay+Math.sin(mvRad)*10;
-      ctx.fillStyle=hexToRgba(neonC,0.8);ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
-      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('STORM',slx,sly);
+      _stormLabelPos={x:ax+Math.cos(mvRad)*10,y:ay+Math.sin(mvRad)*10,color:neonC};
       ctx.restore();
     }
     const aloftDir=S._upperWindDir;
@@ -567,9 +549,7 @@ function drawMiniSonar(){
       ctx.beginPath();ctx.moveTo(ax2,ay2);ctx.lineTo(ax2+Math.cos(ha1)*headL,ay2+Math.sin(ha1)*headL);
       ctx.moveTo(ax2,ay2);ctx.lineTo(ax2+Math.cos(ha2)*headL,ay2+Math.sin(ha2)*headL);
       ctx.strokeStyle='rgba(255,0,220,0.65)';ctx.lineWidth=2;ctx.stroke();
-      const lx=ax2+Math.cos(aloftRad)*10,ly=ay2+Math.sin(aloftRad)*10;
-      ctx.fillStyle='rgba(255,0,220,0.8)';ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
-      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('ALOFT',lx,ly);
+      _aloftLabelPos={x:ax2+Math.cos(aloftRad)*10,y:ay2+Math.sin(aloftRad)*10};
       ctx.restore();
     }
   }catch(e){console.log('Sonar storm overlay error:',e.message)}
@@ -596,6 +576,51 @@ function drawMiniSonar(){
   ctx.restore();
   ctx.beginPath();ctx.arc(cx,cy,11,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.6)';ctx.lineWidth=2;ctx.stroke();
   ctx.beginPath();ctx.arc(cx,cy,16,0,Math.PI*2);ctx.strokeStyle='rgba(0,220,255,0.25)';ctx.lineWidth=1;ctx.stroke();
+  if(gB>0){
+    const nRings=4;
+    for(let i=1;i<=nRings;i++){
+      const r=maxR*(i/nRings);
+      const dist=Math.round(viewR*(i/nRings));
+      const label=S.radarMetric?Math.round(dist*1.60934)+'km':dist+'mi';
+      ctx.save();ctx.shadowColor='rgba(0,0,0,0.95)';ctx.shadowBlur=6;
+      ctx.fillStyle=`rgba(0,220,255,${0.5*gB})`;ctx.font=`${Math.max(8,size*0.028)}px Inter,sans-serif`;
+      ctx.textAlign='center';ctx.fillText(label,cx,cy-r+10);ctx.restore();
+    }
+    const dirs=[['N',0],['S',180],['E',90],['W',270]];
+    ctx.save();ctx.shadowColor='rgba(0,0,0,0.95)';ctx.shadowBlur=6;
+    ctx.fillStyle=`rgba(0,220,255,${0.6*gB})`;ctx.font=`bold ${Math.max(9,size*0.035)}px Inter,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    for(const[l,deg]of dirs){
+      const a=(deg-90)*Math.PI/180;
+      const lx=cx+Math.cos(a)*(maxR+12),ly=cy+Math.sin(a)*(maxR+12);
+      ctx.fillText(l,lx,ly);
+    }
+    ctx.restore();
+  }
+  if(hookStorms.length){
+    ctx.save();ctx.shadowColor='rgba(0,0,0,0.95)';ctx.shadowBlur=6;
+    ctx.font=`bold ${Math.max(7,size*0.022)}px Inter,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    for(const hs of hookStorms){
+      const distMi=hs.distance;
+      const bear=(bearingDeg(S.lat,S.lon,hs.lat,hs.lng)+360)%360;
+      const aMid=(bear-90)*Math.PI/180;
+      const rMid=maxR*(distMi/viewR);
+      const hx=cx+Math.cos(aMid)*rMid,hy=cy+Math.sin(aMid)*rMid;
+      ctx.fillStyle='rgba(255,23,68,0.8)';ctx.fillText('ROTATION',hx,hy+Math.max(10,size*0.03));
+    }
+    ctx.restore();
+  }
+  if(_stormLabelPos){
+    ctx.save();ctx.shadowColor='rgba(0,0,0,0.95)';ctx.shadowBlur=6;
+    ctx.fillStyle=hexToRgba(_stormLabelPos.color,0.8);ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('STORM',_stormLabelPos.x,_stormLabelPos.y);
+    ctx.restore();
+  }
+  if(_aloftLabelPos){
+    ctx.save();ctx.shadowColor='rgba(0,0,0,0.95)';ctx.shadowBlur=6;
+    ctx.fillStyle='rgba(255,0,220,0.8)';ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('ALOFT',_aloftLabelPos.x,_aloftLabelPos.y);
+    ctx.restore();
+  }
   if(_sonarCfg.showLightning&&allLightningDots.length){
     const clR=Math.max(15,size*0.06);
     const lGroups=[];
