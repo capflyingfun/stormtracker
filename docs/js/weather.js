@@ -304,7 +304,7 @@ function renderWeather(data){
         <div class="hero-stat-cell"><div class="hero-side-label">Pressure</div><div class="hero-side-val">${fmtPres(c.pressure_msl)}</div></div>
         <div class="hero-stat-cell"><div class="hero-side-label">Precip</div><div class="hero-side-val">${fmtPrecip(c.precipitation||0)}</div></div>
         <div class="hero-stat-cell"><div class="hero-side-label">🌡️ Dew Pt</div><div class="hero-side-val">${fmtTemp(dewC)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">Spread</div><div class="hero-side-val">${fmtTempDiff(tempC-dewC)}</div><div style="font-size:0.42em;color:var(--text-muted);margin-top:1px;line-height:1.2">${getSpreadLabel(tempC-dewC)}</div>${(()=>{const _estB=calcCloudBase(tempC-dewC);const _mc=S.station?getMetarCeilingFt(S.station):null;const _cbCol=_mc!=null?(_mc<_estB?'#ff3355':'#39ff14'):'var(--accent-cyan)';return`<div id="weather-spread-cb" data-est="${_estB}" style="font-size:0.38em;color:${_cbCol};margin-top:1px;line-height:1.1;text-shadow:${_mc!=null?'0 0 6px '+(_mc<_estB?'rgba(255,51,85,0.4)':'rgba(57,255,20,0.4)'):'none'}">Est. base ~${fmtAlt(_estB)} AGL</div>`})()}</div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Spread</div><div class="hero-side-val">${fmtTempDiff(tempC-dewC)}</div><div style="font-size:0.42em;color:var(--text-muted);margin-top:1px;line-height:1.2">${getSpreadLabel(tempC-dewC)}</div>${(()=>{const _spread=tempC-dewC;const _estB=adjustCloudBaseForUser(calcCloudBase(_spread));const _mc=S.station?getMetarCeilingFt(S.station):null;const _arrow=_mc!=null?(_mc>=_estB?'<span style="color:#39ff14;font-size:1.2em;text-shadow:0 0 6px rgba(57,255,20,0.6)">⤴</span>':'<span style="color:#ff3355;font-size:1.2em;text-shadow:0 0 6px rgba(255,51,85,0.6)">⤵</span>'):'';return`<div id="weather-spread-cb" data-spread="${_spread}" style="font-size:0.38em;color:var(--accent-cyan);margin-top:1px;line-height:1.1">Est. base ~${fmtAlt(_estB)} AGL ${_arrow}</div>`})()}</div>
         ${(()=>{const spread=tempC-dewC;const windKt=c.wind_speed_10m!=null?(c.wind_speed_10m/1.852):null;const fog=getFogRisk(spread,windKt,isDay,c.cloud_cover);const stab=getStabilityLabel(spread,Math.min(100,c.relative_humidity_2m),tempC);const inv=detectInversion(spread,windKt,isDay,c.cloud_cover);return`<div class="hero-stat-cell"><div class="hero-side-label">🌫️ Fog Risk</div><div class="hero-side-val" style="font-size:0.85em;color:${fog.color}">${fog.level}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${fog.desc}</div></div><div class="hero-stat-cell"><div class="hero-side-label">🌡️ Stability</div><div class="hero-side-val" style="font-size:0.75em;color:${stab.color}">${stab.label}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${stab.desc}</div></div>${inv.detected?`<div class="hero-stat-cell" style="grid-column:1/-1"><div style="font-size:0.5em;color:var(--accent-orange);text-align:center;padding:2px 6px;background:rgba(255,152,0,0.1);border-radius:4px">⚠️ ${inv.text}</div></div>`:''}`})()}
       </div>
       <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0 0">
@@ -1259,16 +1259,16 @@ function toggleNWSDetail(idx){
   </div>`;
 }
 
-// Called by renderStation() whenever S.station updates — re-colors the cloud base
-// text on the Weather tab hero without requiring a full weather re-render.
+// Called by renderStation() whenever S.station updates — updates the cloud base
+// arrow on the Weather tab hero without requiring a full weather re-render.
 function updateWeatherCloudBaseColor(){
   const el=document.getElementById('weather-spread-cb');
   if(!el)return;
-  const _estB=parseFloat(el.dataset.est);
-  if(!_estB)return;
+  const _spread=parseFloat(el.dataset.spread);
+  if(isNaN(_spread))return;
+  const _estB=adjustCloudBaseForUser(calcCloudBase(_spread));
   const _mc=S.station?getMetarCeilingFt(S.station):null;
-  const _cbCol=_mc!=null?(_mc<_estB?'#ff3355':'#39ff14'):'var(--accent-cyan)';
-  el.style.color=_cbCol;
-  el.style.textShadow=_mc!=null?('0 0 6px '+(_mc<_estB?'rgba(255,51,85,0.4)':'rgba(57,255,20,0.4)')):'none';
+  const _arrow=_mc!=null?(_mc>=_estB?'<span style="color:#39ff14;font-size:1.2em;text-shadow:0 0 6px rgba(57,255,20,0.6)">⤴</span>':'<span style="color:#ff3355;font-size:1.2em;text-shadow:0 0 6px rgba(255,51,85,0.6)">⤵</span>'):'';
+  el.innerHTML=`Est. base ~${fmtAlt(_estB)} AGL ${_arrow}`;
 }
 
