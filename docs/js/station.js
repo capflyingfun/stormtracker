@@ -357,27 +357,26 @@ async function loadStationObs(icao){
     const geo=obsData.geometry?.coordinates;
     const sLat=stInfo?.lat||(geo?geo[1]:S.lat);
     const sLon=stInfo?.lon||(geo?geo[0]:S.lon);
-    S.station={
-      icao:icao,
-      name:stInfo?.name||S._airportDataCache?.find(a=>a.icao===icao)?.name||icao,
-      lat:sLat,lon:sLon,
-      elev:p.elevation?.value!=null?p.elevation.value:null,
-      temp:p.temperature?.value,dewp:p.dewpoint?.value,
-      windKmh:p.windSpeed?.value,windDir:p.windDirection?.value,
-      gustKmh:p.windGust?.value,visMeter:p.visibility?.value,
-      presPa:p.barometricPressure?.value,
-      rawMETAR:p.rawMessage||buildSyntheticMetar(icao,p),
-      clouds:p.cloudLayers||[],obsTime:p.timestamp||'',
-      wxString:p.rawMessage?_extractMetarWx(p.rawMessage):(p.textDescription||''),
-    };
+    const stName=stInfo?.name||S._airportDataCache?.find(a=>a.icao===icao)?.name||icao;
     const nwsRaw=p.rawMessage||'';
     if(nwsRaw){
-      const parsed=parseRawMetar(nwsRaw,{icao,name:S.station.name,lat:S.station.lat,lon:S.station.lon});
-      if(parsed.windKmh!=null&&S.station.windKmh==null)S.station.windKmh=parsed.windKmh;
-      if(parsed.windDir!=null&&S.station.windDir==null)S.station.windDir=parsed.windDir;
-      if(parsed.gustKmh!=null&&S.station.gustKmh==null)S.station.gustKmh=parsed.gustKmh;
-      if(parsed.dewp!=null&&S.station.dewp==null)S.station.dewp=parsed.dewp;
-      if(parsed.temp!=null&&S.station.temp==null)S.station.temp=parsed.temp;
+      S.station=parseRawMetar(nwsRaw,{icao,name:stName,lat:sLat,lon:sLon});
+      S.station.elev=p.elevation?.value!=null?p.elevation.value:null;
+      S.station.obsTime=p.timestamp||'';
+      if(!S.station.wxString)S.station.wxString=p.textDescription||'';
+      if(p.cloudLayers?.length&&!S.station.clouds?.length)S.station.clouds=p.cloudLayers;
+    }else{
+      S.station={
+        icao,name:stName,lat:sLat,lon:sLon,
+        elev:p.elevation?.value!=null?p.elevation.value:null,
+        temp:p.temperature?.value,dewp:p.dewpoint?.value,
+        windKmh:p.windSpeed?.value,windDir:p.windDirection?.value,
+        gustKmh:p.windGust?.value,visMeter:p.visibility?.value,
+        presPa:p.barometricPressure?.value,
+        rawMETAR:buildSyntheticMetar(icao,p),
+        clouds:p.cloudLayers||[],obsTime:p.timestamp||'',
+        wxString:p.textDescription||'',
+      };
     }
     if(S.station.elev==null)_fetchStationElev(sLat,sLon);
     renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
