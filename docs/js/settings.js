@@ -17,6 +17,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v3.36',date:'2026-03-29',items:['🔄 Smart Version Check — Settings refresh button now detects current vs available version; shows "✅ Up to date (vXXX)" when nothing new, or "🆕 vXXX → vYYY" comparison before updating','☁️ Live Cloud Base Color — Weather tab "Est. base" text now updates color automatically as soon as station data loads, without requiring a manual refresh']},
   {ver:'v3.06',date:'2026-03-29',items:['☁️ Cloud Base Altitude Calibration — METAR-reported ceiling (BKN/OVC/VV) now shown as primary cloud base value, spread×400 estimate shown as secondary','📍 GPS Altitude Capture — device GPS altitude stored for elevation calculations when available','🏔️ Observer Elevation Priority — uses GPS altitude → topographic elevation → station field elevation → 0 for accurate AGL calculations','📐 Elevation-Adjusted Cloud Base — cloud base heights adjusted for elevation difference between user position and reporting station']},
   {ver:'v2.84',date:'2026-03-28',items:['🌡️ FAA Weather Theory Pack — 8 new aviation-derived features from PHAK Chapter 12','📐 Corrected Dew Point Spread Thresholds — 0–2°C fog/mist, 2–4°C high humidity, 4–8°C moderate, 8°C+ dry air (replaces old inaccurate bands)','☁️ Estimated Cloud Base — spread × 400ft formula shows estimated cloud base AGL on Weather hero and METAR decode','🏔️ Density Altitude — calculated from station elevation, altimeter, and temperature with color-coded severity (green/yellow/orange/red)','✈️ Pressure Altitude — (29.92 − altimeter) × 1000 + field elevation shown alongside density altitude','🎯 Enhanced Flight Category — VFR/MVFR/IFR/LIFR badge now shows determining factor (ceiling-limited vs visibility-limited) in user\'s units','🌫️ Fog Risk Assessment — multi-factor indicator using spread, wind speed, time of day, and cloud cover with radiation/advection fog type identification','🌡️ Atmospheric Stability — rates Stable/Cond. Unstable/Unstable based on temperature, humidity, and spread','⚠️ Temperature Inversion Detection — flags possible surface inversions when spread≈0 + calm + clear + night','📏 Unit-Aware Display — all new values (altitude, spread, cloud base, visibility thresholds) respect your Imperial/Metric unit settings']},
   {ver:'v2.68',date:'2026-03-27',items:['📅 7-Day Forecast Day Labels Fix — "Today" label now compares each forecast date against your actual local date, so it\'s correct regardless of timezone','📡 Station Weather Independence — station tab now derives weather descriptions directly from METAR wx codes (e.g., -RA = Light Rain) instead of trusting NWS text descriptions','🐛 METAR Validation Fix — empty raw METAR no longer bypasses weather string validation, preventing incorrect precipitation labels']},
@@ -100,7 +101,39 @@ async function forceAppUpdate(){
   btn.style.color='#66bb6a';
   timerInt=setInterval(()=>updateTimer('🔄 Checking...'),100);
   try{
+    // Detect current installed version from SW cache keys
     const keys=await caches.keys();
+    const currentKey=keys.find(k=>k.startsWith('stormtracker-v'))||'';
+    const currentVer=currentKey?currentKey.replace('stormtracker-',''):'unknown';
+
+    // Fetch latest sw.js from network bypassing cache to read its version
+    let latestVer=currentVer;
+    try{
+      const r=await fetch('sw.js?_='+Date.now(),{cache:'no-store'});
+      if(r.ok){
+        const txt=await r.text();
+        const m=txt.match(/CACHE_NAME\s*=\s*['"]stormtracker-(v\d+)['"]/);
+        if(m)latestVer=m[1];
+      }
+    }catch(e){console.warn('Could not fetch sw.js for version check:',e);}
+
+    clearInterval(timerInt);
+
+    if(latestVer===currentVer&&currentVer!=='unknown'){
+      // Already on the latest version — no reload needed
+      btn.textContent=`✅ Up to date (${currentVer})`;
+      btn.style.color='#4caf50';
+      btn.disabled=false;
+      return;
+    }
+
+    // New version available — show comparison then clear caches and reload
+    const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+    btn.textContent=currentVer!=='unknown'
+      ?`🆕 ${currentVer} → ${latestVer} (${elapsed}s)`
+      :`🆕 Update available (${elapsed}s)`;
+    btn.style.color='#00e5ff';
+
     await Promise.all(keys.map(k=>caches.delete(k)));
     if('serviceWorker' in navigator){
       const reg=await navigator.serviceWorker.getRegistration();
@@ -110,17 +143,13 @@ async function forceAppUpdate(){
         if(waiting){
           if(waiting.state==='installed')waiting.postMessage({type:'SKIP_WAITING'});
           waiting.addEventListener('statechange',function(){
-            if(this.state==='activated'){clearInterval(timerInt);location.reload();}
+            if(this.state==='activated'){location.reload();}
           });
         }
         await reg.unregister();
       }
     }
-    clearInterval(timerInt);
-    const elapsed=((Date.now()-startTime)/1000).toFixed(1);
-    btn.textContent=`✅ Refreshing... ${elapsed}s`;
-    btn.style.color='#4caf50';
-    setTimeout(()=>location.reload(),300);
+    setTimeout(()=>location.reload(),800);
   }catch(e){
     console.error('Update check failed:',e);
     clearInterval(timerInt);

@@ -546,7 +546,9 @@ function renderStation(){
       })()}
       ${raw?`<div class="metar-raw" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'" style="cursor:pointer">${raw} <span style="font-size:0.75em;color:var(--text-muted)">▼ tap to decode</span></div><div class="metar-decoded" style="display:none">${decodeMetar(raw)}</div>`:''}
     </div>
-    ${renderNearbyStations()}`; 
+    ${renderNearbyStations()}`;
+  // Keep Weather tab cloud base color in sync with latest station data
+  if(typeof updateWeatherCloudBaseColor==='function')updateWeatherCloudBaseColor();
 }
 
 function renderNearbyStations(){
