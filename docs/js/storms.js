@@ -1914,7 +1914,9 @@ function _stormSortFn(a,b,key){
     return ea-eb;
   }
   if(key==='threat'){
-    return _threatScoreRaw(b)-_threatScoreRaw(a);
+    const sa=stormThreatScore10(a),sb=stormThreatScore10(b);
+    if(Math.abs(sa-sb)<0.15)return 0;
+    return sb-sa;
   }
   if(key==='impact'){
     const ia=a._eta?a._eta.impact||0:0;
