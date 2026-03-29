@@ -87,36 +87,46 @@ function getChangelogHtml(){
 }
 async function forceAppUpdate(){
   const btn=document.getElementById('btn-check-update');
-  if(btn){btn.textContent='🔄 Checking...';btn.disabled=true;}
+  if(!btn)return;
+  btn.disabled=true;
+  const startTime=Date.now();
+  let timerInt;
+  function updateTimer(prefix){
+    const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+    btn.textContent=`${prefix} ${elapsed}s`;
+  }
+  btn.textContent='🔄 Checking... 0.0s';
+  btn.style.color='#66bb6a';
+  timerInt=setInterval(()=>updateTimer('🔄 Checking...'),100);
   try{
-    if('serviceWorker' in navigator&&navigator.serviceWorker.controller){
+    const keys=await caches.keys();
+    await Promise.all(keys.map(k=>caches.delete(k)));
+    if('serviceWorker' in navigator){
       const reg=await navigator.serviceWorker.getRegistration();
       if(reg){
         await reg.update();
         const waiting=reg.waiting||reg.installing;
         if(waiting){
+          if(waiting.state==='installed')waiting.postMessage({type:'SKIP_WAITING'});
           waiting.addEventListener('statechange',function(){
-            if(this.state==='activated')location.reload();
+            if(this.state==='activated'){clearInterval(timerInt);location.reload();}
           });
-          if(waiting.state==='installed'){
-            waiting.postMessage({type:'SKIP_WAITING'});
-          }
-          if(btn){btn.textContent='🔄 Updating...';btn.style.color='#4caf50';}
-          setTimeout(()=>location.reload(),2500);
-          return;
         }
+        await reg.unregister();
       }
     }
-    const keys=await caches.keys();
-    await Promise.all(keys.map(k=>caches.delete(k)));
-    if(btn){btn.textContent='✅ Up to date!';btn.style.color='#4caf50';}
-    setTimeout(()=>location.reload(),800);
+    clearInterval(timerInt);
+    const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+    btn.textContent=`✅ Refreshing... ${elapsed}s`;
+    btn.style.color='#4caf50';
+    setTimeout(()=>location.reload(),300);
   }catch(e){
     console.error('Update check failed:',e);
-    const keys=await caches.keys().catch(()=>[]);
-    await Promise.all(keys.map(k=>caches.delete(k))).catch(()=>{});
-    if(btn){btn.textContent='🔄 Refreshing...';btn.style.color='#ff9800';}
-    setTimeout(()=>location.reload(),500);
+    clearInterval(timerInt);
+    const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+    btn.textContent=`🔄 Refreshing... ${elapsed}s`;
+    btn.style.color='#ff9800';
+    setTimeout(()=>location.reload(),300);
   }
 }
 function showTutorial(){

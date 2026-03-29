@@ -1955,17 +1955,17 @@ function _renderFilterBar(f){
   return`<div class="card" style="padding:8px 10px;margin-bottom:8px">
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:0.72em">
       <span style="font-weight:700;color:var(--text-secondary)">Sort:</span>
-      <select id="sf-sort1" onchange="updateStormFilter()" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em">${mkOpts(f.sort1)}</select>
+      <select id="sf-sort1" onchange="updateStormFilter()" oninput="updateStormFilter()" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em">${mkOpts(f.sort1)}</select>
       <span class="c-muted">then</span>
-      <select id="sf-sort2" onchange="updateStormFilter()" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em">${mkOpts(f.sort2)}</select>
+      <select id="sf-sort2" onchange="updateStormFilter()" oninput="updateStormFilter()" style="background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em">${mkOpts(f.sort2)}</select>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:0.72em;margin-top:6px">
       <span style="font-weight:700;color:var(--text-secondary)">Filter:</span>
       <label style="display:flex;align-items:center;gap:3px;color:var(--text-secondary)">Min dBZ
-        <input id="sf-mindbz" type="number" min="0" max="75" step="5" value="${f.minDbz||0}" oninput="updateStormFilter()" onchange="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
+        <input id="sf-mindbz" type="number" inputmode="numeric" min="0" max="75" step="5" value="${f.minDbz||0}" oninput="updateStormFilter()" onchange="updateStormFilter()" onblur="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
       </label>
       <label style="display:flex;align-items:center;gap:3px;color:var(--text-secondary)">Max dist
-        <input id="sf-maxdist" type="number" min="0" max="200" step="5" value="${f.maxDist||0}" oninput="updateStormFilter()" onchange="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
+        <input id="sf-maxdist" type="number" inputmode="numeric" min="0" max="200" step="5" value="${f.maxDist||0}" oninput="updateStormFilter()" onchange="updateStormFilter()" onblur="updateStormFilter()" style="width:42px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:2px 4px;font-size:1em;text-align:center">
         <span class="c-muted">${S.radarMetric?'km':'mi'}</span>
       </label>
       <label style="display:flex;align-items:center;gap:3px;cursor:pointer;color:var(--text-secondary)">
@@ -1974,6 +1974,7 @@ function _renderFilterBar(f){
     </div>
   </div>`;
 }
+let _sfDebounce=null;
 function updateStormFilter(){
   const f={
     sort1:document.getElementById('sf-sort1')?.value||'threat',
@@ -1983,8 +1984,12 @@ function updateStormFilter(){
     approachOnly:document.getElementById('sf-approach')?.checked||false
   };
   _saveStormFilter(f);
-  renderStorms();
-  if(typeof updateThreatTicker==='function')updateThreatTicker();
+  if(_sfDebounce)clearTimeout(_sfDebounce);
+  _sfDebounce=setTimeout(()=>{
+    _sfDebounce=null;
+    renderStorms();
+    if(typeof updateThreatTicker==='function')updateThreatTicker();
+  },150);
 }
 S._stormFilter=_loadStormFilter();
 function renderStorms(){
