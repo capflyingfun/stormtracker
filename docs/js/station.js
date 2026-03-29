@@ -376,23 +376,25 @@ async function loadStationObs(icao){
       obsTime:p.timestamp||'',
       wxString:_extractMetarWx(p.rawMessage||''),
     };
-    try{
-      const nwsRaw=p.rawMessage||'';
-      if(!nwsRaw||(!S.station.windKmh&&S.station.gustKmh!=null)){
-        console.log('NWS sparse for',icao,'— supplementing from AWC');
+    const nwsRaw=p.rawMessage||'';
+    if(nwsRaw){
+      const parsed=parseRawMetar(nwsRaw,{icao,name:S.station.name,lat:S.station.lat,lon:S.station.lon});
+      if(parsed.windKmh!=null&&S.station.windKmh==null)S.station.windKmh=parsed.windKmh;
+      if(parsed.windDir!=null&&S.station.windDir==null)S.station.windDir=parsed.windDir;
+      if(parsed.gustKmh!=null&&S.station.gustKmh==null)S.station.gustKmh=parsed.gustKmh;
+      if(parsed.dewp!=null&&S.station.dewp==null)S.station.dewp=parsed.dewp;
+      if(parsed.temp!=null&&S.station.temp==null)S.station.temp=parsed.temp;
+    }else{
+      try{
+        console.log('NWS no rawMessage for',icao,'— fetching from AWC');
         const ar=await fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&hours=3`,{signal:AbortSignal.timeout(6000)});
         if(ar.ok){const ad=await ar.json();if(ad.length){
           const awc=parseAWCobs(ad[0]);
-          if(awc.rawMETAR)S.station.rawMETAR=awc.rawMETAR;
-          if(awc.windKmh!=null&&S.station.windKmh==null)S.station.windKmh=awc.windKmh;
-          if(awc.windDir!=null&&S.station.windDir==null)S.station.windDir=awc.windDir;
-          if(awc.gustKmh!=null)S.station.gustKmh=awc.gustKmh;
-          if(awc.dewp!=null&&S.station.dewp==null)S.station.dewp=awc.dewp;
-          if(awc.temp!=null&&S.station.temp==null)S.station.temp=awc.temp;
-          if(awc.wxString&&!S.station.wxString)S.station.wxString=awc.wxString;
+          S.station=awc;
+          if(stInfo?.name)S.station.name=stInfo.name;
         }}
-      }
-    }catch(e2){console.log('AWC supplement failed:',e2.message)}
+      }catch(e2){console.log('AWC fallback failed:',e2.message)}
+    }
     if(S.station.elev==null)_fetchStationElev(sLat,sLon);
     renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
   }catch(e){
