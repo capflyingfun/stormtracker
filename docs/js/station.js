@@ -230,6 +230,7 @@ function parseRawMetar(raw,station){
       windDir=windM[1]==='VRB'?null:Number(windM[1]);
       windKt=Number(windM[2]);
       if(windM[4])gustKt=Number(windM[4]);
+      if(windKt===0&&(windDir===0||windDir===null))windDir=null;
       continue;
     }
     const windMPS=p.match(/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?MPS$/);
@@ -237,6 +238,7 @@ function parseRawMetar(raw,station){
       windDir=windMPS[1]==='VRB'?null:Number(windMPS[1]);
       windKt=Number(windMPS[2])*1.94384;
       if(windMPS[4])gustKt=Number(windMPS[4])*1.94384;
+      if(windKt===0&&(windDir===0||windDir===null))windDir=null;
       continue;
     }
     const tempM=p.match(/^(M?\d{1,2})\/(M?\d{1,2})?$/);
@@ -307,7 +309,7 @@ function parseAWCobs(m){
     temp:m.temp!=null?m.temp:null,
     dewp:m.dewp!=null?m.dewp:null,
     windKmh:m.wspd!=null?m.wspd*1.852:null,
-    windDir:m.wdir!=null?(m.wdir==='VRB'?null:Number(m.wdir)):null,
+    windDir:m.wdir!=null?(m.wdir==='VRB'||m.wdir===''?null:(isNaN(Number(m.wdir))?null:Number(m.wdir))):null,
     gustKmh:m.wgst!=null?m.wgst*1.852:null,
     visMeter:m.visib!=null?(String(m.visib).includes('+')?16093:Number(m.visib)>100?Number(m.visib):Number(m.visib)*1609.34):null,
     presPa:m.altim!=null?m.altim*100:null,
@@ -369,14 +371,22 @@ async function loadStationObs(icao){
       S.station={
         icao,name:stName,lat:sLat,lon:sLon,
         elev:p.elevation?.value!=null?p.elevation.value:null,
-        temp:p.temperature?.value,dewp:p.dewpoint?.value,
-        windKmh:p.windSpeed?.value,windDir:p.windDirection?.value,
-        gustKmh:p.windGust?.value,visMeter:p.visibility?.value,
-        presPa:p.barometricPressure?.value,
+        temp:p.temperature?.value!=null?p.temperature.value:null,
+        dewp:p.dewpoint?.value!=null?p.dewpoint.value:null,
+        windKmh:p.windSpeed?.value!=null?p.windSpeed.value:null,
+        windDir:p.windDirection?.value!=null?p.windDirection.value:null,
+        gustKmh:p.windGust?.value!=null?p.windGust.value:null,
+        visMeter:p.visibility?.value!=null?p.visibility.value:null,
+        presPa:p.barometricPressure?.value!=null?p.barometricPressure.value:null,
         rawMETAR:buildSyntheticMetar(icao,p),
         clouds:p.cloudLayers||[],obsTime:p.timestamp||'',
         wxString:p.textDescription||'',
       };
+    }
+    const hasUsableData=S.station.temp!=null||S.station.windKmh!=null||S.station.visMeter!=null;
+    if(!hasUsableData){
+      console.log('NWS returned empty observation for',icao,'— falling back to AWC');
+      throw new Error('NWS observation empty');
     }
     if(S.station.elev==null)_fetchStationElev(sLat,sLon);
     renderStation();if(_curLang!=='en')setTimeout(quickTranslate,300);
@@ -453,9 +463,9 @@ function renderStation(){
           <div class="wind-arrow" style="transform:rotate(${wDir||0}deg)"></div>
         </div>
         <div style="text-align:left">
-          <div style="font-size:1.4em;font-weight:700">${windKmh!=null?fmtWind(windKmh):(gustKmh?fmtWind(gustKmh):'Calm')}</div>
-          <div class="c-muted-sm">${wDir!=null?degToDir(wDir)+' wind':(windKmh!=null||gustKmh?'Wind':'Calm')}</div>
-          ${gustKmh&&windKmh!=null?`<div style="font-size:0.8em;color:var(--accent-orange);font-weight:600">Gusts ${fmtWind(gustKmh)}</div>`:''}
+          <div style="font-size:1.4em;font-weight:700">${windKmh!=null?fmtWind(windKmh):(gustKmh!=null?fmtWind(gustKmh):'Calm')}</div>
+          <div class="c-muted-sm">${wDir!=null?degToDir(wDir)+' wind':(windKmh!=null?'Variable wind':(gustKmh!=null?'Gusting':'Calm'))}</div>
+          ${gustKmh!=null&&windKmh!=null?`<div style="font-size:0.8em;color:var(--accent-orange);font-weight:600">Gusts ${fmtWind(gustKmh)}</div>`:''}
         </div>
       </div>
 
