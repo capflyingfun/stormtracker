@@ -118,6 +118,32 @@ function fmtAltVal(ft){return S.tempUnit===0?Math.round(ft):Math.round(ft*0.3048
 function fmtAltUnit(){return S.tempUnit===0?'ft':'m'}
 
 function calcCloudBase(spreadC){return spreadC*400}
+function getObserverElevM(){
+  if(S._gpsAltitude!=null)return S._gpsAltitude;
+  if(S._terrainData&&S._terrainData.userElev!=null)return S._terrainData.userElev;
+  if(S.station&&S.station.elev!=null)return S.station.elev;
+  return 0;
+}
+function getMetarCeilingFt(s){
+  if(!s||!s.clouds||!s.clouds.length)return null;
+  let lowest=null;
+  for(const c of s.clouds){
+    const amt=(c.amount||c.cover||'').toUpperCase();
+    if(amt!=='BKN'&&amt!=='OVC'&&amt!=='VV')continue;
+    let baseFt=null;
+    if(c.base!=null&&typeof c.base==='object'&&c.base.value!=null)baseFt=Math.round(c.base.value*3.281);
+    else if(typeof c.base==='number')baseFt=Math.round(c.base*3.281);
+    if(baseFt!=null&&(lowest===null||baseFt<lowest))lowest=baseFt;
+  }
+  return lowest;
+}
+function adjustCloudBaseForUser(baseFtAglStation){
+  const stationElevM=S.station&&S.station.elev!=null?S.station.elev:null;
+  const userElevM=getObserverElevM();
+  if(stationElevM==null)return baseFtAglStation;
+  const diffFt=(stationElevM-userElevM)*3.281;
+  return baseFtAglStation+diffFt;
+}
 function calcPressureAlt(elevFt,altInHg){return(29.92-altInHg)*1000+elevFt}
 function calcDensityAlt(elevFt,altInHg,tempC){
   const pa=calcPressureAlt(elevFt,altInHg);
