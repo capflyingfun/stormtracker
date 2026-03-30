@@ -342,6 +342,7 @@ function getBaroPrediction(current,hourly){
 
 function renderWeather(data){
   if(typeof hideLoadingScreen==='function')hideLoadingScreen();
+  if(typeof initDesktopMode==='function'&&window.innerWidth>=1024)setTimeout(initDesktopMode,200);
   const el=document.getElementById('page-weather');
   const c=data.current,isDay=c.is_day===1;
   const tempC=c.temperature_2m,feelsC=c.apparent_temperature;

@@ -572,7 +572,8 @@ canvas.offscreen{display:none}
   .app-header{max-width:none;margin:0}
 
   /* All tabs: single-column stacked layout (like mobile, but full width) */
-  .section-page{display:block!important}
+  .section-page{display:block!important;padding-top:20px;margin-bottom:20px;border-top:1px solid rgba(0,200,255,0.08);scroll-margin-top:60px}
+  .section-page:first-of-type{border-top:none;padding-top:0}
 
   /* Hero stats: up to 6 columns on desktop */
   .hero-stats-grid{grid-template-columns:repeat(6,1fr)!important}

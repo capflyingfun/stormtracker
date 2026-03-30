@@ -681,12 +681,42 @@ function rvToDbz(r,g,b,a){
 // ==========================================
 // NAVIGATION
 // ==========================================
+function _isDesktop(){return window.innerWidth>=1024}
+
 document.querySelectorAll('.nav-item').forEach(btn=>{
   btn.addEventListener('click',()=>{
     const page=btn.dataset.page;
     switchPage(page);
   });
 });
+
+let _desktopInitDone=false;
+function initDesktopMode(){
+  if(_desktopInitDone||!S.lat)return;
+  _desktopInitDone=true;
+  document.querySelectorAll('.section-page').forEach(p=>p.classList.add('visible'));
+  if(!S.map)initRadar();
+  startSonarSweep();
+  if(!S.station||S._stationLocKey!==S.lat+','+S.lon)fetchStation();
+  fetchAlerts();fetchHazards();
+  renderStorms();
+  setTimeout(()=>{if(S.map)S.map.invalidateSize()},300);
+  _initScrollSpy();
+}
+
+function _initScrollSpy(){
+  const pages=['weather','radar','storms','station','alerts'];
+  const obs=new IntersectionObserver((entries)=>{
+    if(!_isDesktop())return;
+    entries.forEach(e=>{
+      if(e.isIntersecting&&e.intersectionRatio>0.15){
+        const id=e.target.id.replace('page-','');
+        document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
+      }
+    });
+  },{threshold:[0.15,0.5],rootMargin:'-80px 0px -40% 0px'});
+  pages.forEach(p=>{const el=document.getElementById('page-'+p);if(el)obs.observe(el)});
+}
 
 // ==========================================
 // LOCATION
@@ -709,6 +739,17 @@ function toggleLocOverlay(open){
   else el.classList.remove('open');
 }
 function switchPage(page){
+  if(_isDesktop()){
+    const target=document.getElementById('page-'+page);
+    if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
+    document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
+    S.activePage=page;
+    if(page==='radar'&&S.lat&&S.map){
+      setTimeout(()=>{S.map.invalidateSize();if(S._showZones&&S._rawScanPts.length)buildStormZones(S.map,S._rawScanPts);if(S._showPathArrows)buildPathArrows(S.map)},200);
+    }
+    if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}
+    return;
+  }
   document.querySelectorAll('.nav-item').forEach(b=>{b.classList.toggle('active',b.dataset.page===page)});
   document.querySelectorAll('.section-page').forEach(p=>{p.classList.toggle('visible',p.id==='page-'+page)});
   S.activePage=page;
