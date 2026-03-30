@@ -148,6 +148,8 @@ function init(){
   }catch(e){}
   _hideBottomNav();
   document.getElementById('status-text').textContent='Enter a location to begin';
+  const _favs=typeof getFavorites==='function'?getFavorites():[];
+  const _favHtml=_favs.length?_favs.map(f=>`<button onclick="setLoc(${f.lat},${f.lon},'${(f.name||'').replace(/'/g,"\\'")}');_showBottomNav()" style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--border-subtle);border-radius:8px;cursor:pointer;text-align:left;color:var(--text-primary);font-size:0.85em"><span>📍</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name||f.lat.toFixed(2)+', '+f.lon.toFixed(2)}</span></button>`).join(''):'<div style="font-size:0.8em;color:var(--text-muted)">No favorites saved</div>';
   document.getElementById('page-weather').innerHTML=`
     <div class="welcome-screen">
       <div style="font-size:3em;margin-bottom:12px">⚡</div>
@@ -155,6 +157,11 @@ function init(){
       <p>Real-time storm detection powered by live radar data.<br>No API keys, no accounts, 100% free.</p>
       <button class="welcome-btn" onclick="showLocationConfirm()">🛰️ Use My Location</button>
       <button class="welcome-btn secondary" onclick="toggleLocOverlay(true)">🔍 Search Location</button>
+      <button class="welcome-btn secondary" onclick="startMapPick()" style="background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.3)">📌 Set Location from Map</button>
+      <div style="margin-top:16px;width:100%;max-width:320px;text-align:left">
+        <div style="font-size:0.85em;font-weight:600;color:var(--text-muted);margin-bottom:6px">⭐ Favorites</div>
+        <div style="display:flex;flex-direction:column;gap:6px">${_favHtml}</div>
+      </div>
       <div style="margin-top:20px;font-size:0.75em;color:var(--text-muted)">
         <strong>Features:</strong><br>
         Live weather &middot; Radar map &middot; Storm cell detection<br>
