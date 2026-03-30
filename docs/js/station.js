@@ -396,33 +396,33 @@ async function loadStationObs(icao){
       if(S.station.presPa==null&&p.barometricPressure?.value!=null)S.station.presPa=p.barometricPressure.value;
       if(S.station.visMeter==null&&p.visibility?.value!=null)S.station.visMeter=p.visibility.value;
       if(S.station.temp==null||S.station.dewp==null||S.station.windKmh==null){
-        try{
-          const ar=await fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&hours=3`,{signal:AbortSignal.timeout(8000)});
-          if(ar.ok){const ad=await ar.json();if(ad.length){
-            for(const obs of ad){
-              if(!obs.rawOb)continue;
-              const awcObs=parseAWCobs(obs);
-              let filled=false;
-              if(S.station.temp==null&&awcObs.temp!=null){S.station.temp=awcObs.temp;filled=true}
-              if(S.station.dewp==null&&awcObs.dewp!=null){S.station.dewp=awcObs.dewp;filled=true}
-              if(S.station.windKmh==null&&awcObs.windKmh!=null){S.station.windKmh=awcObs.windKmh;S.station.windDir=awcObs.windDir;S.station.gustKmh=awcObs.gustKmh;filled=true}
-              if(S.station.presPa==null&&awcObs.presPa!=null){S.station.presPa=awcObs.presPa;filled=true}
-              if(S.station.visMeter==null&&awcObs.visMeter!=null){S.station.visMeter=awcObs.visMeter;filled=true}
-              if(filled)console.log('AWC backfill from '+obs.rawOb.substring(0,30)+': dewp='+awcObs.dewp);
-              if(S.station.temp!=null&&S.station.dewp!=null&&S.station.windKmh!=null)break;
-            }
-            if(S.station.dewp!=null&&S.station.rawMETAR){
-              const _t=S.station.temp!=null?Math.round(S.station.temp):null;
-              const _d=Math.round(S.station.dewp);
-              const _tf=_t!=null?(_t<0?'M'+String(Math.abs(_t)).padStart(2,'0'):String(_t).padStart(2,'0')):'';
-              const _df=_d<0?'M'+String(Math.abs(_d)).padStart(2,'0'):String(_d).padStart(2,'0');
-              if(_tf)S.station.rawMETAR=S.station.rawMETAR.replace(new RegExp(_tf+'\\/(M?\\d{0,2})(?=\\s)'),_tf+'/'+_df);
-              const _ts=S.station.temp!=null?(S.station.temp<0?'1':'0')+Math.round(Math.abs(S.station.temp)*10).toString().padStart(3,'0'):'';
-              const _ds=(S.station.dewp<0?'1':'0')+Math.round(Math.abs(S.station.dewp)*10).toString().padStart(3,'0');
-              if(_ts)S.station.rawMETAR=S.station.rawMETAR.replace(new RegExp('T'+_ts.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?!\\d)'),'T'+_ts+_ds);
-            }
-          }}
-        }catch(e){console.log('AWC backfill failed:',e.message)}
+        const _bfIcao=icao;
+        (async()=>{try{
+          const ar=await fetch(`https://aviationweather.gov/api/data/metar?ids=${_bfIcao}&format=json&hours=3`,{signal:AbortSignal.timeout(6000)});
+          if(!ar.ok)return;const ad=await ar.json();if(!ad.length)return;
+          if(S.stationId!==_bfIcao)return;
+          for(const obs of ad){
+            if(!obs.rawOb)continue;
+            const awcObs=parseAWCobs(obs);
+            if(S.station.temp==null&&awcObs.temp!=null)S.station.temp=awcObs.temp;
+            if(S.station.dewp==null&&awcObs.dewp!=null)S.station.dewp=awcObs.dewp;
+            if(S.station.windKmh==null&&awcObs.windKmh!=null){S.station.windKmh=awcObs.windKmh;S.station.windDir=awcObs.windDir;S.station.gustKmh=awcObs.gustKmh}
+            if(S.station.presPa==null&&awcObs.presPa!=null)S.station.presPa=awcObs.presPa;
+            if(S.station.visMeter==null&&awcObs.visMeter!=null)S.station.visMeter=awcObs.visMeter;
+            if(S.station.temp!=null&&S.station.dewp!=null&&S.station.windKmh!=null)break;
+          }
+          if(S.station.dewp!=null&&S.station.rawMETAR){
+            const _t=S.station.temp!=null?Math.round(S.station.temp):null;
+            const _d=Math.round(S.station.dewp);
+            const _tf=_t!=null?(_t<0?'M'+String(Math.abs(_t)).padStart(2,'0'):String(_t).padStart(2,'0')):'';
+            const _df=_d<0?'M'+String(Math.abs(_d)).padStart(2,'0'):String(_d).padStart(2,'0');
+            if(_tf)S.station.rawMETAR=S.station.rawMETAR.replace(new RegExp(_tf+'\\/(M?\\d{0,2})(?=\\s)'),_tf+'/'+_df);
+            const _ts=S.station.temp!=null?(S.station.temp<0?'1':'0')+Math.round(Math.abs(S.station.temp)*10).toString().padStart(3,'0'):'';
+            const _ds=(S.station.dewp<0?'1':'0')+Math.round(Math.abs(S.station.dewp)*10).toString().padStart(3,'0');
+            if(_ts)S.station.rawMETAR=S.station.rawMETAR.replace(new RegExp('T'+_ts.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?!\\d)'),'T'+_ts+_ds);
+          }
+          if(S.stationId===_bfIcao){console.log('AWC backfill done for '+_bfIcao+', re-rendering');renderStation()}
+        }catch(e){console.log('AWC backfill failed:',e.message)}})();
       }
     }else{
       let awcRaw='';
