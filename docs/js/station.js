@@ -540,10 +540,10 @@ function renderStation(){
           if(_hr&&_hr.time&&_hr.temperature_2m&&_hr.dew_point_2m){
             const _nowMs=Date.now();
             const _nIdx=_hr.time.findIndex(t=>new Date(t).getTime()>=_nowMs);
-            if(_nIdx>=0&&_nIdx+3<_hr.time.length){
+            if(_nIdx>=0&&_nIdx+1<_hr.time.length){
               const _s0=_hr.temperature_2m[_nIdx]-_hr.dew_point_2m[_nIdx];
-              const _s3=_hr.temperature_2m[_nIdx+3]-_hr.dew_point_2m[_nIdx+3];
-              const _delta=_s3-_s0;
+              const _s1=_hr.temperature_2m[_nIdx+1]-_hr.dew_point_2m[_nIdx+1];
+              const _delta=_s1-_s0;
               if(_delta>0.5)_cbArrow=' <span style="color:#39ff14;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(57,255,20,0.6)">↑</span>';
               else if(_delta<-0.5)_cbArrow=' <span style="color:#ff3355;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(255,51,85,0.6)">↓</span>';
               else _cbArrow=' <span style="color:var(--text-muted);font-size:1.1em">→</span>';
