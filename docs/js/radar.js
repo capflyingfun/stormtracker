@@ -1578,6 +1578,7 @@ function updateThreatTicker(){
         const sep='<span style="color:#664400;margin:0 40px">│</span>';
         const html=nwsMsgs.map(m=>`<span style="color:#fbbf24">${m}</span>`).join(sep);
         showTicker(html,'#fbbf24','rgba(251,191,36,0.3)','linear-gradient(90deg,rgba(30,20,0,0.95),rgba(45,30,5,0.95),rgba(30,20,0,0.95))');
+        _startTickerCountdown();
         S._alertsShownOnce=true;
         return;
       }
