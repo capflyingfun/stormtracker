@@ -180,6 +180,7 @@ async function searchLoc(){
         name=fmtLocName(addr,r.display_name.split(',').slice(0,2).join(',').trim());
       }
       setLoc(parseFloat(r.lat),parseFloat(r.lon),name);
+      toggleLocOverlay(false);
       checkLocationUnits(addr.country_code);
     }
     else toast('Location not found');
@@ -457,6 +458,7 @@ function goToFavorite(idx){
   const f=favs[idx];
   if(!f)return;
   setLoc(f.lat,f.lon,f.name);
+  toggleLocOverlay(false);
   toast('🧭 '+f.name);
 }
 function toggleFavEmailAlert(idx){
