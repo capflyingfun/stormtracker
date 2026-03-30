@@ -1445,10 +1445,13 @@ function _tickerWeatherPool(){
     }
     const cc=w.cloud_cover;
     if(cc!=null){
-      if(cc<=10)pool.push('☀️ Virtually cloudless skies right now. Pure sunshine! 🌞');
-      else if(cc<=30)pool.push(`⛅ Mostly clear with ${cc}% cloud cover. Enjoy the sunshine breaking through! 🌤️`);
-      else if(cc<=70)pool.push(`🌥️ Partly cloudy — ${cc}% cloud cover. A nice mix of sun and clouds.`);
-      else pool.push(`☁️ Overcast skies — ${cc}% cloud cover. The clouds are putting on a show today.`);
+      const _skyDesc=w._nwsDesc||wmoDesc(w.weather_code||0);
+      const _skyLbl=/overcast/i.test(_skyDesc)?'Overcast':/mostly\s*cloudy/i.test(_skyDesc)?'Mostly cloudy':/partly/i.test(_skyDesc)?'Partly cloudy':/mostly\s*(sunny|clear)/i.test(_skyDesc)?'Mostly clear':/clear|sunny/i.test(_skyDesc)?'Clear':cc>=90?'Overcast':cc>=70?'Mostly cloudy':cc>=30?'Partly cloudy':cc>10?'Mostly clear':'Clear';
+      if(cc<=10)pool.push(`☀️ ${_skyLbl} skies right now — ${cc}% cloud cover. Pure sunshine! 🌞`);
+      else if(cc<=30)pool.push(`⛅ ${_skyLbl} with ${cc}% cloud cover. Enjoy the sunshine breaking through! 🌤️`);
+      else if(cc<=70)pool.push(`🌥️ ${_skyLbl} — ${cc}% cloud cover. A nice mix of sun and clouds.`);
+      else if(cc<90)pool.push(`☁️ ${_skyLbl} — ${cc}% cloud cover. The clouds are putting on a show today.`);
+      else pool.push(`☁️ ${_skyLbl} — ${cc}% cloud cover. Thick cloud deck overhead.`);
     }
   }
   if(fc&&fc.daily){
