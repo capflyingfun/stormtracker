@@ -179,7 +179,9 @@ async function searchLoc(){
       }else{
         name=fmtLocName(addr,r.display_name.split(',').slice(0,2).join(',').trim());
       }
-      confirmLocationChange(name,()=>{setLoc(parseFloat(r.lat),parseFloat(r.lon),name);toggleLocOverlay(false);checkLocationUnits(addr.country_code)});
+      setLoc(parseFloat(r.lat),parseFloat(r.lon),name);
+      toggleLocOverlay(false);
+      checkLocationUnits(addr.country_code);
     }
     else toast('Location not found');
   }catch(e){toast('Search failed')}
@@ -446,19 +448,6 @@ function renameFavorite(idx){
     toast('Renamed to: '+newName.trim());
   }
 }
-function confirmLocationChange(locName,onConfirm){
-  const modal=document.createElement('div');
-  modal.style.cssText='position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(2px)';
-  modal.innerHTML=`<div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:16px;max-width:280px;text-align:center">
-    <div style="font-size:0.95em;color:#ddd;margin-bottom:12px">Go to<br><strong style="color:#0ea5e9;font-size:1.05em">${locName}</strong>?</div>
-    <div style="display:flex;gap:8px">
-      <button onclick="this.parentElement.parentElement.parentElement.remove()" style="flex:1;background:none;border:1px solid #475569;color:#94a3b8;padding:8px;border-radius:4px;cursor:pointer;font-weight:500">Cancel</button>
-      <button onclick="this.parentElement.parentElement.parentElement.remove();_confirmLocationCb()" style="flex:1;background:#0ea5e9;border:none;color:#000;padding:8px;border-radius:4px;cursor:pointer;font-weight:600">GO</button>
-    </div>
-  </div>`;
-  document.body.appendChild(modal);
-  window._confirmLocationCb=onConfirm;
-}
 function loadFavorite(idx){
   const favs=getFavorites();
   const f=favs[idx];
@@ -468,7 +457,9 @@ function goToFavorite(idx){
   const favs=getFavorites();
   const f=favs[idx];
   if(!f)return;
-  confirmLocationChange(f.name,()=>{setLoc(f.lat,f.lon,f.name);toggleLocOverlay(false)});
+  setLoc(f.lat,f.lon,f.name);
+  toggleLocOverlay(false);
+  toast('🧭 '+f.name);
 }
 function toggleFavEmailAlert(idx){
   const favs=getFavorites();
