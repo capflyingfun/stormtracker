@@ -108,6 +108,7 @@ async function fetchWeather(){
     const omData=_blendOMModels(_gfsData,_hrrrData)||_gfsData||_hrrrData;
     if(!omData)throw new Error('All model fetches failed');
     console.log('OM models: '+(_gfsData?'GFS✓':'GFS✗')+' '+(_hrrrData?'HRRR✓':'HRRR✗')+(_isUSLoc?'':' (non-US, HRRR skipped)'));
+    if(reqId!==S._locReqId)return;
     S.forecast=omData;
     try{
       const isUS=isUSLocation(S.lat,S.lon);

@@ -162,6 +162,7 @@ async function searchLoc(){
   hideSuggestions();
   const q=document.getElementById('location-input').value.trim();
   if(!q)return;
+  toggleLocOverlay(false);
   toast('Searching...');
   try{
     let data=await geoSearch(cleanQ(q),1);
@@ -183,7 +184,6 @@ async function searchLoc(){
         name=fmtLocName(addr,r.display_name.split(',').slice(0,2).join(',').trim());
       }
       setLoc(parseFloat(r.lat),parseFloat(r.lon),name);
-      toggleLocOverlay(false);
       checkLocationUnits(addr.country_code);
     }
     else toast('Location not found');
@@ -380,7 +380,7 @@ function setLoc(lat,lon,name,fromTravel){
   S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
   updateNavForLocation();
   if(S.map){
-    S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
+    S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});S.stormMarkers=[];
     clearStormCone();
   }
   S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;S._approachData=null;S._arrowCells=[];clearStormZones();
