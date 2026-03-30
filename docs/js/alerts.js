@@ -1059,7 +1059,7 @@ function startAlertCountdowns(){
       const rem=exp-now;
       if(rem<=0){el.textContent='Expired';el.style.color='var(--accent-red)';anyExpired=true;return}
       const h=Math.floor(rem/3600000);const m=Math.floor((rem%3600000)/60000);const s=Math.floor((rem%60000)/1000);
-      el.textContent=h>0?h+'h:'+String(m).padStart(2,'0')+'m remaining':m+'m remaining';
+      el.textContent=(h?h+'h ':'')+(m<10&&h?'0':'')+m+'m '+(s<10?'0':'')+s+'s remaining';
       if(rem<3600000)el.style.color='var(--accent-orange)';
       else el.style.color='var(--text-muted)';
     });

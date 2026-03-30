@@ -1531,11 +1531,12 @@ function updateThreatTicker(){
     if(alertPhase){
       const nwsMsgs=[];
       function _relDur(ms){
-        const m=Math.ceil(ms/60000);
-        if(m<1)return'<1m';
-        if(m<60)return'~'+m+'m';
-        const h=Math.ceil(m/60);
-        return'~'+h+'h';
+        const totalM=Math.floor(ms/60000);
+        if(totalM<1)return'<1m';
+        if(totalM<60)return String(totalM).padStart(2,'0')+'m';
+        const h=Math.floor(totalM/60);
+        const rm=totalM%60;
+        return String(h).padStart(2,'0')+'h '+String(rm).padStart(2,'0')+'m';
       }
       const now=Date.now();
       const _tickerAlerts=(typeof _sortAlertsByDate==='function')?_sortAlertsByDate(S.alerts):S.alerts;
