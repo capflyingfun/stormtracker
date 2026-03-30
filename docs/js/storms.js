@@ -394,6 +394,7 @@ S._terrainLastLat=null;
 S._terrainLastLon=null;
 async function fetchTerrainGrid(){
   if(!S.lat||!S.lon)return;
+  const reqId=S._locReqId;
   if(S._terrainLastLat&&Math.abs(S.lat-S._terrainLastLat)<0.05&&Math.abs(S.lon-S._terrainLastLon)<0.05&&S._terrainData)return;
   try{
     const pts=[];
@@ -438,6 +439,7 @@ async function fetchTerrainGrid(){
     const valleys=channels.filter(c=>c.diff<-30&&c.lowRatio>=0.5);
     const ridges=channels.filter(c=>c.diff>80);
     const relief=Math.max(...channels.map(c=>c.avgElev))-Math.min(...channels.map(c=>c.avgElev));
+    if(reqId!==S._locReqId)return;
     S._terrainData={userElev,grid,channels,valleys,ridges,relief,gridN,span};
     S._terrainLastLat=S.lat;
     S._terrainLastLon=S.lon;
@@ -580,6 +582,7 @@ function computeTopStorms(){
 async function scanRadarForStorms(){
   if(S._radarAnimPlaying)stopRadarAnim(S.map);
   if(!S.lat)return;
+  const reqId=S._locReqId;
   if(!S._etaRescanInProgress)S._stormETAs={};
   clearViewScanCircle();
   const useNexrad=S.radarSource==='nexrad';
@@ -635,6 +638,7 @@ async function scanRadarForStorms(){
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Plotting ${S.storms.length} storm points...`);
     await new Promise(r=>setTimeout(r,300));
+    if(reqId!==S._locReqId){hideScanOverlay();return}
     renderStorms();updateStormBadges();drawMiniSonar();
     if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}

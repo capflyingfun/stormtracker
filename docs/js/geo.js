@@ -105,10 +105,41 @@ function highlightSug(){
 }
 
 let _locConfirmShown=false;
+function _doGPSLocate(){
+  toggleLocOverlay(false);
+  toast('Getting location...');
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      toast('📍 GPS locked — accuracy ±'+Math.round(pos.coords.accuracy)+'m');
+      if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;
+      S._gpsLocating=true;
+      reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{S._gpsLocating=false});
+    },
+    err=>{
+      if(err.code===1){
+        toast('📍 Location permission denied — please enable location in your browser/phone settings, then try again');
+      }else if(err.code===2){
+        toast('📍 Location unavailable — make sure GPS/Location Services is turned ON in your phone settings');
+      }else if(err.code===3){
+        toast('📍 GPS timed out — trying again with lower accuracy...');
+        navigator.geolocation.getCurrentPosition(
+          pos=>{toast('📍 Location found');if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;S._gpsLocating=true;reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{S._gpsLocating=false});},
+          err2=>{toast('📍 Still cannot get location — try searching for your city instead');},
+          {enableHighAccuracy:false,timeout:15000,maximumAge:120000}
+        );
+        return;
+      }else{
+        toast('📍 Could not get location — try searching instead');
+      }
+    },
+    {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
+  );
+}
 function showLocationConfirm(){
   if(!navigator.geolocation){toast('GPS not available');return}
-  if(_locConfirmShown||document.querySelector('.confirm-overlay'))return;
-  if(S.lat&&S.lon)return;
+  if(document.querySelector('.confirm-overlay'))return;
+  // If location already set or user has confirmed before, skip our in-app dialog and go straight to GPS
+  if(S.lat&&S.lon||_locConfirmShown){_doGPSLocate();return}
   _locConfirmShown=true;
   localStorage.setItem('st_locAsked','1');
   const overlay=document.createElement('div');
@@ -123,42 +154,15 @@ function showLocationConfirm(){
   </div>`;
   document.body.appendChild(overlay);
   document.getElementById('loc-deny').addEventListener('click',()=>{overlay.remove();toast('You can search for a location instead')});
-  document.getElementById('loc-allow').addEventListener('click',()=>{
-    overlay.remove();
-    toast('Getting location...');
-    navigator.geolocation.getCurrentPosition(
-      pos=>{
-        toast('📍 GPS locked — accuracy ±'+Math.round(pos.coords.accuracy)+'m');
-        if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;
-        S._gpsLocating=true;
-        reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{S._gpsLocating=false});
-      },
-      err=>{
-        if(err.code===1){
-          toast('📍 Location permission denied — please enable location in your browser/phone settings, then try again');
-        }else if(err.code===2){
-          toast('📍 Location unavailable — make sure GPS/Location Services is turned ON in your phone settings');
-        }else if(err.code===3){
-          toast('📍 GPS timed out — trying again with lower accuracy...');
-          navigator.geolocation.getCurrentPosition(
-            pos=>{toast('📍 Location found');if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;S._gpsLocating=true;reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{S._gpsLocating=false});},
-            err2=>{toast('📍 Still cannot get location — try searching for your city instead');},
-            {enableHighAccuracy:false,timeout:15000,maximumAge:120000}
-          );
-          return;
-        }else{
-          toast('📍 Could not get location — try searching instead');
-        }
-      },
-      {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
-    );
-  });
+  document.getElementById('loc-allow').addEventListener('click',()=>{overlay.remove();_doGPSLocate()});
   overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()});
 }
 
 async function searchLoc(){
+  hideSuggestions();
   const q=document.getElementById('location-input').value.trim();
   if(!q)return;
+  toggleLocOverlay(false);
   toast('Searching...');
   try{
     let data=await geoSearch(cleanQ(q),1);
@@ -180,7 +184,6 @@ async function searchLoc(){
         name=fmtLocName(addr,r.display_name.split(',').slice(0,2).join(',').trim());
       }
       setLoc(parseFloat(r.lat),parseFloat(r.lon),name);
-      document.getElementById('loc-overlay').classList.remove('open');
       checkLocationUnits(addr.country_code);
     }
     else toast('Location not found');
@@ -363,7 +366,6 @@ function showHdScanDialog(){
     setTimeout(()=>scanRadarHiRes(S.map,true),500);
   });
 }
-let _setLocTimer=null;
 function setLoc(lat,lon,name,fromTravel){
   if(!getHomeLocation()){setHomeLocation(lat,lon,name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`)}
   if(!fromTravel && S.travelMode) stopTravelMode();
@@ -378,7 +380,7 @@ function setLoc(lat,lon,name,fromTravel){
   S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
   updateNavForLocation();
   if(S.map){
-    S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
+    S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});S.stormMarkers=[];
     clearStormCone();
   }
   S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;S._approachData=null;S._arrowCells=[];clearStormZones();
@@ -402,16 +404,13 @@ function setLoc(lat,lon,name,fromTravel){
   if(typeof _showHeaderBtns==='function')_showHeaderBtns();
   const wEl=document.getElementById('page-weather');if(wEl)showSkel(wEl,6);
   if(typeof showLoadingScreen==='function')showLoadingScreen(S.locName);
-  if(_setLocTimer)clearTimeout(_setLocTimer);
-  _setLocTimer=setTimeout(()=>{
-    _setLocTimer=null;
-    document.getElementById('status-text').textContent='Live · '+S.locName;
-    fetchWeather();
-    fetchAlerts();fetchHazards();
-    fetchTerrainGrid();
-    scanRadarForStorms();
-    scheduleHourlyRefresh();
-  },0);
+  S._locReqId=(S._locReqId||0)+1;
+  document.getElementById('status-text').textContent='Live · '+S.locName;
+  fetchWeather();
+  fetchAlerts();fetchHazards();
+  fetchTerrainGrid();
+  scanRadarForStorms();
+  scheduleHourlyRefresh();
 }
 
 function getFavorites(){
@@ -456,7 +455,7 @@ function loadFavorite(idx){
 function goToFavorite(idx){
   const favs=getFavorites();
   const f=favs[idx];
-  if(f){setLoc(f.lat,f.lon,f.name);document.getElementById('loc-overlay').classList.remove('open')}
+  if(f){setLoc(f.lat,f.lon,f.name);toggleLocOverlay(false)}
 }
 function toggleFavEmailAlert(idx){
   const favs=getFavorites();

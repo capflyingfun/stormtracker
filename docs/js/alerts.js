@@ -106,18 +106,21 @@ function fmtAlertTime(d){
   return`${day} ${mon} ${date}, ${fmtClockShort(d)}`;
 }
 async function fetchAlerts(){
+  const reqId=S._locReqId;
   const el=document.getElementById('page-alerts');showSkel(el,3);
-  if(!isNWSCoverage(S.lat,S.lon)){S.alerts=[];renderAlerts();return}
+  if(!isNWSCoverage(S.lat,S.lon)){S.alerts=[];if(reqId===S._locReqId)renderAlerts();return}
   try{
     const res=await fetch(`https://api.weather.gov/alerts/active?point=${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{headers:{'User-Agent':'StormTracker/1.50'}});
-    const data=await res.json();S.alerts=data.features||[];renderAlerts();if(_curLang!=='en')setTimeout(quickTranslate,300);
-  }catch(e){S.alerts=[];renderAlerts()}
+    const data=await res.json();
+    if(reqId!==S._locReqId)return;
+    S.alerts=data.features||[];renderAlerts();if(_curLang!=='en')setTimeout(quickTranslate,300);
+  }catch(e){if(reqId!==S._locReqId)return;S.alerts=[];renderAlerts()}
   if(S.alerts&&S.alerts.length)S._alertsShownOnce=false;
   if(typeof updateThreatTicker==='function')updateThreatTicker();
   _extractFloodAlerts();
-  fetchSPCData().then(()=>{if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map)}}).catch(e=>console.warn('SPC fetch error:',e));
-  fetchNHCData().then(()=>{if(S.map)plotNHCTracks(S.map);_nhcProximityCheck();if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.activePage==='weather')_updateTropicalUI()}).catch(e=>console.warn('NHC fetch error:',e));
-  if(S.activePage==='alerts')renderHazards();
+  fetchSPCData().then(()=>{if(reqId!==S._locReqId)return;if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map)}}).catch(e=>console.warn('SPC fetch error:',e));
+  fetchNHCData().then(()=>{if(reqId!==S._locReqId)return;if(S.map)plotNHCTracks(S.map);_nhcProximityCheck();if(S.activePage==='alerts'){renderAlerts();renderHazards()}if(S.activePage==='weather')_updateTropicalUI()}).catch(e=>console.warn('NHC fetch error:',e));
+  if(reqId===S._locReqId&&S.activePage==='alerts')renderHazards();
 }
 
 function updateAlertBadge(){
@@ -397,6 +400,7 @@ async function _fetchRecentPrecip(){
 
 async function fetchHazards(){
   if(!S.lat||!S.lon)return;
+  const reqId=S._locReqId;
   const now=Date.now();
   const locKey=S.lat.toFixed(2)+','+S.lon.toFixed(2);
   if(now-_hazardData._lastFetch<300000&&_hazardData.earthquakes!==null&&_hazardData._locKey===locKey)return;
@@ -418,7 +422,7 @@ async function fetchHazards(){
     isUS?fetchSPCData():Promise.resolve(),
     fetchNHCData()
   ]);
-  if(S.activePage==='alerts')renderHazards();
+  if(reqId===S._locReqId&&S.activePage==='alerts')renderHazards();
 }
 
 async function _fetchEarthquakes(){
