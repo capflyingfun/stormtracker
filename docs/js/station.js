@@ -530,6 +530,10 @@ function renderStation(){
         html+=`<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div class="tile-label-upper">🌫️ Fog Risk</div><div style="font-size:0.9em;font-weight:700;color:${_fog.color}">${_fog.level}</div><div class="text-hint">${_fog.desc}</div></div>`;
         html+='<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div class="tile-label-upper">☁️ Cloud Base</div>';
         const _estCb=calcCloudBase(_sp);
+        const _ceil=getMetarCeilingFt(s);
+        const _useCeil=_ceil!=null&&_ceil<_estCb;
+        const _showCb=_useCeil?_ceil:_estCb;
+        const _cbLabel=_useCeil?'Reported ceiling AGL':'Estimated AGL';
         let _cbArrow='';
         const _hr=S._hourlyData;
         if(_hr&&_hr.time&&_hr.temperature_2m&&_hr.dew_point_2m){
@@ -544,7 +548,7 @@ function renderStation(){
             else _cbArrow=' <span style="color:var(--text-muted);font-size:1.1em">→</span>';
           }
         }
-        html+=`<div style="font-size:0.9em;font-weight:700;color:var(--accent-cyan)">${fmtAlt(_estCb)}${_cbArrow}</div><div class="text-hint">Estimated AGL</div>`;
+        html+=`<div style="font-size:0.9em;font-weight:700;color:var(--accent-cyan)">${fmtAlt(_showCb)}${_cbArrow}</div><div class="text-hint">${_cbLabel}</div>`;
         html+='</div>';
         html+='</div>';
         if(_inv.detected)html+=`<div style="background:rgba(255,152,0,0.1);border:1px solid rgba(255,152,0,0.3);border-radius:8px;padding:6px 10px;margin-bottom:10px;font-size:0.72em;color:var(--accent-orange);text-align:center">⚠️ ${_inv.text}</div>`;
@@ -696,7 +700,11 @@ function decodeMetar(raw){
         const dc=d.startsWith('M')?-parseInt(d.slice(1)):parseInt(d);
         const spreadC=tc-dc;
         const cbFt=calcCloudBase(spreadC);
+        const _mCeil=getMetarCeilingFt(S.station);
         let cbLine=`Spread: ${fmtTempDiff(spreadC)} — ${getSpreadLabel(spreadC)}<br>Est. cloud base: ~${fmtAlt(cbFt)} AGL`;
+        if(_mCeil!=null){
+          cbLine+=`<br>Reported ceiling: ${fmtAlt(_mCeil)} AGL`;
+        }
         rows.push(c('#00e5ff','Temp/Dew',`${fmtTemp(tc)} / ${fmtTemp(dc)}`,cbLine));
       }else{
         rows.push(c('#00e5ff','Temp/Dew',`${fmtTemp(tc)} / --`,'Dew point not reported'));
