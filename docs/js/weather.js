@@ -415,7 +415,7 @@ function renderWeather(data){
 })()}
         <div class="hero-stat-cell"><div class="hero-side-label">Spread</div><div class="hero-side-val">${fmtTempDiff(tempC-dewC)}</div><div style="font-size:0.42em;color:var(--text-muted);margin-top:1px;line-height:1.2">${getSpreadLabel(tempC-dewC)}</div>${(()=>{
   const _spread=tempC-dewC;
-  const _estB=calcCloudBase(_spread);
+  const _estB=adjustCloudBaseForUser(calcCloudBase(_spread));
   // 3-hour spread trend from hourly forecast — wider spread = rising base, narrowing = lowering base
   let _arrow='';
   if(hourly&&hourly.time&&hourly.temperature_2m&&hourly.dew_point_2m){
@@ -430,14 +430,7 @@ function renderWeather(data){
       else _arrow='<span style="color:var(--text-muted);font-size:1.1em">→</span>';
     }
   }
-  const _mCeil=S.station?getMetarCeilingFt(S.station):null;
-  let _cbColor='var(--accent-cyan)';
-  let _ceilLine='';
-  if(_mCeil!=null){
-    _cbColor=_mCeil>=_estB?'#39ff14':'#ff3355';
-    _ceilLine=`<div style="font-size:0.95em;color:${_cbColor};margin-top:1px">Reported ceiling: ${fmtAlt(_mCeil)} AGL</div>`;
-  }
-  return`<div id="weather-spread-cb" data-spread="${_spread}" style="font-size:0.38em;color:${_cbColor};margin-top:1px;line-height:1.1">Est. base ~${fmtAlt(_estB)} AGL ${_arrow}${_ceilLine}</div>`;
+  return`<div id="weather-spread-cb" data-spread="${_spread}" style="font-size:0.38em;color:var(--accent-cyan);margin-top:1px;line-height:1.1">Est. base ~${fmtAlt(_estB)} AGL ${_arrow}</div>`;
 })()}</div>
         ${(()=>{const spread=tempC-dewC;const windKt=c.wind_speed_10m!=null?(c.wind_speed_10m/1.852):null;const fog=getFogRisk(spread,windKt,isDay,c.cloud_cover);const stab=getStabilityLabel(spread,Math.min(100,c.relative_humidity_2m),tempC);const inv=detectInversion(spread,windKt,isDay,c.cloud_cover);return`<div class="hero-stat-cell"><div class="hero-side-label">🌫️ Fog Risk</div><div class="hero-side-val" style="font-size:0.85em;color:${fog.color}">${fog.level}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${fog.desc}</div></div><div class="hero-stat-cell"><div class="hero-side-label">🌡️ Stability</div><div class="hero-side-val" style="font-size:0.75em;color:${stab.color}">${stab.label}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${stab.desc}</div></div>${inv.detected?`<div class="hero-stat-cell" style="grid-column:1/-1"><div style="font-size:0.5em;color:var(--accent-orange);text-align:center;padding:2px 6px;background:rgba(255,152,0,0.1);border-radius:4px">⚠️ ${inv.text}</div></div>`:''}`})()}
       </div>
@@ -1394,17 +1387,5 @@ function toggleNWSDetail(idx){
 }
 
 // No-op — arrow is now driven purely by forecast spread trend at render time.
-function updateWeatherCloudBaseColor(){
-  const el=document.getElementById('weather-spread-cb');
-  if(!el)return;
-  const sp=parseFloat(el.dataset.spread);
-  if(isNaN(sp))return;
-  const estB=calcCloudBase(sp);
-  const ceil=S.station?getMetarCeilingFt(S.station):null;
-  if(ceil!=null){
-    el.style.color=ceil>=estB?'#39ff14':'#ff3355';
-  }else{
-    el.style.color='var(--accent-cyan)';
-  }
-}
+function updateWeatherCloudBaseColor(){}
 
