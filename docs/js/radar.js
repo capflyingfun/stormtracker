@@ -1694,7 +1694,7 @@ function _tickTickerCd(){
   const now=Date.now();
   spans.forEach(sp=>{
     const t=parseInt(sp.dataset.target)||0;
-    const remain=Math.max(0,Math.round((t-now)/1000));
+    const remain=Math.max(0,Math.floor((t-now)/1000));
     const h=Math.floor(remain/3600),m=Math.floor((remain%3600)/60),s=remain%60;
     sp.textContent=remain<=0?'NOW':h>0?h+'h:'+String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s':m+'m:'+String(s).padStart(2,'0')+'s';
   });
