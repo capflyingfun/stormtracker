@@ -581,6 +581,10 @@ canvas.offscreen{display:none}
   /* Radar map: much taller on desktop */
   .map-container{height:min(1400px,calc(100vh - 100px))}
 
+  /* Wind gauge: bigger on desktop */
+  .wind-gauge-full .wind-rose,.wind-gauge-full [data-gauge]{max-width:480px}
+  .wind-gauge-full .gauge-g1000{max-width:560px}
+
   /* Station grid wider */
   .station-grid{grid-template-columns:repeat(4,1fr)}
 
