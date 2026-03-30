@@ -999,18 +999,20 @@ function plotStormMarkers(map){
     const popupOpts={closeButton:true,className:'storm-popup'};
     const stormRef=storm;
     if(mv&&mv.speed>=2){
-      const sz=Math.max(10,Math.round(Math.max(24,storm.dbz/2)*sc));
+      const dbzScale=Math.max(0.4,Math.min(1.0,(storm.dbz-20)/45+0.4));
+      const baseSz=Math.max(24,storm.dbz/2)*sc;
+      const sz=Math.max(10,Math.round(baseSz*dbzScale));
       const svgHtml=stormArrowSvg(mv.direction,color,sz);
-      pending.push({type:'arrow',lat:storm.lat,lng:storm.lng,sz,svgHtml,popupHtml,popupOpts,stormRef});
+      pending.push({type:'arrow',lat:storm.lat,lng:storm.lng,sz,svgHtml,popupHtml,popupOpts,stormRef,_dbz:storm.dbz});
     }else{
-      pending.push({type:'circle',lat:storm.lat,lng:storm.lng,r,color,popupHtml,popupOpts,stormRef});
+      pending.push({type:'circle',lat:storm.lat,lng:storm.lng,r,color,popupHtml,popupOpts,stormRef,_dbz:storm.dbz});
     }
     if(eta&&eta.approaching&&visibleSet.has(storm)){
       const ringRadiusM=Math.max(800,Math.min(5000,(storm.dbz-15)*80));
-      pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringRadiusM,color,dbz:storm.dbz,stormRef});
+      pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringRadiusM,color,dbz:storm.dbz,stormRef,_dbz:storm.dbz});
     }
     if(storm.dbz>=40){
-      pending.push({type:'lightning',lat:storm.lat,lng:storm.lng,stormRef});
+      pending.push({type:'lightning',lat:storm.lat,lng:storm.lng,stormRef,_dbz:storm.dbz});
     }
     if(S._stormAlertHistory&&S._stormAlertHistory.length){
       const hasAlert=S._stormAlertHistory.some(h=>{
@@ -1036,6 +1038,8 @@ function plotStormMarkers(map){
   });
   requestAnimationFrame(()=>{requestAnimationFrame(()=>{
     document.body.removeChild(offscreen);
+    const _typeOrder={ring:0,circle:1,arrow:2,lightning:3,alertBadge:4,tornado:5};
+    pending.sort((a,b)=>{const da=(a._dbz||0),db=(b._dbz||0);return da!==db?da-db:(_typeOrder[a.type]||0)-(_typeOrder[b.type]||0)});
     const mode=S._pointsMode;
     pending.forEach(p=>{
       const isVisible=(mode==='all')||(mode==='inbound'&&visibleSet.has(p.stormRef));
