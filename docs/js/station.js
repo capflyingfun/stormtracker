@@ -278,6 +278,20 @@ function parseRawMetar(raw,station){
       clouds.push({amount:cldM[1],base:{value:cldM[2]?Number(cldM[2])*100*0.3048:null}});
       continue;
     }
+    const tGroupM=p.match(/^T(\d)(\d{3})(\d)(\d{3})$/);
+    if(tGroupM){
+      const tVal=Number(tGroupM[2])/10*(tGroupM[1]==='1'?-1:1);
+      const dVal=Number(tGroupM[4])/10*(tGroupM[3]==='1'?-1:1);
+      if(temp==null)temp=tVal;
+      if(dewp==null)dewp=dVal;
+      continue;
+    }
+    const tGroupTempOnly=p.match(/^T(\d)(\d{3})$/);
+    if(tGroupTempOnly){
+      const tVal=Number(tGroupTempOnly[2])/10*(tGroupTempOnly[1]==='1'?-1:1);
+      if(temp==null)temp=tVal;
+      continue;
+    }
     for(const wx of wxCodes){
       if(p.includes(wx)&&p.match(/^[-+]?(VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(RA|SN|DZ|GR|GS|PL|IC|PE|SG|UP|FG|BR|HZ|FU|SA|DU|VA|PO|SQ|FC|SS|DS)+$/)){
         wxString+=(wxString?' ':'')+p;
@@ -384,17 +398,26 @@ async function loadStationObs(icao){
         }
       }catch(awcErr){console.log('AWC inline fetch failed for',icao,awcErr.message)}
       if(!awcRaw){
+        let _nwsTemp=p.temperature?.value!=null?p.temperature.value:null;
+        let _nwsDewp=p.dewpoint?.value!=null?p.dewpoint.value:null;
+        if((_nwsTemp==null||_nwsDewp==null)&&p.rawMessage){
+          const _tg=p.rawMessage.match(/\bT(\d)(\d{3})(\d)(\d{3})\b/);
+          if(_tg){
+            if(_nwsTemp==null)_nwsTemp=Number(_tg[2])/10*(_tg[1]==='1'?-1:1);
+            if(_nwsDewp==null)_nwsDewp=Number(_tg[4])/10*(_tg[3]==='1'?-1:1);
+          }
+        }
         S.station={
           icao,name:stName,lat:sLat,lon:sLon,
           elev:p.elevation?.value!=null?p.elevation.value:null,
-          temp:p.temperature?.value!=null?p.temperature.value:null,
-          dewp:p.dewpoint?.value!=null?p.dewpoint.value:null,
+          temp:_nwsTemp,
+          dewp:_nwsDewp,
           windKmh:p.windSpeed?.value!=null?p.windSpeed.value:null,
           windDir:p.windDirection?.value!=null?p.windDirection.value:null,
           gustKmh:p.windGust?.value!=null?p.windGust.value:null,
           visMeter:p.visibility?.value!=null?p.visibility.value:null,
           presPa:p.barometricPressure?.value!=null?p.barometricPressure.value:null,
-          rawMETAR:buildSyntheticMetar(icao,p),
+          rawMETAR:p.rawMessage||buildSyntheticMetar(icao,p),
           clouds:p.cloudLayers||[],obsTime:p.timestamp||'',
           wxString:p.textDescription||'',
         };
