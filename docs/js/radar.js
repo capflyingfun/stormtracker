@@ -1010,7 +1010,7 @@ function plotStormMarkers(map){
       pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringSize,color,dbz:storm.dbz,stormRef});
     }
     if(storm.dbz>=40){
-      pending.push({type:'lightning',lat:storm.lat,lng:storm.lng});
+      pending.push({type:'lightning',lat:storm.lat,lng:storm.lng,stormRef});
     }
     if(S._stormAlertHistory&&S._stormAlertHistory.length){
       const hasAlert=S._stormAlertHistory.some(h=>{
