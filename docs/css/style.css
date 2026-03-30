@@ -620,11 +620,12 @@ canvas.offscreen{display:none}
   /* Card titles bigger */
   .card-title{font-size:1.1em}
 
-  /* Settings panel — wide card on desktop */
-  .settings-panel{max-width:min(900px,90vw)}
+  /* Settings panel — wide card on desktop, ~225% bigger text */
+  .settings-overlay{font-size:2.25em}
+  .settings-panel{max-width:min(92vw,1400px)}
 
   /* Main settings panel inner card */
-  #settings-panel>div{max-width:min(1040px,88vw)!important;width:88vw!important;max-height:90vh!important}
+  #settings-panel>div{max-width:min(92vw,1400px)!important;width:90vw!important;max-height:92vh!important}
 
   /* 2-column layout inside settings scroll area */
   #settings-scroll-area{columns:2;column-gap:24px;padding:20px 24px!important}
