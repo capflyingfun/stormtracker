@@ -452,6 +452,13 @@ function loadFavorite(idx){
   const f=favs[idx];
   if(f){setLoc(f.lat,f.lon,f.name);toggleLocOverlay(false)}
 }
+function goToFavorite(idx){
+  const favs=getFavorites();
+  const f=favs[idx];
+  if(!f)return;
+  setLoc(f.lat,f.lon,f.name);
+  toast('🧭 '+f.name);
+}
 function toggleFavEmailAlert(idx){
   const favs=getFavorites();
   const f=favs[idx];
@@ -474,6 +481,7 @@ function renderFavorites(){
     <span class="text-sm">⭐</span>
     <span style="flex:1;font-size:0.75em;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</span>
     ${emailBtn}
+    <button onclick="event.stopPropagation();goToFavorite(${i})" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.6em;cursor:pointer;padding:2px 6px;border-radius:3px;white-space:nowrap;font-weight:500" title="Go to location">GO</button>
     <button onclick="event.stopPropagation();renameFavorite(${i})" style="background:none;border:none;color:var(--accent-cyan);font-size:0.7em;cursor:pointer;padding:2px 4px" title="Rename">✏️</button>
     <button onclick="event.stopPropagation();removeFavorite(${i})" style="background:none;border:none;color:#f44;font-size:0.7em;cursor:pointer;padding:2px 4px">✕</button>
   </div>`;
