@@ -203,9 +203,7 @@ async function reverseGeo(lat,lon){
 
 function updateNavForLocation(){
   const isUS=S.lat&&isUSLocation(S.lat,S.lon);
-  const stn=document.getElementById('nav-station');
   const alt=document.getElementById('nav-alerts');
-  if(stn)stn.style.display='';
   if(alt)alt.style.display=isUS?'':'none';
   document.querySelectorAll('.bottom-nav .nav-item').forEach(b=>{
     b.style.flex='1';
