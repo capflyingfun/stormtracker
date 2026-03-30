@@ -570,7 +570,7 @@ function _renderSPCWatchSection(){
       if (remain > 0) {
         const hrs = Math.floor(remain / 3600000);
         const mins = Math.floor((remain % 3600000) / 60000);
-        expStr = hrs > 0 ? hrs + 'h ' + mins + 'm remaining' : mins + 'm remaining';
+        expStr = hrs > 0 ? hrs + 'h:' + String(mins).padStart(2,'0') + 'm remaining' : mins + 'm remaining';
       }
     }
     html += `<div class="spc-watch-card ${cls}">
@@ -1059,7 +1059,7 @@ function startAlertCountdowns(){
       const rem=exp-now;
       if(rem<=0){el.textContent='Expired';el.style.color='var(--accent-red)';anyExpired=true;return}
       const h=Math.floor(rem/3600000);const m=Math.floor((rem%3600000)/60000);const s=Math.floor((rem%60000)/1000);
-      el.textContent=(h?h+'h ':'')+(m<10&&h?'0':'')+m+'m '+(s<10?'0':'')+s+'s remaining';
+      el.textContent=h>0?h+'h:'+String(m).padStart(2,'0')+'m remaining':m+'m remaining';
       if(rem<3600000)el.style.color='var(--accent-orange)';
       else el.style.color='var(--text-muted)';
     });

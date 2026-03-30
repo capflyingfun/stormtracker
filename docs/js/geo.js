@@ -373,6 +373,7 @@ function setLoc(lat,lon,name,fromTravel){
     showRadarLayer(S.map);
   }
   if(typeof _showBottomNav==='function')_showBottomNav();
+  if(typeof _showHeaderBtns==='function')_showHeaderBtns();
   const wEl=document.getElementById('page-weather');if(wEl)showSkel(wEl,6);
   if(typeof showLoadingScreen==='function')showLoadingScreen(S.locName);
   if(_setLocTimer)clearTimeout(_setLocTimer);
