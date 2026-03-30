@@ -180,6 +180,7 @@ async function searchLoc(){
         name=fmtLocName(addr,r.display_name.split(',').slice(0,2).join(',').trim());
       }
       setLoc(parseFloat(r.lat),parseFloat(r.lon),name);
+      document.getElementById('loc-overlay').classList.remove('open');
       checkLocationUnits(addr.country_code);
     }
     else toast('Location not found');
@@ -215,6 +216,31 @@ function getHomeLocation(){
 function setHomeLocation(lat,lon,name){
   try{localStorage.setItem('st_home_location',JSON.stringify({lat,lon,name}))}catch(e){}
 }
+function recenterMap(){
+  const a=S._anchorLoc||(S.lat?{lat:S.lat,lon:S.lon,name:S.locName}:null);
+  if(!a){toast('📍 No location set');return}
+  clearViewScanCircle();
+  S._gpsAltitude=null;
+  S.lat=a.lat;S.lon=a.lon;S.locName=a.name;
+  document.getElementById('location-input').value=S.locName;
+  S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
+  S.radarSource=isUSLocation(a.lat,a.lon)?'nexrad':'rainviewer';
+  S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;S._approachData=null;S._arrowCells=[];clearStormZones();
+  try{localStorage.setItem('st_loc',JSON.stringify({lat:a.lat,lon:a.lon,name:a.name}))}catch(e){}
+  if(S.map){
+    S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});S.stormMarkers=[];
+    clearStormCone();
+    S.map.setView([a.lat,a.lon],8,{animate:true,duration:0.5});
+    if(S._userMarker)S._userMarker.setLatLng([a.lat,a.lon]);
+    if(S._rangeCircle)S._rangeCircle.setLatLng([a.lat,a.lon]);
+    showRadarLayer(S.map);
+  }
+  updateNavForLocation();
+  document.getElementById('status-text').textContent='Live · '+a.name;
+  fetchWeather();fetchAlerts();fetchHazards();fetchTerrainGrid();scanRadarForStorms();scheduleHourlyRefresh();
+  refreshMpingIfVisible();
+  toast('📍 '+a.name);
+}
 function goHome(){
   let home=getHomeLocation();
   if(!home&&S.lat){
@@ -226,6 +252,7 @@ function goHome(){
   clearViewScanCircle();
   S._gpsAltitude=null;
   S.lat=home.lat;S.lon=home.lon;S.locName=home.name;
+  S._anchorLoc={lat:home.lat,lon:home.lon,name:home.name};
   document.getElementById('location-input').value=S.locName;
   S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
   S.radarSource=isUSLocation(home.lat,home.lon)?'nexrad':'rainviewer';
@@ -343,6 +370,7 @@ function setLoc(lat,lon,name,fromTravel){
   if(!fromTravel&&!S._gpsLocating)S._gpsAltitude=null;
   S.lat=lat;S.lon=lon;
   S.locName=name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  S._anchorLoc={lat:lat,lon:lon,name:S.locName};
   document.getElementById('location-input').value=S.locName;
   document.getElementById('status-dot').classList.add('live');
   document.getElementById('status-text').textContent='Loading · '+S.locName;
@@ -425,6 +453,11 @@ function loadFavorite(idx){
   const f=favs[idx];
   if(f){setLoc(f.lat,f.lon,f.name);toggleLocOverlay(false)}
 }
+function goToFavorite(idx){
+  const favs=getFavorites();
+  const f=favs[idx];
+  if(f){setLoc(f.lat,f.lon,f.name);document.getElementById('loc-overlay').classList.remove('open')}
+}
 function toggleFavEmailAlert(idx){
   const favs=getFavorites();
   const f=favs[idx];
@@ -447,6 +480,7 @@ function renderFavorites(){
     <span class="text-sm">⭐</span>
     <span style="flex:1;font-size:0.75em;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</span>
     ${emailBtn}
+    <button onclick="event.stopPropagation();goToFavorite(${i})" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.6em;cursor:pointer;padding:2px 6px;border-radius:3px;white-space:nowrap;font-weight:500" title="Go to location">GO</button>
     <button onclick="event.stopPropagation();renameFavorite(${i})" style="background:none;border:none;color:var(--accent-cyan);font-size:0.7em;cursor:pointer;padding:2px 4px" title="Rename">✏️</button>
     <button onclick="event.stopPropagation();removeFavorite(${i})" style="background:none;border:none;color:#f44;font-size:0.7em;cursor:pointer;padding:2px 4px">✕</button>
   </div>`;

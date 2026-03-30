@@ -140,8 +140,13 @@ details.card>summary{list-style:none}
 @keyframes nx-pulse{0%,100%{opacity:0.5}50%{opacity:1}}
 @keyframes storm-pulse{0%,100%{border-color:var(--pulse-color);box-shadow:0 0 4px var(--pulse-color)}50%{border-color:color-mix(in srgb,var(--pulse-color) 40%,transparent);box-shadow:0 0 12px var(--pulse-color)}}
 .storm-card-pulse{animation:storm-pulse 2.5s ease-in-out infinite}
-@keyframes storm-ring-pulse{0%{transform:scale(1);opacity:0.8}50%{transform:scale(1.6);opacity:0.15}100%{transform:scale(1);opacity:0.8}}
-.storm-ring{border-radius:50%;animation:storm-ring-pulse 2s ease-in-out infinite;pointer-events:none;will-change:transform,opacity}
+@keyframes storm-ring-grow{0%{transform:scale(0.8);opacity:0.9}100%{transform:scale(2.0);opacity:0}}
+@keyframes storm-ring-pulse{0%{transform:scale(1);opacity:0.8}50%{transform:scale(1.5);opacity:0.15}100%{transform:scale(1);opacity:0.8}}
+@keyframes storm-ring-shrink{0%{transform:scale(1.8);opacity:0}100%{transform:scale(0.7);opacity:0.95}}
+.storm-ring{border-radius:50%;pointer-events:none;will-change:transform,opacity}
+.storm-ring.ring-grow{animation:storm-ring-grow ease-out infinite}
+.storm-ring.ring-pulse{animation:storm-ring-pulse ease-in-out infinite}
+.storm-ring.ring-shrink{animation:storm-ring-shrink ease-in infinite}
 @keyframes storm-track-march{0%{stroke-dashoffset:0}100%{stroke-dashoffset:-24}}
 .storm-track-line{animation:storm-track-march 0.8s linear infinite}
 @keyframes storm-track-dot{0%,100%{opacity:0.5;transform:scale(0.8)}50%{opacity:1;transform:scale(1.3)}}

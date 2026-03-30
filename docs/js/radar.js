@@ -105,7 +105,7 @@ function initRadar(){
       }
     }catch(e){}
     showRadarLayer(map);
-    document.getElementById('radar-scan').addEventListener('click',()=>{goHome()});
+    document.getElementById('radar-scan').addEventListener('click',()=>{recenterMap()});
     document.getElementById('radar-scan-view').addEventListener('click',()=>{scanHere()});
     document.getElementById('radar-scan-hires').addEventListener('click',()=>{showHdScanDialog()});
     document.getElementById('radar-toggle-src').addEventListener('click',()=>{toggleRadarSource(map)});
@@ -999,18 +999,20 @@ function plotStormMarkers(map){
     const popupOpts={closeButton:true,className:'storm-popup'};
     const stormRef=storm;
     if(mv&&mv.speed>=2){
-      const sz=Math.max(10,Math.round(Math.max(24,storm.dbz/2)*sc));
+      const dbzScale=Math.max(0.4,Math.min(1.0,(storm.dbz-20)/45+0.4));
+      const baseSz=Math.max(24,storm.dbz/2)*sc;
+      const sz=Math.max(10,Math.round(baseSz*dbzScale));
       const svgHtml=stormArrowSvg(mv.direction,color,sz);
-      pending.push({type:'arrow',lat:storm.lat,lng:storm.lng,sz,svgHtml,popupHtml,popupOpts,stormRef});
+      pending.push({type:'arrow',lat:storm.lat,lng:storm.lng,sz,svgHtml,popupHtml,popupOpts,stormRef,_dbz:storm.dbz});
     }else{
-      pending.push({type:'circle',lat:storm.lat,lng:storm.lng,r,color,popupHtml,popupOpts,stormRef});
+      pending.push({type:'circle',lat:storm.lat,lng:storm.lng,r,color,popupHtml,popupOpts,stormRef,_dbz:storm.dbz});
     }
-    if(eta&&eta.impact>=90){
-      const ringSize=Math.max(36,storm.dbz/1.5);
-      pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringSize,color,dbz:storm.dbz});
+    if(eta&&eta.approaching&&visibleSet.has(storm)){
+      const ringRadiusM=Math.max(800,Math.min(5000,(storm.dbz-15)*80));
+      pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringRadiusM,color,dbz:storm.dbz,stormRef,_dbz:storm.dbz});
     }
     if(storm.dbz>=40){
-      pending.push({type:'lightning',lat:storm.lat,lng:storm.lng});
+      pending.push({type:'lightning',lat:storm.lat,lng:storm.lng,stormRef,_dbz:storm.dbz});
     }
     if(S._stormAlertHistory&&S._stormAlertHistory.length){
       const hasAlert=S._stormAlertHistory.some(h=>{
@@ -1036,6 +1038,8 @@ function plotStormMarkers(map){
   });
   requestAnimationFrame(()=>{requestAnimationFrame(()=>{
     document.body.removeChild(offscreen);
+    const _typeOrder={ring:0,circle:1,arrow:2,lightning:3,alertBadge:4,tornado:5};
+    pending.sort((a,b)=>{const da=(a._dbz||0),db=(b._dbz||0);return da!==db?da-db:(_typeOrder[a.type]||0)-(_typeOrder[b.type]||0)});
     const mode=S._pointsMode;
     pending.forEach(p=>{
       const isVisible=(mode==='all')||(mode==='inbound'&&visibleSet.has(p.stormRef));
@@ -1059,7 +1063,11 @@ function plotStormMarkers(map){
         const _sinVal=Math.sin(p.lat*1000+p.lng*7777);
         const _jitter=(_sinVal+1)/2*0.6-0.3;
         const _dur=Math.max(1.0,Math.min(4.0,_baseDur+_jitter)).toFixed(2);
-        const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring" style="width:${p.ringSize}px;height:${p.ringSize}px;border:3px solid ${p.color};box-shadow:0 0 8px ${p.color};animation-duration:${_dur}s"></div>`,iconSize:[p.ringSize,p.ringSize],iconAnchor:[p.ringSize/2,p.ringSize/2]})});
+        const _cls=_dbz>55?'ring-shrink':_dbz>=41?'ring-pulse':'ring-grow';
+        function _ringPx(lat,radiusM,mp){const pt=mp.latLngToLayerPoint([lat,0]);const pt2=mp.latLngToLayerPoint([lat+radiusM/111320,0]);return Math.max(20,Math.abs(pt.y-pt2.y)*2);}
+        const sz0=_ringPx(p.lat,p.ringRadiusM,map);
+        const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring ${_cls}" style="width:${sz0}px;height:${sz0}px;border:3px solid ${p.color};box-shadow:0 0 8px ${p.color};animation-duration:${_dur}s"></div>`,iconSize:[sz0,sz0],iconAnchor:[sz0/2,sz0/2]})});
+        ring._ringData={lat:p.lat,radiusM:p.ringRadiusM,color:p.color,cls:_cls,dur:_dur};
         if(isVisible)ring.addTo(map);
         ring._stormRef=p.stormRef;
         S.stormMarkers.push(ring);
@@ -1535,14 +1543,6 @@ function updateThreatTicker(){
     const alertPhase=S._alertsShownOnce===false||(cycleMin%3)!==2;
     if(alertPhase){
       const nwsMsgs=[];
-      function _relDur(ms){
-        const totalM=Math.floor(ms/60000);
-        if(totalM<1)return'<1m';
-        if(totalM<60)return String(totalM).padStart(2,'0')+'m';
-        const h=Math.floor(totalM/60);
-        const rm=totalM%60;
-        return String(h).padStart(2,'0')+'h '+String(rm).padStart(2,'0')+'m';
-      }
       const now=Date.now();
       const _tickerAlerts=(typeof _sortAlertsByDate==='function')?_sortAlertsByDate(S.alerts):S.alerts;
       for(const a of _tickerAlerts){
@@ -1555,12 +1555,17 @@ function updateThreatTicker(){
         const endMs=endVal?new Date(endVal).getTime():NaN;
         let timeLabel='';
         if(!isNaN(startMs)&&startMs>now){
-          const durMs=(!isNaN(endMs)&&endMs>startMs)?(endMs-startMs):0;
-          timeLabel=` — starts in ${_relDur(startMs-now)}${durMs?', lasts '+_relDur(durMs):''}`;
+          const cdStart=`<span class="ticker-cd" data-target="${startMs}"></span>`;
+          if(!isNaN(endMs)&&endMs>startMs){
+            const cdEnd=`<span class="ticker-cd" data-target="${endMs}"></span>`;
+            timeLabel=` — starts in ${cdStart}, ends in ${cdEnd}`;
+          }else{
+            timeLabel=` — starts in ${cdStart}`;
+          }
         }else if(!isNaN(endMs)&&endMs>now){
-          const remain=endMs-now;
-          if(remain<=1800000)timeLabel=` — ending soon — expires in ${_relDur(remain)}`;
-          else timeLabel=` — in effect — ends in ${_relDur(remain)}`;
+          const cdEnd=`<span class="ticker-cd" data-target="${endMs}"></span>`;
+          if((endMs-now)<=1800000)timeLabel=` — ending soon — expires in ${cdEnd}`;
+          else timeLabel=` — in effect — ends in ${cdEnd}`;
         }else if(!isNaN(endMs)){
           timeLabel=' — expired';
         }else{
@@ -1573,6 +1578,7 @@ function updateThreatTicker(){
         const sep='<span style="color:#664400;margin:0 40px">│</span>';
         const html=nwsMsgs.map(m=>`<span style="color:#fbbf24">${m}</span>`).join(sep);
         showTicker(html,'#fbbf24','rgba(251,191,36,0.3)','linear-gradient(90deg,rgba(30,20,0,0.95),rgba(45,30,5,0.95),rgba(30,20,0,0.95))');
+        _startTickerCountdown();
         S._alertsShownOnce=true;
         return;
       }
@@ -1688,7 +1694,7 @@ function _tickTickerCd(){
   const now=Date.now();
   spans.forEach(sp=>{
     const t=parseInt(sp.dataset.target)||0;
-    const remain=Math.max(0,Math.round((t-now)/1000));
+    const remain=Math.max(0,Math.floor((t-now)/1000));
     const h=Math.floor(remain/3600),m=Math.floor((remain%3600)/60),s=remain%60;
     sp.textContent=remain<=0?'NOW':h>0?h+'h:'+String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s':m+'m:'+String(s).padStart(2,'0')+'s';
   });
