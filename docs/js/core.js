@@ -735,6 +735,7 @@ function _initScrollSpy(){
 function toggleLocOverlay(open){
   const el=document.getElementById('loc-overlay');
   if(open){
+    if(typeof hideSuggestions==='function')hideSuggestions();
     el.classList.add('open');
     setTimeout(()=>document.getElementById('location-input').focus(),100);
     const tb=document.getElementById('travel-btn');
@@ -747,7 +748,10 @@ function toggleLocOverlay(open){
     const saveBtn=document.getElementById('fav-save-btn');
     if(saveBtn)saveBtn.style.display=S.lat?'':'none';
   }
-  else el.classList.remove('open');
+  else{
+    if(typeof hideSuggestions==='function')hideSuggestions();
+    el.classList.remove('open');
+  }
 }
 function switchPage(page){
   if(_isDesktop()){

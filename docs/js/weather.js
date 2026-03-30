@@ -87,6 +87,7 @@ function _blendOMModels(gfs,hrrr){
   return out;
 }
 async function fetchWeather(){
+  const reqId=S._locReqId;
   const el=document.getElementById('page-weather');
   if(_isOffline&&S._lastWeatherData){renderWeather(S._lastWeatherData);return}
   showSkel(el,6);
@@ -176,8 +177,10 @@ async function fetchWeather(){
         console.log('Weather: NWS forecast loaded ('+nwsFc.length+' periods)');
       }
     }catch(e){console.log('Multi-source blend failed:',e.message)}
+    if(reqId!==S._locReqId)return;
     S.weather=omData.current;S._lastWeatherFetch=Date.now();S._lastWeatherData=omData;_resetMinMax();renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);
   }catch(e){
+    if(reqId!==S._locReqId)return;
     if(typeof hideLoadingScreen==='function')hideLoadingScreen();
     if(_isOffline&&S._lastWeatherData){
       renderWeather(S._lastWeatherData);

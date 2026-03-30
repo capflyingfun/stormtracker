@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=386">
+<link rel="stylesheet" href="css/style.css?v=387">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -375,8 +375,8 @@
     <input type="text" id="location-input" placeholder="Search city, ZIP, or address..." autocomplete="off">
     <div id="loc-suggestions" class="loc-suggestions"></div>
     <div class="loc-overlay-btns">
-      <button class="loc-btn-gps" onclick="showLocationConfirm();toggleLocOverlay(false)">🛰️ GPS</button>
-      <button class="loc-btn-search" onclick="searchLoc();toggleLocOverlay(false)">🔍 Search</button>
+      <button class="loc-btn-gps" onclick="showLocationConfirm()">🛰️ GPS</button>
+      <button class="loc-btn-search" onclick="searchLoc()">🔍 Search</button>
       <button class="loc-btn-close" onclick="toggleLocOverlay(false)">✕</button>
     </div>
     <button class="loc-btn-map" onclick="startMapPick()" style="width:100%;margin-top:6px;padding:8px;background:rgba(0,229,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer">📌 Set Location from Map</button>
@@ -470,19 +470,19 @@
   </div>
 </div>
 
-<script src="js/core.js?v=386"></script>
-<script src="js/gauges.js?v=386"></script>
-<script src="js/icons.js?v=386"></script>
-<script src="js/geo.js?v=386"></script>
-<script src="js/settings.js?v=386"></script>
-<script src="js/thresholds.js?v=386"></script>
-<script src="js/weather.js?v=386"></script>
-<script src="js/radar.js?v=386"></script>
-<script src="js/storms.js?v=386"></script>
-<script src="js/station.js?v=386"></script>
-<script src="js/alerts.js?v=386"></script>
-<script src="js/ai.js?v=386"></script>
-<script src="js/init.js?v=386"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=386').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="js/core.js?v=387"></script>
+<script src="js/gauges.js?v=387"></script>
+<script src="js/icons.js?v=387"></script>
+<script src="js/geo.js?v=387"></script>
+<script src="js/settings.js?v=387"></script>
+<script src="js/thresholds.js?v=387"></script>
+<script src="js/weather.js?v=387"></script>
+<script src="js/radar.js?v=387"></script>
+<script src="js/storms.js?v=387"></script>
+<script src="js/station.js?v=387"></script>
+<script src="js/alerts.js?v=387"></script>
+<script src="js/ai.js?v=387"></script>
+<script src="js/init.js?v=387"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=387').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>
