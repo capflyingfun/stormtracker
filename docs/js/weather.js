@@ -358,6 +358,7 @@ function getBaroPrediction(current,hourly){
 
 function renderWeather(data){
   if(typeof hideLoadingScreen==='function')hideLoadingScreen();
+  if(typeof checkFirstLaunch==='function')setTimeout(checkFirstLaunch,1500);
   if(typeof initDesktopMode==='function'&&window.innerWidth>=1024)setTimeout(initDesktopMode,200);
   const el=document.getElementById('page-weather');
   const c=data.current,isDay=c.is_day===1;

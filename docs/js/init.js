@@ -136,16 +136,17 @@ function init(){
   _loadAllCustomIcons().catch(()=>{});
   loadUnits();
   updateAIFab();
-  checkFirstLaunch();
   _initPWAInstallPrompt();
   _initOfflineDetection();
   try{
     const saved=JSON.parse(localStorage.getItem('st_loc'));
     if(saved&&saved.lat&&saved.lon){
       if(!getHomeLocation())setHomeLocation(saved.lat,saved.lon,saved.name);
+      _showBottomNav();
       setLoc(saved.lat,saved.lon,saved.name);return;
     }
   }catch(e){}
+  _hideBottomNav();
   document.getElementById('status-text').textContent='Enter a location to begin';
   document.getElementById('page-weather').innerHTML=`
     <div class="welcome-screen">
@@ -162,6 +163,8 @@ function init(){
       </div>
     </div>`;
 }
+function _hideBottomNav(){const n=document.querySelector('.bottom-nav');if(n)n.style.display='none'}
+function _showBottomNav(){const n=document.querySelector('.bottom-nav');if(n)n.style.display=''}
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);
 else init();
