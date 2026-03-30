@@ -223,6 +223,7 @@ function checkFirstLaunch(){
   if(seen)return;
   localStorage.setItem('st_tutorialSeen','1');
   setTimeout(()=>{
+    if(document.querySelector('.confirm-overlay'))return;
     const ask=document.createElement('div');
     ask.id='tutorial-prompt';
     ask.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10000;background:var(--bg-card);border:1px solid var(--accent-cyan);border-radius:12px;padding:14px 18px;max-width:320px;width:90%;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.5)';
