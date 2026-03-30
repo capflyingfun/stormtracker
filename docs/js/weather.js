@@ -1356,7 +1356,6 @@ function renderDailyForecast(d){
     const desc=wmoDesc(code);
     const tags=_wxTags(desc);
     const severe=(code>=95);
-    const dayIcon=getWeatherIcon(animEmoji(code,true)?'clear-day':'partly-cloudy-day','1.2em');
     const emDay=animEmoji(code,true,'1.2em');
     const emNight=animEmoji(code,false,'1.2em');
     const hidden=i>=initShow?' style="display:none" data-fc-extra':'';
