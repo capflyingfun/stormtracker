@@ -404,6 +404,7 @@ async function fetchHazards(){
   const now=Date.now();
   const locKey=S.lat.toFixed(2)+','+S.lon.toFixed(2);
   if(now-_hazardData._lastFetch<300000&&_hazardData.earthquakes!==null&&_hazardData._locKey===locKey)return;
+  if(reqId!==S._locReqId)return;
   _hazardData._lastFetch=now;
   _hazardData._locKey=locKey;
   const isUS=isUSLocation(S.lat,S.lon);

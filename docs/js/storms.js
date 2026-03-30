@@ -587,6 +587,7 @@ async function scanRadarForStorms(){
   clearViewScanCircle();
   const useNexrad=S.radarSource==='nexrad';
   showScanOverlay();
+  if(reqId!==S._locReqId){hideScanOverlay();return}
   await Promise.all([fetchWindsAloft(),fetchAFD()]);
   scanStep(2,'Scanning radar tiles...');
   try{

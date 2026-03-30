@@ -162,7 +162,6 @@ async function searchLoc(){
   hideSuggestions();
   const q=document.getElementById('location-input').value.trim();
   if(!q)return;
-  toggleLocOverlay(false);
   toast('Searching...');
   try{
     let data=await geoSearch(cleanQ(q),1);
@@ -183,6 +182,7 @@ async function searchLoc(){
       }else{
         name=fmtLocName(addr,r.display_name.split(',').slice(0,2).join(',').trim());
       }
+      toggleLocOverlay(false);
       setLoc(parseFloat(r.lat),parseFloat(r.lon),name);
       checkLocationUnits(addr.country_code);
     }
