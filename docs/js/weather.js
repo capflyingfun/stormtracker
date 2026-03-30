@@ -1310,50 +1310,119 @@ function renderHourlyForecast(h,d){
   return`<div class="card"><div class="card-title"><span class="icon">🕐</span> Hourly Forecast — Next 72h</div>
     <div class="hourly-scroll">${items}</div></div>`;
 }
+function _fmtSecondary(c){return S.tempUnit===0?'('+c.toFixed(0)+'°C)':'('+cToF(c)+'°F)'}
+function _nwsCondToIcon(short,isDaytime){
+  const nwsCondMap={'sunny':'clear-day','clear':'clear-night','mostly sunny':'few-clouds-day','mostly clear':'few-clouds-night','partly sunny':'partly-cloudy-day','partly cloudy':'partly-cloudy-night','mostly cloudy':'overcast','cloudy':'overcast','overcast':'overcast',
+    'rain':'rain','showers':'few-clouds-day-rain','chance rain':'few-clouds-day-rain','slight chance rain':'few-clouds-day-rain','thunderstorms':'thunderstorm','chance thunderstorms':'thunderstorm','snow':'snow','chance snow':'partly-cloudy-day-snow','fog':'fog','haze':'haze','windy':'overcast','hot':'clear-day','cold':'snow'};
+  const sh=(short||'').toLowerCase();let cond=isDaytime?'partly-cloudy-day':'partly-cloudy-night';
+  for(const[k,c]of Object.entries(nwsCondMap)){if(sh.includes(k)){cond=c;break}}
+  return cond;
+}
+function _isSevere(short){const s=(short||'').toLowerCase();return s.includes('severe')||s.includes('tornado')||s.includes('thunderstorm')||s.includes('t-storm')||s.includes('hurricane')||s.includes('tropical')}
+function _wxTags(short){const tags=[];const s=(short||'').toLowerCase();if(s.includes('thunderstorm')||s.includes('t-storm'))tags.push('Thunderstorm');if(s.includes('tornado'))tags.push('Tornado');if(s.includes('hail'))tags.push('Hail');if(s.includes('snow'))tags.push('Snow');if(s.includes('ice')||s.includes('freezing'))tags.push('Ice');if(s.includes('flood'))tags.push('Flooding');return tags}
+
+function _renderFcPeriodCol(p,label,icon,isNight){
+  if(!p)return'';
+  const tempC=p.unit==='F'?(p.temp-32)*5/9:p.temp;
+  const tempMain=fmtTempShort(tempC);
+  const tempSec=_fmtSecondary(tempC);
+  const cond=_nwsCondToIcon(p.short,!isNight);
+  const em=getWeatherIcon(cond,'1.2em');
+  const rain=p.precip||0;
+  return`<div class="fc-col">
+    <div class="fc-col-label">${icon} ${label}</div>
+    <div class="fc-col-icon">${em}</div>
+    <div class="fc-col-temp">${tempMain} <span class="fc-sec">${tempSec}</span></div>
+    <div class="fc-col-desc">${p.short}</div>
+    <div class="fc-col-wind">Wind: ${p.wind} ${p.windDir}</div>
+    ${rain>0?`<div class="fc-col-rain">💧 ${rain}%</div>`:''}
+  </div>`;
+}
+
 function renderDailyForecast(d){
   if(!d||!d.time)return'';
   const nowLocal=new Date();
   const todayStr=nowLocal.getFullYear()+'-'+String(nowLocal.getMonth()+1).padStart(2,'0')+'-'+String(nowLocal.getDate()).padStart(2,'0');
-  return`<div class="card"><div class="card-title"><span class="icon">📊</span> ${tStr('7-Day Forecast')}</div>
-    <div class="forecast-scroll">${d.time.map((t,i)=>{
-      const dt=new Date(t+'T12:00'),day=t===todayStr?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'short'});
-      const hi=fmtTempShort(d.temperature_2m_max[i]),lo=fmtTempShort(d.temperature_2m_min[i]);
-      const rain=d.precipitation_probability_max?d.precipitation_probability_max[i]:0;
-      return`<div class="forecast-item" onclick="toggleForecastDetail(${i})" data-fi="${i}"><div class="forecast-time">${day}</div><div class="forecast-icon">${animEmoji(d.weather_code[i],true,'1em')}</div><div class="forecast-temp" style="font-weight:700;color:var(--accent-red);text-shadow:0 0 8px rgba(255,51,85,0.4)">${hi}</div><div style="font-size:0.7em;font-weight:600;color:var(--accent-cyan);text-shadow:0 0 6px rgba(0,229,255,0.3)">${lo}</div>${rain>0?`<div style="font-size:0.55em;color:var(--accent-blue);margin-top:2px">💧${rain}%</div>`:''}</div>`;
-    }).join('')}</div><div id="forecast-detail-box"></div></div>`;
+  const initShow=4;
+  const cards=d.time.map((t,i)=>{
+    const dt=new Date(t+'T12:00');
+    const dayName=t===todayStr?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'long'});
+    const hiC=d.temperature_2m_max[i],loC=d.temperature_2m_min[i];
+    const hiMain=fmtTempShort(hiC),loMain=fmtTempShort(loC);
+    const hiSec=_fmtSecondary(hiC),loSec=_fmtSecondary(loC);
+    const rain=d.precipitation_probability_max?d.precipitation_probability_max[i]:0;
+    const wind=d.wind_speed_10m_max?fmtWind(d.wind_speed_10m_max[i]):'';
+    const code=d.weather_code[i];
+    const desc=wmoDesc(code);
+    const tags=_wxTags(desc);
+    const severe=(code>=95);
+    const dayIcon=getWeatherIcon(animEmoji(code,true)?'clear-day':'partly-cloudy-day','1.2em');
+    const emDay=animEmoji(code,true,'1.2em');
+    const emNight=animEmoji(code,false,'1.2em');
+    const hidden=i>=initShow?' style="display:none" data-fc-extra':'';
+    return`<div class="fc-day-card"${hidden}>
+      <div class="fc-day-header">
+        <span class="fc-day-name">${dayName}</span>
+        ${severe?'<span class="fc-severe-badge">⚠ POSSIBLE SEVERE</span>':''}
+      </div>
+      ${tags.length?'<div class="fc-tags">'+tags.map(t=>'<span class="fc-tag">'+getWeatherIcon('thunderstorm','0.75em')+' '+t+'</span>').join('')+'</div>':''}
+      <div class="fc-cols">
+        <div class="fc-col">
+          <div class="fc-col-label">☀️ Day</div>
+          <div class="fc-col-icon">${emDay}</div>
+          <div class="fc-col-temp">${hiMain} <span class="fc-sec">${hiSec}</span></div>
+          <div class="fc-col-desc">${tStr(desc)}</div>
+          ${wind?`<div class="fc-col-wind">Wind: ${wind}</div>`:''}
+          ${rain>0?`<div class="fc-col-rain">💧 ${rain}%</div>`:''}
+        </div>
+        <div class="fc-col">
+          <div class="fc-col-label">🌙 Night</div>
+          <div class="fc-col-icon">${emNight}</div>
+          <div class="fc-col-temp">${loMain} <span class="fc-sec">${loSec}</span></div>
+          <div class="fc-col-desc">${tStr(desc)}</div>
+          ${wind?`<div class="fc-col-wind">Wind: ${wind}</div>`:''}
+          ${rain>0?`<div class="fc-col-rain">💧 ${rain}%</div>`:''}
+        </div>
+      </div>
+      <div class="fc-detail-toggle" onclick="toggleDailyDetail(this,${i})">Show Details</div>
+      <div class="fc-detail-body" id="fc-detail-${i}" style="display:none"></div>
+    </div>`;
+  }).join('');
+  const showMore=d.time.length>initShow?`<div class="fc-show-more" id="fc-show-more" onclick="toggleFcMore()">Show More ▾</div>`:'';
+  return`<div class="card"><div class="card-title"><span class="icon">📊</span> ${tStr('Forecast')}</div>${cards}${showMore}</div>`;
 }
-function toggleForecastDetail(idx){
+function toggleFcMore(){
+  const extras=document.querySelectorAll('[data-fc-extra]');
+  const btn=document.getElementById('fc-show-more');
+  if(!extras.length)return;
+  const hidden=extras[0].style.display==='none';
+  extras.forEach(el=>el.style.display=hidden?'':'none');
+  if(btn)btn.innerHTML=hidden?'Show Less ▴':'Show More ▾';
+}
+function toggleDailyDetail(el,idx){
   const d=S.forecast&&S.forecast.daily;if(!d)return;
-  const box=document.getElementById('forecast-detail-box');
-  document.querySelectorAll('.forecast-item').forEach(el=>el.classList.remove('selected'));
-  if(box.dataset.idx===String(idx)){box.innerHTML='';box.dataset.idx='';return}
-  box.dataset.idx=idx;
-  const fi=document.querySelector(`.forecast-item[data-fi="${idx}"]`);
-  if(fi)fi.classList.add('selected');
-  const dt=new Date(d.time[idx]+'T12:00');
-  const nowL=new Date();const todayS=nowL.getFullYear()+'-'+String(nowL.getMonth()+1).padStart(2,'0')+'-'+String(nowL.getDate()).padStart(2,'0');
-  const dayName=d.time[idx]===todayS?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'long',month:'short',day:'numeric'});
-  const hi=fmtTemp(d.temperature_2m_max[idx]),lo=fmtTemp(d.temperature_2m_min[idx]);
+  const box=document.getElementById('fc-detail-'+idx);
+  if(!box)return;
+  if(box.style.display!=='none'){box.style.display='none';el.textContent='Show Details';return}
   const rain=d.precipitation_probability_max?d.precipitation_probability_max[idx]:0;
   const precip=d.precipitation_sum?d.precipitation_sum[idx]:0;
   const wind=d.wind_speed_10m_max?d.wind_speed_10m_max[idx]:0;
   const sunrise=d.sunrise?fmtClockShort(new Date(d.sunrise[idx])):'—';
   const sunset=d.sunset?fmtClockShort(new Date(d.sunset[idx])):'—';
   const hiC=d.temperature_2m_max[idx],loC=d.temperature_2m_min[idx];
-  const tempStr=fmtTemp(hiC)+' / '+fmtTemp(loC);
-  const precipStr=fmtPrecip(precip);
-  const windStr=fmtWind(wind);
   box.innerHTML=`<div class="forecast-detail">
-    <div style="font-weight:700;margin-bottom:6px">${animEmoji(d.weather_code[idx],true,'1.2em')} ${dayName} — ${tStr(wmoDesc(d.weather_code[idx]))}</div>
     <div class="fd-row"><span>🌡️ ${tStr('High / Low')}</span><span class="fw600"><span style="color:var(--accent-red)">${fmtTemp(hiC)}</span> / <span class="c-cyan">${fmtTemp(loC)}</span></span></div>
     <div class="fd-row"><span>💧 ${tStr('Rain Chance')}</span><span class="fw600">${rain}%</span></div>
-    <div class="fd-row"><span>🌧️ ${tStr('Precipitation')}</span><span class="fw600">${precipStr}</span></div>
-    <div class="fd-row"><span>💨 ${tStr('Max Wind')}</span><span class="fw600">${windStr}</span></div>
+    <div class="fd-row"><span>🌧️ ${tStr('Precipitation')}</span><span class="fw600">${fmtPrecip(precip)}</span></div>
+    <div class="fd-row"><span>💨 ${tStr('Max Wind')}</span><span class="fw600">${fmtWind(wind)}</span></div>
     <div class="fd-row"><span>🌅 ${tStr('Sunrise')}</span><span class="fw600">${sunrise}</span></div>
     <div class="fd-row"><span>🌇 ${tStr('Sunset')}</span><span class="fw600">${sunset}</span></div>
   </div>`;
+  box.style.display='';
+  el.textContent='Hide Details';
   if(_curLang!=='en')setTimeout(quickTranslate,100);
 }
+
 function renderNWSForecast(periods){
   if(!periods||!periods.length)return'';
   S._nwsPeriods=periods;
@@ -1368,39 +1437,52 @@ function renderNWSForecast(periods){
       dayPairs.push({day:null,night:p,idx:i});
     }
   }
-  return`<div class="card"><div class="card-title"><span class="icon">📊</span> NWS Forecast</div>
-    <div class="forecast-scroll">${dayPairs.map((pair,pi)=>{
-      const p=pair.day||pair.night;
-      const tempF=p.temp;const tempC=p.unit==='F'?(tempF-32)*5/9:tempF;
-      const hiStr=fmtTempShort(p.unit==='F'?(tempF-32)*5/9:tempF);
-      const loStr=pair.night?fmtTempShort(pair.night.unit==='F'?(pair.night.temp-32)*5/9:pair.night.temp):'';
-      const rain=p.precip||0;
-      const nwsCondMap={'sunny':'clear-day','clear':'clear-night','mostly sunny':'few-clouds-day','mostly clear':'few-clouds-night','partly sunny':'partly-cloudy-day','partly cloudy':'partly-cloudy-night','mostly cloudy':'overcast','cloudy':'overcast','overcast':'overcast',
-        'rain':'rain','showers':'few-clouds-day-rain','chance rain':'few-clouds-day-rain','slight chance rain':'few-clouds-day-rain','thunderstorms':'thunderstorm','chance thunderstorms':'thunderstorm','snow':'snow','chance snow':'partly-cloudy-day-snow','fog':'fog','haze':'haze','windy':'overcast','hot':'clear-day','cold':'snow'};
-      const isD=!(p.name||'').toLowerCase().includes('night');
-      let cond='partly-cloudy-day';const sh=p.short.toLowerCase();for(const[k,c]of Object.entries(nwsCondMap)){if(sh.includes(k)){cond=c;break}}
-      const em=getWeatherIcon(cond,'1em');
-      return`<div class="forecast-item" onclick="toggleNWSDetail(${pair.idx})" data-nfi="${pair.idx}"><div class="forecast-time">${p.name.replace(/ Night$/,'').replace(/This /,'')}</div><div class="forecast-icon">${em}</div><div class="forecast-temp" style="font-weight:700;color:var(--accent-red);text-shadow:0 0 8px rgba(255,51,85,0.4)">${hiStr}</div>${loStr?`<div style="font-size:0.7em;font-weight:600;color:var(--accent-cyan);text-shadow:0 0 6px rgba(0,229,255,0.3)">${loStr}</div>`:''}${rain>0?`<div style="font-size:0.55em;color:var(--accent-blue);margin-top:2px">💧${rain}%</div>`:''}</div>`;
-    }).join('')}</div><div id="nws-detail-box"></div>
+  const initShow=4;
+  const cards=dayPairs.map((pair,pi)=>{
+    const p=pair.day||pair.night;
+    const dayName=p.name.replace(/ Night$/,'').replace(/This /,'');
+    const dayShort=pair.day?pair.day.short:'';
+    const nightShort=pair.night?pair.night.short:'';
+    const combined=dayShort+' '+nightShort;
+    const severe=_isSevere(combined);
+    const tags=_wxTags(combined);
+    const hidden=pi>=initShow?' style="display:none" data-fc-extra':'';
+    return`<div class="fc-day-card"${hidden}>
+      <div class="fc-day-header">
+        <span class="fc-day-name">${dayName}</span>
+        ${severe?'<span class="fc-severe-badge">⚠ POSSIBLE SEVERE</span>':''}
+      </div>
+      ${tags.length?'<div class="fc-tags">'+tags.map(t=>'<span class="fc-tag">'+getWeatherIcon('thunderstorm','0.75em')+' '+t+'</span>').join('')+'</div>':''}
+      <div class="fc-cols">
+        ${_renderFcPeriodCol(pair.day,'Day','☀️',false)}
+        ${_renderFcPeriodCol(pair.night,'Night','🌙',true)}
+      </div>
+      <div class="fc-detail-toggle" onclick="toggleNWSDetail(this,${pair.idx})">Show Details</div>
+      <div class="fc-detail-body" id="nws-detail-${pair.idx}" style="display:none"></div>
+    </div>`;
+  }).join('');
+  const showMore=dayPairs.length>initShow?`<div class="fc-show-more" id="fc-show-more" onclick="toggleFcMore()">Show More ▾</div>`:'';
+  return`<div class="card"><div class="card-title"><span class="icon">📊</span> NWS Forecast</div>${cards}${showMore}
     <div style="text-align:right;font-size:0.55em;color:var(--text-muted);margin-top:4px;padding-right:4px">Source: National Weather Service</div></div>`;
 }
-function toggleNWSDetail(idx){
+function toggleNWSDetail(el,idx){
   const periods=S._nwsPeriods;if(!periods)return;
-  const box=document.getElementById('nws-detail-box');
-  document.querySelectorAll('.forecast-item').forEach(el=>el.classList.remove('selected'));
-  if(box.dataset.idx===String(idx)){box.innerHTML='';box.dataset.idx='';return}
-  box.dataset.idx=idx;
-  const fi=document.querySelector(`.forecast-item[data-nfi="${idx}"]`);
-  if(fi)fi.classList.add('selected');
+  const box=document.getElementById('nws-detail-'+idx);
+  if(!box)return;
+  if(box.style.display!=='none'){box.style.display='none';el.textContent='Show Details';return}
   const p=periods[idx];
   const tempC=p.unit==='F'?(p.temp-32)*5/9:p.temp;
+  const n=periods[idx+1]&&periods[idx+1].isDaytime===false?periods[idx+1]:null;
+  const nightDetail=n?`<div style="font-size:0.8em;color:var(--text-secondary);margin-top:8px;line-height:1.4;border-top:1px solid var(--border-subtle);padding-top:8px"><b>${n.name}:</b> ${n.detail}</div>`:'';
   box.innerHTML=`<div class="forecast-detail">
-    <div style="font-weight:700;margin-bottom:6px">${p.name} — ${p.short}</div>
     <div class="fd-row"><span>🌡️ Temperature</span><span class="fw600">${fmtTemp(tempC)}</span></div>
     <div class="fd-row"><span>💨 Wind</span><span class="fw600">${p.wind} ${p.windDir}</span></div>
     ${p.precip>0?`<div class="fd-row"><span>💧 Rain Chance</span><span class="fw600">${p.precip}%</span></div>`:''}
     <div style="font-size:0.8em;color:var(--text-secondary);margin-top:8px;line-height:1.4;border-top:1px solid var(--border-subtle);padding-top:8px">${p.detail}</div>
+    ${nightDetail}
   </div>`;
+  box.style.display='';
+  el.textContent='Hide Details';
 }
 
 // No-op — arrow is now driven purely by forecast spread trend at render time.
