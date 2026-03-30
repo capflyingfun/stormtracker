@@ -368,6 +368,7 @@ function setLoc(lat,lon,name,fromTravel){
     showRadarLayer(S.map);
   }
   const wEl=document.getElementById('page-weather');if(wEl)showSkel(wEl,6);
+  if(typeof showLoadingScreen==='function')showLoadingScreen(S.locName);
   if(_setLocTimer)clearTimeout(_setLocTimer);
   _setLocTimer=setTimeout(()=>{
     _setLocTimer=null;

@@ -386,7 +386,7 @@ function renderGaugeG1000(d){
   const mv=S.stormMovement;
   let topTxt='';
   if(strongest){
-    topTxt+=`STM ${strongest.dbz||0}dBZ ${strongest.distance.toFixed(0)}${S.radarMetric?'km':'mi'}`;
+    topTxt+=`STM ${strongest.dbz||0}dBZ ${strongest.distance!=null?strongest.distance.toFixed(0):'--'}${S.radarMetric?'km':'mi'}`;
     if(mv&&mv.speed>=2)topTxt+=`  MVG ${degToDir(mv.direction)} (${Math.round(mv.direction)}°) ${mv.speed.toFixed(0)}${S.radarMetric?'km/h':'mph'}`;
   }else{topTxt='NO STORMS DETECTED'}
   svg+=`<text x="${W/2}" y="${topBar/2+1}" fill="${strongest?amber:'#5a6070'}" font-size="5" font-weight="600" text-anchor="middle" dominant-baseline="central" font-family="monospace">${topTxt}</text>`;

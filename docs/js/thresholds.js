@@ -68,6 +68,7 @@ function checkWeatherThresholds(){
   if(histDirty)_saveWxAlertHistory();
   _wxCheckedOnce=true;
   _pruneExpiredAlerts();
+  checkRainAlert();
 }
 function _sendBrowserNotification(title,body){
   if(!('Notification' in window))return;
@@ -271,7 +272,28 @@ function _saveRainAlertHistory(){
   if(_rainAlertHistory.length>30)_rainAlertHistory=_rainAlertHistory.slice(-30);
   try{localStorage.setItem('st_rainAlertHistory',JSON.stringify(_rainAlertHistory))}catch(e){}
 }
-function checkRainAlert(){}
+function checkRainAlert(){
+  const cfg=_loadRainAlertCfg();
+  if(!cfg.on)return;
+  if(!S.weather||S.weather.precipitation==null)return;
+  const precip=S.weather.precipitation; // mm in current observation period
+  const threshMm={light:0.1,moderate:1.0,heavy:3.0};
+  const thresh=threshMm[cfg.sensitivity]??1.0;
+  if(precip<thresh)return;
+  const now=Date.now();
+  const cooldownMs=(cfg.cooldownMin||30)*60000;
+  if(_rainAlertHistory.length){
+    const last=_rainAlertHistory[_rainAlertHistory.length-1];
+    if(now-last.ts<cooldownMs)return;
+  }
+  const precipStr=S.tempUnit===0?(precip/25.4).toFixed(2)+'"':precip.toFixed(1)+'mm';
+  const label=cfg.sensitivity.charAt(0).toUpperCase()+cfg.sensitivity.slice(1);
+  _sendBrowserNotification('🌧️ Rain Alert',`${label} rain detected: ${precipStr}`);
+  toast(`🌧️ Rain: ${precipStr}`,5000);
+  _rainAlertHistory.push({ts:now,precip,sensitivity:cfg.sensitivity});
+  _saveRainAlertHistory();
+  if(S.activePage==='alerts')renderAlerts();
+}
 function toggleRainAlert(on){
   const cfg=_loadRainAlertCfg();
   cfg.on=on;

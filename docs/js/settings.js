@@ -17,6 +17,14 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v3.48',date:'2026-03-29',items:['🔤 Desktop text scaled up ~38% for readability on 1920×1080','📡 Radar sonar shrunk 40% on desktop','💨 Wind gauge 175% bigger (700px max)','🗺️ Map control buttons 200% bigger (64px)','📊 7-day forecast items larger with bigger icons and text','🖥️ Desktop single-page mode with scroll spy']},
+  {ver:'v3.44',date:'2026-03-29',items:['🖥️ Desktop Full-Width Layout — content now fills the entire screen on 1920×1080 and wider displays (was: capped at 1360px centered, leaving large blank margins). Container spans full available width after sidebar.','⚙️ Settings Panel Desktop — settings overlay card now uses 88% of viewport width (up to 1040px) with a 2-column layout for settings sections, making it much easier to navigate on large screens.']},
+  {ver:'v3.43',date:'2026-03-29',items:['📍 Auto GPS on first launch — app now automatically prompts for location permission on first visit (fires once, falls back to welcome screen buttons if denied). Return visits with a saved location already loaded automatically.','🐛 Loading screen now correctly dismisses on fetch error (was hanging 15s)']},
+  {ver:'v3.42',date:'2026-03-29',items:['🐛 Desktop layout fixes — tab switching now works correctly (was: Weather tab stayed permanently visible due to CSS ID selector overriding display:none); mini radar sonar capped at 700px width so it no longer fills the entire screen on desktop']},
+  {ver:'v3.41',date:'2026-03-29',items:['🖥️ Desktop Responsive Layout — side navigation bar replaces bottom nav on screens ≥1024px; content expands to full available width; Weather page shows 2-column section grid; hero stats show up to 6 columns. Tablet (768px+) also widens layout.','⏳ Loading Screen — animated radar-ring splash screen appears while weather data loads after setting a location; auto-hides when first render completes; 15s safety timeout']},
+  {ver:'v3.40',date:'2026-03-29',items:['🌦️ GFS+HRRR Multi-Model Blend — Weather forecasts now average two models: GFS (global, NWS-standard baseline) and HRRR (3km high-res CONUS, hourly updates). Precipitation uses the higher of the two models for a more conservative/safe estimate. Source label shows [GFS+HRRR] when both available. Falls back gracefully to GFS-only outside US.']},
+  {ver:'v3.39',date:'2026-03-29',items:['☀️ UV Index + ❄️ Freeze Level — Weather tab now shows current UV index (color-coded Low→Extreme) and freezing level altitude (ice/snow line) from Open-Meteo hourly forecast','🌧️ Rain Alert — Rain alert system now fully functional: detects precipitation vs. sensitivity threshold (light/moderate/heavy), respects cooldown timer, sends browser notification and toast','🐛 Bug Fixes — null guard on storm distance display, added error handling for SPC/NHC data fetches, cleaned up unused Open-Meteo API fields (rain, showers, snowfall, surface_pressure)']},
+  {ver:'v3.38',date:'2026-03-29',items:['⤴⤵ Cloud Base 3-Hour Trend — Est. base arrow now shows forecast spread trend for next 3 hours: green ⤴ (spread widening = base rising = improving), red ⤵ (spread narrowing = base lowering = deteriorating), gray → (steady). Uses forecast data only — no METAR conflict.','🔄 Smart Version Check — Settings refresh shows ✅ Up to date or 🆕 vXXX → vYYY comparison before updating']},
   {ver:'v3.06',date:'2026-03-29',items:['☁️ Cloud Base Altitude Calibration — METAR-reported ceiling (BKN/OVC/VV) now shown as primary cloud base value, spread×400 estimate shown as secondary','📍 GPS Altitude Capture — device GPS altitude stored for elevation calculations when available','🏔️ Observer Elevation Priority — uses GPS altitude → topographic elevation → station field elevation → 0 for accurate AGL calculations','📐 Elevation-Adjusted Cloud Base — cloud base heights adjusted for elevation difference between user position and reporting station']},
   {ver:'v2.84',date:'2026-03-28',items:['🌡️ FAA Weather Theory Pack — 8 new aviation-derived features from PHAK Chapter 12','📐 Corrected Dew Point Spread Thresholds — 0–2°C fog/mist, 2–4°C high humidity, 4–8°C moderate, 8°C+ dry air (replaces old inaccurate bands)','☁️ Estimated Cloud Base — spread × 400ft formula shows estimated cloud base AGL on Weather hero and METAR decode','🏔️ Density Altitude — calculated from station elevation, altimeter, and temperature with color-coded severity (green/yellow/orange/red)','✈️ Pressure Altitude — (29.92 − altimeter) × 1000 + field elevation shown alongside density altitude','🎯 Enhanced Flight Category — VFR/MVFR/IFR/LIFR badge now shows determining factor (ceiling-limited vs visibility-limited) in user\'s units','🌫️ Fog Risk Assessment — multi-factor indicator using spread, wind speed, time of day, and cloud cover with radiation/advection fog type identification','🌡️ Atmospheric Stability — rates Stable/Cond. Unstable/Unstable based on temperature, humidity, and spread','⚠️ Temperature Inversion Detection — flags possible surface inversions when spread≈0 + calm + clear + night','📏 Unit-Aware Display — all new values (altitude, spread, cloud base, visibility thresholds) respect your Imperial/Metric unit settings']},
   {ver:'v2.68',date:'2026-03-27',items:['📅 7-Day Forecast Day Labels Fix — "Today" label now compares each forecast date against your actual local date, so it\'s correct regardless of timezone','📡 Station Weather Independence — station tab now derives weather descriptions directly from METAR wx codes (e.g., -RA = Light Rain) instead of trusting NWS text descriptions','🐛 METAR Validation Fix — empty raw METAR no longer bypasses weather string validation, preventing incorrect precipitation labels']},
@@ -100,7 +108,66 @@ async function forceAppUpdate(){
   btn.style.color='#66bb6a';
   timerInt=setInterval(()=>updateTimer('🔄 Checking...'),100);
   try{
+    // 1. Current installed version from SW cache keys
     const keys=await caches.keys();
+    const currentKey=keys.find(k=>k.startsWith('stormtracker-v'))||'';
+    const currentVer=currentKey?currentKey.replace('stormtracker-',''):'unknown';
+
+    // 2. Current display version from page header (e.g. "StormTracker v3.38" → "v3.38")
+    const titleMatch=document.title.match(/v(\d+\.\d+)/);
+    const currentDisplayVer=titleMatch?`v${titleMatch[1]}`:'';
+
+    // 3. Fetch latest sw.js from network bypassing cache
+    let latestSwVer=currentVer;
+    try{
+      const r=await fetch('sw.js?_='+Date.now(),{cache:'no-store'});
+      if(r.ok){
+        const txt=await r.text();
+        const m=txt.match(/CACHE_NAME\s*=\s*['"]stormtracker-(v\d+)['"]/);
+        if(m)latestSwVer=m[1];
+      }
+    }catch(e){console.warn('Could not fetch sw.js for version check:',e);}
+
+    // 4. Fetch latest index.html header version from network
+    let latestDisplayVer=currentDisplayVer;
+    try{
+      const r=await fetch('index.html?_='+Date.now(),{cache:'no-store'});
+      if(r.ok){
+        const txt=await r.text();
+        const m=txt.match(/<title>[^<]*v(\d+\.\d+)[^<]*<\/title>/i);
+        if(m)latestDisplayVer=`v${m[1]}`;
+      }
+    }catch(e){console.warn('Could not fetch index.html for version check:',e);}
+
+    clearInterval(timerInt);
+
+    // Update needed if SW cache version differs OR page header version differs
+    const swOutdated=latestSwVer!==currentVer&&currentVer!=='unknown';
+    const pageOutdated=latestDisplayVer&&currentDisplayVer&&latestDisplayVer!==currentDisplayVer;
+    const updateNeeded=swOutdated||pageOutdated;
+
+    if(!updateNeeded&&currentVer!=='unknown'){
+      // Already on the latest version
+      const dispVer=currentDisplayVer||currentVer;
+      btn.textContent=`✅ Up to date (${dispVer})`;
+      btn.style.color='#4caf50';
+      btn.disabled=false;
+      return;
+    }
+
+    // New version available — show comparison then clear caches and reload
+    const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+    let label;
+    if(pageOutdated&&currentDisplayVer&&latestDisplayVer){
+      label=`🆕 ${currentDisplayVer} → ${latestDisplayVer} (${elapsed}s)`;
+    }else if(swOutdated){
+      label=`🆕 ${currentVer} → ${latestSwVer} (${elapsed}s)`;
+    }else{
+      label=`🆕 Update available (${elapsed}s)`;
+    }
+    btn.textContent=label;
+    btn.style.color='#00e5ff';
+
     await Promise.all(keys.map(k=>caches.delete(k)));
     if('serviceWorker' in navigator){
       const reg=await navigator.serviceWorker.getRegistration();
@@ -110,17 +177,13 @@ async function forceAppUpdate(){
         if(waiting){
           if(waiting.state==='installed')waiting.postMessage({type:'SKIP_WAITING'});
           waiting.addEventListener('statechange',function(){
-            if(this.state==='activated'){clearInterval(timerInt);location.reload();}
+            if(this.state==='activated'){location.reload();}
           });
         }
         await reg.unregister();
       }
     }
-    clearInterval(timerInt);
-    const elapsed=((Date.now()-startTime)/1000).toFixed(1);
-    btn.textContent=`✅ Refreshing... ${elapsed}s`;
-    btn.style.color='#4caf50';
-    setTimeout(()=>location.reload(),300);
+    setTimeout(()=>location.reload(),800);
   }catch(e){
     console.error('Update check failed:',e);
     clearInterval(timerInt);

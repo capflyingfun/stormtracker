@@ -106,6 +106,31 @@ function _dismissNotifPermission(){
   localStorage.setItem('st_notifPromptSeen',String(Date.now()));
 }
 
+// ==========================================
+// LOADING SCREEN
+// ==========================================
+let _loadingScreenTimer=null;
+function showLoadingScreen(locName){
+  const el=document.getElementById('app-loading');
+  if(!el)return;
+  const locEl=document.getElementById('loading-loc');
+  const msgEl=document.getElementById('loading-status-msg');
+  if(locEl)locEl.textContent=locName?'📍 '+locName:'';
+  if(msgEl)msgEl.textContent='Fetching weather data…';
+  el.classList.remove('fade-out');
+  el.style.display='flex';
+  // Safety auto-hide after 15s in case something goes wrong
+  clearTimeout(_loadingScreenTimer);
+  _loadingScreenTimer=setTimeout(()=>hideLoadingScreen(),15000);
+}
+function hideLoadingScreen(){
+  clearTimeout(_loadingScreenTimer);
+  const el=document.getElementById('app-loading');
+  if(!el||el.style.display==='none')return;
+  el.classList.add('fade-out');
+  setTimeout(()=>{el.style.display='none';el.classList.remove('fade-out')},420);
+}
+
 function init(){
   _pruneExpiredAlerts();
   _loadAllCustomIcons().catch(()=>{});
@@ -136,6 +161,14 @@ function init(){
         Tappable unit cycling &middot; 7-day forecast
       </div>
     </div>`;
+  // First launch with no saved location — auto-prompt for GPS once so the
+  // user doesn't have to hunt for the button (standard weather app behaviour).
+  // Only fires once; if they deny we fall back to the welcome screen buttons.
+  if(navigator.geolocation&&!localStorage.getItem('st_locAsked')){
+    localStorage.setItem('st_locAsked','1');
+    // Small delay so the welcome screen renders first (context for the prompt)
+    setTimeout(()=>{ if(typeof showLocationConfirm==='function')showLocationConfirm(); },400);
+  }
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);

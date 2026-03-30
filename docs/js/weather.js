@@ -2,17 +2,111 @@
 // WEATHER (Open-Meteo)
 // ==========================================
 let _lightningFlashState=null;
+
+// Blend two Open-Meteo model responses into one.
+// gfs = GFS (global baseline, what NWS uses)
+// hrrr = HRRR (high-res CONUS, hourly updates) — may be null outside US
+// For precipitation: take the max (more conservative — HRRR tends to underestimate).
+// For all other numeric arrays: simple average where both have valid data.
+function _blendOMModels(gfs,hrrr){
+  if(!gfs&&!hrrr)return null;
+  if(!gfs)return hrrr;
+  if(!hrrr)return gfs;
+  // Deep copy GFS as the base structure
+  const out=JSON.parse(JSON.stringify(gfs));
+  out._modelBlend='GFS+HRRR';
+
+  // --- Current ---
+  const curAvg=['temperature_2m','apparent_temperature','precipitation',
+    'relative_humidity_2m','cloud_cover','pressure_msl',
+    'wind_speed_10m','wind_gusts_10m','wind_direction_10m'];
+  curAvg.forEach(v=>{
+    if(gfs.current?.[v]!=null&&hrrr.current?.[v]!=null)
+      out.current[v]=+(((gfs.current[v]+hrrr.current[v])/2).toFixed(4));
+  });
+  // Precip: max for safety
+  if(gfs.current?.precipitation!=null&&hrrr.current?.precipitation!=null)
+    out.current.precipitation=Math.max(gfs.current.precipitation,hrrr.current.precipitation);
+
+  // --- Hourly ---
+  const hrAvg=['temperature_2m','apparent_temperature','relative_humidity_2m',
+    'dew_point_2m','weather_code','wind_speed_10m','wind_gusts_10m',
+    'wind_direction_10m','pressure_msl','cloud_cover','visibility',
+    'cape','lifted_index','convective_inhibition','uv_index','freezing_level_height'];
+  const gLen=gfs.hourly?.time?.length||0;
+  const hLen=hrrr.hourly?.time?.length||0;
+  hrAvg.forEach(v=>{
+    const ga=gfs.hourly?.[v],ha=hrrr.hourly?.[v];
+    if(!ga&&!ha)return;
+    if(!ha){out.hourly[v]=ga;return;}
+    if(!ga){out.hourly[v]=ha;return;}
+    out.hourly[v]=ga.map((g,i)=>{
+      const h=ha[i];
+      if(g==null&&h==null)return null;
+      if(g==null)return h;
+      if(h==null)return g;
+      return +((g+h)/2).toFixed(4);
+    });
+  });
+  // Hourly precip: max
+  if(gfs.hourly?.precipitation&&hrrr.hourly?.precipitation){
+    out.hourly.precipitation=gfs.hourly.precipitation.map((g,i)=>{
+      const h=hrrr.hourly.precipitation[i];
+      return Math.max(g??0,h??0);
+    });
+  }
+
+  // --- Daily ---
+  const dayAvg=['temperature_2m_max','temperature_2m_min','wind_speed_10m_max'];
+  dayAvg.forEach(v=>{
+    const ga=gfs.daily?.[v],ha=hrrr.daily?.[v];
+    if(!ga||!ha){out.daily[v]=ga||ha;return;}
+    out.daily[v]=ga.map((g,i)=>{
+      const h=ha[i];
+      if(g==null&&h==null)return null;
+      if(g==null)return h;
+      if(h==null)return g;
+      return +((g+h)/2).toFixed(4);
+    });
+  });
+  // Daily precip sum: max
+  if(gfs.daily?.precipitation_sum&&hrrr.daily?.precipitation_sum){
+    out.daily.precipitation_sum=gfs.daily.precipitation_sum.map((g,i)=>{
+      const h=hrrr.daily.precipitation_sum[i];
+      return Math.max(g??0,h??0);
+    });
+  }
+  // Daily precip probability: max
+  if(gfs.daily?.precipitation_probability_max&&hrrr.daily?.precipitation_probability_max){
+    out.daily.precipitation_probability_max=gfs.daily.precipitation_probability_max.map((g,i)=>{
+      const h=hrrr.daily.precipitation_probability_max[i];
+      return Math.max(g??0,h??0);
+    });
+  }
+
+  return out;
+}
 async function fetchWeather(){
   const el=document.getElementById('page-weather');
   if(_isOffline&&S._lastWeatherData){renderWeather(S._lastWeatherData);return}
   showSkel(el,6);
   try{
-    const omUrl=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lon}`
-      +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day`
-      +`&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility,is_day,cape,lifted_index,convective_inhibition`
+    const _omBase=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lon}`
+      +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day`
+      +`&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility,is_day,cape,lifted_index,convective_inhibition,uv_index,freezing_level_height`
       +`&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset,wind_speed_10m_max`
       +`&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=7&past_days=2`;
-    const omRes=await fetch(omUrl);const omData=await omRes.json();
+    const _isUSLoc=isUSLocation(S.lat,S.lon);
+    // Fetch GFS (global, NWS-baseline) + HRRR (high-res CONUS, hourly updates) in parallel
+    const [_gfsRes,_hrrrRes]=await Promise.allSettled([
+      fetch(_omBase+'&models=gfs_seamless').then(r=>r.json()),
+      _isUSLoc?fetch(_omBase+'&models=hrrr_conus').then(r=>r.json()):Promise.resolve(null)
+    ]);
+    const _gfsData=_gfsRes.status==='fulfilled'?_gfsRes.value:null;
+    const _hrrrData=_hrrrRes.status==='fulfilled'?_hrrrRes.value:null;
+    const omData=_blendOMModels(_gfsData,_hrrrData)||_gfsData||_hrrrData;
+    if(!omData)throw new Error('All model fetches failed');
+    console.log('OM models: '+(_gfsData?'GFS✓':'GFS✗')+' '+(_hrrrData?'HRRR✓':'HRRR✗')+(_isUSLoc?'':' (non-US, HRRR skipped)'));
     S.forecast=omData;
     try{
       const isUS=isUSLocation(S.lat,S.lon);
@@ -57,9 +151,10 @@ async function fetchWeather(){
       }
       if(blend.wxString)omData.current._nwsDesc=blend.wxString;
       omData.current._nwsStation=blend.station||null;
-      omData.current._source=blend.sourceLabel;
+      const _modelTag=omData._modelBlend?` [${omData._modelBlend}]`:'';
+      omData.current._source=blend.sourceLabel+_modelTag;
       omData.current._sourceCount=sources.length;
-      console.log('Weather blend: '+sources.map(s=>s.src).join(' + ')+' → '+blend.sourceLabel);
+      console.log('Weather blend: '+sources.map(s=>s.src).join(' + ')+' → '+blend.sourceLabel+_modelTag);
       if(nwsFc&&nwsFc.length){
         omData._nwsForecast=nwsFc;
         console.log('Weather: NWS forecast loaded ('+nwsFc.length+' periods)');
@@ -67,6 +162,7 @@ async function fetchWeather(){
     }catch(e){console.log('Multi-source blend failed:',e.message)}
     S.weather=omData.current;S._lastWeatherFetch=Date.now();S._lastWeatherData=omData;_resetMinMax();renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);
   }catch(e){
+    if(typeof hideLoadingScreen==='function')hideLoadingScreen();
     if(_isOffline&&S._lastWeatherData){
       renderWeather(S._lastWeatherData);
     } else {
@@ -245,6 +341,8 @@ function getBaroPrediction(current,hourly){
 }
 
 function renderWeather(data){
+  if(typeof hideLoadingScreen==='function')hideLoadingScreen();
+  if(typeof initDesktopMode==='function'&&window.innerWidth>=1024)setTimeout(initDesktopMode,200);
   const el=document.getElementById('page-weather');
   const c=data.current,isDay=c.is_day===1;
   const tempC=c.temperature_2m,feelsC=c.apparent_temperature;
@@ -304,7 +402,36 @@ function renderWeather(data){
         <div class="hero-stat-cell"><div class="hero-side-label">Pressure</div><div class="hero-side-val">${fmtPres(c.pressure_msl)}</div></div>
         <div class="hero-stat-cell"><div class="hero-side-label">Precip</div><div class="hero-side-val">${fmtPrecip(c.precipitation||0)}</div></div>
         <div class="hero-stat-cell"><div class="hero-side-label">🌡️ Dew Pt</div><div class="hero-side-val">${fmtTemp(dewC)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">Spread</div><div class="hero-side-val">${fmtTempDiff(tempC-dewC)}</div><div style="font-size:0.42em;color:var(--text-muted);margin-top:1px;line-height:1.2">${getSpreadLabel(tempC-dewC)}</div>${(()=>{const _estB=calcCloudBase(tempC-dewC);const _mc=S.station?getMetarCeilingFt(S.station):null;const _cbCol=_mc!=null?(_mc<_estB?'#ff3355':'#39ff14'):'var(--accent-cyan)';return`<div style="font-size:0.38em;color:${_cbCol};margin-top:1px;line-height:1.1;text-shadow:${_mc!=null?'0 0 6px '+(_mc<_estB?'rgba(255,51,85,0.4)':'rgba(57,255,20,0.4)'):'none'}">Est. base ~${fmtAlt(_estB)} AGL</div>`})()}</div>
+        ${(()=>{
+  const _nowMs=Date.now();
+  const _hIdx=hourly.time?hourly.time.findIndex(t=>new Date(t).getTime()>=_nowMs):-1;
+  const _uv=hourly.uv_index&&_hIdx>=0?hourly.uv_index[_hIdx]:null;
+  const _uvColor=_uv==null?'var(--text-muted)':_uv<=2?'#4caf50':_uv<=5?'#ffeb3b':_uv<=7?'#ff9800':_uv<=10?'#f44336':'#ce93d8';
+  const _uvLabel=_uv==null?'--':_uv<=2?'Low':_uv<=5?'Moderate':_uv<=7?'High':_uv<=10?'Very High':'Extreme';
+  const _flM=hourly.freezing_level_height&&_hIdx>=0?hourly.freezing_level_height[_hIdx]:null;
+  const _flFt=_flM!=null?Math.round(_flM*3.281):null;
+  return`<div class="hero-stat-cell"><div class="hero-side-label">☀️ UV Index</div><div class="hero-side-val" style="color:${_uvColor}">${_uv!=null?_uv.toFixed(1):'--'}</div><div style="font-size:0.38em;color:${_uvColor};margin-top:1px">${_uvLabel}</div></div>`
+    +`<div class="hero-stat-cell"><div class="hero-side-label">❄️ Freeze Level</div><div class="hero-side-val">${_flFt!=null?fmtAlt(_flFt):'--'}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px">${_flFt!=null?'MSL · ice/snow line':''}</div></div>`;
+})()}
+        <div class="hero-stat-cell"><div class="hero-side-label">Spread</div><div class="hero-side-val">${fmtTempDiff(tempC-dewC)}</div><div style="font-size:0.42em;color:var(--text-muted);margin-top:1px;line-height:1.2">${getSpreadLabel(tempC-dewC)}</div>${(()=>{
+  const _spread=tempC-dewC;
+  const _estB=adjustCloudBaseForUser(calcCloudBase(_spread));
+  // 3-hour spread trend from hourly forecast — wider spread = rising base, narrowing = lowering base
+  let _arrow='';
+  if(hourly&&hourly.time&&hourly.temperature_2m&&hourly.dew_point_2m){
+    const _now=Date.now();
+    const _nowIdx=hourly.time.findIndex(t=>new Date(t).getTime()>=_now);
+    if(_nowIdx>=0&&_nowIdx+3<hourly.time.length){
+      const _s0=hourly.temperature_2m[_nowIdx]-hourly.dew_point_2m[_nowIdx];
+      const _s3=hourly.temperature_2m[_nowIdx+3]-hourly.dew_point_2m[_nowIdx+3];
+      const _delta=_s3-_s0; // positive = spread widening = cloud base rising = improving
+      if(_delta>0.5)_arrow='<span style="color:#39ff14;font-size:1.2em;text-shadow:0 0 6px rgba(57,255,20,0.6)">⤴</span>';
+      else if(_delta<-0.5)_arrow='<span style="color:#ff3355;font-size:1.2em;text-shadow:0 0 6px rgba(255,51,85,0.6)">⤵</span>';
+      else _arrow='<span style="color:var(--text-muted);font-size:1.1em">→</span>';
+    }
+  }
+  return`<div id="weather-spread-cb" data-spread="${_spread}" style="font-size:0.38em;color:var(--accent-cyan);margin-top:1px;line-height:1.1">Est. base ~${fmtAlt(_estB)} AGL ${_arrow}</div>`;
+})()}</div>
         ${(()=>{const spread=tempC-dewC;const windKt=c.wind_speed_10m!=null?(c.wind_speed_10m/1.852):null;const fog=getFogRisk(spread,windKt,isDay,c.cloud_cover);const stab=getStabilityLabel(spread,Math.min(100,c.relative_humidity_2m),tempC);const inv=detectInversion(spread,windKt,isDay,c.cloud_cover);return`<div class="hero-stat-cell"><div class="hero-side-label">🌫️ Fog Risk</div><div class="hero-side-val" style="font-size:0.85em;color:${fog.color}">${fog.level}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${fog.desc}</div></div><div class="hero-stat-cell"><div class="hero-side-label">🌡️ Stability</div><div class="hero-side-val" style="font-size:0.75em;color:${stab.color}">${stab.label}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${stab.desc}</div></div>${inv.detected?`<div class="hero-stat-cell" style="grid-column:1/-1"><div style="font-size:0.5em;color:var(--accent-orange);text-align:center;padding:2px 6px;background:rgba(255,152,0,0.1);border-radius:4px">⚠️ ${inv.text}</div></div>`:''}`})()}
       </div>
       <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0 0">
@@ -1258,4 +1385,7 @@ function toggleNWSDetail(idx){
     <div style="font-size:0.8em;color:var(--text-secondary);margin-top:8px;line-height:1.4;border-top:1px solid var(--border-subtle);padding-top:8px">${p.detail}</div>
   </div>`;
 }
+
+// No-op — arrow is now driven purely by forecast spread trend at render time.
+function updateWeatherCloudBaseColor(){}
 
