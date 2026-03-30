@@ -105,7 +105,7 @@ function initRadar(){
       }
     }catch(e){}
     showRadarLayer(map);
-    document.getElementById('radar-scan').addEventListener('click',()=>{goHome()});
+    document.getElementById('radar-scan').addEventListener('click',()=>{recenterMap()});
     document.getElementById('radar-scan-view').addEventListener('click',()=>{scanHere()});
     document.getElementById('radar-scan-hires').addEventListener('click',()=>{showHdScanDialog()});
     document.getElementById('radar-toggle-src').addEventListener('click',()=>{toggleRadarSource(map)});
@@ -1007,7 +1007,7 @@ function plotStormMarkers(map){
     }
     if(eta&&eta.approaching&&visibleSet.has(storm)){
       const ringSize=Math.max(36,storm.dbz/1.5);
-      pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringSize,color,dbz:storm.dbz});
+      pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringSize,color,dbz:storm.dbz,stormRef});
     }
     if(storm.dbz>=40){
       pending.push({type:'lightning',lat:storm.lat,lng:storm.lng});

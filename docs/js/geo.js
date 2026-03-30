@@ -215,6 +215,15 @@ function getHomeLocation(){
 function setHomeLocation(lat,lon,name){
   try{localStorage.setItem('st_home_location',JSON.stringify({lat,lon,name}))}catch(e){}
 }
+function recenterMap(){
+  if(!S.lat||!S.lon){toast('📍 No location set');return}
+  if(S.map){
+    S.map.setView([S.lat,S.lon],8,{animate:true,duration:0.5});
+    if(S._userMarker)S._userMarker.setLatLng([S.lat,S.lon]);
+    if(S._rangeCircle)S._rangeCircle.setLatLng([S.lat,S.lon]);
+  }
+  toast('📍 Centered: '+S.locName);
+}
 function goHome(){
   let home=getHomeLocation();
   if(!home&&S.lat){
