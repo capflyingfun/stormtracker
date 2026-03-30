@@ -568,6 +568,9 @@ canvas.offscreen{display:none}
   /* Container fills all available width (body already has padding-left:92px for sidebar) */
   .container{max-width:none;width:100%;padding:0 24px;margin:0}
 
+  /* Global text scaling for desktop — bump base font from ~16px to ~22px equivalent */
+  .container{font-size:1.38em}
+
   /* Header fills full available width */
   .app-header{max-width:none;margin:0}
 
@@ -575,18 +578,39 @@ canvas.offscreen{display:none}
   .section-page{display:block!important;padding-top:20px;margin-bottom:20px;border-top:1px solid rgba(0,200,255,0.08);scroll-margin-top:60px}
   .section-page:first-of-type{border-top:none;padding-top:0}
 
-  /* Hero stats: up to 6 columns on desktop */
+  /* Hero stats: up to 6 columns on desktop, bigger text */
   .hero-stats-grid{grid-template-columns:repeat(6,1fr)!important}
+  .hero-stat-cell{padding:14px 10px}
+
+  /* Radar sonar: 40% smaller on desktop */
+  #mini-sonar-card{max-width:60%;margin:0 auto}
 
   /* Radar map: much taller on desktop */
   .map-container{height:min(1400px,calc(100vh - 100px))}
 
-  /* Wind gauge: bigger on desktop */
-  .wind-gauge-full .wind-rose,.wind-gauge-full [data-gauge]{max-width:480px}
-  .wind-gauge-full .gauge-g1000{max-width:560px}
+  /* Map buttons: 200% bigger */
+  .map-ctrl-btn{width:64px;height:64px;font-size:1.6em;border-radius:10px}
+  .map-controls{gap:8px}
+
+  /* Wind gauge: 175% bigger on desktop */
+  .wind-gauge-full .wind-rose,.wind-gauge-full [data-gauge]{max-width:700px}
+  .wind-gauge-full .gauge-g1000{max-width:800px}
+  .wind-rose-labels{font-size:1.1em}
+  .wind-rose-center{font-size:1.2em}
+
+  /* 7-day NWS Forecast: bigger items */
+  .forecast-scroll{gap:14px}
+  .forecast-item{width:120px;padding:16px 10px}
+  .forecast-time{font-size:0.9em}
+  .forecast-icon{font-size:2.2em;margin:10px 0}
+  .forecast-temp{font-size:1.3em}
+  .forecast-detail{font-size:1em;padding:16px}
 
   /* Station grid wider */
   .station-grid{grid-template-columns:repeat(4,1fr)}
+
+  /* Card titles bigger */
+  .card-title{font-size:1.1em}
 
   /* Settings panel — wide card on desktop */
   .settings-panel{max-width:min(900px,90vw)}
