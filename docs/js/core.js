@@ -698,23 +698,34 @@ function initDesktopMode(){
   if(!S.map)initRadar();
   startSonarSweep();
   if(!S.station||S._stationLocKey!==S.lat+','+S.lon)fetchStation();
-  fetchAlerts();fetchHazards();
   renderStorms();
-  setTimeout(()=>{if(S.map)S.map.invalidateSize()},300);
+  setTimeout(()=>{
+    if(S.map)S.map.invalidateSize();
+    startSonarSweep();
+  },500);
+  setTimeout(()=>{if(S.map)S.map.invalidateSize()},1500);
   _initScrollSpy();
+  _initDesktopSonarKeepAlive();
+}
+
+function _initDesktopSonarKeepAlive(){
+  setInterval(()=>{
+    if(!_isDesktop()||!S.lat)return;
+    if(!_sonarAnimId&&document.getElementById('mini-sonar-canvas'))startSonarSweep();
+  },2000);
 }
 
 function _initScrollSpy(){
   const pages=['weather','radar','storms','station','alerts'];
+  let _scrollSpyActive=true;
   const obs=new IntersectionObserver((entries)=>{
-    if(!_isDesktop())return;
+    if(!_isDesktop()||!_scrollSpyActive)return;
+    let topId=null,topRatio=0;
     entries.forEach(e=>{
-      if(e.isIntersecting&&e.intersectionRatio>0.15){
-        const id=e.target.id.replace('page-','');
-        document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
-      }
+      if(e.isIntersecting&&e.intersectionRatio>topRatio){topRatio=e.intersectionRatio;topId=e.target.id.replace('page-','');}
     });
-  },{threshold:[0.15,0.5],rootMargin:'-80px 0px -40% 0px'});
+    if(topId)document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.page===topId));
+  },{threshold:[0.1,0.3,0.5],rootMargin:'-60px 0px -30% 0px'});
   pages.forEach(p=>{const el=document.getElementById('page-'+p);if(el)obs.observe(el)});
 }
 
