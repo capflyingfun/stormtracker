@@ -624,7 +624,7 @@ canvas.offscreen{display:none}
   #threat-ticker{font-size:1.8em!important;height:auto;line-height:1.4}
 
   /* Settings panel — wide card on desktop, ~150% bigger text */
-  .settings-overlay{font-size:2.5em}
+  .settings-overlay{font-size:3em}
   .settings-panel{max-width:min(92vw,1400px)}
 
   /* Main settings panel inner card */
