@@ -1006,8 +1006,8 @@ function plotStormMarkers(map){
       pending.push({type:'circle',lat:storm.lat,lng:storm.lng,r,color,popupHtml,popupOpts,stormRef});
     }
     if(eta&&eta.approaching&&visibleSet.has(storm)){
-      const ringSize=Math.max(36,storm.dbz/1.5);
-      pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringSize,color,dbz:storm.dbz,stormRef});
+      const ringRadiusM=Math.max(800,Math.min(5000,(storm.dbz-15)*80));
+      pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringRadiusM,color,dbz:storm.dbz,stormRef});
     }
     if(storm.dbz>=40){
       pending.push({type:'lightning',lat:storm.lat,lng:storm.lng,stormRef});
@@ -1060,7 +1060,9 @@ function plotStormMarkers(map){
         const _jitter=(_sinVal+1)/2*0.6-0.3;
         const _dur=Math.max(1.0,Math.min(4.0,_baseDur+_jitter)).toFixed(2);
         const _cls=_dbz>55?'ring-shrink':_dbz>=41?'ring-pulse':'ring-grow';
-        const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring ${_cls}" style="width:${p.ringSize}px;height:${p.ringSize}px;border:3px solid ${p.color};box-shadow:0 0 8px ${p.color};animation-duration:${_dur}s"></div>`,iconSize:[p.ringSize,p.ringSize],iconAnchor:[p.ringSize/2,p.ringSize/2]})});
+        const ring=L.circle([p.lat,p.lng],{radius:p.ringRadiusM,color:p.color,fillColor:p.color,fillOpacity:0.08,weight:3,interactive:false,className:'storm-ring '+_cls});
+        ring._animDur=_dur;
+        ring.on('add',function(){const el=this.getElement();if(el){el.style.animationDuration=this._animDur+'s';el.style.filter='drop-shadow(0 0 6px '+p.color+')';}});
         if(isVisible)ring.addTo(map);
         ring._stormRef=p.stormRef;
         S.stormMarkers.push(ring);
