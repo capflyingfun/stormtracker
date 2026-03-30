@@ -149,7 +149,23 @@ async function fetchWeather(){
         const rh=Math.round(100*Math.exp((17.27*blend.dewp)/(237.7+blend.dewp))/Math.exp((17.27*blend.temp)/(237.7+blend.temp)));
         omData.current.relative_humidity_2m=Math.min(100,Math.max(0,rh));
       }
-      if(blend.wxString)omData.current._nwsDesc=blend.wxString;
+      if(blend.wxString){
+        omData.current._nwsDesc=blend.wxString;
+        const _wx=blend.wxString.toLowerCase();
+        let _nwsCloud=null;
+        if(/\bmostly\s*(sunny|clear)\b/.test(_wx))_nwsCloud=15;
+        else if(/\bpartly\s*(sunny|cloudy)\b/.test(_wx))_nwsCloud=45;
+        else if(/\bmostly\s*cloudy\b/.test(_wx))_nwsCloud=80;
+        else if(/\b(cloudy|overcast)\b/.test(_wx))_nwsCloud=95;
+        else if(/\b(sunny|clear)\b/.test(_wx))_nwsCloud=0;
+        if(_nwsCloud!=null){
+          const _omCloud=omData.current.cloud_cover;
+          if(Math.abs(_omCloud-_nwsCloud)>30){
+            omData.current.cloud_cover=_nwsCloud;
+            console.log('Cloud cover reconciled: OM '+_omCloud+'% → NWS "'+blend.wxString+'" '+_nwsCloud+'%');
+          }
+        }
+      }
       omData.current._nwsStation=blend.station||null;
       const _modelTag=omData._modelBlend?` [${omData._modelBlend}]`:'';
       omData.current._source=blend.sourceLabel+_modelTag;
