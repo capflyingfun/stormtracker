@@ -179,9 +179,9 @@ async function searchLoc(){
       }else{
         name=fmtLocName(addr,r.display_name.split(',').slice(0,2).join(',').trim());
       }
-      toggleLocOverlay(false);
       setLoc(parseFloat(r.lat),parseFloat(r.lon),name);
       checkLocationUnits(addr.country_code);
+      setTimeout(()=>toggleLocOverlay(false),10);
     }
     else toast('Location not found');
   }catch(e){toast('Search failed')}
@@ -457,8 +457,8 @@ function goToFavorite(idx){
   const favs=getFavorites();
   const f=favs[idx];
   if(!f)return;
-  toggleLocOverlay(false);
   setLoc(f.lat,f.lon,f.name);
+  setTimeout(()=>toggleLocOverlay(false),10);
   toast('🧭 '+f.name);
 }
 function toggleFavEmailAlert(idx){
