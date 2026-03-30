@@ -769,7 +769,7 @@ function switchPage(page){
     else{initRadar()}
   }
   if(page==='weather'){startSonarSweep()}else{stopSonarSweep()}
-  if(page==='station'&&S.lat&&(!S.station||S._stationLocKey!==S.lat+','+S.lon))fetchStation();
+  if(page==='station'){const navBtn=document.getElementById('nav-station');if(navBtn&&navBtn.style.display==='none'){switchPage('weather');return}if(S.lat&&(!S.station||S._stationLocKey!==S.lat+','+S.lon))fetchStation()}
   if(page==='alerts'&&S.lat){fetchAlerts();fetchHazards()}
   if(page==='storms'&&S.lat)renderStorms();
   if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}

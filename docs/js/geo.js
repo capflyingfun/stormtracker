@@ -203,9 +203,7 @@ async function reverseGeo(lat,lon){
 
 function updateNavForLocation(){
   const isUS=S.lat&&isUSLocation(S.lat,S.lon);
-  const stn=document.getElementById('nav-station');
   const alt=document.getElementById('nav-alerts');
-  if(stn)stn.style.display='';
   if(alt)alt.style.display=isUS?'':'none';
   document.querySelectorAll('.bottom-nav .nav-item').forEach(b=>{
     b.style.flex='1';
@@ -372,6 +370,8 @@ function setLoc(lat,lon,name,fromTravel){
     if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
     showRadarLayer(S.map);
   }
+  if(typeof _showBottomNav==='function')_showBottomNav();
+  if(typeof _showHeaderBtns==='function')_showHeaderBtns();
   const wEl=document.getElementById('page-weather');if(wEl)showSkel(wEl,6);
   if(typeof showLoadingScreen==='function')showLoadingScreen(S.locName);
   if(_setLocTimer)clearTimeout(_setLocTimer);

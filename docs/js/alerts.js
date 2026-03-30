@@ -570,7 +570,7 @@ function _renderSPCWatchSection(){
       if (remain > 0) {
         const hrs = Math.floor(remain / 3600000);
         const mins = Math.floor((remain % 3600000) / 60000);
-        expStr = hrs > 0 ? hrs + 'h ' + mins + 'm remaining' : mins + 'm remaining';
+        expStr = hrs > 0 ? hrs + 'h:' + String(mins).padStart(2,'0') + 'm remaining' : mins + 'm remaining';
       }
     }
     html += `<div class="spc-watch-card ${cls}">

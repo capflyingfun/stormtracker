@@ -136,24 +136,33 @@ function init(){
   _loadAllCustomIcons().catch(()=>{});
   loadUnits();
   updateAIFab();
-  checkFirstLaunch();
   _initPWAInstallPrompt();
   _initOfflineDetection();
   try{
     const saved=JSON.parse(localStorage.getItem('st_loc'));
     if(saved&&saved.lat&&saved.lon){
       if(!getHomeLocation())setHomeLocation(saved.lat,saved.lon,saved.name);
+      _showBottomNav();
       setLoc(saved.lat,saved.lon,saved.name);return;
     }
   }catch(e){}
+  _hideBottomNav();
   document.getElementById('status-text').textContent='Enter a location to begin';
+  _hideHeaderBtns();
   document.getElementById('page-weather').innerHTML=`
     <div class="welcome-screen">
       <div style="font-size:3em;margin-bottom:12px">⚡</div>
       <h2>Welcome to StormTracker</h2>
       <p>Real-time storm detection powered by live radar data.<br>No API keys, no accounts, 100% free.</p>
       <button class="welcome-btn" onclick="showLocationConfirm()">🛰️ Use My Location</button>
-      <button class="welcome-btn secondary" onclick="toggleLocOverlay(true)">🔍 Search Location</button>
+      <div id="welcome-search-wrap" style="width:100%;max-width:320px;margin-top:8px">
+        <div style="display:flex;gap:6px">
+          <input type="text" id="welcome-search-input" placeholder="Search city, ZIP, or address..." style="flex:1;padding:10px 14px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:8px;font-size:0.9em;font-family:var(--font-body);outline:none" autocomplete="off">
+          <button onclick="_welcomeSearch()" style="padding:10px 18px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.3);border-radius:8px;font-size:0.85em;font-weight:600;cursor:pointer;white-space:nowrap">Go</button>
+        </div>
+        <div id="welcome-suggestions" style="margin-top:4px"></div>
+      </div>
+      <button class="welcome-btn secondary" onclick="startMapPick()" style="background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.3)">📌 Set Location from Map</button>
       <div style="margin-top:20px;font-size:0.75em;color:var(--text-muted)">
         <strong>Features:</strong><br>
         Live weather &middot; Radar map &middot; Storm cell detection<br>
@@ -161,6 +170,50 @@ function init(){
         Tappable unit cycling &middot; 7-day forecast
       </div>
     </div>`;
+  const _wsi=document.getElementById('welcome-search-input');
+  if(_wsi){
+    _wsi.addEventListener('keydown',e=>{if(e.key==='Enter')_welcomeSearch()});
+    let _wst=null;
+    _wsi.addEventListener('input',()=>{
+      clearTimeout(_wst);
+      const q=_wsi.value.trim();
+      if(q.length<2){document.getElementById('welcome-suggestions').innerHTML='';return}
+      _wst=setTimeout(async()=>{
+        try{
+          const data=await geoSearch(q,5);
+          const box=document.getElementById('welcome-suggestions');
+          if(!box)return;
+          if(!data.length){box.innerHTML='';return}
+          box.innerHTML=data.map(r=>{
+            const a=r.address||{};
+            const nm=fmtLocName(a,r.display_name.split(',').slice(0,2).join(',').trim());
+            return `<button onclick="setLoc(${parseFloat(r.lat)},${parseFloat(r.lon)},'${nm.replace(/'/g,"\\'")}');if(typeof checkLocationUnits==='function')checkLocationUnits('${a.country_code||''}')" style="display:block;width:100%;padding:8px 12px;background:rgba(255,255,255,0.04);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;text-align:left;color:var(--text-primary);font-size:0.82em;margin-bottom:4px">${nm}</button>`;
+          }).join('');
+        }catch(e){}
+      },300);
+    });
+  }
+}
+function _hideBottomNav(){const n=document.querySelector('.bottom-nav');if(n)n.style.display='none'}
+function _showBottomNav(){const n=document.querySelector('.bottom-nav');if(n)n.style.display=''}
+function _hideHeaderBtns(){['btn-travel','btn-loc-open','btn-settings'].forEach(id=>{const b=document.getElementById(id);if(b)b.style.display='none'})}
+function _showHeaderBtns(){['btn-travel','btn-loc-open','btn-settings'].forEach(id=>{const b=document.getElementById(id);if(b)b.style.display=''})}
+async function _welcomeSearch(){
+  const inp=document.getElementById('welcome-search-input');
+  if(!inp)return;
+  const q=inp.value.trim();
+  if(!q){toast('Please enter a location');return}
+  toast('Searching...');
+  try{
+    let data=await geoSearch(cleanQ(q),1);
+    if(!data.length){const simple=q.replace(/^\d+\s*/,'').replace(/\./g,'').trim();if(simple!==cleanQ(q))data=await geoSearch(simple,1)}
+    if(data.length){
+      const r=data[0];const a=r.address||{};
+      const nm=fmtLocName(a,r.display_name.split(',').slice(0,2).join(',').trim());
+      setLoc(parseFloat(r.lat),parseFloat(r.lon),nm);
+      if(typeof checkLocationUnits==='function')checkLocationUnits(a.country_code);
+    }else{toast('Location not found')}
+  }catch(e){toast('Search failed')}
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);
