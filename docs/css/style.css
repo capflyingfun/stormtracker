@@ -571,23 +571,17 @@ canvas.offscreen{display:none}
   /* Header fills full available width */
   .app-header{max-width:none;margin:0}
 
-  /* Weather page: 2-column grid — MUST use .visible so display:none still works on hidden tabs */
-  #page-weather.visible{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
-  #page-weather.visible .weather-hero,
-  #page-weather.visible #mini-sonar-card,
-  #page-weather.visible #wx-tropical-section{grid-column:1 / -1}
-
-  /* Cap mini sonar height so the canvas doesn't blow up on wide screens */
-  #mini-sonar-card{max-width:700px;justify-self:start;width:100%}
+  /* All tabs: single-column stacked layout (like mobile, but full width) */
+  .section-page{display:block!important}
 
   /* Hero stats: up to 6 columns on desktop */
   .hero-stats-grid{grid-template-columns:repeat(6,1fr)!important}
 
+  /* Radar map: much taller on desktop */
+  .map-container{height:min(1400px,calc(100vh - 100px))}
+
   /* Station grid wider */
   .station-grid{grid-template-columns:repeat(4,1fr)}
-
-  /* Alerts: 2-col for alert list */
-  #page-alerts .card + .card{margin-top:0}
 
   /* Settings panel — wide card on desktop */
   .settings-panel{max-width:min(900px,90vw)}
