@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "rHNtelTeAuydyQJzlGSDN"
+uri = "file://docs/FEATURES.pdf"
+type = "pdf"
+title = "StormTracker v3.50 Feature Reference (PDF)"
