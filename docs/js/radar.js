@@ -1005,7 +1005,7 @@ function plotStormMarkers(map){
     }else{
       pending.push({type:'circle',lat:storm.lat,lng:storm.lng,r,color,popupHtml,popupOpts,stormRef});
     }
-    if(eta&&eta.impact>=90){
+    if(eta&&eta.approaching&&visibleSet.has(storm)){
       const ringSize=Math.max(36,storm.dbz/1.5);
       pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringSize,color,dbz:storm.dbz});
     }
@@ -1535,14 +1535,6 @@ function updateThreatTicker(){
     const alertPhase=S._alertsShownOnce===false||(cycleMin%3)!==2;
     if(alertPhase){
       const nwsMsgs=[];
-      function _relDur(ms){
-        const totalM=Math.floor(ms/60000);
-        if(totalM<1)return'<1m';
-        if(totalM<60)return String(totalM).padStart(2,'0')+'m';
-        const h=Math.floor(totalM/60);
-        const rm=totalM%60;
-        return String(h).padStart(2,'0')+'h '+String(rm).padStart(2,'0')+'m';
-      }
       const now=Date.now();
       const _tickerAlerts=(typeof _sortAlertsByDate==='function')?_sortAlertsByDate(S.alerts):S.alerts;
       for(const a of _tickerAlerts){
@@ -1555,12 +1547,17 @@ function updateThreatTicker(){
         const endMs=endVal?new Date(endVal).getTime():NaN;
         let timeLabel='';
         if(!isNaN(startMs)&&startMs>now){
-          const durMs=(!isNaN(endMs)&&endMs>startMs)?(endMs-startMs):0;
-          timeLabel=` — starts in ${_relDur(startMs-now)}${durMs?', lasts '+_relDur(durMs):''}`;
+          const cdStart=`<span class="ticker-cd" data-target="${startMs}"></span>`;
+          if(!isNaN(endMs)&&endMs>startMs){
+            const cdEnd=`<span class="ticker-cd" data-target="${endMs}"></span>`;
+            timeLabel=` — starts in ${cdStart}, ends in ${cdEnd}`;
+          }else{
+            timeLabel=` — starts in ${cdStart}`;
+          }
         }else if(!isNaN(endMs)&&endMs>now){
-          const remain=endMs-now;
-          if(remain<=1800000)timeLabel=` — ending soon — expires in ${_relDur(remain)}`;
-          else timeLabel=` — in effect — ends in ${_relDur(remain)}`;
+          const cdEnd=`<span class="ticker-cd" data-target="${endMs}"></span>`;
+          if((endMs-now)<=1800000)timeLabel=` — ending soon — expires in ${cdEnd}`;
+          else timeLabel=` — in effect — ends in ${cdEnd}`;
         }else if(!isNaN(endMs)){
           timeLabel=' — expired';
         }else{
