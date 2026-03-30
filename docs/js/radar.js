@@ -590,9 +590,6 @@ async function plotAirportMarkers(map,stations,useNWS){
         <div>💨 ${windStr}</div>
         <div>👁️ Vis: ${visStr}</div>
         <div>☁️ ${skyStr}</div>
-        <div style="margin-top:4px;text-align:center">
-          <button onclick="switchPage('station');switchStation('${st.icao}')" style="padding:3px 10px;background:rgba(0,229,255,0.15);color:var(--accent-cyan);border:1px solid var(--accent-cyan);border-radius:5px;font-size:0.85em;cursor:pointer;font-weight:600">Open in Station Tab</button>
-        </div>
       </div>
     `);
     const marker=L.marker([st.lat,st.lon],{icon,zIndexOffset:500}).addTo(map).bindPopup(popup);

@@ -161,14 +161,6 @@ function init(){
         Tappable unit cycling &middot; 7-day forecast
       </div>
     </div>`;
-  // First launch with no saved location — auto-prompt for GPS once so the
-  // user doesn't have to hunt for the button (standard weather app behaviour).
-  // Only fires once; if they deny we fall back to the welcome screen buttons.
-  if(navigator.geolocation&&!localStorage.getItem('st_locAsked')){
-    localStorage.setItem('st_locAsked','1');
-    // Small delay so the welcome screen renders first (context for the prompt)
-    setTimeout(()=>{ if(typeof showLocationConfirm==='function')showLocationConfirm(); },400);
-  }
 }
 
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);
