@@ -104,8 +104,13 @@ function highlightSug(){
   });
 }
 
+let _locConfirmShown=false;
 function showLocationConfirm(){
   if(!navigator.geolocation){toast('GPS not available');return}
+  if(_locConfirmShown||document.querySelector('.confirm-overlay'))return;
+  if(S.lat&&S.lon)return;
+  _locConfirmShown=true;
+  localStorage.setItem('st_locAsked','1');
   const overlay=document.createElement('div');
   overlay.className='confirm-overlay';
   overlay.innerHTML=`<div class="confirm-box">
