@@ -578,6 +578,14 @@ canvas.offscreen{display:none}
   .section-page{display:block!important;padding-top:20px;margin-bottom:20px;border-top:1px solid rgba(0,200,255,0.08);scroll-margin-top:60px}
   .section-page:first-of-type{border-top:none;padding-top:0}
 
+  /* Hero card: 4:3 aspect ratio on desktop, bigger icon & text */
+  .weather-hero{aspect-ratio:4/3;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:32px 24px}
+  .hero-icon-showcase{max-width:420px}
+  .hero-icon-showcase img,.hero-icon-showcase svg,.hero-icon-showcase video{width:400px!important;height:400px!important}
+  .hero-temp-line{font-size:4.2em!important}
+  .hero-desc-line{font-size:1.2em!important}
+  .hero-source-line{font-size:0.7em!important}
+
   /* Hero stats: up to 6 columns on desktop, bigger text */
   .hero-stats-grid{grid-template-columns:repeat(6,1fr)!important}
   .hero-stat-cell{padding:14px 10px}
