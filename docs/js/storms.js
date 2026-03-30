@@ -493,10 +493,13 @@ function pointInNWSPolygon(lat,lon){
   return matched;
 }
 function calcStormETA(storm){
-  if(!S.stormMovement||S.stormMovement.speed<2)return{eta:null,impact:0,approaching:false};
+  const _cHasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
+  const _cHasAl=S._upperWindDir!=null;
+  const _cMv=_cHasMv?S.stormMovement:(_cHasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
+  if(!_cMv||_cMv.speed<2)return{eta:null,impact:0,approaching:false};
   const cellTrack=getCellTrack(storm);
-  const movDir=cellTrack?cellTrack.dir:S.stormMovement.direction;
-  const movSpd=cellTrack?cellTrack.speed:S.stormMovement.speed;
+  const movDir=cellTrack?cellTrack.dir:_cMv.direction;
+  const movSpd=cellTrack?cellTrack.speed:_cMv.speed;
   const baseWidthMi=Math.max(0,Math.min(3,(storm.dbz-20)/15));
   const widthAngle=storm.distance>0.5?Math.atan2(baseWidthMi,storm.distance)*180/Math.PI:15;
   const CONE_HALF=15+widthAngle;
@@ -1931,14 +1934,18 @@ function _applyStormFilter(storms,f){
   let out=storms;
   if(f.minDbz>0)out=out.filter(s=>s.dbz>=f.minDbz);
   if(f.maxDist>0)out=out.filter(s=>s.distance<=f.maxDist);
-  const noMv=!S.stormMovement||S.stormMovement.speed<2;
+  const _fHasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
+  const _fHasAl=S._upperWindDir!=null;
+  const noMv=!_fHasMv&&!_fHasAl;
   if(f.approachOnly&&!noMv)out=out.filter(s=>{const e=s._eta;return e&&e.approaching&&e.eta!=null});
   S._filterApproachBypassed=f.approachOnly&&noMv;
   out.sort((a,b)=>{const r=_stormSortFn(a,b,f.sort1);return r!==0?r:_stormSortFn(a,b,f.sort2)});
   return out;
 }
 function _smartStormSummary(storms){
-  const mv=S.stormMovement;
+  const _hasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
+  const _hasAl=S._upperWindDir!=null;
+  const mv=_hasMv?S.stormMovement:(_hasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
   if(!storms.length||!mv||mv.speed<2)return'';
   const approaching=storms.filter(s=>{const e=s._eta;return e&&e.approaching&&e.eta!=null});
   if(!approaching.length)return'<div style="padding:8px 12px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:8px;font-size:0.8em;color:#4ade80;margin-bottom:8px">No storms currently approaching your location.</div>';
@@ -2025,7 +2032,9 @@ function renderStorms(){
     return;
   }
   const severe=storms.some(s=>s.dbz>=45);
-  const mv=S.stormMovement;
+  const _hasMovement=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
+  const _hasAloft=S._upperWindDir!=null;
+  const mv=_hasMovement?S.stormMovement:(_hasAloft?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
   if(mv&&mv.speed>=2){storms.forEach(s=>{s._eta=calcStormETA(s)})}else{storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)})}
   const sf=S._stormFilter||_loadStormFilter();
   const filtered=_applyStormFilter(storms,sf);
