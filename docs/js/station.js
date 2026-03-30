@@ -530,18 +530,25 @@ function renderStation(){
         html+=`<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div class="tile-label-upper">🌫️ Fog Risk</div><div style="font-size:0.9em;font-weight:700;color:${_fog.color}">${_fog.level}</div><div class="text-hint">${_fog.desc}</div></div>`;
         html+='<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:8px;padding:8px;text-align:center"><div class="tile-label-upper">☁️ Cloud Base</div>';
         const _estCb=calcCloudBase(_sp);
+        const _ceil=getMetarCeilingFt(s);
         let _cbArrow='';
-        const _hr=S._hourlyData;
-        if(_hr&&_hr.time&&_hr.temperature_2m&&_hr.dew_point_2m){
-          const _nowMs=Date.now();
-          const _nIdx=_hr.time.findIndex(t=>new Date(t).getTime()>=_nowMs);
-          if(_nIdx>=0&&_nIdx+3<_hr.time.length){
-            const _s0=_hr.temperature_2m[_nIdx]-_hr.dew_point_2m[_nIdx];
-            const _s3=_hr.temperature_2m[_nIdx+3]-_hr.dew_point_2m[_nIdx+3];
-            const _delta=_s3-_s0;
-            if(_delta>0.5)_cbArrow=' <span style="color:#39ff14;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(57,255,20,0.6)">↑</span>';
-            else if(_delta<-0.5)_cbArrow=' <span style="color:#ff3355;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(255,51,85,0.6)">↓</span>';
-            else _cbArrow=' <span style="color:var(--text-muted);font-size:1.1em">→</span>';
+        if(_ceil!=null){
+          if(_ceil>_estCb)_cbArrow=' <span style="color:#39ff14;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(57,255,20,0.6)">↑</span>';
+          else if(_ceil<_estCb)_cbArrow=' <span style="color:#ff3355;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(255,51,85,0.6)">↓</span>';
+          else _cbArrow=' <span style="color:var(--text-muted);font-size:1.1em">→</span>';
+        }else{
+          const _hr=S._hourlyData;
+          if(_hr&&_hr.time&&_hr.temperature_2m&&_hr.dew_point_2m){
+            const _nowMs=Date.now();
+            const _nIdx=_hr.time.findIndex(t=>new Date(t).getTime()>=_nowMs);
+            if(_nIdx>=0&&_nIdx+3<_hr.time.length){
+              const _s0=_hr.temperature_2m[_nIdx]-_hr.dew_point_2m[_nIdx];
+              const _s3=_hr.temperature_2m[_nIdx+3]-_hr.dew_point_2m[_nIdx+3];
+              const _delta=_s3-_s0;
+              if(_delta>0.5)_cbArrow=' <span style="color:#39ff14;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(57,255,20,0.6)">↑</span>';
+              else if(_delta<-0.5)_cbArrow=' <span style="color:#ff3355;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(255,51,85,0.6)">↓</span>';
+              else _cbArrow=' <span style="color:var(--text-muted);font-size:1.1em">→</span>';
+            }
           }
         }
         html+=`<div style="font-size:0.9em;font-weight:700;color:var(--accent-cyan)">${fmtAlt(_estCb)}${_cbArrow}</div><div class="text-hint">Estimated AGL</div>`;
@@ -696,7 +703,11 @@ function decodeMetar(raw){
         const dc=d.startsWith('M')?-parseInt(d.slice(1)):parseInt(d);
         const spreadC=tc-dc;
         const cbFt=calcCloudBase(spreadC);
+        const _mCeil=getMetarCeilingFt(S.station);
         let cbLine=`Spread: ${fmtTempDiff(spreadC)} — ${getSpreadLabel(spreadC)}<br>Est. cloud base: ~${fmtAlt(cbFt)} AGL`;
+        if(_mCeil!=null){
+          cbLine+=`<br>Reported ceiling: ${fmtAlt(_mCeil)} AGL`;
+        }
         rows.push(c('#00e5ff','Temp/Dew',`${fmtTemp(tc)} / ${fmtTemp(dc)}`,cbLine));
       }else{
         rows.push(c('#00e5ff','Temp/Dew',`${fmtTemp(tc)} / --`,'Dew point not reported'));
