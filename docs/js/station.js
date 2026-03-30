@@ -533,9 +533,8 @@ function renderStation(){
         const _ceil=getMetarCeilingFt(s);
         let _cbArrow='';
         if(_ceil!=null){
-          if(_ceil>_estCb)_cbArrow=' <span style="color:#39ff14;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(57,255,20,0.6)">↑</span>';
-          else if(_ceil<_estCb)_cbArrow=' <span style="color:#ff3355;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(255,51,85,0.6)">↓</span>';
-          else _cbArrow=' <span style="color:var(--text-muted);font-size:1.1em">→</span>';
+          if(_ceil>=_estCb)_cbArrow=' <span style="color:#39ff14;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(57,255,20,0.6)">↑</span>';
+          else _cbArrow=' <span style="color:#ff3355;font-weight:900;font-size:1.1em;text-shadow:0 0 6px rgba(255,51,85,0.6)">↓</span>';
         }else{
           const _hr=S._hourlyData;
           if(_hr&&_hr.time&&_hr.temperature_2m&&_hr.dew_point_2m){
