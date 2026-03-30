@@ -1055,9 +1055,10 @@ function plotStormMarkers(map){
         S.stormMarkers.push(marker);
       }else if(p.type==='ring'){
         const _dbz=p.dbz||30;
-        const _baseDur=Math.max(1.0,Math.min(4.0,4.5-(_dbz/20)));
-        const _jitter=((Math.sin(p.lat*1000+p.lng*7777)*10000)%1000)/1000*0.6-0.3;
-        const _dur=Math.max(0.8,_baseDur+_jitter).toFixed(2);
+        const _baseDur=4.5-(_dbz/20);
+        const _sinVal=Math.sin(p.lat*1000+p.lng*7777);
+        const _jitter=(_sinVal+1)/2*0.6-0.3;
+        const _dur=Math.max(1.0,Math.min(4.0,_baseDur+_jitter)).toFixed(2);
         const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring" style="width:${p.ringSize}px;height:${p.ringSize}px;border:3px solid ${p.color};box-shadow:0 0 8px ${p.color};animation-duration:${_dur}s"></div>`,iconSize:[p.ringSize,p.ringSize],iconAnchor:[p.ringSize/2,p.ringSize/2]})});
         if(isVisible)ring.addTo(map);
         ring._stormRef=p.stormRef;
