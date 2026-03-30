@@ -1,4 +1,17 @@
 // StormTracker — Geolocation, Search, Favorites, Travel Mode
+
+const LOC_METHOD={GPS:'gps',ADDRESS:'address',MAP:'map',FAVORITE:'favorite',HOME:'home',RECENTER:'recenter',SCAN_HERE:'scan_here'};
+const _LOC_HANDLERS={
+  gps:()=>showLocationConfirm(),
+  address:(p)=>{if(p&&p.query)document.getElementById('location-input').value=p.query;searchLoc()},
+  map:()=>startMapPick(),
+  favorite:(p)=>{const favs=getFavorites();const f=favs[p.idx];if(f){setLoc(f.lat,f.lon,f.name);toggleLocOverlay(false)}},
+  home:()=>goHome(),
+  recenter:()=>recenterMap(),
+  scan_here:()=>scanHere()
+};
+function setLocation(method,payload){const h=_LOC_HANDLERS[method];if(h)h(payload||{})}
+
 let _sugTimer=null,_sugIdx=-1,_sugResults=[];
 document.getElementById('location-input').addEventListener('input',e=>{
   const q=e.target.value.trim();
@@ -222,26 +235,7 @@ function setHomeLocation(lat,lon,name){
 function recenterMap(){
   const a=S._anchorLoc||(S.lat?{lat:S.lat,lon:S.lon,name:S.locName}:null);
   if(!a){toast('📍 No location set');return}
-  clearViewScanCircle();
-  S._gpsAltitude=null;
-  S.lat=a.lat;S.lon=a.lon;S.locName=a.name;
-  document.getElementById('location-input').value=S.locName;
-  S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
-  S.radarSource=isUSLocation(a.lat,a.lon)?'nexrad':'rainviewer';
-  S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;S._approachData=null;S._arrowCells=[];clearStormZones();
-  try{localStorage.setItem('st_loc',JSON.stringify({lat:a.lat,lon:a.lon,name:a.name}))}catch(e){}
-  if(S.map){
-    S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});S.stormMarkers=[];
-    clearStormCone();
-    S.map.setView([a.lat,a.lon],8,{animate:true,duration:0.5});
-    if(S._userMarker)S._userMarker.setLatLng([a.lat,a.lon]);
-    if(S._rangeCircle)S._rangeCircle.setLatLng([a.lat,a.lon]);
-    showRadarLayer(S.map);
-  }
-  updateNavForLocation();
-  document.getElementById('status-text').textContent='Live · '+a.name;
-  fetchWeather();fetchAlerts();fetchHazards();fetchTerrainGrid();scanRadarForStorms();scheduleHourlyRefresh();
-  refreshMpingIfVisible();
+  setLoc(a.lat,a.lon,a.name,{mapZoom:8});
   toast('📍 '+a.name);
 }
 function goHome(){
@@ -252,51 +246,13 @@ function goHome(){
     toast('📍 Home set: '+S.locName);
   }
   if(!home){toast('📍 No home location — set a location first');return}
-  clearViewScanCircle();
-  S._gpsAltitude=null;
-  S.lat=home.lat;S.lon=home.lon;S.locName=home.name;
-  S._anchorLoc={lat:home.lat,lon:home.lon,name:home.name};
-  document.getElementById('location-input').value=S.locName;
-  S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
-  S.radarSource=isUSLocation(home.lat,home.lon)?'nexrad':'rainviewer';
-  S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;S._approachData=null;S._arrowCells=[];clearStormZones();
-  try{localStorage.setItem('st_loc',JSON.stringify({lat:home.lat,lon:home.lon,name:home.name}))}catch(e){}
-  if(S.map){
-    S.stormMarkers.forEach(m=>S.map.removeLayer(m));S.stormMarkers=[];
-    clearStormCone();
-    S.map.setView([home.lat,home.lon],8,{animate:true,duration:0.5});
-    if(S._userMarker)S._userMarker.setLatLng([home.lat,home.lon]);
-    if(S._rangeCircle)S._rangeCircle.setLatLng([home.lat,home.lon]);
-    showRadarLayer(S.map);
-  }
-  updateNavForLocation();
-  document.getElementById('status-text').textContent='Live · '+home.name;
-  fetchWeather();fetchAlerts();fetchHazards();fetchTerrainGrid();scanRadarForStorms();scheduleHourlyRefresh();
-  refreshMpingIfVisible();
+  setLoc(home.lat,home.lon,home.name,{mapZoom:8});
   toast('📍 Home: '+home.name);
 }
 function scanHere(){
   if(!S.map){toast('Open radar map first');return}
   const center=S.map.getCenter();
-  const cLat=center.lat,cLng=center.lng;
-  clearViewScanCircle();
-  S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});S.stormMarkers=[];
-  clearStormCone();
-  S._gpsAltitude=null;
-  S.lat=cLat;S.lon=cLng;
-  S.locName=`${cLat.toFixed(4)}, ${cLng.toFixed(4)}`;
-  document.getElementById('location-input').value=S.locName;
-  S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
-  S.radarSource=isUSLocation(cLat,cLng)?'nexrad':'rainviewer';
-  S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;S._approachData=null;S._arrowCells=[];clearStormZones();
-  try{localStorage.setItem('st_loc',JSON.stringify({lat:cLat,lon:cLng,name:S.locName}))}catch(e){}
-  if(S._userMarker)S._userMarker.setLatLng([cLat,cLng]);
-  if(S._rangeCircle)S._rangeCircle.setLatLng([cLat,cLng]);
-  showRadarLayer(S.map);
-  updateNavForLocation();
-  document.getElementById('status-text').textContent='Live · '+S.locName;
-  fetchWeather();fetchAlerts();fetchHazards();fetchTerrainGrid();scanRadarForStorms();scheduleHourlyRefresh();
-  refreshMpingIfVisible();
+  setLoc(center.lat,center.lng);
   toast('🔍 Scanning: '+S.locName);
 }
 function showHdScanDialog(){
@@ -366,10 +322,14 @@ function showHdScanDialog(){
     setTimeout(()=>scanRadarHiRes(S.map,true),500);
   });
 }
-function setLoc(lat,lon,name,fromTravel){
+function setLoc(lat,lon,name,opts){
+  if(typeof opts==='boolean')opts={fromTravel:opts};
+  opts=opts||{};
+  const fromTravel=!!opts.fromTravel;
   if(!getHomeLocation()){setHomeLocation(lat,lon,name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`)}
   if(!fromTravel && S.travelMode) stopTravelMode();
   if(!fromTravel&&!S._gpsLocating)S._gpsAltitude=null;
+  if(typeof clearViewScanCircle==='function')clearViewScanCircle();
   S.lat=lat;S.lon=lon;
   S.locName=name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
   S._anchorLoc={lat:lat,lon:lon,name:S.locName};
@@ -395,7 +355,8 @@ function setLoc(lat,lon,name,fromTravel){
   }
   try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:S.locName}))}catch(e){}
   if(S.map){
-    S.map.setView([lat,lon],S.map.getZoom());
+    const zoom=opts.mapZoom||S.map.getZoom();
+    S.map.setView([lat,lon],zoom,opts.mapZoom?{animate:true,duration:0.5}:undefined);
     if(S._userMarker)S._userMarker.setLatLng([lat,lon]);
     if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
     showRadarLayer(S.map);
@@ -411,6 +372,7 @@ function setLoc(lat,lon,name,fromTravel){
   fetchTerrainGrid();
   scanRadarForStorms();
   scheduleHourlyRefresh();
+  if(typeof refreshMpingIfVisible==='function')refreshMpingIfVisible();
 }
 
 function getFavorites(){
