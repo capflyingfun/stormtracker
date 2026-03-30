@@ -143,7 +143,7 @@ details.card>summary{list-style:none}
 @keyframes storm-ring-grow{0%{transform:scale(0.8);opacity:0.9}100%{transform:scale(2.0);opacity:0}}
 @keyframes storm-ring-pulse{0%{transform:scale(1);opacity:0.8}50%{transform:scale(1.5);opacity:0.15}100%{transform:scale(1);opacity:0.8}}
 @keyframes storm-ring-shrink{0%{transform:scale(1.8);opacity:0}100%{transform:scale(0.7);opacity:0.95}}
-.storm-ring{pointer-events:none;will-change:transform,opacity;transform-origin:center}
+.storm-ring{border-radius:50%;pointer-events:none;will-change:transform,opacity}
 .storm-ring.ring-grow{animation:storm-ring-grow ease-out infinite}
 .storm-ring.ring-pulse{animation:storm-ring-pulse ease-in-out infinite}
 .storm-ring.ring-shrink{animation:storm-ring-shrink ease-in infinite}

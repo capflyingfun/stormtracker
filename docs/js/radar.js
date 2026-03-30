@@ -1060,9 +1060,10 @@ function plotStormMarkers(map){
         const _jitter=(_sinVal+1)/2*0.6-0.3;
         const _dur=Math.max(1.0,Math.min(4.0,_baseDur+_jitter)).toFixed(2);
         const _cls=_dbz>55?'ring-shrink':_dbz>=41?'ring-pulse':'ring-grow';
-        const ring=L.circle([p.lat,p.lng],{radius:p.ringRadiusM,color:p.color,fillColor:p.color,fillOpacity:0.08,weight:3,interactive:false,className:'storm-ring '+_cls});
-        ring._animDur=_dur;
-        ring.on('add',function(){const el=this.getElement();if(el){el.style.animationDuration=this._animDur+'s';el.style.filter='drop-shadow(0 0 6px '+p.color+')';}});
+        function _ringPx(lat,radiusM,mp){const pt=mp.latLngToLayerPoint([lat,0]);const pt2=mp.latLngToLayerPoint([lat+radiusM/111320,0]);return Math.max(20,Math.abs(pt.y-pt2.y)*2);}
+        const sz0=_ringPx(p.lat,p.ringRadiusM,map);
+        const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring ${_cls}" style="width:${sz0}px;height:${sz0}px;border:3px solid ${p.color};box-shadow:0 0 8px ${p.color};animation-duration:${_dur}s"></div>`,iconSize:[sz0,sz0],iconAnchor:[sz0/2,sz0/2]})});
+        ring._ringData={lat:p.lat,radiusM:p.ringRadiusM,color:p.color,cls:_cls,dur:_dur};
         if(isVisible)ring.addTo(map);
         ring._stormRef=p.stormRef;
         S.stormMarkers.push(ring);
