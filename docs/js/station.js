@@ -389,6 +389,26 @@ async function loadStationObs(icao){
       S.station.obsTime=p.timestamp||'';
       if(!S.station.wxString)S.station.wxString=p.textDescription||'';
       if(p.cloudLayers?.length&&!S.station.clouds?.length)S.station.clouds=p.cloudLayers;
+      if(S.station.temp==null&&p.temperature?.value!=null)S.station.temp=p.temperature.value;
+      if(S.station.dewp==null&&p.dewpoint?.value!=null)S.station.dewp=p.dewpoint.value;
+      if(S.station.windKmh==null&&p.windSpeed?.value!=null)S.station.windKmh=p.windSpeed.value;
+      if(S.station.windDir==null&&p.windDirection?.value!=null)S.station.windDir=p.windDirection.value;
+      if(S.station.presPa==null&&p.barometricPressure?.value!=null)S.station.presPa=p.barometricPressure.value;
+      if(S.station.visMeter==null&&p.visibility?.value!=null)S.station.visMeter=p.visibility.value;
+      if(S.station.temp==null||S.station.dewp==null||S.station.windKmh==null){
+        try{
+          const ar=await fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json&hours=3`,{signal:AbortSignal.timeout(8000)});
+          if(ar.ok){const ad=await ar.json();if(ad.length&&ad[0].rawOb){
+            const awcObs=parseAWCobs(ad[0]);
+            if(S.station.temp==null&&awcObs.temp!=null)S.station.temp=awcObs.temp;
+            if(S.station.dewp==null&&awcObs.dewp!=null)S.station.dewp=awcObs.dewp;
+            if(S.station.windKmh==null&&awcObs.windKmh!=null){S.station.windKmh=awcObs.windKmh;S.station.windDir=awcObs.windDir;S.station.gustKmh=awcObs.gustKmh}
+            if(S.station.presPa==null&&awcObs.presPa!=null)S.station.presPa=awcObs.presPa;
+            if(S.station.visMeter==null&&awcObs.visMeter!=null)S.station.visMeter=awcObs.visMeter;
+            console.log('AWC backfill for '+icao+': temp='+awcObs.temp+' dewp='+awcObs.dewp);
+          }}
+        }catch(e){console.log('AWC backfill failed:',e.message)}
+      }
     }else{
       let awcRaw='';
       try{
