@@ -168,6 +168,25 @@ details.card>summary{list-style:none}
 .forecast-detail{background:var(--bg-surface);border:1px solid var(--accent-blue);border-radius:var(--radius-md);padding:12px;margin-top:8px;font-size:0.8em;color:var(--text-secondary);animation:fadeIn 0.2s ease}
 .forecast-detail .fd-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border-subtle)}
 .forecast-detail .fd-row:last-child{border-bottom:none}
+.fc-day-card{background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px}
+.fc-day-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.fc-day-name{font-size:1.05em;font-weight:700;color:var(--text-primary)}
+.fc-severe-badge{font-size:0.6em;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(255,152,0,0.15);color:var(--accent-orange);border:1px solid rgba(255,152,0,0.3);text-transform:uppercase;letter-spacing:0.04em}
+.fc-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.fc-tag{display:inline-flex;align-items:center;gap:4px;font-size:0.7em;font-weight:600;padding:3px 10px;border-radius:16px;background:rgba(0,229,255,0.08);color:var(--accent-cyan);border:1px solid rgba(0,229,255,0.2)}
+.fc-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px}
+.fc-col{padding:10px;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);border-radius:var(--radius-md)}
+.fc-col-label{font-size:0.75em;font-weight:600;color:var(--text-muted);margin-bottom:6px}
+.fc-col-icon{font-size:1.8em;margin-bottom:4px}
+.fc-col-temp{font-size:1.15em;font-weight:700;color:var(--text-primary);margin-bottom:4px}
+.fc-sec{font-size:0.7em;font-weight:500;color:var(--text-muted)}
+.fc-col-desc{font-size:0.75em;color:var(--text-secondary);line-height:1.4;margin-bottom:4px}
+.fc-col-wind{font-size:0.7em;color:var(--text-muted)}
+.fc-col-rain{font-size:0.75em;color:var(--accent-blue);font-weight:600;margin-top:2px}
+.fc-detail-toggle{font-size:0.75em;color:var(--text-muted);cursor:pointer;text-align:left;padding:4px 0}
+.fc-detail-toggle:hover{color:var(--accent-cyan)}
+.fc-show-more{text-align:center;padding:10px;font-size:0.85em;font-weight:600;color:var(--text-muted);cursor:pointer;border-top:1px solid var(--border-subtle);margin-top:4px}
+.fc-show-more:hover{color:var(--accent-cyan)}
 .hourly-scroll{max-height:420px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--accent-blue) transparent;padding:2px 0}
 .hourly-scroll::-webkit-scrollbar{width:4px}
 .hourly-scroll::-webkit-scrollbar-thumb{background:var(--accent-blue);border-radius:4px}

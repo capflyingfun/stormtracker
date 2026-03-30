@@ -1007,7 +1007,7 @@ function plotStormMarkers(map){
     }
     if(eta&&eta.impact>=90){
       const ringSize=Math.max(36,storm.dbz/1.5);
-      pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringSize,color});
+      pending.push({type:'ring',lat:storm.lat,lng:storm.lng,ringSize,color,dbz:storm.dbz});
     }
     if(storm.dbz>=40){
       pending.push({type:'lightning',lat:storm.lat,lng:storm.lng});
@@ -1054,7 +1054,11 @@ function plotStormMarkers(map){
         marker._stormRef=p.stormRef;
         S.stormMarkers.push(marker);
       }else if(p.type==='ring'){
-        const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring" style="width:${p.ringSize}px;height:${p.ringSize}px;border:3px solid ${p.color};box-shadow:0 0 8px ${p.color}"></div>`,iconSize:[p.ringSize,p.ringSize],iconAnchor:[p.ringSize/2,p.ringSize/2]})});
+        const _dbz=p.dbz||30;
+        const _baseDur=Math.max(1.0,Math.min(4.0,4.5-(_dbz/20)));
+        const _jitter=((Math.sin(p.lat*1000+p.lng*7777)*10000)%1000)/1000*0.6-0.3;
+        const _dur=Math.max(0.8,_baseDur+_jitter).toFixed(2);
+        const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring" style="width:${p.ringSize}px;height:${p.ringSize}px;border:3px solid ${p.color};box-shadow:0 0 8px ${p.color};animation-duration:${_dur}s"></div>`,iconSize:[p.ringSize,p.ringSize],iconAnchor:[p.ringSize/2,p.ringSize/2]})});
         if(isVisible)ring.addTo(map);
         ring._stormRef=p.stormRef;
         S.stormMarkers.push(ring);
