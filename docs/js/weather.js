@@ -589,15 +589,13 @@ function drawMiniSonar(){
         zoneCount++;
       }
     }else{
-      const cells=polarGridBin(S._rawScanPts,S.lat,S.lon,scanR);
-      const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
+      const cells=hexGridBin(S._rawScanPts,S.lat,S.lon,scanR);
       for(const[k,c]of cells){
-        const distMi=(c.ri+0.5)*distStep;
-        if(distMi>viewR)continue;
-        const aMid=((c.ai+0.5)*angStep-90)*Math.PI/180;
-        const rMid=maxR*(distMi/viewR);
+        if(c.dist>viewR)continue;
+        const aMid=(c.bearing-90)*Math.PI/180;
+        const rMid=maxR*(c.dist/viewR);
         if(rMid<=0)continue;
-        dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid,angDeg:(c.ai+0.5)*angStep});
+        dots.push({x:cx+Math.cos(aMid)*rMid,y:cy+Math.sin(aMid)*rMid,dbz:c.maxDbz,dist:rMid,angDeg:c.bearing});
         if(c.maxDbz>maxDbz)maxDbz=c.maxDbz;
         zoneCount++;
       }

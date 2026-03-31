@@ -1140,33 +1140,32 @@ function drawRadarGrid(map,maxRadiusMi){
     map.getPane(gridPane).style.pointerEvents='none';
   }
   const gc=gridNeonColor();
-  const distStep=ZONE_DIST_STEP_MI;
-  const nRings=Math.ceil(maxRadiusMi/distStep);
-  const innerRing=L.circle([S.lat,S.lon],{
-    radius:0.5*1609.34,color:hexToRgba(gc,0.2),
-    fillOpacity:0,fill:false,weight:0.3,pane:gridPane,interactive:false
+  const centerHex=hexPoly(S.lat,S.lon,0,0);
+  const centerPoly=L.polygon(centerHex,{
+    color:hexToRgba(gc,0.25),fillOpacity:0,fill:false,weight:0.4,pane:gridPane,interactive:false
   }).addTo(map);
-  S._radarGridLayers.push(innerRing);
-  for(let r=1;r<=nRings;r++){
-    const radiusMi=r*distStep;
-    const isMajor=(radiusMi%10===0);
-    const isOuter=(r===nRings);
+  S._radarGridLayers.push(centerPoly);
+  const ringDistances=[10,20,30,40,50,60,70,80];
+  for(const rd of ringDistances){
+    if(rd>maxRadiusMi)break;
+    const isOuter=rd>=maxRadiusMi;
+    const isMajor=rd%20===0;
     const circle=L.circle([S.lat,S.lon],{
-      radius:radiusMi*1609.34,
-      color:isOuter?gc:hexToRgba(gc,0.25),
+      radius:rd*1609.34,
+      color:isOuter?gc:hexToRgba(gc,isMajor?0.3:0.15),
       fillOpacity:0,fill:false,
-      weight:isOuter?1.5:isMajor?0.8:0.3,
+      weight:isOuter?1.5:isMajor?0.7:0.3,
       dashArray:isOuter?'8 4':null,
       pane:gridPane,interactive:false
     }).addTo(map);
     S._radarGridLayers.push(circle);
   }
-  const cardDirs=[0,90,180,270];
-  for(const a of cardDirs){
-    const inner=destPt(S.lat,S.lon,0.5,a);
+  const radials=[0,60,120,180,240,300];
+  for(const a of radials){
+    const inner=destPt(S.lat,S.lon,HEX_FLAT_MI,a);
     const outer=destPt(S.lat,S.lon,maxRadiusMi,a);
     const line=L.polyline([inner,outer],{
-      color:hexToRgba(gc,0.2),weight:0.5,
+      color:hexToRgba(gc,0.12),weight:0.4,
       pane:gridPane,interactive:false
     }).addTo(map);
     S._radarGridLayers.push(line);
@@ -1193,8 +1192,8 @@ function clearStormZones(){
   S._stormZoneLayers=[];
   clearRadarGrid();
 }
-const ZONE_ANG_STEP=3;
-const ZONE_DIST_STEP_MI=5;
+const HEX_SIZE_MI=3/Math.sqrt(3);
+const HEX_FLAT_MI=3;
 function destPt(lat1,lng1,distMi,bearDeg){
   const R=3958.8;
   const d=distMi/R;
@@ -1204,49 +1203,61 @@ function destPt(lat1,lng1,distMi,bearDeg){
   const lo2=lo+Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(la),Math.cos(d)-Math.sin(la)*Math.sin(la2));
   return[la2*180/Math.PI,lo2*180/Math.PI];
 }
-function polarGridBin(rawPts,cLat,cLng,maxRadiusMi){
-  const angStep=ZONE_ANG_STEP;
-  const distStep=ZONE_DIST_STEP_MI;
-  const nAng=Math.ceil(360/angStep);
-  const nDist=Math.ceil(maxRadiusMi/distStep);
+function _llToXY(lat,lon,cLat,cLon){
+  const dy=(lat-cLat)*69.172;
+  const dx=(lon-cLon)*69.172*Math.cos(cLat*Math.PI/180);
+  return[dx,dy];
+}
+function _xyToLL(x,y,cLat,cLon){
+  return[cLat+y/69.172,cLon+x/(69.172*Math.cos(cLat*Math.PI/180))];
+}
+function _pxToHex(x,y){
+  const s=HEX_SIZE_MI;
+  const fq=(2/3*x)/s;
+  const fr=(-1/3*x+Math.sqrt(3)/3*y)/s;
+  const fs=-fq-fr;
+  let rq=Math.round(fq),rr=Math.round(fr),rs=Math.round(fs);
+  const dq=Math.abs(rq-fq),dr=Math.abs(rr-fr),ds=Math.abs(rs-fs);
+  if(dq>dr&&dq>ds)rq=-rr-rs;
+  else if(dr>ds)rr=-rq-rs;
+  return[rq,rr];
+}
+function _hexCenter(q,r){
+  const s=HEX_SIZE_MI;
+  return[s*3/2*q,s*Math.sqrt(3)*(r+q/2)];
+}
+function hexPoly(cLat,cLng,q,r){
+  const[cx,cy]=_hexCenter(q,r);
+  const s=HEX_SIZE_MI;
+  const verts=[];
+  for(let i=0;i<6;i++){
+    const ang=Math.PI/3*i;
+    verts.push(_xyToLL(cx+s*Math.cos(ang),cy+s*Math.sin(ang),cLat,cLng));
+  }
+  verts.push(verts[0]);
+  return verts;
+}
+function hexGridBin(rawPts,cLat,cLng,maxRadiusMi){
   const cells=new Map();
   for(const p of rawPts){
-    const dist=haversine(cLat,cLng,p.lat,p.lng);
-    const bear=(bearingDeg(cLat,cLng,p.lat,p.lng)+360)%360;
-    const ri=Math.floor(dist/distStep);
-    const ai=Math.floor(bear/angStep)%nAng;
-    if(ri>=nDist)continue;
-    const key=ai+','+ri;
+    const[x,y]=_llToXY(p.lat,p.lng,cLat,cLng);
+    const dist=Math.sqrt(x*x+y*y);
+    if(dist>maxRadiusMi)continue;
+    const[q,r]=_pxToHex(x,y);
+    const key=q+','+r;
     if(cells.has(key)){
       const c=cells.get(key);
       if(p.dbz>c.maxDbz)c.maxDbz=p.dbz;
       c.sumDbz+=p.dbz;
       c.count++;
     }else{
-      cells.set(key,{ai,ri,maxDbz:p.dbz,sumDbz:p.dbz,count:1});
+      const[hx,hy]=_hexCenter(q,r);
+      const hDist=Math.sqrt(hx*hx+hy*hy);
+      const hBear=(Math.atan2(hx,hy)*180/Math.PI+360)%360;
+      cells.set(key,{q,r,maxDbz:p.dbz,sumDbz:p.dbz,count:1,dist:hDist,bearing:hBear});
     }
   }
   return cells;
-}
-function wedgePoly(cLat,cLng,ri,ai){
-  const distStep=ZONE_DIST_STEP_MI;
-  const angStep=ZONE_ANG_STEP;
-  const r1=ri*distStep;
-  const r2=(ri+1)*distStep;
-  const a1=ai*angStep;
-  const a2=(ai+1)*angStep;
-  const arcSteps=Math.max(2,Math.ceil((a2-a1)/1));
-  const pts=[];
-  for(let i=0;i<=arcSteps;i++){
-    const a=a1+i*(a2-a1)/arcSteps;
-    pts.push(destPt(cLat,cLng,r2,a));
-  }
-  for(let i=arcSteps;i>=0;i--){
-    const a=a1+i*(a2-a1)/arcSteps;
-    pts.push(destPt(cLat,cLng,r1,a));
-  }
-  pts.push(pts[0]);
-  return pts;
 }
 function dbzColor(dbz){return _dbzEntry(dbz)}
 function gridArrowSvg(deg,color,size){
@@ -1267,7 +1278,7 @@ function buildStormZones(map,rawPts){
   drawRadarGrid(map,maxR);
   if(!S._radarOverlayVisible&&S.radarLayer&&map.hasLayer(S.radarLayer)&&_shouldAutoHideRadar()){try{map.removeLayer(S.radarLayer)}catch(e){}}
   const t0=performance.now();
-  const cells=polarGridBin(rawPts,S.lat,S.lon,maxR);
+  const cells=hexGridBin(rawPts,S.lat,S.lon,maxR);
   const paneName='zone-pane';
   if(!map.getPane(paneName)){
     map.createPane(paneName);
@@ -1292,16 +1303,13 @@ function buildStormZones(map,rawPts){
   const valS='color:#e0e0e0;font-weight:500;text-align:right;';
   for(const cell of sortedCells){
     const bin=dbzColor(cell.maxDbz);
-    const verts=wedgePoly(S.lat,S.lon,cell.ri,cell.ai);
+    const verts=hexPoly(S.lat,S.lon,cell.q,cell.r);
     const avgDbz=Math.round(cell.sumDbz/cell.count);
     const maxDbz=Math.round(cell.maxDbz);
     const cat=stormCat(maxDbz);
-    const distInner=cell.ri*ZONE_DIST_STEP_MI;
-    const distOuter=(cell.ri+1)*ZONE_DIST_STEP_MI;
-    const bearStart=cell.ai*ZONE_ANG_STEP;
-    const bearEnd=(cell.ai+1)*ZONE_ANG_STEP;
-    const midBear=(bearStart+bearEnd)/2;
-    const midDist=(distInner+distOuter)/2;
+    const midDist=cell.dist;
+    const midBear=cell.bearing;
+    const isCenter=cell.q===0&&cell.r===0;
     let isApproaching=false;
     let etaSec=null;
     let arrivalStr='--:--';
@@ -1309,7 +1317,7 @@ function buildStormZones(map,rawPts){
     let mvBear='--';
     let mvSpd='--';
     let statusHtml='';
-    const cellId='gc'+cell.ri+'_'+cell.ai;
+    const cellId='hc'+cell.q+'_'+cell.r;
     let impactPct=0;
     let impactTier='none';
     if(mv&&mv.speed>=2){
@@ -1345,7 +1353,7 @@ function buildStormZones(map,rawPts){
       const tierColors={high:'#eab308',medium:'#06b6d4',low:'#ec4899',none:'#22c55e'};
       const tierLabels={high:'🟡 High ('+impactPct+'%)',medium:'🔵 Medium ('+impactPct+'%)',low:'🟣 Low ('+impactPct+'%)',none:'✓ Not in path'};
       const tc=tierColors[impactTier]||'#22c55e';
-      if(midDist<=1){
+      if(isCenter){
         statusHtml=`<div style="text-align:center;margin-top:4px;padding:3px 6px;background:rgba(239,68,68,0.15);border-radius:4px;color:#ef4444;font-size:0.8em;font-weight:600">🚨 OVERHEAD</div>`;
       }else{
         statusHtml=`<div style="text-align:center;margin-top:4px;padding:3px 6px;background:${tc}18;border:1px solid ${tc}44;border-radius:4px;color:${tc};font-size:0.78em;font-weight:600">${tierLabels[impactTier]}</div>`;
@@ -1373,7 +1381,7 @@ function buildStormZones(map,rawPts){
         <div style="${rowS}"><span style="${lblS}">📍 Location:</span><span style="${valS}">${distVal} ${distUnit} ${degToDir(midBear)} (${Math.round(midBear)}°) of you</span></div>
       </div>
       ${statusHtml}
-      <div style="text-align:center;font-size:0.6em;color:#555;margin-top:4px">📡 ${cell.count} return${cell.count>1?'s':''} · ${distInner}-${distOuter} mi · ${bearStart}°-${bearEnd}°</div>
+      <div style="text-align:center;font-size:0.6em;color:#555;margin-top:4px">⬡ ${cell.count} return${cell.count>1?'s':''} · hex (${cell.q},${cell.r}) · ${distVal} ${distUnit}</div>
     </div>`;
     const borderWeight=isApproaching?1.5:0.5;
     const poly=L.polygon(verts,{
@@ -1389,7 +1397,7 @@ function buildStormZones(map,rawPts){
     }
     if(mv&&mv.speed>=2){
       if(!S._arrowCells)S._arrowCells=[];
-      S._arrowCells.push({ri:cell.ri,ai:cell.ai,midDist,midBear,maxDbz,binIdx:bin.idx,color:bin.color,dir:mv.direction,speed:mv.speed});
+      S._arrowCells.push({q:cell.q,r:cell.r,midDist,midBear,maxDbz,binIdx:bin.idx,color:bin.color,dir:mv.direction,speed:mv.speed});
     }
   }
   if(S._arrowCells)S._arrowCells=[];
@@ -1409,7 +1417,7 @@ function buildStormZones(map,rawPts){
     },1000);
   }
   const ms=Math.round(performance.now()-t0);
-  console.log(`Polar grid: ${rawPts.length} pts → ${cells.size} cells (${ZONE_ANG_STEP}°×${ZONE_DIST_STEP_MI}mi) in ${ms}ms`);
+  console.log(`Hex grid: ${rawPts.length} pts → ${cells.size} cells (${HEX_FLAT_MI}mi hexes) in ${ms}ms`);
 }
 function _tickerWeatherPool(){
   const pool=[];
@@ -1617,7 +1625,7 @@ function updateThreatTicker(){
   const topStorms=_filteredInbound.slice(0,12);
   let gridZoneCount=0,gridZoneMaxDbz=0;
   if(S._rawScanPts&&S._rawScanPts.length&&S.lat!=null){
-    const gzCells=polarGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
+    const gzCells=hexGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
     gridZoneCount=gzCells.size;
     for(const[,c]of gzCells){if(c.maxDbz>gridZoneMaxDbz)gridZoneMaxDbz=c.maxDbz}
   }
@@ -1747,8 +1755,8 @@ function autoActivateZones(){
 }
 function checkUserInZone(){
   if(!S._rawScanPts.length)return null;
-  const cells=polarGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
-  const center=cells.get(Math.floor(0/ZONE_ANG_STEP)+',0');
+  const cells=hexGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
+  const center=cells.get('0,0');
   if(!center)return null;
   const bin=dbzColor(center.maxDbz);
   return[bin];
