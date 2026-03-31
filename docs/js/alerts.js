@@ -108,7 +108,7 @@ function fmtAlertTime(d){
 async function fetchAlerts(){
   const reqId=S._locReqId;
   const el=document.getElementById('page-alerts');showSkel(el,3);
-  if(!isNWSCoverage(S.lat,S.lon)){S.alerts=[];if(reqId===S._locReqId)renderAlerts();return}
+  if(!isNWSCoverage(S.lat,S.lon)){console.log('[non-US] Skipped: NWS alerts, SPC data, NWS warnings');S.alerts=[];if(reqId===S._locReqId)renderAlerts();return}
   try{
     const res=await fetch(`https://api.weather.gov/alerts/active?point=${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{headers:{'User-Agent':'StormTracker/1.50'},signal:AbortSignal.timeout(8000)});
     const data=await res.json();
@@ -410,6 +410,7 @@ async function fetchHazards(){
   const isUS=isUSLocation(S.lat,S.lon);
   _hazardData._isUS=isUS;
   if(!isUS){
+    console.log('[non-US] Skipped: drought, river gauges, SPC data');
     _hazardData.drought=null;
     _hazardData.riverGauges=[];
   }
@@ -428,7 +429,7 @@ async function fetchHazards(){
 
 async function _fetchEarthquakes(){
   try{
-    const res=await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson');
+    const res=await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson',{signal:AbortSignal.timeout(8000)});
     const data=await res.json();
     const quakes=(data.features||[]).filter(f=>f.geometry&&f.geometry.coordinates&&f.properties).map(f=>{
       const [lon,lat,depth]=f.geometry.coordinates;
@@ -441,7 +442,7 @@ async function _fetchEarthquakes(){
 
 async function _fetchVolcanoes(){
   try{
-    const res=await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=volcanoes',{signal:AbortSignal.timeout(12000)});
+    const res=await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=volcanoes',{signal:AbortSignal.timeout(8000)});
     if(!res.ok)throw new Error('HTTP '+res.status);
     const data=await res.json();
     const volcanoes=(data.events||[]).map(e=>{
@@ -505,7 +506,7 @@ async function _fetchWildfires(){
     }catch(e){_hazardData.wildfires=[];console.log('Wildfire fetch error (NIFC):',e.message)}
   }else{
     try{
-      const res=await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=wildfires&limit=200',{signal:AbortSignal.timeout(12000)});
+      const res=await fetch('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&category=wildfires&limit=200',{signal:AbortSignal.timeout(8000)});
       if(!res.ok)throw new Error('HTTP '+res.status);
       const data=await res.json();
       const maxDist=300;
