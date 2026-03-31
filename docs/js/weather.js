@@ -162,10 +162,16 @@ async function fetchWeather(){
         else if(/\b(sunny|clear)\b/.test(_wx))_nwsCloud=0;
         if(_nwsCloud!=null){
           const _omCloud=omData.current.cloud_cover;
-          if(Math.abs(_omCloud-_nwsCloud)>30){
+          if(Math.abs(_omCloud-_nwsCloud)>15){
             omData.current.cloud_cover=_nwsCloud;
             console.log('Cloud cover reconciled: OM '+_omCloud+'% → NWS "'+blend.wxString+'" '+_nwsCloud+'%');
           }
+        }
+        const _finalCC=omData.current.cloud_cover;
+        if(_finalCC>=90&&!/overcast/i.test(omData.current._nwsDesc))omData.current._nwsDesc='Overcast';
+        else if(_finalCC>=70&&_finalCC<90&&!/mostly\s*cloudy/i.test(omData.current._nwsDesc)&&!/overcast/i.test(omData.current._nwsDesc))omData.current._nwsDesc='Mostly Cloudy';
+        else if(_finalCC>=30&&_finalCC<70&&!/partly/i.test(omData.current._nwsDesc)&&!/mostly/i.test(omData.current._nwsDesc)){
+          if(!/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower/i.test(omData.current._nwsDesc))omData.current._nwsDesc='Partly Cloudy';
         }
       }
       omData.current._nwsStation=blend.station||null;
@@ -179,7 +185,7 @@ async function fetchWeather(){
       }
     }catch(e){console.log('Multi-source blend failed:',e.message)}
     if(reqId!==S._locReqId)return;
-    S.weather=omData.current;S._lastWeatherFetch=Date.now();S._lastWeatherData=omData;_resetMinMax();renderWeather(omData);if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);
+    S.weather=omData.current;S._lastWeatherFetch=Date.now();S._lastWeatherData=omData;_resetMinMax();renderWeather(omData);if(typeof updateThreatTicker==='function')updateThreatTicker();if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);
   }catch(e){
     if(reqId!==S._locReqId)return;
     if(typeof hideLoadingScreen==='function')hideLoadingScreen();
