@@ -110,7 +110,7 @@ async function fetchAlerts(){
   const el=document.getElementById('page-alerts');showSkel(el,3);
   if(!isNWSCoverage(S.lat,S.lon)){S.alerts=[];if(reqId===S._locReqId)renderAlerts();return}
   try{
-    const res=await fetch(`https://api.weather.gov/alerts/active?point=${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{headers:{'User-Agent':'StormTracker/1.50'}});
+    const res=await fetch(`https://api.weather.gov/alerts/active?point=${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{headers:{'User-Agent':'StormTracker/1.50'},signal:AbortSignal.timeout(8000)});
     const data=await res.json();
     if(reqId!==S._locReqId)return;
     S.alerts=data.features||[];renderAlerts();if(_curLang!=='en')setTimeout(quickTranslate,300);

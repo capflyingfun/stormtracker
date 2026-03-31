@@ -468,6 +468,7 @@ async function toggleAirportMarkers(map){
     let stations=[];
     let nwsOk=false;
     try{
+      if(!isNWSCoverage(S.lat,S.lon))throw new Error('non-US');
       const r=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(5000)});
       if(r.ok){
         const pt=await r.json();
