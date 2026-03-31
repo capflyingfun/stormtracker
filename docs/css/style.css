@@ -450,7 +450,8 @@ canvas.offscreen{display:none}
 .iso-cam-btn.iso-cam-center{font-size:0.5em;font-weight:700;color:rgba(0,229,255,0.5);letter-spacing:0.5px}
 .iso-cam-zoom{display:flex;gap:2px;margin-top:4px}
 .iso-cam-zoom .iso-cam-btn{width:46px;height:40px;font-size:1.1em;font-weight:700}
-.radar-crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:800;pointer-events:none}
+.radar-crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:800;pointer-events:none;transition:opacity 0.3s}
+.radar-crosshair.ch-fade{opacity:0}
 .radar-crosshair svg{filter:drop-shadow(0 0 4px rgba(0,229,255,0.4))}
 .hd-scan-overlay{position:fixed;inset:0;z-index:10001;background:rgba(5,8,15,0.88);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center}
 .hd-scan-box{background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:14px;padding:20px;max-width:320px;width:90%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5)}

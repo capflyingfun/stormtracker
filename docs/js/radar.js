@@ -87,6 +87,10 @@ function initRadar(){
       clearTimeout(_zoomReplot);
       _zoomReplot=setTimeout(()=>plotStormMarkers(map),250);
     });
+    map.on('movestart',()=>showCrosshair());
+    map.on('moveend',()=>scheduleCrosshairHide());
+    if(S._crosshairDelay==='on')hideCrosshair();
+    else if(S._crosshairDelay!=='off')scheduleCrosshairHide();
     let _mpingMoveTimer=null;
     map.on('moveend',()=>{
       if(!S._mpingVisible)return;
@@ -1943,6 +1947,32 @@ try{const pv=localStorage.getItem('st_pointsMode');if(pv){S._pointsMode=pv;S._sh
 S._tracksMode='off';
 S._trackCones=[];
 try{const tv=localStorage.getItem('st_tracksMode');if(tv)S._tracksMode=tv}catch(e){}
+S._crosshairDelay=3;
+try{const cv=localStorage.getItem('st_crosshairDelay');if(cv!=null)S._crosshairDelay=cv==='off'?'off':cv==='on'?'on':parseInt(cv)||3}catch(e){}
+S._crosshairTimer=null;
+function _crosshairEl(){return document.querySelector('.radar-crosshair')}
+function showCrosshair(){
+  clearTimeout(S._crosshairTimer);
+  if(S._crosshairDelay==='on')return;
+  const el=_crosshairEl();if(el)el.classList.remove('ch-fade');
+}
+function hideCrosshair(){
+  const el=_crosshairEl();if(el)el.classList.add('ch-fade');
+}
+function scheduleCrosshairHide(){
+  clearTimeout(S._crosshairTimer);
+  if(S._crosshairDelay==='off')return;
+  if(S._crosshairDelay==='on'){hideCrosshair();return}
+  const ms=(parseInt(S._crosshairDelay)||3)*1000;
+  S._crosshairTimer=setTimeout(hideCrosshair,ms);
+}
+function setCrosshairDelay(val){
+  S._crosshairDelay=val==='off'?'off':val==='on'?'on':parseInt(val)||3;
+  try{localStorage.setItem('st_crosshairDelay',String(S._crosshairDelay))}catch(e){}
+  if(val==='off'){showCrosshair();return}
+  if(val==='on'){hideCrosshair();return}
+  showCrosshair();scheduleCrosshairHide();
+}
 try{const mv=localStorage.getItem('st_mping');if(mv==='1')S._mpingPendingRestore=true}catch(e){}
 
 function clearPathArrows(){
