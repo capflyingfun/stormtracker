@@ -788,7 +788,7 @@ function _fmtTravelCd(sec){
   const m=Math.floor(sec/60),s=sec%60;
   return String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s';
 }
-function startGpsWatch(){
+async function startGpsWatch(){
   if(S.travelWatchId!==null){navigator.geolocation.clearWatch(S.travelWatchId);S.travelWatchId=null}
   _clearTravelCountdown();
   S.travelWatchId=navigator.geolocation.watchPosition(
@@ -797,13 +797,14 @@ function startGpsWatch(){
     {enableHighAccuracy:true, maximumAge:5000, timeout:20000}
   );
   if(S.lat){
-    reverseGeocode(S.lat,S.lon).then(name=>{
+    try{
+      const name=await reverseGeocode(S.lat,S.lon);
       if(!S.travelMode)return;
       const locName=name||`${S.lat.toFixed(4)}, ${S.lon.toFixed(4)}`;
-      setLoc(S.lat,S.lon,locName,{fromTravel:true});
-    }).catch(()=>{});
+      await setLoc(S.lat,S.lon,locName,{fromTravel:true});
+    }catch(e){}
   }
-  _startTravelCountdown();
+  if(S.travelMode)_startTravelCountdown();
 }
 function _clearTravelCountdown(){
   if(S._travelCdTimer){clearInterval(S._travelCdTimer);S._travelCdTimer=null}
@@ -823,9 +824,9 @@ function _tickTravelCd(){
   const intLabel=fmtGpsInt(intSec);
   const cdStr=_fmtTravelCd(remain)+'/'+intLabel;
   const spdTxt=S._travelSpdTxt||'—';
-  const accTxt=S._travelAccTxt||'';
+  const accTxt=S._travelAccTxt||'—';
   const statusEl=document.getElementById('travel-status');
-  if(statusEl)statusEl.textContent='🧭 '+spdTxt+(accTxt?' · ±'+accTxt:'')+' · '+cdStr;
+  if(statusEl)statusEl.textContent='🧭 '+spdTxt+' · ±'+accTxt+' · '+cdStr;
   if(remain<=0){
     _clearTravelCountdown();
     _travelCycleRefresh();
