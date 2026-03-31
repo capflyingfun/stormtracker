@@ -1131,10 +1131,10 @@ function hexToRgba(hex,a){
   return`rgba(${r},${g},${b},${a})`;
 }
 function _hexRingCoords(ring){
-  const dirs=[[1,0],[0,1],[-1,1],[-1,0],[0,-1],[1,-1]];
+  const dirs=[[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
   if(ring===0)return[[0,0]];
   const coords=[];
-  let q=ring,r=0;
+  let q=-ring,r=ring;
   for(let d=0;d<6;d++){
     for(let s=0;s<ring;s++){
       coords.push([q,r]);
@@ -1372,7 +1372,11 @@ function buildStormZones(map,rawPts){
         statusHtml=`<div style="text-align:center;margin-top:4px;padding:3px 6px;background:${tc}18;border:1px solid ${tc}44;border-radius:4px;color:${tc};font-size:0.78em;font-weight:600">${tierLabels[impactTier]}</div>`;
       }
     }else{
-      statusHtml=`<div style="text-align:center;margin-top:4px;color:#666;font-size:0.75em">No movement data</div>`;
+      if(isCenter){
+        statusHtml=`<div style="text-align:center;margin-top:4px;padding:3px 6px;background:rgba(239,68,68,0.15);border-radius:4px;color:#ef4444;font-size:0.8em;font-weight:600">🚨 OVERHEAD</div>`;
+      }else{
+        statusHtml=`<div style="text-align:center;margin-top:4px;color:#666;font-size:0.75em">No movement data</div>`;
+      }
     }
     const fmtGridEta=(sec)=>{if(!sec||sec<=0)return'NOW';const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return h>0?h+'h:'+String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s':m+'m:'+String(s).padStart(2,'0')+'s';};
     const fmtEtaInit=etaSec?fmtGridEta(etaSec):'--m:--s';
