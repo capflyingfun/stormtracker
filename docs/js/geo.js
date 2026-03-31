@@ -761,7 +761,10 @@ async function startTravelModeAfterPick(){
       const _w=setTimeout(()=>toast('📍 Still acquiring GPS — hang tight...'),5000);
       navigator.geolocation.getCurrentPosition(p=>{clearTimeout(_w);resolve(p)},e=>{clearTimeout(_w);reject(e)},{enableHighAccuracy:true,timeout:20000,maximumAge:60000});
     });
-    if(_gp&&_gp.coords.altitude!=null)S._gpsAltitude=_gp.coords.altitude;
+    if(_gp){
+      if(_gp.coords.altitude!=null)S._gpsAltitude=_gp.coords.altitude;
+      S.lat=_gp.coords.latitude;S.lon=_gp.coords.longitude;
+    }
   }catch(err){
     if(err.code===1)toast('📍 Location access denied — Travel Mode requires GPS permission');
     else toast('📍 Could not get GPS position — please try again');
