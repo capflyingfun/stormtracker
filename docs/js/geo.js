@@ -121,14 +121,17 @@ let _locConfirmShown=false;
 function _doGPSLocate(){
   toggleLocOverlay(false);
   toast('Getting location...');
+  const _gpsWait=setTimeout(()=>toast('📍 Still acquiring GPS — hang tight...'),5000);
   navigator.geolocation.getCurrentPosition(
     pos=>{
+      clearTimeout(_gpsWait);
       toast('📍 GPS locked — accuracy ±'+Math.round(pos.coords.accuracy)+'m');
       if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;
       S._gpsLocating=true;
       reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{S._gpsLocating=false});
     },
     err=>{
+      clearTimeout(_gpsWait);
       if(err.code===1){
         toast('📍 Location permission denied — please enable location in your browser/phone settings, then try again');
       }else if(err.code===2){
@@ -138,14 +141,14 @@ function _doGPSLocate(){
         navigator.geolocation.getCurrentPosition(
           pos=>{toast('📍 Location found');if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;S._gpsLocating=true;reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{S._gpsLocating=false});},
           err2=>{toast('📍 Still cannot get location — try searching for your city instead');},
-          {enableHighAccuracy:false,timeout:15000,maximumAge:120000}
+          {enableHighAccuracy:false,timeout:30000,maximumAge:300000}
         );
         return;
       }else{
         toast('📍 Could not get location — try searching instead');
       }
     },
-    {enableHighAccuracy:true,timeout:10000,maximumAge:30000}
+    {enableHighAccuracy:true,timeout:20000,maximumAge:60000}
   );
 }
 function showLocationConfirm(){
@@ -589,9 +592,11 @@ async function toggleTravelMode(){
     }catch(e){}
   }
   let gpsPos;
+  toast('📍 Acquiring GPS for Travel Mode...');
   try{
     gpsPos=await new Promise((resolve,reject)=>{
-      navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:10000});
+      const _w=setTimeout(()=>toast('📍 Still acquiring GPS — hang tight...'),5000);
+      navigator.geolocation.getCurrentPosition(p=>{clearTimeout(_w);resolve(p)},e=>{clearTimeout(_w);reject(e)},{enableHighAccuracy:true,timeout:20000,maximumAge:60000});
     });
     if(gpsPos&&gpsPos.coords.altitude!=null)S._gpsAltitude=gpsPos.coords.altitude;
   }catch(err){
@@ -721,7 +726,8 @@ async function startTravelModeAfterPick(){
   if(!navigator.geolocation) return toast('GPS not available on this device');
   try{
     const _gp=await new Promise((resolve,reject)=>{
-      navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:10000});
+      const _w=setTimeout(()=>toast('📍 Still acquiring GPS — hang tight...'),5000);
+      navigator.geolocation.getCurrentPosition(p=>{clearTimeout(_w);resolve(p)},e=>{clearTimeout(_w);reject(e)},{enableHighAccuracy:true,timeout:20000,maximumAge:60000});
     });
     if(_gp&&_gp.coords.altitude!=null)S._gpsAltitude=_gp.coords.altitude;
   }catch(err){
@@ -753,7 +759,7 @@ function startGpsWatch(){
   S.travelWatchId=navigator.geolocation.watchPosition(
     pos=>onTravelPosition(pos),
     err=>{document.getElementById('travel-status').textContent='🧭 GPS error — retrying...'},
-    {enableHighAccuracy:true, maximumAge:2000, timeout:15000}
+    {enableHighAccuracy:true, maximumAge:5000, timeout:20000}
   );
   const dataInt=Math.max((S.gpsInterval||5)*1000,5000);
   travelDataRefresh();
