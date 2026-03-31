@@ -173,7 +173,16 @@ async function fetchWindsAloft(overrideLat,overrideLon){
         'wind_speed_500hPa','wind_direction_500hPa'].join(','),
       wind_speed_unit:'ms',forecast_days:'1',timezone:'auto'
     });
-    const r=await fetch('https://api.open-meteo.com/v1/forecast?'+params,{signal:AbortSignal.timeout(5000)});
+    const _wUrl='https://api.open-meteo.com/v1/forecast?'+params;
+    let r;
+    try{
+      r=await fetch(_wUrl,{signal:AbortSignal.timeout(5000)});
+    }catch(e1){
+      console.log('Winds aloft: first attempt failed ('+e1.message+') — retrying in 2s...');
+      await new Promise(w=>setTimeout(w,2000));
+      r=await fetch(_wUrl,{signal:AbortSignal.timeout(6000)});
+      console.log('Winds aloft: retry succeeded');
+    }
     if(!r.ok)return;
     const d=await r.json();
     const c=d.current;
