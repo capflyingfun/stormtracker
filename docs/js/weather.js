@@ -114,9 +114,10 @@ async function fetchWeather(){
       const isUS=isUSLocation(S.lat,S.lon);
       const fetches=[fetchAWCNearest()];
       if(isUS)fetches.push(fetchNWSCurrent(),fetchNWSForecast());
-      else console.log('[non-US] Skipped: NWS current obs, NWS forecast');
+      else console.log('[non-US] Skipped: NWS current obs, NWS forecast (AWC METAR: reduced timeout/retry)');
       const results=await Promise.allSettled(fetches);
       const awcCur=results[0].status==='fulfilled'?results[0].value:null;
+      if(!isUS&&!awcCur)console.log('[non-US] AWC METAR: no nearby station found');
       const nwsCur=isUS&&results[1].status==='fulfilled'?results[1].value:null;
       const nwsFc=isUS&&results[2]?.status==='fulfilled'?results[2].value:null;
       const sources=[];
