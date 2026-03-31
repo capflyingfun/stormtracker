@@ -2103,9 +2103,11 @@ function renderStorms(){
       const pct=eta?eta.impact:0;
       const imp=impactLabel(pct);
       let mvLine='';
-      if(mv&&mv.speed>=2){
-        const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
-        mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Moving')}</div><div class="storm-detail-val">${degToDir(mv.direction)} (${Math.round(mv.direction)}°) ${spdStr}</div><div class="tile-tap">tap</div></div>`;
+      const _ct=typeof getCellTrack==='function'?getCellTrack(s):null;
+      const _sMv=(_ct&&_ct.speed>=2)?{direction:_ct.dir,speed:_ct.speed}:mv;
+      if(_sMv&&_sMv.speed>=2){
+        const spdStr=S.radarMetric?Math.round(_sMv.speed*1.60934)+' km/h':_sMv.speed+' mph';
+        mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Moving')}</div><div class="storm-detail-val">${degToDir(_sMv.direction)} (${Math.round(_sMv.direction)}°) ${spdStr}</div><div class="tile-tap">tap</div></div>`;
         if(isOverhead(s)){
           mvLine+=`<div class="storm-detail" style="grid-column:span 2"><div class="storm-detail-label">${tStr('Status')}</div><div class="storm-detail-val" style="color:#f97316;font-size:0.85em">⚠️ ${tStr('Overhead · Moving away')}</div></div>`;
           mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${tStr(imp.text)}</div></div>`;
