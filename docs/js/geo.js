@@ -180,19 +180,16 @@ function _doGPSLocate(){
   if(_autoGpsPending)_autoGpsPending=false;
   const wasTravelPending=_travelGpsPending;
   if(_travelGpsPending)_travelGpsPending=false;
+  if(wasAutoGpsPending){
+    localStorage.setItem('st_autoGps','1');
+    toast('📍 Auto-locate on load enabled');
+    syncSettingsPanel();
+  }
   toast('Getting location...');
   let _gpsGot=false;
   let _activeAttempt=1;
   const _gpsWait=setTimeout(()=>{if(!_gpsGot)toast('📍 Still acquiring GPS — hang tight...')},5000);
-  function _gpsOk(pos){
-    if(_gpsGot)return;_gpsGot=true;
-    clearTimeout(_gpsWait);clearTimeout(_gpsRetry);
-    if(wasAutoGpsPending){
-      localStorage.setItem('st_autoGps','1');
-      toast('📍 Auto-locate on load enabled');
-      syncSettingsPanel();
-    }
-    toast('📍 GPS locked — accuracy ±'+Math.round(pos.coords.accuracy)+'m');
+  function _handleLocSuccess(pos){
     if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;
     S._gpsLocating=true;
     reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{
@@ -200,19 +197,28 @@ function _doGPSLocate(){
       if(wasTravelPending)setTimeout(()=>toggleTravelMode(),500);
     });
   }
+  function _gpsOk(pos){
+    if(_gpsGot)return;_gpsGot=true;
+    clearTimeout(_gpsWait);clearTimeout(_gpsRetry);
+    toast('📍 GPS locked — accuracy ±'+Math.round(pos.coords.accuracy)+'m');
+    _handleLocSuccess(pos);
+  }
   function _gpsFail(err){
     if(_gpsGot)return;_gpsGot=true;
     clearTimeout(_gpsWait);clearTimeout(_gpsRetry);
-    if(wasAutoGpsPending){toast('📍 Auto-locate requires GPS permission');syncSettingsPanel()}
     if(err.code===1){
+      if(wasAutoGpsPending){localStorage.removeItem('st_autoGps');toast('📍 Auto-locate requires GPS permission');syncSettingsPanel()}
       toast('📍 Location permission denied — please enable location in your browser/phone settings, then try again');
     }else if(err.code===2){
       toast('📍 Location unavailable — make sure GPS/Location Services is turned ON in your phone settings');
     }else if(err.code===3){
       toast('📍 GPS timed out — trying again with lower accuracy...');
       navigator.geolocation.getCurrentPosition(
-        pos=>{toast('📍 Location found');if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;S._gpsLocating=true;reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{S._gpsLocating=false});},
-        err2=>{toast('📍 Still cannot get location — try searching for your city instead');},
+        pos=>{toast('📍 Location found');_handleLocSuccess(pos)},
+        err2=>{
+          if(err2.code===1&&wasAutoGpsPending){localStorage.removeItem('st_autoGps');syncSettingsPanel()}
+          toast('📍 Still cannot get location — try searching for your city instead');
+        },
         {enableHighAccuracy:false,timeout:30000,maximumAge:300000}
       );
       return;
