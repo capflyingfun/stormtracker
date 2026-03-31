@@ -187,15 +187,18 @@ async function fetchWeather(){
             console.log('Cloud reconciliation: NWS "'+blend.wxString+'" '+_nwsCloud+'% < OM '+_omCloud+'% — keeping higher OM value');
           }
         }
-        const _finalCC=omData.current.cloud_cover;
         if(omData.hourly&&omData.hourly.cloud_cover&&omData.hourly.time){
           const _nowISO=(omData.current.time||new Date().toISOString()).slice(0,13);
           const _hrIdx=omData.hourly.time.findIndex(t=>t&&t.startsWith(_nowISO));
-          if(_hrIdx>=0&&omData.hourly.cloud_cover[_hrIdx]!==_finalCC){
-            console.log('Hourly cloud_cover['+_hrIdx+'] synced: '+omData.hourly.cloud_cover[_hrIdx]+'% → '+_finalCC+'%');
-            omData.hourly.cloud_cover[_hrIdx]=_finalCC;
+          if(_hrIdx>=0){
+            const _hrCC=omData.hourly.cloud_cover[_hrIdx];
+            if(_hrCC>omData.current.cloud_cover){
+              console.log('Cloud cover synced from hourly (graph): current '+omData.current.cloud_cover+'% → hourly['+_hrIdx+'] '+_hrCC+'%');
+              omData.current.cloud_cover=_hrCC;
+            }
           }
         }
+        const _finalCC=omData.current.cloud_cover;
         if(!/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower/i.test(omData.current._nwsDesc)){
           omData.current._nwsDesc=cloudCategory(_finalCC);
         }
@@ -430,6 +433,19 @@ function renderWeather(data){
   const gaugeData={windSpd,wd,windDisp,gustDisp,gustRaw,windNum,windUnit,gustStr,bf,simActive:_simActive,pressure:c.pressure_msl};
   const gaugeHtml=renderWindGauge(gaugeData);
 
+  const _nowMs=Date.now();
+  const _hIdx=hourly.time?hourly.time.findIndex(t=>new Date(t).getTime()>=_nowMs):-1;
+  const _h1=_hIdx>=0&&_hIdx+1<(hourly.time||[]).length?_hIdx+1:-1;
+  function _ta(nowV,nextV,thresh){
+    if(nowV==null||nextV==null)return'';
+    const d=nextV-nowV;
+    if(Math.abs(d)<=thresh)return' <span style="color:var(--text-muted);font-size:0.6em">→</span>';
+    if(d>0)return' <span style="color:#39ff14;font-size:0.6em;text-shadow:0 0 6px rgba(57,255,20,0.6)">⤴</span>';
+    return' <span style="color:#ff3355;font-size:0.6em;text-shadow:0 0 6px rgba(255,51,85,0.6)">⤵</span>';
+  }
+  function _hv(key){return _hIdx>=0&&hourly[key]?hourly[key][_hIdx]:null}
+  function _hv1(key){return _h1>=0&&hourly[key]?hourly[key][_h1]:null}
+
   const sections={
     wind:`<div class="weather-section" data-sec="wind"><div class="sec-header"><span class="card-title m-0"><span class="icon">💨</span> Wind</span>${secBtns('wind')}</div>
       <div class="wind-gauge-full">${gaugeHtml}</div>
@@ -450,44 +466,31 @@ function renderWeather(data){
   el.innerHTML=`
     <div class="weather-hero">
       <div class="hero-icon-showcase">${animEmoji(c.weather_code,isDay,'340px',c._nwsDesc)}</div>
-      <div class="hero-temp-line" style="font-size:2.8em;font-weight:800;line-height:1;background:linear-gradient(180deg,var(--text-primary) 0%,var(--text-secondary) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:6px 0 2px">${fmtTempShort(tempC)}</div>
+      <div class="hero-temp-line" style="font-size:2.8em;font-weight:800;line-height:1;background:linear-gradient(180deg,var(--text-primary) 0%,var(--text-secondary) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:6px 0 2px">${fmtTempShort(tempC)}<span style="-webkit-text-fill-color:initial;background:none">${_ta(_hv('temperature_2m'),_hv1('temperature_2m'),1)}</span></div>
       <div class="hero-desc-line" style="font-size:0.85em;color:var(--text-secondary);margin-bottom:2px">${c._nwsDesc||desc}</div>
       ${c._source?`<div class="hero-source-line" style="font-size:0.55em;color:var(--accent-cyan);opacity:0.7;margin-bottom:4px">${c._source}${c._sourceCount>1?' (×'+c._sourceCount+' avg)':''}</div>`:''}
       <div class="hero-stats-grid">
-        <div class="hero-stat-cell"><div class="hero-side-label">Feels Like</div><div class="hero-side-val">${fmtTemp(feelsC)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">Humidity</div><div class="hero-side-val">${Math.min(100,c.relative_humidity_2m)}%</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">☁️ Clouds</div><div class="hero-side-val">${c.cloud_cover}%</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">Pressure</div><div class="hero-side-val">${fmtPres(c.pressure_msl)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">Precip</div><div class="hero-side-val">${fmtPrecip(c.precipitation||0)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">🌡️ Dew Pt</div><div class="hero-side-val">${fmtTemp(dewC)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Feels Like</div><div class="hero-side-val">${fmtTemp(feelsC)}${_ta(_hv('apparent_temperature'),_hv1('apparent_temperature'),1)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Humidity</div><div class="hero-side-val">${Math.min(100,c.relative_humidity_2m)}%${_ta(_hv('relative_humidity_2m'),_hv1('relative_humidity_2m'),3)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">☁️ Clouds</div><div class="hero-side-val">${c.cloud_cover}%${_ta(_hv('cloud_cover'),_hv1('cloud_cover'),10)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Pressure</div><div class="hero-side-val">${fmtPres(c.pressure_msl)}${_ta(_hv('pressure_msl'),_hv1('pressure_msl'),0.5)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Precip</div><div class="hero-side-val">${fmtPrecip(c.precipitation||0)}${_ta(_hv('precipitation'),_hv1('precipitation'),0.1)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">🌡️ Dew Pt</div><div class="hero-side-val">${fmtTemp(dewC)}${_ta(_hv('dew_point_2m'),_hv1('dew_point_2m'),1)}</div></div>
         ${(()=>{
-  const _nowMs=Date.now();
-  const _hIdx=hourly.time?hourly.time.findIndex(t=>new Date(t).getTime()>=_nowMs):-1;
-  const _uv=hourly.uv_index&&_hIdx>=0?hourly.uv_index[_hIdx]:null;
+  const _uv=_hv('uv_index');
   const _uvColor=_uv==null?'var(--text-muted)':_uv<=2?'#4caf50':_uv<=5?'#ffeb3b':_uv<=7?'#ff9800':_uv<=10?'#f44336':'#ce93d8';
   const _uvLabel=_uv==null?'--':_uv<=2?'Low':_uv<=5?'Moderate':_uv<=7?'High':_uv<=10?'Very High':'Extreme';
-  const _flM=hourly.freezing_level_height&&_hIdx>=0?hourly.freezing_level_height[_hIdx]:null;
+  const _flM=_hv('freezing_level_height');
   const _flFt=_flM!=null?Math.round(_flM*3.281):null;
-  return`<div class="hero-stat-cell"><div class="hero-side-label">☀️ UV Index</div><div class="hero-side-val" style="color:${_uvColor}">${_uv!=null?_uv.toFixed(1):'--'}</div><div style="font-size:0.38em;color:${_uvColor};margin-top:1px">${_uvLabel}</div></div>`
-    +`<div class="hero-stat-cell"><div class="hero-side-label">❄️ Freeze Level</div><div class="hero-side-val">${_flFt!=null?fmtAlt(_flFt):'--'}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px">${_flFt!=null?'MSL · ice/snow line':''}</div></div>`;
+  return`<div class="hero-stat-cell"><div class="hero-side-label">☀️ UV Index</div><div class="hero-side-val" style="color:${_uvColor}">${_uv!=null?_uv.toFixed(1):'--'}${_ta(_uv,_hv1('uv_index'),0.5)}</div><div style="font-size:0.38em;color:${_uvColor};margin-top:1px">${_uvLabel}</div></div>`
+    +`<div class="hero-stat-cell"><div class="hero-side-label">❄️ Freeze Level</div><div class="hero-side-val">${_flFt!=null?fmtAlt(_flFt):'--'}${_ta(_hv('freezing_level_height'),_hv1('freezing_level_height'),100)}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px">${_flFt!=null?'MSL · ice/snow line':''}</div></div>`;
 })()}
         <div class="hero-stat-cell"><div class="hero-side-label">Spread</div><div class="hero-side-val">${fmtTempDiff(tempC-dewC)}</div><div style="font-size:0.42em;color:var(--text-muted);margin-top:1px;line-height:1.2">${getSpreadLabel(tempC-dewC)}</div>${(()=>{
   const _spread=tempC-dewC;
   const _estB=adjustCloudBaseForUser(calcCloudBase(_spread));
-  // 3-hour spread trend from hourly forecast — wider spread = rising base, narrowing = lowering base
-  let _arrow='';
-  if(hourly&&hourly.time&&hourly.temperature_2m&&hourly.dew_point_2m){
-    const _now=Date.now();
-    const _nowIdx=hourly.time.findIndex(t=>new Date(t).getTime()>=_now);
-    if(_nowIdx>=0&&_nowIdx+3<hourly.time.length){
-      const _s0=hourly.temperature_2m[_nowIdx]-hourly.dew_point_2m[_nowIdx];
-      const _s3=hourly.temperature_2m[_nowIdx+3]-hourly.dew_point_2m[_nowIdx+3];
-      const _delta=_s3-_s0; // positive = spread widening = cloud base rising = improving
-      if(_delta>0.5)_arrow='<span style="color:#39ff14;font-size:1.2em;text-shadow:0 0 6px rgba(57,255,20,0.6)">⤴</span>';
-      else if(_delta<-0.5)_arrow='<span style="color:#ff3355;font-size:1.2em;text-shadow:0 0 6px rgba(255,51,85,0.6)">⤵</span>';
-      else _arrow='<span style="color:var(--text-muted);font-size:1.1em">→</span>';
-    }
-  }
+  const _s0=_hIdx>=0&&hourly.temperature_2m&&hourly.dew_point_2m?hourly.temperature_2m[_hIdx]-hourly.dew_point_2m[_hIdx]:null;
+  const _s1=_h1>=0&&hourly.temperature_2m&&hourly.dew_point_2m?hourly.temperature_2m[_h1]-hourly.dew_point_2m[_h1]:null;
+  const _arrow=_ta(_s0,_s1,0.5);
   return`<div id="weather-spread-cb" data-spread="${_spread}" style="font-size:0.38em;color:var(--accent-cyan);margin-top:1px;line-height:1.1">Est. base ~${fmtAlt(_estB)} AGL ${_arrow}</div>`;
 })()}</div>
         ${(()=>{const spread=tempC-dewC;const windKt=c.wind_speed_10m!=null?(c.wind_speed_10m/1.852):null;const fog=getFogRisk(spread,windKt,isDay,c.cloud_cover);const stab=getStabilityLabel(spread,Math.min(100,c.relative_humidity_2m),tempC);const inv=detectInversion(spread,windKt,isDay,c.cloud_cover);return`<div class="hero-stat-cell"><div class="hero-side-label">🌫️ Fog Risk</div><div class="hero-side-val" style="font-size:0.85em;color:${fog.color}">${fog.level}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${fog.desc}</div></div><div class="hero-stat-cell"><div class="hero-side-label">🌡️ Stability</div><div class="hero-side-val" style="font-size:0.75em;color:${stab.color}">${stab.label}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${stab.desc}</div></div>${inv.detected?`<div class="hero-stat-cell" style="grid-column:1/-1"><div style="font-size:0.5em;color:var(--accent-orange);text-align:center;padding:2px 6px;background:rgba(255,152,0,0.1);border-radius:4px">⚠️ ${inv.text}</div></div>`:''}`})()}
