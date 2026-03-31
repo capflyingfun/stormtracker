@@ -601,7 +601,7 @@ async function scanRadarForStorms(){
 
     if(!useNexrad){
       try{
-        const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
+        const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json',{signal:AbortSignal.timeout(6000)}).then(r=>r.json());
         const past=rv.radar?.past||[];
         const nowcast=rv.radar?.nowcast||[];
         const allFrames=past.concat(nowcast);

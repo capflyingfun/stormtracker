@@ -100,8 +100,8 @@ async function fetchWeather(){
     const _isUSLoc=isUSLocation(S.lat,S.lon);
     // Fetch GFS (global, NWS-baseline) + HRRR (high-res CONUS, hourly updates) in parallel
     const [_gfsRes,_hrrrRes]=await Promise.allSettled([
-      fetch(_omBase+'&models=gfs_seamless').then(r=>r.json()),
-      _isUSLoc?fetch(_omBase+'&models=hrrr_conus').then(r=>r.json()):Promise.resolve(null)
+      fetch(_omBase+'&models=gfs_seamless',{signal:AbortSignal.timeout(8000)}).then(r=>r.json()),
+      _isUSLoc?fetch(_omBase+'&models=hrrr_conus',{signal:AbortSignal.timeout(8000)}).then(r=>r.json()):Promise.resolve(null)
     ]);
     const _gfsData=_gfsRes.status==='fulfilled'?_gfsRes.value:null;
     const _hrrrData=_hrrrRes.status==='fulfilled'?_hrrrRes.value:null;
@@ -114,6 +114,7 @@ async function fetchWeather(){
       const isUS=isUSLocation(S.lat,S.lon);
       const fetches=[fetchAWCNearest()];
       if(isUS)fetches.push(fetchNWSCurrent(),fetchNWSForecast());
+      else console.log('[non-US] Skipped: NWS current obs, NWS forecast');
       const results=await Promise.allSettled(fetches);
       const awcCur=results[0].status==='fulfilled'?results[0].value:null;
       const nwsCur=isUS&&results[1].status==='fulfilled'?results[1].value:null;
