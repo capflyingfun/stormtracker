@@ -151,13 +151,8 @@ async function toggleAutoGps(){
     syncSettingsPanel();
     return;
   }
-  if(perm==='denied'){
-    toast('📍 Location access denied — please enable GPS in your browser/phone settings first');
-    syncSettingsPanel();
-    return;
-  }
   _autoGpsPending=true;
-  showLocationConfirm();
+  showLocationConfirm(true);
 }
 let _autoGpsPending=false;
 let _travelGpsPending=false;
@@ -181,12 +176,8 @@ function _silentGpsOnLoad(){
 let _locConfirmShown=false;
 function _doGPSLocate(){
   toggleLocOverlay(false);
-  if(_autoGpsPending){
-    _autoGpsPending=false;
-    localStorage.setItem('st_autoGps','1');
-    toast('📍 Auto-locate on load enabled');
-    syncSettingsPanel();
-  }
+  const wasAutoGpsPending=_autoGpsPending;
+  if(_autoGpsPending)_autoGpsPending=false;
   const wasTravelPending=_travelGpsPending;
   if(_travelGpsPending)_travelGpsPending=false;
   toast('Getting location...');
@@ -196,6 +187,11 @@ function _doGPSLocate(){
   function _gpsOk(pos){
     if(_gpsGot)return;_gpsGot=true;
     clearTimeout(_gpsWait);clearTimeout(_gpsRetry);
+    if(wasAutoGpsPending){
+      localStorage.setItem('st_autoGps','1');
+      toast('📍 Auto-locate on load enabled');
+      syncSettingsPanel();
+    }
     toast('📍 GPS locked — accuracy ±'+Math.round(pos.coords.accuracy)+'m');
     if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;
     S._gpsLocating=true;
@@ -207,6 +203,7 @@ function _doGPSLocate(){
   function _gpsFail(err){
     if(_gpsGot)return;_gpsGot=true;
     clearTimeout(_gpsWait);clearTimeout(_gpsRetry);
+    if(wasAutoGpsPending){toast('📍 Auto-locate requires GPS permission');syncSettingsPanel()}
     if(err.code===1){
       toast('📍 Location permission denied — please enable location in your browser/phone settings, then try again');
     }else if(err.code===2){
@@ -240,11 +237,10 @@ function _doGPSLocate(){
     }
   },2000);
 }
-function showLocationConfirm(){
+function showLocationConfirm(forceDialog){
   if(!navigator.geolocation){toast('GPS not available');return}
   if(document.querySelector('.confirm-overlay'))return;
-  // If location already set or user has confirmed before, skip our in-app dialog and go straight to GPS
-  if(S.lat&&S.lon||_locConfirmShown){_doGPSLocate();return}
+  if(!forceDialog&&(S.lat&&S.lon||_locConfirmShown)){_doGPSLocate();return}
   _locConfirmShown=true;
   localStorage.setItem('st_locAsked','1');
   const overlay=document.createElement('div');
@@ -674,7 +670,7 @@ async function toggleTravelMode(){
   if(_tPerm==='denied'||_tPerm==='prompt'){
     toast('📍 GPS permission required for Travel Mode');
     _travelGpsPending=true;
-    showLocationConfirm();
+    showLocationConfirm(true);
     return;
   }
   let gpsPos;
