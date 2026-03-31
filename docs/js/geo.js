@@ -366,11 +366,16 @@ function setLoc(lat,lon,name,opts){
   const wEl=document.getElementById('page-weather');if(wEl)showSkel(wEl,6);
   if(typeof showLoadingScreen==='function')showLoadingScreen(S.locName);
   S._locReqId=(S._locReqId||0)+1;
+  const _reqId=S._locReqId;
   document.getElementById('status-text').textContent='Live · '+S.locName;
-  fetchWeather();
-  fetchAlerts();fetchHazards();
-  fetchTerrainGrid();
-  scanRadarForStorms();
+  fetchAlerts();
+  (async()=>{
+    await fetchWeather();
+    if(_reqId!==S._locReqId)return;
+    scanRadarForStorms();
+    fetchHazards();
+    fetchTerrainGrid();
+  })();
   scheduleHourlyRefresh();
   if(typeof refreshMpingIfVisible==='function')refreshMpingIfVisible();
 }
