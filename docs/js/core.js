@@ -737,7 +737,7 @@ function toggleLocOverlay(open){
   if(open){
     if(typeof hideSuggestions==='function')hideSuggestions();
     el.classList.add('open');
-    setTimeout(()=>document.getElementById('location-input').focus(),100);
+    setTimeout(()=>{document.getElementById('location-input').focus();if(typeof _syncClearBtn==='function')_syncClearBtn()},100);
     const tb=document.getElementById('travel-btn');
     if(S.travelMode){tb.textContent='⏹ Stop Travel Mode';tb.classList.add('active')}
     else{tb.textContent='🧭 Travel Mode — Follow GPS Live';tb.classList.remove('active')}
