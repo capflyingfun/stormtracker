@@ -824,9 +824,9 @@ function _tickTravelCd(){
   const intLabel=fmtGpsInt(intSec);
   const cdStr=_fmtTravelCd(remain)+'/'+intLabel;
   const spdTxt=S._travelSpdTxt||'—';
-  const accTxt=S._travelAccTxt||'';
+  const accTxt=S._travelAccTxt||'—';
   const statusEl=document.getElementById('travel-status');
-  if(statusEl)statusEl.textContent='🧭 '+spdTxt+(accTxt?' · ±'+accTxt:'')+' · '+cdStr;
+  if(statusEl)statusEl.textContent='🧭 '+spdTxt+' · ±'+accTxt+' · '+cdStr;
   if(remain<=0){
     _clearTravelCountdown();
     _travelCycleRefresh();
