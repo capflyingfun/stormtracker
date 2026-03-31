@@ -195,7 +195,7 @@ async function fetchWeather(){
   }
 }
 async function _fetchAWCOnce(){
-  const _isUS=isUSLocation(S.lat,S.lon);
+  const _isUS=isNWSCoverage(S.lat,S.lon);
   const _bboxLevels=_isUS?[1.0,2.0,3.5]:[1.5,3.0];
   const _timeout=_isUS?8000:4000;
   let data=[];
@@ -229,12 +229,12 @@ async function fetchAWCNearest(){
   try{
     const r=await _fetchAWCOnce();
     if(r)return r;
-    if(!isUSLocation(S.lat,S.lon)){console.log('AWC: no nearby station (non-US, skipping retry)');return null}
+    if(!isNWSCoverage(S.lat,S.lon)){console.log('AWC: no nearby station (non-US, skipping retry)');return null}
     console.log('AWC retry in 2s...');
     await new Promise(ok=>setTimeout(ok,2000));
     return await _fetchAWCOnce();
   }catch(e){
-    if(!isUSLocation(S.lat,S.lon)){console.log('AWC nearest failed (non-US, skipping retry):',e.message);return null}
+    if(!isNWSCoverage(S.lat,S.lon)){console.log('AWC nearest failed (non-US, skipping retry):',e.message);return null}
     console.log('AWC nearest error:',e.message,', retrying...');
     try{await new Promise(ok=>setTimeout(ok,2000));return await _fetchAWCOnce()}
     catch(e2){console.log('AWC retry failed:',e2.message);return null}
