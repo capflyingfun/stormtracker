@@ -644,6 +644,7 @@ async function toggleTravelMode(){
       if(!confirmed)return;
     }
   }
+  if(gpsPos){S.lat=gpsPos.coords.latitude;S.lon=gpsPos.coords.longitude}
   S.travelMode=true;
   S.travelLastUpdate=0;
   S.gpsInterval=parseInt(localStorage.getItem('gpsInterval')||'300',10);
