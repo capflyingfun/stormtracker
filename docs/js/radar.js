@@ -1,6 +1,9 @@
 // ==========================================
 // RADAR MAP (RainViewer) — full zoom support
 // ==========================================
+const _RI='img/radar/';
+function _ri(name){return`<img src="${_RI}${name}.svg" alt="">`}
+function _ris(id,name){const el=document.getElementById(id);if(!el)return;const img=el.querySelector('img');if(img)img.src=_RI+name+'.svg';else el.innerHTML=_ri(name)}
 function initRadar(){
   if(!S.lat)return;
   const el=document.getElementById('page-radar');
@@ -19,25 +22,25 @@ function initRadar(){
       </div>
       <div class="radar-time-label" id="radar-time">Loading...</div>
       <div class="map-controls map-controls-left">
-        <div class="map-ctrl-btn" id="radar-scan" title="Home location">📍</div>
-        <div class="map-ctrl-btn" id="radar-scan-view" title="Scan map center">🔍</div>
-        <div class="map-ctrl-btn text-075" id="radar-scan-hires" title="HD Scan (15mi zoom 12)">🔦</div>
-        <div class="map-ctrl-btn" id="radar-toggle-src" title="Toggle radar source" style="font-size:0.55em;font-weight:700;line-height:1">SRC</div>
-        <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km" style="font-size:0.55em;font-weight:700;line-height:1">MI</div>
-        <div class="map-ctrl-btn text-075" id="radar-toggle-airports" title="Toggle airports">✈️</div>
-        <div class="map-ctrl-btn text-075" id="radar-anim-btn" title="Animate radar">▶️</div>
+        <div class="map-ctrl-btn" id="radar-scan" title="Home location">${_ri('scan-home')}</div>
+        <div class="map-ctrl-btn" id="radar-scan-view" title="Scan map center">${_ri('scan-view')}</div>
+        <div class="map-ctrl-btn" id="radar-scan-hires" title="HD Scan (15mi zoom 12)">${_ri('scan-hires')}</div>
+        <div class="map-ctrl-btn" id="radar-toggle-src" title="Toggle radar source">${_ri(S.radarSource==='nexrad'?'source-nex':'source-rv')}</div>
+        <div class="map-ctrl-btn" id="radar-toggle-units" title="Toggle mi/km">${_ri(S.radarMetric?'units-km':'units')}</div>
+        <div class="map-ctrl-btn" id="radar-toggle-airports" title="Toggle airports">${_ri('airports')}</div>
+        <div class="map-ctrl-btn" id="radar-anim-btn" title="Animate radar">${_ri('play')}</div>
       </div>
       <div class="map-controls map-controls-right">
-        <div class="map-ctrl-btn" id="btn-zones" title="Toggle storm zones" style="font-size:0.55em;font-weight:700;line-height:1;color:#cc00ff" onclick="toggleStormZones()">ZN</div>
-        <div class="map-ctrl-btn" id="btn-path-arrows" title="Toggle storm path arrows" style="font-size:0.55em;font-weight:700;line-height:1;color:#ffcc00" onclick="togglePathArrows()">➤</div>
-        <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" style="font-size:0.55em;font-weight:700;line-height:1;color:var(--accent-cyan)" onclick="toggleStormPoints()">PT</div>
-        <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff9800" onclick="toggleRadarOverlay()">RDR</div>
-        <div class="map-ctrl-btn" id="btn-mping" title="Toggle mPING reports" style="font-size:0.55em;font-weight:700;line-height:1;color:#4fc3f7" onclick="toggleMping()">mP</div>
-        <div class="map-ctrl-btn" id="btn-alert-polys" title="Toggle NWS alert polygons" style="font-size:0.55em;font-weight:700;line-height:1;color:#ff4444" onclick="toggleAlertPolygons()">⚠</div>
-        <div class="map-ctrl-btn" id="btn-nhc-tracks" title="Toggle hurricane tracks" style="font-size:0.55em;font-weight:700;line-height:1;color:#9333EA;opacity:${S._showNHCTracks?1:0.4}" onclick="toggleNHCTracks(!S._showNHCTracks)">🌀</div>
-        <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="font-size:0.7em;display:none" onclick="clearStormCone()">✕</div>
-        <div class="map-ctrl-btn" id="btn-iso-3d" title="3D Storm Terrain" style="font-size:0.55em;font-weight:700;line-height:1;color:#66ffcc" onclick="show3DView()">3D</div>
-        <div class="map-ctrl-btn" id="clutter-toggle" title="Clutter hidden (tap to show)" style="font-size:0.7em;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);border-color:#555" onclick="toggleClutter()">🕳️</div>
+        <div class="map-ctrl-btn" id="btn-zones" title="Toggle storm zones" onclick="toggleStormZones()">${_ri('zones')}</div>
+        <div class="map-ctrl-btn" id="btn-path-arrows" title="Toggle storm path arrows" onclick="togglePathArrows()">${_ri('path-arrows')}</div>
+        <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" onclick="toggleStormPoints()">${_ri(S._pointsMode==='inbound'?'points-12':'points')}</div>
+        <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" onclick="toggleRadarOverlay()">${_ri('radar-overlay')}</div>
+        <div class="map-ctrl-btn" id="btn-mping" title="Toggle mPING reports" onclick="toggleMping()">${_ri('mping')}</div>
+        <div class="map-ctrl-btn" id="btn-alert-polys" title="Toggle NWS alert polygons" onclick="toggleAlertPolygons()">${_ri('alert-polys')}</div>
+        <div class="map-ctrl-btn" id="btn-nhc-tracks" title="Toggle hurricane tracks" style="opacity:${S._showNHCTracks?1:0.4}" onclick="toggleNHCTracks(!S._showNHCTracks)">${_ri('hurricane')}</div>
+        <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="display:none" onclick="clearStormCone()">${_ri('clear')}</div>
+        <div class="map-ctrl-btn" id="btn-iso-3d" title="3D Storm Terrain" onclick="show3DView()">${_ri('terrain-3d')}</div>
+        <div class="map-ctrl-btn" id="clutter-toggle" title="Clutter hidden (tap to show)" style="display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);border-color:#555" onclick="toggleClutter()">${_ri('clutter')}</div>
       </div>
       <div class="radar-anim-bar" id="radar-anim-bar" style="display:none">
         <input type="range" id="radar-anim-slider" min="0" max="0" value="0" class="flex-1">
@@ -112,7 +115,7 @@ function initRadar(){
     document.getElementById('radar-toggle-airports').addEventListener('click',()=>{toggleAirportMarkers(map)});
     document.getElementById('radar-toggle-units').addEventListener('click',()=>{
       S.radarMetric=!S.radarMetric;
-      document.getElementById('radar-toggle-units').textContent=S.radarMetric?'KM':'MI';
+      _ris('radar-toggle-units',S.radarMetric?'units-km':'units');
       let openIdx=-1;
       S.stormMarkers.forEach((m,i)=>{if(m.getPopup&&m.getPopup()&&m.isPopupOpen())openIdx=i});
       plotStormMarkers(map);
@@ -126,9 +129,9 @@ function initRadar(){
     const zbtn=document.getElementById('btn-zones');if(zbtn)zbtn.style.opacity=S._showZones?'1':'0.4';
     const pbtn=document.getElementById('btn-points');
     if(pbtn){
-      if(S._pointsMode==='inbound'){pbtn.style.opacity='1';pbtn.textContent='12▶';pbtn.style.color='#ffcc00';}
-      else if(S._pointsMode==='all'){pbtn.style.opacity='1';pbtn.textContent='PT';pbtn.style.color='var(--accent-cyan)';}
-      else{pbtn.style.opacity='0.4';pbtn.textContent='PT';pbtn.style.color='var(--accent-cyan)';}
+      if(S._pointsMode==='inbound'){pbtn.style.opacity='1';_ris('btn-points','points-12');}
+      else if(S._pointsMode==='all'){pbtn.style.opacity='1';_ris('btn-points','points');}
+      else{pbtn.style.opacity='0.4';_ris('btn-points','points');}
     }
     const rbtn=document.getElementById('btn-radar-overlay');if(rbtn)rbtn.style.opacity=S._radarOverlayVisible?'1':'0.4';
     const pabtn=document.getElementById('btn-path-arrows');if(pabtn)pabtn.style.opacity=S._showPathArrows?'1':'0.4';
@@ -254,7 +257,7 @@ async function buildNexradFrames(lat,lon){
 async function toggleRadarAnim(map){
   if(S._radarAnimPlaying) return stopRadarAnim(map);
   const btn=document.getElementById('radar-anim-btn');
-  btn.textContent='⏳';
+  _ris('radar-anim-btn','anim-loading');
   let animFrames=[];
   if(S.radarSource==='nexrad'){
     const center=map.getCenter();
@@ -265,7 +268,7 @@ async function toggleRadarAnim(map){
     S._radarAnimSrc='nexrad';
     S._radarAnimSite=nearSite;
   }else{
-    if(!S.radarFrames.length){toast('No radar frames available');btn.textContent='▶️';return}
+    if(!S.radarFrames.length){toast('No radar frames available');_ris('radar-anim-btn','play');return}
     const pastCount=(S.radarFrames||[]).filter(f=>!f.path||!f.path.includes('/nowcast/')).length;
     animFrames=S.radarFrames.map((f,i)=>({
       time:f.time, type:i<pastCount?'past':'forecast',
@@ -273,11 +276,11 @@ async function toggleRadarAnim(map){
     }));
     S._radarAnimSrc='rainviewer';
   }
-  if(!animFrames.length){toast('No radar frames available');btn.textContent='▶️';return}
+  if(!animFrames.length){toast('No radar frames available');_ris('radar-anim-btn','play');return}
   S._radarAnimFrames=animFrames;
   S._radarAnimPlaying=true;
   S._radarAnimPaused=true;
-  btn.textContent='⏹️';btn.classList.add('active');
+  _ris('radar-anim-btn','stop');btn.classList.add('active');
   const bar=document.getElementById('radar-anim-bar');
   bar.style.display='flex';
   const slider=document.getElementById('radar-anim-slider');
@@ -302,7 +305,7 @@ function stopRadarAnim(map){
   clearInterval(S._radarAnimTimer);
   S._radarAnimFrames=[];
   const btn=document.getElementById('radar-anim-btn');
-  if(btn){btn.textContent='▶️';btn.classList.remove('active')}
+  if(btn){_ris('radar-anim-btn','play');btn.classList.remove('active')}
   const bar=document.getElementById('radar-anim-bar');
   if(bar)bar.style.display='none';
   if(!map)return;
@@ -351,7 +354,7 @@ function showRadarLayer(map){
   const btn=document.getElementById('radar-toggle-src');
   if(S.radarSource==='nexrad'){
     S.radarLayer=L.tileLayer(`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?t=${Date.now()}`,{opacity:0.7,maxZoom:11,maxNativeZoom:8}).addTo(map);
-    if(btn){btn.textContent='NEX';btn.style.background='var(--accent-blue)'}
+    if(btn){_ris('radar-toggle-src','source-nex');btn.style.background='var(--accent-blue)'}
     if(lbl)lbl.textContent='NEXRAD (US) \u00B7 📍 Home \u00B7 🔍 Scan here \u00B7 🔦 HD Scan';
     const t=new Date();
     const el=document.getElementById('radar-time');
@@ -365,7 +368,7 @@ function showRadarLayer(map){
       const el=document.getElementById('radar-time');
       if(el)el.textContent=fmtClock(t);
     }
-    if(btn){btn.textContent='RV';btn.style.background=''}
+    if(btn){_ris('radar-toggle-src','source-rv');btn.style.background=''}
     if(lbl)lbl.textContent='RainViewer \u00B7 Updated every 10 min \u00B7 📍 Home \u00B7 🔍 Scan here \u00B7 🔦 HD Scan';
   }
   if(S._showZones&&S._rawScanPts&&S._rawScanPts.length>0&&!S._radarOverlayVisible&&S._zoneOverlays&&S._zoneOverlays.length>0&&_shouldAutoHideRadar()&&S.radarLayer&&map.hasLayer(S.radarLayer)){try{map.removeLayer(S.radarLayer)}catch(e){}}
@@ -1715,7 +1718,7 @@ function autoActivateZones(){
     try{localStorage.setItem('st_pointsMode','off')}catch(e){}
     S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});
     const btn=document.getElementById('btn-points');
-    if(btn){btn.style.opacity='0.4';btn.textContent='PT';btn.style.color='var(--accent-cyan)';}
+    if(btn){btn.style.opacity='0.4';_ris('btn-points','points');}
   }
   if(!S._radarOverlayVisible&&S.radarLayer&&S.map){
     if(_shouldAutoHideRadar()){try{S.map.removeLayer(S.radarLayer)}catch(e){}}
@@ -2081,13 +2084,13 @@ function toggleStormPoints(){
   const btn=document.getElementById('btn-points');
   if(S._pointsMode==='off'){
     S.stormMarkers.forEach(m=>{try{S.map.removeLayer(m)}catch(e){}});
-    if(btn){btn.style.opacity='0.4';btn.textContent='PT';btn.style.color='var(--accent-cyan)';}
+    if(btn){btn.style.opacity='0.4';_ris('btn-points','points');}
   }else if(S._pointsMode==='inbound'){
     if(S.map)plotStormMarkers(S.map);
-    if(btn){btn.style.opacity='1';btn.textContent='12▶';btn.style.color='#ffcc00';}
+    if(btn){btn.style.opacity='1';_ris('btn-points','points-12');}
   }else{
     if(S.map)plotStormMarkers(S.map);
-    if(btn){btn.style.opacity='1';btn.textContent='PT';btn.style.color='var(--accent-cyan)';}
+    if(btn){btn.style.opacity='1';_ris('btn-points','points');}
   }
 }
 
