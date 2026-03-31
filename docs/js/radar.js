@@ -2121,8 +2121,12 @@ function plotStormTracks(map){
   let storms=getVisibleStormList();
   if(!storms.length)return;
   if(S._tracksMode==='inbound'){
-    storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)});
-    storms=storms.filter(s=>s._eta&&s._eta.approaching&&s._eta.impact>0).sort((a,b)=>(b._eta.impact||0)-(a._eta.impact||0)).slice(0,12);
+    if(S._topStorms&&S._topStorms.length){
+      storms=storms.filter(s=>S._topStorms.includes(s));
+    }else{
+      storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)});
+      storms=storms.filter(s=>s._eta&&s._eta.approaching&&s._eta.impact>0).sort((a,b)=>(b._eta.impact||0)-(a._eta.impact||0)).slice(0,12);
+    }
   }
   storms.forEach(s=>{
     const range=Math.min(60,Math.max(s.distance*1.5,20));
