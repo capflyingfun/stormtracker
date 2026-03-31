@@ -133,9 +133,9 @@ function _doGPSLocate(){
   toggleLocOverlay(false);
   toast('Getting location...');
   let _gpsGot=false;
-  let _gpsRetried=false;
+  let _activeAttempt=1;
   const _gpsWait=setTimeout(()=>{if(!_gpsGot)toast('📍 Still acquiring GPS — hang tight...')},5000);
-  function _gpsSuccess(pos){
+  function _gpsOk(pos){
     if(_gpsGot)return;_gpsGot=true;
     clearTimeout(_gpsWait);clearTimeout(_gpsRetry);
     toast('📍 GPS locked — accuracy ±'+Math.round(pos.coords.accuracy)+'m');
@@ -143,8 +143,8 @@ function _doGPSLocate(){
     S._gpsLocating=true;
     reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{S._gpsLocating=false});
   }
-  function _gpsFinalError(err){
-    _gpsGot=true;
+  function _gpsFail(err){
+    if(_gpsGot)return;_gpsGot=true;
     clearTimeout(_gpsWait);clearTimeout(_gpsRetry);
     if(err.code===1){
       toast('📍 Location permission denied — please enable location in your browser/phone settings, then try again');
@@ -162,17 +162,20 @@ function _doGPSLocate(){
       toast('📍 Could not get location — try searching instead');
     }
   }
-  function _gpsError(err){
-    if(_gpsGot)return;
-    if(err.code===1){_gpsFinalError(err);return}
-    if(_gpsRetried){_gpsFinalError(err);return}
+  function _makeCallbacks(attempt){
+    return[
+      pos=>_gpsOk(pos),
+      err=>{if(_gpsGot)return;if(err.code===1){_gpsFail(err);return}if(attempt<_activeAttempt)return;_gpsFail(err)}
+    ];
   }
-  navigator.geolocation.getCurrentPosition(_gpsSuccess,_gpsError,{enableHighAccuracy:true,timeout:20000,maximumAge:60000});
+  const [s1,e1]=_makeCallbacks(1);
+  navigator.geolocation.getCurrentPosition(s1,e1,{enableHighAccuracy:true,timeout:20000,maximumAge:60000});
   const _gpsRetry=setTimeout(()=>{
     if(!_gpsGot){
-      _gpsRetried=true;
+      _activeAttempt=2;
       toast('📍 Retrying GPS...');
-      navigator.geolocation.getCurrentPosition(_gpsSuccess,_gpsError,{enableHighAccuracy:true,timeout:20000,maximumAge:60000});
+      const [s2,e2]=_makeCallbacks(2);
+      navigator.geolocation.getCurrentPosition(s2,e2,{enableHighAccuracy:true,timeout:20000,maximumAge:60000});
     }
   },2000);
 }
