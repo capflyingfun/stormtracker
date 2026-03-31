@@ -1,5 +1,5 @@
-// Version: v3.52 (display) | cache-bust counter: 401 (used in ?v= query strings and SW cache name)
-const CACHE_NAME = 'stormtracker-v401';
+// Version: v3.52 (display) | cache-bust counter: 402 (used in ?v= query strings and SW cache name)
+const CACHE_NAME = 'stormtracker-v402';
 const STATIC_ASSETS = [
   '/StormTracker/',
   '/StormTracker/index.html',
@@ -20,7 +20,33 @@ const STATIC_ASSETS = [
   '/StormTracker/js/alerts.js',
   '/StormTracker/js/ai.js',
   '/StormTracker/js/init.js',
-  '/StormTracker/css/style.css'
+  '/StormTracker/css/style.css',
+  '/StormTracker/img/radar/scan-home.svg',
+  '/StormTracker/img/radar/scan-view.svg',
+  '/StormTracker/img/radar/scan-hires.svg',
+  '/StormTracker/img/radar/source.svg',
+  '/StormTracker/img/radar/source-nex.svg',
+  '/StormTracker/img/radar/source-rv.svg',
+  '/StormTracker/img/radar/units.svg',
+  '/StormTracker/img/radar/units-km.svg',
+  '/StormTracker/img/radar/airports.svg',
+  '/StormTracker/img/radar/play.svg',
+  '/StormTracker/img/radar/pause.svg',
+  '/StormTracker/img/radar/stop.svg',
+  '/StormTracker/img/radar/anim-loading.svg',
+  '/StormTracker/img/radar/zones.svg',
+  '/StormTracker/img/radar/path-arrows.svg',
+  '/StormTracker/img/radar/points.svg',
+  '/StormTracker/img/radar/points-12.svg',
+  '/StormTracker/img/radar/tracks.svg',
+  '/StormTracker/img/radar/tracks-12.svg',
+  '/StormTracker/img/radar/radar-overlay.svg',
+  '/StormTracker/img/radar/mping.svg',
+  '/StormTracker/img/radar/alert-polys.svg',
+  '/StormTracker/img/radar/hurricane.svg',
+  '/StormTracker/img/radar/clear.svg',
+  '/StormTracker/img/radar/terrain-3d.svg',
+  '/StormTracker/img/radar/clutter.svg'
 ];
 
 self.addEventListener('install', event => {

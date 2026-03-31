@@ -130,6 +130,7 @@ details.card>summary{list-style:none}
 .map-controls-right{right:10px}
 .map-ctrl-btn{width:32px;height:32px;border-radius:6px;background:rgba(17,24,39,0.85);border:1px solid rgba(255,255,255,0.12);color:var(--text-primary);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.8em;backdrop-filter:blur(10px)}
 .map-ctrl-btn:hover{border-color:var(--accent-blue)}
+.map-ctrl-btn img{width:20px;height:20px;pointer-events:none}
 .map-ctrl-btn.active{background:var(--accent-blue);border-color:var(--accent-blue);color:#fff}
 .radar-anim-bar{position:absolute;bottom:36px;left:10px;right:10px;z-index:500;display:flex;align-items:center;gap:8px;background:rgba(17,24,39,0.9);border:1px solid var(--border-subtle);border-radius:8px;padding:6px 10px;backdrop-filter:blur(10px)}
 .radar-anim-bar input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:linear-gradient(to right,var(--accent-cyan) calc(var(--pct,0)*100%),rgba(255,255,255,0.15) calc(var(--pct,0)*100%));outline:none;cursor:pointer}
