@@ -488,20 +488,9 @@ function renderWeather(data){
         <div class="hero-stat-cell"><div class="hero-side-label">Spread</div><div class="hero-side-val">${fmtTempDiff(tempC-dewC)}</div><div style="font-size:0.42em;color:var(--text-muted);margin-top:1px;line-height:1.2">${getSpreadLabel(tempC-dewC)}</div>${(()=>{
   const _spread=tempC-dewC;
   const _estB=adjustCloudBaseForUser(calcCloudBase(_spread));
-  // 3-hour spread trend from hourly forecast — wider spread = rising base, narrowing = lowering base
-  let _arrow='';
-  if(hourly&&hourly.time&&hourly.temperature_2m&&hourly.dew_point_2m){
-    const _now=Date.now();
-    const _nowIdx=hourly.time.findIndex(t=>new Date(t).getTime()>=_now);
-    if(_nowIdx>=0&&_nowIdx+3<hourly.time.length){
-      const _s0=hourly.temperature_2m[_nowIdx]-hourly.dew_point_2m[_nowIdx];
-      const _s3=hourly.temperature_2m[_nowIdx+3]-hourly.dew_point_2m[_nowIdx+3];
-      const _delta=_s3-_s0; // positive = spread widening = cloud base rising = improving
-      if(_delta>0.5)_arrow='<span style="color:#39ff14;font-size:1.2em;text-shadow:0 0 6px rgba(57,255,20,0.6)">⤴</span>';
-      else if(_delta<-0.5)_arrow='<span style="color:#ff3355;font-size:1.2em;text-shadow:0 0 6px rgba(255,51,85,0.6)">⤵</span>';
-      else _arrow='<span style="color:var(--text-muted);font-size:1.1em">→</span>';
-    }
-  }
+  const _s0=_hIdx>=0&&hourly.temperature_2m&&hourly.dew_point_2m?hourly.temperature_2m[_hIdx]-hourly.dew_point_2m[_hIdx]:null;
+  const _s1=_h1>=0&&hourly.temperature_2m&&hourly.dew_point_2m?hourly.temperature_2m[_h1]-hourly.dew_point_2m[_h1]:null;
+  const _arrow=_ta(_s0,_s1,0.5);
   return`<div id="weather-spread-cb" data-spread="${_spread}" style="font-size:0.38em;color:var(--accent-cyan);margin-top:1px;line-height:1.1">Est. base ~${fmtAlt(_estB)} AGL ${_arrow}</div>`;
 })()}</div>
         ${(()=>{const spread=tempC-dewC;const windKt=c.wind_speed_10m!=null?(c.wind_speed_10m/1.852):null;const fog=getFogRisk(spread,windKt,isDay,c.cloud_cover);const stab=getStabilityLabel(spread,Math.min(100,c.relative_humidity_2m),tempC);const inv=detectInversion(spread,windKt,isDay,c.cloud_cover);return`<div class="hero-stat-cell"><div class="hero-side-label">🌫️ Fog Risk</div><div class="hero-side-val" style="font-size:0.85em;color:${fog.color}">${fog.level}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${fog.desc}</div></div><div class="hero-stat-cell"><div class="hero-side-label">🌡️ Stability</div><div class="hero-side-val" style="font-size:0.75em;color:${stab.color}">${stab.label}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${stab.desc}</div></div>${inv.detected?`<div class="hero-stat-cell" style="grid-column:1/-1"><div style="font-size:0.5em;color:var(--accent-orange);text-align:center;padding:2px 6px;background:rgba(255,152,0,0.1);border-radius:4px">⚠️ ${inv.text}</div></div>`:''}`})()}
