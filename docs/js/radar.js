@@ -936,6 +936,7 @@ function zoomScale(map){
 function plotStormMarkers(map){
   S.stormMarkers.forEach(m=>map.removeLayer(m));S.stormMarkers=[];
   clearStormCone();
+  clearStormTracks();
   updateClutterButton();
   const stormList=getVisibleStormList();
   if(!stormList.length)return;
