@@ -34,6 +34,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="btn-zones" title="Toggle storm zones" onclick="toggleStormZones()">${_ri('zones')}</div>
         <div class="map-ctrl-btn" id="btn-path-arrows" title="Toggle storm path arrows" onclick="togglePathArrows()">${_ri('path-arrows')}</div>
         <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" onclick="toggleStormPoints()">${_ri(S._pointsMode==='inbound'?'points-12':'points')}</div>
+        <div class="map-ctrl-btn" id="btn-tracks" title="Toggle storm track cones" onclick="toggleStormTracks()">${_ri(S._tracksMode==='inbound'?'tracks-12':'tracks')}</div>
         <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" onclick="toggleRadarOverlay()">${_ri('radar-overlay')}</div>
         <div class="map-ctrl-btn" id="btn-mping" title="Toggle mPING reports" onclick="toggleMping()">${_ri('mping')}</div>
         <div class="map-ctrl-btn" id="btn-alert-polys" title="Toggle NWS alert polygons" onclick="toggleAlertPolygons()">${_ri('alert-polys')}</div>
@@ -132,6 +133,12 @@ function initRadar(){
       if(S._pointsMode==='inbound'){pbtn.style.opacity='1';_ris('btn-points','points-12');}
       else if(S._pointsMode==='all'){pbtn.style.opacity='1';_ris('btn-points','points');}
       else{pbtn.style.opacity='0.4';_ris('btn-points','points');}
+    }
+    const tkbtn=document.getElementById('btn-tracks');
+    if(tkbtn){
+      if(S._tracksMode==='inbound'){tkbtn.style.opacity='1';_ris('btn-tracks','tracks-12');}
+      else if(S._tracksMode==='all'){tkbtn.style.opacity='1';_ris('btn-tracks','tracks');}
+      else{tkbtn.style.opacity='0.4';_ris('btn-tracks','tracks');}
     }
     const rbtn=document.getElementById('btn-radar-overlay');if(rbtn)rbtn.style.opacity=S._radarOverlayVisible?'1':'0.4';
     const pabtn=document.getElementById('btn-path-arrows');if(pabtn)pabtn.style.opacity=S._showPathArrows?'1':'0.4';
@@ -1092,6 +1099,7 @@ function plotStormMarkers(map){
         S.stormMarkers.push(torIcon);
       }
     });
+    if(S._tracksMode!=='off')plotStormTracks(map);
   })});
 }
 
@@ -1931,6 +1939,9 @@ try{const ps=localStorage.getItem('st_arrowStyle');if(ps==='pointer')S._pathArro
 S._showPoints=true;
 S._pointsMode='inbound';
 try{const pv=localStorage.getItem('st_pointsMode');if(pv){S._pointsMode=pv;S._showPoints=(pv!=='off')}}catch(e){}
+S._tracksMode='off';
+S._trackCones=[];
+try{const tv=localStorage.getItem('st_tracksMode');if(tv)S._tracksMode=tv}catch(e){}
 try{const mv=localStorage.getItem('st_mping');if(mv==='1')S._mpingPendingRestore=true}catch(e){}
 
 function clearPathArrows(){
@@ -2091,6 +2102,67 @@ function toggleStormPoints(){
   }else{
     if(S.map)plotStormMarkers(S.map);
     if(btn){btn.style.opacity='1';_ris('btn-points','points');}
+  }
+}
+
+function clearStormTracks(){
+  if(!S._trackCones)S._trackCones=[];
+  S._trackCones.forEach(l=>{try{if(S.map)S.map.removeLayer(l)}catch(e){}});
+  S._trackCones=[];
+}
+function plotStormTracks(map){
+  clearStormTracks();
+  if(S._tracksMode==='off'||!map)return;
+  const mv=S.stormMovement;
+  const hasAloft=S._upperWindDir!=null;
+  const _mv=mv&&mv.speed>=2?mv:(hasAloft?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
+  if(!_mv||_mv.speed<2)return;
+  let storms=getVisibleStormList();
+  if(!storms.length)return;
+  if(S._tracksMode==='inbound'){
+    storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)});
+    storms=storms.filter(s=>s._eta&&s._eta.approaching&&s._eta.impact>0).sort((a,b)=>(b._eta.impact||0)-(a._eta.impact||0)).slice(0,12);
+  }
+  storms.forEach(s=>{
+    const range=Math.min(60,Math.max(s.distance*1.5,20));
+    const color=dbzHex(s.dbz);
+    const dir=_mv.direction;
+    const baseWidthMi=Math.max(0,Math.min(3,(s.dbz-20)/15));
+    const perpL=(dir-90+360)%360;
+    const perpR=(dir+90)%360;
+    let pts;
+    if(baseWidthMi>0.1){
+      const bL=destPoint(s.lat,s.lng,perpL,baseWidthMi);
+      const bR=destPoint(s.lat,s.lng,perpR,baseWidthMi);
+      const fL=destPoint(bL[0],bL[1],dir-15,range);
+      const fC=destPoint(s.lat,s.lng,dir,range);
+      const fR=destPoint(bR[0],bR[1],dir+15,range);
+      pts=[bL,fL,fC,fR,bR];
+    }else{
+      const fL=destPoint(s.lat,s.lng,dir-15,range);
+      const fC=destPoint(s.lat,s.lng,dir,range);
+      const fR=destPoint(s.lat,s.lng,dir+15,range);
+      pts=[[s.lat,s.lng],fL,fC,fR,[s.lat,s.lng]];
+    }
+    const poly=L.polygon(pts,{color,fillColor:color,fillOpacity:0.06,weight:1,dashArray:'4,4',opacity:0.5,interactive:false}).addTo(map);
+    S._trackCones.push(poly);
+  });
+}
+function toggleStormTracks(){
+  const modes=['off','inbound','all'];
+  const cur=modes.indexOf(S._tracksMode);
+  S._tracksMode=modes[(cur+1)%3];
+  try{localStorage.setItem('st_tracksMode',S._tracksMode)}catch(e){}
+  const btn=document.getElementById('btn-tracks');
+  if(S._tracksMode==='off'){
+    clearStormTracks();
+    if(btn){btn.style.opacity='0.4';_ris('btn-tracks','tracks');}
+  }else if(S._tracksMode==='inbound'){
+    if(S.map)plotStormTracks(S.map);
+    if(btn){btn.style.opacity='1';_ris('btn-tracks','tracks-12');}
+  }else{
+    if(S.map)plotStormTracks(S.map);
+    if(btn){btn.style.opacity='1';_ris('btn-tracks','tracks');}
   }
 }
 
