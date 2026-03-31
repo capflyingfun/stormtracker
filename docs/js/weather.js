@@ -410,7 +410,7 @@ function renderWeather(data){
       ${renderTrendCharts(hourly)}</div>`,
     hourly:`<div class="weather-section" data-sec="hourly"><div class="sec-header"><span class="card-title m-0"><span class="icon">🕐</span> 72h Hourly Forecast</span>${secBtns('hourly')}</div>
       ${renderHourlyForecast(hourly,daily)}</div>`,
-    forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${data._nwsForecast?renderNWSForecast(data._nwsForecast):renderDailyForecast(daily)}</div>`
+    forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${data._nwsForecast?renderNWSForecast(data._nwsForecast):renderDailyForecast(daily,data.timezone)}</div>`
   };
   const order=getSecOrder();
 
@@ -1347,26 +1347,38 @@ function _renderFcPeriodCol(p,label,icon,isNight){
   </div>`;
 }
 
-function renderDailyForecast(d){
+function renderDailyForecast(d,tz){
   if(!d||!d.time)return'';
-  const nowLocal=new Date();
-  const todayStr=nowLocal.getFullYear()+'-'+String(nowLocal.getMonth()+1).padStart(2,'0')+'-'+String(nowLocal.getDate()).padStart(2,'0');
+  let safeTz;
+  try{Intl.DateTimeFormat('en',{timeZone:tz});safeTz=tz}catch(e){safeTz=undefined}
+  let todayStr;
+  try{
+    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:safeTz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    todayStr=parts.find(p=>p.type==='year').value+'-'+parts.find(p=>p.type==='month').value+'-'+parts.find(p=>p.type==='day').value;
+  }catch(e){
+    const n=new Date();todayStr=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');
+  }
+  let todayIdx=d.time.indexOf(todayStr);
+  if(todayIdx<0){todayIdx=d.time.findIndex(t=>t>=todayStr);if(todayIdx<0)todayIdx=0}
+  const futureTime=d.time.slice(todayIdx);
   const initShow=4;
-  const cards=d.time.map((t,i)=>{
-    const dt=new Date(t+'T12:00');
-    const dayName=t===todayStr?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'long'});
-    const hiC=d.temperature_2m_max[i],loC=d.temperature_2m_min[i];
+  const cards=futureTime.map((t,vi)=>{
+    const oi=todayIdx+vi;
+    const [yy,mm,dd]=t.split('-').map(Number);
+    const dt=new Date(Date.UTC(yy,mm-1,dd,12,0,0));
+    const dayName=t===todayStr?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'long',timeZone:'UTC'});
+    const hiC=d.temperature_2m_max[oi],loC=d.temperature_2m_min[oi];
     const hiMain=fmtTempShort(hiC),loMain=fmtTempShort(loC);
     const hiSec=_fmtSecondary(hiC),loSec=_fmtSecondary(loC);
-    const rain=d.precipitation_probability_max?d.precipitation_probability_max[i]:0;
-    const wind=d.wind_speed_10m_max?fmtWind(d.wind_speed_10m_max[i]):'';
-    const code=d.weather_code[i];
+    const rain=d.precipitation_probability_max?d.precipitation_probability_max[oi]:0;
+    const wind=d.wind_speed_10m_max?fmtWind(d.wind_speed_10m_max[oi]):'';
+    const code=d.weather_code[oi];
     const desc=wmoDesc(code);
     const tags=_wxTags(desc);
     const severe=(code>=95);
     const emDay=animEmoji(code,true,'1.2em');
     const emNight=animEmoji(code,false,'1.2em');
-    const hidden=i>=initShow?' style="display:none" data-fc-extra':'';
+    const hidden=vi>=initShow?' style="display:none" data-fc-extra':'';
     return`<div class="fc-day-card"${hidden}>
       <div class="fc-day-header">
         <span class="fc-day-name">${dayName}</span>
@@ -1391,11 +1403,11 @@ function renderDailyForecast(d){
           ${rain>0?`<div class="fc-col-rain">💧 ${rain}%</div>`:''}
         </div>
       </div>
-      <div class="fc-detail-toggle" onclick="toggleDailyDetail(this,${i})">Show Details</div>
-      <div class="fc-detail-body" id="fc-detail-${i}" style="display:none"></div>
+      <div class="fc-detail-toggle" onclick="toggleDailyDetail(this,${oi})">Show Details</div>
+      <div class="fc-detail-body" id="fc-detail-${oi}" style="display:none"></div>
     </div>`;
   }).join('');
-  const showMore=d.time.length>initShow?`<div class="fc-show-more" id="fc-show-more" onclick="toggleFcMore()">Show More ▾</div>`:'';
+  const showMore=futureTime.length>initShow?`<div class="fc-show-more" id="fc-show-more" onclick="toggleFcMore()">Show More ▾</div>`:'';
   return`<div class="card"><div class="card-title"><span class="icon">📊</span> ${tStr('Forecast')}</div>${cards}${showMore}</div>`;
 }
 function toggleFcMore(){
