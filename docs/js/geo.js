@@ -401,7 +401,7 @@ function setLoc(lat,lon,name,opts){
   const _reqId=S._locReqId;
   document.getElementById('status-text').textContent=(fromTravel?'🧭 Travel Mode · ':'Live · ')+S.locName;
   fetchAlerts();
-  (async()=>{
+  const _refreshDone=(async()=>{
     await fetchWeather();
     if(_reqId!==S._locReqId)return;
     await scanRadarForStorms();
@@ -411,6 +411,7 @@ function setLoc(lat,lon,name,opts){
   })();
   if(!fromTravel)scheduleHourlyRefresh();
   if(typeof refreshMpingIfVisible==='function')refreshMpingIfVisible();
+  return _refreshDone;
 }
 
 function getFavorites(){
@@ -787,7 +788,7 @@ function _fmtTravelCd(sec){
   const m=Math.floor(sec/60),s=sec%60;
   return String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s';
 }
-function startGpsWatch(){
+async function startGpsWatch(){
   if(S.travelWatchId!==null){navigator.geolocation.clearWatch(S.travelWatchId);S.travelWatchId=null}
   _clearTravelCountdown();
   S.travelWatchId=navigator.geolocation.watchPosition(
@@ -796,13 +797,14 @@ function startGpsWatch(){
     {enableHighAccuracy:true, maximumAge:5000, timeout:20000}
   );
   if(S.lat){
-    reverseGeocode(S.lat,S.lon).then(name=>{
+    try{
+      const name=await reverseGeocode(S.lat,S.lon);
       if(!S.travelMode)return;
       const locName=name||`${S.lat.toFixed(4)}, ${S.lon.toFixed(4)}`;
-      setLoc(S.lat,S.lon,locName,{fromTravel:true});
-    }).catch(()=>{});
+      await setLoc(S.lat,S.lon,locName,{fromTravel:true});
+    }catch(e){}
   }
-  _startTravelCountdown();
+  if(S.travelMode)_startTravelCountdown();
 }
 function _clearTravelCountdown(){
   if(S._travelCdTimer){clearInterval(S._travelCdTimer);S._travelCdTimer=null}
@@ -850,21 +852,11 @@ async function _travelCycleRefresh(){
   }catch(e){
     if(!S.travelMode)return;
   }
-  if(!lat)return void(S.travelMode&&_startTravelCountdown());
+  if(lat==null)return void(S.travelMode&&_startTravelCountdown());
   const name=await reverseGeocode(lat,lon).catch(()=>null);
   if(!S.travelMode)return;
   const locName=name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-  S.locName=locName;
-  S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
-  document.getElementById('status-text').textContent='🧭 Travel Mode · '+locName;
-  try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name:locName}))}catch(e){}
-  if(S.map){S.map.setView([lat,lon],S.map.getZoom());showRadarLayer(S.map);}
-  fetchAlerts();fetchHazards();
-  try{
-    await fetchWeather();
-    if(!S.travelMode)return;
-    await scanRadarForStorms();
-  }catch(e){}
+  try{await setLoc(lat,lon,locName,{fromTravel:true})}catch(e){}
   if(S.travelMode)_startTravelCountdown();
 }
 function onTravelPosition(pos){
