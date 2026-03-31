@@ -2053,7 +2053,7 @@ function renderStorms(){
   if(mv&&mv.speed>=2){storms.forEach(s=>{s._eta=calcStormETA(s)})}else{storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)})}
   let inConeCount=0;
   if(mv&&mv.speed>=2){
-    const uLat=S.lat,uLng=S.lng;
+    const uLat=S.lat,uLng=S.lon;
     storms.forEach(s=>{
       const range=Math.min(60,Math.max(s.distance*1.5,20));
       const dir=mv.direction;
