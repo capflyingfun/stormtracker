@@ -372,7 +372,8 @@ function setLoc(lat,lon,name,opts){
   (async()=>{
     await fetchWeather();
     if(_reqId!==S._locReqId)return;
-    scanRadarForStorms();
+    await scanRadarForStorms();
+    if(_reqId!==S._locReqId)return;
     fetchHazards();
     fetchTerrainGrid();
   })();
