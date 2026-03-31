@@ -1349,21 +1349,24 @@ function _renderFcPeriodCol(p,label,icon,isNight){
 
 function renderDailyForecast(d,tz){
   if(!d||!d.time)return'';
+  let safeTz;
+  try{Intl.DateTimeFormat('en',{timeZone:tz});safeTz=tz}catch(e){safeTz=undefined}
   let todayStr;
   try{
-    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:tz||undefined,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:safeTz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
     todayStr=parts.find(p=>p.type==='year').value+'-'+parts.find(p=>p.type==='month').value+'-'+parts.find(p=>p.type==='day').value;
   }catch(e){
     const n=new Date();todayStr=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');
   }
   let todayIdx=d.time.indexOf(todayStr);
-  if(todayIdx<0)todayIdx=0;
+  if(todayIdx<0){todayIdx=d.time.findIndex(t=>t>=todayStr);if(todayIdx<0)todayIdx=0}
   const futureTime=d.time.slice(todayIdx);
   const initShow=4;
   const cards=futureTime.map((t,vi)=>{
     const oi=todayIdx+vi;
-    const dt=new Date(t+'T12:00');
-    const dayName=t===todayStr?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'long',timeZone:tz||undefined});
+    const [yy,mm,dd]=t.split('-').map(Number);
+    const dt=new Date(Date.UTC(yy,mm-1,dd,12,0,0));
+    const dayName=t===todayStr?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'long',timeZone:'UTC'});
     const hiC=d.temperature_2m_max[oi],loC=d.temperature_2m_min[oi];
     const hiMain=fmtTempShort(hiC),loMain=fmtTempShort(loC);
     const hiSec=_fmtSecondary(hiC),loSec=_fmtSecondary(loC);
