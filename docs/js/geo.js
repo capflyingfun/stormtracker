@@ -399,7 +399,7 @@ function setLoc(lat,lon,name,opts){
   if(typeof showLoadingScreen==='function')showLoadingScreen(S.locName);
   S._locReqId=(S._locReqId||0)+1;
   const _reqId=S._locReqId;
-  document.getElementById('status-text').textContent='Live · '+S.locName;
+  document.getElementById('status-text').textContent=(fromTravel?'🧭 Travel Mode · ':'Live · ')+S.locName;
   fetchAlerts();
   (async()=>{
     await fetchWeather();
@@ -409,7 +409,7 @@ function setLoc(lat,lon,name,opts){
     fetchHazards();
     fetchTerrainGrid();
   })();
-  scheduleHourlyRefresh();
+  if(!fromTravel)scheduleHourlyRefresh();
   if(typeof refreshMpingIfVisible==='function')refreshMpingIfVisible();
 }
 
@@ -699,7 +699,8 @@ function showGpsRelocateConfirm(distMi,gpsLat,gpsLon){
 function stopTravelMode(){
   S.travelMode=false;
   if(S.travelWatchId!==null){navigator.geolocation.clearWatch(S.travelWatchId);S.travelWatchId=null}
-  if(S._travelDataTimer){clearInterval(S._travelDataTimer);S._travelDataTimer=null}
+  _clearTravelCountdown();
+  S._travelSpdTxt=null;S._travelAccTxt=null;
   document.getElementById('travel-indicator').classList.remove('show');
   const intRow=document.getElementById('gps-interval-row');
   if(intRow)intRow.style.display='none';
@@ -725,7 +726,7 @@ function setGpsInterval(val){
   const sel1=document.getElementById('gps-interval-sel');if(sel1)sel1.value=String(S.gpsInterval);
   const sel2=document.getElementById('settings-travel-int');if(sel2)sel2.value=String(S.gpsInterval);
   if(S.travelMode){
-    startGpsWatch();
+    _startTravelCountdown();
     toast('🧭 Refresh interval set to '+fmtGpsInt(S.gpsInterval));
   }
 }
@@ -782,53 +783,97 @@ async function startTravelModeAfterPick(){
   startGpsWatch();
   toast('🧭 Travel Mode ON — refreshing every '+fmtGpsInt(S.gpsInterval));
 }
+function _fmtTravelCd(sec){
+  const m=Math.floor(sec/60),s=sec%60;
+  return String(m).padStart(2,'0')+'m:'+String(s).padStart(2,'0')+'s';
+}
 function startGpsWatch(){
   if(S.travelWatchId!==null){navigator.geolocation.clearWatch(S.travelWatchId);S.travelWatchId=null}
-  if(S._travelDataTimer){clearInterval(S._travelDataTimer);S._travelDataTimer=null}
+  _clearTravelCountdown();
   S.travelWatchId=navigator.geolocation.watchPosition(
     pos=>onTravelPosition(pos),
     err=>{document.getElementById('travel-status').textContent='🧭 GPS error — retrying...'},
     {enableHighAccuracy:true, maximumAge:5000, timeout:20000}
   );
-  const dataInt=Math.max((S.gpsInterval||5)*1000,5000);
-  travelDataRefresh();
-  S._travelDataTimer=setInterval(()=>{
+  if(S.lat){
+    reverseGeocode(S.lat,S.lon).then(name=>{
+      if(!S.travelMode)return;
+      const locName=name||`${S.lat.toFixed(4)}, ${S.lon.toFixed(4)}`;
+      setLoc(S.lat,S.lon,locName,{fromTravel:true});
+    }).catch(()=>{});
+  }
+  _startTravelCountdown();
+}
+function _clearTravelCountdown(){
+  if(S._travelCdTimer){clearInterval(S._travelCdTimer);S._travelCdTimer=null}
+  S._travelTarget=0;
+}
+function _startTravelCountdown(){
+  _clearTravelCountdown();
+  const intSec=S.gpsInterval||300;
+  S._travelTarget=Date.now()+intSec*1000;
+  _tickTravelCd();
+  S._travelCdTimer=setInterval(_tickTravelCd,1000);
+}
+function _tickTravelCd(){
+  if(!S.travelMode){_clearTravelCountdown();return}
+  const remain=Math.max(0,Math.round((S._travelTarget-Date.now())/1000));
+  const intSec=S.gpsInterval||300;
+  const intLabel=fmtGpsInt(intSec);
+  const cdStr=_fmtTravelCd(remain)+'/'+intLabel;
+  const spdTxt=S._travelSpdTxt||'—';
+  const accTxt=S._travelAccTxt||'';
+  const statusEl=document.getElementById('travel-status');
+  if(statusEl)statusEl.textContent='🧭 '+spdTxt+(accTxt?' · ±'+accTxt:'')+' · '+cdStr;
+  if(remain<=0){
+    _clearTravelCountdown();
+    _travelCycleRefresh();
+  }
+}
+async function _travelCycleRefresh(){
+  if(!S.travelMode)return;
+  const statusEl=document.getElementById('travel-status');
+  if(statusEl)statusEl.textContent='🧭 Refreshing...';
+  try{
+    const pos=await new Promise((resolve,reject)=>{
+      navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:15000,maximumAge:5000});
+    });
     if(!S.travelMode)return;
-    travelDataRefresh();
-  },dataInt);
+    if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;
+    const lat=pos.coords.latitude,lon=pos.coords.longitude;
+    S.lat=lat;S.lon=lon;
+    if(S.travelMarker)S.travelMarker.setLatLng([lat,lon]);
+    if(S._userMarker)S._userMarker.setLatLng([lat,lon]);
+    if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
+    if(S.map)S.map.panTo([lat,lon],{animate:true,duration:0.5});
+    const name=await reverseGeocode(lat,lon);
+    if(!S.travelMode)return;
+    const locName=name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    setLoc(lat,lon,locName,{fromTravel:true});
+  }catch(e){
+    if(!S.travelMode)return;
+    if(S.lat){
+      const name=await reverseGeocode(S.lat,S.lon).catch(()=>null);
+      if(!S.travelMode)return;
+      const locName=name||`${S.lat.toFixed(4)}, ${S.lon.toFixed(4)}`;
+      setLoc(S.lat,S.lon,locName,{fromTravel:true});
+    }
+  }
+  if(S.travelMode)_startTravelCountdown();
 }
 function onTravelPosition(pos){
   if(!S.travelMode) return;
   if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;
   const lat=pos.coords.latitude, lon=pos.coords.longitude;
   const acc=pos.coords.accuracy;
-  const now=Date.now();
-  const dist=S.lat?haversine(S.lat,S.lon,lat,lon):999;
   const spd=pos.coords.speed;
-  const spdTxt=spd!==null&&spd>=0?(S.windUnit===0?((spd*2.237).toFixed(0)+' mph'):(S.windUnit===2?((spd*3.6).toFixed(0)+' km/h'):((spd*1.944).toFixed(0)+' kts'))):'—';
-  const intLabel=fmtGpsInt(S.gpsInterval||5);
-  document.getElementById('travel-status').textContent='🧭 '+spdTxt+' · ±'+(acc<1000?(acc.toFixed(0)+'m'):((acc/1000).toFixed(1)+'km'))+' · 🔄'+intLabel;
+  S._travelSpdTxt=spd!==null&&spd>=0?(S.windUnit===0?((spd*2.237).toFixed(0)+' mph'):(S.windUnit===2?((spd*3.6).toFixed(0)+' km/h'):((spd*1.944).toFixed(0)+' kts'))):'—';
+  S._travelAccTxt=acc<1000?(acc.toFixed(0)+'m'):((acc/1000).toFixed(1)+'km');
   S.lat=lat;S.lon=lon;
   if(S.travelMarker)S.travelMarker.setLatLng([lat,lon]);
   if(S._userMarker)S._userMarker.setLatLng([lat,lon]);
   if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
   if(S.map)S.map.panTo([lat,lon],{animate:true,duration:0.5});
-}
-function travelDataRefresh(){
-  if(!S.travelMode||!S.lat) return;
-  reverseGeocode(S.lat,S.lon).then(name=>{
-    S.locName=name||`${S.lat.toFixed(4)}, ${S.lon.toFixed(4)}`;
-    document.getElementById('status-text').textContent='🧭 Travel Mode · '+S.locName;
-    try{localStorage.setItem('st_loc',JSON.stringify({lat:S.lat,lon:S.lon,name:S.locName}))}catch(e){}
-  });
-  S.radarSource=isUSLocation(S.lat,S.lon)?'nexrad':'rainviewer';
-  if(S.map){
-    S.map.setView([S.lat,S.lon],S.map.getZoom());
-    showRadarLayer(S.map);
-  }
-  fetchWeather();
-  fetchAlerts();fetchHazards();
-  scanRadarForStorms();
 }
 async function reverseGeocode(lat,lon){
   const fb=`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
