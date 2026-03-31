@@ -177,13 +177,14 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     let r;
     try{
       r=await fetch(_wUrl,{signal:AbortSignal.timeout(5000)});
+      if(!r.ok)throw new Error('HTTP '+r.status);
     }catch(e1){
       console.log('Winds aloft: first attempt failed ('+e1.message+') — retrying in 2s...');
       await new Promise(w=>setTimeout(w,2000));
       r=await fetch(_wUrl,{signal:AbortSignal.timeout(6000)});
+      if(!r.ok){console.log('Winds aloft: retry also failed (HTTP '+r.status+')');return}
       console.log('Winds aloft: retry succeeded');
     }
-    if(!r.ok)return;
     const d=await r.json();
     const c=d.current;
     const levels=[
