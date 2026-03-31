@@ -87,9 +87,10 @@ function _blendOMModels(gfs,hrrr){
   return out;
 }
 async function _fetchOMModels(omBase,isUS){
+  const _getJSON=url=>fetch(url,{signal:AbortSignal.timeout(8000)}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()});
   const [_gfsRes,_hrrrRes]=await Promise.allSettled([
-    fetch(omBase+'&models=gfs_seamless',{signal:AbortSignal.timeout(8000)}).then(r=>r.json()),
-    isUS?fetch(omBase+'&models=hrrr_conus',{signal:AbortSignal.timeout(8000)}).then(r=>r.json()):Promise.resolve(null)
+    _getJSON(omBase+'&models=gfs_seamless'),
+    isUS?_getJSON(omBase+'&models=hrrr_conus'):Promise.resolve(null)
   ]);
   const g=_gfsRes.status==='fulfilled'?_gfsRes.value:null;
   const h=_hrrrRes.status==='fulfilled'?_hrrrRes.value:null;
