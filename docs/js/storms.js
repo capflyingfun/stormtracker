@@ -224,7 +224,7 @@ async function fetchWindsAloft(overrideLat,overrideLon){
 
 async function fetchAFD(){
   if(!S.lat||!S.lon)return;
-  if(!isUSLocation(S.lat,S.lon)){S._afd=null;return;}
+  if(!isUSLocation(S.lat,S.lon)){console.log('[non-US] Skipped: NWS Area Forecast Discussion');S._afd=null;return;}
   const cache=S._afdCache;
   if(cache&&(Date.now()-cache.ts<60*60000)){S._afd=cache.data;return;}
   try{
