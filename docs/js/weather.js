@@ -195,11 +195,14 @@ async function fetchWeather(){
   }
 }
 async function _fetchAWCOnce(){
+  const _isUS=isUSLocation(S.lat,S.lon);
+  const _bboxLevels=_isUS?[1.0,2.0,3.5]:[1.5,3.0];
+  const _timeout=_isUS?8000:4000;
   let data=[];
-  for(const deg of [1.0,2.0,3.5]){
+  for(const deg of _bboxLevels){
     const url=`https://aviationweather.gov/api/data/metar?ids=&format=json&taf=false&hours=3&bbox=${(S.lat-deg).toFixed(2)},${(S.lon-deg).toFixed(2)},${(S.lat+deg).toFixed(2)},${(S.lon+deg).toFixed(2)}`;
     console.log('AWC fetch (±'+deg+'°):',url);
-    const r=await fetch(url,{signal:AbortSignal.timeout(8000)});
+    const r=await fetch(url,{signal:AbortSignal.timeout(_timeout)});
     if(!r.ok){console.log('AWC fetch failed:',r.status);continue}
     data=await r.json();
     console.log('AWC returned',data.length,'stations');
@@ -226,10 +229,12 @@ async function fetchAWCNearest(){
   try{
     const r=await _fetchAWCOnce();
     if(r)return r;
+    if(!isUSLocation(S.lat,S.lon)){console.log('AWC: no nearby station (non-US, skipping retry)');return null}
     console.log('AWC retry in 2s...');
     await new Promise(ok=>setTimeout(ok,2000));
     return await _fetchAWCOnce();
   }catch(e){
+    if(!isUSLocation(S.lat,S.lon)){console.log('AWC nearest failed (non-US, skipping retry):',e.message);return null}
     console.log('AWC nearest error:',e.message,', retrying...');
     try{await new Promise(ok=>setTimeout(ok,2000));return await _fetchAWCOnce()}
     catch(e2){console.log('AWC retry failed:',e2.message);return null}
