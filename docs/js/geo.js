@@ -87,7 +87,7 @@ async function fetchSuggestions(q){
       const parts=r.display_name.split(',');
       const name=parts[0].trim();
       const detail=parts.slice(1,3).map(s=>s.trim()).join(', ');
-      return`<div class="loc-sug-item" data-idx="${i}" onclick="selectSuggestion(_sugResults[${i}])">
+      return`<div class="loc-sug-item" data-idx="${i}" onmousedown="event.preventDefault();selectSuggestion(_sugResults[${i}])" ontouchend="event.preventDefault();selectSuggestion(_sugResults[${i}])">
         <div class="sug-name">${name}</div>
         <div class="sug-detail">${detail}</div>
       </div>`;
@@ -375,6 +375,7 @@ function setLoc(lat,lon,name,opts){
     clearStormCone();
   }
   S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;S._approachData=null;S._arrowCells=[];clearStormZones();
+  const _tickerBar=document.getElementById('threat-ticker');if(_tickerBar)_tickerBar.style.display='none';
   const _locChanged=S._prevLat!=null&&(Math.abs(S._prevLat-lat)>0.01||Math.abs(S._prevLon-lon)>0.01);
   S._prevLat=lat;S._prevLon=lon;
   if(_locChanged){

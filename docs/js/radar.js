@@ -1545,7 +1545,6 @@ function updateThreatTicker(){
   const bar=document.getElementById('threat-ticker');
   const inner=document.getElementById('threat-ticker-inner');
   if(!bar||!inner)return;
-  const mv=S.stormMovement;
   function showTicker(html,color,borderColor,bg,dur){
     inner.innerHTML=html;
     const textLen=inner.textContent?inner.textContent.length:60;
@@ -1648,10 +1647,16 @@ function updateThreatTicker(){
     return;
   }
   const spdUnit=S.radarMetric?'km/h':'mph';
-  const spdVal=(spd)=>S.radarMetric?Math.round(spd*1.60934):spd;
-  const _fromDeg=mv?((mv.direction+180)%360):0;
-  const fromDir=mv?degToDir(_fromDeg)+' ('+String(Math.round(_fromDeg)).padStart(3,'0')+'°)':'';
-  const spd=mv?spdVal(mv.speed):0;
+  const spdVal=(v)=>S.radarMetric?Math.round(v*1.60934):v;
+  function _stormMv(storm){
+    const ct=typeof getCellTrack==='function'?getCellTrack(storm):null;
+    if(ct&&ct.speed>=2){const fd=(ct.dir+180)%360;return{dir:degToDir(fd)+' ('+String(Math.round(fd)).padStart(3,'0')+'°)',spd:spdVal(ct.speed)}}
+    const _hasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
+    const _hasAl=S._upperWindDir!=null;
+    const mv=_hasMv?S.stormMovement:(_hasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
+    if(mv&&mv.speed>=2){const fd=(mv.direction+180)%360;return{dir:degToDir(fd)+' ('+String(Math.round(fd)).padStart(3,'0')+'°)',spd:spdVal(mv.speed)}}
+    return{dir:'',spd:0};
+  }
   function fmtEtaLive(etaMin){
     const targetMs=Date.now()+Math.round(etaMin*60)*1000;
     const arrival=new Date(targetMs);
@@ -1673,7 +1678,7 @@ function updateThreatTicker(){
   if(severeApproaching.length>0){
     severeApproaching.sort((a,b)=>_tickerThreatScore(b)-_tickerThreatScore(a));
     const msgs=severeApproaching.map(t=>{
-      const s=t.storm;const{cdSpan,arrStr}=fmtEtaLive(t.eta.eta);
+      const s=t.storm;const{cdSpan,arrStr}=fmtEtaLive(t.eta.eta);const _m=_stormMv(s);const fromDir=_m.dir;const spd=_m.spd;
       if(s.dbz>=55)return`<span style="color:#ff3355">🚨 WARNING: Extremely dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Seek shelter immediately. 🚨</span>`;
       if(s.dbz>=50)return`<span style="color:#ff6644">🚨 SEVERE WEATHER ALERT: Dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Use extreme caution. 🚨</span>`;
       return`<span style="color:#ffcc00">⚠️ Strong storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Use caution and be prepared. ⚠️</span>`;
@@ -1690,6 +1695,7 @@ function updateThreatTicker(){
   allApproaching.sort((a,b)=>_tickerThreatScore(b)-_tickerThreatScore(a));
   const closest=allApproaching[0];
   const{cdSpan,arrStr}=fmtEtaLive(closest.eta.eta);
+  const _mTop=_stormMv(closest.storm);const fromDir=_mTop.dir;const spd=_mTop.spd;
   const maxDbz=Math.max(...allApproaching.map(a=>a.storm.dbz));
   const label=maxDbz>=30?'moderate rain':'light rain';
   const lightMsgs=[
