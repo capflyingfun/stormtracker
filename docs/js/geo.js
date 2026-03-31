@@ -349,7 +349,7 @@ function setLoc(lat,lon,name,opts){
   if(_locChanged){
     _stormAlertHistory=[];_saveStormAlertHistory();
     _wxAlertHistory=[];_saveWxAlertHistory();
-    _STORM_ALERT_COOLDOWN={};try{localStorage.removeItem('st_stormAlertCooldown')}catch(e){}
+    Object.keys(_STORM_ALERT_COOLDOWN).forEach(k=>delete _STORM_ALERT_COOLDOWN[k]);try{localStorage.removeItem('st_stormAlertCooldown')}catch(e){}
     if(_spcData){_spcData.reports=null;_spcData._lastFetch=0}
     if(S.activePage==='alerts')renderAlerts();
   }
