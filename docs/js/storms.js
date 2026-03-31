@@ -2051,6 +2051,17 @@ function renderStorms(){
   const _hasAloft=S._upperWindDir!=null;
   const mv=_hasMovement?S.stormMovement:(_hasAloft?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
   if(mv&&mv.speed>=2){storms.forEach(s=>{s._eta=calcStormETA(s)})}else{storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)})}
+  let inConeCount=0;
+  if(mv&&mv.speed>=2){
+    storms.forEach(s=>{
+      const bwm=Math.max(0,Math.min(3,(s.dbz-20)/15));
+      const wa=s.distance>0.5?Math.atan2(bwm,s.distance)*180/Math.PI:15;
+      const ch=15+wa;
+      const btu=(s.bearing+180)%360;
+      const df=Math.abs(((mv.direction-btu+180)%360)-180);
+      if(df<=ch)inConeCount++;
+    });
+  }
   const sf=S._stormFilter||_loadStormFilter();
   const filtered=_applyStormFilter(storms,sf);
   const prevOpen={};
@@ -2220,7 +2231,7 @@ function renderStorms(){
   el.innerHTML=`${zoneAlert}
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
-      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${filterNote}${inboundCapped.length?' · <span style="color:#ef4444">'+inboundCapped.length+' inbound</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" class="c-muted-sm"></span></div>
+      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${filterNote}${inboundCapped.length?' · <span style="color:#ef4444">'+inboundCapped.length+' inbound</span>':''}${inConeCount?' · <span style="color:#ff9800">🎯 '+inConeCount+' in your cone</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" class="c-muted-sm"></span></div>
     </div>
     ${noWindBanner}${smartSummary}
     ${_renderFilterBar(sf)}
