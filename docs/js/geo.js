@@ -133,7 +133,7 @@ function _doGPSLocate(){
   toggleLocOverlay(false);
   toast('Getting location...');
   let _gpsGot=false;
-  let _gpsErrs=0;
+  let _gpsRetried=false;
   const _gpsWait=setTimeout(()=>{if(!_gpsGot)toast('📍 Still acquiring GPS — hang tight...')},5000);
   function _gpsSuccess(pos){
     if(_gpsGot)return;_gpsGot=true;
@@ -143,15 +143,12 @@ function _doGPSLocate(){
     S._gpsLocating=true;
     reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{S._gpsLocating=false});
   }
-  function _gpsError(err){
-    if(_gpsGot)return;
-    if(err.code===1){_gpsGot=true;clearTimeout(_gpsWait);clearTimeout(_gpsRetry);
-      toast('📍 Location permission denied — please enable location in your browser/phone settings, then try again');return}
-    _gpsErrs++;
-    if(_gpsErrs<2)return;
+  function _gpsFinalError(err){
     _gpsGot=true;
     clearTimeout(_gpsWait);clearTimeout(_gpsRetry);
-    if(err.code===2){
+    if(err.code===1){
+      toast('📍 Location permission denied — please enable location in your browser/phone settings, then try again');
+    }else if(err.code===2){
       toast('📍 Location unavailable — make sure GPS/Location Services is turned ON in your phone settings');
     }else if(err.code===3){
       toast('📍 GPS timed out — trying again with lower accuracy...');
@@ -165,9 +162,15 @@ function _doGPSLocate(){
       toast('📍 Could not get location — try searching instead');
     }
   }
+  function _gpsError(err){
+    if(_gpsGot)return;
+    if(err.code===1){_gpsFinalError(err);return}
+    if(_gpsRetried){_gpsFinalError(err);return}
+  }
   navigator.geolocation.getCurrentPosition(_gpsSuccess,_gpsError,{enableHighAccuracy:true,timeout:20000,maximumAge:60000});
   const _gpsRetry=setTimeout(()=>{
     if(!_gpsGot){
+      _gpsRetried=true;
       toast('📍 Retrying GPS...');
       navigator.geolocation.getCurrentPosition(_gpsSuccess,_gpsError,{enableHighAccuracy:true,timeout:20000,maximumAge:60000});
     }
