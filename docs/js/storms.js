@@ -2187,12 +2187,11 @@ function renderStorms(){
   }
   let gridHtml='';
   if(S._rawScanPts&&S._rawScanPts.length){
-    const gridCells=polarGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
+    const gridCells=hexGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
     const zones=[];
-    const angStep=ZONE_ANG_STEP,distStep=ZONE_DIST_STEP_MI;
     for(const[k,c]of gridCells){
-      const midBear=(c.ai*angStep+angStep/2)%360;
-      const midDist=(c.ri+0.5)*distStep;
+      const midBear=c.bearing;
+      const midDist=c.dist;
       const cat=stormCat(c.maxDbz);
       const hex=dbzHex(c.maxDbz);
       let etaInfo=null;
@@ -2207,7 +2206,7 @@ function renderStorms(){
           }
         }
       }
-      zones.push({ai:c.ai,ri:c.ri,maxDbz:c.maxDbz,count:c.count,midBear,midDist,cat,hex,etaInfo});
+      zones.push({q:c.q,r:c.r,maxDbz:c.maxDbz,count:c.count,midBear,midDist,cat,hex,etaInfo});
     }
     zones.sort((a,b)=>{
       const ae=a.etaInfo&&a.etaInfo.approaching?a.etaInfo.eta:99999;
@@ -2218,10 +2217,8 @@ function renderStorms(){
     if(zones.length){
       const zoneCards=zones.map(z=>{
         const dir=degToDir(z.midBear);
-        const distLo=(z.ri*distStep).toFixed(0);
-        const distHi=((z.ri+1)*distStep).toFixed(0);
-        const distStr=S.radarMetric?`${(distLo*1.60934).toFixed(0)}-${(distHi*1.60934).toFixed(0)} km`:`${distLo}-${distHi} mi`;
-        const bearStr=`${(z.ai*angStep).toFixed(0)}°-${((z.ai+1)*angStep).toFixed(0)}°`;
+        const distVal=S.radarMetric?(z.midDist*1.60934).toFixed(1)+' km':z.midDist.toFixed(1)+' mi';
+        const bearStr=Math.round(z.midBear)+'°';
         let etaStr='';
         if(z.etaInfo&&z.etaInfo.approaching){
           const sec=Math.round(z.etaInfo.eta*60);
@@ -2231,7 +2228,7 @@ function renderStorms(){
         return`<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-left:3px solid ${z.hex};background:${z.hex}08;border-radius:4px;margin-bottom:4px">
           <div class="flex-1" style="min-width:0">
             <div style="font-weight:600;font-size:0.8em">${dir} <span style="color:var(--text-muted);font-weight:400">${bearStr}</span></div>
-            <div class="text-muted-sm">${distStr} · ${z.count} return${z.count>1?'s':''}</div>
+            <div class="text-muted-sm">${distVal} · ${z.count} return${z.count>1?'s':''}</div>
           </div>
           <div style="text-align:right">
             <span style="font-size:0.75em;font-weight:600;color:${z.hex}">${z.maxDbz} dBZ</span>
@@ -2241,10 +2238,10 @@ function renderStorms(){
         </div>`;
       }).join('');
       const gridOpen=prevOpen['gridzones']!==undefined?prevOpen['gridzones']:false;
-      gridHtml=`<div class="card" style="margin-top:8px"><div class="card-title"><span class="icon">📡</span> Grid Zones</div>
+      gridHtml=`<div class="card" style="margin-top:8px"><div class="card-title"><span class="icon">⬡</span> Hex Grid Zones</div>
         <details class="storm-group" data-grp="gridzones" ${gridOpen?'open':''}>
           <summary class="storm-group-header" style="border-left:3px solid var(--accent-cyan)">
-            📡 Radar Grid Zones <span class="storm-group-count">${zones.length}</span>
+            ⬡ Hex Grid Zones <span class="storm-group-count">${zones.length}</span>
           </summary>
           <div class="storm-group-body" style="padding:4px">${zoneCards}</div>
         </details>
