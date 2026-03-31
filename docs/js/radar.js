@@ -1205,8 +1205,8 @@ function clearStormZones(){
   S._stormZoneLayers=[];
   clearRadarGrid();
 }
-const HEX_SIZE_MI=3/Math.sqrt(3);
-const HEX_FLAT_MI=3;
+const HEX_SIZE_MI=3/Math.sqrt(3); // center-to-vertex ~1.732 mi
+const HEX_FLAT_MI=3; // flat-to-flat width = 3 mi
 function destPt(lat1,lng1,distMi,bearDeg){
   const R=3958.8;
   const d=distMi/R;
