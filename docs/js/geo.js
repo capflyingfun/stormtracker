@@ -823,7 +823,7 @@ function _startTravelCountdown(){
 }
 function _tickTravelCd(){
   if(!S.travelMode){_clearTravelCountdown();return}
-  const remain=Math.max(0,Math.round((S._travelTarget-Date.now())/1000));
+  const remain=Math.max(0,Math.ceil((S._travelTarget-Date.now())/1000));
   const intSec=S.gpsInterval||300;
   const intLabel=fmtGpsInt(intSec);
   const cdStr=_fmtTravelCd(remain)+'/'+intLabel;
