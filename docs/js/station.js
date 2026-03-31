@@ -38,7 +38,7 @@ async function fetchStation(){
   S._stationLocKey=S.lat+','+S.lon;
   const el=document.getElementById('page-station');showSkel(el,5);
   try{
-    if(!isNWSCoverage(S.lat,S.lon))throw new Error('NWS_INTL');
+    if(!isNWSCoverage(S.lat,S.lon)){console.log('[non-US] Skipped: NWS station lookup — falling back to AWC/global');throw new Error('NWS_INTL')}
     console.log('Tier 1: NWS — trying api.weather.gov/points for',S.lat.toFixed(4),S.lon.toFixed(4));
     const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(6000)});
     if(!ptRes.ok)throw new Error('NWS_INTL');
