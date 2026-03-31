@@ -1130,6 +1130,19 @@ function hexToRgba(hex,a){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
   return`rgba(${r},${g},${b},${a})`;
 }
+function _hexRingCoords(ring){
+  const dirs=[[1,0],[0,1],[-1,1],[-1,0],[0,-1],[1,-1]];
+  if(ring===0)return[[0,0]];
+  const coords=[];
+  let q=ring,r=0;
+  for(let d=0;d<6;d++){
+    for(let s=0;s<ring;s++){
+      coords.push([q,r]);
+      q+=dirs[d][0];r+=dirs[d][1];
+    }
+  }
+  return coords;
+}
 function drawRadarGrid(map,maxRadiusMi){
   clearRadarGrid();
   if(!map||!S._showZones)return;
@@ -1140,36 +1153,36 @@ function drawRadarGrid(map,maxRadiusMi){
     map.getPane(gridPane).style.pointerEvents='none';
   }
   const gc=gridNeonColor();
-  const centerHex=hexPoly(S.lat,S.lon,0,0);
-  const centerPoly=L.polygon(centerHex,{
-    color:hexToRgba(gc,0.25),fillOpacity:0,fill:false,weight:0.4,pane:gridPane,interactive:false
+  const maxRing=Math.ceil(maxRadiusMi/HEX_FLAT_MI);
+  const allLines=[];
+  for(let ring=0;ring<=maxRing;ring++){
+    const coords=_hexRingCoords(ring);
+    for(const[q,r] of coords){
+      const[cx,cy]=_hexCenter(q,r);
+      const hDist=Math.sqrt(cx*cx+cy*cy);
+      if(hDist>maxRadiusMi+HEX_SIZE_MI)continue;
+      const verts=[];
+      for(let i=0;i<=6;i++){
+        const ang=Math.PI/3*(i%6);
+        verts.push(_xyToLL(cx+HEX_SIZE_MI*Math.cos(ang),cy+HEX_SIZE_MI*Math.sin(ang),S.lat,S.lon));
+      }
+      allLines.push(verts);
+    }
+  }
+  if(allLines.length){
+    const hexGrid=L.polyline(allLines,{
+      color:hexToRgba(gc,0.12),weight:0.3,
+      pane:gridPane,interactive:false
+    }).addTo(map);
+    S._radarGridLayers.push(hexGrid);
+  }
+  const outerCircle=L.circle([S.lat,S.lon],{
+    radius:maxRadiusMi*1609.34,
+    color:gc,fillOpacity:0,fill:false,
+    weight:1.5,dashArray:'8 4',
+    pane:gridPane,interactive:false
   }).addTo(map);
-  S._radarGridLayers.push(centerPoly);
-  const ringDistances=[10,20,30,40,50,60,70,80];
-  for(const rd of ringDistances){
-    if(rd>maxRadiusMi)break;
-    const isOuter=rd>=maxRadiusMi;
-    const isMajor=rd%20===0;
-    const circle=L.circle([S.lat,S.lon],{
-      radius:rd*1609.34,
-      color:isOuter?gc:hexToRgba(gc,isMajor?0.3:0.15),
-      fillOpacity:0,fill:false,
-      weight:isOuter?1.5:isMajor?0.7:0.3,
-      dashArray:isOuter?'8 4':null,
-      pane:gridPane,interactive:false
-    }).addTo(map);
-    S._radarGridLayers.push(circle);
-  }
-  const radials=[0,60,120,180,240,300];
-  for(const a of radials){
-    const inner=destPt(S.lat,S.lon,HEX_FLAT_MI,a);
-    const outer=destPt(S.lat,S.lon,maxRadiusMi,a);
-    const line=L.polyline([inner,outer],{
-      color:hexToRgba(gc,0.12),weight:0.4,
-      pane:gridPane,interactive:false
-    }).addTo(map);
-    S._radarGridLayers.push(line);
-  }
+  S._radarGridLayers.push(outerCircle);
   const cardinals=[{a:0,l:'N'},{a:90,l:'E'},{a:180,l:'S'},{a:270,l:'W'}];
   for(const c of cardinals){
     const pt=destPt(S.lat,S.lon,maxRadiusMi+3,c.a);
