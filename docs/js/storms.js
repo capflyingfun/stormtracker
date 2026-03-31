@@ -2052,9 +2052,17 @@ function renderStorms(){
   const mv=_hasMovement?S.stormMovement:(_hasAloft?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
   if(mv&&mv.speed>=2){storms.forEach(s=>{s._eta=calcStormETA(s)})}else{storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)})}
   let inConeCount=0;
-  if(mv&&mv.speed>=2){
+  if(mv&&mv.speed>=2&&S._tracksMode!=='off'){
     const uLat=S.lat,uLng=S.lon;
-    storms.forEach(s=>{
+    let coneStorms=storms;
+    if(S._tracksMode==='inbound'){
+      if(S._topStorms&&S._topStorms.length){
+        coneStorms=storms.filter(s=>S._topStorms.includes(s));
+      }else{
+        coneStorms=storms.filter(s=>s._eta&&s._eta.approaching&&s._eta.impact>0).sort((a,b)=>(b._eta.impact||0)-(a._eta.impact||0)).slice(0,12);
+      }
+    }
+    coneStorms.forEach(s=>{
       const range=Math.min(60,Math.max(s.distance*1.5,20));
       const dir=mv.direction;
       const baseWidthMi=Math.max(0,Math.min(3,(s.dbz-20)/15));
