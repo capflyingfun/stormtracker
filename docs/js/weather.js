@@ -164,12 +164,25 @@ async function fetchWeather(){
         else if(/\b(sunny|clear)\b/.test(_wx))_nwsCloud=0;
         if(_nwsCloud!=null){
           const _omCloud=omData.current.cloud_cover;
-          if(Math.abs(_omCloud-_nwsCloud)>15){
+          const _hasPrecip=omData.current.weather_code>=51||omData.current.precipitation>0;
+          if(_hasPrecip){
+            console.log('Cloud reconciliation skipped: precipitation present (wx='+omData.current.weather_code+' precip='+omData.current.precipitation+') — keeping OM '+_omCloud+'%');
+          }else if(_nwsCloud>_omCloud&&Math.abs(_omCloud-_nwsCloud)>15){
             omData.current.cloud_cover=_nwsCloud;
-            console.log('Cloud cover reconciled: OM '+_omCloud+'% → NWS "'+blend.wxString+'" '+_nwsCloud+'%');
+            console.log('Cloud cover reconciled UP: OM '+_omCloud+'% → NWS "'+blend.wxString+'" '+_nwsCloud+'%');
+          }else if(_nwsCloud<_omCloud){
+            console.log('Cloud reconciliation: NWS "'+blend.wxString+'" '+_nwsCloud+'% < OM '+_omCloud+'% — keeping higher OM value');
           }
         }
         const _finalCC=omData.current.cloud_cover;
+        if(omData.hourly&&omData.hourly.cloud_cover&&omData.hourly.time){
+          const _nowISO=(omData.current.time||new Date().toISOString()).slice(0,13);
+          const _hrIdx=omData.hourly.time.findIndex(t=>t&&t.startsWith(_nowISO));
+          if(_hrIdx>=0&&omData.hourly.cloud_cover[_hrIdx]!==_finalCC){
+            console.log('Hourly cloud_cover['+_hrIdx+'] synced: '+omData.hourly.cloud_cover[_hrIdx]+'% → '+_finalCC+'%');
+            omData.hourly.cloud_cover[_hrIdx]=_finalCC;
+          }
+        }
         if(!/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower/i.test(omData.current._nwsDesc)){
           omData.current._nwsDesc=cloudCategory(_finalCC);
         }
