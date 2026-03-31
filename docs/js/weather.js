@@ -168,10 +168,8 @@ async function fetchWeather(){
           }
         }
         const _finalCC=omData.current.cloud_cover;
-        if(_finalCC>=90&&!/overcast/i.test(omData.current._nwsDesc))omData.current._nwsDesc='Overcast';
-        else if(_finalCC>=70&&_finalCC<90&&!/mostly\s*cloudy/i.test(omData.current._nwsDesc)&&!/overcast/i.test(omData.current._nwsDesc))omData.current._nwsDesc='Mostly Cloudy';
-        else if(_finalCC>=30&&_finalCC<70&&!/partly/i.test(omData.current._nwsDesc)&&!/mostly/i.test(omData.current._nwsDesc)){
-          if(!/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower/i.test(omData.current._nwsDesc))omData.current._nwsDesc='Partly Cloudy';
+        if(!/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower/i.test(omData.current._nwsDesc)){
+          omData.current._nwsDesc=cloudCategory(_finalCC);
         }
       }
       omData.current._nwsStation=blend.station||null;
