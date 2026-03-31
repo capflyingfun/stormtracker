@@ -443,12 +443,12 @@ function renderWeather(data){
     if(d>0)return' <span style="color:#39ff14;font-size:0.6em;text-shadow:0 0 6px rgba(57,255,20,0.6)">⤴</span>';
     return' <span style="color:#ff3355;font-size:0.6em;text-shadow:0 0 6px rgba(255,51,85,0.6)">⤵</span>';
   }
-  function _taInv(nowV,nextV,thresh){
+  function _taC(nowV,nextV,thresh){
     if(nowV==null||nextV==null)return'';
     const d=nextV-nowV;
     if(Math.abs(d)<=thresh)return' <span style="color:var(--text-muted);font-size:0.6em">→</span>';
-    if(d>0)return' <span style="color:#ff3355;font-size:0.6em;text-shadow:0 0 6px rgba(255,51,85,0.6)">⤴</span>';
-    return' <span style="color:#39ff14;font-size:0.6em;text-shadow:0 0 6px rgba(57,255,20,0.6)">⤵</span>';
+    if(d>0)return' <span style="color:#00FFFF;font-size:0.6em;text-shadow:0 0 6px rgba(0,255,255,0.5)">⤴</span>';
+    return' <span style="color:#00FFFF;font-size:0.6em;text-shadow:0 0 6px rgba(0,255,255,0.5)">⤵</span>';
   }
   function _hv(key){return _hIdx>=0&&hourly[key]?hourly[key][_hIdx]:null}
   function _hv1(key){return _h1>=0&&hourly[key]?hourly[key][_h1]:null}
@@ -473,24 +473,24 @@ function renderWeather(data){
   el.innerHTML=`
     <div class="weather-hero">
       <div class="hero-icon-showcase">${animEmoji(c.weather_code,isDay,'340px',c._nwsDesc)}</div>
-      <div class="hero-temp-line" style="font-size:2.8em;font-weight:800;line-height:1;background:linear-gradient(180deg,var(--text-primary) 0%,var(--text-secondary) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:6px 0 2px">${fmtTempShort(tempC)}<span style="-webkit-text-fill-color:initial;background:none">${_ta(_hv('temperature_2m'),_hv1('temperature_2m'),1)}</span></div>
+      <div class="hero-temp-line" style="font-size:2.8em;font-weight:800;line-height:1;background:linear-gradient(180deg,var(--text-primary) 0%,var(--text-secondary) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:6px 0 2px">${fmtTempShort(tempC)}<span style="-webkit-text-fill-color:initial;background:none">${_taC(_hv('temperature_2m'),_hv1('temperature_2m'),1)}</span></div>
       <div class="hero-desc-line" style="font-size:0.85em;color:var(--text-secondary);margin-bottom:2px">${c._nwsDesc||desc}</div>
       ${c._source?`<div class="hero-source-line" style="font-size:0.55em;color:var(--accent-cyan);opacity:0.7;margin-bottom:4px">${c._source}${c._sourceCount>1?' (×'+c._sourceCount+' avg)':''}</div>`:''}
       <div class="hero-stats-grid">
-        <div class="hero-stat-cell"><div class="hero-side-label">Feels Like</div><div class="hero-side-val">${fmtTemp(feelsC)}${_ta(_hv('apparent_temperature'),_hv1('apparent_temperature'),1)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">Humidity</div><div class="hero-side-val">${Math.min(100,c.relative_humidity_2m)}%${_taInv(_hv('relative_humidity_2m'),_hv1('relative_humidity_2m'),3)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">☁️ Clouds</div><div class="hero-side-val">${c.cloud_cover}%${_taInv(_hv('cloud_cover'),_hv1('cloud_cover'),10)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Feels Like</div><div class="hero-side-val">${fmtTemp(feelsC)}${_taC(_hv('apparent_temperature'),_hv1('apparent_temperature'),1)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Humidity</div><div class="hero-side-val">${Math.min(100,c.relative_humidity_2m)}%${_taC(_hv('relative_humidity_2m'),_hv1('relative_humidity_2m'),3)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">☁️ Clouds</div><div class="hero-side-val">${c.cloud_cover}%${_taC(_hv('cloud_cover'),_hv1('cloud_cover'),10)}</div></div>
         <div class="hero-stat-cell"><div class="hero-side-label">Pressure</div><div class="hero-side-val">${fmtPres(c.pressure_msl)}${_ta(_hv('pressure_msl'),_hv1('pressure_msl'),0.5)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">Precip</div><div class="hero-side-val">${fmtPrecip(c.precipitation||0)}${_taInv(_hv('precipitation'),_hv1('precipitation'),0.1)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">🌡️ Dew Pt</div><div class="hero-side-val">${fmtTemp(dewC)}${_taInv(_hv('dew_point_2m'),_hv1('dew_point_2m'),1)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Precip</div><div class="hero-side-val">${fmtPrecip(c.precipitation||0)}${_taC(_hv('precipitation'),_hv1('precipitation'),0.1)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">🌡️ Dew Pt</div><div class="hero-side-val">${fmtTemp(dewC)}${_taC(_hv('dew_point_2m'),_hv1('dew_point_2m'),1)}</div></div>
         ${(()=>{
   const _uv=_hv('uv_index');
   const _uvColor=_uv==null?'var(--text-muted)':_uv<=2?'#4caf50':_uv<=5?'#ffeb3b':_uv<=7?'#ff9800':_uv<=10?'#f44336':'#ce93d8';
   const _uvLabel=_uv==null?'--':_uv<=2?'Low':_uv<=5?'Moderate':_uv<=7?'High':_uv<=10?'Very High':'Extreme';
   const _flM=_hv('freezing_level_height');
   const _flFt=_flM!=null?Math.round(_flM*3.281):null;
-  return`<div class="hero-stat-cell"><div class="hero-side-label">☀️ UV Index</div><div class="hero-side-val" style="color:${_uvColor}">${_uv!=null?_uv.toFixed(1):'--'}${_taInv(_uv,_hv1('uv_index'),0.5)}</div><div style="font-size:0.38em;color:${_uvColor};margin-top:1px">${_uvLabel}</div></div>`
-    +`<div class="hero-stat-cell"><div class="hero-side-label">❄️ Freeze Level</div><div class="hero-side-val">${_flFt!=null?fmtAlt(_flFt):'--'}${_ta(_hv('freezing_level_height'),_hv1('freezing_level_height'),100)}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px">${_flFt!=null?'MSL · ice/snow line':''}</div></div>`;
+  return`<div class="hero-stat-cell"><div class="hero-side-label">☀️ UV Index</div><div class="hero-side-val" style="color:${_uvColor}">${_uv!=null?_uv.toFixed(1):'--'}${_taC(_uv,_hv1('uv_index'),0.5)}</div><div style="font-size:0.38em;color:${_uvColor};margin-top:1px">${_uvLabel}</div></div>`
+    +`<div class="hero-stat-cell"><div class="hero-side-label">❄️ Freeze Level</div><div class="hero-side-val">${_flFt!=null?fmtAlt(_flFt):'--'}${_taC(_hv('freezing_level_height'),_hv1('freezing_level_height'),100)}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px">${_flFt!=null?'MSL · ice/snow line':''}</div></div>`;
 })()}
         <div class="hero-stat-cell"><div class="hero-side-label">Spread</div><div class="hero-side-val">${fmtTempDiff(tempC-dewC)}</div><div style="font-size:0.42em;color:var(--text-muted);margin-top:1px;line-height:1.2">${getSpreadLabel(tempC-dewC)}</div>${(()=>{
   const _spread=tempC-dewC;
