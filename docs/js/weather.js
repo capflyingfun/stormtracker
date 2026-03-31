@@ -187,15 +187,18 @@ async function fetchWeather(){
             console.log('Cloud reconciliation: NWS "'+blend.wxString+'" '+_nwsCloud+'% < OM '+_omCloud+'% — keeping higher OM value');
           }
         }
-        const _finalCC=omData.current.cloud_cover;
         if(omData.hourly&&omData.hourly.cloud_cover&&omData.hourly.time){
           const _nowISO=(omData.current.time||new Date().toISOString()).slice(0,13);
           const _hrIdx=omData.hourly.time.findIndex(t=>t&&t.startsWith(_nowISO));
-          if(_hrIdx>=0&&omData.hourly.cloud_cover[_hrIdx]!==_finalCC){
-            console.log('Hourly cloud_cover['+_hrIdx+'] synced: '+omData.hourly.cloud_cover[_hrIdx]+'% → '+_finalCC+'%');
-            omData.hourly.cloud_cover[_hrIdx]=_finalCC;
+          if(_hrIdx>=0){
+            const _hrCC=omData.hourly.cloud_cover[_hrIdx];
+            if(_hrCC>omData.current.cloud_cover){
+              console.log('Cloud cover synced from hourly (graph): current '+omData.current.cloud_cover+'% → hourly['+_hrIdx+'] '+_hrCC+'%');
+              omData.current.cloud_cover=_hrCC;
+            }
           }
         }
+        const _finalCC=omData.current.cloud_cover;
         if(!/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower/i.test(omData.current._nwsDesc)){
           omData.current._nwsDesc=cloudCategory(_finalCC);
         }
