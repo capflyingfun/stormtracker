@@ -2053,13 +2053,33 @@ function renderStorms(){
   if(mv&&mv.speed>=2){storms.forEach(s=>{s._eta=calcStormETA(s)})}else{storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)})}
   let inConeCount=0;
   if(mv&&mv.speed>=2){
+    const uLat=S.lat,uLng=S.lng;
     storms.forEach(s=>{
-      const bwm=Math.max(0,Math.min(3,(s.dbz-20)/15));
-      const wa=s.distance>0.5?Math.atan2(bwm,s.distance)*180/Math.PI:15;
-      const ch=15+wa;
-      const btu=(s.bearing+180)%360;
-      const df=Math.abs(((mv.direction-btu+180)%360)-180);
-      if(df<=ch)inConeCount++;
+      const range=Math.min(60,Math.max(s.distance*1.5,20));
+      const dir=mv.direction;
+      const baseWidthMi=Math.max(0,Math.min(3,(s.dbz-20)/15));
+      const perpL=(dir-90+360)%360;
+      const perpR=(dir+90)%360;
+      let pts;
+      if(baseWidthMi>0.1){
+        const bL=destPoint(s.lat,s.lng,perpL,baseWidthMi);
+        const bR=destPoint(s.lat,s.lng,perpR,baseWidthMi);
+        const fL=destPoint(bL[0],bL[1],dir-15,range);
+        const fC=destPoint(s.lat,s.lng,dir,range);
+        const fR=destPoint(bR[0],bR[1],dir+15,range);
+        pts=[bL,fL,fC,fR,bR];
+      }else{
+        const fL=destPoint(s.lat,s.lng,dir-15,range);
+        const fC=destPoint(s.lat,s.lng,dir,range);
+        const fR=destPoint(s.lat,s.lng,dir+15,range);
+        pts=[[s.lat,s.lng],fL,fC,fR,[s.lat,s.lng]];
+      }
+      let inside=false;
+      for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+        const yi=pts[i][0],xi=pts[i][1],yj=pts[j][0],xj=pts[j][1];
+        if(((yi>uLat)!==(yj>uLat))&&(uLng<(xj-xi)*(uLat-yi)/(yj-yi)+xi))inside=!inside;
+      }
+      if(inside)inConeCount++;
     });
   }
   const sf=S._stormFilter||_loadStormFilter();
@@ -2231,7 +2251,7 @@ function renderStorms(){
   el.innerHTML=`${zoneAlert}
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
-      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${filterNote}${inboundCapped.length?' · <span style="color:#ef4444">'+inboundCapped.length+' inbound</span>':''}${mv&&mv.speed>=2?' · <span style="color:'+(inConeCount>0?'#ff9800':'#6b7280')+'">🎯 '+inConeCount+' in your cone</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" class="c-muted-sm"></span></div>
+      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${filterNote}${inboundCapped.length?' · <span style="color:#ef4444">'+inboundCapped.length+' inbound</span>':''}${mv&&mv.speed>=2?'<br><span style="color:'+(inConeCount>0?'#ff9800':'#6b7280')+'">🎯 You are currently in '+inConeCount+' storm track cone'+(inConeCount!==1?'s':'')+'</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" class="c-muted-sm"></span></div>
     </div>
     ${noWindBanner}${smartSummary}
     ${_renderFilterBar(sf)}
