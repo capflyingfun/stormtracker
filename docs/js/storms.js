@@ -2054,12 +2054,7 @@ function renderStorms(){
   let inConeCount=0;
   if(mv&&mv.speed>=2){
     storms.forEach(s=>{
-      const bwm=Math.max(0,Math.min(3,(s.dbz-20)/15));
-      const wa=s.distance>0.5?Math.atan2(bwm,s.distance)*180/Math.PI:15;
-      const ch=15+wa;
-      const btu=(s.bearing+180)%360;
-      const df=Math.abs(((mv.direction-btu+180)%360)-180);
-      if(df<=ch)inConeCount++;
+      if(s._eta&&s._eta.approaching&&s._eta.impact>0)inConeCount++;
     });
   }
   const sf=S._stormFilter||_loadStormFilter();
