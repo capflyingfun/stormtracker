@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=411">
+<link rel="stylesheet" href="css/style.css?v=412">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -239,6 +239,14 @@
           </select>
         </div>
         <div class="text-xxs-muted">OFF = always visible · Always Hidden = never shown</div>
+      </div>
+      <div class="setting-sep">
+        <div class="setting-heading">📍 Auto-Locate on Load</div>
+        <div class="flex-between" style="margin-bottom:6px">
+          <span class="text-xxs-muted">Get GPS location on app start</span>
+          <button id="settings-autogps-toggle" onclick="toggleAutoGps()" style="font-size:0.75em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted)">OFF</button>
+        </div>
+        <div class="text-xxs-muted">Silently updates your position each time StormTracker opens — great for home screen shortcuts</div>
       </div>
       <div class="setting-sep">
         <div class="setting-heading">🧭 Travel Mode</div>
@@ -489,19 +497,19 @@
   </div>
 </div>
 
-<script src="js/core.js?v=411"></script>
-<script src="js/gauges.js?v=411"></script>
-<script src="js/icons.js?v=411"></script>
-<script src="js/geo.js?v=411"></script>
-<script src="js/settings.js?v=411"></script>
-<script src="js/thresholds.js?v=411"></script>
-<script src="js/weather.js?v=411"></script>
-<script src="js/radar.js?v=411"></script>
-<script src="js/storms.js?v=411"></script>
-<script src="js/station.js?v=411"></script>
-<script src="js/alerts.js?v=411"></script>
-<script src="js/ai.js?v=411"></script>
-<script src="js/init.js?v=411"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=411').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="js/core.js?v=412"></script>
+<script src="js/gauges.js?v=412"></script>
+<script src="js/icons.js?v=412"></script>
+<script src="js/geo.js?v=412"></script>
+<script src="js/settings.js?v=412"></script>
+<script src="js/thresholds.js?v=412"></script>
+<script src="js/weather.js?v=412"></script>
+<script src="js/radar.js?v=412"></script>
+<script src="js/storms.js?v=412"></script>
+<script src="js/station.js?v=412"></script>
+<script src="js/alerts.js?v=412"></script>
+<script src="js/ai.js?v=412"></script>
+<script src="js/init.js?v=412"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=412').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>

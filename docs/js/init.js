@@ -131,7 +131,7 @@ function hideLoadingScreen(){
   setTimeout(()=>{el.style.display='none';el.classList.remove('fade-out')},420);
 }
 
-function init(){
+async function init(){
   _pruneExpiredAlerts();
   _loadAllCustomIcons().catch(()=>{});
   loadUnits();
@@ -143,6 +143,14 @@ function init(){
     if(saved&&saved.lat&&saved.lon){
       if(!getHomeLocation())setHomeLocation(saved.lat,saved.lon,saved.name);
       _showBottomNav();
+      if(localStorage.getItem('st_autoGps')==='1'){
+        const gps=await _silentGpsOnLoad();
+        if(gps){
+          if(gps.coords.altitude!=null)S._gpsAltitude=gps.coords.altitude;
+          reverseGeo(gps.coords.latitude,gps.coords.longitude);
+          return;
+        }
+      }
       setLoc(saved.lat,saved.lon,saved.name);return;
     }
   }catch(e){}
