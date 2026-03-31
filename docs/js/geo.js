@@ -401,7 +401,7 @@ function setLoc(lat,lon,name,opts){
   const _reqId=S._locReqId;
   document.getElementById('status-text').textContent=(fromTravel?'🧭 Travel Mode · ':'Live · ')+S.locName;
   fetchAlerts();
-  (async()=>{
+  const _refreshDone=(async()=>{
     await fetchWeather();
     if(_reqId!==S._locReqId)return;
     await scanRadarForStorms();
@@ -411,6 +411,7 @@ function setLoc(lat,lon,name,opts){
   })();
   if(!fromTravel)scheduleHourlyRefresh();
   if(typeof refreshMpingIfVisible==='function')refreshMpingIfVisible();
+  return _refreshDone;
 }
 
 function getFavorites(){
@@ -834,31 +835,27 @@ async function _travelCycleRefresh(){
   if(!S.travelMode)return;
   const statusEl=document.getElementById('travel-status');
   if(statusEl)statusEl.textContent='🧭 Refreshing...';
+  let lat=S.lat,lon=S.lon;
   try{
     const pos=await new Promise((resolve,reject)=>{
       navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:15000,maximumAge:5000});
     });
     if(!S.travelMode)return;
     if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;
-    const lat=pos.coords.latitude,lon=pos.coords.longitude;
+    lat=pos.coords.latitude;lon=pos.coords.longitude;
     S.lat=lat;S.lon=lon;
     if(S.travelMarker)S.travelMarker.setLatLng([lat,lon]);
     if(S._userMarker)S._userMarker.setLatLng([lat,lon]);
     if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);
     if(S.map)S.map.panTo([lat,lon],{animate:true,duration:0.5});
-    const name=await reverseGeocode(lat,lon);
-    if(!S.travelMode)return;
-    const locName=name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-    setLoc(lat,lon,locName,{fromTravel:true});
   }catch(e){
     if(!S.travelMode)return;
-    if(S.lat){
-      const name=await reverseGeocode(S.lat,S.lon).catch(()=>null);
-      if(!S.travelMode)return;
-      const locName=name||`${S.lat.toFixed(4)}, ${S.lon.toFixed(4)}`;
-      setLoc(S.lat,S.lon,locName,{fromTravel:true});
-    }
   }
+  if(lat==null)return void(S.travelMode&&_startTravelCountdown());
+  const name=await reverseGeocode(lat,lon).catch(()=>null);
+  if(!S.travelMode)return;
+  const locName=name||`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  try{await setLoc(lat,lon,locName,{fromTravel:true})}catch(e){}
   if(S.travelMode)_startTravelCountdown();
 }
 function onTravelPosition(pos){
