@@ -86,6 +86,15 @@ function _blendOMModels(gfs,hrrr){
 
   return out;
 }
+async function _fetchOMModels(omBase,isUS){
+  const [_gfsRes,_hrrrRes]=await Promise.allSettled([
+    fetch(omBase+'&models=gfs_seamless',{signal:AbortSignal.timeout(8000)}).then(r=>r.json()),
+    isUS?fetch(omBase+'&models=hrrr_conus',{signal:AbortSignal.timeout(8000)}).then(r=>r.json()):Promise.resolve(null)
+  ]);
+  const g=_gfsRes.status==='fulfilled'?_gfsRes.value:null;
+  const h=_hrrrRes.status==='fulfilled'?_hrrrRes.value:null;
+  return{gfs:g,hrrr:h,blended:_blendOMModels(g,h)||g||h};
+}
 async function fetchWeather(){
   const reqId=S._locReqId;
   const el=document.getElementById('page-weather');
@@ -98,15 +107,18 @@ async function fetchWeather(){
       +`&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset,wind_speed_10m_max`
       +`&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=7&past_days=2`;
     const _isUSLoc=isUSLocation(S.lat,S.lon);
-    // Fetch GFS (global, NWS-baseline) + HRRR (high-res CONUS, hourly updates) in parallel
-    const [_gfsRes,_hrrrRes]=await Promise.allSettled([
-      fetch(_omBase+'&models=gfs_seamless',{signal:AbortSignal.timeout(8000)}).then(r=>r.json()),
-      _isUSLoc?fetch(_omBase+'&models=hrrr_conus',{signal:AbortSignal.timeout(8000)}).then(r=>r.json()):Promise.resolve(null)
-    ]);
-    const _gfsData=_gfsRes.status==='fulfilled'?_gfsRes.value:null;
-    const _hrrrData=_hrrrRes.status==='fulfilled'?_hrrrRes.value:null;
-    const omData=_blendOMModels(_gfsData,_hrrrData)||_gfsData||_hrrrData;
-    if(!omData)throw new Error('All model fetches failed');
+    let _om=await _fetchOMModels(_omBase,_isUSLoc);
+    if(!_om.blended){
+      console.log('OM models: first attempt failed — retrying in 3s...');
+      if(reqId!==S._locReqId)return;
+      await new Promise(r=>setTimeout(r,3000));
+      if(reqId!==S._locReqId)return;
+      _om=await _fetchOMModels(_omBase,_isUSLoc);
+      if(!_om.blended)throw new Error('All model fetches failed (after retry)');
+      console.log('OM models: retry succeeded');
+    }
+    const _gfsData=_om.gfs,_hrrrData=_om.hrrr;
+    const omData=_om.blended;
     console.log('OM models: '+(_gfsData?'GFS✓':'GFS✗')+' '+(_hrrrData?'HRRR✓':'HRRR✗')+(_isUSLoc?'':' (non-US, HRRR skipped)'));
     if(reqId!==S._locReqId)return;
     S.forecast=omData;
@@ -205,7 +217,7 @@ async function fetchWeather(){
     if(_isOffline&&S._lastWeatherData){
       renderWeather(S._lastWeatherData);
     } else {
-      el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p></div>`;
+      el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p><button onclick="fetchWeather()" style="margin-top:8px;padding:6px 18px;border-radius:8px;background:var(--accent-blue,#3b82f6);color:#fff;border:none;cursor:pointer;font-size:0.85em">Retry</button></div>`;
     }
   }
 }
