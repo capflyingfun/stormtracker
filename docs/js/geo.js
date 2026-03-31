@@ -644,6 +644,7 @@ async function toggleTravelMode(){
       if(!confirmed)return;
     }
   }
+  if(gpsPos){S.lat=gpsPos.coords.latitude;S.lon=gpsPos.coords.longitude}
   S.travelMode=true;
   S.travelLastUpdate=0;
   S.gpsInterval=parseInt(localStorage.getItem('gpsInterval')||'300',10);
@@ -824,9 +825,9 @@ function _tickTravelCd(){
   const intLabel=fmtGpsInt(intSec);
   const cdStr=_fmtTravelCd(remain)+'/'+intLabel;
   const spdTxt=S._travelSpdTxt||'—';
-  const accTxt=S._travelAccTxt||'';
+  const accTxt=S._travelAccTxt||'—';
   const statusEl=document.getElementById('travel-status');
-  if(statusEl)statusEl.textContent='🧭 '+spdTxt+(accTxt?' · ±'+accTxt:'')+' · '+cdStr;
+  if(statusEl)statusEl.textContent='🧭 '+spdTxt+' · ±'+accTxt+' · '+cdStr;
   if(remain<=0){
     _clearTravelCountdown();
     _travelCycleRefresh();
