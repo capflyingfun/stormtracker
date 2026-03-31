@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=405">
+<link rel="stylesheet" href="css/style.css?v=406">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -223,6 +223,22 @@
         </div>
         <input type="range" id="settings-ticker-speed" min="50" max="200" step="10" value="100" oninput="setTickerSpeed(this.value)" onchange="setTickerSpeed(this.value,true)" style="width:100%;accent-color:var(--accent-cyan);cursor:pointer">
         <div class="text-xxs-muted">50% = slower scroll, 200% = faster scroll</div>
+      </div>
+      <div class="setting-sep">
+        <div class="setting-heading-green">🎯 Crosshair Auto-Hide</div>
+        <div class="setting-row-6">
+          <span class="text-xxs-muted">Hide After</span>
+          <select id="settings-crosshair-delay" onchange="setCrosshairDelay(this.value)" class="small-btn">
+            <option value="off">OFF</option>
+            <option value="1">1s</option>
+            <option value="2">2s</option>
+            <option value="3" selected>3s</option>
+            <option value="5">5s</option>
+            <option value="15">15s</option>
+            <option value="on">Always Hidden</option>
+          </select>
+        </div>
+        <div class="text-xxs-muted">OFF = always visible · Always Hidden = never shown</div>
       </div>
       <div class="setting-sep">
         <div class="setting-heading">🧭 Travel Mode</div>
@@ -470,19 +486,19 @@
   </div>
 </div>
 
-<script src="js/core.js?v=405"></script>
-<script src="js/gauges.js?v=405"></script>
-<script src="js/icons.js?v=405"></script>
-<script src="js/geo.js?v=405"></script>
-<script src="js/settings.js?v=405"></script>
-<script src="js/thresholds.js?v=405"></script>
-<script src="js/weather.js?v=405"></script>
-<script src="js/radar.js?v=405"></script>
-<script src="js/storms.js?v=405"></script>
-<script src="js/station.js?v=405"></script>
-<script src="js/alerts.js?v=405"></script>
-<script src="js/ai.js?v=405"></script>
-<script src="js/init.js?v=405"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=405').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="js/core.js?v=406"></script>
+<script src="js/gauges.js?v=406"></script>
+<script src="js/icons.js?v=406"></script>
+<script src="js/geo.js?v=406"></script>
+<script src="js/settings.js?v=406"></script>
+<script src="js/thresholds.js?v=406"></script>
+<script src="js/weather.js?v=406"></script>
+<script src="js/radar.js?v=406"></script>
+<script src="js/storms.js?v=406"></script>
+<script src="js/station.js?v=406"></script>
+<script src="js/alerts.js?v=406"></script>
+<script src="js/ai.js?v=406"></script>
+<script src="js/init.js?v=406"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=406').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>

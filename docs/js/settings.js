@@ -275,6 +275,8 @@ function syncSettingsPanel(){
   try { renderSyncSection(); } catch(e) {}
   const tsSel=document.getElementById('settings-ticker-speed');
   if(tsSel){const tsVal=parseInt(localStorage.getItem('st_tickerSpeed'))||100;tsSel.value=String(tsVal);const tsLbl=document.getElementById('ticker-speed-val');if(tsLbl)tsLbl.textContent=tsVal+'%'}
+  const chSel=document.getElementById('settings-crosshair-delay');
+  if(chSel)chSel.value=String(S._crosshairDelay);
   const sel=document.getElementById('settings-travel-int');
   if(sel)sel.value=String(S.gpsInterval||300);
   const arSel=document.getElementById('settings-auto-refresh');
