@@ -277,6 +277,14 @@ function syncSettingsPanel(){
   if(tsSel){const tsVal=parseInt(localStorage.getItem('st_tickerSpeed'))||100;tsSel.value=String(tsVal);const tsLbl=document.getElementById('ticker-speed-val');if(tsLbl)tsLbl.textContent=tsVal+'%'}
   const chSel=document.getElementById('settings-crosshair-delay');
   if(chSel)chSel.value=String(S._crosshairDelay);
+  const agBtn=document.getElementById('settings-autogps-toggle');
+  if(agBtn){
+    const agOn=localStorage.getItem('st_autoGps')==='1';
+    agBtn.textContent=agOn?'ON':'OFF';
+    agBtn.style.background=agOn?'rgba(34,197,94,0.15)':'rgba(255,255,255,0.04)';
+    agBtn.style.borderColor=agOn?'#22c55e':'var(--border-subtle)';
+    agBtn.style.color=agOn?'#22c55e':'var(--text-muted)';
+  }
   const sel=document.getElementById('settings-travel-int');
   if(sel)sel.value=String(S.gpsInterval||300);
   const arSel=document.getElementById('settings-auto-refresh');

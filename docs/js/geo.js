@@ -128,9 +128,67 @@ function highlightSug(){
   });
 }
 
+async function _checkGpsPermission(){
+  if(!navigator.geolocation)return 'denied';
+  if(navigator.permissions){
+    try{const p=await navigator.permissions.query({name:'geolocation'});return p.state}catch(e){}
+  }
+  return localStorage.getItem('st_locAsked')?'granted':'prompt';
+}
+
+async function toggleAutoGps(){
+  const cur=localStorage.getItem('st_autoGps')==='1';
+  if(cur){
+    localStorage.removeItem('st_autoGps');
+    toast('📍 Auto-locate on load disabled');
+    syncSettingsPanel();
+    return;
+  }
+  const perm=await _checkGpsPermission();
+  if(perm==='granted'){
+    localStorage.setItem('st_autoGps','1');
+    toast('📍 Auto-locate on load enabled');
+    syncSettingsPanel();
+    return;
+  }
+  if(perm==='denied'){
+    toast('📍 Location access denied — please enable GPS in your browser/phone settings first');
+    syncSettingsPanel();
+    return;
+  }
+  _autoGpsPending=true;
+  showLocationConfirm();
+}
+let _autoGpsPending=false;
+let _travelGpsPending=false;
+
+function _silentGpsOnLoad(){
+  return new Promise(resolve=>{
+    if(!navigator.geolocation){resolve(null);return}
+    const timeout=setTimeout(()=>resolve(null),8000);
+    navigator.geolocation.getCurrentPosition(
+      pos=>{clearTimeout(timeout);resolve(pos)},
+      err=>{
+        clearTimeout(timeout);
+        if(err.code===1){localStorage.removeItem('st_autoGps')}
+        resolve(null);
+      },
+      {enableHighAccuracy:true,timeout:7500,maximumAge:60000}
+    );
+  });
+}
+
 let _locConfirmShown=false;
 function _doGPSLocate(){
   toggleLocOverlay(false);
+  if(_autoGpsPending){
+    _autoGpsPending=false;
+    localStorage.setItem('st_autoGps','1');
+    toast('📍 Auto-locate on load enabled');
+    syncSettingsPanel();
+  }
+  const wasTravelPending=_travelGpsPending;
+  if(_travelGpsPending)_travelGpsPending=false;
   toast('Getting location...');
   let _gpsGot=false;
   let _activeAttempt=1;
@@ -141,7 +199,10 @@ function _doGPSLocate(){
     toast('📍 GPS locked — accuracy ±'+Math.round(pos.coords.accuracy)+'m');
     if(pos.coords.altitude!=null)S._gpsAltitude=pos.coords.altitude;
     S._gpsLocating=true;
-    reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{S._gpsLocating=false});
+    reverseGeo(pos.coords.latitude,pos.coords.longitude).finally(()=>{
+      S._gpsLocating=false;
+      if(wasTravelPending)setTimeout(()=>toggleTravelMode(),500);
+    });
   }
   function _gpsFail(err){
     if(_gpsGot)return;_gpsGot=true;
@@ -197,9 +258,9 @@ function showLocationConfirm(){
     </div>
   </div>`;
   document.body.appendChild(overlay);
-  document.getElementById('loc-deny').addEventListener('click',()=>{overlay.remove();toast('You can search for a location instead')});
+  document.getElementById('loc-deny').addEventListener('click',()=>{overlay.remove();if(_autoGpsPending){_autoGpsPending=false;toast('📍 Auto-locate requires GPS permission');syncSettingsPanel()}else if(_travelGpsPending){_travelGpsPending=false;toast('📍 Travel Mode requires GPS permission')}else{toast('You can search for a location instead')}});
   document.getElementById('loc-allow').addEventListener('click',()=>{overlay.remove();_doGPSLocate()});
-  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()});
+  overlay.addEventListener('click',e=>{if(e.target===overlay){overlay.remove();_autoGpsPending=false;_travelGpsPending=false}});
 }
 
 async function searchLoc(){
@@ -609,17 +670,12 @@ async function toggleTravelMode(){
     return;
   }
   if(!navigator.geolocation) return toast('GPS not available on this device');
-  if(navigator.permissions){
-    try{
-      const perm=await navigator.permissions.query({name:'geolocation'});
-      if(perm.state==='denied'){
-        toast('📍 Location access denied — please enable it in your browser settings to use Travel Mode');
-        return;
-      }
-      if(perm.state==='prompt'){
-        toast('📍 Requesting location access...');
-      }
-    }catch(e){}
+  const _tPerm=await _checkGpsPermission();
+  if(_tPerm==='denied'||_tPerm==='prompt'){
+    toast('📍 GPS permission required for Travel Mode');
+    _travelGpsPending=true;
+    showLocationConfirm();
+    return;
   }
   let gpsPos;
   toast('📍 Acquiring GPS for Travel Mode...');
