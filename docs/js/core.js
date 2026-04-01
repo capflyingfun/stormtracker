@@ -716,7 +716,7 @@ function _initDesktopSonarKeepAlive(){
 }
 
 function _initScrollSpy(){
-  const pages=['weather','radar','storms','station','alerts'];
+  const pages=['weather','radar','storms','station','3d','alerts'];
   let _scrollSpyActive=true;
   const obs=new IntersectionObserver((entries)=>{
     if(!_isDesktop()||!_scrollSpyActive)return;
@@ -762,6 +762,7 @@ function switchPage(page){
     if(page==='radar'&&S.lat&&S.map){
       setTimeout(()=>{S.map.invalidateSize();if(S._showZones&&S._rawScanPts.length)buildStormZones(S.map,S._rawScanPts);if(S._showPathArrows)buildPathArrows(S.map)},200);
     }
+    if(page==='3d'){if(typeof activate3DView==='function')activate3DView();}else{if(typeof deactivate3DView==='function')deactivate3DView();}
     if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}
     return;
   }
@@ -776,6 +777,7 @@ function switchPage(page){
   if(page==='station'){const navBtn=document.getElementById('nav-station');if(navBtn&&navBtn.style.display==='none'){switchPage('weather');return}if(S.lat&&(!S.station||S._stationLocKey!==S.lat+','+S.lon))fetchStation()}
   if(page==='alerts'&&S.lat){fetchAlerts();fetchHazards()}
   if(page==='storms'&&S.lat)renderStorms();
+  if(page==='3d'){if(typeof activate3DView==='function')activate3DView();}else{if(typeof deactivate3DView==='function')deactivate3DView();}
   if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}
 }
 function updateStormBadges(){

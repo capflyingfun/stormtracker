@@ -662,4 +662,19 @@ canvas.offscreen{display:none}
   /* 2-column layout inside settings scroll area */
   #settings-scroll-area{columns:2;column-gap:24px;padding:20px 24px!important}
   #settings-scroll-area>div{break-inside:avoid;margin-bottom:14px}
+
+  /* 3D page: full-height on desktop too */
+  #page-3d{min-height:90vh}
+  #view3d-container{height:85vh!important}
 }
+@keyframes spin3d{to{transform:rotate(360deg)}}
+#page-3d .ct-tick{position:absolute;top:0;width:1px;background:rgba(255,255,255,0.15);height:10px}
+#page-3d .ct-tick.major{height:16px;background:rgba(0,200,255,0.5)}
+#page-3d .ct-lbl{position:absolute;top:16px;transform:translateX(-50%);font-size:10px;font-weight:700;letter-spacing:.04em;color:rgba(0,229,255,0.85)}
+#page-3d .ct-lbl.inter{color:rgba(255,255,255,0.35);font-weight:400;font-size:9px}
+#page-3d .pop-cat{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+#page-3d .pop-dbz{font-size:28px;font-weight:800;margin-bottom:8px;line-height:1}
+#page-3d .pop-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05)}
+#page-3d .pop-row:last-child{border-bottom:none}
+#page-3d .pop-k{color:rgba(255,255,255,0.4)}
+#page-3d .pop-v{color:#e8eef8;font-weight:600}

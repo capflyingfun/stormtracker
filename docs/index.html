@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=412">
+<link rel="stylesheet" href="css/style.css?v=416">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -435,6 +435,49 @@
   <div id="page-radar" class="section-page"></div>
   <div id="page-storms" class="section-page"></div>
   <div id="page-station" class="section-page"></div>
+  <div id="page-3d" class="section-page">
+    <div id="view3d-container" style="width:100%;height:calc(100vh - 56px);position:relative;background:#050a14;overflow:hidden">
+      <div id="v3d-loading" style="display:none;position:absolute;inset:0;background:#050a14;z-index:30;flex-direction:column;align-items:center;justify-content:center;gap:12px">
+        <div style="width:48px;height:48px;border-radius:50%;border:3px solid rgba(0,229,255,0.15);border-top-color:#00e5ff;animation:spin3d 1s linear infinite"></div>
+        <div style="color:#e8eef8;font-size:14px;font-weight:700;letter-spacing:.1em">LOADING 3D VIEW</div>
+        <div style="color:rgba(255,255,255,0.35);font-size:11px">Building terrain &amp; map tiles…</div>
+      </div>
+      <div id="v3d-empty-msg" style="display:none;position:absolute;inset:0;background:#050a14;z-index:25;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:24px">
+        <div style="font-size:2em">🗻</div>
+        <div style="color:#e8eef8;font-size:15px;font-weight:600">No location set</div>
+        <div style="color:rgba(255,255,255,0.4);font-size:12px;max-width:260px;line-height:1.5">Go to the Weather tab and allow location access, then come back here to see the 3D storm view.</div>
+      </div>
+      <div id="v3d-hud" style="position:absolute;inset:0;pointer-events:none;z-index:10">
+        <div id="v3d-compass-bar" style="position:absolute;top:0;left:0;right:0;height:36px;overflow:hidden;pointer-events:none;background:rgba(5,10,20,0.55);backdrop-filter:blur(6px);border-bottom:1px solid rgba(0,200,255,0.12)">
+          <div id="v3d-compass-center-mark" style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #00e5ff;z-index:2"></div>
+          <div id="v3d-compass-tape" style="position:absolute;top:0;height:28px;white-space:nowrap;will-change:transform"></div>
+          <div id="v3d-compass-hdg" style="position:absolute;bottom:1px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:700;color:#00e5ff;letter-spacing:.06em;z-index:2"></div>
+        </div>
+        <div id="v3d-info-tl" style="position:absolute;top:44px;left:8px;background:rgba(5,10,20,0.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:8px 12px;min-width:140px;pointer-events:none;font-size:11px">
+          <div style="font-size:9px;color:rgba(255,255,255,0.38);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Location</div>
+          <div style="font-size:13px;font-weight:600;color:#e8eef8;line-height:1.3" id="v3d-loc-name">—</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.55);margin-top:2px" id="v3d-loc-coords">—</div>
+        </div>
+        <div id="v3d-info-tr" style="position:absolute;top:44px;right:8px;background:rgba(5,10,20,0.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:8px 12px;min-width:130px;text-align:right;pointer-events:none;font-size:11px">
+          <div style="font-size:9px;color:rgba(255,255,255,0.38);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Storm Cells</div>
+          <div style="font-size:13px;font-weight:600;color:#e8eef8;line-height:1.3" id="v3d-storm-count">—</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.55);margin-top:2px" id="v3d-nearest-threat">—</div>
+          <div style="margin-top:6px;font-size:9px;color:rgba(255,255,255,0.38);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Steering</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.55)" id="v3d-steering-info">—</div>
+          <div style="margin-top:6px;font-size:9px;color:rgba(255,255,255,0.38);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Surface Wind</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.55)" id="v3d-wind-info">—</div>
+          <div style="margin-top:6px;font-size:9px;color:rgba(255,255,255,0.38);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px">Cloud Base</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.55)" id="v3d-cloud-base-info">—</div>
+        </div>
+      </div>
+      <div id="v3d-popup" style="position:absolute;z-index:20;background:rgba(5,10,20,0.93);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:16px 18px;min-width:210px;pointer-events:all;display:none;box-shadow:0 8px 40px rgba(0,0,0,0.7)">
+        <span id="v3d-pop-close" onclick="document.getElementById('v3d-popup').style.display='none'" style="position:absolute;top:10px;right:12px;color:rgba(255,255,255,0.35);cursor:pointer;font-size:16px;line-height:1">✕</span>
+        <div class="pop-cat" id="v3d-pop-cat">—</div>
+        <div class="pop-dbz" id="v3d-pop-dbz">— dBZ</div>
+        <div id="v3d-pop-rows"></div>
+      </div>
+    </div>
+  </div>
   <div id="page-alerts" class="section-page"></div>
 </div>
 
@@ -481,6 +524,7 @@
   <button class="nav-item" data-page="radar"><span class="nav-icon">📡</span><span class="nav-label">Radar</span></button>
   <button class="nav-item" data-page="storms" style="position:relative"><span class="nav-icon" id="nav-storms-icon">🌪️</span><span class="nav-label">Storms</span><span class="nav-badge" id="nav-storm-badge"></span></button>
   <button class="nav-item" data-page="station" id="nav-station" style="display:none"><span class="nav-icon">✈️</span><span class="nav-label">Station</span></button>
+  <button class="nav-item" data-page="3d"><span class="nav-icon">🗻</span><span class="nav-label">3D</span></button>
   <button class="nav-item" data-page="alerts" style="position:relative" id="nav-alerts"><span class="nav-icon">⚠️</span><span class="nav-label">Alerts</span><span class="nav-badge" id="nav-alert-badge">0</span></button>
 </nav>
 
@@ -497,7 +541,9 @@
   </div>
 </div>
 
-<script src="js/core.js?v=412"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="js/core.js?v=416"></script>
 <script src="js/gauges.js?v=412"></script>
 <script src="js/icons.js?v=412"></script>
 <script src="js/geo.js?v=412"></script>
@@ -509,7 +555,8 @@
 <script src="js/station.js?v=412"></script>
 <script src="js/alerts.js?v=412"></script>
 <script src="js/ai.js?v=412"></script>
-<script src="js/init.js?v=412"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=412').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="js/init.js?v=416"></script>
+<script src="js/view3d.js?v=416"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=416').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>
