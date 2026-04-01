@@ -113,6 +113,7 @@ function init3DScene() {
 
   V3D.renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: false, powerPreference: 'high-performance' });
   V3D.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  V3D.renderer.sortObjects = true;
   var w = container.clientWidth, h = container.clientHeight;
   V3D.renderer.setSize(w, h);
   V3D.renderer.toneMapping = THREE.ACESFilmicToneMapping;
