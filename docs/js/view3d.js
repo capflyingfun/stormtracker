@@ -673,29 +673,25 @@ function getCloudBase3D() {
   return 1.5;
 }
 
-function clusterStorms3D(raw) {
-  var sorted = raw.slice().sort(function (a, b) { return b.dbz - a.dbz; });
-  var used = [];
-  var MIN_KM = 5;
-  for (var i = 0; i < sorted.length; i++) {
-    var s = sorted[i];
-    var tooClose = false;
-    for (var j = 0; j < used.length; j++) {
-      var dx = (s.lat - used[j].lat) * 111.32;
-      var dy = ((s.lon || s.lng) - (used[j].lon || used[j].lng)) * 111.32 * Math.cos(s.lat * Math.PI / 180);
-      if (Math.sqrt(dx * dx + dy * dy) < MIN_KM) { tooClose = true; break; }
-    }
-    if (!tooClose) used.push(s);
-    if (used.length >= 30) break;
-  }
-  return used;
+function hexZones3D() {
+  var raw = S._rawScanPts;
+  if (!raw || !raw.length) return [];
+  var maxR = S.scanRadius || 80;
+  var cells = hexGridBin(raw, S.lat, S.lon, maxR);
+  var out = [];
+  cells.forEach(function (c) {
+    var xy = _hexCenter(c.q, c.r);
+    var ll = _xyToLL(xy[0], xy[1], S.lat, S.lon);
+    out.push({ lat: ll[0], lon: ll[1], lng: ll[1], dbz: c.maxDbz, distance: c.dist, bearing: c.bearing, count: c.count });
+  });
+  out.sort(function (a, b) { return b.dbz - a.dbz; });
+  return out;
 }
 
 function rebuildStorms3D() {
   clearStorms3D();
-  var raw = S.storms || [];
-  if (!raw.length) return;
-  var storms = clusterStorms3D(raw);
+  var storms = hexZones3D();
+  if (!storms.length) return;
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
   storms.forEach(function (cell) {
     var lon = cell.lon || cell.lng;
@@ -805,23 +801,22 @@ function refreshHUD3D() {
   el('v3d-loc-name').textContent = S.locName || '\u2014';
   el('v3d-loc-coords').textContent = S.lat ? S.lat.toFixed(4) + '\u00b0, ' + S.lon.toFixed(4) + '\u00b0' : '\u2014';
   var stormsScanned = !!S.scanTime;
-  var allStorms = S.storms || [];
-  var clustered = allStorms.length ? clusterStorms3D(allStorms) : [];
-  var cnt = clustered.length;
-  el('v3d-storm-count').textContent = !stormsScanned ? 'Not scanned' : cnt ? cnt + ' cell' + (cnt !== 1 ? 's' : '') : 'Clear';
+  var zones = hexZones3D();
+  var cnt = zones.length;
+  el('v3d-storm-count').textContent = !stormsScanned ? 'Not scanned' : cnt ? cnt + ' zone' + (cnt !== 1 ? 's' : '') : 'Clear';
   var noscanEl = document.getElementById('v3d-noscan-msg');
   if (noscanEl) noscanEl.style.display = stormsScanned ? 'none' : 'block';
   if (!stormsScanned) {
     el('v3d-nearest-threat').textContent = 'Go to Radar tab to scan';
     el('v3d-nearest-threat').style.color = 'rgba(255,200,50,0.7)';
   } else {
-    var sig = clustered.filter(function (s) { return s.dbz >= 35; });
+    var sig = zones.filter(function (s) { return s.dbz >= 35; });
     if (sig.length) {
       var n = sig[0];
       el('v3d-nearest-threat').textContent = Math.round(n.dbz) + ' dBZ \u00b7 ' + fmtDist3D(n.distance) + ' ' + dir16_3D(n.bearing);
       el('v3d-nearest-threat').style.color = dbzHex3D(n.dbz);
     } else {
-      el('v3d-nearest-threat').textContent = cnt ? 'No severe cells' : 'No active cells';
+      el('v3d-nearest-threat').textContent = cnt ? 'No severe zones' : 'No active zones';
       el('v3d-nearest-threat').style.color = 'rgba(255,255,255,0.45)';
     }
   }
@@ -915,19 +910,6 @@ var _v3dLocKey = '';
 var _v3dLoading = false;
 
 async function activate3DView() {
-  var tickerBar = document.getElementById('threat-ticker');
-  if (tickerBar) {
-    if (V3D._tickerOrigBottom === undefined) {
-      V3D._tickerOrigBottom = tickerBar.style.bottom;
-      V3D._tickerOrigTop = tickerBar.style.top;
-      V3D._tickerOrigBorderTop = tickerBar.style.borderTop;
-      V3D._tickerOrigBorderBottom = tickerBar.style.borderBottom;
-    }
-    tickerBar.style.bottom = '50px';
-    tickerBar.style.top = 'auto';
-    tickerBar.style.borderTop = 'none';
-    tickerBar.style.borderBottom = '1px solid rgba(0,220,255,0.1)';
-  }
   if (typeof THREE === 'undefined') {
     console.warn('THREE.js not loaded — 3D view unavailable');
     var errEl = document.getElementById('v3d-engine-error');
@@ -990,11 +972,4 @@ function deactivate3DView() {
   V3D.stormMeshes.forEach(function (sm) { if (sm.ltTimer) { clearInterval(sm.ltTimer); sm.ltTimer = null; } });
   var popup = document.getElementById('v3d-popup');
   if (popup) popup.style.display = 'none';
-  var tickerBar = document.getElementById('threat-ticker');
-  if (tickerBar && V3D._tickerOrigBottom !== undefined) {
-    tickerBar.style.bottom = V3D._tickerOrigBottom;
-    tickerBar.style.top = V3D._tickerOrigTop;
-    tickerBar.style.borderTop = V3D._tickerOrigBorderTop || '1px solid rgba(0,220,255,0.1)';
-    tickerBar.style.borderBottom = V3D._tickerOrigBorderBottom || '';
-  }
 }
