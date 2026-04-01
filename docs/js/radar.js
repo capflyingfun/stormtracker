@@ -50,11 +50,11 @@ function initRadar(){
       <div class="map-legend">
         <span>dBZ</span>
         <div class="legend-bar">
-          <span style="background:#00ccff" title="15-25 Light"></span><span style="background:#00ffcc" title="25-30 Light"></span><span style="background:#00ff66" title="30-35 Moderate"></span><span style="background:#aaff00" title="35-40 Moderate"></span>
-          <span style="background:#ffee00" title="40-45 Heavy"></span><span style="background:#ff5500" title="45-50 Heavy"></span><span style="background:#ff2200" title="50-55 Intense"></span><span style="background:#ff0033" title="55-60 Severe"></span>
-          <span style="background:#ff00ff" title="60+ Extreme"></span>
+          <span style="background:#00F8FF" title="20-30 Light"></span><span style="background:#00FF39" title="31-40 Moderate"></span>
+          <span style="background:#F5FF00" title="41-45 Heavy"></span><span style="background:#FFB200" title="46-51 Intense"></span><span style="background:#FF0200" title="52-60 Severe"></span>
+          <span style="background:#FF00F5" title="61+ Extreme"></span>
         </div>
-        <span>15 → 60+ dBZ</span>
+        <span>20 → 61+ dBZ</span>
         <div style="display:flex;gap:6px;margin-left:6px;font-size:0.6em;opacity:0.7">
           <span style="color:#00cc44">🌧Rain</span>
           <span style="color:#66aaff">❄Snow</span>
@@ -1124,7 +1124,7 @@ function clearRadarGrid(){
   S._radarGridLayers=[];
 }
 function gridNeonColor(){
-  return'#00ccff';
+  return'#00F8FF';
 }
 function hexToRgba(hex,a){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
@@ -1680,7 +1680,7 @@ function updateThreatTicker(){
     return;
   }
   const allApproaching=topStorms.map(s=>({storm:s,eta:s._eta||calcStormETA(s)}));
-  const severeApproaching=allApproaching.filter(t=>t.storm.dbz>=45);
+  const severeApproaching=allApproaching.filter(t=>t.storm.dbz>=46);
   if(allApproaching.length===0){
     const pool=_tickerNearbyPool(sigStormCount);
     const msg=pool[Math.floor(Date.now()/60000)%pool.length];
@@ -1720,16 +1720,16 @@ function updateThreatTicker(){
     severeApproaching.sort((a,b)=>_tickerThreatScore(b)-_tickerThreatScore(a));
     const msgs=severeApproaching.map(t=>{
       const s=t.storm;const{cdSpan,arrStr}=fmtEtaLive(t.eta.eta);const _m=_stormMv(s);const fromDir=_m.dir;const spd=_m.spd;
-      if(s.dbz>=55)return`<span style="color:#ff3355">🚨 WARNING: Extremely dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Seek shelter immediately. 🚨</span>`;
-      if(s.dbz>=50)return`<span style="color:#ff6644">🚨 SEVERE WEATHER ALERT: Dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Use extreme caution. 🚨</span>`;
-      return`<span style="color:#ffcc00">⚠️ Strong storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Use caution and be prepared. ⚠️</span>`;
+      if(s.dbz>=61)return`<span style="color:#FF00F5">🚨 WARNING: Extremely dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Seek shelter immediately. 🚨</span>`;
+      if(s.dbz>=52)return`<span style="color:#FF0200">🚨 SEVERE WEATHER ALERT: Dangerous storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Use extreme caution. 🚨</span>`;
+      return`<span style="color:#FFB200">⚠️ Strong storm (${s.dbz} dBZ) approaching from the ${fromDir} at ${spd} ${spdUnit}. ETA ⏱️${cdSpan} (${arrStr}). Use caution and be prepared. ⚠️</span>`;
     });
     const sep='<span style="color:#444;margin:0 40px">│</span>';
     const html=msgs.join(sep);
     const topDbz=severeApproaching[0].storm.dbz;
-    showTicker(html,topDbz>=55?'#ff3355':topDbz>=50?'#ff6644':'#ffcc00',
-      topDbz>=55?'rgba(255,51,85,0.5)':topDbz>=50?'rgba(255,102,68,0.4)':'rgba(255,204,0,0.3)',
-      topDbz>=55?'linear-gradient(90deg,rgba(30,0,0,0.95),rgba(50,5,5,0.95),rgba(30,0,0,0.95))':topDbz>=50?'linear-gradient(90deg,rgba(30,10,0,0.95),rgba(50,15,5,0.95),rgba(30,10,0,0.95))':'linear-gradient(90deg,rgba(30,25,0,0.95),rgba(45,35,5,0.95),rgba(30,25,0,0.95))');
+    showTicker(html,topDbz>=61?'#FF00F5':topDbz>=52?'#FF0200':'#FFB200',
+      topDbz>=61?'rgba(255,0,245,0.5)':topDbz>=52?'rgba(255,2,0,0.4)':'rgba(255,178,0,0.3)',
+      topDbz>=61?'linear-gradient(90deg,rgba(30,0,0,0.95),rgba(50,5,5,0.95),rgba(30,0,0,0.95))':topDbz>=52?'linear-gradient(90deg,rgba(30,10,0,0.95),rgba(50,15,5,0.95),rgba(30,10,0,0.95))':'linear-gradient(90deg,rgba(30,25,0,0.95),rgba(45,35,5,0.95),rgba(30,25,0,0.95))');
     _startTickerCountdown();
     return;
   }

@@ -670,7 +670,7 @@ let _hiResPopupTimer=null;
 function _resetHiResTiers(){_hiResTierDismissed={15:false,10:false,5:false}}
 function _checkTieredHiRes(){
   if(!S.map||S._lastScanWasHiRes||_hiResPopupActive)return;
-  const severe=S.storms.filter(s=>s.dbz>=50);
+  const severe=S.storms.filter(s=>s.dbz>=52);
   if(!severe.length){_resetHiResTiers();return}
   const closest=Math.min(...severe.map(s=>s.distance));
   const tiers=[15,10,5];
@@ -1966,8 +1966,8 @@ function _smartStormSummary(storms){
   if(!approaching.length)return'<div style="padding:8px 12px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:8px;font-size:0.8em;color:#4ade80;margin-bottom:8px">No storms currently approaching your location.</div>';
   approaching.sort((a,b)=>a._eta.eta-b._eta.eta);
   const light=approaching.filter(s=>s.dbz<40);
-  const moderate=approaching.filter(s=>s.dbz>=40&&s.dbz<50);
-  const severe=approaching.filter(s=>s.dbz>=50);
+  const moderate=approaching.filter(s=>s.dbz>=41&&s.dbz<52);
+  const severe=approaching.filter(s=>s.dbz>=52);
   const now=Date.now();
   const fmtEtaShort=(min)=>{const s=Math.round(min*60);const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return(h>0?String(h).padStart(2,'0')+'h:':'')+String(m).padStart(2,'0')+'m:'+String(sec).padStart(2,'0')+'s';};
   const fmtTime=(min)=>fmtClockShort(new Date(now+min*60000));
@@ -1975,15 +1975,15 @@ function _smartStormSummary(storms){
   let lines=[];
   if(light.length){
     const first=light[0];
-    lines.push(`<span style="color:#00ffcc">🔵 Light rain</span> inbound starting in ${tierSpan(first._eta.eta)}${light.length>1?' — '+light.length+' cells':''}`);
+    lines.push(`<span style="color:#00F8FF">🔵 Light rain</span> inbound starting in ${tierSpan(first._eta.eta)}${light.length>1?' — '+light.length+' cells':''}`);
   }
   if(moderate.length){
     const first=moderate[0];
-    lines.push(`<span style="color:#ffee00">🟡 Moderate to heavy</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${moderate.length>1?' — '+moderate.length+' cells':''}`);
+    lines.push(`<span style="color:#F5FF00">🟡 Moderate to heavy</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${moderate.length>1?' — '+moderate.length+' cells':''}`);
   }
   if(severe.length){
     const first=severe[0];
-    lines.push(`<span style="color:#ff0033">🔴 Severe/intense</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${severe.length>1?' — '+severe.length+' cells':''}`);
+    lines.push(`<span style="color:#FF0200">🔴 Severe/intense</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${severe.length>1?' — '+severe.length+' cells':''}`);
   }
   return`<div style="padding:8px 12px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:8px;font-size:0.78em;line-height:1.6;margin-bottom:8px">${lines.join('<br>')}</div>`;
 }
@@ -2046,7 +2046,7 @@ function renderStorms(){
           <strong>Scan radius: ${S.scanRadius} mi</strong></p></div></div>`;
     return;
   }
-  const severe=storms.some(s=>s.dbz>=45);
+  const severe=storms.some(s=>s.dbz>=46);
   const _hasMovement=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
   const _hasAloft=S._upperWindDir!=null;
   const mv=_hasMovement?S.stormMovement:(_hasAloft?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
@@ -2133,10 +2133,10 @@ function renderStorms(){
         }
       }
       const hex=dbzHex(s.dbz);
-      const pulse=(s.dbz>=45)?'storm-card-pulse':'';
+      const pulse=(s.dbz>=46)?'storm-card-pulse':'';
       const isHook=s._hookEcho;
-      const cellIcon=isHook?'🌪️':s.dbz>=65?'‼️':s.dbz>=56?'🚨':s.dbz>=45?'⚠️':s.dbz>=40?'🟡':s.dbz>=30?'🟢':'🔵';
-      const cellName=isHook?tStr('Possible Rotation'):s.dbz>=55?tStr('Severe Cell'):s.dbz>=40?tStr('Storm Cell'):tStr('Rain Cell');
+      const cellIcon=isHook?'🌪️':s.dbz>=61?'‼️':s.dbz>=52?'🚨':s.dbz>=46?'⚠️':s.dbz>=41?'🟡':s.dbz>=20?'🟢':'🔵';
+      const cellName=isHook?tStr('Possible Rotation'):s.dbz>=52?tStr('Severe Cell'):s.dbz>=41?tStr('Storm Cell'):tStr('Rain Cell');
       const hookBadge=isHook?`<span class="hook-echo-badge">🌪️ Hook Echo</span>`:'';
       const ts10=stormThreatScore10(s);
       const tsColor=ts10>=8?'#ef4444':ts10>=6?'#f97316':ts10>=4?'#facc15':'#4ade80';

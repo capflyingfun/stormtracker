@@ -1,9 +1,9 @@
 // StormTracker — Wind Gauges, Sonar Config, Gyro Compass
 let _windMinKmh=Infinity,_windMaxKmh=0;
 const _SONAR_ZOOM_LEVELS=[15,20,30,40,50,60,70,80];
-const _SONAR_DBZ_CLASSES=['light','moderate','heavy','intense','extreme'];
-const _SONAR_DBZ_LABELS={light:'Light (0-29)',moderate:'Moderate (30-39)',heavy:'Heavy (40-49)',intense:'Intense (50-59)',extreme:'Extreme (60+)'};
-const _SONAR_DBZ_COLORS={light:'#00ccff',moderate:'#aaff00',heavy:'#ffee00',intense:'#ff2200',extreme:'#ff00ff'};
+const _SONAR_DBZ_CLASSES=['light','moderate','heavy','intense','severe','extreme'];
+const _SONAR_DBZ_LABELS={light:'Light (20-30)',moderate:'Moderate (31-40)',heavy:'Heavy (41-45)',intense:'Intense (46-51)',severe:'Severe (52-60)',extreme:'Extreme (61+)'};
+const _SONAR_DBZ_COLORS={light:'#00F8FF',moderate:'#00FF39',heavy:'#F5FF00',intense:'#FFB200',severe:'#FF0200',extreme:'#FF00F5'};
 const _SONAR_DEFAULTS={dbzScale:{},sweepSpeed:40,fadeDur:2,alwaysOn:false,dotOpacity:100,glowInt:1,gridBright:100,dbzFloor:0,showStormArrows:true,showAloft:true,showLightning:true};
 let _sonarCfg=(function(){try{const s=JSON.parse(localStorage.getItem('st_sonarCfg'));if(s&&typeof s==='object')return Object.assign({},_SONAR_DEFAULTS,s)}catch(e){}return Object.assign({},_SONAR_DEFAULTS)})();
 function _saveSonarCfg(){localStorage.setItem('st_sonarCfg',JSON.stringify(_sonarCfg))}

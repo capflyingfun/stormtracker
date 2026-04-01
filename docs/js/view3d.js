@@ -69,14 +69,7 @@ function geoToScene3D(lat, lon) {
   return { x: dLo * R * Math.cos(avgLa), z: -dLa * R };
 }
 
-function dbzCat3D(dbz) {
-  if (dbz >= 55) return { name: 'Extreme', col: '#dd00ff' };
-  if (dbz >= 45) return { name: 'Severe', col: '#ff3300' };
-  if (dbz >= 35) return { name: 'Heavy', col: '#ffee00' };
-  if (dbz >= 30) return { name: 'Moderate', col: '#00cc44' };
-  if (dbz >= 20) return { name: 'Light', col: '#00aaff' };
-  return { name: 'Trace', col: '#0055aa' };
-}
+function dbzCat3D(dbz) { var e = _dbzEntry(dbz); return { name: e.label, col: e.color }; }
 function dbzHex3D(dbz) { return dbzCat3D(dbz).col; }
 function dbzInt3D(dbz) { return Math.max(0.3, Math.min(2.5, (dbz - 15) / 30)); }
 
@@ -477,14 +470,22 @@ function buildCompass3D() {
     var spr = makeSprite3D(d.t, d.m ? 'rgba(0,229,255,0.85)' : 'rgba(255,255,255,0.3)', d.m ? 1 : 0.6);
     spr.position.set(R * Math.sin(ar), d.m ? 1.8 : 0.9, -R * Math.cos(ar)); V3D.compassGroup.add(spr);
   });
-  var RING_KM = [25, 50, 100];
+  var RINGS = [
+    {mi:10,op:0.25,label:false},{mi:20,op:0.5,label:true},{mi:30,op:0.25,label:false},{mi:40,op:0.5,label:true},
+    {mi:50,op:0.25,label:false},{mi:60,op:0.5,label:true},{mi:70,op:0.25,label:false},{mi:80,op:0.85,label:true}
+  ];
   V3D.ringLabels = [];
-  RING_KM.forEach(function (km, i) {
+  RINGS.forEach(function (r) {
+    var km = r.mi * 1.60934;
     var pts = []; for (var a = 0; a <= 64; a++) { var ar = a / 64 * Math.PI * 2; pts.push(new THREE.Vector3(km * Math.sin(ar), 0.02, -km * Math.cos(ar))); }
+    var col = r.mi === 80 ? 0x60ccff : 0x4a9ad0;
     V3D.scene.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({ color: 0x4a9ad0, transparent: true, opacity: 0.8 - i * 0.1 })));
-    var lspr = makeSprite3D(km + ' km', 'rgba(60,200,255,0.95)', 0.55); lspr.position.set(0, 0.5, -km); V3D.scene.add(lspr);
-    V3D.ringLabels.push({ spr: lspr, km: km });
+      new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: r.op })));
+    if (r.label) {
+      var lspr = makeSprite3D(r.mi + ' mi', 'rgba(60,200,255,0.95)', r.mi === 80 ? 0.6 : 0.5);
+      lspr.position.set(0, 0.5, -km); V3D.scene.add(lspr);
+      V3D.ringLabels.push({ spr: lspr, km: km });
+    }
   });
 }
 

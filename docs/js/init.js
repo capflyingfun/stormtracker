@@ -503,17 +503,17 @@ function dbzToEmoji(d){
     if(d>=31)return'🌧️';
     return'☁️';
   }
-  const cond=d>=56?'thunderstorm-lightning':d>=46?'thunderstorm':d>=31?'rain':'overcast';
+  const cond=d>=52?'thunderstorm-lightning':d>=46?'thunderstorm':d>=31?'rain':'overcast';
   return getWeatherIcon(cond,20);
 }
 function stormSVG(dbz,color,sz){
   const w=Math.round(sz*20),h=Math.round(sz*14);
-  const baseC=dbz>=56?'#555':dbz>=46?'#666':dbz>=31?'#999':'#ccc';
+  const baseC=dbz>=52?'#555':dbz>=46?'#666':dbz>=31?'#999':'#ccc';
   let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 40 28">`;
   svg+=`<path d="M10 22 C4 22 0 18 0 14 C0 10 3 7 7 7 C8 3 12 0 17 0 C22 0 26 3 27 7 C27 6.8 28 6.5 29 6.5 C33 6.5 36 9.5 36 13 C36 13.5 36 14 35.8 14.5 C38 15 40 17 40 20 C40 23 38 25 35 25 L10 25 C6 25 4 23 4 22 Z" fill="${baseC}" opacity="0.5"/>`;
   svg+=`<path d="M10 22 C4 22 0 18 0 14 C0 10 3 7 7 7 C8 3 12 0 17 0 C22 0 26 3 27 7 C27 6.8 28 6.5 29 6.5 C33 6.5 36 9.5 36 13 C36 13.5 36 14 35.8 14.5 C38 15 40 17 40 20 C40 23 38 25 35 25 L10 25 C6 25 4 23 4 22 Z" fill="${color}" opacity="0.6"/>`;
   if(dbz>=31){
-    const drops=dbz>=56?5:dbz>=46?3:2;
+    const drops=dbz>=52?5:dbz>=46?3:2;
     for(let i=0;i<drops;i++){
       const dx=10+i*(20/(drops-1||1));
       svg+=`<line x1="${dx}" y1="25" x2="${dx-2}" y2="28" stroke="${dbz>=46?'#6cf':'#8cf'}" stroke-width="1.2" opacity="0.7"/>`;
