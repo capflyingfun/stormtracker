@@ -666,10 +666,12 @@ function getCloudBase3D() {
 
 function rebuildStorms3D() {
   clearStorms3D();
-  var storms = S.storms || [];
+  var topStorms = S._topStorms || [];
+  var overheadStorms = (S._topStormAnalysis && S._topStormAnalysis.overhead) ? S._topStormAnalysis.overhead : [];
+  var storms = topStorms.concat(overheadStorms.filter(function (s) { return topStorms.indexOf(s) === -1; }));
   if (!storms.length) return;
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
-  storms.slice(0, 80).forEach(function (cell) {
+  storms.forEach(function (cell) {
     var lon = cell.lon || cell.lng;
     var lat = cell.lat;
     var sp = geoToScene3D(lat, lon);
@@ -776,9 +778,10 @@ function refreshHUD3D() {
   var el = function (id) { return document.getElementById(id); };
   el('v3d-loc-name').textContent = S.locName || '\u2014';
   el('v3d-loc-coords').textContent = S.lat ? S.lat.toFixed(4) + '\u00b0, ' + S.lon.toFixed(4) + '\u00b0' : '\u2014';
-  var storms = S.storms || [];
   var stormsScanned = !!S.scanTime;
-  var cnt = storms.length;
+  var topStorms = S._topStorms || [];
+  var overheadStorms = (S._topStormAnalysis && S._topStormAnalysis.overhead) ? S._topStormAnalysis.overhead : [];
+  var cnt = topStorms.length + overheadStorms.length;
   el('v3d-storm-count').textContent = !stormsScanned ? 'Not scanned' : cnt ? cnt + ' cell' + (cnt !== 1 ? 's' : '') : 'Clear';
   var noscanEl = document.getElementById('v3d-noscan-msg');
   if (noscanEl) noscanEl.style.display = stormsScanned ? 'none' : 'block';
@@ -786,13 +789,16 @@ function refreshHUD3D() {
     el('v3d-nearest-threat').textContent = 'Go to Radar tab to scan';
     el('v3d-nearest-threat').style.color = 'rgba(255,200,50,0.7)';
   } else {
-    var sig = storms.filter(function (s) { return s.dbz >= 35; });
-    if (sig.length) {
-      var n = sig[0];
+    if (topStorms.length) {
+      var n = topStorms[0];
       el('v3d-nearest-threat').textContent = Math.round(n.dbz) + ' dBZ \u00b7 ' + fmtDist3D(n.distance) + ' ' + dir16_3D(n.bearing);
       el('v3d-nearest-threat').style.color = dbzHex3D(n.dbz);
+    } else if (overheadStorms.length) {
+      var oh = overheadStorms[0];
+      el('v3d-nearest-threat').textContent = Math.round(oh.dbz) + ' dBZ \u00b7 overhead';
+      el('v3d-nearest-threat').style.color = dbzHex3D(oh.dbz);
     } else {
-      el('v3d-nearest-threat').textContent = 'No active cells';
+      el('v3d-nearest-threat').textContent = 'No significant cells';
       el('v3d-nearest-threat').style.color = 'rgba(255,255,255,0.45)';
     }
   }
