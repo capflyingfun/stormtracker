@@ -885,37 +885,15 @@ function loop3D() {
 var _v3dLocKey = '';
 var _v3dLoading = false;
 
-var _v3dScriptsLoaded = false;
-function _loadThreeJS() {
-  if (_v3dScriptsLoaded) return Promise.resolve();
-  return new Promise(function (resolve, reject) {
-    var s1 = document.createElement('script');
-    s1.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
-    s1.onload = function () {
-      var s2 = document.createElement('script');
-      s2.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
-      s2.onload = function () { _v3dScriptsLoaded = true; resolve(); };
-      s2.onerror = reject;
-      document.head.appendChild(s2);
-    };
-    s1.onerror = reject;
-    document.head.appendChild(s1);
-  });
-}
-
 async function activate3DView() {
   if (typeof THREE === 'undefined') {
-    var loadEl = document.getElementById('v3d-loading');
-    if (loadEl) loadEl.style.display = 'flex';
-    try { await _loadThreeJS(); } catch (e) {
-      console.warn('THREE.js failed to load:', e);
-      if (loadEl) loadEl.style.display = 'none';
-      var emsg = document.getElementById('v3d-empty-msg');
-      if (emsg) { emsg.querySelector('div:nth-child(2)').textContent = '3D engine failed to load'; emsg.style.display = 'flex'; }
-      return;
-    }
-    if (loadEl) loadEl.style.display = 'none';
+    console.warn('THREE.js not loaded — 3D view unavailable');
+    var errEl = document.getElementById('v3d-engine-error');
+    if (errEl) errEl.style.display = 'flex';
+    return;
   }
+  var errEl2 = document.getElementById('v3d-engine-error');
+  if (errEl2) errEl2.style.display = 'none';
   if (!S.lat) {
     var msg = document.getElementById('v3d-empty-msg');
     if (msg) msg.style.display = 'flex';
