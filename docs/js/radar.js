@@ -40,7 +40,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="btn-alert-polys" title="Toggle NWS alert polygons" onclick="toggleAlertPolygons()">${_ri('alert-polys')}</div>
         <div class="map-ctrl-btn" id="btn-nhc-tracks" title="Toggle hurricane tracks" style="opacity:${S._showNHCTracks?1:0.4}" onclick="toggleNHCTracks(!S._showNHCTracks)">${_ri('hurricane')}</div>
         <div class="map-ctrl-btn" id="radar-clear-cone" title="Clear track" style="display:none" onclick="clearStormCone()">${_ri('clear')}</div>
-        <div class="map-ctrl-btn" id="btn-iso-3d" title="3D Storm View" onclick="open3DView()">${_ri('terrain-3d')}</div>
+        <div class="map-ctrl-btn" id="btn-iso-3d" title="3D Storm Terrain" onclick="show3DView()">${_ri('terrain-3d')}</div>
         <div class="map-ctrl-btn" id="clutter-toggle" title="Clutter hidden (tap to show)" style="display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);border-color:#555" onclick="toggleClutter()">${_ri('clutter')}</div>
       </div>
       <div class="radar-anim-bar" id="radar-anim-bar" style="display:none">
