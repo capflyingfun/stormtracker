@@ -562,7 +562,7 @@ function geoToIso(stormLat,stormLng,userLat,userLng,scale){
 }
 
 function open3DView(){
-  if(!S.lat)return;
+  if(!S.lat||!S.lon)return;
   const name=S.locName||`${S.lat.toFixed(2)}, ${S.lon.toFixed(2)}`;
   const returnUrl=window.location.href;
   const url=`https://capflyingfun.github.io/StormTracker3D/?lat=${S.lat}&lon=${S.lon}&name=${encodeURIComponent(name)}&returnUrl=${encodeURIComponent(returnUrl)}`;
