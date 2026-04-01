@@ -482,8 +482,8 @@ function buildCompass3D() {
   RING_KM.forEach(function (km, i) {
     var pts = []; for (var a = 0; a <= 64; a++) { var ar = a / 64 * Math.PI * 2; pts.push(new THREE.Vector3(km * Math.sin(ar), 0.02, -km * Math.cos(ar))); }
     V3D.scene.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({ color: 0x2a5a80, transparent: true, opacity: 0.65 - i * 0.1 })));
-    var lspr = makeSprite3D(km + ' km', 'rgba(0,200,255,0.90)', 0.5); lspr.position.set(0, 0.5, -km); V3D.scene.add(lspr);
+      new THREE.LineBasicMaterial({ color: 0x4a9ad0, transparent: true, opacity: 0.8 - i * 0.1 })));
+    var lspr = makeSprite3D(km + ' km', 'rgba(60,200,255,0.95)', 0.55); lspr.position.set(0, 0.5, -km); V3D.scene.add(lspr);
     V3D.ringLabels.push({ spr: lspr, km: km });
   });
 }
@@ -687,31 +687,16 @@ function getCloudBase3D() {
 }
 
 function sonarZones3D() {
-  var MAX_ZONES = 500;
-  var pts = S._sonarClusteredPts;
-  if (!pts || !pts.length) return [];
-  var cfgFloor = typeof _sonarCfg !== 'undefined' && _sonarCfg && typeof _sonarCfg.dbzFloor === 'number' ? _sonarCfg.dbzFloor : 0;
-  var floor = Math.max(25, cfgFloor);
-  var hookCells = (S.storms || []).filter(function (s) { return s._hookEcho; });
+  var storms = S.storms;
+  if (!storms || !storms.length) return [];
   var out = [];
-  for (var i = 0; i < pts.length; i++) {
-    var p = pts[i];
-    if (p.dbz < floor) continue;
-    var dist = haversineMi3D(S.lat, S.lon, p.lat, p.lng);
-    var bear = bearingDeg3D(S.lat, S.lon, p.lat, p.lng);
-    var hasHook = false;
-    if (p.dbz >= 45 && hookCells.length) {
-      for (var h = 0; h < hookCells.length; h++) {
-        var hc = hookCells[h];
-        var dlat = (hc.lat - p.lat) * 69.172;
-        var dlng = ((hc.lng || hc.lon) - p.lng) * 69.172 * Math.cos(p.lat * Math.PI / 180);
-        if (Math.sqrt(dlat * dlat + dlng * dlng) < 4) { hasHook = true; break; }
-      }
-    }
-    out.push({ lat: p.lat, lon: p.lng, lng: p.lng, dbz: p.dbz, distance: dist, bearing: bear, count: p.count || 1, hookEcho: hasHook });
+  for (var i = 0; i < storms.length; i++) {
+    var s = storms[i];
+    if (!s.lat || !(s.lng || s.lon)) continue;
+    var lng = s.lng || s.lon;
+    out.push({ lat: s.lat, lon: lng, lng: lng, dbz: s.dbz, distance: s.distance, bearing: s.bearing, count: s.pixels || 1, hookEcho: !!s._hookEcho });
   }
   out.sort(function (a, b) { return b.dbz - a.dbz; });
-  if (out.length > MAX_ZONES) out.length = MAX_ZONES;
   return out;
 }
 
