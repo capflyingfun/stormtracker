@@ -133,7 +133,7 @@ async function _checkGpsPermission(){
   if(navigator.permissions){
     try{const p=await navigator.permissions.query({name:'geolocation'});return p.state}catch(e){}
   }
-  return localStorage.getItem('st_locAsked')?'granted':'prompt';
+  return 'prompt';
 }
 
 async function toggleAutoGps(){
@@ -262,7 +262,7 @@ function showLocationConfirm(forceDialog){
   document.body.appendChild(overlay);
   document.getElementById('loc-deny').addEventListener('click',()=>{overlay.remove();if(_autoGpsPending){_autoGpsPending=false;toast('📍 Auto-locate requires GPS permission');syncSettingsPanel()}else if(_travelGpsPending){_travelGpsPending=false;toast('📍 Travel Mode requires GPS permission')}else{toast('You can search for a location instead')}});
   document.getElementById('loc-allow').addEventListener('click',()=>{overlay.remove();_doGPSLocate()});
-  overlay.addEventListener('click',e=>{if(e.target===overlay){overlay.remove();_autoGpsPending=false;_travelGpsPending=false}});
+  overlay.addEventListener('click',e=>{if(e.target===overlay){overlay.remove();if(_autoGpsPending){_autoGpsPending=false;toast('📍 Auto-locate requires GPS permission');syncSettingsPanel()}else if(_travelGpsPending){_travelGpsPending=false;toast('📍 Travel Mode requires GPS permission')}}});
 }
 
 async function searchLoc(){
