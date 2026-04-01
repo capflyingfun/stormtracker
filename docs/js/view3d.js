@@ -497,6 +497,9 @@ function buildUserMarker3D() {
 // =====================================================
 function disposeObj3D(obj) {
   if (!obj) return;
+  if (obj.children && obj.children.length) {
+    while (obj.children.length > 0) { var ch = obj.children[0]; disposeObj3D(ch); obj.remove(ch); }
+  }
   if (obj.geometry) obj.geometry.dispose();
   if (obj.material) {
     if (Array.isArray(obj.material)) obj.material.forEach(function (m) { if (m.map) m.map.dispose(); m.dispose(); });
@@ -773,9 +776,9 @@ function refreshHUD3D() {
   var el = function (id) { return document.getElementById(id); };
   el('v3d-loc-name').textContent = S.locName || '\u2014';
   el('v3d-loc-coords').textContent = S.lat ? S.lat.toFixed(4) + '\u00b0, ' + S.lon.toFixed(4) + '\u00b0' : '\u2014';
-  var storms = S.storms;
-  var stormsScanned = storms !== undefined && storms !== null;
-  var cnt = stormsScanned ? storms.length : 0;
+  var storms = S.storms || [];
+  var stormsScanned = !!S.scanTime;
+  var cnt = storms.length;
   el('v3d-storm-count').textContent = !stormsScanned ? 'Not scanned' : cnt ? cnt + ' cell' + (cnt !== 1 ? 's' : '') : 'Clear';
   var noscanEl = document.getElementById('v3d-noscan-msg');
   if (noscanEl) noscanEl.style.display = stormsScanned ? 'none' : 'block';
