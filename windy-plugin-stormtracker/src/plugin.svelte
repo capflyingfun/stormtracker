@@ -296,51 +296,51 @@
     .stormtracker-plugin {
         color: #e0e0e0;
         font-family: system-ui, -apple-system, sans-serif;
-        padding: 8px 12px;
-        font-size: 13px;
+        padding: 14px 16px;
+        font-size: 16px;
     }
     .st-header {
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin-bottom: 12px;
+        gap: 10px;
+        margin-bottom: 16px;
     }
-    .st-icon { font-size: 20px; }
-    .st-title { font-weight: 700; font-size: 15px; }
-    .st-controls { margin-bottom: 10px; }
-    .st-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block; }
-    .st-toggle-group { display: flex; gap: 4px; }
+    .st-icon { font-size: 26px; }
+    .st-title { font-weight: 700; font-size: 20px; }
+    .st-controls { margin-bottom: 14px; }
+    .st-label { font-size: 13px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: block; }
+    .st-toggle-group { display: flex; gap: 6px; }
     .st-btn {
         flex: 1;
-        padding: 5px 8px;
+        padding: 10px 12px;
         border: 1px solid #444;
         background: #1a1a2e;
         color: #aaa;
-        border-radius: 4px;
+        border-radius: 6px;
         cursor: pointer;
-        font-size: 11px;
+        font-size: 15px;
         transition: all 0.15s;
     }
     .st-btn:hover { border-color: #666; color: #fff; }
     .st-btn.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
-    .st-checks { display: flex; flex-direction: column; gap: 4px; }
-    .st-check { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
-    .st-check input { accent-color: #3b82f6; }
-    .st-actions { display: flex; gap: 6px; margin-bottom: 10px; }
+    .st-checks { display: flex; flex-direction: column; gap: 10px; }
+    .st-check { display: flex; align-items: center; gap: 10px; font-size: 16px; cursor: pointer; }
+    .st-check input { accent-color: #3b82f6; width: 20px; height: 20px; }
+    .st-actions { display: flex; gap: 8px; margin-bottom: 14px; }
     .st-scan-btn {
         flex: 1;
-        padding: 7px 10px;
+        padding: 12px 14px;
         border: none;
-        border-radius: 6px;
+        border-radius: 8px;
         background: #3b82f6;
         color: #fff;
-        font-size: 12px;
+        font-size: 16px;
         font-weight: 600;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 4px;
+        gap: 6px;
         transition: background 0.15s;
     }
     .st-scan-btn:hover { background: #2563eb; }
@@ -351,32 +351,32 @@
     .st-scan-btn.st-stop:hover { background: #b91c1c; }
     .st-spinner {
         display: inline-block;
-        width: 12px;
-        height: 12px;
+        width: 16px;
+        height: 16px;
         border: 2px solid rgba(255,255,255,0.3);
         border-top-color: #fff;
         border-radius: 50%;
         animation: spin 0.6s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .st-source { font-size: 11px; color: #888; margin-bottom: 8px; text-align: center; }
-    .st-list { max-height: 300px; overflow-y: auto; }
+    .st-source { font-size: 14px; color: #888; margin-bottom: 10px; text-align: center; }
+    .st-list { max-height: 400px; overflow-y: auto; }
     .st-storm {
-        padding: 6px 8px;
-        margin-bottom: 4px;
+        padding: 10px 12px;
+        margin-bottom: 6px;
         background: rgba(255,255,255,0.04);
-        border-radius: 6px;
+        border-radius: 8px;
         cursor: pointer;
         transition: background 0.15s;
     }
     .st-storm:hover { background: rgba(255,255,255,0.08); }
-    .st-storm-hdr { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .st-dbz { padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 700; }
-    .st-dist { font-size: 12px; color: #bbb; }
-    .st-eta { font-size: 11px; color: #f59e0b; font-weight: 600; }
-    .st-storm-sub { font-size: 11px; color: #777; margin-top: 2px; }
-    .st-empty { text-align: center; color: #666; padding: 20px 0; font-size: 12px; }
-    .st-footer { font-size: 10px; color: #555; text-align: center; margin-top: 12px; padding-top: 8px; border-top: 1px solid #333; }
+    .st-storm-hdr { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .st-dbz { padding: 4px 8px; border-radius: 4px; font-size: 14px; font-weight: 700; }
+    .st-dist { font-size: 15px; color: #bbb; }
+    .st-eta { font-size: 14px; color: #f59e0b; font-weight: 600; }
+    .st-storm-sub { font-size: 14px; color: #777; margin-top: 3px; }
+    .st-empty { text-align: center; color: #666; padding: 24px 0; font-size: 15px; }
+    .st-footer { font-size: 13px; color: #555; text-align: center; margin-top: 16px; padding-top: 10px; border-top: 1px solid #333; }
     .st-footer a { color: #3b82f6; text-decoration: none; }
     .st-footer a:hover { text-decoration: underline; }
 </style>

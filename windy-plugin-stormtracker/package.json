@@ -1,6 +1,6 @@
 {
   "name": "windy-plugin-stormtracker",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "StormTracker radar-based storm cell detection overlay for Windy.com — real-time storm points, movement arrows, and track cones",
   "main": "dist/plugin.min.js",
   "type": "module",
