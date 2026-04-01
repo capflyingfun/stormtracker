@@ -615,7 +615,7 @@ function animRain3D(rain, windDir) {
   rain.geometry.attributes.position.needsUpdate = true;
 }
 
-function addApproachCone3D(cell, sp) {
+function addApproachCone3D(cell, sp, coneIdx) {
   if (!S.stormMovement || S.stormMovement.speed < 2) return;
   var mv = S.stormMovement;
   var dkm = haversineKm3D(S.lat, S.lon, cell.lat, cell.lon);
@@ -634,7 +634,9 @@ function addApproachCone3D(cell, sp) {
   var rangeKm = Math.min(60, Math.max(distMi * 1.5, 20)) * 1.609;
   var halfWidthKm = baseWidthMi * 1.609 / 2;
   var col = new THREE.Color(dbzHex3D(cell.dbz));
-  var Y = sampleTerrainHeight3D(sp.x, sp.z) + 0.02;
+  var dbzLayer = Math.max(0, Math.min(5, Math.floor((cell.dbz - 20) / 10)));
+  var yOff = 0.02 + dbzLayer * 0.008 + (coneIdx || 0) * 0.002;
+  var Y = sampleTerrainHeight3D(sp.x, sp.z) + yOff;
 
   var movX = Math.sin(mRad), movZ = -Math.cos(mRad);
   var perpLX = -Math.cos(mRad), perpLZ = -Math.sin(mRad);
@@ -657,15 +659,17 @@ function addApproachCone3D(cell, sp) {
   ]);
   var fillGeo = new THREE.BufferGeometry();
   fillGeo.setAttribute('position', new THREE.BufferAttribute(fillVerts, 3));
-  var fill = new THREE.Mesh(fillGeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false }));
-  fill.renderOrder = 3; V3D.coneGroup.add(fill);
+  var coneRO = 3 + dbzLayer * 0.1;
+  var fill = new THREE.Mesh(fillGeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -(dbzLayer + 1), polygonOffsetUnits: -(dbzLayer + 1) }));
+  fill.renderOrder = coneRO; V3D.coneGroup.add(fill);
 
   var outVerts = new Float32Array([bLx, Y, bLz, fLx, Y, fLz, fCx, Y, fCz, fRx, Y, fRz, bRx, Y, bRz]);
   var outGeo = new THREE.BufferGeometry();
   outGeo.setAttribute('position', new THREE.BufferAttribute(outVerts, 3));
   var outline = new THREE.LineLoop(outGeo, new THREE.LineDashedMaterial({ color: col, transparent: true, opacity: 0.45, depthWrite: false, dashSize: 1.5, gapSize: 1.0, scale: 1 }));
   outline.computeLineDistances();
-  outline.renderOrder = 3; V3D.coneGroup.add(outline);
+  outline.renderOrder = coneRO + 0.05; V3D.coneGroup.add(outline);
 
   if (etaMin > 0 && etaMin < 180) {
     var eSpr = makeSprite3D('ETA ' + etaMin + 'min', 'rgba(255,200,55,0.92)', 0.5);
@@ -709,6 +713,7 @@ function rebuildStorms3D() {
   if (!storms.length) return;
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
   var showLabels = V3D._labelsVisible !== false;
+  var coneIdx = 0;
   storms.forEach(function (cell) {
     var lon = cell.lon || cell.lng;
     var lat = cell.lat;
@@ -739,7 +744,8 @@ function rebuildStorms3D() {
       var haloTex = new THREE.CanvasTexture(haloCv);
       var haloSz = cl.r * 3;
       var haloMesh = new THREE.Mesh(new THREE.PlaneGeometry(haloSz * 2, haloSz * 2),
-        new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+        new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+          polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
       var haloBaseH = sampleTerrainHeight3D(sp.x, sp.z);
       haloMesh.rotation.x = -Math.PI / 2; haloMesh.position.set(sp.x, haloBaseH + 0.015, sp.z); haloMesh.renderOrder = 2; V3D.stormGroup.add(haloMesh);
     }
@@ -773,7 +779,7 @@ function rebuildStorms3D() {
 
     var cellForCone = { lat: lat, lon: lon, dbz: cell.dbz, distance: cell.distance, bearing: cell.bearing || bearingDeg3D(S.lat, S.lon, lat, lon) };
     V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, lights: pt ? [pt] : [], rain: rain, ltTimer: ltTimer, label: lspr });
-    if (cell.dbz >= 35) addApproachCone3D(cellForCone, sp);
+    if (cell.dbz >= 35) { addApproachCone3D(cellForCone, sp, coneIdx); coneIdx++; }
   });
 }
 
