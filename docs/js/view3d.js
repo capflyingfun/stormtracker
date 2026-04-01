@@ -479,36 +479,37 @@ function buildCompass3D() {
     var km = r.mi * 1.60934;
     var pts = []; for (var a = 0; a <= 64; a++) { var ar = a / 64 * Math.PI * 2; pts.push(new THREE.Vector3(km * Math.sin(ar), 0.02, -km * Math.cos(ar))); }
     var col = r.mi === 80 ? 0x60ccff : 0x4a9ad0;
-    V3D.scene.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: r.op })));
+    var rl = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: r.op }));
+    rl.renderOrder = 1; V3D.scene.add(rl);
     if (r.label) {
       var lspr = makeSprite3D(r.mi + ' mi', 'rgba(60,200,255,0.95)', r.mi === 80 ? 0.6 : 0.5);
-      lspr.position.set(0, 0.5, -km); V3D.scene.add(lspr);
+      lspr.position.set(0, 0.5, -km); lspr.renderOrder = 5; V3D.scene.add(lspr);
       V3D.ringLabels.push({ spr: lspr, km: km });
     }
   });
 }
 
 function buildUserMarker3D() {
-  var ring = new THREE.Mesh(new THREE.RingGeometry(0.083, 0.143, 48),
-    new THREE.MeshBasicMaterial({ color: 0x00e5ff, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
-  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.003; V3D.scene.add(ring);
-  var dot = new THREE.Mesh(new THREE.CircleGeometry(0.045, 32),
-    new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.95, side: THREE.DoubleSide }));
-  dot.rotation.x = -Math.PI / 2; dot.position.y = 0.003; V3D.scene.add(dot);
-  var pgeo = new THREE.RingGeometry(0.083, 0.18, 48);
-  var pmat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
-  var pulse = new THREE.Mesh(pgeo, pmat); pulse.rotation.x = -Math.PI / 2; pulse.position.y = 0.0035; V3D.scene.add(pulse);
-  var gloCv = document.createElement('canvas'); gloCv.width = gloCv.height = 64;
+  var dot = new THREE.Mesh(new THREE.CircleGeometry(1.5, 48),
+    new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+  dot.rotation.x = -Math.PI / 2; dot.position.y = 0.06; dot.renderOrder = 6; V3D.scene.add(dot);
+  var ring = new THREE.Mesh(new THREE.RingGeometry(2.2, 2.8, 48),
+    new THREE.MeshBasicMaterial({ color: 0x00e5ff, side: THREE.DoubleSide, transparent: true, opacity: 0.7, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; ring.renderOrder = 6; V3D.scene.add(ring);
+  var pgeo = new THREE.RingGeometry(2.8, 4.5, 48);
+  var pmat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false });
+  var pulse = new THREE.Mesh(pgeo, pmat); pulse.rotation.x = -Math.PI / 2; pulse.position.y = 0.04; pulse.renderOrder = 5; V3D.scene.add(pulse);
+  var gloCv = document.createElement('canvas'); gloCv.width = gloCv.height = 128;
   var gloCx = gloCv.getContext('2d');
-  var gloG = gloCx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gloG.addColorStop(0, 'rgba(0,220,255,0.35)'); gloG.addColorStop(0.5, 'rgba(0,180,255,0.12)'); gloG.addColorStop(1, 'rgba(0,0,0,0)');
-  gloCx.fillStyle = gloG; gloCx.fillRect(0, 0, 64, 64);
+  var gloG = gloCx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gloG.addColorStop(0, 'rgba(0,229,255,0.4)'); gloG.addColorStop(0.4, 'rgba(0,200,255,0.15)'); gloG.addColorStop(1, 'rgba(0,0,0,0)');
+  gloCx.fillStyle = gloG; gloCx.fillRect(0, 0, 128, 128);
   var gloSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(gloCv), transparent: true, depthWrite: false }));
-  gloSpr.scale.set(0.7, 0.7, 1); gloSpr.position.set(0, 0.02, 0); V3D.scene.add(gloSpr);
+  gloSpr.scale.set(12, 12, 1); gloSpr.position.set(0, 0.08, 0); gloSpr.renderOrder = 4; V3D.scene.add(gloSpr);
   var t = 0;
   V3D._markerRAF = null;
-  function tick() { if (!V3D.active) { V3D._markerRAF = null; return; } V3D._markerRAF = requestAnimationFrame(tick); t += 0.018; pulse.scale.setScalar(1 + 0.55 * Math.abs(Math.sin(t))); pmat.opacity = 0.28 * (1.1 - Math.abs(Math.sin(t)) * 0.4); }
+  function tick() { if (!V3D.active) { V3D._markerRAF = null; return; } V3D._markerRAF = requestAnimationFrame(tick); t += 0.018; pulse.scale.setScalar(1 + 0.6 * Math.abs(Math.sin(t))); pmat.opacity = 0.25 * (1.1 - Math.abs(Math.sin(t)) * 0.5); }
   V3D._startMarkerPulse = tick;
   tick();
 }
@@ -549,38 +550,38 @@ function makeCloudGroup3D(dbz, hookEcho, windDir) {
   if (severe) {
     var bR = baseR * 1.1;
     var bottomCol = base.clone().lerp(dark, 0.4);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.78 }));
-    b1.scale.set(1.3, 0.55, 1.2); grp.add(b1);
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.78, depthWrite: false }));
+    b1.scale.set(1.3, 0.55, 1.2); b1.renderOrder = 4; grp.add(b1);
     var midCol = base.clone().lerp(white, 0.15);
-    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.9, SEG, SEG), new THREE.MeshBasicMaterial({ color: midCol, transparent: true, opacity: 0.72 }));
-    b2.scale.set(1.1, 0.7, 1.0); b2.position.y = bR * 0.8; grp.add(b2);
+    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.9, SEG, SEG), new THREE.MeshBasicMaterial({ color: midCol, transparent: true, opacity: 0.72, depthWrite: false }));
+    b2.scale.set(1.1, 0.7, 1.0); b2.position.y = bR * 0.8; b2.renderOrder = 4; grp.add(b2);
     var topCol = base.clone().lerp(white, 0.3);
-    var b3 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.75, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.65 }));
-    b3.scale.set(0.9, 0.8, 0.85); b3.position.y = bR * 1.5; grp.add(b3);
+    var b3 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.75, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.65, depthWrite: false }));
+    b3.scale.set(0.9, 0.8, 0.85); b3.position.y = bR * 1.5; b3.renderOrder = 4; grp.add(b3);
     var anvilCol = base.clone().lerp(white, 0.35);
-    var anvil = new THREE.Mesh(new THREE.SphereGeometry(bR * 1.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: anvilCol, transparent: true, opacity: 0.4 }));
-    anvil.scale.set(1.8, 0.18, 1.5); anvil.position.y = bR * 2.0; grp.add(anvil);
+    var anvil = new THREE.Mesh(new THREE.SphereGeometry(bR * 1.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: anvilCol, transparent: true, opacity: 0.4, depthWrite: false }));
+    anvil.scale.set(1.8, 0.18, 1.5); anvil.position.y = bR * 2.0; anvil.renderOrder = 4; grp.add(anvil);
   } else if (heavy) {
     var bR = baseR * 0.95;
     var bottomCol = base.clone().lerp(dark, 0.3);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.72 }));
-    b1.scale.set(1.2, 0.5, 1.1); grp.add(b1);
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.72, depthWrite: false }));
+    b1.scale.set(1.2, 0.5, 1.1); b1.renderOrder = 4; grp.add(b1);
     var topCol = base.clone().lerp(white, 0.2);
-    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.8, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.65 }));
-    b2.scale.set(1.0, 0.65, 0.9); b2.position.y = bR * 0.7; grp.add(b2);
+    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.8, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.65, depthWrite: false }));
+    b2.scale.set(1.0, 0.65, 0.9); b2.position.y = bR * 0.7; b2.renderOrder = 4; grp.add(b2);
   } else if (moderate) {
     var bR = baseR * 0.85;
     var col = base.clone().lerp(white, 0.1);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.65 }));
-    b1.scale.set(1.1, 0.5, 1.0); grp.add(b1);
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.65, depthWrite: false }));
+    b1.scale.set(1.1, 0.5, 1.0); b1.renderOrder = 4; grp.add(b1);
     var topCol = base.clone().lerp(white, 0.25);
-    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.55 }));
-    b2.scale.set(0.9, 0.55, 0.85); b2.position.y = bR * 0.55; grp.add(b2);
+    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.55, depthWrite: false }));
+    b2.scale.set(0.9, 0.55, 0.85); b2.position.y = bR * 0.55; b2.renderOrder = 4; grp.add(b2);
   } else {
     var bR = baseR * 0.7;
     var col = base.clone().lerp(white, 0.15);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.55 }));
-    b1.scale.set(1.0, 0.45, 0.9); grp.add(b1);
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.55, depthWrite: false }));
+    b1.scale.set(1.0, 0.45, 0.9); b1.renderOrder = 4; grp.add(b1);
   }
   return { grp: grp, r: baseR };
 }
@@ -656,18 +657,18 @@ function addApproachCone3D(cell, sp) {
   var fillGeo = new THREE.BufferGeometry();
   fillGeo.setAttribute('position', new THREE.BufferAttribute(fillVerts, 3));
   var fill = new THREE.Mesh(fillGeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false }));
-  V3D.coneGroup.add(fill);
+  fill.renderOrder = 3; V3D.coneGroup.add(fill);
 
   var outVerts = new Float32Array([bLx, Y, bLz, fLx, Y, fLz, fCx, Y, fCz, fRx, Y, fRz, bRx, Y, bRz]);
   var outGeo = new THREE.BufferGeometry();
   outGeo.setAttribute('position', new THREE.BufferAttribute(outVerts, 3));
   var outline = new THREE.LineLoop(outGeo, new THREE.LineDashedMaterial({ color: col, transparent: true, opacity: 0.45, depthWrite: false, dashSize: 1.5, gapSize: 1.0, scale: 1 }));
   outline.computeLineDistances();
-  V3D.coneGroup.add(outline);
+  outline.renderOrder = 3; V3D.coneGroup.add(outline);
 
   if (etaMin > 0 && etaMin < 180) {
     var eSpr = makeSprite3D('ETA ' + etaMin + 'min', 'rgba(255,200,55,0.92)', 0.5);
-    eSpr.position.set(sp.x, dkm * 0.12 + 3.5, sp.z); V3D.coneGroup.add(eSpr);
+    eSpr.position.set(sp.x, dkm * 0.12 + 3.5, sp.z); eSpr.renderOrder = 5; V3D.coneGroup.add(eSpr);
   }
 }
 
@@ -739,7 +740,7 @@ function rebuildStorms3D() {
       var haloMesh = new THREE.Mesh(new THREE.PlaneGeometry(haloSz * 2, haloSz * 2),
         new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
       var haloBaseH = sampleTerrainHeight3D(sp.x, sp.z);
-      haloMesh.rotation.x = -Math.PI / 2; haloMesh.position.set(sp.x, haloBaseH + 0.015, sp.z); V3D.stormGroup.add(haloMesh);
+      haloMesh.rotation.x = -Math.PI / 2; haloMesh.position.set(sp.x, haloBaseH + 0.015, sp.z); haloMesh.renderOrder = 2; V3D.stormGroup.add(haloMesh);
     }
 
     var rain = null;
@@ -766,7 +767,7 @@ function rebuildStorms3D() {
     if (cell.dbz >= 35) {
       var cloudTop = alt + cl.r * 2.2;
       lspr = makeSprite3D(Math.round(cell.dbz) + ' dBZ', dbzCat3D(cell.dbz).col, 0.35);
-      lspr.position.set(sp.x, cloudTop + 0.4, sp.z); lspr.visible = showLabels; V3D.stormGroup.add(lspr);
+      lspr.position.set(sp.x, cloudTop + 0.4, sp.z); lspr.visible = showLabels; lspr.renderOrder = 5; V3D.stormGroup.add(lspr);
     }
 
     var cellForCone = { lat: lat, lon: lon, dbz: cell.dbz, distance: cell.distance, bearing: cell.bearing || bearingDeg3D(S.lat, S.lon, lat, lon) };
