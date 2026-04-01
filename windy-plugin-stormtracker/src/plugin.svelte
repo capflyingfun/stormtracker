@@ -97,11 +97,12 @@
     let showArrows = true;
     let showTracks = true;
     let scanning = false;
-    let autoScan = false;
+    let autoScan = true;
     let autoTimer: any = null;
     let storms: StormCell[] = [];
     let scanSource = '';
     let windData: WindData | null = null;
+    let mounted = false;
 
     let pointMarkers: any[] = [];
     let arrowLines: any[] = [];
@@ -132,14 +133,17 @@
         if (params && params.lat != null && params.lon != null) {
             map.setView([params.lat, params.lon], Math.max(map.getZoom(), 7));
         }
+        if (!mounted) return;
         doScan();
     };
 
     onMount(() => {
-        doScan();
+        mounted = true;
+        startAuto();
     });
 
     onDestroy(() => {
+        mounted = false;
         clearLayers();
         if (rangeCircle) { map.removeLayer(rangeCircle); rangeCircle = null; }
         stopAuto();
@@ -177,7 +181,7 @@
             storms = result.storms;
             scanSource = result.source;
             windData = result.wind;
-            replot();
+            setTimeout(() => replot(), 0);
         } catch (e) {
             scanSource = 'Scan failed';
         }
@@ -199,7 +203,7 @@
         clearLayers();
         if (displayMode === 'off') return;
 
-        const plotStorms = visibleStorms;
+        const plotStorms = getVisibleStorms(storms, displayMode);
         const movementSource = windData;
 
         for (const s of plotStorms) {
