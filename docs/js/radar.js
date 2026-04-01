@@ -1655,12 +1655,28 @@ function updateThreatTicker(){
       pool.unshift(`✅ Light radar reflectivity picked up (${stormCount} return${stormCount>1?'s':''}, peak ${maxClutter} dBZ). Nothing significant — enjoy your day! ☀️`);
       pool.unshift(`✅ Minor clutter on radar — ${stormCount} point${stormCount>1?'s':''} below 31 dBZ. No meaningful weather activity. 😎`);
     }else if(gridZoneCount>0){
-      pool.unshift(`✅ ${gridZoneCount} radar grid zone${gridZoneCount>1?'s':''} showing faint returns (peak ${gridZoneMaxDbz} dBZ) — likely ground clutter or atmospheric noise. No real storms. 🌤️`);
-      pool.unshift(`✅ Minor radar reflectivity in ${gridZoneCount} grid sector${gridZoneCount>1?'s':''} (max ${gridZoneMaxDbz} dBZ). Below storm threshold — probably clutter. 😎`);
-      pool.unshift(`✅ Grid scan picked up ${gridZoneCount} faint zone${gridZoneCount>1?'s':''} (${gridZoneMaxDbz} dBZ peak). Not significant weather activity. ☀️`);
+      if(gridZoneMaxDbz>=40){
+        pool.unshift(`⚠️ ${gridZoneCount} radar grid zone${gridZoneCount>1?'s':''} detected (peak ${gridZoneMaxDbz} dBZ). Strong returns — not moving toward you currently. 🌧️`);
+        pool.unshift(`⚠️ Radar shows ${gridZoneCount} zone${gridZoneCount>1?'s':''} with up to ${gridZoneMaxDbz} dBZ returns. Active weather nearby but not approaching. 🛰️`);
+        pool.unshift(`⚠️ ${gridZoneCount} active zone${gridZoneCount>1?'s':''} on radar (${gridZoneMaxDbz} dBZ peak). Storms present but not inbound. Monitoring. 👀`);
+      }else if(gridZoneMaxDbz>=31){
+        pool.unshift(`📡 ${gridZoneCount} radar grid zone${gridZoneCount>1?'s':''} showing returns (peak ${gridZoneMaxDbz} dBZ). Light to moderate activity, not approaching. 🌥️`);
+        pool.unshift(`📡 Radar picks up ${gridZoneCount} zone${gridZoneCount>1?'s':''} (max ${gridZoneMaxDbz} dBZ). Mild returns — keeping an eye on it. 🛰️`);
+      }else{
+        pool.unshift(`✅ ${gridZoneCount} radar grid zone${gridZoneCount>1?'s':''} showing faint returns (peak ${gridZoneMaxDbz} dBZ) — likely ground clutter or atmospheric noise. 🌤️`);
+        pool.unshift(`✅ Minor radar reflectivity in ${gridZoneCount} grid sector${gridZoneCount>1?'s':''} (max ${gridZoneMaxDbz} dBZ). Below storm threshold — probably clutter. 😎`);
+        pool.unshift(`✅ Grid scan picked up ${gridZoneCount} faint zone${gridZoneCount>1?'s':''} (${gridZoneMaxDbz} dBZ peak). Not significant weather activity. ☀️`);
+      }
     }
+    const peakDbz=stormCount>0?Math.max(..._filteredStorms.map(s=>s.dbz)):gridZoneMaxDbz;
     const msg=pool[Math.floor(Date.now()/60000)%pool.length];
-    showTicker(`<span style="color:#4ade80">${msg}</span>`,'#4ade80','rgba(74,222,128,0.2)','linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))',Math.max(15,Math.round(msg.length*0.18)));
+    if(peakDbz>=40){
+      showTicker(`<span style="color:#fbbf24">${msg}</span>`,'#fbbf24','rgba(251,191,36,0.2)','linear-gradient(90deg,rgba(30,20,0,0.95),rgba(40,28,5,0.95),rgba(30,20,0,0.95))',Math.max(15,Math.round(msg.length*0.18)));
+    }else if(peakDbz>=31){
+      showTicker(`<span style="color:#60c0e8">${msg}</span>`,'#60c0e8','rgba(96,192,232,0.15)','linear-gradient(90deg,rgba(5,15,25,0.95),rgba(8,22,35,0.95),rgba(5,15,25,0.95))',Math.max(15,Math.round(msg.length*0.18)));
+    }else{
+      showTicker(`<span style="color:#4ade80">${msg}</span>`,'#4ade80','rgba(74,222,128,0.2)','linear-gradient(90deg,rgba(0,20,5,0.95),rgba(5,30,10,0.95),rgba(0,20,5,0.95))',Math.max(15,Math.round(msg.length*0.18)));
+    }
     return;
   }
   const allApproaching=topStorms.map(s=>({storm:s,eta:s._eta||calcStormETA(s)}));

@@ -112,10 +112,10 @@ function init3DScene() {
   var w = container.clientWidth, h = container.clientHeight;
   V3D.renderer.setSize(w, h);
   V3D.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  V3D.renderer.toneMappingExposure = 1.1;
+  V3D.renderer.toneMappingExposure = 1.4;
 
   V3D.scene = new THREE.Scene();
-  V3D.scene.fog = new THREE.FogExp2(0x0a1525, 0.0016);
+  V3D.scene.fog = new THREE.FogExp2(0x70aae8, 0.0012);
 
   V3D.camera = new THREE.PerspectiveCamera(72, w / h, 0.001, 1000);
   V3D.camera.position.set(0, 0.0015, 0); V3D.camera.lookAt(0, 0.5, -15);
@@ -131,9 +131,9 @@ function init3DScene() {
   V3D.mouse = new THREE.Vector2();
   V3D.clock = new THREE.Clock();
 
-  V3D.ambientLight = new THREE.AmbientLight(0x1a2535, 0.7); V3D.scene.add(V3D.ambientLight);
-  V3D.sunLight = new THREE.DirectionalLight(0xffd080, 0.5); V3D.sunLight.position.set(60, 90, 60); V3D.scene.add(V3D.sunLight);
-  var fill = new THREE.DirectionalLight(0x2244aa, 0.2); fill.position.set(-40, 30, -40); V3D.scene.add(fill);
+  V3D.ambientLight = new THREE.AmbientLight(0x8ab4e0, 1.2); V3D.scene.add(V3D.ambientLight);
+  V3D.sunLight = new THREE.DirectionalLight(0xfff4d6, 1.5); V3D.sunLight.position.set(60, 90, 60); V3D.scene.add(V3D.sunLight);
+  var fill = new THREE.DirectionalLight(0x4466bb, 0.4); fill.position.set(-40, 30, -40); V3D.scene.add(fill);
 
   V3D.stormGroup = new THREE.Group(); V3D.scene.add(V3D.stormGroup);
   V3D.windGroup = new THREE.Group(); V3D.scene.add(V3D.windGroup);
@@ -177,7 +177,7 @@ function buildGround3D() {
   c2.fillStyle = g; c2.fillRect(0, 0, sz, sz);
   var tex = new THREE.CanvasTexture(cv2);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(50, 50);
-  V3D.groundMesh = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshLambertMaterial({ map: tex }));
+  V3D.groundMesh = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshBasicMaterial({ map: tex }));
   V3D.groundMesh.rotation.x = -Math.PI / 2; V3D.groundMesh.position.y = 0; V3D.scene.add(V3D.groundMesh);
 }
 
@@ -277,7 +277,7 @@ function buildTerrainMesh3D(elevData, mapTex, plW, plD, planeCX, planeCZ) {
     sceneW: plW, sceneD: plD, centerX: planeCX, centerZ: planeCZ,
     latMin: elevData.latMin, latMax: elevData.latMax, lonMin: elevData.lonMin, lonMax: elevData.lonMax
   };
-  var mat = new THREE.MeshLambertMaterial({ map: mapTex });
+  var mat = new THREE.MeshBasicMaterial({ map: mapTex });
   V3D.terrainMesh = new THREE.Mesh(geo, mat);
   V3D.terrainMesh.position.set(planeCX, 0, planeCZ);
   V3D.scene.add(V3D.terrainMesh);
@@ -331,7 +331,7 @@ async function buildMapGround3D(lat, lon) {
     console.warn('3D terrain elevation failed, using flat ground:', e);
     if (V3D.terrainMesh) { V3D.scene.remove(V3D.terrainMesh); if (V3D.terrainMesh.geometry) V3D.terrainMesh.geometry.dispose(); if (V3D.terrainMesh.material) V3D.terrainMesh.material.dispose(); V3D.terrainMesh = null; }
     V3D.terrainElevData = null;
-    var newPlane = new THREE.Mesh(new THREE.PlaneGeometry(plW, plD), new THREE.MeshLambertMaterial({ map: tex }));
+    var newPlane = new THREE.Mesh(new THREE.PlaneGeometry(plW, plD), new THREE.MeshBasicMaterial({ map: tex }));
     newPlane.rotation.x = -Math.PI / 2; newPlane.position.set(planeCX, 0, planeCZ);
     V3D.groundMesh = newPlane; V3D.scene.add(V3D.groundMesh);
   }
@@ -359,27 +359,36 @@ function refreshSky3D() {
     if (wd && wd.daily && wd.daily.sunrise && wd.daily.sunrise[0]) rise = new Date(wd.daily.sunrise[0]).getTime() / 1000;
     if (wd && wd.daily && wd.daily.sunset && wd.daily.sunset[0]) set = new Date(wd.daily.sunset[0]).getTime() / 1000;
   } catch (e) { }
+  if (!rise || !set) {
+    var h = new Date().getHours();
+    var today = new Date(); today.setHours(6, 30, 0, 0); rise = today.getTime() / 1000;
+    var today2 = new Date(); today2.setHours(19, 30, 0, 0); set = today2.getTime() / 1000;
+  }
   var cloud = Math.min(1, (S.weather && S.weather.cloud_cover || 0) / 100);
-  var topC = new THREE.Color(), horizC = new THREE.Color(), groundC = new THREE.Color(0x040a12);
-  if (!rise || !set || now < rise - 3600 || now > set + 3600) {
-    topC.setHex(0x010408); horizC.setHex(0x050e20);
-    V3D.sunLight.intensity = 0.06; V3D.sunLight.color.setHex(0x3355aa); V3D.ambientLight.intensity = 0.35;
+  var topC = new THREE.Color(), horizC = new THREE.Color(), groundC = new THREE.Color(0x060d18);
+  if (now < rise - 3600 || now > set + 3600) {
+    topC.setHex(0x010408); horizC.setHex(0x050e20); groundC.setHex(0x030608);
+    V3D.sunLight.intensity = 0.08; V3D.sunLight.color.setHex(0x3355aa); V3D.ambientLight.intensity = 0.4;
   } else if (now < rise + 2400) {
     var d = Math.max(0, Math.min(1, (now - rise + 3600) / 5000));
-    topC.lerpColors(new THREE.Color(0x010408), new THREE.Color(0x0e2a60), d);
-    horizC.lerpColors(new THREE.Color(0x7a2010), new THREE.Color(0x204080), d);
-    V3D.sunLight.intensity = 0.12 + d * 0.65; V3D.sunLight.color.setHex(0xff9955); V3D.ambientLight.intensity = 0.45 + d * 0.45;
+    topC.lerpColors(new THREE.Color(0x020510), new THREE.Color(0x2060b8), d);
+    horizC.lerpColors(new THREE.Color(0xaa3818), new THREE.Color(0x6090c8), d);
+    groundC.lerpColors(new THREE.Color(0x030608), new THREE.Color(0x0a1525), d);
+    V3D.sunLight.intensity = 0.2 + d * 1.2; V3D.sunLight.color.setHex(0xffaa66); V3D.ambientLight.intensity = 0.5 + d * 0.9;
   } else if (now < set - 2400) {
-    topC.setHex(0x083870); horizC.setHex(0x1e4a80);
-    V3D.sunLight.intensity = Math.max(0.2, 0.95 - cloud * 0.45); V3D.sunLight.color.setHex(0xffe8b0);
-    V3D.ambientLight.intensity = Math.max(0.55, 1.1 - cloud * 0.4);
+    topC.setHex(0x1a6edd); horizC.setHex(0x70aae8);
+    groundC.setHex(0x0e1e30);
+    V3D.sunLight.intensity = Math.max(0.6, 1.8 - cloud * 0.7); V3D.sunLight.color.setHex(0xfff4d6);
+    V3D.ambientLight.intensity = Math.max(0.8, 1.6 - cloud * 0.5);
+    V3D.ambientLight.color.setHex(0x8ab4e0);
   } else {
     var d = Math.max(0, Math.min(1, 1 - (now - (set - 2400)) / 4200));
-    topC.lerpColors(new THREE.Color(0x010408), new THREE.Color(0x0e2a60), d);
-    horizC.lerpColors(new THREE.Color(0x7a2010), new THREE.Color(0x204080), d);
-    V3D.sunLight.intensity = 0.12 + d * 0.65; V3D.sunLight.color.setHex(0xff7040); V3D.ambientLight.intensity = 0.45 + d * 0.45;
+    topC.lerpColors(new THREE.Color(0x020510), new THREE.Color(0x2060b8), d);
+    horizC.lerpColors(new THREE.Color(0xaa3818), new THREE.Color(0x6090c8), d);
+    groundC.lerpColors(new THREE.Color(0x030608), new THREE.Color(0x0a1525), d);
+    V3D.sunLight.intensity = 0.2 + d * 1.2; V3D.sunLight.color.setHex(0xff8040); V3D.ambientLight.intensity = 0.5 + d * 0.9;
   }
-  if (cloud > 0.2) { topC.lerp(new THREE.Color(0x111820), cloud * 0.65); horizC.lerp(new THREE.Color(0x14202e), cloud * 0.55); }
+  if (cloud > 0.3) { topC.lerp(new THREE.Color(0x3a4858), cloud * 0.5); horizC.lerp(new THREE.Color(0x506878), cloud * 0.4); }
   V3D.skyMat.uniforms.uTop.value.copy(topC); V3D.skyMat.uniforms.uHorizon.value.copy(horizC);
   V3D.skyMat.uniforms.uGround.value.copy(groundC); V3D.scene.fog.color.copy(horizC);
 }
@@ -906,6 +915,19 @@ var _v3dLocKey = '';
 var _v3dLoading = false;
 
 async function activate3DView() {
+  var tickerBar = document.getElementById('threat-ticker');
+  if (tickerBar) {
+    if (V3D._tickerOrigBottom === undefined) {
+      V3D._tickerOrigBottom = tickerBar.style.bottom;
+      V3D._tickerOrigTop = tickerBar.style.top;
+      V3D._tickerOrigBorderTop = tickerBar.style.borderTop;
+      V3D._tickerOrigBorderBottom = tickerBar.style.borderBottom;
+    }
+    tickerBar.style.bottom = '50px';
+    tickerBar.style.top = 'auto';
+    tickerBar.style.borderTop = 'none';
+    tickerBar.style.borderBottom = '1px solid rgba(0,220,255,0.1)';
+  }
   if (typeof THREE === 'undefined') {
     console.warn('THREE.js not loaded — 3D view unavailable');
     var errEl = document.getElementById('v3d-engine-error');
@@ -968,4 +990,11 @@ function deactivate3DView() {
   V3D.stormMeshes.forEach(function (sm) { if (sm.ltTimer) { clearInterval(sm.ltTimer); sm.ltTimer = null; } });
   var popup = document.getElementById('v3d-popup');
   if (popup) popup.style.display = 'none';
+  var tickerBar = document.getElementById('threat-ticker');
+  if (tickerBar && V3D._tickerOrigBottom !== undefined) {
+    tickerBar.style.bottom = V3D._tickerOrigBottom;
+    tickerBar.style.top = V3D._tickerOrigTop;
+    tickerBar.style.borderTop = V3D._tickerOrigBorderTop || '1px solid rgba(0,220,255,0.1)';
+    tickerBar.style.borderBottom = V3D._tickerOrigBorderBottom || '';
+  }
 }
