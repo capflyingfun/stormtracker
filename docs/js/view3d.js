@@ -845,14 +845,14 @@ function refreshHUD3D() {
   }
   if (S.stormMovement && S.stormMovement.speed > 1.5) {
     var sm = S.stormMovement;
-    el('v3d-steering-info').textContent = dir16_3D(sm.direction) + ' ' + fmtSpeed3D(sm.speed) + ' (' + sm.direction + '\u00b0)';
+    el('v3d-steering-info').textContent = 'Steer: ' + dir16_3D(sm.direction) + ' ' + fmtSpeed3D(sm.speed) + ' (' + sm.direction + '\u00b0)';
   } else {
-    el('v3d-steering-info').textContent = 'Calm / No data';
+    el('v3d-steering-info').textContent = 'Steer: Calm';
   }
   var w = S.weather;
   if (w) {
     var wsKmh = (w.wind_speed_10m || w.windSpeed || 0), wsMph = wsKmh * 0.621371;
-    el('v3d-wind-info').textContent = dir16_3D(w.wind_direction_10m || w.windDirection || 0) + ' ' + fmtSpeed3D(wsMph);
+    el('v3d-wind-info').textContent = 'Wind: ' + dir16_3D(w.wind_direction_10m || w.windDirection || 0) + ' ' + fmtSpeed3D(wsMph);
   }
   var cbFt3D = S._cloudBaseFt || 0;
   if (!cbFt3D) {
@@ -866,7 +866,7 @@ function refreshHUD3D() {
   }
   if (cbFt3D) {
     var cbTxt = V3D.metric ? Math.round(cbFt3D * 0.3048) + ' m' : cbFt3D.toLocaleString() + ' ft';
-    el('v3d-cloud-base-info').textContent = cbTxt + ' AGL';
+    el('v3d-cloud-base-info').textContent = 'Base: ' + cbTxt + ' AGL';
   }
 }
 
