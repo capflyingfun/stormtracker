@@ -806,10 +806,10 @@ function rebuildStorms3D() {
     }
 
     var lspr = null;
-    if (cell.dbz >= 35 && showLabels) {
+    if (cell.dbz >= 35) {
       var cloudTop = alt + cl.r * 2.2;
       lspr = makeSprite3D(Math.round(cell.dbz) + ' dBZ', dbzCat3D(cell.dbz).col, 0.35);
-      lspr.position.set(sp.x, cloudTop + 0.4, sp.z); V3D.stormGroup.add(lspr);
+      lspr.position.set(sp.x, cloudTop + 0.4, sp.z); lspr.visible = showLabels; V3D.stormGroup.add(lspr);
     }
 
     var cellForCone = { lat: lat, lon: lon, dbz: cell.dbz, distance: cell.distance, bearing: cell.bearing || bearingDeg3D(S.lat, S.lon, lat, lon) };
@@ -995,6 +995,8 @@ async function activate3DView() {
 
   V3D.active = true;
   if (V3D._startMarkerPulse && !V3D._markerRAF) V3D._startMarkerPulse();
+  var lblBtn = document.getElementById('v3d-label-toggle');
+  if (lblBtn) lblBtn.style.borderColor = V3D._labelsVisible ? 'rgba(0,200,255,0.25)' : 'rgba(255,100,100,0.35)';
 
   if (!V3D.ready) {
     var loadEl = document.getElementById('v3d-loading');
