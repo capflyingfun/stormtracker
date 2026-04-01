@@ -485,7 +485,11 @@ function buildUserMarker3D() {
   gloCx.fillStyle = gloG; gloCx.fillRect(0, 0, 64, 64);
   var gloSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(gloCv), transparent: true, depthWrite: false }));
   gloSpr.scale.set(0.7, 0.7, 1); gloSpr.position.set(0, 0.02, 0); V3D.scene.add(gloSpr);
-  var t = 0; (function tick() { if (!V3D.active) { requestAnimationFrame(tick); return; } requestAnimationFrame(tick); t += 0.018; pulse.scale.setScalar(1 + 0.55 * Math.abs(Math.sin(t))); pmat.opacity = 0.28 * (1.1 - Math.abs(Math.sin(t)) * 0.4); })();
+  var t = 0;
+  V3D._markerRAF = null;
+  function tick() { if (!V3D.active) { V3D._markerRAF = null; return; } V3D._markerRAF = requestAnimationFrame(tick); t += 0.018; pulse.scale.setScalar(1 + 0.55 * Math.abs(Math.sin(t))); pmat.opacity = 0.28 * (1.1 - Math.abs(Math.sin(t)) * 0.4); }
+  V3D._startMarkerPulse = tick;
+  tick();
 }
 
 // =====================================================
@@ -769,17 +773,23 @@ function refreshHUD3D() {
   var el = function (id) { return document.getElementById(id); };
   el('v3d-loc-name').textContent = S.locName || '\u2014';
   el('v3d-loc-coords').textContent = S.lat ? S.lat.toFixed(4) + '\u00b0, ' + S.lon.toFixed(4) + '\u00b0' : '\u2014';
-  var storms = S.storms || [];
-  var cnt = storms.length;
-  el('v3d-storm-count').textContent = cnt ? cnt + ' cell' + (cnt !== 1 ? 's' : '') : 'Clear';
-  var sig = storms.filter(function (s) { return s.dbz >= 35; });
-  if (sig.length) {
-    var n = sig[0];
-    el('v3d-nearest-threat').textContent = Math.round(n.dbz) + ' dBZ \u00b7 ' + fmtDist3D(n.distance) + ' ' + dir16_3D(n.bearing);
-    el('v3d-nearest-threat').style.color = dbzHex3D(n.dbz);
+  var storms = S.storms;
+  var stormsScanned = storms !== undefined && storms !== null;
+  var cnt = stormsScanned ? storms.length : 0;
+  el('v3d-storm-count').textContent = !stormsScanned ? 'Not scanned' : cnt ? cnt + ' cell' + (cnt !== 1 ? 's' : '') : 'Clear';
+  if (!stormsScanned) {
+    el('v3d-nearest-threat').textContent = 'Go to Radar tab to scan';
+    el('v3d-nearest-threat').style.color = 'rgba(255,200,50,0.7)';
   } else {
-    el('v3d-nearest-threat').textContent = 'No active cells';
-    el('v3d-nearest-threat').style.color = 'rgba(255,255,255,0.45)';
+    var sig = storms.filter(function (s) { return s.dbz >= 35; });
+    if (sig.length) {
+      var n = sig[0];
+      el('v3d-nearest-threat').textContent = Math.round(n.dbz) + ' dBZ \u00b7 ' + fmtDist3D(n.distance) + ' ' + dir16_3D(n.bearing);
+      el('v3d-nearest-threat').style.color = dbzHex3D(n.dbz);
+    } else {
+      el('v3d-nearest-threat').textContent = 'No active cells';
+      el('v3d-nearest-threat').style.color = 'rgba(255,255,255,0.45)';
+    }
   }
   if (S.stormMovement && S.stormMovement.speed > 1.5) {
     var sm = S.stormMovement;
@@ -886,6 +896,7 @@ async function activate3DView() {
   if (msg2) msg2.style.display = 'none';
 
   V3D.active = true;
+  if (V3D._startMarkerPulse && !V3D._markerRAF) V3D._startMarkerPulse();
 
   if (!V3D.ready) {
     var loadEl = document.getElementById('v3d-loading');
@@ -926,6 +937,8 @@ async function activate3DView() {
 
 function deactivate3DView() {
   V3D.active = false;
+  if (V3D._markerRAF) { cancelAnimationFrame(V3D._markerRAF); V3D._markerRAF = null; }
+  V3D.stormMeshes.forEach(function (sm) { if (sm.ltTimer) { clearInterval(sm.ltTimer); sm.ltTimer = null; } });
   var popup = document.getElementById('v3d-popup');
   if (popup) popup.style.display = 'none';
 }
