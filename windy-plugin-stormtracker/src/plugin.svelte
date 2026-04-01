@@ -128,6 +128,7 @@
 
     function toggleMinimize() {
         minimized = !minimized;
+        updateRangeCircle();
     }
 
     function setMode(m: 'off' | 'inbound' | 'all') {
