@@ -565,7 +565,17 @@ function open3DView(){
   if(!S.lat||!S.lon)return;
   const name=S.locName||`${S.lat.toFixed(2)}, ${S.lon.toFixed(2)}`;
   const returnUrl=window.location.href;
-  const url=`https://capflyingfun.github.io/StormTracker3D/?lat=${S.lat}&lon=${S.lon}&name=${encodeURIComponent(name)}&returnUrl=${encodeURIComponent(returnUrl)}`;
+  let url=`https://capflyingfun.github.io/StormTracker3D/?lat=${S.lat}&lon=${S.lon}&name=${encodeURIComponent(name)}&returnUrl=${encodeURIComponent(returnUrl)}`;
+  try{
+    const payload={};
+    if(S.storms&&S.storms.length){
+      payload.storms=S.storms.slice(0,200).map(s=>({lat:s.lat,lng:s.lng,dbz:s.dbz,distance:s.distance,bearing:s.bearing}));
+    }
+    if(S.stormMovement)payload.stormMovement=S.stormMovement;
+    if(S._cloudBaseFt)payload.cloudBaseFt=S._cloudBaseFt;
+    if(S.weather)payload.weather={cloud_cover:S.weather.cloud_cover,wind_speed_10m:S.weather.wind_speed_10m,wind_direction_10m:S.weather.wind_direction_10m,temperature_2m:S.weather.temperature_2m,dewpoint_2m:S.weather.dewpoint_2m};
+    if(payload.storms){url+='#storms='+btoa(encodeURIComponent(JSON.stringify(payload)));}
+  }catch(e){console.warn('Storm data encode failed:',e);}
   window.location.href=url;
 }
 
