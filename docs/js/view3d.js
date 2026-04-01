@@ -572,16 +572,19 @@ function makeCloudGroup3D(dbz, hookEcho, windDir) {
 
   if (dbz >= 55) {
     var bR = baseR * 1.3;
+    var ox = (Math.random() - 0.5) * bR * 0.2, oz = (Math.random() - 0.5) * bR * 0.2;
+    var wallE = _m(bR * 0.6, dark.clone(), 0.82);
+    wallE.scale.set(0.9, 0.45, 0.9); wallE.position.set(-ox, -bR * 0.1, -oz); grp.add(wallE);
     var b1 = _m(bR * 1.1, base.clone().lerp(dark, 0.5), 0.85);
     b1.scale.set(1.4, 0.6, 1.3); grp.add(b1);
     var b2 = _m(bR, base.clone().lerp(dark, 0.2), 0.78);
-    b2.scale.set(1.2, 0.7, 1.1); b2.position.y = bR * 0.8; grp.add(b2);
+    b2.scale.set(1.2, 0.7, 1.1); b2.position.set(ox * 0.3, bR * 0.8, oz * 0.3); grp.add(b2);
     var b3 = _m(bR * 0.85, base.clone().lerp(white, 0.15), 0.72);
-    b3.scale.set(1.0, 0.85, 0.95); b3.position.y = bR * 1.6; grp.add(b3);
+    b3.scale.set(1.0, 0.85, 0.95); b3.position.set(ox * 0.5, bR * 1.6, oz * 0.5); grp.add(b3);
     var b4 = _m(bR * 0.6, base.clone().lerp(white, 0.35), 0.6);
-    b4.scale.set(0.8, 0.7, 0.75); b4.position.y = bR * 2.3; grp.add(b4);
+    b4.scale.set(0.8, 0.7, 0.75); b4.position.set(ox * 0.7, bR * 2.3, oz * 0.7); grp.add(b4);
     var anvil = _m(bR * 2.2, base.clone().lerp(white, 0.3), 0.4);
-    anvil.scale.set(2.2, 0.15, 1.8); anvil.position.y = bR * 2.6; grp.add(anvil);
+    anvil.scale.set(2.2, 0.15, 1.8); anvil.position.set(ox, bR * 2.6, oz); grp.add(anvil);
     return { grp: grp, r: baseR * 1.3 };
   }
 
@@ -600,12 +603,13 @@ function makeCloudGroup3D(dbz, hookEcho, windDir) {
 
   if (dbz >= 35) {
     var bR = baseR * 0.9;
+    var jx = (Math.random() - 0.5) * bR * 0.15, jz = (Math.random() - 0.5) * bR * 0.15;
     var b1 = _m(bR, base.clone().lerp(dark, 0.25), 0.72);
     b1.scale.set(1.2, 0.5, 1.1); grp.add(b1);
     var b2 = _m(bR * 0.8, base.clone().lerp(white, 0.15), 0.65);
-    b2.scale.set(1.0, 0.65, 0.95); b2.position.y = bR * 0.65; grp.add(b2);
+    b2.scale.set(1.0, 0.65, 0.95); b2.position.set(jx, bR * 0.65, jz); grp.add(b2);
     var b3 = _m(bR * 0.55, base.clone().lerp(white, 0.3), 0.55);
-    b3.scale.set(0.85, 0.6, 0.8); b3.position.y = bR * 1.15; grp.add(b3);
+    b3.scale.set(0.85, 0.6, 0.8); b3.position.set(-jx * 0.7, bR * 1.15, -jz * 0.7); grp.add(b3);
     return { grp: grp, r: baseR * 0.9 };
   }
 
