@@ -777,6 +777,8 @@ function refreshHUD3D() {
   var stormsScanned = storms !== undefined && storms !== null;
   var cnt = stormsScanned ? storms.length : 0;
   el('v3d-storm-count').textContent = !stormsScanned ? 'Not scanned' : cnt ? cnt + ' cell' + (cnt !== 1 ? 's' : '') : 'Clear';
+  var noscanEl = document.getElementById('v3d-noscan-msg');
+  if (noscanEl) noscanEl.style.display = stormsScanned ? 'none' : 'block';
   if (!stormsScanned) {
     el('v3d-nearest-threat').textContent = 'Go to Radar tab to scan';
     el('v3d-nearest-threat').style.color = 'rgba(255,200,50,0.7)';
@@ -880,12 +882,36 @@ function loop3D() {
 var _v3dLocKey = '';
 var _v3dLoading = false;
 
+var _v3dScriptsLoaded = false;
+function _loadThreeJS() {
+  if (_v3dScriptsLoaded) return Promise.resolve();
+  return new Promise(function (resolve, reject) {
+    var s1 = document.createElement('script');
+    s1.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
+    s1.onload = function () {
+      var s2 = document.createElement('script');
+      s2.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
+      s2.onload = function () { _v3dScriptsLoaded = true; resolve(); };
+      s2.onerror = reject;
+      document.head.appendChild(s2);
+    };
+    s1.onerror = reject;
+    document.head.appendChild(s1);
+  });
+}
+
 async function activate3DView() {
   if (typeof THREE === 'undefined') {
-    console.warn('THREE.js not loaded — 3D view unavailable');
-    var emsg = document.getElementById('v3d-empty-msg');
-    if (emsg) { emsg.querySelector('div:nth-child(2)').textContent = '3D engine failed to load'; emsg.style.display = 'flex'; }
-    return;
+    var loadEl = document.getElementById('v3d-loading');
+    if (loadEl) loadEl.style.display = 'flex';
+    try { await _loadThreeJS(); } catch (e) {
+      console.warn('THREE.js failed to load:', e);
+      if (loadEl) loadEl.style.display = 'none';
+      var emsg = document.getElementById('v3d-empty-msg');
+      if (emsg) { emsg.querySelector('div:nth-child(2)').textContent = '3D engine failed to load'; emsg.style.display = 'flex'; }
+      return;
+    }
+    if (loadEl) loadEl.style.display = 'none';
   }
   if (!S.lat) {
     var msg = document.getElementById('v3d-empty-msg');

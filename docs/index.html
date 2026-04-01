@@ -447,6 +447,11 @@
         <div style="color:#e8eef8;font-size:15px;font-weight:600">No location set</div>
         <div style="color:rgba(255,255,255,0.4);font-size:12px;max-width:260px;line-height:1.5">Go to the Weather tab and allow location access, then come back here to see the 3D storm view.</div>
       </div>
+      <div id="v3d-noscan-msg" style="display:none;position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:22;background:rgba(5,10,20,0.85);backdrop-filter:blur(10px);border:1px solid rgba(255,200,50,0.2);border-radius:12px;padding:12px 20px;text-align:center;pointer-events:none;max-width:320px">
+        <div style="font-size:1.3em;margin-bottom:4px">📡</div>
+        <div style="color:#e8eef8;font-size:13px;font-weight:600">No storm scan yet</div>
+        <div style="color:rgba(255,200,50,0.7);font-size:11px;line-height:1.4;margin-top:3px">Visit the Radar tab to scan for storms, then return here to see them in 3D.</div>
+      </div>
       <div id="v3d-hud" style="position:absolute;inset:0;pointer-events:none;z-index:10">
         <div id="v3d-compass-bar" style="position:absolute;top:0;left:0;right:0;height:36px;overflow:hidden;pointer-events:none;background:rgba(5,10,20,0.55);backdrop-filter:blur(6px);border-bottom:1px solid rgba(0,200,255,0.12)">
           <div id="v3d-compass-center-mark" style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #00e5ff;z-index:2"></div>
@@ -541,8 +546,6 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="js/core.js?v=416"></script>
 <script src="js/gauges.js?v=412"></script>
 <script src="js/icons.js?v=412"></script>
