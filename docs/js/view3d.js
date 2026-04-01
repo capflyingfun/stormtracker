@@ -543,81 +543,45 @@ function makeCloudGroup3D(dbz, hookEcho, windDir) {
   var base = new THREE.Color(cat.col);
   var white = new THREE.Color(1, 1, 1);
   var dark = new THREE.Color(0.18, 0.18, 0.22);
+  var severe = dbz >= 50, heavy = dbz >= 40, moderate = dbz >= 35;
   var SEG = 6;
-  var _m = function (r, col, op) {
-    return new THREE.Mesh(new THREE.SphereGeometry(r, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op }));
-  };
-
-  if (hookEcho && dbz >= 45) {
-    var bR = baseR * 1.2;
-    var wd = toRad3D(windDir || 0);
-    var leanX = Math.sin(wd) * bR * 0.3, leanZ = -Math.cos(wd) * bR * 0.3;
-    var wallCol = dark.clone();
-    var wall = _m(bR * 0.7, wallCol, 0.85);
-    wall.scale.set(1.0, 0.5, 1.0); wall.position.set(-leanX * 0.5, -bR * 0.15, -leanZ * 0.5); grp.add(wall);
-    var b1 = _m(bR, base.clone().lerp(dark, 0.45), 0.82);
-    b1.scale.set(1.3, 0.6, 1.2); b1.position.set(0, 0, 0); grp.add(b1);
-    var b2 = _m(bR * 0.9, base.clone().lerp(white, 0.1), 0.75);
-    b2.scale.set(1.1, 0.75, 1.0); b2.position.set(leanX * 0.5, bR * 0.9, leanZ * 0.5); grp.add(b2);
-    var b3 = _m(bR * 0.7, base.clone().lerp(white, 0.25), 0.68);
-    b3.scale.set(0.85, 0.85, 0.8); b3.position.set(leanX, bR * 1.6, leanZ); grp.add(b3);
-    var anvilCol = base.clone().lerp(white, 0.3);
-    var anvil = _m(bR * 2.0, anvilCol, 0.38);
-    anvil.scale.set(2.0, 0.15, 1.6); anvil.position.set(leanX * 1.5, bR * 2.2, leanZ * 1.5); grp.add(anvil);
-    var funnelGeo = new THREE.CylinderGeometry(0.04, bR * 0.35, bR * 1.8, 8, 1, true);
-    var funnel = new THREE.Mesh(funnelGeo, new THREE.MeshBasicMaterial({ color: 0x444455, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
-    funnel.position.set(-leanX * 0.5, -bR * 0.9, -leanZ * 0.5); grp.add(funnel);
-    return { grp: grp, r: baseR * 1.2 };
-  }
-
-  if (dbz >= 55) {
-    var bR = baseR * 1.3;
-    var ox = (Math.random() - 0.5) * bR * 0.2, oz = (Math.random() - 0.5) * bR * 0.2;
-    var wallE = _m(bR * 0.6, dark.clone(), 0.82);
-    wallE.scale.set(0.9, 0.45, 0.9); wallE.position.set(-ox, -bR * 0.1, -oz); grp.add(wallE);
-    var b1 = _m(bR * 1.1, base.clone().lerp(dark, 0.5), 0.85);
-    b1.scale.set(1.4, 0.6, 1.3); grp.add(b1);
-    var b2 = _m(bR, base.clone().lerp(dark, 0.2), 0.78);
-    b2.scale.set(1.2, 0.7, 1.1); b2.position.set(ox * 0.3, bR * 0.8, oz * 0.3); grp.add(b2);
-    var b3 = _m(bR * 0.85, base.clone().lerp(white, 0.15), 0.72);
-    b3.scale.set(1.0, 0.85, 0.95); b3.position.set(ox * 0.5, bR * 1.6, oz * 0.5); grp.add(b3);
-    var b4 = _m(bR * 0.6, base.clone().lerp(white, 0.35), 0.6);
-    b4.scale.set(0.8, 0.7, 0.75); b4.position.set(ox * 0.7, bR * 2.3, oz * 0.7); grp.add(b4);
-    var anvil = _m(bR * 2.2, base.clone().lerp(white, 0.3), 0.4);
-    anvil.scale.set(2.2, 0.15, 1.8); anvil.position.set(ox, bR * 2.6, oz); grp.add(anvil);
-    return { grp: grp, r: baseR * 1.3 };
-  }
-
-  if (dbz >= 45) {
+  if (severe) {
     var bR = baseR * 1.1;
-    var b1 = _m(bR, base.clone().lerp(dark, 0.4), 0.8);
+    var bottomCol = base.clone().lerp(dark, 0.4);
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.78 }));
     b1.scale.set(1.3, 0.55, 1.2); grp.add(b1);
-    var b2 = _m(bR * 0.9, base.clone().lerp(white, 0.15), 0.72);
+    var midCol = base.clone().lerp(white, 0.15);
+    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.9, SEG, SEG), new THREE.MeshBasicMaterial({ color: midCol, transparent: true, opacity: 0.72 }));
     b2.scale.set(1.1, 0.7, 1.0); b2.position.y = bR * 0.8; grp.add(b2);
-    var b3 = _m(bR * 0.75, base.clone().lerp(white, 0.3), 0.65);
+    var topCol = base.clone().lerp(white, 0.3);
+    var b3 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.75, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.65 }));
     b3.scale.set(0.9, 0.8, 0.85); b3.position.y = bR * 1.5; grp.add(b3);
-    var anvil = _m(bR * 1.6, base.clone().lerp(white, 0.35), 0.4);
+    var anvilCol = base.clone().lerp(white, 0.35);
+    var anvil = new THREE.Mesh(new THREE.SphereGeometry(bR * 1.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: anvilCol, transparent: true, opacity: 0.4 }));
     anvil.scale.set(1.8, 0.18, 1.5); anvil.position.y = bR * 2.0; grp.add(anvil);
-    return { grp: grp, r: baseR * 1.1 };
-  }
-
-  if (dbz >= 35) {
-    var bR = baseR * 0.9;
-    var jx = (Math.random() - 0.5) * bR * 0.15, jz = (Math.random() - 0.5) * bR * 0.15;
-    var b1 = _m(bR, base.clone().lerp(dark, 0.25), 0.72);
+  } else if (heavy) {
+    var bR = baseR * 0.95;
+    var bottomCol = base.clone().lerp(dark, 0.3);
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.72 }));
     b1.scale.set(1.2, 0.5, 1.1); grp.add(b1);
-    var b2 = _m(bR * 0.8, base.clone().lerp(white, 0.15), 0.65);
-    b2.scale.set(1.0, 0.65, 0.95); b2.position.set(jx, bR * 0.65, jz); grp.add(b2);
-    var b3 = _m(bR * 0.55, base.clone().lerp(white, 0.3), 0.55);
-    b3.scale.set(0.85, 0.6, 0.8); b3.position.set(-jx * 0.7, bR * 1.15, -jz * 0.7); grp.add(b3);
-    return { grp: grp, r: baseR * 0.9 };
+    var topCol = base.clone().lerp(white, 0.2);
+    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.8, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.65 }));
+    b2.scale.set(1.0, 0.65, 0.9); b2.position.y = bR * 0.7; grp.add(b2);
+  } else if (moderate) {
+    var bR = baseR * 0.85;
+    var col = base.clone().lerp(white, 0.1);
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.65 }));
+    b1.scale.set(1.1, 0.5, 1.0); grp.add(b1);
+    var topCol = base.clone().lerp(white, 0.25);
+    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.55 }));
+    b2.scale.set(0.9, 0.55, 0.85); b2.position.y = bR * 0.55; grp.add(b2);
+  } else {
+    var bR = baseR * 0.7;
+    var col = base.clone().lerp(white, 0.15);
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.55 }));
+    b1.scale.set(1.0, 0.45, 0.9); grp.add(b1);
   }
-
-  var bR = baseR * 0.6;
-  var col = base.clone().lerp(white, 0.25);
-  var b1 = _m(bR, col, 0.4);
-  b1.scale.set(1.2, 0.35, 1.1); grp.add(b1);
-  return { grp: grp, r: baseR * 0.6 };
+  return { grp: grp, r: baseR };
 }
 
 function makeRain3D(dbz, r, terrainBaseH) {
@@ -722,35 +686,33 @@ function getCloudBase3D() {
   return 1.5;
 }
 
-function hexZones3D() {
-  var raw = S._rawScanPts;
-  if (!raw || !raw.length) return [];
-  var maxR = S.scanRadius || 80;
-  var cells = hexGridBin(raw, S.lat, S.lon, maxR);
+function sonarZones3D() {
+  var pts = S._sonarClusteredPts;
+  if (!pts || !pts.length) return [];
   var hookCells = (S.storms || []).filter(function (s) { return s._hookEcho; });
   var out = [];
-  cells.forEach(function (c) {
-    if (c.maxDbz < 20) return;
-    var xy = _hexCenter(c.q, c.r);
-    var ll = _xyToLL(xy[0], xy[1], S.lat, S.lon);
+  for (var i = 0; i < pts.length; i++) {
+    var p = pts[i];
+    var dist = haversineMi3D(S.lat, S.lon, p.lat, p.lng);
+    var bear = bearingDeg3D(S.lat, S.lon, p.lat, p.lng);
     var hasHook = false;
-    if (c.maxDbz >= 45 && hookCells.length) {
+    if (p.dbz >= 45 && hookCells.length) {
       for (var h = 0; h < hookCells.length; h++) {
         var hc = hookCells[h];
-        var dlat = (hc.lat - ll[0]) * 69.172;
-        var dlng = ((hc.lng || hc.lon) - ll[1]) * 69.172 * Math.cos(ll[0] * Math.PI / 180);
+        var dlat = (hc.lat - p.lat) * 69.172;
+        var dlng = ((hc.lng || hc.lon) - p.lng) * 69.172 * Math.cos(p.lat * Math.PI / 180);
         if (Math.sqrt(dlat * dlat + dlng * dlng) < 4) { hasHook = true; break; }
       }
     }
-    out.push({ lat: ll[0], lon: ll[1], lng: ll[1], dbz: c.maxDbz, distance: c.dist, bearing: c.bearing, count: c.count, hookEcho: hasHook });
-  });
+    out.push({ lat: p.lat, lon: p.lng, lng: p.lng, dbz: p.dbz, distance: dist, bearing: bear, count: p.count || 1, hookEcho: hasHook });
+  }
   out.sort(function (a, b) { return b.dbz - a.dbz; });
   return out;
 }
 
 function rebuildStorms3D() {
   clearStorms3D();
-  var storms = hexZones3D();
+  var storms = sonarZones3D();
   if (!storms.length) return;
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
   var showLabels = V3D._labelsVisible !== false;
@@ -771,7 +733,7 @@ function rebuildStorms3D() {
       pt.position.set(sp.x, alt + cl.r * 0.3, sp.z); V3D.stormGroup.add(pt);
     }
 
-    if (cell.dbz >= 35) {
+    if (cell.dbz >= 30) {
       var hHex = dbzHex3D(cell.dbz);
       var hR = parseInt(hHex.slice(1, 3), 16), hG = parseInt(hHex.slice(3, 5), 16), hB = parseInt(hHex.slice(5, 7), 16);
       var haloCv = document.createElement('canvas'); haloCv.width = haloCv.height = 64;
@@ -790,7 +752,7 @@ function rebuildStorms3D() {
     }
 
     var rain = null;
-    if (cell.dbz >= 35) {
+    if (cell.dbz >= 33) {
       var terrainBase = sampleTerrainHeight3D(sp.x, sp.z);
       rain = makeRain3D(cell.dbz, cl.r, terrainBase); rain.position.set(sp.x, alt, sp.z); V3D.stormGroup.add(rain);
     }
@@ -872,7 +834,7 @@ function refreshHUD3D() {
   el('v3d-loc-name').textContent = S.locName || '\u2014';
   el('v3d-loc-coords').textContent = S.lat ? S.lat.toFixed(4) + '\u00b0, ' + S.lon.toFixed(4) + '\u00b0' : '\u2014';
   var stormsScanned = !!S.scanTime;
-  var zones = hexZones3D();
+  var zones = sonarZones3D();
   var cnt = zones.length;
   el('v3d-storm-count').textContent = !stormsScanned ? 'Not scanned' : cnt ? cnt + ' zone' + (cnt !== 1 ? 's' : '') : 'Clear';
   var noscanEl = document.getElementById('v3d-noscan-msg');
