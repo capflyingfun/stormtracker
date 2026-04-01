@@ -328,7 +328,7 @@ async function buildMapGround3D(lat, lon) {
   var seLat = pxToLat(originGPy + canvSz), seLon = pxToLon(originGPx + canvSz);
   var nwS = geoToScene3D(nwLat, nwLon), seS = geoToScene3D(seLat, seLon);
   var plW = seS.x - nwS.x, plD = seS.z - nwS.z;
-  var planeCX = (nwS.x + seS.x) / 2, planeCZ = (nwS.z + seS.z) / 2;
+  var planeCX = 0, planeCZ = 0;
   var tex = new THREE.CanvasTexture(cv2);
   tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
   tex.needsUpdate = true;
@@ -689,10 +689,13 @@ function getCloudBase3D() {
 function sonarZones3D() {
   var pts = S._sonarClusteredPts;
   if (!pts || !pts.length) return [];
+  var cfgFloor = typeof _sonarCfg !== 'undefined' && _sonarCfg && typeof _sonarCfg.dbzFloor === 'number' ? _sonarCfg.dbzFloor : 0;
+  var floor = Math.max(20, cfgFloor);
   var hookCells = (S.storms || []).filter(function (s) { return s._hookEcho; });
   var out = [];
   for (var i = 0; i < pts.length; i++) {
     var p = pts[i];
+    if (p.dbz < floor) continue;
     var dist = haversineMi3D(S.lat, S.lon, p.lat, p.lng);
     var bear = bearingDeg3D(S.lat, S.lon, p.lat, p.lng);
     var hasHook = false;
