@@ -692,8 +692,8 @@ function sonarZones3D() {
   var out = [];
   for (var i = 0; i < storms.length; i++) {
     var s = storms[i];
-    if (!s.lat || !(s.lng || s.lon)) continue;
-    var lng = s.lng || s.lon;
+    if (s.lat == null || (s.lng == null && s.lon == null)) continue;
+    var lng = s.lng != null ? s.lng : s.lon;
     out.push({ lat: s.lat, lon: lng, lng: lng, dbz: s.dbz, distance: s.distance, bearing: s.bearing, count: s.pixels || 1, hookEcho: !!s._hookEcho });
   }
   out.sort(function (a, b) { return b.dbz - a.dbz; });
