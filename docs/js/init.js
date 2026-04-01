@@ -561,6 +561,14 @@ function geoToIso(stormLat,stormLng,userLat,userLng,scale){
   return{x:dx*scale,y:-dy*scale};
 }
 
+function open3DView(){
+  if(!S.lat)return;
+  const name=S.locName||`${S.lat.toFixed(2)}, ${S.lon.toFixed(2)}`;
+  const returnUrl=window.location.href;
+  const url=`https://capflyingfun.github.io/StormTracker3D/?lat=${S.lat}&lon=${S.lon}&name=${encodeURIComponent(name)}&returnUrl=${encodeURIComponent(returnUrl)}`;
+  window.location.href=url;
+}
+
 function show3DView(){
   if(!S.lat)return;
   let ov=document.getElementById('iso-overlay');
