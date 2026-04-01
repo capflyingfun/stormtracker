@@ -1,84 +1,90 @@
-<section class="plugin__content stormtracker-plugin">
+<section class="plugin__content stormtracker-plugin" class:minimized>
     <div class="st-header">
         <span class="st-icon">⛈️</span>
         <span class="st-title">{title}</span>
+        <span class="st-header-spacer"></span>
+        <button class="st-minimize-btn" on:click={toggleMinimize}>{minimized ? '▲' : '▼'}</button>
     </div>
 
-    <div class="st-controls">
-        <label class="st-label">Display Mode</label>
-        <div class="st-toggle-group">
-            <button class="st-btn" class:active={displayMode === 'off'} on:click={() => setMode('off')}>Off</button>
-            <button class="st-btn" class:active={displayMode === 'inbound'} on:click={() => setMode('inbound')}>12 Inbound</button>
-            <button class="st-btn" class:active={displayMode === 'all'} on:click={() => setMode('all')}>All</button>
+    {#if !minimized}
+        <div class="st-controls">
+            <label class="st-label">Display Mode</label>
+            <div class="st-toggle-group">
+                <button class="st-btn" class:active={displayMode === 'off'} on:click={() => setMode('off')}>Off</button>
+                <button class="st-btn" class:active={displayMode === 'inbound'} on:click={() => setMode('inbound')}>12 Inbound</button>
+                <button class="st-btn" class:active={displayMode === 'all'} on:click={() => setMode('all')}>All</button>
+            </div>
         </div>
-    </div>
 
-    <div class="st-controls">
-        <label class="st-label">Scan Radius</label>
-        <div class="st-toggle-group">
-            <button class="st-btn" class:active={scanRadius === 40} on:click={() => setRadius(40)}>40 mi</button>
-            <button class="st-btn" class:active={scanRadius === 80} on:click={() => setRadius(80)}>80 mi</button>
-            <button class="st-btn" class:active={scanRadius === 120} on:click={() => setRadius(120)}>120 mi</button>
+        <div class="st-controls">
+            <label class="st-label">Scan Radius</label>
+            <div class="st-toggle-group">
+                <button class="st-btn" class:active={scanRadius === 40} on:click={() => setRadius(40)}>40 mi</button>
+                <button class="st-btn" class:active={scanRadius === 80} on:click={() => setRadius(80)}>80 mi</button>
+                <button class="st-btn" class:active={scanRadius === 120} on:click={() => setRadius(120)}>120 mi</button>
+            </div>
         </div>
-    </div>
 
-    <div class="st-controls">
-        <label class="st-label">Layers</label>
-        <div class="st-checks">
-            <label class="st-check"><input type="checkbox" bind:checked={showPoints} on:change={replot} /> Storm Points</label>
-            <label class="st-check"><input type="checkbox" bind:checked={showArrows} on:change={replot} /> Movement Arrows</label>
-            <label class="st-check"><input type="checkbox" bind:checked={showTracks} on:change={replot} /> Track Cones</label>
+        <div class="st-controls">
+            <label class="st-label">Layers</label>
+            <div class="st-checks">
+                <label class="st-check"><input type="checkbox" bind:checked={showPoints} on:change={replot} /> Storm Points</label>
+                <label class="st-check"><input type="checkbox" bind:checked={showArrows} on:change={replot} /> Movement Arrows</label>
+                <label class="st-check"><input type="checkbox" bind:checked={showTracks} on:change={replot} /> Track Cones</label>
+            </div>
         </div>
-    </div>
 
-    <div class="st-actions">
-        <button class="st-scan-btn" on:click={doScan} disabled={scanning}>
-            {#if scanning}
-                <span class="st-spinner"></span> Scanning...
+        <div class="st-actions">
+            <button class="st-scan-btn" on:click={doScan} disabled={scanning}>
+                {#if scanning}
+                    <span class="st-spinner"></span> Scanning...
+                {:else}
+                    🔍 Scan Now
+                {/if}
+            </button>
+            {#if autoScan}
+                <button class="st-scan-btn st-stop" on:click={stopAuto}>⏹ Stop Auto</button>
             {:else}
-                🔍 Scan Now
+                <button class="st-scan-btn st-auto" on:click={startAuto}>▶ Auto (2 min)</button>
             {/if}
-        </button>
-        {#if autoScan}
-            <button class="st-scan-btn st-stop" on:click={stopAuto}>⏹ Stop Auto</button>
-        {:else}
-            <button class="st-scan-btn st-auto" on:click={startAuto}>▶ Auto (2 min)</button>
-        {/if}
-    </div>
+        </div>
+    {/if}
 
     {#if scanSource}
         <div class="st-source">{scanSource} · {storms.length} cell{storms.length !== 1 ? 's' : ''}{windData ? ` · Wind ${windData.speed} mph ${degToDir(windData.direction)}` : ''}</div>
     {/if}
 
-    {#if storms.length > 0}
-        <div class="st-list">
-            {#each visibleStorms as storm, i}
-                <div class="st-storm" on:click={() => panToStorm(storm)}>
-                    <div class="st-storm-hdr">
-                        <span class="st-dbz" style="background:{dbzColor(storm.dbz)};color:{storm.dbz >= 40 ? '#000' : '#fff'}">{storm.dbz} dBZ</span>
-                        <span class="st-dist">{storm.dist.toFixed(1)} mi {degToDir(storm.bearing)}</span>
-                        {#if storm.eta && storm.eta.approaching}
-                            <span class="st-eta">⏱ {storm.eta.minutes} min</span>
-                        {/if}
+    {#if !minimized}
+        {#if storms.length > 0}
+            <div class="st-list">
+                {#each visibleStorms as storm, i}
+                    <div class="st-storm" on:click={() => panToStorm(storm)}>
+                        <div class="st-storm-hdr">
+                            <span class="st-dbz" style="background:{dbzColor(storm.dbz)};color:{storm.dbz >= 40 ? '#000' : '#fff'}">{storm.dbz} dBZ</span>
+                            <span class="st-dist">{storm.dist.toFixed(1)} mi {degToDir(storm.bearing)}</span>
+                            {#if storm.eta && storm.eta.approaching}
+                                <span class="st-eta">⏱ {storm.eta.minutes} min</span>
+                            {/if}
+                        </div>
+                        <div class="st-storm-sub">
+                            {dbzLabel(storm.dbz)}
+                            {#if storm.track}
+                                · {storm.track.speed} mph {degToDir(storm.track.dir)}
+                            {:else if windData}
+                                · ~{windData.speed} mph {degToDir(windData.direction)}
+                            {/if}
+                        </div>
                     </div>
-                    <div class="st-storm-sub">
-                        {dbzLabel(storm.dbz)}
-                        {#if storm.track}
-                            · {storm.track.speed} mph {degToDir(storm.track.dir)}
-                        {:else if windData}
-                            · ~{windData.speed} mph {degToDir(windData.direction)}
-                        {/if}
-                    </div>
-                </div>
-            {/each}
-        </div>
-    {:else if scanSource}
-        <div class="st-empty">No storm cells detected</div>
-    {/if}
+                {/each}
+            </div>
+        {:else if scanSource}
+            <div class="st-empty">No storm cells detected</div>
+        {/if}
 
-    <div class="st-footer">
-        <a href="https://github.com/CAPFlyingFun/StormTracker" target="_blank">StormTracker</a> · Radar: RainViewer + NEXRAD
-    </div>
+        <div class="st-footer">
+            <a href="https://github.com/CAPFlyingFun/StormTracker" target="_blank">StormTracker</a> · Radar: RainViewer + NEXRAD
+        </div>
+    {/if}
 </section>
 
 <script lang="ts">
@@ -103,6 +109,7 @@
     let scanSource = '';
     let windData: WindData | null = null;
     let mounted = false;
+    let minimized = false;
 
     let pointMarkers: any[] = [];
     let arrowLines: any[] = [];
@@ -119,6 +126,10 @@
         return stormList;
     }
 
+    function toggleMinimize() {
+        minimized = !minimized;
+    }
+
     function setMode(m: 'off' | 'inbound' | 'all') {
         displayMode = m;
         replot();
@@ -127,6 +138,26 @@
     function setRadius(r: number) {
         scanRadius = r;
         updateRangeCircle();
+    }
+
+    function getVisibleMapCenter(): { lat: number; lng: number } {
+        const center = map.getCenter();
+        if (minimized) return { lat: center.lat, lng: center.lng };
+        const isMobileFullscreen = config.mobileUI === 'fullscreen' && window.innerWidth < 768;
+        if (!isMobileFullscreen) return { lat: center.lat, lng: center.lng };
+        try {
+            const size = map.getSize();
+            if (size && size.y > 0) {
+                const panelFraction = 0.45;
+                const visibleH = size.y * (1 - panelFraction);
+                const visibleCenterY = visibleH / 2;
+                const pt = map.containerPointToLatLng([size.x / 2, visibleCenterY]);
+                if (pt && pt.lat != null && pt.lng != null) {
+                    return { lat: pt.lat, lng: pt.lng };
+                }
+            }
+        } catch {}
+        return { lat: center.lat, lng: center.lng };
     }
 
     export const onopen = (params: LatLon) => {
@@ -159,9 +190,9 @@
     }
 
     function updateRangeCircle() {
-        const center = map.getCenter();
+        const vc = getVisibleMapCenter();
         if (rangeCircle) { map.removeLayer(rangeCircle); rangeCircle = null; }
-        rangeCircle = L.circle([center.lat, center.lng], {
+        rangeCircle = L.circle([vc.lat, vc.lng], {
             radius: scanRadius * 1609.34,
             color: '#3b82f6',
             fill: false,
@@ -174,10 +205,10 @@
     async function doScan() {
         if (scanning) return;
         scanning = true;
-        const center = map.getCenter();
+        const vc = getVisibleMapCenter();
         updateRangeCircle();
         try {
-            const result = await scanForStorms(center.lat, center.lng, scanRadius);
+            const result = await scanForStorms(vc.lat, vc.lng, scanRadius);
             storms = result.storms;
             scanSource = result.source;
             windData = result.wind;
@@ -231,7 +262,7 @@
             }
 
             if (showArrows) {
-                const track = s.track;
+                const track = s.track && s.track.speed >= 2 ? s.track : null;
                 const dir = track ? track.dir : (movementSource ? movementSource.direction : null);
                 const spd = track ? track.speed : (movementSource ? movementSource.speed : 0);
                 if (dir !== null && spd >= 2) {
@@ -261,7 +292,7 @@
             }
 
             if (showTracks) {
-                const track = s.track;
+                const track = s.track && s.track.speed >= 2 ? s.track : null;
                 const dir = track ? track.dir : (movementSource ? movementSource.direction : null);
                 const spd = track ? track.speed : (movementSource ? movementSource.speed : 0);
                 if (dir !== null && spd >= 2) {
@@ -303,12 +334,34 @@
         padding: 14px 16px;
         font-size: 16px;
     }
+    .stormtracker-plugin.minimized {
+        padding: 10px 16px;
+    }
     .st-header {
         display: flex;
         align-items: center;
         gap: 10px;
         margin-bottom: 16px;
     }
+    .minimized .st-header {
+        margin-bottom: 6px;
+    }
+    .st-header-spacer { flex: 1; }
+    .st-minimize-btn {
+        background: none;
+        border: 1px solid #555;
+        color: #ccc;
+        font-size: 16px;
+        width: 36px;
+        height: 36px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s;
+    }
+    .st-minimize-btn:hover { border-color: #888; color: #fff; }
     .st-icon { font-size: 26px; }
     .st-title { font-weight: 700; font-size: 20px; }
     .st-controls { margin-bottom: 14px; }
@@ -364,6 +417,7 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .st-source { font-size: 14px; color: #888; margin-bottom: 10px; text-align: center; }
+    .minimized .st-source { margin-bottom: 0; }
     .st-list { max-height: 400px; overflow-y: auto; }
     .st-storm {
         padding: 10px 12px;
