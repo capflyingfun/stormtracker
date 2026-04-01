@@ -427,23 +427,19 @@ function haversine(lat1,lon1,lat2,lon2){const R=3959,dLat=(lat2-lat1)*Math.PI/18
 function bearingDeg(lat1,lon1,lat2,lon2){const dLon=(lon2-lon1)*Math.PI/180;const y=Math.sin(dLon)*Math.cos(lat2*Math.PI/180);const x=Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180)-Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);return((Math.atan2(y,x)*180/Math.PI)+360)%360}
 
 const DBZ_SCALE=[
-  {min:0,  color:'#0099ff',label:'Drizzle/Mist',           cls:'light',   opacity:0.15},
-  {min:20, color:'#00ccff',label:'Light rain',              cls:'light',   opacity:0.18},
-  {min:25, color:'#00ffcc',label:'Light rain',              cls:'light',   opacity:0.22},
-  {min:30, color:'#00ff66',label:'Light to moderate rain',  cls:'moderate',opacity:0.28},
-  {min:35, color:'#aaff00',label:'Moderate rain',           cls:'moderate',opacity:0.33},
-  {min:40, color:'#ffee00',label:'Moderate to heavy rain',  cls:'heavy',   opacity:0.40},
-  {min:45, color:'#ff5500',label:'Heavy rain',              cls:'heavy',   opacity:0.45},
-  {min:50, color:'#ff2200',label:'Heavy rain, small hail possible',cls:'intense',opacity:0.50},
-  {min:55, color:'#ff0033',label:'Very heavy rain, hail possible',cls:'intense',opacity:0.55},
-  {min:60, color:'#ff00ff',label:'Very heavy rain, hail likely',cls:'extreme',opacity:0.60},
-  {min:65, color:'#ff00ff',label:'Hail very likely, large hail',cls:'extreme',opacity:0.60}
+  {min:0,  color:'#004488',label:'Below threshold',         cls:'trace',   opacity:0.10},
+  {min:20, color:'#00F8FF',label:'Light rain',              cls:'light',   opacity:0.20},
+  {min:31, color:'#00FF39',label:'Moderate rain',           cls:'moderate',opacity:0.30},
+  {min:41, color:'#F5FF00',label:'Heavy rain',              cls:'heavy',   opacity:0.40},
+  {min:46, color:'#FFB200',label:'Very heavy rain',         cls:'intense', opacity:0.50},
+  {min:52, color:'#FF0200',label:'Severe, hail possible',   cls:'severe',  opacity:0.55},
+  {min:61, color:'#FF00F5',label:'Extreme, hail likely',    cls:'extreme', opacity:0.60}
 ];
 function _dbzEntry(dbz){for(let i=DBZ_SCALE.length-1;i>=0;i--){if(dbz>=DBZ_SCALE[i].min)return DBZ_SCALE[i]}return DBZ_SCALE[0]}
 function stormCat(dbz){
   const e=_dbzEntry(dbz);
   const m=S.radarMetric;
-  const rainMap={0:m?'trace':'trace',20:m?'0.6 mm/hr':'0.02 in/hr',25:m?'1.3 mm/hr':'0.05 in/hr',30:m?'2.7 mm/hr':'0.10 in/hr',35:m?'5.6 mm/hr':'0.22 in/hr',40:m?'1.1 cm/hr':'0.45 in/hr',45:m?'2.3 cm/hr':'0.92 in/hr',50:m?'4.8 cm/hr':'1.9 in/hr',55:m?'10 cm/hr':'4 in/hr',60:m?'20 cm/hr':'8 in/hr',65:m?'>42 cm/hr':'>16.6 in/hr'};
+  const rainMap={0:m?'trace':'trace',20:m?'0.6 mm/hr':'0.02 in/hr',31:m?'2.7 mm/hr':'0.10 in/hr',41:m?'1.1 cm/hr':'0.45 in/hr',46:m?'2.3 cm/hr':'0.92 in/hr',52:m?'10 cm/hr':'4 in/hr',61:m?'>20 cm/hr':'>8 in/hr'};
   return{label:e.label,cls:e.cls,color:e.color,rain:rainMap[e.min]||'trace'};
 }
 function dbzHex(dbz){return _dbzEntry(dbz).color}
@@ -783,8 +779,8 @@ function switchPage(page){
 function updateStormBadges(){
   const inbound=S._topStorms?S._topStorms.length:0;
   const maxDbz=S._topStorms&&S._topStorms.length?Math.max(...S._topStorms.map(s=>s.dbz)):0;
-  const sevIcon=maxDbz>=65?'‼️':maxDbz>=56?'🚨':maxDbz>=45?'⚠️':maxDbz>=40?'🟡':maxDbz>=30?'🟢':'🔵';
-  const sevBg=maxDbz>=65?'#dc2626':maxDbz>=56?'#ef4444':maxDbz>=45?'#f97316':maxDbz>=40?'#eab308':maxDbz>=30?'#22c55e':'#6b7280';
+  const sevIcon=maxDbz>=61?'‼️':maxDbz>=52?'🚨':maxDbz>=46?'⚠️':maxDbz>=41?'🟡':maxDbz>=20?'🟢':'🔵';
+  const sevBg=maxDbz>0?dbzHex(maxDbz):'#6b7280';
   const hdr=document.getElementById('header-storm-count');
   const nav=document.getElementById('nav-storm-badge');
   if(hdr){
