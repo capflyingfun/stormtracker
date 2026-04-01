@@ -687,10 +687,11 @@ function getCloudBase3D() {
 }
 
 function sonarZones3D() {
+  var MAX_ZONES = 500;
   var pts = S._sonarClusteredPts;
   if (!pts || !pts.length) return [];
   var cfgFloor = typeof _sonarCfg !== 'undefined' && _sonarCfg && typeof _sonarCfg.dbzFloor === 'number' ? _sonarCfg.dbzFloor : 0;
-  var floor = Math.max(20, cfgFloor);
+  var floor = Math.max(25, cfgFloor);
   var hookCells = (S.storms || []).filter(function (s) { return s._hookEcho; });
   var out = [];
   for (var i = 0; i < pts.length; i++) {
@@ -710,6 +711,7 @@ function sonarZones3D() {
     out.push({ lat: p.lat, lon: p.lng, lng: p.lng, dbz: p.dbz, distance: dist, bearing: bear, count: p.count || 1, hookEcho: hasHook });
   }
   out.sort(function (a, b) { return b.dbz - a.dbz; });
+  if (out.length > MAX_ZONES) out.length = MAX_ZONES;
   return out;
 }
 
