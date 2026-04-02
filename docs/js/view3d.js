@@ -29,7 +29,7 @@ var V3D = {
   ringLabels: [],
   compassTape: null,
   compassHdg: null,
-  ppd: 3,
+  ppd: Math.max(3, Math.round(window.innerWidth / 100)),
   frame: 0,
   rafId: null,
   metric: false,
@@ -252,6 +252,8 @@ function onResize3D() {
   V3D.camera.aspect = w / h;
   V3D.camera.updateProjectionMatrix();
   V3D.renderer.setSize(w, h);
+  var newPpd = Math.max(3, Math.round(window.innerWidth / 100));
+  if (newPpd !== V3D.ppd) { V3D.ppd = newPpd; buildCompassTape3D(); }
 }
 
 // =====================================================
@@ -759,7 +761,7 @@ function _updateEtaCountdowns() {
 }
 
 function addApproachCone3D(cell, sp, coneIdx) {
-  if (!S.stormMovement || S.stormMovement.speed < 2) return;
+  if (!S.stormMovement || S.stormMovement.speed < 0.5) return;
   var mv = S.stormMovement;
   var dkm = haversineKm3D(S.lat, S.lon, cell.lat, cell.lon);
   var distMi = dkm * 0.621371;
@@ -817,7 +819,7 @@ function addApproachCone3D(cell, sp, coneIdx) {
   if (etaMin > 0 && etaMin < 180) {
     var arriveAt = Date.now() + etaMin * 60000;
     var eSpr = makeSprite3D(_fmtEtaCountdown(arriveAt), 'rgba(255,200,55,0.92)', 0.5);
-    eSpr.position.set(sp.x, dkm * 0.12 + 3.5, sp.z); eSpr.renderOrder = 5; V3D.coneGroup.add(eSpr);
+    eSpr.position.set(sp.x, Math.min(dkm * 0.12 + 3.5, 6), sp.z); eSpr.renderOrder = 5; V3D.coneGroup.add(eSpr);
     V3D._etaSprites.push({ spr: eSpr, arriveAt: arriveAt });
   }
 }
@@ -1043,6 +1045,7 @@ function rebuildWind3D() {
 }
 
 function animWind3D() {
+  if (_v3dIsMobile) return;
   V3D.windSystems.forEach(function (ws) {
     var pos = ws.pts.geometry.attributes.position.array;
     var n = pos.length / 3, dr = toRad3D(ws.dir), spd = ws.spdMs * 0.0006;
