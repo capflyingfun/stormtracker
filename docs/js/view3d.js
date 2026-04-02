@@ -585,12 +585,25 @@ function buildCompass3D() {
 }
 
 function buildUserMarker3D() {
-  var dot = new THREE.Mesh(new THREE.CircleGeometry(1.2, 32),
-    new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
-  dot.rotation.x = -Math.PI / 2; dot.position.y = 0.06; dot.renderOrder = 6; V3D.scene.add(dot);
+  var grp = new THREE.Group();
+  var gem = new THREE.OctahedronGeometry(0.8, 0);
+  gem.scale(1, 1.6, 1);
+  var mat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false });
+  var diamond = new THREE.Mesh(gem, mat);
+  var wireGeo = new THREE.OctahedronGeometry(0.85, 0);
+  wireGeo.scale(1, 1.6, 1);
+  var wire = new THREE.Mesh(wireGeo, new THREE.MeshBasicMaterial({ color: 0x80f4ff, transparent: true, opacity: 0.35, wireframe: true, depthWrite: false }));
+  grp.add(diamond); grp.add(wire);
+  grp.position.set(0, 2.5, 0); grp.renderOrder = 6; V3D.scene.add(grp);
   var t = 0;
   V3D._markerRAF = null;
-  function tick() { if (!V3D.active) { V3D._markerRAF = null; return; } V3D._markerRAF = requestAnimationFrame(tick); t += 0.015; var s = 1 + 0.15 * Math.sin(t); dot.scale.setScalar(s); }
+  function tick() {
+    if (!V3D.active) { V3D._markerRAF = null; return; }
+    V3D._markerRAF = requestAnimationFrame(tick);
+    t += 0.012;
+    grp.rotation.y = t;
+    grp.position.y = 2.5 + 0.3 * Math.sin(t * 0.8);
+  }
   V3D._startMarkerPulse = tick;
   tick();
 }
@@ -952,26 +965,23 @@ function rebuildStorms3D() {
       pt.position.set(sp.x, alt + cl.r * 0.3, sp.z); V3D.stormGroup.add(pt);
     }
 
-    if (desktop || cell.dbz >= 35) {
-      if (cell.dbz >= 30) {
-        var hHex = dbzHex3D(cell.dbz);
-        var hR = parseInt(hHex.slice(1, 3), 16), hG = parseInt(hHex.slice(3, 5), 16), hB = parseInt(hHex.slice(5, 7), 16);
-        var haloCv = document.createElement('canvas'); haloCv.width = haloCv.height = 64;
-        var haloCx = haloCv.getContext('2d');
-        var haloG = haloCx.createRadialGradient(32, 32, 0, 32, 32, 32);
-        haloG.addColorStop(0, 'rgba(' + hR + ',' + hG + ',' + hB + ',0.45)');
-        haloG.addColorStop(0.5, 'rgba(' + hR + ',' + hG + ',' + hB + ',0.08)');
-        haloG.addColorStop(1, 'rgba(0,0,0,0)');
-        haloCx.fillStyle = haloG; haloCx.fillRect(0, 0, 64, 64);
-        var haloTex = new THREE.CanvasTexture(haloCv);
-        var haloSz = cl.r * 3;
-        var haloMesh = new THREE.Mesh(new THREE.PlaneGeometry(haloSz * 2, haloSz * 2),
-          new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, side: THREE.DoubleSide,
-            polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
-        var haloBaseH = sampleTerrainHeight3D(sp.x, sp.z);
-        var haloJitter = Math.random() * 0.008;
-        haloMesh.rotation.x = -Math.PI / 2; haloMesh.position.set(sp.x, haloBaseH + 0.015 + haloJitter, sp.z); haloMesh.renderOrder = 2 + Math.random() * 0.1; V3D.stormGroup.add(haloMesh);
-      }
+    if (cell.dbz >= 50) {
+      var hHex = dbzHex3D(cell.dbz);
+      var hR = parseInt(hHex.slice(1, 3), 16), hG = parseInt(hHex.slice(3, 5), 16), hB = parseInt(hHex.slice(5, 7), 16);
+      var haloCv = document.createElement('canvas'); haloCv.width = haloCv.height = 64;
+      var haloCx = haloCv.getContext('2d');
+      var haloG = haloCx.createRadialGradient(32, 32, 0, 32, 32, 32);
+      haloG.addColorStop(0, 'rgba(' + hR + ',' + hG + ',' + hB + ',0.25)');
+      haloG.addColorStop(0.4, 'rgba(' + hR + ',' + hG + ',' + hB + ',0.05)');
+      haloG.addColorStop(1, 'rgba(0,0,0,0)');
+      haloCx.fillStyle = haloG; haloCx.fillRect(0, 0, 64, 64);
+      var haloTex = new THREE.CanvasTexture(haloCv);
+      var haloSz = cl.r * 2;
+      var haloMesh = new THREE.Mesh(new THREE.PlaneGeometry(haloSz * 2, haloSz * 2),
+        new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+          polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+      var haloBaseH = sampleTerrainHeight3D(sp.x, sp.z);
+      haloMesh.rotation.x = -Math.PI / 2; haloMesh.position.set(sp.x, haloBaseH + 0.015, sp.z); haloMesh.renderOrder = 2; V3D.stormGroup.add(haloMesh);
     }
 
     var rain = null;
