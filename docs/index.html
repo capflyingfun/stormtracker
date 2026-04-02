@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=445">
+<link rel="stylesheet" href="css/style.css?v=446">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -468,9 +468,14 @@
             <button id="v3d-tier-4" onclick="toggleTier3D(4)" style="width:22px;height:22px;border-radius:4px;border:1.5px solid #FF0200;background:#FF0200;color:#000;font-size:9px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Red 52-60 dBZ">✓</button>
             <button id="v3d-tier-5" onclick="toggleTier3D(5)" style="width:22px;height:22px;border-radius:4px;border:1.5px solid #FF00F5;background:#FF00F5;color:#000;font-size:9px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Magenta 61+ dBZ">✓</button>
           </div>
-          <div style="display:flex;gap:4px">
+          <div style="display:flex;gap:4px;align-items:center">
             <button id="v3d-filter-toggle" onclick="toggleFilterPanel3D()" style="background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;color:#e8eef8;font-size:10px;padding:4px 10px;cursor:pointer;letter-spacing:.04em;font-family:inherit;transition:all .2s" title="Toggle dBZ tier filters">Filter</button>
             <button onclick="reset3DView()" style="background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;color:#e8eef8;font-size:10px;padding:4px 10px;cursor:pointer;letter-spacing:.04em;font-family:inherit;transition:background .2s" title="Reset camera to default view">⟲ Reset</button>
+            <div style="display:flex;align-items:center;gap:3px;background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;padding:3px 8px" title="Lightning intensity (0=off, 3=max)">
+              <span style="font-size:12px">⚡</span>
+              <input type="range" min="0" max="3" step="1" value="1" oninput="setLightningLevel3D(this.value)" style="width:48px;height:14px;accent-color:#ffcc00;cursor:pointer">
+              <span id="v3d-lt-val" style="font-size:9px;color:#ffcc00;font-weight:700;min-width:8px;text-align:center">1</span>
+            </div>
           </div>
         </div>
         <div id="v3d-compass-bar" style="position:absolute;top:0;left:0;right:0;height:36px;overflow:hidden;pointer-events:none;z-index:10;background:rgba(5,10,20,0.55);backdrop-filter:blur(6px);border-bottom:1px solid rgba(0,200,255,0.12)">
@@ -560,23 +565,23 @@
   </div>
 </div>
 
-<script src="js/core.js?v=445"></script>
-<script src="js/gauges.js?v=445"></script>
-<script src="js/icons.js?v=445"></script>
-<script src="js/geo.js?v=445"></script>
-<script src="js/settings.js?v=445"></script>
-<script src="js/thresholds.js?v=445"></script>
-<script src="js/weather.js?v=445"></script>
-<script src="js/radar.js?v=445"></script>
-<script src="js/storms.js?v=445"></script>
-<script src="js/station.js?v=445"></script>
-<script src="js/alerts.js?v=445"></script>
-<script src="js/ai.js?v=445"></script>
-<script src="js/init.js?v=445"></script>
+<script src="js/core.js?v=446"></script>
+<script src="js/gauges.js?v=446"></script>
+<script src="js/icons.js?v=446"></script>
+<script src="js/geo.js?v=446"></script>
+<script src="js/settings.js?v=446"></script>
+<script src="js/thresholds.js?v=446"></script>
+<script src="js/weather.js?v=446"></script>
+<script src="js/radar.js?v=446"></script>
+<script src="js/storms.js?v=446"></script>
+<script src="js/station.js?v=446"></script>
+<script src="js/alerts.js?v=446"></script>
+<script src="js/ai.js?v=446"></script>
+<script src="js/init.js?v=446"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="js/view3d.js?v=445"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=445').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="js/view3d.js?v=446"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=446').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>
