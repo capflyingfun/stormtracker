@@ -902,7 +902,7 @@ function rebuildStorms3D() {
     var yJitter = (Math.random() - 0.5) * 0.06;
     var alt = cloudBase + cl.r + yJitter;
 
-    cl.grp.position.set(sp.x, alt, sp.z); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
+    cl.grp.position.set(sp.x, alt, sp.z); cl.grp.rotation.y = (Math.random() * 358 - 179) * (Math.PI / 180); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
 
     var pt = null;
     if (cell.dbz >= 40) {
