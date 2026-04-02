@@ -46,11 +46,21 @@ var V3D = {
 function toggle3DLabels() {
   V3D._labelsVisible = !V3D._labelsVisible;
   localStorage.setItem('v3d_labels', V3D._labelsVisible ? 'on' : 'off');
-  var btn = document.getElementById('v3d-label-toggle');
-  if (btn) btn.style.borderColor = V3D._labelsVisible ? 'rgba(0,200,255,0.25)' : 'rgba(255,100,100,0.35)';
   V3D.stormMeshes.forEach(function (sm) {
     if (sm.label) { sm.label.visible = V3D._labelsVisible; }
   });
+}
+
+function toggleFilterPanel3D() {
+  var row = document.getElementById('v3d-tier-row');
+  if (!row) return;
+  var open = row.style.display === 'flex';
+  row.style.display = open ? 'none' : 'flex';
+  var btn = document.getElementById('v3d-filter-toggle');
+  if (btn) {
+    btn.style.borderColor = open ? 'rgba(0,200,255,0.25)' : 'rgba(0,200,255,0.6)';
+    btn.style.background = open ? 'rgba(5,10,20,0.78)' : 'rgba(0,80,120,0.7)';
+  }
 }
 
 function reset3DView() {
