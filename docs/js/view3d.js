@@ -821,11 +821,9 @@ function addApproachCone3D(cell, sp, coneIdx) {
   outline.computeLineDistances();
   outline.renderOrder = coneRO + 0.05; V3D.coneGroup.add(outline);
 
-  if (etaMin > 0 && etaMin < 180 && V3D._etaSprites.length < 12) {
-    var arriveAt = Date.now() + etaMin * 60000;
-    var eSpr = makeSprite3D(_fmtEtaCountdown(arriveAt), 'rgba(255,200,55,0.92)', 0.5, true);
-    eSpr.position.set(sp.x, Math.min(dkm * 0.12 + 3.5, 6), sp.z); eSpr.renderOrder = 5; V3D.coneGroup.add(eSpr);
-    V3D._etaSprites.push({ spr: eSpr, arriveAt: arriveAt });
+  if (etaMin > 0 && etaMin < 180) {
+    V3D._etaCandidates = V3D._etaCandidates || [];
+    V3D._etaCandidates.push({ dkm: dkm, etaMin: etaMin, spx: sp.x, spz: sp.z });
   }
 }
 
@@ -1016,6 +1014,17 @@ function rebuildStorms3D() {
     V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, lights: pt ? [pt] : [], rain: rain, ltTimer: ltTimer, label: lspr });
     if (cell.dbz >= 35) { addApproachCone3D(cellForCone, sp, coneIdx); coneIdx++; }
   });
+  var cands = V3D._etaCandidates || [];
+  cands.sort(function (a, b) { return a.dkm - b.dkm; });
+  var etaMax = Math.min(cands.length, 12);
+  for (var ei = 0; ei < etaMax; ei++) {
+    var c = cands[ei];
+    var arriveAt = Date.now() + c.etaMin * 60000;
+    var eSpr = makeSprite3D(_fmtEtaCountdown(arriveAt), 'rgba(255,200,55,0.92)', 0.5, true);
+    eSpr.position.set(c.spx, Math.min(c.dkm * 0.12 + 3.5, 6), c.spz); eSpr.renderOrder = 5; V3D.coneGroup.add(eSpr);
+    V3D._etaSprites.push({ spr: eSpr, arriveAt: arriveAt });
+  }
+  V3D._etaCandidates = [];
   _startEtaInterval();
 }
 
