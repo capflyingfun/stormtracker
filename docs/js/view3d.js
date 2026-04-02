@@ -489,24 +489,29 @@ function refreshSky3D() {
 // =====================================================
 // COMPASS + USER MARKER
 // =====================================================
-function makeSprite3D(text, color, scale) {
-  var cv2 = document.createElement('canvas'); cv2.width = 128; cv2.height = 64;
-  var cx = cv2.getContext('2d'); cx.clearRect(0, 0, 128, 64);
+function makeSprite3D(text, color, scale, wide) {
+  var cw = wide ? 256 : 128, ch = 64;
+  var cv2 = document.createElement('canvas'); cv2.width = cw; cv2.height = ch;
+  var cx = cv2.getContext('2d'); cx.clearRect(0, 0, cw, ch);
   cx.font = 'bold 38px Segoe UI,Arial,sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
   cx.shadowColor = 'rgba(0,0,0,0.9)'; cx.shadowBlur = 10;
-  cx.fillStyle = color || 'rgba(255,255,255,0.5)'; cx.fillText(text, 64, 32);
+  cx.fillStyle = color || 'rgba(255,255,255,0.5)'; cx.fillText(text, cw / 2, ch / 2);
   var tex = new THREE.CanvasTexture(cv2);
   var spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-  spr.scale.set((scale || 1) * 4.5, (scale || 1) * 2.2, 1);
+  var sx = (scale || 1) * (wide ? 9 : 4.5), sy = (scale || 1) * 2.2;
+  spr.scale.set(sx, sy, 1);
+  spr._wide = !!wide;
   return spr;
 }
 
 function updateSpriteText3D(spr, text, color) {
-  var cv2 = document.createElement('canvas'); cv2.width = 128; cv2.height = 64;
-  var cx = cv2.getContext('2d'); cx.clearRect(0, 0, 128, 64);
+  var wide = spr._wide;
+  var cw = wide ? 256 : 128, ch = 64;
+  var cv2 = document.createElement('canvas'); cv2.width = cw; cv2.height = ch;
+  var cx = cv2.getContext('2d'); cx.clearRect(0, 0, cw, ch);
   cx.font = 'bold 38px Segoe UI,Arial,sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
   cx.shadowColor = 'rgba(0,0,0,0.9)'; cx.shadowBlur = 10;
-  cx.fillStyle = color || 'rgba(0,200,255,0.90)'; cx.fillText(text, 64, 32);
+  cx.fillStyle = color || 'rgba(0,200,255,0.90)'; cx.fillText(text, cw / 2, ch / 2);
   if (spr.material.map) spr.material.map.dispose();
   spr.material.map = new THREE.CanvasTexture(cv2);
   spr.material.needsUpdate = true;
@@ -816,9 +821,9 @@ function addApproachCone3D(cell, sp, coneIdx) {
   outline.computeLineDistances();
   outline.renderOrder = coneRO + 0.05; V3D.coneGroup.add(outline);
 
-  if (etaMin > 0 && etaMin < 180) {
+  if (etaMin > 0 && etaMin < 180 && V3D._etaSprites.length < 12) {
     var arriveAt = Date.now() + etaMin * 60000;
-    var eSpr = makeSprite3D(_fmtEtaCountdown(arriveAt), 'rgba(255,200,55,0.92)', 0.5);
+    var eSpr = makeSprite3D(_fmtEtaCountdown(arriveAt), 'rgba(255,200,55,0.92)', 0.5, true);
     eSpr.position.set(sp.x, Math.min(dkm * 0.12 + 3.5, 6), sp.z); eSpr.renderOrder = 5; V3D.coneGroup.add(eSpr);
     V3D._etaSprites.push({ spr: eSpr, arriveAt: arriveAt });
   }
@@ -980,7 +985,8 @@ function rebuildStorms3D() {
     }
 
     var rain = null;
-    if (cell.dbz >= 33 && (desktop || cell.dbz >= 35)) {
+    var _wantRain = cell.dbz >= 40 || (cell.dbz >= 33 && Math.random() < 0.35);
+    if (_wantRain && (desktop || cell.dbz >= 35)) {
       var terrainBase = sampleTerrainHeight3D(sp.x, sp.z);
       rain = makeRain3D(cell.dbz, cl.r, terrainBase); rain.position.set(sp.x, alt, sp.z); V3D.stormGroup.add(rain);
     }
