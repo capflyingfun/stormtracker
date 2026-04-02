@@ -42,7 +42,7 @@ var V3D = {
   _tierMaterials: {},
   _etaSprites: [],
   _etaInterval: null,
-  lightningLevel: 1,
+  glowLevel: 1,
   _markerGrp: null
 };
 
@@ -54,10 +54,15 @@ function toggle3DLabels() {
   });
 }
 
-function setLightningLevel3D(val) {
-  V3D.lightningLevel = Math.max(0, Math.min(3, parseInt(val) || 0));
+function setGlowLevel3D(val) {
+  V3D.glowLevel = Math.max(0, Math.min(3, parseInt(val) || 0));
   var lbl = document.getElementById('v3d-lt-val');
-  if (lbl) lbl.textContent = V3D.lightningLevel;
+  if (lbl) lbl.textContent = V3D.glowLevel;
+  V3D.stormMeshes.forEach(function (sm) {
+    sm.lights.forEach(function (gl) {
+      gl.light.intensity = gl.baseIntensity * V3D.glowLevel;
+    });
+  });
 }
 
 function toggleFilterPanel3D() {
@@ -969,6 +974,7 @@ function rebuildStorms3D() {
   storms.forEach(function (cell) {
     var tierIdx = _cloudTierIdx(cell.dbz);
     if (!V3D._tierFilter[tierIdx]) return;
+    var _glowLights = [];
     var lon = cell.lon || cell.lng;
     var lat = cell.lat;
     var sp = geoToScene3D(lat, lon);
@@ -982,8 +988,10 @@ function rebuildStorms3D() {
 
     if (cell.dbz >= 40) {
       var glowCol = new THREE.Color(dbzHex3D(cell.dbz));
-      var glowPt = new THREE.PointLight(glowCol, dbzInt3D(cell.dbz) * 0.78, dkm * 0.14 + 9);
+      var _glowBase = dbzInt3D(cell.dbz) * 0.78;
+      var glowPt = new THREE.PointLight(glowCol, _glowBase * V3D.glowLevel, dkm * 0.14 + 9);
       glowPt.position.set(sp.x, alt + cl.r * 0.3, sp.z); V3D.stormGroup.add(glowPt);
+      _glowLights.push({ light: glowPt, baseIntensity: _glowBase });
     }
 
     if (cell.dbz >= 50) {
@@ -1019,10 +1027,10 @@ function rebuildStorms3D() {
       var baseProb = 0.35 + (cell.dbz - 40) * 0.015;
       var baseIntensity = 10 + (cell.dbz - 40) * 0.4;
       ltTimer = setInterval(function () {
-        if (!V3D.active || V3D.lightningLevel <= 0) return;
-        var prob = Math.min(0.9, baseProb * V3D.lightningLevel);
+        if (!V3D.active) return;
+        var prob = Math.min(0.9, baseProb);
         if (Math.random() < prob) {
-          var inten = baseIntensity * V3D.lightningLevel;
+          var inten = baseIntensity;
           var fl = new THREE.PointLight(flashCol, inten, rr * 4);
           fl.position.set(sx + (Math.random() - .5) * rr * 1.2, altR + Math.random() * rr, sz2 + (Math.random() - .5) * rr * 1.2);
           V3D.stormGroup.add(fl);
@@ -1039,7 +1047,7 @@ function rebuildStorms3D() {
     }
 
     var cellForCone = { lat: lat, lon: lon, dbz: cell.dbz, distance: cell.distance, bearing: cell.bearing || bearingDeg3D(S.lat, S.lon, lat, lon) };
-    V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, lights: [], rain: rain, ltTimer: ltTimer, label: lspr });
+    V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, lights: _glowLights, rain: rain, ltTimer: ltTimer, label: lspr });
     if (cell.dbz >= 35) {
       var q = _qualifyCone3D(cellForCone, sp);
       if (q) { _coneCandidates.push(q); }
