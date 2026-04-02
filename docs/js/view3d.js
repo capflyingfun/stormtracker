@@ -1026,7 +1026,7 @@ function rebuildStorms3D() {
           var fl = new THREE.PointLight(flashCol, inten, rr * 4);
           fl.position.set(sx + (Math.random() - .5) * rr * 1.2, altR + Math.random() * rr, sz2 + (Math.random() - .5) * rr * 1.2);
           V3D.stormGroup.add(fl);
-          setTimeout(function () { V3D.stormGroup.remove(fl); fl.dispose(); }, 60 + Math.random() * 80);
+          setTimeout(function () { V3D.stormGroup.remove(fl); }, 60 + Math.random() * 80);
         }
       }, 400 + Math.random() * 1200);
     }
