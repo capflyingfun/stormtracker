@@ -213,6 +213,7 @@ function init3DScene() {
   V3D.controls.enableDamping = true; V3D.controls.dampingFactor = 0.07;
   V3D.controls.screenSpacePanning = false;
   V3D.controls.minDistance = 0.002; V3D.controls.maxDistance = 250;
+  V3D.controls.minPolarAngle = Math.PI * 0.05;
   V3D.controls.maxPolarAngle = Math.PI * 0.502;
   V3D.controls.target.set(0, 0.4, -6); V3D.controls.update();
   if (V3D.controls.saveState) V3D.controls.saveState();
@@ -586,15 +587,15 @@ function buildCompass3D() {
 
 function buildUserMarker3D() {
   var grp = new THREE.Group();
-  var gem = new THREE.OctahedronGeometry(0.8, 0);
+  var gem = new THREE.OctahedronGeometry(0.35, 0);
   gem.scale(1, 1.6, 1);
   var mat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false });
   var diamond = new THREE.Mesh(gem, mat);
-  var wireGeo = new THREE.OctahedronGeometry(0.85, 0);
+  var wireGeo = new THREE.OctahedronGeometry(0.38, 0);
   wireGeo.scale(1, 1.6, 1);
   var wire = new THREE.Mesh(wireGeo, new THREE.MeshBasicMaterial({ color: 0x80f4ff, transparent: true, opacity: 0.35, wireframe: true, depthWrite: false }));
   grp.add(diamond); grp.add(wire);
-  grp.position.set(0, 2.5, 0); grp.renderOrder = 6; V3D.scene.add(grp);
+  grp.position.set(0, 1.2, 0); grp.renderOrder = 6; V3D.scene.add(grp);
   var t = 0;
   V3D._markerRAF = null;
   function tick() {
@@ -602,7 +603,7 @@ function buildUserMarker3D() {
     V3D._markerRAF = requestAnimationFrame(tick);
     t += 0.012;
     grp.rotation.y = t;
-    grp.position.y = 2.5 + 0.3 * Math.sin(t * 0.8);
+    grp.position.y = 1.2 + 0.15 * Math.sin(t * 0.8);
   }
   V3D._startMarkerPulse = tick;
   tick();
@@ -957,6 +958,12 @@ function rebuildStorms3D() {
     var alt = cloudBase + cl.r + yJitter;
 
     cl.grp.position.set(sp.x, alt, sp.z); cl.grp.rotation.y = (Math.random() * 358 - 179) * (Math.PI / 180); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
+
+    if (cell.dbz >= 40) {
+      var glowCol = new THREE.Color(dbzHex3D(cell.dbz));
+      var glowPt = new THREE.PointLight(glowCol, dbzInt3D(cell.dbz) * 0.78, dkm * 0.14 + 9);
+      glowPt.position.set(sp.x, alt + cl.r * 0.3, sp.z); V3D.stormGroup.add(glowPt);
+    }
 
     if (cell.dbz >= 50) {
       var hHex = dbzHex3D(cell.dbz);
