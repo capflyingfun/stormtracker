@@ -41,7 +41,9 @@ var V3D = {
   _cloudModels: {},
   _tierMaterials: {},
   _etaSprites: [],
-  _etaInterval: null
+  _etaInterval: null,
+  lightningLevel: 1,
+  _markerGrp: null
 };
 
 function toggle3DLabels() {
@@ -50,6 +52,12 @@ function toggle3DLabels() {
   V3D.stormMeshes.forEach(function (sm) {
     if (sm.label) { sm.label.visible = V3D._labelsVisible; }
   });
+}
+
+function setLightningLevel3D(val) {
+  V3D.lightningLevel = Math.max(0, Math.min(3, parseInt(val) || 0));
+  var lbl = document.getElementById('v3d-lt-val');
+  if (lbl) lbl.textContent = V3D.lightningLevel;
 }
 
 function toggleFilterPanel3D() {
@@ -512,6 +520,8 @@ function makeSprite3D(text, color, scale, wide) {
   var sx = (scale || 1) * (wide ? 9 : 4.5), sy = (scale || 1) * 2.2;
   spr.scale.set(sx, sy, 1);
   spr._wide = !!wide;
+  spr._baseScaleX = sx;
+  spr._baseScaleY = sy;
   return spr;
 }
 
@@ -606,6 +616,7 @@ function buildUserMarker3D() {
   var wire = new THREE.Mesh(wireGeo, new THREE.MeshBasicMaterial({ color: 0x80f4ff, transparent: true, opacity: 0.35, wireframe: true, depthWrite: false }));
   grp.add(diamond); grp.add(wire);
   grp.position.set(0, 1.2, 0); grp.renderOrder = 6; V3D.scene.add(grp);
+  V3D._markerGrp = grp;
   var t = 0;
   V3D._markerRAF = null;
   function tick() {
@@ -1002,18 +1013,22 @@ function rebuildStorms3D() {
     }
 
     var ltTimer = null;
-    if (cell.dbz >= 45 && (desktop || cell.dbz >= 50)) {
+    if (cell.dbz >= 40 && (desktop || cell.dbz >= 45)) {
       var sx = sp.x, sz2 = sp.z, altR = alt + cl.r, rr = cl.r;
       var flashCol = new THREE.Color(dbzHex3D(cell.dbz));
+      var baseProb = 0.35 + (cell.dbz - 40) * 0.015;
+      var baseIntensity = 10 + (cell.dbz - 40) * 0.4;
       ltTimer = setInterval(function () {
-        if (!V3D.active) return;
-        if (Math.random() < 0.2) {
-          var fl = new THREE.PointLight(flashCol, 7, rr * 3);
-          fl.position.set(sx + (Math.random() - .5) * rr, altR + Math.random() * rr, sz2 + (Math.random() - .5) * rr);
+        if (!V3D.active || V3D.lightningLevel <= 0) return;
+        var prob = Math.min(0.9, baseProb * V3D.lightningLevel);
+        if (Math.random() < prob) {
+          var inten = baseIntensity * V3D.lightningLevel;
+          var fl = new THREE.PointLight(flashCol, inten, rr * 4);
+          fl.position.set(sx + (Math.random() - .5) * rr * 1.2, altR + Math.random() * rr, sz2 + (Math.random() - .5) * rr * 1.2);
           V3D.stormGroup.add(fl);
-          setTimeout(function () { V3D.stormGroup.remove(fl); }, 50 + Math.random() * 60);
+          setTimeout(function () { V3D.stormGroup.remove(fl); fl.dispose(); }, 60 + Math.random() * 80);
         }
-      }, 900 + Math.random() * 2500);
+      }, 400 + Math.random() * 1200);
     }
 
     var lspr = null;
@@ -1200,6 +1215,18 @@ function loop3D() {
   _cosMax = Math.max(-1, Math.min(1, _cosMax));
   V3D.controls.maxPolarAngle = Math.min(Math.PI * 0.85, Math.acos(_cosMax));
   V3D.controls.update();
+
+  var camDist = _dist;
+  var zf = Math.max(1, Math.min(5, camDist / 18));
+  if (V3D._markerGrp) { V3D._markerGrp.scale.setScalar(zf); }
+  if (V3D.frame % 4 === 0) {
+    var _scaleSprite = function (s) { if (s && s._baseScaleX) s.scale.set(s._baseScaleX * zf, s._baseScaleY * zf, 1); };
+    V3D.ringLabels.forEach(function (r) { _scaleSprite(r.spr); });
+    V3D._etaSprites.forEach(function (e) { _scaleSprite(e.spr); });
+    V3D.stormMeshes.forEach(function (sm) { if (sm.label) _scaleSprite(sm.label); });
+    if (V3D.compassGroup) V3D.compassGroup.children.forEach(function (ch) { if (ch.isSprite) _scaleSprite(ch); });
+  }
+
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
   V3D.stormMeshes.forEach(function (sm) { animRain3D(sm.rain, surfWind); sm.mesh.position.y += Math.sin(V3D.frame * 0.015 + sm.mesh.id) * 0.0002; });
   if (V3D.frame % 2 === 0) animWind3D();
