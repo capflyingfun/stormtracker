@@ -121,7 +121,7 @@ function loadCloudModels3D() {
       grp.traverse(function (child) {
         if (child.isMesh) {
           child.material.transparent = true;
-          child.material.depthWrite = false;
+          child.material.depthWrite = true;
           child.renderOrder = 4;
         }
       });
@@ -665,7 +665,7 @@ function makeCloudGroup3D(dbz, hookEcho, windDir) {
         if (!V3D._tierMaterials[tierIdx]) {
           V3D._tierMaterials[tierIdx] = child.material.clone();
           V3D._tierMaterials[tierIdx].transparent = true;
-          V3D._tierMaterials[tierIdx].depthWrite = false;
+          V3D._tierMaterials[tierIdx].depthWrite = true;
         }
         child.material = V3D._tierMaterials[tierIdx];
         child.renderOrder = 4;
@@ -683,37 +683,37 @@ function makeCloudGroup3D(dbz, hookEcho, windDir) {
   if (severe) {
     var bR = baseR * 1.1;
     var bottomCol = base.clone().lerp(dark, 0.4);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.78, depthWrite: false }));
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.92, depthWrite: true }));
     b1.scale.set(1.3, 0.55, 1.2); b1.renderOrder = 4; grp.add(b1);
     var midCol = base.clone().lerp(white, 0.15);
-    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.9, SEG, SEG), new THREE.MeshBasicMaterial({ color: midCol, transparent: true, opacity: 0.72, depthWrite: false }));
+    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.9, SEG, SEG), new THREE.MeshBasicMaterial({ color: midCol, transparent: true, opacity: 0.88, depthWrite: true }));
     b2.scale.set(1.1, 0.7, 1.0); b2.position.y = bR * 0.8; b2.renderOrder = 4; grp.add(b2);
     var topCol = base.clone().lerp(white, 0.3);
-    var b3 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.75, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.65, depthWrite: false }));
+    var b3 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.75, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.82, depthWrite: true }));
     b3.scale.set(0.9, 0.8, 0.85); b3.position.y = bR * 1.5; b3.renderOrder = 4; grp.add(b3);
     var anvilCol = base.clone().lerp(white, 0.35);
-    var anvil = new THREE.Mesh(new THREE.SphereGeometry(bR * 1.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: anvilCol, transparent: true, opacity: 0.4, depthWrite: false }));
+    var anvil = new THREE.Mesh(new THREE.SphereGeometry(bR * 1.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: anvilCol, transparent: true, opacity: 0.6, depthWrite: true }));
     anvil.scale.set(1.8, 0.18, 1.5); anvil.position.y = bR * 2.0; anvil.renderOrder = 4; grp.add(anvil);
   } else if (heavy) {
     var bR = baseR * 0.95;
     var bottomCol = base.clone().lerp(dark, 0.3);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.72, depthWrite: false }));
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.88, depthWrite: true }));
     b1.scale.set(1.2, 0.5, 1.1); b1.renderOrder = 4; grp.add(b1);
     var topCol = base.clone().lerp(white, 0.2);
-    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.8, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.65, depthWrite: false }));
+    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.8, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.82, depthWrite: true }));
     b2.scale.set(1.0, 0.65, 0.9); b2.position.y = bR * 0.7; b2.renderOrder = 4; grp.add(b2);
   } else if (moderate) {
     var bR = baseR * 0.85;
     var col = base.clone().lerp(white, 0.1);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.65, depthWrite: false }));
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.82, depthWrite: true }));
     b1.scale.set(1.1, 0.5, 1.0); b1.renderOrder = 4; grp.add(b1);
     var topCol = base.clone().lerp(white, 0.25);
-    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.55, depthWrite: false }));
+    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.72, depthWrite: true }));
     b2.scale.set(0.9, 0.55, 0.85); b2.position.y = bR * 0.55; b2.renderOrder = 4; grp.add(b2);
   } else {
     var bR = baseR * 0.7;
     var col = base.clone().lerp(white, 0.15);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.55, depthWrite: false }));
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.72, depthWrite: true }));
     b1.scale.set(1.0, 0.45, 0.9); b1.renderOrder = 4; grp.add(b1);
   }
   return { grp: grp, r: baseR };
@@ -959,11 +959,6 @@ function rebuildStorms3D() {
     cl.grp.position.set(sp.x, alt, sp.z); cl.grp.rotation.y = (Math.random() * 358 - 179) * (Math.PI / 180); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
 
     var pt = null;
-    if (cell.dbz >= 40) {
-      var glowCol = new THREE.Color(dbzHex3D(cell.dbz));
-      pt = new THREE.PointLight(glowCol, dbzInt3D(cell.dbz) * 1.3, dkm * 0.14 + 9);
-      pt.position.set(sp.x, alt + cl.r * 0.3, sp.z); V3D.stormGroup.add(pt);
-    }
 
     if (cell.dbz >= 50) {
       var hHex = dbzHex3D(cell.dbz);
@@ -994,10 +989,11 @@ function rebuildStorms3D() {
     var ltTimer = null;
     if (cell.dbz >= 45 && (desktop || cell.dbz >= 50)) {
       var sx = sp.x, sz2 = sp.z, altR = alt + cl.r, rr = cl.r;
+      var flashCol = new THREE.Color(dbzHex3D(cell.dbz));
       ltTimer = setInterval(function () {
         if (!V3D.active) return;
         if (Math.random() < 0.2) {
-          var fl = new THREE.PointLight(0xddeeff, 7, rr * 3);
+          var fl = new THREE.PointLight(flashCol, 7, rr * 3);
           fl.position.set(sx + (Math.random() - .5) * rr, altR + Math.random() * rr, sz2 + (Math.random() - .5) * rr);
           V3D.stormGroup.add(fl);
           setTimeout(function () { V3D.stormGroup.remove(fl); }, 50 + Math.random() * 60);
