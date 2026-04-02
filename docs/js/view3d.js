@@ -192,7 +192,7 @@ function init3DScene() {
 
   var cv = document.createElement('canvas');
   cv.id = 'view3d-canvas';
-  cv.style.cssText = 'display:block;width:100%;height:100%';
+  cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:0';
   container.appendChild(cv);
 
   V3D.renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: false, powerPreference: 'high-performance' });
@@ -214,7 +214,7 @@ function init3DScene() {
   V3D.controls.screenSpacePanning = false;
   V3D.controls.minDistance = 0.002; V3D.controls.maxDistance = 250;
   V3D.controls.minPolarAngle = Math.PI * 0.05;
-  V3D.controls.maxPolarAngle = Math.PI * 0.502;
+  V3D.controls.maxPolarAngle = Math.PI * 0.85;
   V3D.controls.target.set(0, 0.4, -6); V3D.controls.update();
   if (V3D.controls.saveState) V3D.controls.saveState();
 
@@ -247,6 +247,13 @@ function init3DScene() {
 
 function onResize3D() {
   if (!V3D.ready || !V3D.active) return;
+  var pg = document.getElementById('page-3d');
+  if (pg) {
+    var hdr = document.querySelector('.app-header');
+    var hdrH = hdr ? hdr.offsetHeight : 0;
+    var navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav-height')) || 60;
+    pg.style.height = (window.innerHeight - hdrH - navH) + 'px';
+  }
   var container = document.getElementById('view3d-container');
   if (!container) return;
   var w = container.clientWidth, h = container.clientHeight;
@@ -1219,6 +1226,13 @@ async function activate3DView() {
   V3D.active = true;
   if (V3D._startMarkerPulse && !V3D._markerRAF) V3D._startMarkerPulse();
   syncTierButtons3D();
+  var pg = document.getElementById('page-3d');
+  if (pg) {
+    var hdr = document.querySelector('.app-header');
+    var hdrH = hdr ? hdr.offsetHeight : 0;
+    var navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav-height')) || 60;
+    pg.style.height = (window.innerHeight - hdrH - navH) + 'px';
+  }
 
   if (!V3D.ready) {
     var loadEl = document.getElementById('v3d-loading');
