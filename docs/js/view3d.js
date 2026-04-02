@@ -988,8 +988,8 @@ function rebuildStorms3D() {
 
     if (cell.dbz >= 20) {
       var glowCol = new THREE.Color(dbzHex3D(cell.dbz));
-      var _glowBase = Math.max(1.5, dbzInt3D(cell.dbz) * 1.8);
-      var glowPt = new THREE.PointLight(glowCol, _glowBase * V3D.glowLevel, dkm * 0.14 + 14);
+      var _glowBase = (cell.dbz / 100) * 2;
+      var glowPt = new THREE.PointLight(glowCol, _glowBase * V3D.glowLevel, Math.max(4, cell.dbz * 0.15) + dkm * 0.08);
       glowPt.position.set(sp.x, alt + cl.r * 0.3, sp.z); V3D.stormGroup.add(glowPt);
       _glowLights.push({ light: glowPt, baseIntensity: _glowBase });
     }
