@@ -460,6 +460,7 @@
       </div>
       <div id="v3d-hud" style="position:absolute;inset:0;pointer-events:none;z-index:10">
         <button id="v3d-label-toggle" onclick="toggle3DLabels()" style="position:absolute;bottom:12px;left:12px;z-index:12;pointer-events:all;background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;color:#e8eef8;font-size:10px;padding:5px 10px;cursor:pointer;letter-spacing:.04em;font-family:inherit;transition:background .2s" title="Toggle dBZ labels">Labels</button>
+        <button id="v3d-cloud-toggle" onclick="toggle3DClouds()" style="position:absolute;bottom:12px;left:80px;z-index:12;pointer-events:all;background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(255,100,100,0.35);border-radius:8px;color:#e8eef8;font-size:10px;padding:5px 10px;cursor:pointer;letter-spacing:.04em;font-family:inherit;transition:background .2s" title="Toggle storm clouds">Clouds</button>
         <div id="v3d-compass-bar" style="position:absolute;top:0;left:0;right:0;height:36px;overflow:hidden;pointer-events:none;background:rgba(5,10,20,0.55);backdrop-filter:blur(6px);border-bottom:1px solid rgba(0,200,255,0.12)">
           <div id="v3d-compass-center-mark" style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #00e5ff;z-index:2"></div>
           <div id="v3d-compass-tape" style="position:absolute;top:0;height:28px;white-space:nowrap;will-change:transform"></div>
@@ -547,22 +548,23 @@
   </div>
 </div>
 
-<script src="js/core.js?v=430"></script>
-<script src="js/gauges.js?v=430"></script>
-<script src="js/icons.js?v=430"></script>
-<script src="js/geo.js?v=430"></script>
-<script src="js/settings.js?v=430"></script>
-<script src="js/thresholds.js?v=430"></script>
-<script src="js/weather.js?v=430"></script>
-<script src="js/radar.js?v=430"></script>
-<script src="js/storms.js?v=430"></script>
-<script src="js/station.js?v=430"></script>
-<script src="js/alerts.js?v=430"></script>
-<script src="js/ai.js?v=430"></script>
-<script src="js/init.js?v=430"></script>
+<script src="js/core.js?v=431"></script>
+<script src="js/gauges.js?v=431"></script>
+<script src="js/icons.js?v=431"></script>
+<script src="js/geo.js?v=431"></script>
+<script src="js/settings.js?v=431"></script>
+<script src="js/thresholds.js?v=431"></script>
+<script src="js/weather.js?v=431"></script>
+<script src="js/radar.js?v=431"></script>
+<script src="js/storms.js?v=431"></script>
+<script src="js/station.js?v=431"></script>
+<script src="js/alerts.js?v=431"></script>
+<script src="js/ai.js?v=431"></script>
+<script src="js/init.js?v=431"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="js/view3d.js?v=430"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=430').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="js/view3d.js?v=431"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=431').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>

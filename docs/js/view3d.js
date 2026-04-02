@@ -33,7 +33,9 @@ var V3D = {
   frame: 0,
   rafId: null,
   metric: false,
-  _labelsVisible: localStorage.getItem('v3d_labels') !== 'off'
+  _labelsVisible: localStorage.getItem('v3d_labels') !== 'off',
+  _cloudsVisible: localStorage.getItem('v3d_clouds') === 'on',
+  _cloudModels: {}
 };
 
 function toggle3DLabels() {
@@ -43,6 +45,44 @@ function toggle3DLabels() {
   if (btn) btn.style.borderColor = V3D._labelsVisible ? 'rgba(0,200,255,0.25)' : 'rgba(255,100,100,0.35)';
   V3D.stormMeshes.forEach(function (sm) {
     if (sm.label) { sm.label.visible = V3D._labelsVisible; }
+  });
+}
+
+function toggle3DClouds() {
+  V3D._cloudsVisible = !V3D._cloudsVisible;
+  localStorage.setItem('v3d_clouds', V3D._cloudsVisible ? 'on' : 'off');
+  var btn = document.getElementById('v3d-cloud-toggle');
+  if (btn) {
+    btn.style.borderColor = V3D._cloudsVisible ? 'rgba(0,200,255,0.25)' : 'rgba(255,100,100,0.35)';
+    btn.textContent = V3D._cloudsVisible ? 'Clouds ✓' : 'Clouds';
+  }
+  rebuildStorms3D();
+}
+
+var _CLOUD_MODEL_NAMES = ['cloud_blue','cloud_green','cloud_yellow','cloud_orange','cloud_red','cloud_magenta'];
+var _CLOUD_TIER_DBZ = [30,40,45,51,60,999];
+
+function _cloudTierIdx(dbz) {
+  for (var i = 0; i < _CLOUD_TIER_DBZ.length; i++) { if (dbz <= _CLOUD_TIER_DBZ[i]) return i; }
+  return 5;
+}
+
+function loadCloudModels3D() {
+  if (typeof THREE.GLTFLoader === 'undefined') return;
+  var loader = new THREE.GLTFLoader();
+  var base = window.location.pathname.replace(/\/[^\/]*$/, '') + '/models/';
+  _CLOUD_MODEL_NAMES.forEach(function (name, idx) {
+    loader.load(base + name + '.glb', function (gltf) {
+      var grp = gltf.scene;
+      grp.traverse(function (child) {
+        if (child.isMesh) {
+          child.material.transparent = true;
+          child.material.depthWrite = false;
+          child.renderOrder = 4;
+        }
+      });
+      V3D._cloudModels[idx] = grp;
+    }, undefined, function () { });
   });
 }
 
@@ -147,6 +187,7 @@ function init3DScene() {
 
   buildGround3D(); buildSky3D(); buildCompass3D(); buildUserMarker3D(); buildCompassTape3D();
   updateRingLabels3D();
+  loadCloudModels3D();
 
   window.addEventListener('resize', onResize3D);
   cv.addEventListener('click', onClick3D);
@@ -540,8 +581,25 @@ function clearStorms3D() {
 }
 
 function makeCloudGroup3D(dbz, hookEcho, windDir) {
-  var grp = new THREE.Group();
   var baseR = Math.max(1.2, Math.min(6, (dbz - 10) / 7));
+  var mobileScale = _isDesktop() ? 1.0 : 1.8;
+  baseR *= mobileScale;
+  var tierIdx = _cloudTierIdx(dbz);
+  var template = V3D._cloudModels[tierIdx];
+  if (template) {
+    var grp = template.clone();
+    grp.scale.setScalar(baseR);
+    grp.traverse(function (child) {
+      if (child.isMesh) {
+        child.material = child.material.clone();
+        child.material.transparent = true;
+        child.material.depthWrite = false;
+        child.renderOrder = 4;
+      }
+    });
+    return { grp: grp, r: baseR };
+  }
+  var grp = new THREE.Group();
   var cat = dbzCat3D(dbz);
   var base = new THREE.Color(cat.col);
   var white = new THREE.Color(1, 1, 1);
@@ -739,6 +797,7 @@ function rebuildStorms3D() {
   if (!storms.length) return;
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
   var showLabels = V3D._labelsVisible !== false;
+  var showClouds = V3D._cloudsVisible;
   var coneIdx = 0;
   storms.forEach(function (cell) {
     var lon = cell.lon || cell.lng;
@@ -748,7 +807,10 @@ function rebuildStorms3D() {
     var cloudBase = getCloudBase3D();
     var cl = makeCloudGroup3D(cell.dbz, cell.hookEcho, surfWind);
     var alt = cloudBase + cl.r;
-    cl.grp.position.set(sp.x, alt, sp.z); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
+
+    if (showClouds) {
+      cl.grp.position.set(sp.x, alt, sp.z); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
+    }
 
     var pt = null;
     if (cell.dbz >= 40) {
@@ -777,13 +839,13 @@ function rebuildStorms3D() {
     }
 
     var rain = null;
-    if (cell.dbz >= 33) {
+    if (showClouds && cell.dbz >= 33) {
       var terrainBase = sampleTerrainHeight3D(sp.x, sp.z);
       rain = makeRain3D(cell.dbz, cl.r, terrainBase); rain.position.set(sp.x, alt, sp.z); V3D.stormGroup.add(rain);
     }
 
     var ltTimer = null;
-    if (cell.dbz >= 45) {
+    if (showClouds && cell.dbz >= 45) {
       var sx = sp.x, sz2 = sp.z, altR = alt + cl.r, rr = cl.r;
       ltTimer = setInterval(function () {
         if (!V3D.active) return;
@@ -988,6 +1050,11 @@ async function activate3DView() {
   if (V3D._startMarkerPulse && !V3D._markerRAF) V3D._startMarkerPulse();
   var lblBtn = document.getElementById('v3d-label-toggle');
   if (lblBtn) lblBtn.style.borderColor = V3D._labelsVisible ? 'rgba(0,200,255,0.25)' : 'rgba(255,100,100,0.35)';
+  var cldBtn = document.getElementById('v3d-cloud-toggle');
+  if (cldBtn) {
+    cldBtn.style.borderColor = V3D._cloudsVisible ? 'rgba(0,200,255,0.25)' : 'rgba(255,100,100,0.35)';
+    cldBtn.textContent = V3D._cloudsVisible ? 'Clouds ✓' : 'Clouds';
+  }
 
   if (!V3D.ready) {
     var loadEl = document.getElementById('v3d-loading');
