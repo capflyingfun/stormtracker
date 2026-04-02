@@ -52,6 +52,18 @@ function toggle3DLabels() {
   });
 }
 
+function reset3DView() {
+  if (!V3D.camera || !V3D.controls) return;
+  if (V3D.controls.reset) {
+    V3D.controls.reset();
+  } else {
+    V3D.camera.position.set(0, 0.0015, 0);
+    V3D.camera.lookAt(0, 0.5, -15);
+    V3D.controls.target.set(0, 0.4, -6);
+    V3D.controls.update();
+  }
+}
+
 var _TIER_COLORS = ['#00F8FF','#00FF39','#F5FF00','#FFB200','#FF0200','#FF00F5'];
 var _TIER_LETTERS = ['B','G','Y','O','R','M'];
 
@@ -188,6 +200,7 @@ function init3DScene() {
   V3D.controls.minDistance = 0.002; V3D.controls.maxDistance = 250;
   V3D.controls.maxPolarAngle = Math.PI * 0.502;
   V3D.controls.target.set(0, 0.4, -6); V3D.controls.update();
+  if (V3D.controls.saveState) V3D.controls.saveState();
 
   V3D.raycaster = new THREE.Raycaster();
   V3D.mouse = new THREE.Vector2();
@@ -886,7 +899,8 @@ function rebuildStorms3D() {
     var dkm = haversineKm3D(S.lat, S.lon, lat, lon);
     var cloudBase = getCloudBase3D();
     var cl = makeCloudGroup3D(cell.dbz, cell.hookEcho, surfWind);
-    var alt = cloudBase + cl.r;
+    var yJitter = (Math.random() - 0.5) * 0.06;
+    var alt = cloudBase + cl.r + yJitter;
 
     cl.grp.position.set(sp.x, alt, sp.z); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
 
@@ -914,7 +928,8 @@ function rebuildStorms3D() {
           new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, side: THREE.DoubleSide,
             polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
         var haloBaseH = sampleTerrainHeight3D(sp.x, sp.z);
-        haloMesh.rotation.x = -Math.PI / 2; haloMesh.position.set(sp.x, haloBaseH + 0.015, sp.z); haloMesh.renderOrder = 2; V3D.stormGroup.add(haloMesh);
+        var haloJitter = Math.random() * 0.008;
+        haloMesh.rotation.x = -Math.PI / 2; haloMesh.position.set(sp.x, haloBaseH + 0.015 + haloJitter, sp.z); haloMesh.renderOrder = 2 + Math.random() * 0.1; V3D.stormGroup.add(haloMesh);
       }
     }
 
