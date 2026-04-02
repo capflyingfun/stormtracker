@@ -173,25 +173,6 @@ async function fetchWeather(){
         const rh=Math.round(100*Math.exp((17.27*blend.dewp)/(237.7+blend.dewp))/Math.exp((17.27*blend.temp)/(237.7+blend.temp)));
         omData.current.relative_humidity_2m=Math.min(100,Math.max(0,rh));
       }
-      if(omData.hourly&&omData.hourly.cloud_cover&&omData.hourly.time){
-        const _nowISO=(omData.current.time||new Date().toISOString()).slice(0,13);
-        const _hrIdx=omData.hourly.time.findIndex(t=>t&&t.startsWith(_nowISO));
-        if(_hrIdx>=0){
-          const _hrCC=omData.hourly.cloud_cover[_hrIdx];
-          const _prevCC=omData.current.cloud_cover;
-          if(_hrCC!==_prevCC){
-            console.log('Cloud cover synced to hourly NOW: '+_prevCC+'% → '+_hrCC+'%');
-            omData.current.cloud_cover=_hrCC;
-          }
-        }
-      }
-      const _finalCC=omData.current.cloud_cover;
-      const _hasPrecipWx=blend.wxString&&/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower/i.test(blend.wxString);
-      if(_hasPrecipWx){
-        omData.current._nwsDesc=blend.wxString;
-      }else{
-        omData.current._nwsDesc=cloudCategory(_finalCC);
-      }
       omData.current._nwsStation=blend.station||null;
       const _modelTag=omData._modelBlend?` [${omData._modelBlend}]`:'';
       omData.current._source=blend.sourceLabel+_modelTag;
@@ -203,6 +184,24 @@ async function fetchWeather(){
       }
     }catch(e){console.log('Multi-source blend failed:',e.message)}
     if(reqId!==S._locReqId)return;
+    if(omData.hourly&&omData.hourly.cloud_cover&&omData.hourly.time){
+      const _nowISO=new Date().toISOString().slice(0,13);
+      const _hrIdx=omData.hourly.time.findIndex(t=>t&&t.startsWith(_nowISO));
+      if(_hrIdx>=0){
+        const _hrCC=omData.hourly.cloud_cover[_hrIdx];
+        const _prevCC=omData.current.cloud_cover;
+        if(_hrCC!==_prevCC){
+          console.log('Cloud cover synced to hourly NOW: '+_prevCC+'% → '+_hrCC+'%');
+          omData.current.cloud_cover=_hrCC;
+        }
+      }
+    }
+    const _finalCC=omData.current.cloud_cover;
+    const _blendWx=omData.current._nwsDesc||'';
+    const _hasPrecipWx=_blendWx&&/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower/i.test(_blendWx);
+    if(!_hasPrecipWx){
+      omData.current._nwsDesc=cloudCategory(_finalCC);
+    }
     S.weather=omData.current;S._lastWeatherFetch=Date.now();S._lastWeatherData=omData;_resetMinMax();renderWeather(omData);if(typeof updateThreatTicker==='function')updateThreatTicker();if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);if(typeof V3D!=='undefined'&&V3D.active&&typeof refreshSky3D==='function')refreshSky3D();
   }catch(e){
     if(reqId!==S._locReqId)return;
