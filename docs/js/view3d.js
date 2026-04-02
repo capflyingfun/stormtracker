@@ -54,10 +54,14 @@ function toggle3DLabels() {
 
 function reset3DView() {
   if (!V3D.camera || !V3D.controls) return;
-  V3D.camera.position.set(0, 0.0015, 0);
-  V3D.camera.lookAt(0, 0.5, -15);
-  V3D.controls.target.set(0, 0.4, -6);
-  V3D.controls.update();
+  if (V3D.controls.reset) {
+    V3D.controls.reset();
+  } else {
+    V3D.camera.position.set(0, 0.0015, 0);
+    V3D.camera.lookAt(0, 0.5, -15);
+    V3D.controls.target.set(0, 0.4, -6);
+    V3D.controls.update();
+  }
 }
 
 var _TIER_COLORS = ['#00F8FF','#00FF39','#F5FF00','#FFB200','#FF0200','#FF00F5'];
@@ -196,6 +200,7 @@ function init3DScene() {
   V3D.controls.minDistance = 0.002; V3D.controls.maxDistance = 250;
   V3D.controls.maxPolarAngle = Math.PI * 0.502;
   V3D.controls.target.set(0, 0.4, -6); V3D.controls.update();
+  if (V3D.controls.saveState) V3D.controls.saveState();
 
   V3D.raycaster = new THREE.Raycaster();
   V3D.mouse = new THREE.Vector2();
