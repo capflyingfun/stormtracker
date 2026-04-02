@@ -986,7 +986,7 @@ function rebuildStorms3D() {
 
     cl.grp.position.set(sp.x, alt, sp.z); cl.grp.rotation.y = (Math.random() * 358 - 179) * (Math.PI / 180); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
 
-    if (cell.dbz >= 40) {
+    if (cell.dbz >= 20) {
       var glowCol = new THREE.Color(dbzHex3D(cell.dbz));
       var _glowBase = Math.max(1.5, dbzInt3D(cell.dbz) * 1.8);
       var glowPt = new THREE.PointLight(glowCol, _glowBase * V3D.glowLevel, dkm * 0.14 + 14);
