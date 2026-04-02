@@ -187,7 +187,9 @@ async function fetchWeather(){
     }catch(e){console.log('Multi-source blend failed:',e.message)}
     if(reqId!==S._locReqId)return;
     if(omData.hourly&&omData.hourly.cloud_cover&&omData.hourly.time){
-      const _nowISO=(omData.current.time||'').slice(0,13);
+      const _cTime=omData.current.time;
+      if(!_cTime) console.log('Cloud sync skipped: no current.time');
+      const _nowISO=(_cTime||'').slice(0,13);
       const _hrIdx=omData.hourly.time.findIndex(t=>t&&t.startsWith(_nowISO));
       if(_hrIdx>=0){
         const _hrCC=omData.hourly.cloud_cover[_hrIdx];
