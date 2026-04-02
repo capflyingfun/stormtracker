@@ -459,8 +459,8 @@
         <div style="color:rgba(255,200,50,0.7);font-size:11px;line-height:1.4;margin-top:3px">Visit the Radar tab to scan for storms, then return here to see them in 3D.</div>
       </div>
       <div id="v3d-hud" style="position:absolute;inset:0;pointer-events:none;z-index:10">
-        <button id="v3d-label-toggle" onclick="toggle3DLabels()" style="position:absolute;bottom:72px;left:12px;z-index:12;pointer-events:all;background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;color:#e8eef8;font-size:10px;padding:5px 10px;cursor:pointer;letter-spacing:.04em;font-family:inherit;transition:background .2s" title="Toggle dBZ labels">Labels</button>
-        <div style="position:absolute;bottom:72px;left:80px;z-index:12;pointer-events:all;display:flex;gap:3px">
+        <button id="v3d-label-toggle" onclick="toggle3DLabels()" style="position:absolute;bottom:82px;left:12px;z-index:12;pointer-events:all;background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;color:#e8eef8;font-size:10px;padding:5px 10px;cursor:pointer;letter-spacing:.04em;font-family:inherit;transition:background .2s" title="Toggle dBZ labels">Labels</button>
+        <div style="position:absolute;bottom:82px;left:80px;z-index:12;pointer-events:all;display:flex;gap:3px">
           <button id="v3d-tier-0" onclick="toggleTier3D(0)" style="width:24px;height:24px;border-radius:5px;border:1.5px solid #00F8FF;background:#00F8FF;color:#000;font-size:10px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Blue 20-30 dBZ">✓</button>
           <button id="v3d-tier-1" onclick="toggleTier3D(1)" style="width:24px;height:24px;border-radius:5px;border:1.5px solid #00FF39;background:#00FF39;color:#000;font-size:10px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Green 31-40 dBZ">✓</button>
           <button id="v3d-tier-2" onclick="toggleTier3D(2)" style="width:24px;height:24px;border-radius:5px;border:1.5px solid #F5FF00;background:#F5FF00;color:#000;font-size:10px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Yellow 41-45 dBZ">✓</button>
@@ -468,7 +468,7 @@
           <button id="v3d-tier-4" onclick="toggleTier3D(4)" style="width:24px;height:24px;border-radius:5px;border:1.5px solid #FF0200;background:#FF0200;color:#000;font-size:10px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Red 52-60 dBZ">✓</button>
           <button id="v3d-tier-5" onclick="toggleTier3D(5)" style="width:24px;height:24px;border-radius:5px;border:1.5px solid #FF00F5;background:#FF00F5;color:#000;font-size:10px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Magenta 61+ dBZ">✓</button>
         </div>
-        <button onclick="reset3DView()" style="position:absolute;bottom:72px;right:12px;z-index:12;pointer-events:all;background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;color:#e8eef8;font-size:10px;padding:5px 10px;cursor:pointer;letter-spacing:.04em;font-family:inherit;transition:background .2s" title="Reset camera to default view">⟲ Reset</button>
+        <button onclick="reset3DView()" style="position:absolute;bottom:82px;right:12px;z-index:12;pointer-events:all;background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;color:#e8eef8;font-size:10px;padding:5px 10px;cursor:pointer;letter-spacing:.04em;font-family:inherit;transition:background .2s" title="Reset camera to default view">⟲ Reset</button>
         <div id="v3d-compass-bar" style="position:absolute;top:0;left:0;right:0;height:36px;overflow:hidden;pointer-events:none;background:rgba(5,10,20,0.55);backdrop-filter:blur(6px);border-bottom:1px solid rgba(0,200,255,0.12)">
           <div id="v3d-compass-center-mark" style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #00e5ff;z-index:2"></div>
           <div id="v3d-compass-tape" style="position:absolute;top:0;height:28px;white-space:nowrap;will-change:transform"></div>
@@ -556,23 +556,23 @@
   </div>
 </div>
 
-<script src="js/core.js?v=434"></script>
-<script src="js/gauges.js?v=434"></script>
-<script src="js/icons.js?v=434"></script>
-<script src="js/geo.js?v=434"></script>
-<script src="js/settings.js?v=434"></script>
-<script src="js/thresholds.js?v=434"></script>
-<script src="js/weather.js?v=434"></script>
-<script src="js/radar.js?v=434"></script>
-<script src="js/storms.js?v=434"></script>
-<script src="js/station.js?v=434"></script>
-<script src="js/alerts.js?v=434"></script>
-<script src="js/ai.js?v=434"></script>
-<script src="js/init.js?v=434"></script>
+<script src="js/core.js?v=435"></script>
+<script src="js/gauges.js?v=435"></script>
+<script src="js/icons.js?v=435"></script>
+<script src="js/geo.js?v=435"></script>
+<script src="js/settings.js?v=435"></script>
+<script src="js/thresholds.js?v=435"></script>
+<script src="js/weather.js?v=435"></script>
+<script src="js/radar.js?v=435"></script>
+<script src="js/storms.js?v=435"></script>
+<script src="js/station.js?v=435"></script>
+<script src="js/alerts.js?v=435"></script>
+<script src="js/ai.js?v=435"></script>
+<script src="js/init.js?v=435"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="js/view3d.js?v=434"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=434').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="js/view3d.js?v=435"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=435').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>

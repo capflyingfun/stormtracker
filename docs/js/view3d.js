@@ -39,7 +39,8 @@ var V3D = {
     return [true, true, true, true, true, true];
   })(),
   _cloudModels: {},
-  _tierMaterials: {}
+  _tierMaterials: {},
+  _etaSprites: []
 };
 
 function toggle3DLabels() {
@@ -611,6 +612,7 @@ function clearGroup3D(grp) {
 function clearStorms3D() {
   V3D.stormMeshes.forEach(function (sm) { if (sm.ltTimer) clearInterval(sm.ltTimer); });
   V3D.stormMeshes = [];
+  V3D._etaSprites = [];
   clearGroup3D(V3D.stormGroup);
   clearGroup3D(V3D.coneGroup);
   for (var k in V3D._tierMaterials) {
@@ -716,6 +718,24 @@ function animRain3D(rain, windDir) {
   rain.geometry.attributes.position.needsUpdate = true;
 }
 
+function _fmtEtaCountdown(arriveAt) {
+  var remain = Math.max(0, arriveAt - Date.now());
+  if (remain <= 0) return 'ARRIVING';
+  var totalSec = Math.floor(remain / 1000);
+  var h = Math.floor(totalSec / 3600);
+  var m = Math.floor((totalSec % 3600) / 60);
+  var s = totalSec % 60;
+  var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+  if (h >= 1) return pad(h) + 'h:' + pad(m) + 'm';
+  return pad(m) + 'm:' + pad(s) + 's';
+}
+
+function _updateEtaCountdowns() {
+  V3D._etaSprites.forEach(function (e) {
+    updateSpriteText3D(e.spr, _fmtEtaCountdown(e.arriveAt), 'rgba(255,200,55,0.92)');
+  });
+}
+
 function addApproachCone3D(cell, sp, coneIdx) {
   if (!S.stormMovement || S.stormMovement.speed < 2) return;
   var mv = S.stormMovement;
@@ -773,8 +793,10 @@ function addApproachCone3D(cell, sp, coneIdx) {
   outline.renderOrder = coneRO + 0.05; V3D.coneGroup.add(outline);
 
   if (etaMin > 0 && etaMin < 180) {
-    var eSpr = makeSprite3D('ETA ' + etaMin + 'min', 'rgba(255,200,55,0.92)', 0.5);
+    var arriveAt = Date.now() + etaMin * 60000;
+    var eSpr = makeSprite3D(_fmtEtaCountdown(arriveAt), 'rgba(255,200,55,0.92)', 0.5);
     eSpr.position.set(sp.x, dkm * 0.12 + 3.5, sp.z); eSpr.renderOrder = 5; V3D.coneGroup.add(eSpr);
+    V3D._etaSprites.push({ spr: eSpr, arriveAt: arriveAt });
   }
 }
 
@@ -1115,6 +1137,7 @@ function loop3D() {
   if (V3D.frame % 2 === 0) animWind3D();
   if (V3D.frame % 3600 === 0) refreshSky3D();
   if (V3D.frame % 2 === 0) updateCompass3D();
+  if (V3D.frame % 60 === 0 && V3D._etaSprites.length) _updateEtaCountdowns();
   V3D.renderer.render(V3D.scene, V3D.camera);
 }
 
