@@ -694,15 +694,41 @@ function getCloudBase3D() {
 }
 
 function sonarZones3D() {
-  var storms = S.storms;
-  if (!storms || !storms.length) return [];
-  var out = [];
-  for (var i = 0; i < storms.length; i++) {
-    var s = storms[i];
-    if (s.lat == null || (s.lng == null && s.lon == null)) continue;
-    var lng = s.lng != null ? s.lng : s.lon;
-    out.push({ lat: s.lat, lon: lng, lng: lng, dbz: s.dbz, distance: s.distance, bearing: s.bearing, count: s.pixels || 1, hookEcho: !!s._hookEcho });
+  if (_isDesktop()) {
+    var storms = S.storms;
+    if (!storms || !storms.length) return [];
+    var out = [];
+    for (var i = 0; i < storms.length; i++) {
+      var s = storms[i];
+      if (s.lat == null || (s.lng == null && s.lon == null)) continue;
+      var lng = s.lng != null ? s.lng : s.lon;
+      out.push({ lat: s.lat, lon: lng, lng: lng, dbz: s.dbz, distance: s.distance, bearing: s.bearing, count: s.pixels || 1, hookEcho: !!s._hookEcho });
+    }
+    out.sort(function (a, b) { return b.dbz - a.dbz; });
+    return out;
   }
+  var raw = S._rawScanPts;
+  if (!raw || !raw.length) {
+    var storms = S.storms;
+    if (!storms || !storms.length) return [];
+    var out = [];
+    for (var i = 0; i < storms.length; i++) {
+      var s = storms[i];
+      if (s.lat == null || (s.lng == null && s.lon == null)) continue;
+      var lng = s.lng != null ? s.lng : s.lon;
+      out.push({ lat: s.lat, lon: lng, lng: lng, dbz: s.dbz, distance: s.distance, bearing: s.bearing, count: s.pixels || 1, hookEcho: !!s._hookEcho });
+    }
+    out.sort(function (a, b) { return b.dbz - a.dbz; });
+    return out;
+  }
+  var cells = hexGridBin(raw, S.lat, S.lon, S.scanRadius || 80);
+  var out = [];
+  cells.forEach(function (c) {
+    if (c.maxDbz < 20) return;
+    var xy = _hexCenter(c.q, c.r);
+    var ll = _xyToLL(xy[0], xy[1], S.lat, S.lon);
+    out.push({ lat: ll[0], lon: ll[1], lng: ll[1], dbz: c.maxDbz, distance: c.dist, bearing: c.bearing, count: c.count, hookEcho: false });
+  });
   out.sort(function (a, b) { return b.dbz - a.dbz; });
   return out;
 }
