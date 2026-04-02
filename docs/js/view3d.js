@@ -40,7 +40,8 @@ var V3D = {
   })(),
   _cloudModels: {},
   _tierMaterials: {},
-  _etaSprites: []
+  _etaSprites: [],
+  _etaInterval: null
 };
 
 function toggle3DLabels() {
@@ -622,10 +623,18 @@ function disposeObj3D(obj) {
 function clearGroup3D(grp) {
   while (grp.children.length > 0) { var c = grp.children[0]; disposeObj3D(c); grp.remove(c); }
 }
+function _startEtaInterval() {
+  if (V3D._etaInterval) clearInterval(V3D._etaInterval);
+  if (V3D._etaSprites.length) {
+    V3D._etaInterval = setInterval(_updateEtaCountdowns, 1000);
+  }
+}
+
 function clearStorms3D() {
   V3D.stormMeshes.forEach(function (sm) { if (sm.ltTimer) clearInterval(sm.ltTimer); });
   V3D.stormMeshes = [];
   V3D._etaSprites = [];
+  if (V3D._etaInterval) { clearInterval(V3D._etaInterval); V3D._etaInterval = null; }
   clearGroup3D(V3D.stormGroup);
   clearGroup3D(V3D.coneGroup);
   for (var k in V3D._tierMaterials) {
@@ -999,12 +1008,16 @@ function rebuildStorms3D() {
     V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, lights: pt ? [pt] : [], rain: rain, ltTimer: ltTimer, label: lspr });
     if (cell.dbz >= 35) { addApproachCone3D(cellForCone, sp, coneIdx); coneIdx++; }
   });
+  _startEtaInterval();
 }
 
 // =====================================================
-// WIND PARTICLES
+// WIND PARTICLES (desktop only — skipped on mobile for performance)
 // =====================================================
+var _v3dIsMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
 function rebuildWind3D() {
+  if (_v3dIsMobile) return;
   while (V3D.windGroup.children.length > 0) V3D.windGroup.remove(V3D.windGroup.children[0]);
   V3D.windSystems = [];
   var aloftData = S._aloftData || [];
@@ -1150,7 +1163,6 @@ function loop3D() {
   if (V3D.frame % 2 === 0) animWind3D();
   if (V3D.frame % 3600 === 0) refreshSky3D();
   if (V3D.frame % 2 === 0) updateCompass3D();
-  if (V3D.frame % 60 === 0 && V3D._etaSprites.length) _updateEtaCountdowns();
   V3D.renderer.render(V3D.scene, V3D.camera);
 }
 
@@ -1221,6 +1233,7 @@ async function activate3DView() {
 function deactivate3DView() {
   V3D.active = false;
   if (V3D._markerRAF) { cancelAnimationFrame(V3D._markerRAF); V3D._markerRAF = null; }
+  if (V3D._etaInterval) { clearInterval(V3D._etaInterval); V3D._etaInterval = null; }
   V3D.stormMeshes.forEach(function (sm) { if (sm.ltTimer) { clearInterval(sm.ltTimer); sm.ltTimer = null; } });
   var popup = document.getElementById('v3d-popup');
   if (popup) popup.style.display = 'none';
