@@ -585,25 +585,12 @@ function buildCompass3D() {
 }
 
 function buildUserMarker3D() {
-  var dot = new THREE.Mesh(new THREE.CircleGeometry(1.5, 48),
-    new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+  var dot = new THREE.Mesh(new THREE.CircleGeometry(1.2, 32),
+    new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
   dot.rotation.x = -Math.PI / 2; dot.position.y = 0.06; dot.renderOrder = 6; V3D.scene.add(dot);
-  var ring = new THREE.Mesh(new THREE.RingGeometry(2.2, 2.8, 48),
-    new THREE.MeshBasicMaterial({ color: 0x00e5ff, side: THREE.DoubleSide, transparent: true, opacity: 0.7, depthWrite: false }));
-  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; ring.renderOrder = 6; V3D.scene.add(ring);
-  var pgeo = new THREE.RingGeometry(2.8, 4.5, 48);
-  var pmat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false });
-  var pulse = new THREE.Mesh(pgeo, pmat); pulse.rotation.x = -Math.PI / 2; pulse.position.y = 0.04; pulse.renderOrder = 5; V3D.scene.add(pulse);
-  var gloCv = document.createElement('canvas'); gloCv.width = gloCv.height = 128;
-  var gloCx = gloCv.getContext('2d');
-  var gloG = gloCx.createRadialGradient(64, 64, 0, 64, 64, 64);
-  gloG.addColorStop(0, 'rgba(0,229,255,0.4)'); gloG.addColorStop(0.4, 'rgba(0,200,255,0.15)'); gloG.addColorStop(1, 'rgba(0,0,0,0)');
-  gloCx.fillStyle = gloG; gloCx.fillRect(0, 0, 128, 128);
-  var gloSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(gloCv), transparent: true, depthWrite: false }));
-  gloSpr.scale.set(12, 12, 1); gloSpr.position.set(0, 0.08, 0); gloSpr.renderOrder = 4; V3D.scene.add(gloSpr);
   var t = 0;
   V3D._markerRAF = null;
-  function tick() { if (!V3D.active) { V3D._markerRAF = null; return; } V3D._markerRAF = requestAnimationFrame(tick); t += 0.018; pulse.scale.setScalar(1 + 0.6 * Math.abs(Math.sin(t))); pmat.opacity = 0.25 * (1.1 - Math.abs(Math.sin(t)) * 0.5); }
+  function tick() { if (!V3D.active) { V3D._markerRAF = null; return; } V3D._markerRAF = requestAnimationFrame(tick); t += 0.015; var s = 1 + 0.15 * Math.sin(t); dot.scale.setScalar(s); }
   V3D._startMarkerPulse = tick;
   tick();
 }
@@ -765,8 +752,8 @@ function _updateEtaCountdowns() {
   });
 }
 
-function addApproachCone3D(cell, sp, coneIdx) {
-  if (!S.stormMovement || S.stormMovement.speed < 0.5) return;
+function _qualifyCone3D(cell, sp) {
+  if (!S.stormMovement || S.stormMovement.speed < 0.5) return null;
   var mv = S.stormMovement;
   var dkm = haversineKm3D(S.lat, S.lon, cell.lat, cell.lon);
   var distMi = dkm * 0.621371;
@@ -775,11 +762,16 @@ function addApproachCone3D(cell, sp, coneIdx) {
   var baseWidthMi = Math.max(0, Math.min(3, (cell.dbz - 20) / 15));
   var widthAngle = distMi > 0.5 ? Math.atan2(baseWidthMi, distMi) * 180 / Math.PI : 15;
   var CONE_HALF = 15 + widthAngle;
-  if (diff > CONE_HALF) return;
+  if (diff > CONE_HALF) return null;
   var closingSpeed = mv.speed * Math.cos(Math.min(diff, 60) * Math.PI / 180);
-  if (closingSpeed <= 1) return;
+  if (closingSpeed <= 1) return null;
   var etaMin = Math.round(distMi / closingSpeed * 60);
+  return { cell: cell, sp: sp, dkm: dkm, distMi: distMi, etaMin: etaMin, baseWidthMi: baseWidthMi };
+}
 
+function _renderCone3D(q, coneIdx) {
+  var cell = q.cell, sp = q.sp, dkm = q.dkm, distMi = q.distMi, baseWidthMi = q.baseWidthMi, etaMin = q.etaMin;
+  var mv = S.stormMovement;
   var mRad = toRad3D(mv.direction);
   var rangeKm = Math.min(60, Math.max(distMi * 1.5, 20)) * 1.609;
   var halfWidthKm = baseWidthMi * 1.609 / 2;
@@ -938,7 +930,7 @@ function rebuildStorms3D() {
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
   var showLabels = V3D._labelsVisible !== false;
   var desktop = _isDesktop();
-  var coneIdx = 0;
+  var _coneCandidates = [];
   storms.forEach(function (cell) {
     var tierIdx = _cloudTierIdx(cell.dbz);
     if (!V3D._tierFilter[tierIdx]) return;
@@ -1012,8 +1004,14 @@ function rebuildStorms3D() {
 
     var cellForCone = { lat: lat, lon: lon, dbz: cell.dbz, distance: cell.distance, bearing: cell.bearing || bearingDeg3D(S.lat, S.lon, lat, lon) };
     V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, lights: pt ? [pt] : [], rain: rain, ltTimer: ltTimer, label: lspr });
-    if (cell.dbz >= 35) { addApproachCone3D(cellForCone, sp, coneIdx); coneIdx++; }
+    if (cell.dbz >= 35) {
+      var q = _qualifyCone3D(cellForCone, sp);
+      if (q) { _coneCandidates.push(q); }
+    }
   });
+  _coneCandidates.sort(function (a, b) { return a.dkm - b.dkm; });
+  var coneMax = Math.min(_coneCandidates.length, 12);
+  for (var ci = 0; ci < coneMax; ci++) { _renderCone3D(_coneCandidates[ci], ci); }
   var cands = V3D._etaCandidates || [];
   cands.sort(function (a, b) { return a.dkm - b.dkm; });
   var etaMax = Math.min(cands.length, 12);
