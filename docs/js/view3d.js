@@ -33,12 +33,13 @@ var V3D = {
   frame: 0,
   rafId: null,
   metric: false,
-  _labelsVisible: localStorage.getItem('v3d_labels') !== 'off',
+  _labelsVisible: localStorage.getItem('v3d_labels') === 'on',
   _tierFilter: (function () {
     try { var s = localStorage.getItem('v3d_tiers'); if (s) { var a = JSON.parse(s); if (a.length === 6) return a; } } catch (e) {}
     return [true, true, true, true, true, true];
   })(),
-  _cloudModels: {}
+  _cloudModels: {},
+  _tierMaterials: {}
 };
 
 function toggle3DLabels() {
@@ -598,7 +599,7 @@ function clearStorms3D() {
 
 function makeCloudGroup3D(dbz, hookEcho, windDir) {
   var baseR = Math.max(1.2, Math.min(6, (dbz - 10) / 7));
-  var mobileScale = _isDesktop() ? 1.0 : 1.8;
+  var mobileScale = _isDesktop() ? 1.0 : 2.6;
   baseR *= mobileScale;
   var tierIdx = _cloudTierIdx(dbz);
   var template = V3D._cloudModels[tierIdx];
@@ -607,9 +608,12 @@ function makeCloudGroup3D(dbz, hookEcho, windDir) {
     grp.scale.setScalar(baseR);
     grp.traverse(function (child) {
       if (child.isMesh) {
-        child.material = child.material.clone();
-        child.material.transparent = true;
-        child.material.depthWrite = false;
+        if (!V3D._tierMaterials[tierIdx]) {
+          V3D._tierMaterials[tierIdx] = child.material.clone();
+          V3D._tierMaterials[tierIdx].transparent = true;
+          V3D._tierMaterials[tierIdx].depthWrite = false;
+        }
+        child.material = V3D._tierMaterials[tierIdx];
         child.renderOrder = 4;
       }
     });
@@ -767,6 +771,54 @@ function getCloudBase3D() {
   return 1.5;
 }
 
+var _HEX3D_SIZE = 9 / Math.sqrt(3);
+function _llToXY3D(lat, lon, cLat, cLon) {
+  var dy = (lat - cLat) * 69.172;
+  var dx = (lon - cLon) * 69.172 * Math.cos(cLat * Math.PI / 180);
+  return [dx, dy];
+}
+function _xyToLL3D(x, y, cLat, cLon) {
+  return [cLat + y / 69.172, cLon + x / (69.172 * Math.cos(cLat * Math.PI / 180))];
+}
+function _pxToHex3D(x, y) {
+  var s = _HEX3D_SIZE;
+  var fq = (2 / 3 * x) / s;
+  var fr = (-1 / 3 * x + Math.sqrt(3) / 3 * y) / s;
+  var fs = -fq - fr;
+  var rq = Math.round(fq), rr = Math.round(fr), rs = Math.round(fs);
+  var dq = Math.abs(rq - fq), dr = Math.abs(rr - fr), ds = Math.abs(rs - fs);
+  if (dq > dr && dq > ds) rq = -rr - rs;
+  else if (dr > ds) rr = -rq - rs;
+  return [rq, rr];
+}
+function _hexCenter3D(q, r) {
+  var s = _HEX3D_SIZE;
+  return [s * 3 / 2 * q, s * Math.sqrt(3) * (r + q / 2)];
+}
+function hexGridBin3D(rawPts, cLat, cLng, maxRadiusMi) {
+  var cells = new Map();
+  for (var i = 0; i < rawPts.length; i++) {
+    var p = rawPts[i];
+    var xy = _llToXY3D(p.lat, p.lng, cLat, cLng);
+    var dist = Math.sqrt(xy[0] * xy[0] + xy[1] * xy[1]);
+    if (dist > maxRadiusMi) continue;
+    var qr = _pxToHex3D(xy[0], xy[1]);
+    var key = qr[0] + ',' + qr[1];
+    if (cells.has(key)) {
+      var c = cells.get(key);
+      if (p.dbz > c.maxDbz) c.maxDbz = p.dbz;
+      c.sumDbz += p.dbz;
+      c.count++;
+    } else {
+      var hc = _hexCenter3D(qr[0], qr[1]);
+      var hDist = Math.sqrt(hc[0] * hc[0] + hc[1] * hc[1]);
+      var hBear = (Math.atan2(hc[0], hc[1]) * 180 / Math.PI + 360) % 360;
+      cells.set(key, { q: qr[0], r: qr[1], maxDbz: p.dbz, sumDbz: p.dbz, count: 1, dist: hDist, bearing: hBear });
+    }
+  }
+  return cells;
+}
+
 function sonarZones3D() {
   if (_isDesktop()) {
     var storms = S.storms;
@@ -795,12 +847,12 @@ function sonarZones3D() {
     out.sort(function (a, b) { return b.dbz - a.dbz; });
     return out;
   }
-  var cells = hexGridBin(raw, S.lat, S.lon, S.scanRadius || 80);
+  var cells = hexGridBin3D(raw, S.lat, S.lon, S.scanRadius || 80);
   var out = [];
   cells.forEach(function (c) {
     if (c.maxDbz < 20) return;
-    var xy = _hexCenter(c.q, c.r);
-    var ll = _xyToLL(xy[0], xy[1], S.lat, S.lon);
+    var xy = _hexCenter3D(c.q, c.r);
+    var ll = _xyToLL3D(xy[0], xy[1], S.lat, S.lon);
     out.push({ lat: ll[0], lon: ll[1], lng: ll[1], dbz: c.maxDbz, distance: c.dist, bearing: c.bearing, count: c.count, hookEcho: false });
   });
   out.sort(function (a, b) { return b.dbz - a.dbz; });
@@ -813,6 +865,7 @@ function rebuildStorms3D() {
   if (!storms.length) return;
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
   var showLabels = V3D._labelsVisible !== false;
+  var desktop = _isDesktop();
   var coneIdx = 0;
   storms.forEach(function (cell) {
     var tierIdx = _cloudTierIdx(cell.dbz);
@@ -834,33 +887,35 @@ function rebuildStorms3D() {
       pt.position.set(sp.x, alt + cl.r * 0.3, sp.z); V3D.stormGroup.add(pt);
     }
 
-    if (cell.dbz >= 30) {
-      var hHex = dbzHex3D(cell.dbz);
-      var hR = parseInt(hHex.slice(1, 3), 16), hG = parseInt(hHex.slice(3, 5), 16), hB = parseInt(hHex.slice(5, 7), 16);
-      var haloCv = document.createElement('canvas'); haloCv.width = haloCv.height = 64;
-      var haloCx = haloCv.getContext('2d');
-      var haloG = haloCx.createRadialGradient(32, 32, 0, 32, 32, 32);
-      haloG.addColorStop(0, 'rgba(' + hR + ',' + hG + ',' + hB + ',0.45)');
-      haloG.addColorStop(0.5, 'rgba(' + hR + ',' + hG + ',' + hB + ',0.08)');
-      haloG.addColorStop(1, 'rgba(0,0,0,0)');
-      haloCx.fillStyle = haloG; haloCx.fillRect(0, 0, 64, 64);
-      var haloTex = new THREE.CanvasTexture(haloCv);
-      var haloSz = cl.r * 3;
-      var haloMesh = new THREE.Mesh(new THREE.PlaneGeometry(haloSz * 2, haloSz * 2),
-        new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, side: THREE.DoubleSide,
-          polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
-      var haloBaseH = sampleTerrainHeight3D(sp.x, sp.z);
-      haloMesh.rotation.x = -Math.PI / 2; haloMesh.position.set(sp.x, haloBaseH + 0.015, sp.z); haloMesh.renderOrder = 2; V3D.stormGroup.add(haloMesh);
+    if (desktop || cell.dbz >= 35) {
+      if (cell.dbz >= 30) {
+        var hHex = dbzHex3D(cell.dbz);
+        var hR = parseInt(hHex.slice(1, 3), 16), hG = parseInt(hHex.slice(3, 5), 16), hB = parseInt(hHex.slice(5, 7), 16);
+        var haloCv = document.createElement('canvas'); haloCv.width = haloCv.height = 64;
+        var haloCx = haloCv.getContext('2d');
+        var haloG = haloCx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        haloG.addColorStop(0, 'rgba(' + hR + ',' + hG + ',' + hB + ',0.45)');
+        haloG.addColorStop(0.5, 'rgba(' + hR + ',' + hG + ',' + hB + ',0.08)');
+        haloG.addColorStop(1, 'rgba(0,0,0,0)');
+        haloCx.fillStyle = haloG; haloCx.fillRect(0, 0, 64, 64);
+        var haloTex = new THREE.CanvasTexture(haloCv);
+        var haloSz = cl.r * 3;
+        var haloMesh = new THREE.Mesh(new THREE.PlaneGeometry(haloSz * 2, haloSz * 2),
+          new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+            polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+        var haloBaseH = sampleTerrainHeight3D(sp.x, sp.z);
+        haloMesh.rotation.x = -Math.PI / 2; haloMesh.position.set(sp.x, haloBaseH + 0.015, sp.z); haloMesh.renderOrder = 2; V3D.stormGroup.add(haloMesh);
+      }
     }
 
     var rain = null;
-    if (cell.dbz >= 33) {
+    if (cell.dbz >= 33 && (desktop || cell.dbz >= 35)) {
       var terrainBase = sampleTerrainHeight3D(sp.x, sp.z);
       rain = makeRain3D(cell.dbz, cl.r, terrainBase); rain.position.set(sp.x, alt, sp.z); V3D.stormGroup.add(rain);
     }
 
     var ltTimer = null;
-    if (cell.dbz >= 45) {
+    if (cell.dbz >= 45 && (desktop || cell.dbz >= 50)) {
       var sx = sp.x, sz2 = sp.z, altR = alt + cl.r, rr = cl.r;
       ltTimer = setInterval(function () {
         if (!V3D.active) return;
