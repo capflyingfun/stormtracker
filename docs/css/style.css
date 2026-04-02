@@ -264,6 +264,7 @@ details.card>summary{list-style:none}
 @keyframes toast-out{to{opacity:0;transform:translateY(-10px)}}
 .section-page{display:none}
 .section-page.visible{display:block}
+#page-3d.visible{display:flex;flex-direction:column;height:calc(100vh - var(--nav-height));height:calc(100dvh - var(--nav-height));overflow:hidden;padding-bottom:0;margin-bottom:0}
 .empty-state{text-align:center;padding:30px 20px;color:var(--text-muted)}
 .empty-state .empty-icon{font-size:2.5em;margin-bottom:10px}
 .empty-state p{font-size:0.85em;line-height:1.5}
@@ -665,7 +666,7 @@ canvas.offscreen{display:none}
 
   /* 3D page: full-height on desktop too */
   #page-3d{min-height:90vh}
-  #view3d-container{height:85vh!important}
+  #view3d-container{flex:1!important;min-height:0!important}
 }
 @keyframes spin3d{to{transform:rotate(360deg)}}
 #page-3d .ct-tick{position:absolute;top:0;width:1px;background:rgba(255,255,255,0.15);height:10px}
