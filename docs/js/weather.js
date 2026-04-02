@@ -87,7 +87,7 @@ function _blendOMModels(gfs,hrrr){
   return out;
 }
 async function _fetchOMModels(omBase,isUS){
-  const _getJSON=url=>fetch(url,{signal:AbortSignal.timeout(8000)}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()});
+  const _getJSON=url=>fetch(url,{signal:AbortSignal.timeout(12000)}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()});
   const [_gfsRes,_hrrrRes]=await Promise.allSettled([
     _getJSON(omBase+'&models=gfs_seamless'),
     isUS?_getJSON(omBase+'&models=hrrr_conus'):Promise.resolve(null)
@@ -115,8 +115,15 @@ async function fetchWeather(){
       await new Promise(r=>setTimeout(r,3000));
       if(reqId!==S._locReqId)return;
       _om=await _fetchOMModels(_omBase,_isUSLoc);
-      if(!_om.blended)throw new Error('All model fetches failed (after retry)');
-      console.log('OM models: retry succeeded');
+      if(!_om.blended){
+        console.log('OM models: second attempt failed — retrying in 5s...');
+        if(reqId!==S._locReqId)return;
+        await new Promise(r=>setTimeout(r,5000));
+        if(reqId!==S._locReqId)return;
+        _om=await _fetchOMModels(_omBase,_isUSLoc);
+        if(!_om.blended)throw new Error('All model fetches failed (after 2 retries)');
+        console.log('OM models: retry 2 succeeded');
+      } else { console.log('OM models: retry 1 succeeded'); }
     }
     const _gfsData=_om.gfs,_hrrrData=_om.hrrr;
     const omData=_om.blended;
