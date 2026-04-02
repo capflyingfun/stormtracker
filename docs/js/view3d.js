@@ -54,12 +54,15 @@ function toggle3DLabels() {
 function toggleFilterPanel3D() {
   var row = document.getElementById('v3d-tier-row');
   if (!row) return;
-  var open = row.style.display === 'flex';
-  row.style.display = open ? 'none' : 'flex';
+  var open = row.style.maxHeight !== '0px' && row.style.maxHeight !== '0' && row.style.maxHeight !== '';
+  row.style.maxHeight = open ? '0' : '36px';
+  row.style.opacity = open ? '0' : '1';
+  row.style.padding = open ? '0 4px' : '3px 4px';
   var btn = document.getElementById('v3d-filter-toggle');
   if (btn) {
     btn.style.borderColor = open ? 'rgba(0,200,255,0.25)' : 'rgba(0,200,255,0.6)';
     btn.style.background = open ? 'rgba(5,10,20,0.78)' : 'rgba(0,80,120,0.7)';
+    btn.setAttribute('aria-expanded', open ? 'false' : 'true');
   }
 }
 
