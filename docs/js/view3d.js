@@ -793,11 +793,11 @@ function sonarZones3D() {
 
 function rebuildStorms3D() {
   clearStorms3D();
-  if (!V3D._cloudsVisible) return;
   var storms = sonarZones3D();
   if (!storms.length) return;
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
   var showLabels = V3D._labelsVisible !== false;
+  var showClouds = V3D._cloudsVisible;
   var coneIdx = 0;
   storms.forEach(function (cell) {
     var lon = cell.lon || cell.lng;
@@ -807,7 +807,10 @@ function rebuildStorms3D() {
     var cloudBase = getCloudBase3D();
     var cl = makeCloudGroup3D(cell.dbz, cell.hookEcho, surfWind);
     var alt = cloudBase + cl.r;
-    cl.grp.position.set(sp.x, alt, sp.z); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
+
+    if (showClouds) {
+      cl.grp.position.set(sp.x, alt, sp.z); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
+    }
 
     var pt = null;
     if (cell.dbz >= 40) {
@@ -836,13 +839,13 @@ function rebuildStorms3D() {
     }
 
     var rain = null;
-    if (cell.dbz >= 33) {
+    if (showClouds && cell.dbz >= 33) {
       var terrainBase = sampleTerrainHeight3D(sp.x, sp.z);
       rain = makeRain3D(cell.dbz, cl.r, terrainBase); rain.position.set(sp.x, alt, sp.z); V3D.stormGroup.add(rain);
     }
 
     var ltTimer = null;
-    if (cell.dbz >= 45) {
+    if (showClouds && cell.dbz >= 45) {
       var sx = sp.x, sz2 = sp.z, altR = alt + cl.r, rr = cl.r;
       ltTimer = setInterval(function () {
         if (!V3D.active) return;
