@@ -1179,8 +1179,6 @@ async function activate3DView() {
 
   V3D.active = true;
   if (V3D._startMarkerPulse && !V3D._markerRAF) V3D._startMarkerPulse();
-  var lblBtn = document.getElementById('v3d-label-toggle');
-  if (lblBtn) lblBtn.style.borderColor = V3D._labelsVisible ? 'rgba(0,200,255,0.25)' : 'rgba(255,100,100,0.35)';
   syncTierButtons3D();
 
   if (!V3D.ready) {
