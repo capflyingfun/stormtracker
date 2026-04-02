@@ -264,7 +264,7 @@ details.card>summary{list-style:none}
 @keyframes toast-out{to{opacity:0;transform:translateY(-10px)}}
 .section-page{display:none}
 .section-page.visible{display:block}
-#page-3d.visible{display:flex;flex-direction:column;height:calc(100vh - var(--nav-height));height:calc(100dvh - var(--nav-height));overflow:hidden;padding-bottom:0;margin-bottom:0}
+#page-3d.visible{display:flex;flex-direction:column;overflow:hidden;padding-bottom:0;margin-bottom:0}
 .empty-state{text-align:center;padding:30px 20px;color:var(--text-muted)}
 .empty-state .empty-icon{font-size:2.5em;margin-bottom:10px}
 .empty-state p{font-size:0.85em;line-height:1.5}

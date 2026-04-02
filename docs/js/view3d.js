@@ -245,15 +245,18 @@ function init3DScene() {
   V3D.ready = true;
 }
 
+function resize3DPage() {
+  var pg = document.getElementById('page-3d');
+  if (!pg) return;
+  var hdr = document.querySelector('.app-header');
+  var hdrH = hdr ? hdr.offsetHeight : 0;
+  var navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav-height')) || 60;
+  pg.style.height = (window.innerHeight - hdrH - navH) + 'px';
+}
+
 function onResize3D() {
   if (!V3D.ready || !V3D.active) return;
-  var pg = document.getElementById('page-3d');
-  if (pg) {
-    var hdr = document.querySelector('.app-header');
-    var hdrH = hdr ? hdr.offsetHeight : 0;
-    var navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav-height')) || 60;
-    pg.style.height = (window.innerHeight - hdrH - navH) + 'px';
-  }
+  resize3DPage();
   var container = document.getElementById('view3d-container');
   if (!container) return;
   var w = container.clientWidth, h = container.clientHeight;
@@ -1191,6 +1194,11 @@ function loop3D() {
   if (!V3D.active) { V3D.rafId = null; return; }
   V3D.rafId = requestAnimationFrame(loop3D);
   V3D.frame++;
+  var _off = V3D.camera.position.clone().sub(V3D.controls.target);
+  var _dist = _off.length();
+  var _cosMax = (0.001 - V3D.controls.target.y) / _dist;
+  _cosMax = Math.max(-1, Math.min(1, _cosMax));
+  V3D.controls.maxPolarAngle = Math.min(Math.PI * 0.85, Math.acos(_cosMax));
   V3D.controls.update();
   if (V3D.camera.position.y < 0.001) V3D.camera.position.y = 0.001;
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
@@ -1227,13 +1235,7 @@ async function activate3DView() {
   V3D.active = true;
   if (V3D._startMarkerPulse && !V3D._markerRAF) V3D._startMarkerPulse();
   syncTierButtons3D();
-  var pg = document.getElementById('page-3d');
-  if (pg) {
-    var hdr = document.querySelector('.app-header');
-    var hdrH = hdr ? hdr.offsetHeight : 0;
-    var navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav-height')) || 60;
-    pg.style.height = (window.innerHeight - hdrH - navH) + 'px';
-  }
+  requestAnimationFrame(function () { resize3DPage(); onResize3D(); });
 
   if (!V3D.ready) {
     var loadEl = document.getElementById('v3d-loading');

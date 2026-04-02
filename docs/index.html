@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=444">
+<link rel="stylesheet" href="css/style.css?v=445">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -459,7 +459,7 @@
         <div style="color:rgba(255,200,50,0.7);font-size:11px;line-height:1.4;margin-top:3px">Visit the Radar tab to scan for storms, then return here to see them in 3D.</div>
       </div>
       <div id="v3d-hud" style="position:absolute;inset:0;pointer-events:none;z-index:10">
-        <div id="v3d-bottom-controls" style="position:absolute;bottom:92px;left:12px;z-index:12;pointer-events:all;display:flex;flex-direction:column;gap:4px">
+        <div id="v3d-bottom-controls" style="position:absolute;bottom:8px;left:12px;z-index:12;pointer-events:all;display:flex;flex-direction:column;gap:4px">
           <div id="v3d-tier-row" style="display:flex;flex-direction:row;gap:2px;padding:0 4px;background:rgba(5,10,20,0.82);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.15);border-radius:8px;max-height:0;opacity:0;overflow:hidden;transition:max-height .25s ease,opacity .2s ease,padding .25s ease">
             <button id="v3d-tier-0" onclick="toggleTier3D(0)" style="width:22px;height:22px;border-radius:4px;border:1.5px solid #00F8FF;background:#00F8FF;color:#000;font-size:9px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Blue 20-30 dBZ">✓</button>
             <button id="v3d-tier-1" onclick="toggleTier3D(1)" style="width:22px;height:22px;border-radius:4px;border:1.5px solid #00FF39;background:#00FF39;color:#000;font-size:9px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Green 31-40 dBZ">✓</button>
@@ -560,23 +560,23 @@
   </div>
 </div>
 
-<script src="js/core.js?v=444"></script>
-<script src="js/gauges.js?v=444"></script>
-<script src="js/icons.js?v=444"></script>
-<script src="js/geo.js?v=444"></script>
-<script src="js/settings.js?v=444"></script>
-<script src="js/thresholds.js?v=444"></script>
-<script src="js/weather.js?v=444"></script>
-<script src="js/radar.js?v=444"></script>
-<script src="js/storms.js?v=444"></script>
-<script src="js/station.js?v=444"></script>
-<script src="js/alerts.js?v=444"></script>
-<script src="js/ai.js?v=444"></script>
-<script src="js/init.js?v=444"></script>
+<script src="js/core.js?v=445"></script>
+<script src="js/gauges.js?v=445"></script>
+<script src="js/icons.js?v=445"></script>
+<script src="js/geo.js?v=445"></script>
+<script src="js/settings.js?v=445"></script>
+<script src="js/thresholds.js?v=445"></script>
+<script src="js/weather.js?v=445"></script>
+<script src="js/radar.js?v=445"></script>
+<script src="js/storms.js?v=445"></script>
+<script src="js/station.js?v=445"></script>
+<script src="js/alerts.js?v=445"></script>
+<script src="js/ai.js?v=445"></script>
+<script src="js/init.js?v=445"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="js/view3d.js?v=444"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=444').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="js/view3d.js?v=445"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=445').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>
