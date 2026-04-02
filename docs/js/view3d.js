@@ -29,7 +29,7 @@ var V3D = {
   ringLabels: [],
   compassTape: null,
   compassHdg: null,
-  ppd: Math.max(3, Math.round(window.innerWidth / 100)),
+  ppd: window.innerWidth < 500 ? 4 : Math.max(4, Math.round(window.innerWidth / 100)),
   frame: 0,
   rafId: null,
   metric: false,
@@ -252,7 +252,7 @@ function onResize3D() {
   V3D.camera.aspect = w / h;
   V3D.camera.updateProjectionMatrix();
   V3D.renderer.setSize(w, h);
-  var newPpd = Math.max(3, Math.round(window.innerWidth / 100));
+  var newPpd = window.innerWidth < 500 ? 4 : Math.max(4, Math.round(window.innerWidth / 100));
   if (newPpd !== V3D.ppd) { V3D.ppd = newPpd; buildCompassTape3D(); }
 }
 
