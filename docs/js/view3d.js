@@ -576,6 +576,11 @@ function buildUserMarker3D() {
 // =====================================================
 // STORM CLOUDS
 // =====================================================
+function _isSharedMaterial(mat) {
+  var tm = V3D._tierMaterials;
+  for (var k in tm) { if (tm[k] === mat) return true; }
+  return false;
+}
 function disposeObj3D(obj) {
   if (!obj) return;
   if (obj.children && obj.children.length) {
@@ -583,8 +588,8 @@ function disposeObj3D(obj) {
   }
   if (obj.geometry) obj.geometry.dispose();
   if (obj.material) {
-    if (Array.isArray(obj.material)) obj.material.forEach(function (m) { if (m.map) m.map.dispose(); m.dispose(); });
-    else { if (obj.material.map) obj.material.map.dispose(); obj.material.dispose(); }
+    if (Array.isArray(obj.material)) obj.material.forEach(function (m) { if (!_isSharedMaterial(m)) { if (m.map) m.map.dispose(); m.dispose(); } });
+    else if (!_isSharedMaterial(obj.material)) { if (obj.material.map) obj.material.map.dispose(); obj.material.dispose(); }
   }
 }
 function clearGroup3D(grp) {
@@ -595,6 +600,11 @@ function clearStorms3D() {
   V3D.stormMeshes = [];
   clearGroup3D(V3D.stormGroup);
   clearGroup3D(V3D.coneGroup);
+  for (var k in V3D._tierMaterials) {
+    var m = V3D._tierMaterials[k];
+    if (m) { if (m.map) m.map.dispose(); m.dispose(); }
+  }
+  V3D._tierMaterials = {};
 }
 
 function makeCloudGroup3D(dbz, hookEcho, windDir) {
