@@ -460,7 +460,7 @@
       </div>
       <div id="v3d-hud" style="position:absolute;inset:0;pointer-events:none;z-index:10">
         <div id="v3d-bottom-controls" style="position:absolute;bottom:68px;left:12px;z-index:12;pointer-events:all;display:flex;flex-direction:column;gap:4px">
-          <div id="v3d-tier-row" style="display:none;flex-direction:row;gap:2px;padding:3px 4px;background:rgba(5,10,20,0.82);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.15);border-radius:8px">
+          <div id="v3d-tier-row" style="display:flex;flex-direction:row;gap:2px;padding:0 4px;background:rgba(5,10,20,0.82);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.15);border-radius:8px;max-height:0;opacity:0;overflow:hidden;transition:max-height .25s ease,opacity .2s ease,padding .25s ease">
             <button id="v3d-tier-0" onclick="toggleTier3D(0)" style="width:22px;height:22px;border-radius:4px;border:1.5px solid #00F8FF;background:#00F8FF;color:#000;font-size:9px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Blue 20-30 dBZ">✓</button>
             <button id="v3d-tier-1" onclick="toggleTier3D(1)" style="width:22px;height:22px;border-radius:4px;border:1.5px solid #00FF39;background:#00FF39;color:#000;font-size:9px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Green 31-40 dBZ">✓</button>
             <button id="v3d-tier-2" onclick="toggleTier3D(2)" style="width:22px;height:22px;border-radius:4px;border:1.5px solid #F5FF00;background:#F5FF00;color:#000;font-size:9px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Yellow 41-45 dBZ">✓</button>
