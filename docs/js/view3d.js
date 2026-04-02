@@ -34,7 +34,10 @@ var V3D = {
   rafId: null,
   metric: false,
   _labelsVisible: localStorage.getItem('v3d_labels') !== 'off',
-  _cloudsVisible: localStorage.getItem('v3d_clouds') === 'on',
+  _tierFilter: (function () {
+    try { var s = localStorage.getItem('v3d_tiers'); if (s) { var a = JSON.parse(s); if (a.length === 6) return a; } } catch (e) {}
+    return [true, true, true, true, true, true];
+  })(),
   _cloudModels: {}
 };
 
@@ -48,15 +51,28 @@ function toggle3DLabels() {
   });
 }
 
-function toggle3DClouds() {
-  V3D._cloudsVisible = !V3D._cloudsVisible;
-  localStorage.setItem('v3d_clouds', V3D._cloudsVisible ? 'on' : 'off');
-  var btn = document.getElementById('v3d-cloud-toggle');
-  if (btn) {
-    btn.style.borderColor = V3D._cloudsVisible ? 'rgba(0,200,255,0.25)' : 'rgba(255,100,100,0.35)';
-    btn.textContent = V3D._cloudsVisible ? 'Clouds ✓' : 'Clouds';
-  }
+var _TIER_COLORS = ['#00F8FF','#00FF39','#F5FF00','#FFB200','#FF0200','#FF00F5'];
+var _TIER_LETTERS = ['B','G','Y','O','R','M'];
+
+function toggleTier3D(idx) {
+  var onCount = V3D._tierFilter.reduce(function (s, v) { return s + (v ? 1 : 0); }, 0);
+  if (V3D._tierFilter[idx] && onCount <= 1) return;
+  V3D._tierFilter[idx] = !V3D._tierFilter[idx];
+  localStorage.setItem('v3d_tiers', JSON.stringify(V3D._tierFilter));
+  syncTierButtons3D();
   rebuildStorms3D();
+}
+
+function syncTierButtons3D() {
+  for (var i = 0; i < 6; i++) {
+    var el = document.getElementById('v3d-tier-' + i);
+    if (el) {
+      el.style.background = V3D._tierFilter[i] ? _TIER_COLORS[i] : 'rgba(5,10,20,0.78)';
+      el.style.color = V3D._tierFilter[i] ? '#000' : _TIER_COLORS[i];
+      el.style.borderColor = V3D._tierFilter[i] ? _TIER_COLORS[i] : 'rgba(255,255,255,0.15)';
+      el.textContent = V3D._tierFilter[i] ? '✓' : _TIER_LETTERS[i];
+    }
+  }
 }
 
 var _CLOUD_MODEL_NAMES = ['cloud_blue','cloud_green','cloud_yellow','cloud_orange','cloud_red','cloud_magenta'];
@@ -797,9 +813,10 @@ function rebuildStorms3D() {
   if (!storms.length) return;
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
   var showLabels = V3D._labelsVisible !== false;
-  var showClouds = V3D._cloudsVisible;
   var coneIdx = 0;
   storms.forEach(function (cell) {
+    var tierIdx = _cloudTierIdx(cell.dbz);
+    if (!V3D._tierFilter[tierIdx]) return;
     var lon = cell.lon || cell.lng;
     var lat = cell.lat;
     var sp = geoToScene3D(lat, lon);
@@ -808,9 +825,7 @@ function rebuildStorms3D() {
     var cl = makeCloudGroup3D(cell.dbz, cell.hookEcho, surfWind);
     var alt = cloudBase + cl.r;
 
-    if (showClouds) {
-      cl.grp.position.set(sp.x, alt, sp.z); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
-    }
+    cl.grp.position.set(sp.x, alt, sp.z); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
 
     var pt = null;
     if (cell.dbz >= 40) {
@@ -839,13 +854,13 @@ function rebuildStorms3D() {
     }
 
     var rain = null;
-    if (showClouds && cell.dbz >= 33) {
+    if (cell.dbz >= 33) {
       var terrainBase = sampleTerrainHeight3D(sp.x, sp.z);
       rain = makeRain3D(cell.dbz, cl.r, terrainBase); rain.position.set(sp.x, alt, sp.z); V3D.stormGroup.add(rain);
     }
 
     var ltTimer = null;
-    if (showClouds && cell.dbz >= 45) {
+    if (cell.dbz >= 45) {
       var sx = sp.x, sz2 = sp.z, altR = alt + cl.r, rr = cl.r;
       ltTimer = setInterval(function () {
         if (!V3D.active) return;
@@ -1050,11 +1065,7 @@ async function activate3DView() {
   if (V3D._startMarkerPulse && !V3D._markerRAF) V3D._startMarkerPulse();
   var lblBtn = document.getElementById('v3d-label-toggle');
   if (lblBtn) lblBtn.style.borderColor = V3D._labelsVisible ? 'rgba(0,200,255,0.25)' : 'rgba(255,100,100,0.35)';
-  var cldBtn = document.getElementById('v3d-cloud-toggle');
-  if (cldBtn) {
-    cldBtn.style.borderColor = V3D._cloudsVisible ? 'rgba(0,200,255,0.25)' : 'rgba(255,100,100,0.35)';
-    cldBtn.textContent = V3D._cloudsVisible ? 'Clouds ✓' : 'Clouds';
-  }
+  syncTierButtons3D();
 
   if (!V3D.ready) {
     var loadEl = document.getElementById('v3d-loading');
