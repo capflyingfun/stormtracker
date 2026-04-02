@@ -1200,7 +1200,6 @@ function loop3D() {
   _cosMax = Math.max(-1, Math.min(1, _cosMax));
   V3D.controls.maxPolarAngle = Math.min(Math.PI * 0.85, Math.acos(_cosMax));
   V3D.controls.update();
-  if (V3D.camera.position.y < 0.001) V3D.camera.position.y = 0.001;
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
   V3D.stormMeshes.forEach(function (sm) { animRain3D(sm.rain, surfWind); sm.mesh.position.y += Math.sin(V3D.frame * 0.015 + sm.mesh.id) * 0.0002; });
   if (V3D.frame % 2 === 0) animWind3D();
