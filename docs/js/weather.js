@@ -203,7 +203,7 @@ async function fetchWeather(){
       }
     }catch(e){console.log('Multi-source blend failed:',e.message)}
     if(reqId!==S._locReqId)return;
-    S.weather=omData.current;S._lastWeatherFetch=Date.now();S._lastWeatherData=omData;_resetMinMax();renderWeather(omData);if(typeof updateThreatTicker==='function')updateThreatTicker();if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);
+    S.weather=omData.current;S._lastWeatherFetch=Date.now();S._lastWeatherData=omData;_resetMinMax();renderWeather(omData);if(typeof updateThreatTicker==='function')updateThreatTicker();if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);if(typeof V3D!=='undefined'&&V3D.active&&typeof refreshSky3D==='function')refreshSky3D();
   }catch(e){
     if(reqId!==S._locReqId)return;
     if(typeof hideLoadingScreen==='function')hideLoadingScreen();
