@@ -44,6 +44,7 @@ var V3D = {
   _sharedLabelTextures: {},
   _lightningCells: [],
   _lightningFlashes: [],
+  _rainRerollInterval: null,
   _etaSprites: [],
   _etaInterval: null,
   glowLevel: 1,
@@ -791,6 +792,7 @@ function clearStorms3D() {
   V3D._lightningCells = [];
   V3D._lightningFlashes = [];
   if (V3D._etaInterval) { clearInterval(V3D._etaInterval); V3D._etaInterval = null; }
+  if (V3D._rainRerollInterval) { clearInterval(V3D._rainRerollInterval); V3D._rainRerollInterval = null; }
   clearGroup3D(V3D.stormGroup);
   clearGroup3D(V3D.coneGroup);
 }
@@ -1065,6 +1067,37 @@ function sonarZones3D() {
   return out;
 }
 
+function _rainProb(dbz) {
+  if (dbz < 20) return 0;
+  if (dbz >= 50) return 1;
+  return Math.min(1, (dbz - 20) / 30 * 0.9 + 0.1);
+}
+
+function _rerollRain() {
+  if (!V3D.active || !V3D.stormMeshes.length) return;
+  var desktop = _isDesktop();
+  var batchSize = Math.max(1, Math.ceil(V3D.stormMeshes.length / 6));
+  var offset = V3D._rainRerollOffset || 0;
+  var end = Math.min(offset + batchSize, V3D.stormMeshes.length);
+  for (var i = offset; i < end; i++) {
+    var sm = V3D.stormMeshes[i];
+    if (!sm.cell) continue;
+    var dbz = sm.cell.dbz;
+    if (dbz >= 50) continue;
+    if (dbz < 20) { if (sm.rain) sm.rain.visible = false; sm._showRain = false; continue; }
+    var p = _rainProb(dbz);
+    sm._showRain = Math.random() < p;
+    if (sm.rain) sm.rain.visible = sm._showRain;
+  }
+  V3D._rainRerollOffset = end >= V3D.stormMeshes.length ? 0 : end;
+}
+
+function _startRainReroll() {
+  if (V3D._rainRerollInterval) clearInterval(V3D._rainRerollInterval);
+  V3D._rainRerollOffset = 0;
+  V3D._rainRerollInterval = setInterval(_rerollRain, 5000);
+}
+
 function _tickLightning() {
   if (!V3D._lightningCells.length) return;
   var maxFlash = _isDesktop() ? 5 : 3;
@@ -1104,7 +1137,7 @@ function _updateLOD() {
     var dx = mp.x - camPos.x, dz = mp.z - camPos.z;
     var d = Math.sqrt(dx * dx + dz * dz);
     var far = d > lodScene;
-    if (sm.rain) sm.rain.visible = !far;
+    if (sm.rain) sm.rain.visible = !far && sm._showRain !== false;
     if (sm.halo) sm.halo.visible = !far;
     if (sm.label && V3D._labelsVisible) sm.label.visible = !far;
   });
@@ -1146,13 +1179,14 @@ function rebuildStorms3D() {
       haloMesh.rotation.x = -Math.PI / 2; haloMesh.position.set(sp.x, haloBaseH + 0.015, sp.z); haloMesh.renderOrder = 2; V3D.stormGroup.add(haloMesh);
     }
 
-    var _wantRain = cell.dbz >= 40 || (cell.dbz >= 33 && Math.random() < 0.35);
-    if (_wantRain && (desktop || cell.dbz >= 35)) {
-      _rainCandidates.push({ meshIdx: V3D.stormMeshes.length, dkm: dkm, sp: sp, alt: alt, r: cl.r, dbz: cell.dbz });
+    var rp = _rainProb(cell.dbz);
+    if (rp > 0 && Math.random() < rp) {
+      _rainCandidates.push({ meshIdx: V3D.stormMeshes.length, dkm: dkm, sp: sp, alt: alt, r: cl.r, dbz: cell.dbz, showRain: true });
     }
 
     if (cell.dbz >= 40 && (desktop || cell.dbz >= 45)) {
-      V3D._lightningCells.push({ meshIdx: V3D.stormMeshes.length, prob: Math.min(0.9, 0.35 + (cell.dbz - 40) * 0.015), dkm: dkm });
+      var ltWeight = Math.pow((cell.dbz - 40) / 30, 1.5) * 0.8 + 0.1;
+      V3D._lightningCells.push({ meshIdx: V3D.stormMeshes.length, prob: Math.min(0.95, ltWeight), dkm: dkm });
     }
 
     var lspr = null;
@@ -1168,7 +1202,7 @@ function rebuildStorms3D() {
     }
 
     var cellForCone = { lat: lat, lon: lon, dbz: cell.dbz, distance: cell.distance, bearing: cell.bearing || bearingDeg3D(S.lat, S.lon, lat, lon) };
-    V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, rain: null, label: lspr, halo: haloMesh, dkm: dkm });
+    V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, rain: null, label: lspr, halo: haloMesh, dkm: dkm, _showRain: false });
     if (cell.dbz >= 35) {
       var q = _qualifyCone3D(cellForCone, sp);
       if (q) { _coneCandidates.push(q); }
@@ -1183,6 +1217,7 @@ function rebuildStorms3D() {
     rain.position.set(rc.sp.x, rc.alt, rc.sp.z);
     V3D.stormGroup.add(rain);
     V3D.stormMeshes[rc.meshIdx].rain = rain;
+    V3D.stormMeshes[rc.meshIdx]._showRain = true;
   }
   _coneCandidates.sort(function (a, b) { return a.dkm - b.dkm; });
   var coneMax = Math.min(_coneCandidates.length, 12);
@@ -1199,6 +1234,7 @@ function rebuildStorms3D() {
   }
   V3D._etaCandidates = [];
   _startEtaInterval();
+  _startRainReroll();
   _updateLOD();
 }
 
