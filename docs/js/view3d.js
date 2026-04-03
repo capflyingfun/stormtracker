@@ -179,10 +179,10 @@ function _getSharedHaloTexture(tierIdx) {
 }
 
 function _getSharedLabelTexture(dbz) {
-  var key = Math.round(dbz);
+  var key = Math.floor(dbz / 5) * 5;
   if (V3D._sharedLabelTextures[key]) return V3D._sharedLabelTextures[key];
-  var text = key + ' dBZ';
-  var color = dbzCat3D(dbz).col;
+  var text = key + '+ dBZ';
+  var color = dbzCat3D(key + 2).col;
   var cw = 128, ch = 64;
   var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
   var cx = cv.getContext('2d'); cx.clearRect(0, 0, cw, ch);
@@ -1069,6 +1069,7 @@ function sonarZones3D() {
 function _tickLightning() {
   if (!V3D._lightningCells.length) return;
   var maxFlash = _isDesktop() ? 5 : 3;
+  var lodDist = _isDesktop() ? 9999 : 40;
   var i = V3D._lightningFlashes.length;
   while (i--) {
     var f = V3D._lightningFlashes[i];
@@ -1082,6 +1083,7 @@ function _tickLightning() {
     for (var j = 0; j < V3D._lightningCells.length; j++) {
       if (V3D._lightningFlashes.length >= maxFlash) break;
       var lc = V3D._lightningCells[j];
+      if (lc.dkm > lodDist) continue;
       if (Math.random() < lc.prob * 0.08) {
         var sm2 = V3D.stormMeshes[lc.meshIdx];
         if (sm2 && sm2.mesh && sm2.mesh.material !== V3D._flashMaterial) {
@@ -1119,8 +1121,7 @@ function rebuildStorms3D() {
   var showLabels = V3D._labelsVisible !== false;
   var desktop = _isDesktop();
   var _coneCandidates = [];
-  var rainCount = 0;
-  var maxRainCells = desktop ? 999 : 20;
+  var _rainCandidates = [];
   storms.forEach(function (cell) {
     var tierIdx = _cloudTierIdx(cell.dbz);
     if (!V3D._tierFilter[tierIdx]) return;
@@ -1146,16 +1147,13 @@ function rebuildStorms3D() {
       haloMesh.rotation.x = -Math.PI / 2; haloMesh.position.set(sp.x, haloBaseH + 0.015, sp.z); haloMesh.renderOrder = 2; V3D.stormGroup.add(haloMesh);
     }
 
-    var rain = null;
     var _wantRain = cell.dbz >= 40 || (cell.dbz >= 33 && Math.random() < 0.35);
-    if (_wantRain && (desktop || cell.dbz >= 35) && rainCount < maxRainCells) {
-      var terrainBase = sampleTerrainHeight3D(sp.x, sp.z);
-      rain = makeRain3D(cell.dbz, cl.r, terrainBase); rain.position.set(sp.x, alt, sp.z); V3D.stormGroup.add(rain);
-      rainCount++;
+    if (_wantRain && (desktop || cell.dbz >= 35)) {
+      _rainCandidates.push({ meshIdx: V3D.stormMeshes.length, dkm: dkm, sp: sp, alt: alt, r: cl.r, dbz: cell.dbz });
     }
 
     if (cell.dbz >= 40 && (desktop || cell.dbz >= 45)) {
-      V3D._lightningCells.push({ meshIdx: V3D.stormMeshes.length, prob: Math.min(0.9, 0.35 + (cell.dbz - 40) * 0.015) });
+      V3D._lightningCells.push({ meshIdx: V3D.stormMeshes.length, prob: Math.min(0.9, 0.35 + (cell.dbz - 40) * 0.015), dkm: dkm });
     }
 
     var lspr = null;
@@ -1171,12 +1169,22 @@ function rebuildStorms3D() {
     }
 
     var cellForCone = { lat: lat, lon: lon, dbz: cell.dbz, distance: cell.distance, bearing: cell.bearing || bearingDeg3D(S.lat, S.lon, lat, lon) };
-    V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, rain: rain, label: lspr, halo: haloMesh, dkm: dkm });
+    V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, rain: null, label: lspr, halo: haloMesh, dkm: dkm });
     if (cell.dbz >= 35) {
       var q = _qualifyCone3D(cellForCone, sp);
       if (q) { _coneCandidates.push(q); }
     }
   });
+  _rainCandidates.sort(function (a, b) { return a.dkm - b.dkm; });
+  var maxRainCells = desktop ? _rainCandidates.length : 20;
+  for (var ri = 0; ri < Math.min(_rainCandidates.length, maxRainCells); ri++) {
+    var rc = _rainCandidates[ri];
+    var terrainBase = sampleTerrainHeight3D(rc.sp.x, rc.sp.z);
+    var rain = makeRain3D(rc.dbz, rc.r, terrainBase);
+    rain.position.set(rc.sp.x, rc.alt, rc.sp.z);
+    V3D.stormGroup.add(rain);
+    V3D.stormMeshes[rc.meshIdx].rain = rain;
+  }
   _coneCandidates.sort(function (a, b) { return a.dkm - b.dkm; });
   var coneMax = Math.min(_coneCandidates.length, 12);
   for (var ci = 0; ci < coneMax; ci++) { _renderCone3D(_coneCandidates[ci], ci); }
