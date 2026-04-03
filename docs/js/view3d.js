@@ -684,11 +684,11 @@ function buildUserMarker3D() {
   var grp = new THREE.Group();
   var gem = new THREE.OctahedronGeometry(0.35, 0);
   gem.scale(1, 1.6, 1);
-  var mat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false });
+  var mat = new THREE.MeshBasicMaterial({ color: 0x0036FF, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false });
   var diamond = new THREE.Mesh(gem, mat);
   var wireGeo = new THREE.OctahedronGeometry(0.38, 0);
   wireGeo.scale(1, 1.6, 1);
-  var wire = new THREE.Mesh(wireGeo, new THREE.MeshBasicMaterial({ color: 0x80f4ff, transparent: true, opacity: 0.35, wireframe: true, depthWrite: false }));
+  var wire = new THREE.Mesh(wireGeo, new THREE.MeshBasicMaterial({ color: 0x4488FF, transparent: true, opacity: 0.35, wireframe: true, depthWrite: false }));
   grp.add(diamond); grp.add(wire);
   grp.position.set(0, 1.2, 0); grp.renderOrder = 6; V3D.scene.add(grp);
   V3D._markerGrp = grp;
@@ -758,7 +758,7 @@ function makeCloudGroup3D(dbz) {
   var tintCol = new THREE.Color(_TIER_TINT_COLORS[tierIdx]);
   var cat = dbzCat3D(dbz);
   var baseCol = new THREE.Color(cat.col);
-  baseCol.lerp(tintCol, 0.5);
+  baseCol.lerp(tintCol, 0.2);
   var bright = 0.6 + (dbz / 100) * 0.6;
   baseCol.multiplyScalar(bright);
   var white = new THREE.Color(1, 1, 1);
