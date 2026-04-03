@@ -43,8 +43,13 @@ var V3D = {
   _etaSprites: [],
   _etaInterval: null,
   glowLevel: 1,
-  _markerGrp: null
+  _markerGrp: null,
+  _dayGlowMult: 1.0,
+  _lightingMode: localStorage.getItem('st_3dLighting') || 'auto',
+  _sunMoonSprite: null
 };
+
+var _TIER_TINT_COLORS = [0x88ccff, 0x44ff88, 0xffee44, 0xff8800, 0xff2222, 0xcc00ff];
 
 function toggle3DLabels() {
   V3D._labelsVisible = !V3D._labelsVisible;
@@ -58,11 +63,28 @@ function setGlowLevel3D(val) {
   V3D.glowLevel = Math.max(0, Math.min(3, parseInt(val) || 0));
   var lbl = document.getElementById('v3d-lt-val');
   if (lbl) lbl.textContent = V3D.glowLevel;
+  _applyGlowIntensity();
+}
+function _applyGlowIntensity() {
+  var mult = V3D.glowLevel * V3D._dayGlowMult;
   V3D.stormMeshes.forEach(function (sm) {
     sm.lights.forEach(function (gl) {
-      gl.light.intensity = gl.baseIntensity * V3D.glowLevel;
+      gl.light.intensity = gl.baseIntensity * mult;
     });
   });
+}
+
+function cycleLightingMode3D() {
+  var modes = ['auto', 'day', 'night', 'golden'];
+  var labels = ['🌐 Auto', '☀️ Day', '🌙 Night', '🌅 Golden'];
+  var idx = modes.indexOf(V3D._lightingMode);
+  idx = (idx + 1) % modes.length;
+  V3D._lightingMode = modes[idx];
+  localStorage.setItem('st_3dLighting', V3D._lightingMode);
+  var btn = document.getElementById('v3d-lighting-btn');
+  if (btn) btn.textContent = labels[idx];
+  refreshSky3D();
+  _applyGlowIntensity();
 }
 
 function toggleFilterPanel3D() {
@@ -468,6 +490,13 @@ function buildSky3D() {
   V3D.skyDome = new THREE.Mesh(geo, V3D.skyMat); V3D.scene.add(V3D.skyDome);
 }
 
+function _getSkyPeriod(now, rise, set) {
+  if (now < rise - 3600 || now > set + 3600) return 'night';
+  if (now < rise + 2400) return 'dawn';
+  if (now < set - 2400) return 'day';
+  return 'dusk';
+}
+
 function refreshSky3D() {
   var now = Date.now() / 1000;
   var rise = 0, set = 0;
@@ -477,37 +506,98 @@ function refreshSky3D() {
     if (wd && wd.daily && wd.daily.sunset && wd.daily.sunset[0]) set = new Date(wd.daily.sunset[0]).getTime() / 1000;
   } catch (e) { }
   if (!rise || !set) {
-    var h = new Date().getHours();
     var today = new Date(); today.setHours(6, 30, 0, 0); rise = today.getTime() / 1000;
     var today2 = new Date(); today2.setHours(19, 30, 0, 0); set = today2.getTime() / 1000;
   }
+
+  var period = _getSkyPeriod(now, rise, set);
+  var mode = V3D._lightingMode;
+  if (mode === 'day') { period = 'day'; }
+  else if (mode === 'night') { period = 'night'; }
+  else if (mode === 'golden') { period = 'dawn'; }
+
   var cloud = Math.min(1, (S.weather && S.weather.cloud_cover || 0) / 100);
   var topC = new THREE.Color(), horizC = new THREE.Color(), groundC = new THREE.Color(0x060d18);
-  if (now < rise - 3600 || now > set + 3600) {
+
+  if (period === 'night') {
     topC.setHex(0x010408); horizC.setHex(0x050e20); groundC.setHex(0x030608);
     V3D.sunLight.intensity = 0.08; V3D.sunLight.color.setHex(0x3355aa); V3D.ambientLight.intensity = 0.4;
-  } else if (now < rise + 2400) {
-    var d = Math.max(0, Math.min(1, (now - rise + 3600) / 5000));
+    V3D._dayGlowMult = 1.0;
+  } else if (period === 'dawn') {
+    var d = (mode !== 'auto') ? 0.6 : Math.max(0, Math.min(1, (now - rise + 3600) / 5000));
     topC.lerpColors(new THREE.Color(0x020510), new THREE.Color(0x2060b8), d);
     horizC.lerpColors(new THREE.Color(0xaa3818), new THREE.Color(0x6090c8), d);
     groundC.lerpColors(new THREE.Color(0x030608), new THREE.Color(0x0a1525), d);
     V3D.sunLight.intensity = 0.2 + d * 1.2; V3D.sunLight.color.setHex(0xffaa66); V3D.ambientLight.intensity = 0.5 + d * 0.9;
-  } else if (now < set - 2400) {
+    V3D._dayGlowMult = 0.7;
+  } else if (period === 'day') {
     topC.setHex(0x1a6edd); horizC.setHex(0x70aae8);
     groundC.setHex(0x0e1e30);
     V3D.sunLight.intensity = Math.max(0.6, 1.8 - cloud * 0.7); V3D.sunLight.color.setHex(0xfff4d6);
     V3D.ambientLight.intensity = Math.max(0.8, 1.6 - cloud * 0.5);
     V3D.ambientLight.color.setHex(0x8ab4e0);
+    V3D._dayGlowMult = 0.4;
   } else {
-    var d = Math.max(0, Math.min(1, 1 - (now - (set - 2400)) / 4200));
+    var d = (mode !== 'auto') ? 0.6 : Math.max(0, Math.min(1, 1 - (now - (set - 2400)) / 4200));
     topC.lerpColors(new THREE.Color(0x020510), new THREE.Color(0x2060b8), d);
     horizC.lerpColors(new THREE.Color(0xaa3818), new THREE.Color(0x6090c8), d);
     groundC.lerpColors(new THREE.Color(0x030608), new THREE.Color(0x0a1525), d);
     V3D.sunLight.intensity = 0.2 + d * 1.2; V3D.sunLight.color.setHex(0xff8040); V3D.ambientLight.intensity = 0.5 + d * 0.9;
+    V3D._dayGlowMult = 0.7;
   }
+
   if (cloud > 0.3) { topC.lerp(new THREE.Color(0x3a4858), cloud * 0.5); horizC.lerp(new THREE.Color(0x506878), cloud * 0.4); }
   V3D.skyMat.uniforms.uTop.value.copy(topC); V3D.skyMat.uniforms.uHorizon.value.copy(horizC);
   V3D.skyMat.uniforms.uGround.value.copy(groundC); V3D.scene.fog.color.copy(horizC);
+
+  _updateSunMoonSprite(period, now, rise, set);
+  _applyGlowIntensity();
+}
+
+function _updateSunMoonSprite(period, now, rise, set) {
+  if (!V3D.scene) return;
+  if (V3D._sunMoonSprite) {
+    V3D.scene.remove(V3D._sunMoonSprite);
+    if (V3D._sunMoonSprite.material) V3D._sunMoonSprite.material.dispose();
+    V3D._sunMoonSprite = null;
+  }
+
+  var isNight = (period === 'night');
+  if (!V3D._sunMoonTex) {
+    var cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
+    var cx = cv.getContext('2d');
+    var grad = cx.createRadialGradient(32, 32, 0, 32, 32, 28);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.3, 'rgba(255,255,255,0.6)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    cx.fillStyle = grad; cx.fillRect(0, 0, 64, 64);
+    V3D._sunMoonTex = new THREE.CanvasTexture(cv);
+  }
+
+  var col = isNight ? new THREE.Color(0xc0d0ff) : new THREE.Color(0xfff0a0);
+  var mat = new THREE.SpriteMaterial({ map: V3D._sunMoonTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: col });
+  var spr = new THREE.Sprite(mat);
+  spr.scale.set(isNight ? 30 : 45, isNight ? 30 : 45, 1);
+  spr.renderOrder = 1;
+
+  var dayLen = set - rise;
+  var t, elev, azRad;
+  if (isNight) {
+    var nightLen = 86400 - dayLen;
+    var nightT = (now > set) ? (now - set) / nightLen : (now - set + 86400) / nightLen;
+    t = Math.min(1, Math.max(0, nightT));
+    elev = Math.sin(Math.PI * t) * 0.6;
+    azRad = Math.PI * 0.8 - t * Math.PI * 1.6;
+  } else {
+    t = Math.max(0, Math.min(1, (now - rise) / dayLen));
+    elev = Math.sin(Math.PI * t);
+    azRad = Math.PI * 0.8 - t * Math.PI * 1.6;
+  }
+
+  var skyR = 180;
+  spr.position.set(Math.sin(azRad) * skyR * 0.6, skyR * elev * 0.55 + 10, Math.cos(azRad) * skyR * 0.6);
+  V3D.scene.add(spr);
+  V3D._sunMoonSprite = spr;
 }
 
 // =====================================================
@@ -683,6 +773,7 @@ function makeCloudGroup3D(dbz, hookEcho, windDir) {
   var mobileScale = _isDesktop() ? 1.0 : 2.6;
   baseR *= mobileScale;
   var tierIdx = _cloudTierIdx(dbz);
+  var tintCol = new THREE.Color(_TIER_TINT_COLORS[tierIdx]);
   var template = V3D._cloudModels[tierIdx];
   if (template) {
     var grp = template.clone();
@@ -690,9 +781,11 @@ function makeCloudGroup3D(dbz, hookEcho, windDir) {
     grp.traverse(function (child) {
       if (child.isMesh) {
         if (!V3D._tierMaterials[tierIdx]) {
-          V3D._tierMaterials[tierIdx] = child.material.clone();
-          V3D._tierMaterials[tierIdx].transparent = true;
-          V3D._tierMaterials[tierIdx].depthWrite = true;
+          var m = child.material.clone();
+          m.transparent = true;
+          m.depthWrite = true;
+          m.color.lerp(tintCol, 0.5);
+          V3D._tierMaterials[tierIdx] = m;
         }
         child.material = V3D._tierMaterials[tierIdx];
         child.renderOrder = 4;
@@ -989,7 +1082,7 @@ function rebuildStorms3D() {
     if (cell.dbz >= 20) {
       var glowCol = new THREE.Color(dbzHex3D(cell.dbz));
       var _glowBase = (cell.dbz / 100) * 2;
-      var glowPt = new THREE.PointLight(glowCol, _glowBase * V3D.glowLevel, Math.max(4, cell.dbz * 0.15) + dkm * 0.08);
+      var glowPt = new THREE.PointLight(glowCol, _glowBase * V3D.glowLevel * V3D._dayGlowMult, Math.max(4, cell.dbz * 0.15) + dkm * 0.08);
       glowPt.position.set(sp.x, alt + cl.r * 0.3, sp.z); V3D.stormGroup.add(glowPt);
       _glowLights.push({ light: glowPt, baseIntensity: _glowBase });
     }
@@ -1281,6 +1374,7 @@ async function activate3DView() {
     await buildMapGround3D(S.lat, S.lon);
     _v3dLoading = false;
     refreshSky3D();
+    _initLightingBtn();
     rebuildStorms3D();
     rebuildWind3D();
     refreshHUD3D();
@@ -1301,11 +1395,21 @@ async function activate3DView() {
   }
 
   refreshSky3D();
+  _initLightingBtn();
   rebuildStorms3D();
   rebuildWind3D();
   refreshHUD3D();
   onResize3D();
   if (!V3D.rafId) loop3D();
+}
+
+function _initLightingBtn() {
+  var modes = ['auto', 'day', 'night', 'golden'];
+  var labels = ['🌐 Auto', '☀️ Day', '🌙 Night', '🌅 Golden'];
+  var idx = modes.indexOf(V3D._lightingMode);
+  if (idx < 0) idx = 0;
+  var btn = document.getElementById('v3d-lighting-btn');
+  if (btn) btn.textContent = labels[idx];
 }
 
 function deactivate3DView() {
