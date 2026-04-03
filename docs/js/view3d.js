@@ -117,12 +117,15 @@ function _setCamMode(mode) {
   localStorage.setItem('v3d_camMode', mode);
   var btn = document.getElementById('v3d-cam-mode-btn');
   if (mode === 'fixed') {
+    V3D.controls.target.set(0, 0.15, 0);
     V3D.camera.position.set(0, 0.15, 0.001);
-    V3D.controls.target.set(0, 0.15, -1);
     V3D.controls.enablePan = false;
     V3D.controls.enableZoom = false;
+    V3D.controls.minDistance = 0.001;
+    V3D.controls.maxDistance = 0.001;
     if (V3D._markerGrp) V3D._markerGrp.visible = false;
     if (btn) btn.textContent = '📌 Fixed';
+    _updateFovLabel();
     _initFovZoom();
   } else {
     V3D._fov = 72;
@@ -143,6 +146,7 @@ function _setCamMode(mode) {
       V3D._markerGrp.visible = opFactor > 0.01;
     }
     if (btn) btn.textContent = '🔓 Free';
+    _updateFovLabel();
     _removeFovZoom();
   }
   V3D.controls.update();
@@ -182,6 +186,18 @@ function _setFov(val) {
   V3D._fov = fov;
   localStorage.setItem('v3d_fov', fov);
   if (V3D.camera) { V3D.camera.fov = fov; V3D.camera.updateProjectionMatrix(); }
+  _updateFovLabel();
+}
+
+function _updateFovLabel() {
+  var lbl = document.getElementById('v3d-fov-val');
+  if (!lbl) return;
+  if (V3D._camMode === 'fixed') {
+    lbl.textContent = V3D._fov + '°';
+    lbl.style.display = '';
+  } else {
+    lbl.style.display = 'none';
+  }
 }
 
 function _initFovZoom() {
