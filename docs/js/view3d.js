@@ -51,7 +51,8 @@ var V3D = {
   _markerGrp: null,
   _dayGlowMult: 1.0,
   _lightingMode: localStorage.getItem('st_3dLighting') || 'auto',
-  _sunMoonSprite: null
+  _sunMoonSprite: null,
+  _sunMoonTex: null
 };
 
 var _TIER_TINT_COLORS = [0x88ccff, 0x44ff88, 0xffee44, 0xff8800, 0xff2222, 0xcc00ff];
@@ -578,54 +579,7 @@ function refreshSky3D() {
   V3D.skyMat.uniforms.uTop.value.copy(topC); V3D.skyMat.uniforms.uHorizon.value.copy(horizC);
   V3D.skyMat.uniforms.uGround.value.copy(groundC); V3D.scene.fog.color.copy(horizC);
 
-  _updateSunMoonSprite(period, now, rise, set);
   _applyGlowIntensity();
-}
-
-function _updateSunMoonSprite(period, now, rise, set) {
-  if (!V3D.scene) return;
-  if (V3D._sunMoonSprite) {
-    V3D.scene.remove(V3D._sunMoonSprite);
-    if (V3D._sunMoonSprite.material) V3D._sunMoonSprite.material.dispose();
-    V3D._sunMoonSprite = null;
-  }
-
-  var isNight = (period === 'night');
-  if (!V3D._sunMoonTex) {
-    var cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
-    var cx = cv.getContext('2d');
-    var grad = cx.createRadialGradient(32, 32, 0, 32, 32, 28);
-    grad.addColorStop(0, 'rgba(255,255,255,1)');
-    grad.addColorStop(0.3, 'rgba(255,255,255,0.6)');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
-    cx.fillStyle = grad; cx.fillRect(0, 0, 64, 64);
-    V3D._sunMoonTex = new THREE.CanvasTexture(cv);
-  }
-
-  var col = isNight ? new THREE.Color(0xc0d0ff) : new THREE.Color(0xfff0a0);
-  var mat = new THREE.SpriteMaterial({ map: V3D._sunMoonTex, transparent: true, depthWrite: false, opacity: isNight ? 0.6 : 0.8, color: col });
-  var spr = new THREE.Sprite(mat);
-  spr.scale.set(isNight ? 18 : 28, isNight ? 18 : 28, 1);
-  spr.renderOrder = 1;
-
-  var dayLen = set - rise;
-  var t, elev, azRad;
-  if (isNight) {
-    var nightLen = 86400 - dayLen;
-    var nightT = (now > set) ? (now - set) / nightLen : (now - set + 86400) / nightLen;
-    t = Math.min(1, Math.max(0, nightT));
-    elev = Math.sin(Math.PI * t) * 0.6;
-    azRad = Math.PI * 0.8 - t * Math.PI * 1.6;
-  } else {
-    t = Math.max(0, Math.min(1, (now - rise) / dayLen));
-    elev = Math.sin(Math.PI * t);
-    azRad = Math.PI * 0.8 - t * Math.PI * 1.6;
-  }
-
-  var skyR = 180;
-  spr.position.set(Math.sin(azRad) * skyR * 0.6, skyR * elev * 0.55 + 10, Math.cos(azRad) * skyR * 0.6);
-  V3D.scene.add(spr);
-  V3D._sunMoonSprite = spr;
 }
 
 // =====================================================
@@ -979,7 +933,7 @@ function getCloudBase3D() {
   return 1.5;
 }
 
-var _HEX3D_SIZE = 9 / Math.sqrt(3);
+var _HEX3D_SIZE = 6 / Math.sqrt(3);
 function _llToXY3D(lat, lon, cLat, cLon) {
   var dy = (lat - cLat) * 69.172;
   var dx = (lon - cLon) * 69.172 * Math.cos(cLat * Math.PI / 180);
