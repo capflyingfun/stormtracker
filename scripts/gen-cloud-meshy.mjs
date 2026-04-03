@@ -6,12 +6,12 @@ if (!API_KEY) { console.error('MESHY_AI_API_KEY not set'); process.exit(1); }
 const BASE = 'https://api.meshy.ai/openapi/v2';
 
 const TIERS = [
-  { name: 'cloud_blue', prompt: 'Small flat cumulus cloud, light airy, translucent cyan-blue glow, neon tint #00F8FF, low poly game asset, no background, centered', negative: 'ground, rain, lightning, text, human' },
-  { name: 'cloud_green', prompt: 'Medium cumulus cloud with slight vertical development, translucent neon green glow #00FF39, low poly game asset, no background, centered', negative: 'ground, rain, lightning, text, human' },
-  { name: 'cloud_yellow', prompt: 'Towering cumulus cloud, tall vertical development, translucent neon yellow glow #F5FF00, low poly game asset, no background, centered', negative: 'ground, rain, lightning, text, human' },
-  { name: 'cloud_orange', prompt: 'Cumulonimbus storm cloud with flat anvil top, dark base, translucent neon orange glow #FFB200, dramatic, low poly game asset, no background, centered', negative: 'ground, text, human' },
-  { name: 'cloud_red', prompt: 'Severe supercell storm cloud, massive anvil, rotating updraft, dark menacing base, translucent neon red glow #FF0200, low poly game asset, no background, centered', negative: 'ground, text, human' },
-  { name: 'cloud_magenta', prompt: 'Extreme supercell thunderstorm cloud, enormous anvil overshooting top, very dark base with wall cloud, translucent neon magenta glow #FF00F5, low poly game asset, no background, centered', negative: 'ground, text, human' },
+  { name: 'cloud_blue', prompt: 'Small puffy cumulus cloud, soft white cotton ball shape, gentle rounded form, smooth surface, realistic cloud, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, cartoon, low poly' },
+  { name: 'cloud_green', prompt: 'Medium cumulus congestus cloud, tall white billowing tower, flat gray base, vertical development, smooth cauliflower texture, realistic cloud, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, cartoon, low poly' },
+  { name: 'cloud_yellow', prompt: 'Towering cumulonimbus cloud, tall vertical column, dark gray flat base, bright white cauliflower top, beginning of anvil shape, realistic storm cloud, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, cartoon, low poly' },
+  { name: 'cloud_orange', prompt: 'Cumulonimbus storm cloud with flat wide anvil top spreading outward, dark threatening base, tall vertical core, realistic thunderstorm cloud, dramatic, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, cartoon, low poly' },
+  { name: 'cloud_red', prompt: 'Severe supercell thunderstorm, massive spreading anvil top, overshooting dome on top, very dark greenish-gray base, lowered rotating base structure, rotating mesocyclone structure, realistic, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, cartoon, low poly' },
+  { name: 'cloud_magenta', prompt: 'Extreme supercell thunderstorm, enormous flat anvil overshooting top, very dark base with lowered rotating updraft base, intense rotation visible, mammatus clouds hanging under anvil, most dangerous storm cloud, realistic, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, cartoon, low poly' },
 ];
 
 async function createTask(tier) {
@@ -25,7 +25,7 @@ async function createTask(tier) {
       art_style: 'realistic',
       should_remesh: true,
       topology: 'triangle',
-      target_polycount: 5000
+      target_polycount: 10000
     })
   });
   if (!res.ok) {
@@ -64,7 +64,7 @@ async function downloadGlb(url, name) {
 }
 
 async function main() {
-  console.log('Starting Meshy AI cloud model generation...');
+  console.log('Starting Meshy AI cloud model generation (HD prompts, 10K polys)...');
   console.log(`Processing ${TIERS.length} tiers sequentially to stay within rate limits.\n`);
 
   for (const tier of TIERS) {
