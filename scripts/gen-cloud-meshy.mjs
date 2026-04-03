@@ -6,12 +6,12 @@ if (!API_KEY) { console.error('MESHY_AI_API_KEY not set'); process.exit(1); }
 const BASE = 'https://api.meshy.ai/openapi/v2';
 
 const TIERS = [
-  { name: 'cloud_blue', prompt: 'Small puffy cumulus cloud, soft white cotton ball shape, gentle rounded form, smooth surface, realistic cloud, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, cartoon, low poly' },
-  { name: 'cloud_green', prompt: 'Medium cumulus congestus cloud, tall white billowing tower, flat gray base, vertical development, smooth cauliflower texture, realistic cloud, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, cartoon, low poly' },
-  { name: 'cloud_yellow', prompt: 'Towering cumulonimbus cloud, tall vertical column, dark gray flat base, bright white cauliflower top, beginning of anvil shape, realistic storm cloud, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, cartoon, low poly' },
-  { name: 'cloud_orange', prompt: 'Cumulonimbus storm cloud with flat wide anvil top spreading outward, dark threatening base, tall vertical core, realistic thunderstorm cloud, dramatic, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, cartoon, low poly' },
-  { name: 'cloud_red', prompt: 'Severe supercell thunderstorm, massive spreading anvil top, overshooting dome on top, very dark greenish-gray base, lowered rotating base structure, rotating mesocyclone structure, realistic, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, cartoon, low poly' },
-  { name: 'cloud_magenta', prompt: 'Extreme supercell thunderstorm, enormous flat anvil overshooting top, very dark base with lowered rotating updraft base, intense rotation visible, mammatus clouds hanging under anvil, most dangerous storm cloud, realistic, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, cartoon, low poly' },
+  { name: 'cloud_blue', prompt: 'Small puffy cartoon cumulus cloud, soft rounded cotton ball shape, smooth stylized surface, cute fluffy white cloud, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, realistic, photorealistic, dark, scary' },
+  { name: 'cloud_green', prompt: 'Medium puffy cartoon cumulus cloud, rounded billowing shape, soft stylized cauliflower bumps, fluffy white cloud with gentle volume, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, realistic, photorealistic, dark, scary' },
+  { name: 'cloud_yellow', prompt: 'Tall puffy cartoon storm cloud, rounded tower shape, stylized cumulonimbus with soft bumpy top, flat base, fluffy dramatic cloud, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, realistic, photorealistic' },
+  { name: 'cloud_orange', prompt: 'Large puffy cartoon thunderstorm cloud, wide anvil top spreading outward, rounded stylized shape, dramatic fluffy storm cloud with flat base, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, realistic, photorealistic' },
+  { name: 'cloud_red', prompt: 'Massive puffy cartoon supercell cloud, huge spreading anvil dome top, rounded stylized menacing shape, dark fluffy storm cloud, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, realistic, photorealistic' },
+  { name: 'cloud_magenta', prompt: 'Enormous puffy cartoon extreme storm cloud, gigantic flat anvil overshooting top, bulging rounded dramatic shape, most intense fluffy storm cloud, isolated on empty background, centered', negative: 'ground, terrain, trees, buildings, rain, lightning, text, human, realistic, photorealistic' },
 ];
 
 async function createTask(tier) {
@@ -25,7 +25,7 @@ async function createTask(tier) {
       art_style: 'realistic',
       should_remesh: true,
       topology: 'triangle',
-      target_polycount: 10000
+      target_polycount: 2000
     })
   });
   if (!res.ok) {
@@ -64,10 +64,12 @@ async function downloadGlb(url, name) {
 }
 
 async function main() {
-  console.log('Starting Meshy AI cloud model generation (HD prompts, 10K polys)...');
+  console.log('Starting Meshy AI cloud model generation (cartoon puffy prompts, 2K polys)...');
   console.log(`Processing ${TIERS.length} tiers sequentially to stay within rate limits.\n`);
 
+  const SKIP = process.argv.includes('--skip-blue') ? ['cloud_blue'] : [];
   for (const tier of TIERS) {
+    if (SKIP.includes(tier.name)) { console.log(`Skipping ${tier.name} (already done)`); continue; }
     try {
       console.log(`\n--- ${tier.name} ---`);
       const taskId = await createTask(tier);
