@@ -746,6 +746,7 @@ function buildUserMarker3D() {
   grp.add(diamond); grp.add(wire);
   grp.position.set(0, 1.2, 0); grp.renderOrder = 6; V3D.scene.add(grp);
   V3D._markerGrp = grp;
+  if (V3D._camMode === 'fixed') grp.visible = false;
   var t = 0;
   V3D._markerRAF = null;
   function tick() {
