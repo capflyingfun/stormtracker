@@ -109,7 +109,7 @@ function toggleFilterPanel3D() {
 function reset3DView() {
   if (!V3D.camera || !V3D.controls) return;
   _setFov(72);
-  _setCamMode(V3D._camMode);
+  _setCamMode('fixed');
 }
 
 function _setCamMode(mode) {
@@ -777,7 +777,7 @@ function buildCompass3D() {
   { t: 'S', b: 180, m: 1 }, { t: 'SW', b: 225, m: 0 }, { t: 'W', b: 270, m: 1 }, { t: 'NW', b: 315, m: 0 }].forEach(function (d) {
     var ar = toRad3D(d.b);
     var spr = makeSprite3D(d.t, d.m ? 'rgba(0,229,255,0.85)' : 'rgba(255,255,255,0.3)', d.m ? 1 : 0.6);
-    spr.position.set(R * Math.sin(ar), d.m ? 1.8 : 0.9, -R * Math.cos(ar)); V3D.compassGroup.add(spr);
+    spr.position.set(R * Math.sin(ar), d.m ? 2.5 : 1.5, -R * Math.cos(ar)); V3D.compassGroup.add(spr);
   });
   var RINGS = [
     {mi:10,op:0.25,label:false},{mi:20,op:0.5,label:true},{mi:30,op:0.25,label:false},{mi:40,op:0.5,label:true},
@@ -793,7 +793,7 @@ function buildCompass3D() {
     rl.renderOrder = 1; V3D.scene.add(rl);
     if (r.label) {
       var lspr = makeSprite3D(r.mi + ' mi', 'rgba(60,200,255,0.95)', r.mi === 80 ? 0.6 : 0.5);
-      lspr.position.set(0, 0.5, -km); lspr.renderOrder = 5; V3D.scene.add(lspr);
+      lspr.position.set(0, 1.2, -km); lspr.renderOrder = 5; V3D.scene.add(lspr);
       V3D.ringLabels.push({ spr: lspr, km: km });
     }
   });
@@ -809,7 +809,7 @@ function buildUserMarker3D() {
   wireGeo.scale(1, 1.6, 1);
   var wire = new THREE.Mesh(wireGeo, new THREE.MeshBasicMaterial({ color: 0x4488FF, transparent: true, opacity: 0.35, wireframe: true, depthWrite: false }));
   grp.add(diamond); grp.add(wire);
-  grp.position.set(0, 0.7, 0); grp.renderOrder = 6; V3D.scene.add(grp);
+  grp.position.set(0, 1.0, 0); grp.renderOrder = 6; V3D.scene.add(grp);
   V3D._markerGrp = grp;
   if (V3D._camMode === 'fixed') grp.visible = false;
   var t = 0;
@@ -819,7 +819,7 @@ function buildUserMarker3D() {
     V3D._markerRAF = requestAnimationFrame(tick);
     t += 0.012;
     grp.rotation.y = t;
-    grp.position.y = 0.7 + 0.1 * Math.sin(t * 0.8);
+    grp.position.y = 1.0 + 0.1 * Math.sin(t * 0.8);
   }
   V3D._startMarkerPulse = tick;
   tick();
