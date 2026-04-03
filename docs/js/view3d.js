@@ -603,9 +603,9 @@ function _updateSunMoonSprite(period, now, rise, set) {
   }
 
   var col = isNight ? new THREE.Color(0xc0d0ff) : new THREE.Color(0xfff0a0);
-  var mat = new THREE.SpriteMaterial({ map: V3D._sunMoonTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: col });
+  var mat = new THREE.SpriteMaterial({ map: V3D._sunMoonTex, transparent: true, depthWrite: false, opacity: isNight ? 0.6 : 0.8, color: col });
   var spr = new THREE.Sprite(mat);
-  spr.scale.set(isNight ? 30 : 45, isNight ? 30 : 45, 1);
+  spr.scale.set(isNight ? 18 : 28, isNight ? 18 : 28, 1);
   spr.renderOrder = 1;
 
   var dayLen = set - rise;
@@ -1068,9 +1068,9 @@ function sonarZones3D() {
 }
 
 function _rainProb(dbz) {
-  if (dbz < 20) return 0;
+  if (dbz < 35) return 0;
   if (dbz >= 50) return 1;
-  return Math.min(1, (dbz - 20) / 30 * 0.9 + 0.1);
+  return Math.min(1, (dbz - 35) / 15 * 0.6 + 0.4);
 }
 
 function _rerollRain() {
@@ -1084,7 +1084,7 @@ function _rerollRain() {
     if (!sm.cell) continue;
     var dbz = sm.cell.dbz;
     if (dbz >= 50) continue;
-    if (dbz < 20) { if (sm.rain) sm.rain.visible = false; sm._showRain = false; continue; }
+    if (dbz < 35) { if (sm.rain) sm.rain.visible = false; sm._showRain = false; continue; }
     var p = _rainProb(dbz);
     sm._showRain = Math.random() < p;
     if (sm.rain) sm.rain.visible = sm._showRain;
