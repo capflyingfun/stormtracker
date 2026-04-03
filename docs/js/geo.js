@@ -162,7 +162,7 @@ function _silentGpsOnLoad(){
     if(!navigator.geolocation){resolve(null);return}
     let done=false;
     function finish(val){if(done)return;done=true;clearTimeout(masterTO);resolve(val)}
-    const masterTO=setTimeout(()=>finish(null),15000);
+    const masterTO=setTimeout(()=>finish(null),20000);
     navigator.geolocation.getCurrentPosition(
       pos=>finish(pos),
       err=>{
@@ -170,10 +170,10 @@ function _silentGpsOnLoad(){
         navigator.geolocation.getCurrentPosition(
           pos=>finish(pos),
           err2=>{if(err2.code===1)localStorage.removeItem('st_autoGps');finish(null)},
-          {enableHighAccuracy:false,timeout:8000,maximumAge:300000}
+          {enableHighAccuracy:false,timeout:10000,maximumAge:300000}
         );
       },
-      {enableHighAccuracy:true,timeout:8000,maximumAge:300000}
+      {enableHighAccuracy:true,timeout:10000,maximumAge:300000}
     );
   });
 }
