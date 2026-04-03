@@ -133,16 +133,8 @@ function loadCloudModels3D() {
       var grp = gltf.scene;
       grp.traverse(function (child) {
         if (child.isMesh) {
-          child.material = new THREE.MeshStandardMaterial({
-            color: child.material.color || new THREE.Color(0xffffff),
-            map: child.material.map || null,
-            transparent: true,
-            opacity: 0.9,
-            depthWrite: true,
-            roughness: 0.85,
-            metalness: 0.0,
-            side: THREE.DoubleSide
-          });
+          child.material.transparent = true;
+          child.material.depthWrite = true;
           child.renderOrder = 4;
         }
       });
@@ -715,41 +707,40 @@ function makeCloudGroup3D(dbz, hookEcho, windDir) {
   var dark = new THREE.Color(0.18, 0.18, 0.22);
   var severe = dbz >= 50, heavy = dbz >= 40, moderate = dbz >= 35;
   var SEG = 6;
-  var _stdMat = function(c, o) { return new THREE.MeshStandardMaterial({ color: c, transparent: true, opacity: o, depthWrite: true, roughness: 0.85, metalness: 0.0, side: THREE.DoubleSide }); };
   if (severe) {
     var bR = baseR * 1.1;
     var bottomCol = base.clone().lerp(dark, 0.4);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), _stdMat(bottomCol, 0.92));
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.92, depthWrite: true }));
     b1.scale.set(1.3, 0.55, 1.2); b1.renderOrder = 4; grp.add(b1);
     var midCol = base.clone().lerp(white, 0.15);
-    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.9, SEG, SEG), _stdMat(midCol, 0.88));
+    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.9, SEG, SEG), new THREE.MeshBasicMaterial({ color: midCol, transparent: true, opacity: 0.88, depthWrite: true }));
     b2.scale.set(1.1, 0.7, 1.0); b2.position.y = bR * 0.8; b2.renderOrder = 4; grp.add(b2);
     var topCol = base.clone().lerp(white, 0.3);
-    var b3 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.75, SEG, SEG), _stdMat(topCol, 0.82));
+    var b3 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.75, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.82, depthWrite: true }));
     b3.scale.set(0.9, 0.8, 0.85); b3.position.y = bR * 1.5; b3.renderOrder = 4; grp.add(b3);
     var anvilCol = base.clone().lerp(white, 0.35);
-    var anvil = new THREE.Mesh(new THREE.SphereGeometry(bR * 1.6, SEG, SEG), _stdMat(anvilCol, 0.6));
+    var anvil = new THREE.Mesh(new THREE.SphereGeometry(bR * 1.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: anvilCol, transparent: true, opacity: 0.6, depthWrite: true }));
     anvil.scale.set(1.8, 0.18, 1.5); anvil.position.y = bR * 2.0; anvil.renderOrder = 4; grp.add(anvil);
   } else if (heavy) {
     var bR = baseR * 0.95;
     var bottomCol = base.clone().lerp(dark, 0.3);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), _stdMat(bottomCol, 0.88));
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.88, depthWrite: true }));
     b1.scale.set(1.2, 0.5, 1.1); b1.renderOrder = 4; grp.add(b1);
     var topCol = base.clone().lerp(white, 0.2);
-    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.8, SEG, SEG), _stdMat(topCol, 0.82));
+    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.8, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.82, depthWrite: true }));
     b2.scale.set(1.0, 0.65, 0.9); b2.position.y = bR * 0.7; b2.renderOrder = 4; grp.add(b2);
   } else if (moderate) {
     var bR = baseR * 0.85;
     var col = base.clone().lerp(white, 0.1);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), _stdMat(col, 0.82));
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.82, depthWrite: true }));
     b1.scale.set(1.1, 0.5, 1.0); b1.renderOrder = 4; grp.add(b1);
     var topCol = base.clone().lerp(white, 0.25);
-    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.6, SEG, SEG), _stdMat(topCol, 0.72));
+    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.72, depthWrite: true }));
     b2.scale.set(0.9, 0.55, 0.85); b2.position.y = bR * 0.55; b2.renderOrder = 4; grp.add(b2);
   } else {
     var bR = baseR * 0.7;
     var col = base.clone().lerp(white, 0.15);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), _stdMat(col, 0.72));
+    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.72, depthWrite: true }));
     b1.scale.set(1.0, 0.45, 0.9); b1.renderOrder = 4; grp.add(b1);
   }
   return { grp: grp, r: baseR };
