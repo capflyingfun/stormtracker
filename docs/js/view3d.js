@@ -809,7 +809,7 @@ function buildUserMarker3D() {
   wireGeo.scale(1, 1.6, 1);
   var wire = new THREE.Mesh(wireGeo, new THREE.MeshBasicMaterial({ color: 0x4488FF, transparent: true, opacity: 0.35, wireframe: true, depthWrite: false }));
   grp.add(diamond); grp.add(wire);
-  grp.position.set(0, 0.6, 0); grp.renderOrder = 6; V3D.scene.add(grp);
+  grp.position.set(0, 0.7, 0); grp.renderOrder = 6; V3D.scene.add(grp);
   V3D._markerGrp = grp;
   if (V3D._camMode === 'fixed') grp.visible = false;
   var t = 0;
@@ -819,7 +819,7 @@ function buildUserMarker3D() {
     V3D._markerRAF = requestAnimationFrame(tick);
     t += 0.012;
     grp.rotation.y = t;
-    grp.position.y = 0.6 + 0.1 * Math.sin(t * 0.8);
+    grp.position.y = 0.7 + 0.1 * Math.sin(t * 0.8);
   }
   V3D._startMarkerPulse = tick;
   tick();
@@ -1472,7 +1472,7 @@ function loop3D() {
     V3D.controls.maxPolarAngle = Math.min(Math.PI * 0.48, Math.acos(_cosMax));
   }
   V3D.controls.update();
-  if (V3D.camera.position.y < 0.15) { V3D.camera.position.y = 0.15; V3D.controls.update(); }
+  if (V3D._camMode !== 'fixed' && V3D.camera.position.y < 0.15) { V3D.camera.position.y = 0.15; V3D.controls.update(); }
 
   var camDist = _dist;
   var zf = Math.max(1, Math.min(5, camDist / 18));
