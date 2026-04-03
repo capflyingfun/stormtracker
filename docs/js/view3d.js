@@ -1464,8 +1464,8 @@ function loop3D() {
   var _off = V3D.camera.position.clone().sub(V3D.controls.target);
   var _dist = _off.length();
   if (V3D._camMode === 'fixed') {
-    V3D.controls.minPolarAngle = Math.PI * 0.1;
-    V3D.controls.maxPolarAngle = Math.PI * 0.48;
+    V3D.controls.minPolarAngle = Math.PI * 0.05;
+    V3D.controls.maxPolarAngle = Math.PI * 0.95;
   } else {
     var _cosMax = (0.15 - V3D.controls.target.y) / _dist;
     _cosMax = Math.max(-1, Math.min(1, _cosMax));
@@ -1477,7 +1477,6 @@ function loop3D() {
   var camDist = _dist;
   var zf = Math.max(1, Math.min(5, camDist / 18));
   if (V3D._markerGrp) {
-    V3D._markerGrp.scale.setScalar(zf);
     if (V3D._camMode === 'free') {
       var camOriginDist = V3D.camera.position.length();
       var fadeStart = 2, fadeEnd = 5;
