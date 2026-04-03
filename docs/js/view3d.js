@@ -50,9 +50,7 @@ var V3D = {
   glowLevel: 1,
   _markerGrp: null,
   _dayGlowMult: 1.0,
-  _lightingMode: localStorage.getItem('st_3dLighting') || 'auto',
-  _sunMoonSprite: null,
-  _sunMoonTex: null
+  _lightingMode: localStorage.getItem('st_3dLighting') || 'auto'
 };
 
 var _TIER_TINT_COLORS = [0x88ccff, 0x44ff88, 0xffee44, 0xff8800, 0xff2222, 0xcc00ff];
