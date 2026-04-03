@@ -1385,11 +1385,11 @@ function loop3D() {
   V3D.frame++;
   var _off = V3D.camera.position.clone().sub(V3D.controls.target);
   var _dist = _off.length();
-  var _cosMax = (0.05 - V3D.controls.target.y) / _dist;
+  var _cosMax = (0.15 - V3D.controls.target.y) / _dist;
   _cosMax = Math.max(-1, Math.min(1, _cosMax));
   V3D.controls.maxPolarAngle = Math.min(Math.PI * 0.48, Math.acos(_cosMax));
   V3D.controls.update();
-  if (V3D.camera.position.y < 0.05) { V3D.camera.position.y = 0.05; V3D.controls.update(); }
+  if (V3D.camera.position.y < 0.15) { V3D.camera.position.y = 0.15; V3D.controls.update(); }
 
   var camDist = _dist;
   var zf = Math.max(1, Math.min(5, camDist / 18));
