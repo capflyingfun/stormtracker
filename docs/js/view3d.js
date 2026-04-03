@@ -843,6 +843,14 @@ function makeCloudGroup3D(dbz) {
   if (geos.length > 1 && typeof THREE.BufferGeometryUtils !== 'undefined') {
     merged = THREE.BufferGeometryUtils.mergeBufferGeometries(geos, false);
     geos.forEach(function (g) { g.dispose(); });
+  } else if (geos.length > 1) {
+    var grp = new THREE.Group();
+    geos.forEach(function (g) {
+      var m = new THREE.Mesh(g, V3D._cloudMaterial);
+      m.renderOrder = 4;
+      grp.add(m);
+    });
+    return { grp: grp, r: baseR };
   } else {
     merged = geos[0];
   }
@@ -1184,6 +1192,7 @@ function rebuildStorms3D() {
   }
   V3D._etaCandidates = [];
   _startEtaInterval();
+  _updateLOD();
 }
 
 // =====================================================
