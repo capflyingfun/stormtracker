@@ -169,7 +169,7 @@ function _silentGpsOnLoad(){
         if(err.code===1){localStorage.removeItem('st_autoGps');finish(null);return}
         navigator.geolocation.getCurrentPosition(
           pos=>finish(pos),
-          ()=>finish(null),
+          err2=>{if(err2.code===1)localStorage.removeItem('st_autoGps');finish(null)},
           {enableHighAccuracy:false,timeout:8000,maximumAge:300000}
         );
       },
