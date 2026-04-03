@@ -59,7 +59,7 @@ function toggle3DLabels() {
   V3D._labelsVisible = !V3D._labelsVisible;
   localStorage.setItem('v3d_labels', V3D._labelsVisible ? 'on' : 'off');
   V3D.stormMeshes.forEach(function (sm) {
-    if (sm.label) { sm.label.visible = V3D._labelsVisible; }
+    if (sm.label) { sm.label.visible = V3D._labelsVisible && V3D._tierFilter[sm.tierIdx]; }
   });
 }
 
@@ -125,7 +125,17 @@ function toggleTier3D(idx) {
   V3D._tierFilter[idx] = !V3D._tierFilter[idx];
   localStorage.setItem('v3d_tiers', JSON.stringify(V3D._tierFilter));
   syncTierButtons3D();
-  rebuildStorms3D();
+  _applyTierVisibility();
+}
+
+function _applyTierVisibility() {
+  V3D.stormMeshes.forEach(function (sm) {
+    var show = V3D._tierFilter[sm.tierIdx];
+    sm.mesh.visible = show;
+    if (sm.halo) sm.halo.visible = show;
+    if (sm.label) sm.label.visible = show && V3D._labelsVisible !== false;
+    if (sm.rain) sm.rain.visible = show && sm._showRain;
+  });
 }
 
 function syncTierButtons3D() {
@@ -1039,7 +1049,7 @@ function _rerollRain() {
     if (dbz < 35) { if (sm.rain) sm.rain.visible = false; sm._showRain = false; continue; }
     var p = _rainProb(dbz);
     sm._showRain = Math.random() < p;
-    if (sm.rain) sm.rain.visible = sm._showRain;
+    if (sm.rain) sm.rain.visible = sm._showRain && V3D._tierFilter[sm.tierIdx];
   }
   V3D._rainRerollOffset = end >= V3D.stormMeshes.length ? 0 : end;
 }
@@ -1068,6 +1078,8 @@ function _tickLightning() {
       if (V3D._lightningFlashes.length >= maxFlash) break;
       var lc = V3D._lightningCells[j];
       if (lc.dkm > lodDist) continue;
+      var smVis = V3D.stormMeshes[lc.meshIdx];
+      if (smVis && !smVis.mesh.visible) continue;
       if (Math.random() < lc.prob * 0.08) {
         var sm2 = V3D.stormMeshes[lc.meshIdx];
         if (sm2 && sm2.mesh && sm2.mesh.material !== V3D._flashMaterial) {
@@ -1085,11 +1097,13 @@ function _updateLOD() {
   var lodDist = _isDesktop() ? 9999 : 40;
   var lodScene = lodDist * 0.6;
   V3D.stormMeshes.forEach(function (sm) {
+    var tierOn = V3D._tierFilter[sm.tierIdx];
+    if (!tierOn) return;
     var mp = sm.mesh.position;
     var dx = mp.x - camPos.x, dz = mp.z - camPos.z;
     var d = Math.sqrt(dx * dx + dz * dz);
     var far = d > lodScene;
-    if (sm.rain) sm.rain.visible = !far;
+    if (sm.rain) sm.rain.visible = !far && sm._showRain;
     if (sm.halo) sm.halo.visible = !far;
     if (sm.label && V3D._labelsVisible) sm.label.visible = !far;
   });
@@ -1108,7 +1122,6 @@ function rebuildStorms3D() {
   var _rainCandidates = [];
   storms.forEach(function (cell) {
     var tierIdx = _cloudTierIdx(cell.dbz);
-    if (!V3D._tierFilter[tierIdx]) return;
     var lon = cell.lon || cell.lng;
     var lat = cell.lat;
     var sp = geoToScene3D(lat, lon);
@@ -1154,7 +1167,7 @@ function rebuildStorms3D() {
     }
 
     var cellForCone = { lat: lat, lon: lon, dbz: cell.dbz, distance: cell.distance, bearing: cell.bearing || bearingDeg3D(S.lat, S.lon, lat, lon) };
-    V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, rain: null, label: lspr, halo: haloMesh, dkm: dkm, _showRain: false });
+    V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, rain: null, label: lspr, halo: haloMesh, dkm: dkm, _showRain: false, tierIdx: tierIdx });
     if (cell.dbz >= 35) {
       var q = _qualifyCone3D(cellForCone, sp);
       if (q) { _coneCandidates.push(q); }
@@ -1187,6 +1200,7 @@ function rebuildStorms3D() {
   V3D._etaCandidates = [];
   _startEtaInterval();
   _startRainReroll();
+  _applyTierVisibility();
   _updateLOD();
 }
 
