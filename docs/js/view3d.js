@@ -44,7 +44,6 @@ var V3D = {
   _sharedLabelTextures: {},
   _lightningCells: [],
   _lightningFlashes: [],
-  _lodLastFrame: 0,
   _etaSprites: [],
   _etaInterval: null,
   glowLevel: 1,
