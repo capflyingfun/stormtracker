@@ -551,46 +551,51 @@ function refreshSky3D() {
   V3D.skyMat.uniforms.uGround.value.copy(groundC); V3D.scene.fog.color.copy(horizC);
 
   _updateSunMoonSprite(period, now, rise, set);
+  _applyGlowIntensity();
 }
 
 function _updateSunMoonSprite(period, now, rise, set) {
   if (!V3D.scene) return;
-  if (V3D._sunMoonSprite) { V3D.scene.remove(V3D._sunMoonSprite); V3D._sunMoonSprite = null; }
+  if (V3D._sunMoonSprite) {
+    V3D.scene.remove(V3D._sunMoonSprite);
+    if (V3D._sunMoonSprite.material) V3D._sunMoonSprite.material.dispose();
+    V3D._sunMoonSprite = null;
+  }
 
   var isNight = (period === 'night');
-  var cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
-  var cx = cv.getContext('2d');
-  var grad = cx.createRadialGradient(32, 32, 0, 32, 32, 28);
-  if (isNight) {
-    grad.addColorStop(0, 'rgba(220,230,255,0.9)');
-    grad.addColorStop(0.5, 'rgba(180,200,240,0.4)');
-    grad.addColorStop(1, 'rgba(100,140,200,0)');
-  } else {
-    grad.addColorStop(0, 'rgba(255,240,180,1)');
-    grad.addColorStop(0.3, 'rgba(255,200,80,0.6)');
-    grad.addColorStop(1, 'rgba(255,160,40,0)');
+  if (!V3D._sunMoonTex) {
+    var cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
+    var cx = cv.getContext('2d');
+    var grad = cx.createRadialGradient(32, 32, 0, 32, 32, 28);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.3, 'rgba(255,255,255,0.6)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    cx.fillStyle = grad; cx.fillRect(0, 0, 64, 64);
+    V3D._sunMoonTex = new THREE.CanvasTexture(cv);
   }
-  cx.fillStyle = grad; cx.fillRect(0, 0, 64, 64);
 
-  var tex = new THREE.CanvasTexture(cv);
-  var mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  var col = isNight ? new THREE.Color(0xc0d0ff) : new THREE.Color(0xfff0a0);
+  var mat = new THREE.SpriteMaterial({ map: V3D._sunMoonTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: col });
   var spr = new THREE.Sprite(mat);
-  spr.scale.set(40, 40, 1);
+  spr.scale.set(isNight ? 30 : 45, isNight ? 30 : 45, 1);
   spr.renderOrder = 1;
 
   var dayLen = set - rise;
-  var elev;
+  var t, elev, azRad;
   if (isNight) {
     var nightLen = 86400 - dayLen;
     var nightT = (now > set) ? (now - set) / nightLen : (now - set + 86400) / nightLen;
-    elev = Math.sin(Math.PI * Math.min(1, Math.max(0, nightT))) * 0.6;
+    t = Math.min(1, Math.max(0, nightT));
+    elev = Math.sin(Math.PI * t) * 0.6;
+    azRad = Math.PI * 0.8 - t * Math.PI * 1.6;
   } else {
-    var sunT = Math.max(0, Math.min(1, (now - rise) / dayLen));
-    elev = Math.sin(Math.PI * sunT);
+    t = Math.max(0, Math.min(1, (now - rise) / dayLen));
+    elev = Math.sin(Math.PI * t);
+    azRad = Math.PI * 0.8 - t * Math.PI * 1.6;
   }
 
   var skyR = 180;
-  spr.position.set(skyR * 0.3, skyR * elev * 0.6 + 10, -skyR * 0.5);
+  spr.position.set(Math.sin(azRad) * skyR * 0.6, skyR * elev * 0.55 + 10, Math.cos(azRad) * skyR * 0.6);
   V3D.scene.add(spr);
   V3D._sunMoonSprite = spr;
 }
@@ -1369,6 +1374,7 @@ async function activate3DView() {
     await buildMapGround3D(S.lat, S.lon);
     _v3dLoading = false;
     refreshSky3D();
+    _initLightingBtn();
     rebuildStorms3D();
     rebuildWind3D();
     refreshHUD3D();
