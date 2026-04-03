@@ -158,6 +158,7 @@ function _fovWheel(e) {
 var _fovTouchDist = 0;
 function _fovTouchStart(e) {
   if (V3D._camMode !== 'fixed' || e.touches.length !== 2) return;
+  e.preventDefault();
   var dx = e.touches[0].clientX - e.touches[1].clientX;
   var dy = e.touches[0].clientY - e.touches[1].clientY;
   _fovTouchDist = Math.sqrt(dx * dx + dy * dy);
@@ -165,6 +166,7 @@ function _fovTouchStart(e) {
 
 function _fovTouchMove(e) {
   if (V3D._camMode !== 'fixed' || e.touches.length !== 2) return;
+  e.preventDefault();
   var dx = e.touches[0].clientX - e.touches[1].clientX;
   var dy = e.touches[0].clientY - e.touches[1].clientY;
   var newDist = Math.sqrt(dx * dx + dy * dy);
@@ -187,8 +189,8 @@ function _initFovZoom() {
   var el = V3D.renderer.domElement;
   _removeFovZoom();
   el.addEventListener('wheel', _fovWheel, { passive: false });
-  el.addEventListener('touchstart', _fovTouchStart, { passive: true });
-  el.addEventListener('touchmove', _fovTouchMove, { passive: true });
+  el.addEventListener('touchstart', _fovTouchStart, { passive: false });
+  el.addEventListener('touchmove', _fovTouchMove, { passive: false });
   V3D._fovZoomBound = true;
 }
 
