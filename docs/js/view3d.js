@@ -117,8 +117,8 @@ function _setCamMode(mode) {
   localStorage.setItem('v3d_camMode', mode);
   var btn = document.getElementById('v3d-cam-mode-btn');
   if (mode === 'fixed') {
-    V3D.controls.target.set(0, 0.15, 0);
-    V3D.camera.position.set(0, 0.15, 0.001);
+    V3D.camera.position.set(0, 0.15, 0);
+    V3D.controls.target.set(0, 0.15, -0.001);
     V3D.controls.enablePan = false;
     V3D.controls.enableZoom = false;
     V3D.controls.minDistance = 0.001;
