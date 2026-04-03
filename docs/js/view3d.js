@@ -116,18 +116,30 @@ function _setCamMode(mode) {
   localStorage.setItem('v3d_camMode', mode);
   var btn = document.getElementById('v3d-cam-mode-btn');
   if (mode === 'fixed') {
-    V3D.camera.position.set(0, 0.15, 1);
-    V3D.controls.target.set(0, 0.1, 0);
+    V3D.camera.position.set(0, 0.15, 0.001);
+    V3D.controls.target.set(0, 0.15, -1);
     V3D.controls.enablePan = false;
-    V3D.controls.minDistance = 0.002;
+    V3D.controls.enableZoom = true;
+    V3D.controls.minDistance = 0.5;
     V3D.controls.maxDistance = 250;
+    if (V3D._markerGrp) V3D._markerGrp.visible = false;
     if (btn) btn.textContent = '📌 Fixed';
   } else {
     V3D.camera.position.set(0, 1, 0.01);
     V3D.controls.target.set(0, 0.4, -6);
     V3D.controls.enablePan = true;
+    V3D.controls.enableZoom = true;
     V3D.controls.minDistance = 0.5;
     V3D.controls.maxDistance = 250;
+    if (V3D._markerGrp) {
+      var camOriginDist = V3D.camera.position.length();
+      var fadeStart = 2, fadeEnd = 5;
+      var opFactor = camOriginDist < fadeStart ? 0 : camOriginDist > fadeEnd ? 1 : (camOriginDist - fadeStart) / (fadeEnd - fadeStart);
+      V3D._markerGrp.children.forEach(function (ch) {
+        if (ch.material) { ch.material.opacity = (ch.material.wireframe ? 0.35 : 0.82) * opFactor; }
+      });
+      V3D._markerGrp.visible = opFactor > 0.01;
+    }
     if (btn) btn.textContent = '🔓 Free';
   }
   V3D.controls.update();
@@ -310,15 +322,15 @@ function init3DScene() {
   V3D.scene.fog = new THREE.FogExp2(0x70aae8, 0.0012);
 
   V3D.camera = new THREE.PerspectiveCamera(V3D._fov, w / h, 0.001, 1000);
-  V3D.camera.position.set(0, 0.15, 1); V3D.camera.lookAt(0, 0.1, 0);
+  V3D.camera.position.set(0, 0.15, 0.001); V3D.camera.lookAt(0, 0.15, -1);
 
   V3D.controls = new THREE.OrbitControls(V3D.camera, V3D.renderer.domElement);
   V3D.controls.enableDamping = true; V3D.controls.dampingFactor = 0.07;
   V3D.controls.screenSpacePanning = false;
-  V3D.controls.minDistance = 0.002; V3D.controls.maxDistance = 250;
+  V3D.controls.minDistance = 0.5; V3D.controls.maxDistance = 250;
   V3D.controls.minPolarAngle = Math.PI * 0.05;
   V3D.controls.maxPolarAngle = Math.PI * 0.48;
-  V3D.controls.target.set(0, 0.1, 0); V3D.controls.update();
+  V3D.controls.target.set(0, 0.15, -1); V3D.controls.update();
   _setCamMode(V3D._camMode);
   if (V3D.controls.saveState) V3D.controls.saveState();
 
@@ -1385,15 +1397,34 @@ function loop3D() {
   V3D.frame++;
   var _off = V3D.camera.position.clone().sub(V3D.controls.target);
   var _dist = _off.length();
-  var _cosMax = (0.15 - V3D.controls.target.y) / _dist;
-  _cosMax = Math.max(-1, Math.min(1, _cosMax));
-  V3D.controls.maxPolarAngle = Math.min(Math.PI * 0.48, Math.acos(_cosMax));
+  if (V3D._camMode === 'fixed') {
+    V3D.controls.minPolarAngle = Math.PI * 0.05;
+    V3D.controls.maxPolarAngle = Math.PI * 0.75;
+  } else {
+    var _cosMax = (0.15 - V3D.controls.target.y) / _dist;
+    _cosMax = Math.max(-1, Math.min(1, _cosMax));
+    V3D.controls.maxPolarAngle = Math.min(Math.PI * 0.48, Math.acos(_cosMax));
+  }
   V3D.controls.update();
-  if (V3D.camera.position.y < 0.15) { V3D.camera.position.y = 0.15; V3D.controls.update(); }
+  if (V3D._camMode !== 'fixed' && V3D.camera.position.y < 0.15) { V3D.camera.position.y = 0.15; V3D.controls.update(); }
 
   var camDist = _dist;
   var zf = Math.max(1, Math.min(5, camDist / 18));
-  if (V3D._markerGrp) { V3D._markerGrp.scale.setScalar(zf); }
+  if (V3D._markerGrp) {
+    V3D._markerGrp.scale.setScalar(zf);
+    if (V3D._camMode === 'free') {
+      var camOriginDist = V3D.camera.position.length();
+      var fadeStart = 2, fadeEnd = 5;
+      var opacityFactor = camOriginDist < fadeStart ? 0 : camOriginDist > fadeEnd ? 1 : (camOriginDist - fadeStart) / (fadeEnd - fadeStart);
+      V3D._markerGrp.children.forEach(function (ch) {
+        if (ch.material) {
+          var baseOp = ch.material.wireframe ? 0.35 : 0.82;
+          ch.material.opacity = baseOp * opacityFactor;
+        }
+      });
+      V3D._markerGrp.visible = opacityFactor > 0.01;
+    }
+  }
   if (V3D.frame % 4 === 0) {
     var _scaleSprite = function (s) { if (s && s._baseScaleX) s.scale.set(s._baseScaleX * zf, s._baseScaleY * zf, 1); };
     V3D.ringLabels.forEach(function (r) { _scaleSprite(r.spr); });
