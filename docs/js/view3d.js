@@ -108,6 +108,7 @@ function toggleFilterPanel3D() {
 
 function reset3DView() {
   if (!V3D.camera || !V3D.controls) return;
+  _setFov(72);
   _setCamMode(V3D._camMode);
 }
 
@@ -119,12 +120,13 @@ function _setCamMode(mode) {
     V3D.camera.position.set(0, 0.15, 0.001);
     V3D.controls.target.set(0, 0.15, -1);
     V3D.controls.enablePan = false;
-    V3D.controls.enableZoom = true;
-    V3D.controls.minDistance = 0.5;
-    V3D.controls.maxDistance = 250;
+    V3D.controls.enableZoom = false;
     if (V3D._markerGrp) V3D._markerGrp.visible = false;
     if (btn) btn.textContent = '📌 Fixed';
+    _initFovZoom();
   } else {
+    V3D._fov = 72;
+    if (V3D.camera) { V3D.camera.fov = 72; V3D.camera.updateProjectionMatrix(); }
     V3D.camera.position.set(0, 1, 0.01);
     V3D.controls.target.set(0, 0.4, -6);
     V3D.controls.enablePan = true;
@@ -141,21 +143,66 @@ function _setCamMode(mode) {
       V3D._markerGrp.visible = opFactor > 0.01;
     }
     if (btn) btn.textContent = '🔓 Free';
+    _removeFovZoom();
   }
   V3D.controls.update();
 }
 
-function toggleCamMode3D() {
-  _setCamMode(V3D._camMode === 'fixed' ? 'free' : 'fixed');
+function _fovWheel(e) {
+  if (V3D._camMode !== 'fixed') return;
+  e.preventDefault();
+  var delta = e.deltaY > 0 ? 2 : -2;
+  _setFov(V3D._fov + delta);
 }
 
-function setFOV3D(val) {
-  var fov = Math.max(30, Math.min(120, parseInt(val) || 72));
+var _fovTouchDist = 0;
+function _fovTouchStart(e) {
+  if (V3D._camMode !== 'fixed' || e.touches.length !== 2) return;
+  var dx = e.touches[0].clientX - e.touches[1].clientX;
+  var dy = e.touches[0].clientY - e.touches[1].clientY;
+  _fovTouchDist = Math.sqrt(dx * dx + dy * dy);
+}
+
+function _fovTouchMove(e) {
+  if (V3D._camMode !== 'fixed' || e.touches.length !== 2) return;
+  var dx = e.touches[0].clientX - e.touches[1].clientX;
+  var dy = e.touches[0].clientY - e.touches[1].clientY;
+  var newDist = Math.sqrt(dx * dx + dy * dy);
+  var diff = _fovTouchDist - newDist;
+  if (Math.abs(diff) > 2) {
+    _setFov(V3D._fov + (diff > 0 ? 1 : -1));
+    _fovTouchDist = newDist;
+  }
+}
+
+function _setFov(val) {
+  var fov = Math.max(30, Math.min(120, Math.round(val)));
   V3D._fov = fov;
   localStorage.setItem('v3d_fov', fov);
   if (V3D.camera) { V3D.camera.fov = fov; V3D.camera.updateProjectionMatrix(); }
-  var lbl = document.getElementById('v3d-fov-val');
-  if (lbl) lbl.textContent = fov + '°';
+}
+
+function _initFovZoom() {
+  if (!V3D.renderer) return;
+  var el = V3D.renderer.domElement;
+  _removeFovZoom();
+  el.addEventListener('wheel', _fovWheel, { passive: false });
+  el.addEventListener('touchstart', _fovTouchStart, { passive: true });
+  el.addEventListener('touchmove', _fovTouchMove, { passive: true });
+  V3D._fovZoomBound = true;
+}
+
+function _removeFovZoom() {
+  if (!V3D.renderer || !V3D._fovZoomBound) return;
+  var el = V3D.renderer.domElement;
+  el.removeEventListener('wheel', _fovWheel);
+  el.removeEventListener('touchstart', _fovTouchStart);
+  el.removeEventListener('touchmove', _fovTouchMove);
+  V3D._fovZoomBound = false;
+}
+
+function toggleCamMode3D() {
+  _setCamMode(V3D._camMode === 'fixed' ? 'free' : 'fixed');
 }
 
 var _TIER_COLORS = ['#00F8FF','#00FF39','#F5FF00','#FFB200','#FF0200','#FF00F5'];
@@ -1399,15 +1446,15 @@ function loop3D() {
   var _off = V3D.camera.position.clone().sub(V3D.controls.target);
   var _dist = _off.length();
   if (V3D._camMode === 'fixed') {
-    V3D.controls.minPolarAngle = Math.PI * 0.05;
-    V3D.controls.maxPolarAngle = Math.PI * 0.75;
+    V3D.controls.minPolarAngle = Math.PI * 0.1;
+    V3D.controls.maxPolarAngle = Math.PI * 0.48;
   } else {
     var _cosMax = (0.15 - V3D.controls.target.y) / _dist;
     _cosMax = Math.max(-1, Math.min(1, _cosMax));
     V3D.controls.maxPolarAngle = Math.min(Math.PI * 0.48, Math.acos(_cosMax));
   }
   V3D.controls.update();
-  if (V3D._camMode !== 'fixed' && V3D.camera.position.y < 0.15) { V3D.camera.position.y = 0.15; V3D.controls.update(); }
+  if (V3D.camera.position.y < 0.15) { V3D.camera.position.y = 0.15; V3D.controls.update(); }
 
   var camDist = _dist;
   var zf = Math.max(1, Math.min(5, camDist / 18));
@@ -1474,10 +1521,6 @@ async function activate3DView() {
   V3D.active = true;
   if (V3D._startMarkerPulse && !V3D._markerRAF) V3D._startMarkerPulse();
   syncTierButtons3D();
-  var _fovSlider = document.getElementById('v3d-fov-slider');
-  if (_fovSlider) { _fovSlider.value = V3D._fov; }
-  var _fovLbl = document.getElementById('v3d-fov-val');
-  if (_fovLbl) _fovLbl.textContent = V3D._fov + '°';
   var _camBtn = document.getElementById('v3d-cam-mode-btn');
   if (_camBtn) _camBtn.textContent = V3D._camMode === 'fixed' ? '📌 Fixed' : '🔓 Free';
   requestAnimationFrame(function () { resize3DPage(); onResize3D(); });
