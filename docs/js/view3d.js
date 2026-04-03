@@ -38,8 +38,13 @@ var V3D = {
     try { var s = localStorage.getItem('v3d_tiers'); if (s) { var a = JSON.parse(s); if (a.length === 6) return a; } } catch (e) {}
     return [true, true, true, true, true, true];
   })(),
-  _cloudModels: {},
-  _tierMaterials: {},
+  _cloudMaterial: null,
+  _flashMaterial: null,
+  _sharedHaloTextures: {},
+  _sharedLabelTextures: {},
+  _lightningCells: [],
+  _lightningFlashes: [],
+  _lodLastFrame: 0,
   _etaSprites: [],
   _etaInterval: null,
   glowLevel: 1,
@@ -67,11 +72,9 @@ function setGlowLevel3D(val) {
 }
 function _applyGlowIntensity() {
   var mult = V3D.glowLevel * V3D._dayGlowMult;
-  V3D.stormMeshes.forEach(function (sm) {
-    sm.lights.forEach(function (gl) {
-      gl.light.intensity = gl.baseIntensity * mult;
-    });
-  });
+  if (V3D._cloudMaterial) {
+    V3D._cloudMaterial.color.setScalar(0.7 + mult * 0.3);
+  }
 }
 
 function cycleLightingMode3D() {
@@ -138,7 +141,6 @@ function syncTierButtons3D() {
   }
 }
 
-var _CLOUD_MODEL_NAMES = ['cloud_blue','cloud_green','cloud_yellow','cloud_orange','cloud_red','cloud_magenta'];
 var _CLOUD_TIER_DBZ = [30,40,45,51,60,999];
 
 function _cloudTierIdx(dbz) {
@@ -146,23 +148,49 @@ function _cloudTierIdx(dbz) {
   return 5;
 }
 
-function loadCloudModels3D() {
-  if (typeof THREE.GLTFLoader === 'undefined') return;
-  var loader = new THREE.GLTFLoader();
-  var base = window.location.pathname.replace(/\/[^\/]*$/, '') + '/models/';
-  _CLOUD_MODEL_NAMES.forEach(function (name, idx) {
-    loader.load(base + name + '.glb', function (gltf) {
-      var grp = gltf.scene;
-      grp.traverse(function (child) {
-        if (child.isMesh) {
-          child.material.transparent = true;
-          child.material.depthWrite = true;
-          child.renderOrder = 4;
-        }
-      });
-      V3D._cloudModels[idx] = grp;
-    }, undefined, function () { });
-  });
+function _initCloudMaterials() {
+  if (!V3D._cloudMaterial) {
+    V3D._cloudMaterial = new THREE.MeshBasicMaterial({
+      vertexColors: true, transparent: true, opacity: 0.8,
+      depthWrite: false, side: THREE.DoubleSide
+    });
+  }
+  if (!V3D._flashMaterial) {
+    V3D._flashMaterial = new THREE.MeshBasicMaterial({
+      vertexColors: true, transparent: true, opacity: 0.95,
+      depthWrite: false, color: new THREE.Color(3, 3, 3)
+    });
+  }
+}
+
+function _getSharedHaloTexture(tierIdx) {
+  if (V3D._sharedHaloTextures[tierIdx]) return V3D._sharedHaloTextures[tierIdx];
+  var c = new THREE.Color(_TIER_TINT_COLORS[tierIdx]);
+  var hR = Math.round(c.r * 255), hG = Math.round(c.g * 255), hB = Math.round(c.b * 255);
+  var cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  var cx = cv.getContext('2d');
+  var g = cx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(' + hR + ',' + hG + ',' + hB + ',0.25)');
+  g.addColorStop(0.4, 'rgba(' + hR + ',' + hG + ',' + hB + ',0.05)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  cx.fillStyle = g; cx.fillRect(0, 0, 64, 64);
+  V3D._sharedHaloTextures[tierIdx] = new THREE.CanvasTexture(cv);
+  return V3D._sharedHaloTextures[tierIdx];
+}
+
+function _getSharedLabelTexture(dbz) {
+  var key = Math.round(dbz);
+  if (V3D._sharedLabelTextures[key]) return V3D._sharedLabelTextures[key];
+  var text = key + ' dBZ';
+  var color = dbzCat3D(dbz).col;
+  var cw = 128, ch = 64;
+  var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+  var cx = cv.getContext('2d'); cx.clearRect(0, 0, cw, ch);
+  cx.font = 'bold 38px Segoe UI,Arial,sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  cx.shadowColor = 'rgba(0,0,0,0.9)'; cx.shadowBlur = 10;
+  cx.fillStyle = color; cx.fillText(text, cw / 2, ch / 2);
+  V3D._sharedLabelTextures[key] = new THREE.CanvasTexture(cv);
+  return V3D._sharedLabelTextures[key];
 }
 
 function toRad3D(d) { return d * Math.PI / 180; }
@@ -268,7 +296,7 @@ function init3DScene() {
 
   buildGround3D(); buildSky3D(); buildCompass3D(); buildUserMarker3D(); buildCompassTape3D();
   updateRingLabels3D();
-  loadCloudModels3D();
+  _initCloudMaterials();
 
   window.addEventListener('resize', onResize3D);
   cv.addEventListener('click', onClick3D);
@@ -729,8 +757,12 @@ function buildUserMarker3D() {
 // STORM CLOUDS
 // =====================================================
 function _isSharedMaterial(mat) {
-  var tm = V3D._tierMaterials;
-  for (var k in tm) { if (tm[k] === mat) return true; }
+  if (mat === V3D._cloudMaterial || mat === V3D._flashMaterial) return true;
+  return false;
+}
+function _isSharedTexture(tex) {
+  for (var k in V3D._sharedHaloTextures) { if (V3D._sharedHaloTextures[k] === tex) return true; }
+  for (var k in V3D._sharedLabelTextures) { if (V3D._sharedLabelTextures[k] === tex) return true; }
   return false;
 }
 function disposeObj3D(obj) {
@@ -740,8 +772,8 @@ function disposeObj3D(obj) {
   }
   if (obj.geometry) obj.geometry.dispose();
   if (obj.material) {
-    if (Array.isArray(obj.material)) obj.material.forEach(function (m) { if (!_isSharedMaterial(m)) { if (m.map) m.map.dispose(); m.dispose(); } });
-    else if (!_isSharedMaterial(obj.material)) { if (obj.material.map) obj.material.map.dispose(); obj.material.dispose(); }
+    if (Array.isArray(obj.material)) obj.material.forEach(function (m) { if (!_isSharedMaterial(m)) { if (m.map && !_isSharedTexture(m.map)) m.map.dispose(); m.dispose(); } });
+    else if (!_isSharedMaterial(obj.material)) { if (obj.material.map && !_isSharedTexture(obj.material.map)) obj.material.map.dispose(); obj.material.dispose(); }
   }
 }
 function clearGroup3D(grp) {
@@ -755,92 +787,81 @@ function _startEtaInterval() {
 }
 
 function clearStorms3D() {
-  V3D.stormMeshes.forEach(function (sm) { if (sm.ltTimer) clearInterval(sm.ltTimer); });
   V3D.stormMeshes = [];
   V3D._etaSprites = [];
+  V3D._lightningCells = [];
+  V3D._lightningFlashes = [];
   if (V3D._etaInterval) { clearInterval(V3D._etaInterval); V3D._etaInterval = null; }
   clearGroup3D(V3D.stormGroup);
   clearGroup3D(V3D.coneGroup);
-  for (var k in V3D._tierMaterials) {
-    var m = V3D._tierMaterials[k];
-    if (m) { if (m.map) m.map.dispose(); m.dispose(); }
-  }
-  V3D._tierMaterials = {};
 }
 
-function makeCloudGroup3D(dbz, hookEcho, windDir) {
+function makeCloudGroup3D(dbz) {
+  _initCloudMaterials();
   var baseR = Math.max(1.2, Math.min(6, (dbz - 10) / 7));
   var mobileScale = _isDesktop() ? 1.0 : 2.6;
   baseR *= mobileScale;
   var tierIdx = _cloudTierIdx(dbz);
   var tintCol = new THREE.Color(_TIER_TINT_COLORS[tierIdx]);
-  var template = V3D._cloudModels[tierIdx];
-  if (template) {
-    var grp = template.clone();
-    grp.scale.setScalar(baseR);
-    grp.traverse(function (child) {
-      if (child.isMesh) {
-        if (!V3D._tierMaterials[tierIdx]) {
-          var m = child.material.clone();
-          m.transparent = true;
-          m.depthWrite = true;
-          m.color.lerp(tintCol, 0.5);
-          V3D._tierMaterials[tierIdx] = m;
-        }
-        child.material = V3D._tierMaterials[tierIdx];
-        child.renderOrder = 4;
-      }
-    });
-    return { grp: grp, r: baseR };
-  }
-  var grp = new THREE.Group();
   var cat = dbzCat3D(dbz);
-  var base = new THREE.Color(cat.col);
+  var baseCol = new THREE.Color(cat.col);
+  baseCol.lerp(tintCol, 0.5);
+  var bright = 0.6 + (dbz / 100) * 0.6;
+  baseCol.multiplyScalar(bright);
   var white = new THREE.Color(1, 1, 1);
   var dark = new THREE.Color(0.18, 0.18, 0.22);
   var severe = dbz >= 50, heavy = dbz >= 40, moderate = dbz >= 35;
-  var SEG = 6;
+  var SEG_W = 8, SEG_H = 6;
+  var spheres = [];
   if (severe) {
-    var bR = baseR * 1.1;
-    var bottomCol = base.clone().lerp(dark, 0.4);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.92, depthWrite: true }));
-    b1.scale.set(1.3, 0.55, 1.2); b1.renderOrder = 4; grp.add(b1);
-    var midCol = base.clone().lerp(white, 0.15);
-    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.9, SEG, SEG), new THREE.MeshBasicMaterial({ color: midCol, transparent: true, opacity: 0.88, depthWrite: true }));
-    b2.scale.set(1.1, 0.7, 1.0); b2.position.y = bR * 0.8; b2.renderOrder = 4; grp.add(b2);
-    var topCol = base.clone().lerp(white, 0.3);
-    var b3 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.75, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.82, depthWrite: true }));
-    b3.scale.set(0.9, 0.8, 0.85); b3.position.y = bR * 1.5; b3.renderOrder = 4; grp.add(b3);
-    var anvilCol = base.clone().lerp(white, 0.35);
-    var anvil = new THREE.Mesh(new THREE.SphereGeometry(bR * 1.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: anvilCol, transparent: true, opacity: 0.6, depthWrite: true }));
-    anvil.scale.set(1.8, 0.18, 1.5); anvil.position.y = bR * 2.0; anvil.renderOrder = 4; grp.add(anvil);
+    spheres.push({ sx: 1.3, sy: 0.55, sz: 1.2, px: 0, py: 0, pz: 0, col: baseCol.clone().lerp(dark, 0.4), r: baseR * 1.1 });
+    spheres.push({ sx: 1.1, sy: 0.7, sz: 1.0, px: 0, py: baseR * 0.8, pz: 0, col: baseCol.clone().lerp(white, 0.15), r: baseR * 0.99 });
+    spheres.push({ sx: 0.9, sy: 0.8, sz: 0.85, px: 0, py: baseR * 1.5, pz: 0, col: baseCol.clone().lerp(white, 0.3), r: baseR * 0.825 });
+    spheres.push({ sx: 1.8, sy: 0.18, sz: 1.5, px: 0, py: baseR * 2.0, pz: 0, col: baseCol.clone().lerp(white, 0.35), r: baseR * 1.76 });
   } else if (heavy) {
-    var bR = baseR * 0.95;
-    var bottomCol = base.clone().lerp(dark, 0.3);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: bottomCol, transparent: true, opacity: 0.88, depthWrite: true }));
-    b1.scale.set(1.2, 0.5, 1.1); b1.renderOrder = 4; grp.add(b1);
-    var topCol = base.clone().lerp(white, 0.2);
-    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.8, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.82, depthWrite: true }));
-    b2.scale.set(1.0, 0.65, 0.9); b2.position.y = bR * 0.7; b2.renderOrder = 4; grp.add(b2);
+    spheres.push({ sx: 1.2, sy: 0.5, sz: 1.1, px: 0, py: 0, pz: 0, col: baseCol.clone().lerp(dark, 0.3), r: baseR * 0.95 });
+    spheres.push({ sx: 1.0, sy: 0.65, sz: 0.9, px: 0, py: baseR * 0.7, pz: 0, col: baseCol.clone().lerp(white, 0.2), r: baseR * 0.76 });
   } else if (moderate) {
-    var bR = baseR * 0.85;
-    var col = base.clone().lerp(white, 0.1);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.82, depthWrite: true }));
-    b1.scale.set(1.1, 0.5, 1.0); b1.renderOrder = 4; grp.add(b1);
-    var topCol = base.clone().lerp(white, 0.25);
-    var b2 = new THREE.Mesh(new THREE.SphereGeometry(bR * 0.6, SEG, SEG), new THREE.MeshBasicMaterial({ color: topCol, transparent: true, opacity: 0.72, depthWrite: true }));
-    b2.scale.set(0.9, 0.55, 0.85); b2.position.y = bR * 0.55; b2.renderOrder = 4; grp.add(b2);
+    spheres.push({ sx: 1.1, sy: 0.5, sz: 1.0, px: 0, py: 0, pz: 0, col: baseCol.clone().lerp(white, 0.1), r: baseR * 0.85 });
+    spheres.push({ sx: 0.9, sy: 0.55, sz: 0.85, px: 0, py: baseR * 0.55, pz: 0, col: baseCol.clone().lerp(white, 0.25), r: baseR * 0.51 });
   } else {
-    var bR = baseR * 0.7;
-    var col = base.clone().lerp(white, 0.15);
-    var b1 = new THREE.Mesh(new THREE.SphereGeometry(bR, SEG, SEG), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.72, depthWrite: true }));
-    b1.scale.set(1.0, 0.45, 0.9); b1.renderOrder = 4; grp.add(b1);
+    spheres.push({ sx: 1.0, sy: 0.45, sz: 0.9, px: 0, py: 0, pz: 0, col: baseCol.clone().lerp(white, 0.15), r: baseR * 0.7 });
   }
-  return { grp: grp, r: baseR };
+  var geos = [];
+  spheres.forEach(function (s) {
+    var g = new THREE.SphereGeometry(s.r, SEG_W, SEG_H);
+    var mat4 = new THREE.Matrix4();
+    mat4.compose(new THREE.Vector3(s.px, s.py, s.pz), new THREE.Quaternion(), new THREE.Vector3(s.sx, s.sy, s.sz));
+    g.applyMatrix4(mat4);
+    var cnt = g.attributes.position.count;
+    var cols = new Float32Array(cnt * 3);
+    for (var i = 0; i < cnt; i++) { cols[i * 3] = s.col.r; cols[i * 3 + 1] = s.col.g; cols[i * 3 + 2] = s.col.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    geos.push(g);
+  });
+  var merged;
+  if (geos.length > 1 && typeof THREE.BufferGeometryUtils !== 'undefined') {
+    merged = THREE.BufferGeometryUtils.mergeBufferGeometries(geos, false);
+    geos.forEach(function (g) { g.dispose(); });
+  } else if (geos.length > 1) {
+    var grp = new THREE.Group();
+    geos.forEach(function (g) {
+      var m = new THREE.Mesh(g, V3D._cloudMaterial);
+      m.renderOrder = 4;
+      grp.add(m);
+    });
+    return { grp: grp, r: baseR };
+  } else {
+    merged = geos[0];
+  }
+  var mesh = new THREE.Mesh(merged, V3D._cloudMaterial);
+  mesh.renderOrder = 4;
+  return { grp: mesh, r: baseR };
 }
 
 function makeRain3D(dbz, r, terrainBaseH) {
-  var n = Math.min(120, 30 + dbz * 2), pos = new Float32Array(n * 3), vel = new Float32Array(n);
+  var maxP = _isDesktop() ? 120 : 60;
+  var n = Math.min(maxP, 30 + dbz * 2), pos = new Float32Array(n * 3), vel = new Float32Array(n);
   for (var i = 0; i < n; i++) {
     var a = Math.random() * Math.PI * 2, d = Math.random() * r * 1.3;
     pos[i * 3] = Math.cos(a) * d; pos[i * 3 + 1] = -Math.random() * r * 2; pos[i * 3 + 2] = Math.sin(a) * d;
@@ -1045,50 +1066,80 @@ function sonarZones3D() {
   return out;
 }
 
+function _tickLightning() {
+  if (!V3D._lightningCells.length) return;
+  var maxFlash = _isDesktop() ? 5 : 3;
+  var i = V3D._lightningFlashes.length;
+  while (i--) {
+    var f = V3D._lightningFlashes[i];
+    if (V3D.frame >= f.endFrame) {
+      var sm = V3D.stormMeshes[f.meshIdx];
+      if (sm && sm.mesh) sm.mesh.material = V3D._cloudMaterial;
+      V3D._lightningFlashes.splice(i, 1);
+    }
+  }
+  if (V3D._lightningFlashes.length < maxFlash) {
+    for (var j = 0; j < V3D._lightningCells.length; j++) {
+      if (V3D._lightningFlashes.length >= maxFlash) break;
+      var lc = V3D._lightningCells[j];
+      if (Math.random() < lc.prob * 0.08) {
+        var sm2 = V3D.stormMeshes[lc.meshIdx];
+        if (sm2 && sm2.mesh && sm2.mesh.material !== V3D._flashMaterial) {
+          sm2.mesh.material = V3D._flashMaterial;
+          V3D._lightningFlashes.push({ meshIdx: lc.meshIdx, endFrame: V3D.frame + 4 + Math.floor(Math.random() * 5) });
+        }
+      }
+    }
+  }
+}
+
+function _updateLOD() {
+  if (!V3D.camera) return;
+  var camPos = V3D.camera.position;
+  var lodDist = _isDesktop() ? 9999 : 40;
+  var lodScene = lodDist * 0.6;
+  V3D.stormMeshes.forEach(function (sm) {
+    var mp = sm.mesh.position;
+    var dx = mp.x - camPos.x, dz = mp.z - camPos.z;
+    var d = Math.sqrt(dx * dx + dz * dz);
+    var far = d > lodScene;
+    if (sm.rain) sm.rain.visible = !far;
+    if (sm.halo) sm.halo.visible = !far;
+    if (sm.label && V3D._labelsVisible) sm.label.visible = !far;
+  });
+}
+
 function rebuildStorms3D() {
   clearStorms3D();
+  _initCloudMaterials();
+  _applyGlowIntensity();
   var storms = sonarZones3D();
   if (!storms.length) return;
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
   var showLabels = V3D._labelsVisible !== false;
   var desktop = _isDesktop();
   var _coneCandidates = [];
+  var rainCount = 0;
+  var maxRainCells = desktop ? 999 : 20;
   storms.forEach(function (cell) {
     var tierIdx = _cloudTierIdx(cell.dbz);
     if (!V3D._tierFilter[tierIdx]) return;
-    var _glowLights = [];
     var lon = cell.lon || cell.lng;
     var lat = cell.lat;
     var sp = geoToScene3D(lat, lon);
     var dkm = haversineKm3D(S.lat, S.lon, lat, lon);
     var cloudBase = getCloudBase3D();
-    var cl = makeCloudGroup3D(cell.dbz, cell.hookEcho, surfWind);
+    var cl = makeCloudGroup3D(cell.dbz);
     var yJitter = (Math.random() - 0.5) * 0.06;
     var alt = cloudBase + cl.r + yJitter;
 
     cl.grp.position.set(sp.x, alt, sp.z); cl.grp.rotation.y = (Math.random() * 358 - 179) * (Math.PI / 180); cl.grp.userData.cell = cell; V3D.stormGroup.add(cl.grp);
 
-    if (cell.dbz >= 20) {
-      var glowCol = new THREE.Color(dbzHex3D(cell.dbz));
-      var _glowBase = (cell.dbz / 100) * 2;
-      var glowPt = new THREE.PointLight(glowCol, _glowBase * V3D.glowLevel * V3D._dayGlowMult, Math.max(4, cell.dbz * 0.15) + dkm * 0.08);
-      glowPt.position.set(sp.x, alt + cl.r * 0.3, sp.z); V3D.stormGroup.add(glowPt);
-      _glowLights.push({ light: glowPt, baseIntensity: _glowBase });
-    }
-
+    var haloMesh = null;
     if (cell.dbz >= 50) {
-      var hHex = dbzHex3D(cell.dbz);
-      var hR = parseInt(hHex.slice(1, 3), 16), hG = parseInt(hHex.slice(3, 5), 16), hB = parseInt(hHex.slice(5, 7), 16);
-      var haloCv = document.createElement('canvas'); haloCv.width = haloCv.height = 64;
-      var haloCx = haloCv.getContext('2d');
-      var haloG = haloCx.createRadialGradient(32, 32, 0, 32, 32, 32);
-      haloG.addColorStop(0, 'rgba(' + hR + ',' + hG + ',' + hB + ',0.25)');
-      haloG.addColorStop(0.4, 'rgba(' + hR + ',' + hG + ',' + hB + ',0.05)');
-      haloG.addColorStop(1, 'rgba(0,0,0,0)');
-      haloCx.fillStyle = haloG; haloCx.fillRect(0, 0, 64, 64);
-      var haloTex = new THREE.CanvasTexture(haloCv);
+      var haloTex = _getSharedHaloTexture(tierIdx);
       var haloSz = cl.r * 2;
-      var haloMesh = new THREE.Mesh(new THREE.PlaneGeometry(haloSz * 2, haloSz * 2),
+      haloMesh = new THREE.Mesh(new THREE.PlaneGeometry(haloSz * 2, haloSz * 2),
         new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, side: THREE.DoubleSide,
           polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
       var haloBaseH = sampleTerrainHeight3D(sp.x, sp.z);
@@ -1097,39 +1148,30 @@ function rebuildStorms3D() {
 
     var rain = null;
     var _wantRain = cell.dbz >= 40 || (cell.dbz >= 33 && Math.random() < 0.35);
-    if (_wantRain && (desktop || cell.dbz >= 35)) {
+    if (_wantRain && (desktop || cell.dbz >= 35) && rainCount < maxRainCells) {
       var terrainBase = sampleTerrainHeight3D(sp.x, sp.z);
       rain = makeRain3D(cell.dbz, cl.r, terrainBase); rain.position.set(sp.x, alt, sp.z); V3D.stormGroup.add(rain);
+      rainCount++;
     }
 
-    var ltTimer = null;
     if (cell.dbz >= 40 && (desktop || cell.dbz >= 45)) {
-      var sx = sp.x, sz2 = sp.z, altR = alt + cl.r, rr = cl.r;
-      var flashCol = new THREE.Color(dbzHex3D(cell.dbz));
-      var baseProb = 0.35 + (cell.dbz - 40) * 0.015;
-      var baseIntensity = 10 + (cell.dbz - 40) * 0.4;
-      ltTimer = setInterval(function () {
-        if (!V3D.active) return;
-        var prob = Math.min(0.9, baseProb);
-        if (Math.random() < prob) {
-          var inten = baseIntensity;
-          var fl = new THREE.PointLight(flashCol, inten, rr * 4);
-          fl.position.set(sx + (Math.random() - .5) * rr * 1.2, altR + Math.random() * rr, sz2 + (Math.random() - .5) * rr * 1.2);
-          V3D.stormGroup.add(fl);
-          setTimeout(function () { V3D.stormGroup.remove(fl); }, 60 + Math.random() * 80);
-        }
-      }, 400 + Math.random() * 1200);
+      V3D._lightningCells.push({ meshIdx: V3D.stormMeshes.length, prob: Math.min(0.9, 0.35 + (cell.dbz - 40) * 0.015) });
     }
 
     var lspr = null;
     if (cell.dbz >= 35) {
       var cloudTop = alt + cl.r * 2.2;
-      lspr = makeSprite3D(Math.round(cell.dbz) + ' dBZ', dbzCat3D(cell.dbz).col, 0.35);
+      var labelTex = _getSharedLabelTexture(cell.dbz);
+      var scale = 0.35;
+      lspr = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthWrite: false }));
+      var sx2 = scale * 4.5, sy2 = scale * 2.2;
+      lspr.scale.set(sx2, sy2, 1);
+      lspr._baseScaleX = sx2; lspr._baseScaleY = sy2;
       lspr.position.set(sp.x, cloudTop + 0.4, sp.z); lspr.visible = showLabels; lspr.renderOrder = 5; V3D.stormGroup.add(lspr);
     }
 
     var cellForCone = { lat: lat, lon: lon, dbz: cell.dbz, distance: cell.distance, bearing: cell.bearing || bearingDeg3D(S.lat, S.lon, lat, lon) };
-    V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, lights: _glowLights, rain: rain, ltTimer: ltTimer, label: lspr });
+    V3D.stormMeshes.push({ mesh: cl.grp, cell: cellForCone, rain: rain, label: lspr, halo: haloMesh, dkm: dkm });
     if (cell.dbz >= 35) {
       var q = _qualifyCone3D(cellForCone, sp);
       if (q) { _coneCandidates.push(q); }
@@ -1150,6 +1192,7 @@ function rebuildStorms3D() {
   }
   V3D._etaCandidates = [];
   _startEtaInterval();
+  _updateLOD();
 }
 
 // =====================================================
@@ -1318,7 +1361,13 @@ function loop3D() {
   }
 
   var surfWind = S.weather ? S.weather.wind_direction_10m || S.weather.windDirection || 0 : 0;
-  V3D.stormMeshes.forEach(function (sm) { animRain3D(sm.rain, surfWind); sm.mesh.position.y += Math.sin(V3D.frame * 0.015 + sm.mesh.id) * 0.0002; });
+  var animRainThisFrame = V3D.frame % 2 === 0;
+  V3D.stormMeshes.forEach(function (sm) {
+    if (animRainThisFrame) animRain3D(sm.rain, surfWind);
+    sm.mesh.position.y += Math.sin(V3D.frame * 0.015 + sm.mesh.id) * 0.0002;
+  });
+  if (V3D.frame % 2 === 0) _tickLightning();
+  if (V3D.frame % 30 === 0) _updateLOD();
   if (V3D.frame % 2 === 0) animWind3D();
   if (V3D.frame % 3600 === 0) refreshSky3D();
   if (V3D.frame % 2 === 0) updateCompass3D();
@@ -1405,7 +1454,8 @@ function deactivate3DView() {
   V3D.active = false;
   if (V3D._markerRAF) { cancelAnimationFrame(V3D._markerRAF); V3D._markerRAF = null; }
   if (V3D._etaInterval) { clearInterval(V3D._etaInterval); V3D._etaInterval = null; }
-  V3D.stormMeshes.forEach(function (sm) { if (sm.ltTimer) { clearInterval(sm.ltTimer); sm.ltTimer = null; } });
+  V3D._lightningCells = [];
+  V3D._lightningFlashes = [];
   var popup = document.getElementById('v3d-popup');
   if (popup) popup.style.display = 'none';
 }
