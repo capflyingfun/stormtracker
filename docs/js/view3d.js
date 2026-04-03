@@ -1137,7 +1137,7 @@ function _updateLOD() {
     var dx = mp.x - camPos.x, dz = mp.z - camPos.z;
     var d = Math.sqrt(dx * dx + dz * dz);
     var far = d > lodScene;
-    if (sm.rain) sm.rain.visible = !far && sm._showRain !== false;
+    if (sm.rain) sm.rain.visible = !far;
     if (sm.halo) sm.halo.visible = !far;
     if (sm.label && V3D._labelsVisible) sm.label.visible = !far;
   });
