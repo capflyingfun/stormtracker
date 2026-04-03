@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=462">
+<link rel="stylesheet" href="css/style.css?v=463">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -468,9 +468,15 @@
             <button id="v3d-tier-4" onclick="toggleTier3D(4)" style="width:22px;height:22px;border-radius:4px;border:1.5px solid #FF0200;background:#FF0200;color:#000;font-size:9px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Red 52-60 dBZ">✓</button>
             <button id="v3d-tier-5" onclick="toggleTier3D(5)" style="width:22px;height:22px;border-radius:4px;border:1.5px solid #FF00F5;background:#FF00F5;color:#000;font-size:9px;font-weight:700;cursor:pointer;padding:0;font-family:inherit;transition:all .15s" title="Magenta 61+ dBZ">✓</button>
           </div>
-          <div style="display:flex;gap:4px;align-items:center">
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
             <button id="v3d-filter-toggle" onclick="toggleFilterPanel3D()" style="background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;color:#e8eef8;font-size:10px;padding:4px 10px;cursor:pointer;letter-spacing:.04em;font-family:inherit;transition:all .2s" title="Toggle dBZ tier filters">Filter</button>
             <button onclick="reset3DView()" style="background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;color:#e8eef8;font-size:10px;padding:4px 10px;cursor:pointer;letter-spacing:.04em;font-family:inherit;transition:background .2s" title="Reset camera to default view">⟲ Reset</button>
+            <button id="v3d-cam-mode-btn" onclick="toggleCamMode3D()" style="background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;color:#e8eef8;font-size:10px;padding:4px 10px;cursor:pointer;letter-spacing:.04em;font-family:inherit;transition:all .2s" title="Toggle Fixed (locked at your location) / Free (full orbit + pan)">📌 Fixed</button>
+            <div style="display:flex;align-items:center;gap:3px;background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;padding:3px 8px" title="Field of view (30° – 120°)">
+              <span style="font-size:10px;color:#aac4e8">FOV</span>
+              <input type="range" min="30" max="120" step="1" value="72" id="v3d-fov-slider" oninput="setFOV3D(this.value)" style="width:48px;height:14px;accent-color:#00c8ff;cursor:pointer">
+              <span id="v3d-fov-val" style="font-size:9px;color:#00c8ff;font-weight:700;min-width:22px;text-align:center">72°</span>
+            </div>
             <div style="display:flex;align-items:center;gap:3px;background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;padding:3px 8px" title="Cloud glow intensity (0=off, 3=max)">
               <span style="font-size:12px">💡</span>
               <input type="range" min="0" max="3" step="1" value="1" oninput="setGlowLevel3D(this.value)" style="width:48px;height:14px;accent-color:#ffcc00;cursor:pointer">
@@ -566,23 +572,23 @@
   </div>
 </div>
 
-<script src="js/core.js?v=462"></script>
-<script src="js/gauges.js?v=462"></script>
-<script src="js/icons.js?v=462"></script>
-<script src="js/geo.js?v=462"></script>
-<script src="js/settings.js?v=462"></script>
-<script src="js/thresholds.js?v=462"></script>
-<script src="js/weather.js?v=462"></script>
-<script src="js/radar.js?v=462"></script>
-<script src="js/storms.js?v=462"></script>
-<script src="js/station.js?v=462"></script>
-<script src="js/alerts.js?v=462"></script>
-<script src="js/ai.js?v=462"></script>
-<script src="js/init.js?v=462"></script>
+<script src="js/core.js?v=463"></script>
+<script src="js/gauges.js?v=463"></script>
+<script src="js/icons.js?v=463"></script>
+<script src="js/geo.js?v=463"></script>
+<script src="js/settings.js?v=463"></script>
+<script src="js/thresholds.js?v=463"></script>
+<script src="js/weather.js?v=463"></script>
+<script src="js/radar.js?v=463"></script>
+<script src="js/storms.js?v=463"></script>
+<script src="js/station.js?v=463"></script>
+<script src="js/alerts.js?v=463"></script>
+<script src="js/ai.js?v=463"></script>
+<script src="js/init.js?v=463"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
-<script src="js/view3d.js?v=462"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=462').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="js/view3d.js?v=463"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=463').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>

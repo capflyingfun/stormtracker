@@ -34,6 +34,8 @@ var V3D = {
   rafId: null,
   metric: false,
   _labelsVisible: localStorage.getItem('v3d_labels') === 'on',
+  _camMode: localStorage.getItem('v3d_camMode') || 'fixed',
+  _fov: parseInt(localStorage.getItem('v3d_fov')) || 72,
   _tierFilter: (function () {
     try { var s = localStorage.getItem('v3d_tiers'); if (s) { var a = JSON.parse(s); if (a.length === 6) return a; } } catch (e) {}
     return [true, true, true, true, true, true];
@@ -106,14 +108,42 @@ function toggleFilterPanel3D() {
 
 function reset3DView() {
   if (!V3D.camera || !V3D.controls) return;
-  if (V3D.controls.reset) {
-    V3D.controls.reset();
+  _setCamMode(V3D._camMode);
+}
+
+function _setCamMode(mode) {
+  V3D._camMode = mode;
+  localStorage.setItem('v3d_camMode', mode);
+  var btn = document.getElementById('v3d-cam-mode-btn');
+  if (mode === 'fixed') {
+    V3D.camera.position.set(0, 0.15, 0.01);
+    V3D.controls.target.set(0, 0.1, -6);
+    V3D.controls.enablePan = false;
+    V3D.controls.minDistance = 0.002;
+    V3D.controls.maxDistance = 250;
+    if (btn) btn.textContent = '📌 Fixed';
   } else {
-    V3D.camera.position.set(0, 0.0015, 0);
-    V3D.camera.lookAt(0, 0.5, -15);
+    V3D.camera.position.set(0, 1, 0.01);
     V3D.controls.target.set(0, 0.4, -6);
-    V3D.controls.update();
+    V3D.controls.enablePan = true;
+    V3D.controls.minDistance = 0.5;
+    V3D.controls.maxDistance = 250;
+    if (btn) btn.textContent = '🔓 Free';
   }
+  V3D.controls.update();
+}
+
+function toggleCamMode3D() {
+  _setCamMode(V3D._camMode === 'fixed' ? 'free' : 'fixed');
+}
+
+function setFOV3D(val) {
+  var fov = Math.max(30, Math.min(120, parseInt(val) || 72));
+  V3D._fov = fov;
+  localStorage.setItem('v3d_fov', fov);
+  if (V3D.camera) { V3D.camera.fov = fov; V3D.camera.updateProjectionMatrix(); }
+  var lbl = document.getElementById('v3d-fov-val');
+  if (lbl) lbl.textContent = fov + '°';
 }
 
 var _TIER_COLORS = ['#00F8FF','#00FF39','#F5FF00','#FFB200','#FF0200','#FF00F5'];
@@ -279,16 +309,17 @@ function init3DScene() {
   V3D.scene = new THREE.Scene();
   V3D.scene.fog = new THREE.FogExp2(0x70aae8, 0.0012);
 
-  V3D.camera = new THREE.PerspectiveCamera(72, w / h, 0.001, 1000);
-  V3D.camera.position.set(0, 0.0015, 0); V3D.camera.lookAt(0, 0.5, -15);
+  V3D.camera = new THREE.PerspectiveCamera(V3D._fov, w / h, 0.001, 1000);
+  V3D.camera.position.set(0, 0.15, 0.01); V3D.camera.lookAt(0, 0.5, -15);
 
   V3D.controls = new THREE.OrbitControls(V3D.camera, V3D.renderer.domElement);
   V3D.controls.enableDamping = true; V3D.controls.dampingFactor = 0.07;
   V3D.controls.screenSpacePanning = false;
   V3D.controls.minDistance = 0.002; V3D.controls.maxDistance = 250;
   V3D.controls.minPolarAngle = Math.PI * 0.05;
-  V3D.controls.maxPolarAngle = Math.PI * 0.85;
-  V3D.controls.target.set(0, 0.4, -6); V3D.controls.update();
+  V3D.controls.maxPolarAngle = Math.PI * 0.48;
+  V3D.controls.target.set(0, 0.1, -6); V3D.controls.update();
+  _setCamMode(V3D._camMode);
   if (V3D.controls.saveState) V3D.controls.saveState();
 
   V3D.raycaster = new THREE.Raycaster();
@@ -1354,10 +1385,11 @@ function loop3D() {
   V3D.frame++;
   var _off = V3D.camera.position.clone().sub(V3D.controls.target);
   var _dist = _off.length();
-  var _cosMax = (0.001 - V3D.controls.target.y) / _dist;
+  var _cosMax = (0.15 - V3D.controls.target.y) / _dist;
   _cosMax = Math.max(-1, Math.min(1, _cosMax));
-  V3D.controls.maxPolarAngle = Math.min(Math.PI * 0.85, Math.acos(_cosMax));
+  V3D.controls.maxPolarAngle = Math.min(Math.PI * 0.48, Math.acos(_cosMax));
   V3D.controls.update();
+  if (V3D.camera.position.y < 0.15) { V3D.camera.position.y = 0.15; V3D.controls.update(); }
 
   var camDist = _dist;
   var zf = Math.max(1, Math.min(5, camDist / 18));
@@ -1410,6 +1442,12 @@ async function activate3DView() {
   V3D.active = true;
   if (V3D._startMarkerPulse && !V3D._markerRAF) V3D._startMarkerPulse();
   syncTierButtons3D();
+  var _fovSlider = document.getElementById('v3d-fov-slider');
+  if (_fovSlider) { _fovSlider.value = V3D._fov; }
+  var _fovLbl = document.getElementById('v3d-fov-val');
+  if (_fovLbl) _fovLbl.textContent = V3D._fov + '°';
+  var _camBtn = document.getElementById('v3d-cam-mode-btn');
+  if (_camBtn) _camBtn.textContent = V3D._camMode === 'fixed' ? '📌 Fixed' : '🔓 Free';
   requestAnimationFrame(function () { resize3DPage(); onResize3D(); });
 
   if (!V3D.ready) {
