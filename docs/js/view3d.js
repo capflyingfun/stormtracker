@@ -927,18 +927,7 @@ function _renderCone3D(q, coneIdx) {
   var fCx = sp.x + movX * rangeKm, fCz = sp.z + movZ * rangeKm;
   var fRx = bRx + Math.sin(mR) * rangeKm, fRz = bRz - Math.cos(mR) * rangeKm;
 
-  var fillVerts = new Float32Array([
-    bLx, Y, bLz, fLx, Y, fLz, fCx, Y, fCz,
-    bLx, Y, bLz, fCx, Y, fCz, fRx, Y, fRz,
-    bLx, Y, bLz, fRx, Y, fRz, bRx, Y, bRz
-  ]);
-  var fillGeo = new THREE.BufferGeometry();
-  fillGeo.setAttribute('position', new THREE.BufferAttribute(fillVerts, 3));
   var coneRO = 3 + dbzLayer * 0.1;
-  var fill = new THREE.Mesh(fillGeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false,
-    polygonOffset: true, polygonOffsetFactor: -(dbzLayer + 1), polygonOffsetUnits: -(dbzLayer + 1) }));
-  fill.renderOrder = coneRO; V3D.coneGroup.add(fill);
-
   var outVerts = new Float32Array([bLx, Y, bLz, fLx, Y, fLz, fCx, Y, fCz, fRx, Y, fRz, bRx, Y, bRz]);
   var outGeo = new THREE.BufferGeometry();
   outGeo.setAttribute('position', new THREE.BufferAttribute(outVerts, 3));
