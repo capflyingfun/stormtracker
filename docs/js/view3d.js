@@ -116,8 +116,8 @@ function _setCamMode(mode) {
   localStorage.setItem('v3d_camMode', mode);
   var btn = document.getElementById('v3d-cam-mode-btn');
   if (mode === 'fixed') {
-    V3D.camera.position.set(0, 0.15, 0.01);
-    V3D.controls.target.set(0, 0.1, -6);
+    V3D.camera.position.set(0, 0.15, 1);
+    V3D.controls.target.set(0, 0.1, 0);
     V3D.controls.enablePan = false;
     V3D.controls.minDistance = 0.002;
     V3D.controls.maxDistance = 250;
@@ -310,7 +310,7 @@ function init3DScene() {
   V3D.scene.fog = new THREE.FogExp2(0x70aae8, 0.0012);
 
   V3D.camera = new THREE.PerspectiveCamera(V3D._fov, w / h, 0.001, 1000);
-  V3D.camera.position.set(0, 0.15, 0.01); V3D.camera.lookAt(0, 0.5, -15);
+  V3D.camera.position.set(0, 0.15, 1); V3D.camera.lookAt(0, 0.1, 0);
 
   V3D.controls = new THREE.OrbitControls(V3D.camera, V3D.renderer.domElement);
   V3D.controls.enableDamping = true; V3D.controls.dampingFactor = 0.07;
@@ -318,7 +318,7 @@ function init3DScene() {
   V3D.controls.minDistance = 0.002; V3D.controls.maxDistance = 250;
   V3D.controls.minPolarAngle = Math.PI * 0.05;
   V3D.controls.maxPolarAngle = Math.PI * 0.48;
-  V3D.controls.target.set(0, 0.1, -6); V3D.controls.update();
+  V3D.controls.target.set(0, 0.1, 0); V3D.controls.update();
   _setCamMode(V3D._camMode);
   if (V3D.controls.saveState) V3D.controls.saveState();
 
