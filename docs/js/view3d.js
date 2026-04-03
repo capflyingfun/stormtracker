@@ -126,6 +126,7 @@ function toggleTier3D(idx) {
   localStorage.setItem('v3d_tiers', JSON.stringify(V3D._tierFilter));
   syncTierButtons3D();
   _applyTierVisibility();
+  _updateLOD();
 }
 
 function _applyTierVisibility() {
