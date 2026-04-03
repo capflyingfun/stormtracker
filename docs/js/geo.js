@@ -160,15 +160,20 @@ let _travelGpsPending=false;
 function _silentGpsOnLoad(){
   return new Promise(resolve=>{
     if(!navigator.geolocation){resolve(null);return}
-    const timeout=setTimeout(()=>resolve(null),8000);
+    let done=false;
+    function finish(val){if(done)return;done=true;clearTimeout(masterTO);resolve(val)}
+    const masterTO=setTimeout(()=>finish(null),15000);
     navigator.geolocation.getCurrentPosition(
-      pos=>{clearTimeout(timeout);resolve(pos)},
+      pos=>finish(pos),
       err=>{
-        clearTimeout(timeout);
-        if(err.code===1){localStorage.removeItem('st_autoGps')}
-        resolve(null);
+        if(err.code===1){localStorage.removeItem('st_autoGps');finish(null);return}
+        navigator.geolocation.getCurrentPosition(
+          pos=>finish(pos),
+          err2=>{if(err2.code===1)localStorage.removeItem('st_autoGps');finish(null)},
+          {enableHighAccuracy:false,timeout:8000,maximumAge:300000}
+        );
       },
-      {enableHighAccuracy:true,timeout:7500,maximumAge:60000}
+      {enableHighAccuracy:true,timeout:8000,maximumAge:300000}
     );
   });
 }
