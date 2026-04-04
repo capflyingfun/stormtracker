@@ -653,7 +653,7 @@ async function scanRadarForView(){
   await fetchWindsAloft(cLat,cLng);
   scanStep(2,'Scanning radar tiles...');
   try{
-    const zoom=useNexrad?8:7;
+    const zoom=useNexrad?(radius<=15?11:radius<=30?10:radius<=50?9:8):(radius<=30?8:7);
     const radiusDeg=radius/69.0;
     const northLat=cLat+radiusDeg,southLat=cLat-radiusDeg;
     const eastLon=cLng+radiusDeg/Math.cos(cLat*Math.PI/180);
