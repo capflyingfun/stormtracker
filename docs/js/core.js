@@ -607,8 +607,7 @@ const NEXRAD_PAL=[
 function nexradToDbz(r,g,b,a){
   if(a<30)return 0;
   if(r+g+b<40)return 0;
-  if(r>220&&g>220&&b>220)return a>180?65:0;
-  if(r>200&&b>200&&g>200&&a>180)return 65;
+  if(r>220&&g>220&&b>220){if(a>180)return 65;if(a<80)return 0;}
   if(r<30&&g>220&&b>220&&a>150)return 70;
   if(r<30&&g>180&&b<30&&a>150)return 75;
   let best=0,bestD=1e9;
@@ -616,7 +615,7 @@ function nexradToDbz(r,g,b,a){
     const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
     if(d<bestD){bestD=d;best=p.dbz}
   }
-  if(bestD>8000)return 0;
+  if(bestD>6000)return 0;
   return best;
 }
 const RV_UB=[
