@@ -118,11 +118,12 @@ function _setCamMode(mode) {
   var btn = document.getElementById('v3d-cam-mode-btn');
   if (mode === 'fixed') {
     V3D.camera.position.set(0, 0.15, 0);
-    V3D.controls.target.set(0, 0.30, -0.05);
+    V3D.controls.target.set(0, 0.15, -0.05);
     V3D.controls.enablePan = false;
     V3D.controls.enableZoom = false;
-    V3D.controls.minDistance = 0.001;
-    V3D.controls.maxDistance = 0.001;
+    V3D.controls.minDistance = 0.05;
+    V3D.controls.maxDistance = 0.05;
+    V3D.controls.dampingFactor = 0.12;
     if (V3D._markerGrp) V3D._markerGrp.visible = false;
     if (btn) btn.textContent = '📌 Fixed';
     _updateFovLabel();
@@ -136,6 +137,7 @@ function _setCamMode(mode) {
     V3D.controls.enableZoom = true;
     V3D.controls.minDistance = 0.5;
     V3D.controls.maxDistance = 250;
+    V3D.controls.dampingFactor = 0.07;
     if (V3D._markerGrp) {
       var camOriginDist = V3D.camera.position.length();
       var fadeStart = 2, fadeEnd = 5;
