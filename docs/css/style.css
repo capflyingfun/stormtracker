@@ -665,7 +665,7 @@ canvas.offscreen{display:none}
   #settings-scroll-area>div{break-inside:avoid;margin-bottom:14px}
 
   /* 3D page: full-height on desktop too */
-  #page-3d{min-height:90vh}
+  #page-3d{display:flex!important;flex-direction:column;min-height:90vh;overflow:hidden}
   #view3d-container{flex:1!important;min-height:0!important}
 }
 @keyframes spin3d{to{transform:rotate(360deg)}}
