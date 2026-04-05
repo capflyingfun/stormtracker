@@ -128,8 +128,7 @@ function _setCamMode(mode) {
     _updateFovLabel();
     _initFovZoom();
   } else {
-    V3D._fov = 72;
-    if (V3D.camera) { V3D.camera.fov = 72; V3D.camera.updateProjectionMatrix(); }
+    _setFov(72);
     V3D.camera.position.set(0, 1, 0.01);
     V3D.controls.target.set(0, 0.4, -6);
     V3D.controls.enablePan = true;
