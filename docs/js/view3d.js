@@ -1208,7 +1208,7 @@ function _tickLightning() {
       var sm2 = V3D.stormMeshes[lc.meshIdx];
       if (sm2 && sm2.mesh && sm2.mesh.material !== V3D._flashMaterial) {
         sm2.mesh.material = V3D._flashMaterial;
-        V3D._lightningFlashes.push({ meshIdx: lc.meshIdx, endFrame: V3D.frame + 8 + Math.floor(Math.random() * 8) });
+        V3D._lightningFlashes.push({ meshIdx: lc.meshIdx, endFrame: V3D.frame + 8 + Math.floor(Math.random() * 9) });
       }
       lc.nextFlash = now + _ltInterval(lc.dbz);
     }
