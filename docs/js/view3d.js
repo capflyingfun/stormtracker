@@ -1186,7 +1186,6 @@ function _ltInterval(dbz) {
 function _tickLightning() {
   if (!V3D._lightningCells.length) return;
   var now = performance.now();
-  var lodDist = _isDesktop() ? 9999 : 40;
   var i = V3D._lightningFlashes.length;
   while (i--) {
     var f = V3D._lightningFlashes[i];
@@ -1198,10 +1197,7 @@ function _tickLightning() {
   }
   for (var j = 0; j < V3D._lightningCells.length; j++) {
     var lc = V3D._lightningCells[j];
-    if (lc.dkm > lodDist) continue;
     if (now < lc.nextFlash) continue;
-    var smVis = V3D.stormMeshes[lc.meshIdx];
-    if (smVis && !smVis.mesh.visible) continue;
     var alreadyFlashing = false;
     for (var k = 0; k < V3D._lightningFlashes.length; k++) {
       if (V3D._lightningFlashes[k].meshIdx === lc.meshIdx) { alreadyFlashing = true; break; }
@@ -1209,6 +1205,7 @@ function _tickLightning() {
     if (alreadyFlashing) continue;
     var sm2 = V3D.stormMeshes[lc.meshIdx];
     if (sm2 && sm2.mesh) {
+      sm2.mesh.visible = true;
       sm2.mesh.material = V3D._flashMaterial;
       V3D._lightningFlashes.push({ meshIdx: lc.meshIdx, endFrame: V3D.frame + 8 + Math.floor(Math.random() * 9) });
     }
