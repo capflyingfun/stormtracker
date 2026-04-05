@@ -74,7 +74,7 @@ function setGlowLevel3D(val) {
 function _applyGlowIntensity() {
   var mult = V3D.glowLevel * V3D._dayGlowMult;
   if (V3D._cloudMaterial) {
-    V3D._cloudMaterial.color.setScalar(0.7 + mult * 0.3);
+    V3D._cloudMaterial.color.setScalar(0.35 + mult * 0.65);
   }
 }
 
@@ -278,8 +278,8 @@ function _initCloudMaterials() {
   }
   if (!V3D._flashMaterial) {
     V3D._flashMaterial = new THREE.MeshBasicMaterial({
-      vertexColors: true, transparent: true, opacity: 0.95,
-      depthWrite: false, color: new THREE.Color(3, 3, 3)
+      vertexColors: false, transparent: true, opacity: 1.0,
+      depthWrite: false, color: new THREE.Color(5, 5, 6)
     });
   }
 }
@@ -673,8 +673,8 @@ function refreshSky3D() {
 
   if (period === 'night') {
     topC.setHex(0x010408); horizC.setHex(0x050e20); groundC.setHex(0x030608);
-    V3D.sunLight.intensity = 0.08; V3D.sunLight.color.setHex(0x3355aa); V3D.ambientLight.intensity = 0.4;
-    V3D._dayGlowMult = 1.0;
+    V3D.sunLight.intensity = 0.05; V3D.sunLight.color.setHex(0x223366); V3D.ambientLight.intensity = 0.15;
+    V3D._dayGlowMult = 0.3;
   } else if (period === 'dawn') {
     var d = (mode !== 'auto') ? 0.6 : Math.max(0, Math.min(1, (now - rise + 3600) / 5000));
     topC.lerpColors(new THREE.Color(0x020510), new THREE.Color(0x2060b8), d);
@@ -688,7 +688,7 @@ function refreshSky3D() {
     V3D.sunLight.intensity = Math.max(0.6, 1.8 - cloud * 0.7); V3D.sunLight.color.setHex(0xfff4d6);
     V3D.ambientLight.intensity = Math.max(0.8, 1.6 - cloud * 0.5);
     V3D.ambientLight.color.setHex(0x8ab4e0);
-    V3D._dayGlowMult = 0.4;
+    V3D._dayGlowMult = 1.0;
   } else {
     var d = (mode !== 'auto') ? 0.6 : Math.max(0, Math.min(1, 1 - (now - (set - 2400)) / 4200));
     topC.lerpColors(new THREE.Color(0x020510), new THREE.Color(0x2060b8), d);
@@ -1208,7 +1208,7 @@ function _tickLightning() {
       var sm2 = V3D.stormMeshes[lc.meshIdx];
       if (sm2 && sm2.mesh && sm2.mesh.material !== V3D._flashMaterial) {
         sm2.mesh.material = V3D._flashMaterial;
-        V3D._lightningFlashes.push({ meshIdx: lc.meshIdx, endFrame: V3D.frame + 4 + Math.floor(Math.random() * 5) });
+        V3D._lightningFlashes.push({ meshIdx: lc.meshIdx, endFrame: V3D.frame + 8 + Math.floor(Math.random() * 8) });
       }
       lc.nextFlash = now + _ltInterval(lc.dbz);
     }
