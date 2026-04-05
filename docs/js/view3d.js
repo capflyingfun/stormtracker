@@ -1177,16 +1177,15 @@ function _startRainReroll() {
 }
 
 function _ltInterval(dbz) {
-  if (dbz >= 65) return 30 + Math.random() * 170;
-  if (dbz >= 60) return 50 + Math.random() * 250;
-  if (dbz >= 55) return 150 + Math.random() * 250;
-  return 250 + Math.random() * 250;
+  if (dbz >= 65) return 1000 + Math.random() * 2000;
+  if (dbz >= 60) return 2000 + Math.random() * 3000;
+  if (dbz >= 55) return 4000 + Math.random() * 4000;
+  return 8000 + Math.random() * 7000;
 }
 
 function _tickLightning() {
   if (!V3D._lightningCells.length) return;
   var now = performance.now();
-  var maxFlash = _isDesktop() ? 5 : 3;
   var lodDist = _isDesktop() ? 9999 : 40;
   var i = V3D._lightningFlashes.length;
   while (i--) {
@@ -1197,21 +1196,23 @@ function _tickLightning() {
       V3D._lightningFlashes.splice(i, 1);
     }
   }
-  if (V3D._lightningFlashes.length < maxFlash) {
-    for (var j = 0; j < V3D._lightningCells.length; j++) {
-      if (V3D._lightningFlashes.length >= maxFlash) break;
-      var lc = V3D._lightningCells[j];
-      if (lc.dkm > lodDist) continue;
-      if (now < lc.nextFlash) continue;
-      var smVis = V3D.stormMeshes[lc.meshIdx];
-      if (smVis && !smVis.mesh.visible) continue;
-      var sm2 = V3D.stormMeshes[lc.meshIdx];
-      if (sm2 && sm2.mesh && sm2.mesh.material !== V3D._flashMaterial) {
-        sm2.mesh.material = V3D._flashMaterial;
-        V3D._lightningFlashes.push({ meshIdx: lc.meshIdx, endFrame: V3D.frame + 8 + Math.floor(Math.random() * 9) });
-      }
-      lc.nextFlash = now + _ltInterval(lc.dbz);
+  for (var j = 0; j < V3D._lightningCells.length; j++) {
+    var lc = V3D._lightningCells[j];
+    if (lc.dkm > lodDist) continue;
+    if (now < lc.nextFlash) continue;
+    var smVis = V3D.stormMeshes[lc.meshIdx];
+    if (smVis && !smVis.mesh.visible) continue;
+    var alreadyFlashing = false;
+    for (var k = 0; k < V3D._lightningFlashes.length; k++) {
+      if (V3D._lightningFlashes[k].meshIdx === lc.meshIdx) { alreadyFlashing = true; break; }
     }
+    if (alreadyFlashing) continue;
+    var sm2 = V3D.stormMeshes[lc.meshIdx];
+    if (sm2 && sm2.mesh) {
+      sm2.mesh.material = V3D._flashMaterial;
+      V3D._lightningFlashes.push({ meshIdx: lc.meshIdx, endFrame: V3D.frame + 8 + Math.floor(Math.random() * 9) });
+    }
+    lc.nextFlash = now + _ltInterval(lc.dbz);
   }
 }
 
