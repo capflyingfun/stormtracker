@@ -1549,6 +1549,7 @@ async function activate3DView() {
   if (msg2) msg2.style.display = 'none';
 
   V3D.active = true;
+  if (V3D.ready) reset3DView();
   if (V3D._startMarkerPulse && !V3D._markerRAF) V3D._startMarkerPulse();
   syncTierButtons3D();
   var _camBtn = document.getElementById('v3d-cam-mode-btn');
