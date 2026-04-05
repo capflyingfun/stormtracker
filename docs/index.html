@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v3.90</title>
+<title>StormTracker v3.91</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <meta name="theme-color" content="#0a1020">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=483">
+<link rel="stylesheet" href="css/style.css?v=484">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -28,7 +28,7 @@
     <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
   <div class="header-center">
-    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v3.90</span></h1>
+    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v3.91</span></h1>
     <div class="header-status">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Initializing...</span>
@@ -474,6 +474,10 @@
             <button id="v3d-cam-mode-btn" onclick="toggleCamMode3D()" style="background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;color:#e8eef8;font-size:10px;padding:4px 10px;cursor:pointer;letter-spacing:.04em;font-family:inherit;transition:all .2s" title="Toggle Fixed (locked at your location) / Free (full orbit + pan)">📌 Fixed</button>
             <span id="v3d-fov-val" style="display:none;background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;padding:3px 8px;font-size:9px;color:#00c8ff;font-weight:700;letter-spacing:.04em" title="Current field of view (scroll/pinch to adjust)">72°</span>
           </div>
+          <div id="v3d-zoom-wrap" style="display:flex;gap:4px;align-items:center;background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;padding:3px 8px">
+            <span style="font-size:9px;color:#00c8ff;font-weight:600">🔍</span>
+            <input type="range" id="v3d-zoom-slider" min="30" max="120" step="1" value="72" oninput="_setFov(this.value)" style="width:80px;height:14px;accent-color:#00c8ff;cursor:pointer">
+          </div>
           <div style="display:flex;gap:4px;align-items:center">
             <div style="display:flex;align-items:center;gap:3px;background:rgba(5,10,20,0.78);backdrop-filter:blur(8px);border:1px solid rgba(0,200,255,0.25);border-radius:8px;padding:3px 8px" title="Cloud glow intensity (0=off, 3=max)">
               <span style="font-size:12px">💡</span>
@@ -570,23 +574,23 @@
   </div>
 </div>
 
-<script src="js/core.js?v=483"></script>
-<script src="js/gauges.js?v=483"></script>
-<script src="js/icons.js?v=483"></script>
-<script src="js/geo.js?v=483"></script>
-<script src="js/settings.js?v=483"></script>
-<script src="js/thresholds.js?v=483"></script>
-<script src="js/weather.js?v=483"></script>
-<script src="js/radar.js?v=483"></script>
-<script src="js/storms.js?v=483"></script>
-<script src="js/station.js?v=483"></script>
-<script src="js/alerts.js?v=483"></script>
-<script src="js/ai.js?v=483"></script>
-<script src="js/init.js?v=483"></script>
+<script src="js/core.js?v=484"></script>
+<script src="js/gauges.js?v=484"></script>
+<script src="js/icons.js?v=484"></script>
+<script src="js/geo.js?v=484"></script>
+<script src="js/settings.js?v=484"></script>
+<script src="js/thresholds.js?v=484"></script>
+<script src="js/weather.js?v=484"></script>
+<script src="js/radar.js?v=484"></script>
+<script src="js/storms.js?v=484"></script>
+<script src="js/station.js?v=484"></script>
+<script src="js/alerts.js?v=484"></script>
+<script src="js/ai.js?v=484"></script>
+<script src="js/init.js?v=484"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
-<script src="js/view3d.js?v=483"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=483').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="js/view3d.js?v=484"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=484').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>

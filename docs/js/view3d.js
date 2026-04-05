@@ -34,8 +34,8 @@ var V3D = {
   rafId: null,
   metric: false,
   _labelsVisible: localStorage.getItem('v3d_labels') === 'on',
-  _camMode: localStorage.getItem('v3d_camMode') || 'fixed',
-  _fov: parseInt(localStorage.getItem('v3d_fov')) || 72,
+  _camMode: 'fixed',
+  _fov: 72,
   _tierFilter: (function () {
     try { var s = localStorage.getItem('v3d_tiers'); if (s) { var a = JSON.parse(s); if (a.length === 6) return a; } } catch (e) {}
     return [true, true, true, true, true, true];
@@ -114,7 +114,6 @@ function reset3DView() {
 
 function _setCamMode(mode) {
   V3D._camMode = mode;
-  localStorage.setItem('v3d_camMode', mode);
   var btn = document.getElementById('v3d-cam-mode-btn');
   if (mode === 'fixed') {
     V3D.camera.position.set(0, 0.15, 0);
@@ -129,8 +128,7 @@ function _setCamMode(mode) {
     _updateFovLabel();
     _initFovZoom();
   } else {
-    V3D._fov = 72;
-    if (V3D.camera) { V3D.camera.fov = 72; V3D.camera.updateProjectionMatrix(); }
+    _setFov(72);
     V3D.camera.position.set(0, 1, 0.01);
     V3D.controls.target.set(0, 0.4, -6);
     V3D.controls.enablePan = true;
@@ -186,20 +184,24 @@ function _fovTouchMove(e) {
 function _setFov(val) {
   var fov = Math.max(30, Math.min(120, Math.round(val)));
   V3D._fov = fov;
-  localStorage.setItem('v3d_fov', fov);
   if (V3D.camera) { V3D.camera.fov = fov; V3D.camera.updateProjectionMatrix(); }
   _updateFovLabel();
+  var slider = document.getElementById('v3d-zoom-slider');
+  if (slider && parseInt(slider.value) !== fov) slider.value = fov;
 }
 
 function _updateFovLabel() {
   var lbl = document.getElementById('v3d-fov-val');
   if (!lbl) return;
-  if (V3D._camMode === 'fixed') {
+  var isFixed = V3D._camMode === 'fixed';
+  if (isFixed) {
     lbl.textContent = V3D._fov + '°';
     lbl.style.display = '';
   } else {
     lbl.style.display = 'none';
   }
+  var zoomWrap = document.getElementById('v3d-zoom-wrap');
+  if (zoomWrap) zoomWrap.style.display = isFixed ? 'flex' : 'none';
 }
 
 function _initFovZoom() {
@@ -388,7 +390,9 @@ function init3DScene() {
   V3D.scene = new THREE.Scene();
   V3D.scene.fog = new THREE.FogExp2(0x70aae8, 0.0012);
 
-  V3D.camera = new THREE.PerspectiveCamera(V3D._fov, w / h, 0.001, 1000);
+  V3D._fov = 72;
+  V3D._camMode = 'fixed';
+  V3D.camera = new THREE.PerspectiveCamera(72, w / h, 0.001, 1000);
   V3D.camera.position.set(0, 0.15, 0.001); V3D.camera.lookAt(0, 0.15, -1);
 
   V3D.controls = new THREE.OrbitControls(V3D.camera, V3D.renderer.domElement);
@@ -398,7 +402,7 @@ function init3DScene() {
   V3D.controls.minPolarAngle = Math.PI * 0.05;
   V3D.controls.maxPolarAngle = Math.PI * 0.48;
   V3D.controls.target.set(0, 0.15, -1); V3D.controls.update();
-  _setCamMode(V3D._camMode);
+  _setCamMode('fixed');
   if (V3D.controls.saveState) V3D.controls.saveState();
 
   V3D.raycaster = new THREE.Raycaster();
@@ -1172,8 +1176,16 @@ function _startRainReroll() {
   V3D._rainRerollInterval = setInterval(_rerollRain, 5000);
 }
 
+function _ltInterval(dbz) {
+  if (dbz >= 65) return 30 + Math.random() * 170;
+  if (dbz >= 60) return 50 + Math.random() * 250;
+  if (dbz >= 55) return 150 + Math.random() * 250;
+  return 250 + Math.random() * 250;
+}
+
 function _tickLightning() {
   if (!V3D._lightningCells.length) return;
+  var now = performance.now();
   var maxFlash = _isDesktop() ? 5 : 3;
   var lodDist = _isDesktop() ? 9999 : 40;
   var i = V3D._lightningFlashes.length;
@@ -1190,15 +1202,15 @@ function _tickLightning() {
       if (V3D._lightningFlashes.length >= maxFlash) break;
       var lc = V3D._lightningCells[j];
       if (lc.dkm > lodDist) continue;
+      if (now < lc.nextFlash) continue;
       var smVis = V3D.stormMeshes[lc.meshIdx];
       if (smVis && !smVis.mesh.visible) continue;
-      if (Math.random() < lc.prob * 0.08) {
-        var sm2 = V3D.stormMeshes[lc.meshIdx];
-        if (sm2 && sm2.mesh && sm2.mesh.material !== V3D._flashMaterial) {
-          sm2.mesh.material = V3D._flashMaterial;
-          V3D._lightningFlashes.push({ meshIdx: lc.meshIdx, endFrame: V3D.frame + 4 + Math.floor(Math.random() * 5) });
-        }
+      var sm2 = V3D.stormMeshes[lc.meshIdx];
+      if (sm2 && sm2.mesh && sm2.mesh.material !== V3D._flashMaterial) {
+        sm2.mesh.material = V3D._flashMaterial;
+        V3D._lightningFlashes.push({ meshIdx: lc.meshIdx, endFrame: V3D.frame + 4 + Math.floor(Math.random() * 5) });
       }
+      lc.nextFlash = now + _ltInterval(lc.dbz);
     }
   }
 }
@@ -1261,9 +1273,8 @@ function rebuildStorms3D() {
       _rainCandidates.push({ meshIdx: V3D.stormMeshes.length, dkm: dkm, sp: sp, alt: alt, r: cl.r, dbz: cell.dbz, showRain: true });
     }
 
-    if (cell.dbz >= 40 && (desktop || cell.dbz >= 45)) {
-      var ltWeight = Math.pow((cell.dbz - 40) / 30, 1.5) * 0.8 + 0.1;
-      V3D._lightningCells.push({ meshIdx: V3D.stormMeshes.length, prob: Math.min(0.95, ltWeight), dkm: dkm });
+    if (cell.dbz >= 50) {
+      V3D._lightningCells.push({ meshIdx: V3D.stormMeshes.length, dbz: cell.dbz, dkm: dkm, nextFlash: performance.now() + _ltInterval(cell.dbz) });
     }
 
     var lspr = null;
