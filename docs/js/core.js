@@ -589,31 +589,21 @@ const NEXRAD_PAL=[
   {dbz:25,r:0,g:81,b:128},{dbz:25,r:0,g:85,b:136},
   {dbz:25,r:0,g:110,b:33},{dbz:30,r:0,g:75,b:0},
   {dbz:35,r:255,g:255,b:33},{dbz:35,r:255,g:238,b:0},
-  {dbz:38,r:255,g:200,b:0},{dbz:40,r:255,g:170,b:0},
-  {dbz:42,r:255,g:115,b:0},{dbz:44,r:255,g:60,b:0},
-  {dbz:45,r:255,g:0,b:0},{dbz:47,r:230,g:0,b:0},
-  {dbz:48,r:214,g:0,b:0},{dbz:50,r:192,g:0,b:0},
-  {dbz:52,r:160,g:0,b:0},{dbz:55,r:120,g:0,b:0},
-  {dbz:55,r:93,g:0,b:0},{dbz:55,r:150,g:0,b:0},
-  {dbz:57,r:175,g:0,b:150},{dbz:58,r:200,g:50,b:200},
-  {dbz:60,r:230,g:100,b:230},{dbz:60,r:255,g:170,b:255},
-  {dbz:63,r:255,g:130,b:255},{dbz:63,r:255,g:88,b:255},
-  {dbz:70,r:0,g:255,b:255},{dbz:70,r:100,g:200,b:255},
-  {dbz:75,r:0,g:233,b:149},{dbz:75,r:0,g:200,b:0}
+  {dbz:42,r:255,g:115,b:0},
+  {dbz:45,r:255,g:0,b:0},{dbz:55,r:150,g:0,b:0},
+  {dbz:55,r:175,g:0,b:150},
+  {dbz:60,r:230,g:100,b:230}
 ];
 function nexradToDbz(r,g,b,a){
   if(a<30)return 0;
   if(r+g+b<40)return 0;
-  if(r>245&&g>245&&b>245&&a>=250)return 75;
-  if(r>180&&g>180&&b>180){const rng=Math.max(r,g,b)-Math.min(r,g,b);if(rng<40)return 0;}
-  if(r<30&&g>220&&b>220&&a>150)return 70;
-  if(r<30&&g>180&&b<30&&a>150)return 75;
+  if(r>220&&g>220&&b>220)return 0;
   let best=0,bestD=1e9;
   for(const p of NEXRAD_PAL){
     const d=(r-p.r)**2+(g-p.g)**2+(b-p.b)**2;
     if(d<bestD){bestD=d;best=p.dbz}
   }
-  if(bestD>6000)return 0;
+  if(bestD>5000)return 0;
   return best;
 }
 const RV_UB=[

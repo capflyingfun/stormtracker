@@ -601,13 +601,18 @@ async function scanRadarForStorms(){
   await Promise.all([fetchWindsAloft(),fetchAFD()]);
   scanStep(2,'Scanning radar tiles...');
   try{
-    const zoom=useNexrad?8:7;
-    const radiusDeg=S.scanRadius/69.0;
+    const radius=S.scanRadius;
+    let zoom=useNexrad?(radius<=15?11:radius<=30?10:radius<=50?9:8):(radius<=30?8:7);
+    const radiusDeg=radius/69.0;
     const northLat=S.lat+radiusDeg,southLat=S.lat-radiusDeg;
     const eastLon=S.lon+radiusDeg/Math.cos(S.lat*Math.PI/180);
     const westLon=S.lon-radiusDeg/Math.cos(S.lat*Math.PI/180);
-    const minTX=lonToTileX(westLon,zoom),maxTX=lonToTileX(eastLon,zoom);
-    const minTY=latToTileY(northLat,zoom),maxTY=latToTileY(southLat,zoom);
+    let minTX=lonToTileX(westLon,zoom),maxTX=lonToTileX(eastLon,zoom);
+    let minTY=latToTileY(northLat,zoom),maxTY=latToTileY(southLat,zoom);
+    while((maxTX-minTX+1)*(maxTY-minTY+1)>48&&zoom>(useNexrad?8:7)){
+      zoom--;minTX=lonToTileX(westLon,zoom);maxTX=lonToTileX(eastLon,zoom);
+      minTY=latToTileY(northLat,zoom);maxTY=latToTileY(southLat,zoom);
+    }
 
     if(!useNexrad){
       try{
