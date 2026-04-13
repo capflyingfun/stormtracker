@@ -1423,14 +1423,14 @@ function renderDailyForecast(d,tz){
     const widthPct=((hiC-loC)/weekRange)*100;
     const loCol=_tempToColor(loC),hiCol=_tempToColor(hiC);
     const hidden=vi>=initShow?' style="display:none" data-fc-extra':'';
-    return`<div class="dbar-row"${hidden}>
+    return`<div class="dbar-row" onclick="toggleDailyDetail(this,${oi})"${hidden}>
       <div class="dbar-day"><span class="dbar-day-name">${dayAbbr}</span><span class="dbar-day-date">${dateNum}</span></div>
       <div class="dbar-icon">${emDay}${severe?'<span class="dbar-severe">⚠</span>':''}</div>
       <div class="dbar-rain">${rain>0?'💧'+rain+'%':''}</div>
       <div class="dbar-lo">${fmtTempShort(loC)}</div>
       <div class="dbar-track"><div class="dbar-range" style="left:${leftPct}%;width:${Math.max(widthPct,4)}%;background:linear-gradient(90deg,${loCol},${hiCol})"></div></div>
       <div class="dbar-hi">${fmtTempShort(hiC)}</div>
-    </div>`;
+    </div><div id="fc-detail-${oi}" style="display:none"></div>`;
   }).join('');
   const showMore=futureTime.length>initShow?`<div class="fc-show-more" id="fc-show-more" onclick="toggleFcMore()">Show More ▾</div>`:'';
   return`<div class="card"><div class="card-title"><span class="icon">📊</span> ${tStr('This Week')}</div>${rows}${showMore}</div>`;
@@ -1440,14 +1440,14 @@ function toggleFcMore(){
   const btn=document.getElementById('fc-show-more');
   if(!extras.length)return;
   const hidden=extras[0].style.display==='none';
-  extras.forEach(el=>el.style.display=hidden?'':'none');
+  extras.forEach(el=>{el.style.display=hidden?'':'none';if(!hidden){const nb=el.nextElementSibling;if(nb&&nb.id&&nb.id.startsWith('fc-detail-'))nb.style.display='none';el.classList.remove('dbar-row-active')}});
   if(btn)btn.innerHTML=hidden?'Show Less ▴':'Show More ▾';
 }
 function toggleDailyDetail(el,idx){
   const d=S.forecast&&S.forecast.daily;if(!d)return;
   const box=document.getElementById('fc-detail-'+idx);
   if(!box)return;
-  if(box.style.display!=='none'){box.style.display='none';el.textContent='Show Details';return}
+  if(box.style.display!=='none'){box.style.display='none';el.classList.remove('dbar-row-active');return}
   const rain=d.precipitation_probability_max?d.precipitation_probability_max[idx]:0;
   const precip=d.precipitation_sum?d.precipitation_sum[idx]:0;
   const wind=d.wind_speed_10m_max?d.wind_speed_10m_max[idx]:0;
@@ -1463,7 +1463,7 @@ function toggleDailyDetail(el,idx){
     <div class="fd-row"><span>🌇 ${tStr('Sunset')}</span><span class="fw600">${sunset}</span></div>
   </div>`;
   box.style.display='';
-  el.textContent='Hide Details';
+  el.classList.add('dbar-row-active');
   if(_curLang!=='en')setTimeout(quickTranslate,100);
 }
 
