@@ -1454,7 +1454,7 @@ function _tickerWeatherPool(){
   if(w){
     const tc=w.temperature_2m;const fc2=w.apparent_temperature;
     if(tc!=null){
-      const desc=wmoDesc(w.weather_code||0);
+      const desc=wmoDesc(w.weather_code||0,w.is_day===1);
       pool.push(`🌡️ Currently ${fmtTemp(tc)} — ${desc}${S.locName?' in '+S.locName:''}.`);
       if(fc2!=null&&Math.abs(tc-fc2)>=2)pool.push(`🌡️ Temperature ${fmtTemp(tc)} but feels like ${fmtTemp(fc2)}${Math.abs(tc-fc2)>=5?' — dress accordingly!':'. Not bad out there.'}`);
       if(tc>35)pool.push('🔥 It\'s scorching hot out there! Stay hydrated and avoid prolonged sun exposure. 💦');
@@ -1558,7 +1558,7 @@ function _tickerNearbyPool(sigStormCount){
   const w=S.weather;
   if(w){
     const tc=w.temperature_2m;
-    if(tc!=null)pool.push(`🔔 ${sigStormCount} cell${sigStormCount>1?'s':''} detected nearby · Currently ${fmtTemp(tc)} and ${wmoDesc(w.weather_code||0)}. Storms not approaching. 📊`);
+    if(tc!=null)pool.push(`🔔 ${sigStormCount} cell${sigStormCount>1?'s':''} detected nearby · Currently ${fmtTemp(tc)} and ${wmoDesc(w.weather_code||0,w.is_day===1)}. Storms not approaching. 📊`);
     const wSpd=w.wind_speed_10m;
     if(wSpd!=null&&wSpd>5)pool.push(`🔔 ${sigStormCount} cell${sigStormCount>1?'s':''} in area · Winds ${degToDir(w.wind_direction_10m||0)} at ${fmtWind(wSpd)}. Storms holding position or drifting away. 💨`);
   }
