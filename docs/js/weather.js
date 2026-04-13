@@ -397,7 +397,7 @@ function renderWeather(data){
   const el=document.getElementById('page-weather');
   const c=data.current,isDay=c.is_day===1;
   const tempC=c.temperature_2m,feelsC=c.apparent_temperature;
-  const icon=wmoIcon(c.weather_code,isDay),desc=wmoDesc(c.weather_code);
+  const icon=wmoIcon(c.weather_code,isDay),desc=wmoDesc(c.weather_code,isDay);
   const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
   if(wxNavBtn)wxNavBtn.innerHTML=neonWx(c.weather_code,isDay,20);
   const _stormZone=typeof checkUserInZone==='function'?checkUserInZone():null;
@@ -461,7 +461,7 @@ function renderWeather(data){
       ${renderTrendCharts(hourly)}</div>`,
     hourly:`<div class="weather-section" data-sec="hourly"><div class="sec-header"><span class="card-title m-0"><span class="icon">🕐</span> 72h Hourly Forecast</span>${secBtns('hourly')}</div>
       ${renderHourlyForecast(hourly,daily)}</div>`,
-    forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${data._nwsForecast?renderNWSForecast(data._nwsForecast):renderDailyForecast(daily,data.timezone)}</div>`
+    forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${renderDailyForecast(daily,data.timezone)}${data._nwsForecast?renderNWSForecast(data._nwsForecast):''}</div>`
   };
   const order=getSecOrder();
 
@@ -1443,6 +1443,14 @@ function toggleFcMore(){
   extras.forEach(el=>{el.style.display=hidden?'':'none';if(!hidden){const nb=el.nextElementSibling;if(nb&&nb.id&&nb.id.startsWith('fc-detail-'))nb.style.display='none';el.classList.remove('dbar-row-active')}});
   if(btn)btn.innerHTML=hidden?'Show Less ▴':'Show More ▾';
 }
+function toggleNwsFcMore(){
+  const extras=document.querySelectorAll('[data-nws-extra]');
+  const btn=document.getElementById('nws-show-more');
+  if(!extras.length)return;
+  const hidden=extras[0].style.display==='none';
+  extras.forEach(el=>el.style.display=hidden?'':'none');
+  if(btn)btn.innerHTML=hidden?'Show Less ▴':'Show More ▾';
+}
 function toggleDailyDetail(el,idx){
   const d=S.forecast&&S.forecast.daily;if(!d)return;
   const box=document.getElementById('fc-detail-'+idx);
@@ -1490,7 +1498,7 @@ function renderNWSForecast(periods){
     const combined=dayShort+' '+nightShort;
     const severe=_isSevere(combined);
     const tags=_wxTags(combined);
-    const hidden=pi>=initShow?' style="display:none" data-fc-extra':'';
+    const hidden=pi>=initShow?' style="display:none" data-nws-extra':'';
     return`<div class="fc-day-card"${hidden}>
       <div class="fc-day-header">
         <span class="fc-day-name">${dayName}</span>
@@ -1505,7 +1513,7 @@ function renderNWSForecast(periods){
       <div class="fc-detail-body" id="nws-detail-${pair.idx}" style="display:none"></div>
     </div>`;
   }).join('');
-  const showMore=dayPairs.length>initShow?`<div class="fc-show-more" id="fc-show-more" onclick="toggleFcMore()">Show More ▾</div>`:'';
+  const showMore=dayPairs.length>initShow?`<div class="fc-show-more" id="nws-show-more" onclick="toggleNwsFcMore()">Show More ▾</div>`:'';
   return`<div class="card"><div class="card-title"><span class="icon">📊</span> NWS Forecast</div>${cards}${showMore}
     <div style="text-align:right;font-size:0.55em;color:var(--text-muted);margin-top:4px;padding-right:4px">Source: National Weather Service</div></div>`;
 }
