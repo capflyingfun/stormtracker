@@ -400,6 +400,11 @@ function renderWeather(data){
   const icon=wmoIcon(c.weather_code,isDay),desc=wmoDesc(c.weather_code);
   const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
   if(wxNavBtn)wxNavBtn.innerHTML=neonWx(c.weather_code,isDay,20);
+  const _stormZone=typeof checkUserInZone==='function'?checkUserInZone():null;
+  const _zoneOverride=_stormZone&&_stormZone.length>0&&_stormZone[0].cls!=='trace'?_stormZone[0]:null;
+  const _zoneDbzToWmo={trace:3,light:61,moderate:63,heavy:65,intense:65,severe:95,extreme:99};
+  const _heroDesc=_zoneOverride?_zoneOverride.label:(c._nwsDesc||desc);
+  const _heroWCode=_zoneOverride?(_zoneDbzToWmo[_zoneOverride.cls]||63):c.weather_code;
   const dewC=Math.min(tempC,c._directDewC!=null?c._directDewC:calcDewC(tempC,Math.min(100,c.relative_humidity_2m)));
   const hourly=data.hourly||{},daily=data.daily||{};
   S._hourlyData=hourly;
@@ -462,9 +467,9 @@ function renderWeather(data){
 
   el.innerHTML=`
     <div class="weather-hero">
-      <div class="hero-icon-showcase">${animEmoji(c.weather_code,isDay,'340px',c._nwsDesc)}</div>
+      <div class="hero-icon-showcase">${animEmoji(_heroWCode,isDay,'340px',_heroDesc)}</div>
       <div class="hero-temp-line" style="font-size:2.8em;font-weight:800;line-height:1;background:linear-gradient(180deg,var(--text-primary) 0%,var(--text-secondary) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:6px 0 2px">${fmtTempShort(tempC)}<span style="-webkit-text-fill-color:initial;background:none">${_taC(_hv('temperature_2m'),_hv1('temperature_2m'),1)}</span></div>
-      <div class="hero-desc-line" style="font-size:0.85em;color:var(--text-secondary);margin-bottom:2px">${c._nwsDesc||desc}</div>
+      <div class="hero-desc-line" style="font-size:0.85em;color:${_zoneOverride?_zoneOverride.color:'var(--text-secondary)'};margin-bottom:2px">${_heroDesc}${_zoneOverride?'<span style="display:inline-block;margin-left:6px;font-size:0.65em;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(255,60,60,0.15);color:'+_zoneOverride.color+';border:1px solid '+_zoneOverride.color+'40;vertical-align:middle;letter-spacing:0.04em">LIVE RADAR</span>':''}</div>
       ${c._source?`<div class="hero-source-line" style="font-size:0.55em;color:var(--accent-cyan);opacity:0.7;margin-bottom:4px">${c._source}${c._sourceCount>1?' (×'+c._sourceCount+' avg)':''}</div>`:''}
       <div class="hero-stats-grid">
         <div class="hero-stat-cell"><div class="hero-side-label">Feels Like</div><div class="hero-side-val">${fmtTemp(feelsC)}${_taC(_hv('apparent_temperature'),_hv1('apparent_temperature'),1)}</div></div>
@@ -1285,6 +1290,17 @@ function initPrecipTaps(){
   });
 }
 
+function _tempToColor(tempC){
+  var f=S.tempUnit===0?(tempC*9/5+32):tempC;
+  if(f<=32)return'#4FC3F7';
+  if(f<=50)return'#29B6F6';
+  if(f<=60)return'#26C6DA';
+  if(f<=68)return'#66BB6A';
+  if(f<=75)return'#FFA726';
+  if(f<=85)return'#FF7043';
+  if(f<=95)return'#EF5350';
+  return'#E53935';
+}
 function renderHourlyForecast(h,d){
   if(!h||!h.time)return'';
   const now=new Date();
@@ -1306,6 +1322,10 @@ function renderHourlyForecast(h,d){
     }
     const hr=dt.getHours();return hr<6||hr>20;
   }
+  let temps=[];
+  for(let n=0;n<hours;n++){temps.push(h.temperature_2m[startIdx+n])}
+  const minT=Math.min(...temps),maxT=Math.max(...temps);
+  const range=maxT-minT||1;
   let lastDay='';
   let items='';
   for(let n=0;n<hours;n++){
@@ -1318,36 +1338,27 @@ function renderHourlyForecast(h,d){
       const isToday=dt.toDateString()===now.toDateString();
       const isTomorrow=dt.toDateString()===new Date(now.getTime()+86400000).toDateString();
       const label=isToday?'Today':isTomorrow?'Tomorrow':dayStr;
-      items+=`<div class="hourly-day-label">${label}</div>`;
+      items+=`<div class="hbar-day-label">${label}</div>`;
     }
     const hrStr=fmtHrLabel(dt);
     const tempC=h.temperature_2m[i];
-    const feelsC=h.apparent_temperature?h.apparent_temperature[i]:null;
     const precip=h.precipitation_probability?h.precipitation_probability[i]:0;
     const precipMm=h.precipitation?h.precipitation[i]:0;
+    const precipShow=precip>0?precip+'%':(precipMm>0?fmtPrecip(precipMm):'');
     const wCode=h.weather_code?h.weather_code[i]:0;
     const isD=h.is_day?h.is_day[i]===1:!isNight(t);
-    const windKmh=h.wind_speed_10m?h.wind_speed_10m[i]:0;
-    const gustKmh=h.wind_gusts_10m?h.wind_gusts_10m[i]:0;
-    const windDir=h.wind_direction_10m?h.wind_direction_10m[i]:0;
-    const humid=h.relative_humidity_2m?h.relative_humidity_2m[i]:null;
-    const night=!isD;
-    const bgStyle=night?'background:rgba(10,15,40,0.6)':'background:rgba(20,35,60,0.4)';
-    const precipBar=precip>0?`<div style="position:absolute;bottom:0;left:0;right:0;height:${Math.min(precip,100)*0.3}px;background:rgba(59,130,246,${Math.min(0.15+precip/200,0.5)});border-radius:0 0 8px 8px"></div>`:'';
-    items+=`<div class="hourly-item" style="${bgStyle};position:relative;overflow:hidden">
-      ${precipBar}
-      <div class="hourly-time">${n===0?tStr('Now'):hrStr}</div>
-      <div class="hourly-icon">${animEmoji(wCode,isD,'1.1em')}</div>
-      <div class="hourly-temp">${fmtTempShort(tempC)}</div>
-      ${feelsC!=null&&Math.abs(feelsC-tempC)>2?`<div class="hourly-feels">${tStr('Feels')} ${fmtTempShort(feelsC)}</div>`:''}
-      ${precip>0?`<div class="hourly-precip">💧${precip}%</div>`:''}
-      ${precipMm>0?`<div class="hourly-precip-amt">${fmtPrecip(precipMm)}</div>`:''}
-      <div class="hourly-wind">${degToDir(windDir)} ${fmtWind(windKmh)}${gustKmh>windKmh*1.3?` G${fmtWind(gustKmh)}`:''}</div>
-      ${humid!=null?`<div class="hourly-humid">${humid}%</div>`:''}
+    const pct=20+((tempC-minT)/range)*80;
+    const col=_tempToColor(tempC);
+    items+=`<div class="hbar-col${!isD?' hbar-night':''}">
+      <div class="hbar-temp">${fmtTempShort(tempC)}</div>
+      <div class="hbar-icon">${animEmoji(wCode,isD,'1.2em')}</div>
+      <div class="hbar-bar-wrap"><div class="hbar-bar" style="height:${pct}%;background:${col}"></div></div>
+      ${precipShow?`<div class="hbar-precip">💧<br>${precipShow}</div>`:`<div class="hbar-precip-empty"></div>`}
+      <div class="hbar-time">${n===0?tStr('Now'):hrStr}</div>
     </div>`;
   }
   return`<div class="card"><div class="card-title"><span class="icon">🕐</span> Hourly Forecast — Next 72h</div>
-    <div class="hourly-scroll">${items}</div></div>`;
+    <div class="hbar-scroll">${items}</div></div>`;
 }
 function _fmtSecondary(c){return S.tempUnit===0?'('+c.toFixed(0)+'°C)':'('+cToF(c)+'°F)'}
 function _nwsCondToIcon(short,isDaytime){
@@ -1392,54 +1403,37 @@ function renderDailyForecast(d,tz){
   let todayIdx=d.time.indexOf(todayStr);
   if(todayIdx<0){todayIdx=d.time.findIndex(t=>t>=todayStr);if(todayIdx<0)todayIdx=0}
   const futureTime=d.time.slice(todayIdx);
-  const initShow=4;
-  const cards=futureTime.map((t,vi)=>{
+  const allLos=[],allHis=[];
+  futureTime.forEach((t,vi)=>{const oi=todayIdx+vi;allLos.push(d.temperature_2m_min[oi]);allHis.push(d.temperature_2m_max[oi])});
+  const weekMin=Math.min(...allLos),weekMax=Math.max(...allHis);
+  const weekRange=weekMax-weekMin||1;
+  const initShow=5;
+  const rows=futureTime.map((t,vi)=>{
     const oi=todayIdx+vi;
     const [yy,mm,dd]=t.split('-').map(Number);
     const dt=new Date(Date.UTC(yy,mm-1,dd,12,0,0));
-    const dayName=t===todayStr?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'long',timeZone:'UTC'});
+    const dayAbbr=t===todayStr?tStr('Today'):dt.toLocaleDateString(_curLang||'en',{weekday:'short',timeZone:'UTC'});
+    const dateNum=dd;
     const hiC=d.temperature_2m_max[oi],loC=d.temperature_2m_min[oi];
-    const hiMain=fmtTempShort(hiC),loMain=fmtTempShort(loC);
-    const hiSec=_fmtSecondary(hiC),loSec=_fmtSecondary(loC);
     const rain=d.precipitation_probability_max?d.precipitation_probability_max[oi]:0;
-    const wind=d.wind_speed_10m_max?fmtWind(d.wind_speed_10m_max[oi]):'';
     const code=d.weather_code[oi];
-    const desc=wmoDesc(code);
-    const tags=_wxTags(desc);
     const severe=(code>=95);
-    const emDay=animEmoji(code,true,'1.2em');
-    const emNight=animEmoji(code,false,'1.2em');
+    const emDay=animEmoji(code,true,'1.4em');
+    const leftPct=((loC-weekMin)/weekRange)*100;
+    const widthPct=((hiC-loC)/weekRange)*100;
+    const loCol=_tempToColor(loC),hiCol=_tempToColor(hiC);
     const hidden=vi>=initShow?' style="display:none" data-fc-extra':'';
-    return`<div class="fc-day-card"${hidden}>
-      <div class="fc-day-header">
-        <span class="fc-day-name">${dayName}</span>
-        ${severe?'<span class="fc-severe-badge">⚠ POSSIBLE SEVERE</span>':''}
-      </div>
-      ${tags.length?'<div class="fc-tags">'+tags.map(t=>'<span class="fc-tag">'+getWeatherIcon('thunderstorm','0.75em')+' '+t+'</span>').join('')+'</div>':''}
-      <div class="fc-cols">
-        <div class="fc-col">
-          <div class="fc-col-label">☀️ Day</div>
-          <div class="fc-col-icon">${emDay}</div>
-          <div class="fc-col-temp">${hiMain} <span class="fc-sec">${hiSec}</span></div>
-          <div class="fc-col-desc">${tStr(desc)}</div>
-          ${wind?`<div class="fc-col-wind">Wind: ${wind}</div>`:''}
-          ${rain>0?`<div class="fc-col-rain">💧 ${rain}%</div>`:''}
-        </div>
-        <div class="fc-col">
-          <div class="fc-col-label">🌙 Night</div>
-          <div class="fc-col-icon">${emNight}</div>
-          <div class="fc-col-temp">${loMain} <span class="fc-sec">${loSec}</span></div>
-          <div class="fc-col-desc">${tStr(desc)}</div>
-          ${wind?`<div class="fc-col-wind">Wind: ${wind}</div>`:''}
-          ${rain>0?`<div class="fc-col-rain">💧 ${rain}%</div>`:''}
-        </div>
-      </div>
-      <div class="fc-detail-toggle" onclick="toggleDailyDetail(this,${oi})">Show Details</div>
-      <div class="fc-detail-body" id="fc-detail-${oi}" style="display:none"></div>
+    return`<div class="dbar-row"${hidden}>
+      <div class="dbar-day"><span class="dbar-day-name">${dayAbbr}</span><span class="dbar-day-date">${dateNum}</span></div>
+      <div class="dbar-icon">${emDay}${severe?'<span class="dbar-severe">⚠</span>':''}</div>
+      <div class="dbar-rain">${rain>0?'💧'+rain+'%':''}</div>
+      <div class="dbar-lo">${fmtTempShort(loC)}</div>
+      <div class="dbar-track"><div class="dbar-range" style="left:${leftPct}%;width:${Math.max(widthPct,4)}%;background:linear-gradient(90deg,${loCol},${hiCol})"></div></div>
+      <div class="dbar-hi">${fmtTempShort(hiC)}</div>
     </div>`;
   }).join('');
   const showMore=futureTime.length>initShow?`<div class="fc-show-more" id="fc-show-more" onclick="toggleFcMore()">Show More ▾</div>`:'';
-  return`<div class="card"><div class="card-title"><span class="icon">📊</span> ${tStr('Forecast')}</div>${cards}${showMore}</div>`;
+  return`<div class="card"><div class="card-title"><span class="icon">📊</span> ${tStr('This Week')}</div>${rows}${showMore}</div>`;
 }
 function toggleFcMore(){
   const extras=document.querySelectorAll('[data-fc-extra]');
