@@ -231,7 +231,7 @@ details.card>summary{list-style:none}
 .dbar-hi{font-size:0.75em;font-weight:700;color:var(--text-primary);text-align:left}
 .dbar-track{position:relative;height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden}
 .dbar-range{position:absolute;top:0;height:100%;border-radius:4px;min-width:8px}
-.dbar-severe{font-size:0.7em;color:var(--accent-orange)}
+.dbar-severe{font-size:0.5em;color:var(--accent-orange);vertical-align:super}
 .nws-alert{background:var(--bg-surface);border-left:3px solid var(--accent-red);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:10px 12px;margin-bottom:8px;font-size:0.8em}
 .nws-alert.watch{border-left-color:var(--accent-yellow)}
 .nws-alert.advisory{border-left-color:var(--accent-orange)}

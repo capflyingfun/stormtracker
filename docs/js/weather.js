@@ -401,7 +401,7 @@ function renderWeather(data){
   const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
   if(wxNavBtn)wxNavBtn.innerHTML=neonWx(c.weather_code,isDay,20);
   const _stormZone=typeof checkUserInZone==='function'?checkUserInZone():null;
-  const _zoneOverride=_stormZone&&_stormZone.length>0?_stormZone[0]:null;
+  const _zoneOverride=_stormZone&&_stormZone.length>0&&_stormZone[0].cls!=='trace'?_stormZone[0]:null;
   const _zoneDbzToWmo={trace:3,light:61,moderate:63,heavy:65,intense:65,severe:95,extreme:99};
   const _heroDesc=_zoneOverride?_zoneOverride.label:(c._nwsDesc||desc);
   const _heroWCode=_zoneOverride?(_zoneDbzToWmo[_zoneOverride.cls]||63):c.weather_code;
@@ -1343,6 +1343,8 @@ function renderHourlyForecast(h,d){
     const hrStr=fmtHrLabel(dt);
     const tempC=h.temperature_2m[i];
     const precip=h.precipitation_probability?h.precipitation_probability[i]:0;
+    const precipMm=h.precipitation?h.precipitation[i]:0;
+    const precipShow=precip>0?precip+'%':(precipMm>0?fmtPrecip(precipMm):'');
     const wCode=h.weather_code?h.weather_code[i]:0;
     const isD=h.is_day?h.is_day[i]===1:!isNight(t);
     const pct=20+((tempC-minT)/range)*80;
@@ -1351,7 +1353,7 @@ function renderHourlyForecast(h,d){
       <div class="hbar-temp">${fmtTempShort(tempC)}</div>
       <div class="hbar-icon">${animEmoji(wCode,isD,'1.2em')}</div>
       <div class="hbar-bar-wrap"><div class="hbar-bar" style="height:${pct}%;background:${col}"></div></div>
-      ${precip>0?`<div class="hbar-precip">💧<br>${precip}%</div>`:`<div class="hbar-precip-empty"></div>`}
+      ${precipShow?`<div class="hbar-precip">💧<br>${precipShow}</div>`:`<div class="hbar-precip-empty"></div>`}
       <div class="hbar-time">${n===0?tStr('Now'):hrStr}</div>
     </div>`;
   }
@@ -1423,12 +1425,11 @@ function renderDailyForecast(d,tz){
     const hidden=vi>=initShow?' style="display:none" data-fc-extra':'';
     return`<div class="dbar-row"${hidden}>
       <div class="dbar-day"><span class="dbar-day-name">${dayAbbr}</span><span class="dbar-day-date">${dateNum}</span></div>
-      <div class="dbar-icon">${emDay}</div>
+      <div class="dbar-icon">${emDay}${severe?'<span class="dbar-severe">⚠</span>':''}</div>
       <div class="dbar-rain">${rain>0?'💧'+rain+'%':''}</div>
       <div class="dbar-lo">${fmtTempShort(loC)}</div>
       <div class="dbar-track"><div class="dbar-range" style="left:${leftPct}%;width:${Math.max(widthPct,4)}%;background:linear-gradient(90deg,${loCol},${hiCol})"></div></div>
       <div class="dbar-hi">${fmtTempShort(hiC)}</div>
-      ${severe?'<div class="dbar-severe">⚠</div>':''}
     </div>`;
   }).join('');
   const showMore=futureTime.length>initShow?`<div class="fc-show-more" id="fc-show-more" onclick="toggleFcMore()">Show More ▾</div>`:'';
