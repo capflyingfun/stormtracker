@@ -397,7 +397,7 @@ function renderWeather(data){
   const el=document.getElementById('page-weather');
   const c=data.current,isDay=c.is_day===1;
   const tempC=c.temperature_2m,feelsC=c.apparent_temperature;
-  const icon=wmoIcon(c.weather_code,isDay),desc=wmoDesc(c.weather_code);
+  const icon=wmoIcon(c.weather_code,isDay),desc=wmoDesc(c.weather_code,isDay);
   const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
   if(wxNavBtn)wxNavBtn.innerHTML=neonWx(c.weather_code,isDay,20);
   const _stormZone=typeof checkUserInZone==='function'?checkUserInZone():null;
@@ -461,7 +461,7 @@ function renderWeather(data){
       ${renderTrendCharts(hourly)}</div>`,
     hourly:`<div class="weather-section" data-sec="hourly"><div class="sec-header"><span class="card-title m-0"><span class="icon">🕐</span> 72h Hourly Forecast</span>${secBtns('hourly')}</div>
       ${renderHourlyForecast(hourly,daily)}</div>`,
-    forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${data._nwsForecast?renderNWSForecast(data._nwsForecast):renderDailyForecast(daily,data.timezone)}</div>`
+    forecast:`<div class="weather-section" data-sec="forecast"><div class="sec-header"><span></span>${secBtns('forecast')}</div>${renderDailyForecast(daily,data.timezone)}${data._nwsForecast?renderNWSForecast(data._nwsForecast):''}</div>`
   };
   const order=getSecOrder();
 
