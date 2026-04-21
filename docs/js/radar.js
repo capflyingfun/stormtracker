@@ -1792,11 +1792,24 @@ function autoActivateZones(){
 }
 function checkUserInZone(){
   if(!S._rawScanPts.length)return null;
+  let nearMax=-999;
+  for(const p of S._rawScanPts){
+    const[x,y]=_llToXY(p.lat,p.lng,S.lat,S.lon);
+    const d=Math.sqrt(x*x+y*y);
+    if(d<=3&&p.dbz>nearMax)nearMax=p.dbz;
+  }
+  if(nearMax>-999)return[dbzColor(nearMax)];
   const cells=hexGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
   const center=cells.get('0,0');
-  if(!center)return null;
-  const bin=dbzColor(center.maxDbz);
-  return[bin];
+  if(center)return[dbzColor(center.maxDbz)];
+  const neighbors=['1,0','-1,0','0,1','0,-1','1,-1','-1,1'];
+  let nMax=-999;
+  for(const k of neighbors){
+    const c=cells.get(k);
+    if(c&&c.dist<=5&&c.maxDbz>nMax)nMax=c.maxDbz;
+  }
+  if(nMax>-999)return[dbzColor(nMax)];
+  return null;
 }
 function toggleStormZones(){
   S._showZones=!S._showZones;
