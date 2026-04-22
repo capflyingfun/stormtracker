@@ -324,24 +324,34 @@ async function fetchNWSCurrent(){
     };
   }catch(e){return null}
 }
+async function _nwsForecastOnce(ptTimeout,fcTimeout){
+  const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(ptTimeout)});
+  if(!ptRes.ok)return null;
+  const pt=await ptRes.json();
+  const fcUrl=pt.properties?.forecast;
+  if(!fcUrl)return null;
+  const fcRes=await fetch(fcUrl,{...NWS_HDR,signal:AbortSignal.timeout(fcTimeout)});
+  if(!fcRes.ok)return null;
+  const fc=await fcRes.json();
+  return(fc.properties?.periods||[]).slice(0,14).map(p=>({
+    name:p.name,temp:p.temperature,unit:p.temperatureUnit,
+    wind:p.windSpeed,windDir:p.windDirection,
+    short:p.shortForecast,detail:p.detailedForecast,
+    precip:p.probabilityOfPrecipitation?.value||0,
+    isDaytime:p.isDaytime,icon:p.icon
+  }));
+}
 async function fetchNWSForecast(){
   try{
-    const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(4000)});
-    if(!ptRes.ok)return null;
-    const pt=await ptRes.json();
-    const fcUrl=pt.properties?.forecast;
-    if(!fcUrl)return null;
-    const fcRes=await fetch(fcUrl,{...NWS_HDR,signal:AbortSignal.timeout(5000)});
-    if(!fcRes.ok)return null;
-    const fc=await fcRes.json();
-    return(fc.properties?.periods||[]).slice(0,14).map(p=>({
-      name:p.name,temp:p.temperature,unit:p.temperatureUnit,
-      wind:p.windSpeed,windDir:p.windDirection,
-      short:p.shortForecast,detail:p.detailedForecast,
-      precip:p.probabilityOfPrecipitation?.value||0,
-      isDaytime:p.isDaytime,icon:p.icon
-    }));
-  }catch(e){return null}
+    const r=await _nwsForecastOnce(7000,8000);
+    if(r&&r.length)return r;
+  }catch(e){console.log('NWS forecast: first attempt failed, retrying...',e.message)}
+  try{
+    await new Promise(r=>setTimeout(r,1500));
+    const r=await _nwsForecastOnce(9000,10000);
+    if(r&&r.length)return r;
+  }catch(e){console.log('NWS forecast: retry failed',e.message)}
+  return null;
 }
 
 function getBaroPrediction(current,hourly){
@@ -1419,9 +1429,9 @@ function renderDailyForecast(d,tz){
     const code=d.weather_code[oi];
     const severe=(code>=95);
     const emDay=animEmoji(code,true,'1.4em');
-    const leftPct=((loC-weekMin)/weekRange)*100;
-    const widthPct=((hiC-loC)/weekRange)*100;
     const loCol=_tempToColor(loC),hiCol=_tempToColor(hiC);
+    const leftPct=0;
+    const widthPct=100;
     const hidden=vi>=initShow?' style="display:none" data-fc-extra':'';
     return`<div class="dbar-row" onclick="toggleDailyDetail(this,${oi})"${hidden}>
       <div class="dbar-day"><span class="dbar-day-name">${dayAbbr}</span><span class="dbar-day-date">${dateNum}</span></div>
