@@ -818,9 +818,18 @@ function spacingFilter(points,hiRes){
 // ==========================================
 function detectHookEchoes(rawPts, storms) {
   if (!rawPts || rawPts.length < 20 || !storms || !storms.length) return;
-  const strongCells = storms.filter(s => s.dbz >= 45);
+  const strongCells = storms.filter(s => s.dbz >= 55);
   if (!strongCells.length) return;
   for (const cell of strongCells) {
+    let hasGradient = false;
+    for (const p of rawPts) {
+      if (p.dbz > 35) continue;
+      const dlat = p.lat - cell.lat;
+      const dlng = (p.lng - cell.lng) * Math.cos(cell.lat * Math.PI / 180);
+      const distMi = Math.sqrt(dlat * dlat + dlng * dlng) * 69;
+      if (distMi <= 1) { hasGradient = true; break; }
+    }
+    if (!hasGradient) { cell._hookScore = 0; cell._hookEcho = false; continue; }
     const score = _computeHookScore(rawPts, cell);
     cell._hookScore = score;
     cell._hookEcho = score >= 0.45;
