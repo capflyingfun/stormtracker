@@ -176,6 +176,12 @@ async function fetchWeather(){
       const _hasPrecipWx=blend.wxString&&/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower/i.test(blend.wxString);
       if(_hasPrecipWx) omData.current._nwsDesc=blend.wxString;
       omData.current._nwsStation=blend.station||null;
+      if(blend.cloudPct!=null){
+        const _omCC=omData.current.cloud_cover;
+        omData.current.cloud_cover=blend.cloudPct;
+        omData.current._cloudSrc='METAR';
+        console.log('Cloud cover from METAR: '+_omCC+'% → '+blend.cloudPct+'% ('+blend.station+')');
+      }
       const _modelTag=omData._modelBlend?` [${omData._modelBlend}]`:'';
       omData.current._source=blend.sourceLabel+_modelTag;
       omData.current._sourceCount=sources.length;
@@ -186,7 +192,7 @@ async function fetchWeather(){
       }
     }catch(e){console.log('Multi-source blend failed:',e.message)}
     if(reqId!==S._locReqId)return;
-    if(omData.hourly&&omData.hourly.cloud_cover&&omData.hourly.time){
+    if(omData.current._cloudSrc!=='METAR'&&omData.hourly&&omData.hourly.cloud_cover&&omData.hourly.time){
       const _cTime=omData.current.time;
       if(!_cTime) console.log('Cloud sync skipped: no current.time');
       const _nowISO=(_cTime||'').slice(0,13);
@@ -236,6 +242,8 @@ async function _fetchAWCOnce(){
   },null);
   if(!nearest)return null;
   console.log('AWC nearest:',nearest.icaoId,'dist:',nearest._dist?.toFixed(1)+'mi');
+  const _cloudPct=_metarCloudPct(nearest);
+  if(_cloudPct!=null)console.log('AWC cloud cover:',_cloudPct+'% from',_metarCloudSummary(nearest));
   return{
     icao:nearest.icaoId,temp:nearest.temp,dewp:nearest.dewp,
     windKmh:nearest.wspd!=null?nearest.wspd*1.852:null,
@@ -243,8 +251,24 @@ async function _fetchAWCOnce(){
     gustKmh:nearest.wgst!=null?nearest.wgst*1.852:null,
     presPa:nearest.altim!=null?nearest.altim*100:null,
     visMeter:nearest.visib!=null?(String(nearest.visib).includes('+')?16093:Number(nearest.visib)>100?Number(nearest.visib):Number(nearest.visib)*1609.34):null,
-    wxString:nearest.wxString||'',dist:nearest._dist
+    wxString:nearest.wxString||'',cloudPct:_cloudPct,dist:nearest._dist
   };
+}
+function _metarCloudPct(m){
+  const layers=m.clouds||(m.cldCvg1?[{cover:m.cldCvg1},{cover:m.cldCvg2},{cover:m.cldCvg3}]:null);
+  if(!layers||!layers.length)return null;
+  const map={SKC:0,CLR:0,NCD:0,NSC:0,CAVOK:0,FEW:18,SCT:44,BKN:75,OVC:100,VV:100};
+  let max=null;
+  for(const l of layers){
+    const code=(l&&(l.cover||l.coverage||l))||'';
+    const v=map[String(code).toUpperCase()];
+    if(v!=null&&(max==null||v>max))max=v;
+  }
+  return max;
+}
+function _metarCloudSummary(m){
+  const layers=m.clouds||[];
+  return layers.map(l=>(l.cover||'')+(l.base!=null?l.base:'')).join(' ')||'(no layers)';
 }
 async function fetchAWCNearest(){
   try{
@@ -292,6 +316,7 @@ function blendSources(sources){
     feelsC:first('feelsC'),
     humidity:first('humidity'),
     visMeter:first('visMeter'),
+    cloudPct:first('cloudPct'),
     wxString:sources.find(s=>s.wxString)?.wxString||'',
     station,sourceLabel
   };
