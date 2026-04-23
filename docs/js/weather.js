@@ -358,13 +358,18 @@ async function _nwsForecastOnce(ptTimeout,fcTimeout){
   const fcRes=await fetch(fcUrl,{...NWS_HDR,signal:AbortSignal.timeout(fcTimeout)});
   if(!fcRes.ok)return null;
   const fc=await fcRes.json();
-  return(fc.properties?.periods||[]).slice(0,14).map(p=>({
-    name:p.name,temp:p.temperature,unit:p.temperatureUnit,
-    wind:p.windSpeed,windDir:p.windDirection,
-    short:p.shortForecast,detail:p.detailedForecast,
-    precip:p.probabilityOfPrecipitation?.value||0,
-    isDaytime:p.isDaytime,icon:p.icon
-  }));
+  return(fc.properties?.periods||[]).slice(0,14).map(p=>{
+    const apiPop=p.probabilityOfPrecipitation?.value;
+    const m=(p.detailedForecast||'').match(/[Cc]hance of precipitation is\s+(\d+)\s*%/);
+    const textPop=m?Number(m[1]):null;
+    return{
+      name:p.name,temp:p.temperature,unit:p.temperatureUnit,
+      wind:p.windSpeed,windDir:p.windDirection,
+      short:p.shortForecast,detail:p.detailedForecast,
+      precip:textPop!=null?textPop:(apiPop||0),
+      isDaytime:p.isDaytime,icon:p.icon
+    };
+  });
 }
 async function fetchNWSForecast(){
   try{
