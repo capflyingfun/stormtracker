@@ -479,6 +479,7 @@ function setLoc(lat,lon,name,opts){
   })();
   if(!fromTravel)scheduleHourlyRefresh();
   if(typeof refreshMpingIfVisible==='function')refreshMpingIfVisible();
+  if(typeof startOverheadPoll==='function')startOverheadPoll();
   return _refreshDone;
 }
 

@@ -270,10 +270,19 @@ function _metarCloudSummary(m){
   const layers=m.clouds||[];
   return layers.map(l=>(l.cover||'')+(l.base!=null?l.base:'')).join(' ')||'(no layers)';
 }
+function _heroBandFromZone(zone){
+  if(!zone||!zone.length)return null;
+  const z=zone[0];
+  const dbz=z.maxDbz!=null?z.maxDbz:(z.cls==='trace'?0:z.min);
+  if(dbz>=20)return z;
+  if(dbz>=15)return{cls:'drizzle',label:'Drizzle',color:'#5DD8FF',min:15,maxDbz:dbz};
+  if(dbz>=5)return{cls:'sprinkles',label:'Sprinkles',color:'#A8E5FF',min:5,maxDbz:dbz};
+  return null;
+}
 function refreshHeroFromZone(){
   if(!S._lastWeatherData)return;
   const _zone=typeof checkUserInZone==='function'?checkUserInZone():null;
-  const _ov=_zone&&_zone.length>0&&_zone[0].cls!=='trace'?_zone[0]:null;
+  const _ov=_heroBandFromZone(_zone);
   if(_ov&&S._lastZoneOv===_ov.cls)return;
   if(!_ov&&S._lastZoneOv==null)return;
   S._lastZoneOv=_ov?_ov.cls:null;
@@ -450,8 +459,8 @@ function renderWeather(data){
   const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
   if(wxNavBtn)wxNavBtn.innerHTML=neonWx(c.weather_code,isDay,20);
   const _stormZone=typeof checkUserInZone==='function'?checkUserInZone():null;
-  const _zoneOverride=_stormZone&&_stormZone.length>0&&_stormZone[0].cls!=='trace'?_stormZone[0]:null;
-  const _zoneDbzToWmo={trace:3,light:61,moderate:63,heavy:65,intense:65,severe:95,extreme:99};
+  const _zoneOverride=_heroBandFromZone(_stormZone);
+  const _zoneDbzToWmo={sprinkles:51,drizzle:53,trace:3,light:61,moderate:63,heavy:65,intense:65,severe:95,extreme:99};
   const _heroDesc=_zoneOverride?_zoneOverride.label:(c._nwsDesc||desc);
   const _heroWCode=_zoneOverride?(_zoneDbzToWmo[_zoneOverride.cls]||63):c.weather_code;
   const dewC=Math.min(tempC,c._directDewC!=null?c._directDewC:calcDewC(tempC,Math.min(100,c.relative_humidity_2m)));

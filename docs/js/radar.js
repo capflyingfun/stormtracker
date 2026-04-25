@@ -1800,18 +1800,81 @@ function checkUserInZone(){
     const d=Math.sqrt(x*x+y*y);
     if(d<=3&&p.dbz>nearMax)nearMax=p.dbz;
   }
-  if(nearMax>-999)return[dbzColor(nearMax)];
+  if(nearMax>-999)return[Object.assign({},dbzColor(nearMax),{maxDbz:nearMax})];
   const cells=hexGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
   const center=cells.get('0,0');
-  if(center)return[dbzColor(center.maxDbz)];
+  if(center)return[Object.assign({},dbzColor(center.maxDbz),{maxDbz:center.maxDbz})];
   const neighbors=['1,0','-1,0','0,1','0,-1','1,-1','-1,1'];
   let nMax=-999;
   for(const k of neighbors){
     const c=cells.get(k);
     if(c&&c.dist<=5&&c.maxDbz>nMax)nMax=c.maxDbz;
   }
-  if(nMax>-999)return[dbzColor(nMax)];
+  if(nMax>-999)return[Object.assign({},dbzColor(nMax),{maxDbz:nMax})];
   return null;
+}
+S._overheadPollMs=90000;
+S._overheadPollBusy=false;
+S._overheadPollLast=0;
+async function pollOverheadRain(){
+  if(S._overheadPollBusy)return;
+  if(document.hidden)return;
+  if(!S.lat||!S.lon)return;
+  if(Date.now()-S._overheadPollLast<S._overheadPollMs-2000)return;
+  S._overheadPollBusy=true;
+  S._overheadPollLast=Date.now();
+  try{
+    const cLat=S.lat,cLon=S.lon;
+    const useNexrad=S.radarSource==='nexrad'&&isUSLocation(cLat,cLon);
+    const POLL_RADIUS_MI=4;
+    const zoom=useNexrad?11:8;
+    if(!useNexrad){
+      try{
+        const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json',{cache:'no-store'}).then(r=>r.json());
+        const past=rv.radar?.past||[];
+        const nowcast=rv.radar?.nowcast||[];
+        const allFrames=past.concat(nowcast);
+        if(allFrames.length)S._rvTilePath=allFrames[allFrames.length-1].path;
+      }catch(e){}
+      if(!S._rvTilePath)return;
+    }
+    const radiusDeg=POLL_RADIUS_MI/69.0;
+    const northLat=cLat+radiusDeg,southLat=cLat-radiusDeg;
+    const eastLon=cLon+radiusDeg/Math.cos(cLat*Math.PI/180);
+    const westLon=cLon-radiusDeg/Math.cos(cLat*Math.PI/180);
+    const minTX=lonToTileX(westLon,zoom),maxTX=lonToTileX(eastLon,zoom);
+    const minTY=latToTileY(northLat,zoom),maxTY=latToTileY(southLat,zoom);
+    const colorFn=useNexrad?nexradToDbz:rvToDbz;
+    const minDbz=5;
+    const ts=Date.now();
+    const promises=[];
+    for(let tx=minTX;tx<=maxTX;tx++){
+      for(let ty=minTY;ty<=maxTY;ty++){
+        const url=useNexrad
+          ?`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png?t=${ts}`
+          :`https://tilecache.rainviewer.com${S._rvTilePath}/256/${zoom}/${tx}/${ty}/2/1_1.png`;
+        promises.push(scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,POLL_RADIUS_MI,1));
+      }
+    }
+    const tileResults=await Promise.all(promises);
+    if(S.lat!==cLat||S.lon!==cLon){console.log('[OverheadPoll] location changed mid-poll, discarding');return}
+    const newPts=tileResults.flat();
+    const kept=(S._rawScanPts||[]).filter(p=>haversine(cLat,cLon,p.lat,p.lng)>POLL_RADIUS_MI);
+    S._rawScanPts=kept.concat(newPts);
+    const maxDbz=newPts.reduce((m,p)=>p.dbz>m?p.dbz:m,-999);
+    console.log('[OverheadPoll]',useNexrad?'NEX':'RV','tiles=',promises.length,'newPts=',newPts.length,'maxDbz=',maxDbz>-999?maxDbz:'none');
+    if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
+  }catch(e){console.log('[OverheadPoll] failed:',e.message)}
+  finally{S._overheadPollBusy=false}
+}
+function startOverheadPoll(){
+  if(S._overheadPollTimer)clearInterval(S._overheadPollTimer);
+  pollOverheadRain();
+  S._overheadPollTimer=setInterval(pollOverheadRain,S._overheadPollMs);
+  if(!S._overheadPollVisListener){
+    S._overheadPollVisListener=()=>{if(!document.hidden)pollOverheadRain()};
+    document.addEventListener('visibilitychange',S._overheadPollVisListener);
+  }
 }
 function toggleStormZones(){
   S._showZones=!S._showZones;
