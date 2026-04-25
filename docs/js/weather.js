@@ -270,6 +270,15 @@ function _metarCloudSummary(m){
   const layers=m.clouds||[];
   return layers.map(l=>(l.cover||'')+(l.base!=null?l.base:'')).join(' ')||'(no layers)';
 }
+function refreshHeroFromZone(){
+  if(!S._lastWeatherData)return;
+  const _zone=typeof checkUserInZone==='function'?checkUserInZone():null;
+  const _ov=_zone&&_zone.length>0&&_zone[0].cls!=='trace'?_zone[0]:null;
+  if(_ov&&S._lastZoneOv===_ov.cls)return;
+  if(!_ov&&S._lastZoneOv==null)return;
+  S._lastZoneOv=_ov?_ov.cls:null;
+  try{renderWeather(S._lastWeatherData)}catch(e){console.log('hero refresh failed:',e.message)}
+}
 async function fetchAWCNearest(){
   try{
     const r=await _fetchAWCOnce();

@@ -698,6 +698,7 @@ async function scanRadarForView(){
     _clusterSonarPoints();
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
+    if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
     computeTopStorms();
     recordScanSnapshot();
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
@@ -771,6 +772,7 @@ async function scanRadarHiRes(map,fromHome){
     S._rawScanPts=rawPoints;
     S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=true;
+    if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
     computeTopStorms();
     _sonarZoomMi=15;localStorage.setItem('st_sonarZoom',15);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_syncSonarZoomBtns();
     _clusterSonarPoints();
