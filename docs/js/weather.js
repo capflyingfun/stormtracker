@@ -275,8 +275,9 @@ function _heroBandFromZone(zone){
   const z=zone[0];
   const dbz=z.maxDbz!=null?z.maxDbz:(z.cls==='trace'?0:z.min);
   if(dbz>=20)return z;
-  if(dbz>=15)return{cls:'drizzle',label:'Drizzle',color:'#5DD8FF',min:15,maxDbz:dbz};
-  if(dbz>=5)return{cls:'sprinkles',label:'Sprinkles',color:'#A8E5FF',min:5,maxDbz:dbz};
+  const close=z.closeDbz!=null?z.closeDbz:dbz;
+  if(close>=15)return{cls:'drizzle',label:'Drizzle',color:'#5DD8FF',min:15,maxDbz:close};
+  if(close>=5)return{cls:'sprinkles',label:'Sprinkles',color:'#A8E5FF',min:5,maxDbz:close};
   return null;
 }
 function refreshHeroFromZone(){
