@@ -285,6 +285,22 @@ function syncSettingsPanel(){
     agBtn.style.borderColor=agOn?'#22c55e':'var(--border-subtle)';
     agBtn.style.color=agOn?'#22c55e':'var(--text-muted)';
   }
+  const ohBtn=document.getElementById('settings-overhead-toggle');
+  if(ohBtn){
+    const ohOn=typeof isOverheadPollEnabled==='function'?isOverheadPollEnabled():true;
+    ohBtn.textContent=ohOn?'ON':'OFF';
+    ohBtn.style.background=ohOn?'rgba(34,197,94,0.15)':'rgba(255,255,255,0.04)';
+    ohBtn.style.borderColor=ohOn?'#22c55e':'var(--border-subtle)';
+    ohBtn.style.color=ohOn?'#22c55e':'var(--text-muted)';
+    const ohHint=document.getElementById('settings-overhead-hint');
+    if(ohHint&&typeof _getOverheadPollMs==='function'){
+      const ms=_getOverheadPollMs();
+      const throttled=ms>=300000;
+      ohHint.textContent=throttled
+        ?'Slow / Data Saver connection detected — auto-throttled to one check every 5 minutes. Turn off to save mobile data.'
+        :'Keeps the hero card in sync between full radar scans. Auto-throttles to 5 minutes on slow / Data Saver connections. Turn off to save mobile data.';
+    }
+  }
   const sel=document.getElementById('settings-travel-int');
   if(sel)sel.value=String(S.gpsInterval||300);
   const arSel=document.getElementById('settings-auto-refresh');

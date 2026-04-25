@@ -1806,13 +1806,29 @@ function checkUserInZone(){
   if(nMax>-999)return[Object.assign({},dbzColor(nMax),{maxDbz:nMax,source:'hexN'})];
   return null;
 }
-S._overheadPollMs=90000;
+function isOverheadPollEnabled(){
+  try{return localStorage.getItem('st_overheadPoll')!=='0'}catch(e){return true}
+}
+function _getOverheadPollMs(){
+  try{
+    const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+    if(c){
+      if(c.saveData===true)return 300000;
+      const et=c.effectiveType;
+      if(et==='slow-2g'||et==='2g'||et==='3g')return 300000;
+    }
+  }catch(e){}
+  return 90000;
+}
+S._overheadPollMs=_getOverheadPollMs();
 S._overheadPollBusy=false;
 S._overheadPollLast=0;
 async function pollOverheadRain(){
+  if(!isOverheadPollEnabled())return;
   if(S._overheadPollBusy)return;
   if(document.hidden)return;
   if(S.lat==null||S.lon==null)return;
+  S._overheadPollMs=_getOverheadPollMs();
   if(Date.now()-S._overheadPollLast<S._overheadPollMs-2000)return;
   S._overheadPollBusy=true;
   S._overheadPollLast=Date.now();
@@ -1860,14 +1876,58 @@ async function pollOverheadRain(){
   }catch(e){console.log('[OverheadPoll] failed:',e.message)}
   finally{S._overheadPollBusy=false}
 }
+function stopOverheadPoll(){
+  if(S._overheadPollTimer){clearInterval(S._overheadPollTimer);S._overheadPollTimer=null}
+  if(S._overheadPollVisListener){
+    document.removeEventListener('visibilitychange',S._overheadPollVisListener);
+    S._overheadPollVisListener=null;
+  }
+  if(S._overheadPollNetListener){
+    try{
+      const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+      if(c&&c.removeEventListener)c.removeEventListener('change',S._overheadPollNetListener);
+    }catch(e){}
+    S._overheadPollNetListener=null;
+  }
+}
+function _rearmOverheadPoll(){
+  if(!S._overheadPollTimer)return;
+  const newMs=_getOverheadPollMs();
+  if(newMs===S._overheadPollMs)return;
+  S._overheadPollMs=newMs;
+  clearInterval(S._overheadPollTimer);
+  S._overheadPollTimer=setInterval(pollOverheadRain,S._overheadPollMs);
+}
 function startOverheadPoll(){
-  if(S._overheadPollTimer)clearInterval(S._overheadPollTimer);
+  stopOverheadPoll();
+  if(!isOverheadPollEnabled())return;
+  S._overheadPollMs=_getOverheadPollMs();
   pollOverheadRain();
   S._overheadPollTimer=setInterval(pollOverheadRain,S._overheadPollMs);
-  if(!S._overheadPollVisListener){
-    S._overheadPollVisListener=()=>{if(!document.hidden)pollOverheadRain()};
-    document.addEventListener('visibilitychange',S._overheadPollVisListener);
+  S._overheadPollVisListener=()=>{if(!document.hidden)pollOverheadRain()};
+  document.addEventListener('visibilitychange',S._overheadPollVisListener);
+  try{
+    const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+    if(c&&c.addEventListener){
+      S._overheadPollNetListener=()=>_rearmOverheadPoll();
+      c.addEventListener('change',S._overheadPollNetListener);
+    }
+  }catch(e){}
+}
+function toggleOverheadPoll(){
+  const cur=isOverheadPollEnabled();
+  try{localStorage.setItem('st_overheadPoll',cur?'0':'1')}catch(e){}
+  if(cur){
+    stopOverheadPoll();
+    if(typeof toast==='function')toast('🌧️ Live overhead rain check disabled');
+  }else{
+    startOverheadPoll();
+    if(typeof toast==='function'){
+      const ms=_getOverheadPollMs();
+      toast(ms>=300000?'🌧️ Live overhead rain check enabled (slow connection — every 5m)':'🌧️ Live overhead rain check enabled');
+    }
   }
+  if(typeof syncSettingsPanel==='function')syncSettingsPanel();
 }
 function toggleStormZones(){
   S._showZones=!S._showZones;

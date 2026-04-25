@@ -479,7 +479,7 @@ function setLoc(lat,lon,name,opts){
   })();
   if(!fromTravel)scheduleHourlyRefresh();
   if(typeof refreshMpingIfVisible==='function')refreshMpingIfVisible();
-  if(typeof startOverheadPoll==='function')startOverheadPoll();
+  if(typeof startOverheadPoll==='function'&&(typeof isOverheadPollEnabled!=='function'||isOverheadPollEnabled()))startOverheadPoll();
   return _refreshDone;
 }
 
