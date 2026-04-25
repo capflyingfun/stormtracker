@@ -1819,7 +1819,7 @@ S._overheadPollLast=0;
 async function pollOverheadRain(){
   if(S._overheadPollBusy)return;
   if(document.hidden)return;
-  if(!S.lat||!S.lon)return;
+  if(S.lat==null||S.lon==null)return;
   if(Date.now()-S._overheadPollLast<S._overheadPollMs-2000)return;
   S._overheadPollBusy=true;
   S._overheadPollLast=Date.now();
