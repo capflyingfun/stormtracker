@@ -1793,25 +1793,17 @@ function autoActivateZones(){
   if(S.map)buildStormZones(S.map,S._rawScanPts);
 }
 function checkUserInZone(){
-  if(!S._rawScanPts.length)return null;
-  let nearMax=-999,closeMax=-999;
-  for(const p of S._rawScanPts){
-    const[x,y]=_llToXY(p.lat,p.lng,S.lat,S.lon);
-    const d=Math.sqrt(x*x+y*y);
-    if(d<=3&&p.dbz>nearMax)nearMax=p.dbz;
-    if(d<=1&&p.dbz>closeMax)closeMax=p.dbz;
-  }
-  if(nearMax>-999)return[Object.assign({},dbzColor(nearMax),{maxDbz:nearMax,closeDbz:closeMax>-999?closeMax:null})];
+  if(!S._rawScanPts||!S._rawScanPts.length)return null;
   const cells=hexGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
   const center=cells.get('0,0');
-  if(center)return[Object.assign({},dbzColor(center.maxDbz),{maxDbz:center.maxDbz})];
+  if(center)return[Object.assign({},dbzColor(center.maxDbz),{maxDbz:center.maxDbz,source:'hex0'})];
   const neighbors=['1,0','-1,0','0,1','0,-1','1,-1','-1,1'];
   let nMax=-999;
   for(const k of neighbors){
     const c=cells.get(k);
     if(c&&c.dist<=5&&c.maxDbz>nMax)nMax=c.maxDbz;
   }
-  if(nMax>-999)return[Object.assign({},dbzColor(nMax),{maxDbz:nMax})];
+  if(nMax>-999)return[Object.assign({},dbzColor(nMax),{maxDbz:nMax,source:'hexN'})];
   return null;
 }
 S._overheadPollMs=90000;
