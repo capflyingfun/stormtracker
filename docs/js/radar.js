@@ -1794,13 +1794,14 @@ function autoActivateZones(){
 }
 function checkUserInZone(){
   if(!S._rawScanPts.length)return null;
-  let nearMax=-999;
+  let nearMax=-999,closeMax=-999;
   for(const p of S._rawScanPts){
     const[x,y]=_llToXY(p.lat,p.lng,S.lat,S.lon);
     const d=Math.sqrt(x*x+y*y);
     if(d<=3&&p.dbz>nearMax)nearMax=p.dbz;
+    if(d<=1&&p.dbz>closeMax)closeMax=p.dbz;
   }
-  if(nearMax>-999)return[Object.assign({},dbzColor(nearMax),{maxDbz:nearMax})];
+  if(nearMax>-999)return[Object.assign({},dbzColor(nearMax),{maxDbz:nearMax,closeDbz:closeMax>-999?closeMax:null})];
   const cells=hexGridBin(S._rawScanPts,S.lat,S.lon,S.scanRadius||80);
   const center=cells.get('0,0');
   if(center)return[Object.assign({},dbzColor(center.maxDbz),{maxDbz:center.maxDbz})];
@@ -1826,7 +1827,7 @@ async function pollOverheadRain(){
   try{
     const cLat=S.lat,cLon=S.lon;
     const useNexrad=S.radarSource==='nexrad'&&isUSLocation(cLat,cLon);
-    const POLL_RADIUS_MI=4;
+    const POLL_RADIUS_MI=3;
     const zoom=useNexrad?11:8;
     if(!useNexrad){
       try{
