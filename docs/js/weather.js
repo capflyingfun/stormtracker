@@ -176,6 +176,12 @@ async function fetchWeather(){
       const _hasPrecipWx=blend.wxString&&/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower/i.test(blend.wxString);
       if(_hasPrecipWx) omData.current._nwsDesc=blend.wxString;
       omData.current._nwsStation=blend.station||null;
+      if(blend.cloudPct!=null){
+        const _omCC=omData.current.cloud_cover;
+        omData.current.cloud_cover=blend.cloudPct;
+        omData.current._cloudSrc='METAR';
+        console.log('Cloud cover from METAR: '+_omCC+'% → '+blend.cloudPct+'% ('+blend.station+')');
+      }
       const _modelTag=omData._modelBlend?` [${omData._modelBlend}]`:'';
       omData.current._source=blend.sourceLabel+_modelTag;
       omData.current._sourceCount=sources.length;
@@ -186,7 +192,7 @@ async function fetchWeather(){
       }
     }catch(e){console.log('Multi-source blend failed:',e.message)}
     if(reqId!==S._locReqId)return;
-    if(omData.hourly&&omData.hourly.cloud_cover&&omData.hourly.time){
+    if(omData.current._cloudSrc!=='METAR'&&omData.hourly&&omData.hourly.cloud_cover&&omData.hourly.time){
       const _cTime=omData.current.time;
       if(!_cTime) console.log('Cloud sync skipped: no current.time');
       const _nowISO=(_cTime||'').slice(0,13);
@@ -236,6 +242,8 @@ async function _fetchAWCOnce(){
   },null);
   if(!nearest)return null;
   console.log('AWC nearest:',nearest.icaoId,'dist:',nearest._dist?.toFixed(1)+'mi');
+  const _cloudPct=_metarCloudPct(nearest);
+  if(_cloudPct!=null)console.log('AWC cloud cover:',_cloudPct+'% from',_metarCloudSummary(nearest));
   return{
     icao:nearest.icaoId,temp:nearest.temp,dewp:nearest.dewp,
     windKmh:nearest.wspd!=null?nearest.wspd*1.852:null,
@@ -243,8 +251,33 @@ async function _fetchAWCOnce(){
     gustKmh:nearest.wgst!=null?nearest.wgst*1.852:null,
     presPa:nearest.altim!=null?nearest.altim*100:null,
     visMeter:nearest.visib!=null?(String(nearest.visib).includes('+')?16093:Number(nearest.visib)>100?Number(nearest.visib):Number(nearest.visib)*1609.34):null,
-    wxString:nearest.wxString||'',dist:nearest._dist
+    wxString:nearest.wxString||'',cloudPct:_cloudPct,dist:nearest._dist
   };
+}
+function _metarCloudPct(m){
+  const layers=m.clouds||(m.cldCvg1?[{cover:m.cldCvg1},{cover:m.cldCvg2},{cover:m.cldCvg3}]:null);
+  if(!layers||!layers.length)return null;
+  const map={SKC:0,CLR:0,NCD:0,NSC:0,CAVOK:0,FEW:18,SCT:44,BKN:75,OVC:100,VV:100};
+  let max=null;
+  for(const l of layers){
+    const code=(l&&(l.cover||l.coverage||l))||'';
+    const v=map[String(code).toUpperCase()];
+    if(v!=null&&(max==null||v>max))max=v;
+  }
+  return max;
+}
+function _metarCloudSummary(m){
+  const layers=m.clouds||[];
+  return layers.map(l=>(l.cover||'')+(l.base!=null?l.base:'')).join(' ')||'(no layers)';
+}
+function refreshHeroFromZone(){
+  if(!S._lastWeatherData)return;
+  const _zone=typeof checkUserInZone==='function'?checkUserInZone():null;
+  const _ov=_zone&&_zone.length>0&&_zone[0].cls!=='trace'?_zone[0]:null;
+  if(_ov&&S._lastZoneOv===_ov.cls)return;
+  if(!_ov&&S._lastZoneOv==null)return;
+  S._lastZoneOv=_ov?_ov.cls:null;
+  try{renderWeather(S._lastWeatherData)}catch(e){console.log('hero refresh failed:',e.message)}
 }
 async function fetchAWCNearest(){
   try{
@@ -292,6 +325,7 @@ function blendSources(sources){
     feelsC:first('feelsC'),
     humidity:first('humidity'),
     visMeter:first('visMeter'),
+    cloudPct:first('cloudPct'),
     wxString:sources.find(s=>s.wxString)?.wxString||'',
     station,sourceLabel
   };
@@ -324,24 +358,39 @@ async function fetchNWSCurrent(){
     };
   }catch(e){return null}
 }
-async function fetchNWSForecast(){
-  try{
-    const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(4000)});
-    if(!ptRes.ok)return null;
-    const pt=await ptRes.json();
-    const fcUrl=pt.properties?.forecast;
-    if(!fcUrl)return null;
-    const fcRes=await fetch(fcUrl,{...NWS_HDR,signal:AbortSignal.timeout(5000)});
-    if(!fcRes.ok)return null;
-    const fc=await fcRes.json();
-    return(fc.properties?.periods||[]).slice(0,14).map(p=>({
+async function _nwsForecastOnce(ptTimeout,fcTimeout){
+  const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(ptTimeout)});
+  if(!ptRes.ok)return null;
+  const pt=await ptRes.json();
+  const fcUrl=pt.properties?.forecast;
+  if(!fcUrl)return null;
+  const fcRes=await fetch(fcUrl,{...NWS_HDR,signal:AbortSignal.timeout(fcTimeout)});
+  if(!fcRes.ok)return null;
+  const fc=await fcRes.json();
+  return(fc.properties?.periods||[]).slice(0,14).map(p=>{
+    const apiPop=p.probabilityOfPrecipitation?.value;
+    const m=(p.detailedForecast||'').match(/[Cc]hance of precipitation is\s+(\d+)\s*%/);
+    const textPop=m?Number(m[1]):null;
+    return{
       name:p.name,temp:p.temperature,unit:p.temperatureUnit,
       wind:p.windSpeed,windDir:p.windDirection,
       short:p.shortForecast,detail:p.detailedForecast,
-      precip:p.probabilityOfPrecipitation?.value||0,
+      precip:textPop!=null?textPop:(apiPop||0),
       isDaytime:p.isDaytime,icon:p.icon
-    }));
-  }catch(e){return null}
+    };
+  });
+}
+async function fetchNWSForecast(){
+  try{
+    const r=await _nwsForecastOnce(7000,8000);
+    if(r&&r.length)return r;
+  }catch(e){console.log('NWS forecast: first attempt failed, retrying...',e.message)}
+  try{
+    await new Promise(r=>setTimeout(r,1500));
+    const r=await _nwsForecastOnce(9000,10000);
+    if(r&&r.length)return r;
+  }catch(e){console.log('NWS forecast: retry failed',e.message)}
+  return null;
 }
 
 function getBaroPrediction(current,hourly){
@@ -1419,9 +1468,9 @@ function renderDailyForecast(d,tz){
     const code=d.weather_code[oi];
     const severe=(code>=95);
     const emDay=animEmoji(code,true,'1.4em');
-    const leftPct=((loC-weekMin)/weekRange)*100;
-    const widthPct=((hiC-loC)/weekRange)*100;
     const loCol=_tempToColor(loC),hiCol=_tempToColor(hiC);
+    const leftPct=0;
+    const widthPct=100;
     const hidden=vi>=initShow?' style="display:none" data-fc-extra':'';
     return`<div class="dbar-row" onclick="toggleDailyDetail(this,${oi})"${hidden}>
       <div class="dbar-day"><span class="dbar-day-name">${dayAbbr}</span><span class="dbar-day-date">${dateNum}</span></div>

@@ -123,8 +123,9 @@ details.card>summary{list-style:none}
 .storm-group-body{padding:4px 0}
 .tappable-unit{cursor:pointer;position:relative;transition:background 0.15s}
 .tappable-unit:active{background:rgba(255,255,255,0.08);border-radius:6px}
-.eta-countdown{font-family:var(--font-mono);font-size:1.1em;letter-spacing:0.5px}
-.eta-detail{min-width:80px}
+.eta-countdown{font-family:var(--font-mono);font-size:0.95em;letter-spacing:0;white-space:nowrap;display:inline-block}
+.eta-detail{min-width:80px;padding-left:2px;padding-right:2px}
+.eta-detail .storm-detail-val{font-size:0.78em;overflow:hidden}
 .legend-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;width:120px}
 .legend-bar span{flex:1}
 .radar-time-label{position:absolute;top:10px;left:50px;z-index:500;background:rgba(17,24,39,0.9);backdrop-filter:blur(10px);border-radius:var(--radius-sm);padding:4px 10px;font-size:0.65em;color:var(--accent-cyan);font-family:var(--font-mono)}
