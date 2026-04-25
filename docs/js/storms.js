@@ -656,6 +656,7 @@ async function scanRadarForStorms(){
     await new Promise(r=>setTimeout(r,300));
     if(reqId!==S._locReqId){hideScanOverlay();return}
     renderStorms();updateStormBadges();drawMiniSonar();
+    if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
     if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
     if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map);plotNHCTracks(S.map)}
