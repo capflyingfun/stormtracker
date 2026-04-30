@@ -598,6 +598,7 @@ async function scanRadarForStorms(){
   const useNexrad=S.radarSource==='nexrad';
   showScanOverlay();
   if(reqId!==S._locReqId){hideScanOverlay();return}
+  S._fullScanActive=true;
   await Promise.all([fetchWindsAloft(),fetchAFD()]);
   scanStep(2,'Scanning radar tiles...');
   try{
@@ -667,7 +668,19 @@ async function scanRadarForStorms(){
     scheduleAutoScan();
     _checkTieredHiRes();
     setTimeout(()=>{checkStormCellAlerts()},600);
+    if(!S._windCache||(Date.now()-S._windCache.ts)>32*60000){
+      console.log('[WindsAloft] Timed out during scan — scheduling auto-retry in 4s...');
+      setTimeout(async()=>{
+        await fetchWindsAloft();
+        if(S._windCache&&(Date.now()-S._windCache.ts)<6000&&S.storms.length){
+          computeTopStorms();renderStorms();updateStormBadges();
+          if(S.map&&S._showPathArrows)buildPathArrows(S.map);
+          console.log('[WindsAloft] Storm data refreshed with fresh winds');
+        }
+      },4000);
+    }
   }catch(e){hideScanOverlay();toast('Radar scan failed: '+e.message);console.error('Scan error:',e)}
+  finally{S._fullScanActive=false}
 }
 
 let _hiResTierDismissed={15:false,10:false,5:false};

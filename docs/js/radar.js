@@ -698,13 +698,13 @@ async function scanRadarForView(){
     _clusterSonarPoints();
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
-    if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
     computeTopStorms();
     recordScanSnapshot();
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Plotting ${S.storms.length.toLocaleString()} storm points...`);
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
+    if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
     if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     if(S.map){
       plotStormMarkers(S.map);
@@ -717,6 +717,17 @@ async function scanRadarForView(){
     toast(`${S.storms.length.toLocaleString()} cells in ${radius} mi radius (${srcLabel})`);
     scheduleAutoScan();
     setTimeout(()=>{checkStormCellAlerts()},600);
+    if(!S._windCache||(Date.now()-S._windCache.ts)>32*60000){
+      console.log('[WindsAloft] Timed out — scheduling auto-retry in 4s...');
+      setTimeout(async()=>{
+        await fetchWindsAloft(cLat,cLng);
+        if(S._windCache&&(Date.now()-S._windCache.ts)<6000&&S.storms.length){
+          computeTopStorms();renderStorms();updateStormBadges();
+          if(S.map&&S._showPathArrows)buildPathArrows(S.map);
+          console.log('[WindsAloft] Storm data refreshed with fresh winds');
+        }
+      },4000);
+    }
   }catch(e){hideScanOverlay();toast('View scan failed: '+e.message);console.error('ViewScan error:',e)}
 }
 
@@ -772,7 +783,6 @@ async function scanRadarHiRes(map,fromHome){
     S._rawScanPts=rawPoints;
     S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=true;
-    if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
     computeTopStorms();
     _sonarZoomMi=15;localStorage.setItem('st_sonarZoom',15);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_syncSonarZoomBtns();
     _clusterSonarPoints();
@@ -780,6 +790,7 @@ async function scanRadarHiRes(map,fromHome){
     scanStep(3,`Hi-Res: ${S.storms.length.toLocaleString()} points in ${HIRES_RADIUS} mi`);
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
+    if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
     if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     plotStormMarkers(map);
     if(rawPoints.length>0){autoActivateZones()}
@@ -792,6 +803,17 @@ async function scanRadarHiRes(map,fromHome){
     toast(`Hi-Res: ${S.storms.length.toLocaleString()} cells in ${HIRES_RADIUS} mi (${srcLabel})`);
     scheduleAutoScan();
     setTimeout(()=>{checkStormCellAlerts()},600);
+    if(!S._windCache||(Date.now()-S._windCache.ts)>32*60000){
+      console.log('[WindsAloft] Timed out — scheduling auto-retry in 4s...');
+      setTimeout(async()=>{
+        await fetchWindsAloft(cLat,cLng);
+        if(S._windCache&&(Date.now()-S._windCache.ts)<6000&&S.storms.length){
+          computeTopStorms();renderStorms();updateStormBadges();
+          if(S.map&&S._showPathArrows)buildPathArrows(S.map);
+          console.log('[WindsAloft] Storm data refreshed with fresh winds');
+        }
+      },4000);
+    }
   }catch(e){hideScanOverlay();toast('Hi-Res scan failed: '+e.message);console.error('HiRes error:',e)}
 }
 
@@ -1826,6 +1848,7 @@ S._overheadPollLast=0;
 async function pollOverheadRain(){
   if(!isOverheadPollEnabled())return;
   if(S._overheadPollBusy)return;
+  if(S._fullScanActive)return;
   if(document.hidden)return;
   if(S.lat==null||S.lon==null)return;
   S._overheadPollMs=_getOverheadPollMs();
