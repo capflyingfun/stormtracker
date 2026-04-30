@@ -465,6 +465,7 @@ function setLoc(lat,lon,name,opts){
   if(typeof _showHeaderBtns==='function')_showHeaderBtns();
   const wEl=document.getElementById('page-weather');if(wEl)showSkel(wEl,6);
   if(typeof showLoadingScreen==='function')showLoadingScreen(S.locName);
+  if(typeof _bootStep==='function'){_bootStep('loc','Location: '+S.locName);_bootStepDone('loc','Location: '+S.locName)}
   S._locReqId=(S._locReqId||0)+1;
   const _reqId=S._locReqId;
   document.getElementById('status-text').textContent=(fromTravel?'🧭 Travel Mode · ':'Live · ')+S.locName;

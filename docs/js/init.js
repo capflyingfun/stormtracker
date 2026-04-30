@@ -128,7 +128,73 @@ function hideLoadingScreen(){
   const el=document.getElementById('app-loading');
   if(!el||el.style.display==='none')return;
   el.classList.add('fade-out');
-  setTimeout(()=>{el.style.display='none';el.classList.remove('fade-out')},420);
+  setTimeout(()=>{el.style.display='none';el.classList.remove('fade-out');S._bootInProgress=false;_bootSteps=[];_renderBootSteps()},420);
+}
+
+// ==========================================
+// BOOT DEBUG STEPS — visible during initial load
+// ==========================================
+let _bootSteps=[];
+function _renderBootSteps(){
+  const el=document.getElementById('boot-steps');
+  if(!el)return;
+  if(!_bootSteps.length){el.innerHTML='';return}
+  el.innerHTML=_bootSteps.map(s=>{
+    const icon=s.status==='done'?'✓':s.status==='fail'?'✗':'<span class="bs-spin">▶</span>';
+    const cls='boot-step bs-'+s.status;
+    return `<div class="${cls}"><span class="bs-icon">${icon}</span><span class="bs-label">${s.label}</span></div>`;
+  }).join('');
+}
+function _bootStep(id,label){
+  if(S._bootInProgress===false)return;
+  const ix=_bootSteps.findIndex(s=>s.id===id);
+  if(ix>=0)_bootSteps[ix]={id,label,status:'pending'};
+  else _bootSteps.push({id,label,status:'pending'});
+  _renderBootSteps();
+}
+function _bootStepDone(id,label){
+  if(S._bootInProgress===false)return;
+  const s=_bootSteps.find(x=>x.id===id);
+  if(!s)return;
+  s.status='done';
+  if(label)s.label=label;
+  _renderBootSteps();
+}
+function _bootStepFail(id,label){
+  if(S._bootInProgress===false)return;
+  const s=_bootSteps.find(x=>x.id===id);
+  if(!s)return;
+  s.status='fail';
+  if(label)s.label=label;
+  _renderBootSteps();
+}
+
+// ==========================================
+// CONNECTION SPEED TEST — runs at app open
+// ==========================================
+async function _runConnectionSpeedTest(){
+  S._netRttMs=null;S._netSpeed='unknown';
+  if(typeof _bootStep==='function')_bootStep('net','Testing connection…');
+  const t0=performance.now();
+  try{
+    const ctrl=new AbortController();
+    const to=setTimeout(()=>ctrl.abort(),8000);
+    const r=await fetch('https://api.rainviewer.com/public/weather-maps.json',{signal:ctrl.signal,cache:'no-store'});
+    clearTimeout(to);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    await r.text();
+    const ms=Math.round(performance.now()-t0);
+    S._netRttMs=ms;
+    S._netSpeed=ms<500?'fast':ms<1500?'medium':ms<4000?'slow':'verySlow';
+    console.log('[Net] Speed test:',ms,'ms →',S._netSpeed);
+    if(typeof _bootStepDone==='function')_bootStepDone('net',`Connection: ${ms}ms · ${S._netSpeed}`);
+    return ms;
+  }catch(e){
+    S._netRttMs=null;S._netSpeed='offline';
+    console.log('[Net] Speed test failed:',e.message);
+    if(typeof _bootStepFail==='function')_bootStepFail('net','Connection check failed');
+    return null;
+  }
 }
 
 async function init(){
@@ -138,6 +204,8 @@ async function init(){
   updateAIFab();
   _initPWAInstallPrompt();
   _initOfflineDetection();
+  S._bootInProgress=true;
+  _runConnectionSpeedTest();
   try{
     const saved=JSON.parse(localStorage.getItem('st_loc'));
     if(saved&&saved.lat&&saved.lon){

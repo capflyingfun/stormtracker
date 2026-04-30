@@ -50,11 +50,12 @@ function initRadar(){
       <div class="map-legend">
         <span>dBZ</span>
         <div class="legend-bar">
+          <span style="background:#A8E5FF" title="5-14 Sprinkles"></span><span style="background:#5DD8FF" title="15-19 Drizzle"></span>
           <span style="background:#00F8FF" title="20-30 Light"></span><span style="background:#00FF39" title="31-40 Moderate"></span>
           <span style="background:#F5FF00" title="41-45 Heavy"></span><span style="background:#FFB200" title="46-51 Intense"></span><span style="background:#FF0200" title="52-60 Severe"></span>
           <span style="background:#FF00F5" title="61+ Extreme"></span>
         </div>
-        <span>20 → 61+ dBZ</span>
+        <span>5 → 61+ dBZ</span>
         <div style="display:flex;gap:6px;margin-left:6px;font-size:0.6em;opacity:0.7">
           <span style="color:#00cc44">🌧Rain</span>
           <span style="color:#66aaff">❄Snow</span>

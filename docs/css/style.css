@@ -589,6 +589,18 @@ canvas.offscreen{display:none}
 #loading-status-msg{font-size:0.72em;color:var(--text-muted);animation:msg-fade 1.6s ease-in-out infinite}
 @keyframes msg-fade{0%,100%{opacity:0.45}50%{opacity:1}}
 #app-loading.fade-out{opacity:0;transition:opacity 0.4s ease}
+#boot-steps{margin-top:18px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left;max-width:280px;margin-left:auto;margin-right:auto;font-family:'JetBrains Mono','Courier New',monospace}
+.boot-step{display:flex;gap:8px;align-items:center;font-size:0.62em;letter-spacing:0.02em;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);width:100%}
+.boot-step .bs-icon{display:inline-flex;justify-content:center;align-items:center;width:14px;height:14px;flex-shrink:0;font-weight:700}
+.boot-step .bs-label{flex:1;line-height:1.3;word-break:break-word}
+.boot-step.bs-pending{color:var(--text-muted)}
+.boot-step.bs-pending .bs-icon{color:var(--accent-cyan)}
+.boot-step.bs-done{color:#7fdc8a;border-color:rgba(127,220,138,0.18);background:rgba(127,220,138,0.05)}
+.boot-step.bs-done .bs-icon{color:#7fdc8a}
+.boot-step.bs-fail{color:#ff7676;border-color:rgba(255,118,118,0.2);background:rgba(255,118,118,0.06)}
+.boot-step.bs-fail .bs-icon{color:#ff7676}
+.bs-spin{display:inline-block;animation:bs-spin 1.2s linear infinite;font-size:0.85em}
+@keyframes bs-spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 
 /* ==========================================
    TABLET — 768px+

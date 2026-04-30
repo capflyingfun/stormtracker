@@ -101,6 +101,7 @@ async function fetchWeather(){
   const el=document.getElementById('page-weather');
   if(_isOffline&&S._lastWeatherData){renderWeather(S._lastWeatherData);return}
   showSkel(el,6);
+  if(typeof _bootStep==='function')_bootStep('wx','Fetching weather…');
   try{
     const _omBase=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lon}`
       +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day`
@@ -211,9 +212,11 @@ async function fetchWeather(){
       omData.current._nwsDesc=cloudCategory(_finalCC);
     }
     S.weather=omData.current;S._lastWeatherFetch=Date.now();S._lastWeatherData=omData;_resetMinMax();renderWeather(omData);if(typeof updateThreatTicker==='function')updateThreatTicker();if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);if(typeof V3D!=='undefined'&&V3D.active&&typeof refreshSky3D==='function')refreshSky3D();
+    if(typeof _bootStepDone==='function')_bootStepDone('wx','Weather data received');
   }catch(e){
     if(reqId!==S._locReqId)return;
     if(typeof hideLoadingScreen==='function')hideLoadingScreen();
+    if(typeof _bootStepFail==='function')_bootStepFail('wx','Weather fetch failed');
     if(_isOffline&&S._lastWeatherData){
       renderWeather(S._lastWeatherData);
     } else {
@@ -274,10 +277,8 @@ function _heroBandFromZone(zone){
   if(!zone||!zone.length)return null;
   const z=zone[0];
   const dbz=z.maxDbz!=null?z.maxDbz:(z.cls==='trace'?0:z.min);
-  if(dbz>=20)return z;
-  if(dbz>=15)return{cls:'drizzle',label:'Drizzle',color:'#5DD8FF',min:15,maxDbz:dbz};
-  if(dbz>=5)return{cls:'sprinkles',label:'Sprinkles',color:'#A8E5FF',min:5,maxDbz:dbz};
-  return null;
+  if(dbz<5)return null;
+  return Object.assign({},dbzColor(dbz),{maxDbz:dbz});
 }
 function refreshHeroFromZone(){
   if(!S._lastWeatherData)return;

@@ -160,9 +160,11 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     const d=haversine(lat,lon,cache.lat,cache.lon);
     if(d<100){
       console.log('Winds aloft: using cache ('+d.toFixed(0)+'mi from last fetch, '+((Date.now()-cache.ts)/60000).toFixed(0)+'m old)');
+      if(typeof _bootStepDone==='function')_bootStepDone('wind','Winds aloft (cached)');
       return;
     }
   }
+  if(typeof _bootStep==='function')_bootStep('wind','Getting winds aloft…');
   try{
     const params=new URLSearchParams({
       latitude:lat,longitude:lon,
@@ -229,7 +231,8 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     console.log('[WindsAloft] Per-level: '+aloftSpeeds.map(a=>a.p+'hPa='+a.rawMs.toFixed(1)+'m/s@'+a.dir+'°').join(', '));
     console.log('[WindsAloft] Steering (850-500hPa): '+steering.map(a=>a.p+'hPa').join(',')+' Vx='+ax.toFixed(2)+' Vy='+ay.toFixed(2)+' → '+spdKt.toFixed(1)+'kt '+Math.round(dir)+'° → '+spdMph+' mph');
     if(S.map&&S._showPathArrows)buildPathArrows(S.map);
-  }catch(e){console.log('Winds aloft fetch failed:',e.message)}
+    if(typeof _bootStepDone==='function')_bootStepDone('wind',`Winds aloft: ${spdMph} mph @ ${Math.round(dir)}°`);
+  }catch(e){console.log('Winds aloft fetch failed:',e.message);if(typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft failed')}
 }
 
 async function fetchAFD(){
@@ -599,6 +602,7 @@ async function scanRadarForStorms(){
   showScanOverlay();
   if(reqId!==S._locReqId){hideScanOverlay();return}
   S._fullScanActive=true;
+  if(typeof _bootStep==='function')_bootStep('scan','Scanning radar…');
   await Promise.all([fetchWindsAloft(),fetchAFD()]);
   scanStep(2,'Scanning radar tiles...');
   try{
@@ -664,6 +668,7 @@ async function scanRadarForStorms(){
     updateThreatTicker();
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
+    if(typeof _bootStepDone==='function')_bootStepDone('scan',`Radar scan: ${S.storms.length} cell${S.storms.length!==1?'s':''}`);
     if(S.map&&S._showPathArrows)setTimeout(()=>buildPathArrows(S.map),150);
     scheduleAutoScan();
     _checkTieredHiRes();
