@@ -814,6 +814,7 @@ function drawMiniSonar(){
       const shown=topInbound.slice(0,6);
       ctx.save();
       ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
+      ctx.font=`${Math.max(8,size*0.022)}px Inter,sans-serif`;
       for(const st of shown){
         let b;try{b=calcStormETAForBriefing(st)}catch(e){continue}
         if(!b||b.classification==='unknown')continue;
@@ -835,17 +836,28 @@ function drawMiniSonar(){
           ctx.moveTo(ex,ey);ctx.lineTo(ex-Math.cos(ang-0.5)*head,ey-Math.sin(ang-0.5)*head);
           ctx.moveTo(ex,ey);ctx.lineTo(ex-Math.cos(ang+0.5)*head,ey-Math.sin(ang+0.5)*head);
           ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.stroke();
+          const lbl=b.classification==='direct'?`≈${b.closingMph} mph closing`
+                   :b.classification==='passing'?'passing'
+                   :b.classification==='graze'?'graze':'';
+          if(lbl){
+            ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='middle';
+            ctx.fillText(lbl,ex+4,ey);
+          }
         }
         if(b.perpMissMi!=null&&b.perpMissMi>0&&b.classification!=='direct'){
           const missR=Math.min(maxR-4,maxR*(b.perpMissMi/viewR));
           if(b.sideBearing!=null&&missR>3){
             const sAng=(b.sideBearing-90)*Math.PI/180;
             const tx=cx+Math.cos(sAng)*missR,ty=cy+Math.sin(sAng)*missR;
-            const perp=sAng+Math.PI/2;const tickL=4;
+            const perp=sAng+Math.PI/2;const tickL=5;
             ctx.beginPath();
             ctx.moveTo(tx+Math.cos(perp)*tickL,ty+Math.sin(perp)*tickL);
             ctx.lineTo(tx-Math.cos(perp)*tickL,ty-Math.sin(perp)*tickL);
             ctx.strokeStyle=col;ctx.lineWidth=1.8;ctx.stroke();
+            const missMi=S.radarMetric?(b.perpMissMi*1.60934).toFixed(1)+' km':b.perpMissMi.toFixed(0)+' mi';
+            const missLbl=`miss ${missMi} ${degToDir(b.sideBearing)}`;
+            ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='middle';
+            ctx.fillText(missLbl,tx+tickL+3,ty);
           }
         }
       }

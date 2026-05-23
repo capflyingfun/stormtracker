@@ -2424,23 +2424,29 @@ function buildRelMotionLayers(map){
     const col=classColor[b.classification]||'#888';
     const opa=b.classification==='moving_away'?0.4:0.85;
     if(b.closingMph>0){
-      const projMi=Math.min(s.distance,Math.max(2,b.closingMph*0.5));
-      const ep=destPoint(s.lat,s.lng,b.movDirDeg||s.bearing,projMi);
-      const line=L.polyline([[s.lat,s.lng],ep],{pane,color:col,weight:2.5,opacity:opa,dashArray:'6,4',interactive:false}).addTo(map);
+      const projMi=Math.min(s.distance,Math.max(2,b.closingMph*30/60));
+      const ep=destPoint(S.lat,S.lon,s.bearing,projMi);
+      const line=L.polyline([[S.lat,S.lon],ep],{pane,color:col,weight:2.5,opacity:opa,dashArray:'6,4',interactive:false}).addTo(map);
       S._relMotionLayers.push(line);
       const tip=L.circleMarker(ep,{pane,radius:4,color:col,fillColor:col,fillOpacity:opa,weight:1,interactive:false}).addTo(map);
       S._relMotionLayers.push(tip);
-      const label=b.classification==='direct'?`${b.closingMph}mph closing · ETA ${b.etaMin}m`
-                 :b.classification==='graze'?`graze · ${b.perpMissMi}mi miss`
-                 :b.classification==='passing'?`passing · miss ${b.perpMissMi}mi`
-                 :'moving away';
-      const tag=L.marker(ep,{pane,interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:9px;font-weight:700;color:${col};text-shadow:0 0 4px #000,0 0 2px #000;white-space:nowrap;transform:translate(6px,-50%)">${label}</div>`,iconSize:[1,1],iconAnchor:[0,0]})}).addTo(map);
+      const lbl=b.classification==='direct'?`≈${b.closingMph} mph closing · ETA ${b.etaMin}m`
+               :b.classification==='passing'?'passing'
+               :b.classification==='graze'?'graze':'moving away';
+      const tag=L.marker(ep,{pane,interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:10px;font-weight:700;color:${col};text-shadow:0 0 4px #000,0 0 2px #000;white-space:nowrap;transform:translate(6px,-50%)">${lbl}</div>`,iconSize:[1,1],iconAnchor:[0,0]})}).addTo(map);
       S._relMotionLayers.push(tag);
     }
     if(b.perpMissMi!=null&&b.perpMissMi>0&&b.classification!=='direct'&&b.sideBearing!=null){
       const cp=destPoint(S.lat,S.lon,b.sideBearing,b.perpMissMi);
-      const tick=L.circleMarker(cp,{pane,radius:5,color:col,fillColor:'transparent',weight:2,opacity:opa,interactive:false}).addTo(map);
+      const perpDir1=(b.sideBearing+90)%360, perpDir2=(b.sideBearing+270)%360;
+      const t1=destPoint(cp[0],cp[1],perpDir1,0.6);
+      const t2=destPoint(cp[0],cp[1],perpDir2,0.6);
+      const tick=L.polyline([t1,t2],{pane,color:col,weight:2.5,opacity:opa,interactive:false}).addTo(map);
       S._relMotionLayers.push(tick);
+      const missMi=S.radarMetric?(b.perpMissMi*1.60934).toFixed(1)+' km':b.perpMissMi.toFixed(0)+' mi';
+      const missLbl=`miss ${missMi} ${degToDir(b.sideBearing)}`;
+      const missTag=L.marker(cp,{pane,interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:9px;font-weight:600;color:${col};text-shadow:0 0 3px #000;white-space:nowrap;transform:translate(8px,-50%)">${missLbl}</div>`,iconSize:[1,1],iconAnchor:[0,0]})}).addTo(map);
+      S._relMotionLayers.push(missTag);
     }
   });
 }
