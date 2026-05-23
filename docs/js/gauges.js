@@ -4,7 +4,7 @@ const _SONAR_ZOOM_LEVELS=[15,20,30,40,50,60,70,80];
 const _SONAR_DBZ_CLASSES=['light','moderate','heavy','intense','severe','extreme'];
 const _SONAR_DBZ_LABELS={light:'Light (20-30)',moderate:'Moderate (31-40)',heavy:'Heavy (41-45)',intense:'Intense (46-51)',severe:'Severe (52-60)',extreme:'Extreme (61+)'};
 const _SONAR_DBZ_COLORS={light:'#00F8FF',moderate:'#00FF39',heavy:'#F5FF00',intense:'#FFB200',severe:'#FF0200',extreme:'#FF00F5'};
-const _SONAR_DEFAULTS={dbzScale:{},sweepSpeed:40,fadeDur:2,alwaysOn:false,dotOpacity:100,glowInt:1,gridBright:100,dbzFloor:0,showStormArrows:true,showAloft:true,showLightning:true};
+const _SONAR_DEFAULTS={dbzScale:{},sweepSpeed:40,fadeDur:2,alwaysOn:false,dotOpacity:100,glowInt:1,gridBright:100,dbzFloor:0,showStormArrows:true,showAloft:true,showLightning:true,showRelMotion:true};
 let _sonarCfg=(function(){try{const s=JSON.parse(localStorage.getItem('st_sonarCfg'));if(s&&typeof s==='object')return Object.assign({},_SONAR_DEFAULTS,s)}catch(e){}return Object.assign({},_SONAR_DEFAULTS)})();
 function _saveSonarCfg(){localStorage.setItem('st_sonarCfg',JSON.stringify(_sonarCfg))}
 function _getDbzScale(cls){return _sonarCfg.dbzScale[cls]!=null?_sonarCfg.dbzScale[cls]:1}
@@ -41,7 +41,7 @@ function _toggleSonarSettings(){
   html+='</div>';
   html+='<div class="sub-section-sep">';
   html+='<div style="'+tl+';margin-bottom:4px">Overlays</div>';
-  const togs=[['showStormArrows','Storm Arrows'],['showAloft','Aloft Wind'],['showLightning','⚡ Lightning (≥48 dBZ)']];
+  const togs=[['showStormArrows','Storm Arrows'],['showAloft','Aloft Wind'],['showRelMotion','Relative Motion (AI)'],['showLightning','⚡ Lightning (≥48 dBZ)']];
   for(const[key,lbl]of togs){
     const on=sw[key];
     html+=`<div class="flex-between-mb3"><span style="${lb}">${lbl}</span><button onclick="_setSonarOpt('${key}',!_sonarCfg.${key})" id="ss-${key}" style="font-size:0.45em;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid ${on?'#00ff88':'rgba(0,220,255,0.3)'};background:${on?'rgba(0,255,136,0.2)':'none'};color:${on?'#00ff88':'rgba(255,255,255,0.5)'}">${on?'ON':'OFF'}</button></div>`;

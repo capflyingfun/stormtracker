@@ -770,7 +770,7 @@ let _hiResPopupTimer=null;
 function _resetHiResTiers(){_hiResTierDismissed={15:false,10:false,5:false}}
 function _checkTieredHiRes(){
   if(!S.map||S._lastScanWasHiRes||_hiResPopupActive)return;
-  const severe=S.storms.filter(s=>s.dbz>=52);
+  const severe=S.storms.filter(s=>s.dbz>=60);
   if(!severe.length){_resetHiResTiers();return}
   const closest=Math.min(...severe.map(s=>s.distance));
   const tiers=[15,10,5];
@@ -2076,7 +2076,9 @@ function _smartStormSummary(storms){
   approaching.sort((a,b)=>a._eta.eta-b._eta.eta);
   const light=approaching.filter(s=>s.dbz<40);
   const moderate=approaching.filter(s=>s.dbz>=41&&s.dbz<52);
-  const severe=approaching.filter(s=>s.dbz>=52);
+  const modSevere=approaching.filter(s=>s.dbz>=52&&s.dbz<60);
+  const severe=approaching.filter(s=>s.dbz>=60&&s.dbz<65);
+  const extreme=approaching.filter(s=>s.dbz>=65);
   const now=Date.now();
   const fmtEtaShort=(min)=>{const s=Math.round(min*60);const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return(h>0?String(h).padStart(2,'0')+'h:':'')+String(m).padStart(2,'0')+'m:'+String(sec).padStart(2,'0')+'s';};
   const fmtTime=(min)=>fmtClockShort(new Date(now+min*60000));
@@ -2090,9 +2092,17 @@ function _smartStormSummary(storms){
     const first=moderate[0];
     lines.push(`<span style="color:#F5FF00">🟡 Moderate to heavy</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${moderate.length>1?' — '+moderate.length+' cells':''}`);
   }
+  if(modSevere.length){
+    const first=modSevere[0];
+    lines.push(`<span style="color:#E63A2C">🟠 Moderate to severe</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${modSevere.length>1?' — '+modSevere.length+' cells':''}`);
+  }
   if(severe.length){
     const first=severe[0];
-    lines.push(`<span style="color:#FF0200">🔴 Severe/intense</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${severe.length>1?' — '+severe.length+' cells':''}`);
+    lines.push(`<span style="color:#FF0200">🔴 Severe</span> cells inbound (hail possible), ETA ${tierSpan(first._eta.eta)}${severe.length>1?' — '+severe.length+' cells':''}`);
+  }
+  if(extreme.length){
+    const first=extreme[0];
+    lines.push(`<span style="color:#FF00F5">🟣 Extreme</span> cells inbound (hail likely), ETA ${tierSpan(first._eta.eta)}${extreme.length>1?' — '+extreme.length+' cells':''}`);
   }
   return`<div style="padding:8px 12px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:8px;font-size:0.78em;line-height:1.6;margin-bottom:8px">${lines.join('<br>')}</div>`;
 }
@@ -2244,8 +2254,8 @@ function renderStorms(){
       const hex=dbzHex(s.dbz);
       const pulse=(s.dbz>=46)?'storm-card-pulse':'';
       const isHook=s._hookEcho;
-      const cellIcon=isHook?'🌪️':s.dbz>=61?'‼️':s.dbz>=52?'🚨':s.dbz>=46?'⚠️':s.dbz>=41?'🟡':s.dbz>=20?'🟢':'🔵';
-      const cellName=isHook?tStr('Possible Rotation'):s.dbz>=52?tStr('Severe Cell'):s.dbz>=41?tStr('Storm Cell'):tStr('Rain Cell');
+      const cellIcon=isHook?'🌪️':s.dbz>=65?'‼️':s.dbz>=60?'🚨':s.dbz>=52?'🟧':s.dbz>=46?'⚠️':s.dbz>=41?'🟡':s.dbz>=20?'🟢':'🔵';
+      const cellName=isHook?tStr('Possible Rotation'):s.dbz>=60?tStr('Severe Cell'):s.dbz>=52?tStr('Strong Cell'):s.dbz>=41?tStr('Storm Cell'):tStr('Rain Cell');
       const hookBadge=isHook?`<span class="hook-echo-badge">🌪️ Hook Echo</span>`:'';
       const ts10=stormThreatScore10(s);
       const tsColor=ts10>=8?'#ef4444':ts10>=6?'#f97316':ts10>=4?'#facc15':'#4ade80';

@@ -177,7 +177,7 @@ function buildWeatherContext(){
     }
     if(sigStorms.length){
       const peakDbz=Math.max(...sigStorms.map(s=>s.dbz));
-      const peakCat=peakDbz>=65?'EXTREME (severe-hail signature likely)':peakDbz>=60?'VERY HEAVY (severe-hail possible)':peakDbz>=55?'HEAVY (strong core, not auto-severe)':peakDbz>=45?'MODERATE-HEAVY':peakDbz>=30?'MODERATE':'LIGHT';
+      const peakCat=peakDbz>=65?'EXTREME (severe-hail signature likely)':peakDbz>=60?'SEVERE (hail possible)':peakDbz>=52?'MODERATE-SEVERE (strong core, not auto-severe)':peakDbz>=45?'MODERATE-HEAVY':peakDbz>=30?'MODERATE':'LIGHT';
       const closestSig=[...sigStorms].sort((a,b)=>a.distance-b.distance)[0];
       parts.push(`  Peak intensity: ${peakDbz} dBZ [${peakCat}]. Closest significant cell: ${fmtStormDist(closestSig.distance)} ${degToDir(closestSig.bearing)}.`);
       const byDist=[...sigStorms].sort((a,b)=>a.distance-b.distance).slice(0,6);
@@ -193,7 +193,7 @@ function buildWeatherContext(){
         const distRnd=Math.round(st.distance*10)/10;
         const distStr=S.radarMetric?(distRnd*1.60934).toFixed(1)+' km':distRnd.toFixed(1)+' mi';
         let line=`  Storm at ${distStr} ${degToDir(st.bearing)} (${st.bearing.toFixed(0)}°), intensity ${st.dbz} dBZ`;
-        const cat=st.dbz>=65?'EXTREME (severe-hail signature likely)':st.dbz>=60?'VERY HEAVY (severe-hail possible)':st.dbz>=55?'HEAVY (strong, not auto-severe)':st.dbz>=45?'MODERATE-HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
+        const cat=st.dbz>=65?'EXTREME (severe-hail signature likely)':st.dbz>=60?'SEVERE (hail possible)':st.dbz>=52?'MODERATE-SEVERE (strong, not auto-severe)':st.dbz>=45?'MODERATE-HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
         line+=` [${cat}]`;
         try{
           if(typeof calcStormETAForBriefing==='function'){
@@ -373,7 +373,7 @@ function getAISystemPrompt(){
   else if(detail==='technical')detailInstr='Include detailed meteorological analysis with specific measurements, dBZ values, wind shear analysis, and professional terminology.';
 
   const hasExtreme=S.storms&&S.storms.some(st=>st&&st.dbz>=65);
-  const hasSevere=S.storms&&S.storms.some(st=>st&&st.dbz>=55);
+  const hasSevere=S.storms&&S.storms.some(st=>st&&st.dbz>=60);
   const hasHigh=S.storms&&S.storms.some(st=>st&&st.dbz>=45);
   const hasAlerts=S.alerts&&S.alerts.length>0;
   const hasExtremeAlert=S.alerts&&S.alerts.some(a=>(a.properties||a).severity==='Extreme');

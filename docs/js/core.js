@@ -427,22 +427,26 @@ function haversine(lat1,lon1,lat2,lon2){const R=3959,dLat=(lat2-lat1)*Math.PI/18
 function bearingDeg(lat1,lon1,lat2,lon2){const dLon=(lon2-lon1)*Math.PI/180;const y=Math.sin(dLon)*Math.cos(lat2*Math.PI/180);const x=Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180)-Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);return((Math.atan2(y,x)*180/Math.PI)+360)%360}
 
 const DBZ_SCALE=[
-  {min:0,  color:'#004488',label:'Below threshold',         cls:'trace',   opacity:0.10},
-  {min:20, color:'#00F8FF',label:'Light rain',              cls:'light',   opacity:0.20},
-  {min:31, color:'#00FF39',label:'Moderate rain',           cls:'moderate',opacity:0.30},
-  {min:41, color:'#F5FF00',label:'Heavy rain',              cls:'heavy',   opacity:0.40},
-  {min:46, color:'#FFB200',label:'Very heavy rain',         cls:'intense', opacity:0.50},
-  {min:52, color:'#FF0200',label:'Severe, hail possible',   cls:'severe',  opacity:0.55},
-  {min:61, color:'#FF00F5',label:'Extreme, hail likely',    cls:'extreme', opacity:0.60}
+  {min:0,  color:'#004488',label:'Below threshold',         cls:'trace',    opacity:0.10},
+  {min:5,  color:'#A8E5FF',label:'Sprinkles',               cls:'sprinkles',opacity:0.12},
+  {min:15, color:'#5DD8FF',label:'Drizzle',                 cls:'drizzle',  opacity:0.16},
+  {min:20, color:'#00F8FF',label:'Light rain',              cls:'light',    opacity:0.20},
+  {min:31, color:'#00FF39',label:'Moderate rain',           cls:'moderate', opacity:0.30},
+  {min:41, color:'#F5FF00',label:'Heavy rain',              cls:'heavy',    opacity:0.40},
+  {min:46, color:'#FFB200',label:'Very heavy rain',         cls:'intense',  opacity:0.50},
+  {min:52, color:'#E63A2C',label:'Moderate to severe',      cls:'mod-severe',opacity:0.55},
+  {min:60, color:'#FF0200',label:'Severe, hail possible',   cls:'severe',   opacity:0.58},
+  {min:65, color:'#FF00F5',label:'Extreme, hail likely',    cls:'extreme',  opacity:0.60}
 ];
 function _dbzEntry(dbz){for(let i=DBZ_SCALE.length-1;i>=0;i--){if(dbz>=DBZ_SCALE[i].min)return DBZ_SCALE[i]}return DBZ_SCALE[0]}
 function stormCat(dbz){
   const e=_dbzEntry(dbz);
   const m=S.radarMetric;
-  const rainMap={0:m?'trace':'trace',20:m?'0.6 mm/hr':'0.02 in/hr',31:m?'2.7 mm/hr':'0.10 in/hr',41:m?'1.1 cm/hr':'0.45 in/hr',46:m?'2.3 cm/hr':'0.92 in/hr',52:m?'10 cm/hr':'4 in/hr',61:m?'>20 cm/hr':'>8 in/hr'};
+  const rainMap={0:m?'trace':'trace',5:m?'<0.25 mm/hr':'<0.01 in/hr',15:m?'0.25 mm/hr':'0.01 in/hr',20:m?'0.6 mm/hr':'0.02 in/hr',31:m?'2.7 mm/hr':'0.10 in/hr',41:m?'1.1 cm/hr':'0.45 in/hr',46:m?'2.3 cm/hr':'0.92 in/hr',52:m?'5 cm/hr':'2 in/hr',60:m?'10 cm/hr':'4 in/hr',65:m?'>20 cm/hr':'>8 in/hr'};
   return{label:e.label,cls:e.cls,color:e.color,rain:rainMap[e.min]||'trace'};
 }
 function dbzHex(dbz){return _dbzEntry(dbz).color}
+function dbzColor(dbz){return _dbzEntry(dbz)}
 function fmtStormDist(mi){return S.radarMetric?(mi*1.60934).toFixed(1)+' km':mi.toFixed(1)+' mi'}
 function fmtCountdown(totalSec){
   if(totalSec<=0)return'NOW';

@@ -756,10 +756,14 @@ function drawMiniSonar(){
   }
   try{
     const topInbound=(S._topStorms||[]).filter(s=>s.distance<=viewR);
-    if(_sonarCfg.showStormArrows&&S.stormMovement&&S.stormMovement.speed>=2&&topInbound.length){
-      const mv=S.stormMovement;
+    const _hasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
+    const _hasAl=S._upperWindDir!=null;
+    const mv=_hasMv?Object.assign({},S.stormMovement)
+            :(_hasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10,_fromAloft:true}
+                    :null);
+    if(_sonarCfg.showStormArrows&&mv){
       const mvRad=(mv.direction-90)*Math.PI/180;
-      if(topInbound.length>0){
+      if(_hasMv&&topInbound.length>0){
         const shown=topInbound.slice(0,12);
         for(const st of shown){
           const dist=st.distance||0;
@@ -780,7 +784,8 @@ function drawMiniSonar(){
           ctx.restore();
         }
       }
-      const neonC=pathArrowNeonColor(maxDbz);
+      const isAir=!!mv._fromAloft;
+      const neonC=isAir?'#ffe14d':pathArrowNeonColor(maxDbz);
       const arrLen=maxR*0.6;
       const ax=cx+Math.cos(mvRad)*arrLen,ay=cy+Math.sin(mvRad)*arrLen;
       const la=mvRad-Math.PI+0.4,ra=mvRad-Math.PI-0.4;
@@ -788,11 +793,62 @@ function drawMiniSonar(){
       ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(la)*12,ay+Math.sin(la)*12);ctx.moveTo(ax,ay);ctx.lineTo(ax+Math.cos(ra)*12,ay+Math.sin(ra)*12);
       ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
       ctx.beginPath();ctx.moveTo(cx+Math.cos(mvRad)*15,cy+Math.sin(mvRad)*15);ctx.lineTo(ax,ay);
-      ctx.strokeStyle=hexToRgba(neonC,0.5);ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.stroke();ctx.setLineDash([]);
+      ctx.strokeStyle=hexToRgba(neonC,isAir?0.7:0.5);ctx.lineWidth=1.5;
+      if(isAir)ctx.setLineDash([5,3]); else ctx.setLineDash([4,3]);
+      ctx.stroke();ctx.setLineDash([]);
       const slx=ax+Math.cos(mvRad)*10,sly=ay+Math.sin(mvRad)*10;
-      ctx.fillStyle=hexToRgba(neonC,0.8);ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
+      ctx.fillStyle=hexToRgba(neonC,0.9);ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
       ctx.shadowColor='rgba(0,0,0,0.95)';ctx.shadowBlur=6;
-      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('STORM',slx,sly);
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(isAir?'AIR':'STORM',slx,sly);
+      ctx.restore();
+      const spdUnit=S.radarMetric?Math.round(mv.speed*1.60934)+'km/h':Math.round(mv.speed)+'mph';
+      const chipTxt=`${isAir?'air':'storm'} → ${degToDir(mv.direction)} ${spdUnit}`;
+      ctx.save();ctx.font=`${Math.max(8,size*0.022)}px Inter,sans-serif`;
+      ctx.textAlign='left';ctx.textBaseline='top';
+      ctx.shadowColor='rgba(0,0,0,0.95)';ctx.shadowBlur=4;
+      ctx.fillStyle=hexToRgba(neonC,0.85);ctx.fillText(chipTxt,8,8);
+      ctx.restore();
+    }
+    if(_sonarCfg.showRelMotion&&typeof calcStormETAForBriefing==='function'&&topInbound.length){
+      const _classColor={direct:'#ff3355',graze:'#f97316',passing:'#22d3ee',moving_away:'rgba(160,160,160,0.5)',unknown:'rgba(160,160,160,0.5)'};
+      const shown=topInbound.slice(0,6);
+      ctx.save();
+      ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
+      for(const st of shown){
+        let b;try{b=calcStormETAForBriefing(st)}catch(e){continue}
+        if(!b||b.classification==='unknown')continue;
+        const col=_classColor[b.classification]||'#888';
+        const stAng=((st.bearing||0)-90)*Math.PI/180;
+        const dist=st.distance||0;
+        const r=Math.min(maxR-6,maxR*(dist/viewR));
+        const sx=cx+Math.cos(stAng)*r,sy=cy+Math.sin(stAng)*r;
+        if(b.closingMph>0){
+          const closeFrac=Math.min(1,Math.abs(b.closingMph)/30);
+          const lineEnd=Math.max(8,closeFrac*r*0.85);
+          const ux=(cx-sx),uy=(cy-sy);
+          const um=Math.sqrt(ux*ux+uy*uy)||1;
+          const ex=sx+(ux/um)*lineEnd,ey=sy+(uy/um)*lineEnd;
+          ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(ex,ey);
+          ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.setLineDash([3,2]);ctx.stroke();ctx.setLineDash([]);
+          const head=5,ang=Math.atan2(ey-sy,ex-sx);
+          ctx.beginPath();
+          ctx.moveTo(ex,ey);ctx.lineTo(ex-Math.cos(ang-0.5)*head,ey-Math.sin(ang-0.5)*head);
+          ctx.moveTo(ex,ey);ctx.lineTo(ex-Math.cos(ang+0.5)*head,ey-Math.sin(ang+0.5)*head);
+          ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.stroke();
+        }
+        if(b.perpMissMi!=null&&b.perpMissMi>0&&b.classification!=='direct'){
+          const missR=Math.min(maxR-4,maxR*(b.perpMissMi/viewR));
+          if(b.sideBearing!=null&&missR>3){
+            const sAng=(b.sideBearing-90)*Math.PI/180;
+            const tx=cx+Math.cos(sAng)*missR,ty=cy+Math.sin(sAng)*missR;
+            const perp=sAng+Math.PI/2;const tickL=4;
+            ctx.beginPath();
+            ctx.moveTo(tx+Math.cos(perp)*tickL,ty+Math.sin(perp)*tickL);
+            ctx.lineTo(tx-Math.cos(perp)*tickL,ty-Math.sin(perp)*tickL);
+            ctx.strokeStyle=col;ctx.lineWidth=1.8;ctx.stroke();
+          }
+        }
+      }
       ctx.restore();
     }
     const aloftDir=S._upperWindDir;

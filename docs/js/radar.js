@@ -35,6 +35,7 @@ function initRadar(){
         <div class="map-ctrl-btn" id="btn-path-arrows" title="Toggle storm path arrows" onclick="togglePathArrows()">${_ri('path-arrows')}</div>
         <div class="map-ctrl-btn" id="btn-points" title="Toggle storm points" onclick="toggleStormPoints()">${_ri(S._pointsMode==='inbound'?'points-12':'points')}</div>
         <div class="map-ctrl-btn" id="btn-tracks" title="Toggle storm track cones" onclick="toggleStormTracks()">${_ri(S._tracksMode==='inbound'?'tracks-12':'tracks')}</div>
+        <div class="map-ctrl-btn" id="btn-relmotion" title="AI relative-motion vectors (off / top12 / all)" onclick="toggleRelMotion()" style="font-weight:700;font-size:11px;line-height:1">${S._relMotionMode==='all'?'∡A':S._relMotionMode==='inbound'?'∡12':'∡'}</div>
         <div class="map-ctrl-btn" id="btn-radar-overlay" title="Toggle radar overlay" onclick="toggleRadarOverlay()">${_ri('radar-overlay')}</div>
         <div class="map-ctrl-btn" id="btn-mping" title="Toggle mPING reports" onclick="toggleMping()">${_ri('mping')}</div>
         <div class="map-ctrl-btn" id="btn-alert-polys" title="Toggle NWS alert polygons" onclick="toggleAlertPolygons()">${_ri('alert-polys')}</div>
@@ -145,6 +146,14 @@ function initRadar(){
       else if(S._tracksMode==='all'){tkbtn.style.opacity='1';_ris('btn-tracks','tracks');}
       else{tkbtn.style.opacity='0.4';_ris('btn-tracks','tracks');}
     }
+    const rmbtn=document.getElementById('btn-relmotion');
+    if(rmbtn){
+      if(S._relMotionMode==='inbound'){rmbtn.style.opacity='1';rmbtn.textContent='∡12';}
+      else if(S._relMotionMode==='all'){rmbtn.style.opacity='1';rmbtn.textContent='∡A';}
+      else{rmbtn.style.opacity='0.4';rmbtn.textContent='∡';}
+    }
+    try{if(!map.getPane('storm-arrow-pane')){map.createPane('storm-arrow-pane');map.getPane('storm-arrow-pane').style.zIndex=410;}}catch(e){}
+    try{if(!map.getPane('rel-motion-pane')){map.createPane('rel-motion-pane');map.getPane('rel-motion-pane').style.zIndex=445;}}catch(e){}
     const rbtn=document.getElementById('btn-radar-overlay');if(rbtn)rbtn.style.opacity=S._radarOverlayVisible?'1':'0.4';
     const pabtn=document.getElementById('btn-path-arrows');if(pabtn)pabtn.style.opacity=S._showPathArrows?'1':'0.4';
     const mpbtn=document.getElementById('btn-mping');if(mpbtn)mpbtn.style.opacity='0.4';
@@ -1089,7 +1098,7 @@ function plotStormMarkers(map){
     pending.forEach(p=>{
       const isVisible=(mode==='all')||(mode==='inbound'&&visibleSet.has(p.stormRef));
       if(p.type==='arrow'){
-        const arrow=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'storm-arrow-icon',html:p.svgHtml,iconSize:[p.sz,p.sz],iconAnchor:[p.sz/2,p.sz/2]})});
+        const arrow=L.marker([p.lat,p.lng],{pane:map.getPane('storm-arrow-pane')?'storm-arrow-pane':undefined,icon:L.divIcon({className:'storm-arrow-icon',html:p.svgHtml,iconSize:[p.sz,p.sz],iconAnchor:[p.sz/2,p.sz/2]})});
         if(isVisible)arrow.addTo(map);
         arrow.bindPopup(p.popupHtml,p.popupOpts);
         arrow.on('click',()=>showStormCone(map,p.stormRef));
@@ -1134,6 +1143,7 @@ function plotStormMarkers(map){
       }
     });
     if(S._tracksMode!=='off')plotStormTracks(map);
+    if(S._relMotionMode!=='off')buildRelMotionLayers(map);
   })});
 }
 
@@ -2150,6 +2160,9 @@ try{const ps=localStorage.getItem('st_arrowStyle');if(ps==='pointer')S._pathArro
 S._showPoints=true;
 S._pointsMode='inbound';
 try{const pv=localStorage.getItem('st_pointsMode');if(pv){S._pointsMode=pv;S._showPoints=(pv!=='off')}}catch(e){}
+S._relMotionMode='off';
+try{const rv=localStorage.getItem('st_relMotionMode');if(rv)S._relMotionMode=rv}catch(e){}
+S._relMotionLayers=[];
 S._tracksMode='off';
 S._trackCones=[];
 try{const tv=localStorage.getItem('st_tracksMode');if(tv)S._tracksMode=tv}catch(e){}
@@ -2388,6 +2401,58 @@ function plotStormTracks(map){
     const poly=L.polygon(pts,{color,fillColor:color,fillOpacity:0.06,weight:1,dashArray:'4,4',opacity:0.5,interactive:false}).addTo(map);
     S._trackCones.push(poly);
   });
+}
+function clearRelMotionLayers(){
+  if(!S._relMotionLayers)S._relMotionLayers=[];
+  S._relMotionLayers.forEach(l=>{try{if(S.map)S.map.removeLayer(l)}catch(e){}});
+  S._relMotionLayers=[];
+}
+function buildRelMotionLayers(map){
+  clearRelMotionLayers();
+  if(!map||S._relMotionMode==='off'||typeof calcStormETAForBriefing!=='function')return;
+  const pane=map.getPane('rel-motion-pane')?'rel-motion-pane':undefined;
+  const classColor={direct:'#ff3355',graze:'#f97316',passing:'#22d3ee',moving_away:'#888888',unknown:'#888888'};
+  let storms=getVisibleStormList?getVisibleStormList():S.storms;
+  if(!storms||!storms.length)return;
+  if(S._relMotionMode==='inbound'){
+    if(S._topStorms&&S._topStorms.length){storms=storms.filter(s=>S._topStorms.includes(s))}
+    else storms=storms.slice(0,12);
+  }
+  storms.forEach(s=>{
+    let b;try{b=calcStormETAForBriefing(s)}catch(e){return}
+    if(!b||b.classification==='unknown')return;
+    const col=classColor[b.classification]||'#888';
+    const opa=b.classification==='moving_away'?0.4:0.85;
+    if(b.closingMph>0){
+      const projMi=Math.min(s.distance,Math.max(2,b.closingMph*0.5));
+      const ep=destPoint(s.lat,s.lng,b.movDirDeg||s.bearing,projMi);
+      const line=L.polyline([[s.lat,s.lng],ep],{pane,color:col,weight:2.5,opacity:opa,dashArray:'6,4',interactive:false}).addTo(map);
+      S._relMotionLayers.push(line);
+      const tip=L.circleMarker(ep,{pane,radius:4,color:col,fillColor:col,fillOpacity:opa,weight:1,interactive:false}).addTo(map);
+      S._relMotionLayers.push(tip);
+      const label=b.classification==='direct'?`${b.closingMph}mph closing · ETA ${b.etaMin}m`
+                 :b.classification==='graze'?`graze · ${b.perpMissMi}mi miss`
+                 :b.classification==='passing'?`passing · miss ${b.perpMissMi}mi`
+                 :'moving away';
+      const tag=L.marker(ep,{pane,interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:9px;font-weight:700;color:${col};text-shadow:0 0 4px #000,0 0 2px #000;white-space:nowrap;transform:translate(6px,-50%)">${label}</div>`,iconSize:[1,1],iconAnchor:[0,0]})}).addTo(map);
+      S._relMotionLayers.push(tag);
+    }
+    if(b.perpMissMi!=null&&b.perpMissMi>0&&b.classification!=='direct'&&b.sideBearing!=null){
+      const cp=destPoint(S.lat,S.lon,b.sideBearing,b.perpMissMi);
+      const tick=L.circleMarker(cp,{pane,radius:5,color:col,fillColor:'transparent',weight:2,opacity:opa,interactive:false}).addTo(map);
+      S._relMotionLayers.push(tick);
+    }
+  });
+}
+function toggleRelMotion(){
+  const modes=['off','inbound','all'];
+  const cur=modes.indexOf(S._relMotionMode);
+  S._relMotionMode=modes[(cur+1)%3];
+  try{localStorage.setItem('st_relMotionMode',S._relMotionMode)}catch(e){}
+  const btn=document.getElementById('btn-relmotion');
+  if(S._relMotionMode==='off'){clearRelMotionLayers();if(btn){btn.style.opacity='0.4';btn.textContent='∡'}}
+  else if(S._relMotionMode==='inbound'){if(S.map)buildRelMotionLayers(S.map);if(btn){btn.style.opacity='1';btn.textContent='∡12'}}
+  else{if(S.map)buildRelMotionLayers(S.map);if(btn){btn.style.opacity='1';btn.textContent='∡A'}}
 }
 function toggleStormTracks(){
   const modes=['off','inbound','all'];
