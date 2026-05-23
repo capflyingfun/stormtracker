@@ -177,7 +177,7 @@ function buildWeatherContext(){
     }
     if(sigStorms.length){
       const peakDbz=Math.max(...sigStorms.map(s=>s.dbz));
-      const peakCat=peakDbz>=60?'EXTREME':peakDbz>=55?'SEVERE':peakDbz>=45?'HEAVY':peakDbz>=30?'MODERATE':'LIGHT';
+      const peakCat=peakDbz>=65?'EXTREME (severe-hail signature likely)':peakDbz>=60?'VERY HEAVY (severe-hail possible)':peakDbz>=55?'HEAVY (strong core, not auto-severe)':peakDbz>=45?'MODERATE-HEAVY':peakDbz>=30?'MODERATE':'LIGHT';
       const closestSig=[...sigStorms].sort((a,b)=>a.distance-b.distance)[0];
       parts.push(`  Peak intensity: ${peakDbz} dBZ [${peakCat}]. Closest significant cell: ${fmtStormDist(closestSig.distance)} ${degToDir(closestSig.bearing)}.`);
       const byDist=[...sigStorms].sort((a,b)=>a.distance-b.distance).slice(0,6);
@@ -203,7 +203,7 @@ function buildWeatherContext(){
               if(b.classification==='direct'){
                 line+=` APPROACHING DIRECTLY — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
               }else if(b.classification==='graze'){
-                line+=` MAY GRAZE — closing ${b.closingMph} mph, edge-of-area in ~${b.etaMin} min, projected miss ${b.perpMissMi} mi to ${degToDir(b.sideBearing)}${movStr}`;
+                line+=` MAY GRAZE — closing ${b.closingMph} mph, projected miss ${b.perpMissMi} mi to ${degToDir(b.sideBearing)} (partial impact possible; do NOT quote a hard ETA)${movStr}`;
               }else if(b.classification==='passing'){
                 line+=` PASSING TO YOUR ${degToDir(b.sideBearing)} — projected miss ${b.perpMissMi} mi, no direct impact expected; outflow possible${movStr}`;
               }else if(b.classification==='moving_away'){
@@ -433,7 +433,7 @@ Public Safety & Outdoor Guidance
 Practical advice for the general public. Should you be outside? Driving risks? Heat/cold concerns? What to watch for and when conditions change. Keep this conversational and actionable.
 
 Aviation & Marine Briefing
-Combined section for pilots and mariners. IMPORTANT: Always include knots alongside the user's preferred wind unit if it is not knots (e.g. "SW at 35 km/h (19 kts)"). Start with flight category and limiting factor (ceiling vs visibility). Report winds aloft with altitudes. Wind shear assessment — note any shear exceeding 25 kts per 2,000 ft. Turbulence potential. Density altitude if available. METAR highlights. Then transition to marine conditions: surface wind sustained and gusts, small craft advisory or gale relevance, visibility over water, sea state estimation, storm approach timing for open-water exposure. Thunderstorm avoidance guidance if applicable.
+Combined section for pilots and mariners. IMPORTANT: Always include knots alongside the user's preferred wind unit if it is not knots (e.g. "SW at 35 km/h (19 kts)"). When any APPROACHING DIRECTLY or MAY GRAZE storm exists within ~30 mi, LEAD with convective hazards (turbulence, microburst potential, lightning, IFR in TSRA, hail, icing if cold) — only mention the VFR/MVFR flight category after the convective threat is stated, and qualify it (e.g. "currently VFR but TSRA expected within 40 min"). When no storms threaten, lead with the flight category and limiting factor (ceiling vs visibility). Report winds aloft with altitudes. Wind shear assessment — note any shear exceeding 25 kts per 2,000 ft. Density altitude if available. METAR highlights. Then transition to marine conditions: surface wind sustained and gusts, small craft advisory or gale relevance, visibility over water, sea state estimation. When storms are direct/graze, explicitly note that outflow winds and a possible wind shift may arrive BEFORE the storm core. Thunderstorm avoidance guidance if applicable.
 
 RULES:
 - IMPORTANT: Use the units specified in USER UNITS for ALL measurements in your response. If the user has wind set to km/h, report winds in km/h — not mph or knots. If temperature is °C, use °C. If distance is km, use km. Match their preferences exactly.

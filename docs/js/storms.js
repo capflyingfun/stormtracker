@@ -610,10 +610,9 @@ function calcStormETAForBriefing(storm){
   if(perpMiss>GRAZE_RADIUS){
     return Object.assign({classification:'passing',etaMin:null,sideBearing:Math.round(sideBearing)},base);
   }
-  if(perpMiss>DIRECT_RADIUS){
-    const halfChord=Math.sqrt(Math.max(0,GRAZE_RADIUS*GRAZE_RADIUS-perpMiss*perpMiss));
-    const tEnterHrs=Math.max(0,tHrs-halfChord/vMag);
-    return Object.assign({classification:'graze',etaMin:Math.round(tEnterHrs*60),sideBearing:Math.round(sideBearing)},base);
+  const closingRatio=closing/vMag;
+  if(perpMiss>DIRECT_RADIUS||closingRatio<0.3){
+    return Object.assign({classification:'graze',etaMin:null,sideBearing:Math.round(sideBearing)},base);
   }
   const halfChord=Math.sqrt(Math.max(0,DIRECT_RADIUS*DIRECT_RADIUS-perpMiss*perpMiss));
   const tEnterHrs=Math.max(0,tHrs-halfChord/vMag);
