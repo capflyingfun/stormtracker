@@ -614,9 +614,8 @@ function calcStormETAForBriefing(storm){
   if(perpMiss>DIRECT_RADIUS||closingRatio<0.3){
     return Object.assign({classification:'graze',etaMin:null,sideBearing:Math.round(sideBearing)},base);
   }
-  const halfChord=Math.sqrt(Math.max(0,DIRECT_RADIUS*DIRECT_RADIUS-perpMiss*perpMiss));
-  const tEnterHrs=Math.max(0,tHrs-halfChord/vMag);
-  return Object.assign({classification:'direct',etaMin:Math.round(tEnterHrs*60),sideBearing:Math.round(sideBearing)},base);
+  const etaMin=Math.round((rMag/closing)*60);
+  return Object.assign({classification:'direct',etaMin,sideBearing:Math.round(sideBearing)},base);
 }
 if(typeof window!=='undefined'){
   window.calcStormETAForBriefing=calcStormETAForBriefing;
@@ -629,6 +628,12 @@ if(typeof window!=='undefined'){
       console.log('[briefing-test] 20mi WNW NE@24mph →',r);
       console.assert(r.classification==='passing','expected passing, got '+r.classification);
       console.assert(r.etaMin==null,'expected null ETA, got '+r.etaMin);
+      const r2=calcStormETAForBriefing({lat:0,lng:0,distance:20,bearing:270,dbz:55});
+      S.stormMovement={direction:90,speed:24};
+      const r3=calcStormETAForBriefing({lat:0,lng:0,distance:20,bearing:270,dbz:55});
+      console.log('[briefing-test] 20mi W E@24mph →',r3);
+      console.assert(r3.classification==='direct','expected direct, got '+r3.classification);
+      console.assert(r3.etaMin>=48&&r3.etaMin<=52,'expected ETA ~50min, got '+r3.etaMin);
       S.stormMovement=_saveMv;S._cellTracks=_saveCt;
     }
   }catch(e){}
