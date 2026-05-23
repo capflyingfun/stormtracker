@@ -190,15 +190,28 @@ function buildWeatherContext(){
         if(top.length>=12)break;
       }
       for(const st of top){
-        let line=`  Storm at ${fmtStormDist(st.distance)} ${degToDir(st.bearing)} (${st.bearing.toFixed(0)}°), intensity ${st.dbz} dBZ`;
-        const cat=st.dbz>=60?'EXTREME':st.dbz>=55?'SEVERE':st.dbz>=45?'HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
+        const distRnd=Math.round(st.distance*10)/10;
+        const distStr=S.radarMetric?(distRnd*1.60934).toFixed(1)+' km':distRnd.toFixed(1)+' mi';
+        let line=`  Storm at ${distStr} ${degToDir(st.bearing)} (${st.bearing.toFixed(0)}°), intensity ${st.dbz} dBZ`;
+        const cat=st.dbz>=65?'EXTREME (severe-hail signature likely)':st.dbz>=60?'VERY HEAVY (severe-hail possible)':st.dbz>=55?'HEAVY (strong, not auto-severe)':st.dbz>=45?'MODERATE-HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
         line+=` [${cat}]`;
         try{
-          const key=`${st.lat.toFixed(2)}_${st.lon.toFixed(2)}`;
-          const eta=S._stormETAs[key];
-          if(eta){
-            if(eta.approaching)line+=` APPROACHING - ETA ${eta.etaMin!=null?formatStormEta(eta.etaMin):'?'}, impact ${eta.impact!=null?((eta.impact*100).toFixed(0)):'?'}%`;
-            else line+=' moving away/lateral';
+          if(typeof calcStormETAForBriefing==='function'){
+            const b=calcStormETAForBriefing(st);
+            if(b&&b.classification){
+              const movStr=b.movSpdMph?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph, ${b.source}-derived)`:'';
+              if(b.classification==='direct'){
+                line+=` APPROACHING DIRECTLY — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
+              }else if(b.classification==='graze'){
+                line+=` MAY GRAZE — closing ${b.closingMph} mph, edge-of-area in ~${b.etaMin} min, projected miss ${b.perpMissMi} mi to ${degToDir(b.sideBearing)}${movStr}`;
+              }else if(b.classification==='passing'){
+                line+=` PASSING TO YOUR ${degToDir(b.sideBearing)} — projected miss ${b.perpMissMi} mi, no direct impact expected; outflow possible${movStr}`;
+              }else if(b.classification==='moving_away'){
+                line+=` MOVING AWAY — closing speed ${b.closingMph} mph (≤0)${movStr}`;
+              }else{
+                line+=` motion unknown (insufficient steering data)`;
+              }
+            }
           }
         }catch(e){console.warn('AI storm ETA calc error:',e)}
         parts.push(line);
@@ -384,7 +397,18 @@ Your professional standards:
 - You brief like a WFO forecaster on a conference call: confident, specific, no waffling
 - You reference actual data points (dBZ, CAPE, wind speeds, distances, ETAs) — never speak in vague generalities when you have numbers
 - You distinguish between radar clutter and real precipitation (sub-22 dBZ with <12 returns = almost certainly clutter; say so clearly rather than warning about nonexistent rain)
-- You treat every APPROACHING storm with an ETA as a direct threat to the user's location — state the timeline plainly: "A 52 dBZ cell is 14 miles NW and closing at 25 mph — expect it overhead in roughly 34 minutes"
+- dBZ severity calibration: 30-44 dBZ = moderate rain; 45-54 dBZ = heavy rain / possible small hail; 55-59 dBZ = heavy core (strong but NOT automatically "severe"); 60-64 dBZ = very heavy, severe-hail signatures possible; 65+ dBZ = severe-hail signature likely. Do NOT label 55 dBZ as "severe" or invoke severe-hail language unless the cell is 60+ dBZ or NWS has an active severe warning on it.
+- Storm motion is computed for you using vector projection (dot product of motion onto the storm-to-user vector). Each storm line tells you the classification:
+    * "APPROACHING DIRECTLY" — quote the ETA directly. Example: "A 52 dBZ cell 14 mi NW is closing at 25 mph; expect it overhead in roughly 34 min."
+    * "MAY GRAZE" — the storm's projected track clips the edge of the area; say "may graze your area; partial impact / brief downpour possible" and quote the perpendicular miss distance instead of asserting a direct hit.
+    * "PASSING TO YOUR <DIR>" — the storm will NOT hit you. Say so plainly: "Storm is passing to your north and should only bring outflow winds or light rain." Do NOT manufacture an ETA.
+    * "MOVING AWAY" — closing speed is zero or negative; the storm is receding. Mention briefly and move on.
+- Never invent ETAs, closing speeds, or miss distances. If the storm line does not give you an ETA, you must not state one.
+- Distances: round to 1 decimal place (e.g. "14.3 mi"). Don't repeat the same distance for multiple cells unless they are genuinely at the same range.
+- Never invent PWAT (precipitable water) values. Only mention PWAT if it appears explicitly in the data above (it usually won't). If PWAT isn't given, talk about moisture using dewpoint / humidity / CAPE instead.
+- Rip Current Statements: if an alert with event "Rip Current Statement" appears in ACTIVE NWS ALERTS, include the exact expiration time from the alert's Ends/Expires field. Do not paraphrase to "later today".
+- Aviation section: when storms within ~30 mi are APPROACHING DIRECTLY or MAY GRAZE, lead with convective hazards (turbulence, microburst, lightning, IFR in TSRA, icing if cold) rather than the VFR/MVFR ceiling-visibility category. It is misleading to call conditions VFR while severe turbulence is expected — if you mention the flight category, you must immediately qualify it with the convective threat.
+- Marine section: when storms are approaching or grazing, explicitly note that gusty outflow winds (and a possible wind shift) may arrive before the storm core itself reaches the coast/water. Boaters should reduce sail and seek shelter ahead of the visible cell.
 - When the Area Forecast Discussion is available, you synthesize it — explain what synoptic features are driving the weather, what the forecasters are confident about vs uncertain about, and what that means for the next 6-12 hours in plain language
 - For calm weather, keep it brief and conversational — don't manufacture drama when conditions are benign
 - For dangerous weather, drop all humor and be direct about life safety

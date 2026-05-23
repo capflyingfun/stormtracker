@@ -562,6 +562,78 @@ function calcStormETA(storm){
   if(storm.distance<=proxRange)pct=Math.max(pct,Math.round(75+(proxRange-storm.distance)/proxRange*20));
   return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed*100)/100,angleDiff:Math.round(diff),cellTrack:!!cellTrack,trackDir:cellTrack?cellTrack.dir:null,trackSpd:cellTrack?cellTrack.speed:null,nwsWarnings,terrain:terrain.desc};
 }
+function calcStormETAForBriefing(storm){
+  const cellTrack=(typeof getCellTrack==='function')?getCellTrack(storm):null;
+  const _hasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
+  const _hasAl=S._upperWindDir!=null;
+  const _mv=cellTrack?{direction:cellTrack.dir,speed:cellTrack.speed}
+          :_hasMv?S.stormMovement
+          :_hasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}
+          :null;
+  const distRound=Math.round(storm.distance*10)/10;
+  if(!_mv||_mv.speed<2){
+    return{classification:'unknown',etaMin:null,closingMph:0,perpMissMi:distRound,distanceMi:distRound,sideBearing:null,movDirDeg:null,movSpdMph:null,source:'none'};
+  }
+  const movRad=_mv.direction*Math.PI/180;
+  const Vx=_mv.speed*Math.sin(movRad);
+  const Vy=_mv.speed*Math.cos(movRad);
+  const vMag=_mv.speed;
+  const bRad=storm.bearing*Math.PI/180;
+  const Rx=-Math.sin(bRad)*storm.distance;
+  const Ry=-Math.cos(bRad)*storm.distance;
+  const rMag=storm.distance;
+  const source=cellTrack?'cell':(_hasMv?'fleet':'aloft');
+  if(rMag<0.05){
+    return{classification:'direct',etaMin:0,closingMph:Math.round(vMag*10)/10,perpMissMi:0,distanceMi:distRound,sideBearing:null,movDirDeg:Math.round(_mv.direction),movSpdMph:Math.round(_mv.speed),source};
+  }
+  const Vhx=Vx/vMag,Vhy=Vy/vMag;
+  const Rhx=Rx/rMag,Rhy=Ry/rMag;
+  const closing=Vx*Rhx+Vy*Rhy;
+  const tHrs=(Rx*Vhx+Ry*Vhy)/vMag;
+  const perpMiss=Math.abs(Rx*Vhy-Ry*Vhx);
+  const cpx=-Rx+Vx*tHrs;
+  const cpy=-Ry+Vy*tHrs;
+  const sideBearing=(Math.atan2(cpx,cpy)*180/Math.PI+360)%360;
+  const GRAZE_RADIUS=8;
+  const DIRECT_RADIUS=4;
+  const base={
+    closingMph:Math.round(closing*10)/10,
+    perpMissMi:Math.round(perpMiss*10)/10,
+    distanceMi:distRound,
+    movDirDeg:Math.round(_mv.direction),
+    movSpdMph:Math.round(_mv.speed),
+    source
+  };
+  if(closing<=0||tHrs<=0){
+    return Object.assign({classification:'moving_away',etaMin:null,sideBearing:null},base);
+  }
+  if(perpMiss>GRAZE_RADIUS){
+    return Object.assign({classification:'passing',etaMin:null,sideBearing:Math.round(sideBearing)},base);
+  }
+  if(perpMiss>DIRECT_RADIUS){
+    const halfChord=Math.sqrt(Math.max(0,GRAZE_RADIUS*GRAZE_RADIUS-perpMiss*perpMiss));
+    const tEnterHrs=Math.max(0,tHrs-halfChord/vMag);
+    return Object.assign({classification:'graze',etaMin:Math.round(tEnterHrs*60),sideBearing:Math.round(sideBearing)},base);
+  }
+  const halfChord=Math.sqrt(Math.max(0,DIRECT_RADIUS*DIRECT_RADIUS-perpMiss*perpMiss));
+  const tEnterHrs=Math.max(0,tHrs-halfChord/vMag);
+  return Object.assign({classification:'direct',etaMin:Math.round(tEnterHrs*60),sideBearing:Math.round(sideBearing)},base);
+}
+if(typeof window!=='undefined'){
+  window.calcStormETAForBriefing=calcStormETAForBriefing;
+  try{
+    const params=new URLSearchParams(window.location.search);
+    if(params.get('debugBriefing')==='1'){
+      const _saveMv=S.stormMovement,_saveCt=S._cellTracks;
+      S.stormMovement={direction:45,speed:24};S._cellTracks=null;
+      const r=calcStormETAForBriefing({lat:0,lng:0,distance:20,bearing:292.5,dbz:55});
+      console.log('[briefing-test] 20mi WNW NE@24mph →',r);
+      console.assert(r.classification==='passing','expected passing, got '+r.classification);
+      console.assert(r.etaMin==null,'expected null ETA, got '+r.etaMin);
+      S.stormMovement=_saveMv;S._cellTracks=_saveCt;
+    }
+  }catch(e){}
+}
 function impactLabel(pct){
   if(pct>=81)return{text:'CRITICAL',color:'#ef4444'};
   if(pct>=61)return{text:'HIGH',color:'#f97316'};
