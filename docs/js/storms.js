@@ -651,22 +651,20 @@ function calcStormETAForBriefing(storm){
   let classification;
   let etaMinOut=null;
   let sideBearingOut=Math.round(sideBearing);
-  if(closing<=0||tHrs<=0){
-    classification='moving_away';
-    sideBearingOut=null;
-  }else if(userInCone){
+  if(userInCone){
     if(prevCls==='direct'){
       classification=(coneConfidence>=0.80)?'direct':'near_miss';
     }else if(prevCls==='near_miss'){
-      classification=(coneConfidence>=0.85)?'direct':(coneConfidence>=0.60?'near_miss':'near_miss');
+      classification=(coneConfidence>=0.85)?'direct':'near_miss';
     }else{
       classification=(coneConfidence>=0.85)?'direct':'near_miss';
     }
-    if(classification==='direct'){
+    if(classification==='direct'&&closing>0){
       etaMinOut=Math.round((rMag/Math.max(closing,1))*60);
     }
-  }else if(perpMiss>GRAZE_RADIUS){
-    classification='passing';
+  }else if(closing<=0||tHrs<=0){
+    classification='moving_away';
+    sideBearingOut=null;
   }else{
     classification='passing';
   }
@@ -694,6 +692,11 @@ if(typeof window!=='undefined'){
       console.assert(r3.classification==='direct','expected direct, got '+r3.classification);
       console.assert(r3.etaMin>=48&&r3.etaMin<=52,'expected ETA ~50min, got '+r3.etaMin);
       console.assert(r3.coneConfidence>=0.85,'expected coneConfidence>=0.85, got '+r3.coneConfidence);
+      S._lastStormClass={};
+      S.stormMovement={direction:270,speed:24};
+      const r4=calcStormETAForBriefing({lat:0,lng:0,distance:20,bearing:270,dbz:55});
+      console.log('[briefing-test] 20mi W W@24mph (away) →',r4);
+      console.assert(r4.classification==='moving_away','expected moving_away, got '+r4.classification);
       S.lat=_saveLat;S.lon=_saveLon;
       S.stormMovement=_saveMv;S._cellTracks=_saveCt;
     }
@@ -2254,7 +2257,7 @@ function renderStorms(){
       }
     });
   }
-  const inConeColor=inConeWorstCls?stormClass(inConeWorstCls).color:(inConeCount>0?stormClass('passing').color:'#6b7280');
+  const inConeColor=inConeWorstCls?stormClass(inConeWorstCls).color:'#6b7280';
   const sf=S._stormFilter||_loadStormFilter();
   const filtered=_applyStormFilter(storms,sf);
   const prevOpen={};
