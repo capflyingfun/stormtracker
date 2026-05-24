@@ -231,9 +231,9 @@ function buildWeatherContext(){
             if(b.classification==='direct'){
               line+=` ${sc?sc.aiPhrase:'APPROACHING DIRECTLY'} (${confPct}% cone confidence) — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
             }else if(b.classification==='near_miss'){
-              line+=` ${sc?sc.aiPhrase:'NEAR MISS'} (${confPct}% cone confidence) — closing ${b.closingMph} mph, projected miss around ${b.perpMissMi} mi to your ${degToDir(b.sideBearing)} (partial impact possible; do NOT quote a hard ETA)${movStr}`;
+              line+=` ${sc?sc.aiPhrase:'NEAR MISS'} (${confPct}% cone confidence) — closing ${b.closingMph} mph, projected miss around ${b.perpMissMi} mi (partial impact possible; do NOT quote a hard ETA)${movStr}`;
             }else if(b.classification==='passing'){
-              line+=` ${sc?sc.aiPhrase:'PASSING TO YOUR'} ${degToDir(b.sideBearing)} — projected miss around ${b.perpMissMi} mi to your ${degToDir(b.sideBearing)}, no direct impact expected; outflow possible${movStr}`;
+              line+=` ${sc?sc.aiPhrase:'PASSING TO YOUR'} ${degToDir(b.sideBearing)} — projected miss around ${b.perpMissMi} mi, no direct impact expected; outflow possible${movStr}`;
             }else if(b.classification==='moving_away'){
               line+=` ${sc?sc.aiPhrase:'MOVING AWAY'} — closing speed ${b.closingMph} mph (≤0)${movStr}`;
             }else{
@@ -441,7 +441,7 @@ Your professional standards:
     * EVERY specific dBZ value you mention MUST be wrapped as [!dbz:NN]NN dBZ[/!] so the number renders in the master radar palette color for that intensity. Example: "A [!dbz:55]55 dBZ[/!] cell 14 mi NW closing at +25 mph." Use this everywhere — Situation Overview, Active Threats, Aviation, Marine — never write a bare "55 dBZ" without the tag. Decimals are allowed ([!dbz:47.5]47.5 dBZ[/!]).
   Do NOT use ###/##/# headers — section headers are already provided. Do NOT use raw HTML. Do NOT invent new color tags or hex codes. Do NOT wrap section headers in any formatting.
 - Section headers: prefix each section header line with its topical emoji — 🌐 Situation Overview, ⛈️ Active Threats & Storm Tracking, 🚸 Public Safety & Outdoor Guidance, ✈️ Aviation & Marine Briefing. Headers stay on their own line, no markdown characters.
-- Projected-miss phrasing: when describing a storm's miss distance, always use natural language — "projected miss around NN mi to your <direction>". Never output a bare "projected miss NN mi" without "around" and a "to your <direction>" suffix.
+- Projected-miss phrasing: use natural language — "projected miss around NN mi". Only append "to your <direction>" if the direction has NOT already been stated earlier in the same bullet/sentence (e.g. the storm position "14 mi NW" or the classification label "PASSING TO YOUR NW" both count as already-stated). Never restate direction twice in the same sentence.
 - Distances: round to 1 decimal place (e.g. "14.3 mi"). Don't repeat the same distance for multiple cells unless they are genuinely at the same range.
 - Never invent PWAT (precipitable water) values. Only mention PWAT if it appears explicitly in the data above (it usually won't). If PWAT isn't given, talk about moisture using dewpoint / humidity / CAPE instead.
 - Rip Current Statements: if an alert with event "Rip Current Statement" appears in ACTIVE NWS ALERTS, include the exact expiration time from the alert's Ends/Expires field. Do not paraphrase to "later today".
