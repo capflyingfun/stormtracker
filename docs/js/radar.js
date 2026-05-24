@@ -2393,7 +2393,13 @@ function plotStormTracks(map){
     const pts=(typeof buildStormCone==='function')?buildStormCone(s,_mv):null;
     if(!pts)return;
     const color=dbzHex(s.dbz);
-    const poly=L.polygon(pts,{color,fillColor:color,fillOpacity:0.06,weight:1,dashArray:'4,4',opacity:0.5,interactive:false}).addTo(map);
+    let _imp=0.3;
+    try{
+      const _b=(typeof calcStormETAForBriefing==='function')?calcStormETAForBriefing(s):null;
+      if(_b&&_b.impactScore!=null)_imp=_b.impactScore;
+    }catch(e){}
+    const fillOpa=0.08*Math.max(0.3,_imp);
+    const poly=L.polygon(pts,{color,fillColor:color,fillOpacity:fillOpa,weight:1,dashArray:'4,4',opacity:0.5,interactive:false}).addTo(map);
     S._trackCones.push(poly);
   });
 }
@@ -2425,7 +2431,7 @@ function buildRelMotionLayers(map){
       S._relMotionLayers.push(line);
       const tip=L.circleMarker(ep,{pane,radius:4,color:col,fillColor:col,fillOpacity:opa,weight:1,interactive:false}).addTo(map);
       S._relMotionLayers.push(tip);
-      const pctStr=(sc.showPct&&b.coneConfidence!=null)?` ${Math.round(b.coneConfidence*100)}%`:'';
+      const pctStr=(sc.showPct&&b.impactScore!=null)?` ${Math.round(b.impactScore*100)}%`:'';
       const lbl=b.classification==='direct'?`${sc.badge}${pctStr} · ≈${b.closingMph} mph · ETA ${b.etaMin}m`
                :b.classification==='near_miss'?`${sc.badge}${pctStr} · ≈${b.closingMph} mph`
                :`${sc.badge}`;
