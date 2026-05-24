@@ -200,15 +200,16 @@ function buildWeatherContext(){
             const b=calcStormETAForBriefing(st);
             if(b&&b.classification){
               const movStr=b.movSpdMph?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph, ${b.source}-derived)`:'';
+              const sc=(typeof stormClass==='function')?stormClass(b.classification):null;
+              const confPct=(b.coneConfidence!=null)?Math.round(b.coneConfidence*100):null;
               if(b.classification==='direct'){
-                const coneHint=b.inCone?' (USER INSIDE FORECAST CONE)':'';
-                line+=` APPROACHING DIRECTLY${coneHint} — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
-              }else if(b.classification==='graze'){
-                line+=` MAY GRAZE — closing ${b.closingMph} mph, projected miss ${b.perpMissMi} mi to ${degToDir(b.sideBearing)} (partial impact possible; do NOT quote a hard ETA)${movStr}`;
+                line+=` ${sc?sc.aiPhrase:'APPROACHING DIRECTLY'} (${confPct}% cone confidence) — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
+              }else if(b.classification==='near_miss'){
+                line+=` ${sc?sc.aiPhrase:'NEAR MISS'} (${confPct}% cone confidence) — closing ${b.closingMph} mph, projected miss ${b.perpMissMi} mi to ${degToDir(b.sideBearing)} (partial impact possible; do NOT quote a hard ETA)${movStr}`;
               }else if(b.classification==='passing'){
-                line+=` PASSING TO YOUR ${degToDir(b.sideBearing)} — projected miss ${b.perpMissMi} mi, no direct impact expected; outflow possible${movStr}`;
+                line+=` ${sc?sc.aiPhrase:'PASSING TO YOUR'} ${degToDir(b.sideBearing)} — projected miss ${b.perpMissMi} mi, no direct impact expected; outflow possible${movStr}`;
               }else if(b.classification==='moving_away'){
-                line+=` MOVING AWAY — closing speed ${b.closingMph} mph (≤0)${movStr}`;
+                line+=` ${sc?sc.aiPhrase:'MOVING AWAY'} — closing speed ${b.closingMph} mph (≤0)${movStr}`;
               }else{
                 line+=` motion unknown (insufficient steering data)`;
               }
@@ -401,7 +402,7 @@ Your professional standards:
 - dBZ severity calibration: 30-44 dBZ = moderate rain; 45-54 dBZ = heavy rain / possible small hail; 55-59 dBZ = heavy core (strong but NOT automatically "severe"); 60-64 dBZ = very heavy, severe-hail signatures possible; 65+ dBZ = severe-hail signature likely. Do NOT label 55 dBZ as "severe" or invoke severe-hail language unless the cell is 60+ dBZ or NWS has an active severe warning on it.
 - Storm motion is computed for you using vector projection (dot product of motion onto the storm-to-user vector). Each storm line tells you the classification:
     * "APPROACHING DIRECTLY" — quote the ETA directly. Example: "A 52 dBZ cell 14 mi NW is closing at 25 mph; expect it overhead in roughly 34 min."
-    * "MAY GRAZE" — the storm's projected track clips the edge of the area; say "may graze your area; partial impact / brief downpour possible" and quote the perpendicular miss distance instead of asserting a direct hit.
+    * "NEAR MISS" — the storm's forecast cone clips the user's location but they aren't near the centerline (65-85% cone confidence); say "near miss; partial impact / brief downpour possible" and quote the perpendicular miss distance instead of asserting a direct hit.
     * "PASSING TO YOUR <DIR>" — the storm will NOT hit you. Say so plainly: "Storm is passing to your north and should only bring outflow winds or light rain." Do NOT manufacture an ETA.
     * "MOVING AWAY" — closing speed is zero or negative; the storm is receding. Mention briefly and move on.
 - Never invent ETAs, closing speeds, or miss distances. If the storm line does not give you an ETA, you must not state one.

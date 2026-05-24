@@ -810,7 +810,6 @@ function drawMiniSonar(){
       ctx.restore();
     }
     if(_sonarCfg.showRelMotion&&typeof calcStormETAForBriefing==='function'&&topInbound.length){
-      const _classColor={direct:'#ff3355',graze:'#f97316',passing:'#22d3ee',moving_away:'rgba(160,160,160,0.5)',unknown:'rgba(160,160,160,0.5)'};
       const shown=topInbound.slice(0,6);
       ctx.save();
       ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
@@ -818,7 +817,8 @@ function drawMiniSonar(){
       for(const st of shown){
         let b;try{b=calcStormETAForBriefing(st)}catch(e){continue}
         if(!b||b.classification==='unknown')continue;
-        const col=_classColor[b.classification]||'#888';
+        const sc=stormClass(b.classification);
+        const col=sc.color;
         const stAng=((st.bearing||0)-90)*Math.PI/180;
         const dist=st.distance||0;
         const r=Math.min(maxR-6,maxR*(dist/viewR));
@@ -836,9 +836,10 @@ function drawMiniSonar(){
           ctx.moveTo(ex,ey);ctx.lineTo(ex-Math.cos(ang-0.5)*head,ey-Math.sin(ang-0.5)*head);
           ctx.moveTo(ex,ey);ctx.lineTo(ex-Math.cos(ang+0.5)*head,ey-Math.sin(ang+0.5)*head);
           ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.stroke();
-          const lbl=b.classification==='direct'?`≈${b.closingMph} mph closing${b.inCone?' · in cone':''}`
-                   :b.classification==='passing'?'passing'
-                   :b.classification==='graze'?'graze':'';
+          const pctStr=(sc.showPct&&b.coneConfidence!=null)?` ${Math.round(b.coneConfidence*100)}%`:'';
+          const lbl=b.classification==='direct'?`${sc.short}${pctStr} ≈${b.closingMph}mph`
+                   :b.classification==='near_miss'?`${sc.short}${pctStr}`
+                   :b.classification==='passing'?sc.short:'';
           if(lbl){
             ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='middle';
             ctx.fillText(lbl,ex+4,ey);

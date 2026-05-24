@@ -447,6 +447,15 @@ function stormCat(dbz){
 }
 function dbzHex(dbz){return _dbzEntry(dbz).color}
 function dbzColor(dbz){return _dbzEntry(dbz)}
+const STORM_CLASS={
+  direct:     {key:'direct',     short:'Direct Hit',  label:'Direct Hit',  aiPhrase:'APPROACHING DIRECTLY', color:'#ff3355', opacity:0.85, badge:'🔴 DIRECT HIT', coneMin:0.85, showPct:true},
+  near_miss:  {key:'near_miss',  short:'Near Miss',   label:'Near Miss',   aiPhrase:'NEAR MISS',            color:'#f97316', opacity:0.85, badge:'🟠 NEAR MISS',  coneMin:0.65, showPct:true},
+  passing:    {key:'passing',    short:'Passing',     label:'Passing By',  aiPhrase:'PASSING TO YOUR',      color:'#eab308', opacity:0.85, badge:'🟡 PASSING',    coneMin:null, showPct:false},
+  moving_away:{key:'moving_away',short:'Moving Away', label:'Moving Away', aiPhrase:'MOVING AWAY',          color:'#22c55e', opacity:0.4,  badge:'🟢 MOVING AWAY',coneMin:null, showPct:false},
+  unknown:    {key:'unknown',    short:'',            label:'Unknown',     aiPhrase:'motion unknown',       color:'#888888', opacity:0.4,  badge:'',              coneMin:null, showPct:false}
+};
+function stormClass(key){return STORM_CLASS[key]||STORM_CLASS.unknown}
+if(typeof window!=='undefined'){window.STORM_CLASS=STORM_CLASS;window.stormClass=stormClass}
 function fmtStormDist(mi){return S.radarMetric?(mi*1.60934).toFixed(1)+' km':mi.toFixed(1)+' mi'}
 function fmtCountdown(totalSec){
   if(totalSec<=0)return'NOW';

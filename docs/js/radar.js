@@ -2406,7 +2406,6 @@ function buildRelMotionLayers(map){
   clearRelMotionLayers();
   if(!map||S._relMotionMode==='off'||typeof calcStormETAForBriefing!=='function')return;
   const pane=map.getPane('rel-motion-pane')?'rel-motion-pane':undefined;
-  const classColor={direct:'#ff3355',graze:'#f97316',passing:'#22d3ee',moving_away:'#888888',unknown:'#888888'};
   let storms=getVisibleStormList?getVisibleStormList():S.storms;
   if(!storms||!storms.length)return;
   if(S._relMotionMode==='inbound'){
@@ -2416,8 +2415,9 @@ function buildRelMotionLayers(map){
   storms.forEach(s=>{
     let b;try{b=calcStormETAForBriefing(s)}catch(e){return}
     if(!b||b.classification==='unknown')return;
-    const col=classColor[b.classification]||'#888';
-    const opa=b.classification==='moving_away'?0.4:0.85;
+    const sc=stormClass(b.classification);
+    const col=sc.color;
+    const opa=sc.opacity;
     if(b.closingMph>0){
       const projMi=Math.min(s.distance,Math.max(2,b.closingMph*30/60));
       const ep=destPoint(S.lat,S.lon,s.bearing,projMi);
@@ -2425,9 +2425,10 @@ function buildRelMotionLayers(map){
       S._relMotionLayers.push(line);
       const tip=L.circleMarker(ep,{pane,radius:4,color:col,fillColor:col,fillOpacity:opa,weight:1,interactive:false}).addTo(map);
       S._relMotionLayers.push(tip);
-      const lbl=b.classification==='direct'?`≈${b.closingMph} mph closing · ETA ${b.etaMin}m${b.inCone?' · in cone':''}`
-               :b.classification==='passing'?'passing'
-               :b.classification==='graze'?'graze':'moving away';
+      const pctStr=(sc.showPct&&b.coneConfidence!=null)?` ${Math.round(b.coneConfidence*100)}%`:'';
+      const lbl=b.classification==='direct'?`${sc.badge}${pctStr} · ≈${b.closingMph} mph · ETA ${b.etaMin}m`
+               :b.classification==='near_miss'?`${sc.badge}${pctStr} · ≈${b.closingMph} mph`
+               :`${sc.badge}`;
       const tag=L.marker(ep,{pane,interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:10px;font-weight:700;color:${col};text-shadow:0 0 4px #000,0 0 2px #000;white-space:nowrap;transform:translate(6px,-50%)">${lbl}</div>`,iconSize:[1,1],iconAnchor:[0,0]})}).addTo(map);
       S._relMotionLayers.push(tag);
     }
