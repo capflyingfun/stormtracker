@@ -564,7 +564,7 @@ function calcStormETA(storm){
 }
 function buildStormCone(storm,mv){
   if(!mv||!mv.speed||mv.speed<2||typeof destPoint!=='function')return null;
-  const range=Math.min(60,Math.max(storm.distance*1.5,20));
+  const range=Math.max((S&&S.scanRadius)||80,storm.distance*1.3,20);
   const dir=mv.direction;
   const baseWidthMi=Math.max(0,Math.min(3,(storm.dbz-20)/15));
   const perpL=(dir-90+360)%360;
@@ -618,7 +618,8 @@ function calcStormETAForBriefing(storm){
   const source=cellTrack?'cell':(_hasMv?'fleet':'aloft');
   if(rMag<0.05){
     S._lastStormClass[stormKey]='direct';
-    return{classification:'direct',etaMin:0,closingMph:Math.round(vMag*10)/10,perpMissMi:0,distanceMi:distRound,sideBearing:null,movDirDeg:Math.round(_mv.direction),movSpdMph:Math.round(_mv.speed),source,inCone:true,coneConfidence:1};
+    const _if=Math.max(0,Math.min(1,(storm.dbz-20)/55));
+    return{classification:'direct',etaMin:0,closingMph:Math.round(vMag*10)/10,perpMissMi:0,distanceMi:distRound,sideBearing:null,movDirDeg:Math.round(_mv.direction),movSpdMph:Math.round(_mv.speed),source,inCone:true,coneConfidence:1,closeness:1.0,intensityFactor:Math.round(_if*100)/100,impactScore:Math.round(_if*100)/100,estDbzAtUser:storm.dbz};
   }
   const Vhx=Vx/vMag,Vhy=Vy/vMag;
   const Rhx=Rx/rMag,Rhy=Ry/rMag;
@@ -646,8 +647,9 @@ function calcStormETAForBriefing(storm){
   else closeness=0.10;
   const intensityFactor=Math.max(0,Math.min(1,(storm.dbz-20)/55));
   const inboundLive=userInCone&&closing>0;
-  const impactScore=inboundLive?(closeness*intensityFactor):0;
-  const estDbzAtUser=inboundLive?Math.round(storm.dbz*closeness):null;
+  const isClosing=closing>0;
+  const impactScore=isClosing?(closeness*intensityFactor):0;
+  const estDbzAtUser=isClosing?Math.round(storm.dbz*closeness):null;
   const base={
     closingMph:Math.round(closing*10)/10,
     perpMissMi:Math.round(perpMiss*10)/10,
@@ -697,8 +699,8 @@ if(typeof window!=='undefined'){
       console.log('[briefing-test] 20mi WNW NE@24mph →',r);
       console.assert(r.classification==='passing','expected passing, got '+r.classification);
       console.assert(r.etaMin==null,'expected null ETA, got '+r.etaMin);
-      console.assert(r.impactScore===0,'expected impactScore=0 out-of-cone, got '+r.impactScore);
-      console.assert(r.estDbzAtUser==null,'expected estDbzAtUser=null out-of-cone, got '+r.estDbzAtUser);
+      console.assert(r.impactScore>0,'expected impactScore>0 (closing>0 should populate impact even for passing), got '+r.impactScore);
+      console.assert(r.estDbzAtUser!=null,'expected estDbzAtUser non-null (closing>0 should populate even for passing), got '+r.estDbzAtUser);
       S._lastStormClass={};
       S.stormMovement={direction:90,speed:24};
       const r3=calcStormETAForBriefing({lat:0,lng:0,distance:20,bearing:270,dbz:55});
@@ -712,6 +714,22 @@ if(typeof window!=='undefined'){
       const r4=calcStormETAForBriefing({lat:0,lng:0,distance:20,bearing:270,dbz:55});
       console.log('[briefing-test] 20mi W W@24mph (away) →',r4);
       console.assert(r4.classification==='moving_away','expected moving_away, got '+r4.classification);
+      console.assert(r4.impactScore===0,'expected impactScore=0 for moving_away, got '+r4.impactScore);
+      console.assert(r4.estDbzAtUser==null,'expected estDbzAtUser=null for moving_away, got '+r4.estDbzAtUser);
+      S._lastStormClass={};
+      S.stormMovement={direction:280,speed:30};
+      const r5=calcStormETAForBriefing({lat:0,lng:0,distance:10,bearing:90,dbz:55});
+      console.log('[briefing-test] Hawkinsville (10mi E, motion 280°@30mph, perpMiss≈1.7) →',r5);
+      console.assert(r5.classification==='direct'||r5.classification==='near_miss','expected direct/near_miss, got '+r5.classification);
+      console.assert(r5.impactScore>=0.55&&r5.impactScore<=0.65,'expected impactScore≈0.60, got '+r5.impactScore);
+      console.assert(r5.estDbzAtUser>=50&&r5.estDbzAtUser<=53,'expected estDbz≈52, got '+r5.estDbzAtUser);
+      S._lastStormClass={};
+      S.stormMovement={direction:19,speed:18};
+      const r6=calcStormETAForBriefing({lat:0,lng:0,distance:75,bearing:199,dbz:42});
+      console.log('[briefing-test] 75mi SSW NNE@18mph (repro screenshot) →',r6);
+      console.assert(r6.classification!=='passing','expected non-passing for 75mi inbound storm at scanRadius 80, got '+r6.classification);
+      console.assert(r6.impactScore>0,'expected impactScore>0 for closing storm, got '+r6.impactScore);
+      console.assert(r6.estDbzAtUser!=null,'expected estDbzAtUser non-null for closing storm, got '+r6.estDbzAtUser);
       S.lat=_saveLat;S.lon=_saveLon;
       S.stormMovement=_saveMv;S._cellTracks=_saveCt;
     }
@@ -2308,16 +2326,17 @@ function renderStorms(){
       const eta=s._eta;
       let _b=null;try{_b=calcStormETAForBriefing(s);s._brief=_b}catch(e){}
       const isInboundClass=!!(_b&&(_b.classification==='direct'||_b.classification==='near_miss'||_b.classification==='nearby'));
+      const hasValidClosing=!!(_b&&_b.closingMph>0);
       const bImpPct=(_b&&_b.impactScore!=null)?Math.round(_b.impactScore*100):0;
       const imp=impactLabel(bImpPct);
       const impTitle='Max intensity expected at your location: closeness to track centerline × storm intensity';
-      const missMiVal=(_b&&isInboundClass)?_b.perpMissMi:null;
+      const missMiVal=(_b&&hasValidClosing)?_b.perpMissMi:null;
       const missStr=(missMiVal!=null)?(S.radarMetric?(missMiVal*1.60934).toFixed(1)+' km':missMiVal.toFixed(1)+' mi'):null;
       const projMissDisp=(_b&&_b.classification==='direct')?tStr('Direct hit')
-                        :(isInboundClass&&missStr!=null)?`${missStr} ${_b.sideBearing!=null?degToDir(_b.sideBearing):''}`.trim()
+                        :(hasValidClosing&&missStr!=null)?`${missStr} ${_b.sideBearing!=null?degToDir(_b.sideBearing):''}`.trim()
                         :'—';
-      const impDispVal=isInboundClass?`${bImpPct}% ${tStr('max intensity at you')}`:'—';
-      const impDispColor=isInboundClass?imp.color:'var(--text-muted)';
+      const impDispVal=hasValidClosing?`${bImpPct}% ${tStr('max intensity at you')}`:'—';
+      const impDispColor=hasValidClosing?imp.color:'var(--text-muted)';
       const impTile=`<div class="storm-detail" title="${impTitle}"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${impDispColor};font-size:0.85em">${impDispVal}</div></div>`;
       const missTile=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Projected Miss')}</div><div class="storm-detail-val" style="font-size:0.85em">${projMissDisp}</div></div>`;
       let mvLine='';

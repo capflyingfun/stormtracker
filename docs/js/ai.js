@@ -237,7 +237,8 @@ function buildWeatherContext(){
             }else if(b.classification==='nearby'){
               line+=` ${sc?sc.aiPhrase:'NEARBY'} (${impPct}% max intensity at user${estStr}) — projected miss around ${b.perpMissMi} mi (in same general area but outside the impact corridor; mention briefly, do NOT issue an ETA)${movStr}`;
             }else if(b.classification==='passing'){
-              line+=` ${sc?sc.aiPhrase:'PASSING TO YOUR'} ${degToDir(b.sideBearing)} — projected miss around ${b.perpMissMi} mi, no direct impact expected; outflow possible${movStr}`;
+              const _passImp=(impPct!=null&&impPct>0)?` (${impPct}% max intensity at user${estStr})`:'';
+              line+=` ${sc?sc.aiPhrase:'PASSING TO YOUR'} ${degToDir(b.sideBearing)}${_passImp} — projected miss around ${b.perpMissMi} mi, closing ${b.closingMph} mph but well outside the impact corridor; outflow possible${movStr}`;
             }else if(b.classification==='moving_away'){
               line+=` ${sc?sc.aiPhrase:'MOVING AWAY'} — closing speed ${b.closingMph} mph (≤0)${movStr}`;
             }else{
