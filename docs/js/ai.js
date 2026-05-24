@@ -52,6 +52,10 @@ function toggleAIChat(){
 }
 function fmtAIText(raw){
   let s=raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s=s.replace(/__(.+?)__/g,'<u>$1</u>');
+  const _aiColors={red:'#ff3355',orange:'#f97316',yellow:'#eab308',green:'#22c55e',cyan:'#00e5ff'};
+  s=s.replace(/\[!(red|orange|yellow|green|cyan)\]([\s\S]+?)\[\/!\]/g,(m,c,t)=>`<span style="color:${_aiColors[c]};font-weight:600">${t}</span>`);
+  s=s.replace(/\[!dbz:(-?\d+(?:\.\d+)?)\]([\s\S]+?)\[\/!\]/g,(m,n,t)=>{const c=(typeof dbzHex==='function')?dbzHex(parseFloat(n)):'#888';return `<span style="color:${c};font-weight:600">${t}</span>`;});
   s=s.replace(/\*\*\*(.+?)\*\*\*/g,'<b><i>$1</i></b>');
   s=s.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
   s=s.replace(/\*(.+?)\*/g,'<i>$1</i>');
@@ -407,7 +411,14 @@ Your professional standards:
     * "MOVING AWAY" — closing speed is zero or negative; the storm is receding. Mention briefly and move on.
 - Never invent ETAs, closing speeds, or miss distances. If the storm line does not give you an ETA, you must not state one.
 - Risk Assessment intensity wording: when stating that storms do not exceed a given dBZ threshold (e.g. "no storms exceed 55 dBZ"), you MUST qualify whether the statement applies to inbound storms only or to all storms on radar. If stronger cells exist on radar but are classified PASSING or MOVING AWAY, explicitly call that out. Preferred phrasing: "No inbound storms exceed 55 dBZ. The only stronger cells are NE of your position and are moving away, posing no threat." Never make a bare intensity claim that could be read as contradicting the Active Threats section.
-- Emoji color-coding for storms: every individual storm you mention in any section MUST be prefixed with the emoji that matches its classification — 🟢 for APPROACHING DIRECTLY (inbound), 🟡 for NEAR MISS, 🔵 for PASSING, ⚪ for MOVING AWAY, and 🔴 for SEVERE INBOUND (an approaching cell at 60+ dBZ OR currently under an active NWS Severe Thunderstorm / Tornado warning). Place the emoji at the start of the storm reference, e.g. "🟢 INBOUND: 52 dBZ cell 14 mi NW closing at +25 mph, ETA ~34 min" or "⚪ MOVING AWAY: 55 dBZ cell NE closing at -18 mph, no threat". Always include the signed closing speed (+ for inbound, - for receding) so the direction of motion is unambiguous.
+- Emoji color-coding for storms: every individual storm you mention in any section MUST be prefixed with the emoji that matches its track classification — 🔴 for APPROACHING DIRECTLY (direct hit), 🟠 for NEAR MISS, 🟡 for PASSING, and 🟢 for MOVING AWAY. These emojis MUST match the badge shown on the storm's cell card. Place the emoji at the start of the storm reference, e.g. "🔴 DIRECT HIT: [!dbz:52]52 dBZ[/!] cell 14 mi NW closing at +25 mph, ETA ~34 min" or "🟢 MOVING AWAY: [!dbz:55]55 dBZ[/!] cell NE closing at -18 mph, no threat". Always include the signed closing speed (+ for inbound, - for receding). Do not use 🔵, ⚪, 🟥/🟧/🟨/🟩, or any other shape — round only, four tiers only. Severity (dBZ level, hail, NWS warnings) is conveyed in words, not in the classification emoji.
+- Rich text formatting: the briefing pane renders a limited markdown-style syntax. Use it sparingly and only where it adds clarity:
+    * **bold** for safety-critical phrases ("seek shelter now", "tornado warning in effect", "do not drive through flooded roadways"). Never bold an entire paragraph.
+    * *italic* for the first mention of a technical term (CAPE, lifted index, PWAT, etc.) so readers can spot it.
+    * __underline__ for specific times and ETAs ("storm overhead __~34 min__", "expires __11:45 PM CDT__").
+    * Semantic color tags for tier callouts — wrap the short status phrase only, never a whole sentence: [!red]severe / imminent threat[/!], [!orange]near miss / cone alert[/!], [!yellow]advisory / watch[/!], [!green]all-clear / receding[/!], [!cyan]atmospheric data[/!]. Example: "Conditions are [!red]critical[/!] — a confirmed tornado is **on the ground 6 mi SW** and tracking NE."
+    * EVERY specific dBZ value you mention MUST be wrapped as [!dbz:NN]NN dBZ[/!] so the number renders in the master radar palette color for that intensity. Example: "A [!dbz:55]55 dBZ[/!] cell 14 mi NW closing at +25 mph." Use this everywhere — Situation Overview, Active Threats, Aviation, Marine — never write a bare "55 dBZ" without the tag. Decimals are allowed ([!dbz:47.5]47.5 dBZ[/!]).
+  Do NOT use ###/##/# headers — section headers are already provided. Do NOT use raw HTML. Do NOT invent new color tags or hex codes. Do NOT wrap section headers in any formatting.
 - Section headers: prefix each section header line with its topical emoji — 🌐 Situation Overview, ⛈️ Active Threats & Storm Tracking, 🚸 Public Safety & Outdoor Guidance, ✈️ Aviation & Marine Briefing. Headers stay on their own line, no markdown characters.
 - Distances: round to 1 decimal place (e.g. "14.3 mi"). Don't repeat the same distance for multiple cells unless they are genuinely at the same range.
 - Never invent PWAT (precipitable water) values. Only mention PWAT if it appears explicitly in the data above (it usually won't). If PWAT isn't given, talk about moisture using dewpoint / humidity / CAPE instead.
@@ -442,7 +453,6 @@ Combined section for pilots and mariners. IMPORTANT: Always include knots alongs
 
 RULES:
 - IMPORTANT: Use the units specified in USER UNITS for ALL measurements in your response. If the user has wind set to km/h, report winds in km/h — not mph or knots. If temperature is °C, use °C. If distance is km, use km. Match their preferences exactly.
-- Write plain text only — no markdown formatting characters (no **, ##, *, or bullet symbols)
 - Reference specific numbers from the data whenever possible
 - Never mention missing data sources — work with what you have
 - Keep total response under 1200 words for standard detail, under 400 for minimal, under 2000 for technical
