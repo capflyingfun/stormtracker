@@ -2307,12 +2307,19 @@ function renderStorms(){
       const cat=stormCat(s.dbz);
       const eta=s._eta;
       let _b=null;try{_b=calcStormETAForBriefing(s);s._brief=_b}catch(e){}
+      const isInboundClass=!!(_b&&(_b.classification==='direct'||_b.classification==='near_miss'||_b.classification==='nearby'));
       const bImpPct=(_b&&_b.impactScore!=null)?Math.round(_b.impactScore*100):0;
       const imp=impactLabel(bImpPct);
       const impTitle='Max intensity expected at your location: closeness to track centerline × storm intensity';
-      const missMiVal=_b?_b.perpMissMi:null;
+      const missMiVal=(_b&&isInboundClass)?_b.perpMissMi:null;
       const missStr=(missMiVal!=null)?(S.radarMetric?(missMiVal*1.60934).toFixed(1)+' km':missMiVal.toFixed(1)+' mi'):null;
-      const projMissDisp=(_b&&_b.classification==='direct')?tStr('Direct hit'):(missStr!=null?`${missStr} ${_b&&_b.sideBearing!=null?degToDir(_b.sideBearing):''}`.trim():'—');
+      const projMissDisp=(_b&&_b.classification==='direct')?tStr('Direct hit')
+                        :(isInboundClass&&missStr!=null)?`${missStr} ${_b.sideBearing!=null?degToDir(_b.sideBearing):''}`.trim()
+                        :'—';
+      const impDispVal=isInboundClass?`${bImpPct}% ${tStr('max intensity at you')}`:'—';
+      const impDispColor=isInboundClass?imp.color:'var(--text-muted)';
+      const impTile=`<div class="storm-detail" title="${impTitle}"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${impDispColor};font-size:0.85em">${impDispVal}</div></div>`;
+      const missTile=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Projected Miss')}</div><div class="storm-detail-val" style="font-size:0.85em">${projMissDisp}</div></div>`;
       let mvLine='';
       const _ct=typeof getCellTrack==='function'?getCellTrack(s):null;
       const _sMv=(_ct&&_ct.speed>=2)?{direction:_ct.dir,speed:_ct.speed}:mv;
@@ -2321,8 +2328,6 @@ function renderStorms(){
         mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Moving')}</div><div class="storm-detail-val">${degToDir(_sMv.direction)} (${Math.round(_sMv.direction)}°) ${spdStr}</div><div class="tile-tap">tap</div></div>`;
         if(isOverhead(s)){
           mvLine+=`<div class="storm-detail" style="grid-column:span 2"><div class="storm-detail-label">${tStr('Status')}</div><div class="storm-detail-val" style="color:#f97316;font-size:0.85em">⚠️ ${tStr('Overhead · Moving away')}</div></div>`;
-          mvLine+=`<div class="storm-detail" title="${impTitle}"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color};font-size:0.85em">${bImpPct}% ${tStr('max intensity at you')}</div></div>`;
-          if(_b)mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Projected Miss')}</div><div class="storm-detail-val" style="font-size:0.85em">${projMissDisp}</div></div>`;
         }else if(isApproaching(s)){
           const sk=stormKey(s);
           let targetMs;
@@ -2339,16 +2344,17 @@ function renderStorms(){
           const arrivalTime=fmtArrivalTime(remainMin);
           const initCountdown=fmtCountdown(Math.round(remainMin*60));
           mvLine+=`<div class="storm-detail eta-detail"><div class="storm-detail-label">⏱ ${tStr('ETA')}</div><div class="storm-detail-val" style="color:${imp.color}"><span class="eta-countdown" data-eta-sec="${Math.round(targetMs)}" data-storm-key="${sk}">${initCountdown}</span></div><div style="font-size:0.65em;color:${imp.color};margin-top:1px">${tStr('Arrives')} ~${arrivalTime}</div></div>`;
-          mvLine+=`<div class="storm-detail" title="${impTitle}"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color};font-size:0.85em">${bImpPct}% ${tStr('max intensity at you')}</div></div>`;
-          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Projected Miss')}</div><div class="storm-detail-val" style="font-size:0.85em">${projMissDisp}</div></div>`;
-        }else{
-          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:var(--accent-green)">${tStr('Nearby · Not approaching')}</div></div>`;
         }
+        mvLine+=impTile+missTile;
       }
       let estLine='';
-      if(_b&&_b.estDbzAtUser!=null){
-        const estCat=stormCat(_b.estDbzAtUser);
-        estLine=`<div style="margin-top:4px;font-size:0.7em;color:var(--text-secondary)">${tStr('Est. at you')}: <span style="color:${estCat.color};font-weight:700">${_b.estDbzAtUser} dBZ</span> <span style="color:${estCat.color}">(${tStr(estCat.label)})</span></div>`;
+      if(_sMv&&_sMv.speed>=2){
+        if(_b&&_b.estDbzAtUser!=null){
+          const estCat=stormCat(_b.estDbzAtUser);
+          estLine=`<div style="margin-top:4px;font-size:0.7em;color:var(--text-secondary)">${tStr('Est. at you')}: <span style="color:${estCat.color};font-weight:700">${_b.estDbzAtUser} dBZ</span> <span style="color:${estCat.color}">(${tStr(estCat.label)})</span></div>`;
+        }else{
+          estLine=`<div style="margin-top:4px;font-size:0.7em;color:var(--text-muted)">${tStr('Est. at you')}: —</div>`;
+        }
       }
       const hex=dbzHex(s.dbz);
       const isHook=s._hookEcho;
