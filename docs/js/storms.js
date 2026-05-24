@@ -2309,8 +2309,17 @@ function renderStorms(){
       const tsColor=s.dbz>=65?'#ff00ff':s.dbz>=60?'#ef4444':s.dbz>=52?'#f97316':ts10>=4?'#facc15':'#4ade80';
       const tsLabel=s.dbz>=65?'EXTREME':s.dbz>=60?'SEVERE':s.dbz>=52?'STRONG':ts10>=4?'MODERATE':'LOW';
       const borderColor=isHook?'#ff1744':tierBorder;
+      let clsBadge='';
+      try{
+        const _b=calcStormETAForBriefing(s);
+        if(_b&&_b.classification&&_b.classification!=='unknown'){
+          const _sc=stormClass(_b.classification);
+          const _pct=(_sc.showPct&&_b.coneConfidence!=null)?' '+Math.round(_b.coneConfidence*100)+'%':'';
+          clsBadge=`<span class="storm-badge" style="background:${_sc.color}22;color:${_sc.color};border:1px solid ${_sc.color}66;font-weight:700">${_sc.badge}${_pct}</span>`;
+        }
+      }catch(e){}
       return`<div class="storm-cell-card ${pulse}" style="border-color:${borderColor};--pulse-color:${borderColor}${isHook?';animation:tornado-pulse 1.8s ease-in-out infinite,storm-pulse-severe 2s ease-in-out infinite':''}">
-        <div class="storm-header"><span style="font-weight:700">${cellIcon} ${cellName}</span>${hookBadge}<span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${tStr(cat.label)}</span></div>
+        <div class="storm-header"><span style="font-weight:700">${cellIcon} ${cellName}</span>${hookBadge}${clsBadge}<span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${tStr(cat.label)}</span></div>
         <div style="display:flex;align-items:center;gap:6px;margin:4px 0 2px;font-size:0.7em"><span style="font-weight:700;color:var(--text-secondary)">Threat:</span><span style="color:${tsColor};font-weight:700;font-size:1.1em">${ts10.toFixed(1)}</span><span style="color:${tsColor};font-size:0.85em;font-weight:600">/10 ${tsLabel}</span></div>
         <div class="storm-detail-grid">
           <div class="storm-detail"><div class="storm-detail-label">${tStr('Peak dBZ')}</div><div class="storm-detail-val" style="color:${cat.color}">${s.dbz}</div></div>

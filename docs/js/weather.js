@@ -837,9 +837,9 @@ function drawMiniSonar(){
           ctx.moveTo(ex,ey);ctx.lineTo(ex-Math.cos(ang+0.5)*head,ey-Math.sin(ang+0.5)*head);
           ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.stroke();
           const pctStr=(sc.showPct&&b.coneConfidence!=null)?` ${Math.round(b.coneConfidence*100)}%`:'';
-          const lbl=b.classification==='direct'?`${sc.short}${pctStr} ≈${b.closingMph}mph`
-                   :b.classification==='near_miss'?`${sc.short}${pctStr}`
-                   :b.classification==='passing'?sc.short:'';
+          const lbl=b.classification==='direct'?`${sc.badge}${pctStr} ≈${b.closingMph}mph`
+                   :b.classification==='near_miss'?`${sc.badge}${pctStr}`
+                   :b.classification==='passing'?sc.badge:'';
           if(lbl){
             ctx.fillStyle=col;ctx.textAlign='left';ctx.textBaseline='middle';
             ctx.fillText(lbl,ex+4,ey);
