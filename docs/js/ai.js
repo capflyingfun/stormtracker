@@ -66,6 +66,15 @@ function fmtAIText(raw){
   s=s.replace(/^\d+\.\s+(.+)$/gm,function(m,p1,offset,str){return '<span style="display:block;padding-left:12px">'+m+'</span>'});
   return s;
 }
+function stripAIMarkup(raw){
+  return String(raw||'')
+    .replace(/\[!dbz:[^\]]+\]([\s\S]+?)\[\/!\]/g,'$1')
+    .replace(/\[!(red|orange|yellow|green|cyan)\]([\s\S]+?)\[\/!\]/g,'$2')
+    .replace(/__(.+?)__/g,'$1')
+    .replace(/\*\*\*(.+?)\*\*\*/g,'$1')
+    .replace(/\*\*(.+?)\*\*/g,'$1')
+    .replace(/\*(.+?)\*/g,'$1');
+}
 function addAIMsg(role,text){
   const c=document.getElementById('ai-chat-messages');if(!c)return;
   const d=document.createElement('div');
@@ -83,7 +92,7 @@ function copyAIMsg(btn){
   const msg=btn.closest('.ai-msg');if(!msg)return;
   const raw=msg.dataset.rawText||msg.textContent;
   const header=`StormTracker Weather Briefing\n${S.locName||'Unknown Location'} — ${new Date().toLocaleString()}\n${'─'.repeat(40)}\n\n`;
-  const fullText=header+raw;
+  const fullText=header+stripAIMarkup(raw);
   navigator.clipboard.writeText(fullText).then(()=>{
     btn.textContent='✅';setTimeout(()=>{btn.textContent='📋'},1500);
   }).catch(()=>{
@@ -193,34 +202,46 @@ function buildWeatherContext(){
         if(!seen.has(k)){seen.add(k);top.push(s);}
         if(top.length>=12)break;
       }
+      const buckets={direct:[],near_miss:[],passing:[],moving_away:[],unknown:[]};
       for(const st of top){
-        const distRnd=Math.round(st.distance*10)/10;
-        const distStr=S.radarMetric?(distRnd*1.60934).toFixed(1)+' km':distRnd.toFixed(1)+' mi';
-        let line=`  Storm at ${distStr} ${degToDir(st.bearing)} (${st.bearing.toFixed(0)}°), intensity ${st.dbz} dBZ`;
-        const cat=st.dbz>=65?'EXTREME (severe-hail signature likely)':st.dbz>=60?'SEVERE (hail possible)':st.dbz>=55?'MODERATE-SEVERE (strong, not auto-severe)':st.dbz>=45?'MODERATE-HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
-        line+=` [${cat}]`;
+        let tier='unknown',brief=null;
         try{
           if(typeof calcStormETAForBriefing==='function'){
-            const b=calcStormETAForBriefing(st);
-            if(b&&b.classification){
-              const movStr=b.movSpdMph?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph, ${b.source}-derived)`:'';
-              const sc=(typeof stormClass==='function')?stormClass(b.classification):null;
-              const confPct=(b.coneConfidence!=null)?Math.round(b.coneConfidence*100):null;
-              if(b.classification==='direct'){
-                line+=` ${sc?sc.aiPhrase:'APPROACHING DIRECTLY'} (${confPct}% cone confidence) — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
-              }else if(b.classification==='near_miss'){
-                line+=` ${sc?sc.aiPhrase:'NEAR MISS'} (${confPct}% cone confidence) — closing ${b.closingMph} mph, projected miss ${b.perpMissMi} mi to ${degToDir(b.sideBearing)} (partial impact possible; do NOT quote a hard ETA)${movStr}`;
-              }else if(b.classification==='passing'){
-                line+=` ${sc?sc.aiPhrase:'PASSING TO YOUR'} ${degToDir(b.sideBearing)} — projected miss ${b.perpMissMi} mi, no direct impact expected; outflow possible${movStr}`;
-              }else if(b.classification==='moving_away'){
-                line+=` ${sc?sc.aiPhrase:'MOVING AWAY'} — closing speed ${b.closingMph} mph (≤0)${movStr}`;
-              }else{
-                line+=` motion unknown (insufficient steering data)`;
-              }
-            }
+            brief=calcStormETAForBriefing(st);
+            if(brief&&brief.classification&&buckets[brief.classification])tier=brief.classification;
           }
         }catch(e){console.warn('AI storm ETA calc error:',e)}
-        parts.push(line);
+        st._aiBrief=brief;st._aiTier=tier;
+        buckets[tier].push(st);
+      }
+      for(const k of Object.keys(buckets))buckets[k].sort((a,b)=>a.distance-b.distance);
+      const tierOrder=['direct','near_miss','passing','moving_away','unknown'];
+      for(const tier of tierOrder){
+        for(const st of buckets[tier]){
+          const distRnd=Math.round(st.distance*10)/10;
+          const distStr=S.radarMetric?(distRnd*1.60934).toFixed(1)+' km':distRnd.toFixed(1)+' mi';
+          let line=`  Storm at ${distStr} ${degToDir(st.bearing)} (${st.bearing.toFixed(0)}°), intensity ${st.dbz} dBZ`;
+          const cat=st.dbz>=65?'EXTREME (severe-hail signature likely)':st.dbz>=60?'SEVERE (hail possible)':st.dbz>=55?'MODERATE-SEVERE (strong, not auto-severe)':st.dbz>=45?'MODERATE-HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
+          line+=` [${cat}]`;
+          const b=st._aiBrief;
+          if(b&&b.classification){
+            const movStr=b.movSpdMph?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph, ${b.source}-derived)`:'';
+            const sc=(typeof stormClass==='function')?stormClass(b.classification):null;
+            const confPct=(b.coneConfidence!=null)?Math.round(b.coneConfidence*100):null;
+            if(b.classification==='direct'){
+              line+=` ${sc?sc.aiPhrase:'APPROACHING DIRECTLY'} (${confPct}% cone confidence) — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
+            }else if(b.classification==='near_miss'){
+              line+=` ${sc?sc.aiPhrase:'NEAR MISS'} (${confPct}% cone confidence) — closing ${b.closingMph} mph, projected miss around ${b.perpMissMi} mi to your ${degToDir(b.sideBearing)} (partial impact possible; do NOT quote a hard ETA)${movStr}`;
+            }else if(b.classification==='passing'){
+              line+=` ${sc?sc.aiPhrase:'PASSING TO YOUR'} ${degToDir(b.sideBearing)} — projected miss around ${b.perpMissMi} mi to your ${degToDir(b.sideBearing)}, no direct impact expected; outflow possible${movStr}`;
+            }else if(b.classification==='moving_away'){
+              line+=` ${sc?sc.aiPhrase:'MOVING AWAY'} — closing speed ${b.closingMph} mph (≤0)${movStr}`;
+            }else{
+              line+=` motion unknown (insufficient steering data)`;
+            }
+          }
+          parts.push(line);
+        }
       }
       if(sigStorms.length>top.length)parts.push(`  ... and ${sigStorms.length-top.length} more significant storm cells`);
     }
@@ -420,6 +441,7 @@ Your professional standards:
     * EVERY specific dBZ value you mention MUST be wrapped as [!dbz:NN]NN dBZ[/!] so the number renders in the master radar palette color for that intensity. Example: "A [!dbz:55]55 dBZ[/!] cell 14 mi NW closing at +25 mph." Use this everywhere — Situation Overview, Active Threats, Aviation, Marine — never write a bare "55 dBZ" without the tag. Decimals are allowed ([!dbz:47.5]47.5 dBZ[/!]).
   Do NOT use ###/##/# headers — section headers are already provided. Do NOT use raw HTML. Do NOT invent new color tags or hex codes. Do NOT wrap section headers in any formatting.
 - Section headers: prefix each section header line with its topical emoji — 🌐 Situation Overview, ⛈️ Active Threats & Storm Tracking, 🚸 Public Safety & Outdoor Guidance, ✈️ Aviation & Marine Briefing. Headers stay on their own line, no markdown characters.
+- Projected-miss phrasing: when describing a storm's miss distance, always use natural language — "projected miss around NN mi to your <direction>". Never output a bare "projected miss NN mi" without "around" and a "to your <direction>" suffix.
 - Distances: round to 1 decimal place (e.g. "14.3 mi"). Don't repeat the same distance for multiple cells unless they are genuinely at the same range.
 - Never invent PWAT (precipitable water) values. Only mention PWAT if it appears explicitly in the data above (it usually won't). If PWAT isn't given, talk about moisture using dewpoint / humidity / CAPE instead.
 - Rip Current Statements: if an alert with event "Rip Current Statement" appears in ACTIVE NWS ALERTS, include the exact expiration time from the alert's Ends/Expires field. Do not paraphrase to "later today".
