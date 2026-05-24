@@ -1004,8 +1004,10 @@ function plotStormMarkers(map){
   const visibleSet=new Set(visibleStorms);
   stormList.forEach(storm=>{
     const cat=stormCat(storm.dbz);
-    const color=dbzHex(storm.dbz);
-    const r=Math.max(4,Math.round(Math.max(10,storm.dbz/4)*sc));
+    const _stormTier=storm._hookEcho?'hook':storm.dbz>=65?'extreme':storm.dbz>=60?'severe':storm.dbz>=52?'strong':'';
+    const color=_stormTier==='hook'?'#ff1744':_stormTier==='extreme'?'#ff00ff':_stormTier==='severe'?'#ff1744':_stormTier==='strong'?'#c2410c':dbzHex(storm.dbz);
+    const _tierBoost=_stormTier==='extreme'?1.35:_stormTier==='severe'?1.2:_stormTier==='strong'?1.1:1.0;
+    const r=Math.max(4,Math.round(Math.max(10,storm.dbz/4)*sc*_tierBoost));
     const eta=calcStormETA(storm);
     const popupId='pop_'+Math.random().toString(36).slice(2,8);
     let mvHtml='';
@@ -1113,15 +1115,25 @@ function plotStormMarkers(map){
         S.stormMarkers.push(marker);
       }else if(p.type==='ring'){
         const _dbz=p.dbz||30;
+        const _isHook=p.stormRef&&p.stormRef._hookEcho;
+        const _tier=_isHook?'hook':_dbz>=65?'extreme':_dbz>=60?'severe':_dbz>=52?'strong':'';
         const _baseDur=4.5-(_dbz/20);
         const _sinVal=Math.sin(p.lat*1000+p.lng*7777);
         const _jitter=(_sinVal+1)/2*0.6-0.3;
-        const _dur=Math.max(1.0,Math.min(4.0,_baseDur+_jitter)).toFixed(2);
-        const _cls=_dbz>55?'ring-shrink':_dbz>=41?'ring-pulse':'ring-grow';
+        let _dur;
+        if(_tier==='hook')_dur='1.40';
+        else if(_tier==='extreme')_dur='1.00';
+        else if(_tier==='severe')_dur='1.60';
+        else if(_tier==='strong')_dur='2.40';
+        else _dur=Math.max(1.0,Math.min(4.0,_baseDur+_jitter)).toFixed(2);
+        const _cls=_tier?('tier-'+_tier):(_dbz>55?'ring-shrink':_dbz>=41?'ring-pulse':'ring-grow');
+        const _tierColor=_tier==='hook'?'#ff1744':_tier==='extreme'?'#ff00ff':_tier==='severe'?'#ff1744':_tier==='strong'?'#c2410c':p.color;
+        const _border=_tier==='extreme'?5:(_tier==='severe'||_tier==='hook')?4:3;
+        const _glow=_tier==='extreme'?`0 0 14px ${_tierColor},0 0 28px ${_tierColor}`:_tier==='severe'?`0 0 10px ${_tierColor},0 0 20px ${_tierColor}`:_tier==='hook'?`0 0 10px ${_tierColor},0 0 18px ${_tierColor}`:_tier==='strong'?`0 0 8px ${_tierColor}`:`0 0 8px ${_tierColor}`;
         function _ringPx(lat,radiusM,mp){const pt=mp.latLngToLayerPoint([lat,0]);const pt2=mp.latLngToLayerPoint([lat+radiusM/111320,0]);return Math.max(20,Math.abs(pt.y-pt2.y)*2);}
         const sz0=_ringPx(p.lat,p.ringRadiusM,map);
-        const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring ${_cls}" style="width:${sz0}px;height:${sz0}px;border:3px solid ${p.color};box-shadow:0 0 8px ${p.color};animation-duration:${_dur}s"></div>`,iconSize:[sz0,sz0],iconAnchor:[sz0/2,sz0/2]})});
-        ring._ringData={lat:p.lat,radiusM:p.ringRadiusM,color:p.color,cls:_cls,dur:_dur};
+        const ring=L.marker([p.lat,p.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div class="storm-ring ${_cls}" style="width:${sz0}px;height:${sz0}px;border:${_border}px solid ${_tierColor};box-shadow:${_glow};animation-duration:${_dur}s"></div>`,iconSize:[sz0,sz0],iconAnchor:[sz0/2,sz0/2]})});
+        ring._ringData={lat:p.lat,radiusM:p.ringRadiusM,color:_tierColor,cls:_cls,dur:_dur,border:_border,glow:_glow};
         if(isVisible)ring.addTo(map);
         ring._stormRef=p.stormRef;
         S.stormMarkers.push(ring);
@@ -2378,26 +2390,9 @@ function plotStormTracks(map){
     }
   }
   storms.forEach(s=>{
-    const range=Math.min(60,Math.max(s.distance*1.5,20));
+    const pts=(typeof buildStormCone==='function')?buildStormCone(s,_mv):null;
+    if(!pts)return;
     const color=dbzHex(s.dbz);
-    const dir=_mv.direction;
-    const baseWidthMi=Math.max(0,Math.min(3,(s.dbz-20)/15));
-    const perpL=(dir-90+360)%360;
-    const perpR=(dir+90)%360;
-    let pts;
-    if(baseWidthMi>0.1){
-      const bL=destPoint(s.lat,s.lng,perpL,baseWidthMi);
-      const bR=destPoint(s.lat,s.lng,perpR,baseWidthMi);
-      const fL=destPoint(bL[0],bL[1],dir-15,range);
-      const fC=destPoint(s.lat,s.lng,dir,range);
-      const fR=destPoint(bR[0],bR[1],dir+15,range);
-      pts=[bL,fL,fC,fR,bR];
-    }else{
-      const fL=destPoint(s.lat,s.lng,dir-15,range);
-      const fC=destPoint(s.lat,s.lng,dir,range);
-      const fR=destPoint(s.lat,s.lng,dir+15,range);
-      pts=[[s.lat,s.lng],fL,fC,fR,[s.lat,s.lng]];
-    }
     const poly=L.polygon(pts,{color,fillColor:color,fillOpacity:0.06,weight:1,dashArray:'4,4',opacity:0.5,interactive:false}).addTo(map);
     S._trackCones.push(poly);
   });
@@ -2430,7 +2425,7 @@ function buildRelMotionLayers(map){
       S._relMotionLayers.push(line);
       const tip=L.circleMarker(ep,{pane,radius:4,color:col,fillColor:col,fillOpacity:opa,weight:1,interactive:false}).addTo(map);
       S._relMotionLayers.push(tip);
-      const lbl=b.classification==='direct'?`≈${b.closingMph} mph closing · ETA ${b.etaMin}m`
+      const lbl=b.classification==='direct'?`≈${b.closingMph} mph closing · ETA ${b.etaMin}m${b.inCone?' · in cone':''}`
                :b.classification==='passing'?'passing'
                :b.classification==='graze'?'graze':'moving away';
       const tag=L.marker(ep,{pane,interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:10px;font-weight:700;color:${col};text-shadow:0 0 4px #000,0 0 2px #000;white-space:nowrap;transform:translate(6px,-50%)">${lbl}</div>`,iconSize:[1,1],iconAnchor:[0,0]})}).addTo(map);

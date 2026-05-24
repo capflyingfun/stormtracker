@@ -201,7 +201,8 @@ function buildWeatherContext(){
             if(b&&b.classification){
               const movStr=b.movSpdMph?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph, ${b.source}-derived)`:'';
               if(b.classification==='direct'){
-                line+=` APPROACHING DIRECTLY — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
+                const coneHint=b.inCone?' (USER INSIDE FORECAST CONE)':'';
+                line+=` APPROACHING DIRECTLY${coneHint} — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
               }else if(b.classification==='graze'){
                 line+=` MAY GRAZE — closing ${b.closingMph} mph, projected miss ${b.perpMissMi} mi to ${degToDir(b.sideBearing)} (partial impact possible; do NOT quote a hard ETA)${movStr}`;
               }else if(b.classification==='passing'){

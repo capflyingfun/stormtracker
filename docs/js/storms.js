@@ -562,6 +562,36 @@ function calcStormETA(storm){
   if(storm.distance<=proxRange)pct=Math.max(pct,Math.round(75+(proxRange-storm.distance)/proxRange*20));
   return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed*100)/100,angleDiff:Math.round(diff),cellTrack:!!cellTrack,trackDir:cellTrack?cellTrack.dir:null,trackSpd:cellTrack?cellTrack.speed:null,nwsWarnings,terrain:terrain.desc};
 }
+function buildStormCone(storm,mv){
+  if(!mv||!mv.speed||mv.speed<2||typeof destPoint!=='function')return null;
+  const range=Math.min(60,Math.max(storm.distance*1.5,20));
+  const dir=mv.direction;
+  const baseWidthMi=Math.max(0,Math.min(3,(storm.dbz-20)/15));
+  const perpL=(dir-90+360)%360;
+  const perpR=(dir+90)%360;
+  if(baseWidthMi>0.1){
+    const bL=destPoint(storm.lat,storm.lng,perpL,baseWidthMi);
+    const bR=destPoint(storm.lat,storm.lng,perpR,baseWidthMi);
+    const fL=destPoint(bL[0],bL[1],dir-15,range);
+    const fC=destPoint(storm.lat,storm.lng,dir,range);
+    const fR=destPoint(bR[0],bR[1],dir+15,range);
+    return[bL,fL,fC,fR,bR];
+  }
+  const fL=destPoint(storm.lat,storm.lng,dir-15,range);
+  const fC=destPoint(storm.lat,storm.lng,dir,range);
+  const fR=destPoint(storm.lat,storm.lng,dir+15,range);
+  return[[storm.lat,storm.lng],fL,fC,fR,[storm.lat,storm.lng]];
+}
+function isUserInStormCone(storm,mv,uLat,uLon){
+  const pts=buildStormCone(storm,mv);
+  if(!pts||pts.length<3||uLat==null||uLon==null)return false;
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const yi=pts[i][0],xi=pts[i][1],yj=pts[j][0],xj=pts[j][1];
+    if(((yi>uLat)!==(yj>uLat))&&(uLon<(xj-xi)*(uLat-yi)/(yj-yi)+xi))inside=!inside;
+  }
+  return inside;
+}
 function calcStormETAForBriefing(storm){
   const cellTrack=(typeof getCellTrack==='function')?getCellTrack(storm):null;
   const _hasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
@@ -572,7 +602,7 @@ function calcStormETAForBriefing(storm){
           :null;
   const distRound=Math.round(storm.distance*10)/10;
   if(!_mv||_mv.speed<2){
-    return{classification:'unknown',etaMin:null,closingMph:0,perpMissMi:distRound,distanceMi:distRound,sideBearing:null,movDirDeg:null,movSpdMph:null,source:'none'};
+    return{classification:'unknown',etaMin:null,closingMph:0,perpMissMi:distRound,distanceMi:distRound,sideBearing:null,movDirDeg:null,movSpdMph:null,source:'none',inCone:false};
   }
   const movRad=_mv.direction*Math.PI/180;
   const Vx=_mv.speed*Math.sin(movRad);
@@ -584,7 +614,7 @@ function calcStormETAForBriefing(storm){
   const rMag=storm.distance;
   const source=cellTrack?'cell':(_hasMv?'fleet':'aloft');
   if(rMag<0.05){
-    return{classification:'direct',etaMin:0,closingMph:Math.round(vMag*10)/10,perpMissMi:0,distanceMi:distRound,sideBearing:null,movDirDeg:Math.round(_mv.direction),movSpdMph:Math.round(_mv.speed),source};
+    return{classification:'direct',etaMin:0,closingMph:Math.round(vMag*10)/10,perpMissMi:0,distanceMi:distRound,sideBearing:null,movDirDeg:Math.round(_mv.direction),movSpdMph:Math.round(_mv.speed),source,inCone:true};
   }
   const Vhx=Vx/vMag,Vhy=Vy/vMag;
   const Rhx=Rx/rMag,Rhy=Ry/rMag;
@@ -602,8 +632,14 @@ function calcStormETAForBriefing(storm){
     distanceMi:distRound,
     movDirDeg:Math.round(_mv.direction),
     movSpdMph:Math.round(_mv.speed),
-    source
+    source,
+    inCone:false
   };
+  const userInCone=(S.lat!=null&&S.lon!=null)&&isUserInStormCone(storm,_mv,S.lat,S.lon);
+  if(userInCone&&closing>0&&tHrs>0){
+    const etaMin=Math.round((rMag/Math.max(closing,1))*60);
+    return Object.assign({},base,{classification:'direct',etaMin,sideBearing:Math.round(sideBearing),inCone:true});
+  }
   if(closing<=0||tHrs<=0){
     return Object.assign({classification:'moving_away',etaMin:null,sideBearing:null},base);
   }
@@ -619,6 +655,8 @@ function calcStormETAForBriefing(storm){
 }
 if(typeof window!=='undefined'){
   window.calcStormETAForBriefing=calcStormETAForBriefing;
+  window.buildStormCone=buildStormCone;
+  window.isUserInStormCone=isUserInStormCone;
   try{
     const params=new URLSearchParams(window.location.search);
     if(params.get('debugBriefing')==='1'){
@@ -2182,31 +2220,7 @@ function renderStorms(){
       }
     }
     coneStorms.forEach(s=>{
-      const range=Math.min(60,Math.max(s.distance*1.5,20));
-      const dir=mv.direction;
-      const baseWidthMi=Math.max(0,Math.min(3,(s.dbz-20)/15));
-      const perpL=(dir-90+360)%360;
-      const perpR=(dir+90)%360;
-      let pts;
-      if(baseWidthMi>0.1){
-        const bL=destPoint(s.lat,s.lng,perpL,baseWidthMi);
-        const bR=destPoint(s.lat,s.lng,perpR,baseWidthMi);
-        const fL=destPoint(bL[0],bL[1],dir-15,range);
-        const fC=destPoint(s.lat,s.lng,dir,range);
-        const fR=destPoint(bR[0],bR[1],dir+15,range);
-        pts=[bL,fL,fC,fR,bR];
-      }else{
-        const fL=destPoint(s.lat,s.lng,dir-15,range);
-        const fC=destPoint(s.lat,s.lng,dir,range);
-        const fR=destPoint(s.lat,s.lng,dir+15,range);
-        pts=[[s.lat,s.lng],fL,fC,fR,[s.lat,s.lng]];
-      }
-      let inside=false;
-      for(let i=0,j=pts.length-1;i<pts.length;j=i++){
-        const yi=pts[i][0],xi=pts[i][1],yj=pts[j][0],xj=pts[j][1];
-        if(((yi>uLat)!==(yj>uLat))&&(uLng<(xj-xi)*(uLat-yi)/(yj-yi)+xi))inside=!inside;
-      }
-      if(inside)inConeCount++;
+      if(isUserInStormCone(s,mv,uLat,uLng))inConeCount++;
     });
   }
   const sf=S._stormFilter||_loadStormFilter();
@@ -2252,15 +2266,18 @@ function renderStorms(){
         }
       }
       const hex=dbzHex(s.dbz);
-      const pulse=(s.dbz>=46)?'storm-card-pulse':'';
       const isHook=s._hookEcho;
+      const tier=s.dbz>=65?'extreme':s.dbz>=60?'severe':s.dbz>=52?'strong':'';
+      const pulse=tier?`storm-card-pulse-${tier}`:'';
+      const tierBorder=tier==='extreme'?'#ff00ff':tier==='severe'?'#ff1744':tier==='strong'?'#c2410c':hex;
       const cellIcon=isHook?'🌪️':s.dbz>=65?'‼️':s.dbz>=60?'🚨':s.dbz>=52?'🟧':s.dbz>=46?'⚠️':s.dbz>=41?'🟡':s.dbz>=20?'🟢':'🔵';
-      const cellName=isHook?tStr('Possible Rotation'):s.dbz>=60?tStr('Severe Cell'):s.dbz>=52?tStr('Strong Cell'):s.dbz>=41?tStr('Storm Cell'):tStr('Rain Cell');
+      const cellName=isHook?tStr('Possible Rotation'):s.dbz>=65?tStr('Extreme Cell'):s.dbz>=60?tStr('Severe Cell'):s.dbz>=52?tStr('Strong Cell'):s.dbz>=41?tStr('Storm Cell'):tStr('Rain Cell');
       const hookBadge=isHook?`<span class="hook-echo-badge">🌪️ Hook Echo</span>`:'';
       const ts10=stormThreatScore10(s);
-      const tsColor=ts10>=8?'#ef4444':ts10>=6?'#f97316':ts10>=4?'#facc15':'#4ade80';
-      const tsLabel=ts10>=8?'EXTREME':ts10>=6?'HIGH':ts10>=4?'MODERATE':'LOW';
-      return`<div class="storm-cell-card ${pulse}" style="border-color:${isHook?'#ff1744':hex};--pulse-color:${isHook?'#ff1744':hex}${isHook?';animation:tornado-pulse 1.8s ease-in-out infinite,storm-pulse 2.5s ease-in-out infinite':''}">
+      const tsColor=s.dbz>=65?'#ff00ff':s.dbz>=60?'#ef4444':s.dbz>=52?'#f97316':ts10>=4?'#facc15':'#4ade80';
+      const tsLabel=s.dbz>=65?'EXTREME':s.dbz>=60?'SEVERE':s.dbz>=52?'STRONG':ts10>=4?'MODERATE':'LOW';
+      const borderColor=isHook?'#ff1744':tierBorder;
+      return`<div class="storm-cell-card ${pulse}" style="border-color:${borderColor};--pulse-color:${borderColor}${isHook?';animation:tornado-pulse 1.8s ease-in-out infinite,storm-pulse-severe 2s ease-in-out infinite':''}">
         <div class="storm-header"><span style="font-weight:700">${cellIcon} ${cellName}</span>${hookBadge}<span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${tStr(cat.label)}</span></div>
         <div style="display:flex;align-items:center;gap:6px;margin:4px 0 2px;font-size:0.7em"><span style="font-weight:700;color:var(--text-secondary)">Threat:</span><span style="color:${tsColor};font-weight:700;font-size:1.1em">${ts10.toFixed(1)}</span><span style="color:${tsColor};font-size:0.85em;font-weight:600">/10 ${tsLabel}</span></div>
         <div class="storm-detail-grid">

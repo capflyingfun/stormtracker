@@ -836,7 +836,7 @@ function drawMiniSonar(){
           ctx.moveTo(ex,ey);ctx.lineTo(ex-Math.cos(ang-0.5)*head,ey-Math.sin(ang-0.5)*head);
           ctx.moveTo(ex,ey);ctx.lineTo(ex-Math.cos(ang+0.5)*head,ey-Math.sin(ang+0.5)*head);
           ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.stroke();
-          const lbl=b.classification==='direct'?`≈${b.closingMph} mph closing`
+          const lbl=b.classification==='direct'?`≈${b.closingMph} mph closing${b.inCone?' · in cone':''}`
                    :b.classification==='passing'?'passing'
                    :b.classification==='graze'?'graze':'';
           if(lbl){
