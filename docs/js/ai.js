@@ -202,7 +202,7 @@ function buildWeatherContext(){
         if(!seen.has(k)){seen.add(k);top.push(s);}
         if(top.length>=12)break;
       }
-      const buckets={direct:[],near_miss:[],passing:[],moving_away:[],unknown:[]};
+      const buckets={direct:[],near_miss:[],nearby:[],passing:[],moving_away:[],unknown:[]};
       for(const st of top){
         let tier='unknown',brief=null;
         try{
@@ -215,7 +215,7 @@ function buildWeatherContext(){
         buckets[tier].push(st);
       }
       for(const k of Object.keys(buckets))buckets[k].sort((a,b)=>a.distance-b.distance);
-      const tierOrder=['direct','near_miss','passing','moving_away','unknown'];
+      const tierOrder=['direct','near_miss','nearby','passing','moving_away','unknown'];
       for(const tier of tierOrder){
         for(const st of buckets[tier]){
           const distRnd=Math.round(st.distance*10)/10;
@@ -228,10 +228,14 @@ function buildWeatherContext(){
             const movStr=b.movSpdMph?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph, ${b.source}-derived)`:'';
             const sc=(typeof stormClass==='function')?stormClass(b.classification):null;
             const impPct=(b.impactScore!=null)?Math.round(b.impactScore*100):null;
+            const estDbz=(b.estDbzAtUser!=null)?b.estDbzAtUser:null;
+            const estStr=(estDbz!=null)?`, ~${estDbz} dBZ expected at user`:'';
             if(b.classification==='direct'){
-              line+=` ${sc?sc.aiPhrase:'APPROACHING DIRECTLY'} (${impPct}% impact score) — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
+              line+=` ${sc?sc.aiPhrase:'APPROACHING DIRECTLY'} (${impPct}% max intensity at user${estStr}) — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
             }else if(b.classification==='near_miss'){
-              line+=` ${sc?sc.aiPhrase:'NEAR MISS'} (${impPct}% impact score) — closing ${b.closingMph} mph, projected miss around ${b.perpMissMi} mi (partial impact possible; do NOT quote a hard ETA)${movStr}`;
+              line+=` ${sc?sc.aiPhrase:'NEAR MISS'} (${impPct}% max intensity at user${estStr}) — closing ${b.closingMph} mph, projected miss around ${b.perpMissMi} mi (partial impact possible; do NOT quote a hard ETA)${movStr}`;
+            }else if(b.classification==='nearby'){
+              line+=` ${sc?sc.aiPhrase:'NEARBY'} (${impPct}% max intensity at user${estStr}) — projected miss around ${b.perpMissMi} mi (in same general area but outside the impact corridor; mention briefly, do NOT issue an ETA)${movStr}`;
             }else if(b.classification==='passing'){
               line+=` ${sc?sc.aiPhrase:'PASSING TO YOUR'} ${degToDir(b.sideBearing)} — projected miss around ${b.perpMissMi} mi, no direct impact expected; outflow possible${movStr}`;
             }else if(b.classification==='moving_away'){
@@ -426,13 +430,15 @@ Your professional standards:
 - You distinguish between radar clutter and real precipitation (sub-22 dBZ with <12 returns = almost certainly clutter; say so clearly rather than warning about nonexistent rain)
 - dBZ severity calibration: 30-44 dBZ = moderate rain; 45-54 dBZ = heavy rain / possible small hail; 55-59 dBZ = heavy core (strong but NOT automatically "severe"); 60-64 dBZ = very heavy, severe-hail signatures possible; 65+ dBZ = severe-hail signature likely. Do NOT label 55 dBZ as "severe" or invoke severe-hail language unless the cell is 60+ dBZ or NWS has an active severe warning on it.
 - Storm motion is computed for you using vector projection (dot product of motion onto the storm-to-user vector). Each storm line tells you the classification:
-    * "APPROACHING DIRECTLY" — quote the ETA directly. Example: "A 52 dBZ cell 14 mi NW is closing at 25 mph; expect it overhead in roughly 34 min."
-    * "NEAR MISS" — the storm's forecast cone clips the user's location but the combined impact score (cone position × intensity × distance) is in the 30-70% band; say "near miss; partial impact / brief downpour possible" and quote the perpendicular miss distance instead of asserting a direct hit.
-    * "PASSING TO YOUR <DIR>" — the storm will NOT hit you. Say so plainly: "Storm is passing to your north and should only bring outflow winds or light rain." Do NOT manufacture an ETA.
+    * "APPROACHING DIRECTLY" — the storm's projected track passes within 3 mi of the user. Quote the ETA directly. Example: "A 52 dBZ cell 14 mi NW is closing at 25 mph; expect it overhead in roughly 34 min."
+    * "NEAR MISS" — projected miss is 3-6 mi from the user. Say "near miss; partial impact / brief downpour possible" and quote the perpendicular miss distance instead of asserting a direct hit. Do NOT issue a hard ETA.
+    * "NEARBY" — projected miss is greater than 6 mi but the storm is still inbound and in the same general area. Mention briefly ("a stronger cell is tracking through the area NN mi to your <DIR>, no direct impact expected at your location"). Do NOT issue an ETA.
+    * "PASSING TO YOUR <DIR>" — the storm's projected track does not bring it toward the user at all. Say so plainly: "Storm is passing to your north and should only bring outflow winds or light rain." Do NOT manufacture an ETA.
     * "MOVING AWAY" — closing speed is zero or negative; the storm is receding. Mention briefly and move on.
+- Impact score interpretation: every storm line gives you a percentage labelled "max intensity at user" plus an estimated dBZ ("~NN dBZ expected at user"). This is closeness-to-track × intensity. Use the estimated dBZ when describing what the user will actually experience at their location — do NOT quote the storm's peak dBZ as if that's what will hit the user when the projected miss is more than ~1 mi. Example: a 55 dBZ cell with projected miss 1.8 mi has ~52 dBZ expected at user (60% max-intensity) — describe the user experience as "heavy rain / 52 dBZ at your location" not "55 dBZ severe core overhead".
 - Never invent ETAs, closing speeds, or miss distances. If the storm line does not give you an ETA, you must not state one.
 - Risk Assessment intensity wording: when stating that storms do not exceed a given dBZ threshold (e.g. "no storms exceed 55 dBZ"), you MUST qualify whether the statement applies to inbound storms only or to all storms on radar. If stronger cells exist on radar but are classified PASSING or MOVING AWAY, explicitly call that out. Preferred phrasing: "No inbound storms exceed 55 dBZ. The only stronger cells are NE of your position and are moving away, posing no threat." Never make a bare intensity claim that could be read as contradicting the Active Threats section.
-- Emoji color-coding for storms: every individual storm you mention in any section MUST be prefixed with the emoji that matches its track classification — 🔴 for APPROACHING DIRECTLY (direct hit), 🟠 for NEAR MISS, 🟡 for PASSING, and 🟢 for MOVING AWAY. These emojis MUST match the badge shown on the storm's cell card. Place the emoji at the start of the storm reference, e.g. "🔴 DIRECT HIT: [!dbz:52]52 dBZ[/!] cell 14 mi NW closing at +25 mph, ETA ~34 min" or "🟢 MOVING AWAY: [!dbz:55]55 dBZ[/!] cell NE closing at -18 mph, no threat". Always include the signed closing speed (+ for inbound, - for receding). Do not use 🔵, ⚪, 🟥/🟧/🟨/🟩, or any other shape — round only, four tiers only. Severity (dBZ level, hail, NWS warnings) is conveyed in words, not in the classification emoji.
+- Emoji color-coding for storms: every individual storm you mention in any section MUST be prefixed with the emoji that matches its track classification — 🔴 for APPROACHING DIRECTLY (direct hit), 🟠 for NEAR MISS, 🔵 for NEARBY, 🟡 for PASSING, and 🟢 for MOVING AWAY. These emojis MUST match the badge shown on the storm's cell card. Place the emoji at the start of the storm reference, e.g. "🔴 DIRECT HIT: [!dbz:52]52 dBZ[/!] cell 14 mi NW closing at +25 mph, ETA ~34 min" or "🟢 MOVING AWAY: [!dbz:55]55 dBZ[/!] cell NE closing at -18 mph, no threat". Always include the signed closing speed (+ for inbound, - for receding). Do not use ⚪, 🟥/🟧/🟨/🟩, or any other shape — round only, five tiers only. Severity (dBZ level, hail, NWS warnings) is conveyed in words, not in the classification emoji.
 - Rich text formatting: the briefing pane renders a limited markdown-style syntax. Use it sparingly and only where it adds clarity:
     * **bold** for safety-critical phrases ("seek shelter now", "tornado warning in effect", "do not drive through flooded roadways"). Never bold an entire paragraph.
     * *italic* for the first mention of a technical term (CAPE, lifted index, PWAT, etc.) so readers can spot it.

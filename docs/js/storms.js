@@ -628,7 +628,6 @@ function calcStormETAForBriefing(storm){
   const cpx=-Rx+Vx*tHrs;
   const cpy=-Ry+Vy*tHrs;
   const sideBearing=(Math.atan2(cpx,cpy)*180/Math.PI+360)%360;
-  const GRAZE_RADIUS=8;
   const baseWidthMi=Math.max(0,Math.min(3,(storm.dbz-20)/15));
   const userInCone=(S.lat!=null&&S.lon!=null)&&isUserInStormCone(storm,_mv,S.lat,S.lon);
   let coneConfidence=null;
@@ -638,9 +637,17 @@ function calcStormETAForBriefing(storm){
     const rawConf=Math.max(0,Math.min(1,1-perpMiss/Math.max(halfWidthAtUser,0.001)));
     coneConfidence=0.30+0.70*rawConf;
   }
-  const intensityFactor=Math.max(0,Math.min(1,(storm.dbz-20)/45));
-  const distanceFactor=Math.max(0.15,Math.min(1,1-storm.distance/60));
-  const impactScore=userInCone?coneConfidence*intensityFactor*distanceFactor:0;
+  const m=perpMiss;
+  let closeness;
+  if(m<=1)closeness=1.00;
+  else if(m<=3)closeness=1.00-(m-1)/2*0.15;
+  else if(m<=6)closeness=0.85-(m-3)/3*0.40;
+  else if(m<=10)closeness=0.45-(m-6)/4*0.30;
+  else closeness=0.10;
+  const intensityFactor=Math.max(0,Math.min(1,(storm.dbz-20)/55));
+  const inboundLive=userInCone&&closing>0;
+  const impactScore=inboundLive?(closeness*intensityFactor):0;
+  const estDbzAtUser=inboundLive?Math.round(storm.dbz*closeness):null;
   const base={
     closingMph:Math.round(closing*10)/10,
     perpMissMi:Math.round(perpMiss*10)/10,
@@ -650,21 +657,22 @@ function calcStormETAForBriefing(storm){
     source,
     inCone:userInCone,
     coneConfidence,
-    impactScore:Math.round(impactScore*100)/100,
+    closeness:Math.round(closeness*100)/100,
     intensityFactor:Math.round(intensityFactor*100)/100,
-    distanceFactor:Math.round(distanceFactor*100)/100
+    impactScore:Math.round(impactScore*100)/100,
+    estDbzAtUser
   };
   let classification;
   let etaMinOut=null;
   let sideBearingOut=Math.round(sideBearing);
-  if(userInCone){
-    if(perpMiss<=1.0&&closing>0&&impactScore>=0.70){
+  if(inboundLive){
+    if(perpMiss<=3){
       classification='direct';
       etaMinOut=Math.round((rMag/Math.max(closing,1))*60);
-    }else if(impactScore>=0.30){
+    }else if(perpMiss<=6){
       classification='near_miss';
     }else{
-      classification='passing';
+      classification='nearby';
     }
   }else if(closing<=0||tHrs<=0){
     classification='moving_away';
@@ -689,13 +697,16 @@ if(typeof window!=='undefined'){
       console.log('[briefing-test] 20mi WNW NE@24mph →',r);
       console.assert(r.classification==='passing','expected passing, got '+r.classification);
       console.assert(r.etaMin==null,'expected null ETA, got '+r.etaMin);
+      console.assert(r.impactScore===0,'expected impactScore=0 out-of-cone, got '+r.impactScore);
+      console.assert(r.estDbzAtUser==null,'expected estDbzAtUser=null out-of-cone, got '+r.estDbzAtUser);
       S._lastStormClass={};
       S.stormMovement={direction:90,speed:24};
       const r3=calcStormETAForBriefing({lat:0,lng:0,distance:20,bearing:270,dbz:55});
-      console.log('[briefing-test] 20mi W E@24mph →',r3);
+      console.log('[briefing-test] 20mi W E@24mph (direct) →',r3);
       console.assert(r3.classification==='direct','expected direct, got '+r3.classification);
       console.assert(r3.etaMin>=48&&r3.etaMin<=52,'expected ETA ~50min, got '+r3.etaMin);
-      console.assert(r3.impactScore>=0.70,'expected impactScore>=0.70, got '+r3.impactScore);
+      console.assert(r3.impactScore>=0.60,'expected impactScore>=0.60 (closeness=1×intensity≈0.64), got '+r3.impactScore);
+      console.assert(r3.estDbzAtUser===55,'expected estDbzAtUser=55, got '+r3.estDbzAtUser);
       S._lastStormClass={};
       S.stormMovement={direction:270,speed:24};
       const r4=calcStormETAForBriefing({lat:0,lng:0,distance:20,bearing:270,dbz:55});
@@ -2124,8 +2135,10 @@ function _stormSortFn(a,b,key){
     return sb-sa;
   }
   if(key==='impact'){
-    const ia=a._eta?a._eta.impact||0:0;
-    const ib=b._eta?b._eta.impact||0:0;
+    try{if(!a._brief)a._brief=calcStormETAForBriefing(a)}catch(e){}
+    try{if(!b._brief)b._brief=calcStormETAForBriefing(b)}catch(e){}
+    const ia=(a._brief&&a._brief.impactScore!=null)?a._brief.impactScore:0;
+    const ib=(b._brief&&b._brief.impactScore!=null)?b._brief.impactScore:0;
     return ib-ia;
   }
   return 0;
@@ -2268,7 +2281,7 @@ function renderStorms(){
       if(S._topStorms&&S._topStorms.length){
         coneStorms=storms.filter(s=>S._topStorms.includes(s));
       }else{
-        coneStorms=storms.filter(s=>s._eta&&s._eta.approaching&&s._eta.impact>0).sort((a,b)=>(b._eta.impact||0)-(a._eta.impact||0)).slice(0,12);
+        coneStorms=storms.filter(s=>{try{if(!s._brief)s._brief=calcStormETAForBriefing(s);return s._brief&&s._brief.impactScore>0}catch(e){return false}}).sort((a,b)=>((b._brief&&b._brief.impactScore)||0)-((a._brief&&a._brief.impactScore)||0)).slice(0,12);
       }
     }
     coneStorms.forEach(s=>{
@@ -2293,8 +2306,13 @@ function renderStorms(){
   function buildCard(s){
       const cat=stormCat(s.dbz);
       const eta=s._eta;
-      const pct=eta?eta.impact:0;
-      const imp=impactLabel(pct);
+      let _b=null;try{_b=calcStormETAForBriefing(s);s._brief=_b}catch(e){}
+      const bImpPct=(_b&&_b.impactScore!=null)?Math.round(_b.impactScore*100):0;
+      const imp=impactLabel(bImpPct);
+      const impTitle='Max intensity expected at your location: closeness to track centerline × storm intensity';
+      const missMiVal=_b?_b.perpMissMi:null;
+      const missStr=(missMiVal!=null)?(S.radarMetric?(missMiVal*1.60934).toFixed(1)+' km':missMiVal.toFixed(1)+' mi'):null;
+      const projMissDisp=(_b&&_b.classification==='direct')?tStr('Direct hit'):(missStr!=null?`${missStr} ${_b&&_b.sideBearing!=null?degToDir(_b.sideBearing):''}`.trim():'—');
       let mvLine='';
       const _ct=typeof getCellTrack==='function'?getCellTrack(s):null;
       const _sMv=(_ct&&_ct.speed>=2)?{direction:_ct.dir,speed:_ct.speed}:mv;
@@ -2303,7 +2321,8 @@ function renderStorms(){
         mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Moving')}</div><div class="storm-detail-val">${degToDir(_sMv.direction)} (${Math.round(_sMv.direction)}°) ${spdStr}</div><div class="tile-tap">tap</div></div>`;
         if(isOverhead(s)){
           mvLine+=`<div class="storm-detail" style="grid-column:span 2"><div class="storm-detail-label">${tStr('Status')}</div><div class="storm-detail-val" style="color:#f97316;font-size:0.85em">⚠️ ${tStr('Overhead · Moving away')}</div></div>`;
-          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${tStr(imp.text)}</div></div>`;
+          mvLine+=`<div class="storm-detail" title="${impTitle}"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color};font-size:0.85em">${bImpPct}% ${tStr('max intensity at you')}</div></div>`;
+          if(_b)mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Projected Miss')}</div><div class="storm-detail-val" style="font-size:0.85em">${projMissDisp}</div></div>`;
         }else if(isApproaching(s)){
           const sk=stormKey(s);
           let targetMs;
@@ -2320,10 +2339,16 @@ function renderStorms(){
           const arrivalTime=fmtArrivalTime(remainMin);
           const initCountdown=fmtCountdown(Math.round(remainMin*60));
           mvLine+=`<div class="storm-detail eta-detail"><div class="storm-detail-label">⏱ ${tStr('ETA')}</div><div class="storm-detail-val" style="color:${imp.color}"><span class="eta-countdown" data-eta-sec="${Math.round(targetMs)}" data-storm-key="${sk}">${initCountdown}</span></div><div style="font-size:0.65em;color:${imp.color};margin-top:1px">${tStr('Arrives')} ~${arrivalTime}</div></div>`;
-          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color}">${pct}% ${tStr(imp.text)}</div></div>`;
+          mvLine+=`<div class="storm-detail" title="${impTitle}"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${imp.color};font-size:0.85em">${bImpPct}% ${tStr('max intensity at you')}</div></div>`;
+          mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Projected Miss')}</div><div class="storm-detail-val" style="font-size:0.85em">${projMissDisp}</div></div>`;
         }else{
           mvLine+=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:var(--accent-green)">${tStr('Nearby · Not approaching')}</div></div>`;
         }
+      }
+      let estLine='';
+      if(_b&&_b.estDbzAtUser!=null){
+        const estCat=stormCat(_b.estDbzAtUser);
+        estLine=`<div style="margin-top:4px;font-size:0.7em;color:var(--text-secondary)">${tStr('Est. at you')}: <span style="color:${estCat.color};font-weight:700">${_b.estDbzAtUser} dBZ</span> <span style="color:${estCat.color}">(${tStr(estCat.label)})</span></div>`;
       }
       const hex=dbzHex(s.dbz);
       const isHook=s._hookEcho;
@@ -2338,14 +2363,11 @@ function renderStorms(){
       const tsLabel=s.dbz>=65?'EXTREME':s.dbz>=60?'SEVERE':s.dbz>=52?'STRONG':ts10>=4?'MODERATE':'LOW';
       const borderColor=isHook?'#ff1744':tierBorder;
       let clsBadge='';
-      try{
-        const _b=calcStormETAForBriefing(s);
-        if(_b&&_b.classification&&_b.classification!=='unknown'){
-          const _sc=stormClass(_b.classification);
-          const _pct=(_sc.showPct&&_b.impactScore!=null)?' '+Math.round(_b.impactScore*100)+'%':'';
-          clsBadge=`<span class="storm-badge" style="background:${_sc.color}22;color:${_sc.color};border:1px solid ${_sc.color}66;font-weight:700">${_sc.badge}${_pct}</span>`;
-        }
-      }catch(e){}
+      if(_b&&_b.classification&&_b.classification!=='unknown'){
+        const _sc=stormClass(_b.classification);
+        const _pct=(_sc.showPct&&_b.impactScore!=null)?' '+Math.round(_b.impactScore*100)+'%':'';
+        clsBadge=`<span class="storm-badge" style="background:${_sc.color}22;color:${_sc.color};border:1px solid ${_sc.color}66;font-weight:700">${_sc.badge}${_pct}</span>`;
+      }
       return`<div class="storm-cell-card ${pulse}" style="border-color:${borderColor};--pulse-color:${borderColor}${isHook?';animation:tornado-pulse 1.8s ease-in-out infinite,storm-pulse-severe 2s ease-in-out infinite':''}">
         <div class="storm-header"><span style="font-weight:700">${cellIcon} ${cellName}</span>${hookBadge}${clsBadge}<span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${tStr(cat.label)}</span></div>
         <div style="display:flex;align-items:center;gap:6px;margin:4px 0 2px;font-size:0.7em"><span style="font-weight:700;color:var(--text-secondary)">Threat:</span><span style="color:${tsColor};font-weight:700;font-size:1.1em">${ts10.toFixed(1)}</span><span style="color:${tsColor};font-size:0.85em;font-weight:600">/10 ${tsLabel}</span></div>
@@ -2355,6 +2377,7 @@ function renderStorms(){
           <div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Distance')}</div><div class="storm-detail-val"><span data-dist-mi="${s.distance}" data-closing-mph="${eta&&eta.closingSpeed?eta.closingSpeed:0}" data-target-ms="${eta&&eta._targetMs?eta._targetMs:0}">${(()=>{const cs=eta&&eta.closingSpeed?eta.closingSpeed:0;const tgt=eta&&eta._targetMs?eta._targetMs:0;if(cs>0&&tgt>Date.now()){const rh=Math.max(0,(tgt-Date.now())/3600000);return fmtStormDist(rh*cs)}return fmtStormDist(s.distance)})()}</span> · ${degToDir(s.bearing)} (${String(Math.round(s.bearing)).padStart(3,'0')}°)</div><div class="tile-tap">tap</div></div>
           ${mvLine}
         </div>
+        ${estLine}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
           <span class="text-hint">
             ${s.lat.toFixed(3)}°N, ${Math.abs(s.lng).toFixed(3)}°${s.lng<0?'W':'E'} &middot; ${s.pixels} returns

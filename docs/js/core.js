@@ -450,6 +450,7 @@ function dbzColor(dbz){return _dbzEntry(dbz)}
 const STORM_CLASS={
   direct:     {key:'direct',     short:'Direct Hit',  label:'Direct Hit',  aiPhrase:'APPROACHING DIRECTLY', color:'#ff3355', opacity:0.85, badge:'🔴 DIRECT HIT', coneMin:0.85, showPct:true},
   near_miss:  {key:'near_miss',  short:'Near Miss',   label:'Near Miss',   aiPhrase:'NEAR MISS',            color:'#f97316', opacity:0.85, badge:'🟠 NEAR MISS',  coneMin:0.65, showPct:true},
+  nearby:     {key:'nearby',     short:'Nearby',      label:'Nearby',      aiPhrase:'NEARBY',                color:'#06b6d4', opacity:0.75, badge:'🔵 NEARBY',     coneMin:null, showPct:true},
   passing:    {key:'passing',    short:'Passing',     label:'Passing By',  aiPhrase:'PASSING TO YOUR',      color:'#eab308', opacity:0.85, badge:'🟡 PASSING',    coneMin:null, showPct:false},
   moving_away:{key:'moving_away',short:'Moving Away', label:'Moving Away', aiPhrase:'MOVING AWAY',          color:'#22c55e', opacity:0.4,  badge:'🟢 MOVING AWAY',coneMin:null, showPct:false},
   unknown:    {key:'unknown',    short:'',            label:'Unknown',     aiPhrase:'motion unknown',       color:'#888888', opacity:0.4,  badge:'',              coneMin:null, showPct:false}
