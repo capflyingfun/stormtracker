@@ -2254,7 +2254,7 @@ function renderStorms(){
       }
     });
   }
-  const inConeColor=inConeWorstCls==='direct'?'#ff3355':inConeWorstCls==='near_miss'?'#f97316':inConeCount>0?'#eab308':'#6b7280';
+  const inConeColor=inConeWorstCls?stormClass(inConeWorstCls).color:(inConeCount>0?stormClass('passing').color:'#6b7280');
   const sf=S._stormFilter||_loadStormFilter();
   const filtered=_applyStormFilter(storms,sf);
   const prevOpen={};
