@@ -2201,25 +2201,26 @@ function _smartStormSummary(storms){
   const fmtTime=(min)=>fmtClockShort(new Date(now+min*60000));
   const tierSpan=(min,label)=>{const tgt=now+min*60000;return`<span class="tier-eta-cd" data-tier-target="${tgt}"><b>${fmtEtaShort(min)}</b> (${fmtTime(min)})</span>`};
   let lines=[];
+  const maxTag=(arr)=>` <span class="c-muted-85">(Max: ${Math.max(...arr.map(s=>s.dbz))} dBZ)</span>`;
   if(light.length){
     const first=light[0];
-    lines.push(`<span style="color:#00F8FF">🔵 Light rain</span> inbound starting in ${tierSpan(first._eta.eta)}${light.length>1?' — '+light.length+' cells':''}`);
+    lines.push(`<span style="color:#00F8FF">🔵 Light rain</span> inbound starting in ${tierSpan(first._eta.eta)}${light.length>1?' — '+light.length+' cells':''}${maxTag(light)}`);
   }
   if(moderate.length){
     const first=moderate[0];
-    lines.push(`<span style="color:#F5FF00">🟡 Moderate to heavy</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${moderate.length>1?' — '+moderate.length+' cells':''}`);
+    lines.push(`<span style="color:#F5FF00">🟡 Moderate to heavy</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${moderate.length>1?' — '+moderate.length+' cells':''}${maxTag(moderate)}`);
   }
   if(modSevere.length){
     const first=modSevere[0];
-    lines.push(`<span style="color:#E63A2C">🟠 Moderate to severe</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${modSevere.length>1?' — '+modSevere.length+' cells':''}`);
+    lines.push(`<span style="color:#E63A2C">🟠 Moderate to severe</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${modSevere.length>1?' — '+modSevere.length+' cells':''}${maxTag(modSevere)}`);
   }
   if(severe.length){
     const first=severe[0];
-    lines.push(`<span style="color:#FF0200">🔴 Severe</span> cells inbound (hail possible), ETA ${tierSpan(first._eta.eta)}${severe.length>1?' — '+severe.length+' cells':''}`);
+    lines.push(`<span style="color:#FF0200">🔴 Severe</span> cells inbound (hail possible), ETA ${tierSpan(first._eta.eta)}${severe.length>1?' — '+severe.length+' cells':''}${maxTag(severe)}`);
   }
   if(extreme.length){
     const first=extreme[0];
-    lines.push(`<span style="color:#FF00F5">🟣 Extreme</span> cells inbound (hail likely), ETA ${tierSpan(first._eta.eta)}${extreme.length>1?' — '+extreme.length+' cells':''}`);
+    lines.push(`<span style="color:#FF00F5">🟣 Extreme</span> cells inbound (hail likely), ETA ${tierSpan(first._eta.eta)}${extreme.length>1?' — '+extreme.length+' cells':''}${maxTag(extreme)}`);
   }
   return`<div style="padding:8px 12px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:8px;font-size:0.78em;line-height:1.6;margin-bottom:8px">${lines.join('<br>')}</div>`;
 }
@@ -2511,7 +2512,7 @@ function renderStorms(){
   el.innerHTML=`${zoneAlert}
     <div class="alert-banner ${severe?'danger':'warning'}">
       <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
-      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${filterNote}${inboundCapped.length?' · <span style="color:#ef4444">'+inboundCapped.length+' inbound</span>':''}${mv&&mv.speed>=2?'<br><span style="color:'+inConeColor+'">🎯 You are currently in '+inConeCount+' storm track cone'+(inConeCount!==1?'s':'')+'</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" class="c-muted-sm"></span></div>
+      <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${storms.length?' <span class="c-muted-85">(Min: '+Math.min(...storms.map(s=>s.dbz))+' dBZ | Max: '+Math.max(...storms.map(s=>s.dbz))+' dBZ)</span>':''}${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${filterNote}${inboundCapped.length?' · <span style="color:#ef4444">'+inboundCapped.length+' inbound</span>':''}${mv&&mv.speed>=2?'<br><span style="color:'+inConeColor+'">🎯 You are currently in '+inConeCount+' storm track cone'+(inConeCount!==1?'s':'')+'</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" class="c-muted-sm"></span></div>
     </div>
     ${noWindBanner}${smartSummary}
     ${_renderFilterBar(sf)}
