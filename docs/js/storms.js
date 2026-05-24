@@ -754,7 +754,7 @@ function computeTopStorms(){
   for(const s of S.storms){
     const e=s._eta;
     if(e&&e.proximity){overhead.push(s)}
-    else if(s.dbz>=31&&e&&e.approaching&&e.impact>0&&e.eta!=null){inbound.push(s)}
+    else if(e&&e.approaching&&e.impact>0&&e.eta!=null){inbound.push(s)}
     else{nearby.push(s)}
   }
   inbound.sort((a,b)=>b.dbz===a.dbz?(a._eta.eta-b._eta.eta):(b.dbz-a.dbz));
@@ -2422,10 +2422,11 @@ function renderStorms(){
   const overhead=filtered.filter(s=>ohKeySet.has(stormKey(s)));
   const nearby=filtered.filter(s=>!inKeySet.has(stormKey(s))&&!ohKeySet.has(stormKey(s)));
   let groupHtml='';
+  const _nearbyAutoOpen=inboundCapped.length===0&&overhead.length===0&&nearby.length>0;
   const sections=[
     {key:'approaching',items:inboundCapped,label:'⏱️ Inbound',color:'#ef4444',open:true},
     {key:'overhead',items:overhead,label:'⚠️ Overhead / Arrived',color:'#f97316',open:false},
-    {key:'nearby',items:nearby,label:'🟢 Nearby / Outbound',color:'#4ade80',open:false}
+    {key:'nearby',items:nearby,label:'🟢 Nearby / Outbound',color:'#4ade80',open:_nearbyAutoOpen}
   ];
   for(const sec of sections){
     if(!sec.items.length)continue;
