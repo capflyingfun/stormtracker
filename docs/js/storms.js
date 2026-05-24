@@ -2286,7 +2286,11 @@ function renderStorms(){
           <strong>Scan radius: ${S.scanRadius} mi</strong></p></div></div>`;
     return;
   }
-  const severe=storms.some(s=>s.dbz>=46);
+  const _approachingSet=S._topStormAnalysis?S._topStormAnalysis.inbound.concat(S._topStormAnalysis.overhead):[];
+  const _maxApproachingDbz=_approachingSet.length?Math.max(..._approachingSet.map(s=>s.dbz)):0;
+  const _hasOverhead=!!(S._topStormAnalysis&&S._topStormAnalysis.overhead.length);
+  const sev=(_hasOverhead||_maxApproachingDbz>=55)?'danger':(_maxApproachingDbz>=40?'warning':'info');
+  const severe=sev==='danger';
   const _hasMovement=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
   const _hasAloft=S._upperWindDir!=null;
   const mv=_hasMovement?S.stormMovement:(_hasAloft?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
@@ -2510,8 +2514,8 @@ function renderStorms(){
   const smartSummary=_smartStormSummary(storms);
   const noWindBanner=(!mv||mv.speed<2)?`<div style="padding:8px 12px;background:rgba(255,204,0,0.08);border:1px solid rgba(255,204,0,0.2);border-radius:8px;font-size:0.78em;line-height:1.5;margin-bottom:8px;color:#facc15">💨 Wind data unavailable or calm — ETA and approach calculations are limited.${S._filterApproachBypassed?' <strong>"Approaching only" filter bypassed</strong> — showing all storms.':''}</div>`:'';
   el.innerHTML=`${zoneAlert}
-    <div class="alert-banner ${severe?'danger':'warning'}">
-      <span class="alert-icon">${severe?'🚨':'⚠️'}</span>
+    <div class="alert-banner ${sev}">
+      <span class="alert-icon">${sev==='danger'?'🚨':sev==='warning'?'⚠️':'📡'}</span>
       <div class="alert-text"><span class="alert-title">${storms.length} Cell${storms.length>1?'s':''} Detected${storms.length?' <span class="c-muted-85">(Min: '+Math.min(...storms.map(s=>s.dbz))+' dBZ | Max: '+Math.max(...storms.map(s=>s.dbz))+' dBZ)</span>':''}${stormCount?' · '+stormCount+' Storm'+(stormCount>1?'s':''):''}</span>${filterNote}${inboundCapped.length?' · <span style="color:#ef4444">'+inboundCapped.length+' inbound</span>':''}${mv&&mv.speed>=2?'<br><span style="color:'+inConeColor+'">🎯 You are currently in '+inConeCount+' storm track cone'+(inConeCount!==1?'s':'')+'</span>':''}<br>Within ${S.radarMetric?(S.scanRadius*1.60934).toFixed(0)+' km':S.scanRadius+' mi'}${mv&&mv.speed>=2?' · Moving '+degToDir(mv.direction)+' ('+Math.round(mv.direction)+'°) at '+(S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph'):''}<br><span id="auto-scan-status" class="c-muted-sm"></span></div>
     </div>
     ${noWindBanner}${smartSummary}
