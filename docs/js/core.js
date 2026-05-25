@@ -472,6 +472,8 @@ const INBOUND_TIER_KEYS=['direct','near_direct','near_miss','miss','distant','fa
 const APPROACHING_TIER_KEYS=['direct','near_direct'];
 function isInboundTier(k){return INBOUND_TIER_KEYS.indexOf(k)>=0}
 function isApproachingTier(k){return APPROACHING_TIER_KEYS.indexOf(k)>=0}
+function bumpStormScanId(){if(!S._stormScanId)S._stormScanId=0;S._stormScanId++;return S._stormScanId}
+if(typeof window!=='undefined'){window.bumpStormScanId=bumpStormScanId}
 function stormClass(key){return STORM_CLASS[key]||STORM_CLASS.unknown}
 if(typeof window!=='undefined'){window.PERP_TIERS=PERP_TIERS;window.perpTier=perpTier;window.STORM_CLASS=STORM_CLASS;window.stormClass=stormClass;window.INBOUND_TIER_KEYS=INBOUND_TIER_KEYS;window.APPROACHING_TIER_KEYS=APPROACHING_TIER_KEYS;window.isInboundTier=isInboundTier;window.isApproachingTier=isApproachingTier}
 function fmtStormDist(mi){return S.radarMetric?(mi*1.60934).toFixed(1)+' km':mi.toFixed(1)+' mi'}
@@ -539,7 +541,7 @@ function startEtaCountdowns(){
       const sinceLastScan=now-S.lastScanMs;
       if(sinceLastScan<30000){
         expiredKeys.forEach(k=>{delete S._stormETAs[k]});
-        S.storms=S.storms.filter(s=>!expiredKeys.includes(stormKey(s)));
+        S.storms=S.storms.filter(s=>!expiredKeys.includes(stormKey(s)));if(typeof bumpStormScanId==='function')bumpStormScanId();
         computeTopStorms();
         renderStorms();updateStormBadges();
         if(S.map)plotStormMarkers(S.map);

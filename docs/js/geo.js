@@ -391,7 +391,7 @@ function showHdScanDialog(){
     document.getElementById('location-input').value=name;
     S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
     S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
-    S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;S._approachData=null;S._arrowCells=[];clearStormZones();
+    S.storms=[];if(typeof bumpStormScanId==='function')bumpStormScanId();S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;S._approachData=null;S._arrowCells=[];clearStormZones();
     try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name}))}catch(e){}
     if(S._userMarker)S._userMarker.setLatLng([lat,lon]);
     if(S._rangeCircle)S._rangeCircle.setLatLng([lat,lon]);

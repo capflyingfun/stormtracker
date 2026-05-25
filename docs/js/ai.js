@@ -186,7 +186,7 @@ function buildWeatherContext(){
     for(const s of lowStorms){
       if(s.dbz<15)continue;
       try{
-        const b=(typeof calcStormETAForBriefing==='function')?calcStormETAForBriefing(s):null;
+        const b=s._brief||((typeof calcStormETAForBriefing==='function')?calcStormETAForBriefing(s):null);
         if(b&&b.estDbzAtUser!=null&&b.estDbzAtUser<15)continue;
         if(b&&b.classification&&(typeof isInboundTier==='function'?isInboundTier(b.classification):b.classification!=='moving_away'&&b.classification!=='passing'&&b.classification!=='unknown')&&b.closingMph>0){
           s._aiBrief=b;s._aiTier=b.classification;
@@ -233,11 +233,9 @@ function buildWeatherContext(){
       for(const st of top){
         let tier='unknown',brief=null;
         try{
-          if(typeof calcStormETAForBriefing==='function'){
-            brief=calcStormETAForBriefing(st);
-            if(brief&&brief.classification&&buckets[brief.classification])tier=brief.classification;
-            if(brief&&brief.estDbzAtUser!=null&&brief.estDbzAtUser<15)continue;
-          }
+          brief=st._brief||((typeof calcStormETAForBriefing==='function')?calcStormETAForBriefing(st):null);
+          if(brief&&brief.classification&&buckets[brief.classification])tier=brief.classification;
+          if(brief&&brief.estDbzAtUser!=null&&brief.estDbzAtUser<15)continue;
         }catch(e){console.warn('AI storm ETA calc error:',e)}
         st._aiBrief=brief;st._aiTier=tier;
         buckets[tier].push(st);

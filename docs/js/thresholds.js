@@ -122,8 +122,8 @@ function setWxAlertVal(key,val){
 function clearWxAlertHistory(){_wxAlertHistory=[];_saveWxAlertHistory();if(S.activePage==='alerts')renderAlerts();}
 
 const _STORM_ALERT_DEFS=[
-  {key:'stormDist',label:'Distance',icon:'📏',unit:'mi',defVal:20,defOn:false,dir:'below',step:1,
-    check:(storm,th)=>{const d=storm.distance;if(d==null)return null;const v=S.radarMetric?parseFloat((d*1.60934).toFixed(1)):parseFloat(d.toFixed(1));const u=S.radarMetric?'km':'mi';return d<=th?{val:v,u,msg:`🌩️ Storm cell at ${v} ${u} — within your ${S.radarMetric?parseFloat((th*1.60934).toFixed(1)):th} ${u} threshold (${storm.dbz} dBZ)`}:null}},
+  {key:'stormDist',label:'Projected Miss',icon:'📏',unit:'mi',defVal:6,defOn:false,dir:'below',step:1,
+    check:(storm,th)=>{const b=storm._brief||(typeof calcStormETAForBriefing==='function'?calcStormETAForBriefing(storm):null);const miss=(b&&b.perpMissMi!=null)?b.perpMissMi:storm.distance;if(miss==null)return null;if(b&&typeof isInboundTier==='function'&&b.classification&&!isInboundTier(b.classification))return null;const v=S.radarMetric?parseFloat((miss*1.60934).toFixed(1)):parseFloat(miss.toFixed(1));const u=S.radarMetric?'km':'mi';return miss<=th?{val:v,u,msg:`🌩️ Storm cell projected to pass ${v} ${u} from you — within your ${S.radarMetric?parseFloat((th*1.60934).toFixed(1)):th} ${u} threshold (${storm.dbz} dBZ${b&&b.classification?', '+b.classification.replace('_',' '):''})`}:null}},
   {key:'stormDbz',label:'Intensity (dBZ)',icon:'📡',unit:'dBZ',defVal:40,defOn:false,step:5,
     check:(storm,th)=>{const v=storm.dbz;if(v==null)return null;return v>=th?{val:v,u:'dBZ',msg:`🌩️ Storm cell at ${v} dBZ — above your ${th} dBZ intensity threshold (${parseFloat(storm.distance.toFixed(1))} mi away)`}:null}},
   {key:'stormImpact',label:'Impact Score',icon:'🎯',unit:'%',defVal:50,defOn:false,step:5,

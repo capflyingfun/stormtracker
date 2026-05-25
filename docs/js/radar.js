@@ -406,7 +406,7 @@ function toggleRadarSource(map){
   }
   clearStormCone();
   clearStormZones();
-  S.storms=[];S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._approachData=null;S._arrowCells=[];
+  S.storms=[];if(typeof bumpStormScanId==='function')bumpStormScanId();S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._approachData=null;S._arrowCells=[];
   S.stormMarkers.forEach(m=>map.removeLayer(m));
   S.stormMarkers=[];
   renderStorms();updateStormBadges();
@@ -706,7 +706,7 @@ async function scanRadarForView(){
 
     S._rawScanPts=rawPoints;
     _clusterSonarPoints();
-    S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);
+    S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);if(typeof bumpStormScanId==='function')bumpStormScanId();
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
     computeTopStorms();
     recordScanSnapshot();
@@ -791,7 +791,7 @@ async function scanRadarHiRes(map,fromHome){
     S.lat=savedLat;S.lon=savedLon;
 
     S._rawScanPts=rawPoints;
-    S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);
+    S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);if(typeof bumpStormScanId==='function')bumpStormScanId();
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=true;
     computeTopStorms();
     _sonarZoomMi=15;localStorage.setItem('st_sonarZoom',15);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_syncSonarZoomBtns();
@@ -1682,9 +1682,13 @@ function updateThreatTicker(){
   const _allStorms=S.storms||[];
   const _filteredStorms=(typeof _applyStormFilter==='function')?_applyStormFilter([..._allStorms],_sf):_allStorms;
   const sigStormCount=_filteredStorms.length;
+  const _tierCounts={direct:0,near_direct:0,near_miss:0,miss:0,distant:0,far:0,passing:0,moving_away:0};
+  for(const s of _filteredStorms){const k=(s._brief&&s._brief.classification)||(typeof calcStormETAForBriefing==='function'?(calcStormETAForBriefing(s)||{}).classification:null);if(k&&_tierCounts[k]!=null)_tierCounts[k]++;}
+  const _approachCount=_tierCounts.direct+_tierCounts.near_direct;
+  const _nearMissCount=_tierCounts.near_miss;
+  const _trackingCount=_tierCounts.miss+_tierCounts.distant+_tierCounts.far;
   const _filteredInbound=_filteredStorms.filter(s=>{
     const e=s._eta||calcStormETA(s);
-    s._eta=e;
     return e&&e.approaching&&e.impact>0&&e.eta!=null;
   });
   if(typeof _stormSortFn==='function'){
@@ -1732,7 +1736,16 @@ function updateThreatTicker(){
   }
   const allApproaching=topStorms.map(s=>({storm:s,eta:s._eta||calcStormETA(s)}));
   const severeApproaching=allApproaching.filter(t=>t.storm.dbz>=46);
+  const _tierBreakdown=[];
+  if(_nearMissCount>0)_tierBreakdown.push(`🟡 ${_nearMissCount} near-miss (6-12 mi)`);
+  if(_trackingCount>0)_tierBreakdown.push(`🔵 ${_trackingCount} tracking (12-48 mi)`);
+  const _tierBreakdownStr=_tierBreakdown.length?` · ${_tierBreakdown.join(' · ')}`:'';
   if(allApproaching.length===0){
+    if(_nearMissCount>0||_trackingCount>0){
+      const msg=`📡 No storms on direct course (≤6 mi miss). Tracking ${_nearMissCount+_trackingCount} cell${(_nearMissCount+_trackingCount)>1?'s':''} further out${_tierBreakdownStr.replace(' · ',': ')}.`;
+      showTicker(`<span style="color:#60a5fa">${msg}</span>`,'#60a5fa','rgba(96,165,250,0.2)','linear-gradient(90deg,rgba(0,5,20,0.95),rgba(5,10,30,0.95),rgba(0,5,20,0.95))',Math.max(15,Math.round(msg.length*0.2)));
+      return;
+    }
     const pool=_tickerNearbyPool(sigStormCount);
     const msg=pool[Math.floor(Date.now()/60000)%pool.length];
     showTicker(`<span style="color:#60a5fa">${msg}</span>`,'#60a5fa','rgba(96,165,250,0.2)','linear-gradient(90deg,rgba(0,5,20,0.95),rgba(5,10,30,0.95),rgba(0,5,20,0.95))',Math.max(15,Math.round(msg.length*0.2)));
@@ -1795,7 +1808,7 @@ function updateThreatTicker(){
     `🌦️ Light precipitation approaching — ${allApproaching.length} cell${allApproaching.length>1?'s':''} inbound (${maxDbz} dBZ max). ETA ⏱️${cdSpan} (~${arrStr}). Nothing severe, but stay dry! 💧`,
     `☔ Heads up! ${allApproaching.length} rain area${allApproaching.length>1?'s':''} moving toward you (${maxDbz} dBZ). Top-threat ETA ⏱️${cdSpan} (~${arrStr}). Not dangerous, just wet. 🌂`
   ];
-  const msg=lightMsgs[Math.floor(Date.now()/60000)%lightMsgs.length];
+  const msg=lightMsgs[Math.floor(Date.now()/60000)%lightMsgs.length]+_tierBreakdownStr;
   showTicker(`<span style="color:#7dd3fc">${msg}</span>`,'#7dd3fc','rgba(125,211,252,0.2)','linear-gradient(90deg,rgba(0,8,25,0.95),rgba(5,15,35,0.95),rgba(0,8,25,0.95))');
   _startTickerCountdown();
 }
