@@ -162,17 +162,14 @@
     for(const it of nmSig)lines.push('- '+_stormLine(it,d.metric));
     const nmSum=_sumLine('NEAR MISS (light)',nmLow,'🟡',' — not actionable.',d.metric);
     if(nmSum)lines.push(nmSum);
-    // MISS / DISTANT / FAR — strict background; only bullet if dBZ>=55, else single summary line per tier
-    function _bgTier(label,emoji,cells,sigCut){
-      const sig=cells.filter(x=>x.s.dbz>=sigCut);
-      const rest=cells.filter(x=>x.s.dbz<sigCut);
-      for(const it of sig)lines.push('- '+_stormLine(it,d.metric));
-      const sum=_sumLine(label,rest,emoji,' — background context, no direct impact.',d.metric);
+    // MISS / DISTANT / FAR — background context only, one summary line per tier (no per-cell bullets)
+    function _bgTier(label,emoji,cells){
+      const sum=_sumLine(label,cells,emoji,' — background context, no direct impact.',d.metric);
       if(sum)lines.push(sum);
     }
-    _bgTier('MISS','🔵',c.background.filter(x=>x.tier==='miss'),55);
-    _bgTier('DISTANT','⚪',c.background.filter(x=>x.tier==='distant'),60);
-    _bgTier('FAR','⚫',c.background.filter(x=>x.tier==='far'),55);
+    _bgTier('MISS','🔵',c.background.filter(x=>x.tier==='miss'));
+    _bgTier('DISTANT','⚪',c.background.filter(x=>x.tier==='distant'));
+    _bgTier('FAR','⚫',c.background.filter(x=>x.tier==='far'));
     // Unknown bucket (fallback)
     const unk=c.background.filter(x=>x.tier==='unknown');
     if(unk.length){const sum=_sumLine('UNCLASSIFIED',unk,'⚫',' — motion data unavailable.',d.metric);if(sum)lines.push(sum)}
