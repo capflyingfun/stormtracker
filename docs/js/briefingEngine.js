@@ -121,12 +121,12 @@
     const estDbz=b.estDbzAtUser;
     const movStr=(b.movSpdMph&&b.movDirDeg!=null)?`, motion ${_safeDeg(b.movDirDeg)} @ ${b.movSpdMph} mph`:'';
     if(tier==='direct'){
-      const eta=b.etaMin!=null?`, ETA __~${b.etaMin} min__`:'';
+      const eta=b.etaMin!=null?`, ETA __~${b.etaMin} min__ (__${(typeof fmtClock==='function')?fmtClock(new Date(Date.now()+b.etaMin*60000)):''}__)`:'';
       const estStr=estDbz!=null?`, ~${_dbzTag(estDbz)} expected at you`:'';
       return `${e} **DIRECT${pct}**: ${dbz} cell ${dist} ${dir} closing ${closing}${eta}, projected pass within ${miss}${estStr}${movStr}. **Expect overhead impact.**`;
     }
     if(tier==='near_direct'){
-      const eta=b.etaMin!=null?`, ETA __~${b.etaMin} min__`:'';
+      const eta=b.etaMin!=null?`, ETA __~${b.etaMin} min__ (__${(typeof fmtClock==='function')?fmtClock(new Date(Date.now()+b.etaMin*60000)):''}__)`:'';
       const estStr=estDbz!=null?`, ~${_dbzTag(estDbz)} at you`:'';
       return `${e} NEAR DIRECT${pct}: ${dbz} cell ${dist} ${dir} closing ${closing}${eta}, projected miss ${miss}${estStr}${movStr}. Brief heavy downpour likely.`;
     }
@@ -307,7 +307,7 @@
     }else if(c.inbound.length){
       const top=c.inbound[0];
       const eta=top.b&&top.b.etaMin;
-      const etaStr=eta!=null?` (~__${eta} min__ away)`:'';
+      const etaStr=eta!=null?` (~__${eta} min__ away — arrives __${(typeof fmtClock==='function')?fmtClock(new Date(Date.now()+eta*60000)):''}__)`:'';
       lines.push(`[!yellow]Light to moderate rain is approaching${etaStr}.[/!] Plan around the cell — bring an umbrella, expect a brief downpour, then clearing.`);
     }else{
       lines.push('[!green]Conditions are quiet.[/!] Outdoor activity is fine; no storm-related restrictions.');
