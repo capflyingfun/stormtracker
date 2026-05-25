@@ -229,7 +229,7 @@ function buildWeatherContext(){
             const sc=(typeof stormClass==='function')?stormClass(b.classification):null;
             const impPct=(b.impactScore!=null)?Math.round(b.impactScore*100):null;
             const estDbz=(b.estDbzAtUser!=null)?b.estDbzAtUser:null;
-            const estStr=(estDbz!=null)?`, ~${estDbz} dBZ expected at user`:'';
+            const estStr=(estDbz!=null&&st.distance<=6)?`, ~${estDbz} dBZ expected at user`:'';
             if(b.classification==='direct'){
               line+=` ${sc?sc.aiPhrase:'APPROACHING DIRECTLY'} (${impPct}% max intensity at user${estStr}) — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
             }else if(b.classification==='near_miss'){
