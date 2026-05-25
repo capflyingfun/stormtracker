@@ -175,7 +175,7 @@
     _bgTier('FAR','⚫',c.background.filter(x=>x.tier==='far'),55);
     // Unknown bucket (fallback)
     const unk=c.background.filter(x=>x.tier==='unknown');
-    if(unk.length){const sum=_sumLine('UNCLASSIFIED','⚫',unk,' — motion data unavailable.',d.metric);if(sum)lines.push(sum)}
+    if(unk.length){const sum=_sumLine('UNCLASSIFIED',unk,'⚫',' — motion data unavailable.',d.metric);if(sum)lines.push(sum)}
     // PASSING / MOVING AWAY — one summary line each
     if(c.passing.length){
       const dbzMax=Math.max(...c.passing.map(x=>x.s.dbz));
