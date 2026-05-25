@@ -1,5 +1,5 @@
-// Version: v4.34 (display) | cache-bust counter: 530 (used in ?v= query strings and SW cache name)
-const CACHE_NAME = 'stormtracker-v530';
+// Version: v4.35 (display) | cache-bust counter: 531 (used in ?v= query strings and SW cache name)
+const CACHE_NAME = 'stormtracker-v531';
 const STATIC_ASSETS = [
   '/StormTracker/',
   '/StormTracker/index.html',
@@ -74,10 +74,19 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  // v4.35: Never intercept non-GET requests. POST/PUT/PATCH/DELETE are not
+  // cacheable and a SW that returns undefined from respondWith() surfaces
+  // as "FetchEvent.respondWith received an error: Returned response is null"
+  // — which was breaking the AI chat (OpenAI POST) and any other write API.
+  if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
-  if (url.hostname.includes('workers.dev') || url.pathname.startsWith('/api/')) {
-    return;
-  }
+  // v4.35: Never intercept cross-origin requests either. Every external data
+  // source (OpenAI, Open-Meteo, OpenWeather, RainViewer, NEXRAD/IEM, NWS,
+  // AviationWeather, tile servers, Nominatim, CheckWX, WeatherAPI, the
+  // notification worker on workers.dev) handles its own caching / CORS /
+  // errors and must reach the network directly.
+  if (url.origin !== location.origin) return;
+  if (url.pathname.startsWith('/api/')) return;
   if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
     event.respondWith(
       fetch(event.request)
@@ -103,12 +112,6 @@ self.addEventListener('fetch', event => {
           return response;
         })
         .catch(() => caches.match(event.request).then(r => r || caches.match('/StormTracker/offline.html')))
-    );
-    return;
-  }
-  if (url.origin !== location.origin) {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
     );
     return;
   }

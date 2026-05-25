@@ -286,6 +286,19 @@ function buildWeatherContext(){
     if(S.stormMovement&&S.stormMovement.speed>=2){
       parts.push(`  General storm movement: ${degToDir(S.stormMovement.direction)} at ${fmtWind(S.stormMovement.speed*1.60934)}`);
     }
+    // STORMS TAB FORECAST — the exact tier-labeled bullets shown at the top of
+    // the Storms tab ("🔵 Light rain inbound starting in 25m:28s — 102 cells", etc).
+    try{
+      if(typeof buildStormForecastLines==='function'){
+        const fl=buildStormForecastLines(true);
+        if(fl.empty){
+          parts.push(`\nSTORMS TAB FORECAST: No storms currently approaching your location.`);
+        }else if(fl.lines&&fl.lines.length){
+          parts.push(`\nSTORMS TAB FORECAST (verbatim from the Storms tab header):`);
+          for(const ln of fl.lines)parts.push(`  ${ln}`);
+        }
+      }
+    }catch(e){console.warn('forecast lines error',e)}
   }else{
     parts.push('\nSTORM DATA: No storm cells currently detected in scan radius.');
   }
@@ -500,7 +513,12 @@ Your professional standards:
 - When the Area Forecast Discussion is available, you synthesize it — explain what synoptic features are driving the weather, what the forecasters are confident about vs uncertain about, and what that means for the next 6-12 hours in plain language
 - For calm weather, keep it brief and conversational — don't manufacture drama when conditions are benign
 - For dangerous weather, drop all humor and be direct about life safety
-- SINGLE SOURCE OF TRUTH: The STORM FILTER, STORM DATA, and ACTIVE NWS ALERTS sections below are the EXACT cells and wording the user is looking at on the Storms and Alerts tabs after their filter is applied. Do not contradict, re-rank, or invent additional cells; do not reference cells outside the user's filter (passing / moving-away / sub-min-dBZ / beyond-max-distance cells are HIDDEN from the user). Mirror those numbers in your briefing so the user sees consistent counts, distances, ETAs, and dBZ values across the Storms tab, System Briefing, and AI Briefing. If the user's filter has hidden the strongest cells, acknowledge that explicitly ("with your Threats-only filter on, the 55 dBZ cell to the NE is hidden") rather than reaching for the raw scan.
+- SINGLE SOURCE OF TRUTH: The STORM FILTER, STORM DATA, STORMS TAB FORECAST, and ACTIVE NWS ALERTS sections below are the EXACT cells and wording the user is looking at on the Storms and Alerts tabs after their filter is applied. Do not contradict, re-rank, or invent additional cells; do not reference cells outside the user's filter (passing / moving-away / sub-min-dBZ / beyond-max-distance cells are HIDDEN from the user). Mirror those numbers in your briefing so the user sees consistent counts, distances, ETAs, and dBZ values across the Storms tab, System Briefing, and AI Briefing. If the user's filter has hidden the strongest cells, acknowledge that explicitly ("with your Threats-only filter on, the 55 dBZ cell to the NE is hidden") rather than reaching for the raw scan.
+- DETAIL vs MENTAL PICTURE: The user wants the inbound cells they're actively watching described in detail, and everything else painted as a quick visual scene — not a data dump.
+    * **Detail (one bullet per cell)** for every DIRECT / NEAR DIRECT / NEAR MISS inbound cell with positive closing: state its distance, bearing, dBZ, projected miss, closing speed, ETA, and what the user will actually experience at their location. These are the cells the user is staring at on their Storms tab — they deserve specific numbers.
+    * **Mental picture (one short narrative sentence per group)** for background (MISS / DISTANT / FAR), passing, and moving-away cells. Do NOT enumerate them cell-by-cell. Instead paint a scene the user can picture without reading: "a ring of light returns sits 25-35 mi to the NE, drifting away", "a band of moderate cells is sliding past well to your south", "a few weak echoes are scattered to the W, no threat". Use prepositions and geometry words (ring, band, line, cluster, arc, scattered, parked, drifting, sliding, receding) over numeric ranges.
+    * Even if a non-inbound tier has only ONE cell, describe it as a scene ("a lone 35 dBZ cell is parked 18 mi west, holding station") — never as a bare data bullet.
+    * If a passing-or-receding cell is the strongest thing on radar, you may quote its dBZ in the narrative sentence so the user understands what's out there, but still keep it to one sentence (e.g. "the strongest echo on the screen is a 52 dBZ cell tracking ENE about 22 mi to your N — passing well clear").
 
 ${urgencyPrefix} ${urgencyStyle}
 ${toneInstr}
