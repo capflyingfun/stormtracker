@@ -560,7 +560,10 @@ function calcStormETA(storm){
   if(storm._hookEcho)pct=Math.max(pct,Math.min(100,pct+15));
   if(hasSevereWarning)pct=Math.max(pct,Math.min(95,pct+20));
   if(storm.distance<=proxRange)pct=Math.max(pct,Math.round(75+(proxRange-storm.distance)/proxRange*20));
-  return{eta:etaMin,impact:pct,approaching:pct>0,closingSpeed:Math.round(closingSpeed*100)/100,angleDiff:Math.round(diff),cellTrack:!!cellTrack,trackDir:cellTrack?cellTrack.dir:null,trackSpd:cellTrack?cellTrack.speed:null,nwsWarnings,terrain:terrain.desc};
+  let _tierKey=null;
+  try{const _briefForTier=calcStormETAForBriefing(storm);storm._brief=_briefForTier;_tierKey=_briefForTier&&_briefForTier.classification;}catch(e){}
+  const _isApproaching=(typeof isApproachingTier==='function')?isApproachingTier(_tierKey)&&pct>0&&etaMin!=null:(pct>0&&etaMin!=null);
+  return{eta:etaMin,impact:pct,approaching:_isApproaching,perpTier:_tierKey,closingSpeed:Math.round(closingSpeed*100)/100,angleDiff:Math.round(diff),cellTrack:!!cellTrack,trackDir:cellTrack?cellTrack.dir:null,trackSpd:cellTrack?cellTrack.speed:null,nwsWarnings,terrain:terrain.desc};
 }
 function buildStormCone(storm,mv){
   if(!mv||!mv.speed||mv.speed<2||typeof destPoint!=='function')return null;
@@ -668,14 +671,10 @@ function calcStormETAForBriefing(storm){
   let etaMinOut=null;
   let sideBearingOut=Math.round(sideBearing);
   if(inboundLive){
-    if(perpMiss<=3){
-      classification='direct';
-      etaMinOut=Math.round((rMag/Math.max(closing,1))*60);
-    }else if(perpMiss<=6){
-      classification='near_miss';
-    }else{
-      classification='nearby';
-    }
+    const _t=(typeof perpTier==='function')?perpTier(perpMiss):null;
+    classification=_t?_t.key:'far';
+    if(classification==='direct')etaMinOut=Math.round((rMag/Math.max(closing,1))*60);
+    else if(classification==='near_direct')etaMinOut=Math.round((rMag/Math.max(closing,1))*60);
   }else if(closing<=0||tHrs<=0){
     classification='moving_away';
     sideBearingOut=null;
@@ -2163,6 +2162,11 @@ function _stormSortFn(a,b,key){
 }
 function _applyStormFilter(storms,f){
   let out=storms;
+  out=out.filter(s=>{
+    try{if(!s._brief)s._brief=calcStormETAForBriefing(s);}catch(e){return true;}
+    const est=s._brief&&s._brief.estDbzAtUser;
+    return!(est!=null&&est<15);
+  });
   if(f.minDbz>0)out=out.filter(s=>s.dbz>=f.minDbz);
   if(f.maxDist>0)out=out.filter(s=>s.distance<=f.maxDist);
   const _fHasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
@@ -2313,7 +2317,8 @@ function renderStorms(){
         try{
           const b=calcStormETAForBriefing(s);
           if(b&&b.classification==='direct')inConeWorstCls='direct';
-          else if(b&&b.classification==='near_miss'&&inConeWorstCls!=='direct')inConeWorstCls='near_miss';
+          else if(b&&b.classification==='near_direct'&&inConeWorstCls!=='direct')inConeWorstCls='near_direct';
+          else if(b&&b.classification==='near_miss'&&inConeWorstCls!=='direct'&&inConeWorstCls!=='near_direct')inConeWorstCls='near_miss';
         }catch(e){}
       }
     });
@@ -2330,7 +2335,7 @@ function renderStorms(){
       const cat=stormCat(s.dbz);
       const eta=s._eta;
       let _b=null;try{_b=calcStormETAForBriefing(s);s._brief=_b}catch(e){}
-      const isInboundClass=!!(_b&&(_b.classification==='direct'||_b.classification==='near_miss'||_b.classification==='nearby'));
+      const isInboundClass=!!(_b&&(typeof isInboundTier==='function'?isInboundTier(_b.classification):(_b.classification==='direct'||_b.classification==='near_direct'||_b.classification==='near_miss'||_b.classification==='miss'||_b.classification==='distant'||_b.classification==='far'||_b.classification==='nearby')));
       const hasValidClosing=!!(_b&&_b.closingMph>0);
       const bImpPct=(_b&&_b.impactScore!=null)?Math.round(_b.impactScore*100):0;
       const imp=impactLabel(bImpPct);

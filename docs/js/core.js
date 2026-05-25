@@ -447,16 +447,33 @@ function stormCat(dbz){
 }
 function dbzHex(dbz){return _dbzEntry(dbz).color}
 function dbzColor(dbz){return _dbzEntry(dbz)}
+const PERP_TIERS=[
+  {key:'direct',     min:0,  max:3,  label:'DIRECT',     aiPhrase:'APPROACHING DIRECTLY', color:'#ef4444', emoji:'🔴'},
+  {key:'near_direct',min:3,  max:6,  label:'NEAR DIRECT',aiPhrase:'NEAR DIRECT HIT',      color:'#f97316', emoji:'🟠'},
+  {key:'near_miss',  min:6,  max:12, label:'NEAR MISS',  aiPhrase:'NEAR MISS',            color:'#eab308', emoji:'🟡'},
+  {key:'miss',       min:12, max:24, label:'MISS',       aiPhrase:'GLANCING / MISS',      color:'#06b6d4', emoji:'🔵'},
+  {key:'distant',    min:24, max:48, label:'DISTANT',    aiPhrase:'DISTANT, TRACKING',    color:'#a3a3a3', emoji:'⚪'},
+  {key:'far',        min:48, max:60, label:'FAR',        aiPhrase:'FAR (60 mi+ edge)',    color:'#737373', emoji:'⚫'}
+];
+function perpTier(missMi){if(missMi==null||isNaN(missMi))return null;for(const t of PERP_TIERS)if(missMi>=t.min&&missMi<t.max)return t;return null}
 const STORM_CLASS={
-  direct:     {key:'direct',     short:'Direct Hit',  label:'Direct Hit',  aiPhrase:'APPROACHING DIRECTLY', color:'#ff3355', opacity:0.85, badge:'🔴 DIRECT HIT', coneMin:0.85, showPct:true},
-  near_miss:  {key:'near_miss',  short:'Near Miss',   label:'Near Miss',   aiPhrase:'NEAR MISS',            color:'#f97316', opacity:0.85, badge:'🟠 NEAR MISS',  coneMin:0.65, showPct:true},
-  nearby:     {key:'nearby',     short:'Nearby',      label:'Nearby',      aiPhrase:'NEARBY',                color:'#06b6d4', opacity:0.75, badge:'🔵 NEARBY',     coneMin:null, showPct:true},
-  passing:    {key:'passing',    short:'Passing',     label:'Passing By',  aiPhrase:'PASSING TO YOUR',      color:'#eab308', opacity:0.85, badge:'🟡 PASSING',    coneMin:null, showPct:false},
-  moving_away:{key:'moving_away',short:'Moving Away', label:'Moving Away', aiPhrase:'MOVING AWAY',          color:'#22c55e', opacity:0.4,  badge:'🟢 MOVING AWAY',coneMin:null, showPct:false},
-  unknown:    {key:'unknown',    short:'',            label:'Unknown',     aiPhrase:'motion unknown',       color:'#888888', opacity:0.4,  badge:'',              coneMin:null, showPct:false}
+  direct:     {key:'direct',     short:'Direct',      label:'Direct Hit',  aiPhrase:'APPROACHING DIRECTLY', color:'#ef4444', opacity:0.85, badge:'🔴 DIRECT',      coneMin:0.85, showPct:true},
+  near_direct:{key:'near_direct',short:'Near Direct', label:'Near Direct', aiPhrase:'NEAR DIRECT HIT',      color:'#f97316', opacity:0.85, badge:'🟠 NEAR DIRECT', coneMin:0.65, showPct:true},
+  near_miss:  {key:'near_miss',  short:'Near Miss',   label:'Near Miss',   aiPhrase:'NEAR MISS',            color:'#eab308', opacity:0.80, badge:'🟡 NEAR MISS',   coneMin:0.45, showPct:true},
+  miss:       {key:'miss',       short:'Miss',        label:'Glancing/Miss',aiPhrase:'GLANCING MISS',       color:'#06b6d4', opacity:0.70, badge:'🔵 MISS',        coneMin:null, showPct:true},
+  distant:    {key:'distant',    short:'Distant',     label:'Distant',     aiPhrase:'DISTANT, TRACKING',    color:'#a3a3a3', opacity:0.55, badge:'⚪ DISTANT',     coneMin:null, showPct:true},
+  far:        {key:'far',        short:'Far',         label:'Far',         aiPhrase:'FAR EDGE',             color:'#737373', opacity:0.45, badge:'⚫ FAR',         coneMin:null, showPct:false},
+  nearby:     {key:'nearby',     short:'Nearby',      label:'Nearby',      aiPhrase:'NEARBY',               color:'#06b6d4', opacity:0.75, badge:'🔵 NEARBY',      coneMin:null, showPct:true},
+  passing:    {key:'passing',    short:'Passing',     label:'Passing By',  aiPhrase:'PASSING TO YOUR',      color:'#eab308', opacity:0.85, badge:'🟡 PASSING',     coneMin:null, showPct:false},
+  moving_away:{key:'moving_away',short:'Moving Away', label:'Moving Away', aiPhrase:'MOVING AWAY',          color:'#22c55e', opacity:0.4,  badge:'🟢 MOVING AWAY', coneMin:null, showPct:false},
+  unknown:    {key:'unknown',    short:'',            label:'Unknown',     aiPhrase:'motion unknown',       color:'#888888', opacity:0.4,  badge:'',               coneMin:null, showPct:false}
 };
+const INBOUND_TIER_KEYS=['direct','near_direct','near_miss','miss','distant','far'];
+const APPROACHING_TIER_KEYS=['direct','near_direct'];
+function isInboundTier(k){return INBOUND_TIER_KEYS.indexOf(k)>=0}
+function isApproachingTier(k){return APPROACHING_TIER_KEYS.indexOf(k)>=0}
 function stormClass(key){return STORM_CLASS[key]||STORM_CLASS.unknown}
-if(typeof window!=='undefined'){window.STORM_CLASS=STORM_CLASS;window.stormClass=stormClass}
+if(typeof window!=='undefined'){window.PERP_TIERS=PERP_TIERS;window.perpTier=perpTier;window.STORM_CLASS=STORM_CLASS;window.stormClass=stormClass;window.INBOUND_TIER_KEYS=INBOUND_TIER_KEYS;window.APPROACHING_TIER_KEYS=APPROACHING_TIER_KEYS;window.isInboundTier=isInboundTier;window.isApproachingTier=isApproachingTier}
 function fmtStormDist(mi){return S.radarMetric?(mi*1.60934).toFixed(1)+' km':mi.toFixed(1)+' mi'}
 function fmtCountdown(totalSec){
   if(totalSec<=0)return'NOW';
