@@ -37,8 +37,15 @@
         else if(c==='moving_away'){classified.away.push(entry)}
         else{classified.background.push(entry)}
       }
+      const bandOf=mi=>(mi==null||!isFinite(mi))?99:Math.min(12,Math.floor(mi));
       const order={direct:0,near_direct:1,near_miss:2};
-      classified.inbound.sort((a,b)=>{const o=(order[a.tier]??9)-(order[b.tier]??9);return o!==0?o:a.s.distance-b.s.distance});
+      classified.inbound.sort((a,b)=>{
+        const bA=bandOf(a.b&&a.b.perpMissMi),bB=bandOf(b.b&&b.b.perpMissMi);
+        if(bA!==bB)return bA-bB;
+        const oA=order[a.tier]??9,oB=order[b.tier]??9;
+        if(oA!==oB)return oA-oB;
+        return a.s.distance-b.s.distance;
+      });
       classified.background.sort((a,b)=>b.s.dbz-a.s.dbz);
     }
     let stab=null,shear=null;
@@ -158,8 +165,10 @@
       lines.push(`Wind shear: [!${tag}]${d.shear.vectorShear} (${d.shear.severity})[/!], Δdir ${d.shear.dirDiff}°. ${d.shear.impact}`);
     }
     if(d.afd&&d.afd.discussion){
-      const snip=d.afd.discussion.replace(/\s+/g,' ').slice(0,260);
-      lines.push(`*AFD (${d.afd.office||'NWS'}):* ${snip}${d.afd.discussion.length>260?'…':''}`);
+      const full=d.afd.discussion.replace(/\s+/g,' ').trim();
+      const MAX=4000;
+      const snip=full.length>MAX?full.slice(0,MAX)+'…':full;
+      lines.push(`*AFD (${d.afd.office||'NWS'}):* ${snip}`);
     }
     return lines.join('\n');
   }

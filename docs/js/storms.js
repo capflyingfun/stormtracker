@@ -2457,7 +2457,15 @@ function renderStorms(){
   const inKeySet=new Set(a.inbound.map(stormKey));
   const ohKeySet=new Set(a.overhead.map(stormKey));
   let inboundCapped=filtered.filter(s=>inKeySet.has(stormKey(s)));
-  inboundCapped.sort((x,y)=>{const r=_stormSortFn(x,y,sf.sort1);return r!==0?r:_stormSortFn(x,y,sf.sort2)});
+  const _missMi=s=>{try{if(!s._brief)s._brief=calcStormETAForBriefing(s);return s._brief&&s._brief.perpMissMi}catch(e){return null}};
+  const _missBand=s=>{const m=_missMi(s);return(m==null||!isFinite(m))?99:Math.min(12,Math.floor(m))};
+  inboundCapped.sort((x,y)=>{
+    const bx=_missBand(x),by=_missBand(y);
+    if(bx!==by)return bx-by;
+    const mx=_missMi(x)??99,my=_missMi(y)??99;
+    if(mx!==my)return mx-my;
+    return x.distance-y.distance;
+  });
   inboundCapped=inboundCapped.slice(0,12);
   const overhead=filtered.filter(s=>ohKeySet.has(stormKey(s)));
   const nearby=filtered.filter(s=>!inKeySet.has(stormKey(s))&&!ohKeySet.has(stormKey(s)));
