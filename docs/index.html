@@ -277,12 +277,9 @@
       </div>
       <div class="setting-sep">
         <div style="font-size:0.8em;font-weight:600;color:#00e5ff;margin-bottom:8px">📋 Briefing Mode</div>
-        <div class="setting-row-6">
-          <span class="text-xxs-muted">Source</span>
-          <select id="settings-briefing-mode" onchange="saveBriefingMode(this.value);syncBriefingModeUI()" class="small-btn">
-            <option value="system">System Briefing (default)</option>
-            <option value="ai">AI Briefing</option>
-          </select>
+        <div id="settings-briefing-mode-wrap" style="display:flex;gap:6px;margin-bottom:6px">
+          <button type="button" data-mode="system" onclick="saveBriefingMode('system')" style="flex:1;padding:6px 10px;font-size:0.75em;font-weight:600;border-radius:8px;border:1px solid var(--border-subtle);background:rgba(0,229,255,0.18);color:#00e5ff;cursor:pointer">System Briefing<br><span style="font-size:0.85em;font-weight:400;opacity:0.8">(default · on-device)</span></button>
+          <button type="button" data-mode="ai" onclick="saveBriefingMode('ai')" style="flex:1;padding:6px 10px;font-size:0.75em;font-weight:600;border-radius:8px;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);cursor:pointer">AI Briefing<br><span style="font-size:0.85em;font-weight:400;opacity:0.8">(OpenAI key required)</span></button>
         </div>
         <div class="setting-hint" id="briefing-mode-hint">System Briefing runs on-device with no API key required. Add an OpenAI key below to unlock AI Briefing.</div>
       </div>
@@ -562,7 +559,7 @@
       <button class="ai-qq" onclick="aiQuickQ('Are any storms heading my way?')">Storms approaching?</button>
       <button class="ai-qq" onclick="aiQuickQ('What should I expect in the next few hours?')">Next few hours?</button>
       <button class="ai-qq" onclick="aiQuickQ('Is it safe to be outdoors right now?')">Safe outdoors?</button>
-      <button class="ai-qq" onclick="aiQuickQ('Give me a full weather analysis with risk assessment')">Full analysis</button>
+      <button class="ai-qq" onclick="runFullBriefing()" title="Honors your Briefing Mode setting (System or AI)">📋 Full briefing</button>
     </div>
     <div style="padding:8px 16px 12px;display:flex;gap:8px;border-top:1px solid var(--border-subtle)">
       <input type="text" id="ai-chat-input" placeholder="Ask about the weather..." style="flex:1;padding:10px 14px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:10px;font-size:0.85em;outline:none" onkeydown="if(event.key==='Enter')sendAIChat()">

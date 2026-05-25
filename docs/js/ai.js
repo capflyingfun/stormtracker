@@ -577,28 +577,15 @@ async function sendAIChat(){
   const msg=inp.value.trim();if(!msg)return;
   inp.value='';
 
-  const mode=(typeof getBriefingMode==='function')?getBriefingMode():'system';
+  const key=getAIKey();
+  if(!key){
+    addAIMsg('user',msg);
+    addAIMsg('error','No API key configured. Add your OpenAI API key in Settings (gear icon) under AI Weather Assistant, or tap "Full briefing" to get a deterministic on-device briefing instead.');
+    return;
+  }
 
   addAIMsg('user',msg);
   _aiChatHistory.push({role:'user',content:msg});
-
-  if(mode==='system'){
-    try{
-      const reply=(typeof buildBriefing==='function')?buildBriefing():'Briefing engine not loaded.';
-      _aiChatHistory.push({role:'assistant',content:reply});
-      addAIMsg('assistant',reply);
-    }catch(e){
-      addAIMsg('error','Briefing error: '+e.message);
-    }
-    return;
-  }
-
-  const key=getAIKey();
-  if(!key){
-    addAIMsg('error','No API key configured. Add your OpenAI API key in Settings (gear icon) under AI Weather Assistant, or switch Briefing Mode to System.');
-    return;
-  }
-
   showAITyping();
 
   try{
