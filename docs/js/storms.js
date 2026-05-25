@@ -664,6 +664,13 @@ function calcStormETAForBriefing(storm){
   const isClosing=closing>0;
   const impactScore=isClosing?(closeness*intensityFactor):0;
   const estDbzAtUser=isClosing?Math.round(storm.dbz*closeness):null;
+  let closenessPct=null;
+  if(m<=3)closenessPct=Math.round(100-(m/3)*14);
+  else if(m<=6)closenessPct=Math.round(85-((m-3)/3)*19);
+  else if(m<=12)closenessPct=Math.round(65-((m-6)/6)*20);
+  else if(m<=24)closenessPct=Math.round(44-((m-12)/12)*14);
+  else if(m<=48)closenessPct=Math.round(30-((m-24)/24)*15);
+  else closenessPct=Math.max(0,Math.round(15-((m-48)/12)*5));
   const base={
     closingMph:Math.round(closing*10)/10,
     perpMissMi:Math.round(perpMiss*10)/10,
@@ -676,7 +683,8 @@ function calcStormETAForBriefing(storm){
     closeness:Math.round(closeness*100)/100,
     intensityFactor:Math.round(intensityFactor*100)/100,
     impactScore:Math.round(impactScore*100)/100,
-    estDbzAtUser
+    estDbzAtUser,
+    closenessPct
   };
   let classification;
   let etaMinOut=null;
@@ -765,8 +773,11 @@ function computeTopStorms(){
   const inbound=[],overhead=[],nearby=[];
   for(const s of S.storms){
     const e=s._eta;
-    if(e&&e.proximity){overhead.push(s)}
-    else if(e&&e.approaching&&e.impact>0&&e.eta!=null){inbound.push(s)}
+    if(e&&e.proximity){overhead.push(s);continue}
+    let _cls=null;
+    try{if(!s._brief)s._brief=calcStormETAForBriefing(s);_cls=s._brief&&s._brief.classification}catch(err){}
+    const _inboundTier=(_cls==='direct'||_cls==='near_direct'||_cls==='near_miss');
+    if(e&&e.approaching&&e.impact>0&&e.eta!=null&&_inboundTier){inbound.push(s)}
     else{nearby.push(s)}
   }
   inbound.sort((a,b)=>b.dbz===a.dbz?(a._eta.eta-b._eta.eta):(b.dbz-a.dbz));
@@ -2185,7 +2196,10 @@ function _applyStormFilter(storms,f){
   const _fHasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
   const _fHasAl=S._upperWindDir!=null;
   const noMv=!_fHasMv&&!_fHasAl;
-  if(f.approachOnly&&!noMv)out=out.filter(s=>{const e=s._eta;return e&&e.approaching&&e.eta!=null});
+  if(f.approachOnly&&!noMv)out=out.filter(s=>{
+    const e=s._eta;if(!(e&&e.approaching&&e.eta!=null))return false;
+    try{if(!s._brief)s._brief=calcStormETAForBriefing(s);const c=s._brief&&s._brief.classification;return c==='direct'||c==='near_direct'||c==='near_miss';}catch(err){return false}
+  });
   S._filterApproachBypassed=f.approachOnly&&noMv;
   if(f.threatsOnly){
     out=out.filter(s=>{
@@ -2358,9 +2372,9 @@ function renderStorms(){
       const projMissDisp=(_b&&_b.classification==='direct')?tStr('Direct hit')
                         :(hasValidClosing&&missStr!=null)?`${missStr} ${_b.sideBearing!=null?degToDir(_b.sideBearing):''}`.trim()
                         :'—';
-      const impDispVal=hasValidClosing?`${bImpPct}% ${tStr('max intensity at you')}`:'—';
+      const impDispVal=hasValidClosing?`${bImpPct}% ${tStr('of peak')}`:'—';
       const impDispColor=hasValidClosing?imp.color:'var(--text-muted)';
-      const impTile=`<div class="storm-detail" title="${impTitle}"><div class="storm-detail-label">${tStr('Impact')}</div><div class="storm-detail-val" style="color:${impDispColor};font-size:0.85em">${impDispVal}</div></div>`;
+      const impTile=`<div class="storm-detail" title="${impTitle}"><div class="storm-detail-label">${tStr('Strength at you')}</div><div class="storm-detail-val" style="color:${impDispColor};font-size:0.85em">${impDispVal}</div></div>`;
       const missTile=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Projected Miss')}</div><div class="storm-detail-val" style="font-size:0.85em">${projMissDisp}</div></div>`;
       let mvLine='';
       const _ct=typeof getCellTrack==='function'?getCellTrack(s):null;
@@ -2409,15 +2423,14 @@ function renderStorms(){
       let clsBadge='';
       if(_b&&_b.classification&&_b.classification!=='unknown'){
         const _sc=stormClass(_b.classification);
-        const _impact=_b.impactScore!=null?_b.impactScore:0;
-        const _isHit=_b.classification==='direct'||_b.classification==='near_direct';
-        const _impactColor=!_isHit?_sc.color:(_impact>=0.40?_sc.color:(_impact>=0.20?'#f59e0b':'#60a5fa'));
-        const _badgeLabel=(_b.classification==='direct'&&_impact<0.20)?'ON TRACK'
-                        :(_b.classification==='near_direct'&&_impact<0.20)?'GLANCING'
-                        :_sc.badge;
-        const _pct=(_sc.showPct&&_b.impactScore!=null)?' '+Math.round(_b.impactScore*100)+'%':'';
-        const _missMaxMi=_b.classification==='direct'?'3':_b.classification==='near_direct'?'6':_b.classification==='near_miss'?'12':_b.classification==='miss'?'24':_b.classification==='distant'?'48':'60';
-        const _bTitle=_isHit?`Trajectory passes within ${_missMaxMi} mi of you. Impact % = closeness × intensity.`:'';
+        const _cls=_b.classification;
+        const _isCloseTier=(_cls==='direct'||_cls==='near_direct'||_cls==='near_miss');
+        const _impactColor=_sc.color;
+        const _badgeLabel=_sc.badge;
+        const _pct=(_sc.showPct&&_isCloseTier&&_b.closenessPct!=null)?' '+_b.closenessPct+'%':'';
+        const _missMaxMi=_cls==='direct'?'3':_cls==='near_direct'?'6':_cls==='near_miss'?'12':_cls==='miss'?'24':_cls==='distant'?'48':'60';
+        const _missMiTxt=_b.perpMissMi!=null?_b.perpMissMi.toFixed(1):'?';
+        const _bTitle=_isCloseTier?`Closeness: track passes ~${_missMiTxt} mi from you (${_sc.label.toUpperCase()} tier, ≤${_missMaxMi} mi)`:`Track passes ~${_missMiTxt} mi from you (${_sc.label.toUpperCase()} tier)`;
         clsBadge=`<span class="storm-badge" title="${_bTitle}" style="background:${_impactColor}22;color:${_impactColor};border:1px solid ${_impactColor}66;font-weight:700">${_badgeLabel}${_pct}</span>`;
       }
       return`<div class="storm-cell-card ${pulse}" style="border-color:${borderColor};--pulse-color:${borderColor}${isHook?';animation:tornado-pulse 1.8s ease-in-out infinite,storm-pulse-severe 2s ease-in-out infinite':''}">

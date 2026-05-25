@@ -1689,7 +1689,9 @@ function updateThreatTicker(){
   const _trackingCount=_tierCounts.miss+_tierCounts.distant+_tierCounts.far;
   const _filteredInbound=_filteredStorms.filter(s=>{
     const e=s._eta||calcStormETA(s);
-    return e&&e.approaching&&e.impact>0&&e.eta!=null;
+    if(!(e&&e.approaching&&e.impact>0&&e.eta!=null))return false;
+    const k=(s._brief&&s._brief.classification)||(typeof calcStormETAForBriefing==='function'?(calcStormETAForBriefing(s)||{}).classification:null);
+    return k==='direct'||k==='near_direct'||k==='near_miss';
   });
   if(typeof _stormSortFn==='function'){
     _filteredInbound.sort((a,b)=>{const r=_stormSortFn(a,b,_sf.sort1);return r!==0?r:_stormSortFn(a,b,_sf.sort2)});
