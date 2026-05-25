@@ -217,7 +217,7 @@ function buildWeatherContext(){
       const modCount=c.inbound.length-sigCount-lowCount;
       parts.push(`  Total cells: ${fs.totalCount} scanned · ${c.totalCount} after user filter · ${c.inbound.length} inbound (${sigCount} significant ≥31 dBZ, ${modCount} moderate 25-30 dBZ, ${lowCount} light/drizzle <25 dBZ at >5 mi) · ${bg.length} background · ${passing.length} passing · ${away.length} moving away`);
       if(sigCount===0&&lowCount===0&&c.inbound.length===0&&c.totalCount>0){
-        parts.push(`  NOTE: No inbound cells in the filtered view. Background cells (if any) are NOT on track to impact the user — characterize as "minor reflectivity / clutter" rather than rain.`);
+        parts.push(`  NOTE: No inbound cells in the filtered view. Background / passing / moving-away cells are off the impact corridor, but they are still REAL ECHOES the user can see on radar — narrate them in the mandatory "Surrounding Picture:" wrap-up using the SCENE HINTS lines below. Do NOT dismiss them as "clutter" or skip the wrap-up.`);
       }else if(sigCount===0&&lowCount>0){
         parts.push(`  Inbound is ALL light rain (15-30 dBZ) — LEAD with these inbound cells; do NOT call this severe weather.`);
       }
@@ -305,8 +305,11 @@ function buildWeatherContext(){
         if(_hBg)parts.push(`  • Background: ${_hBg}`);
         if(_hPass)parts.push(`  • Passing: ${_hPass}`);
         if(_hAway)parts.push(`  • Moving away: ${_hAway}`);
-      }else if(c.inbound.length){
-        parts.push(`\nSCENE HINTS: nothing else of note on radar — the inbound cells above are the whole story.`);
+      }else{
+        // Always emit a deterministic SCENE HINTS line so the mandatory wrap-up
+        // never has to be invented from scratch — works for both "inbound but
+        // nothing else" and "all clear" cases.
+        parts.push(`\nSCENE HINTS: nothing else of note on radar — write the wrap-up as "Surrounding Picture: nothing else of note on radar — the inbound cells above are the whole story." (verbatim if there are inbound cells; lightly rephrased to "the rest of the scan is quiet" if not).`);
       }
     }else{
       parts.push(`\nSTORM DATA: briefing engine unavailable, ${fs.storms.length} cells after filter.`);
