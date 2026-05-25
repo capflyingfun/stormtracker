@@ -191,15 +191,14 @@
       if(ends){try{endsStr=` (expires __${new Date(ends).toLocaleString()}__)`;}catch(e){}}
       lines.push(`- ⚠️ [!${color}]${ev}[/!]${endsStr}`);
     }
-    // DIRECT — always bullets, lead
-    for(const it of c.inbound.filter(x=>x.tier==='direct'))lines.push('- '+_stormLine(it,d.metric));
-    // NEAR DIRECT — always bullets, next
-    for(const it of c.inbound.filter(x=>x.tier==='near_direct'))lines.push('- '+_stormLine(it,d.metric));
-    // NEAR MISS — bullet ONLY when dBZ>=31 OR distance<=20; else summarize as one line
-    const nearMiss=c.inbound.filter(x=>x.tier==='near_miss');
-    const nmSig=nearMiss.filter(x=>x.s.dbz>=31||x.s.distance<=20);
-    const nmLow=nearMiss.filter(x=>!(x.s.dbz>=31||x.s.distance<=20));
-    for(const it of nmSig)lines.push('- '+_stormLine(it,d.metric));
+    // Inbound bullets in global miss-distance-band order (sorted upstream in gatherBriefingData).
+    // NEAR MISS cells that are both low-dBZ (<31) and distant (>20 mi) are collapsed into one
+    // summary line at the end so they don't drown out actionable cells.
+    const nmLow=[];
+    for(const it of c.inbound){
+      if(it.tier==='near_miss'&&!(it.s.dbz>=31||it.s.distance<=20)){nmLow.push(it);continue}
+      lines.push('- '+_stormLine(it,d.metric));
+    }
     const nmSum=_sumLine('NEAR MISS (light)',nmLow,'🟡',' — not actionable.',d.metric);
     if(nmSum)lines.push(nmSum);
     // MISS / DISTANT / FAR — background context only, one summary line per tier (no per-cell bullets)
