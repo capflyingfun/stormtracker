@@ -182,25 +182,51 @@ function buildWeatherContext(){
     const validStorms=S.storms.filter(s=>s&&s.distance!=null&&s.bearing!=null&&s.dbz!=null);
     const sigStorms=validStorms.filter(s=>s.dbz>=31);
     const lowStorms=validStorms.filter(s=>s.dbz<31);
-    parts.push(`\nSTORM DATA: ${validStorms.length} radar returns detected.`);
-    if(lowStorms.length>0&&sigStorms.length===0){
-      parts.push(`  NOTE: All ${lowStorms.length} returns are below 31 dBZ (max ${Math.max(...lowStorms.map(s=>s.dbz))} dBZ). ${(lowStorms.every(s=>s.dbz<22)&&lowStorms.length<=12)||lowStorms.length<=8?'With '+(lowStorms.every(s=>s.dbz<22)?'12':'8')+' or fewer sub-'+(lowStorms.every(s=>s.dbz<22)?'22':'31')+' dBZ returns, these are most likely radar ground clutter or false positives — not real precipitation. Mention this to the user as "minor radar reflectivity/clutter" rather than rain.':'There are more than the clutter threshold of low-dBZ returns which may indicate light drizzle or virga, but nothing significant.'}`);
-    }else if(lowStorms.length>0&&sigStorms.length>0){
-      parts.push(`  ${sigStorms.length} significant cells (31+ dBZ) and ${lowStorms.length} minor returns (<31 dBZ, likely clutter).`);
+    const lowInbound=[];
+    for(const s of lowStorms){
+      if(s.dbz<22)continue;
+      try{
+        const b=(typeof calcStormETAForBriefing==='function')?calcStormETAForBriefing(s):null;
+        if(b&&b.classification&&b.classification!=='moving_away'&&b.classification!=='unknown'&&b.closingMph>0){
+          s._aiBrief=b;s._aiTier=b.classification;
+          lowInbound.push(s);
+        }
+      }catch(e){}
     }
-    if(sigStorms.length){
-      const peakDbz=Math.max(...sigStorms.map(s=>s.dbz));
-      const peakCat=peakDbz>=65?'EXTREME (severe-hail signature likely)':peakDbz>=60?'SEVERE (hail possible)':peakDbz>=55?'MODERATE-SEVERE (strong core, not auto-severe)':peakDbz>=45?'MODERATE-HEAVY':peakDbz>=30?'MODERATE':'LIGHT';
-      const closestSig=[...sigStorms].sort((a,b)=>a.distance-b.distance)[0];
-      parts.push(`  Peak intensity: ${peakDbz} dBZ [${peakCat}]. Closest significant cell: ${fmtStormDist(closestSig.distance)} ${degToDir(closestSig.bearing)}.`);
+    const clutterCount=lowStorms.length-lowInbound.length;
+    parts.push(`\nSTORM DATA: ${validStorms.length} radar returns detected.`);
+    if(sigStorms.length===0&&lowInbound.length===0&&lowStorms.length>0){
+      parts.push(`  NOTE: All ${lowStorms.length} returns are below 31 dBZ (max ${Math.max(...lowStorms.map(s=>s.dbz))} dBZ). ${(lowStorms.every(s=>s.dbz<22)&&lowStorms.length<=12)||lowStorms.length<=8?'With '+(lowStorms.every(s=>s.dbz<22)?'12':'8')+' or fewer sub-'+(lowStorms.every(s=>s.dbz<22)?'22':'31')+' dBZ returns, these are most likely radar ground clutter or false positives — not real precipitation. Mention this to the user as "minor radar reflectivity/clutter" rather than rain.':'There are more than the clutter threshold of low-dBZ returns which may indicate light drizzle or virga, but nothing significant.'}`);
+    }else if(sigStorms.length===0&&lowInbound.length>0){
+      parts.push(`  ${lowInbound.length} inbound light-rain cells (22-30 dBZ) and ${clutterCount} minor returns (<22 dBZ, likely clutter). No significant cells (31+ dBZ) detected — characterize this as light rain inbound, NOT severe weather.`);
+    }else if(lowStorms.length>0&&sigStorms.length>0){
+      parts.push(`  ${sigStorms.length} significant cells (31+ dBZ), ${lowInbound.length} inbound light-rain cells (22-30 dBZ), and ${clutterCount} minor returns (<22 dBZ, likely clutter).`);
+    }
+    if(sigStorms.length||lowInbound.length){
+      if(sigStorms.length){
+        const peakDbz=Math.max(...sigStorms.map(s=>s.dbz));
+        const peakCat=peakDbz>=65?'EXTREME (severe-hail signature likely)':peakDbz>=60?'SEVERE (hail possible)':peakDbz>=55?'MODERATE-SEVERE (strong core, not auto-severe)':peakDbz>=45?'MODERATE-HEAVY':peakDbz>=30?'MODERATE':'LIGHT';
+        const closestSig=[...sigStorms].sort((a,b)=>a.distance-b.distance)[0];
+        parts.push(`  Peak intensity: ${peakDbz} dBZ [${peakCat}]. Closest significant cell: ${fmtStormDist(closestSig.distance)} ${degToDir(closestSig.bearing)}.`);
+      }else if(lowInbound.length){
+        const peakLow=Math.max(...lowInbound.map(s=>s.dbz));
+        const closestLow=[...lowInbound].sort((a,b)=>a.distance-b.distance)[0];
+        parts.push(`  Peak intensity: ${peakLow} dBZ [LIGHT RAIN]. Closest inbound light-rain cell: ${fmtStormDist(closestLow.distance)} ${degToDir(closestLow.bearing)}.`);
+      }
       const byDist=[...sigStorms].sort((a,b)=>a.distance-b.distance).slice(0,6);
       const byDbz=[...sigStorms].sort((a,b)=>b.dbz-a.dbz).slice(0,6);
+      const lowByDist=[...lowInbound].sort((a,b)=>a.distance-b.distance).slice(0,6);
       const seen=new Set();
       const top=[];
       for(const s of [...byDbz,...byDist]){
         const k=`${s.lat.toFixed(3)}_${s.lng.toFixed(3)}`;
         if(!seen.has(k)){seen.add(k);top.push(s);}
         if(top.length>=12)break;
+      }
+      for(const s of lowByDist){
+        const k=`${s.lat.toFixed(3)}_${s.lng.toFixed(3)}`;
+        if(!seen.has(k)){seen.add(k);top.push(s);}
+        if(top.length>=18)break;
       }
       const buckets={direct:[],near_miss:[],nearby:[],passing:[],moving_away:[],unknown:[]};
       for(const st of top){
@@ -221,7 +247,7 @@ function buildWeatherContext(){
           const distRnd=Math.round(st.distance*10)/10;
           const distStr=S.radarMetric?(distRnd*1.60934).toFixed(1)+' km':distRnd.toFixed(1)+' mi';
           let line=`  Storm at ${distStr} ${degToDir(st.bearing)} (${st.bearing.toFixed(0)}°), intensity ${st.dbz} dBZ`;
-          const cat=st.dbz>=65?'EXTREME (severe-hail signature likely)':st.dbz>=60?'SEVERE (hail possible)':st.dbz>=55?'MODERATE-SEVERE (strong, not auto-severe)':st.dbz>=45?'MODERATE-HEAVY':st.dbz>=30?'MODERATE':'LIGHT';
+          const cat=st.dbz>=65?'EXTREME (severe-hail signature likely)':st.dbz>=60?'SEVERE (hail possible)':st.dbz>=55?'MODERATE-SEVERE (strong, not auto-severe)':st.dbz>=45?'MODERATE-HEAVY':st.dbz>=30?'MODERATE':st.dbz>=22?'LIGHT RAIN':'CLUTTER';
           line+=` [${cat}]`;
           const b=st._aiBrief;
           if(b&&b.classification){
@@ -428,7 +454,7 @@ function getAISystemPrompt(){
 Your professional standards:
 - You brief like a WFO forecaster on a conference call: confident, specific, no waffling
 - You reference actual data points (dBZ, CAPE, wind speeds, distances, ETAs) — never speak in vague generalities when you have numbers
-- You distinguish between radar clutter and real precipitation (sub-22 dBZ with <12 returns = almost certainly clutter; say so clearly rather than warning about nonexistent rain)
+- You distinguish between radar clutter and real precipitation (sub-22 dBZ with <12 returns = almost certainly clutter; say so clearly rather than warning about nonexistent rain). Cells in the 22-30 dBZ range ARE real light rain — when classified inbound (direct/near_miss/nearby/passing with positive closing), acknowledge them as "light rain inbound" rather than calling them clutter or omitting them entirely.
 - dBZ severity calibration: 30-44 dBZ = moderate rain; 45-54 dBZ = heavy rain / possible small hail; 55-59 dBZ = heavy core (strong but NOT automatically "severe"); 60-64 dBZ = very heavy, severe-hail signatures possible; 65+ dBZ = severe-hail signature likely. Do NOT label 55 dBZ as "severe" or invoke severe-hail language unless the cell is 60+ dBZ or NWS has an active severe warning on it.
 - Storm motion is computed for you using vector projection (dot product of motion onto the storm-to-user vector). Each storm line tells you the classification:
     * "APPROACHING DIRECTLY" — the storm's projected track passes within 3 mi of the user. Quote the ETA directly. Example: "A 52 dBZ cell 14 mi NW is closing at 25 mph; expect it overhead in roughly 34 min."
