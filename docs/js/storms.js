@@ -2179,7 +2179,7 @@ function _applyStormFilter(storms,f){
       try{
         if(!s._brief)s._brief=calcStormETAForBriefing(s);
         const c=s._brief&&s._brief.classification;
-        return c==='direct'||c==='near_miss';
+        return c==='direct'||c==='near_direct'||c==='near_miss';
       }catch(e){return false}
     });
   }
@@ -2397,13 +2397,14 @@ function renderStorms(){
       if(_b&&_b.classification&&_b.classification!=='unknown'){
         const _sc=stormClass(_b.classification);
         const _impact=_b.impactScore!=null?_b.impactScore:0;
-        const _isHit=_b.classification==='direct'||_b.classification==='near_miss';
+        const _isHit=_b.classification==='direct'||_b.classification==='near_direct';
         const _impactColor=!_isHit?_sc.color:(_impact>=0.40?_sc.color:(_impact>=0.20?'#f59e0b':'#60a5fa'));
         const _badgeLabel=(_b.classification==='direct'&&_impact<0.20)?'ON TRACK'
-                        :(_b.classification==='near_miss'&&_impact<0.20)?'GLANCING'
+                        :(_b.classification==='near_direct'&&_impact<0.20)?'GLANCING'
                         :_sc.badge;
         const _pct=(_sc.showPct&&_b.impactScore!=null)?' '+Math.round(_b.impactScore*100)+'%':'';
-        const _bTitle=_isHit?'Trajectory passes within '+(_b.classification==='direct'?'3':'6')+' mi of you. Impact % = closeness × intensity.':'';
+        const _missMaxMi=_b.classification==='direct'?'3':_b.classification==='near_direct'?'6':_b.classification==='near_miss'?'12':_b.classification==='miss'?'24':_b.classification==='distant'?'48':'60';
+        const _bTitle=_isHit?`Trajectory passes within ${_missMaxMi} mi of you. Impact % = closeness × intensity.`:'';
         clsBadge=`<span class="storm-badge" title="${_bTitle}" style="background:${_impactColor}22;color:${_impactColor};border:1px solid ${_impactColor}66;font-weight:700">${_badgeLabel}${_pct}</span>`;
       }
       return`<div class="storm-cell-card ${pulse}" style="border-color:${borderColor};--pulse-color:${borderColor}${isHook?';animation:tornado-pulse 1.8s ease-in-out infinite,storm-pulse-severe 2s ease-in-out infinite':''}">
