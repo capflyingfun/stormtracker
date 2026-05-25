@@ -214,7 +214,8 @@ function buildWeatherContext(){
       const sigCount=c.inbound.filter(it=>it.s.dbz>=31).length;
       const lowCount=inboundLight.length;
       parts.push(`\nSTORM DATA (post-filter — mirrors the Storms tab cards):`);
-      parts.push(`  Total cells: ${fs.totalCount} scanned · ${c.totalCount} after user filter · ${c.inbound.length} inbound (${sigCount} significant ≥31 dBZ + ${lowCount} light) · ${bg.length} background · ${passing.length} passing · ${away.length} moving away`);
+      const modCount=c.inbound.length-sigCount-lowCount;
+      parts.push(`  Total cells: ${fs.totalCount} scanned · ${c.totalCount} after user filter · ${c.inbound.length} inbound (${sigCount} significant ≥31 dBZ, ${modCount} moderate 25-30 dBZ, ${lowCount} light/drizzle <25 dBZ at >5 mi) · ${bg.length} background · ${passing.length} passing · ${away.length} moving away`);
       if(sigCount===0&&lowCount===0&&c.inbound.length===0&&c.totalCount>0){
         parts.push(`  NOTE: No inbound cells in the filtered view. Background cells (if any) are NOT on track to impact the user — characterize as "minor reflectivity / clutter" rather than rain.`);
       }else if(sigCount===0&&lowCount>0){
