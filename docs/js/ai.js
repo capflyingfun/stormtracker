@@ -184,7 +184,7 @@ function buildWeatherContext(){
     const lowStorms=validStorms.filter(s=>s.dbz<31);
     const lowInbound=[];
     for(const s of lowStorms){
-      if(s.dbz<22)continue;
+      if(s.dbz<15)continue;
       try{
         const b=(typeof calcStormETAForBriefing==='function')?calcStormETAForBriefing(s):null;
         if(b&&b.classification&&b.classification!=='moving_away'&&b.classification!=='unknown'&&b.closingMph>0){
@@ -198,9 +198,9 @@ function buildWeatherContext(){
     if(sigStorms.length===0&&lowInbound.length===0&&lowStorms.length>0){
       parts.push(`  NOTE: All ${lowStorms.length} returns are below 31 dBZ (max ${Math.max(...lowStorms.map(s=>s.dbz))} dBZ). ${(lowStorms.every(s=>s.dbz<22)&&lowStorms.length<=12)||lowStorms.length<=8?'With '+(lowStorms.every(s=>s.dbz<22)?'12':'8')+' or fewer sub-'+(lowStorms.every(s=>s.dbz<22)?'22':'31')+' dBZ returns, these are most likely radar ground clutter or false positives — not real precipitation. Mention this to the user as "minor radar reflectivity/clutter" rather than rain.':'There are more than the clutter threshold of low-dBZ returns which may indicate light drizzle or virga, but nothing significant.'}`);
     }else if(sigStorms.length===0&&lowInbound.length>0){
-      parts.push(`  ${lowInbound.length} inbound light-rain cells (22-30 dBZ) and ${clutterCount} minor returns (<22 dBZ, likely clutter). No significant cells (31+ dBZ) detected — characterize this as light rain inbound, NOT severe weather.`);
+      parts.push(`  ${lowInbound.length} inbound light-rain cells (15-30 dBZ) and ${clutterCount} non-inbound or sub-15 returns. No significant cells (31+ dBZ) detected — characterize this as light rain inbound, NOT severe weather. LEAD the briefing with these inbound cells.`);
     }else if(lowStorms.length>0&&sigStorms.length>0){
-      parts.push(`  ${sigStorms.length} significant cells (31+ dBZ), ${lowInbound.length} inbound light-rain cells (22-30 dBZ), and ${clutterCount} minor returns (<22 dBZ, likely clutter).`);
+      parts.push(`  ${sigStorms.length} significant cells (31+ dBZ), ${lowInbound.length} inbound light-rain cells (15-30 dBZ), and ${clutterCount} non-inbound or sub-15 returns.`);
     }
     if(sigStorms.length||lowInbound.length){
       if(sigStorms.length){
@@ -242,12 +242,48 @@ function buildWeatherContext(){
       }
       for(const k of Object.keys(buckets))buckets[k].sort((a,b)=>a.distance-b.distance);
       const tierOrder=['direct','near_miss','nearby','passing','moving_away','unknown'];
+      const _fmtDistOne=(d)=>{const r=Math.round(d*10)/10;return S.radarMetric?(r*1.60934).toFixed(1)+' km':r.toFixed(1)+' mi';};
+      const _fmtRange=(arr,fmt)=>{const vs=arr.map(fmt);const mn=Math.min(...vs),mx=Math.max(...vs);return mn===mx?mn.toString():`${mn}-${mx}`;};
+      const _groupedLine=(label,cells)=>{
+        if(cells.length===1){
+          const st=cells[0];const b=st._aiBrief||{};
+          const dirStr=b.sideBearing!=null?degToDir(b.sideBearing):degToDir(st.bearing);
+          const movStr=b.movSpdMph?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph)`:'';
+          const missStr=b.perpMissMi!=null?`, projected miss ~${b.perpMissMi} mi`:'';
+          const closeStr=b.closingMph!=null?`, closing ${b.closingMph} mph`:'';
+          return `  ${label} ${dirStr}: ${st.dbz} dBZ cell at ${_fmtDistOne(st.distance)}${missStr}${closeStr}${movStr}.`;
+        }
+        const dbzRange=_fmtRange(cells,c=>c.dbz);
+        const distRange=cells.map(c=>Math.round(c.distance*10)/10);
+        const dMin=Math.min(...distRange),dMax=Math.max(...distRange);
+        const distStr=S.radarMetric?`${(dMin*1.60934).toFixed(1)}-${(dMax*1.60934).toFixed(1)} km`:`${dMin.toFixed(1)}-${dMax.toFixed(1)} mi`;
+        const dirs=[...new Set(cells.map(c=>{const b=c._aiBrief;return b&&b.sideBearing!=null?degToDir(b.sideBearing):degToDir(c.bearing);}))];
+        const closings=cells.map(c=>c._aiBrief&&c._aiBrief.closingMph!=null?c._aiBrief.closingMph:null).filter(x=>x!=null);
+        const closeStr=closings.length?`, closing ${Math.min(...closings)} to ${Math.max(...closings)} mph`:'';
+        return `  ${label} (${cells.length} cells, ${dbzRange} dBZ): ${dirs.join('/')} at ${distStr}${closeStr}. No direct impact; outflow possible.`;
+      };
       for(const tier of tierOrder){
-        for(const st of buckets[tier]){
+        const cells=buckets[tier];
+        if(!cells.length)continue;
+        if(tier==='passing'||tier==='moving_away'){
+          const label=tier==='passing'?'PASSING':'MOVING AWAY';
+          const sigCells=cells.filter(c=>c.dbz>=60&&c.distance<=20);
+          const restCells=cells.filter(c=>!(c.dbz>=60&&c.distance<=20));
+          for(const st of sigCells){
+            const distRnd=Math.round(st.distance*10)/10;
+            const distStr=S.radarMetric?(distRnd*1.60934).toFixed(1)+' km':distRnd.toFixed(1)+' mi';
+            const b=st._aiBrief||{};const sc=(typeof stormClass==='function')?stormClass(b.classification):null;
+            const movStr=b.movSpdMph?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph)`:'';
+            parts.push(`  Storm at ${distStr} ${degToDir(st.bearing)}, intensity ${st.dbz} dBZ ${sc?sc.aiPhrase:label} — closing ${b.closingMph} mph, miss ~${b.perpMissMi} mi${movStr}`);
+          }
+          if(restCells.length)parts.push(_groupedLine(label,restCells));
+          continue;
+        }
+        for(const st of cells){
           const distRnd=Math.round(st.distance*10)/10;
           const distStr=S.radarMetric?(distRnd*1.60934).toFixed(1)+' km':distRnd.toFixed(1)+' mi';
           let line=`  Storm at ${distStr} ${degToDir(st.bearing)} (${st.bearing.toFixed(0)}°), intensity ${st.dbz} dBZ`;
-          const cat=st.dbz>=65?'EXTREME (severe-hail signature likely)':st.dbz>=60?'SEVERE (hail possible)':st.dbz>=55?'MODERATE-SEVERE (strong, not auto-severe)':st.dbz>=45?'MODERATE-HEAVY':st.dbz>=30?'MODERATE':st.dbz>=22?'LIGHT RAIN':'CLUTTER';
+          const cat=st.dbz>=65?'EXTREME (severe-hail signature likely)':st.dbz>=60?'SEVERE (hail possible)':st.dbz>=55?'MODERATE-SEVERE (strong, not auto-severe)':st.dbz>=45?'MODERATE-HEAVY':st.dbz>=30?'MODERATE':st.dbz>=15?'LIGHT RAIN':'CLUTTER';
           line+=` [${cat}]`;
           const b=st._aiBrief;
           if(b&&b.classification){
@@ -262,11 +298,6 @@ function buildWeatherContext(){
               line+=` ${sc?sc.aiPhrase:'NEAR MISS'} (${impPct}% max intensity at user${estStr}) — closing ${b.closingMph} mph, projected miss around ${b.perpMissMi} mi (partial impact possible; do NOT quote a hard ETA)${movStr}`;
             }else if(b.classification==='nearby'){
               line+=` ${sc?sc.aiPhrase:'NEARBY'} (${impPct}% max intensity at user${estStr}) — projected miss around ${b.perpMissMi} mi (in same general area but outside the impact corridor; mention briefly, do NOT issue an ETA)${movStr}`;
-            }else if(b.classification==='passing'){
-              const _passImp=(impPct!=null&&impPct>0)?` (${impPct}% max intensity at user${estStr})`:'';
-              line+=` ${sc?sc.aiPhrase:'PASSING TO YOUR'} ${degToDir(b.sideBearing)}${_passImp} — projected miss around ${b.perpMissMi} mi, closing ${b.closingMph} mph but well outside the impact corridor; outflow possible${movStr}`;
-            }else if(b.classification==='moving_away'){
-              line+=` ${sc?sc.aiPhrase:'MOVING AWAY'} — closing speed ${b.closingMph} mph (≤0)${movStr}`;
             }else{
               line+=` motion unknown (insufficient steering data)`;
             }
@@ -460,8 +491,9 @@ Your professional standards:
     * "APPROACHING DIRECTLY" — the storm's projected track passes within 3 mi of the user. Quote the ETA directly. Example: "A 52 dBZ cell 14 mi NW is closing at 25 mph; expect it overhead in roughly 34 min."
     * "NEAR MISS" — projected miss is 3-6 mi from the user. Say "near miss; partial impact / brief downpour possible" and quote the perpendicular miss distance instead of asserting a direct hit. Do NOT issue a hard ETA.
     * "NEARBY" — projected miss is greater than 6 mi but the storm is still inbound and in the same general area. Mention briefly ("a stronger cell is tracking through the area NN mi to your <DIR>, no direct impact expected at your location"). Do NOT issue an ETA.
-    * "PASSING TO YOUR <DIR>" — the storm's projected track does not bring it toward the user at all. Say so plainly: "Storm is passing to your north and should only bring outflow winds or light rain." Do NOT manufacture an ETA.
-    * "MOVING AWAY" — closing speed is zero or negative; the storm is receding. Mention briefly and move on.
+    * "PASSING TO YOUR <DIR>" — the storm's projected track does not bring it toward the user at all. Summarize ALL passing-but-not-inbound cells in ONE sentence (e.g. "A few 45-55 dBZ cells are passing well SE/NE, outside the impact corridor"). Do NOT enumerate them individually unless one is 60+ dBZ within 20 mi. Do NOT manufacture an ETA.
+    * "MOVING AWAY" — closing speed is zero or negative; the storm is receding. Summarize ALL moving-away cells in ONE sentence (count + dBZ range + general direction). Do NOT enumerate them individually. They are not actionable.
+  ORDERING: The "Active Threats & Storm Tracking" section MUST lead with what is INBOUND (anything classified direct/near_miss/nearby with any dBZ from 15 to 65+, even light rain). Inbound cells get the bullet points. Distant strong-but-receding cells are secondary context — one summary sentence each, no enumeration. Do NOT spend more lines on receding cells than on inbound ones.
 - Impact score interpretation: every storm line gives you a percentage labelled "max intensity at user" plus an estimated dBZ ("~NN dBZ expected at user"). This is closeness-to-track × intensity. Use the estimated dBZ when describing what the user will actually experience at their location — do NOT quote the storm's peak dBZ as if that's what will hit the user when the projected miss is more than ~1 mi. Example: a 55 dBZ cell with projected miss 1.8 mi has ~52 dBZ expected at user (60% max-intensity) — describe the user experience as "heavy rain / 52 dBZ at your location" not "55 dBZ severe core overhead".
 - Never invent ETAs, closing speeds, or miss distances. If the storm line does not give you an ETA, you must not state one.
 - Risk Assessment intensity wording: when stating that storms do not exceed a given dBZ threshold (e.g. "no storms exceed 55 dBZ"), you MUST qualify whether the statement applies to inbound storms only or to all storms on radar. If stronger cells exist on radar but are classified PASSING or MOVING AWAY, explicitly call that out. Preferred phrasing: "No inbound storms exceed 55 dBZ. The only stronger cells are NE of your position and are moving away, posing no threat." Never make a bare intensity claim that could be read as contradicting the Active Threats section.

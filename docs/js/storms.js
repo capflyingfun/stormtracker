@@ -2372,13 +2372,9 @@ function renderStorms(){
         mvLine+=impTile+missTile;
       }
       let estLine='';
-      if(_sMv&&_sMv.speed>=2){
-        if(_b&&_b.estDbzAtUser!=null){
-          const estCat=stormCat(_b.estDbzAtUser);
-          estLine=`<div style="margin-top:4px;font-size:0.7em;color:var(--text-secondary)">${tStr('Est. at you')}: <span style="color:${estCat.color};font-weight:700">${_b.estDbzAtUser} dBZ</span> <span style="color:${estCat.color}">(${tStr(estCat.label)})</span></div>`;
-        }else{
-          estLine=`<div style="margin-top:4px;font-size:0.7em;color:var(--text-muted)">${tStr('Est. at you')}: —</div>`;
-        }
+      if(_sMv&&_sMv.speed>=2&&_b&&_b.estDbzAtUser!=null&&_b.estDbzAtUser>=18){
+        const estCat=stormCat(_b.estDbzAtUser);
+        estLine=`<div style="margin-top:4px;font-size:0.7em;color:var(--text-secondary)">${tStr('Est. at you')}: <span style="color:${estCat.color};font-weight:700">${_b.estDbzAtUser} dBZ</span> <span style="color:${estCat.color}">(${tStr(estCat.label)})</span></div>`;
       }
       const hex=dbzHex(s.dbz);
       const isHook=s._hookEcho;
