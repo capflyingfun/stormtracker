@@ -39,12 +39,13 @@
       }
       const bandOf=mi=>(mi==null||!isFinite(mi))?99:Math.min(12,Math.floor(mi));
       const order={direct:0,near_direct:1,near_miss:2};
+      // Display comparator — matches v4.31 and the Storms tab: miss-band -> tier -> distance.
+      // No dBZ tiebreaker here; the strongest-cell guarantee below is a membership-only step.
       const missBandSort=(a,b)=>{
         const bA=bandOf(a.b&&a.b.perpMissMi),bB=bandOf(b.b&&b.b.perpMissMi);
         if(bA!==bB)return bA-bB;
         const oA=order[a.tier]??9,oB=order[b.tier]??9;
         if(oA!==oB)return oA-oB;
-        if((b.s.dbz||0)!==(a.s.dbz||0))return (b.s.dbz||0)-(a.s.dbz||0);
         return a.s.distance-b.s.distance;
       };
       classified.inbound.sort(missBandSort);
