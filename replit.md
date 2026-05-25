@@ -2,7 +2,7 @@
 
 ## Overview
 
-StormTracker is a real-time storm detection web application providing live weather radar maps, storm tracking, and weather alerts. It uses GPS or manual location input to monitor storm activity within a customizable radius. The application is enhanced with AI-powered weather analysis, integrating National Weather Service Area Forecast Discussions for comprehensive meteorological assessments. The project aims to deliver a professional, reliable, and user-friendly tool for anticipating and reacting to severe weather, with a vision to become a leading platform for public safety and meteorological insight. Current version: **v4.29** (cache bust ?v=525, SW cache stormtracker-v525).
+StormTracker is a real-time storm detection web application providing live weather radar maps, storm tracking, and weather alerts. It uses GPS or manual location input to monitor storm activity within a customizable radius. The application is enhanced with AI-powered weather analysis, integrating National Weather Service Area Forecast Discussions for comprehensive meteorological assessments. The project aims to deliver a professional, reliable, and user-friendly tool for anticipating and reacting to severe weather, with a vision to become a leading platform for public safety and meteorological insight. Current version: **v4.30** (cache bust ?v=526, SW cache stormtracker-v526). Adds deterministic on-device HTML Weather Briefing engine (docs/js/briefingEngine.js) with Settings → Briefing Mode toggle (System default vs AI). System mode runs without an API key; AI option auto-disables when key is missing and reverts on key clear. AI chat FAB is always visible; both modes share the same rich-text markup renderer.
 
 ## User Preferences
 

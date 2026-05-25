@@ -4,7 +4,7 @@
 const _aiChatHistory=[];
 let _aiChatOpen=false;
 
-function saveAIKey(v){localStorage.setItem('st_aiKey',v.trim());updateAIFab();}
+function saveAIKey(v){const t=(v||'').trim();localStorage.setItem('st_aiKey',t);if(!t)localStorage.setItem('st_briefingMode','system');updateAIFab();if(typeof syncBriefingModeUI==='function')syncBriefingModeUI();}
 function saveAITone(v){localStorage.setItem('st_aiTone',v);}
 function saveAIDetail(v){localStorage.setItem('st_aiDetail',v);}
 function saveAIModel(v){localStorage.setItem('st_aiModel',v);}
@@ -19,7 +19,7 @@ function toggleAIKeyVis(){
 }
 function updateAIFab(){
   const fab=document.getElementById('ai-fab');
-  if(fab)fab.style.display=getAIKey()?'block':'none';
+  if(fab)fab.style.display='block';
 }
 function syncAISettings(){
   const inp=document.getElementById('settings-ai-key');
@@ -30,6 +30,7 @@ function syncAISettings(){
   if(detail)detail.value=getAIDetail();
   const model=document.getElementById('settings-ai-model');
   if(model)model.value=getAIModel();
+  if(typeof syncBriefingModeUI==='function')syncBriefingModeUI();
 }
 function clearAIChat(){
   _aiChatHistory.length=0;
@@ -576,14 +577,28 @@ async function sendAIChat(){
   const msg=inp.value.trim();if(!msg)return;
   inp.value='';
 
-  const key=getAIKey();
-  if(!key){
-    addAIMsg('error','No API key configured. Add your OpenAI API key in Settings (gear icon) under AI Weather Assistant.');
-    return;
-  }
+  const mode=(typeof getBriefingMode==='function')?getBriefingMode():'system';
 
   addAIMsg('user',msg);
   _aiChatHistory.push({role:'user',content:msg});
+
+  if(mode==='system'){
+    try{
+      const reply=(typeof buildBriefing==='function')?buildBriefing():'Briefing engine not loaded.';
+      _aiChatHistory.push({role:'assistant',content:reply});
+      addAIMsg('assistant',reply);
+    }catch(e){
+      addAIMsg('error','Briefing error: '+e.message);
+    }
+    return;
+  }
+
+  const key=getAIKey();
+  if(!key){
+    addAIMsg('error','No API key configured. Add your OpenAI API key in Settings (gear icon) under AI Weather Assistant, or switch Briefing Mode to System.');
+    return;
+  }
+
   showAITyping();
 
   try{

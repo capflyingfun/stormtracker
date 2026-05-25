@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v4.29</title>
+<title>StormTracker v4.30</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <meta name="theme-color" content="#0a1020">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=525">
+<link rel="stylesheet" href="css/style.css?v=526">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -28,7 +28,7 @@
     <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
   <div class="header-center">
-    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v4.29</span></h1>
+    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v4.30</span></h1>
     <div class="header-status">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Initializing...</span>
@@ -274,6 +274,17 @@
           <span class="text-xxs-muted">Travel Mode</span>
           <button id="settings-travel-toggle" onclick="toggleTravelMode();syncSettingsPanel()" style="font-size:0.75em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid var(--accent-cyan);background:rgba(0,229,255,0.08);color:var(--accent-cyan)">OFF</button>
         </div>
+      </div>
+      <div class="setting-sep">
+        <div style="font-size:0.8em;font-weight:600;color:#00e5ff;margin-bottom:8px">📋 Briefing Mode</div>
+        <div class="setting-row-6">
+          <span class="text-xxs-muted">Source</span>
+          <select id="settings-briefing-mode" onchange="saveBriefingMode(this.value);syncBriefingModeUI()" class="small-btn">
+            <option value="system">System Briefing (default)</option>
+            <option value="ai">AI Briefing</option>
+          </select>
+        </div>
+        <div class="setting-hint" id="briefing-mode-hint">System Briefing runs on-device with no API key required. Add an OpenAI key below to unlock AI Briefing.</div>
       </div>
       <div class="setting-sep">
         <div style="font-size:0.8em;font-weight:600;color:#a855f7;margin-bottom:8px">🤖 AI Weather Assistant</div>
@@ -583,23 +594,24 @@
   </div>
 </div>
 
-<script src="js/core.js?v=525"></script>
-<script src="js/gauges.js?v=525"></script>
-<script src="js/icons.js?v=525"></script>
-<script src="js/geo.js?v=525"></script>
-<script src="js/settings.js?v=525"></script>
-<script src="js/thresholds.js?v=525"></script>
-<script src="js/weather.js?v=525"></script>
-<script src="js/radar.js?v=525"></script>
-<script src="js/storms.js?v=525"></script>
-<script src="js/station.js?v=525"></script>
-<script src="js/alerts.js?v=525"></script>
-<script src="js/ai.js?v=525"></script>
-<script src="js/init.js?v=525"></script>
+<script src="js/core.js?v=526"></script>
+<script src="js/gauges.js?v=526"></script>
+<script src="js/icons.js?v=526"></script>
+<script src="js/geo.js?v=526"></script>
+<script src="js/settings.js?v=526"></script>
+<script src="js/thresholds.js?v=526"></script>
+<script src="js/weather.js?v=526"></script>
+<script src="js/radar.js?v=526"></script>
+<script src="js/storms.js?v=526"></script>
+<script src="js/station.js?v=526"></script>
+<script src="js/alerts.js?v=526"></script>
+<script src="js/briefingEngine.js?v=526"></script>
+<script src="js/ai.js?v=526"></script>
+<script src="js/init.js?v=526"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
-<script src="js/view3d.js?v=525"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=525').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="js/view3d.js?v=526"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=526').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>
