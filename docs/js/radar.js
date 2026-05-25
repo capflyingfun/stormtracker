@@ -995,7 +995,9 @@ function plotStormMarkers(map){
       const inbound=[];
       for(const st of stormList){
         const eta=calcStormETA(st);
-        if(eta&&eta.approaching&&eta.eta)inbound.push({storm:st,eta});
+        if(!(eta&&eta.approaching&&eta.eta))continue;
+        const k=(st._brief&&st._brief.classification)||(typeof calcStormETAForBriefing==='function'?(calcStormETAForBriefing(st)||{}).classification:null);
+        if(k==='direct'||k==='near_direct'||k==='near_miss')inbound.push({storm:st,eta});
       }
       inbound.sort((a,b)=>a.storm.dbz===b.storm.dbz?(a.eta.eta-b.eta.eta):(b.storm.dbz-a.storm.dbz));
       visibleStorms=inbound.slice(0,12).map(i=>i.storm);
@@ -2401,7 +2403,11 @@ function plotStormTracks(map){
       storms=storms.filter(s=>S._topStorms.includes(s));
     }else{
       storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)});
-      storms=storms.filter(s=>s._eta&&s._eta.approaching&&s._eta.impact>0).sort((a,b)=>(b._eta.impact||0)-(a._eta.impact||0)).slice(0,12);
+      storms=storms.filter(s=>{
+        if(!(s._eta&&s._eta.approaching&&s._eta.impact>0))return false;
+        const k=(s._brief&&s._brief.classification)||(typeof calcStormETAForBriefing==='function'?(calcStormETAForBriefing(s)||{}).classification:null);
+        return k==='direct'||k==='near_direct'||k==='near_miss';
+      }).sort((a,b)=>(b._eta.impact||0)-(a._eta.impact||0)).slice(0,12);
     }
   }
   storms.forEach(s=>{
