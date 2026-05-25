@@ -265,7 +265,7 @@ function buildWeatherContext(){
         const dMin=Math.min(...cells.map(it=>it.s.distance)),dMax=Math.max(...cells.map(it=>it.s.distance));
         const dRange=cells.length===1?fmtD(cells[0].s.distance):`${fmtD(dMin)}–${fmtD(dMax)}`;
         const dirs=[...new Set(cells.map(it=>degToDir(it.s.bearing)))].slice(0,4);
-        parts.push(`  ${emoji} ${label}: ${cells.length} cell(s) (${dbzMin===dbzMax?dbzMin+' dBZ':dbzMin+'-'+dbzMax+' dBZ'}) ${dirs.join('/')} at ${dRange} — background context, NOT inbound.`);
+        parts.push(`  ${emoji} ${label}: ${cells.length} cell(s) (${dbzMin===dbzMax?dbzMin+' dBZ':dbzMin+'-'+dbzMax+' dBZ'}) ${dirs.join('/')} at ${dRange}.`);
       };
       _bgGroup('miss','MISS','🔵');
       _bgGroup('distant','DISTANT','⚪');
@@ -273,12 +273,40 @@ function buildWeatherContext(){
       if(passing.length){
         const dbzMax=Math.max(...passing.map(it=>it.s.dbz));
         const dirs=[...new Set(passing.map(it=>degToDir(it.s.bearing)))].slice(0,3);
-        parts.push(`  🟡 PASSING: ${passing.length} cell(s) (up to ${dbzMax} dBZ) tracking past to the ${dirs.join('/')} — outflow possible, no direct hit.`);
+        parts.push(`  🟡 PASSING: ${passing.length} cell(s) (up to ${dbzMax} dBZ) tracking past to the ${dirs.join('/')}.`);
       }
       if(away.length){
         const dbzMax=Math.max(...away.map(it=>it.s.dbz));
         const dirs=[...new Set(away.map(it=>degToDir(it.s.bearing)))].slice(0,3);
-        parts.push(`  🟢 MOVING AWAY: ${away.length} cell(s) (up to ${dbzMax} dBZ) receding to the ${dirs.join('/')} — no threat.`);
+        parts.push(`  🟢 MOVING AWAY: ${away.length} cell(s) (up to ${dbzMax} dBZ) receding to the ${dirs.join('/')}.`);
+      }
+      // v4.36: Precomputed scene-hint phrasings so the model has ready-made
+      // narrative phrasings to anchor the mandatory "Surrounding Picture"
+      // wrap-up sentence on (see DETAIL vs MENTAL PICTURE rule in the prompt).
+      const _scenify=(cells,verb)=>{
+        if(!cells.length)return null;
+        const dbzMin=Math.min(...cells.map(it=>it.s.dbz));
+        const dbzMax=Math.max(...cells.map(it=>it.s.dbz));
+        const dMin=Math.min(...cells.map(it=>it.s.distance));
+        const dMax=Math.max(...cells.map(it=>it.s.distance));
+        const dirs=[...new Set(cells.map(it=>degToDir(it.s.bearing)))];
+        const dirStr=dirs.length===1?dirs[0]:dirs.length===2?dirs.join(' and '):dirs.slice(0,3).join('/');
+        const dbzStr=dbzMin===dbzMax?`${dbzMin} dBZ`:`${dbzMin}-${dbzMax} dBZ`;
+        const dStr=Math.abs(dMax-dMin)<2?fmtD(dMin):`${fmtD(dMin)}-${fmtD(dMax)}`;
+        const geom=cells.length===1?'a lone cell':cells.length<=3?'a small cluster':cells.length<=8?'a band':'a ring of returns';
+        return `${geom} (${dbzStr}) ${dStr} to the ${dirStr}, ${verb}`;
+      };
+      const _allBg=[...bg];
+      const _hBg=_scenify(_allBg,'sitting in the background');
+      const _hPass=_scenify(passing,'tracking past, outside the impact corridor');
+      const _hAway=_scenify(away,'drifting away from you');
+      if(_hBg||_hPass||_hAway){
+        parts.push(`\nSCENE HINTS (ready-made phrasings — quote, rephrase, or combine into the mandatory Surrounding Picture wrap-up):`);
+        if(_hBg)parts.push(`  • Background: ${_hBg}`);
+        if(_hPass)parts.push(`  • Passing: ${_hPass}`);
+        if(_hAway)parts.push(`  • Moving away: ${_hAway}`);
+      }else if(c.inbound.length){
+        parts.push(`\nSCENE HINTS: nothing else of note on radar — the inbound cells above are the whole story.`);
       }
     }else{
       parts.push(`\nSTORM DATA: briefing engine unavailable, ${fs.storms.length} cells after filter.`);
@@ -519,6 +547,10 @@ Your professional standards:
     * **Mental picture (one short narrative sentence per group)** for background (MISS / DISTANT / FAR), passing, and moving-away cells. Do NOT enumerate them cell-by-cell. Instead paint a scene the user can picture without reading: "a ring of light returns sits 25-35 mi to the NE, drifting away", "a band of moderate cells is sliding past well to your south", "a few weak echoes are scattered to the W, no threat". Use prepositions and geometry words (ring, band, line, cluster, arc, scattered, parked, drifting, sliding, receding) over numeric ranges.
     * Even if a non-inbound tier has only ONE cell, describe it as a scene ("a lone 35 dBZ cell is parked 18 mi west, holding station") — never as a bare data bullet.
     * If a passing-or-receding cell is the strongest thing on radar, you may quote its dBZ in the narrative sentence so the user understands what's out there, but still keep it to one sentence (e.g. "the strongest echo on the screen is a 52 dBZ cell tracking ENE about 22 mi to your N — passing well clear").
+- MANDATORY SURROUNDING PICTURE WRAP-UP (do not skip): After the inbound bullets in **Active Threats & Storm Tracking**, you MUST end the section with a short "**Surrounding Picture:**" wrap-up of 1–3 narrative sentences describing everything else on radar. This is a hard output requirement — never omit it just because the inbound list is already long.
+    * If the STORM DATA block reports any cells in the MISS / DISTANT / FAR background tiers, the PASSING bucket, or the MOVING AWAY bucket, you MUST emit one short narrative sentence per non-empty group (use the SCENE HINTS lines as ready-made phrasings — quote, rephrase, or combine them). Lead with geometry/motion words (ring, band, line, cluster, arc, scattered, parked, drifting, sliding, receding), not bare dBZ ranges.
+    * If all three buckets (background, passing, moving away) are empty, the wrap-up reads exactly: "**Surrounding Picture:** nothing else of note on radar — the inbound cells above are the whole story."
+    * The wrap-up is **additive** to the inbound bullets, not a replacement. Do not drop the per-cell inbound bullets to make room for it.
 
 ${urgencyPrefix} ${urgencyStyle}
 ${toneInstr}
@@ -534,7 +566,7 @@ Write in flowing paragraphs under these section headers. Skip any section that h
 Start here. What is happening and why. Synoptic setup, frontal positions, pressure patterns, and the AFD synthesis if available. What's driving today's weather and what changes are expected in the next 6-12 hours. This is the "big picture" paragraph that frames everything else.
 
 ⛈️ Active Threats & Storm Tracking
-Only include if storms >= 31 dBZ exist OR active NWS alerts are present. Lead with alerts. For approaching storms, state distance, bearing, intensity, estimated speed, and ETA explicitly. For receding storms, note them briefly. For storm environments, reference CAPE, lifted index, and wind shear to assess whether cells are likely to strengthen, maintain, or weaken.
+Only include if storms >= 31 dBZ exist OR active NWS alerts are present. Lead with alerts. For approaching storms, state distance, bearing, intensity, estimated speed, and ETA explicitly. For storm environments, reference CAPE, lifted index, and wind shear to assess whether cells are likely to strengthen, maintain, or weaken. **End this section with a mandatory "Surrounding Picture:" wrap-up** (1–3 narrative sentences) painting what else is on radar — background / passing / moving-away groups — using the SCENE HINTS lines as starting phrasings. If those buckets are all empty, emit the exact "nothing else of note on radar — the inbound cells above are the whole story" line. See the DETAIL vs MENTAL PICTURE rule above for full requirements; this wrap-up is NOT optional.
 
 🚸 Public Safety & Outdoor Guidance
 Practical advice for the general public. Should you be outside? Driving risks? Heat/cold concerns? What to watch for and when conditions change. Keep this conversational and actionable.
