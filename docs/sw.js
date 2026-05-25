@@ -86,7 +86,7 @@ self.addEventListener('fetch', event => {
   // notification worker on workers.dev) handles its own caching / CORS /
   // errors and must reach the network directly.
   if (url.origin !== location.origin) return;
-  if (url.pathname.startsWith('/api/')) return;
+  if (url.pathname.includes('/api/')) return;
   if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
     event.respondWith(
       fetch(event.request)
