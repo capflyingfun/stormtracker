@@ -266,18 +266,20 @@ async function fetchAFD(){
     const afdData=await afdRes.json();
     const fullText=afdData.productText||'';
     let discussion='';
-    const discMatch=fullText.match(/\.DISCUSSION\.\.\.([\s\S]*?)(?=\n\.\w|\n\$\$|$)/i);
-    if(discMatch)discussion=discMatch[1].trim();
-    else{
-      const synMatch=fullText.match(/\.SYNOPSIS\.\.\.([\s\S]*?)(?=\n\.\w|\n\$\$|$)/i);
-      if(synMatch)discussion=synMatch[1].trim();
+    const SECTIONS=['SYNOPSIS','DISCUSSION','NEAR TERM','SHORT TERM','LONG TERM','AVIATION','MARINE'];
+    const parts=[];
+    for(const name of SECTIONS){
+      const re=new RegExp('\\.'+name.replace(/ /g,'\\s+')+'\\.\\.\\.([\\s\\S]*?)(?=\\n\\.\\w|\\n\\$\\$|$)','i');
+      const m=fullText.match(re);
+      if(m&&m[1]&&m[1].trim().length>20)parts.push(name+': '+m[1].trim());
     }
+    if(parts.length)discussion=parts.join('\n\n');
     if(!discussion||discussion.length<50){
       const lines=fullText.split('\n');
       const start=lines.findIndex(l=>/^\.\w/.test(l));
-      if(start>=0)discussion=lines.slice(start,start+40).join('\n').substring(0,1500);
+      if(start>=0)discussion=lines.slice(start,start+80).join('\n').substring(0,3000);
     }
-    if(discussion&&discussion.length>1500)discussion=discussion.substring(0,1500);
+    if(discussion&&discussion.length>12000)discussion=discussion.substring(0,12000);
     const officeName=ptData.properties?.cwa||office;
     S._afd={office:officeName,discussion,issuedAt:latest.issuanceTime||''};
     S._afdCache={ts:Date.now(),data:S._afd};

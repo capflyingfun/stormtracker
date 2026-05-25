@@ -39,14 +39,40 @@
       }
       const bandOf=mi=>(mi==null||!isFinite(mi))?99:Math.min(12,Math.floor(mi));
       const order={direct:0,near_direct:1,near_miss:2};
-      classified.inbound.sort((a,b)=>{
+      const missBandSort=(a,b)=>{
         const bA=bandOf(a.b&&a.b.perpMissMi),bB=bandOf(b.b&&b.b.perpMissMi);
         if(bA!==bB)return bA-bB;
         const oA=order[a.tier]??9,oB=order[b.tier]??9;
         if(oA!==oB)return oA-oB;
+        if((b.s.dbz||0)!==(a.s.dbz||0))return (b.s.dbz||0)-(a.s.dbz||0);
         return a.s.distance-b.s.distance;
-      });
+      };
+      classified.inbound.sort(missBandSort);
       classified.background.sort((a,b)=>b.s.dbz-a.s.dbz);
+      // Significance filter: <25 dBZ beyond 5 mi is drizzle/clutter — collapse those
+      // into a single light-cells summary line so they don't crowd out meaningful cells.
+      const SIG=it=>(it.s.dbz>=25)||(it.s.distance<=5);
+      const inboundSig=classified.inbound.filter(SIG);
+      classified.inboundLight=classified.inbound.filter(it=>!SIG(it));
+      // Strongest-cell guarantee: always surface the top 4 by raw dBZ so peak cells
+      // (e.g. 55 dBZ at 58 mi) don't get starved by hundreds of close light cells
+      // sharing miss-band 0. Fill remaining slots with miss-band order.
+      const INBOUND_CAP=12,STRONG_GUARANTEE=4;
+      const byDbz=[...inboundSig].sort((a,b)=>(b.s.dbz||0)-(a.s.dbz||0)||a.s.distance-b.s.distance);
+      const guaranteed=byDbz.slice(0,STRONG_GUARANTEE);
+      const guarSet=new Set(guaranteed.map(it=>it.s));
+      const restMissBand=inboundSig.filter(it=>!guarSet.has(it.s));
+      const chosen=guaranteed.concat(restMissBand).slice(0,INBOUND_CAP);
+      // Display order in the bullets still follows miss-band sort (closest pass first);
+      // the guarantee only changes membership, not order.
+      chosen.sort(missBandSort);
+      const chosenSet=new Set(chosen.map(it=>it.s));
+      classified.inboundTop=chosen;
+      classified.inboundRest=inboundSig.filter(it=>!chosenSet.has(it.s));
+    }else{
+      classified.inboundLight=[];
+      classified.inboundTop=[];
+      classified.inboundRest=[];
     }
     let stab=null,shear=null;
     try{if(typeof getStabilityData==='function')stab=getStabilityData()}catch(e){}
@@ -189,13 +215,13 @@
       if(ends){try{endsStr=` (expires __${new Date(ends).toLocaleString()}__)`;}catch(e){}}
       lines.push(`- ⚠️ [!${color}]${ev}[/!]${endsStr}`);
     }
-    // Inbound bullets in global miss-distance-band order (sorted upstream in gatherBriefingData).
-    // Cap at top 12 to keep the briefing scannable; remainder summarized below.
-    // NEAR MISS cells that are both low-dBZ (<31) and distant (>20 mi) are collapsed into one
-    // summary line at the end so they don't drown out actionable cells.
-    const INBOUND_CAP=12;
-    const inboundTop=c.inbound.slice(0,INBOUND_CAP);
-    const inboundRest=c.inbound.slice(INBOUND_CAP);
+    // Inbound bullets — significance filter + strongest-cell guarantee applied upstream
+    // in gatherBriefingData. Display order follows miss-band sort (closest pass first).
+    // NEAR MISS cells that are both low-dBZ (<31) and distant (>20 mi) are collapsed
+    // into one summary line so they don't drown out actionable cells.
+    const inboundTop=c.inboundTop||[];
+    const inboundRest=c.inboundRest||[];
+    const inboundLight=c.inboundLight||[];
     const nmLow=[];
     for(const it of inboundTop){
       if(it.tier==='near_miss'&&!(it.s.dbz>=31||it.s.distance<=20)){nmLow.push(it);continue}
@@ -212,6 +238,13 @@
       if(tally.near_direct)parts.push(`${tally.near_direct} NEAR DIRECT`);
       if(tally.near_miss)parts.push(`${tally.near_miss} NEAR MISS`);
       lines.push(`- ➕ +${inboundRest.length} more inbound cell${inboundRest.length===1?'':'s'} (${parts.join(', ')}, peak ${_dbzTag(peak)}) — see Storms tab for full list.`);
+    }
+    if(inboundLight.length){
+      const peak=Math.max(...inboundLight.map(x=>x.s.dbz));
+      const minD=Math.min(...inboundLight.map(x=>x.s.distance));
+      const maxD=Math.max(...inboundLight.map(x=>x.s.distance));
+      const dStr=_fmtDist(minD,d.metric)+'–'+_fmtDist(maxD,d.metric);
+      lines.push(`- 💧 ${inboundLight.length} light cell${inboundLight.length===1?'':'s'} (sprinkles / drizzle, ≤${_dbzTag(peak)}) tracking through ${dStr} — minor radar reflectivity, not actionable.`);
     }
     // MISS / DISTANT / FAR — background context only, one summary line per tier (no per-cell bullets)
     function _bgTier(label,emoji,cells){
