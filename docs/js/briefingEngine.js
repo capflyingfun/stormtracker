@@ -166,9 +166,7 @@
     }
     if(d.afd&&d.afd.discussion){
       const full=d.afd.discussion.replace(/\s+/g,' ').trim();
-      const MAX=4000;
-      const snip=full.length>MAX?full.slice(0,MAX)+'…':full;
-      lines.push(`*AFD (${d.afd.office||'NWS'}):* ${snip}`);
+      lines.push(`*AFD (${d.afd.office||'NWS'}):* ${full}`);
     }
     return lines.join('\n');
   }
@@ -192,15 +190,29 @@
       lines.push(`- ⚠️ [!${color}]${ev}[/!]${endsStr}`);
     }
     // Inbound bullets in global miss-distance-band order (sorted upstream in gatherBriefingData).
+    // Cap at top 12 to keep the briefing scannable; remainder summarized below.
     // NEAR MISS cells that are both low-dBZ (<31) and distant (>20 mi) are collapsed into one
     // summary line at the end so they don't drown out actionable cells.
+    const INBOUND_CAP=12;
+    const inboundTop=c.inbound.slice(0,INBOUND_CAP);
+    const inboundRest=c.inbound.slice(INBOUND_CAP);
     const nmLow=[];
-    for(const it of c.inbound){
+    for(const it of inboundTop){
       if(it.tier==='near_miss'&&!(it.s.dbz>=31||it.s.distance<=20)){nmLow.push(it);continue}
       lines.push('- '+_stormLine(it,d.metric));
     }
     const nmSum=_sumLine('NEAR MISS (light)',nmLow,'🟡',' — not actionable.',d.metric);
     if(nmSum)lines.push(nmSum);
+    if(inboundRest.length){
+      const peak=Math.max(...inboundRest.map(x=>x.s.dbz));
+      const tally={direct:0,near_direct:0,near_miss:0};
+      for(const it of inboundRest){if(tally[it.tier]!=null)tally[it.tier]++}
+      const parts=[];
+      if(tally.direct)parts.push(`${tally.direct} DIRECT`);
+      if(tally.near_direct)parts.push(`${tally.near_direct} NEAR DIRECT`);
+      if(tally.near_miss)parts.push(`${tally.near_miss} NEAR MISS`);
+      lines.push(`- ➕ +${inboundRest.length} more inbound cell${inboundRest.length===1?'':'s'} (${parts.join(', ')}, peak ${_dbzTag(peak)}) — see Storms tab for full list.`);
+    }
     // MISS / DISTANT / FAR — background context only, one summary line per tier (no per-cell bullets)
     function _bgTier(label,emoji,cells){
       const sum=_sumLine(label,cells,emoji,' — background context, no direct impact.',d.metric);
