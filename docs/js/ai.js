@@ -179,154 +179,108 @@ function buildWeatherContext(){
     }
   }
 
+  // STORM CONTEXT — consume the SAME post-filter snapshot the Storms tab cards
+  // and System Briefing render from, so all three surfaces agree on the cell
+  // list. This block replaces the prior raw-storm rebuild.
   if(S.storms&&S.storms.length){
-    const validStorms=S.storms.filter(s=>s&&s.distance!=null&&s.bearing!=null&&s.dbz!=null);
-    const sigStorms=validStorms.filter(s=>s.dbz>=31);
-    const lowStorms=validStorms.filter(s=>s.dbz<31);
-    const lowInbound=[];
-    for(const s of lowStorms){
-      if(s.dbz<15)continue;
-      try{
-        const b=s._brief||((typeof calcStormETAForBriefing==='function')?calcStormETAForBriefing(s):null);
-        if(b&&b.estDbzAtUser!=null&&b.estDbzAtUser<15)continue;
-        if(b&&b.classification&&(b.classification==='direct'||b.classification==='near_direct'||b.classification==='near_miss')&&b.closingMph>0){
-          s._aiBrief=b;s._aiTier=b.classification;
-          lowInbound.push(s);
-        }
-      }catch(e){}
+    const fs=(typeof getFilteredStorms==='function')
+      ?getFilteredStorms()
+      :{storms:S.storms,filter:null,totalCount:S.storms.length,hiddenCount:0};
+    const f=fs.filter;
+    const filterActive=!!(f&&((f.minDbz|0)>0||(f.maxDist|0)>0||f.approachOnly||f.threatsOnly));
+    const distU=S.radarMetric?'km':'mi';
+    parts.push(`\nSTORM FILTER (user-controlled Storms-tab filter — these are the ONLY cells the user is looking at; do NOT mention cells outside this filter):`);
+    if(filterActive){
+      if((f.minDbz|0)>0)parts.push(`  - Min dBZ: ${f.minDbz} (cells below this are hidden by the user)`);
+      if((f.maxDist|0)>0)parts.push(`  - Max distance: ${f.maxDist} ${distU} (cells beyond are hidden)`);
+      if(f.approachOnly)parts.push(`  - Approaching only: ON (passing / moving-away cells are hidden)`);
+      if(f.threatsOnly)parts.push(`  - Threats only: ON (only direct / near_direct / near_miss cells are shown)`);
+      parts.push(`  - Sort: ${f.sort1||'threat'} then ${f.sort2||'eta'}`);
+      parts.push(`  - Showing ${fs.totalCount-fs.hiddenCount} of ${fs.totalCount} cells (${fs.hiddenCount} hidden by your filters)`);
+    }else{
+      parts.push(`  - No filter active — all ${fs.totalCount} scanned cells are eligible.`);
     }
-    const clutterCount=lowStorms.length-lowInbound.length;
-    parts.push(`\nSTORM DATA: ${validStorms.length} radar returns detected.`);
-    if(sigStorms.length===0&&lowInbound.length===0&&lowStorms.length>0){
-      parts.push(`  NOTE: All ${lowStorms.length} returns are below 31 dBZ (max ${Math.max(...lowStorms.map(s=>s.dbz))} dBZ). ${(lowStorms.every(s=>s.dbz<22)&&lowStorms.length<=12)||lowStorms.length<=8?'With '+(lowStorms.every(s=>s.dbz<22)?'12':'8')+' or fewer sub-'+(lowStorms.every(s=>s.dbz<22)?'22':'31')+' dBZ returns, these are most likely radar ground clutter or false positives — not real precipitation. Mention this to the user as "minor radar reflectivity/clutter" rather than rain.':'There are more than the clutter threshold of low-dBZ returns which may indicate light drizzle or virga, but nothing significant.'}`);
-    }else if(sigStorms.length===0&&lowInbound.length>0){
-      parts.push(`  ${lowInbound.length} inbound light-rain cells (15-30 dBZ) and ${clutterCount} non-inbound or sub-15 returns. No significant cells (31+ dBZ) detected — characterize this as light rain inbound, NOT severe weather. LEAD the briefing with these inbound cells.`);
-    }else if(lowStorms.length>0&&sigStorms.length>0){
-      parts.push(`  ${sigStorms.length} significant cells (31+ dBZ), ${lowInbound.length} inbound light-rain cells (15-30 dBZ), and ${clutterCount} non-inbound or sub-15 returns.`);
-    }
-    if(sigStorms.length||lowInbound.length){
-      if(sigStorms.length){
-        const peakDbz=Math.max(...sigStorms.map(s=>s.dbz));
+
+    let d=null;
+    try{if(typeof gatherBriefingData==='function')d=gatherBriefingData();}catch(e){console.warn('briefing data error',e)}
+    const c=d&&d.classified;
+    if(c){
+      const inboundTop=c.inboundTop||[];
+      const inboundRest=c.inboundRest||[];
+      const inboundLight=c.inboundLight||[];
+      const bg=c.background||[];
+      const passing=c.passing||[];
+      const away=c.away||[];
+      const sigCount=c.inbound.filter(it=>it.s.dbz>=31).length;
+      const lowCount=inboundLight.length;
+      parts.push(`\nSTORM DATA (post-filter — mirrors the Storms tab cards):`);
+      parts.push(`  Total cells: ${fs.totalCount} scanned · ${c.totalCount} after user filter · ${c.inbound.length} inbound (${sigCount} significant ≥31 dBZ + ${lowCount} light) · ${bg.length} background · ${passing.length} passing · ${away.length} moving away`);
+      if(sigCount===0&&lowCount===0&&c.inbound.length===0&&c.totalCount>0){
+        parts.push(`  NOTE: No inbound cells in the filtered view. Background cells (if any) are NOT on track to impact the user — characterize as "minor reflectivity / clutter" rather than rain.`);
+      }else if(sigCount===0&&lowCount>0){
+        parts.push(`  Inbound is ALL light rain (15-30 dBZ) — LEAD with these inbound cells; do NOT call this severe weather.`);
+      }
+      if(c.inbound.length){
+        const peakDbz=Math.max(...c.inbound.map(it=>it.s.dbz));
         const peakCat=peakDbz>=65?'EXTREME (severe-hail signature likely)':peakDbz>=60?'SEVERE (hail possible)':peakDbz>=55?'MODERATE-SEVERE (strong core, not auto-severe)':peakDbz>=45?'MODERATE-HEAVY':peakDbz>=30?'MODERATE':'LIGHT';
-        const closestSig=[...sigStorms].sort((a,b)=>a.distance-b.distance)[0];
-        parts.push(`  Peak intensity: ${peakDbz} dBZ [${peakCat}]. Closest significant cell: ${fmtStormDist(closestSig.distance)} ${degToDir(closestSig.bearing)}.`);
-      }else if(lowInbound.length){
-        const peakLow=Math.max(...lowInbound.map(s=>s.dbz));
-        const closestLow=[...lowInbound].sort((a,b)=>a.distance-b.distance)[0];
-        parts.push(`  Peak intensity: ${peakLow} dBZ [LIGHT RAIN]. Closest inbound light-rain cell: ${fmtStormDist(closestLow.distance)} ${degToDir(closestLow.bearing)}.`);
+        parts.push(`  Peak inbound intensity: ${peakDbz} dBZ [${peakCat}].`);
       }
-      const byDist=[...sigStorms].sort((a,b)=>a.distance-b.distance).slice(0,6);
-      const byDbz=[...sigStorms].sort((a,b)=>b.dbz-a.dbz).slice(0,6);
-      const lowByDist=[...lowInbound].sort((a,b)=>a.distance-b.distance).slice(0,6);
-      const seen=new Set();
-      const top=[];
-      for(const s of [...byDbz,...byDist]){
-        const k=`${s.lat.toFixed(3)}_${s.lng.toFixed(3)}`;
-        if(!seen.has(k)){seen.add(k);top.push(s);}
-        if(top.length>=12)break;
+      const fmtD=(mi)=>{const r=Math.round(mi*10)/10;return S.radarMetric?(r*1.60934).toFixed(1)+' km':r.toFixed(1)+' mi';};
+      const tierLbl={direct:'DIRECT',near_direct:'NEAR DIRECT',near_miss:'NEAR MISS',miss:'MISS',distant:'DISTANT',far:'FAR',passing:'PASSING',moving_away:'MOVING AWAY'};
+      const tierEmo={direct:'🔴',near_direct:'🟠',near_miss:'🟡',miss:'🔵',distant:'⚪',far:'⚫',passing:'🟡',moving_away:'🟢'};
+      for(const it of inboundTop){
+        const s=it.s,b=it.b||{};
+        const e=tierEmo[it.tier]||'⚫',lbl=tierLbl[it.tier]||(it.tier||'').toUpperCase();
+        const close=b.closingMph!=null?((b.closingMph>=0?'+':'')+b.closingMph+' mph'):'?';
+        const miss=b.perpMissMi!=null?b.perpMissMi.toFixed(1)+' mi':'?';
+        const eta=b.etaMin!=null?`, ETA ~${b.etaMin} min`:'';
+        const pct=b.closenessPct!=null?` (${b.closenessPct}% max intensity at user)`:'';
+        const estDbz=b.estDbzAtUser!=null?`, ~${b.estDbzAtUser} dBZ expected at user`:'';
+        const mov=(b.movSpdMph&&b.movDirDeg!=null)?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph)`:'';
+        parts.push(`  ${e} ${lbl}${pct}: ${s.dbz} dBZ cell at ${fmtD(s.distance)} ${degToDir(s.bearing)} closing ${close}${eta}, projected miss ${miss}${estDbz}${mov}.`);
       }
-      for(const s of lowByDist){
-        const k=`${s.lat.toFixed(3)}_${s.lng.toFixed(3)}`;
-        if(!seen.has(k)){seen.add(k);top.push(s);}
-        if(top.length>=18)break;
+      if(inboundRest.length){
+        const peak=Math.max(...inboundRest.map(it=>it.s.dbz));
+        parts.push(`  ➕ +${inboundRest.length} more inbound cell(s), peak ${peak} dBZ — see Storms tab for full list.`);
       }
-      const buckets={direct:[],near_direct:[],near_miss:[],miss:[],distant:[],far:[],passing:[],moving_away:[],unknown:[]};
-      for(const st of top){
-        let tier='unknown',brief=null;
-        try{
-          brief=st._brief||((typeof calcStormETAForBriefing==='function')?calcStormETAForBriefing(st):null);
-          if(brief&&brief.classification&&buckets[brief.classification])tier=brief.classification;
-          if(brief&&brief.estDbzAtUser!=null&&brief.estDbzAtUser<15)continue;
-        }catch(e){console.warn('AI storm ETA calc error:',e)}
-        st._aiBrief=brief;st._aiTier=tier;
-        buckets[tier].push(st);
+      if(inboundLight.length){
+        const peak=Math.max(...inboundLight.map(it=>it.s.dbz));
+        const dMin=Math.min(...inboundLight.map(it=>it.s.distance));
+        const dMax=Math.max(...inboundLight.map(it=>it.s.distance));
+        parts.push(`  💧 ${inboundLight.length} light cell(s) (sprinkles/drizzle, ≤${peak} dBZ) through ${fmtD(dMin)}–${fmtD(dMax)} — minor reflectivity, not actionable.`);
       }
-      for(const k of Object.keys(buckets))buckets[k].sort((a,b)=>a.distance-b.distance);
-      const tierOrder=['direct','near_direct','near_miss','miss','distant','far','passing','moving_away','unknown'];
-      const _fmtDistOne=(d)=>{const r=Math.round(d*10)/10;return S.radarMetric?(r*1.60934).toFixed(1)+' km':r.toFixed(1)+' mi';};
-      const _fmtRange=(arr,fmt)=>{const vs=arr.map(fmt);const mn=Math.min(...vs),mx=Math.max(...vs);return mn===mx?mn.toString():`${mn}-${mx}`;};
-      const _groupedLine=(label,cells)=>{
-        if(cells.length===1){
-          const st=cells[0];const b=st._aiBrief||{};
-          const dirStr=b.sideBearing!=null?degToDir(b.sideBearing):degToDir(st.bearing);
-          const movStr=b.movSpdMph?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph)`:'';
-          const missStr=b.perpMissMi!=null?`, projected miss ~${b.perpMissMi} mi`:'';
-          const closeStr=b.closingMph!=null?`, closing ${b.closingMph} mph`:'';
-          return `  ${label} ${dirStr}: ${st.dbz} dBZ cell at ${_fmtDistOne(st.distance)}${missStr}${closeStr}${movStr}.`;
+      const _ts=S._topStormAnalysis;
+      if(_ts&&_ts.overhead&&_ts.overhead.length){
+        parts.push(`  ⚠️ OVERHEAD / ARRIVED: ${_ts.overhead.length} cell(s) currently inside the user's storm cone.`);
+        for(const s of _ts.overhead.slice(0,3)){
+          parts.push(`    - ${s.dbz} dBZ at ${fmtD(s.distance)} ${degToDir(s.bearing)} (in cone).`);
         }
-        const dbzRange=_fmtRange(cells,c=>c.dbz);
-        const distRange=cells.map(c=>Math.round(c.distance*10)/10);
-        const dMin=Math.min(...distRange),dMax=Math.max(...distRange);
-        const distStr=S.radarMetric?`${(dMin*1.60934).toFixed(1)}-${(dMax*1.60934).toFixed(1)} km`:`${dMin.toFixed(1)}-${dMax.toFixed(1)} mi`;
-        const dirs=[...new Set(cells.map(c=>{const b=c._aiBrief;return b&&b.sideBearing!=null?degToDir(b.sideBearing):degToDir(c.bearing);}))];
-        const closings=cells.map(c=>c._aiBrief&&c._aiBrief.closingMph!=null?c._aiBrief.closingMph:null).filter(x=>x!=null);
-        const closeStr=closings.length?`, closing ${Math.min(...closings)} to ${Math.max(...closings)} mph`:'';
-        return `  ${label} (${cells.length} cells, ${dbzRange} dBZ): ${dirs.join('/')} at ${distStr}${closeStr}. No direct impact; outflow possible.`;
-      };
-      const _summaryTier=(tier)=>{
-        const cells=buckets[tier];
+      }
+      const _bgGroup=(tier,label,emoji)=>{
+        const cells=bg.filter(it=>it.tier===tier);
         if(!cells.length)return;
-        const labelMap={near_miss:'NEAR MISS',miss:'MISS',distant:'DISTANT',far:'FAR',passing:'PASSING',moving_away:'MOVING AWAY'};
-        const label=labelMap[tier]||tier.toUpperCase();
-        let sigCells,restCells;
-        if(tier==='near_miss'){
-          sigCells=cells.filter(c=>c.dbz>=31||c.distance<=20);
-          restCells=cells.filter(c=>!(c.dbz>=31||c.distance<=20));
-        }else if(tier==='miss'){
-          sigCells=cells.filter(c=>c.dbz>=55);
-          restCells=cells.filter(c=>c.dbz<55);
-        }else if(tier==='far'){
-          sigCells=cells.filter(c=>c.dbz>=55);
-          restCells=[];
-        }else if(tier==='distant'){
-          sigCells=[];
-          restCells=cells;
-        }else{
-          sigCells=cells.filter(c=>c.dbz>=60&&c.distance<=20);
-          restCells=cells.filter(c=>!(c.dbz>=60&&c.distance<=20));
-        }
-        for(const st of sigCells){
-          const distRnd=Math.round(st.distance*10)/10;
-          const distStr=S.radarMetric?(distRnd*1.60934).toFixed(1)+' km':distRnd.toFixed(1)+' mi';
-          const b=st._aiBrief||{};const sc=(typeof stormClass==='function')?stormClass(b.classification):null;
-          const movStr=b.movSpdMph?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph)`:'';
-          const missStr=b.perpMissMi!=null?`, miss ~${b.perpMissMi} mi`:'';
-          parts.push(`  Storm at ${distStr} ${degToDir(st.bearing)}, intensity ${st.dbz} dBZ ${sc?sc.aiPhrase:label} — closing ${b.closingMph} mph${missStr}${movStr}`);
-        }
-        if(restCells.length)parts.push(_groupedLine(label,restCells));
+        const dbzMin=Math.min(...cells.map(it=>it.s.dbz));
+        const dbzMax=Math.max(...cells.map(it=>it.s.dbz));
+        const dMin=Math.min(...cells.map(it=>it.s.distance)),dMax=Math.max(...cells.map(it=>it.s.distance));
+        const dRange=cells.length===1?fmtD(cells[0].s.distance):`${fmtD(dMin)}–${fmtD(dMax)}`;
+        const dirs=[...new Set(cells.map(it=>degToDir(it.s.bearing)))].slice(0,4);
+        parts.push(`  ${emoji} ${label}: ${cells.length} cell(s) (${dbzMin===dbzMax?dbzMin+' dBZ':dbzMin+'-'+dbzMax+' dBZ'}) ${dirs.join('/')} at ${dRange} — background context, NOT inbound.`);
       };
-      for(const tier of tierOrder){
-        const cells=buckets[tier];
-        if(!cells.length)continue;
-        if(tier==='near_miss'||tier==='miss'||tier==='distant'||tier==='far'||tier==='passing'||tier==='moving_away'){
-          _summaryTier(tier);
-          continue;
-        }
-        for(const st of cells){
-          const distRnd=Math.round(st.distance*10)/10;
-          const distStr=S.radarMetric?(distRnd*1.60934).toFixed(1)+' km':distRnd.toFixed(1)+' mi';
-          let line=`  Storm at ${distStr} ${degToDir(st.bearing)} (${st.bearing.toFixed(0)}°), intensity ${st.dbz} dBZ`;
-          const cat=st.dbz>=65?'EXTREME (severe-hail signature likely)':st.dbz>=60?'SEVERE (hail possible)':st.dbz>=55?'MODERATE-SEVERE (strong, not auto-severe)':st.dbz>=45?'MODERATE-HEAVY':st.dbz>=30?'MODERATE':st.dbz>=15?'LIGHT RAIN':'CLUTTER';
-          line+=` [${cat}]`;
-          const b=st._aiBrief;
-          if(b&&b.classification){
-            const movStr=b.movSpdMph?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph, ${b.source}-derived)`:'';
-            const sc=(typeof stormClass==='function')?stormClass(b.classification):null;
-            const impPct=(b.impactScore!=null)?Math.round(b.impactScore*100):null;
-            const estDbz=(b.estDbzAtUser!=null)?b.estDbzAtUser:null;
-            const estStr=(estDbz!=null&&st.distance<=6)?`, ~${estDbz} dBZ expected at user`:'';
-            if(b.classification==='direct'){
-              line+=` ${sc?sc.aiPhrase:'APPROACHING DIRECTLY'} (${impPct}% max intensity at user${estStr}) — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass within ${b.perpMissMi} mi of user${movStr}`;
-            }else if(b.classification==='near_direct'){
-              line+=` ${sc?sc.aiPhrase:'NEAR DIRECT HIT'} (${impPct}% max intensity at user${estStr}) — closing ${b.closingMph} mph, ETA ~${b.etaMin} min, projected pass ${b.perpMissMi} mi from user (brief downpour likely)${movStr}`;
-            }else{
-              line+=` motion unknown (insufficient steering data)`;
-            }
-          }
-          parts.push(line);
-        }
+      _bgGroup('miss','MISS','🔵');
+      _bgGroup('distant','DISTANT','⚪');
+      _bgGroup('far','FAR','⚫');
+      if(passing.length){
+        const dbzMax=Math.max(...passing.map(it=>it.s.dbz));
+        const dirs=[...new Set(passing.map(it=>degToDir(it.s.bearing)))].slice(0,3);
+        parts.push(`  🟡 PASSING: ${passing.length} cell(s) (up to ${dbzMax} dBZ) tracking past to the ${dirs.join('/')} — outflow possible, no direct hit.`);
       }
-      if(sigStorms.length>top.length)parts.push(`  ... and ${sigStorms.length-top.length} more significant storm cells`);
+      if(away.length){
+        const dbzMax=Math.max(...away.map(it=>it.s.dbz));
+        const dirs=[...new Set(away.map(it=>degToDir(it.s.bearing)))].slice(0,3);
+        parts.push(`  🟢 MOVING AWAY: ${away.length} cell(s) (up to ${dbzMax} dBZ) receding to the ${dirs.join('/')} — no threat.`);
+      }
+    }else{
+      parts.push(`\nSTORM DATA: briefing engine unavailable, ${fs.storms.length} cells after filter.`);
     }
     if(S.stormMovement&&S.stormMovement.speed>=2){
       parts.push(`  General storm movement: ${degToDir(S.stormMovement.direction)} at ${fmtWind(S.stormMovement.speed*1.60934)}`);
@@ -336,7 +290,7 @@ function buildWeatherContext(){
   }
 
   if(S.alerts&&S.alerts.length){
-    parts.push(`\nACTIVE NWS ALERTS (${S.alerts.length}):`);
+    parts.push(`\nACTIVE NWS ALERTS (${S.alerts.length}) — same wording shown on the Alerts tab:`);
     for(const a of S.alerts.slice(0,8)){
       const p=a.properties||a;
       let line=`  ⚠ ${p.event||p.headline||'Alert'}`;
@@ -346,9 +300,14 @@ function buildWeatherContext(){
       else if(p.effective)line+=` [Effective: ${p.effective}]`;
       if(p.ends)line+=` [Ends: ${p.ends}]`;
       else if(p.expires)line+=` [Expires: ${p.expires}]`;
+      if(p.areaDesc)line+=`\n    Area: ${String(p.areaDesc).substring(0,200)}`;
       if(p.description){
-        const desc=p.description.replace(/\n/g,' ').substring(0,300);
+        const desc=p.description.replace(/\n/g,' ').substring(0,1200);
         line+=`\n    ${desc}`;
+      }
+      if(p.instruction){
+        const ins=p.instruction.replace(/\n/g,' ').substring(0,500);
+        line+=`\n    Instruction: ${ins}`;
       }
       parts.push(line);
     }
@@ -540,6 +499,7 @@ Your professional standards:
 - When the Area Forecast Discussion is available, you synthesize it — explain what synoptic features are driving the weather, what the forecasters are confident about vs uncertain about, and what that means for the next 6-12 hours in plain language
 - For calm weather, keep it brief and conversational — don't manufacture drama when conditions are benign
 - For dangerous weather, drop all humor and be direct about life safety
+- SINGLE SOURCE OF TRUTH: The STORM FILTER, STORM DATA, and ACTIVE NWS ALERTS sections below are the EXACT cells and wording the user is looking at on the Storms and Alerts tabs after their filter is applied. Do not contradict, re-rank, or invent additional cells; do not reference cells outside the user's filter (passing / moving-away / sub-min-dBZ / beyond-max-distance cells are HIDDEN from the user). Mirror those numbers in your briefing so the user sees consistent counts, distances, ETAs, and dBZ values across the Storms tab, System Briefing, and AI Briefing. If the user's filter has hidden the strongest cells, acknowledge that explicitly ("with your Threats-only filter on, the 55 dBZ cell to the NE is hidden") rather than reaching for the raw scan.
 
 ${urgencyPrefix} ${urgencyStyle}
 ${toneInstr}

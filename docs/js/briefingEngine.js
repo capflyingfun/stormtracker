@@ -22,8 +22,17 @@
 
   function gatherBriefingData(){
     const classified={inbound:[],background:[],passing:[],away:[],hiddenCount:0,totalCount:0};
-    if(typeof S!=='undefined'&&S.storms&&S.storms.length){
-      for(const s of S.storms){
+    // Consume the post-filter snapshot so the System Briefing sees the SAME cells
+    // the Storms tab cards render. Falls back to raw S.storms if the helper is
+    // not loaded yet (e.g. very early boot).
+    const fs=(typeof S!=='undefined'&&typeof getFilteredStorms==='function')
+      ?getFilteredStorms()
+      :{storms:(typeof S!=='undefined'&&S.storms)?S.storms:[],filter:null,totalCount:(typeof S!=='undefined'&&S.storms?S.storms.length:0),hiddenCount:0};
+    classified.totalCells=fs.totalCount;
+    classified.hiddenByFilter=fs.hiddenCount;
+    classified.filterState=fs.filter;
+    if(fs.storms&&fs.storms.length){
+      for(const s of fs.storms){
         if(!s||s.distance==null||s.bearing==null||s.dbz==null)continue;
         classified.totalCount++;
         let b=s._brief;
@@ -176,6 +185,18 @@
     if(d.radarMeta){
       const ageStr=d.radarMeta.ageMin!=null?`${d.radarMeta.ageMin} min old`:'fresh';
       lines.push(`*Radar:* ${d.radarMeta.frames} frames (${ageStr})${d.radarMeta.scanRadius?', scan radius '+_fmtDist(d.radarMeta.scanRadius,d.metric):''}.`);
+    }
+    // Mirror the "🙈 N cells hidden by filters" badge on the Storms tab so the
+    // briefing text reflects exactly what the user is looking at.
+    if(c.filterState&&c.hiddenByFilter>0){
+      const f=c.filterState;
+      const bits=[];
+      if((f.minDbz|0)>0)bits.push(`min ${f.minDbz} dBZ`);
+      if((f.maxDist|0)>0)bits.push(`max ${f.maxDist} ${d.metric?'km':'mi'}`);
+      if(f.approachOnly)bits.push('Approaching only ✓');
+      if(f.threatsOnly)bits.push('Threats only ✓');
+      const filterStr=bits.length?' ('+bits.join(' · ')+')':'';
+      lines.push(`*Storm filter active${filterStr}:* showing **${c.totalCount}** of **${c.totalCells}** cells (${c.hiddenByFilter} hidden by your filters).`);
     }
     if(d.stab){
       const s=d.stab;

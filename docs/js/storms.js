@@ -2216,6 +2216,15 @@ function _applyStormFilter(storms,f){
   out.sort((a,b)=>{const r=_stormSortFn(a,b,f.sort1);return r!==0?r:_stormSortFn(a,b,f.sort2)});
   return out;
 }
+// Shared post-filter snapshot consumed by briefingEngine + ai.js so all three
+// surfaces (Storms tab, System Briefing, AI Briefing) render the SAME cell set.
+function getFilteredStorms(){
+  const f=S._stormFilter||_loadStormFilter();
+  if(!S.storms||!S.storms.length)return{filter:f,storms:[],totalCount:0,hiddenCount:0};
+  const out=_applyStormFilter(S.storms,f);
+  return{filter:f,storms:out,totalCount:S.storms.length,hiddenCount:S.storms.length-out.length};
+}
+if(typeof window!=='undefined')window.getFilteredStorms=getFilteredStorms;
 function _smartStormSummary(storms){
   const _hasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
   const _hasAl=S._upperWindDir!=null;
