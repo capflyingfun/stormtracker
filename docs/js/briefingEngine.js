@@ -41,6 +41,15 @@
       classified.inbound.sort((a,b)=>{const o=(order[a.tier]??9)-(order[b.tier]??9);return o!==0?o:a.s.distance-b.s.distance});
       classified.background.sort((a,b)=>b.s.dbz-a.s.dbz);
     }
+    let stab=null,shear=null;
+    try{if(typeof getStabilityData==='function')stab=getStabilityData()}catch(e){}
+    try{if(typeof getWindShearAnalysis==='function')shear=getWindShearAnalysis()}catch(e){}
+    let radarMeta=null;
+    if(typeof S!=='undefined'&&S.radarFrames&&S.radarFrames.length){
+      const last=S.radarFrames[S.radarFrames.length-1];
+      const ageMin=last&&last.time?Math.round((Date.now()/1000-last.time)/60):null;
+      radarMeta={frames:S.radarFrames.length,ageMin,scanRadius:S.scanRadius||null};
+    }
     return{
       now:new Date(),
       locName:(typeof S!=='undefined'&&S.locName)?S.locName:null,
@@ -50,6 +59,7 @@
       alerts:(typeof S!=='undefined'&&S.alerts)?S.alerts:[],
       afd:(typeof S!=='undefined'&&S._afd)?S._afd:null,
       aloft:(typeof S!=='undefined'&&S._aloftData)?S._aloftData:null,
+      stab,shear,radarMeta,
       classified
     };
   }
@@ -129,6 +139,24 @@
       const sev=peak>=60?'red':peak>=52?'orange':peak>=41?'yellow':'cyan';
       lines.push(`Radar shows [!${sev}]**${c.inbound.length} inbound cell${c.inbound.length===1?'':'s'}**[/!] (${tcStr}) within 12 mi miss-distance, peak ${_dbzTag(peak)}.`);
     }
+    if(d.radarMeta){
+      const ageStr=d.radarMeta.ageMin!=null?`${d.radarMeta.ageMin} min old`:'fresh';
+      lines.push(`*Radar:* ${d.radarMeta.frames} frames (${ageStr})${d.radarMeta.scanRadius?', scan radius '+_fmtDist(d.radarMeta.scanRadius,d.metric):''}.`);
+    }
+    if(d.stab){
+      const s=d.stab;
+      const capeStr=s.cape!=null?`*CAPE* ${s.cape} J/kg`:null;
+      const liStr=s.li!=null?`*LI* ${s.li.toFixed(1)}°C`:null;
+      const cinStr=s.cin!=null?`CIN ${s.cin} J/kg`:null;
+      const sevTag=s.overall>=7?'red':s.overall>=5?'orange':s.overall>=3?'yellow':'cyan';
+      const parts=[capeStr,liStr,cinStr].filter(Boolean).join(', ');
+      lines.push(`Instability: [!${sevTag}]thunderstorm potential ${s.overall}/10 (${s.risk})[/!]${parts?' — '+parts:''}.`);
+    }
+    if(d.shear){
+      const sev=(d.shear.severity||'').toLowerCase();
+      const tag=sev.includes('strong')||sev.includes('extreme')?'orange':sev.includes('moderate')?'yellow':'cyan';
+      lines.push(`Wind shear: [!${tag}]${d.shear.vectorShear} (${d.shear.severity})[/!], Δdir ${d.shear.dirDiff}°. ${d.shear.impact}`);
+    }
     if(d.afd&&d.afd.discussion){
       const snip=d.afd.discussion.replace(/\s+/g,' ').slice(0,260);
       lines.push(`*AFD (${d.afd.office||'NWS'}):* ${snip}${d.afd.discussion.length>260?'…':''}`);
@@ -139,8 +167,11 @@
   function buildThreats(d){
     const c=d.classified;
     const alerts=d.alerts||[];
-    if(c.inbound.length===0&&c.background.length===0&&c.passing.length===0&&c.away.length===0&&!alerts.length)return null;
     const lines=['⛈️ Active Threats & Storm Tracking'];
+    if(c.inbound.length===0&&c.background.length===0&&c.passing.length===0&&c.away.length===0&&!alerts.length){
+      lines.push('[!green]No active threats at this time[/!] — radar and NWS alert feeds are clear.');
+      return lines.join('\n');
+    }
     for(const a of alerts.slice(0,6)){
       const p=a.properties||a;
       const sev=(p.severity||'').toLowerCase();
@@ -269,7 +300,7 @@
     else if(peak>=52)line='[!orange]**Strong storms approaching — be ready to move indoors.**[/!]';
     else if(c.inbound.length)line='[!yellow]Rain is on the way — plan for a wet window then clearing.[/!]';
     else line='[!green]All quiet — no storm impact expected.[/!]';
-    return '🎯 Bottom Line\n'+line;
+    return '⏬ Bottom Line Summary\n'+line;
   }
 
   function buildSystemBriefing(data){
