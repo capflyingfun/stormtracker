@@ -3,6 +3,20 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.53
+
+Rain Forecast Bars graph stops vanishing when one Open-Meteo model is missing the precipitation array.
+
+User reported the "Total Precipitation Next 36 hrs" graph was completely missing in Pensacola — not "no rain" empty state, the entire card was gone. Root cause was a precipitation-specific strictness bug in `_blendOMModels()`: every other field (temperature, humidity, wind, pressure, etc.) gracefully falls back to whichever model has the data when one is missing it, but `precipitation` required **both** GFS and HRRR to have the array, otherwise the blended output had no `precipitation` key at all. When the renderer then saw `!h.precipitation`, it set `el.innerHTML=''` and the card disappeared with no indication anything was wrong.
+
+Two fixes:
+
+1. **`_blendOMModels()` in `docs/js/weather.js`**: `hourly.precipitation`, `daily.precipitation_sum`, and `daily.precipitation_probability_max` now mirror the same "both → max, one → use it, neither → skip" fallback pattern that the rest of the fields already use.
+
+2. **`renderRainForecastBars()`**: never blanks the card. Both empty-state code paths (missing precipitation array, zero usable slots after the time-window filter) now always render the card frame with a friendly placeholder message ("⏳ Hourly precipitation forecast not available right now — will appear on the next refresh.") so the user can see the section exists and that it's a data issue, not a missing widget.
+
+No other behavior changed — when both models return precipitation as before, the bars render identically.
+
 ## v4.52
 
 AI briefing — every ≥45 dBZ non-inbound cell gets called out individually.

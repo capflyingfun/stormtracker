@@ -48,12 +48,16 @@ function _blendOMModels(gfs,hrrr){
       return +((g+h)/2).toFixed(4);
     });
   });
-  // Hourly precip: max
-  if(gfs.hourly?.precipitation&&hrrr.hourly?.precipitation){
-    out.hourly.precipitation=gfs.hourly.precipitation.map((g,i)=>{
-      const h=hrrr.hourly.precipitation[i];
-      return Math.max(g??0,h??0);
-    });
+  // Hourly precip: max where both present, else fall back to whichever model
+  // has the array (mirrors the graceful fallback used for every other field
+  // above — otherwise the Rain Forecast Bars graph silently vanishes whenever
+  // one model is missing the precipitation key).
+  {
+    const gp=gfs.hourly?.precipitation,hp=hrrr.hourly?.precipitation;
+    if(gp&&hp){
+      out.hourly.precipitation=gp.map((g,i)=>Math.max(g??0,hp[i]??0));
+    }else if(gp){out.hourly.precipitation=gp}
+    else if(hp){out.hourly.precipitation=hp}
   }
 
   // --- Daily ---
@@ -69,19 +73,20 @@ function _blendOMModels(gfs,hrrr){
       return +((g+h)/2).toFixed(4);
     });
   });
-  // Daily precip sum: max
-  if(gfs.daily?.precipitation_sum&&hrrr.daily?.precipitation_sum){
-    out.daily.precipitation_sum=gfs.daily.precipitation_sum.map((g,i)=>{
-      const h=hrrr.daily.precipitation_sum[i];
-      return Math.max(g??0,h??0);
-    });
+  // Daily precip sum: max where both present, else single-model fallback
+  // (same bug class as hourly.precipitation — see comment above).
+  {
+    const gp=gfs.daily?.precipitation_sum,hp=hrrr.daily?.precipitation_sum;
+    if(gp&&hp){out.daily.precipitation_sum=gp.map((g,i)=>Math.max(g??0,hp[i]??0))}
+    else if(gp){out.daily.precipitation_sum=gp}
+    else if(hp){out.daily.precipitation_sum=hp}
   }
-  // Daily precip probability: max
-  if(gfs.daily?.precipitation_probability_max&&hrrr.daily?.precipitation_probability_max){
-    out.daily.precipitation_probability_max=gfs.daily.precipitation_probability_max.map((g,i)=>{
-      const h=hrrr.daily.precipitation_probability_max[i];
-      return Math.max(g??0,h??0);
-    });
+  // Daily precip probability: max where both present, else single-model fallback
+  {
+    const gp=gfs.daily?.precipitation_probability_max,hp=hrrr.daily?.precipitation_probability_max;
+    if(gp&&hp){out.daily.precipitation_probability_max=gp.map((g,i)=>Math.max(g??0,hp[i]??0))}
+    else if(gp){out.daily.precipitation_probability_max=gp}
+    else if(hp){out.daily.precipitation_probability_max=hp}
   }
 
   return out;
@@ -2316,9 +2321,16 @@ function renderRainForecastBars(){
   const reorder=(typeof secBtns==='function')?secBtns('rainbars'):'';
   const gridOn=_graphGridOn('rainbars');
   const gridBtn=`<button onclick="toggleGraphGrid('rainbars')" title="${gridOn?'Hide':'Show'} gridlines & labels" style="background:none;border:1px solid var(--text-muted);color:${gridOn?'var(--accent-cyan)':'var(--text-muted)'};font-size:0.6em;padding:1px 6px;border-radius:4px;cursor:pointer;line-height:1.4">📊</button>`;
+  // v4.53: always render the card frame — never let `el.innerHTML=''` make
+  // the whole graph vanish silently. If hourly precipitation is missing, show
+  // the card with a "waiting on forecast data" placeholder so the user can
+  // see the section exists and that it's a data issue, not a missing widget.
   if(!h||!h.time||!h.precipitation||!h.time.length){
     const _omPart=S._lastWeatherData&&S._lastWeatherData._omPartial;
-    el.innerHTML=_omPart?`<div class="card weather-section" data-sec="rainbars" style="padding:8px;margin-bottom:8px"><div class="sec-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span class="card-title m-0" style="font-size:0.78em"><span class="icon">📊</span> Total Precipitation Next 36 hrs</span><div style="display:flex;gap:4px;align-items:center">${gridBtn}${reorder}</div></div><div style="font-size:0.7em;color:var(--text-secondary);text-align:center;padding:14px 6px">⏳ Waiting on Open-Meteo — 36-hour rain forecast will appear once the service is back.</div></div>`:'';
+    const msg=_omPart
+      ?'⏳ Waiting on Open-Meteo — 36-hour rain forecast will appear once the service is back.'
+      :'⏳ Hourly precipitation forecast not available right now — will appear on the next refresh.';
+    el.innerHTML=`<div class="card weather-section" data-sec="rainbars" style="padding:8px;margin-bottom:8px"><div class="sec-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span class="card-title m-0" style="font-size:0.78em"><span class="icon">📊</span> Total Precipitation Next 36 hrs</span><div style="display:flex;gap:4px;align-items:center">${gridBtn}${reorder}</div></div><div style="font-size:0.7em;color:var(--text-secondary);text-align:center;padding:14px 6px">${msg}</div></div>`;
     return;
   }
   const now=Date.now();
@@ -2332,7 +2344,7 @@ function renderRainForecastBars(){
     const mm=h.precipitation[idx]||0;
     slots.push({t:new Date(h.time[idx]).getTime(),mm});
   }
-  if(!slots.length){el.innerHTML='';return;}
+  if(!slots.length){el.innerHTML=`<div class="card weather-section" data-sec="rainbars" style="padding:8px;margin-bottom:8px"><div class="sec-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span class="card-title m-0" style="font-size:0.78em"><span class="icon">📊</span> Total Precipitation Next 36 hrs</span><div style="display:flex;gap:4px;align-items:center">${gridBtn}${reorder}</div></div><div style="font-size:0.7em;color:var(--text-secondary);text-align:center;padding:14px 6px">⏳ Forecast hours haven't refreshed yet — graph will fill in on the next update.</div></div>`;return;}
   const total=slots.reduce((a,s)=>a+s.mm,0);
   const maxMm=Math.max(0.05,...slots.map(s=>s.mm));
   const W=300,H=110,padL=8,padR=8,padT=14,padB=22;
