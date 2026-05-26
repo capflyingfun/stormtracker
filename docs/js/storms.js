@@ -863,7 +863,20 @@ async function scanRadarForStorms(){
     if(typeof refreshRainClock==='function')refreshRainClock(true);
     if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
-    if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map);plotNHCTracks(S.map)}
+    // v4.44.1: failure-isolated plotter chain. Before this every plotter
+    // ran on one line; if any one threw (bad NHC cone shape, malformed SPC
+    // polygon, missing NWS warning geom) the chain would break and the
+    // following updateThreatTicker() + hideScanOverlay() would never run,
+    // leaving the scan overlay stuck. Each plotter now runs in its own
+    // try/catch with a console.warn so a single bad feed is visible but
+    // does not stop the rest of the post-scan pipeline.
+    if(S.map){
+      try{plotSPCWatchPolygons(S.map);}catch(e){console.warn('[v4.44.1] plotSPCWatchPolygons',e);}
+      try{plotNWSWarningPolygons(S.map);}catch(e){console.warn('[v4.44.1] plotNWSWarningPolygons',e);}
+      try{plotSPCReports(S.map);}catch(e){console.warn('[v4.44.1] plotSPCReports',e);}
+      try{plotNHCTracks(S.map);}catch(e){console.warn('[v4.44.1] plotNHCTracks',e);}
+      try{plotSurgeOverlay(S.map);}catch(e){console.warn('[v4.44.1] plotSurgeOverlay',e);}
+    }
     updateThreatTicker();
     hideScanOverlay();
     toast(`${S.storms.length} cell${S.storms.length!==1?'s':''} found (${srcLabel})`);
@@ -1565,6 +1578,31 @@ function _evaluateHurricaneMode(){
     if(warnInZone)triggers.push('warning_in_zone');
     if(watchInZone)triggers.push('watch_in_zone');
     if(!triggers.length)continue;
+    // v4.43: Surge enrichment per system. Prefer the NHC Peak Storm Surge
+    // Forecast (already on s.surgeData), fall back to any in-area NWS Storm
+    // Surge Warning/Watch or Coastal Flood Warning whose alert description
+    // contains a numeric peak (e.g. "5 to 8 feet"). Surge is the leading
+    // cause of hurricane fatalities — show the number, never hand-wave.
+    let peakSurgeFt=null,surgeSource=null,surgeAlertInZone=false;
+    if(s.surgeData){
+      const sd=s.surgeData;
+      const v=sd.peakSurge||sd.peak_surge||sd.peakStormSurge||sd.peak||sd.maxSurge||sd.max_surge||null;
+      if(v!=null&&v!==''){peakSurgeFt=(typeof v==='number')?(v+' ft'):String(v);surgeSource='NHC Peak Storm Surge Forecast';}
+    }
+    if(!peakSurgeFt&&S.alerts&&S.alerts.length){
+      for(const a of S.alerts){
+        const ap=a.properties||{};
+        const ev=(ap.event||'').toLowerCase();
+        if(!(ev.includes('storm surge')||ev.includes('coastal flood')))continue;
+        const desc=ap.description||'';
+        const m=desc.match(/(\d+(?:\.\d+)?)\s*(?:to\s*(\d+(?:\.\d+)?))?\s*(?:feet|ft)/i);
+        if(!m)continue;
+        peakSurgeFt=m[2]?`${m[1]}–${m[2]} ft`:`${m[1]} ft`;
+        surgeSource='NWS '+(ap.event||'Storm Surge Alert');
+        surgeAlertInZone=isUserInAlertZone(a);
+        if(surgeAlertInZone)break;
+      }
+    }
     // ETA to TS-force winds (34 kt edge). 0 if already inside; null if no data.
     let etaTsfHr=null;
     if(inWind.kt34)etaTsfHr=0;
@@ -1587,6 +1625,7 @@ function _evaluateHurricaneMode(){
       moveDir:s.moveDir||null,moveSpeed:s.moveSpeed||null,
       maxWind:s.maxWind||null,gusts:s.gusts||null,minPressure:s.minPressure||null,
       etaTsfHr,
+      peakSurgeFt,surgeSource,surgeAlertInZone,
       inCone:!!s._inCone,
       inWindRadii:inWind,
       alerts:{
@@ -2058,6 +2097,106 @@ function toggleNHCTracks(on) {
   if (btn) btn.style.opacity = on ? '1' : '0.4';
   toast(on ? 'Hurricane tracks shown on map' : 'Hurricane tracks hidden');
 }
+// v4.43: Storm Surge & Coastal Flooding overlay. Plots authoritative NWS
+// Storm Surge Warning/Watch and Coastal Flood Warning/Watch polygons on the
+// radar map, painted in surge-blue with a peak-height label parsed from each
+// alert's description. This is the same data Hurricane Mode reads — keeping
+// the briefing, AI prompt, and the map overlay in lockstep on one source.
+// v4.44.1: every top-level side-effect below this comment is wrapped in a
+// try/catch. If a corrupted localStorage entry or missing global ever throws
+// here, the rest of storms.js (toggleStormFilter, the storms-tab renderer,
+// _evaluateHurricaneMode, etc.) MUST still parse — a single bad assignment
+// at module-load time used to silently freeze the Weather tab because the
+// hero refresh hook (refreshHeroFromZone → checkUserInZone) lives below.
+try{S._surgeLayers=[];}catch(e){console.warn('[v4.44.1] surgeLayers init',e);}
+try{S._showSurgeOverlay=(()=>{try{const v=localStorage.getItem('st_surge_overlay');return v==='1';}catch(e){return false;}})();}catch(e){S._showSurgeOverlay=false;}
+function toggleSurgeOverlay(on){
+  if(on===undefined)on=!S._showSurgeOverlay;
+  S._showSurgeOverlay=!!on;
+  try{localStorage.setItem('st_surge_overlay',S._showSurgeOverlay?'1':'0');}catch(e){}
+  const btn=document.getElementById('btn-surge');
+  if(btn)btn.style.opacity=S._showSurgeOverlay?'1':'0.4';
+  if(S.map)plotSurgeOverlay(S.map);
+  toast(S._showSurgeOverlay?'Storm surge / coastal flood overlay shown':'Surge overlay hidden');
+}
+function plotSurgeOverlay(map){
+  if(!map)return;
+  S._surgeLayers.forEach(l=>{try{map.removeLayer(l);}catch(e){}});
+  S._surgeLayers=[];
+  if(!S._showSurgeOverlay)return;
+  let rendered=0;
+  // (1) NHC-hurricane-cone layer. NHC's CurrentSurges.json is only published
+  // for storms actively threatening the US coast, so the presence of
+  // s.surgeData on any system is itself the "cone touches US coast" gate.
+  // We render each such storm's forecast cone in surge-blue with the peak
+  // surge ft pinned at the cone centroid — this ensures the overlay has
+  // something to show as soon as a hurricane is a coastal threat, even
+  // BEFORE NWS issues county-level Storm Surge polygons.
+  const cones=_nhcData.cones||[];
+  const systems=_nhcData.systems||[];
+  for(const s of systems){
+    if(!s.surgeData)continue;
+    const sd=s.surgeData;
+    const peak=sd.peakSurge||sd.peak_surge||sd.peakStormSurge||sd.peak||sd.maxSurge||sd.max_surge||null;
+    const peakStr=peak?(typeof peak==='string'?peak:(peak+' ft')):null;
+    const cone=cones.find(c=>c.stormId===s.id||(c.stormName||'').toLowerCase()===(s.name||'').toLowerCase());
+    if(!cone||!cone.coords||cone.coords.length<3)continue;
+    const latlngs=cone.coords.map(c=>[c[1],c[0]]);
+    const poly=L.polygon(latlngs,{color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:0.16,weight:2,dashArray:'4,4'});
+    poly.bindPopup(`<div style="font-family:system-ui;min-width:180px"><div style="font-weight:700;color:#3b82f6">🌊 NHC Storm Surge Risk Zone</div><div style="margin-top:4px">${s.type||'Storm'} <b>${s.name}</b></div>${peakStr?`<div style="margin-top:4px;font-weight:700">Peak forecast surge: ${peakStr}</div>`:''}<div style="font-size:0.7em;color:#888;margin-top:4px">Source: NHC CurrentSurges + Forecast Cone. Detailed inundation lives in the NHC Potential Storm Surge Flooding Map.</div></div>`);
+    poly.addTo(map);S._surgeLayers.push(poly);
+    if(peakStr){
+      try{
+        const center=poly.getBounds().getCenter();
+        const lbl=L.divIcon({className:'',html:`<div style="font-size:11px;font-weight:700;color:#3b82f6;background:rgba(0,0,0,0.7);padding:3px 7px;border-radius:8px;border:1px solid #3b82f6;white-space:nowrap;pointer-events:none">🌊 ${s.name}: ${peakStr}</div>`,iconSize:[120,18],iconAnchor:[60,9]});
+        const lm=L.marker(center,{icon:lbl,interactive:false});
+        lm.addTo(map);S._surgeLayers.push(lm);
+      }catch(e){}
+    }
+    rendered++;
+  }
+  // (2) NWS county-level Storm Surge / Coastal Flood polygon layer — the
+  // higher-confidence "this county is under a warning right now" overlay
+  // painted on top of the cone-risk zone.
+  const surgeAlerts=(S.alerts||[]).filter(a=>{
+    const ev=((a.properties||a).event||'').toLowerCase();
+    return ev.includes('storm surge')||ev.includes('coastal flood');
+  });
+  if(!rendered&&!surgeAlerts.length){toast('No NHC cone-touches-coast surge data and no active NWS surge / coastal flood polygons right now');return;}
+  for(const a of surgeAlerts){
+    const p=a.properties||{};
+    const ev=(p.event||'Storm Surge Alert');
+    const isWarn=/warning/i.test(ev);
+    const isSurge=/storm surge/i.test(ev);
+    const color=isWarn?(isSurge?'#3b82f6':'#06b6d4'):(isSurge?'#60a5fa':'#67e8f9');
+    const desc=p.description||'';
+    const m=desc.match(/(\d+(?:\.\d+)?)\s*(?:to\s*(\d+(?:\.\d+)?))?\s*(?:feet|ft)/i);
+    const surgeStr=m?(m[2]?`${m[1]}–${m[2]} ft`:`${m[1]} ft`):null;
+    const geom=a.geometry;
+    if(!geom||!geom.coordinates)continue;
+    const polys=geom.type==='Polygon'?[geom.coordinates]:geom.type==='MultiPolygon'?geom.coordinates:[];
+    for(const coords of polys){
+      const ring=coords[0];
+      if(!ring||ring.length<3)continue;
+      const latlngs=ring.map(c=>[c[1],c[0]]);
+      const poly=L.polygon(latlngs,{color,fillColor:color,fillOpacity:isWarn?0.22:0.14,weight:isWarn?2.5:1.5,dashArray:isWarn?null:'6,4'});
+      poly.bindPopup(`<div style="font-family:system-ui;min-width:160px"><div style="font-weight:700;color:${color}">🌊 ${ev}</div>${surgeStr?`<div style="margin-top:4px;font-weight:700">Peak surge: ${surgeStr}</div>`:''}<div style="font-size:0.75em;color:#666;margin-top:4px">${(p.areaDesc||'').substring(0,180)}</div></div>`);
+      poly.addTo(map);
+      S._surgeLayers.push(poly);
+      if(surgeStr){
+        try{
+          const bounds=poly.getBounds();
+          const center=bounds.getCenter();
+          const lbl=L.divIcon({className:'',html:`<div style="font-size:10px;font-weight:700;color:${color};background:rgba(0,0,0,0.65);padding:2px 6px;border-radius:8px;border:1px solid ${color};white-space:nowrap;pointer-events:none">🌊 ${surgeStr}</div>`,iconSize:[80,16],iconAnchor:[40,8]});
+          const lm=L.marker(center,{icon:lbl,interactive:false});
+          lm.addTo(map);
+          S._surgeLayers.push(lm);
+        }catch(e){}
+      }
+    }
+  }
+}
+if(typeof window!=='undefined'){window.toggleSurgeOverlay=toggleSurgeOverlay;window.plotSurgeOverlay=plotSurgeOverlay;}
 function plotNHCTracks(map) {
   S._nhcTrackLayers.forEach(l => { try { map.removeLayer(l); } catch(e) {} });
   S._nhcTrackLayers = [];
