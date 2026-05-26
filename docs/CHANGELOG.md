@@ -3,6 +3,21 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.50
+
+AI briefing — explicit "filtered first, then non-filtered for situational awareness" layout in **Active Threats & Storm Tracking**.
+
+Background: a user report showed the AI confidently narrating two small inbound cells from the south while completely ignoring a wall of 45-55 dBZ cells parked over the N-NE quadrant that the radar sonar made obvious. The cells were in the data — MOVING AWAY and OVERHEAD buckets — but the previous prompt called the non-inbound narration a "Surrounding Picture: wrap-up" of "1-3 sentences," which the model kept collapsing into a single "nothing else of note" sentence even when the buckets were full.
+
+v4.50 restructures the section into two **mandatory subsections** so the model can't compress them away:
+
+1. **Subsection 1 — Inbound (in your impact corridor):** the existing per-cell bullets for DIRECT / NEAR DIRECT / NEAR MISS. These are the *filtered* cells the user sees on the Storms tab.
+2. **Subsection 2 — Elsewhere on Radar (situational awareness):** a 1-4-sentence prose block walking through every non-empty non-inbound bucket (MISS / DISTANT / FAR background, PASSING, MOVING AWAY, and OVERHEAD / ARRIVED) by direction, with explicit dBZ when a non-inbound cell is **stronger than the strongest inbound cell**. New label "**Elsewhere on Radar:**" replaces the old "Surrounding Picture:" label so the user has a stable thing to search for.
+
+Hard rules added: never write "no other notable storms" or "nothing else on radar" as a contradiction of the STORM DATA block; if the data shows non-zero counts in any non-inbound bucket those cells exist on the user's screen and MUST be narrated. The "all buckets empty" fallback sentence is preserved verbatim so the model still has a clean exit when the screen really is quiet.
+
+Only the prompt strings in `docs/js/ai.js` changed — no behavior change in the deterministic briefing or the storm classifier. The cell classifier itself (the upstream reason cells may end up in the "moving away" bucket when they're huge and overhead) is a separate, larger problem that this prompt change does not fix; it just guarantees the AI will narrate what it's already given.
+
 ## v4.49
 
 Adds the dial ↔ text-view toggle requested after v4.48 shipped.
