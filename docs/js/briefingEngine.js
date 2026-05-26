@@ -31,6 +31,14 @@
     classified.totalCells=fs.totalCount;
     classified.hiddenByFilter=fs.hiddenCount;
     classified.filterState=fs.filter;
+    // v4.51: Inbound bucket mirrors the user's filtered Storms tab (so the
+    // briefing's "Inbound" subsection matches the cards the user is looking at).
+    // Non-inbound buckets (background / passing / away) bypass the user filter
+    // and walk the FULL scan radius, so a heavy cell hidden by a "Threats only"
+    // or min-dBZ filter still gets narrated in the "Elsewhere on Radar"
+    // situational-awareness subsection. The user explicitly requested this:
+    // "talk about the filtered ones first, then everything in the 80 mi radius."
+    const inboundSeen=new Set();
     if(fs.storms&&fs.storms.length){
       for(const s of fs.storms){
         if(!s||s.distance==null||s.bearing==null||s.dbz==null)continue;
@@ -40,12 +48,32 @@
         if(b&&b.estDbzAtUser!=null&&b.estDbzAtUser<15){classified.hiddenCount++;continue}
         const c=b?b.classification:'unknown';
         const entry={s,b,tier:c||'unknown'};
-        if(b&&(c==='direct'||c==='near_direct'||c==='near_miss')&&b.closingMph>0){classified.inbound.push(entry)}
-        else if(c==='miss'||c==='distant'||c==='far'){classified.background.push(entry)}
-        else if(c==='passing'){classified.passing.push(entry)}
-        else if(c==='moving_away'){classified.away.push(entry)}
-        else{classified.background.push(entry)}
+        if(b&&(c==='direct'||c==='near_direct'||c==='near_miss')&&b.closingMph>0){
+          classified.inbound.push(entry);inboundSeen.add(s);
+        }
       }
+    }
+    // Walk the entire unfiltered scan for non-inbound buckets. Skip cells already
+    // surfaced as inbound above to avoid double-counting.
+    const allStorms=(typeof S!=='undefined'&&S.storms)?S.storms:[];
+    classified.unfilteredTotal=allStorms.length;
+    for(const s of allStorms){
+      if(!s||inboundSeen.has(s)||s.distance==null||s.bearing==null||s.dbz==null)continue;
+      let b=s._brief;
+      try{if(!b&&typeof calcStormETAForBriefing==='function')b=calcStormETAForBriefing(s);}catch(e){}
+      const c=b?b.classification:'unknown';
+      const entry={s,b,tier:c||'unknown'};
+      if(b&&(c==='direct'||c==='near_direct'||c==='near_miss')&&b.closingMph>0){
+        // Inbound cell that was hidden by the user's filter — surface it as
+        // background (situational awareness) so the AI knows it exists.
+        classified.background.push({...entry,tier:'miss',_hiddenInbound:true});
+      }
+      else if(c==='miss'||c==='distant'||c==='far'){classified.background.push(entry)}
+      else if(c==='passing'){classified.passing.push(entry)}
+      else if(c==='moving_away'){classified.away.push(entry)}
+      else{classified.background.push(entry)}
+    }
+    if(classified.inbound.length||classified.background.length||classified.passing.length||classified.away.length){
       const bandOf=mi=>(mi==null||!isFinite(mi))?99:Math.min(12,Math.floor(mi));
       const order={direct:0,near_direct:1,near_miss:2};
       // Display comparator — matches v4.31 and the Storms tab: miss-band -> tier -> distance.

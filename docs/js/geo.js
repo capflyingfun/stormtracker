@@ -666,8 +666,37 @@ function scheduleAutoRefresh(){
     scanRadarForStorms();
   },ms);
   startScanRefreshTimer();
+  scheduleAloftWatchdog();
 }
 function scheduleHourlyRefresh(){scheduleAutoRefresh()}
+
+// v4.51: Aloft watchdog — every 10 min, if S._aloftData is empty/missing
+// (e.g. the initial fetch failed due to a flaky connection), retry the fetch
+// without waiting for the next 60-min auto-refresh cycle. Cheap when winds
+// are already loaded (just an undefined check); only fires the network call
+// when data is actually missing.
+function scheduleAloftWatchdog(){
+  if(S._aloftWatchdogTimer)clearInterval(S._aloftWatchdogTimer);
+  S._aloftWatchdogTimer=setInterval(async()=>{
+    if(S.travelMode)return;
+    if(!S.lat)return;
+    const haveData=S._aloftData&&S._aloftData.length;
+    const cacheAgeMs=S._windCache?(Date.now()-S._windCache.ts):Infinity;
+    // Re-fetch if we have no aloft data OR if cache is older than 30 min.
+    if(!haveData||cacheAgeMs>30*60*1000){
+      console.log('[AloftWatchdog] aloft data missing or stale ('+(haveData?Math.round(cacheAgeMs/60000)+' min':'none')+') — retrying fetch');
+      try{
+        if(typeof fetchWindsAloft==='function')await fetchWindsAloft();
+        if(S._aloftData&&S._aloftData.length&&S.storms&&S.storms.length){
+          if(typeof computeTopStorms==='function')computeTopStorms();
+          if(typeof renderStorms==='function')renderStorms();
+          if(typeof updateStormBadges==='function')updateStormBadges();
+          console.log('[AloftWatchdog] aloft recovered — storms recomputed');
+        }
+      }catch(e){console.warn('[AloftWatchdog] retry failed:',e)}
+    }
+  },10*60*1000);
+}
 
 // ==========================================
 // TRAVEL MODE (Live GPS Tracking)

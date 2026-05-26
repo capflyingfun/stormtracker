@@ -215,9 +215,11 @@ function buildWeatherContext(){
       const away=c.away||[];
       const sigCount=c.inbound.filter(it=>it.s.dbz>=31).length;
       const lowCount=inboundLight.length;
-      parts.push(`\nSTORM DATA (post-filter — mirrors the Storms tab cards):`);
+      parts.push(`\nSTORM DATA (inbound = post-filter mirror of Storms tab; non-inbound = FULL unfiltered scan radius for situational awareness):`);
       const modCount=c.inbound.length-sigCount-lowCount;
-      parts.push(`  Total cells: ${fs.totalCount} scanned · ${c.totalCount} after user filter · ${c.inbound.length} inbound (${sigCount} significant ≥31 dBZ, ${modCount} moderate 25-30 dBZ, ${lowCount} light/drizzle <25 dBZ at >5 mi) · ${bg.length} background · ${passing.length} passing · ${away.length} moving away`);
+      const unfilt=c.unfilteredTotal!=null?c.unfilteredTotal:fs.totalCount;
+      const hiddenInbound=bg.filter(it=>it._hiddenInbound).length;
+      parts.push(`  Total cells: ${fs.totalCount} scanned · ${c.totalCount} after user filter · ${unfilt} total in scan radius (used for non-inbound buckets) · ${c.inbound.length} inbound after filter (${sigCount} significant ≥31 dBZ, ${modCount} moderate 25-30 dBZ, ${lowCount} light/drizzle <25 dBZ at >5 mi) · ${bg.length} background · ${passing.length} passing · ${away.length} moving away${hiddenInbound>0?` · NOTE: ${hiddenInbound} inbound cell(s) hidden by your filter are listed in background for awareness`:''}`);
       if(sigCount===0&&lowCount===0&&c.inbound.length===0&&c.totalCount>0){
         parts.push(`  NOTE: No inbound cells in the filtered view. Background / passing / moving-away cells are off the impact corridor, but they are still REAL ECHOES the user can see on radar — narrate them in the mandatory "Surrounding Picture:" wrap-up using the SCENE HINTS lines below. Do NOT dismiss them as "clutter" or skip the wrap-up.`);
       }else if(sigCount===0&&lowCount>0){

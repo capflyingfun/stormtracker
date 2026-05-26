@@ -3,6 +3,26 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.51
+
+AI briefing — non-inbound buckets now bypass the user's storm filter, plus a winds-aloft watchdog.
+
+**The actual fix for "AI keeps missing stuff that's clearly on radar."**
+
+Background: in v4.50 the AI's Active Threats section was already split into two mandatory subsections — Inbound (filtered) and Elsewhere on Radar (situational awareness). But the *data* fed to both subsections was being pulled from the user's filtered storm set, so cells hidden by the user's filter (e.g. "Threats only ✓", "min 31 dBZ") never reached the AI in any bucket. The AI couldn't narrate the big yellow/red blob to the north because the briefing engine was told that blob didn't exist.
+
+v4.51 changes the data path in `gatherBriefingData()`:
+
+- **Inbound bucket** is still built from the filtered set, so the "Inbound (in your impact corridor)" bullets exactly mirror the cards on the Storms tab.
+- **Background / passing / moving-away buckets** now walk the **entire unfiltered scan radius** (the full ~80 mi `S.storms` list), minus any cell already surfaced as inbound to avoid double-counting. A new `unfilteredTotal` count is exposed so the prompt can say "X cells after filter / Y total in scan radius."
+- If an inbound cell was hidden by the user's filter (e.g. a 28 dBZ cell with the filter set to ≥31), it now appears in the background bucket with a `_hiddenInbound` flag and a NOTE in the STORM DATA line so the AI explicitly knows "N inbound cell(s) hidden by your filter."
+
+The STORM DATA preamble in `ai.js` was updated to mark the buckets as "inbound = post-filter mirror; non-inbound = full unfiltered scan radius" so the model understands the asymmetry.
+
+**Winds-aloft watchdog.** Separate from the AI fix: the user reported winds aloft sometimes fails on a flaky connection and only recovers on app restart. v4.51 adds `scheduleAloftWatchdog()` in `geo.js` that runs every 10 min and re-fetches winds aloft if `S._aloftData` is empty or the wind cache is older than 30 min. Cheap when winds are already loaded (just a presence check); only fires the network call when data is actually stale. Hooked into `scheduleAutoRefresh()` so it runs whenever auto-refresh is scheduled. Travel mode and "no location yet" both skip it.
+
+What this does NOT change: the storm classifier itself, the radar scan, the deterministic system briefing, or any UI rendering. Same set of cells the user sees on the Storms tab; the AI just gets a richer picture of what's around them.
+
 ## v4.50
 
 AI briefing — explicit "filtered first, then non-filtered for situational awareness" layout in **Active Threats & Storm Tracking**.
