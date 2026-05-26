@@ -176,17 +176,34 @@ async function fetchWindsAloft(overrideLat,overrideLon){
       wind_speed_unit:'ms',forecast_days:'1',timezone:'auto'
     });
     const _wUrl='https://api.open-meteo.com/v1/forecast?'+params;
-    let r;
-    try{
-      r=await fetch(_wUrl,{signal:AbortSignal.timeout(5000)});
-      if(!r.ok)throw new Error('HTTP '+r.status);
-    }catch(e1){
-      console.log('Winds aloft: first attempt failed ('+e1.message+') — retrying in 2s...');
-      await new Promise(w=>setTimeout(w,2000));
-      r=await fetch(_wUrl,{signal:AbortSignal.timeout(6000)});
-      if(!r.ok){console.log('Winds aloft: retry also failed (HTTP '+r.status+')');if(typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft failed (HTTP '+r.status+')');return}
-      console.log('Winds aloft: retry succeeded');
+    // v4.44.2: ping-scaled timeouts + 3 attempts (was 2). On the user's
+    // 713 ms cellular link the old 5 s / 6 s timeouts were timing out
+    // before Open-Meteo could respond. Now timeout = clamp(8s, ping×15,
+    // 30s) and retry waits scale with ping. Boot splash shows the retry
+    // count so the user sees the fight live instead of a silent spinner.
+    const _p=(typeof S!=='undefined'&&S._netRttMs)?S._netRttMs:500;
+    const _alTo=Math.min(30000,Math.max(8000,Math.round(_p*15)));
+    const _alW1=Math.min(8000,Math.max(1500,Math.round(_p*2)));
+    const _alW2=Math.min(15000,Math.max(3000,Math.round(_p*3)));
+    if(typeof _bootStep==='function')_bootStep('wind',`🌬️ Winds aloft — fetching (timeout ${Math.round(_alTo/1000)}s)…`);
+    let r=null,lastErr=null;
+    for(let attempt=1;attempt<=3;attempt++){
+      try{
+        r=await fetch(_wUrl,{signal:AbortSignal.timeout(_alTo)});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        if(attempt>1)console.log('Winds aloft: attempt '+attempt+' succeeded');
+        break;
+      }catch(e){
+        lastErr=e;
+        console.log('Winds aloft: attempt '+attempt+' failed ('+e.message+')');
+        r=null;
+        if(attempt===3)break;
+        const wait=attempt===1?_alW1:_alW2;
+        if(typeof _bootStepRetry==='function')_bootStepRetry('wind',`🌬️ Winds aloft — attempt ${attempt} failed, retrying in ${Math.round(wait/1000)}s…`);
+        await new Promise(w=>setTimeout(w,wait));
+      }
     }
+    if(!r){if(typeof _bootStepFail==='function')_bootStepFail('wind','🌬️ Winds aloft FAILED after 3 attempts ('+(lastErr&&lastErr.message||'unknown')+')');return}
     const d=await r.json();
     const c=d.current;
     const levels=[

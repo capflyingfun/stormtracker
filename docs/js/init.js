@@ -139,8 +139,12 @@ function _renderBootSteps(){
   const el=document.getElementById('boot-steps');
   if(!el)return;
   if(!_bootSteps.length){el.innerHTML='';return}
+  // v4.44.2: colored circle indicators per the user's request — 🟢 done,
+  // 🔴 failed, 🟠 retry-in-progress, ▶ pending. Each step now shows the
+  // attempt count when retrying so the user sees the system fighting
+  // through a slow link instead of a silent spinner.
   el.innerHTML=_bootSteps.map(s=>{
-    const icon=s.status==='done'?'✓':s.status==='fail'?'✗':'<span class="bs-spin">▶</span>';
+    const icon=s.status==='done'?'🟢':s.status==='fail'?'🔴':s.status==='retry'?'🟠':'<span class="bs-spin">▶</span>';
     const cls='boot-step bs-'+s.status;
     return `<div class="${cls}"><span class="bs-icon">${icon}</span><span class="bs-label">${s.label}</span></div>`;
   }).join('');
@@ -165,6 +169,16 @@ function _bootStepFail(id,label){
   const s=_bootSteps.find(x=>x.id===id);
   if(!s)return;
   s.status='fail';
+  if(label)s.label=label;
+  _renderBootSteps();
+}
+// v4.44.2: surface in-progress retries on the boot splash so the user can
+// see the app fighting through a flaky link instead of a silent spinner.
+function _bootStepRetry(id,label){
+  if(S._bootInProgress===false)return;
+  const s=_bootSteps.find(x=>x.id===id);
+  if(!s)return;
+  s.status='retry';
   if(label)s.label=label;
   _renderBootSteps();
 }

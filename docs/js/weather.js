@@ -119,25 +119,29 @@ async function fetchWeather(){
     const _isUSLoc=isUSLocation(S.lat,S.lon);
     let _om=await _fetchOMModels(_omBase,_isUSLoc);
     if(!_om.blended){
-      // v4.44: scale retry waits off boot ping (S._netRttMs). On a 900 ms link
-      // the prior 3 s / 5 s floors were too tight and the retries fired before
-      // the network had recovered. Now: wait1 = max(750, ping×1.5); wait2 =
-      // max(1500, ping×2.5). Ceilings: 10 s / 18 s so a flaky link doesn't hang.
+      // v4.44.2: ping-scaled retry waits + live boot-splash status. Surfaces
+      // every retry attempt on the boot UI so the user can see the system
+      // fighting through a flaky link instead of a silent spinner.
       const _p=S._netRttMs||500;
       const _wait1=Math.min(10000,Math.max(750,Math.round(_p*1.5)));
       const _wait2=Math.min(18000,Math.max(1500,Math.round(_p*2.5)));
       console.log(`OM models: first attempt failed — retrying in ${_wait1}ms (ping=${_p}ms)...`);
+      if(typeof _bootStepRetry==='function')_bootStepRetry('wx',`🌤️ Weather — attempt 1 failed, retrying in ${Math.round(_wait1/1000)}s…`);
       if(reqId!==S._locReqId)return;
       await new Promise(r=>setTimeout(r,_wait1));
       if(reqId!==S._locReqId)return;
       _om=await _fetchOMModels(_omBase,_isUSLoc);
       if(!_om.blended){
         console.log(`OM models: second attempt failed — retrying in ${_wait2}ms (ping=${_p}ms)...`);
+        if(typeof _bootStepRetry==='function')_bootStepRetry('wx',`🌤️ Weather — attempt 2 failed, retrying in ${Math.round(_wait2/1000)}s…`);
         if(reqId!==S._locReqId)return;
         await new Promise(r=>setTimeout(r,_wait2));
         if(reqId!==S._locReqId)return;
         _om=await _fetchOMModels(_omBase,_isUSLoc);
-        if(!_om.blended)throw new Error('All model fetches failed (after 2 retries)');
+        if(!_om.blended){
+          if(typeof _bootStepFail==='function')_bootStepFail('wx',`🌤️ Weather FAILED after 3 attempts (Open-Meteo unreachable on ${_p}ms link)`);
+          throw new Error('All model fetches failed (after 2 retries)');
+        }
         console.log('OM models: retry 2 succeeded');
       } else { console.log('OM models: retry 1 succeeded'); }
     }
