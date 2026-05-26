@@ -639,9 +639,15 @@ function renderWeather(data){
   const _tempOk=tempC!=null&&!isNaN(tempC);
   const _dewOk=dewC!=null&&!isNaN(dewC);
   const _spreadOk=_tempOk&&_dewOk;
+  // v4.46: emit rain-clock / rain-forecast-bars placeholders in user-saved
+  // order so the user's up/down choice survives every renderWeather() pass
+  // (autorefresh, OM retry, unit changes, etc.) — not just the explicit
+  // moveSection click.
+  const _topOrder=getSecOrder();
+  const _rainPlaceholders=_topOrder.filter(k=>k==='rainclock'||k==='rainbars')
+    .map(k=>k==='rainclock'?'<div id="rain-clock"></div>':'<div id="rain-forecast-bars"></div>').join('');
   el.innerHTML=`
-    <div id="rain-clock"></div>
-    <div id="rain-forecast-bars"></div>
+    ${_rainPlaceholders}
     <div class="weather-hero">
       ${_omBanner}
       <div class="hero-icon-showcase">${animEmoji(_heroWCode,isDay,'340px',_heroDesc)}</div>
