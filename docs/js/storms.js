@@ -175,17 +175,32 @@ async function fetchWindsAloft(overrideLat,overrideLon){
         'wind_speed_500hPa','wind_direction_500hPa'].join(','),
       wind_speed_unit:'ms',forecast_days:'1',timezone:'auto'
     });
-    const _wUrl='https://api.open-meteo.com/v1/forecast?'+params;
-    let r;
-    try{
-      r=await fetch(_wUrl,{signal:AbortSignal.timeout(5000)});
-      if(!r.ok)throw new Error('HTTP '+r.status);
-    }catch(e1){
-      console.log('Winds aloft: first attempt failed ('+e1.message+') — retrying in 2s...');
-      await new Promise(w=>setTimeout(w,2000));
-      r=await fetch(_wUrl,{signal:AbortSignal.timeout(6000)});
-      if(!r.ok){console.log('Winds aloft: retry also failed (HTTP '+r.status+')');if(typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft failed (HTTP '+r.status+')');return}
-      console.log('Winds aloft: retry succeeded');
+    // v4.42: sibling-subdomain fallback. api.open-meteo.com sometimes
+    // returns HTTP 502 from nginx for stretches while customer-api stays up.
+    // Try main first, then fall over to customer-api on 5xx/timeout/network.
+    const _hosts=['api.open-meteo.com','customer-api.open-meteo.com'];
+    let r=null,usedHost=null,lastErr=null;
+    for(let i=0;i<_hosts.length;i++){
+      const host=_hosts[i];
+      const _wUrl='https://'+host+'/v1/forecast?'+params;
+      const timeoutMs=i===0?5000:6000;
+      try{
+        const rr=await fetch(_wUrl,{signal:AbortSignal.timeout(timeoutMs)});
+        if(!rr.ok){lastErr=new Error('HTTP '+rr.status);console.log('Winds aloft: '+host+' returned HTTP '+rr.status);if(i<_hosts.length-1)await new Promise(w=>setTimeout(w,500));continue}
+        r=rr;usedHost=host;
+        if(i>0)console.log('Winds aloft: fell over to '+host+' successfully');
+        break;
+      }catch(e){
+        lastErr=e;
+        console.log('Winds aloft: '+host+' failed ('+e.message+')');
+        if(i<_hosts.length-1)await new Promise(w=>setTimeout(w,500));
+      }
+    }
+    if(!r){
+      const msg=lastErr?lastErr.message:'unknown';
+      console.log('Winds aloft: all subdomains failed ('+msg+')');
+      if(typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft failed ('+msg+')');
+      return;
     }
     const d=await r.json();
     const c=d.current;
@@ -227,11 +242,14 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     let dir=(Math.atan2(ax,ay)*180/Math.PI+360)%360;
     const spdMph=Math.round(spdKt*1.151);
     S.stormMovement={direction:Math.round(dir),speed:spdMph};
-    S._windCache={lat,lon,ts:Date.now(),dir:Math.round(dir),speed:spdMph};
+    S._windCache={lat,lon,ts:Date.now(),dir:Math.round(dir),speed:spdMph,provider:'open-meteo',host:usedHost};
     console.log('[WindsAloft] Per-level: '+aloftSpeeds.map(a=>a.p+'hPa='+a.rawMs.toFixed(1)+'m/s@'+a.dir+'°').join(', '));
     console.log('[WindsAloft] Steering (850-500hPa): '+steering.map(a=>a.p+'hPa').join(',')+' Vx='+ax.toFixed(2)+' Vy='+ay.toFixed(2)+' → '+spdKt.toFixed(1)+'kt '+Math.round(dir)+'° → '+spdMph+' mph');
     if(S.map&&S._showPathArrows)buildPathArrows(S.map);
-    if(typeof _bootStepDone==='function')_bootStepDone('wind',`Winds aloft: ${spdMph} mph @ ${Math.round(dir)}°`);
+    if(typeof _bootStepDone==='function'){
+      const hostLabel=usedHost==='customer-api.open-meteo.com'?'Open-Meteo (customer-api)':'Open-Meteo';
+      _bootStepDone('wind',`Winds aloft: ${spdMph} mph @ ${Math.round(dir)}° · ${hostLabel}`);
+    }
   }catch(e){console.log('Winds aloft fetch failed:',e.message);if(typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft failed')}
 }
 
