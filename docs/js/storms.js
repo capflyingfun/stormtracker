@@ -178,21 +178,28 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     // v4.42: sibling-subdomain fallback. api.open-meteo.com sometimes
     // returns HTTP 502 from nginx for stretches while customer-api stays up.
     // Try main first, then fall over to customer-api on 5xx/timeout/network.
-    const _hosts=['api.open-meteo.com','customer-api.open-meteo.com'];
+    const _hosts=[{tag:'api',fqdn:'api.open-meteo.com'},{tag:'customer-api',fqdn:'customer-api.open-meteo.com'}];
     let r=null,usedHost=null,lastErr=null;
     for(let i=0;i<_hosts.length;i++){
       const host=_hosts[i];
-      const _wUrl='https://'+host+'/v1/forecast?'+params;
+      const _wUrl='https://'+host.fqdn+'/v1/forecast?'+params;
       const timeoutMs=i===0?5000:6000;
       try{
         const rr=await fetch(_wUrl,{signal:AbortSignal.timeout(timeoutMs)});
-        if(!rr.ok){lastErr=new Error('HTTP '+rr.status);console.log('Winds aloft: '+host+' returned HTTP '+rr.status);if(i<_hosts.length-1)await new Promise(w=>setTimeout(w,500));continue}
-        r=rr;usedHost=host;
-        if(i>0)console.log('Winds aloft: fell over to '+host+' successfully');
+        if(!rr.ok){
+          lastErr=new Error('HTTP '+rr.status);
+          console.log('Winds aloft: '+host.fqdn+' returned HTTP '+rr.status);
+          // Only fall over on 5xx — 4xx is a bad-request signal the sibling host would also reject.
+          if(rr.status>=500&&rr.status<600&&i<_hosts.length-1){await new Promise(w=>setTimeout(w,500));continue}
+          break;
+        }
+        r=rr;usedHost=host.tag;
+        if(i>0)console.log('Winds aloft: fell over to '+host.fqdn+' successfully');
         break;
       }catch(e){
+        // Network/timeout/abort — always retry on next host
         lastErr=e;
-        console.log('Winds aloft: '+host+' failed ('+e.message+')');
+        console.log('Winds aloft: '+host.fqdn+' failed ('+e.message+')');
         if(i<_hosts.length-1)await new Promise(w=>setTimeout(w,500));
       }
     }
@@ -247,7 +254,7 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     console.log('[WindsAloft] Steering (850-500hPa): '+steering.map(a=>a.p+'hPa').join(',')+' Vx='+ax.toFixed(2)+' Vy='+ay.toFixed(2)+' → '+spdKt.toFixed(1)+'kt '+Math.round(dir)+'° → '+spdMph+' mph');
     if(S.map&&S._showPathArrows)buildPathArrows(S.map);
     if(typeof _bootStepDone==='function'){
-      const hostLabel=usedHost==='customer-api.open-meteo.com'?'Open-Meteo (customer-api)':'Open-Meteo';
+      const hostLabel=usedHost==='customer-api'?'Open-Meteo (customer-api)':'Open-Meteo';
       _bootStepDone('wind',`Winds aloft: ${spdMph} mph @ ${Math.round(dir)}° · ${hostLabel}`);
     }
   }catch(e){console.log('Winds aloft fetch failed:',e.message);if(typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft failed')}
