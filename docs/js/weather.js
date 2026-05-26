@@ -86,8 +86,16 @@ function _blendOMModels(gfs,hrrr){
 
   return out;
 }
+// v4.44: scale the per-request timeout off the boot ping so a 900 ms link
+// doesn't get cut off at the old hard-coded 12 s budget. Floor 12 s, ceiling
+// 45 s, multiplier 15× ping.
+function _omFetchTimeoutMs(){
+  const p=(typeof S!=='undefined'&&S._netRttMs)?S._netRttMs:500;
+  return Math.min(45000,Math.max(12000,Math.round(p*15)));
+}
 async function _fetchOMModels(omBase,isUS){
-  const _getJSON=url=>fetch(url,{signal:AbortSignal.timeout(12000)}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()});
+  const _to=_omFetchTimeoutMs();
+  const _getJSON=url=>fetch(url,{signal:AbortSignal.timeout(_to)}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()});
   const [_gfsRes,_hrrrRes]=await Promise.allSettled([
     _getJSON(omBase+'&models=gfs_seamless'),
     isUS?_getJSON(omBase+'&models=hrrr_conus'):Promise.resolve(null)
@@ -111,15 +119,22 @@ async function fetchWeather(){
     const _isUSLoc=isUSLocation(S.lat,S.lon);
     let _om=await _fetchOMModels(_omBase,_isUSLoc);
     if(!_om.blended){
-      console.log('OM models: first attempt failed — retrying in 3s...');
+      // v4.44: scale retry waits off boot ping (S._netRttMs). On a 900 ms link
+      // the prior 3 s / 5 s floors were too tight and the retries fired before
+      // the network had recovered. Now: wait1 = max(750, ping×1.5); wait2 =
+      // max(1500, ping×2.5). Ceilings: 10 s / 18 s so a flaky link doesn't hang.
+      const _p=S._netRttMs||500;
+      const _wait1=Math.min(10000,Math.max(750,Math.round(_p*1.5)));
+      const _wait2=Math.min(18000,Math.max(1500,Math.round(_p*2.5)));
+      console.log(`OM models: first attempt failed — retrying in ${_wait1}ms (ping=${_p}ms)...`);
       if(reqId!==S._locReqId)return;
-      await new Promise(r=>setTimeout(r,3000));
+      await new Promise(r=>setTimeout(r,_wait1));
       if(reqId!==S._locReqId)return;
       _om=await _fetchOMModels(_omBase,_isUSLoc);
       if(!_om.blended){
-        console.log('OM models: second attempt failed — retrying in 5s...');
+        console.log(`OM models: second attempt failed — retrying in ${_wait2}ms (ping=${_p}ms)...`);
         if(reqId!==S._locReqId)return;
-        await new Promise(r=>setTimeout(r,5000));
+        await new Promise(r=>setTimeout(r,_wait2));
         if(reqId!==S._locReqId)return;
         _om=await _fetchOMModels(_omBase,_isUSLoc);
         if(!_om.blended)throw new Error('All model fetches failed (after 2 retries)');
