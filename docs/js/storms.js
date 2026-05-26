@@ -2225,13 +2225,20 @@ function getFilteredStorms(){
   return{filter:f,storms:out,totalCount:S.storms.length,hiddenCount:S.storms.length-out.length};
 }
 if(typeof window!=='undefined')window.getFilteredStorms=getFilteredStorms;
-function _smartStormSummary(storms){
+// Build the tier-labeled forecast bullets shown at the top of the Storms tab.
+// Returns plain-text lines when plain=true (for the AI prompt), or HTML lines
+// (matching the prior renderStorms output) when plain=false. The empty-state
+// "no storms approaching" message is also returned as a one-element array so
+// callers can decide how to render it. Returns [] when there is no usable
+// storm-movement vector or no storms at all.
+function buildStormForecastLines(plain){
+  const storms=(S.storms||[]);
   const _hasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
   const _hasAl=S._upperWindDir!=null;
   const mv=_hasMv?S.stormMovement:(_hasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
-  if(!storms.length||!mv||mv.speed<2)return'';
+  if(!storms.length||!mv||mv.speed<2)return{lines:[],empty:false};
   const approaching=storms.filter(s=>{const e=s._eta;return e&&e.approaching&&e.eta!=null});
-  if(!approaching.length)return'<div style="padding:8px 12px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:8px;font-size:0.8em;color:#4ade80;margin-bottom:8px">No storms currently approaching your location.</div>';
+  if(!approaching.length)return{lines:[],empty:true};
   approaching.sort((a,b)=>a._eta.eta-b._eta.eta);
   const light=approaching.filter(s=>s.dbz<40);
   const moderate=approaching.filter(s=>s.dbz>=41&&s.dbz<52);
@@ -2241,30 +2248,45 @@ function _smartStormSummary(storms){
   const now=Date.now();
   const fmtEtaShort=(min)=>{const s=Math.round(min*60);const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return(h>0?String(h).padStart(2,'0')+'h:':'')+String(m).padStart(2,'0')+'m:'+String(sec).padStart(2,'0')+'s';};
   const fmtTime=(min)=>fmtClockShort(new Date(now+min*60000));
-  const tierSpan=(min,label)=>{const tgt=now+min*60000;return`<span class="tier-eta-cd" data-tier-target="${tgt}"><b>${fmtEtaShort(min)}</b> (${fmtTime(min)})</span>`};
-  let lines=[];
-  const maxTag=(arr)=>` <span class="c-muted-85">(Max: ${Math.max(...arr.map(s=>s.dbz))} dBZ)</span>`;
+  const tierSpan=(min)=>{
+    if(plain)return`${fmtEtaShort(min)} (${fmtTime(min)})`;
+    const tgt=now+min*60000;
+    return`<span class="tier-eta-cd" data-tier-target="${tgt}"><b>${fmtEtaShort(min)}</b> (${fmtTime(min)})</span>`;
+  };
+  const maxTag=(arr)=>{
+    const m=Math.max(...arr.map(s=>s.dbz));
+    return plain?` (Max: ${m} dBZ)`:` <span class="c-muted-85">(Max: ${m} dBZ)</span>`;
+  };
+  const lbl=(emoji,plainTxt,htmlColor,htmlTxt)=>plain?`${emoji} ${plainTxt}`:`<span style="color:${htmlColor}">${emoji} ${htmlTxt}</span>`;
+  const lines=[];
   if(light.length){
     const first=light[0];
-    lines.push(`<span style="color:#00F8FF">🔵 Light rain</span> inbound starting in ${tierSpan(first._eta.eta)}${light.length>1?' — '+light.length+' cells':''}${maxTag(light)}`);
+    lines.push(`${lbl('🔵','Light rain','#00F8FF','Light rain')} inbound starting in ${tierSpan(first._eta.eta)}${light.length>1?' — '+light.length+' cells':''}${maxTag(light)}`);
   }
   if(moderate.length){
     const first=moderate[0];
-    lines.push(`<span style="color:#F5FF00">🟡 Moderate to heavy</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${moderate.length>1?' — '+moderate.length+' cells':''}${maxTag(moderate)}`);
+    lines.push(`${lbl('🟡','Moderate to heavy','#F5FF00','Moderate to heavy')} cells inbound, ETA ${tierSpan(first._eta.eta)}${moderate.length>1?' — '+moderate.length+' cells':''}${maxTag(moderate)}`);
   }
   if(modSevere.length){
     const first=modSevere[0];
-    lines.push(`<span style="color:#E63A2C">🟠 Moderate to severe</span> cells inbound, ETA ${tierSpan(first._eta.eta)}${modSevere.length>1?' — '+modSevere.length+' cells':''}${maxTag(modSevere)}`);
+    lines.push(`${lbl('🟠','Moderate to severe','#E63A2C','Moderate to severe')} cells inbound, ETA ${tierSpan(first._eta.eta)}${modSevere.length>1?' — '+modSevere.length+' cells':''}${maxTag(modSevere)}`);
   }
   if(severe.length){
     const first=severe[0];
-    lines.push(`<span style="color:#FF0200">🔴 Severe</span> cells inbound (hail possible), ETA ${tierSpan(first._eta.eta)}${severe.length>1?' — '+severe.length+' cells':''}${maxTag(severe)}`);
+    lines.push(`${lbl('🔴','Severe','#FF0200','Severe')} cells inbound (hail possible), ETA ${tierSpan(first._eta.eta)}${severe.length>1?' — '+severe.length+' cells':''}${maxTag(severe)}`);
   }
   if(extreme.length){
     const first=extreme[0];
-    lines.push(`<span style="color:#FF00F5">🟣 Extreme</span> cells inbound (hail likely), ETA ${tierSpan(first._eta.eta)}${extreme.length>1?' — '+extreme.length+' cells':''}${maxTag(extreme)}`);
+    lines.push(`${lbl('🟣','Extreme','#FF00F5','Extreme')} cells inbound (hail likely), ETA ${tierSpan(first._eta.eta)}${extreme.length>1?' — '+extreme.length+' cells':''}${maxTag(extreme)}`);
   }
-  return`<div style="padding:8px 12px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:8px;font-size:0.78em;line-height:1.6;margin-bottom:8px">${lines.join('<br>')}</div>`;
+  return{lines,empty:false};
+}
+if(typeof window!=='undefined')window.buildStormForecastLines=buildStormForecastLines;
+function _smartStormSummary(storms){
+  const r=buildStormForecastLines(false);
+  if(r.empty)return'<div style="padding:8px 12px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:8px;font-size:0.8em;color:#4ade80;margin-bottom:8px">No storms currently approaching your location.</div>';
+  if(!r.lines.length)return'';
+  return`<div style="padding:8px 12px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:8px;font-size:0.78em;line-height:1.6;margin-bottom:8px">${r.lines.join('<br>')}</div>`;
 }
 function _renderFilterBar(f){
   const sortOpts=[['threat','Threat Score'],['impact','Highest Impact'],['dbz','Strongest'],['eta','Soonest ETA'],['dist','Closest']];
@@ -2377,16 +2399,18 @@ function renderStorms(){
       const hasValidClosing=!!(_b&&_b.closingMph>0);
       const bImpPct=(_b&&_b.impactScore!=null)?Math.round(_b.impactScore*100):0;
       const imp=impactLabel(bImpPct);
-      const impTitle='Max intensity expected at your location: closeness to track centerline × storm intensity';
+      const _estDbzU=(_b&&_b.estDbzAtUser!=null)?_b.estDbzAtUser:null;
+      const _peakPct=(hasValidClosing&&_estDbzU!=null&&s.dbz>0)?Math.round(_estDbzU/s.dbz*100):null;
+      const impTitle='Expected radar intensity at your location based on track closeness';
       const missMiVal=(_b&&hasValidClosing)?_b.perpMissMi:null;
       const missStr=(missMiVal!=null)?(S.radarMetric?(missMiVal*1.60934).toFixed(1)+' km':missMiVal.toFixed(1)+' mi'):null;
-      const projMissDisp=(_b&&_b.classification==='direct')?tStr('Direct hit')
-                        :(hasValidClosing&&missStr!=null)?`${missStr} ${_b.sideBearing!=null?degToDir(_b.sideBearing):''}`.trim()
-                        :'—';
-      const impDispVal=hasValidClosing?`${bImpPct}% ${tStr('of peak')}`:'—';
-      const impDispColor=hasValidClosing?imp.color:'var(--text-muted)';
+      const _xtrkBearing=(_b&&_b.sideBearing!=null)?degToDir(_b.sideBearing):'';
+      const projMissDisp=(hasValidClosing&&missStr!=null)?`${missStr}${_xtrkBearing?' '+_xtrkBearing:''}`.trim():'—';
+      const _strPctColor=_peakPct!=null?impactLabel(_peakPct).color:'var(--text-muted)';
+      const impDispVal=(hasValidClosing&&_estDbzU!=null)?`${_estDbzU} dBZ <span style="opacity:0.75;font-size:0.85em">(${_peakPct}% ${tStr('of peak')})</span>`:'—';
+      const impDispColor=(hasValidClosing&&_estDbzU!=null)?_strPctColor:'var(--text-muted)';
       const impTile=`<div class="storm-detail" title="${impTitle}"><div class="storm-detail-label">${tStr('Strength at you')}</div><div class="storm-detail-val" style="color:${impDispColor};font-size:0.85em">${impDispVal}</div></div>`;
-      const missTile=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Projected Miss')}</div><div class="storm-detail-val" style="font-size:0.85em">${projMissDisp}</div></div>`;
+      const missTile=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Storm X-TRK')}</div><div class="storm-detail-val" style="font-size:0.85em">${projMissDisp}</div></div>`;
       let mvLine='';
       const _ct=typeof getCellTrack==='function'?getCellTrack(s):null;
       const _sMv=(_ct&&_ct.speed>=2)?{direction:_ct.dir,speed:_ct.speed}:mv;
