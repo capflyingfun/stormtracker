@@ -101,6 +101,7 @@ function _clusterSonarPoints(){
   let idx=0;
   for(const c of cells.values()){out[idx++]={lat:c.sLat/c.n,lng:c.sLng/c.n,dbz:c.dbz,count:c.n}}
   S._sonarClusteredPts=out;
+  if(typeof refreshRainClock==='function')try{refreshRainClock(true)}catch(e){}
 }
 function _syncSonarZoomBtns(){const zi=document.getElementById('sonar-zoom-in');const zo=document.getElementById('sonar-zoom-out');if(zi)zi.style.opacity=_sonarZoomMi<=_SONAR_ZOOM_LEVELS[0]?'0.3':'0.8';if(zo)zo.style.opacity=_sonarZoomMi>=_SONAR_ZOOM_LEVELS[_SONAR_ZOOM_LEVELS.length-1]?'0.3':'0.8'}
 let _gyroHeading=null,_gyroEnabled=false,_gyroRaw=null,_gyroSmooth=null;

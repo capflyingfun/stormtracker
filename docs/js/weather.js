@@ -1674,6 +1674,22 @@ function updateWeatherCloudBaseColor(){}
 
 
 // ===== Rain Clock (RainAware-style 0-180 min circular precip dial) =====
+function _nextRainHourFromForecast(){
+  const h=S._hourlyData;
+  if(!h||!h.time||!h.precipitation)return null;
+  const now=Date.now();
+  let startIdx=h.time.findIndex(t=>new Date(t).getTime()>=now-1800000);
+  if(startIdx<0)return null;
+  const end=Math.min(startIdx+36,h.time.length);
+  for(let i=startIdx;i<end;i++){
+    if((h.precipitation[i]||0)>=0.1){
+      const t=new Date(h.time[i]).getTime();
+      return{mins:Math.max(0,Math.round((t-now)/60000)),mm:h.precipitation[i],time:t};
+    }
+  }
+  return null;
+}
+
 function _rainClockProject(){
   const out={ready:false,minutes:new Array(181).fill(0),windows:[],nearest:null,stale:false,motionUnknown:false,noLoc:false,empty:false};
   if(S.lat==null||S.lon==null){out.noLoc=true;return out}
@@ -1702,13 +1718,17 @@ function _rainClockProject(){
   if(nearestDist<Infinity&&nearestBearing!=null){out.nearest={mi:nearestDist,dir:degToDir(nearestBearing)}}
   const v2_mph2=vx*vx+vy*vy;
   const v2_per_min2=v2_mph2/3600;
+  const contribs=[];
   for(const p of pts){
     if(p.dbz<MIN_DBZ)continue;
     const dx=(p.lng-S.lon)*MI_PER_DEG_LON;
     const dy=(p.lat-S.lat)*MI_PER_DEG_LAT;
     const dist0=Math.sqrt(dx*dx+dy*dy);
     if(!haveMv||v2_per_min2<1e-6){
-      if(dist0<=RADIUS_MI&&p.dbz>out.minutes[0])out.minutes[0]=p.dbz;
+      if(dist0<=RADIUS_MI){
+        if(p.dbz>out.minutes[0])out.minutes[0]=p.dbz;
+        contribs.push({lat:p.lat,lng:p.lng,dbz:p.dbz,dist:dist0,bearing:bearingDeg(S.lat,S.lon,p.lat,p.lng),tIn:0,tOut:0});
+      }
       continue;
     }
     const tStar=-(dx*vx+dy*vy)/v2_mph2*60;
@@ -1720,6 +1740,7 @@ function _rainClockProject(){
     const tOut=Math.min(180,Math.ceil(tStar+hw));
     if(tIn>180||tOut<0)continue;
     for(let t=tIn;t<=tOut;t++){if(p.dbz>out.minutes[t])out.minutes[t]=p.dbz}
+    contribs.push({lat:p.lat,lng:p.lng,dbz:p.dbz,dist:dist0,bearing:bearingDeg(S.lat,S.lon,p.lat,p.lng),tIn,tOut});
   }
   let cur=null;
   for(let t=0;t<=180;t++){
@@ -1730,6 +1751,25 @@ function _rainClockProject(){
     }else if(cur){out.windows.push(cur);cur=null}
   }
   if(cur)out.windows.push(cur);
+  for(const w of out.windows){
+    const matched=contribs.filter(c=>c.tIn<=w.endMin&&c.tOut>=w.startMin);
+    const clusters=[];
+    for(const c of matched){
+      let placed=false;
+      for(const cl of clusters){
+        if(haversine(c.lat,c.lng,cl.lat,cl.lng)<=2.5){
+          if(c.dbz>cl.dbz){cl.dbz=c.dbz;cl.lat=c.lat;cl.lng=c.lng;cl.dist=c.dist;cl.bearing=c.bearing}
+          cl.count++;
+          if(c.tIn<cl.tIn)cl.tIn=c.tIn;
+          if(c.tOut>cl.tOut)cl.tOut=c.tOut;
+          placed=true;break;
+        }
+      }
+      if(!placed)clusters.push({lat:c.lat,lng:c.lng,dbz:c.dbz,dist:c.dist,bearing:c.bearing,tIn:c.tIn,tOut:c.tOut,count:1});
+    }
+    clusters.sort((a,b)=>b.dbz-a.dbz);
+    w.cells=clusters.slice(0,5);
+  }
   out.ready=true;
   return out;
 }
@@ -1738,6 +1778,7 @@ function renderRainClock(){
   const el=document.getElementById('rain-clock');
   if(!el)return;
   const data=_rainClockProject();
+  S._rainClockData=data;
   const SIZE=280,CX=140,CY=140,R_OUTER=128,R_TICK_IN=112,R_TICK_OUT=126,R_LABEL=98,R_ARC=80,R_ARC_W=14;
   const now=Date.now();
   let ticks='';
@@ -1766,18 +1807,30 @@ function renderRainClock(){
   }
   let arcs='';
   if(data.ready){
-    for(const w of data.windows){
+    data.windows.forEach((w,wi)=>{
       const s=Math.max(0,w.startMin),e=Math.min(180,Math.max(w.startMin+1,w.endMin));
-      if(e<=s)continue;
+      if(e<=s)return;
       const color=(typeof dbzHex==='function')?dbzHex(w.peakDbz):'#39ff14';
-      arcs+=`<path d="${arcPath(s,e,R_ARC)}" stroke="${color}" stroke-width="${R_ARC_W}" fill="none" stroke-linecap="round" opacity="0.92"/>`;
-    }
+      const hasCells=w.cells&&w.cells.length;
+      const cursor=hasCells?'pointer':'default';
+      const handler=hasCells?` onclick="_rainClockSelectWindow(${wi})" style="cursor:${cursor}"`:'';
+      arcs+=`<path d="${arcPath(s,e,R_ARC)}" stroke="${color}" stroke-width="${R_ARC_W}" fill="none" stroke-linecap="round" opacity="0.92"${handler}><title>${hasCells?'Tap for details · '+w.cells.length+' cell'+(w.cells.length!==1?'s':''):''}</title></path>`;
+    });
   }
+  const nextRain=_nextRainHourFromForecast();
   let centerLines=[];
   if(data.noLoc)centerLines=['Location','needed'];
   else if(data.stale)centerLines=['Radar stale','run a scan'];
-  else if(data.empty)centerLines=['Waiting for','radar…'];
-  else if(data.windows.length===0)centerLines=['Dry for the next','3 hours'];
+  else if(data.empty){
+    if(nextRain&&nextRain.mins<=360)centerLines=['Possible rain at',fmtClock(new Date(nextRain.time))];
+    else if(nextRain)centerLines=['No rain in the','next 3 hours'];
+    else centerLines=['No rain expected','for hours'];
+  }
+  else if(data.windows.length===0){
+    if(nextRain&&nextRain.mins<=360)centerLines=['Possible rain at',fmtClock(new Date(nextRain.time))];
+    else if(nextRain)centerLines=['No threat of rain','next 3 hours'];
+    else centerLines=['No rain expected','for hours'];
+  }
   else{
     const w=data.windows[0];
     if(w.startMin===0){
@@ -1824,6 +1877,8 @@ function renderRainClock(){
   if(data.motionUnknown&&!data.empty&&!data.stale&&!data.noLoc&&(S._rawScanPts||[]).length){
     foot=`<div style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:4px;font-style:italic">Motion unknown — projection limited</div>`;
   }
+  const hasClickable=data.ready&&data.windows.some(w=>w.cells&&w.cells.length);
+  const hint=hasClickable?`<div style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:2px;font-style:italic">Tap a colored arc to see which storms cause it</div>`:'';
   el.innerHTML=`
     <div class="card" style="padding:10px 8px;margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -1837,8 +1892,82 @@ function renderRainClock(){
           ${ticks}${labels}${arcs}${center}${legend}
         </svg>
       </div>
-      ${sub}${foot}
+      ${sub}${foot}${hint}
+      <div id="rain-clock-detail" style="margin-top:8px"></div>
     </div>`;
+  if(S._rainClockSelectedIdx!=null&&data.ready&&data.windows[S._rainClockSelectedIdx]){
+    _rainClockRenderDetail(S._rainClockSelectedIdx);
+  }
+}
+
+function _rainClockSelectWindow(idx){
+  const data=S._rainClockData;
+  if(!data||!data.windows||!data.windows[idx])return;
+  S._rainClockSelectedIdx=(S._rainClockSelectedIdx===idx)?null:idx;
+  if(S._rainClockSelectedIdx==null){
+    const panel=document.getElementById('rain-clock-detail');
+    if(panel)panel.innerHTML='';
+    return;
+  }
+  _rainClockRenderDetail(S._rainClockSelectedIdx);
+}
+
+function _rainClockRenderDetail(idx){
+  const panel=document.getElementById('rain-clock-detail');
+  if(!panel)return;
+  const data=S._rainClockData;
+  if(!data||!data.windows||!data.windows[idx]){panel.innerHTML='';return}
+  const w=data.windows[idx];
+  const now=Date.now();
+  const startClock=fmtClock(new Date(now+w.startMin*60000));
+  const endClock=fmtClock(new Date(now+w.endMin*60000));
+  const etaTxt=w.startMin===0?`now → ${endClock}`:`${startClock} → ${endClock}`;
+  const cells=w.cells||[];
+  let rows='';
+  if(!cells.length){
+    rows=`<div style="font-size:0.7em;color:var(--text-muted);padding:4px 6px">No contributing cells identified for this window.</div>`;
+  } else {
+    cells.forEach(c=>{
+      const color=(typeof dbzHex==='function')?dbzHex(c.dbz):'#39ff14';
+      const dir=degToDir(c.bearing);
+      const distMi=c.dist;
+      const distStr=S.radarMetric?(distMi*1.609).toFixed(1)+' km':distMi.toFixed(1)+' mi';
+      const cellEta=c.tIn===0?'overhead':`+${c.tIn}-${c.tOut} min`;
+      const safeLat=c.lat.toFixed(5),safeLng=c.lng.toFixed(5);
+      rows+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,0.05)">
+        <span style="width:10px;height:24px;background:${color};border-radius:3px;flex-shrink:0"></span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.78em;color:var(--text-primary);font-weight:600">${c.dbz} dBZ · ${distStr} ${dir}</div>
+          <div style="font-size:0.65em;color:var(--text-muted)">ETA ${cellEta}${c.count>1?' · '+c.count+' pixels':''}</div>
+        </div>
+        <button onclick="_rainClockViewCellOnRadar(${safeLat},${safeLng})" style="font-size:0.65em;padding:4px 8px;border-radius:6px;background:var(--accent-blue,#3b82f6);color:#fff;border:none;cursor:pointer;flex-shrink:0">View on radar</button>
+      </div>`;
+    });
+  }
+  panel.innerHTML=`
+    <div style="background:rgba(10,16,32,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:0.72em;color:var(--accent-cyan);font-weight:700">Rain window · ${etaTxt}</span>
+        <span onclick="_rainClockSelectWindow(${idx})" style="font-size:0.7em;color:var(--text-muted);cursor:pointer;padding:0 4px">✕</span>
+      </div>
+      <div style="font-size:0.65em;color:var(--text-muted);margin-bottom:6px">Peak ${w.peakDbz} dBZ · ${cells.length} cell${cells.length!==1?'s':''} contributing</div>
+      ${rows}
+    </div>`;
+}
+
+function _rainClockViewCellOnRadar(lat,lng){
+  if(typeof switchPage==='function')switchPage('radar');
+  const tryPan=()=>{
+    if(S.map){
+      try{S.map.setView([lat,lng],10,{animate:true,duration:0.5})}catch(e){}
+      return true;
+    }
+    return false;
+  };
+  if(!tryPan()){
+    let n=0;
+    const iv=setInterval(()=>{if(tryPan()||++n>=10)clearInterval(iv)},250);
+  }
 }
 
 let _rainClockLastDraw=0;
