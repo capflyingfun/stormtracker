@@ -1906,15 +1906,24 @@ function _rainClockProject(){
   }
   if(hasRadar&&!radarStale)out.radarReady=true;
   if(radarStale)out.stale=true;
-  // v4.46: overlay Open-Meteo hourly forecast precipitation for minutes 181..720
-  // so the 12h dial paints both radar advection AND beyond-radar hours.
+  // v4.47: overlay Open-Meteo hourly forecast precipitation for minutes 0..720.
+  // Use the same findIndex(now-30min) anchor that the Rain Forecast Bars use,
+  // so what the dial paints and what the bars below it paint always agree —
+  // an earlier bug iterated h.time from index 0 (which can include past hours
+  // or be misaligned when Open-Meteo's first slot isn't "now"), so future-hour
+  // forecast slots were getting their `mins` computed against the wrong base
+  // and either skipped or assigned to the wrong dial position.
   if(haveHourly){
     const nowMs=Date.now();
-    for(let i=0;i<h.time.length&&i<60;i++){
-      const ts=new Date(h.time[i]).getTime();
+    let startIdx=h.time.findIndex(t=>new Date(t).getTime()>=nowMs-1800000);
+    if(startIdx<0)startIdx=0;
+    for(let k=0;k<14;k++){
+      const idx=startIdx+k;
+      if(idx>=h.time.length)break;
+      const ts=new Date(h.time[idx]).getTime();
       const mins=(ts-nowMs)/60000;
-      if(mins<-30||mins>_RC_TOTAL_MIN)continue;
-      const mm=h.precipitation[i]||0;
+      if(mins>_RC_TOTAL_MIN)break;
+      const mm=h.precipitation[idx]||0;
       if(mins>=0&&mins<=_RC_TOTAL_MIN)out.totalMm+=mm;
       if(mm<=0)continue;
       const dbz=_precipMmToDbz(mm);
@@ -1971,8 +1980,12 @@ function renderRainClock(){
   const data=_rainClockProject();
   S._rainClockData=data;
   const SIZE=320,CX=160,CY=160;
-  const R_OUTER=152,R_OUTER_LABEL=144,R_TICK_OUT=126,R_TICK_IN=114;
-  const R_HOUR_LABEL=98,R_ARC=78,R_ARC_W=18;
+  // v4.47: collapsed the old "inner +Nh ring" + "outer wall-clock ring" into
+  // a single combined label per hour position (the user pointed out the two
+  // rings were redundant and visually colliding with the rain arc near the
+  // top). R_LABEL replaces both R_OUTER_LABEL=144 and R_HOUR_LABEL=98.
+  const R_OUTER=152,R_TICK_OUT=126,R_TICK_IN=114;
+  const R_LABEL=139,R_ARC=78,R_ARC_W=18;
   const TOTAL=_RC_TOTAL_MIN;
   const now=Date.now();
   const nowD=new Date(now);
@@ -1987,22 +2000,21 @@ function renderRainClock(){
     const r2=R_TICK_OUT;
     ticks+=`<line x1="${(CX+r1*Math.cos(a)).toFixed(1)}" y1="${(CY+r1*Math.sin(a)).toFixed(1)}" x2="${(CX+r2*Math.cos(a)).toFixed(1)}" y2="${(CY+r2*Math.sin(a)).toFixed(1)}" stroke="${major?'#9fb3c8':'#3a4a5e'}" stroke-width="${major?2:1}"/>`;
   }
-  // Inner labels: "Now", "+1h", "+2h", ... "+11h" — fixed offsets, never change
-  let innerLabels='';
+  // v4.47: ONE combined label per hour position — stacked two-line text inside
+  // a single <text> element. Top line = offset ("Now" / "+1h" / ... / "+11h").
+  // Bottom line = dynamic wall-clock time, refreshed every 60s by
+  // _rainClockStartTick(). The time tspan carries data-rc-outer so the tick
+  // can find and update only the time, leaving the offset untouched.
+  let hourLabels='';
   for(let i=0;i<12;i++){
-    const [x,y]=ptAt(i*60,R_HOUR_LABEL);
-    const lbl=i===0?'Now':'+'+i+'h';
-    innerLabels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="#9fb3c8" font-size="10" font-weight="700" text-anchor="middle" dominant-baseline="middle">${lbl}</text>`;
-  }
-  // OUTER labels: dynamic wall-clock times at each hour position — updated by
-  // a 60s setInterval (so "Now" always reads the current minute, +1h reads
-  // current minute + 60, etc.). Uses fmtClock which honors S.timeFmt (12h/24h).
-  let outerLabels='';
-  for(let i=0;i<12;i++){
-    const [x,y]=ptAt(i*60,R_OUTER_LABEL);
+    const [x,y]=ptAt(i*60,R_LABEL);
+    const off=i===0?'Now':'+'+i+'h';
     const t=new Date(now+i*3600000);
-    const lbl=fmtClock(t);
-    outerLabels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="#cfd8e3" font-size="10" font-weight="600" text-anchor="middle" dominant-baseline="middle" data-rc-outer="${i}">${lbl}</text>`;
+    const tStr=fmtClock(t);
+    hourLabels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle">`
+      +`<tspan x="${x.toFixed(1)}" dy="-5" fill="#9fb3c8" font-size="9" font-weight="700">${off}</tspan>`
+      +`<tspan x="${x.toFixed(1)}" dy="11" fill="#cfd8e3" font-size="9" font-weight="600" data-rc-outer="${i}">${tStr}</tspan>`
+      +`</text>`;
   }
   // Per-minute gradient arc segments — each minute where dBZ ≥ 25 paints a
   // tiny colored chord at that angular position, so colors blend along the
@@ -2107,7 +2119,7 @@ function renderRainClock(){
       <div style="display:flex;justify-content:center">
         <svg viewBox="0 0 ${SIZE} ${SIZE}" width="100%" style="max-width:340px;height:auto" xmlns="http://www.w3.org/2000/svg">
           <circle cx="${CX}" cy="${CY}" r="${R_OUTER}" fill="rgba(10,16,32,0.55)" stroke="#1e2a3c" stroke-width="1"/>
-          ${ticks}${innerLabels}${outerLabels}${arcs}${boundary}${segHandlers}${nowPointer}${center}
+          ${ticks}${hourLabels}${arcs}${boundary}${segHandlers}${nowPointer}${center}
         </svg>
       </div>
       ${sub}${foot}${hint}
