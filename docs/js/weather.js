@@ -1823,7 +1823,7 @@ function renderRainClock(){
   else if(data.stale)centerLines=['Radar stale','run a scan'];
   else if(data.empty){
     if(nextRain&&nextRain.mins<=360)centerLines=['Possible rain at',fmtClock(new Date(nextRain.time))];
-    else if(nextRain)centerLines=['No rain in the','next 3 hours'];
+    else if(nextRain)centerLines=['No threat of rain','next 3 hours'];
     else centerLines=['No rain expected','for hours'];
   }
   else if(data.windows.length===0){
