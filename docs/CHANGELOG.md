@@ -3,6 +3,18 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.54
+
+NWS gridpoint QPF added as a backup precipitation source for US locations.
+
+After v4.53 fixed the "graph disappears" bug, the user reported the graph was now rendering but reading zero across the next 36 hours in Pensacola despite radar clearly showing inbound storms. Open-Meteo's GFS+HRRR blend was returning 0 mm for every hour — a real model-vs-radar disagreement, not a missing-data bug. User correctly suggested adding NWS as a backup, same pattern as the v4.51 winds-aloft watchdog.
+
+Added `fetchNwsHourlyQpf()` that pulls `quantitativePrecipitation` from `api.weather.gov/gridpoints/{wfo}/{x},{y}`. The endpoint returns multi-hour periods in ISO 8601 notation (e.g. `"2026-05-26T18:00:00+00:00/PT3H"` with a single mm value covering 3 hours); `_parseNwsValidTime()` decodes the period and `_nwsQpfOnce()` spreads the value evenly across clock hours so it lines up with Open-Meteo's hourly grid. Two-try retry pattern mirrors `fetchNWSForecast()`.
+
+Hooked into the existing parallel fan-out in `fetchWeather()` (US-only — NWS coverage), and merged into `omData.hourly.precipitation` via `_mergeNwsQpfIntoOM()`. Strategy: per-hour MAX, same safety-conservative pattern as the GFS+HRRR blend. If OM says 0 mm and NWS says 0.5 mm, the bar reflects 0.5 mm. Logs how many hours got bumped upward so model disagreements are visible in console.
+
+Non-US locations are unchanged (no QPF backup available globally yet). When NWS is down, the bars still render with whatever Open-Meteo returned.
+
 ## v4.53
 
 Rain Forecast Bars graph stops vanishing when one Open-Meteo model is missing the precipitation array.

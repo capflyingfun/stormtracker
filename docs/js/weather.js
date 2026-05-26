@@ -169,14 +169,15 @@ async function fetchWeather(){
     // outage no longer gates the rest of the tab. NWS/AWC are independent
     // services and will keep the hero populated even when OM is 502'ing.
     const _otherP=[fetchAWCNearest()];
-    if(_isUSLoc)_otherP.push(fetchNWSCurrent(),fetchNWSForecast());
-    else console.log('[non-US] Skipped: NWS current obs, NWS forecast');
+    if(_isUSLoc)_otherP.push(fetchNWSCurrent(),fetchNWSForecast(),fetchNwsHourlyQpf());
+    else console.log('[non-US] Skipped: NWS current obs, NWS forecast, NWS QPF');
     const all=await Promise.allSettled([_fetchOMSequence(_omPath,_isUSLoc,reqId),..._otherP]);
     if(reqId!==S._locReqId)return;
     const omRes=all[0].status==='fulfilled'?all[0].value:null;
     const awcCur=all[1].status==='fulfilled'?all[1].value:null;
     const nwsCur=_isUSLoc&&all[2]&&all[2].status==='fulfilled'?all[2].value:null;
     const nwsFc=_isUSLoc&&all[3]&&all[3].status==='fulfilled'?all[3].value:null;
+    const nwsQpf=_isUSLoc&&all[4]&&all[4].status==='fulfilled'?all[4].value:null;
     let omData,isPartial=false;
     if(omRes&&omRes.blended){
       omData=omRes.blended;
@@ -250,6 +251,16 @@ async function fetchWeather(){
       if(nwsFc&&nwsFc.length){
         omData._nwsForecast=nwsFc;
         console.log('Weather: NWS forecast loaded ('+nwsFc.length+' periods)');
+      }
+      // v4.54: Merge NWS gridpoint QPF into hourly.precipitation (per-hour
+      // MAX). Catches the case where GFS+HRRR underforecast vs. NWS's own
+      // official QPF — the Rain Forecast Bars graph stays honest even when
+      // one model agrees with itself but disagrees with the official forecast.
+      if(nwsQpf&&nwsQpf.size&&omData.hourly&&omData.hourly.time&&omData.hourly.time.length){
+        try{
+          const bumped=_mergeNwsQpfIntoOM(omData,nwsQpf);
+          console.log('NWS QPF merged: '+nwsQpf.size+' NWS hours, '+bumped+' OM hours bumped upward');
+        }catch(e){console.log('NWS QPF merge failed:',e.message)}
       }
     }catch(e){console.log('Multi-source blend failed:',e.message)}
     if(reqId!==S._locReqId)return;
@@ -512,6 +523,94 @@ async function fetchNWSForecast(){
     if(r&&r.length)return r;
   }catch(e){console.log('NWS forecast: retry failed',e.message)}
   return null;
+}
+
+// v4.54: NWS gridpoint QPF backup — when GFS+HRRR underforecast (or just
+// disagree with NWS's official quantitative precip), pull NWS's own hourly
+// precipitation forecast from /gridpoints/{wfo}/{x},{y} and merge per-hour
+// max into the Open-Meteo precipitation array. US-only (NWS coverage).
+// Returns a Map<hourMs, mm> aligned to clock hours.
+function _parseNwsValidTime(vt){
+  // "2026-05-26T18:00:00+00:00/PT3H" → {startMs, hours}
+  const [iso,dur]=String(vt||'').split('/');
+  if(!iso||!dur)return null;
+  const startMs=new Date(iso).getTime();
+  if(!isFinite(startMs))return null;
+  // ISO 8601 period: P[nD]T[nH] — we care about days and hours
+  const m=dur.match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?$/);
+  if(!m)return null;
+  const days=+(m[1]||0),hrs=+(m[2]||0),mins=+(m[3]||0);
+  const hours=days*24+hrs+mins/60;
+  if(hours<=0)return null;
+  return{startMs,hours};
+}
+async function _nwsQpfOnce(ptTimeout,fcTimeout){
+  const ptRes=await fetch(`https://api.weather.gov/points/${S.lat.toFixed(4)},${S.lon.toFixed(4)}`,{...NWS_HDR,signal:AbortSignal.timeout(ptTimeout)});
+  if(!ptRes.ok)return null;
+  const pt=await ptRes.json();
+  const gridUrl=pt.properties?.forecastGridData;
+  if(!gridUrl)return null;
+  const gRes=await fetch(gridUrl,{...NWS_HDR,signal:AbortSignal.timeout(fcTimeout)});
+  if(!gRes.ok)return null;
+  const g=await gRes.json();
+  const qpf=g.properties?.quantitativePrecipitation;
+  if(!qpf||!Array.isArray(qpf.values)||!qpf.values.length)return null;
+  // NWS QPF unit is typically wmoUnit:mm. If it's in/inches, convert.
+  const unit=(qpf.uom||'').toLowerCase();
+  const toMm=unit.includes('inch')||unit.includes('[in_i]')?25.4:1;
+  // Each entry covers a multi-hour period (1/3/6h). Spread evenly across
+  // clock hours so the value lines up with Open-Meteo's hourly grid.
+  const out=new Map();
+  for(const v of qpf.values){
+    const p=_parseNwsValidTime(v.validTime);
+    if(!p||v.value==null||v.value<0)continue;
+    const totalMm=v.value*toMm;
+    const nHrs=Math.max(1,Math.round(p.hours));
+    const perHr=totalMm/nHrs;
+    for(let i=0;i<nHrs;i++){
+      const hourMs=Math.floor((p.startMs+i*3600000)/3600000)*3600000;
+      // If two periods cover the same hour, take the larger spread value
+      const cur=out.get(hourMs)||0;
+      if(perHr>cur)out.set(hourMs,perHr);
+    }
+  }
+  return out;
+}
+async function fetchNwsHourlyQpf(){
+  try{
+    const r=await _nwsQpfOnce(7000,8000);
+    if(r&&r.size)return r;
+  }catch(e){console.log('NWS QPF: first attempt failed, retrying...',e.message)}
+  try{
+    await new Promise(r=>setTimeout(r,1500));
+    const r=await _nwsQpfOnce(9000,10000);
+    if(r&&r.size)return r;
+  }catch(e){console.log('NWS QPF: retry failed',e.message)}
+  return null;
+}
+// Merge a NWS QPF map into Open-Meteo hourly.precipitation by clock hour.
+// Strategy: per-hour MAX (safety-conservative — mirrors how GFS and HRRR are
+// blended). If OM says 0 and NWS says 0.5 mm, the bar reflects 0.5 mm.
+// Returns count of hours touched for log visibility.
+function _mergeNwsQpfIntoOM(omData,qpfMap){
+  if(!omData||!omData.hourly||!omData.hourly.time||!qpfMap||!qpfMap.size)return 0;
+  const t=omData.hourly.time;
+  let p=omData.hourly.precipitation;
+  if(!Array.isArray(p)||p.length!==t.length){
+    p=new Array(t.length).fill(0);
+    omData.hourly.precipitation=p;
+  }
+  let touched=0,bumped=0;
+  for(let i=0;i<t.length;i++){
+    const hourMs=Math.floor(new Date(t[i]).getTime()/3600000)*3600000;
+    const nws=qpfMap.get(hourMs);
+    if(nws==null)continue;
+    const cur=p[i]||0;
+    if(nws>cur){p[i]=+nws.toFixed(3);bumped++}
+    touched++;
+  }
+  omData._nwsQpfMerged={touched,bumped};
+  return bumped;
 }
 
 function getBaroPrediction(current,hourly){
