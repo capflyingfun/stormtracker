@@ -284,6 +284,35 @@ function buildWeatherContext(){
         const dirs=[...new Set(away.map(it=>degToDir(it.s.bearing)))].slice(0,3);
         parts.push(`  🟢 MOVING AWAY: ${away.length} cell(s) (up to ${dbzMax} dBZ) receding to the ${dirs.join('/')}.`);
       }
+      // v4.52: Explicit per-cell list of every non-inbound cell ≥45 dBZ so the
+      // AI can name them individually (distance, bearing, dBZ, motion, threat
+      // verdict) instead of collapsing them into a vague "20-55 dBZ ring".
+      // Per user request: "anything over 45 dBZ should mention the distance,
+      // direction, and movement, e.g. 'the strongest storm on radar is 25 mi
+      // NE of you with a strength of 55 dBZ moving N at 12 mph, poses no risk'."
+      const _strongNonInbound=[...bg,...passing,...away]
+        .filter(it=>it.s.dbz>=45)
+        .sort((a,b)=>b.s.dbz-a.s.dbz)
+        .slice(0,12);
+      if(_strongNonInbound.length){
+        parts.push(`\nSTRONG NON-INBOUND CELLS (≥45 dBZ, outside the impact corridor — every one of these MUST be named individually in the "Elsewhere on Radar" subsection with distance, direction, dBZ, motion, and a brief threat verdict):`);
+        const tierEmo2={miss:'🔵',distant:'⚪',far:'⚫',passing:'🟡',moving_away:'🟢',unknown:'⚫'};
+        const tierLbl2={miss:'MISS',distant:'DISTANT',far:'FAR',passing:'PASSING',moving_away:'MOVING AWAY',unknown:'UNKNOWN'};
+        for(const it of _strongNonInbound){
+          const s=it.s,b=it.b||{};
+          const e=tierEmo2[it.tier]||'⚫';
+          const lbl=tierLbl2[it.tier]||(it.tier||'').toUpperCase();
+          const mov=(b.movSpdMph&&b.movDirDeg!=null)?`moving ${degToDir(b.movDirDeg)} at ${b.movSpdMph} mph`:'motion unknown';
+          const miss=b.perpMissMi!=null?`, projected miss ${b.perpMissMi.toFixed(1)} mi`:'';
+          const close=b.closingMph!=null?`, closing ${(b.closingMph>=0?'+':'')+b.closingMph} mph`:'';
+          const verdict=it.tier==='moving_away'?'receding — no threat'
+            :it.tier==='passing'?'tangent track — no impact'
+            :it._hiddenInbound?'inbound but hidden by your filter — review filter'
+            :(b.perpMissMi!=null&&b.perpMissMi>24)?'well clear — no threat'
+            :'background context only';
+          parts.push(`  ${e} ${lbl}: ${s.dbz} dBZ cell at ${fmtD(s.distance)} ${degToDir(s.bearing)} of user, ${mov}${miss}${close} — ${verdict}.`);
+        }
+      }
       // v4.36: Precomputed scene-hint phrasings so the model has ready-made
       // narrative phrasings to anchor the mandatory "Surrounding Picture"
       // wrap-up sentence on (see DETAIL vs MENTAL PICTURE rule in the prompt).
@@ -561,6 +590,7 @@ Your professional standards:
     * If ALL non-inbound buckets are empty (background, passing, moving away, AND overhead/arrived all zero), Subsection 2 reads exactly: "**Elsewhere on Radar:** nothing else of note on radar — the inbound cells above are the whole story."
     * Subsection 2 is **additive** to Subsection 1, not a replacement. Do not drop inbound bullets to make room for it, and do not skip Subsection 2 because Subsection 1 is already long.
     * NEVER write "no other notable storms" or "nothing else on radar" as a contradiction of the STORM DATA block. If STORM DATA shows non-zero counts in any non-inbound bucket, those cells exist on the user's screen and you MUST narrate them in Subsection 2.
+    * **STRONG NON-INBOUND CELLS rule (≥45 dBZ):** the LIVE WEATHER DATA may include a "STRONG NON-INBOUND CELLS" block listing every non-inbound cell at 45 dBZ or higher with its exact distance, bearing, dBZ, motion, projected miss, and closing speed. When that block is present, you MUST mention **every single cell in it by name** inside Subsection 2 — do NOT roll them into a group sentence like "a ring of 20-55 dBZ echoes." Each one gets its own short sentence in the form: "🟢 The strongest cell on radar is a [!dbz:55]55 dBZ[/!] cell 25 mi NE of you, moving N at 12 mph — receding, no threat." Always lead with the strongest cell first (the block is pre-sorted by dBZ descending), use the threat verdict from the block, and quote the dBZ with the [!dbz:NN] tag. Group weaker (<45 dBZ) non-inbound cells with the geometry/motion narrative as before; only the ≥45 dBZ cells get individual call-outs.
 
 ${urgencyPrefix} ${urgencyStyle}
 ${toneInstr}

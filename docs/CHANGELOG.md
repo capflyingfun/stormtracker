@@ -3,6 +3,18 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.52
+
+AI briefing — every ≥45 dBZ non-inbound cell gets called out individually.
+
+After v4.51 the AI was finally seeing the full unfiltered scan radius, but it still rolled strong non-inbound cells into vague group sentences like "a ring of 20–55 dBZ echoes is drifting NW." The user wanted each strong cell named: "the strongest storm on radar is 25 mi NE of you with a strength of 55 dBZ moving N at 12 mph, poses no risk."
+
+v4.52 adds a dedicated `STRONG NON-INBOUND CELLS` block to the AI prompt context. The block lists every non-inbound cell at ≥45 dBZ (capped at 12 for prompt size), pre-sorted by dBZ descending, with the exact distance, bearing of user, dBZ, motion direction & speed, projected miss, closing speed, and a precomputed threat verdict ("receding — no threat", "tangent track — no impact", "well clear — no threat", or "inbound but hidden by your filter — review filter" for the `_hiddenInbound` edge case from v4.51).
+
+A matching hard rule was added to the prompt: when the `STRONG NON-INBOUND CELLS` block is present, every cell in it MUST be named individually in the "Elsewhere on Radar" subsection in the form *"The strongest cell on radar is a [!dbz:55]55 dBZ[/!] cell 25 mi NE of you, moving N at 12 mph — receding, no threat."* — strongest first, with the `[!dbz:NN]` color tag, and the threat verdict from the block. Weaker cells (<45 dBZ) still get the existing geometry/motion narrative ("a band of 20–35 dBZ cells parked to the SW"); only ≥45 dBZ get individual call-outs.
+
+No changes to the storm classifier, the data path, the deterministic briefing, or any UI rendering — just additional context fed to the AI plus one prompt rule.
+
 ## v4.51
 
 AI briefing — non-inbound buckets now bypass the user's storm filter, plus a winds-aloft watchdog.
