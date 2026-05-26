@@ -86,68 +86,116 @@ function _blendOMModels(gfs,hrrr){
 
   return out;
 }
-async function _fetchOMModels(omBase,isUS){
+async function _fetchOMModels(host,omPath,isUS){
   const _getJSON=url=>fetch(url,{signal:AbortSignal.timeout(12000)}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()});
+  const base='https://'+host+'/v1/forecast'+omPath;
   const [_gfsRes,_hrrrRes]=await Promise.allSettled([
-    _getJSON(omBase+'&models=gfs_seamless'),
-    isUS?_getJSON(omBase+'&models=hrrr_conus'):Promise.resolve(null)
+    _getJSON(base+'&models=gfs_seamless'),
+    isUS?_getJSON(base+'&models=hrrr_conus'):Promise.resolve(null)
   ]);
   const g=_gfsRes.status==='fulfilled'?_gfsRes.value:null;
   const h=_hrrrRes.status==='fulfilled'?_hrrrRes.value:null;
   return{gfs:g,hrrr:h,blended:_blendOMModels(g,h)||g||h};
 }
+// v4.45: Try api.open-meteo.com, on host failure (both models fail) fall
+// through to customer-api.open-meteo.com (the operationally-independent
+// customer subdomain — mirrors v4.42 winds-aloft sibling fallback).
+async function _fetchOMSequence(omPath,isUS,reqId){
+  const hosts=['api','customer-api'];
+  for(let i=0;i<hosts.length;i++){
+    if(reqId!=null&&reqId!==S._locReqId)return null;
+    const host=hosts[i]+'.open-meteo.com';
+    try{
+      const r=await _fetchOMModels(host,omPath,isUS);
+      if(r.blended){r.host=hosts[i];console.log('OM models: '+host+(i>0?' (sibling fallback)':'')+' ✓ '+(r.gfs?'GFS✓':'GFS✗')+' '+(r.hrrr?'HRRR✓':'HRRR✗')+(isUS?'':' (non-US, HRRR skipped)'));return r}
+      console.log('OM models: '+host+' returned no blend');
+    }catch(e){console.log('OM models: '+host+' failed: '+e.message)}
+    if(i===0){
+      if(reqId!=null&&reqId!==S._locReqId)return null;
+      await new Promise(r=>setTimeout(r,2500));
+      if(reqId!=null&&reqId!==S._locReqId)return null;
+      try{
+        const r=await _fetchOMModels(host,omPath,isUS);
+        if(r.blended){r.host=hosts[i];console.log('OM models: '+host+' retry ✓');return r}
+      }catch(e){console.log('OM models: '+host+' retry failed: '+e.message+' — falling through to customer-api')}
+    }
+  }
+  return null;
+}
+// v4.45: Skeleton omData used when both Open-Meteo hosts fail but NWS/AWC
+// did return data — keeps the renderer's shape contract so existing
+// code paths don't NPE on missing hourly/daily arrays.
+function _buildPartialOmData(){
+  const nowMin=new Date().toISOString().slice(0,16);
+  return{
+    current:{
+      time:nowMin,temperature_2m:null,apparent_temperature:null,
+      relative_humidity_2m:null,precipitation:0,weather_code:3,
+      cloud_cover:null,pressure_msl:null,
+      wind_speed_10m:0,wind_direction_10m:0,wind_gusts_10m:0,is_day:1
+    },
+    hourly:{time:[],temperature_2m:[],apparent_temperature:[],relative_humidity_2m:[],
+      dew_point_2m:[],precipitation:[],weather_code:[],wind_speed_10m:[],
+      wind_gusts_10m:[],wind_direction_10m:[],pressure_msl:[],cloud_cover:[],
+      visibility:[],is_day:[],cape:[],lifted_index:[],convective_inhibition:[],
+      uv_index:[],freezing_level_height:[]},
+    daily:{time:[],weather_code:[],temperature_2m_max:[],temperature_2m_min:[],
+      precipitation_sum:[],precipitation_probability_max:[],sunrise:[],sunset:[],
+      wind_speed_10m_max:[]},
+    timezone:'auto',
+    _omPartial:true
+  };
+}
 async function fetchWeather(){
   const reqId=S._locReqId;
   const el=document.getElementById('page-weather');
   if(_isOffline&&S._lastWeatherData){renderWeather(S._lastWeatherData);return}
-  showSkel(el,6);
+  const _silentRefresh=S._lastWeatherData&&S._lastWeatherData._omPartial;
+  if(!_silentRefresh)showSkel(el,6);
   if(typeof _bootStep==='function')_bootStep('wx','Fetching weather…');
+  const _omPath=`?latitude=${S.lat}&longitude=${S.lon}`
+    +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day`
+    +`&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility,is_day,cape,lifted_index,convective_inhibition,uv_index,freezing_level_height`
+    +`&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset,wind_speed_10m_max`
+    +`&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=7&past_days=2`;
+  const _isUSLoc=isUSLocation(S.lat,S.lon);
   try{
-    const _omBase=`https://api.open-meteo.com/v1/forecast?latitude=${S.lat}&longitude=${S.lon}`
-      +`&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day`
-      +`&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility,is_day,cape,lifted_index,convective_inhibition,uv_index,freezing_level_height`
-      +`&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset,wind_speed_10m_max`
-      +`&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=7&past_days=2`;
-    const _isUSLoc=isUSLocation(S.lat,S.lon);
-    let _om=await _fetchOMModels(_omBase,_isUSLoc);
-    if(!_om.blended){
-      console.log('OM models: first attempt failed — retrying in 3s...');
-      if(reqId!==S._locReqId)return;
-      await new Promise(r=>setTimeout(r,3000));
-      if(reqId!==S._locReqId)return;
-      _om=await _fetchOMModels(_omBase,_isUSLoc);
-      if(!_om.blended){
-        console.log('OM models: second attempt failed — retrying in 5s...');
-        if(reqId!==S._locReqId)return;
-        await new Promise(r=>setTimeout(r,5000));
-        if(reqId!==S._locReqId)return;
-        _om=await _fetchOMModels(_omBase,_isUSLoc);
-        if(!_om.blended)throw new Error('All model fetches failed (after 2 retries)');
-        console.log('OM models: retry 2 succeeded');
-      } else { console.log('OM models: retry 1 succeeded'); }
+    // v4.45: Fan out Open-Meteo + NWS + AWC in parallel — an Open-Meteo
+    // outage no longer gates the rest of the tab. NWS/AWC are independent
+    // services and will keep the hero populated even when OM is 502'ing.
+    const _otherP=[fetchAWCNearest()];
+    if(_isUSLoc)_otherP.push(fetchNWSCurrent(),fetchNWSForecast());
+    else console.log('[non-US] Skipped: NWS current obs, NWS forecast');
+    const all=await Promise.allSettled([_fetchOMSequence(_omPath,_isUSLoc,reqId),..._otherP]);
+    if(reqId!==S._locReqId)return;
+    const omRes=all[0].status==='fulfilled'?all[0].value:null;
+    const awcCur=all[1].status==='fulfilled'?all[1].value:null;
+    const nwsCur=_isUSLoc&&all[2]&&all[2].status==='fulfilled'?all[2].value:null;
+    const nwsFc=_isUSLoc&&all[3]&&all[3].status==='fulfilled'?all[3].value:null;
+    let omData,isPartial=false;
+    if(omRes&&omRes.blended){
+      omData=omRes.blended;
+      omData._omHost=omRes.host;
+    } else if(awcCur||nwsCur||nwsFc){
+      omData=_buildPartialOmData();
+      isPartial=true;
+      console.log('OM models: both hosts failed — partial render via '+
+        [nwsCur&&'NWS-current',nwsFc&&'NWS-forecast',awcCur&&'AWC-METAR'].filter(Boolean).join('+'));
+    } else {
+      throw new Error('All sources failed (Open-Meteo + NWS + AWC)');
     }
-    const _gfsData=_om.gfs,_hrrrData=_om.hrrr;
-    const omData=_om.blended;
-    console.log('OM models: '+(_gfsData?'GFS✓':'GFS✗')+' '+(_hrrrData?'HRRR✓':'HRRR✗')+(_isUSLoc?'':' (non-US, HRRR skipped)'));
     if(reqId!==S._locReqId)return;
     S.forecast=omData;
     try{
-      const isUS=isUSLocation(S.lat,S.lon);
-      const fetches=[fetchAWCNearest()];
-      if(isUS)fetches.push(fetchNWSCurrent(),fetchNWSForecast());
-      else console.log('[non-US] Skipped: NWS current obs, NWS forecast (AWC METAR: reduced timeout/retry)');
-      const results=await Promise.allSettled(fetches);
-      const awcCur=results[0].status==='fulfilled'?results[0].value:null;
-      if(!isUS&&!awcCur)console.log('[non-US] AWC METAR: no nearby station found');
-      const nwsCur=isUS&&results[1].status==='fulfilled'?results[1].value:null;
-      const nwsFc=isUS&&results[2]?.status==='fulfilled'?results[2].value:null;
       const sources=[];
-      const om={src:'Open-Meteo',temp:omData.current.temperature_2m,dewp:null,
-        windKmh:omData.current.wind_speed_10m,windDir:omData.current.wind_direction_10m,
-        gustKmh:omData.current.wind_gusts_10m,presMb:omData.current.pressure_msl,
-        feelsC:omData.current.apparent_temperature,humidity:omData.current.relative_humidity_2m,
-        visMeter:null,wxString:''};
-      sources.push(om);
+      if(!isPartial){
+        const _omHostLabel=omData._omHost==='customer-api'?'Open-Meteo (customer-api)':'Open-Meteo';
+        sources.push({src:_omHostLabel,temp:omData.current.temperature_2m,dewp:null,
+          windKmh:omData.current.wind_speed_10m,windDir:omData.current.wind_direction_10m,
+          gustKmh:omData.current.wind_gusts_10m,presMb:omData.current.pressure_msl,
+          feelsC:omData.current.apparent_temperature,humidity:omData.current.relative_humidity_2m,
+          visMeter:null,wxString:''});
+      }
       if(nwsCur){
         sources.push({src:'NWS·'+nwsCur.station,temp:nwsCur.temp,dewp:nwsCur.dewp,
           windKmh:nwsCur.windKmh,windDir:nwsCur.windDir,gustKmh:nwsCur.gustKmh,
@@ -160,40 +208,47 @@ async function fetchWeather(){
           presMb:awcCur.presPa!=null?awcCur.presPa/100:null,feelsC:null,
           humidity:null,visMeter:awcCur.visMeter,wxString:awcCur.wxString||'',station:awcCur.icao});
       }
-      const blend=blendSources(sources);
-      omData.current.temperature_2m=blend.temp;
-      omData.current.wind_speed_10m=blend.windKmh;
-      omData.current.wind_direction_10m=blend.windDir;
-      omData.current.wind_gusts_10m=blend.gustKmh;
-      omData.current.pressure_msl=blend.presMb;
-      if(blend.feelsC!=null)omData.current.apparent_temperature=blend.feelsC;
-      if(blend.humidity!=null)omData.current.relative_humidity_2m=blend.humidity;
-      if(blend.visMeter!=null)S._nwsVisM=blend.visMeter;
-      if(blend.dewp!=null){
-        omData.current._directDewC=blend.dewp;
-        const rh=Math.round(100*Math.exp((17.27*blend.dewp)/(237.7+blend.dewp))/Math.exp((17.27*blend.temp)/(237.7+blend.temp)));
-        omData.current.relative_humidity_2m=Math.min(100,Math.max(0,rh));
+      if(sources.length){
+        const blend=blendSources(sources);
+        if(blend.temp!=null)omData.current.temperature_2m=blend.temp;
+        if(blend.windKmh!=null)omData.current.wind_speed_10m=blend.windKmh;
+        if(blend.windDir!=null)omData.current.wind_direction_10m=blend.windDir;
+        if(blend.gustKmh!=null)omData.current.wind_gusts_10m=blend.gustKmh;
+        if(blend.presMb!=null)omData.current.pressure_msl=blend.presMb;
+        if(blend.feelsC!=null)omData.current.apparent_temperature=blend.feelsC;
+        if(blend.humidity!=null)omData.current.relative_humidity_2m=blend.humidity;
+        if(blend.visMeter!=null)S._nwsVisM=blend.visMeter;
+        if(blend.dewp!=null){
+          omData.current._directDewC=blend.dewp;
+          const _tFor=omData.current.temperature_2m!=null?omData.current.temperature_2m:blend.dewp;
+          const rh=Math.round(100*Math.exp((17.27*blend.dewp)/(237.7+blend.dewp))/Math.exp((17.27*_tFor)/(237.7+_tFor)));
+          omData.current.relative_humidity_2m=Math.min(100,Math.max(0,rh));
+        }
+        const _hasPrecipWx=blend.wxString&&/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower/i.test(blend.wxString);
+        if(_hasPrecipWx) omData.current._nwsDesc=blend.wxString;
+        omData.current._nwsStation=blend.station||null;
+        if(blend.cloudPct!=null){
+          const _omCC=omData.current.cloud_cover;
+          omData.current.cloud_cover=blend.cloudPct;
+          omData.current._cloudSrc='METAR';
+          console.log('Cloud cover from METAR: '+_omCC+'% → '+blend.cloudPct+'% ('+blend.station+')');
+        }
+        const _modelTag=omData._modelBlend?` [${omData._modelBlend}]`:'';
+        omData.current._source=blend.sourceLabel+_modelTag+(isPartial?' · ⏳ Open-Meteo':'');
+        omData.current._sourceCount=sources.length;
+        console.log('Weather blend: '+sources.map(s=>s.src).join(' + ')+' → '+blend.sourceLabel+_modelTag+(isPartial?' (PARTIAL — Open-Meteo down)':''));
+      } else if(!isPartial){
+        const _omHostLabel=omData._omHost==='customer-api'?'Open-Meteo (customer-api)':'Open-Meteo';
+        omData.current._source=_omHostLabel+(omData._modelBlend?` [${omData._modelBlend}]`:'');
+        omData.current._sourceCount=1;
       }
-      const _hasPrecipWx=blend.wxString&&/rain|snow|drizzle|thunder|storm|fog|mist|haze|sleet|hail|freezing|shower/i.test(blend.wxString);
-      if(_hasPrecipWx) omData.current._nwsDesc=blend.wxString;
-      omData.current._nwsStation=blend.station||null;
-      if(blend.cloudPct!=null){
-        const _omCC=omData.current.cloud_cover;
-        omData.current.cloud_cover=blend.cloudPct;
-        omData.current._cloudSrc='METAR';
-        console.log('Cloud cover from METAR: '+_omCC+'% → '+blend.cloudPct+'% ('+blend.station+')');
-      }
-      const _modelTag=omData._modelBlend?` [${omData._modelBlend}]`:'';
-      omData.current._source=blend.sourceLabel+_modelTag;
-      omData.current._sourceCount=sources.length;
-      console.log('Weather blend: '+sources.map(s=>s.src).join(' + ')+' → '+blend.sourceLabel+_modelTag);
       if(nwsFc&&nwsFc.length){
         omData._nwsForecast=nwsFc;
         console.log('Weather: NWS forecast loaded ('+nwsFc.length+' periods)');
       }
     }catch(e){console.log('Multi-source blend failed:',e.message)}
     if(reqId!==S._locReqId)return;
-    if(omData.current._cloudSrc!=='METAR'&&omData.hourly&&omData.hourly.cloud_cover&&omData.hourly.time){
+    if(!isPartial&&omData.current._cloudSrc!=='METAR'&&omData.hourly&&omData.hourly.cloud_cover&&omData.hourly.time&&omData.hourly.time.length){
       const _cTime=omData.current.time;
       if(!_cTime) console.log('Cloud sync skipped: no current.time');
       const _nowISO=(_cTime||'').slice(0,13);
@@ -208,21 +263,71 @@ async function fetchWeather(){
       }
     }
     const _finalCC=omData.current.cloud_cover;
-    if(!omData.current._nwsDesc){
+    if(!omData.current._nwsDesc&&_finalCC!=null){
       omData.current._nwsDesc=cloudCategory(_finalCC);
     }
     S.weather=omData.current;S._lastWeatherFetch=Date.now();S._lastWeatherData=omData;_resetMinMax();renderWeather(omData);if(typeof updateThreatTicker==='function')updateThreatTicker();if(_curLang!=='en')setTimeout(quickTranslate,300);setTimeout(checkWeatherThresholds,500);if(typeof V3D!=='undefined'&&V3D.active&&typeof refreshSky3D==='function')refreshSky3D();
-    if(typeof _bootStepDone==='function')_bootStepDone('wx','Weather data received');
+    if(typeof _bootStepDone==='function')_bootStepDone('wx',isPartial?'Weather partial (waiting on Open-Meteo)':'Weather data received');
+    if(isPartial)_scheduleOMRetry(reqId,_omPath,_isUSLoc,0);
   }catch(e){
     if(reqId!==S._locReqId)return;
     if(typeof hideLoadingScreen==='function')hideLoadingScreen();
     if(typeof _bootStepFail==='function')_bootStepFail('wx','Weather fetch failed');
-    if(_isOffline&&S._lastWeatherData){
+    if(S._lastWeatherData){
       renderWeather(S._lastWeatherData);
     } else {
       el.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><p>Could not load weather data.</p><button onclick="fetchWeather()" style="margin-top:8px;padding:6px 18px;border-radius:8px;background:var(--accent-blue,#3b82f6);color:#fff;border:none;cursor:pointer;font-size:0.85em">Retry</button></div>`;
     }
   }
+}
+// v4.45: Background retry after a partial render. When Open-Meteo finally
+// returns, hourly/daily/UV/freeze-level cells back-fill in place without
+// the user tapping Retry. Capped at 3 attempts so a sustained outage
+// doesn't keep retrying forever — autorefresh / page switch picks it up.
+const _OM_RETRY_DELAYS=[15000,30000,60000];
+function _scheduleOMRetry(reqId,omPath,isUS,attempt){
+  if(attempt>=_OM_RETRY_DELAYS.length){console.log('OM background retry: giving up after '+_OM_RETRY_DELAYS.length+' attempts — autorefresh will retry');return}
+  if(S._omRetryTimer){clearTimeout(S._omRetryTimer);S._omRetryTimer=null}
+  S._omRetryTimer=setTimeout(async()=>{
+    S._omRetryTimer=null;
+    if(reqId!==S._locReqId)return;
+    if(!S._lastWeatherData||!S._lastWeatherData._omPartial)return;
+    console.log('OM background retry '+(attempt+1)+'/'+_OM_RETRY_DELAYS.length+'…');
+    const r=await _fetchOMSequence(omPath,isUS,reqId);
+    if(reqId!==S._locReqId)return;
+    if(r&&r.blended){
+      const cached=S._lastWeatherData;
+      if(!cached){return}
+      const om=r.blended;
+      cached.hourly=om.hourly;
+      cached.daily=om.daily;
+      cached.timezone=om.timezone;
+      cached._modelBlend=om._modelBlend;
+      cached._omHost=r.host;
+      cached._omPartial=false;
+      const cc=cached.current,oc=om.current;
+      if(cc.temperature_2m==null)cc.temperature_2m=oc.temperature_2m;
+      if(cc.apparent_temperature==null)cc.apparent_temperature=oc.apparent_temperature;
+      if(cc.relative_humidity_2m==null)cc.relative_humidity_2m=oc.relative_humidity_2m;
+      if(cc.pressure_msl==null)cc.pressure_msl=oc.pressure_msl;
+      if(cc.cloud_cover==null)cc.cloud_cover=oc.cloud_cover;
+      if(!cc.wind_speed_10m)cc.wind_speed_10m=oc.wind_speed_10m;
+      if(!cc.wind_gusts_10m)cc.wind_gusts_10m=oc.wind_gusts_10m;
+      if(cc.weather_code===3&&oc.weather_code!=null)cc.weather_code=oc.weather_code;
+      if(!cc.precipitation)cc.precipitation=oc.precipitation||0;
+      cc.is_day=oc.is_day;
+      const _modelTag=cached._modelBlend?` [${cached._modelBlend}]`:'';
+      const _omHostLabel=r.host==='customer-api'?'Open-Meteo (customer-api)':'Open-Meteo';
+      cc._source=(cc._source||'').replace(/ · ⏳ Open-Meteo$/,'')||(_omHostLabel+_modelTag);
+      console.log('OM background retry succeeded via '+r.host+' — re-rendering');
+      try{renderWeather(cached)}catch(e){console.log('partial-retry render failed:',e.message)}
+      if(typeof refreshRainClock==='function')refreshRainClock(true);
+      if(typeof _bootStepDone==='function')_bootStepDone('wx','Weather data filled in');
+    } else {
+      console.log('OM background retry '+(attempt+1)+' failed');
+      _scheduleOMRetry(reqId,omPath,isUS,attempt+1);
+    }
+  },_OM_RETRY_DELAYS[attempt]);
 }
 async function _fetchAWCOnce(){
   const _isUS=isNWSCoverage(S.lat,S.lon);
@@ -323,8 +428,9 @@ function blendSources(sources){
     return((a%360)+360)%360;
   }
   const station=sources.find(s=>s.station)?.station||null;
-  const srcNames=sources.filter(s=>s.src!=='Open-Meteo').map(s=>s.src);
-  const sourceLabel=srcNames.length?srcNames.join('+'):'Open-Meteo';
+  const srcNames=sources.filter(s=>!s.src.startsWith('Open-Meteo')).map(s=>s.src);
+  const omSrc=sources.find(s=>s.src.startsWith('Open-Meteo'));
+  const sourceLabel=srcNames.length?srcNames.join('+'):(omSrc?omSrc.src:'Open-Meteo');
   return{
     temp:avg('temp'),
     dewp:first('dewp'),
@@ -524,31 +630,44 @@ function renderWeather(data){
   };
   const order=getSecOrder();
 
+  const _omPartial=data._omPartial===true;
+  const _omChip=_omPartial?'<span style="display:inline-block;font-size:0.55em;color:var(--accent-cyan);background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:4px;padding:1px 5px;line-height:1.4;font-weight:600">⏳ Open-Meteo</span>':null;
+  const _omBanner=_omPartial?`<div style="margin-bottom:8px;padding:8px 10px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);border-radius:8px;font-size:0.7em;color:var(--text-secondary);text-align:center"><strong style="color:var(--accent-cyan)">⏳ Waiting on Open-Meteo</strong> — UV, freezing level, hourly bars and 7-day forecast will fill in once the service is back. Showing live NWS/AWC observations meanwhile.</div>`:'';
+  const _humStr=c.relative_humidity_2m!=null?Math.min(100,c.relative_humidity_2m)+'%':(_omChip||'--');
+  const _ccStr=c.cloud_cover!=null?c.cloud_cover+'%':(_omChip||'--');
+  const _presStr=c.pressure_msl!=null?fmtPres(c.pressure_msl):(_omChip||'--');
+  const _tempOk=tempC!=null&&!isNaN(tempC);
+  const _dewOk=dewC!=null&&!isNaN(dewC);
+  const _spreadOk=_tempOk&&_dewOk;
   el.innerHTML=`
     <div id="rain-clock"></div>
     <div id="rain-forecast-bars"></div>
     <div class="weather-hero">
+      ${_omBanner}
       <div class="hero-icon-showcase">${animEmoji(_heroWCode,isDay,'340px',_heroDesc)}</div>
-      <div class="hero-temp-line" style="font-size:2.8em;font-weight:800;line-height:1;background:linear-gradient(180deg,var(--text-primary) 0%,var(--text-secondary) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:6px 0 2px">${fmtTempShort(tempC)}<span style="-webkit-text-fill-color:initial;background:none">${_taC(_hv('temperature_2m'),_hv1('temperature_2m'),1)}</span></div>
+      <div class="hero-temp-line" style="font-size:2.8em;font-weight:800;line-height:1;background:linear-gradient(180deg,var(--text-primary) 0%,var(--text-secondary) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:6px 0 2px">${_tempOk?fmtTempShort(tempC):'--'}<span style="-webkit-text-fill-color:initial;background:none">${_taC(_hv('temperature_2m'),_hv1('temperature_2m'),1)}</span></div>
       <div class="hero-desc-line" style="font-size:0.85em;color:${_zoneOverride?_zoneOverride.color:'var(--text-secondary)'};margin-bottom:2px">${_heroDesc}${_zoneOverride?'<span style="display:inline-block;margin-left:6px;font-size:0.65em;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(255,60,60,0.15);color:'+_zoneOverride.color+';border:1px solid '+_zoneOverride.color+'40;vertical-align:middle;letter-spacing:0.04em">LIVE RADAR</span>':''}</div>
       ${c._source?`<div class="hero-source-line" style="font-size:0.55em;color:var(--accent-cyan);opacity:0.7;margin-bottom:4px">${c._source}${c._sourceCount>1?' (×'+c._sourceCount+' avg)':''}</div>`:''}
       <div class="hero-stats-grid">
-        <div class="hero-stat-cell"><div class="hero-side-label">Feels Like</div><div class="hero-side-val">${fmtTemp(feelsC)}${_taC(_hv('apparent_temperature'),_hv1('apparent_temperature'),1)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">Humidity</div><div class="hero-side-val">${Math.min(100,c.relative_humidity_2m)}%${_taC(_hv('relative_humidity_2m'),_hv1('relative_humidity_2m'),3)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">☁️ Clouds</div><div class="hero-side-val">${c.cloud_cover}%${_taC(_hv('cloud_cover'),_hv1('cloud_cover'),10)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">Pressure</div><div class="hero-side-val">${fmtPres(c.pressure_msl)}${_ta(_hv('pressure_msl'),_hv1('pressure_msl'),0.5)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Feels Like</div><div class="hero-side-val">${feelsC!=null?fmtTemp(feelsC):'--'}${_taC(_hv('apparent_temperature'),_hv1('apparent_temperature'),1)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Humidity</div><div class="hero-side-val">${_humStr}${_taC(_hv('relative_humidity_2m'),_hv1('relative_humidity_2m'),3)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">☁️ Clouds</div><div class="hero-side-val">${_ccStr}${_taC(_hv('cloud_cover'),_hv1('cloud_cover'),10)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">Pressure</div><div class="hero-side-val">${_presStr}${_ta(_hv('pressure_msl'),_hv1('pressure_msl'),0.5)}</div></div>
         <div class="hero-stat-cell"><div class="hero-side-label">Precip</div><div class="hero-side-val">${fmtPrecip(c.precipitation||0)}${_taC(_hv('precipitation'),_hv1('precipitation'),0.1)}</div></div>
-        <div class="hero-stat-cell"><div class="hero-side-label">🌡️ Dew Pt</div><div class="hero-side-val">${fmtTemp(dewC)}${_taC(_hv('dew_point_2m'),_hv1('dew_point_2m'),1)}</div></div>
+        <div class="hero-stat-cell"><div class="hero-side-label">🌡️ Dew Pt</div><div class="hero-side-val">${_dewOk?fmtTemp(dewC):'--'}${_taC(_hv('dew_point_2m'),_hv1('dew_point_2m'),1)}</div></div>
         ${(()=>{
   const _uv=_hv('uv_index');
   const _uvColor=_uv==null?'var(--text-muted)':_uv<=2?'#4caf50':_uv<=5?'#ffeb3b':_uv<=7?'#ff9800':_uv<=10?'#f44336':'#ce93d8';
-  const _uvLabel=_uv==null?'--':_uv<=2?'Low':_uv<=5?'Moderate':_uv<=7?'High':_uv<=10?'Very High':'Extreme';
+  const _uvLabel=_uv==null?(_omPartial?'waiting…':'--'):_uv<=2?'Low':_uv<=5?'Moderate':_uv<=7?'High':_uv<=10?'Very High':'Extreme';
+  const _uvVal=_uv!=null?_uv.toFixed(1):(_omChip||'--');
   const _flM=_hv('freezing_level_height');
   const _flFt=_flM!=null?Math.round(_flM*3.281):null;
-  return`<div class="hero-stat-cell"><div class="hero-side-label">☀️ UV Index</div><div class="hero-side-val" style="color:${_uvColor}">${_uv!=null?_uv.toFixed(1):'--'}${_taC(_uv,_hv1('uv_index'),0.5)}</div><div style="font-size:0.38em;color:${_uvColor};margin-top:1px">${_uvLabel}</div></div>`
-    +`<div class="hero-stat-cell"><div class="hero-side-label">❄️ Freeze Level</div><div class="hero-side-val">${_flFt!=null?fmtAlt(_flFt):'--'}${_taC(_hv('freezing_level_height'),_hv1('freezing_level_height'),100)}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px">${_flFt!=null?'MSL · ice/snow line':''}</div></div>`;
+  const _flVal=_flFt!=null?fmtAlt(_flFt):(_omChip||'--');
+  return`<div class="hero-stat-cell"><div class="hero-side-label">☀️ UV Index</div><div class="hero-side-val" style="color:${_uvColor}">${_uvVal}${_taC(_uv,_hv1('uv_index'),0.5)}</div><div style="font-size:0.38em;color:${_uvColor};margin-top:1px">${_uvLabel}</div></div>`
+    +`<div class="hero-stat-cell"><div class="hero-side-label">❄️ Freeze Level</div><div class="hero-side-val">${_flVal}${_taC(_hv('freezing_level_height'),_hv1('freezing_level_height'),100)}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px">${_flFt!=null?'MSL · ice/snow line':(_omPartial?'waiting on Open-Meteo':'')}</div></div>`;
 })()}
-        <div class="hero-stat-cell"><div class="hero-side-label">Spread</div><div class="hero-side-val">${fmtTempDiff(tempC-dewC)}</div><div style="font-size:0.42em;color:var(--text-muted);margin-top:1px;line-height:1.2">${getSpreadLabel(tempC-dewC)}</div>${(()=>{
+        <div class="hero-stat-cell"><div class="hero-side-label">Spread</div><div class="hero-side-val">${_spreadOk?fmtTempDiff(tempC-dewC):'--'}</div><div style="font-size:0.42em;color:var(--text-muted);margin-top:1px;line-height:1.2">${_spreadOk?getSpreadLabel(tempC-dewC):''}</div>${(()=>{
+  if(!_spreadOk)return'';
   const _spread=tempC-dewC;
   const _estB=adjustCloudBaseForUser(calcCloudBase(_spread));
   const _s0=_hIdx>=0&&hourly.temperature_2m&&hourly.dew_point_2m?hourly.temperature_2m[_hIdx]-hourly.dew_point_2m[_hIdx]:null;
@@ -556,7 +675,7 @@ function renderWeather(data){
   const _arrow=_ta(_s0,_s1,0.5);
   return`<div id="weather-spread-cb" data-spread="${_spread}" style="font-size:0.38em;color:var(--accent-cyan);margin-top:1px;line-height:1.1">Est. base ~${fmtAlt(_estB)} AGL ${_arrow}</div>`;
 })()}</div>
-        ${(()=>{const spread=tempC-dewC;const windKt=c.wind_speed_10m!=null?(c.wind_speed_10m/1.852):null;const fog=getFogRisk(spread,windKt,isDay,c.cloud_cover);const stab=getStabilityLabel(spread,Math.min(100,c.relative_humidity_2m),tempC);const inv=detectInversion(spread,windKt,isDay,c.cloud_cover);return`<div class="hero-stat-cell"><div class="hero-side-label">🌫️ Fog Risk</div><div class="hero-side-val" style="font-size:0.85em;color:${fog.color}">${fog.level}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${fog.desc}</div></div><div class="hero-stat-cell"><div class="hero-side-label">🌡️ Stability</div><div class="hero-side-val" style="font-size:0.75em;color:${stab.color}">${stab.label}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${stab.desc}</div></div>${inv.detected?`<div class="hero-stat-cell" style="grid-column:1/-1"><div style="font-size:0.5em;color:var(--accent-orange);text-align:center;padding:2px 6px;background:rgba(255,152,0,0.1);border-radius:4px">⚠️ ${inv.text}</div></div>`:''}`})()}
+        ${(()=>{if(!_spreadOk)return'';const spread=tempC-dewC;const windKt=c.wind_speed_10m!=null?(c.wind_speed_10m/1.852):null;const fog=getFogRisk(spread,windKt,isDay,c.cloud_cover);const stab=getStabilityLabel(spread,Math.min(100,c.relative_humidity_2m||0),tempC);const inv=detectInversion(spread,windKt,isDay,c.cloud_cover);return`<div class="hero-stat-cell"><div class="hero-side-label">🌫️ Fog Risk</div><div class="hero-side-val" style="font-size:0.85em;color:${fog.color}">${fog.level}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${fog.desc}</div></div><div class="hero-stat-cell"><div class="hero-side-label">🌡️ Stability</div><div class="hero-side-val" style="font-size:0.75em;color:${stab.color}">${stab.label}</div><div style="font-size:0.38em;color:var(--text-muted);margin-top:1px;line-height:1.2">${stab.desc}</div></div>${inv.detected?`<div class="hero-stat-cell" style="grid-column:1/-1"><div style="font-size:0.5em;color:var(--accent-orange);text-align:center;padding:2px 6px;background:rgba(255,152,0,0.1);border-radius:4px">⚠️ ${inv.text}</div></div>`:''}`})()}
       </div>
       <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0 0">
         <span style="position:relative;display:inline-flex;align-items:center">${(()=>{const bm={'☀️':0,'🌤️':1,'⛅':2,'🌥️':3,'☁️':3,'🌦️':51,'🌧️':61,'⛈️':95};const bc2=bm[baro.icon]!=null?bm[baro.icon]:3;return neonWx(bc2,true,36)})()}<span style="position:absolute;bottom:-2px;right:-4px;font-size:8px;background:rgba(0,180,255,0.25);color:var(--accent-cyan);border-radius:3px;padding:0 3px;line-height:1.4;font-weight:700;letter-spacing:0.03em;border:1px solid rgba(0,229,255,0.3)">FCST</span></span>
@@ -1818,17 +1937,20 @@ function renderRainClock(){
     });
   }
   const nextRain=_nextRainHourFromForecast();
+  const _omPart=S._lastWeatherData&&S._lastWeatherData._omPartial;
   let centerLines=[];
   if(data.noLoc)centerLines=['Location','needed'];
   else if(data.stale)centerLines=['Radar stale','run a scan'];
   else if(data.empty){
     if(nextRain&&nextRain.mins<=360)centerLines=['Possible rain at',fmtClock(new Date(nextRain.time))];
     else if(nextRain)centerLines=['No threat of rain','next 3 hours'];
+    else if(_omPart)centerLines=['Waiting on','Open-Meteo…'];
     else centerLines=['No rain expected','for hours'];
   }
   else if(data.windows.length===0){
     if(nextRain&&nextRain.mins<=360)centerLines=['Possible rain at',fmtClock(new Date(nextRain.time))];
     else if(nextRain)centerLines=['No threat of rain','next 3 hours'];
+    else if(_omPart)centerLines=['Waiting on','Open-Meteo…'];
     else centerLines=['No rain expected','for hours'];
   }
   else{
@@ -1988,7 +2110,9 @@ function renderRainForecastBars(){
   if(!el)return;
   const h=S._hourlyData;
   if(!h||!h.time||!h.precipitation||!h.time.length){
-    el.innerHTML='';return;
+    const _omPart=S._lastWeatherData&&S._lastWeatherData._omPartial;
+    el.innerHTML=_omPart?`<div class="card" style="padding:8px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span class="card-title m-0" style="font-size:0.78em"><span class="icon">📊</span> Total Precipitation Next 36 hrs</span></div><div style="font-size:0.7em;color:var(--text-secondary);text-align:center;padding:14px 6px">⏳ Waiting on Open-Meteo — 36-hour rain forecast will appear once the service is back.</div></div>`:'';
+    return;
   }
   const now=Date.now();
   let startIdx=h.time.findIndex(t=>{const ts=new Date(t).getTime();return ts>=now-1800000});
