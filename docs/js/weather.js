@@ -1303,8 +1303,11 @@ function startWindSim(){
   }
 }
 function secBtns(key){return`<div class="sec-btns"><button onclick="moveSection('${key}',-1)" title="Move up">▲</button><button onclick="moveSection('${key}',1)" title="Move down">▼</button></div>`}
-const _defaultSecOrder=['wind','trends','forecast'];
-function getSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_sec_order'));if(Array.isArray(o)&&o.length>=2){const valid=['wind','trends','forecast','hourly'];const filtered=o.filter(k=>valid.includes(k));_defaultSecOrder.forEach(k=>{if(!filtered.includes(k))filtered.push(k)});return filtered}}catch(e){}return _defaultSecOrder.slice()}
+// v4.46: Reorder system now also covers the Rain Clock and Rain Forecast Bars
+// cards at the top of the Weather tab (they render their own card wrapper so
+// they re-render in place after a swap rather than going through renderWeather).
+const _defaultSecOrder=['rainclock','rainbars','wind','trends','forecast'];
+function getSecOrder(){try{const o=JSON.parse(localStorage.getItem('st_sec_order'));if(Array.isArray(o)&&o.length>=2){const valid=['rainclock','rainbars','wind','trends','forecast','hourly'];const filtered=o.filter(k=>valid.includes(k));_defaultSecOrder.forEach(k=>{if(!filtered.includes(k))filtered.push(k)});return filtered}}catch(e){}return _defaultSecOrder.slice()}
 function moveSection(key,dir){
   const order=getSecOrder();const i=order.indexOf(key);
   if(i<0)return;const ni=i+dir;
@@ -1312,6 +1315,25 @@ function moveSection(key,dir){
   [order[i],order[ni]]=[order[ni],order[i]];
   try{localStorage.setItem('st_sec_order',JSON.stringify(order))}catch(e){}
   if(S.forecast)renderWeather(S.forecast);
+  // v4.46: re-render the top cards that own their own card wrapper
+  try{if(typeof renderRainClock==='function')renderRainClock()}catch(e){}
+  try{if(typeof renderRainForecastBars==='function')renderRainForecastBars()}catch(e){}
+  // v4.46: physically reorder the top placeholder divs in the DOM so the
+  // user-chosen order persists between rain-clock and rain-bars cards.
+  try{
+    const parent=document.getElementById('rain-clock')?.parentNode;
+    if(parent){
+      const rc=document.getElementById('rain-clock');
+      const rb=document.getElementById('rain-forecast-bars');
+      if(rc&&rb){
+        const rcIdx=order.indexOf('rainclock'),rbIdx=order.indexOf('rainbars');
+        if(rcIdx>rbIdx&&rc.previousElementSibling===rb){/*already*/}
+        else if(rbIdx>rcIdx&&rb.previousElementSibling===rc){/*already*/}
+        else if(rcIdx>rbIdx)parent.insertBefore(rb,rc);
+        else parent.insertBefore(rc,rb);
+      }
+    }
+  }catch(e){}
 }
 
 function get48hData(h){
@@ -1809,15 +1831,29 @@ function _nextRainHourFromForecast(){
   return null;
 }
 
+// v4.46: Rain Clock now spans a full 12 hours (720 minutes).
+// 0-180 min comes from radar advection (per-minute closest-approach).
+// 181-720 min comes from Open-Meteo hourly precipitation forecast.
+// Minimum dBZ filter raised 20 → 25 so cone projection only counts cells
+// that actually produce measurable rain at the user's location.
+const _RC_TOTAL_MIN=720;
+const _RC_MIN_DBZ=25;
 function _rainClockProject(){
-  const out={ready:false,minutes:new Array(181).fill(0),windows:[],nearest:null,stale:false,motionUnknown:false,noLoc:false,empty:false};
+  const out={ready:false,minutes:new Array(_RC_TOTAL_MIN+1).fill(0),windows:[],
+    nearest:null,stale:false,motionUnknown:false,noLoc:false,empty:false,
+    forecastReady:false,loading:false,totalMm:0,radarReady:false};
   if(S.lat==null||S.lon==null){out.noLoc=true;return out}
+  const hasWeather=!!S._lastWeatherData;
   const pts=S._rawScanPts||[];
-  if(pts.length===0){out.empty=true;return out}
-  if(S.scanTime&&(Date.now()-S.scanTime)>15*60000){out.stale=true;return out}
+  const hasRadar=pts.length>0;
+  const h=S._hourlyData;
+  const haveHourly=!!(h&&h.time&&h.precipitation&&h.time.length);
+  // v4.46: loading state — don't say "all clear" when nothing has loaded yet.
+  if(!hasWeather&&!hasRadar&&!haveHourly){out.loading=true;return out}
+  const radarStale=hasRadar&&S.scanTime&&(Date.now()-S.scanTime)>15*60000;
   const mv=S.stormMovement;
   const RADIUS_MI=1.5;
-  const MIN_DBZ=20;
+  const MIN_DBZ=_RC_MIN_DBZ;
   let vx=0,vy=0,haveMv=false;
   if(mv&&mv.speed>1&&mv.direction!=null){
     const th=mv.direction*Math.PI/180;
@@ -1838,7 +1874,8 @@ function _rainClockProject(){
   const v2_mph2=vx*vx+vy*vy;
   const v2_per_min2=v2_mph2/3600;
   const contribs=[];
-  for(const p of pts){
+  // v4.46: skip radar advection contributions when scan is stale — forecast drives.
+  for(const p of (radarStale?[]:pts)){
     if(p.dbz<MIN_DBZ)continue;
     const dx=(p.lng-S.lon)*MI_PER_DEG_LON;
     const dy=(p.lat-S.lat)*MI_PER_DEG_LAT;
@@ -1861,8 +1898,33 @@ function _rainClockProject(){
     for(let t=tIn;t<=tOut;t++){if(p.dbz>out.minutes[t])out.minutes[t]=p.dbz}
     contribs.push({lat:p.lat,lng:p.lng,dbz:p.dbz,dist:dist0,bearing:bearingDeg(S.lat,S.lon,p.lat,p.lng),tIn,tOut});
   }
+  if(hasRadar&&!radarStale)out.radarReady=true;
+  if(radarStale)out.stale=true;
+  // v4.46: overlay Open-Meteo hourly forecast precipitation for minutes 181..720
+  // so the 12h dial paints both radar advection AND beyond-radar hours.
+  if(haveHourly){
+    const nowMs=Date.now();
+    for(let i=0;i<h.time.length&&i<60;i++){
+      const ts=new Date(h.time[i]).getTime();
+      const mins=(ts-nowMs)/60000;
+      if(mins<-30||mins>_RC_TOTAL_MIN)continue;
+      const mm=h.precipitation[i]||0;
+      if(mins>=0&&mins<=_RC_TOTAL_MIN)out.totalMm+=mm;
+      if(mm<=0)continue;
+      const dbz=_precipMmToDbz(mm);
+      if(dbz<MIN_DBZ)continue;
+      const startM=Math.max(0,Math.floor(mins));
+      const endM=Math.min(_RC_TOTAL_MIN,startM+60);
+      // Forecast only fills slots radar didn't (≤180) and the future zone (>180).
+      for(let m=startM;m<endM;m++){
+        if(m<=180&&out.minutes[m]>0)continue;
+        if(dbz>out.minutes[m])out.minutes[m]=dbz;
+      }
+    }
+    out.forecastReady=true;
+  }
   let cur=null;
-  for(let t=0;t<=180;t++){
+  for(let t=0;t<=_RC_TOTAL_MIN;t++){
     const v=out.minutes[t];
     if(v>=MIN_DBZ){
       if(!cur)cur={startMin:t,endMin:t,peakDbz:v};
@@ -1893,125 +1955,153 @@ function _rainClockProject(){
   return out;
 }
 
+// v4.46: Rain Clock redesigned as a 12-hour analog face with dynamic outer
+// wall-clock labels (one per hour position, recomputed every minute), and
+// per-minute gradient arc segments that blend colors along each rain window
+// instead of painting one flat color per window.
 function renderRainClock(){
   const el=document.getElementById('rain-clock');
   if(!el)return;
   const data=_rainClockProject();
   S._rainClockData=data;
-  const SIZE=280,CX=140,CY=140,R_OUTER=128,R_TICK_IN=112,R_TICK_OUT=126,R_LABEL=98,R_ARC=80,R_ARC_W=14;
+  const SIZE=320,CX=160,CY=160;
+  const R_OUTER=152,R_OUTER_LABEL=144,R_TICK_OUT=126,R_TICK_IN=114;
+  const R_HOUR_LABEL=98,R_ARC=78,R_ARC_W=18;
+  const TOTAL=_RC_TOTAL_MIN;
   const now=Date.now();
+  const nowD=new Date(now);
+  function ang(min){return (min/TOTAL)*2*Math.PI-Math.PI/2}
+  function ptAt(min,r){const a=ang(min);return [CX+r*Math.cos(a),CY+r*Math.sin(a)]}
+  // 120 minor ticks (every 6 min), major every hour (every 10th tick)
   let ticks='';
-  for(let i=0;i<60;i++){
-    const ang=(i/60)*2*Math.PI-Math.PI/2;
-    const major=i%5===0;
-    const r1=major?R_TICK_IN-2:R_TICK_IN+4;
-    const x1=CX+r1*Math.cos(ang),y1=CY+r1*Math.sin(ang);
-    const x2=CX+R_TICK_OUT*Math.cos(ang),y2=CY+R_TICK_OUT*Math.sin(ang);
-    ticks+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${major?'#9fb3c8':'#3a4a5e'}" stroke-width="${major?2:1}"/>`;
+  for(let i=0;i<120;i++){
+    const a=(i/120)*2*Math.PI-Math.PI/2;
+    const major=i%10===0;
+    const r1=major?R_TICK_IN-3:R_TICK_IN+4;
+    const r2=R_TICK_OUT;
+    ticks+=`<line x1="${(CX+r1*Math.cos(a)).toFixed(1)}" y1="${(CY+r1*Math.sin(a)).toFixed(1)}" x2="${(CX+r2*Math.cos(a)).toFixed(1)}" y2="${(CY+r2*Math.sin(a)).toFixed(1)}" stroke="${major?'#9fb3c8':'#3a4a5e'}" stroke-width="${major?2:1}"/>`;
   }
-  const labArr=['Now','15','30','45','60','75','90','105','120','135','150','165'];
-  let labels='';
+  // Inner labels: "Now", "+1h", "+2h", ... "+11h" — fixed offsets, never change
+  let innerLabels='';
   for(let i=0;i<12;i++){
-    const ang=(i/12)*2*Math.PI-Math.PI/2;
-    const x=CX+R_LABEL*Math.cos(ang),y=CY+R_LABEL*Math.sin(ang);
-    labels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="#cfd8e3" font-size="10" font-weight="600" text-anchor="middle" dominant-baseline="middle">${labArr[i]}</text>`;
+    const [x,y]=ptAt(i*60,R_HOUR_LABEL);
+    const lbl=i===0?'Now':'+'+i+'h';
+    innerLabels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="#9fb3c8" font-size="10" font-weight="700" text-anchor="middle" dominant-baseline="middle">${lbl}</text>`;
   }
-  function arcPath(startMin,endMin,radius){
-    const a0=(startMin/180)*2*Math.PI-Math.PI/2;
-    const a1=(endMin/180)*2*Math.PI-Math.PI/2;
-    const large=(a1-a0)>Math.PI?1:0;
-    const x0=CX+radius*Math.cos(a0),y0=CY+radius*Math.sin(a0);
-    const x1=CX+radius*Math.cos(a1),y1=CY+radius*Math.sin(a1);
-    return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${radius} ${radius} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+  // OUTER labels: dynamic wall-clock times at each hour position — updated by
+  // a 60s setInterval (so "Now" always reads the current minute, +1h reads
+  // current minute + 60, etc.). Uses fmtClock which honors S.timeFmt (12h/24h).
+  let outerLabels='';
+  for(let i=0;i<12;i++){
+    const [x,y]=ptAt(i*60,R_OUTER_LABEL);
+    const t=new Date(now+i*3600000);
+    const lbl=fmtClock(t);
+    outerLabels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="#cfd8e3" font-size="10" font-weight="600" text-anchor="middle" dominant-baseline="middle" data-rc-outer="${i}">${lbl}</text>`;
   }
+  // Per-minute gradient arc segments — each minute where dBZ ≥ 25 paints a
+  // tiny colored chord at that angular position, so colors blend along the
+  // arc instead of being flat per-window.
   let arcs='';
+  let segHandlers='';
   if(data.ready){
+    const radarBoundary=180;
+    // Background for radar zone (0-180 min) — faint blue tint to show the
+    // "advection" portion vs the forecast portion.
+    const [bgX0,bgY0]=ptAt(0,R_ARC);
+    const [bgX1,bgY1]=ptAt(radarBoundary,R_ARC);
+    arcs+=`<path d="M ${bgX0.toFixed(1)} ${bgY0.toFixed(1)} A ${R_ARC} ${R_ARC} 0 0 1 ${bgX1.toFixed(1)} ${bgY1.toFixed(1)}" stroke="rgba(80,140,200,0.10)" stroke-width="${R_ARC_W}" fill="none" stroke-linecap="butt"/>`;
+    // Per-minute colored segments.
+    for(let m=0;m<TOTAL;m++){
+      const v=data.minutes[m];
+      if(v<_RC_MIN_DBZ)continue;
+      const [x0,y0]=ptAt(m,R_ARC);
+      const [x1,y1]=ptAt(m+1,R_ARC);
+      const col=(typeof dbzHex==='function')?dbzHex(v):'#39ff14';
+      arcs+=`<line x1="${x0.toFixed(2)}" y1="${y0.toFixed(2)}" x2="${x1.toFixed(2)}" y2="${y1.toFixed(2)}" stroke="${col}" stroke-width="${R_ARC_W}" stroke-linecap="butt" opacity="0.95"/>`;
+    }
+    // Invisible clickable overlay arc per window (for the tap-to-see-cells UX)
     data.windows.forEach((w,wi)=>{
-      const s=Math.max(0,w.startMin),e=Math.min(180,Math.max(w.startMin+1,w.endMin));
+      if(!w.cells||!w.cells.length)return;
+      const s=Math.max(0,w.startMin),e=Math.min(TOTAL,Math.max(w.startMin+1,w.endMin));
       if(e<=s)return;
-      const color=(typeof dbzHex==='function')?dbzHex(w.peakDbz):'#39ff14';
-      const hasCells=w.cells&&w.cells.length;
-      const cursor=hasCells?'pointer':'default';
-      const handler=hasCells?` onclick="_rainClockSelectWindow(${wi})" style="cursor:${cursor}"`:'';
-      arcs+=`<path d="${arcPath(s,e,R_ARC)}" stroke="${color}" stroke-width="${R_ARC_W}" fill="none" stroke-linecap="round" opacity="0.92"${handler}><title>${hasCells?'Tap for details · '+w.cells.length+' cell'+(w.cells.length!==1?'s':''):''}</title></path>`;
+      const [x0,y0]=ptAt(s,R_ARC);
+      const [x1,y1]=ptAt(e,R_ARC);
+      const large=((e-s)/TOTAL)>0.5?1:0;
+      segHandlers+=`<path d="M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${R_ARC} ${R_ARC} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}" stroke="rgba(0,0,0,0.001)" stroke-width="${R_ARC_W+10}" fill="none" stroke-linecap="butt" style="cursor:pointer" onclick="_rainClockSelectWindow(${wi})"><title>Tap for details · ${w.cells.length} cell${w.cells.length!==1?'s':''}</title></path>`;
     });
   }
-  const nextRain=_nextRainHourFromForecast();
+  // Center text: status + optional total rain estimate
   const _omPart=S._lastWeatherData&&S._lastWeatherData._omPartial;
   let centerLines=[];
   if(data.noLoc)centerLines=['Location','needed'];
-  else if(data.stale)centerLines=['Radar stale','run a scan'];
-  else if(data.empty){
-    if(nextRain&&nextRain.mins<=360)centerLines=['Possible rain at',fmtClock(new Date(nextRain.time))];
-    else if(nextRain)centerLines=['No threat of rain','next 3 hours'];
-    else if(_omPart)centerLines=['Waiting on','Open-Meteo…'];
-    else centerLines=['No rain expected','for hours'];
-  }
-  else if(data.windows.length===0){
-    if(nextRain&&nextRain.mins<=360)centerLines=['Possible rain at',fmtClock(new Date(nextRain.time))];
-    else if(nextRain)centerLines=['No threat of rain','next 3 hours'];
-    else if(_omPart)centerLines=['Waiting on','Open-Meteo…'];
-    else centerLines=['No rain expected','for hours'];
-  }
-  else{
+  else if(data.loading)centerLines=['Loading','rain forecast…'];
+  else if(!data.windows.length){
+    if(_omPart)centerLines=['Waiting on','Open-Meteo…'];
+    else if(data.stale&&!data.forecastReady)centerLines=['Radar stale','run a scan'];
+    else centerLines=['No rain expected','next 12 hours'];
+  } else {
     const w=data.windows[0];
     if(w.startMin===0){
-      const endClock=fmtClock(new Date(now+w.endMin*60000));
-      centerLines=['Rain until',endClock];
-    }else{
-      const startClock=fmtClock(new Date(now+w.startMin*60000));
-      centerLines=['Rain starting at',startClock];
+      centerLines=['Rain until',fmtClock(new Date(now+w.endMin*60000))];
+    } else {
+      centerLines=['Rain starting at',fmtClock(new Date(now+w.startMin*60000))];
     }
+  }
+  // Rain amount estimate over the next 12 hours (forecast-derived)
+  let amountLine='';
+  if(data.totalMm>0.05){
+    let amtTxt;
+    if(typeof fmtPrecip==='function'){amtTxt=fmtPrecip(data.totalMm)}
+    else{const inches=data.totalMm/25.4;amtTxt=inches<0.1?data.totalMm.toFixed(1)+' mm':inches.toFixed(2)+' in'}
+    amountLine=`~${amtTxt} expected`;
   }
   let center='';
-  const cy0=CY-((centerLines.length-1)*9)-4;
+  const totalLines=centerLines.length+(amountLine?1:0);
+  const cy0=CY-((totalLines-1)*9);
   centerLines.forEach((line,i)=>{
-    const fs=i===0?13:16;
+    const fs=i===0?13:17;
     const fw=i===0?600:700;
     const col=i===0?'#9fb3c8':'#e6edf3';
-    center+=`<text x="${CX}" y="${cy0+i*18}" fill="${col}" font-size="${fs}" font-weight="${fw}" text-anchor="middle" dominant-baseline="middle">${line}</text>`;
+    center+=`<text x="${CX}" y="${(cy0+i*19).toFixed(1)}" fill="${col}" font-size="${fs}" font-weight="${fw}" text-anchor="middle" dominant-baseline="middle">${line}</text>`;
   });
-  const gradId='rc-grad-'+Math.floor(Math.random()*1e6).toString(36);
-  const legend=`
-    <defs><linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#39ff14"/><stop offset="40%" stop-color="#ffeb3b"/>
-      <stop offset="75%" stop-color="#ff9800"/><stop offset="100%" stop-color="#ff3355"/>
-    </linearGradient></defs>
-    <rect x="${CX-36}" y="${CY+34}" width="72" height="5" rx="2.5" fill="url(#${gradId})"/>
-    <text x="${CX-40}" y="${CY+48}" fill="#9fb3c8" font-size="8" text-anchor="end">Light</text>
-    <text x="${CX+40}" y="${CY+48}" fill="#9fb3c8" font-size="8" text-anchor="start">Heavy</text>`;
-  let header='';
-  if(data.ready&&data.windows.length){
-    const w=data.windows[0];
-    if(w.startMin===0){
-      const endClock=fmtClock(new Date(now+w.endMin*60000));
-      header=`<div style="font-size:0.72em;color:var(--text-secondary);text-align:center;margin-bottom:6px"><span style="color:var(--accent-cyan);font-weight:700">Rain End Time:</span> ${endClock}</div>`;
-    }else{
-      const startClock=fmtClock(new Date(now+w.startMin*60000));
-      header=`<div style="font-size:0.72em;color:var(--text-secondary);text-align:center;margin-bottom:6px"><span style="color:var(--accent-cyan);font-weight:700">Rain Start Time:</span> ${startClock}</div>`;
-    }
+  if(amountLine){
+    center+=`<text x="${CX}" y="${(cy0+centerLines.length*19+2).toFixed(1)}" fill="#5eead4" font-size="11" font-weight="600" text-anchor="middle" dominant-baseline="middle">${amountLine}</text>`;
   }
+  // "Now" pointer — small triangle at the top tick
+  const nowPointer=`<polygon points="${CX},${CY-R_OUTER+2} ${CX-5},${CY-R_OUTER+10} ${CX+5},${CY-R_OUTER+10}" fill="#fbbf24"/>`;
+  // Radar/forecast boundary marker (subtle line at the 3-hour position)
+  const [bX1,bY1]=ptAt(180,R_ARC-R_ARC_W/2-2);
+  const [bX2,bY2]=ptAt(180,R_ARC+R_ARC_W/2+2);
+  const boundary=`<line x1="${bX1.toFixed(1)}" y1="${bY1.toFixed(1)}" x2="${bX2.toFixed(1)}" y2="${bY2.toFixed(1)}" stroke="#475569" stroke-width="1" stroke-dasharray="2,2"/>`;
+  // Sub + footer
   let sub='';
   if(data.nearest){
-    sub=`<div style="font-size:0.7em;color:var(--text-secondary);text-align:center;margin-top:6px"><span style="color:var(--text-muted)">Nearest Precipitation:</span> <strong>${data.nearest.mi.toFixed(0)} mi</strong> to the ${data.nearest.dir}</div>`;
+    const dStr=S.radarMetric?(data.nearest.mi*1.609).toFixed(0)+' km':data.nearest.mi.toFixed(0)+' mi';
+    sub=`<div style="font-size:0.7em;color:var(--text-secondary);text-align:center;margin-top:6px"><span style="color:var(--text-muted)">Nearest Precipitation:</span> <strong>${dStr}</strong> to the ${data.nearest.dir}</div>`;
   }
   let foot='';
-  if(data.motionUnknown&&!data.empty&&!data.stale&&!data.noLoc&&(S._rawScanPts||[]).length){
-    foot=`<div style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:4px;font-style:italic">Motion unknown — projection limited</div>`;
+  if(data.motionUnknown&&data.radarReady){
+    foot=`<div style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:4px;font-style:italic">Motion unknown — radar projection limited</div>`;
   }
   const hasClickable=data.ready&&data.windows.some(w=>w.cells&&w.cells.length);
   const hint=hasClickable?`<div style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:2px;font-style:italic">Tap a colored arc to see which storms cause it</div>`:'';
+  const sourceTag=data.radarReady&&data.forecastReady?'RADAR + FORECAST':data.radarReady?'RADAR':data.forecastReady?'FORECAST':'';
+  // Header tag uses secBtns when the helper exists, so the rain clock card
+  // joins the up/down reorder system used by the other Weather sections.
+  const reorder=(typeof secBtns==='function')?secBtns('rainclock'):'';
   el.innerHTML=`
-    <div class="card" style="padding:10px 8px;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span class="card-title m-0"><span class="icon">🌧️</span> Rain Clock · 3h</span>
-        <span style="font-size:0.55em;color:var(--text-muted);letter-spacing:0.04em">RADAR ADVECTION</span>
+    <div class="card weather-section" data-sec="rainclock" style="padding:10px 8px;margin-bottom:8px">
+      <div class="sec-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span class="card-title m-0"><span class="icon">🌧️</span> Rain Clock · 12h</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:0.55em;color:var(--text-muted);letter-spacing:0.04em">${sourceTag}</span>
+          ${reorder}
+        </div>
       </div>
-      ${header}
       <div style="display:flex;justify-content:center">
-        <svg viewBox="0 0 ${SIZE} ${SIZE}" width="100%" style="max-width:300px;height:auto" xmlns="http://www.w3.org/2000/svg">
+        <svg viewBox="0 0 ${SIZE} ${SIZE}" width="100%" style="max-width:340px;height:auto" xmlns="http://www.w3.org/2000/svg">
           <circle cx="${CX}" cy="${CY}" r="${R_OUTER}" fill="rgba(10,16,32,0.55)" stroke="#1e2a3c" stroke-width="1"/>
-          ${ticks}${labels}${arcs}${center}${legend}
+          ${ticks}${innerLabels}${outerLabels}${arcs}${boundary}${segHandlers}${nowPointer}${center}
         </svg>
       </div>
       ${sub}${foot}${hint}
@@ -2021,6 +2111,24 @@ function renderRainClock(){
     _rainClockRenderDetail(S._rainClockSelectedIdx);
   }
 }
+
+// v4.46: outer wall-clock labels redraw every 60s without rebuilding the
+// whole SVG, so the "Now" position always matches the current minute.
+let _rainClockTickTimer=null;
+function _rainClockStartTick(){
+  if(_rainClockTickTimer)return;
+  _rainClockTickTimer=setInterval(()=>{
+    const els=document.querySelectorAll('text[data-rc-outer]');
+    if(!els.length)return;
+    const now=Date.now();
+    els.forEach(t=>{
+      const i=parseInt(t.getAttribute('data-rc-outer'),10);
+      if(isNaN(i))return;
+      t.textContent=fmtClock(new Date(now+i*3600000));
+    });
+  },60000);
+}
+if(typeof window!=='undefined'){try{_rainClockStartTick()}catch(e){}}
 
 function _rainClockSelectWindow(idx){
   const data=S._rainClockData;
@@ -2105,13 +2213,24 @@ function _precipMmToDbz(mmPerHr){
   if(mmPerHr==null||mmPerHr<=0)return 0;
   return 10*Math.log10(200*Math.pow(mmPerHr,1.6));
 }
+// v4.46: per-graph gridlines+labels toggle helper. Used by Rain Forecast Bars
+// (and ready for trend charts to opt in). Persists in localStorage so the
+// user's choice survives reloads. Default ON.
+function _graphGridOn(key){try{const v=localStorage.getItem('st_grid_'+key);if(v==='0')return false;if(v==='1')return true}catch(e){}return true}
+function toggleGraphGrid(key){const cur=_graphGridOn(key);try{localStorage.setItem('st_grid_'+key,cur?'0':'1')}catch(e){}
+  if(key==='rainbars')try{renderRainForecastBars()}catch(e){}
+  if(key==='trends'&&S.forecast)try{renderWeather(S.forecast)}catch(e){}
+}
 function renderRainForecastBars(){
   const el=document.getElementById('rain-forecast-bars');
   if(!el)return;
   const h=S._hourlyData;
+  const reorder=(typeof secBtns==='function')?secBtns('rainbars'):'';
+  const gridOn=_graphGridOn('rainbars');
+  const gridBtn=`<button onclick="toggleGraphGrid('rainbars')" title="${gridOn?'Hide':'Show'} gridlines & labels" style="background:none;border:1px solid var(--text-muted);color:${gridOn?'var(--accent-cyan)':'var(--text-muted)'};font-size:0.6em;padding:1px 6px;border-radius:4px;cursor:pointer;line-height:1.4">📊</button>`;
   if(!h||!h.time||!h.precipitation||!h.time.length){
     const _omPart=S._lastWeatherData&&S._lastWeatherData._omPartial;
-    el.innerHTML=_omPart?`<div class="card" style="padding:8px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span class="card-title m-0" style="font-size:0.78em"><span class="icon">📊</span> Total Precipitation Next 36 hrs</span></div><div style="font-size:0.7em;color:var(--text-secondary);text-align:center;padding:14px 6px">⏳ Waiting on Open-Meteo — 36-hour rain forecast will appear once the service is back.</div></div>`:'';
+    el.innerHTML=_omPart?`<div class="card weather-section" data-sec="rainbars" style="padding:8px;margin-bottom:8px"><div class="sec-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span class="card-title m-0" style="font-size:0.78em"><span class="icon">📊</span> Total Precipitation Next 36 hrs</span><div style="display:flex;gap:4px;align-items:center">${gridBtn}${reorder}</div></div><div style="font-size:0.7em;color:var(--text-secondary);text-align:center;padding:14px 6px">⏳ Waiting on Open-Meteo — 36-hour rain forecast will appear once the service is back.</div></div>`:'';
     return;
   }
   const now=Date.now();
@@ -2144,6 +2263,19 @@ function renderRainForecastBars(){
   }
   const baseY=padT+innerH;
   let axisLine=`<line x1="${padL}" y1="${baseY}" x2="${W-padR}" y2="${baseY}" stroke="#3a4a5e" stroke-width="1"/>`;
+  // v4.46: horizontal gridlines + Y-axis labels at 25 / 50 / 75 / 100% of max
+  // (only rendered when the per-graph toggle is on; default ON).
+  let gridLines='',yLabels='';
+  if(gridOn){
+    const steps=[0.25,0.5,0.75,1];
+    for(const f of steps){
+      const y=padT+innerH-f*innerH;
+      gridLines+=`<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" stroke="#2a3548" stroke-width="0.5" stroke-dasharray="2,3" opacity="0.7"/>`;
+      const valMm=maxMm*f;
+      const lbl=(typeof fmtPrecip==='function')?fmtPrecip(valMm):(valMm.toFixed(2)+' mm');
+      yLabels+=`<text x="${(W-padR-2).toFixed(1)}" y="${(y-1).toFixed(1)}" fill="#6b7a8e" font-size="7" text-anchor="end">${lbl}</text>`;
+    }
+  }
   const tickHours=[0,6,12,24,36];
   let xTicks='';
   for(const th of tickHours){
@@ -2161,15 +2293,18 @@ function renderRainForecastBars(){
   const peakBadge=`<text x="${W-padR}" y="10" fill="#9fb3c8" font-size="8" text-anchor="end">peak ${maxLbl}/hr</text>`;
   const empty=total<=0.01;
   el.innerHTML=`
-    <div class="card" style="padding:8px 8px 6px;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <div class="card weather-section" data-sec="rainbars" style="padding:8px 8px 6px;margin-bottom:8px">
+      <div class="sec-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <span class="card-title m-0" style="font-size:0.78em"><span class="icon">📊</span> Total Precipitation Next 36 hrs</span>
-        <span style="font-size:0.6em;color:var(--text-muted)">total ${totalLbl}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:0.6em;color:var(--text-muted)">total ${totalLbl}</span>
+          ${gridBtn}${reorder}
+        </div>
       </div>
       ${empty?`<div style="font-size:0.7em;color:var(--text-secondary);text-align:center;padding:18px 6px">No measurable rain in the next 36 hours.</div>`:`
       <div style="display:flex;justify-content:center">
         <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:340px;height:auto" xmlns="http://www.w3.org/2000/svg">
-          ${peakBadge}${bars}${axisLine}${xTicks}
+          ${gridLines}${peakBadge}${bars}${axisLine}${xTicks}${yLabels}
         </svg>
       </div>`}
     </div>`;
