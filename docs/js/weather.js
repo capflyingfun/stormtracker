@@ -2141,7 +2141,10 @@ let _rainClockTickTimer=null;
 function _rainClockStartTick(){
   if(_rainClockTickTimer)return;
   _rainClockTickTimer=setInterval(()=>{
-    const els=document.querySelectorAll('text[data-rc-outer]');
+    // v4.48: selector targets the tspan (not text), because v4.47 moved
+    // data-rc-outer from the parent <text> onto the inner time <tspan> when
+    // the labels were collapsed into combined offset+time stacks.
+    const els=document.querySelectorAll('[data-rc-outer]');
     if(!els.length)return;
     const now=Date.now();
     els.forEach(t=>{
