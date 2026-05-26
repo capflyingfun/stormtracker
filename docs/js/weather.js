@@ -2034,22 +2034,35 @@ function _rainClockProject(){
       const mm=h.precipitation[i]||0;
       if(mins>=0&&mins<=_RC_TOTAL_MIN)out.totalMm+=mm;
       if(mm<=0)continue;
-      const dbz=_precipMmToDbz(mm);
-      if(dbz<MIN_DBZ)continue;
+      // v4.55: forecast overlay uses a LIGHT-RAIN floor (>=0.1 mm/hr) instead
+      // of the 25 dBZ radar-noise filter. NWS QPF returns gridpoint values in
+      // 3-6 hour chunks that we spread across clock hours, so per-hour values
+      // routinely sit around 0.3-1 mm/hr (~15-23 dBZ) -- legitimate light rain
+      // that the dBZ filter was discarding. Bar chart already shows it; clock
+      // should too. Below the floor we still record a minimum drawable dBZ so
+      // the arc shows up in the dial's lightest color (no false "all clear").
+      if(mm<0.1)continue;
+      const dbzRaw=_precipMmToDbz(mm);
+      const dbz=Math.max(15,dbzRaw); // ensure forecast rain is at least drawable
       const startM=Math.max(0,Math.floor(mins));
       const endM=Math.min(_RC_TOTAL_MIN,startM+60);
       // Forecast only fills slots radar didn't (≤180) and the future zone (>180).
       for(let m=startM;m<endM;m++){
-        if(m<=180&&out.minutes[m]>0)continue;
+        if(m<=180&&out.minutes[m]>=MIN_DBZ)continue; // protect strong radar
         if(dbz>out.minutes[m])out.minutes[m]=dbz;
       }
     }
     out.forecastReady=true;
   }
+  // v4.55: windows builder uses a lower threshold (15 dBZ ~ light rain floor)
+  // so the forecast-overlay arc draws for hours below the 25-dBZ radar noise
+  // cutoff. Without this, anything we just wrote in via the forecast loop
+  // (clamped to >=15) was being silently dropped by the window detector.
+  const _WIN_MIN=15;
   let cur=null;
   for(let t=0;t<=_RC_TOTAL_MIN;t++){
     const v=out.minutes[t];
-    if(v>=MIN_DBZ){
+    if(v>=_WIN_MIN){
       if(!cur)cur={startMin:t,endMin:t,peakDbz:v};
       else{cur.endMin=t;if(v>cur.peakDbz)cur.peakDbz=v}
     }else if(cur){out.windows.push(cur);cur=null}

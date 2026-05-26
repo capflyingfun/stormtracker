@@ -3,6 +3,21 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.55
+
+Rain Clock now draws forecast rain that's below the radar-noise threshold.
+
+User reported the Rain Forecast Bars graph was painting the next 6 hours of rain after the v4.54 NWS QPF backup, but the Rain Clock dial above it was completely empty — only a tiny "Now" arc at top. Same data, two different renderings, only one of them showed rain.
+
+Root cause: the rain clock used a single 25 dBZ threshold for everything, originally tuned to keep radar noise off the dial. But the forecast overlay feeds the dial with `_precipMmToDbz(mm)`, and NWS QPF returns its values as 3–6 hour gridpoint totals that get spread across clock hours — peak per-hour values typically land around 0.3–1 mm/hr, which converts to about 15–23 dBZ. Right under the 25 dBZ cutoff. The bar chart shows the values fine (it uses raw mm); the clock silently dropped them.
+
+Two fixes, both in `_rainClockProject()` in `docs/js/weather.js`:
+
+1. **Forecast overlay**: now uses a light-rain floor (`mm >= 0.1`) instead of the dBZ filter, and clamps the dBZ value to a minimum of 15 so even drizzle-class forecast hours get drawn in the dial's lightest color. Radar contributions still use the original 25 dBZ noise filter — only the forecast portion is more permissive.
+2. **Window builder**: the "where is rain happening" detector that walks `out.minutes[]` and groups continuous segments into colored arcs also used 25 dBZ as its start threshold. Lowered to 15 dBZ to match the new floor; otherwise anything just written in by fix #1 would still get dropped here.
+
+Net effect: the Rain Clock now paints the same continuous rain windows you see in the bar chart, including light-rain hours. Radar advection still wins for the 0–180 min ring (no fighting between the two sources for the same minute).
+
 ## v4.54
 
 NWS gridpoint QPF added as a backup precipitation source for US locations.
