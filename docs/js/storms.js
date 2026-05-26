@@ -1509,23 +1509,30 @@ function _recomputeNHCUserFields() {
   _evaluateHurricaneMode();
 }
 // v4.42: Point-in-polygon (ring of [lon,lat] vertices) against the user.
+// Defensive against malformed GIS feeds: if a ring is nested one level deeper
+// than expected (e.g. `[[[lon,lat],...]]` instead of `[[lon,lat],...]`), we
+// peel one level. Skips null/short vertex pairs to survive partial parses.
 function _userInRing(ring){
-  if(!ring||ring.length<3||S.lat==null||S.lon==null)return false;
+  if(!ring||!ring.length||S.lat==null||S.lon==null)return false;
+  if(Array.isArray(ring[0])&&Array.isArray(ring[0][0])&&typeof ring[0][0][0]==='number')ring=ring[0];
+  if(ring.length<3)return false;
   let inside=false;
   for(let i=0,j=ring.length-1;i<ring.length;j=i++){
-    const yi=ring[i][1],xi=ring[i][0];
-    const yj=ring[j][1],xj=ring[j][0];
+    const a=ring[i],b=ring[j];
+    if(!a||!b||a[0]==null||a[1]==null||b[0]==null||b[1]==null)continue;
+    const xi=a[0],yi=a[1],xj=b[0],yj=b[1];
     if(((yi>S.lat)!==(yj>S.lat))&&(S.lon<(xj-xi)*(S.lat-yi)/(yj-yi)+xi))inside=!inside;
   }
   return inside;
 }
 function _minMiToRingEdge(ring){
   if(!ring||!ring.length||S.lat==null||S.lon==null)return null;
+  if(Array.isArray(ring[0])&&Array.isArray(ring[0][0])&&typeof ring[0][0][0]==='number')ring=ring[0];
   let best=Infinity;
   for(const v of ring){
-    if(v==null||v[0]==null||v[1]==null)continue;
+    if(!v||v[0]==null||v[1]==null||typeof v[0]!=='number'||typeof v[1]!=='number')continue;
     const d=haversine(S.lat,S.lon,v[1],v[0]);
-    if(d<best)best=d;
+    if(typeof d==='number'&&isFinite(d)&&d<best)best=d;
   }
   return isFinite(best)?best:null;
 }
@@ -1543,10 +1550,11 @@ function _evaluateHurricaneMode(){
     const triggers=[];
     if(s._inCone)triggers.push('in_cone');
     if(s.dist!=null&&s.dist<=PROX_MI)triggers.push('within_'+PROX_MI+'mi');
-    const radii=(_nhcData.windRadii||[]).filter(wr=>wr.stormId===s.id||(wr.stormName||'').toLowerCase()===(s.name||'').toLowerCase());
+    const radii=(_nhcData.windRadii||[]).filter(wr=>wr&&wr.coords&&(wr.stormId===s.id||(wr.stormName||'').toLowerCase()===(s.name||'').toLowerCase()));
     const inWind={};
     for(const wr of radii){
-      if(_userInRing(wr.coords))inWind['kt'+wr.ktLevel]=true;
+      if(!wr.coords||!wr.ktLevel)continue;
+      try{ if(_userInRing(wr.coords))inWind['kt'+wr.ktLevel]=true; }catch(e){ console.warn('windRadii ring error',e); }
     }
     if(inWind.kt64)triggers.push('in_hurricane_force');
     else if(inWind.kt50)triggers.push('in_50kt_winds');
