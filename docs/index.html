@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v4.44.2</title>
+<title>StormTracker v4.45</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <meta name="theme-color" content="#0a1020">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=543">
+<link rel="stylesheet" href="css/style.css?v=544">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -28,7 +28,7 @@
     <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
   <div class="header-center">
-    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v4.44.2</span></h1>
+    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v4.45</span></h1>
     <div class="header-status">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Initializing...</span>
@@ -282,17 +282,6 @@
           <button type="button" data-mode="ai" onclick="saveBriefingMode('ai')" style="flex:1;padding:6px 10px;font-size:0.75em;font-weight:600;border-radius:8px;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);cursor:pointer">AI Briefing<br><span style="font-size:0.85em;font-weight:400;opacity:0.8">(OpenAI key required)</span></button>
         </div>
         <div class="setting-hint" id="briefing-mode-hint">System Briefing runs on-device with no API key required. Add an OpenAI key below to unlock AI Briefing.</div>
-        <div style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.06);padding-top:8px">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
-            <span style="font-size:0.7em;font-weight:600;color:#ff9800">🌀 Hurricane Mode</span>
-            <span id="settings-hurricane-status" style="font-size:0.6em;color:var(--text-muted);font-family:var(--font-mono)">Inactive</span>
-          </div>
-          <div class="flex-between" style="margin-bottom:4px">
-            <span class="text-xxs-muted">Always include tropical-cyclone section</span>
-            <button id="settings-hurricane-toggle" onclick="toggleHurricaneOverride()" style="font-size:0.75em;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:600;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted)">AUTO</button>
-          </div>
-          <div class="setting-hint">AUTO turns on automatically when you are inside a forecast cone, within 300 mi of an active tropical system, inside a wind-radii polygon, or have a tropical watch/warning in your area. Force-ON also adds the section when no tropical system is active.</div>
-        </div>
       </div>
       <div class="setting-sep">
         <div style="font-size:0.8em;font-weight:600;color:#a855f7;margin-bottom:8px">🤖 AI Weather Assistant</div>
@@ -602,24 +591,24 @@
   </div>
 </div>
 
-<script src="js/core.js?v=543"></script>
-<script src="js/gauges.js?v=543"></script>
-<script src="js/icons.js?v=543"></script>
-<script src="js/geo.js?v=543"></script>
-<script src="js/settings.js?v=543"></script>
-<script src="js/thresholds.js?v=543"></script>
-<script src="js/weather.js?v=543"></script>
-<script src="js/radar.js?v=543"></script>
-<script src="js/storms.js?v=543"></script>
-<script src="js/station.js?v=543"></script>
-<script src="js/alerts.js?v=543"></script>
-<script src="js/briefingEngine.js?v=543"></script>
-<script src="js/ai.js?v=543"></script>
-<script src="js/init.js?v=543"></script>
+<script src="js/core.js?v=544"></script>
+<script src="js/gauges.js?v=544"></script>
+<script src="js/icons.js?v=544"></script>
+<script src="js/geo.js?v=544"></script>
+<script src="js/settings.js?v=544"></script>
+<script src="js/thresholds.js?v=544"></script>
+<script src="js/weather.js?v=544"></script>
+<script src="js/radar.js?v=544"></script>
+<script src="js/storms.js?v=544"></script>
+<script src="js/station.js?v=544"></script>
+<script src="js/alerts.js?v=544"></script>
+<script src="js/briefingEngine.js?v=544"></script>
+<script src="js/ai.js?v=544"></script>
+<script src="js/init.js?v=544"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
-<script src="js/view3d.js?v=543"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=543').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="js/view3d.js?v=544"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=544').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>

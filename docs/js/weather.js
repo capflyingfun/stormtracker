@@ -86,16 +86,8 @@ function _blendOMModels(gfs,hrrr){
 
   return out;
 }
-// v4.44: scale the per-request timeout off the boot ping so a 900 ms link
-// doesn't get cut off at the old hard-coded 12 s budget. Floor 12 s, ceiling
-// 45 s, multiplier 15× ping.
-function _omFetchTimeoutMs(){
-  const p=(typeof S!=='undefined'&&S._netRttMs)?S._netRttMs:500;
-  return Math.min(45000,Math.max(12000,Math.round(p*15)));
-}
 async function _fetchOMModels(omBase,isUS){
-  const _to=_omFetchTimeoutMs();
-  const _getJSON=url=>fetch(url,{signal:AbortSignal.timeout(_to)}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()});
+  const _getJSON=url=>fetch(url,{signal:AbortSignal.timeout(12000)}).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()});
   const [_gfsRes,_hrrrRes]=await Promise.allSettled([
     _getJSON(omBase+'&models=gfs_seamless'),
     isUS?_getJSON(omBase+'&models=hrrr_conus'):Promise.resolve(null)
@@ -119,29 +111,18 @@ async function fetchWeather(){
     const _isUSLoc=isUSLocation(S.lat,S.lon);
     let _om=await _fetchOMModels(_omBase,_isUSLoc);
     if(!_om.blended){
-      // v4.44.2: ping-scaled retry waits + live boot-splash status. Surfaces
-      // every retry attempt on the boot UI so the user can see the system
-      // fighting through a flaky link instead of a silent spinner.
-      const _p=S._netRttMs||500;
-      const _wait1=Math.min(10000,Math.max(750,Math.round(_p*1.5)));
-      const _wait2=Math.min(18000,Math.max(1500,Math.round(_p*2.5)));
-      console.log(`OM models: first attempt failed — retrying in ${_wait1}ms (ping=${_p}ms)...`);
-      if(typeof _bootStepRetry==='function')_bootStepRetry('wx',`🌤️ Weather — attempt 1 failed, retrying in ${Math.round(_wait1/1000)}s…`);
+      console.log('OM models: first attempt failed — retrying in 3s...');
       if(reqId!==S._locReqId)return;
-      await new Promise(r=>setTimeout(r,_wait1));
+      await new Promise(r=>setTimeout(r,3000));
       if(reqId!==S._locReqId)return;
       _om=await _fetchOMModels(_omBase,_isUSLoc);
       if(!_om.blended){
-        console.log(`OM models: second attempt failed — retrying in ${_wait2}ms (ping=${_p}ms)...`);
-        if(typeof _bootStepRetry==='function')_bootStepRetry('wx',`🌤️ Weather — attempt 2 failed, retrying in ${Math.round(_wait2/1000)}s…`);
+        console.log('OM models: second attempt failed — retrying in 5s...');
         if(reqId!==S._locReqId)return;
-        await new Promise(r=>setTimeout(r,_wait2));
+        await new Promise(r=>setTimeout(r,5000));
         if(reqId!==S._locReqId)return;
         _om=await _fetchOMModels(_omBase,_isUSLoc);
-        if(!_om.blended){
-          if(typeof _bootStepFail==='function')_bootStepFail('wx',`🌤️ Weather FAILED after 3 attempts (Open-Meteo unreachable on ${_p}ms link)`);
-          throw new Error('All model fetches failed (after 2 retries)');
-        }
+        if(!_om.blended)throw new Error('All model fetches failed (after 2 retries)');
         console.log('OM models: retry 2 succeeded');
       } else { console.log('OM models: retry 1 succeeded'); }
     }
