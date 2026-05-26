@@ -151,6 +151,85 @@ async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius,stepOv
   console.log('Adaptive scan: step='+S._scanStep+' (bench='+ms.toFixed(1)+'ms)');
 })();
 
+// v4.43: NOAA GSL rucsoundings serves the same NCEP GFS model output that
+// NOMADS distributes, but as plain GSL-format text with CORS=*. Browser-
+// fetchable without GRIB2 parsing, fully independent of Open-Meteo's pipeline.
+async function fetchWindsAloftNOMADS(lat,lon){
+  const url='https://rucsoundings.noaa.gov/get_soundings.cgi?'
+    +'data_source=GFS&latest=latest&n_hrs=1&fcst_len=shortest'
+    +'&airport='+lat.toFixed(4)+','+lon.toFixed(4)
+    +'&start=latest&text=Ascii%20text%20%28GSL%20format%29&hydrometeors=false';
+  const r=await fetch(url,{signal:AbortSignal.timeout(8000)});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const txt=await r.text();
+  if(!txt||txt.length<100)throw new Error('empty response');
+  // GSL format columns: type pressure(*mb) height(m) temp dewpt windDir windSpd(kt)
+  // Type codes: 4=mandatory level, 5=significant level, 9=surface.
+  const wanted=[1000,925,850,700,500];
+  const hits={};let sfc=null;
+  for(const ln of txt.split(/\r?\n/)){
+    const parts=ln.trim().split(/\s+/);
+    if(parts.length<7)continue;
+    const t=parseInt(parts[0],10);
+    if(t!==4&&t!==5&&t!==9)continue;
+    let p=parseFloat(parts[1]);
+    if(isNaN(p)||p<=0)continue;
+    if(p>1100)p=p/10;  // some GSL outputs encode pressure in tenths of mb
+    const dir=parseFloat(parts[5]);
+    const spdKt=parseFloat(parts[6]);
+    if(isNaN(dir)||isNaN(spdKt)||dir>=9999||spdKt>=9999)continue;
+    if(t===9&&!sfc)sfc={dir,spdKt};
+    for(const tp of wanted){
+      if(!hits[tp]&&Math.abs(p-tp)<=5){hits[tp]={dir,spdKt};break}
+    }
+  }
+  const out=[];
+  if(sfc){const rawMs=sfc.spdKt*0.5144;out.push({p:1013,spd:rawMs*3.6,dir:sfc.dir,rawMs,isSfc:true})}
+  for(const p of wanted){
+    const w=hits[p];if(!w)continue;
+    const rawMs=w.spdKt*0.5144;
+    out.push({p,spd:rawMs*3.6,dir:w.dir,rawMs,isSfc:false});
+  }
+  if(out.length<2)throw new Error('insufficient pressure levels parsed ('+out.length+')');
+  return out;
+}
+
+// v4.43: Compute & store wind-shear, steering, and stormMovement from a
+// parsed aloftSpeeds array. Extracted so both Open-Meteo and NOMADS-GFS
+// providers can drive the same downstream consumers.
+function _applyAloftData(aloftSpeeds,providerInfo,lat,lon){
+  S._aloftData=aloftSpeeds;
+  if(aloftSpeeds.length>=2){
+    const sfc=aloftSpeeds.find(a=>a.p>=1000)||aloftSpeeds[0];
+    const upper=aloftSpeeds[aloftSpeeds.length-1];
+    const shearSpd=Math.abs(upper.spd-sfc.spd);
+    let dd=Math.abs(upper.dir-sfc.dir);if(dd>180)dd=360-dd;
+    S._windShear={speedDiff:shearSpd,dirDiff:dd,factor:Math.min(2.0,0.5+shearSpd/60+dd/180)};
+    S._upperWindDir=upper.dir;S._upperWindSpd=upper.spd;
+    console.log('Wind shear: Δspd='+shearSpd.toFixed(1)+'km/h Δdir='+dd+'° turbFactor='+S._windShear.factor.toFixed(2));
+  }
+  const steering=aloftSpeeds.filter(a=>a.p<=850);
+  if(!steering.length)return;
+  let tx=0,ty=0;
+  steering.forEach(a=>{
+    const spdKt=a.rawMs*1.944;
+    const movDir=(a.dir+180)%360;
+    const rad=movDir*Math.PI/180;
+    tx+=Math.sin(rad)*spdKt;
+    ty+=Math.cos(rad)*spdKt;
+  });
+  const ax=tx/steering.length,ay=ty/steering.length;
+  const spdKt=Math.sqrt(ax*ax+ay*ay);
+  let dir=(Math.atan2(ax,ay)*180/Math.PI+360)%360;
+  const spdMph=Math.round(spdKt*1.151);
+  S.stormMovement={direction:Math.round(dir),speed:spdMph};
+  S._windCache={lat,lon,ts:Date.now(),dir:Math.round(dir),speed:spdMph,provider:providerInfo.provider,host:providerInfo.host||null};
+  console.log('[WindsAloft] Per-level: '+aloftSpeeds.map(a=>a.p+'hPa='+a.rawMs.toFixed(1)+'m/s@'+a.dir+'°').join(', '));
+  console.log('[WindsAloft] Steering ('+providerInfo.provider+(providerInfo.host?'/'+providerInfo.host:'')+'): '+steering.map(a=>a.p+'hPa').join(',')+' Vx='+ax.toFixed(2)+' Vy='+ay.toFixed(2)+' → '+spdKt.toFixed(1)+'kt '+Math.round(dir)+'° → '+spdMph+' mph');
+  if(S.map&&S._showPathArrows)buildPathArrows(S.map);
+  if(typeof _bootStepDone==='function')_bootStepDone('wind',`Winds aloft: ${spdMph} mph @ ${Math.round(dir)}° · ${providerInfo.label}`);
+}
+
 async function fetchWindsAloft(overrideLat,overrideLon){
   const lat=overrideLat!=null?overrideLat:S.lat;
   const lon=overrideLon!=null?overrideLon:S.lon;
@@ -203,60 +282,46 @@ async function fetchWindsAloft(overrideLat,overrideLon){
         if(i<_hosts.length-1)await new Promise(w=>setTimeout(w,500));
       }
     }
-    if(!r){
-      const msg=lastErr?lastErr.message:'unknown';
-      console.log('Winds aloft: all subdomains failed ('+msg+')');
+    let aloftSpeeds=null,provInfo=null;
+    if(r){
+      const d=await r.json();
+      const c=d.current;
+      const levels=[
+        {p:1013,sk:'wind_speed_10m',dk:'wind_direction_10m',w:0.5,isSfc:true},
+        {p:925,sk:'wind_speed_925hPa',dk:'wind_direction_925hPa',w:0.8},
+        {p:850,sk:'wind_speed_850hPa',dk:'wind_direction_850hPa',w:1.5},
+        {p:700,sk:'wind_speed_700hPa',dk:'wind_direction_700hPa',w:2.5},
+        {p:500,sk:'wind_speed_500hPa',dk:'wind_direction_500hPa',w:1.5}
+      ];
+      aloftSpeeds=[];
+      levels.forEach(l=>{
+        const spd=c[l.sk],dir=c[l.dk];
+        if(spd==null||dir==null)return;
+        aloftSpeeds.push({p:l.p,spd:spd*3.6,dir,rawMs:spd,isSfc:!!l.isSfc});
+      });
+      provInfo={provider:'open-meteo',host:usedHost,label:usedHost==='customer-api'?'Open-Meteo (customer-api)':'Open-Meteo'};
+    }
+    // v4.43: NOMADS GFS fallback for US locations when every Open-Meteo
+    // subdomain failed (or returned too few usable levels). Operationally
+    // independent NOAA pipeline, key-less, browser-fetchable.
+    if((!aloftSpeeds||aloftSpeeds.length<2)&&typeof isUSLocation==='function'&&isUSLocation(lat,lon)){
+      if(typeof _bootStep==='function')_bootStep('wind','Getting winds aloft… (NOMADS GFS)');
+      try{
+        aloftSpeeds=await fetchWindsAloftNOMADS(lat,lon);
+        provInfo={provider:'nomads-gfs',host:null,label:'NOMADS GFS'};
+        console.log('Winds aloft: NOMADS GFS ✓ ('+aloftSpeeds.length+' levels)');
+      }catch(e){
+        console.log('Winds aloft: NOMADS GFS failed ('+e.message+')');
+        lastErr=lastErr||e;
+      }
+    }
+    if(!aloftSpeeds||aloftSpeeds.length<2){
+      const msg=lastErr?lastErr.message:'all providers failed';
+      console.log('Winds aloft: all providers failed ('+msg+')');
       if(typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft failed ('+msg+')');
       return;
     }
-    const d=await r.json();
-    const c=d.current;
-    const levels=[
-      {p:1013,sk:'wind_speed_10m',dk:'wind_direction_10m',w:0.5,isSfc:true},
-      {p:925,sk:'wind_speed_925hPa',dk:'wind_direction_925hPa',w:0.8},
-      {p:850,sk:'wind_speed_850hPa',dk:'wind_direction_850hPa',w:1.5},
-      {p:700,sk:'wind_speed_700hPa',dk:'wind_direction_700hPa',w:2.5},
-      {p:500,sk:'wind_speed_500hPa',dk:'wind_direction_500hPa',w:1.5}
-    ];
-    const aloftSpeeds=[];
-    levels.forEach(l=>{
-      const spd=c[l.sk],dir=c[l.dk];
-      if(spd==null||dir==null)return;
-      aloftSpeeds.push({p:l.p,spd:spd*3.6,dir,rawMs:spd,isSfc:!!l.isSfc});
-    });
-    S._aloftData=aloftSpeeds;
-    if(aloftSpeeds.length>=2){
-      const sfc=aloftSpeeds.find(a=>a.p>=1000)||aloftSpeeds[0];
-      const upper=aloftSpeeds[aloftSpeeds.length-1];
-      const shearSpd=Math.abs(upper.spd-sfc.spd);
-      let dd=Math.abs(upper.dir-sfc.dir);if(dd>180)dd=360-dd;
-      S._windShear={speedDiff:shearSpd,dirDiff:dd,factor:Math.min(2.0,0.5+shearSpd/60+dd/180)};
-      S._upperWindDir=upper.dir;S._upperWindSpd=upper.spd;
-      console.log('Wind shear: Δspd='+shearSpd.toFixed(1)+'km/h Δdir='+dd+'° turbFactor='+S._windShear.factor.toFixed(2));
-    }
-    const steering=aloftSpeeds.filter(a=>a.p<=850);
-    if(!steering.length)return;
-    let tx=0,ty=0;
-    steering.forEach(a=>{
-      const spdKt=a.rawMs*1.944;
-      const movDir=(a.dir+180)%360;
-      const rad=movDir*Math.PI/180;
-      tx+=Math.sin(rad)*spdKt;
-      ty+=Math.cos(rad)*spdKt;
-    });
-    const ax=tx/steering.length,ay=ty/steering.length;
-    const spdKt=Math.sqrt(ax*ax+ay*ay);
-    let dir=(Math.atan2(ax,ay)*180/Math.PI+360)%360;
-    const spdMph=Math.round(spdKt*1.151);
-    S.stormMovement={direction:Math.round(dir),speed:spdMph};
-    S._windCache={lat,lon,ts:Date.now(),dir:Math.round(dir),speed:spdMph,provider:'open-meteo',host:usedHost};
-    console.log('[WindsAloft] Per-level: '+aloftSpeeds.map(a=>a.p+'hPa='+a.rawMs.toFixed(1)+'m/s@'+a.dir+'°').join(', '));
-    console.log('[WindsAloft] Steering (850-500hPa): '+steering.map(a=>a.p+'hPa').join(',')+' Vx='+ax.toFixed(2)+' Vy='+ay.toFixed(2)+' → '+spdKt.toFixed(1)+'kt '+Math.round(dir)+'° → '+spdMph+' mph');
-    if(S.map&&S._showPathArrows)buildPathArrows(S.map);
-    if(typeof _bootStepDone==='function'){
-      const hostLabel=usedHost==='customer-api'?'Open-Meteo (customer-api)':'Open-Meteo';
-      _bootStepDone('wind',`Winds aloft: ${spdMph} mph @ ${Math.round(dir)}° · ${hostLabel}`);
-    }
+    _applyAloftData(aloftSpeeds,provInfo,lat,lon);
   }catch(e){console.log('Winds aloft fetch failed:',e.message);if(typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft failed')}
 }
 
