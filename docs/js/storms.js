@@ -151,6 +151,94 @@ async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius,stepOv
   console.log('Adaptive scan: step='+S._scanStep+' (bench='+ms.toFixed(1)+'ms)');
 })();
 
+// v4.44: Optional Skylink (RapidAPI) winds-aloft provider. Returns FAA-standard
+// altitude bands (3k/6k/9k/12k/18k/24k/30k/34k/39k ft). We snap each band to
+// the nearest pressure-level slot the existing downstream consumers expect
+// (1013/925/850/700/500 hPa) using the US Standard Atmosphere. Requires a
+// user-supplied RapidAPI key in localStorage (key: 'st_skylinkKey') — when
+// absent or on any error, the orchestrator falls through to the free chain.
+function getSkylinkKey(){try{return localStorage.getItem('st_skylinkKey')||''}catch(e){return''}}
+function saveSkylinkKey(v){
+  const t=(v||'').trim();
+  try{localStorage.setItem('st_skylinkKey',t)}catch(e){}
+  // Invalidate cache so the next fetch re-runs through Skylink (or back to free chain).
+  S._windCache=null;
+  if(typeof toast==='function')toast(t?'✓ Skylink key saved':'Skylink key cleared');
+}
+function toggleSkylinkKeyVis(){
+  const inp=document.getElementById('settings-skylink-key');
+  if(!inp)return;
+  inp.type=inp.type==='password'?'text':'password';
+}
+function _ftToHPa(ft){
+  // ISA: P = 1013.25 * (1 - 0.0065*h/288.15)^5.255 ; h in meters
+  const h=ft*0.3048;
+  return 1013.25*Math.pow(1-0.0065*h/288.15,5.255);
+}
+async function fetchWindsAloftSkylink(lat,lon){
+  const key=getSkylinkKey();
+  if(!key)throw new Error('no key');
+  const url='https://skylinkapi.p.rapidapi.com/winds-aloft?lat='+lat.toFixed(4)+'&lon='+lon.toFixed(4);
+  const r=await fetch(url,{
+    method:'GET',
+    headers:{'X-RapidAPI-Key':key,'X-RapidAPI-Host':'skylinkapi.p.rapidapi.com','Accept':'application/json'},
+    signal:AbortSignal.timeout(7000)
+  });
+  if(r.status===401||r.status===403)throw new Error('bad key (HTTP '+r.status+')');
+  if(r.status===429)throw new Error('quota exhausted (HTTP 429)');
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const j=await r.json();
+  // Defensive: Skylink shape may vary. Accept root array OR common wrapper keys.
+  let rows=null;
+  if(Array.isArray(j))rows=j;
+  else if(j&&Array.isArray(j.winds))rows=j.winds;
+  else if(j&&Array.isArray(j.windsAloft))rows=j.windsAloft;
+  else if(j&&Array.isArray(j.data))rows=j.data;
+  else if(j&&j.forecast&&Array.isArray(j.forecast.winds))rows=j.forecast.winds;
+  if(!rows||!rows.length)throw new Error('unexpected response shape');
+  // Parse each row defensively. Accept common field-name variants.
+  const bands=[];
+  for(const row of rows){
+    if(!row||typeof row!=='object')continue;
+    const altFt=row.altitude_ft??row.altitudeFt??row.altitude??row.alt??row.level??row.ft;
+    const dir=row.wind_direction??row.windDirection??row.direction??row.dir;
+    const spdRaw=row.wind_speed_kt??row.wind_speed_kts??row.windSpeedKt??row.wind_speed??row.windSpeed??row.speed??row.spd;
+    if(altFt==null||dir==null||spdRaw==null)continue;
+    const altN=parseFloat(altFt),dirN=parseFloat(dir),spdN=parseFloat(spdRaw);
+    if(!isFinite(altN)||!isFinite(dirN)||!isFinite(spdN))continue;
+    // If altitude looks like meters (Skylink rarely uses meters but be safe), convert.
+    const ft=altN<1000?altN*3.281:altN;
+    // Speed unit: assume kt unless an explicit unit field says otherwise.
+    let spdKt=spdN;
+    const unit=(row.wind_speed_unit||row.speedUnit||row.unit||'kt').toString().toLowerCase();
+    if(unit==='mph')spdKt=spdN*0.8689;
+    else if(unit==='kmh'||unit==='km/h'||unit==='kph')spdKt=spdN*0.5400;
+    else if(unit==='ms'||unit==='m/s')spdKt=spdN*1.9438;
+    bands.push({ft,dir:dirN,spdKt});
+  }
+  if(!bands.length)throw new Error('no parseable bands');
+  // Snap each band to closest of the wanted pressure slots; keep best (smallest |Δp|).
+  const wanted=[925,850,700,500];
+  const slots={};
+  for(const b of bands){
+    const p=_ftToHPa(b.ft);
+    let best=null,bestDp=Infinity;
+    for(const tp of wanted){
+      const dp=Math.abs(p-tp);
+      if(dp<bestDp){bestDp=dp;best=tp}
+    }
+    if(best==null)continue;
+    if(!slots[best]||slots[best]._dp>bestDp){
+      const rawMs=b.spdKt*0.5144;
+      slots[best]={p:best,spd:rawMs*3.6,dir:b.dir,rawMs,isSfc:false,_dp:bestDp};
+    }
+  }
+  const out=[];
+  for(const p of wanted){if(slots[p]){const s=slots[p];delete s._dp;out.push(s)}}
+  if(out.length<2)throw new Error('insufficient pressure levels mapped ('+out.length+')');
+  return out;
+}
+
 // v4.43: NOAA GSL rucsoundings serves the same NCEP GFS model output that
 // NOMADS distributes, but as plain GSL-format text with CORS=*. Browser-
 // fetchable without GRIB2 parsing, fully independent of Open-Meteo's pipeline.
@@ -244,6 +332,20 @@ async function fetchWindsAloft(overrideLat,overrideLon){
     }
   }
   if(typeof _bootStep==='function')_bootStep('wind','Getting winds aloft…');
+  // v4.44: Skylink (RapidAPI) opt-in upgrade. When the user has saved a key,
+  // try Skylink first; on any error fall through to the existing free chain
+  // (Open-Meteo main → customer-api → NOMADS GFS for US).
+  if(getSkylinkKey()){
+    if(typeof _bootStep==='function')_bootStep('wind','Getting winds aloft… (Skylink)');
+    try{
+      const skSpeeds=await fetchWindsAloftSkylink(lat,lon);
+      _applyAloftData(skSpeeds,{provider:'skylink',host:null,label:'Skylink'},lat,lon);
+      console.log('Winds aloft: Skylink ✓ ('+skSpeeds.length+' levels)');
+      return;
+    }catch(e){
+      console.log('Winds aloft: Skylink failed ('+e.message+') — falling through to free chain');
+    }
+  }
   try{
     const params=new URLSearchParams({
       latitude:lat,longitude:lon,

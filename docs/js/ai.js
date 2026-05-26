@@ -30,6 +30,8 @@ function syncAISettings(){
   if(detail)detail.value=getAIDetail();
   const model=document.getElementById('settings-ai-model');
   if(model)model.value=getAIModel();
+  const sk=document.getElementById('settings-skylink-key');
+  if(sk&&typeof getSkylinkKey==='function')sk.value=getSkylinkKey();
   if(typeof syncBriefingModeUI==='function')syncBriefingModeUI();
 }
 function clearAIChat(){
