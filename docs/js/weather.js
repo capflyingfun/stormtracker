@@ -525,6 +525,8 @@ function renderWeather(data){
   const order=getSecOrder();
 
   el.innerHTML=`
+    <div id="rain-clock"></div>
+    <div id="rain-forecast-bars"></div>
     <div class="weather-hero">
       <div class="hero-icon-showcase">${animEmoji(_heroWCode,isDay,'340px',_heroDesc)}</div>
       <div class="hero-temp-line" style="font-size:2.8em;font-weight:800;line-height:1;background:linear-gradient(180deg,var(--text-primary) 0%,var(--text-secondary) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:6px 0 2px">${fmtTempShort(tempC)}<span style="-webkit-text-fill-color:initial;background:none">${_taC(_hv('temperature_2m'),_hv1('temperature_2m'),1)}</span></div>
@@ -584,6 +586,8 @@ function renderWeather(data){
   setTimeout(()=>{startSonarSweep();_syncSonarZoomBtns()},50);
   if(!S._skipWindRestart) startWindSim();
   _updateTropicalUI();
+  if(typeof renderRainClock==='function')renderRainClock();
+  if(typeof renderRainForecastBars==='function')renderRainForecastBars();
 }
 function _updateTropicalUI(){
   const el=document.getElementById('wx-tropical-section');
@@ -1668,3 +1672,249 @@ function toggleNWSDetail(el,idx){
 // No-op — arrow is now driven purely by forecast spread trend at render time.
 function updateWeatherCloudBaseColor(){}
 
+
+// ===== Rain Clock (RainAware-style 0-180 min circular precip dial) =====
+function _rainClockProject(){
+  const out={ready:false,minutes:new Array(181).fill(0),windows:[],nearest:null,stale:false,motionUnknown:false,noLoc:false,empty:false};
+  if(S.lat==null||S.lon==null){out.noLoc=true;return out}
+  const pts=S._rawScanPts||[];
+  if(pts.length===0){out.empty=true;return out}
+  if(S.scanTime&&(Date.now()-S.scanTime)>15*60000){out.stale=true;return out}
+  const mv=S.stormMovement;
+  const RADIUS_MI=1.5;
+  const MIN_DBZ=20;
+  let vx=0,vy=0,haveMv=false;
+  if(mv&&mv.speed>1&&mv.direction!=null){
+    const th=mv.direction*Math.PI/180;
+    vx=mv.speed*Math.sin(th);
+    vy=mv.speed*Math.cos(th);
+    haveMv=true;
+  }
+  out.motionUnknown=!haveMv;
+  const MI_PER_DEG_LAT=69.0;
+  const MI_PER_DEG_LON=69.0*Math.cos(S.lat*Math.PI/180);
+  let nearestDist=Infinity,nearestBearing=null;
+  for(const p of pts){
+    if(p.dbz<MIN_DBZ)continue;
+    const d=p.dist!=null?p.dist:haversine(S.lat,S.lon,p.lat,p.lng);
+    if(d<nearestDist){nearestDist=d;nearestBearing=bearingDeg(S.lat,S.lon,p.lat,p.lng)}
+  }
+  if(nearestDist<Infinity&&nearestBearing!=null){out.nearest={mi:nearestDist,dir:degToDir(nearestBearing)}}
+  const v2_mph2=vx*vx+vy*vy;
+  const v2_per_min2=v2_mph2/3600;
+  for(const p of pts){
+    if(p.dbz<MIN_DBZ)continue;
+    const dx=(p.lng-S.lon)*MI_PER_DEG_LON;
+    const dy=(p.lat-S.lat)*MI_PER_DEG_LAT;
+    const dist0=Math.sqrt(dx*dx+dy*dy);
+    if(!haveMv||v2_per_min2<1e-6){
+      if(dist0<=RADIUS_MI&&p.dbz>out.minutes[0])out.minutes[0]=p.dbz;
+      continue;
+    }
+    const tStar=-(dx*vx+dy*vy)/v2_mph2*60;
+    const cx=dx+vx*tStar/60,cy=dy+vy*tStar/60;
+    const dmin2=cx*cx+cy*cy;
+    if(dmin2>RADIUS_MI*RADIUS_MI)continue;
+    const hw=Math.sqrt((RADIUS_MI*RADIUS_MI-dmin2)/v2_per_min2);
+    const tIn=Math.max(0,Math.floor(tStar-hw));
+    const tOut=Math.min(180,Math.ceil(tStar+hw));
+    if(tIn>180||tOut<0)continue;
+    for(let t=tIn;t<=tOut;t++){if(p.dbz>out.minutes[t])out.minutes[t]=p.dbz}
+  }
+  let cur=null;
+  for(let t=0;t<=180;t++){
+    const v=out.minutes[t];
+    if(v>=MIN_DBZ){
+      if(!cur)cur={startMin:t,endMin:t,peakDbz:v};
+      else{cur.endMin=t;if(v>cur.peakDbz)cur.peakDbz=v}
+    }else if(cur){out.windows.push(cur);cur=null}
+  }
+  if(cur)out.windows.push(cur);
+  out.ready=true;
+  return out;
+}
+
+function renderRainClock(){
+  const el=document.getElementById('rain-clock');
+  if(!el)return;
+  const data=_rainClockProject();
+  const SIZE=280,CX=140,CY=140,R_OUTER=128,R_TICK_IN=112,R_TICK_OUT=126,R_LABEL=98,R_ARC=80,R_ARC_W=14;
+  const now=Date.now();
+  let ticks='';
+  for(let i=0;i<60;i++){
+    const ang=(i/60)*2*Math.PI-Math.PI/2;
+    const major=i%5===0;
+    const r1=major?R_TICK_IN-2:R_TICK_IN+4;
+    const x1=CX+r1*Math.cos(ang),y1=CY+r1*Math.sin(ang);
+    const x2=CX+R_TICK_OUT*Math.cos(ang),y2=CY+R_TICK_OUT*Math.sin(ang);
+    ticks+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${major?'#9fb3c8':'#3a4a5e'}" stroke-width="${major?2:1}"/>`;
+  }
+  const labArr=['Now','15','30','45','60','75','90','105','120','135','150','165'];
+  let labels='';
+  for(let i=0;i<12;i++){
+    const ang=(i/12)*2*Math.PI-Math.PI/2;
+    const x=CX+R_LABEL*Math.cos(ang),y=CY+R_LABEL*Math.sin(ang);
+    labels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="#cfd8e3" font-size="10" font-weight="600" text-anchor="middle" dominant-baseline="middle">${labArr[i]}</text>`;
+  }
+  function arcPath(startMin,endMin,radius){
+    const a0=(startMin/180)*2*Math.PI-Math.PI/2;
+    const a1=(endMin/180)*2*Math.PI-Math.PI/2;
+    const large=(a1-a0)>Math.PI?1:0;
+    const x0=CX+radius*Math.cos(a0),y0=CY+radius*Math.sin(a0);
+    const x1=CX+radius*Math.cos(a1),y1=CY+radius*Math.sin(a1);
+    return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${radius} ${radius} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+  }
+  let arcs='';
+  if(data.ready){
+    for(const w of data.windows){
+      const s=Math.max(0,w.startMin),e=Math.min(180,Math.max(w.startMin+1,w.endMin));
+      if(e<=s)continue;
+      const color=(typeof dbzHex==='function')?dbzHex(w.peakDbz):'#39ff14';
+      arcs+=`<path d="${arcPath(s,e,R_ARC)}" stroke="${color}" stroke-width="${R_ARC_W}" fill="none" stroke-linecap="round" opacity="0.92"/>`;
+    }
+  }
+  let centerLines=[];
+  if(data.noLoc)centerLines=['Location','needed'];
+  else if(data.stale)centerLines=['Radar stale','run a scan'];
+  else if(data.empty)centerLines=['Waiting for','radar…'];
+  else if(data.windows.length===0)centerLines=['Dry for the next','3 hours'];
+  else{
+    const w=data.windows[0];
+    if(w.startMin===0){
+      const endClock=fmtClock(new Date(now+w.endMin*60000));
+      centerLines=['Rain until',endClock];
+    }else{
+      const startClock=fmtClock(new Date(now+w.startMin*60000));
+      centerLines=['Rain starting at',startClock];
+    }
+  }
+  let center='';
+  const cy0=CY-((centerLines.length-1)*9)-4;
+  centerLines.forEach((line,i)=>{
+    const fs=i===0?13:16;
+    const fw=i===0?600:700;
+    const col=i===0?'#9fb3c8':'#e6edf3';
+    center+=`<text x="${CX}" y="${cy0+i*18}" fill="${col}" font-size="${fs}" font-weight="${fw}" text-anchor="middle" dominant-baseline="middle">${line}</text>`;
+  });
+  const gradId='rc-grad-'+Math.floor(Math.random()*1e6).toString(36);
+  const legend=`
+    <defs><linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#39ff14"/><stop offset="40%" stop-color="#ffeb3b"/>
+      <stop offset="75%" stop-color="#ff9800"/><stop offset="100%" stop-color="#ff3355"/>
+    </linearGradient></defs>
+    <rect x="${CX-36}" y="${CY+34}" width="72" height="5" rx="2.5" fill="url(#${gradId})"/>
+    <text x="${CX-40}" y="${CY+48}" fill="#9fb3c8" font-size="8" text-anchor="end">Light</text>
+    <text x="${CX+40}" y="${CY+48}" fill="#9fb3c8" font-size="8" text-anchor="start">Heavy</text>`;
+  let header='';
+  if(data.ready&&data.windows.length){
+    const w=data.windows[0];
+    if(w.startMin===0){
+      const endClock=fmtClock(new Date(now+w.endMin*60000));
+      header=`<div style="font-size:0.72em;color:var(--text-secondary);text-align:center;margin-bottom:6px"><span style="color:var(--accent-cyan);font-weight:700">Rain End Time:</span> ${endClock}</div>`;
+    }else{
+      const startClock=fmtClock(new Date(now+w.startMin*60000));
+      header=`<div style="font-size:0.72em;color:var(--text-secondary);text-align:center;margin-bottom:6px"><span style="color:var(--accent-cyan);font-weight:700">Rain Start Time:</span> ${startClock}</div>`;
+    }
+  }
+  let sub='';
+  if(data.nearest){
+    sub=`<div style="font-size:0.7em;color:var(--text-secondary);text-align:center;margin-top:6px"><span style="color:var(--text-muted)">Nearest Precipitation:</span> <strong>${data.nearest.mi.toFixed(0)} mi</strong> to the ${data.nearest.dir}</div>`;
+  }
+  let foot='';
+  if(data.motionUnknown&&!data.empty&&!data.stale&&!data.noLoc&&(S._rawScanPts||[]).length){
+    foot=`<div style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:4px;font-style:italic">Motion unknown — projection limited</div>`;
+  }
+  el.innerHTML=`
+    <div class="card" style="padding:10px 8px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span class="card-title m-0"><span class="icon">🌧️</span> Rain Clock · 3h</span>
+        <span style="font-size:0.55em;color:var(--text-muted);letter-spacing:0.04em">RADAR ADVECTION</span>
+      </div>
+      ${header}
+      <div style="display:flex;justify-content:center">
+        <svg viewBox="0 0 ${SIZE} ${SIZE}" width="100%" style="max-width:300px;height:auto" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="${CX}" cy="${CY}" r="${R_OUTER}" fill="rgba(10,16,32,0.55)" stroke="#1e2a3c" stroke-width="1"/>
+          ${ticks}${labels}${arcs}${center}${legend}
+        </svg>
+      </div>
+      ${sub}${foot}
+    </div>`;
+}
+
+let _rainClockLastDraw=0;
+function refreshRainClock(force){
+  const n=Date.now();
+  if(!force&&n-_rainClockLastDraw<10000)return;
+  _rainClockLastDraw=n;
+  try{renderRainClock()}catch(e){console.log('rain clock failed:',e.message)}
+  try{renderRainForecastBars()}catch(e){console.log('rain bars failed:',e.message)}
+}
+
+function _precipMmToDbz(mmPerHr){
+  if(mmPerHr==null||mmPerHr<=0)return 0;
+  return 10*Math.log10(200*Math.pow(mmPerHr,1.6));
+}
+function renderRainForecastBars(){
+  const el=document.getElementById('rain-forecast-bars');
+  if(!el)return;
+  const h=S._hourlyData;
+  if(!h||!h.time||!h.precipitation||!h.time.length){
+    el.innerHTML='';return;
+  }
+  const now=Date.now();
+  let startIdx=h.time.findIndex(t=>{const ts=new Date(t).getTime();return ts>=now-1800000});
+  if(startIdx<0)startIdx=0;
+  const HOURS=36;
+  const slots=[];
+  for(let i=0;i<HOURS;i++){
+    const idx=startIdx+i;
+    if(idx>=h.time.length)break;
+    const mm=h.precipitation[idx]||0;
+    slots.push({t:new Date(h.time[idx]).getTime(),mm});
+  }
+  if(!slots.length){el.innerHTML='';return;}
+  const total=slots.reduce((a,s)=>a+s.mm,0);
+  const maxMm=Math.max(0.05,...slots.map(s=>s.mm));
+  const W=300,H=110,padL=8,padR=8,padT=14,padB=22;
+  const innerW=W-padL-padR,innerH=H-padT-padB;
+  const barW=innerW/slots.length;
+  let bars='';
+  for(let i=0;i<slots.length;i++){
+    const s=slots[i];
+    const hPx=s.mm>0?Math.max(2,(s.mm/maxMm)*innerH):0;
+    if(hPx<=0)continue;
+    const x=padL+i*barW;
+    const y=padT+innerH-hPx;
+    const dbz=_precipMmToDbz(s.mm);
+    const col=(typeof dbzHex==='function'&&dbz>=15)?dbzHex(Math.max(dbz,20)):'#39ff14';
+    bars+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1,barW-0.5).toFixed(1)}" height="${hPx.toFixed(1)}" fill="${col}" opacity="0.92" rx="1"/>`;
+  }
+  const baseY=padT+innerH;
+  let axisLine=`<line x1="${padL}" y1="${baseY}" x2="${W-padR}" y2="${baseY}" stroke="#3a4a5e" stroke-width="1"/>`;
+  const tickHours=[0,6,12,24,36];
+  let xTicks='';
+  for(const th of tickHours){
+    if(th>=slots.length)continue;
+    const x=padL+th*barW;
+    const lbl=th===0?'Now':fmtClock(new Date(slots[Math.min(th,slots.length-1)].t));
+    xTicks+=`<line x1="${x.toFixed(1)}" y1="${baseY}" x2="${x.toFixed(1)}" y2="${baseY+3}" stroke="#5a6a7e" stroke-width="1"/>`;
+    xTicks+=`<text x="${x.toFixed(1)}" y="${(baseY+13).toFixed(1)}" fill="#9fb3c8" font-size="8" text-anchor="middle">${lbl}</text>`;
+  }
+  const maxLbl=(typeof fmtPrecip==='function')?fmtPrecip(maxMm):(maxMm.toFixed(2)+' mm');
+  const totalLbl=(typeof fmtPrecip==='function')?fmtPrecip(total):(total.toFixed(2)+' mm');
+  const peakBadge=`<text x="${W-padR}" y="10" fill="#9fb3c8" font-size="8" text-anchor="end">peak ${maxLbl}/hr</text>`;
+  const empty=total<=0.01;
+  el.innerHTML=`
+    <div class="card" style="padding:8px 8px 6px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span class="card-title m-0" style="font-size:0.78em"><span class="icon">📊</span> Total Precipitation Next 36 hrs</span>
+        <span style="font-size:0.6em;color:var(--text-muted)">total ${totalLbl}</span>
+      </div>
+      ${empty?`<div style="font-size:0.7em;color:var(--text-secondary);text-align:center;padding:18px 6px">No measurable rain in the next 36 hours.</div>`:`
+      <div style="display:flex;justify-content:center">
+        <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:340px;height:auto" xmlns="http://www.w3.org/2000/svg">
+          ${peakBadge}${bars}${axisLine}${xTicks}
+        </svg>
+      </div>`}
+    </div>`;
+}
