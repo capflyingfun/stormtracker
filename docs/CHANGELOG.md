@@ -3,6 +3,18 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.48
+
+Three more refinements to the Rain Clock based on the user's annotated screenshot of v4.47:
+
+1. **Forecast arc now wraps the full 12 h.** The v4.47 forecast loop iterated from a `findIndex` anchor with a fixed 14-slot cap, intending to mirror the Rain Forecast Bars below the dial. In practice, when the bar chart and the dial computed their anchors slightly differently (or when Open-Meteo returned a non-monotonic first slot), the dial's loop could exit before reaching slots at +5h..+11h, leaving the arc visually "stopping" around the radar/forecast boundary even though the bar chart clearly showed rain later. v4.48 drops the anchor and the cap entirely and instead walks the whole `h.time` array, bucketing each entry by its computed `mins` offset (`-60 ≤ mins ≤ 720`). Every future hour with rain is now considered, regardless of where Open-Meteo's first slot lands.
+
+2. **Arc moved out to the rim.** The arc band was at `R_ARC=78` inside a 320-px viewBox — deep in the middle of the dial face, where the labels and the center status text crowded it. v4.48 enlarges the dial canvas to 360 px (CX/CY = 180) and moves the arc to `R_ARC=122, R_ARC_W=18`, sitting in the wide strip between the tick ring (`R_TICK_OUT=108`) and the outer rim (`R_OUTER=132`). The arc is now visually the dominant element of the dial.
+
+3. **Hour labels moved outside the dial circle.** Labels were at `R_LABEL=139` (inside the old `R_OUTER=152`), so they overlapped the arc near the top. v4.48 puts them at `R_LABEL=154`, in the new space between `R_OUTER=132` and the 360-px viewBox edge. Nothing on the dial face fights the rain arc for attention anymore. Font sizes nudged up (11 / 10) to fill the extra room. SVG `max-width` bumped from 340 px to 380 px to keep the rendered size visually similar despite the larger viewBox.
+
+The 24-hour clock complaint was already covered by `fmtClock()` honoring `_timeFormat` from `localStorage.st_timeFormat`; if the user was still seeing AM/PM in the screenshot, it was the v4.46 service worker serving stale JS. The v4.48 cache bump (`?v=544`, `stormtracker-v544`) forces a fresh fetch, after which the label times will follow whichever `st_timeFormat` value the user has selected.
+
 ## v4.47
 
 Fixes three user-reported issues on the v4.46 Rain Clock:

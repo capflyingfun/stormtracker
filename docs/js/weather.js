@@ -1914,16 +1914,20 @@ function _rainClockProject(){
   // forecast slots were getting their `mins` computed against the wrong base
   // and either skipped or assigned to the wrong dial position.
   if(haveHourly){
+    // v4.48: iterate EVERY hourly slot and bucket by computed `mins`, instead
+    // of relying on a findIndex anchor + a 14-slot cap. The previous design
+    // could stop early or misalign when Open-Meteo returned non-monotonic
+    // timestamps or when the dial loop's anchor differed from the bar chart's,
+    // which is why forecast rain at +5h..+11h sometimes never reached the dial
+    // even though it was clearly painted on the Rain Forecast Bars below it.
     const nowMs=Date.now();
-    let startIdx=h.time.findIndex(t=>new Date(t).getTime()>=nowMs-1800000);
-    if(startIdx<0)startIdx=0;
-    for(let k=0;k<14;k++){
-      const idx=startIdx+k;
-      if(idx>=h.time.length)break;
-      const ts=new Date(h.time[idx]).getTime();
+    for(let i=0;i<h.time.length;i++){
+      const ts=new Date(h.time[i]).getTime();
+      if(isNaN(ts))continue;
       const mins=(ts-nowMs)/60000;
-      if(mins>_RC_TOTAL_MIN)break;
-      const mm=h.precipitation[idx]||0;
+      if(mins>_RC_TOTAL_MIN)continue;
+      if(mins<-60)continue;
+      const mm=h.precipitation[i]||0;
       if(mins>=0&&mins<=_RC_TOTAL_MIN)out.totalMm+=mm;
       if(mm<=0)continue;
       const dbz=_precipMmToDbz(mm);
@@ -1979,13 +1983,14 @@ function renderRainClock(){
   if(!el)return;
   const data=_rainClockProject();
   S._rainClockData=data;
-  const SIZE=320,CX=160,CY=160;
-  // v4.47: collapsed the old "inner +Nh ring" + "outer wall-clock ring" into
-  // a single combined label per hour position (the user pointed out the two
-  // rings were redundant and visually colliding with the rain arc near the
-  // top). R_LABEL replaces both R_OUTER_LABEL=144 and R_HOUR_LABEL=98.
-  const R_OUTER=152,R_TICK_OUT=126,R_TICK_IN=114;
-  const R_LABEL=139,R_ARC=78,R_ARC_W=18;
+  // v4.48 geometry rework: dial canvas grew from 320 to 360 so the hour
+  // labels can live OUTSIDE the dial circle (between R_OUTER and the viewBox
+  // edge) instead of competing with the rain arc on the dial face. The arc
+  // also moved OUT to sit just inside the outer rim, between the tick ring
+  // and the dial edge — much larger and easier to read on a phone.
+  const SIZE=360,CX=180,CY=180;
+  const R_OUTER=132,R_TICK_OUT=108,R_TICK_IN=96;
+  const R_LABEL=154,R_ARC=122,R_ARC_W=18;
   const TOTAL=_RC_TOTAL_MIN;
   const now=Date.now();
   const nowD=new Date(now);
@@ -2012,8 +2017,8 @@ function renderRainClock(){
     const t=new Date(now+i*3600000);
     const tStr=fmtClock(t);
     hourLabels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle">`
-      +`<tspan x="${x.toFixed(1)}" dy="-5" fill="#9fb3c8" font-size="9" font-weight="700">${off}</tspan>`
-      +`<tspan x="${x.toFixed(1)}" dy="11" fill="#cfd8e3" font-size="9" font-weight="600" data-rc-outer="${i}">${tStr}</tspan>`
+      +`<tspan x="${x.toFixed(1)}" dy="-6" fill="#9fb3c8" font-size="11" font-weight="700">${off}</tspan>`
+      +`<tspan x="${x.toFixed(1)}" dy="13" fill="#cfd8e3" font-size="10" font-weight="600" data-rc-outer="${i}">${tStr}</tspan>`
       +`</text>`;
   }
   // Per-minute gradient arc segments — each minute where dBZ ≥ 25 paints a
@@ -2117,7 +2122,7 @@ function renderRainClock(){
         </div>
       </div>
       <div style="display:flex;justify-content:center">
-        <svg viewBox="0 0 ${SIZE} ${SIZE}" width="100%" style="max-width:340px;height:auto" xmlns="http://www.w3.org/2000/svg">
+        <svg viewBox="0 0 ${SIZE} ${SIZE}" width="100%" style="max-width:380px;height:auto" xmlns="http://www.w3.org/2000/svg">
           <circle cx="${CX}" cy="${CY}" r="${R_OUTER}" fill="rgba(10,16,32,0.55)" stroke="#1e2a3c" stroke-width="1"/>
           ${ticks}${hourLabels}${arcs}${boundary}${segHandlers}${nowPointer}${center}
         </svg>
