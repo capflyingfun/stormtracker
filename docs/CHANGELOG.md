@@ -3,6 +3,16 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.49
+
+Adds the dial ↔ text-view toggle requested after v4.48 shipped.
+
+1. **Tap the dial center to switch to text view.** A transparent click target now sits over the center of the Rain Clock SVG; tapping it (or the new TEXT/DIAL pill in the card header) flips `S._rainClockTextView` and re-renders. The text view is a single card with a one-line headline and a friendly prose body — phrasings like "Rain starts in 5 min · Begins around 12:05, lasts about 30 min, ending around 12:35. Then a second round around 13:15 (~15 min)." or "Raining until 12:30 · Active rain for about 25 min more. Next round starts around 13:45 (~20 min)." The first and (when it exists) second rain windows from `_rainClockProject()` drive both views, so the dial and the text never disagree about what's coming. Tap anywhere on the text card to flip back. State is intentionally session-only — every reload starts on the dial.
+
+2. **Plumbing.** New `_phrases[]` array is built alongside the existing `centerLines[]` inside `renderRainClock()` so both surfaces share one source of truth. New `_fmtDur(min)` helper writes durations as "30 min" / "1 h" / "1 h 15 min". New `_rainClockToggleView()` global function is the click handler. The dial-mode SVG gains one new `<circle>` (r=55, transparent) acting as the tap surface; the text-mode card replaces the SVG block entirely. Both modes still emit the same header (with reorder buttons + sourceTag + new toggle pill), nearest-precipitation sub line, "motion unknown" footer, and tap-arc hint, so nothing else about the card moves around when you flip views.
+
+The AI briefing's "missed the heavy yellow/red blob to the north" issue from the same report is logged as a separate follow-up — the cell-classifier is collapsing those cells into "moving away" with zero counts before they reach the AI prompt, so the fix needs deeper work in the briefing engine, not the Rain Clock.
+
 ## v4.48
 
 Three more refinements to the Rain Clock based on the user's annotated screenshot of v4.47:

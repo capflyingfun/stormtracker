@@ -2054,20 +2054,50 @@ function renderRainClock(){
     });
   }
   // Center text: status + optional total rain estimate
+  // v4.49: text view (toggled by tapping the dial center) builds richer
+  // friendly phrasings for the first two rain windows — start/end times,
+  // duration, and the next round if any. Computed here so both the dial
+  // center summary and the text view stay in lock-step.
   const _omPart=S._lastWeatherData&&S._lastWeatherData._omPartial;
+  const _fmtDur=(min)=>{
+    if(min<60)return Math.max(1,Math.round(min))+' min';
+    const h=Math.floor(min/60),m=Math.round(min%60);
+    return m===0?h+' h':h+' h '+m+' min';
+  };
+  const _phrases=[];
   let centerLines=[];
-  if(data.noLoc)centerLines=['Location','needed'];
-  else if(data.loading)centerLines=['Loading','rain forecast…'];
+  if(data.noLoc){centerLines=['Location','needed'];_phrases.push({title:'Location needed',body:'Allow location access or pick a spot manually so the Rain Clock can pull forecast and radar for you.'});}
+  else if(data.loading){centerLines=['Loading','rain forecast…'];_phrases.push({title:'Loading…',body:'Pulling forecast and radar — give it a few seconds.'});}
   else if(!data.windows.length){
-    if(_omPart)centerLines=['Waiting on','Open-Meteo…'];
-    else if(data.stale&&!data.forecastReady)centerLines=['Radar stale','run a scan'];
-    else centerLines=['No rain expected','next 12 hours'];
+    if(_omPart){centerLines=['Waiting on','Open-Meteo…'];_phrases.push({title:'Waiting on Open-Meteo',body:'Forecast service is slow or unreachable right now. The Rain Clock will fill in as soon as data arrives.'});}
+    else if(data.stale&&!data.forecastReady){centerLines=['Radar stale','run a scan'];_phrases.push({title:'Radar is stale',body:'Run a fresh scan to update the Rain Clock with the latest radar.'});}
+    else{centerLines=['No rain expected','next 12 hours'];_phrases.push({title:'No rain expected',body:'Nothing showing up on radar or in the forecast for the next 12 hours.'});}
   } else {
     const w=data.windows[0];
+    const w2=data.windows[1];
+    const startStr=fmtClock(new Date(now+w.startMin*60000));
+    const endStr=fmtClock(new Date(now+w.endMin*60000));
     if(w.startMin===0){
-      centerLines=['Rain until',fmtClock(new Date(now+w.endMin*60000))];
+      centerLines=['Rain until',endStr];
+      const dur=Math.max(1,w.endMin);
+      const head={title:`Raining until ${endStr}`,body:`Active rain for about ${_fmtDur(dur)} more.`};
+      if(w2){
+        const w2start=fmtClock(new Date(now+w2.startMin*60000));
+        const w2dur=Math.max(1,w2.endMin-w2.startMin);
+        head.body+=` Next round starts around ${w2start} (~${_fmtDur(w2dur)}).`;
+      }
+      _phrases.push(head);
     } else {
-      centerLines=['Rain starting at',fmtClock(new Date(now+w.startMin*60000))];
+      centerLines=['Rain starting at',startStr];
+      const inMin=Math.max(1,Math.round(w.startMin));
+      const dur=Math.max(1,w.endMin-w.startMin);
+      const head={title:`Rain starts in ${_fmtDur(inMin)}`,body:`Begins around ${startStr}, lasts about ${_fmtDur(dur)}, ending around ${endStr}.`};
+      if(w2){
+        const w2start=fmtClock(new Date(now+w2.startMin*60000));
+        const w2dur=Math.max(1,w2.endMin-w2.startMin);
+        head.body+=` Then a second round around ${w2start} (~${_fmtDur(w2dur)}).`;
+      }
+      _phrases.push(head);
     }
   }
   // Rain amount estimate over the next 12 hours (forecast-derived)
@@ -2112,21 +2142,44 @@ function renderRainClock(){
   // Header tag uses secBtns when the helper exists, so the rain clock card
   // joins the up/down reorder system used by the other Weather sections.
   const reorder=(typeof secBtns==='function')?secBtns('rainclock'):'';
+  // v4.49: a transparent circle in the center is the dial→text toggle target.
+  // Sized to roughly cover the center status text so users naturally tap it.
+  const centerTap=`<circle cx="${CX}" cy="${CY}" r="55" fill="rgba(0,0,0,0.001)" style="cursor:pointer" onclick="_rainClockToggleView()"><title>Tap to switch to text view</title></circle>`;
+  const toggleBtn=`<button type="button" onclick="_rainClockToggleView()" style="background:transparent;border:1px solid var(--text-muted);color:var(--text-muted);font-size:0.55em;padding:2px 6px;border-radius:4px;cursor:pointer;letter-spacing:0.04em">${S._rainClockTextView?'DIAL':'TEXT'}</button>`;
+  // v4.49: text view — friendlier prose summary of the next two rain windows.
+  // Built from the same `_phrases` list the dial center already uses, so the
+  // two views never disagree. Tap anywhere on the text card to flip back to
+  // the dial.
+  let viewBody;
+  if(S._rainClockTextView){
+    const phrase=_phrases[0]||{title:'Rain Clock',body:'No data yet.'};
+    viewBody=`
+      <div onclick="_rainClockToggleView()" style="cursor:pointer;background:rgba(10,16,32,0.55);border:1px solid #1e2a3c;border-radius:12px;padding:22px 18px;min-height:200px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;max-width:380px;margin:0 auto" title="Tap to switch back to dial view">
+        <div style="font-size:1.05em;font-weight:700;color:#e6edf3;line-height:1.3;margin-bottom:8px">${phrase.title}</div>
+        <div style="font-size:0.85em;color:#cfd8e3;line-height:1.45;max-width:32em">${phrase.body}</div>
+        ${amountLine?`<div style="font-size:0.8em;color:#5eead4;font-weight:600;margin-top:10px">~${(typeof fmtPrecip==='function'?fmtPrecip(data.totalMm):(data.totalMm/25.4).toFixed(2)+' in')} expected next 12 h</div>`:''}
+        <div style="font-size:0.62em;color:var(--text-muted);font-style:italic;margin-top:14px">Tap to switch back to dial view</div>
+      </div>`;
+  } else {
+    viewBody=`
+      <div style="display:flex;justify-content:center">
+        <svg viewBox="0 0 ${SIZE} ${SIZE}" width="100%" style="max-width:380px;height:auto" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="${CX}" cy="${CY}" r="${R_OUTER}" fill="rgba(10,16,32,0.55)" stroke="#1e2a3c" stroke-width="1"/>
+          ${ticks}${hourLabels}${arcs}${boundary}${segHandlers}${nowPointer}${center}${centerTap}
+        </svg>
+      </div>`;
+  }
   el.innerHTML=`
     <div class="card weather-section" data-sec="rainclock" style="padding:10px 8px;margin-bottom:8px">
       <div class="sec-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <span class="card-title m-0"><span class="icon">🌧️</span> Rain Clock · 12h</span>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:0.55em;color:var(--text-muted);letter-spacing:0.04em">${sourceTag}</span>
+          ${toggleBtn}
           ${reorder}
         </div>
       </div>
-      <div style="display:flex;justify-content:center">
-        <svg viewBox="0 0 ${SIZE} ${SIZE}" width="100%" style="max-width:380px;height:auto" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="${CX}" cy="${CY}" r="${R_OUTER}" fill="rgba(10,16,32,0.55)" stroke="#1e2a3c" stroke-width="1"/>
-          ${ticks}${hourLabels}${arcs}${boundary}${segHandlers}${nowPointer}${center}
-        </svg>
-      </div>
+      ${viewBody}
       ${sub}${foot}${hint}
       <div id="rain-clock-detail" style="margin-top:8px"></div>
     </div>`;
@@ -2134,6 +2187,15 @@ function renderRainClock(){
     _rainClockRenderDetail(S._rainClockSelectedIdx);
   }
 }
+
+// v4.49: dial ↔ text view toggle. Tapping the dial center (or the TEXT/DIAL
+// button in the card header) flips S._rainClockTextView and re-renders. State
+// is intentionally NOT persisted — each session starts on the dial.
+function _rainClockToggleView(){
+  S._rainClockTextView=!S._rainClockTextView;
+  if(typeof renderRainClock==='function')renderRainClock();
+}
+window._rainClockToggleView=_rainClockToggleView;
 
 // v4.46: outer wall-clock labels redraw every 60s without rebuilding the
 // whole SVG, so the "Now" position always matches the current minute.
