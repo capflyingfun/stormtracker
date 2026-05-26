@@ -93,6 +93,12 @@
       const ageMin=last&&last.time?Math.round((Date.now()/1000-last.time)/60):null;
       radarMeta={frames:S.radarFrames.length,ageMin,scanRadius:S.scanRadius||null};
     }
+    let hurricane=null;
+    try{
+      const override=(typeof localStorage!=='undefined'&&localStorage.getItem('st_hurricane_override')==='1');
+      const hm=(typeof S!=='undefined'&&S._hurricaneMode)?S._hurricaneMode:null;
+      if(hm&&(hm.active||override))hurricane=hm;
+    }catch(e){}
     return{
       now:new Date(),
       locName:(typeof S!=='undefined'&&S.locName)?S.locName:null,
@@ -103,8 +109,63 @@
       afd:(typeof S!=='undefined'&&S._afd)?S._afd:null,
       aloft:(typeof S!=='undefined'&&S._aloftData)?S._aloftData:null,
       stab,shear,radarMeta,
-      classified
+      classified,
+      hurricane
     };
+  }
+
+  // v4.42 — Hurricane Mode section. Prepended to System & AI briefings when
+  // a tropical system has the user inside its forecast cone, within 300 mi,
+  // inside a wind-radii polygon, or has a tropical watch/warning in-zone.
+  // The cone-uncertainty caveat is HARD-CODED — never paraphrased — because
+  // historical tracks have shifted >50 mi inside 24 h and "the cone moved"
+  // is a documented cause of life-loss in past storms.
+  const HURRICANE_CONE_CAVEAT='[!orange]Forecast cone is a 67% probability envelope — historical tracks have shifted **>50 mi inside 24 h** on multiple past storms. **Do not stand down based on cone position alone.** Re-check every NHC advisory cycle (every 6 h, or every 3 h when watches/warnings are active).[/!]';
+  function buildHurricane(d){
+    if(!d.hurricane||!d.hurricane.systems||!d.hurricane.systems.length)return null;
+    const lines=['🌀 Tropical Cyclone Overview'];
+    for(const e of d.hurricane.systems){
+      const cat=e.cat&&e.cat.label?e.cat.label:'Tropical';
+      const dirTo=(e.bearing!=null)?_safeDeg(e.bearing):'';
+      const distStr=e.distMi!=null?_fmtDist(e.distMi,d.metric):'?';
+      const head=`**${e.type||'Tropical System'} ${e.name}** — ${cat}`;
+      const trigBits=[];
+      if(e.inCone)trigBits.push('[!orange]🎯 you are INSIDE the forecast cone[/!]');
+      if(e.distMi!=null&&e.distMi<=300&&!e.inCone)trigBits.push(`📡 ${distStr} ${dirTo} of you`);
+      if(e.inCone&&e.distMi!=null)trigBits.push(`center ${distStr} ${dirTo}`);
+      if(e.inWindRadii&&e.inWindRadii.kt64)trigBits.push('[!red]🌪️ inside hurricane-force (64 kt+) wind field NOW[/!]');
+      else if(e.inWindRadii&&e.inWindRadii.kt50)trigBits.push('[!orange]💨 inside 50 kt+ wind field NOW[/!]');
+      else if(e.inWindRadii&&e.inWindRadii.kt34)trigBits.push('[!yellow]💨 inside tropical-storm-force (34 kt+) wind field NOW[/!]');
+      if(e.alerts&&e.alerts.warningInZone)trigBits.push('[!red]⚠️ tropical warning ACTIVE for your area[/!]');
+      else if(e.alerts&&e.alerts.watchInZone)trigBits.push('[!yellow]👁️ tropical watch ACTIVE for your area[/!]');
+      lines.push(`- ${head} — ${trigBits.join(' · ')}`);
+      const stats=[];
+      if(e.maxWind)stats.push(`max sustained **${e.maxWind} mph**${e.gusts?` (gusts ${e.gusts} mph)`:''}`);
+      if(e.minPressure)stats.push(`min pressure ${e.minPressure} mb`);
+      if(e.moveDir&&e.moveSpeed)stats.push(`moving ${e.moveDir} @ ${e.moveSpeed} mph`);
+      if(stats.length)lines.push(`  • ${stats.join(', ')}.`);
+      if(e.etaTsfHr!=null&&e.etaTsfHr>0&&!e.inWindRadii.kt34){
+        const h=e.etaTsfHr<1?Math.round(e.etaTsfHr*60)+' min':Math.round(e.etaTsfHr*10)/10+' h';
+        lines.push(`  • TS-force winds (34 kt) ETA: ~__${h}__ at current motion — *track-dependent.*`);
+      }else if(e.etaTsfHr===0){
+        lines.push(`  • [!red]TS-force winds (34 kt) are present at your location now.[/!]`);
+      }
+      const namedAlerts=[];
+      if(e.alerts){
+        for(const w of (e.alerts.warnings||[]))namedAlerts.push('⚠️ '+w);
+        for(const w of (e.alerts.watches||[]))namedAlerts.push('👁️ '+w);
+      }
+      if(namedAlerts.length)lines.push(`  • NWS: ${namedAlerts.slice(0,4).join(' · ')}`);
+    }
+    lines.push('');
+    lines.push('**Hurricane Threat Model** (per system, see Tropical Cyclones tab for full breakdown):');
+    lines.push(`- **Wind:** see max sustained / gust figures above; wind-radii polygons (34/50/64 kt) drive impact extent.`);
+    lines.push(`- **Storm Surge:** *Not assessed in System Briefing* — check NWS Storm Surge Warnings on the Alerts tab and the NHC Peak Storm Surge Forecast.`);
+    lines.push(`- **Rain / Inland Flooding:** *Not assessed in System Briefing* — check the Open-Meteo precipitation forecast above and NWS Flood Watches.`);
+    lines.push(`- **Tornado Risk:** *Not assessed in System Briefing* — landfalling tropical systems often spin up brief tornadoes in their NE quadrant; check the SPC and the AFD section.`);
+    lines.push(`- **Timing:** TS-force ETA shown per system above when wind-radii + motion are available.`);
+    lines.push(`- **Confidence / Track Uncertainty:** ${HURRICANE_CONE_CAVEAT}`);
+    return lines.join('\n');
   }
 
   function _stormLine(item,metric){
@@ -381,7 +442,7 @@
   function buildSystemBriefing(data){
     try{
       const d=data||gatherBriefingData();
-      const out=[buildOverview(d),buildThreats(d),buildSafety(d),buildAviationMarine(d),buildBottomLine(d)].filter(Boolean);
+      const out=[buildHurricane(d),buildOverview(d),buildThreats(d),buildSafety(d),buildAviationMarine(d),buildBottomLine(d)].filter(Boolean);
       return out.join('\n\n');
     }catch(e){
       console.error('briefingEngine error',e);
@@ -400,6 +461,8 @@
     window.buildBriefingSafety=buildSafety;
     window.buildBriefingAviationMarine=buildAviationMarine;
     window.buildBriefingBottomLine=buildBottomLine;
+    window.buildBriefingHurricane=buildHurricane;
+    window.HURRICANE_CONE_CAVEAT=HURRICANE_CONE_CAVEAT;
   }
 })();
 
@@ -416,7 +479,38 @@ function saveBriefingMode(v){
   localStorage.setItem('st_briefingMode',next);
   if(typeof syncBriefingModeUI==='function')syncBriefingModeUI();
 }
+function toggleHurricaneOverride(){
+  const cur=localStorage.getItem('st_hurricane_override')==='1';
+  const next=!cur;
+  if(next)localStorage.setItem('st_hurricane_override','1');
+  else localStorage.removeItem('st_hurricane_override');
+  if(typeof syncHurricaneOverrideUI==='function')syncHurricaneOverrideUI();
+  if(typeof toast==='function')toast(next?'Hurricane Mode: Force-ON':'Hurricane Mode: AUTO');
+}
+function syncHurricaneOverrideUI(){
+  const btn=document.getElementById('settings-hurricane-toggle');
+  const stat=document.getElementById('settings-hurricane-status');
+  const forced=localStorage.getItem('st_hurricane_override')==='1';
+  if(btn){
+    btn.textContent=forced?'FORCE-ON':'AUTO';
+    btn.style.background=forced?'rgba(255,152,0,0.18)':'rgba(255,255,255,0.04)';
+    btn.style.color=forced?'#ff9800':'var(--text-muted)';
+    btn.style.borderColor=forced?'#ff9800':'var(--border-subtle)';
+  }
+  if(stat){
+    const hm=(typeof S!=='undefined')?S._hurricaneMode:null;
+    if(hm&&hm.active)stat.textContent='ACTIVE · '+hm.systems.length+' system'+(hm.systems.length===1?'':'s');
+    else if(forced)stat.textContent='Forced (no active system)';
+    else stat.textContent='Inactive';
+    stat.style.color=(hm&&hm.active)?'#ff9800':'var(--text-muted)';
+  }
+}
+if(typeof window!=='undefined'){
+  window.toggleHurricaneOverride=toggleHurricaneOverride;
+  window.syncHurricaneOverrideUI=syncHurricaneOverrideUI;
+}
 function syncBriefingModeUI(){
+  if(typeof syncHurricaneOverrideUI==='function')syncHurricaneOverrideUI();
   const wrap=document.getElementById('settings-briefing-mode-wrap');
   if(!wrap)return;
   const hasKey=(typeof getAIKey==='function')?!!getAIKey():false;

@@ -715,6 +715,7 @@ async function scanRadarForView(){
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
     if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
+    if(typeof refreshRainClock==='function')refreshRainClock(true);
     if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     if(S.map){
       plotStormMarkers(S.map);
@@ -801,6 +802,7 @@ async function scanRadarHiRes(map,fromHome){
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
     if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
+    if(typeof refreshRainClock==='function')refreshRainClock(true);
     if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     plotStormMarkers(map);
     if(rawPoints.length>0){autoActivateZones()}
@@ -1634,6 +1636,30 @@ function updateThreatTicker(){
     bar.style.borderColor=borderColor;
     bar.style.background=bg;
   }
+  // v4.42 — Hurricane Mode chips. Highest priority of all ticker output.
+  // Cycles every 3rd minute so users still see NWS alerts and storm chips in
+  // between, but a tropical-system threat always returns to the front quickly.
+  const hm=S._hurricaneMode;
+  if(hm&&hm.active&&hm.systems&&hm.systems.length){
+    const cycleMin=Math.floor(Date.now()/60000);
+    const hurricanePhase=(cycleMin%3)===0;
+    if(hurricanePhase){
+      const chips=hm.systems.slice(0,3).map(e=>{
+        const cat=e.cat&&e.cat.label?e.cat.label:'Tropical';
+        const reason=e.inCone?'YOU ARE IN THE FORECAST CONE':(e.distMi!=null?(e.distMi+' mi away'):'tracking');
+        const winds=(e.inWindRadii&&e.inWindRadii.kt64)?' · 🌪️ inside 64 kt+ wind field':(e.inWindRadii&&e.inWindRadii.kt50)?' · 💨 inside 50 kt+ wind field':(e.inWindRadii&&e.inWindRadii.kt34)?' · 💨 inside 34 kt+ TS-force wind field':'';
+        const alertBit=(e.alerts&&e.alerts.warningInZone)?' · ⚠️ WARNING for your area':(e.alerts&&e.alerts.watchInZone)?' · 👁️ WATCH for your area':'';
+        return `🌀 ${e.type||'Tropical System'} ${e.name} (${cat}) — ${reason}${winds}${alertBit}`;
+      });
+      const caveat='⚠️ Cone is a 67% envelope — tracks have shifted >50 mi inside 24 h on past storms. Do not stand down based on cone position alone.';
+      const sep='<span style="color:#444;margin:0 40px">│</span>';
+      const html='<span style="color:#ff9800;font-weight:700">'+chips.join(sep)+sep+caveat+'</span>';
+      const peakCat=Math.max(...hm.systems.map(e=>(e.cat&&e.cat.num!=null)?e.cat.num:0));
+      const color=peakCat>=3?'#ff1744':peakCat>=1?'#ff9800':'#ffc107';
+      showTicker(html,color,color,'linear-gradient(90deg,rgba(40,5,10,0.95),rgba(50,15,5,0.95),rgba(40,5,10,0.95))',Math.max(20,Math.round((chips.join(' ').length+caveat.length)*0.18)));
+      return;
+    }
+  }
   if(S.alerts&&S.alerts.length){
     const cycleMin=Math.floor(Date.now()/60000);
     const alertPhase=S._alertsShownOnce===false||(cycleMin%3)!==2;
@@ -1936,6 +1962,7 @@ async function pollOverheadRain(){
     const maxDbz=newPts.reduce((m,p)=>p.dbz>m?p.dbz:m,-999);
     console.log('[OverheadPoll]',useNexrad?'NEX':'RV','tiles=',promises.length,'newPts=',newPts.length,'maxDbz=',maxDbz>-999?maxDbz:'none');
     if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
+    if(typeof refreshRainClock==='function')refreshRainClock(true);
   }catch(e){console.log('[OverheadPoll] failed:',e.message)}
   finally{S._overheadPollBusy=false}
 }

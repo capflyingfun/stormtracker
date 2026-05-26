@@ -179,6 +179,43 @@ function buildWeatherContext(){
     }
   }
 
+  // v4.42 — TROPICAL CYCLONE DATA. Always emitted when Hurricane Mode is
+  // active (user in cone, within 300 mi, inside a wind-radii polygon, or has a
+  // tropical watch/warning in-zone) so the AI cannot omit a life-safety
+  // tropical system in favor of convective chatter. Cone-uncertainty caveat is
+  // hard-coded — model must NOT paraphrase it away.
+  try{
+    const hm=(typeof S!=='undefined'&&S._hurricaneMode)?S._hurricaneMode:null;
+    if(hm&&hm.active&&hm.systems&&hm.systems.length){
+      parts.push(`\nTROPICAL CYCLONE DATA — HURRICANE MODE ACTIVE (${hm.systems.length} system${hm.systems.length===1?'':'s'} flagged):`);
+      for(const e of hm.systems){
+        const cat=e.cat&&e.cat.label?e.cat.label:'Tropical';
+        const dStr=e.distMi!=null?(e.distMi+' mi'):'?';
+        const dir=e.bearing!=null?degToDir(e.bearing):'';
+        parts.push(`  🌀 ${e.type||'Tropical System'} ${e.name} (${cat}) — ${dStr} ${dir} of user${e.inCone?' — USER IS INSIDE THE FORECAST CONE':''}`);
+        const stat=[];
+        if(e.maxWind)stat.push(`max sustained ${e.maxWind} mph`);
+        if(e.gusts)stat.push(`gusts ${e.gusts} mph`);
+        if(e.minPressure)stat.push(`min pressure ${e.minPressure} mb`);
+        if(e.moveDir&&e.moveSpeed)stat.push(`moving ${e.moveDir} @ ${e.moveSpeed} mph`);
+        if(stat.length)parts.push(`     ${stat.join(', ')}.`);
+        if(e.inWindRadii&&e.inWindRadii.kt64)parts.push(`     ⚠️ USER IS CURRENTLY INSIDE THE 64+ KT HURRICANE-FORCE WIND FIELD.`);
+        else if(e.inWindRadii&&e.inWindRadii.kt50)parts.push(`     ⚠️ USER IS CURRENTLY INSIDE THE 50+ KT WIND FIELD.`);
+        else if(e.inWindRadii&&e.inWindRadii.kt34)parts.push(`     ⚠️ USER IS CURRENTLY INSIDE THE 34+ KT TROPICAL-STORM-FORCE WIND FIELD.`);
+        if(e.etaTsfHr!=null&&e.etaTsfHr>0)parts.push(`     TS-force-wind ETA at current motion: ~${e.etaTsfHr<1?Math.round(e.etaTsfHr*60)+' min':(Math.round(e.etaTsfHr*10)/10)+' h'} (track-dependent).`);
+        if(e.alerts&&e.alerts.warnings.length)parts.push(`     NWS warnings: ${e.alerts.warnings.join(', ')}${e.alerts.warningInZone?' (IN YOUR AREA)':''}.`);
+        if(e.alerts&&e.alerts.watches.length)parts.push(`     NWS watches: ${e.alerts.watches.join(', ')}${e.alerts.watchInZone?' (IN YOUR AREA)':''}.`);
+        parts.push(`     Triggers: ${e.triggers.join(', ')}.`);
+      }
+      parts.push(`\nMANDATORY TROPICAL RULES — these override every other section:`);
+      parts.push(`  1. LEAD the response with a "🌀 Tropical Cyclone Overview" block before any convective/Storms-tab discussion. Name every flagged system above.`);
+      parts.push(`  2. NEVER omit a flagged system, even if the user asked a different question — these systems are inside the cone, within 300 mi, inside a wind-radii polygon, or have a tropical watch/warning in their area. Life-safety overrides intent.`);
+      parts.push(`  3. ALWAYS include the cone-uncertainty caveat verbatim or near-verbatim: "Forecast cone is a 67% probability envelope — historical tracks have shifted >50 mi inside 24 h on multiple past storms. Do not stand down based on cone position alone. Re-check every NHC advisory cycle." You must NOT soften, paraphrase away, or skip this — it is a documented cause-of-loss-of-life lesson.`);
+      parts.push(`  4. For each flagged system, address Wind / Storm Surge / Rain-Flood / Tornado risk / Timing / Confidence using the numbers above plus the NWS alerts / AFD already in this context. If a dimension is not assessable, say so — never invent values.`);
+      parts.push(`  5. After the tropical block, continue with the normal convective / aviation / safety sections — Hurricane Mode is ADDITIVE, not a replacement.`);
+    }
+  }catch(e){console.warn('hurricane mode context error',e)}
+
   // STORM CONTEXT — consume the SAME post-filter snapshot the Storms tab cards
   // and System Briefing render from, so all three surfaces agree on the cell
   // list. This block replaces the prior raw-storm rebuild.

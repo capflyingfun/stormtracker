@@ -860,6 +860,7 @@ async function scanRadarForStorms(){
     if(reqId!==S._locReqId){hideScanOverlay();return}
     renderStorms();updateStormBadges();drawMiniSonar();
     if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
+    if(typeof refreshRainClock==='function')refreshRainClock(true);
     if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     if(S.map){plotStormMarkers(S.map);if(rawPoints.length>0){autoActivateZones()}else{clearStormZones();if(S.radarLayer&&!S.map.hasLayer(S.radarLayer))try{S.radarLayer.addTo(S.map)}catch(e){}}}
     if(S.map){plotSPCWatchPolygons(S.map);plotNWSWarningPolygons(S.map);plotSPCReports(S.map);plotNHCTracks(S.map)}
@@ -1505,7 +1506,103 @@ function _recomputeNHCUserFields() {
     s._tropAlerts = _getTropicalAlertsForStorm(s);
   });
   _nhcData.systems.sort((a, b) => (a.dist || 99999) - (b.dist || 99999));
+  _evaluateHurricaneMode();
 }
+// v4.42: Point-in-polygon (ring of [lon,lat] vertices) against the user.
+function _userInRing(ring){
+  if(!ring||ring.length<3||S.lat==null||S.lon==null)return false;
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const yi=ring[i][1],xi=ring[i][0];
+    const yj=ring[j][1],xj=ring[j][0];
+    if(((yi>S.lat)!==(yj>S.lat))&&(S.lon<(xj-xi)*(S.lat-yi)/(yj-yi)+xi))inside=!inside;
+  }
+  return inside;
+}
+function _minMiToRingEdge(ring){
+  if(!ring||!ring.length||S.lat==null||S.lon==null)return null;
+  let best=Infinity;
+  for(const v of ring){
+    if(v==null||v[0]==null||v[1]==null)continue;
+    const d=haversine(S.lat,S.lon,v[1],v[0]);
+    if(d<best)best=d;
+  }
+  return isFinite(best)?best:null;
+}
+// v4.42: Hurricane Mode evaluator. Walks every active tropical system (ignores
+// the user's region filter — life-safety must not be hidden by a UI filter)
+// and flags systems where the user is inside the forecast cone, within 300 mi,
+// inside a wind-radii polygon, or has a tropical watch/warning in-zone. Stash
+// on S._hurricaneMode so briefingEngine/ai/ticker/settings can all consume one
+// source of truth.
+function _evaluateHurricaneMode(){
+  const out={active:false,systems:[],evaluatedAt:Date.now()};
+  if(!_nhcData.systems||!_nhcData.systems.length||S.lat==null){S._hurricaneMode=out;return out}
+  const PROX_MI=300;
+  for(const s of _nhcData.systems){
+    const triggers=[];
+    if(s._inCone)triggers.push('in_cone');
+    if(s.dist!=null&&s.dist<=PROX_MI)triggers.push('within_'+PROX_MI+'mi');
+    const radii=(_nhcData.windRadii||[]).filter(wr=>wr.stormId===s.id||(wr.stormName||'').toLowerCase()===(s.name||'').toLowerCase());
+    const inWind={};
+    for(const wr of radii){
+      if(_userInRing(wr.coords))inWind['kt'+wr.ktLevel]=true;
+    }
+    if(inWind.kt64)triggers.push('in_hurricane_force');
+    else if(inWind.kt50)triggers.push('in_50kt_winds');
+    else if(inWind.kt34)triggers.push('in_ts_winds');
+    const alerts=s._tropAlerts||{watches:[],warnings:[]};
+    const warnInZone=alerts.warnings.some(w=>w.inZone);
+    const watchInZone=alerts.watches.some(w=>w.inZone);
+    if(warnInZone)triggers.push('warning_in_zone');
+    if(watchInZone)triggers.push('watch_in_zone');
+    if(!triggers.length)continue;
+    // ETA to TS-force winds (34 kt edge). 0 if already inside; null if no data.
+    let etaTsfHr=null;
+    if(inWind.kt34)etaTsfHr=0;
+    else{
+      const kt34=radii.find(wr=>wr.ktLevel===34);
+      if(kt34&&s.moveSpeed&&s.moveSpeed>0){
+        const edgeMi=_minMiToRingEdge(kt34.coords);
+        if(edgeMi!=null)etaTsfHr=Math.max(0,edgeMi/s.moveSpeed);
+      }else if(s.moveSpeed&&s.moveSpeed>0&&s.dist!=null){
+        // Crude fallback: assume TS-wind radius ~ category-scaled. Use storm-center distance.
+        etaTsfHr=Math.max(0,s.dist/s.moveSpeed);
+      }
+    }
+    out.systems.push({
+      system:s,
+      name:s.name,type:s.type,
+      cat:s.category,
+      distMi:s.dist!=null?Math.round(s.dist):null,
+      bearing:(s.lat!=null&&s.lon!=null&&S.lat!=null)?(()=>{const dLon=(s.lon-S.lon)*Math.PI/180;const y=Math.sin(dLon)*Math.cos(s.lat*Math.PI/180);const x=Math.cos(S.lat*Math.PI/180)*Math.sin(s.lat*Math.PI/180)-Math.sin(S.lat*Math.PI/180)*Math.cos(s.lat*Math.PI/180)*Math.cos(dLon);return (Math.atan2(y,x)*180/Math.PI+360)%360})():null,
+      moveDir:s.moveDir||null,moveSpeed:s.moveSpeed||null,
+      maxWind:s.maxWind||null,gusts:s.gusts||null,minPressure:s.minPressure||null,
+      etaTsfHr,
+      inCone:!!s._inCone,
+      inWindRadii:inWind,
+      alerts:{
+        warnings:alerts.warnings.map(w=>w.event).filter(Boolean),
+        warningInZone:warnInZone,
+        watches:alerts.watches.map(w=>w.event).filter(Boolean),
+        watchInZone
+      },
+      triggers
+    });
+  }
+  if(out.systems.length){
+    out.active=true;
+    // Sort: in-cone first, then closest
+    out.systems.sort((a,b)=>{
+      if(a.inCone!==b.inCone)return a.inCone?-1:1;
+      return (a.distMi||99999)-(b.distMi||99999);
+    });
+  }
+  S._hurricaneMode=out;
+  try{if(typeof syncHurricaneOverrideUI==='function')syncHurricaneOverrideUI();}catch(e){}
+  return out;
+}
+window._evaluateHurricaneMode=_evaluateHurricaneMode;
 async function fetchNHCData() {
   const now = Date.now();
   if (now - _nhcData._lastFetch < 900000 && _nhcData.systems !== null) {
