@@ -715,6 +715,7 @@ async function scanRadarForView(){
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
     if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
+    if(typeof refreshRainClock==='function')refreshRainClock(true);
     if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     if(S.map){
       plotStormMarkers(S.map);
@@ -801,6 +802,7 @@ async function scanRadarHiRes(map,fromHome){
     await new Promise(r=>setTimeout(r,300));
     renderStorms();updateStormBadges();drawMiniSonar();
     if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
+    if(typeof refreshRainClock==='function')refreshRainClock(true);
     if(typeof ISO!=='undefined'&&ISO.open){ISO._grid=buildTerrainGrid();ISO._dirty=true;}
     plotStormMarkers(map);
     if(rawPoints.length>0){autoActivateZones()}
@@ -1936,6 +1938,7 @@ async function pollOverheadRain(){
     const maxDbz=newPts.reduce((m,p)=>p.dbz>m?p.dbz:m,-999);
     console.log('[OverheadPoll]',useNexrad?'NEX':'RV','tiles=',promises.length,'newPts=',newPts.length,'maxDbz=',maxDbz>-999?maxDbz:'none');
     if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
+    if(typeof refreshRainClock==='function')refreshRainClock(true);
   }catch(e){console.log('[OverheadPoll] failed:',e.message)}
   finally{S._overheadPollBusy=false}
 }
