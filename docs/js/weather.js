@@ -1886,7 +1886,7 @@ function renderRainForecastBars(){
     const x=padL+i*barW;
     const y=padT+innerH-hPx;
     const dbz=_precipMmToDbz(s.mm);
-    const col=(typeof dbzHex==='function'&&dbz>=15)?dbzHex(Math.max(dbz,20)):'#39ff14';
+    const col=(typeof dbzHex==='function')?dbzHex(dbz):'#39ff14';
     bars+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1,barW-0.5).toFixed(1)}" height="${hPx.toFixed(1)}" fill="${col}" opacity="0.92" rx="1"/>`;
   }
   const baseY=padT+innerH;
@@ -1894,11 +1894,14 @@ function renderRainForecastBars(){
   const tickHours=[0,6,12,24,36];
   let xTicks='';
   for(const th of tickHours){
-    if(th>=slots.length)continue;
+    if(th>slots.length)continue;
     const x=padL+th*barW;
-    const lbl=th===0?'Now':fmtClock(new Date(slots[Math.min(th,slots.length-1)].t));
+    let lbl;
+    if(th===0)lbl='Now';
+    else if(th<slots.length)lbl=fmtClock(new Date(slots[th].t));
+    else lbl=fmtClock(new Date(slots[slots.length-1].t+3600000));
     xTicks+=`<line x1="${x.toFixed(1)}" y1="${baseY}" x2="${x.toFixed(1)}" y2="${baseY+3}" stroke="#5a6a7e" stroke-width="1"/>`;
-    xTicks+=`<text x="${x.toFixed(1)}" y="${(baseY+13).toFixed(1)}" fill="#9fb3c8" font-size="8" text-anchor="middle">${lbl}</text>`;
+    xTicks+=`<text x="${x.toFixed(1)}" y="${(baseY+13).toFixed(1)}" fill="#9fb3c8" font-size="8" text-anchor="${th===36?'end':'middle'}">${lbl}</text>`;
   }
   const maxLbl=(typeof fmtPrecip==='function')?fmtPrecip(maxMm):(maxMm.toFixed(2)+' mm');
   const totalLbl=(typeof fmtPrecip==='function')?fmtPrecip(total):(total.toFixed(2)+' mm');
