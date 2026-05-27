@@ -3,6 +3,16 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.61
+
+AI request per-attempt timeout bumped from 30s to 60s.
+
+User reported that on slower connections legitimate AI Briefing responses were sometimes pushing close to a minute end-to-end (the model is summarizing storms, METAR, AFD, alerts, shear, instability, and inbound cells all in one prompt — it's a lot of context to chew through). At a 30-second per-attempt timeout the AbortController was firing on real, in-flight responses, not just dead sockets, so the user was watching the retry kick in unnecessarily.
+
+Changes:
+
+- **`docs/js/ai.js`** — `PER_ATTEMPT_MS` in `sendAIChat` raised from `30000` to `60000`. The visible countdown ("Attempt 2/3 · 47s remaining…") and the abort-error fallback string ("timed out after 60s") follow. Total worst-case wall time is now 3 × 60s ≈ 3 minutes before the "Three failed attempts" message appears, vs. ~1.5 minutes before. Non-retryable failures (401 / 429 / 402) still short-circuit instantly, so the longer ceiling only applies when the network is actually struggling.
+
 ## v4.60
 
 AI panel collapses to a clean "Built-in Summary Assistant (NO AI)" view when there's no OpenAI key.

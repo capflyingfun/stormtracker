@@ -717,13 +717,17 @@ async function sendAIChat(){
   _aiChatHistory.push({role:'user',content:msg});
   showAITyping();
 
-  // v4.59: retry chain. Up to 3 attempts, each with a 30s timeout
-  // (AbortController). A visible countdown tells the user which attempt is
-  // running and how many seconds remain. Non-network failures (401 bad key,
-  // 429 rate limit, 402 quota) skip the retry — those won't fix themselves
+  // v4.59 / v4.61: retry chain. Up to 3 attempts, each with a 60s timeout
+  // (AbortController). v4.61 bumped from 30s -> 60s because the model is
+  // processing a lot of context (storms, METAR, AFD, alerts, shear, etc.)
+  // and on slower connections legitimate responses were sometimes pushing
+  // close to a minute; 30s was cutting off real responses, not just dead
+  // sockets. A visible countdown tells the user which attempt is running
+  // and how many seconds remain. Non-network failures (401 bad key, 429
+  // rate limit, 402 quota) skip the retry — those won't fix themselves
   // by trying again. Network errors / timeouts / 5xx server errors retry.
   const MAX_ATTEMPTS=3;
-  const PER_ATTEMPT_MS=30000;
+  const PER_ATTEMPT_MS=60000;
   const sysPrompt=getAISystemPrompt();
   const messages=[{role:'system',content:sysPrompt},..._aiChatHistory.slice(-10)];
   let attempt=0;
@@ -769,7 +773,7 @@ async function sendAIChat(){
       clearTimeout(to);
       _stopAICountdown();
       const wasAbort=e.name==='AbortError';
-      lastErrMsg=wasAbort?'timed out after 30s':e.message;
+      lastErrMsg=wasAbort?'timed out after 60s':e.message;
       console.log(`AI attempt ${attempt}/${MAX_ATTEMPTS} failed: ${lastErrMsg}`);
       if(attempt<MAX_ATTEMPTS){
         _showAIStatus(`Attempt ${attempt} ${wasAbort?'timed out':'failed'} — retrying…`);
