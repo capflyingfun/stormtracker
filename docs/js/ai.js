@@ -109,8 +109,13 @@ function fmtAIText(raw){
   let s=raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   s=s.replace(/__(.+?)__/g,'<u>$1</u>');
   const _aiColors={red:'#ff3355',orange:'#f97316',yellow:'#eab308',green:'#22c55e',cyan:'#00e5ff'};
-  s=s.replace(/\[!(red|orange|yellow|green|cyan)\]([\s\S]+?)\[\/!\]/g,(m,c,t)=>`<span style="color:${_aiColors[c]};font-weight:600">${t}</span>`);
-  s=s.replace(/\[!dbz:(-?\d+(?:\.\d+)?)\]([\s\S]+?)\[\/!\]/g,(m,n,t)=>{const c=(typeof dbzHex==='function')?dbzHex(parseFloat(n)):'#888';return `<span style="color:${c};font-weight:600">${t}</span>`;});
+  s=s.replace(/\[!\s*(red|orange|yellow|green|cyan)\s*\]([\s\S]+?)\[\/!\]/gi,(m,c,t)=>`<span style="color:${_aiColors[c.toLowerCase()]};font-weight:600">${t}</span>`);
+  // v4.62: dbz regex widened to accept ranges (`[!dbz:45-55]`), decimals,
+  // whitespace, and case variants the model sometimes emits. Anything that
+  // still slips past the structured passes is stripped by the final
+  // defensive sweep at the end of this function so raw markup like
+  // "[!dbz:55]" or "[/!]" can never leak into the rendered briefing.
+  s=s.replace(/\[!\s*dbz\s*:\s*(-?\d+(?:\.\d+)?)(?:\s*[-–]\s*-?\d+(?:\.\d+)?)?\s*\]([\s\S]+?)\[\/!\]/gi,(m,n,t)=>{const c=(typeof dbzHex==='function')?dbzHex(parseFloat(n)):'#888';return `<span style="color:${c};font-weight:600">${t}</span>`;});
   s=s.replace(/\*\*\*(.+?)\*\*\*/g,'<b><i>$1</i></b>');
   s=s.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
   s=s.replace(/\*(.+?)\*/g,'<i>$1</i>');
@@ -119,12 +124,22 @@ function fmtAIText(raw){
   s=s.replace(/^# (.+)$/gm,'<span style="display:block;font-weight:800;font-size:1.05em;color:var(--accent-cyan);margin-top:8px">$1</span>');
   s=s.replace(/^[-•] (.+)$/gm,'<span style="display:block;padding-left:12px;text-indent:-10px">• $1</span>');
   s=s.replace(/^\d+\.\s+(.+)$/gm,function(m,p1,offset,str){return '<span style="display:block;padding-left:12px">'+m+'</span>'});
+  // v4.62: defensive sweep — strip any orphan [!...]/[/!] tokens that
+  // survived the structured replacements above (e.g. mismatched pairs,
+  // unknown tag names, or markup the model invented). Without this the
+  // raw markup leaks into the user's briefing as "[!dbz:..." gibberish.
+  s=s.replace(/\[!\s*[^\]]*\]/g,'').replace(/\[\/!\]/g,'');
   return s;
 }
 function stripAIMarkup(raw){
+  // v4.62: tolerant of the same range/whitespace variants fmtAIText
+  // handles, plus a final defensive sweep that nukes any remaining
+  // [!...]/[/!] tokens so the copied-to-clipboard text is always clean.
   return String(raw||'')
-    .replace(/\[!dbz:[^\]]+\]([\s\S]+?)\[\/!\]/g,'$1')
-    .replace(/\[!(red|orange|yellow|green|cyan)\]([\s\S]+?)\[\/!\]/g,'$2')
+    .replace(/\[!\s*dbz\s*:[^\]]+\]([\s\S]+?)\[\/!\]/gi,'$1')
+    .replace(/\[!\s*(red|orange|yellow|green|cyan)\s*\]([\s\S]+?)\[\/!\]/gi,'$2')
+    .replace(/\[!\s*[^\]]*\]/g,'')
+    .replace(/\[\/!\]/g,'')
     .replace(/__(.+?)__/g,'$1')
     .replace(/\*\*\*(.+?)\*\*\*/g,'$1')
     .replace(/\*\*(.+?)\*\*/g,'$1')

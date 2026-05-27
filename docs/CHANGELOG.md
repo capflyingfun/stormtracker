@@ -3,6 +3,18 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.62
+
+Fixed raw `[!dbz:...]` / `[/!]` markup leaking into AI briefings.
+
+User reported that about 3/4 of the way down their AI briefing, raw markup tokens like `[!dbz:...]` and `[/!]` were leaking into the rendered text. The system prompt instructs the model to wrap every dBZ value in a custom tag — `[!dbz:55]55 dBZ[/!]` — so the number can be rendered in the radar-palette color matching its intensity. The renderer's regex was strict: it only matched a single number (`[!dbz:55]`), no ranges, no stray whitespace, no case variation. The model frequently emits ranges in summary sentences (`[!dbz:45-55]45–55 dBZ[/!]`), and when it does, the regex misses and the raw markup leaks straight through to the user's screen and the copied-to-clipboard text.
+
+Changes (`docs/js/ai.js`):
+
+- **`fmtAIText()`** — dBZ regex widened to accept ranges (`[!dbz:45-55]`), decimals, optional whitespace around the colon/brackets, and case-insensitive `DBZ`. The color/severity regex (`[!red]…[/!]`, etc.) is now also case-insensitive and whitespace-tolerant.
+- **Defensive sweep at the end of `fmtAIText()`** — any orphan `[!...]` or `[/!]` token that survived the structured passes (mismatched pairs, unknown tag names, markup the model invented on its own) is stripped before render. The user will never again see raw markup leak, even if the model invents a tag we don't recognize.
+- **`stripAIMarkup()`** (the copy-to-clipboard path) — same tolerance widening and the same final sweep, so the text the user copies into another app is also always clean.
+
 ## v4.61
 
 AI request per-attempt timeout bumped from 30s to 60s.
