@@ -3,6 +3,20 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.59
+
+System Briefing drops the AFD wall + AI Briefing now retries with a visible countdown.
+
+User reported two things:
+
+1. The non-AI (System) briefing was getting cut short because we were dumping the full NWS Area Forecast Discussion (AFD) verbatim into the body. The AFD is a long, technical narrative written for meteorologists — it overflowed the briefing window with a "...[Truncated]" tail and pushed the useful sections off-screen. User suggested either dropping it from the System briefing or summarizing it with something free.
+2. The AI Briefing hit a "Connection error" on spotty LTE with no retry — the user had to manually re-ask. Asked for an automatic retry with a visible 30-second countdown, up to 3 attempts total, and a friendly message after the third failure.
+
+Changes:
+
+- **`docs/js/briefingEngine.js`** — the System (non-AI) briefing no longer pastes the raw AFD into the Situation Overview. The AI Briefing still consumes the AFD (with the model summarizing it naturally) via the separate `buildWeatherContext()` path in `docs/js/ai.js`, so nothing is lost on that side. Skipping a third-party summarizer service keeps the System briefing fully on-device and key-free as advertised.
+- **`docs/js/ai.js`** — `sendAIChat` rewritten as a retry loop: up to 3 attempts, each with a hard 30-second timeout via `AbortController`. A live status line under the typing dots shows which attempt is running (`Attempt 2/3 · 27s remaining…`). After the third failure the user sees: *"Three failed attempts. Internet connection is weak — try moving to a different location or connecting to Wi-Fi, then ask again."* Non-retryable failures (401 bad key, 429 rate limit, 402 quota) still short-circuit and surface their specific message immediately — no point burning retries on errors that won't fix themselves.
+
 ## v4.58
 
 Rain Clock wording fix + faster recovery on slow connections.

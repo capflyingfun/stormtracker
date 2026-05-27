@@ -112,7 +112,33 @@ function showAITyping(){
   d.innerHTML='<span></span><span></span><span></span>';
   c.appendChild(d);c.scrollTop=c.scrollHeight;
 }
-function hideAITyping(){const e=document.getElementById('ai-typing-ind');if(e)e.remove();}
+function hideAITyping(){const e=document.getElementById('ai-typing-ind');if(e)e.remove();_stopAICountdown();}
+// v4.59: visible status/countdown shown alongside the typing dots so the user
+// knows the request is still in flight, how long until it times out, and
+// which retry attempt is running. Replaces the silent "no response" wait the
+// user hit on spotty data.
+function _showAIStatus(text){
+  const c=document.getElementById('ai-chat-messages');if(!c)return;
+  let el=document.getElementById('ai-status-ind');
+  if(!el){
+    el=document.createElement('div');
+    el.id='ai-status-ind';
+    el.style.cssText='font-size:0.72em;color:var(--text-muted);font-style:italic;padding:4px 12px;margin-top:-4px';
+    c.appendChild(el);
+  }
+  el.textContent=text;
+  c.scrollTop=c.scrollHeight;
+}
+function _hideAIStatus(){const e=document.getElementById('ai-status-ind');if(e)e.remove();}
+let _aiCountdownTimer=null;
+function _startAICountdown(seconds,attempt,maxAttempts){
+  _stopAICountdown();
+  let s=seconds;
+  const update=()=>_showAIStatus(`Attempt ${attempt}/${maxAttempts} · ${s}s remaining…`);
+  update();
+  _aiCountdownTimer=setInterval(()=>{s--;if(s<=0){_stopAICountdown();return}update()},1000);
+}
+function _stopAICountdown(){if(_aiCountdownTimer){clearInterval(_aiCountdownTimer);_aiCountdownTimer=null}_hideAIStatus()}
 function aiQuickQ(q){
   const inp=document.getElementById('ai-chat-input');
   if(inp)inp.value=q;
@@ -639,39 +665,69 @@ async function sendAIChat(){
   _aiChatHistory.push({role:'user',content:msg});
   showAITyping();
 
-  try{
-    const sysPrompt=getAISystemPrompt();
-    const messages=[{role:'system',content:sysPrompt},..._aiChatHistory.slice(-10)];
+  // v4.59: retry chain. Up to 3 attempts, each with a 30s timeout
+  // (AbortController). A visible countdown tells the user which attempt is
+  // running and how many seconds remain. Non-network failures (401 bad key,
+  // 429 rate limit, 402 quota) skip the retry — those won't fix themselves
+  // by trying again. Network errors / timeouts / 5xx server errors retry.
+  const MAX_ATTEMPTS=3;
+  const PER_ATTEMPT_MS=30000;
+  const sysPrompt=getAISystemPrompt();
+  const messages=[{role:'system',content:sysPrompt},..._aiChatHistory.slice(-10)];
+  let attempt=0;
+  let lastErrMsg='';
+  while(attempt<MAX_ATTEMPTS){
+    attempt++;
+    _startAICountdown(PER_ATTEMPT_MS/1000,attempt,MAX_ATTEMPTS);
+    const ctrl=new AbortController();
+    const to=setTimeout(()=>ctrl.abort(),PER_ATTEMPT_MS);
+    try{
+      const res=await fetch('https://api.openai.com/v1/chat/completions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+        body:JSON.stringify({model:getAIModel(),messages,max_tokens:2500,temperature:0.4}),
+        signal:ctrl.signal
+      });
+      clearTimeout(to);
+      _stopAICountdown();
 
-    const res=await fetch('https://api.openai.com/v1/chat/completions',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-      body:JSON.stringify({model:getAIModel(),messages,max_tokens:2500,temperature:0.4})
-    });
+      if(!res.ok){
+        const err=await res.json().catch(()=>({}));
+        const errMsg=err.error?.message||`API error ${res.status}`;
+        lastErrMsg=errMsg;
+        // Non-retryable: don't burn attempts on errors that won't fix themselves.
+        if(res.status===401){hideAITyping();addAIMsg('error','Invalid API key. Please check your OpenAI API key in Settings.');return}
+        if(res.status===429){hideAITyping();addAIMsg('error','Rate limit exceeded. Please wait a moment and try again.');return}
+        if(res.status===402||(res.status===400&&errMsg.includes('quota'))){hideAITyping();addAIMsg('error','API quota exceeded. Check your OpenAI billing at platform.openai.com.');return}
+        // 5xx (server error) and other transient codes — retry if we have attempts left.
+        if(res.status>=500&&attempt<MAX_ATTEMPTS){console.log(`AI retry: HTTP ${res.status} on attempt ${attempt}`);continue}
+        hideAITyping();
+        addAIMsg('error','API error: '+errMsg);
+        return;
+      }
 
-    hideAITyping();
-
-    if(!res.ok){
-      const err=await res.json().catch(()=>({}));
-      const errMsg=err.error?.message||`API error ${res.status}`;
-      if(res.status===401)addAIMsg('error','Invalid API key. Please check your OpenAI API key in Settings.');
-      else if(res.status===429)addAIMsg('error','Rate limit exceeded. Please wait a moment and try again.');
-      else if(res.status===402||res.status===400&&errMsg.includes('quota'))addAIMsg('error','API quota exceeded. Check your OpenAI billing at platform.openai.com.');
-      else addAIMsg('error','API error: '+errMsg);
+      const data=await res.json();
+      const reply=data.choices?.[0]?.message?.content||'No response received.';
+      _aiChatHistory.push({role:'assistant',content:reply});
+      hideAITyping();
+      addAIMsg('assistant',reply);
+      if(_aiChatHistory.length>20)_aiChatHistory.splice(0,_aiChatHistory.length-14);
+      return;
+    }catch(e){
+      clearTimeout(to);
+      _stopAICountdown();
+      const wasAbort=e.name==='AbortError';
+      lastErrMsg=wasAbort?'timed out after 30s':e.message;
+      console.log(`AI attempt ${attempt}/${MAX_ATTEMPTS} failed: ${lastErrMsg}`);
+      if(attempt<MAX_ATTEMPTS){
+        _showAIStatus(`Attempt ${attempt} ${wasAbort?'timed out':'failed'} — retrying…`);
+        await new Promise(r=>setTimeout(r,800));
+        continue;
+      }
+      hideAITyping();
+      addAIMsg('error','Three failed attempts. Internet connection is weak — try moving to a different location or connecting to Wi-Fi, then ask again. (Last error: '+lastErrMsg+')');
       return;
     }
-
-    const data=await res.json();
-    const reply=data.choices?.[0]?.message?.content||'No response received.';
-    _aiChatHistory.push({role:'assistant',content:reply});
-    addAIMsg('assistant',reply);
-
-    if(_aiChatHistory.length>20){
-      _aiChatHistory.splice(0,_aiChatHistory.length-14);
-    }
-  }catch(e){
-    hideAITyping();
-    addAIMsg('error','Connection error: '+e.message);
   }
 }
 

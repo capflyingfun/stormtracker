@@ -240,10 +240,12 @@
       const tag=sev.includes('strong')||sev.includes('extreme')?'orange':sev.includes('moderate')?'yellow':'cyan';
       lines.push(`Wind shear: [!${tag}]${d.shear.vectorShear} (${d.shear.severity})[/!], Δdir ${d.shear.dirDiff}°. ${d.shear.impact}`);
     }
-    if(d.afd&&d.afd.discussion){
-      const full=d.afd.discussion.replace(/\s+/g,' ').trim();
-      lines.push(`*AFD (${d.afd.office||'NWS'}):* ${full}`);
-    }
+    // v4.59: AFD intentionally omitted from the System (non-AI) briefing.
+    // The raw NWS Area Forecast Discussion is a long, technical narrative
+    // written for meteorologists — dropping it whole into a deterministic
+    // briefing produced the "...[Truncated]" wall the user reported. The
+    // AI Briefing still consumes the AFD (with summarization) via the
+    // separate buildWeatherContext() path in docs/js/ai.js.
     return lines.join('\n');
   }
 
