@@ -3,6 +3,22 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.58
+
+Rain Clock wording fix + faster recovery on slow connections.
+
+User reported two issues on a slow LTE connection: (1) the Rain Clock header still said "RADAR + FORECAST" and the card showed "Nothing showing up on radar" next to "~0.06 in expected next 3 h" — a confusing contradiction, since the small expected amount was actually coming from the Open-Meteo fallback, not from radar. (2) Storm points loaded but winds aloft never arrived; the card sat on "Waiting on Open-Meteo" indefinitely and only fixed itself when the app was closed and reopened.
+
+Wording fixes in `docs/js/weather.js`:
+
+1. **Source tag**: "RADAR + FORECAST" → just "RADAR" (or "FORECAST (fallback)" in the rare case radar isn't ready but the forecast has filled in). The dial is radar-only as of v4.57, so claiming forecast input on the tag was wrong.
+2. **Expected-rainfall amount** is now suppressed when the dial has no rain windows AND the amount came purely from the forecast fallback — so the card no longer shows "No rain on radar" right next to "~0.06 in expected." When radar actually projects rain, the amount still appears as before.
+
+Recovery fixes:
+
+3. **Open-Meteo background retry** (`_OM_RETRY_DELAYS` in `docs/js/weather.js`): retry delays tightened from [15s, 30s, 60s] (gave up after ~1m45s) to [5s, 10s, 20s, 45s, 90s] (~3m total, snappier first attempt). On slow connections this back-fills hourly/daily/UV/freeze-level cells without the user having to close and reopen the app.
+4. **Winds aloft background retry** (new `_scheduleWindsAloftRetry` in `docs/js/storms.js`): mirrors the Open-Meteo retry. Previously, if every aloft provider (Open-Meteo main → customer-api → NOMADS GFS) timed out, the card just said "Winds aloft failed" and storm-cone projections silently went stale until the next hourly autorefresh. Now a retry chain fires at 6s / 15s / 30s / 60s, and on success the rain clock and storm projections re-render automatically.
+
 ## v4.57
 
 Rain Clock shrunk back to 3 hours, radar-only.

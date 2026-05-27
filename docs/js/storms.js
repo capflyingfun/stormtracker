@@ -421,10 +421,36 @@ async function fetchWindsAloft(overrideLat,overrideLon){
       const msg=lastErr?lastErr.message:'all providers failed';
       console.log('Winds aloft: all providers failed ('+msg+')');
       if(typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft failed ('+msg+')');
+      _scheduleWindsAloftRetry(lat,lon,0);
       return;
     }
     _applyAloftData(aloftSpeeds,provInfo,lat,lon);
-  }catch(e){console.log('Winds aloft fetch failed:',e.message);if(typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft failed')}
+  }catch(e){console.log('Winds aloft fetch failed:',e.message);if(typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft failed');_scheduleWindsAloftRetry(lat,lon,0)}
+}
+// v4.58: background retry for winds aloft. Mirrors the Open-Meteo background
+// retry in weather.js — when every aloft provider times out on a slow
+// connection, schedule a fresh attempt instead of giving up until the next
+// autorefresh. Storm-cone projections (which use the aloft vector to predict
+// where cells will track) silently quietly went stale otherwise.
+const _ALOFT_RETRY_DELAYS=[6000,15000,30000,60000];
+function _scheduleWindsAloftRetry(lat,lon,attempt){
+  if(attempt>=_ALOFT_RETRY_DELAYS.length){console.log('Winds aloft retry: giving up after '+_ALOFT_RETRY_DELAYS.length+' attempts');return}
+  if(S._aloftRetryTimer){clearTimeout(S._aloftRetryTimer);S._aloftRetryTimer=null}
+  S._aloftRetryTimer=setTimeout(async()=>{
+    S._aloftRetryTimer=null;
+    // Bail if the user has moved or the cache filled in via some other path.
+    if(S.lat!==lat||S.lon!==lon)return;
+    if(S._aloftData&&S._aloftData.length>=2)return;
+    console.log('Winds aloft retry '+(attempt+1)+'/'+_ALOFT_RETRY_DELAYS.length+'…');
+    const before=S._aloftData?S._aloftData.length:0;
+    await fetchWindsAloft(lat,lon);
+    if(S._aloftData&&S._aloftData.length>=2){
+      console.log('Winds aloft retry succeeded — refreshing storm projections');
+      if(typeof refreshRainClock==='function')refreshRainClock(true);
+    } else if((S._aloftData?S._aloftData.length:0)===before) {
+      _scheduleWindsAloftRetry(lat,lon,attempt+1);
+    }
+  },_ALOFT_RETRY_DELAYS[attempt]);
 }
 
 async function fetchAFD(){

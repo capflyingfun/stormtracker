@@ -300,7 +300,12 @@ async function fetchWeather(){
 // returns, hourly/daily/UV/freeze-level cells back-fill in place without
 // the user tapping Retry. Capped at 3 attempts so a sustained outage
 // doesn't keep retrying forever — autorefresh / page switch picks it up.
-const _OM_RETRY_DELAYS=[15000,30000,60000];
+// v4.58: tighter, more attempts. Old delays (15/30/60s, 3 tries) gave up
+// after ~1m45s — on slow connections the user would see "Waiting on
+// Open-Meteo" and have to manually close/reopen the app. New chain stays
+// snappy early (5s) and stretches to ~3 minutes total before yielding to
+// the hourly autorefresh.
+const _OM_RETRY_DELAYS=[5000,10000,20000,45000,90000];
 function _scheduleOMRetry(reqId,omPath,isUS,attempt){
   if(attempt>=_OM_RETRY_DELAYS.length){console.log('OM background retry: giving up after '+_OM_RETRY_DELAYS.length+' attempts — autorefresh will retry');return}
   if(S._omRetryTimer){clearTimeout(S._omRetryTimer);S._omRetryTimer=null}
@@ -2227,8 +2232,14 @@ function renderRainClock(){
   }
   // v4.57: rain amount estimate over the next 3 hours (radar-preferred,
   // forecast fallback). See totalMm assignment above.
+  // v4.58: suppress the amount line when the dial has no rain windows AND
+  // the amount came from the forecast fallback — otherwise the card reads
+  // "No rain on radar" right next to "~0.06 in expected", which is the
+  // confusing contradiction the user reported.
   let amountLine='';
-  if(data.totalMm>0.05){
+  const _amtFromRadar=(data.radarHourlyMm||[]).reduce((a,b)=>a+(b||0),0)>0.01;
+  const _hasWindows=data.windows&&data.windows.length;
+  if(data.totalMm>0.05 && (_amtFromRadar||_hasWindows)){
     let amtTxt;
     if(typeof fmtPrecip==='function'){amtTxt=fmtPrecip(data.totalMm)}
     else{const inches=data.totalMm/25.4;amtTxt=inches<0.1?data.totalMm.toFixed(1)+' mm':inches.toFixed(2)+' in'}
@@ -2263,7 +2274,10 @@ function renderRainClock(){
   }
   const hasClickable=data.ready&&data.windows.some(w=>w.cells&&w.cells.length);
   const hint=hasClickable?`<div style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:2px;font-style:italic">Tap a colored arc to see which storms cause it</div>`:'';
-  const sourceTag=data.radarReady&&data.forecastReady?'RADAR + FORECAST':data.radarReady?'RADAR':data.forecastReady?'FORECAST':'';
+  // v4.58: dial is radar-only now, so drop the "+ FORECAST" tag. Forecast is
+  // still consulted for the 3h amount when radar isn't ready, but it doesn't
+  // paint anything on the dial — labelling it would be misleading.
+  const sourceTag=data.radarReady?'RADAR':data.forecastReady?'FORECAST (fallback)':'';
   // Header tag uses secBtns when the helper exists, so the rain clock card
   // joins the up/down reorder system used by the other Weather sections.
   const reorder=(typeof secBtns==='function')?secBtns('rainclock'):'';
