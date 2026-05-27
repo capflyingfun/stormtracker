@@ -3,6 +3,25 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.57
+
+Rain Clock shrunk back to 3 hours, radar-only.
+
+User reported the rain clock was still putting too much emphasis on Open-Meteo instead of actual radar, plus a startup timing race where on the first load OM hadn't loaded yet but the dial drew anyway, then on subsequent loads OM was there but still wasn't drawing correctly. Asked to simply: make the clock a 3-hour radar-only dial, keep the expected-rainfall amount, and let the 36-hour bar chart below carry the forecast story.
+
+Changes to the rain clock in `docs/js/weather.js`:
+
+1. **Dial span**: `_RC_TOTAL_MIN` 720 → 180. The whole dial now represents the next 3 hours, matching the radar advection horizon.
+2. **Hour labels**: 12 hourly labels → 6 labels at 30-minute intervals (Now, +30m, +1h, +1h30m, +2h, +2h30m). The live wall-clock time tick still updates each label every 60s.
+3. **Tick ring**: minor ticks unchanged (still 120), majors moved from every 10th tick to every 20th so they line up with the new 30-minute label positions.
+4. **Forecast overlay removed from the dial**. The hourly forecast walk still runs, but only to compute a 3-hour fallback rainfall amount — it no longer paints arcs. Radar advection is the sole source for what appears on the dial.
+5. **Center text** now reads "next 3 hours" instead of "next 12 hours". Expected-rainfall amount prefers the radar-derived per-hour mm/hr sum (from v4.56) and only falls back to the forecast model when radar isn't ready yet.
+6. **Boundary marker** at the 3-hour position removed — it now coincides with the top of the dial (same place as "Now"), so the dashed line would have been redundant.
+7. **Background arc** redrawn as a full circle (the old SVG path arc degenerated at TOTAL=180 because start and end angles coincided).
+8. **Title** updated from "Rain Clock · 12h" to "Rain Clock · 3h".
+
+The 36-hour Total Precipitation bar chart below is unchanged — it still uses the OM+NWS hybrid for hours 3+ and the v4.56 radar-derived values for hours 0-2.
+
 ## v4.56
 
 Rain Clock and Rain Forecast Bars now agree about the next 3 hours.

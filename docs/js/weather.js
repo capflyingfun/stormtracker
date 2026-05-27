@@ -1941,12 +1941,16 @@ function _nextRainHourFromForecast(){
   return null;
 }
 
-// v4.46: Rain Clock now spans a full 12 hours (720 minutes).
-// 0-180 min comes from radar advection (per-minute closest-approach).
-// 181-720 min comes from Open-Meteo hourly precipitation forecast.
-// Minimum dBZ filter raised 20 → 25 so cone projection only counts cells
-// that actually produce measurable rain at the user's location.
-const _RC_TOTAL_MIN=720;
+// v4.57: Rain Clock shrunk back to 3 hours (180 minutes), radar-only.
+// User explicitly asked: dial should be driven by actual radar and winds
+// aloft, not Open-Meteo forecast. The 3-12h forecast overlay introduced in
+// v4.46 was too eager to paint forecast arcs even when radar showed nothing,
+// AND had a startup timing race where OM hadn't loaded but the dial drew
+// anyway. Solution: trim the dial to the radar advection horizon, keep the
+// expected-rainfall amount in the center (now a 3-hour total — radar-derived
+// when ready, OM fallback otherwise), and leave the 36-hour bar chart below
+// to carry the forecast story.
+const _RC_TOTAL_MIN=180;
 const _RC_MIN_DBZ=25;
 function _rainClockProject(){
   const out={ready:false,minutes:new Array(_RC_TOTAL_MIN+1).fill(0),windows:[],
@@ -2031,59 +2035,34 @@ function _rainClockProject(){
       out.radarHourlyMm[hr]=sumMmHr/60;
     }
   }
-  // v4.47: overlay Open-Meteo hourly forecast precipitation for minutes 0..720.
-  // Use the same findIndex(now-30min) anchor that the Rain Forecast Bars use,
-  // so what the dial paints and what the bars below it paint always agree —
-  // an earlier bug iterated h.time from index 0 (which can include past hours
-  // or be misaligned when Open-Meteo's first slot isn't "now"), so future-hour
-  // forecast slots were getting their `mins` computed against the wrong base
-  // and either skipped or assigned to the wrong dial position.
+  // v4.57: forecast overlay no longer writes onto the dial — the dial is
+  // radar-only now. We still walk the hourly forecast to compute the
+  // expected-rainfall amount shown in the center, used ONLY as a fallback
+  // when radar isn't ready yet (radarHourlyMm sum wins when available).
+  let _fcstFirst3hMm=0;
   if(haveHourly){
-    // v4.48: iterate EVERY hourly slot and bucket by computed `mins`, instead
-    // of relying on a findIndex anchor + a 14-slot cap. The previous design
-    // could stop early or misalign when Open-Meteo returned non-monotonic
-    // timestamps or when the dial loop's anchor differed from the bar chart's,
-    // which is why forecast rain at +5h..+11h sometimes never reached the dial
-    // even though it was clearly painted on the Rain Forecast Bars below it.
     const nowMs=Date.now();
     for(let i=0;i<h.time.length;i++){
       const ts=new Date(h.time[i]).getTime();
       if(isNaN(ts))continue;
       const mins=(ts-nowMs)/60000;
-      if(mins>_RC_TOTAL_MIN)continue;
-      if(mins<-60)continue;
+      if(mins>180)continue;
+      if(mins<-30)continue;
       const mm=h.precipitation[i]||0;
-      if(mins>=0&&mins<=_RC_TOTAL_MIN)out.totalMm+=mm;
-      if(mm<=0)continue;
-      // v4.55: forecast overlay uses a LIGHT-RAIN floor (>=0.1 mm/hr) instead
-      // of the 25 dBZ radar-noise filter. NWS QPF returns gridpoint values in
-      // 3-6 hour chunks that we spread across clock hours, so per-hour values
-      // routinely sit around 0.3-1 mm/hr (~15-23 dBZ) -- legitimate light rain
-      // that the dBZ filter was discarding. Bar chart already shows it; clock
-      // should too. Below the floor we still record a minimum drawable dBZ so
-      // the arc shows up in the dial's lightest color (no false "all clear").
-      if(mm<0.1)continue;
-      const dbzRaw=_precipMmToDbz(mm);
-      const dbz=Math.max(15,dbzRaw); // ensure forecast rain is at least drawable
-      const startM=Math.max(0,Math.floor(mins));
-      const endM=Math.min(_RC_TOTAL_MIN,startM+60);
-      // v4.56: forecast overlay now ONLY fills the >180 min zone. First 3 hours
-      // come exclusively from radar advection so the clock and the bar chart
-      // never disagree about what's happening right now — both views show real
-      // observed rain for hours 0-2, both views show forecast for hours 3+.
-      if(endM<=180)continue;
-      const effStart=Math.max(181,startM);
-      for(let m=effStart;m<endM;m++){
-        if(dbz>out.minutes[m])out.minutes[m]=dbz;
-      }
+      if(mm>0)_fcstFirst3hMm+=mm;
     }
     out.forecastReady=true;
   }
-  // v4.55: windows builder uses a lower threshold (15 dBZ ~ light rain floor)
-  // so the forecast-overlay arc draws for hours below the 25-dBZ radar noise
-  // cutoff. Without this, anything we just wrote in via the forecast loop
-  // (clamped to >=15) was being silently dropped by the window detector.
-  const _WIN_MIN=15;
+  // v4.57: totalMm reflects expected rainfall in the next 3 hours.
+  // Prefer the radar-derived per-hour mm/hr sum (real observed cells crossing
+  // the user's location); fall back to the forecast model only when radar
+  // isn't ready or shows nothing. This matches the user's ask: dial driven by
+  // actual radar/winds aloft, not Open-Meteo.
+  const _radarSum=(out.radarHourlyMm||[]).reduce((a,b)=>a+(b||0),0);
+  out.totalMm=_radarSum>0.01?_radarSum:_fcstFirst3hMm;
+  // Windows builder uses 25 dBZ start threshold — the dial is radar-only now
+  // (forecast overlay removed), so we go back to the strict radar-noise floor.
+  const _WIN_MIN=_RC_MIN_DBZ;
   let cur=null;
   for(let t=0;t<=_RC_TOTAL_MIN;t++){
     const v=out.minutes[t];
@@ -2138,11 +2117,12 @@ function renderRainClock(){
   const nowD=new Date(now);
   function ang(min){return (min/TOTAL)*2*Math.PI-Math.PI/2}
   function ptAt(min,r){const a=ang(min);return [CX+r*Math.cos(a),CY+r*Math.sin(a)]}
-  // 120 minor ticks (every 6 min), major every hour (every 10th tick)
+  // v4.57: 120 minor ticks (every 1.5 min on a 180-min dial), major every
+  // 30 min (every 20th tick) so the major ticks align with the 6 hour labels.
   let ticks='';
   for(let i=0;i<120;i++){
     const a=(i/120)*2*Math.PI-Math.PI/2;
-    const major=i%10===0;
+    const major=i%20===0;
     const r1=major?R_TICK_IN-3:R_TICK_IN+4;
     const r2=R_TICK_OUT;
     ticks+=`<line x1="${(CX+r1*Math.cos(a)).toFixed(1)}" y1="${(CY+r1*Math.sin(a)).toFixed(1)}" x2="${(CX+r2*Math.cos(a)).toFixed(1)}" y2="${(CY+r2*Math.sin(a)).toFixed(1)}" stroke="${major?'#9fb3c8':'#3a4a5e'}" stroke-width="${major?2:1}"/>`;
@@ -2152,11 +2132,15 @@ function renderRainClock(){
   // Bottom line = dynamic wall-clock time, refreshed every 60s by
   // _rainClockStartTick(). The time tspan carries data-rc-outer so the tick
   // can find and update only the time, leaving the offset untouched.
+  // v4.57: 6 labels at 30-minute intervals around the 3-hour dial:
+  // Now / +30m / +1h / +1h30m / +2h / +2h30m. Top line is the offset (static),
+  // bottom line is the live wall-clock time (refreshed every 60s by the tick).
   let hourLabels='';
-  for(let i=0;i<12;i++){
-    const [x,y]=ptAt(i*60,R_LABEL);
-    const off=i===0?'Now':'+'+i+'h';
-    const t=new Date(now+i*3600000);
+  const _offLabels=['Now','+30m','+1h','+1h30m','+2h','+2h30m'];
+  for(let i=0;i<6;i++){
+    const [x,y]=ptAt(i*30,R_LABEL);
+    const off=_offLabels[i];
+    const t=new Date(now+i*30*60000);
     const tStr=fmtClock(t);
     hourLabels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle">`
       +`<tspan x="${x.toFixed(1)}" dy="-6" fill="#9fb3c8" font-size="11" font-weight="700">${off}</tspan>`
@@ -2169,12 +2153,11 @@ function renderRainClock(){
   let arcs='';
   let segHandlers='';
   if(data.ready){
-    const radarBoundary=180;
-    // Background for radar zone (0-180 min) — faint blue tint to show the
-    // "advection" portion vs the forecast portion.
-    const [bgX0,bgY0]=ptAt(0,R_ARC);
-    const [bgX1,bgY1]=ptAt(radarBoundary,R_ARC);
-    arcs+=`<path d="M ${bgX0.toFixed(1)} ${bgY0.toFixed(1)} A ${R_ARC} ${R_ARC} 0 0 1 ${bgX1.toFixed(1)} ${bgY1.toFixed(1)}" stroke="rgba(80,140,200,0.10)" stroke-width="${R_ARC_W}" fill="none" stroke-linecap="butt"/>`;
+    // v4.57: full-circle background for the radar zone (the whole dial IS
+    // the radar zone now). Drawn as a single <circle> instead of an SVG arc
+    // because at TOTAL=180 the start and end angles coincide and a path arc
+    // would degenerate to nothing.
+    arcs+=`<circle cx="${CX}" cy="${CY}" r="${R_ARC}" stroke="rgba(80,140,200,0.10)" stroke-width="${R_ARC_W}" fill="none"/>`;
     // Per-minute colored segments.
     for(let m=0;m<TOTAL;m++){
       const v=data.minutes[m];
@@ -2213,7 +2196,7 @@ function renderRainClock(){
   else if(!data.windows.length){
     if(_omPart){centerLines=['Waiting on','Open-Meteo…'];_phrases.push({title:'Waiting on Open-Meteo',body:'Forecast service is slow or unreachable right now. The Rain Clock will fill in as soon as data arrives.'});}
     else if(data.stale&&!data.forecastReady){centerLines=['Radar stale','run a scan'];_phrases.push({title:'Radar is stale',body:'Run a fresh scan to update the Rain Clock with the latest radar.'});}
-    else{centerLines=['No rain expected','next 12 hours'];_phrases.push({title:'No rain expected',body:'Nothing showing up on radar or in the forecast for the next 12 hours.'});}
+    else{centerLines=['No rain expected','next 3 hours'];_phrases.push({title:'No rain expected',body:'Nothing showing up on radar for the next 3 hours.'});}
   } else {
     const w=data.windows[0];
     const w2=data.windows[1];
@@ -2242,7 +2225,8 @@ function renderRainClock(){
       _phrases.push(head);
     }
   }
-  // Rain amount estimate over the next 12 hours (forecast-derived)
+  // v4.57: rain amount estimate over the next 3 hours (radar-preferred,
+  // forecast fallback). See totalMm assignment above.
   let amountLine='';
   if(data.totalMm>0.05){
     let amtTxt;
@@ -2264,10 +2248,9 @@ function renderRainClock(){
   }
   // "Now" pointer — small triangle at the top tick
   const nowPointer=`<polygon points="${CX},${CY-R_OUTER+2} ${CX-5},${CY-R_OUTER+10} ${CX+5},${CY-R_OUTER+10}" fill="#fbbf24"/>`;
-  // Radar/forecast boundary marker (subtle line at the 3-hour position)
-  const [bX1,bY1]=ptAt(180,R_ARC-R_ARC_W/2-2);
-  const [bX2,bY2]=ptAt(180,R_ARC+R_ARC_W/2+2);
-  const boundary=`<line x1="${bX1.toFixed(1)}" y1="${bY1.toFixed(1)}" x2="${bX2.toFixed(1)}" y2="${bY2.toFixed(1)}" stroke="#475569" stroke-width="1" stroke-dasharray="2,2"/>`;
+  // v4.57: boundary marker removed — the 3-hour position is now the top of
+  // the dial (same place as "Now"), so a marker there would be redundant.
+  const boundary='';
   // Sub + footer
   let sub='';
   if(data.nearest){
@@ -2299,7 +2282,7 @@ function renderRainClock(){
       <div onclick="_rainClockToggleView()" style="cursor:pointer;background:rgba(10,16,32,0.55);border:1px solid #1e2a3c;border-radius:12px;padding:22px 18px;min-height:200px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;max-width:380px;margin:0 auto" title="Tap to switch back to dial view">
         <div style="font-size:1.05em;font-weight:700;color:#e6edf3;line-height:1.3;margin-bottom:8px">${phrase.title}</div>
         <div style="font-size:0.85em;color:#cfd8e3;line-height:1.45;max-width:32em">${phrase.body}</div>
-        ${amountLine?`<div style="font-size:0.8em;color:#5eead4;font-weight:600;margin-top:10px">~${(typeof fmtPrecip==='function'?fmtPrecip(data.totalMm):(data.totalMm/25.4).toFixed(2)+' in')} expected next 12 h</div>`:''}
+        ${amountLine?`<div style="font-size:0.8em;color:#5eead4;font-weight:600;margin-top:10px">~${(typeof fmtPrecip==='function'?fmtPrecip(data.totalMm):(data.totalMm/25.4).toFixed(2)+' in')} expected next 3 h</div>`:''}
         <div style="font-size:0.62em;color:var(--text-muted);font-style:italic;margin-top:14px">Tap to switch back to dial view</div>
       </div>`;
   } else {
@@ -2314,7 +2297,7 @@ function renderRainClock(){
   el.innerHTML=`
     <div class="card weather-section" data-sec="rainclock" style="padding:10px 8px;margin-bottom:8px">
       <div class="sec-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span class="card-title m-0"><span class="icon">🌧️</span> Rain Clock · 12h</span>
+        <span class="card-title m-0"><span class="icon">🌧️</span> Rain Clock · 3h</span>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:0.55em;color:var(--text-muted);letter-spacing:0.04em">${sourceTag}</span>
           ${toggleBtn}
