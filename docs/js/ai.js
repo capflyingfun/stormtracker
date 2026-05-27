@@ -46,12 +46,64 @@ function toggleAIChat(){
   _aiChatOpen=!_aiChatOpen;
   o.style.display=_aiChatOpen?'block':'none';
   if(_aiChatOpen){
-    const msgs=document.getElementById('ai-chat-messages');
+    _applyAIPanelMode();
+  }
+}
+// v4.60: panel has two distinct modes driven entirely by the presence
+// (or absence) of an OpenAI API key. When there's no key the chat input,
+// quick-questions, and Send button are all dead weight — every button
+// except "Full briefing" just produces the "No API key configured" error.
+// So we collapse the panel down to a single auto-rendered Built-in
+// Summary, retitle the header, hide the dead controls, and expose a
+// ♻️ refresh button in their place. When a key IS present the original
+// full chat UI is restored.
+function _applyAIPanelMode(){
+  const hasKey=(typeof getAIKey==='function')?!!getAIKey():false;
+  const title=document.getElementById('ai-header-title');
+  const icon=document.getElementById('ai-header-icon');
+  const refreshBtn=document.getElementById('ai-refresh-btn');
+  const clearBtn=document.getElementById('ai-clear-btn');
+  const qq=document.getElementById('ai-quick-questions');
+  const inputRow=document.getElementById('ai-input-row');
+  const msgs=document.getElementById('ai-chat-messages');
+  if(hasKey){
+    if(title)title.textContent='AI Weather Assistant';
+    if(icon)icon.textContent='🤖';
+    if(refreshBtn)refreshBtn.style.display='none';
+    if(clearBtn)clearBtn.style.display='';
+    if(qq)qq.style.display='';
+    if(inputRow)inputRow.style.display='';
     if(msgs&&!msgs.children.length){
       addAIMsg('system','🤖 AI Weather Assistant ready. Ask me anything about the current weather, storms, or conditions at your location.');
     }
     setTimeout(()=>{const inp=document.getElementById('ai-chat-input');if(inp)inp.focus()},200);
+  }else{
+    if(title)title.textContent='Built-in Summary Assistant (NO AI)';
+    if(icon)icon.textContent='📋';
+    if(refreshBtn)refreshBtn.style.display='';
+    if(clearBtn)clearBtn.style.display='none';
+    if(qq)qq.style.display='none';
+    if(inputRow)inputRow.style.display='none';
+    // Auto-run the deterministic briefing on every open so the user
+    // always sees a fresh snapshot without clicking anything.
+    refreshSummaryBriefing();
   }
+}
+// Re-render the built-in summary in place. Clears prior content first
+// so each refresh is a clean snapshot (no scroll-back through stale
+// briefings) and the ♻️ press feels instant.
+function refreshSummaryBriefing(){
+  const msgs=document.getElementById('ai-chat-messages');
+  if(msgs)msgs.innerHTML='';
+  if(typeof buildBriefing==='function'){
+    const reply='[!cyan]Built-in Summary (deterministic, on-device · no AI).[/!]\n\n'+buildBriefing();
+    addAIMsg('assistant',reply);
+  }else{
+    addAIMsg('error','Briefing engine not loaded yet — try again in a moment.');
+  }
+}
+if(typeof window!=='undefined'){
+  window.refreshSummaryBriefing=refreshSummaryBriefing;
 }
 function fmtAIText(raw){
   let s=raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

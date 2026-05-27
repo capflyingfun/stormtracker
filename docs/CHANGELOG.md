@@ -3,6 +3,20 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.60
+
+AI panel collapses to a clean "Built-in Summary Assistant (NO AI)" view when there's no OpenAI key.
+
+User pointed out that the AI panel was showing five quick-question buttons (Current conditions, Storms approaching?, Next few hours?, Safe outdoors?, plus the Send button and chat input) even when no API key was configured — and every one of those except "Full briefing" just produced a "No API key configured" error. Dead buttons that all fail with the same message are worse than no buttons. Asked to auto-run the briefing on open and replace the dead controls with a single ♻️ refresh button.
+
+Changes:
+
+- **`docs/index.html`** — added IDs (`ai-header-icon`, `ai-header-title`, `ai-input-row`, `ai-refresh-btn`, `ai-clear-btn`) so the panel can be retitled and restructured per mode. Added the ♻️ refresh button next to the close button (hidden by default).
+- **`docs/js/ai.js`** — new `_applyAIPanelMode()` runs every time the panel opens and picks between two modes based on `getAIKey()`:
+  - **No key:** title becomes "Built-in Summary Assistant (NO AI)", icon swaps to 📋, the chat input row and quick-question buttons are hidden, the 🗑️ clear button is hidden (nothing to clear — each refresh replaces the previous snapshot), and the ♻️ button is exposed. The deterministic on-device briefing auto-runs immediately on open and on every ♻️ press, with the panel cleared first so each refresh feels instant and snapshot-like instead of stacking stale briefings.
+  - **Key present:** original full chat UI is restored — same title, same quick questions, same input, same Send button. Nothing changes for paying users.
+- New `refreshSummaryBriefing()` is the single entry point for the no-key path. It clears the message area, calls `buildBriefing()`, and prepends a small `[!cyan]Built-in Summary (deterministic, on-device · no AI).[/!]` banner so the user always knows which engine produced the text on screen.
+
 ## v4.59
 
 System Briefing drops the AFD wall + AI Briefing now retries with a visible countdown.

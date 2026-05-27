@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v4.59</title>
+<title>StormTracker v4.60</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <meta name="theme-color" content="#0a1020">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=555">
+<link rel="stylesheet" href="css/style.css?v=556">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -28,7 +28,7 @@
     <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
   <div class="header-center">
-    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v4.59</span></h1>
+    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v4.60</span></h1>
     <div class="header-status">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Initializing...</span>
@@ -555,12 +555,13 @@
   <div style="position:absolute;bottom:0;left:0;right:0;max-height:85vh;background:var(--bg-card);border-top-left-radius:16px;border-top-right-radius:16px;border:1px solid rgba(168,85,247,0.3);border-bottom:none;display:flex;flex-direction:column">
     <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border-subtle)">
       <div style="display:flex;align-items:center;gap:8px">
-        <span class="text-1-2">🤖</span>
-        <span style="font-size:0.95em;font-weight:700;color:var(--text-primary)">AI Weather Assistant</span>
+        <span class="text-1-2" id="ai-header-icon">🤖</span>
+        <span id="ai-header-title" style="font-size:0.95em;font-weight:700;color:var(--text-primary)">AI Weather Assistant</span>
         <span id="ai-status-dot" style="width:6px;height:6px;border-radius:50%;background:#4ade80;display:inline-block"></span>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
-        <button onclick="clearAIChat()" title="Clear chat" style="background:none;border:none;color:var(--text-muted);font-size:0.9em;cursor:pointer;padding:4px 8px;border-radius:6px;border:1px solid var(--border-subtle)">🗑️</button>
+        <button id="ai-refresh-btn" onclick="refreshSummaryBriefing()" title="Refresh briefing with latest data" style="display:none;background:none;border:1px solid var(--border-subtle);color:var(--text-muted);font-size:0.9em;cursor:pointer;padding:4px 8px;border-radius:6px">♻️</button>
+        <button id="ai-clear-btn" onclick="clearAIChat()" title="Clear chat" style="background:none;border:none;color:var(--text-muted);font-size:0.9em;cursor:pointer;padding:4px 8px;border-radius:6px;border:1px solid var(--border-subtle)">🗑️</button>
         <button onclick="toggleAIChat()" class="overlay-close-btn">✕</button>
       </div>
     </div>
@@ -572,7 +573,7 @@
       <button class="ai-qq" onclick="aiQuickQ('Is it safe to be outdoors right now?')">Safe outdoors?</button>
       <button class="ai-qq" onclick="runFullBriefing()" title="Honors your Briefing Mode setting (System or AI)">📋 Full briefing</button>
     </div>
-    <div style="padding:8px 16px 12px;display:flex;gap:8px;border-top:1px solid var(--border-subtle)">
+    <div id="ai-input-row" style="padding:8px 16px 12px;display:flex;gap:8px;border-top:1px solid var(--border-subtle)">
       <input type="text" id="ai-chat-input" placeholder="Ask about the weather..." style="flex:1;padding:10px 14px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:10px;font-size:0.85em;outline:none" onkeydown="if(event.key==='Enter')sendAIChat()">
       <button onclick="sendAIChat()" style="padding:10px 16px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:10px;font-size:0.85em;font-weight:600;cursor:pointer">Send</button>
     </div>
@@ -602,24 +603,24 @@
   </div>
 </div>
 
-<script src="js/core.js?v=555"></script>
-<script src="js/gauges.js?v=555"></script>
-<script src="js/icons.js?v=555"></script>
-<script src="js/geo.js?v=555"></script>
-<script src="js/settings.js?v=555"></script>
-<script src="js/thresholds.js?v=555"></script>
-<script src="js/weather.js?v=555"></script>
-<script src="js/radar.js?v=555"></script>
-<script src="js/storms.js?v=555"></script>
-<script src="js/station.js?v=555"></script>
-<script src="js/alerts.js?v=555"></script>
-<script src="js/briefingEngine.js?v=555"></script>
-<script src="js/ai.js?v=555"></script>
-<script src="js/init.js?v=555"></script>
+<script src="js/core.js?v=556"></script>
+<script src="js/gauges.js?v=556"></script>
+<script src="js/icons.js?v=556"></script>
+<script src="js/geo.js?v=556"></script>
+<script src="js/settings.js?v=556"></script>
+<script src="js/thresholds.js?v=556"></script>
+<script src="js/weather.js?v=556"></script>
+<script src="js/radar.js?v=556"></script>
+<script src="js/storms.js?v=556"></script>
+<script src="js/station.js?v=556"></script>
+<script src="js/alerts.js?v=556"></script>
+<script src="js/briefingEngine.js?v=556"></script>
+<script src="js/ai.js?v=556"></script>
+<script src="js/init.js?v=556"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
-<script src="js/view3d.js?v=555"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=555').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
+<script src="js/view3d.js?v=556"></script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=556').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
 </body>
 </html>
