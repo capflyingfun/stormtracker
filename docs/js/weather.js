@@ -2010,6 +2010,27 @@ function _rainClockProject(){
   }
   if(hasRadar&&!radarStale)out.radarReady=true;
   if(radarStale)out.stale=true;
+  // v4.56: compute radar-derived per-hour mm/hr for hours 0-2 BEFORE the
+  // forecast overlay writes anything. The bar chart reads this so the first
+  // 3 hours on BOTH views (clock + bars) come from real radar observations,
+  // not forecast models. Per-minute dBZ is converted back to mm/hr via the
+  // inverse Marshall-Palmer (Z=200*R^1.6), then averaged across the hour
+  // (rain only falls during minutes where a cell is overhead, so dividing by
+  // 60 gives the integrated hourly rate).
+  out.radarHourlyMm=[0,0,0];
+  if(out.radarReady){
+    for(let hr=0;hr<3;hr++){
+      let sumMmHr=0;
+      for(let m=hr*60;m<(hr+1)*60;m++){
+        const dbz=out.minutes[m];
+        if(dbz>0){
+          const z=Math.pow(10,dbz/10);
+          sumMmHr+=Math.pow(z/200,1/1.6);
+        }
+      }
+      out.radarHourlyMm[hr]=sumMmHr/60;
+    }
+  }
   // v4.47: overlay Open-Meteo hourly forecast precipitation for minutes 0..720.
   // Use the same findIndex(now-30min) anchor that the Rain Forecast Bars use,
   // so what the dial paints and what the bars below it paint always agree —
@@ -2046,9 +2067,13 @@ function _rainClockProject(){
       const dbz=Math.max(15,dbzRaw); // ensure forecast rain is at least drawable
       const startM=Math.max(0,Math.floor(mins));
       const endM=Math.min(_RC_TOTAL_MIN,startM+60);
-      // Forecast only fills slots radar didn't (≤180) and the future zone (>180).
-      for(let m=startM;m<endM;m++){
-        if(m<=180&&out.minutes[m]>=MIN_DBZ)continue; // protect strong radar
+      // v4.56: forecast overlay now ONLY fills the >180 min zone. First 3 hours
+      // come exclusively from radar advection so the clock and the bar chart
+      // never disagree about what's happening right now — both views show real
+      // observed rain for hours 0-2, both views show forecast for hours 3+.
+      if(endM<=180)continue;
+      const effStart=Math.max(181,startM);
+      for(let m=effStart;m<endM;m++){
         if(dbz>out.minutes[m])out.minutes[m]=dbz;
       }
     }
@@ -2455,6 +2480,19 @@ function renderRainForecastBars(){
     if(idx>=h.time.length)break;
     const mm=h.precipitation[idx]||0;
     slots.push({t:new Date(h.time[idx]).getTime(),mm});
+  }
+  // v4.56: first 3 hours = radar-derived observed rain (matches the rain clock).
+  // Forecast values for hours 0-2 are overridden with the rain clock's radar
+  // advection output, converted back to mm/hr via inverse Marshall-Palmer.
+  // This guarantees the bar chart and the clock never disagree about what's
+  // happening right now — they both read from the same radar contribs. Hours
+  // 3+ keep their hybrid OM+NWS forecast values.
+  const rc=S._rainClockData;
+  if(rc&&rc.radarReady&&Array.isArray(rc.radarHourlyMm)){
+    for(let i=0;i<Math.min(3,slots.length);i++){
+      slots[i].mm=rc.radarHourlyMm[i]||0;
+      slots[i]._radar=true;
+    }
   }
   if(!slots.length){el.innerHTML=`<div class="card weather-section" data-sec="rainbars" style="padding:8px;margin-bottom:8px"><div class="sec-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span class="card-title m-0" style="font-size:0.78em"><span class="icon">📊</span> Total Precipitation Next 36 hrs</span><div style="display:flex;gap:4px;align-items:center">${gridBtn}${reorder}</div></div><div style="font-size:0.7em;color:var(--text-secondary);text-align:center;padding:14px 6px">⏳ Forecast hours haven't refreshed yet — graph will fill in on the next update.</div></div>`;return;}
   const total=slots.reduce((a,s)=>a+s.mm,0);

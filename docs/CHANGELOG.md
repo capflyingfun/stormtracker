@@ -3,6 +3,22 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.56
+
+Rain Clock and Rain Forecast Bars now agree about the next 3 hours.
+
+User reported the bar chart was painting heavy rain Now → 19:00 (NWS QPF) while the rain clock above it only showed a small arc at +3h. Same time window, two different data sources, two different stories. The user asked: first 3 hours should be real radar observations on **both** views, and only +3h onward should use the forecast hybrid (Open-Meteo preferred, NWS as backup).
+
+Implementation:
+
+1. **Rain clock forecast overlay** now skips minutes 0–180 entirely. The 0–3h ring is filled exclusively by radar advection (cells projected to cross the 1.5 mi radius). Forecast data only fills the 3–12h zone. This was already mostly the case, but the v4.55 forecast loop would still write into minutes 0–180 whenever radar wrote nothing — now it doesn't.
+
+2. **Radar-derived per-hour mm/hr** is computed inside `_rainClockProject()` before the forecast overlay runs. Per-minute dBZ values from the radar advection are converted back to mm/hr via inverse Marshall-Palmer (R = (Z/200)^(1/1.6)), then averaged across each hour. Result is stashed on `S._rainClockData.radarHourlyMm` as a 3-element array.
+
+3. **Rain Forecast Bars** read that array and override the first three forecast slots with the radar-derived values whenever radar is ready. Hours 3+ keep the existing hybrid OM+NWS forecast (with NWS still merged per-hour MAX, as v4.54 introduced — the user wants both sources represented for the forecast zone).
+
+Net effect: if the rain clock says "no rain in the next hour," the bar chart's first hour bar will also be zero. If the clock shows a window of moderate rain starting at +90 min, the second hour of the bar chart will reflect that. When radar isn't loaded yet, the bars fall back to the forecast for hours 0-2 — graceful degradation, same pattern as the v4.51 winds-aloft watchdog.
+
 ## v4.55
 
 Rain Clock now draws forecast rain that's below the radar-noise threshold.
