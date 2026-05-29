@@ -1997,8 +1997,6 @@ function _rainClockProject(){
     haveMv=true;
   }
   out.motionUnknown=!haveMv;
-  const MI_PER_DEG_LAT=69.0;
-  const MI_PER_DEG_LON=69.0*Math.cos(S.lat*Math.PI/180);
   let nearestDist=Infinity,nearestBearing=null;
   for(const p of pts){
     if(p.dbz<MIN_DBZ)continue;
@@ -2006,53 +2004,53 @@ function _rainClockProject(){
     if(d<nearestDist){nearestDist=d;nearestBearing=bearingDeg(S.lat,S.lon,p.lat,p.lng)}
   }
   if(nearestDist<Infinity&&nearestBearing!=null){out.nearest={mi:nearestDist,dir:degToDir(nearestBearing)}}
-  const v2_mph2=vx*vx+vy*vy;
-  const v2_per_min2=v2_mph2/3600;
-  const vMag=Math.sqrt(v2_mph2);
-  // v4.66: 15° cone half-angle, same widening the Storms-tab cards use.
-  const _CONE_TAN=Math.tan(15*Math.PI/180);
-  // v4.66: cap the cone-widened catch radius so a very distant/fast cell can't
-  // sweep in a huge off-track swath and clutter the dial. 6 mi comfortably
-  // covers realistic inbound geometry (e.g. a 17 mi cell ~3.6 mi off-track).
-  const _EFF_R_CAP=6;
-  const contribs=[];
-  // v4.46: skip radar advection contributions when scan is stale — forecast drives.
-  for(const p of (radarStale?[]:pts)){
-    if(p.dbz<MIN_DBZ)continue;
-    const dx=(p.lng-S.lon)*MI_PER_DEG_LON;
-    const dy=(p.lat-S.lat)*MI_PER_DEG_LAT;
-    const dist0=Math.sqrt(dx*dx+dy*dy);
-    // v4.66: intensity-scaled cell radius (was a flat 1.5 mi for every cell).
-    const baseR=_rcCellRadiusMi(p.dbz);
-    if(!haveMv||v2_per_min2<1e-6){
-      if(dist0<=baseR){
-        if(p.dbz>out.minutes[0])out.minutes[0]=p.dbz;
-        contribs.push({lat:p.lat,lng:p.lng,dbz:p.dbz,dist:dist0,bearing:bearingDeg(S.lat,S.lon,p.lat,p.lng),tIn:0,tOut:0,diaMi:2*baseR});
-      }
-      continue;
-    }
-    const tStar=-(dx*vx+dy*vy)/v2_mph2*60;
-    const cx=dx+vx*tStar/60,cy=dy+vy*tStar/60;
-    const dmin2=cx*cx+cy*cy;
-    // v4.66: catch radius widens with how far the cell must travel to reach its
-    // closest approach — the same 15° cone the Storms-tab cards use. This makes
-    // the dial agree with the cards: a distant lighter cell the cards call
-    // "inbound" now registers an arrival here instead of being missed by the
-    // old flat 1.5 mi circle.
-    const distAlongV=Math.max(0,vMag*tStar/60);
-    const effR=Math.min(_EFF_R_CAP,baseR+distAlongV*_CONE_TAN);
-    if(dmin2>effR*effR)continue;
-    // v4.66: rain DURATION over the user is the cell DIAMETER divided by storm
-    // speed (diameter/speed*60 min) — how long the cell takes to pass overhead —
-    // centered on the closest-approach time. (Previously the window length came
-    // from the catch-circle chord, which grew with the catch radius and no
-    // longer reflects the physical cell size.)
-    const passMin=Math.max(1,(2*baseR)/Math.max(vMag,0.1)*60);
-    const tIn=Math.max(0,Math.floor(tStar-passMin/2));
-    const tOut=Math.min(180,Math.ceil(tStar+passMin/2));
-    if(tIn>180||tOut<0)continue;
-    for(let t=tIn;t<=tOut;t++){if(p.dbz>out.minutes[t])out.minutes[t]=p.dbz}
-    contribs.push({lat:p.lat,lng:p.lng,dbz:p.dbz,dist:dist0,bearing:bearingDeg(S.lat,S.lon,p.lat,p.lng),tIn,tOut,diaMi:2*baseR});
+  const vMag=Math.sqrt(vx*vx+vy*vy);
+  // === v4.68: the Rain Clock dial now mirrors the EXACT inbound storm set the
+  // Storms tab shows. Previously this function ran its OWN independent pipeline —
+  // it re-clustered the raw radar pixels (S._rawScanPts) with advection + a 2.5 mi
+  // spatial hash, which produced a DIFFERENT cell count from the Storms-tab cards
+  // (the long-standing "2 inbound on the cards, 3 cells on the clock" mismatch the
+  // user reported). Now each cell on the dial IS one inbound storm card. We read
+  // the same S._inboundShown list the header pill (core.js) and the Storms-tab
+  // cards (storms.js) read, falling back to the unfiltered top-storms list only
+  // before the Storms tab has rendered once — so the dial, the pill, and the cards
+  // always agree on which storms are inbound and how many there are. The raw scan
+  // points are still used above for the "Nearest Precipitation" readout. ===
+  const inboundSrc=Array.isArray(S._inboundShown)?S._inboundShown
+    :((S._topStormAnalysis&&Array.isArray(S._topStormAnalysis.inbound))?S._topStormAnalysis.inbound
+    :(Array.isArray(S._topStorms)?S._topStorms:[]));
+  const cellList=[];
+  // v4.68: build cells from the inbound set regardless of radar staleness. The
+  // old pipeline skipped stale radar because advecting stale raw PIXELS would be
+  // wrong — but we now mirror the storm CARDS, which keep showing their inbound
+  // storms (with ETAs) even when the scan is stale. Suppressing the dial here
+  // would make it show 0 cells while the cards/header still show inbound storms —
+  // exactly the desync this task exists to eliminate. `out.stale` still drives
+  // the source tag / messaging; it just no longer drops cells.
+  for(const s of inboundSrc){
+    if(!s)continue;
+    const e=s._eta;
+    if(!e||e.eta==null)continue;
+    // Arrival minute = the SAME ETA the storm card shows. Clamp into the dial's
+    // 0–180 min (3 h) span: an overhead/now cell sits at 0; a card whose ETA is
+    // beyond the 3 h horizon is pinned to the dial edge so it is still COUNTED
+    // (one card = one cell, always) without painting a misleading mid-dial arc.
+    let centerMin=e.eta;
+    if(centerMin<0)centerMin=0;
+    const beyond=centerMin>_RC_TOTAL_MIN;
+    if(beyond)centerMin=_RC_TOTAL_MIN;
+    // v4.66 cell radius (intensity-scaled) and pass-duration model, retained:
+    // duration over the user is the cell DIAMETER divided by storm speed, centered
+    // on the arrival minute — only the SOURCE of the cell changed (card, not pixel).
+    const baseR=_rcCellRadiusMi(s.dbz);
+    const spd=vMag>0.1?vMag:((e.closingSpeed&&e.closingSpeed>0)?e.closingSpeed:0);
+    const passMin=spd>0.1?Math.max(2,(2*baseR)/spd*60):6;
+    let tIn,tOut;
+    if(centerMin<=0){tIn=0;tOut=Math.min(_RC_TOTAL_MIN,Math.max(1,Math.ceil(passMin)))}
+    else{tIn=Math.max(0,Math.floor(centerMin-passMin/2));tOut=Math.min(_RC_TOTAL_MIN,Math.ceil(centerMin+passMin/2))}
+    if(tOut<tIn)tOut=tIn;
+    for(let t=tIn;t<=tOut;t++){if(s.dbz>out.minutes[t])out.minutes[t]=s.dbz}
+    cellList.push({lat:s.lat,lng:s.lng,dbz:s.dbz,dist:s.distance,bearing:s.bearing,tIn,tOut,centerMin,beyond,count:s.pixels||1});
   }
   if(hasRadar&&!radarStale)out.radarReady=true;
   if(radarStale)out.stale=true;
@@ -2114,25 +2112,40 @@ function _rainClockProject(){
     }else if(cur){out.windows.push(cur);cur=null}
   }
   if(cur)out.windows.push(cur);
-  for(const w of out.windows){
-    const matched=contribs.filter(c=>c.tIn<=w.endMin&&c.tOut>=w.startMin);
-    const clusters=[];
-    for(const c of matched){
-      let placed=false;
-      for(const cl of clusters){
-        if(haversine(c.lat,c.lng,cl.lat,cl.lng)<=2.5){
-          if(c.dbz>cl.dbz){cl.dbz=c.dbz;cl.lat=c.lat;cl.lng=c.lng;cl.dist=c.dist;cl.bearing=c.bearing}
-          cl.count++;
-          if(c.tIn<cl.tIn)cl.tIn=c.tIn;
-          if(c.tOut>cl.tOut)cl.tOut=c.tOut;
-          placed=true;break;
-        }
-      }
-      if(!placed)clusters.push({lat:c.lat,lng:c.lng,dbz:c.dbz,dist:c.dist,bearing:c.bearing,tIn:c.tIn,tOut:c.tOut,count:1});
+  // v4.68: assign each inbound storm-cell to exactly ONE window — the window whose
+  // time span contains the cell's arrival minute. Because every cell is placed
+  // exactly once and NEVER capped (the old code did clusters.slice(0,5), which
+  // could undercount), the total number of cells across all windows always equals
+  // the number of inbound storm cards. That equality is the whole point of this
+  // change: tap-tooltips, the detail list, and the cards can never disagree again.
+  for(const w of out.windows)w.cells=[];
+  for(const c of cellList){
+    let target=null;
+    for(const w of out.windows){
+      if(c.centerMin>=w.startMin&&c.centerMin<=w.endMin){target=w;break}
     }
-    clusters.sort((a,b)=>b.dbz-a.dbz);
-    w.cells=clusters.slice(0,5);
+    if(!target){
+      // Rounding can leave a cell's arrival just outside its painted run — attach
+      // it to the nearest window by time so it is never silently dropped.
+      let bestD=Infinity;
+      for(const w of out.windows){
+        const d=Math.min(Math.abs(c.centerMin-w.startMin),Math.abs(c.centerMin-w.endMin));
+        if(d<bestD){bestD=d;target=w}
+      }
+    }
+    if(!target){
+      // No window exists yet (its minutes fell below the paint floor) — create one
+      // so the cell still counts toward the total the user sees.
+      target={startMin:c.tIn,endMin:c.tOut,peakDbz:c.dbz,cells:[]};
+      out.windows.push(target);
+    }
+    target.cells.push(c);
+    if(c.dbz>target.peakDbz)target.peakDbz=c.dbz;
   }
+  // Keep windows chronological (a fallback window may have been appended) and show
+  // the strongest cell first inside each window's detail list.
+  out.windows.sort((a,b)=>a.startMin-b.startMin);
+  for(const w of out.windows)w.cells.sort((a,b)=>b.dbz-a.dbz);
   out.ready=true;
   return out;
 }
@@ -2528,8 +2541,9 @@ function renderRainForecastBars(){
   // Forecast values for hours 0-2 are overridden with the rain clock's radar
   // advection output, converted back to mm/hr via inverse Marshall-Palmer.
   // This guarantees the bar chart and the clock never disagree about what's
-  // happening right now — they both read from the same radar contribs. Hours
-  // 3+ keep their hybrid OM+NWS forecast values.
+  // happening right now — they both read from the same radar-derived per-minute
+  // dBZ (v4.68: sourced from the inbound storm cells). Hours 3+ keep their hybrid
+  // OM+NWS forecast values.
   const rc=S._rainClockData;
   if(rc&&rc.radarReady&&Array.isArray(rc.radarHourlyMm)){
     for(let i=0;i<Math.min(3,slots.length);i++){
