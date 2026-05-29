@@ -1974,11 +1974,6 @@ function _rcIntensityWord(dbz){
   if(dbz<50)return'Heavy';
   return'Intense';
 }
-// v4.66: 12-hour ("11:00 AM") and 24-hour ("1100") clock strings for the
-// summary sentence. Both forms are shown regardless of the user's time-format
-// setting because the summary explicitly reads "around 11:00 AM (1100)".
-function _rcFmt12(d){const h=d.getHours(),m=d.getMinutes();const hr=h%12||12;return hr+':'+_pad2(m)+' '+(h>=12?'PM':'AM');}
-function _rcFmt24(d){return _pad2(d.getHours())+_pad2(d.getMinutes());}
 function _rainClockProject(){
   const out={ready:false,minutes:new Array(_RC_TOTAL_MIN+1).fill(0),windows:[],
     nearest:null,stale:false,motionUnknown:false,noLoc:false,empty:false,
@@ -2249,21 +2244,18 @@ function renderRainClock(){
     const w2=data.windows[1];
     const startStr=fmtClock(new Date(now+w.startMin*60000));
     const endStr=fmtClock(new Date(now+w.endMin*60000));
-    // v4.66: plain-language summary built from the dominant cell's intensity
-    // (peak dBZ → Light/Moderate/Heavy/Intense) plus arrival/end times shown in
-    // both 12h and 24h forms, and a duration that reflects the cell DIAMETER
-    // passing overhead at the storm's speed (computed in _rainClockProject).
+    // v4.67: plain-language summary built from the dominant cell's intensity
+    // (peak dBZ → Light/Moderate/Heavy/Intense) plus arrival/end times in the
+    // app's single chosen clock format (12h or 24h, via fmtClock — startStr/endStr
+    // above), and a duration that reflects the cell DIAMETER passing overhead at
+    // the storm's speed (computed in _rainClockProject).
     const peak=w.peakDbz;
     const word=_rcIntensityWord(peak);
-    const startD=new Date(now+w.startMin*60000);
-    const endD=new Date(now+w.endMin*60000);
-    const start12=_rcFmt12(startD),start24=_rcFmt24(startD);
-    const end12=_rcFmt12(endD),end24=_rcFmt24(endD);
     if(w.startMin===0){
       centerLines=['Rain until',endStr];
       const dur=Math.max(1,w.endMin);
       const head={title:`${word} rain @ ${peak} dBZ overhead`,
-        body:`A ${word.toLowerCase()} rain cell @ ${peak} dBZ is overhead now, ending around ${end12} (${end24}) — about ${_fmtDur(dur)} more.`};
+        body:`A ${word.toLowerCase()} rain cell @ ${peak} dBZ is overhead now, ending around ${endStr} — about ${_fmtDur(dur)} more.`};
       if(w2){
         const w2start=fmtClock(new Date(now+w2.startMin*60000));
         const w2dur=Math.max(1,w2.endMin-w2.startMin);
@@ -2275,7 +2267,7 @@ function renderRainClock(){
       const inMin=Math.max(1,Math.round(w.startMin));
       const dur=Math.max(1,w.endMin-w.startMin);
       const head={title:`${word} rain @ ${peak} dBZ in ${_fmtDur(inMin)}`,
-        body:`A ${word.toLowerCase()} rain cell @ ${peak} dBZ arriving around ${start12} (${start24}), ending about ${_fmtDur(dur)} later (around ${end12}).`};
+        body:`A ${word.toLowerCase()} rain cell @ ${peak} dBZ arriving around ${startStr}, ending about ${_fmtDur(dur)} later (around ${endStr}).`};
       if(w2){
         const w2start=fmtClock(new Date(now+w2.startMin*60000));
         const w2dur=Math.max(1,w2.endMin-w2.startMin);

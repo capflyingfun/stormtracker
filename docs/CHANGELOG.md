@@ -3,6 +3,19 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.67
+
+Reconciled the confusing "inbound" counts across the app and switched the Rain Clock summary to a single clock format.
+
+User reported the header pill said "5 inbound", the Storms-tab cards showed "2 inbound", and the Rain Clock told a third story — three different numbers for what reads like the same thing. Separately, the Rain Clock's plain-language summary printed every time in both 12-hour and 24-hour form ("around 11:00 AM (1100)"), ignoring the user's chosen time format.
+
+Changes:
+
+- **One inbound count everywhere** — the Storms tab is now the single source of truth. After it builds the filtered, capped inbound set it stashes it on `S._inboundShown` (`docs/js/storms.js`). The header pill (`docs/js/core.js`) and the "Light rain inbound — N cells" forecast banner (`buildStormForecastLines` in `docs/js/storms.js`) both read that same set, so all three agree and all honor the user's active storm filter. Previously the pill counted the unfiltered top-storms list while the cards counted the filtered list, which is why they disagreed (5 vs 2). Before the Storms tab has rendered once, the pill and banner fall back to their old unfiltered computation so nothing is blank on first paint.
+- **Single clock format in the Rain Clock summary** — the summary sentence now shows arrival/end times in the app's chosen format only (12h or 24h, via the existing `fmtClock` helper that respects the time-format setting), e.g. *"A light rain cell @ 20 dBZ arriving around 11:00 AM, ending about 3 min later (around 11:03 AM)."* The dual-format helpers `_rcFmt12`/`_rcFmt24` were removed from `docs/js/weather.js`.
+
+Note on the other on-screen numbers: the "storm track cones" count (how many storms' projected paths currently cover you) and the Rain Clock's "cells contributing" (radar-pixel rain windows) are deliberately different measurements from "inbound storm cards" and keep their own distinct labels — they were never meant to equal the inbound count.
+
 ## v4.66
 
 Rain Clock now uses a dynamic, intensity-based catch size (like the storm cones), estimates how long the rain lasts from the cell's size and speed, and writes a plain-language summary.
@@ -14,7 +27,7 @@ Changes (all in `docs/js/weather.js`):
 - **Dynamic cell radius** — replaced the flat 1.5 mi catch radius that every cell used with `_rcCellRadiusMi(dbz)`, which mirrors the Storms-tab cone base width `clamp((dbz-20)/15, 0, 3)` plus a 0.2 mi floor. A ~20 dBZ cell is ~0.2 mi; a 60+ dBZ core is ~3 mi.
 - **Cone-matched catch** — the catch radius now widens with how far the cell must travel to reach its closest approach, using the same 15° cone half-angle the cards use (`effR = baseR + distAlongV·tan15`, capped at 6 mi to avoid sweeping in far off-track cells). This makes the dial agree with the Storms-tab cards: a distant lighter cell the cards call "inbound" now registers an arrival on the dial instead of being missed by the old fixed circle.
 - **Duration from diameter ÷ speed** — each rain window's length now reflects the physical pass time of the cell (cell diameter divided by storm speed, centered on the closest-approach time) instead of the old catch-circle chord length, which grew with the catch radius and didn't represent the real cell size.
-- **Plain-language summary** — the Rain Clock text view now reads e.g. *"A light rain cell @ 20 dBZ arriving around 11:00 AM (1100), ending about 3 min later (around 11:03 AM)."* It names the intensity (Light / Moderate / Heavy / Intense from peak dBZ), shows the dBZ value, and shows both 12-hour and 24-hour arrival times plus the estimated duration.
+- **Plain-language summary** — the Rain Clock text view now reads e.g. *"A light rain cell @ 20 dBZ arriving around 11:00 AM (1100), ending about 3 min later (around 11:03 AM)."* It names the intensity (Light / Moderate / Heavy / Intense from peak dBZ), shows the dBZ value, and shows the arrival time plus the estimated duration. *(Superseded in v4.67: the summary now uses a single clock format instead of both 12-hour and 24-hour.)*
 
 ## v4.65
 

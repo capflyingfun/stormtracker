@@ -819,8 +819,13 @@ function switchPage(page){
   if(_curLang!=='en'){setTimeout(()=>quickTranslate(),200);setTimeout(()=>quickTranslate(),800)}
 }
 function updateStormBadges(){
-  const inbound=S._topStorms?S._topStorms.length:0;
-  const maxDbz=S._topStorms&&S._topStorms.length?Math.max(...S._topStorms.map(s=>s.dbz)):0;
+  // v4.67: the pill mirrors the Storms-tab "inbound" cards (S._inboundShown,
+  // the filtered+capped inbound set) so the header number matches the cards and
+  // honors the user's active storm filter. Falls back to the unfiltered
+  // top-storms list only before the Storms tab has rendered once.
+  const _inboundArr=Array.isArray(S._inboundShown)?S._inboundShown:(S._topStorms||[]);
+  const inbound=_inboundArr.length;
+  const maxDbz=_inboundArr.length?Math.max(..._inboundArr.map(s=>s.dbz)):0;
   const sevIcon=maxDbz>=61?'‼️':maxDbz>=52?'🚨':maxDbz>=46?'⚠️':maxDbz>=41?'🟡':maxDbz>=20?'🟢':'🔵';
   const sevBg=maxDbz>0?dbzHex(maxDbz):'#6b7280';
   const hdr=document.getElementById('header-storm-count');

@@ -2373,7 +2373,7 @@ function clearStormFilters(){
   const cleared={...cur,minDbz:0,maxDist:0,approachOnly:false,threatsOnly:false};
   _saveStormFilter(cleared);
   if(typeof updateThreatTicker==='function')updateThreatTicker();
-  renderStorms();
+  renderStorms();if(typeof updateStormBadges==='function')updateStormBadges();
 }
 function _threatScoreRaw(s){
   const e=s._eta;
@@ -2465,7 +2465,12 @@ function buildStormForecastLines(plain){
   const _hasAl=S._upperWindDir!=null;
   const mv=_hasMv?S.stormMovement:(_hasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
   if(!storms.length||!mv||mv.speed<2)return{lines:[],empty:false};
-  const approaching=storms.filter(s=>{const e=s._eta;return e&&e.approaching&&e.eta!=null});
+  // v4.67: when the Storms tab has rendered, build the "inbound — N cells"
+  // banner from the exact same filtered inbound set that produces the cards
+  // (S._inboundShown), so the banner count agrees with the cards and the header
+  // pill. Fall back to the raw approaching scan only before the tab first renders.
+  const _shown=Array.isArray(S._inboundShown)?S._inboundShown:null;
+  const approaching=(_shown?_shown.slice():storms.filter(s=>{const e=s._eta;return e&&e.approaching&&e.eta!=null})).filter(s=>s&&s._eta&&s._eta.eta!=null);
   if(!approaching.length)return{lines:[],empty:true};
   approaching.sort((a,b)=>a._eta.eta-b._eta.eta);
   const light=approaching.filter(s=>s.dbz<40);
@@ -2558,12 +2563,13 @@ function updateStormFilter(action){
   if(_sfDebounce)clearTimeout(_sfDebounce);
   _sfDebounce=setTimeout(()=>{
     _sfDebounce=null;
-    renderStorms();
+    renderStorms();if(typeof updateStormBadges==='function')updateStormBadges();
   },150);
 }
 S._stormFilter=_loadStormFilter();
 function renderStorms(){
   const el=document.getElementById('page-storms');
+  S._inboundShown=null;
   if(!S.lat){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📍</div><p>Set your location to scan for storms.</p></div>`;return}
   const storms=S.storms;
   const userZones=checkUserInZone();
@@ -2730,6 +2736,12 @@ function renderStorms(){
     return x.distance-y.distance;
   });
   inboundCapped=inboundCapped.slice(0,12);
+  // v4.67: single source of truth for the "inbound" count the user sees. The
+  // top header pill (core.js) and the "Light rain inbound — N cells" forecast
+  // banner both read this so all three surfaces agree and honor the user's
+  // active storm filter, instead of the pill showing the unfiltered top-storms
+  // count while the cards showed the filtered count.
+  S._inboundShown=inboundCapped;
   const overhead=filtered.filter(s=>ohKeySet.has(stormKey(s)));
   const nearby=filtered.filter(s=>!inKeySet.has(stormKey(s))&&!ohKeySet.has(stormKey(s)));
   let groupHtml='';
