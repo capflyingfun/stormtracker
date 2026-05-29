@@ -3,6 +3,23 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.68
+
+The Rain Clock dial now shows the **exact same inbound storms as the Storms tab** — same cells, same count, always in sync.
+
+User asked for full sync (not a relabel): the Storms tab said "2 inbound" while the Rain Clock showed 3 cells. The two surfaces were telling different stories about the same thing.
+
+Root cause: the Rain Clock ran its **own independent pipeline**. `_rainClockProject()` re-clustered the raw radar pixels (`S._rawScanPts`) using advection plus a 2.5 mi spatial-hash cluster — a completely different data path and a different clustering rule from the Storms-tab cards (which come from `computeTopStorms` → `S._topStorms` → the filtered, capped `S._inboundShown`). Different input + different clustering = a different number, every time.
+
+Changes (all in `docs/js/weather.js`):
+
+- **One source of truth for the dial's cells** — `_rainClockProject()` no longer re-clusters raw pixels. It now reads the **same `S._inboundShown` list** the header pill (`core.js`) and the Storms-tab cards (`storms.js`) read, falling back to the unfiltered top-storms list only before the Storms tab has rendered once. Each inbound storm card maps to exactly one cell on the dial, so the dial, the pill, and the cards can never disagree on which storms are inbound or how many there are. The user's active storm filter is honored automatically because `S._inboundShown` already reflects it.
+- **Arrival mapped from the card's own ETA** — each cell is placed on the 0–180 min (3 h) dial at the same ETA the card shows. An overhead/now cell sits at the top; a card whose ETA is beyond the 3 h horizon is pinned to the dial edge so it is still counted (one card = one cell, always) without painting a misleading mid-dial arc. The v4.66 intensity-scaled cell radius and diameter ÷ speed pass-duration model are retained — only the *source* of each cell changed (storm card, not raw pixel).
+- **No more cell capping** — the old window builder did `clusters.slice(0,5)`, which could undercount cells in a busy window. Now every cell is assigned to exactly one window and never dropped, so the total number of cells across all windows always equals the inbound card count. Tap-tooltips ("N cells"), the tap-details list, and the cards stay in lock-step.
+- **Nearest Precipitation readout unchanged** — it still scans the raw radar points, so "rain X mi to the NW" keeps working even when nothing is inbound. Zero inbound storms now means the dial correctly shows "No rain expected next 3 hours," matching a Storms tab with no inbound cards.
+
+Note: "inbound" on the dial means the same thing it means on the Storms tab — approaching cells. Overhead cells (sitting on you, not approaching) are tracked separately on the Storms tab and aren't counted as "inbound" on either surface; the Nearest Precipitation line still surfaces close rain. The 36-hour bar chart still mirrors the clock for hours 0–2 via the radar-derived `radarHourlyMm`, which is now computed from these inbound cells.
+
 ## v4.67
 
 Reconciled the confusing "inbound" counts across the app and switched the Rain Clock summary to a single clock format.
@@ -14,7 +31,7 @@ Changes:
 - **One inbound count everywhere** — the Storms tab is now the single source of truth. After it builds the filtered, capped inbound set it stashes it on `S._inboundShown` (`docs/js/storms.js`). The header pill (`docs/js/core.js`) and the "Light rain inbound — N cells" forecast banner (`buildStormForecastLines` in `docs/js/storms.js`) both read that same set, so all three agree and all honor the user's active storm filter. Previously the pill counted the unfiltered top-storms list while the cards counted the filtered list, which is why they disagreed (5 vs 2). Before the Storms tab has rendered once, the pill and banner fall back to their old unfiltered computation so nothing is blank on first paint.
 - **Single clock format in the Rain Clock summary** — the summary sentence now shows arrival/end times in the app's chosen format only (12h or 24h, via the existing `fmtClock` helper that respects the time-format setting), e.g. *"A light rain cell @ 20 dBZ arriving around 11:00 AM, ending about 3 min later (around 11:03 AM)."* The dual-format helpers `_rcFmt12`/`_rcFmt24` were removed from `docs/js/weather.js`.
 
-Note on the other on-screen numbers: the "storm track cones" count (how many storms' projected paths currently cover you) and the Rain Clock's "cells contributing" (radar-pixel rain windows) are deliberately different measurements from "inbound storm cards" and keep their own distinct labels — they were never meant to equal the inbound count.
+Note on the other on-screen numbers: the "storm track cones" count (how many storms' projected paths currently cover you) and the Rain Clock's "cells contributing" (radar-pixel rain windows) are deliberately different measurements from "inbound storm cards" and keep their own distinct labels — they were never meant to equal the inbound count. *(Superseded in v4.68: the Rain Clock's cells are no longer independent radar-pixel windows — the dial now mirrors the inbound storm cards exactly, so its cell count equals the inbound count. The storm-track-cones count remains a separate measurement.)*
 
 ## v4.66
 
