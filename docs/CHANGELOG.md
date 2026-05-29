@@ -3,6 +3,17 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.69
+
+The **Total Precipitation Next 36 hrs** chart is now fully independent of the Rain Clock.
+
+We tried tying the two together once (the chart's first 3 hours were overridden with the Rain Clock's live radar nowcast so they'd agree about "right now"). In practice that mixed two different things — a short-range radar nowcast and a 36-hour forecast — and made the chart confusing. They're now kept separate, as they should be.
+
+Changes (all in `docs/js/weather.js`, `renderRainForecastBars`):
+
+- **Forecast-only, all 36 hours** — the chart now draws the precipitation forecast straight from the hourly forecast data (Open-Meteo, with the NWS QPF merge already applied) for every hour, with no radar/clock override on hours 0–2. The Rain Clock keeps doing its own thing (inbound radar cells, 0–3 h); this chart is the forecast (0–36 h). They're deliberately separate measurements.
+- **Always shows the graph, even with no rain** — when the forecast has no measurable rain, the card used to collapse to a single line of text. Now it still draws the chart frame (time axis, "Now → +36 h" labels, gridlines) with a centered "No measurable rain forecast" note, so it's clear the widget is working and it's simply a dry forecast — not a broken/empty card.
+
 ## v4.68
 
 The Rain Clock dial now shows the **exact same inbound storms as the Storms tab** — same cells, same count, always in sync.
