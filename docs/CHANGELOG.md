@@ -3,6 +3,16 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.64
+
+Fixed a regression from v4.63 that hid every storm card.
+
+User reported the Storms tab showed "5 inbound" with the mini sonar map and Rain Clock rendering normally, but the Storm Points cards were completely gone ("showing 0/1038"). v4.63 applied the new 20 dBZ shared floor to TWO different metrics: the cell's own peak reflectivity AND its estimated intensity at the user's exact location (`estDbzAtUser`). The est-at-user metric is not what the Rain Clock filters on — the Rain Clock gates on raw radar point reflectivity. Because inbound cells commonly weaken to below 20 dBZ by the time they reach the user's precise location, the est-at-user gate hid all of them, leaving no cards even though strong cells were clearly on the map.
+
+Fix:
+
+- **`docs/js/storms.js`** — the shared `STORM_MIN_DBZ` (20) floor is now applied ONLY to a cell's own peak reflectivity (`s.dbz`), which is the same metric the Rain Clock uses. The original weak-arrival guard (hide cells projected to arrive below 15 dBZ) is kept as-is, not raised to the shared floor. This restores the inbound cards while still enforcing a true 20 dBZ minimum on both surfaces using one consistent rule.
+
 ## v4.63
 
 Storms-tab cards and the Rain Clock now share one minimum-dBZ floor (20 dBZ).
