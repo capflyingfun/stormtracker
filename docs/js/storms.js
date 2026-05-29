@@ -2373,7 +2373,7 @@ function clearStormFilters(){
   const cleared={...cur,minDbz:0,maxDist:0,approachOnly:false,threatsOnly:false};
   _saveStormFilter(cleared);
   if(typeof updateThreatTicker==='function')updateThreatTicker();
-  renderStorms();if(typeof updateStormBadges==='function')updateStormBadges();
+  renderStorms();
 }
 function _threatScoreRaw(s){
   const e=s._eta;
@@ -2563,11 +2563,11 @@ function updateStormFilter(action){
   if(_sfDebounce)clearTimeout(_sfDebounce);
   _sfDebounce=setTimeout(()=>{
     _sfDebounce=null;
-    renderStorms();if(typeof updateStormBadges==='function')updateStormBadges();
+    renderStorms();
   },150);
 }
 S._stormFilter=_loadStormFilter();
-function renderStorms(){
+function _renderStormsCore(){
   const el=document.getElementById('page-storms');
   S._inboundShown=null;
   if(!S.lat){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📍</div><p>Set your location to scan for storms.</p></div>`;return}
@@ -2849,5 +2849,13 @@ function renderStorms(){
     </div>`;
   startEtaCountdowns();
   updateAutoScanUI();
+}
+// v4.67: renderStorms is a thin wrapper that ALWAYS refreshes the header/nav
+// storm badges after rendering, so the inbound pill can never drift out of sync
+// with the Storms-tab inbound cards regardless of which code path triggered the
+// render (page switch, scan, filter change, desktop re-render, etc.).
+function renderStorms(){
+  try{_renderStormsCore();}
+  finally{if(typeof updateStormBadges==='function')updateStormBadges();}
 }
 
