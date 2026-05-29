@@ -2407,10 +2407,19 @@ function _stormSortFn(a,b,key){
 }
 function _applyStormFilter(storms,f){
   let out=storms;
+  // v4.63: baseline minimum-dBZ floor, shared with the Rain Clock via
+  // STORM_MIN_DBZ (20). A cell is hidden from the Storms tab if EITHER its
+  // own peak reflectivity is below the floor OR its estimated intensity at
+  // the user's location is below the floor. This drops the weak "drizzle"
+  // cells (e.g. a 25 dBZ cell projected to arrive at ~18 dBZ) that the user
+  // didn't want surfaced as inbound storms, and keeps the Storms tab in
+  // agreement with the Rain Clock.
+  const _floor=(typeof STORM_MIN_DBZ!=='undefined')?STORM_MIN_DBZ:20;
   out=out.filter(s=>{
+    if((s.dbz|0)<_floor)return false;
     try{if(!s._brief)s._brief=calcStormETAForBriefing(s);}catch(e){return true;}
     const est=s._brief&&s._brief.estDbzAtUser;
-    return!(est!=null&&est<15);
+    return!(est!=null&&est<_floor);
   });
   if(f.minDbz>0)out=out.filter(s=>s.dbz>=f.minDbz);
   if(f.maxDist>0)out=out.filter(s=>s.distance<=f.maxDist);

@@ -470,6 +470,14 @@ const STORM_CLASS={
 };
 const INBOUND_TIER_KEYS=['direct','near_direct','near_miss','miss','distant','far'];
 const APPROACHING_TIER_KEYS=['direct','near_direct'];
+// v4.63: single shared minimum-dBZ floor for what counts as meaningful rain.
+// Both the Rain Clock (weather.js) and the Storms-tab cards (storms.js) gate
+// on this same value so the two surfaces never disagree — if a cell is too
+// weak for the Storms tab it's also too weak for the Rain Clock, and vice
+// versa. 20 dBZ ≈ light rain / drizzle threshold; below it is mist/sprinkle
+// noise the user asked us to stop surfacing as "inbound" storm cells.
+const STORM_MIN_DBZ=20;
+if(typeof window!=='undefined'){window.STORM_MIN_DBZ=STORM_MIN_DBZ}
 function isInboundTier(k){return INBOUND_TIER_KEYS.indexOf(k)>=0}
 function isApproachingTier(k){return APPROACHING_TIER_KEYS.indexOf(k)>=0}
 function bumpStormScanId(){if(!S._stormScanId)S._stormScanId=0;S._stormScanId++;return S._stormScanId}

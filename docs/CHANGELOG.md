@@ -3,6 +3,20 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.63
+
+Storms-tab cards and the Rain Clock now share one minimum-dBZ floor (20 dBZ).
+
+User reported a mismatch: the Storms tab was showing a weak "Rain Cell" (peak 25 dBZ, projected to arrive at only ~18 dBZ, labeled LIGHT RAIN / Drizzle) as "1 inbound", while the Rain Clock said "No rain expected next 3 hours." The two surfaces were using different cutoffs — the Rain Clock filtered cells below 25 dBZ, while the Storms tab only hid cells whose estimated arrival intensity was below 15 dBZ. The user asked that both use the same minimum and set it to 20 dBZ.
+
+Changes:
+
+- **`docs/js/core.js`** — new shared constant `STORM_MIN_DBZ = 20`, exported on `window`, so there's a single source of truth for the minimum-rain floor.
+- **`docs/js/weather.js`** — the Rain Clock's `_RC_MIN_DBZ` (was hardcoded `25`) now reads from `STORM_MIN_DBZ`, lowering its floor to 20 to match.
+- **`docs/js/storms.js`** — the Storms-tab baseline filter now hides a cell if EITHER its own peak reflectivity is below 20 dBZ OR its estimated intensity at the user's location is below 20 dBZ (was: only hide when estimated arrival < 15 dBZ). This drops the weak drizzle cells the user didn't want surfaced and keeps the Storms tab in agreement with the Rain Clock.
+
+Net effect: anything too weak to register on the Rain Clock no longer shows up as an "inbound" storm card, and vice versa. The radar scan itself still samples down to 15 dBZ for accurate cell-building; the 20 dBZ floor is applied at display time.
+
 ## v4.62
 
 Fixed raw `[!dbz:...]` / `[/!]` markup leaking into AI briefings.
