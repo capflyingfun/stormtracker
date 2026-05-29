@@ -3,6 +3,20 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.65
+
+Reverted the Storms-tab filter to its original working behavior and flipped the direction of the match: the Rain Clock now matches the Storms-tab cards, not the other way around.
+
+User asked to put the cards back exactly as they were (they worked) and instead make the Rain Clock agree with the cards. Previously v4.63/v4.64 raised the shared floor to 20 dBZ and pushed the cards up toward the Rain Clock's stricter cutoff, which hid inbound cards. The Storms tab is now the source of truth.
+
+Changes:
+
+- **`docs/js/core.js`** — `STORM_MIN_DBZ` changed from 20 to 15, matching the Storms tab's long-standing radar detection floor.
+- **`docs/js/storms.js`** — the card filter is back to its original form (only drops a cell when its estimated intensity at the user would arrive below 15 dBZ); no peak-reflectivity gate. The radar scan floor now reads from `STORM_MIN_DBZ` (still 15) so it stays linked to the Rain Clock.
+- **`docs/js/weather.js`** — the Rain Clock's `_RC_MIN_DBZ` reads from `STORM_MIN_DBZ` (15), down from its old 25, so it surfaces the same light cells the cards do.
+
+Net effect: storm cards behave exactly as before the v4.63 experiment, and the Rain Clock now shows rain for the same cells the cards surface instead of using a stricter, separate threshold.
+
 ## v4.64
 
 Fixed a regression from v4.63 that hid every storm card.

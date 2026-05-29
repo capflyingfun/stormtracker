@@ -1956,9 +1956,9 @@ function _nextRainHourFromForecast(){
 // when ready, OM fallback otherwise), and leave the 36-hour bar chart below
 // to carry the forecast story.
 const _RC_TOTAL_MIN=180;
-// v4.63: was 25; now sourced from the shared STORM_MIN_DBZ (20) so the Rain
-// Clock and the Storms-tab cards apply the SAME minimum-rain floor.
-const _RC_MIN_DBZ=(typeof STORM_MIN_DBZ!=='undefined')?STORM_MIN_DBZ:20;
+// v4.65: sourced from the shared STORM_MIN_DBZ (15) so the Rain Clock MATCHES
+// the Storms-tab cards' floor instead of using its own stricter cutoff (was 25).
+const _RC_MIN_DBZ=(typeof STORM_MIN_DBZ!=='undefined')?STORM_MIN_DBZ:15;
 function _rainClockProject(){
   const out={ready:false,minutes:new Array(_RC_TOTAL_MIN+1).fill(0),windows:[],
     nearest:null,stale:false,motionUnknown:false,noLoc:false,empty:false,

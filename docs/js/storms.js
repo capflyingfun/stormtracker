@@ -1048,7 +1048,9 @@ async function scanRadarForStorms(){
     }
 
     const colorFn=useNexrad?nexradToDbz:rvToDbz;
-    const minDbz=15;
+    // v4.65: tie the scan floor to the shared STORM_MIN_DBZ so the Rain Clock
+    // (which reads the same constant) always matches the cards' detection floor.
+    const minDbz=(typeof STORM_MIN_DBZ!=='undefined')?STORM_MIN_DBZ:15;
     const tilePromises=[];
     const tileCount=(maxTX-minTX+1)*(maxTY-minTY+1);
     console.log('[SCAN] src='+S.radarSource+' zoom='+zoom+' tiles='+tileCount+' TX='+minTX+'-'+maxTX+' TY='+minTY+'-'+maxTY+' lat='+S.lat+' lon='+S.lon);
@@ -2407,21 +2409,14 @@ function _stormSortFn(a,b,key){
 }
 function _applyStormFilter(storms,f){
   let out=storms;
-  // v4.64: baseline minimum-dBZ floor, shared with the Rain Clock via
-  // STORM_MIN_DBZ (20). The floor is applied to the cell's OWN peak
-  // reflectivity (s.dbz) — the SAME metric the Rain Clock filters on
-  // (raw radar point dBZ ≥ floor) — so the two surfaces use one consistent
-  // rule and a cell too weak for one is too weak for the other.
-  //
-  // v4.63 mistakenly also gated on estDbzAtUser (projected intensity at the
-  // user's exact location). That is a different metric than the Rain Clock
-  // uses, and it hid every inbound card whenever cells weakened to <20 dBZ
-  // by the time they reached the user — exactly the regression reported.
-  // We keep the original est<15 guard (drops cells that arrive as essentially
-  // nothing) but do NOT raise it to the shared floor.
-  const _floor=(typeof STORM_MIN_DBZ!=='undefined')?STORM_MIN_DBZ:20;
+  // v4.65: storm-card filtering reverted to its original, working behavior —
+  // a cell is only dropped if its estimated intensity at the user would
+  // arrive as essentially nothing (<15 dBZ). The Storms tab is the source of
+  // truth for "what counts as a cell"; the Rain Clock is made to MATCH this
+  // (see STORM_MIN_DBZ in core.js, consumed by the radar scan floor and the
+  // Rain Clock) rather than the cards being forced up to the Rain Clock's
+  // old threshold.
   out=out.filter(s=>{
-    if((s.dbz|0)<_floor)return false;
     try{if(!s._brief)s._brief=calcStormETAForBriefing(s);}catch(e){return true;}
     const est=s._brief&&s._brief.estDbzAtUser;
     return!(est!=null&&est<15);
