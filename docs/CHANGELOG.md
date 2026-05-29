@@ -3,6 +3,19 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.66
+
+Rain Clock now uses a dynamic, intensity-based catch size (like the storm cones), estimates how long the rain lasts from the cell's size and speed, and writes a plain-language summary.
+
+User asked for the Rain Clock to size each cell by its strength the same way the Storms-tab cones do — a light drizzle cell should have a small footprint, an extreme core a large one — and to use that size, the storm speed, and the arrival time to estimate how long the rain will actually last over them. Desired summary wording: *"A Light rain cell @ 20 dBZ arriving around 11:00 AM (1100) ending about 3 minutes later."*
+
+Changes (all in `docs/js/weather.js`):
+
+- **Dynamic cell radius** — replaced the flat 1.5 mi catch radius that every cell used with `_rcCellRadiusMi(dbz)`, which mirrors the Storms-tab cone base width `clamp((dbz-20)/15, 0, 3)` plus a 0.2 mi floor. A ~20 dBZ cell is ~0.2 mi; a 60+ dBZ core is ~3 mi.
+- **Cone-matched catch** — the catch radius now widens with how far the cell must travel to reach its closest approach, using the same 15° cone half-angle the cards use (`effR = baseR + distAlongV·tan15`, capped at 6 mi to avoid sweeping in far off-track cells). This makes the dial agree with the Storms-tab cards: a distant lighter cell the cards call "inbound" now registers an arrival on the dial instead of being missed by the old fixed circle.
+- **Duration from diameter ÷ speed** — each rain window's length now reflects the physical pass time of the cell (cell diameter divided by storm speed, centered on the closest-approach time) instead of the old catch-circle chord length, which grew with the catch radius and didn't represent the real cell size.
+- **Plain-language summary** — the Rain Clock text view now reads e.g. *"A light rain cell @ 20 dBZ arriving around 11:00 AM (1100), ending about 3 min later (around 11:03 AM)."* It names the intensity (Light / Moderate / Heavy / Intense from peak dBZ), shows the dBZ value, and shows both 12-hour and 24-hour arrival times plus the estimated duration.
+
 ## v4.65
 
 Reverted the Storms-tab filter to its original working behavior and flipped the direction of the match: the Rain Clock now matches the Storms-tab cards, not the other way around.

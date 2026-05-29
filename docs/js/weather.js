@@ -1959,6 +1959,26 @@ const _RC_TOTAL_MIN=180;
 // v4.65: sourced from the shared STORM_MIN_DBZ (15) so the Rain Clock MATCHES
 // the Storms-tab cards' floor instead of using its own stricter cutoff (was 25).
 const _RC_MIN_DBZ=(typeof STORM_MIN_DBZ!=='undefined')?STORM_MIN_DBZ:15;
+// v4.66: intensity-scaled Rain Clock cell radius. Mirrors the Storms-tab cone
+// base width clamp((dbz-20)/15,0,3) but with a 0.2 mi floor so even a light
+// ~20 dBZ cell has a small but non-zero footprint (~0.2 mi), scaling up to
+// ~3 mi for a 60+ dBZ core. Replaces the old flat 1.5 mi radius the dial used
+// for every cell regardless of intensity.
+function _rcCellRadiusMi(dbz){
+  return Math.max(0.2,Math.min(3,(dbz-20)/15));
+}
+// v4.66: plain-language intensity word for the Rain Clock summary line.
+function _rcIntensityWord(dbz){
+  if(dbz<30)return'Light';
+  if(dbz<40)return'Moderate';
+  if(dbz<50)return'Heavy';
+  return'Intense';
+}
+// v4.66: 12-hour ("11:00 AM") and 24-hour ("1100") clock strings for the
+// summary sentence. Both forms are shown regardless of the user's time-format
+// setting because the summary explicitly reads "around 11:00 AM (1100)".
+function _rcFmt12(d){const h=d.getHours(),m=d.getMinutes();const hr=h%12||12;return hr+':'+_pad2(m)+' '+(h>=12?'PM':'AM');}
+function _rcFmt24(d){return _pad2(d.getHours())+_pad2(d.getMinutes());}
 function _rainClockProject(){
   const out={ready:false,minutes:new Array(_RC_TOTAL_MIN+1).fill(0),windows:[],
     nearest:null,stale:false,motionUnknown:false,noLoc:false,empty:false,
@@ -1973,7 +1993,6 @@ function _rainClockProject(){
   if(!hasWeather&&!hasRadar&&!haveHourly){out.loading=true;return out}
   const radarStale=hasRadar&&S.scanTime&&(Date.now()-S.scanTime)>15*60000;
   const mv=S.stormMovement;
-  const RADIUS_MI=1.5;
   const MIN_DBZ=_RC_MIN_DBZ;
   let vx=0,vy=0,haveMv=false;
   if(mv&&mv.speed>1&&mv.direction!=null){
@@ -1994,6 +2013,13 @@ function _rainClockProject(){
   if(nearestDist<Infinity&&nearestBearing!=null){out.nearest={mi:nearestDist,dir:degToDir(nearestBearing)}}
   const v2_mph2=vx*vx+vy*vy;
   const v2_per_min2=v2_mph2/3600;
+  const vMag=Math.sqrt(v2_mph2);
+  // v4.66: 15° cone half-angle, same widening the Storms-tab cards use.
+  const _CONE_TAN=Math.tan(15*Math.PI/180);
+  // v4.66: cap the cone-widened catch radius so a very distant/fast cell can't
+  // sweep in a huge off-track swath and clutter the dial. 6 mi comfortably
+  // covers realistic inbound geometry (e.g. a 17 mi cell ~3.6 mi off-track).
+  const _EFF_R_CAP=6;
   const contribs=[];
   // v4.46: skip radar advection contributions when scan is stale — forecast drives.
   for(const p of (radarStale?[]:pts)){
@@ -2001,23 +2027,37 @@ function _rainClockProject(){
     const dx=(p.lng-S.lon)*MI_PER_DEG_LON;
     const dy=(p.lat-S.lat)*MI_PER_DEG_LAT;
     const dist0=Math.sqrt(dx*dx+dy*dy);
+    // v4.66: intensity-scaled cell radius (was a flat 1.5 mi for every cell).
+    const baseR=_rcCellRadiusMi(p.dbz);
     if(!haveMv||v2_per_min2<1e-6){
-      if(dist0<=RADIUS_MI){
+      if(dist0<=baseR){
         if(p.dbz>out.minutes[0])out.minutes[0]=p.dbz;
-        contribs.push({lat:p.lat,lng:p.lng,dbz:p.dbz,dist:dist0,bearing:bearingDeg(S.lat,S.lon,p.lat,p.lng),tIn:0,tOut:0});
+        contribs.push({lat:p.lat,lng:p.lng,dbz:p.dbz,dist:dist0,bearing:bearingDeg(S.lat,S.lon,p.lat,p.lng),tIn:0,tOut:0,diaMi:2*baseR});
       }
       continue;
     }
     const tStar=-(dx*vx+dy*vy)/v2_mph2*60;
     const cx=dx+vx*tStar/60,cy=dy+vy*tStar/60;
     const dmin2=cx*cx+cy*cy;
-    if(dmin2>RADIUS_MI*RADIUS_MI)continue;
-    const hw=Math.sqrt((RADIUS_MI*RADIUS_MI-dmin2)/v2_per_min2);
-    const tIn=Math.max(0,Math.floor(tStar-hw));
-    const tOut=Math.min(180,Math.ceil(tStar+hw));
+    // v4.66: catch radius widens with how far the cell must travel to reach its
+    // closest approach — the same 15° cone the Storms-tab cards use. This makes
+    // the dial agree with the cards: a distant lighter cell the cards call
+    // "inbound" now registers an arrival here instead of being missed by the
+    // old flat 1.5 mi circle.
+    const distAlongV=Math.max(0,vMag*tStar/60);
+    const effR=Math.min(_EFF_R_CAP,baseR+distAlongV*_CONE_TAN);
+    if(dmin2>effR*effR)continue;
+    // v4.66: rain DURATION over the user is the cell DIAMETER divided by storm
+    // speed (diameter/speed*60 min) — how long the cell takes to pass overhead —
+    // centered on the closest-approach time. (Previously the window length came
+    // from the catch-circle chord, which grew with the catch radius and no
+    // longer reflects the physical cell size.)
+    const passMin=Math.max(1,(2*baseR)/Math.max(vMag,0.1)*60);
+    const tIn=Math.max(0,Math.floor(tStar-passMin/2));
+    const tOut=Math.min(180,Math.ceil(tStar+passMin/2));
     if(tIn>180||tOut<0)continue;
     for(let t=tIn;t<=tOut;t++){if(p.dbz>out.minutes[t])out.minutes[t]=p.dbz}
-    contribs.push({lat:p.lat,lng:p.lng,dbz:p.dbz,dist:dist0,bearing:bearingDeg(S.lat,S.lon,p.lat,p.lng),tIn,tOut});
+    contribs.push({lat:p.lat,lng:p.lng,dbz:p.dbz,dist:dist0,bearing:bearingDeg(S.lat,S.lon,p.lat,p.lng),tIn,tOut,diaMi:2*baseR});
   }
   if(hasRadar&&!radarStale)out.radarReady=true;
   if(radarStale)out.stale=true;
@@ -2209,10 +2249,21 @@ function renderRainClock(){
     const w2=data.windows[1];
     const startStr=fmtClock(new Date(now+w.startMin*60000));
     const endStr=fmtClock(new Date(now+w.endMin*60000));
+    // v4.66: plain-language summary built from the dominant cell's intensity
+    // (peak dBZ → Light/Moderate/Heavy/Intense) plus arrival/end times shown in
+    // both 12h and 24h forms, and a duration that reflects the cell DIAMETER
+    // passing overhead at the storm's speed (computed in _rainClockProject).
+    const peak=w.peakDbz;
+    const word=_rcIntensityWord(peak);
+    const startD=new Date(now+w.startMin*60000);
+    const endD=new Date(now+w.endMin*60000);
+    const start12=_rcFmt12(startD),start24=_rcFmt24(startD);
+    const end12=_rcFmt12(endD),end24=_rcFmt24(endD);
     if(w.startMin===0){
       centerLines=['Rain until',endStr];
       const dur=Math.max(1,w.endMin);
-      const head={title:`Raining until ${endStr}`,body:`Active rain for about ${_fmtDur(dur)} more.`};
+      const head={title:`${word} rain @ ${peak} dBZ overhead`,
+        body:`A ${word.toLowerCase()} rain cell @ ${peak} dBZ is overhead now, ending around ${end12} (${end24}) — about ${_fmtDur(dur)} more.`};
       if(w2){
         const w2start=fmtClock(new Date(now+w2.startMin*60000));
         const w2dur=Math.max(1,w2.endMin-w2.startMin);
@@ -2223,7 +2274,8 @@ function renderRainClock(){
       centerLines=['Rain starting at',startStr];
       const inMin=Math.max(1,Math.round(w.startMin));
       const dur=Math.max(1,w.endMin-w.startMin);
-      const head={title:`Rain starts in ${_fmtDur(inMin)}`,body:`Begins around ${startStr}, lasts about ${_fmtDur(dur)}, ending around ${endStr}.`};
+      const head={title:`${word} rain @ ${peak} dBZ in ${_fmtDur(inMin)}`,
+        body:`A ${word.toLowerCase()} rain cell @ ${peak} dBZ arriving around ${start12} (${start24}), ending about ${_fmtDur(dur)} later (around ${end12}).`};
       if(w2){
         const w2start=fmtClock(new Date(now+w2.startMin*60000));
         const w2dur=Math.max(1,w2.endMin-w2.startMin);
