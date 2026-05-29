@@ -2856,6 +2856,13 @@ function _renderStormsCore(){
 // render (page switch, scan, filter change, desktop re-render, etc.).
 function renderStorms(){
   try{_renderStormsCore();}
-  finally{if(typeof updateStormBadges==='function')updateStormBadges();}
+  finally{
+    if(typeof updateStormBadges==='function')updateStormBadges();
+    // v4.68: the Storms render is the single source of truth for the inbound set
+    // (S._inboundShown). The Rain Clock dial mirrors that exact set, so force it
+    // to recompute here — otherwise a filter change or storm re-render would
+    // update the cards/pill while the dial kept showing stale windows/counts.
+    if(typeof refreshRainClock==='function')refreshRainClock(true);
+  }
 }
 
