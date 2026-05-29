@@ -2537,20 +2537,14 @@ function renderRainForecastBars(){
     const mm=h.precipitation[idx]||0;
     slots.push({t:new Date(h.time[idx]).getTime(),mm});
   }
-  // v4.56: first 3 hours = radar-derived observed rain (matches the rain clock).
-  // Forecast values for hours 0-2 are overridden with the rain clock's radar
-  // advection output, converted back to mm/hr via inverse Marshall-Palmer.
-  // This guarantees the bar chart and the clock never disagree about what's
-  // happening right now — they both read from the same radar-derived per-minute
-  // dBZ (v4.68: sourced from the inbound storm cells). Hours 3+ keep their hybrid
-  // OM+NWS forecast values.
-  const rc=S._rainClockData;
-  if(rc&&rc.radarReady&&Array.isArray(rc.radarHourlyMm)){
-    for(let i=0;i<Math.min(3,slots.length);i++){
-      slots[i].mm=rc.radarHourlyMm[i]||0;
-      slots[i]._radar=true;
-    }
-  }
+  // v4.69: this 36-hour chart is now FULLY INDEPENDENT of the Rain Clock. It
+  // shows the forecast-model precipitation only (Open-Meteo, with the NWS QPF
+  // merge already applied to S._hourlyData) across all 36 hours. Previously hours
+  // 0-2 were overridden with the rain clock's radar nowcast so the two surfaces
+  // agreed about "right now" — but the clock is a short-range radar nowcast and
+  // this is a 36-hour forecast; mixing them was confusing. They are deliberately
+  // separate measurements now: the clock = inbound radar cells (0-3h), this chart
+  // = the precipitation forecast (0-36h).
   if(!slots.length){el.innerHTML=`<div class="card weather-section" data-sec="rainbars" style="padding:8px;margin-bottom:8px"><div class="sec-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span class="card-title m-0" style="font-size:0.78em"><span class="icon">📊</span> Total Precipitation Next 36 hrs</span><div style="display:flex;gap:4px;align-items:center">${gridBtn}${reorder}</div></div><div style="font-size:0.7em;color:var(--text-secondary);text-align:center;padding:14px 6px">⏳ Forecast hours haven't refreshed yet — graph will fill in on the next update.</div></div>`;return;}
   const total=slots.reduce((a,s)=>a+s.mm,0);
   const maxMm=Math.max(0.05,...slots.map(s=>s.mm));
@@ -2608,11 +2602,12 @@ function renderRainForecastBars(){
           ${gridBtn}${reorder}
         </div>
       </div>
-      ${empty?`<div style="font-size:0.7em;color:var(--text-secondary);text-align:center;padding:18px 6px">No measurable rain in the next 36 hours.</div>`:`
       <div style="display:flex;justify-content:center">
         <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:340px;height:auto" xmlns="http://www.w3.org/2000/svg">
-          ${gridLines}${peakBadge}${bars}${axisLine}${xTicks}${yLabels}
+          ${gridLines}${empty?'':peakBadge}${bars}${axisLine}${xTicks}${yLabels}
+          ${empty?`<text x="${(W/2).toFixed(1)}" y="${(padT+innerH/2).toFixed(1)}" fill="var(--text-secondary)" font-size="9" text-anchor="middle">No measurable rain forecast</text>`:''}
         </svg>
-      </div>`}
+      </div>
+      ${empty?`<div style="font-size:0.62em;color:var(--text-muted);text-align:center;margin-top:2px">Forecast model shows no measurable rain in the next 36 hours.</div>`:''}
     </div>`;
 }
