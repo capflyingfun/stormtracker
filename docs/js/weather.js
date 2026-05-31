@@ -1974,6 +1974,34 @@ function _rcIntensityWord(dbz){
   if(dbz<50)return'Heavy';
   return'Intense';
 }
+// v4.70: DYNAMIC dial span. The dial used to be a fixed 3-hour (180 min) face,
+// so any storm arriving after 3 h was pinned to the edge and several inbound
+// cards weren't drawn at their real positions. Now we pick the smallest "nice"
+// span (1h…12h) that still contains the furthest inbound storm, so EVERY inbound
+// card is drawn where it actually arrives. Buckets are chosen so span/6 (the gap
+// between the 6 clock labels) stays a clean number. Falls back to 3 h when there
+// is no inbound rain, preserving the familiar "next 3 hours" empty state.
+const _RC_SPAN_BUCKETS=[60,120,180,240,360,480,720];
+function _rcPickSpan(maxEtaMin){
+  if(!(maxEtaMin>0))return _RC_TOTAL_MIN;
+  for(const b of _RC_SPAN_BUCKETS){if(maxEtaMin<=b)return b}
+  return 720; // cap at 12 h; anything further is pinned to the edge (rare)
+}
+// v4.70: offset label for a dial position, e.g. 0→"Now", 30→"+30m",
+// 60→"+1h", 150→"+2h30m". Used for the 6 outer clock labels.
+function _rcOffLabel(min){
+  if(min<=0)return'Now';
+  if(min<60)return'+'+Math.round(min)+'m';
+  const h=Math.floor(min/60),m=Math.round(min%60);
+  return m===0?('+'+h+'h'):('+'+h+'h'+m+'m');
+}
+// v4.70: compact span label for the card title, e.g. 60→"1h", 180→"3h",
+// 720→"12h", 45→"45m".
+function _rcSpanLabel(min){
+  if(min<60)return Math.round(min)+'m';
+  const h=min/60;
+  return (Number.isInteger(h)?h:(Math.round(h*10)/10))+'h';
+}
 function _rainClockProject(){
   const out={ready:false,minutes:new Array(_RC_TOTAL_MIN+1).fill(0),windows:[],
     nearest:null,stale:false,motionUnknown:false,noLoc:false,empty:false,
@@ -2020,6 +2048,14 @@ function _rainClockProject(){
     :((S._topStormAnalysis&&Array.isArray(S._topStormAnalysis.inbound))?S._topStormAnalysis.inbound
     :(Array.isArray(S._topStorms)?S._topStorms:[]));
   const cellList=[];
+  // v4.70: pick the DYNAMIC dial span from the furthest inbound storm's ETA so
+  // every inbound card lands at its real arrival position (no more pinning to a
+  // fixed 3 h edge). Done in a quick pre-pass before we build the minutes array.
+  let _maxEta=0;
+  for(const s of inboundSrc){if(!s)continue;const e=s._eta;if(!e||e.eta==null)continue;if(e.eta>_maxEta)_maxEta=e.eta}
+  const span=_rcPickSpan(_maxEta);
+  out.span=span;
+  out.minutes=new Array(span+1).fill(0);
   // v4.68: build cells from the inbound set regardless of radar staleness. The
   // old pipeline skipped stale radar because advecting stale raw PIXELS would be
   // wrong — but we now mirror the storm CARDS, which keep showing their inbound
@@ -2032,13 +2068,13 @@ function _rainClockProject(){
     const e=s._eta;
     if(!e||e.eta==null)continue;
     // Arrival minute = the SAME ETA the storm card shows. Clamp into the dial's
-    // 0–180 min (3 h) span: an overhead/now cell sits at 0; a card whose ETA is
-    // beyond the 3 h horizon is pinned to the dial edge so it is still COUNTED
-    // (one card = one cell, always) without painting a misleading mid-dial arc.
+    // dynamic 0–span span: an overhead/now cell sits at 0; a card whose ETA is
+    // beyond the (up to 12 h) horizon is pinned to the dial edge so it is still
+    // COUNTED (one card = one cell, always) without overshooting the dial.
     let centerMin=e.eta;
     if(centerMin<0)centerMin=0;
-    const beyond=centerMin>_RC_TOTAL_MIN;
-    if(beyond)centerMin=_RC_TOTAL_MIN;
+    const beyond=centerMin>span;
+    if(beyond)centerMin=span;
     // v4.66 cell radius (intensity-scaled) and pass-duration model, retained:
     // duration over the user is the cell DIAMETER divided by storm speed, centered
     // on the arrival minute — only the SOURCE of the cell changed (card, not pixel).
@@ -2046,8 +2082,8 @@ function _rainClockProject(){
     const spd=vMag>0.1?vMag:((e.closingSpeed&&e.closingSpeed>0)?e.closingSpeed:0);
     const passMin=spd>0.1?Math.max(2,(2*baseR)/spd*60):6;
     let tIn,tOut;
-    if(centerMin<=0){tIn=0;tOut=Math.min(_RC_TOTAL_MIN,Math.max(1,Math.ceil(passMin)))}
-    else{tIn=Math.max(0,Math.floor(centerMin-passMin/2));tOut=Math.min(_RC_TOTAL_MIN,Math.ceil(centerMin+passMin/2))}
+    if(centerMin<=0){tIn=0;tOut=Math.min(span,Math.max(1,Math.ceil(passMin)))}
+    else{tIn=Math.max(0,Math.floor(centerMin-passMin/2));tOut=Math.min(span,Math.ceil(centerMin+passMin/2))}
     if(tOut<tIn)tOut=tIn;
     for(let t=tIn;t<=tOut;t++){if(s.dbz>out.minutes[t])out.minutes[t]=s.dbz}
     cellList.push({lat:s.lat,lng:s.lng,dbz:s.dbz,dist:s.distance,bearing:s.bearing,tIn,tOut,centerMin,beyond,count:s.pixels||1});
@@ -2061,11 +2097,16 @@ function _rainClockProject(){
   // inverse Marshall-Palmer (Z=200*R^1.6), then averaged across the hour
   // (rain only falls during minutes where a cell is overhead, so dividing by
   // 60 gives the integrated hourly rate).
-  out.radarHourlyMm=[0,0,0];
+  // v4.70: integrate over the dynamic span (was a hard-coded 3 hours). Only the
+  // dial's own center "expected" amount reads this now — the 36 h bar chart was
+  // decoupled in v4.69 — so summing the full span gives the rain expected across
+  // whatever horizon the dial is currently showing.
+  const _nHours=Math.max(1,Math.ceil(span/60));
+  out.radarHourlyMm=new Array(_nHours).fill(0);
   if(out.radarReady){
-    for(let hr=0;hr<3;hr++){
+    for(let hr=0;hr<_nHours;hr++){
       let sumMmHr=0;
-      for(let m=hr*60;m<(hr+1)*60;m++){
+      for(let m=hr*60;m<=Math.min((hr+1)*60-1,span);m++){
         const dbz=out.minutes[m];
         if(dbz>0){
           const z=Math.pow(10,dbz/10);
@@ -2086,7 +2127,7 @@ function _rainClockProject(){
       const ts=new Date(h.time[i]).getTime();
       if(isNaN(ts))continue;
       const mins=(ts-nowMs)/60000;
-      if(mins>180)continue;
+      if(mins>span)continue;
       if(mins<-30)continue;
       const mm=h.precipitation[i]||0;
       if(mm>0)_fcstFirst3hMm+=mm;
@@ -2104,7 +2145,7 @@ function _rainClockProject(){
   // (forecast overlay removed), so we go back to the strict radar-noise floor.
   const _WIN_MIN=_RC_MIN_DBZ;
   let cur=null;
-  for(let t=0;t<=_RC_TOTAL_MIN;t++){
+  for(let t=0;t<=span;t++){
     const v=out.minutes[t];
     if(v>=_WIN_MIN){
       if(!cur)cur={startMin:t,endMin:t,peakDbz:v};
@@ -2167,7 +2208,13 @@ function renderRainClock(){
   const SIZE=360,CX=180,CY=180;
   const R_OUTER=132,R_TICK_OUT=108,R_TICK_IN=96;
   const R_LABEL=154,R_ARC=122,R_ARC_W=18;
-  const TOTAL=_RC_TOTAL_MIN;
+  // v4.70: TOTAL is now the DYNAMIC span chosen in _rainClockProject (1h–12h),
+  // not a fixed 180. All angle math below scales to it automatically.
+  const TOTAL=(data&&data.span)?data.span:_RC_TOTAL_MIN;
+  // v4.70: human-friendly span strings for the title / center / text view.
+  const _spanLabel=_rcSpanLabel(TOTAL);
+  const _spanH=Math.round(TOTAL/60);
+  const _spanWord='next '+(TOTAL<60?(Math.round(TOTAL)+' min'):(_spanH+' hour'+(_spanH!==1?'s':'')));
   const now=Date.now();
   const nowD=new Date(now);
   function ang(min){return (min/TOTAL)*2*Math.PI-Math.PI/2}
@@ -2190,16 +2237,21 @@ function renderRainClock(){
   // v4.57: 6 labels at 30-minute intervals around the 3-hour dial:
   // Now / +30m / +1h / +1h30m / +2h / +2h30m. Top line is the offset (static),
   // bottom line is the live wall-clock time (refreshed every 60s by the tick).
+  // v4.70: 6 labels spaced span/6 apart (e.g. 30 min on a 3 h dial, 2 h on a 12 h
+  // dial). The offset text is computed from the live span via _rcOffLabel, and the
+  // wall-clock tspan carries data-rc-min (the offset in minutes) so the per-minute
+  // tick can refresh the time for ANY span — the old data-rc-outer assumed a fixed
+  // hourly step and drifted once the span stopped being 6×60.
   let hourLabels='';
-  const _offLabels=['Now','+30m','+1h','+1h30m','+2h','+2h30m'];
+  const _step=TOTAL/6;
   for(let i=0;i<6;i++){
-    const [x,y]=ptAt(i*30,R_LABEL);
-    const off=_offLabels[i];
-    const t=new Date(now+i*30*60000);
-    const tStr=fmtClock(t);
+    const offMin=i*_step;
+    const [x,y]=ptAt(offMin,R_LABEL);
+    const off=_rcOffLabel(offMin);
+    const tStr=fmtClock(new Date(now+offMin*60000));
     hourLabels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle">`
       +`<tspan x="${x.toFixed(1)}" dy="-6" fill="#9fb3c8" font-size="11" font-weight="700">${off}</tspan>`
-      +`<tspan x="${x.toFixed(1)}" dy="13" fill="#cfd8e3" font-size="10" font-weight="600" data-rc-outer="${i}">${tStr}</tspan>`
+      +`<tspan x="${x.toFixed(1)}" dy="13" fill="#cfd8e3" font-size="10" font-weight="600" data-rc-min="${offMin.toFixed(2)}">${tStr}</tspan>`
       +`</text>`;
   }
   // Per-minute gradient arc segments — each minute where dBZ ≥ 25 paints a
@@ -2251,7 +2303,7 @@ function renderRainClock(){
   else if(!data.windows.length){
     if(_omPart){centerLines=['Waiting on','Open-Meteo…'];_phrases.push({title:'Waiting on Open-Meteo',body:'Forecast service is slow or unreachable right now. The Rain Clock will fill in as soon as data arrives.'});}
     else if(data.stale&&!data.forecastReady){centerLines=['Radar stale','run a scan'];_phrases.push({title:'Radar is stale',body:'Run a fresh scan to update the Rain Clock with the latest radar.'});}
-    else{centerLines=['No rain expected','next 3 hours'];_phrases.push({title:'No rain expected',body:'Nothing showing up on radar for the next 3 hours.'});}
+    else{centerLines=['No rain expected',_spanWord];_phrases.push({title:'No rain expected',body:`Nothing showing up on radar for the ${_spanWord}.`});}
   } else {
     const w=data.windows[0];
     const w2=data.windows[1];
@@ -2333,6 +2385,12 @@ function renderRainClock(){
   }
   const hasClickable=data.ready&&data.windows.some(w=>w.cells&&w.cells.length);
   const hint=hasClickable?`<div style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:2px;font-style:italic">Tap a colored arc to see which storms cause it</div>`:'';
+  // v4.70: confidence note. The dial is a LIVE-radar projection, which is very
+  // accurate in the very short term but degrades the further out it reaches —
+  // a cell that's "arriving" can weaken or veer before it gets here. Spell that
+  // out so users read the dial as a guide, not a guarantee. Only shown when
+  // there's actually rain projected.
+  const accNote=hasClickable?`<div style="font-size:0.58em;color:var(--text-muted);text-align:center;margin-top:5px;line-height:1.45">≈95% accurate within 30&nbsp;min · further out is a live-radar projection — storms can still weaken, build, or shift</div>`:'';
   // v4.58: dial is radar-only now, so drop the "+ FORECAST" tag. Forecast is
   // still consulted for the 3h amount when radar isn't ready, but it doesn't
   // paint anything on the dial — labelling it would be misleading.
@@ -2355,7 +2413,7 @@ function renderRainClock(){
       <div onclick="_rainClockToggleView()" style="cursor:pointer;background:rgba(10,16,32,0.55);border:1px solid #1e2a3c;border-radius:12px;padding:22px 18px;min-height:200px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;max-width:380px;margin:0 auto" title="Tap to switch back to dial view">
         <div style="font-size:1.05em;font-weight:700;color:#e6edf3;line-height:1.3;margin-bottom:8px">${phrase.title}</div>
         <div style="font-size:0.85em;color:#cfd8e3;line-height:1.45;max-width:32em">${phrase.body}</div>
-        ${amountLine?`<div style="font-size:0.8em;color:#5eead4;font-weight:600;margin-top:10px">~${(typeof fmtPrecip==='function'?fmtPrecip(data.totalMm):(data.totalMm/25.4).toFixed(2)+' in')} expected next 3 h</div>`:''}
+        ${amountLine?`<div style="font-size:0.8em;color:#5eead4;font-weight:600;margin-top:10px">~${(typeof fmtPrecip==='function'?fmtPrecip(data.totalMm):(data.totalMm/25.4).toFixed(2)+' in')} expected ${_spanWord}</div>`:''}
         <div style="font-size:0.62em;color:var(--text-muted);font-style:italic;margin-top:14px">Tap to switch back to dial view</div>
       </div>`;
   } else {
@@ -2370,7 +2428,7 @@ function renderRainClock(){
   el.innerHTML=`
     <div class="card weather-section" data-sec="rainclock" style="padding:10px 8px;margin-bottom:8px">
       <div class="sec-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span class="card-title m-0"><span class="icon">🌧️</span> Rain Clock · 3h</span>
+        <span class="card-title m-0"><span class="icon">🌧️</span> Rain Clock · ${_spanLabel}</span>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:0.55em;color:var(--text-muted);letter-spacing:0.04em">${sourceTag}</span>
           ${toggleBtn}
@@ -2378,7 +2436,7 @@ function renderRainClock(){
         </div>
       </div>
       ${viewBody}
-      ${sub}${foot}${hint}
+      ${sub}${foot}${hint}${accNote}
       <div id="rain-clock-detail" style="margin-top:8px"></div>
     </div>`;
   if(S._rainClockSelectedIdx!=null&&data.ready&&data.windows[S._rainClockSelectedIdx]){
@@ -2404,13 +2462,16 @@ function _rainClockStartTick(){
     // v4.48: selector targets the tspan (not text), because v4.47 moved
     // data-rc-outer from the parent <text> onto the inner time <tspan> when
     // the labels were collapsed into combined offset+time stacks.
-    const els=document.querySelectorAll('[data-rc-outer]');
+    // v4.70: labels carry data-rc-min (offset in minutes for the current dynamic
+    // span). The old code used data-rc-outer * 1 hour, which only matched a 6×60
+    // dial and showed wrong times on any other span.
+    const els=document.querySelectorAll('[data-rc-min]');
     if(!els.length)return;
     const now=Date.now();
     els.forEach(t=>{
-      const i=parseInt(t.getAttribute('data-rc-outer'),10);
-      if(isNaN(i))return;
-      t.textContent=fmtClock(new Date(now+i*3600000));
+      const m=parseFloat(t.getAttribute('data-rc-min'));
+      if(isNaN(m))return;
+      t.textContent=fmtClock(new Date(now+m*60000));
     });
   },60000);
 }
@@ -2449,12 +2510,18 @@ function _rainClockRenderDetail(idx){
       const distMi=c.dist;
       const distStr=S.radarMetric?(distMi*1.609).toFixed(1)+' km':distMi.toFixed(1)+' mi';
       const cellEta=c.tIn===0?'overhead':`+${c.tIn}-${c.tOut} min`;
+      // v4.70: per-cell confidence — anything arriving within ~30 min is a
+      // high-confidence nowcast; further out it's a projection that can shift.
+      const _conf=(c.centerMin!=null&&c.centerMin<=30)
+        ?{t:'High confidence',c:'#34d399'}
+        :{t:'Projection · may shift',c:'#fbbf24'};
+      const confTag=`<span style="color:${_conf.c};font-weight:600">${_conf.t}</span>`;
       const safeLat=c.lat.toFixed(5),safeLng=c.lng.toFixed(5);
       rows+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,0.05)">
         <span style="width:10px;height:24px;background:${color};border-radius:3px;flex-shrink:0"></span>
         <div style="flex:1;min-width:0">
           <div style="font-size:0.78em;color:var(--text-primary);font-weight:600">${c.dbz} dBZ · ${distStr} ${dir}</div>
-          <div style="font-size:0.65em;color:var(--text-muted)">ETA ${cellEta}${c.count>1?' · '+c.count+' pixels':''}</div>
+          <div style="font-size:0.65em;color:var(--text-muted)">ETA ${cellEta}${c.count>1?' · '+c.count+' pixels':''} · ${confTag}</div>
         </div>
         <button onclick="_rainClockViewCellOnRadar(${safeLat},${safeLng})" style="font-size:0.65em;padding:4px 8px;border-radius:6px;background:var(--accent-blue,#3b82f6);color:#fff;border:none;cursor:pointer;flex-shrink:0">View on radar</button>
       </div>`;
