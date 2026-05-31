@@ -986,8 +986,8 @@ function _updateEtaCountdowns() {
 }
 
 function _qualifyCone3D(cell, sp) {
-  if (!S.stormMovement || S.stormMovement.speed < 0.5) return null;
-  var mv = S.stormMovement;
+  var mv = (typeof getSteeringMv === 'function') ? getSteeringMv() : S.stormMovement;
+  if (!mv || mv.speed < 0.5) return null;
   var dkm = haversineKm3D(S.lat, S.lon, cell.lat, cell.lon);
   var distMi = dkm * 0.621371;
   var bearU = (cell.bearing + 180) % 360;
@@ -1004,7 +1004,8 @@ function _qualifyCone3D(cell, sp) {
 
 function _renderCone3D(q, coneIdx) {
   var cell = q.cell, sp = q.sp, dkm = q.dkm, distMi = q.distMi, baseWidthMi = q.baseWidthMi, etaMin = q.etaMin;
-  var mv = S.stormMovement;
+  var mv = (typeof getSteeringMv === 'function') ? getSteeringMv() : S.stormMovement;
+  if (!mv) mv = S.stormMovement;
   var mRad = toRad3D(mv.direction);
   var rangeKm = Math.min(60, Math.max(distMi * 1.5, 20)) * 1.609;
   var halfWidthKm = baseWidthMi * 1.609 / 2;
@@ -1402,9 +1403,10 @@ function refreshHUD3D() {
       el('v3d-nearest-threat').style.color = 'rgba(255,255,255,0.45)';
     }
   }
-  if (S.stormMovement && S.stormMovement.speed > 1.5) {
-    var sm = S.stormMovement;
-    el('v3d-steering-info').textContent = 'Steer: ' + dir16_3D(sm.direction) + ' ' + fmtSpeed3D(sm.speed) + ' (' + sm.direction + '\u00b0)';
+  var _sm3d = (typeof getSteeringMv === 'function') ? getSteeringMv() : S.stormMovement;
+  if (_sm3d && _sm3d.speed > 1.5) {
+    var _srcTag = (_sm3d.source && _sm3d.source !== 'aloft') ? ' \u00b7 ' + (_sm3d.source === 'observed' ? 'obs' : 'hyb') + ' ' + Math.round((_sm3d.confidence || 0) * 100) + '%' : '';
+    el('v3d-steering-info').textContent = 'Steer: ' + dir16_3D(_sm3d.direction) + ' ' + fmtSpeed3D(_sm3d.speed) + ' (' + Math.round(_sm3d.direction) + '\u00b0)' + _srcTag;
   } else {
     el('v3d-steering-info').textContent = 'Steer: Calm';
   }
@@ -1440,9 +1442,10 @@ function openPopup3D(cell, cx, cy) {
   document.getElementById('v3d-pop-dbz').textContent = Math.round(cell.dbz) + ' dBZ'; document.getElementById('v3d-pop-dbz').style.color = cat.col;
   var rows = '<div class="pop-row"><span class="pop-k">Distance</span><span class="pop-v">' + fmtDist3D(cell.distance) + '</span></div>';
   rows += '<div class="pop-row"><span class="pop-k">Direction</span><span class="pop-v">' + dir16_3D(cell.bearing) + ' (' + Math.round(cell.bearing) + '\u00b0)</span></div>';
-  if (S.stormMovement && S.stormMovement.speed > 1.5) {
-    var mv = S.stormMovement;
-    rows += '<div class="pop-row"><span class="pop-k">Steering</span><span class="pop-v">' + dir16_3D(mv.direction) + ' ' + fmtSpeed3D(mv.speed) + '</span></div>';
+  var _pmv = (typeof getSteeringMv === 'function') ? getSteeringMv() : S.stormMovement;
+  if (_pmv && _pmv.speed > 1.5) {
+    var _ptag = (_pmv.source && _pmv.source !== 'aloft') ? ' (' + (_pmv.source === 'observed' ? 'obs' : 'hyb') + ' ' + Math.round((_pmv.confidence || 0) * 100) + '%)' : '';
+    rows += '<div class="pop-row"><span class="pop-k">Steering</span><span class="pop-v">' + dir16_3D(_pmv.direction) + ' ' + fmtSpeed3D(_pmv.speed) + _ptag + '</span></div>';
   }
   rows += '<div class="pop-row"><span class="pop-k">Lat / Lon</span><span class="pop-v">' + cell.lat.toFixed(3) + '\u00b0, ' + (cell.lon || cell.lng).toFixed(3) + '\u00b0</span></div>';
   document.getElementById('v3d-pop-rows').innerHTML = rows;

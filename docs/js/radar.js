@@ -849,7 +849,7 @@ function showStormCone(map,storm){
   const sk=stormKey(storm);
   if(S._activeConeKey===sk){clearStormCone();return}
   clearStormCone();
-  const mv=S.stormMovement;
+  const mv=(typeof getHybridMovement==='function'?getHybridMovement(storm):null)||S.stormMovement;
   if(!mv||mv.speed<2)return;
   const range=Math.min(60,Math.max(storm.distance*1.5,20));
   const color=dbzHex(storm.dbz);
@@ -873,6 +873,12 @@ function showStormCone(map,storm){
   }
   S._activeCone=L.polygon(pts,{color,fillColor:color,fillOpacity:0.1,weight:1.5,dashArray:'6,4',interactive:false}).addTo(map);
   S._activeConeKey=sk;
+  if(mv.source&&mv.source!=='aloft'){
+    const _cpct=Math.round((mv.confidence||0)*100);
+    const _clbl=mv.source==='observed'?'📡 Observed':'📡 Hybrid';
+    const _ccol=mv.source==='observed'?'#22d3ee':'#a3e635';
+    S._activeConeLabel=L.marker([storm.lat,storm.lng],{interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:10px;font-weight:700;color:${_ccol};background:rgba(0,0,0,0.7);padding:1px 5px;border-radius:4px;white-space:nowrap;transform:translate(8px,-50%)">${_clbl} ${_cpct}%</div>`,iconSize:[1,1],iconAnchor:[0,0]})}).addTo(map);
+  }
   S.stormMarkers.forEach(m=>{
     if(m._stormTrackKey&&m._stormTrackKey!==sk){
       if(m._map||m._container)try{map.removeLayer(m)}catch(e){}
@@ -884,6 +890,7 @@ function showStormCone(map,storm){
 }
 function clearStormCone(){
   if(S._activeCone&&S.map){S.map.removeLayer(S._activeCone);S._activeCone=null}
+  if(S._activeConeLabel&&S.map){try{S.map.removeLayer(S._activeConeLabel)}catch(e){}S._activeConeLabel=null}
   S._activeConeKey=null;
   if(S.map){
     S.stormMarkers.forEach(m=>{
@@ -986,9 +993,7 @@ function plotStormMarkers(map){
   updateClutterButton();
   const stormList=getVisibleStormList();
   if(!stormList.length)return;
-  const hasMovement=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
-  const hasAloft=S._upperWindDir!=null;
-  const mv=hasMovement?S.stormMovement:(hasAloft?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
+  const mv=(typeof getSteeringMv==='function')?getSteeringMv():(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement:null);
   const sc=zoomScale(map);
   const pending=[];
   let visibleStorms=stormList;
@@ -1015,12 +1020,14 @@ function plotStormMarkers(map){
     const _tierBoost=_stormTier==='extreme'?1.35:_stormTier==='severe'?1.2:_stormTier==='strong'?1.1:1.0;
     const r=Math.max(4,Math.round(Math.max(10,storm.dbz/4)*sc*_tierBoost));
     const eta=calcStormETA(storm);
+    const _smv=(typeof getHybridMovement==='function'?getHybridMovement(storm):null)||mv;
     const popupId='pop_'+Math.random().toString(36).slice(2,8);
     let mvHtml='';
-    if(mv&&mv.speed>=2){
-      const spdStr=S.radarMetric?Math.round(mv.speed*1.60934)+' km/h':mv.speed+' mph';
+    if(_smv&&_smv.speed>=2){
+      const spdStr=S.radarMetric?Math.round(_smv.speed*1.60934)+' km/h':_smv.speed+' mph';
       const imp=impactLabel(eta?eta.impact:0);
-      mvHtml=`<div style="font-size:0.75em;color:#8cf;margin-top:6px;padding-top:6px;border-top:1px solid #333">→ ${degToDir(mv.direction)} (${Math.round(mv.direction)}°) ${tStr('at')} ${spdStr}</div>`;
+      const _srcB=(typeof _movSourceBadge==='function')?_movSourceBadge(_smv):'';
+      mvHtml=`<div style="font-size:0.75em;color:#8cf;margin-top:6px;padding-top:6px;border-top:1px solid #333">→ ${degToDir(_smv.direction)} (${Math.round(_smv.direction)}°) ${tStr('at')} ${spdStr}${_srcB}</div>`;
       if(eta&&eta.proximity){
         mvHtml+=`<div style="font-size:0.75em;color:#f97316;margin-top:2px;font-weight:700">⚠️ ${tStr('Overhead · Moving away')}</div>`;
         mvHtml+=`<div style="font-size:0.85em;font-weight:700;color:${imp.color};margin-top:2px">${eta.impact}% ${tStr(imp.text)}</div>`;
@@ -1060,11 +1067,11 @@ function plotStormMarkers(map){
     </div>`;
     const popupOpts={closeButton:true,className:'storm-popup'};
     const stormRef=storm;
-    if(mv&&mv.speed>=2){
+    if(_smv&&_smv.speed>=2){
       const dbzScale=Math.max(0.4,Math.min(1.0,(storm.dbz-20)/45+0.4));
       const baseSz=Math.max(24,storm.dbz/2)*sc;
       const sz=Math.max(10,Math.round(baseSz*dbzScale));
-      const svgHtml=stormArrowSvg(mv.direction,color,sz);
+      const svgHtml=stormArrowSvg(_smv.direction,color,sz);
       pending.push({type:'arrow',lat:storm.lat,lng:storm.lng,sz,svgHtml,popupHtml,popupOpts,stormRef,_dbz:storm.dbz});
     }else{
       pending.push({type:'circle',lat:storm.lat,lng:storm.lng,r,color,popupHtml,popupOpts,stormRef,_dbz:storm.dbz});
@@ -1359,7 +1366,7 @@ function buildStormZones(map,rawPts){
     map.createPane(arrowPane);
     map.getPane(arrowPane).style.zIndex=360;
   }
-  const mv=S.stormMovement;
+  const mv=(typeof getSteeringMv==='function')?getSteeringMv():S.stormMovement;
   let approachCount=0;
   let approachSumLat=0,approachSumLon=0,approachSumDbz=0,approachMaxDbz=0,approachMinDbz=999;
   const approachBearings=[];
@@ -1762,12 +1769,8 @@ function updateThreatTicker(){
   const spdUnit=S.radarMetric?'km/h':'mph';
   const spdVal=(v)=>S.radarMetric?Math.round(v*1.60934):v;
   function _stormMv(storm){
-    const ct=typeof getCellTrack==='function'?getCellTrack(storm):null;
-    if(ct&&ct.speed>=2){const fd=(ct.dir+180)%360;return{dir:degToDir(fd)+' ('+String(Math.round(fd)).padStart(3,'0')+'°)',spd:spdVal(ct.speed)}}
-    const _hasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
-    const _hasAl=S._upperWindDir!=null;
-    const mv=_hasMv?S.stormMovement:(_hasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
-    if(mv&&mv.speed>=2){const fd=(mv.direction+180)%360;return{dir:degToDir(fd)+' ('+String(Math.round(fd)).padStart(3,'0')+'°)',spd:spdVal(mv.speed)}}
+    const h=typeof getHybridMovement==='function'?getHybridMovement(storm):null;
+    if(h&&h.speed>=2){const fd=(h.direction+180)%360;return{dir:degToDir(fd)+' ('+String(Math.round(fd)).padStart(3,'0')+'°)',spd:spdVal(h.speed)}}
     return{dir:'',spd:0};
   }
   function fmtEtaLive(etaMin){
@@ -2258,15 +2261,13 @@ function pathArrowNeonColor(maxDbz){
 function buildPathArrows(map,_retries){
   clearPathArrows();
   if(!map||!S._showPathArrows)return;
-  const hasMovement=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=1;
-  const hasAloft=S._upperWindDir!=null;
-  if(!hasMovement&&!hasAloft){
+  const mv=(typeof getSteeringMv==='function')?getSteeringMv():(S.stormMovement&&S.stormMovement.speed>=1?S.stormMovement:null);
+  if(!mv){
     const r=(_retries||0);
     if(r<5){setTimeout(()=>{if(S._showPathArrows)buildPathArrows(map,r+1)},800)}
     return;
   }
-  const mv=hasMovement?S.stormMovement:{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10};
-  const mvDir=hasAloft?(S._upperWindDir+180)%360:mv.direction;
+  const mvDir=mv.direction;
   const fromBear=(mvDir+180)%360;
   const ad=S._approachData||{count:0,bearings:[],maxDist:0,sumDbz:0,maxDbz:0,minDbz:999};
   const hasInbound=ad.count>0&&ad.sumDbz>0;
@@ -2397,9 +2398,7 @@ function clearStormTracks(){
 function plotStormTracks(map){
   clearStormTracks();
   if(S._tracksMode==='off'||!map)return;
-  const mv=S.stormMovement;
-  const hasAloft=S._upperWindDir!=null;
-  const _mv=mv&&mv.speed>=2?mv:(hasAloft?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
+  const _mv=(typeof getSteeringMv==='function')?getSteeringMv():(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement:null);
   if(!_mv||_mv.speed<2)return;
   let storms=getVisibleStormList();
   if(!storms.length)return;

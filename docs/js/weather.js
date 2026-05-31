@@ -994,14 +994,11 @@ function drawMiniSonar(){
   }
   try{
     const topInbound=(S._topStorms||[]).filter(s=>s.distance<=viewR);
-    const _hasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
-    const _hasAl=S._upperWindDir!=null;
-    const mv=_hasMv?Object.assign({},S.stormMovement)
-            :(_hasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10,_fromAloft:true}
-                    :null);
+    const mv=(typeof getSteeringMv==='function')?getSteeringMv():(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement:null);
+    const _hasObs=mv&&mv.source&&mv.source!=='aloft';
     if(_sonarCfg.showStormArrows&&mv){
       const mvRad=(mv.direction-90)*Math.PI/180;
-      if(_hasMv&&topInbound.length>0){
+      if(_hasObs&&topInbound.length>0){
         const shown=topInbound.slice(0,12);
         for(const st of shown){
           const dist=st.distance||0;
@@ -1009,10 +1006,13 @@ function drawMiniSonar(){
           const stAng=(bearing-90)*Math.PI/180;
           const r=Math.min(maxR-8,maxR*(dist/viewR));
           const sx=cx+Math.cos(stAng)*r,sy=cy+Math.sin(stAng)*r;
+          const _sh=(typeof getHybridMovement==='function')?getHybridMovement(st):null;
+          const _sdir=(_sh&&_sh.speed>=2)?_sh.direction:mv.direction;
+          const _smvRad=(_sdir-90)*Math.PI/180;
           const neonC=dbzHex(st.dbz);
           const arrLen=Math.max(10,Math.min(20,maxR*0.12));
-          const tipX=sx+Math.cos(mvRad)*arrLen,tipY=sy+Math.sin(mvRad)*arrLen;
-          const headL=6,ha1=mvRad-Math.PI+0.5,ha2=mvRad-Math.PI-0.5;
+          const tipX=sx+Math.cos(_smvRad)*arrLen,tipY=sy+Math.sin(_smvRad)*arrLen;
+          const headL=6,ha1=_smvRad-Math.PI+0.5,ha2=_smvRad-Math.PI-0.5;
           ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=6;ctx.shadowOffsetX=1;ctx.shadowOffsetY=1;
           ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(tipX,tipY);
           ctx.strokeStyle=neonC;ctx.lineWidth=2.5;ctx.stroke();
@@ -1022,7 +1022,7 @@ function drawMiniSonar(){
           ctx.restore();
         }
       }
-      const isAir=!!mv._fromAloft;
+      const isAir=!_hasObs;
       const neonC=isAir?'#ffe14d':pathArrowNeonColor(maxDbz);
       const arrLen=maxR*0.6;
       const ax=cx+Math.cos(mvRad)*arrLen,ay=cy+Math.sin(mvRad)*arrLen;
@@ -1037,10 +1037,12 @@ function drawMiniSonar(){
       const slx=ax+Math.cos(mvRad)*10,sly=ay+Math.sin(mvRad)*10;
       ctx.fillStyle=hexToRgba(neonC,0.9);ctx.font=`bold ${Math.max(9,size*0.028)}px Inter,sans-serif`;
       ctx.shadowColor='rgba(0,0,0,0.95)';ctx.shadowBlur=6;
-      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(isAir?'AIR':'STORM',slx,sly);
+      const _srcLbl=isAir?'AIR':(mv.source==='hybrid'?'HYBRID':'STORM');
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(_srcLbl,slx,sly);
       ctx.restore();
       const spdUnit=S.radarMetric?Math.round(mv.speed*1.60934)+'km/h':Math.round(mv.speed)+'mph';
-      const chipTxt=`${isAir?'air':'storm'} → ${degToDir(mv.direction)} ${spdUnit}`;
+      const _pctTxt=(!isAir&&mv.confidence)?` ${Math.round(mv.confidence*100)}%`:'';
+      const chipTxt=`${_srcLbl.toLowerCase()} → ${degToDir(mv.direction)} ${spdUnit}${_pctTxt}`;
       ctx.save();ctx.font=`${Math.max(8,size*0.022)}px Inter,sans-serif`;
       ctx.textAlign='left';ctx.textBaseline='top';
       ctx.shadowColor='rgba(0,0,0,0.95)';ctx.shadowBlur=4;
