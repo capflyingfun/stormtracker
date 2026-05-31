@@ -797,6 +797,7 @@ async function scanRadarHiRes(map,fromHome){
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=true;
     S._radarAgeMs=(typeof computeRadarAgeMs==='function')?computeRadarAgeMs(useNexrad):RADAR_LATENCY_MS;
     computeTopStorms();
+    recordScanSnapshot();
     _sonarZoomMi=15;localStorage.setItem('st_sonarZoom',15);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_syncSonarZoomBtns();
     _clusterSonarPoints();
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
@@ -2415,7 +2416,9 @@ function plotStormTracks(map){
     }
   }
   storms.forEach(s=>{
-    const pts=(typeof buildStormCone==='function')?buildStormCone(s,_mv):null;
+    const _smv=(typeof getHybridMovement==='function'?getHybridMovement(s):null)||_mv;
+    if(!_smv||_smv.speed<2)return;
+    const pts=(typeof buildStormCone==='function')?buildStormCone(s,_smv):null;
     if(!pts)return;
     const color=dbzHex(s.dbz);
     let _imp=0.3;

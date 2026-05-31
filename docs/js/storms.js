@@ -1201,6 +1201,7 @@ async function scanRadarForStorms(){
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
     S._radarAgeMs=(typeof computeRadarAgeMs==='function')?computeRadarAgeMs(useNexrad):RADAR_LATENCY_MS;
     computeTopStorms();
+    recordScanSnapshot();
 
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
     scanStep(3,`Plotting ${S.storms.length} storm points...`);
