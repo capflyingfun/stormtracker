@@ -2458,7 +2458,8 @@ function buildRelMotionLayers(map){
       const tip=L.circleMarker(ep,{pane,radius:4,color:col,fillColor:col,fillOpacity:opa,weight:1,interactive:false}).addTo(map);
       S._relMotionLayers.push(tip);
       const pctStr=(sc.showPct&&b.impactScore!=null)?` ${Math.round(b.impactScore*100)}%`:'';
-      const lbl=(b.classification==='direct'||b.classification==='near_direct')?`${sc.badge}${pctStr} · ≈${b.closingMph} mph · ETA ${b.etaMin}m`
+      const _rmEta=(b.etaMin!=null)?Math.round(Math.max(0,b.etaMin-radarAgeMin())):null;
+      const lbl=(b.classification==='direct'||b.classification==='near_direct')?`${sc.badge}${pctStr} · ≈${b.closingMph} mph · ETA ${_rmEta}m`
                :(b.classification==='near_miss'||b.classification==='miss'||b.classification==='distant'||b.classification==='far')?`${sc.badge}${pctStr} · ≈${b.closingMph} mph`
                :`${sc.badge}`;
       const tag=L.marker(ep,{pane,interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:10px;font-weight:700;color:${col};text-shadow:0 0 4px #000,0 0 2px #000;white-space:nowrap;transform:translate(6px,-50%)">${lbl}</div>`,iconSize:[1,1],iconAnchor:[0,0]})}).addTo(map);
