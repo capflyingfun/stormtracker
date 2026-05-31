@@ -2072,7 +2072,7 @@ function _rainClockProject(){
     // dynamic 0–span span: an overhead/now cell sits at 0; a card whose ETA is
     // beyond the (up to 12 h) horizon is pinned to the dial edge so it is still
     // COUNTED (one card = one cell, always) without overshooting the dial.
-    let centerMin=e.eta;
+    let centerMin=e.eta-radarAgeMin();
     if(centerMin<0)centerMin=0;
     const beyond=centerMin>span;
     if(beyond)centerMin=span;
@@ -2395,6 +2395,10 @@ function renderRainClock(){
   // out so users read the dial as a guide, not a guarantee. Only shown when
   // there's actually rain projected.
   const accNote=hasClickable?`<div style="font-size:0.58em;color:var(--text-muted);text-align:center;margin-top:5px;line-height:1.45">≈95% accurate within 30&nbsp;min · further out is a live-radar projection — storms can still weaken, build, or shift</div>`:'';
+  // v4.72: tell the user arrival times have been shifted earlier to account for
+  // radar latency, using the same canonical age every ETA consumer subtracts.
+  const _ageMin=Math.round(radarAgeMin());
+  const radarAgeNote=(data.radarReady&&_ageMin>0)?`<div style="font-size:0.56em;color:var(--text-muted);text-align:center;margin-top:3px;font-style:italic;line-height:1.4">Arrival times shifted ~${_ageMin}&nbsp;min earlier to account for radar age</div>`:'';
   // v4.58: dial is radar-only now, so drop the "+ FORECAST" tag. Forecast is
   // still consulted for the 3h amount when radar isn't ready, but it doesn't
   // paint anything on the dial — labelling it would be misleading.
@@ -2440,7 +2444,7 @@ function renderRainClock(){
         </div>
       </div>
       ${viewBody}
-      ${sub}${foot}${hint}${accNote}
+      ${sub}${foot}${hint}${accNote}${radarAgeNote}
       <div id="rain-clock-detail" style="margin-top:8px"></div>
     </div>`;
   if(S._rainClockSelectedIdx!=null&&data.ready&&data.windows[S._rainClockSelectedIdx]){

@@ -1072,6 +1072,7 @@ async function scanRadarForStorms(){
     console.log('[SCAN] after spacingFilter: '+S.storms.length+' storms');
     detectHookEchoes(rawPoints, S.storms);
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
+    S._radarAgeMs=(typeof computeRadarAgeMs==='function')?computeRadarAgeMs(useNexrad):RADAR_LATENCY_MS;
     computeTopStorms();
 
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
@@ -2482,9 +2483,12 @@ function buildStormForecastLines(plain){
   const fmtEtaShort=(min)=>{const s=Math.round(min*60);const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;return(h>0?String(h).padStart(2,'0')+'h:':'')+String(m).padStart(2,'0')+'m:'+String(sec).padStart(2,'0')+'s';};
   const fmtTime=(min)=>fmtClockShort(new Date(now+min*60000));
   const tierSpan=(min)=>{
-    if(plain)return`${fmtEtaShort(min)} (${fmtTime(min)})`;
-    const tgt=now+min*60000;
-    return`<span class="tier-eta-cd" data-tier-target="${tgt}"><b>${fmtEtaShort(min)}</b> (${fmtTime(min)})</span>`;
+    // v4.72: subtract the canonical radar age so these header ETAs match the
+    // storm cards / Rain Clock (radar data is a few minutes old at scan time).
+    const _m=Math.max(0,min-radarAgeMin());
+    if(plain)return`${fmtEtaShort(_m)} (${fmtTime(_m)})`;
+    const tgt=now+_m*60000;
+    return`<span class="tier-eta-cd" data-tier-target="${tgt}"><b>${fmtEtaShort(_m)}</b> (${fmtTime(_m)})</span>`;
   };
   const maxTag=(arr)=>{
     const m=Math.max(...arr.map(s=>s.dbz));
@@ -2660,7 +2664,7 @@ function _renderStormsCore(){
             targetMs=S._stormETAs[sk];
           }else{
             const elapsedMin=S.scanTime?(Date.now()-S.scanTime)/60000:0;
-            const remainMin=Math.max(0,eta.eta-elapsedMin);
+            const remainMin=Math.max(0,eta.eta-elapsedMin-radarAgeMin());
             targetMs=Date.now()+remainMin*60000;
             S._stormETAs[sk]=targetMs;
           }

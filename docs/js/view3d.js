@@ -1317,7 +1317,7 @@ function rebuildStorms3D() {
   var etaMax = Math.min(cands.length, 12);
   for (var ei = 0; ei < etaMax; ei++) {
     var c = cands[ei];
-    var arriveAt = Date.now() + c.etaMin * 60000;
+    var arriveAt = Date.now() + Math.max(0, c.etaMin - ((typeof radarAgeMin==='function')?radarAgeMin():5)) * 60000;
     var eSpr = makeSprite3D(_fmtEtaCountdown(arriveAt), 'rgba(255,200,55,0.92)', 0.5, true);
     eSpr.position.set(c.spx, Math.min(c.dkm * 0.12 + 3.5, 6), c.spz); eSpr.renderOrder = 5; V3D.coneGroup.add(eSpr);
     V3D._etaSprites.push({ spr: eSpr, arriveAt: arriveAt });
