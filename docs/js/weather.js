@@ -1987,13 +1987,14 @@ function _rcPickSpan(maxEtaMin){
   for(const b of _RC_SPAN_BUCKETS){if(maxEtaMin<=b)return b}
   return 720; // cap at 12 h; anything further is pinned to the edge (rare)
 }
-// v4.70: offset label for a dial position, e.g. 0→"Now", 30→"+30m",
-// 60→"+1h", 150→"+2h30m". Used for the 6 outer clock labels.
+// v4.70: offset label for a dial position. v4.71: reformatted to read as the
+// parenthetical under the wall-clock time, e.g. 0→"now", 30→"+30 min",
+// 80→"+1:20 hrs", 120→"+2:00 hrs". Used for the 6 outer clock labels.
 function _rcOffLabel(min){
-  if(min<=0)return'Now';
-  if(min<60)return'+'+Math.round(min)+'m';
+  if(min<=0)return'now';
+  if(min<60)return'+'+Math.round(min)+' min';
   const h=Math.floor(min/60),m=Math.round(min%60);
-  return m===0?('+'+h+'h'):('+'+h+'h'+m+'m');
+  return '+'+h+':'+String(m).padStart(2,'0')+' hrs';
 }
 // v4.70: compact span label for the card title, e.g. 60→"1h", 180→"3h",
 // 720→"12h", 45→"45m".
@@ -2247,11 +2248,14 @@ function renderRainClock(){
   for(let i=0;i<6;i++){
     const offMin=i*_step;
     const [x,y]=ptAt(offMin,R_LABEL);
+    // v4.71: wall-clock ETA is now the primary (top) line and the offset is the
+    // parenthetical underneath, e.g. "1422" over "(+1:20 hrs)". data-rc-min stays
+    // on the TIME tspan so the per-minute tick keeps refreshing the right line.
     const off=_rcOffLabel(offMin);
     const tStr=fmtClock(new Date(now+offMin*60000));
     hourLabels+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle">`
-      +`<tspan x="${x.toFixed(1)}" dy="-6" fill="#9fb3c8" font-size="11" font-weight="700">${off}</tspan>`
-      +`<tspan x="${x.toFixed(1)}" dy="13" fill="#cfd8e3" font-size="10" font-weight="600" data-rc-min="${offMin.toFixed(2)}">${tStr}</tspan>`
+      +`<tspan x="${x.toFixed(1)}" dy="-6" fill="#e6edf3" font-size="11" font-weight="700" data-rc-min="${offMin.toFixed(2)}">${tStr}</tspan>`
+      +`<tspan x="${x.toFixed(1)}" dy="13" fill="#9fb3c8" font-size="9" font-weight="600">(${off})</tspan>`
       +`</text>`;
   }
   // Per-minute gradient arc segments — each minute where dBZ ≥ 25 paints a

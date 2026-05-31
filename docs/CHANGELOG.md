@@ -3,6 +3,10 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.71
+
+Small Rain Clock polish: the 6 dial labels now lead with the **wall-clock arrival time** and show the offset in parentheses underneath — e.g. **14:22** over **(+1:20 hrs)** — instead of the offset on top and the time below. The offset reads as `+H:MM hrs` (or `+N min` under an hour). The per-minute clock refresh still lands on the time line, and everything still scales to the dynamic span.
+
 ## v4.70
 
 The Rain Clock dial now has a **dynamic time span** — it stretches from 1 hour up to 12 hours so **every** inbound storm is drawn at its real arrival position, instead of being pinned to a fixed 3-hour edge.
