@@ -3,6 +3,13 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.74
+
+**Rain Clock "raining now" detection.** When radar showed rain sitting right on top of you, the Rain Clock could still read "Rain starting at <future time>" — it built the dial only from *inbound* storm cards and dropped any overhead/proximity cell (those carry no ETA), so it fell through to the next approaching storm's arrival time. The clock now shares one signal with the conditions card.
+
+- **One shared "raining now" signal** — both the hero conditions LIVE RADAR override and the Rain Clock now read `rainOverUserNow()`, which classifies the same dBZ-at-user radar zone (`checkUserInZone()`) the conditions card already uses. The two can no longer disagree ("pouring now but the clock says rain starts in an hour").
+- **Now-window anchored at minute 0** — when rain is overhead, the dial anchors a cell and window at the 12 o'clock (now) position, so the summary reads "Raining now / Rain until …" with the cell's intensity and an estimated end time, instead of a future start time. Duration over the user uses the same cell-diameter / storm-speed model as inbound cells.
+
 ## v4.73
 
 **Hybrid storm direction prediction.** Storm movement used to come from a single source — either winds-aloft steering or a raw cell track — with no sense of how trustworthy it was. Now the app keeps a persistent track for each storm cell across scans and blends *observed* cell motion with the winds-aloft prior, weighted by confidence. Winds-aloft is the starting estimate; as a cell is seen moving consistently over 2–3 scans, the prediction shifts toward what's actually observed.

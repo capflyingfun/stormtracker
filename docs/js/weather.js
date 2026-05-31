@@ -406,10 +406,20 @@ function _heroBandFromZone(zone){
   if(dbz<5)return null;
   return Object.assign({},dbzColor(dbz),{maxDbz:dbz});
 }
+// v4.74: ONE shared "is it raining over the user right now?" signal. The hero
+// conditions LIVE RADAR override (renderWeather / refreshHeroFromZone) AND the
+// Rain Clock now-window both read THIS, so they can never disagree again
+// ("pouring now but the clock says rain starts in an hour"). It reuses the exact
+// dBZ-at-user zone the conditions card already uses — checkUserInZone() (the hex
+// bin sitting on the user's spot) classified by _heroBandFromZone() — returning
+// the band {cls,label,color,maxDbz} or null when radar shows nothing overhead.
+function rainOverUserNow(){
+  const zone=(typeof checkUserInZone==='function')?checkUserInZone():null;
+  return _heroBandFromZone(zone);
+}
 function refreshHeroFromZone(){
   if(!S._lastWeatherData)return;
-  const _zone=typeof checkUserInZone==='function'?checkUserInZone():null;
-  const _ov=_heroBandFromZone(_zone);
+  const _ov=rainOverUserNow();
   if(_ov&&S._lastZoneOv===_ov.cls)return;
   if(!_ov&&S._lastZoneOv==null)return;
   S._lastZoneOv=_ov?_ov.cls:null;
@@ -674,8 +684,7 @@ function renderWeather(data){
   const icon=wmoIcon(c.weather_code,isDay),desc=wmoDesc(c.weather_code,isDay);
   const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
   if(wxNavBtn)wxNavBtn.innerHTML=neonWx(c.weather_code,isDay,20);
-  const _stormZone=typeof checkUserInZone==='function'?checkUserInZone():null;
-  const _zoneOverride=_heroBandFromZone(_stormZone);
+  const _zoneOverride=rainOverUserNow();
   const _zoneDbzToWmo={sprinkles:51,drizzle:53,trace:3,light:61,moderate:63,heavy:65,intense:65,severe:95,extreme:99};
   const _heroDesc=_zoneOverride?_zoneOverride.label:(c._nwsDesc||desc);
   const _heroWCode=_zoneOverride?(_zoneDbzToWmo[_zoneOverride.cls]||63):c.weather_code;
@@ -2156,6 +2165,61 @@ function _rainClockProject(){
     }else if(cur){out.windows.push(cur);cur=null}
   }
   if(cur)out.windows.push(cur);
+  // === v4.74: RAINING-NOW-OVER-THE-USER window. Overhead/proximity storm cells
+  // carry a null ETA, so the inbound loop above SKIPS them — that's the root cause
+  // of the dial reading "Rain starting at <future>" while radar shows rain right
+  // on top of you. Reuse the SAME dBZ-at-user signal the conditions card uses
+  // (rainOverUserNow) so the clock and the conditions ☔ can never disagree, and
+  // when it fires anchor a cell + window at minute 0 → the summary's startMin===0
+  // branch reads "Raining now / Rain until …" instead of a future start time. ===
+  const nowRain=(typeof rainOverUserNow==='function')?rainOverUserNow():null;
+  out.rainingNow=!!nowRain;
+  if(nowRain){
+    // Prefer a real overhead storm cell (it carries dbz + a speed we can use for a
+    // pass-duration estimate); fall back to the zone dBZ when no card qualified.
+    const ovList=(S._topStormAnalysis&&Array.isArray(S._topStormAnalysis.overhead))?S._topStormAnalysis.overhead:[];
+    let ovStorm=null;
+    for(const s of ovList){if(s&&(!ovStorm||(s.dbz||0)>(ovStorm.dbz||0)))ovStorm=s}
+    const nowDbz=Math.max(nowRain.maxDbz||0,ovStorm?(ovStorm.dbz||0):0);
+    if(nowDbz>0){
+      // Duration over the user = cell DIAMETER / storm speed (same model as the
+      // inbound loop). Default to 6 min when motion is unknown / the cell is stalled.
+      const baseR=_rcCellRadiusMi(nowDbz);
+      const _ovEta=ovStorm&&ovStorm._eta?ovStorm._eta:null;
+      const spd=vMag>0.1?vMag:((_ovEta&&_ovEta.closingSpeed>0)?_ovEta.closingSpeed:0);
+      const passMin=spd>0.1?Math.max(2,(2*baseR)/spd*60):6;
+      const tOut=Math.min(span,Math.max(1,Math.ceil(passMin)));
+      for(let t=0;t<=tOut;t++){if(nowDbz>out.minutes[t])out.minutes[t]=nowDbz}
+      // Ensure a window COVERS minute 0 so this becomes windows[0] (the summary's
+      // "Rain until …" branch). Without this, a sub-floor now-cell would otherwise
+      // attach to the nearest FUTURE window and the dial would mis-report the start.
+      let nowWin=out.windows.find(w=>w.startMin<=0&&w.endMin>=0);
+      if(!nowWin){nowWin={startMin:0,endMin:tOut,peakDbz:nowDbz};out.windows.push(nowWin)}
+      else{if(tOut>nowWin.endMin)nowWin.endMin=tOut;if(nowDbz>nowWin.peakDbz)nowWin.peakDbz=nowDbz}
+      // Add a now-cell unless an inbound cell already sits at minute 0 (avoid a
+      // double count — the cell list total must still equal the inbound card count).
+      if(!cellList.some(c=>c.centerMin<=0)){
+        cellList.push({lat:ovStorm?ovStorm.lat:S.lat,lng:ovStorm?ovStorm.lng:S.lon,dbz:nowDbz,dist:ovStorm?(ovStorm.distance||0):0,bearing:ovStorm?(ovStorm.bearing||0):0,tIn:0,tOut,centerMin:0,beyond:false,count:ovStorm?(ovStorm.pixels||1):1,now:true});
+      }
+      // The now-window can overlap a future window that starts within its pass
+      // (e.g. an inbound cell painted minutes a few minutes out). Merge any
+      // OVERLAPPING windows so one continuous rain period stays a single window
+      // with the correct end time. Only true overlaps merge — distinct forecast
+      // windows separated by a sub-floor gap (startMin > prev endMin) are kept.
+      if(out.windows.length>1){
+        out.windows.sort((a,b)=>a.startMin-b.startMin);
+        const merged=[out.windows[0]];
+        for(let i=1;i<out.windows.length;i++){
+          const w=out.windows[i],last=merged[merged.length-1];
+          if(w.startMin<=last.endMin){
+            if(w.endMin>last.endMin)last.endMin=w.endMin;
+            if(w.peakDbz>last.peakDbz)last.peakDbz=w.peakDbz;
+          }else merged.push(w);
+        }
+        out.windows=merged;
+      }
+    }
+  }
   // v4.68: assign each inbound storm-cell to exactly ONE window — the window whose
   // time span contains the cell's arrival minute. Because every cell is placed
   // exactly once and NEVER capped (the old code did clusters.slice(0,5), which
