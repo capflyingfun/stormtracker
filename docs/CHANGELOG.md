@@ -3,6 +3,19 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.70
+
+The Rain Clock dial now has a **dynamic time span** — it stretches from 1 hour up to 12 hours so **every** inbound storm is drawn at its real arrival position, instead of being pinned to a fixed 3-hour edge.
+
+User idea: storms arriving after 3 hours (e.g. at 3:30 or 4:00) were getting pinned to the dial's edge instead of being drawn where they actually arrive, so not everything showed properly. The fix: let the dial pick how far ahead it looks based on the furthest inbound storm.
+
+Changes (all in `docs/js/weather.js`):
+
+- **Dynamic span (1h–12h)** — `_rainClockProject()` now looks at the furthest inbound storm's ETA and picks the smallest "nice" span that contains it (1h, 2h, 3h, 4h, 6h, 8h, or 12h). So a storm 20 min out gets a tight 1-hour dial (great resolution), while a storm 5 hours out gets a 6-hour dial — and it's drawn at its true position, not the edge. Falls back to the familiar 3-hour dial when there's no inbound rain.
+- **Everything scales to the span** — the 6 outer clock labels space themselves evenly across the chosen span (30 min apart on a 3 h dial, 2 h apart on a 12 h dial), the card title shows the live span ("Rain Clock · 6h"), the per-minute arc, windows, and rain-amount estimate all integrate over the full span, and the center/text summaries say "next N hours" to match.
+- **Confidence note** — the dial is a *live-radar projection*: extremely accurate in the very short term, less certain the further out it reaches (a cell that's "arriving" can weaken, build, or veer before it gets here). A caption under the dial now reads "≈95% accurate within 30 min · further out is a live-radar projection — storms can still weaken, build, or shift," and each cell in the tap-details list is tagged **High confidence** (within ~30 min) or **Projection · may shift** (beyond).
+- **Label-clock fix** — the per-minute tick that refreshes the wall-clock times under each label assumed a fixed hourly spacing; it now reads each label's actual offset, so the times stay correct on any span.
+
 ## v4.69
 
 The **Total Precipitation Next 36 hrs** chart is now fully independent of the Rain Clock.
