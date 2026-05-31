@@ -583,44 +583,176 @@ function directImpactPct(diff){
 }
 S._scanHistory=[];
 S._cellTracks={};
+// v4.73: persistent per-cell track DB accumulating multiple position deltas so
+// a smoothed observed direction/speed + consistency/confidence can be built
+// over 2-3 scans. Winds-aloft stays the prior; observed motion is blended in
+// with weight = confidence (see getHybridMovement). Bounded + lightweight.
+S._cellTrackDB={};
+S._cellTrackSeq=0;
+S._fleetHybrid=null;
 function recordScanSnapshot(){
   if(!S.storms||!S.storms.length)return;
-  const snap={ts:Date.now(),cells:S.storms.filter(s=>s.dbz>=25&&s.lat!=null&&s.lng!=null).map(s=>({lat:s.lat,lng:s.lng,dbz:s.dbz,distance:s.distance,bearing:s.bearing}))};
+  const cells=S.storms.filter(s=>s.dbz>=25&&s.lat!=null&&s.lng!=null).map(s=>({lat:s.lat,lng:s.lng,dbz:s.dbz,distance:s.distance,bearing:s.bearing}));
+  // v4.73: track the storm-field centroid so a big jump (Scan Here / HD Scan to a
+  // different region) wipes the persistent track DB — otherwise old-region tracks
+  // would linger up to 30 min and bias the fleet steering for the new area.
+  let cLat=null,cLng=null;
+  if(cells.length){let sLat=0,sLng=0;for(const c of cells){sLat+=c.lat;sLng+=c.lng;}cLat=sLat/cells.length;cLng=sLng/cells.length;}
+  const prev=S._scanHistory[S._scanHistory.length-1];
+  if(cLat!=null&&prev&&prev.cLat!=null&&typeof haversine==='function'&&haversine(prev.cLat,prev.cLng,cLat,cLng)>50){
+    S._scanHistory=[];S._cellTrackDB={};S._cellTracks={};S._fleetHybrid=null;S._cellTrackSeq=0;
+  }
+  const snap={ts:Date.now(),cLat,cLng,cells};
   S._scanHistory.push(snap);
   if(S._scanHistory.length>5)S._scanHistory.shift();
-  if(S._scanHistory.length>=2)buildCellTracks();
+  updateCellTracks();
 }
-function buildCellTracks(){
+function _recomputeTrack(t){
+  const ds=t.deltas;
+  t.updates=ds.length;
+  if(!ds.length){t.smoothedDir=null;t.smoothedSpd=0;t.consistency=0;t.confidence=0;return;}
+  let vx=0,vy=0,spdSum=0;
+  for(const d of ds){const r=d.dir*Math.PI/180;vx+=Math.sin(r);vy+=Math.cos(r);spdSum+=d.spd;}
+  const resultant=Math.sqrt(vx*vx+vy*vy)/ds.length; // 0..1 circular agreement
+  t.smoothedDir=(Math.atan2(vx,vy)*180/Math.PI+360)%360;
+  t.smoothedSpd=spdSum/ds.length;
+  t.consistency=resultant;
+  // Need >=2 agreeing deltas (3 scans) before observed motion is trusted, so a
+  // single noisy frame can never flip the prediction.
+  if(ds.length<2)t.confidence=0;
+  else{const countFactor=Math.min(1,(ds.length-1)/2);t.confidence=Math.max(0,Math.min(1,countFactor*resultant));}
+}
+function updateCellTracks(){
   const hist=S._scanHistory;
-  const prev=hist[hist.length-2],curr=hist[hist.length-1];
-  if(!prev||!curr)return;
-  const dtHrs=(curr.ts-prev.ts)/3600000;
-  if(dtHrs<=0||dtHrs>1)return;
-  const tracks={};
+  const curr=hist[hist.length-1];
+  if(!curr){S._cellTracks={};S._fleetHybrid=null;return;}
+  const now=curr.ts;
+  const used={};
   for(const c of curr.cells){
     let best=null,bestD=Infinity;
-    for(const p of prev.cells){
-      const d=haversine(c.lat,c.lng,p.lat,p.lng);
-      const dbzDiff=Math.abs(c.dbz-p.dbz);
-      if(d<bestD&&d<15&&dbzDiff<25){bestD=d;best=p;}
+    for(const id in S._cellTrackDB){
+      if(used[id])continue;
+      const t=S._cellTrackDB[id];
+      const dtH=(now-t.lastTs)/3600000;
+      if(dtH<=0||dtH>0.5)continue;
+      let pLat=t.toLat,pLng=t.toLng;
+      if(t.smoothedSpd>0&&t.smoothedDir!=null&&typeof destPoint==='function'){
+        const pred=destPoint(t.toLat,t.toLng,t.smoothedDir,t.smoothedSpd*dtH);
+        pLat=pred[0];pLng=pred[1];
+      }
+      const d=haversine(c.lat,c.lng,pLat,pLng);
+      const dbzDiff=Math.abs(c.dbz-t.dbz);
+      if(d<bestD&&d<15&&dbzDiff<25){bestD=d;best=t;}
     }
     if(best){
-      const dxMi=bestD;
-      const spdMph=dxMi/dtHrs;
-      if(spdMph>120)continue;
-      const dy=c.lat-best.lat,dx=(c.lng-best.lng)*Math.cos(c.lat*Math.PI/180);
-      const dir=(Math.atan2(dx,dy)*180/Math.PI+360)%360;
-      const key=`${c.lat.toFixed(2)}_${c.lng.toFixed(2)}`;
-      tracks[key]={dir:Math.round(dir),speed:Math.round(spdMph),fromLat:best.lat,fromLng:best.lng,toLat:c.lat,toLng:c.lng,dbz:c.dbz};
+      const dtH=(now-best.lastTs)/3600000;
+      if(dtH>0&&dtH<=0.5){
+        const dxMi=haversine(best.toLat,best.toLng,c.lat,c.lng);
+        const spdMph=dxMi/dtH;
+        if(spdMph<=120){
+          const dy=c.lat-best.toLat,dx=(c.lng-best.toLng)*Math.cos(c.lat*Math.PI/180);
+          const dir=(Math.atan2(dx,dy)*180/Math.PI+360)%360;
+          best.deltas.push({dir,spd:spdMph,ts:now});
+          if(best.deltas.length>4)best.deltas.shift();
+        }
+      }
+      best.fromLat=best.toLat;best.fromLng=best.toLng;
+      best.toLat=c.lat;best.toLng=c.lng;best.dbz=c.dbz;best.lastTs=now;
+      _recomputeTrack(best);
+      used[best.id]=1;
+    }else{
+      const id='ct'+(S._cellTrackSeq++);
+      S._cellTrackDB[id]={id,fromLat:c.lat,fromLng:c.lng,toLat:c.lat,toLng:c.lng,dbz:c.dbz,lastTs:now,deltas:[],smoothedDir:null,smoothedSpd:0,consistency:0,confidence:0,updates:0};
+      used[id]=1;
     }
   }
+  for(const id in S._cellTrackDB){if((now-S._cellTrackDB[id].lastTs)/3600000>0.5)delete S._cellTrackDB[id];}
+  const ids=Object.keys(S._cellTrackDB);
+  if(ids.length>80){ids.sort((a,b)=>S._cellTrackDB[a].lastTs-S._cellTrackDB[b].lastTs);for(let i=0;i<ids.length-80;i++)delete S._cellTrackDB[ids[i]];}
+  const tracks={};let confCount=0;
+  for(const id in S._cellTrackDB){
+    const t=S._cellTrackDB[id];
+    if(t.smoothedDir==null||t.deltas.length<1)continue;
+    const key=`${t.toLat.toFixed(2)}_${t.toLng.toFixed(2)}`;
+    tracks[key]={dir:Math.round(t.smoothedDir),speed:Math.round(t.smoothedSpd),fromLat:t.fromLat,fromLng:t.fromLng,toLat:t.toLat,toLng:t.toLng,dbz:t.dbz,confidence:Math.round(t.confidence*100)/100,consistency:Math.round(t.consistency*100)/100,updates:t.updates};
+    if(t.confidence>0)confCount++;
+  }
   S._cellTracks=tracks;
-  console.log(`[TRACK] ${Object.keys(tracks).length} cell tracks from ${prev.cells.length}→${curr.cells.length} cells (${(dtHrs*60).toFixed(1)}min gap)`);
+  computeFleetHybrid();
+  if(Object.keys(tracks).length)console.log(`[TRACK] ${Object.keys(tracks).length} cell tracks (${confCount} confident) from ${curr.cells.length} cells`);
+}
+function computeFleetHybrid(){
+  // Only aggregate tracks that were matched/updated in the latest scan, so stale
+  // tracks (e.g. from a previous scan area still inside the 30-min prune window)
+  // cannot bias the fleet steering.
+  const _hist=S._scanHistory;const _curr=_hist&&_hist.length?_hist[_hist.length-1]:null;const _now=_curr?_curr.ts:null;
+  let vx=0,vy=0,spdSum=0,spdW=0,confSum=0,n=0;
+  for(const id in S._cellTrackDB){
+    const t=S._cellTrackDB[id];
+    if(t.confidence<=0||t.smoothedDir==null)continue;
+    if(_now!=null&&t.lastTs!==_now)continue;
+    const w=t.confidence*Math.max(0.3,Math.min(1,(t.dbz-20)/40));
+    const r=t.smoothedDir*Math.PI/180;
+    vx+=Math.sin(r)*w;vy+=Math.cos(r)*w;
+    spdSum+=t.smoothedSpd*w;spdW+=w;confSum+=t.confidence;n++;
+  }
+  if(spdW<=0||!n){S._fleetHybrid=null;return;}
+  const dir=(Math.atan2(vx,vy)*180/Math.PI+360)%360;
+  const resultant=Math.sqrt(vx*vx+vy*vy)/spdW; // agreement across cells
+  const avgConf=confSum/n;
+  const conf=Math.max(0,Math.min(0.9,avgConf*resultant)); // cap so aloft keeps ≥10% on aggregate displays
+  S._fleetHybrid={direction:Math.round(dir),speed:Math.round(spdSum/spdW),confidence:Math.round(conf*100)/100,cells:n};
 }
 function getCellTrack(storm){
-  if(!S._cellTracks)return null;
-  const key=`${storm.lat.toFixed(2)}_${storm.lng.toFixed(2)}`;
+  if(!S._cellTracks||!storm)return null;
+  const lng=storm.lng!=null?storm.lng:storm.lon;
+  if(storm.lat==null||lng==null)return null;
+  const key=`${storm.lat.toFixed(2)}_${lng.toFixed(2)}`;
   return S._cellTracks[key]||null;
+}
+function _blendDir(a,b,w){
+  const ar=a*Math.PI/180,br=b*Math.PI/180;
+  const x=Math.sin(ar)*(1-w)+Math.sin(br)*w;
+  const y=Math.cos(ar)*(1-w)+Math.cos(br)*w;
+  return (Math.atan2(x,y)*180/Math.PI+360)%360;
+}
+function _aloftMv(){
+  const hasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
+  const hasAl=S._upperWindDir!=null;
+  return hasMv?{direction:S.stormMovement.direction,speed:S.stormMovement.speed}
+       :hasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}
+       :null;
+}
+// Per-storm confidence-weighted blend: winds-aloft prior + observed cell track.
+function getHybridMovement(storm){
+  const aloft=_aloftMv();
+  const ct=storm?getCellTrack(storm):null;
+  if(ct&&ct.confidence>0){
+    const w=ct.confidence;
+    if(!aloft)return{direction:ct.dir,speed:ct.speed,source:'observed',confidence:w,obsDir:ct.dir,aloftDir:null};
+    return{direction:Math.round(_blendDir(aloft.direction,ct.dir,w)),speed:Math.round(aloft.speed*(1-w)+ct.speed*w),source:w>=0.6?'observed':'hybrid',confidence:w,obsDir:ct.dir,aloftDir:aloft.direction};
+  }
+  if(aloft)return{direction:aloft.direction,speed:aloft.speed,source:'aloft',confidence:0,obsDir:ct?ct.dir:null,aloftDir:aloft.direction};
+  return null;
+}
+// Fleet-level blend for aggregate displays (path arrows, sonar, 3D steering).
+function getSteeringMv(){
+  const aloft=_aloftMv();
+  const fh=S._fleetHybrid;
+  if(fh&&fh.confidence>0&&aloft){
+    const w=fh.confidence;
+    return{direction:Math.round(_blendDir(aloft.direction,fh.direction,w)),speed:Math.round(aloft.speed*(1-w)+fh.speed*w),source:w>=0.5?'observed':'hybrid',confidence:w};
+  }
+  if(fh&&fh.confidence>0&&!aloft)return{direction:fh.direction,speed:fh.speed,source:'observed',confidence:fh.confidence};
+  return aloft?{direction:aloft.direction,speed:aloft.speed,source:'aloft',confidence:0}:null;
+}
+function _movSourceBadge(h){
+  if(!h||!h.source)return'';
+  if(h.source==='aloft')return ` <span style="font-size:0.72em;color:#7f8c9b;font-weight:600" title="${tStr('Direction from winds-aloft steering')}">· ${tStr('aloft')}</span>`;
+  const pct=Math.round((h.confidence||0)*100);
+  const col=h.source==='observed'?'#22d3ee':'#a3e635';
+  const lbl=h.source==='observed'?tStr('observed'):tStr('hybrid');
+  return ` <span style="font-size:0.72em;color:${col};font-weight:700" title="${tStr('Based on radar-observed cell motion')} (${pct}%)">· 📡 ${lbl} ${pct}%</span>`;
 }
 S._terrainData=null;
 S._terrainLastLat=null;
@@ -729,13 +861,12 @@ function pointInNWSPolygon(lat,lon){
 }
 function calcStormETA(storm){
   if(storm._eta&&storm._etaScanId===S._stormScanId)return storm._eta;
-  const _cHasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
-  const _cHasAl=S._upperWindDir!=null;
-  const _cMv=_cHasMv?S.stormMovement:(_cHasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
-  if(!_cMv||_cMv.speed<2){const _r={eta:null,impact:0,approaching:false};storm._eta=_r;storm._etaScanId=S._stormScanId;return _r;}
+  const _hyb=getHybridMovement(storm);
+  if(!_hyb||_hyb.speed<2){const _r={eta:null,impact:0,approaching:false};storm._eta=_r;storm._etaScanId=S._stormScanId;return _r;}
   const cellTrack=getCellTrack(storm);
-  const movDir=cellTrack?cellTrack.dir:_cMv.direction;
-  const movSpd=cellTrack?cellTrack.speed:_cMv.speed;
+  const _obsBased=_hyb.source==='observed'||_hyb.source==='hybrid';
+  const movDir=_hyb.direction;
+  const movSpd=_hyb.speed;
   const baseWidthMi=Math.max(0,Math.min(3,(storm.dbz-20)/15));
   const widthAngle=storm.distance>0.5?Math.atan2(baseWidthMi,storm.distance)*180/Math.PI:15;
   const CONE_HALF=15+widthAngle;
@@ -791,7 +922,7 @@ function calcStormETA(storm){
   let _etaOut=etaMin;
   if(_brief&&_brief.etaMin!=null&&(_tierKey==='direct'||_tierKey==='near_direct'))_etaOut=_brief.etaMin;
   const _closingOut=(_brief&&_brief.closingMph!=null)?_brief.closingMph:Math.round(closingSpeed*100)/100;
-  const _eta={eta:_etaOut,impact:pct,approaching:_isApproaching,perpTier:_tierKey,closingSpeed:_closingOut,angleDiff:Math.round(diff),cellTrack:!!cellTrack,trackDir:cellTrack?cellTrack.dir:null,trackSpd:cellTrack?cellTrack.speed:null,nwsWarnings,terrain:terrain.desc};
+  const _eta={eta:_etaOut,impact:pct,approaching:_isApproaching,perpTier:_tierKey,closingSpeed:_closingOut,angleDiff:Math.round(diff),cellTrack:!!cellTrack,trackDir:cellTrack?cellTrack.dir:null,trackSpd:cellTrack?cellTrack.speed:null,movDir,movSpd,source:_hyb.source,confidence:_hyb.confidence,obsBased:_obsBased,nwsWarnings,terrain:terrain.desc};
   storm._eta=_eta;storm._etaScanId=S._stormScanId;
   return _eta;
 }
@@ -829,12 +960,8 @@ function _stormHashKey(s){return `${(s.lat||0).toFixed(2)}_${(s.lng||0).toFixed(
 function calcStormETAForBriefing(storm){
   if(storm._brief&&storm._briefScanId===S._stormScanId)return storm._brief;
   const cellTrack=(typeof getCellTrack==='function')?getCellTrack(storm):null;
-  const _hasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
-  const _hasAl=S._upperWindDir!=null;
-  const _mv=cellTrack?{direction:cellTrack.dir,speed:cellTrack.speed}
-          :_hasMv?S.stormMovement
-          :_hasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}
-          :null;
+  const _hyb=(typeof getHybridMovement==='function')?getHybridMovement(storm):null;
+  const _mv=_hyb?{direction:_hyb.direction,speed:_hyb.speed}:null;
   const distRound=Math.round(storm.distance*10)/10;
   if(!_mv||_mv.speed<2){
     return{classification:'unknown',etaMin:null,closingMph:0,perpMissMi:distRound,distanceMi:distRound,sideBearing:null,movDirDeg:null,movSpdMph:null,source:'none',inCone:false,coneConfidence:null};
@@ -849,7 +976,7 @@ function calcStormETAForBriefing(storm){
   const Rx=-Math.sin(bRad)*storm.distance;
   const Ry=-Math.cos(bRad)*storm.distance;
   const rMag=storm.distance;
-  const source=cellTrack?'cell':(_hasMv?'fleet':'aloft');
+  const source=_hyb?_hyb.source:(cellTrack?'cell':'aloft');
   if(rMag<0.05){
     S._lastStormClass[stormKey]='direct';
     const _if=Math.max(0,Math.min(1,(storm.dbz-20)/55));
@@ -2462,9 +2589,7 @@ if(typeof window!=='undefined')window.getFilteredStorms=getFilteredStorms;
 // storm-movement vector or no storms at all.
 function buildStormForecastLines(plain){
   const storms=(S.storms||[]);
-  const _hasMv=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
-  const _hasAl=S._upperWindDir!=null;
-  const mv=_hasMv?S.stormMovement:(_hasAl?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
+  const mv=(typeof getSteeringMv==='function')?getSteeringMv():(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement:null);
   if(!storms.length||!mv||mv.speed<2)return{lines:[],empty:false};
   // v4.67: when the Storms tab has rendered, build the "inbound — N cells"
   // banner from the exact same filtered inbound set that produces the cards
@@ -2593,9 +2718,7 @@ function _renderStormsCore(){
   const _hasOverhead=!!(S._topStormAnalysis&&S._topStormAnalysis.overhead.length);
   const sev=(_hasOverhead||_maxApproachingDbz>=55)?'danger':(_maxApproachingDbz>=40?'warning':'info');
   const severe=sev==='danger';
-  const _hasMovement=S.stormMovement&&S.stormMovement.speed&&S.stormMovement.speed>=2;
-  const _hasAloft=S._upperWindDir!=null;
-  const mv=_hasMovement?S.stormMovement:(_hasAloft?{direction:(S._upperWindDir+180)%360,speed:S._upperWindSpd?Math.round(S._upperWindSpd*0.621371):10}:null);
+  const mv=(typeof getSteeringMv==='function')?getSteeringMv():(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement:null);
   if(mv&&mv.speed>=2){storms.forEach(s=>{s._eta=calcStormETA(s)})}else{storms.forEach(s=>{if(!s._eta)s._eta=calcStormETA(s)})}
   let inConeCount=0;
   let inConeWorstCls=null;
@@ -2610,7 +2733,8 @@ function _renderStormsCore(){
       }
     }
     coneStorms.forEach(s=>{
-      if(isUserInStormCone(s,mv,uLat,uLng)){
+      const _smv=(typeof getHybridMovement==='function'?getHybridMovement(s):null)||mv;
+      if(isUserInStormCone(s,_smv,uLat,uLng)){
         inConeCount++;
         try{
           const b=calcStormETAForBriefing(s);
@@ -2650,11 +2774,12 @@ function _renderStormsCore(){
       const impTile=`<div class="storm-detail" title="${impTitle}"><div class="storm-detail-label">${tStr('Strength at you')}</div><div class="storm-detail-val" style="color:${impDispColor};font-size:0.85em">${impDispVal}</div></div>`;
       const missTile=`<div class="storm-detail"><div class="storm-detail-label">${tStr('Storm X-TRK')}</div><div class="storm-detail-val" style="font-size:0.85em">${projMissDisp}</div></div>`;
       let mvLine='';
-      const _ct=typeof getCellTrack==='function'?getCellTrack(s):null;
-      const _sMv=(_ct&&_ct.speed>=2)?{direction:_ct.dir,speed:_ct.speed}:mv;
+      const _hybS=typeof getHybridMovement==='function'?getHybridMovement(s):null;
+      const _sMv=(_hybS&&_hybS.speed>=2)?_hybS:mv;
       if(_sMv&&_sMv.speed>=2){
         const spdStr=S.radarMetric?Math.round(_sMv.speed*1.60934)+' km/h':_sMv.speed+' mph';
-        mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Moving')}</div><div class="storm-detail-val">${degToDir(_sMv.direction)} (${Math.round(_sMv.direction)}°) ${spdStr}</div><div class="tile-tap">tap</div></div>`;
+        const _srcBadge=_hybS?_movSourceBadge(_hybS):'';
+        mvLine=`<div class="storm-detail tappable-unit" onclick="toggleStormUnits()"><div class="storm-detail-label">${tStr('Moving')}</div><div class="storm-detail-val">${degToDir(_sMv.direction)} (${Math.round(_sMv.direction)}°) ${spdStr}${_srcBadge}</div><div class="tile-tap">tap</div></div>`;
         if(isOverhead(s)){
           mvLine+=`<div class="storm-detail" style="grid-column:span 2"><div class="storm-detail-label">${tStr('Status')}</div><div class="storm-detail-val" style="color:#f97316;font-size:0.85em">⚠️ ${tStr('Overhead · Moving away')}</div></div>`;
         }else if(isApproaching(s)){

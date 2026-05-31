@@ -141,7 +141,7 @@ function _saveStormAlertHistory(){
   try{localStorage.setItem('st_stormAlertHistory',JSON.stringify(_stormAlertHistory))}catch(e){}
 }
 function _calcStormImpact(storm){
-  const mv=S.stormMovement;
+  const mv=(typeof getHybridMovement==='function')?getHybridMovement(storm):S.stormMovement;
   if(!mv||mv.speed<2)return{impactPct:0,impactTier:'none'};
   const midBear=storm.bearing||0;
   const midDist=storm.distance||0;
@@ -205,7 +205,7 @@ function checkStormCellAlerts(){
     const bearings=batch.map(b=>b.storm.bearing);
     const avgBear=Math.round(Math.atan2(bearings.reduce((s,b)=>s+Math.sin(b*Math.PI/180),0)/bearings.length,bearings.reduce((s,b)=>s+Math.cos(b*Math.PI/180),0)/bearings.length)*180/Math.PI+360)%360;
     const dirFrom=degToDir(avgBear);
-    const mv=S.stormMovement;
+    const mv=(typeof getSteeringMv==='function')?getSteeringMv():S.stormMovement;
     let moveStr='';
     if(mv&&mv.speed>=2){
       const travelDir=degToDir(mv.direction);

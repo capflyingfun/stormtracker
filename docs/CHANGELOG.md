@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.73
+
+**Hybrid storm direction prediction.** Storm movement used to come from a single source — either winds-aloft steering or a raw cell track — with no sense of how trustworthy it was. Now the app keeps a persistent track for each storm cell across scans and blends *observed* cell motion with the winds-aloft prior, weighted by confidence. Winds-aloft is the starting estimate; as a cell is seen moving consistently over 2–3 scans, the prediction shifts toward what's actually observed.
+
+- **Per-cell track memory** — a persistent track database (`S._cellTrackDB`) accumulates up to 4 position deltas per cell across scans, matching cells frame-to-frame within ~15 mi / 25 dBZ and pruning stale tracks. Each track computes a vector-mean direction/speed, a *consistency* score (how steady the motion is), and a *confidence* that ramps from 0 to 1 over the first few consistent updates.
+- **Confidence-weighted blend** — `getHybridMovement(storm)` blends the winds-aloft direction (prior) with the observed cell track by confidence: low confidence leans on winds-aloft, high confidence (≥60%) is labelled **observed**, in between is **hybrid**. A fleet-level aggregate (`getSteeringMv()`) drives the path arrows, sonar steering arrow, 3D cones/steering, and summary lines.
+- **Source badges everywhere** — storm cards, the map cone, the sonar arrow, the 3D steering readout/popup, and the AI briefing now show whether a prediction is 📡 observed, hybrid, or from winds-aloft, with the confidence %. Every direction consumer (ETA, cones, X-track, impact, alerts) is routed through the same hybrid source so the numbers agree.
+
 ## v4.72
 
 **Radar latency time offset.** Radar imagery is several minutes old by the time it reaches the app, but storm positions are frozen at that observation moment — so every ETA and arrival time computed from "now" was reading a few minutes *late*. Now the app accounts for that radar age and shifts every arrival/ETA earlier so the times match reality.

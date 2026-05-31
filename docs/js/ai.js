@@ -440,8 +440,13 @@ function buildWeatherContext(){
     }else{
       parts.push(`\nSTORM DATA: briefing engine unavailable, ${fs.storms.length} cells after filter.`);
     }
-    if(S.stormMovement&&S.stormMovement.speed>=2){
-      parts.push(`  General storm movement: ${degToDir(S.stormMovement.direction)} at ${fmtWind(S.stormMovement.speed*1.60934)}`);
+    const _aiMv=(typeof getSteeringMv==='function')?getSteeringMv():(S.stormMovement&&S.stormMovement.speed>=2?S.stormMovement:null);
+    if(_aiMv&&_aiMv.speed>=2){
+      let _src='';
+      if(_aiMv.source==='observed')_src=` (radar-observed cell motion, ${Math.round((_aiMv.confidence||0)*100)}% confidence)`;
+      else if(_aiMv.source==='hybrid')_src=` (blend of winds-aloft + observed motion, ${Math.round((_aiMv.confidence||0)*100)}% confidence)`;
+      else if(_aiMv.source==='aloft')_src=` (estimated from winds-aloft steering)`;
+      parts.push(`  General storm movement: ${degToDir(_aiMv.direction)} at ${fmtWind(_aiMv.speed*1.60934)}${_src}`);
     }
     // STORMS TAB FORECAST — the exact tier-labeled bullets shown at the top of
     // the Storms tab ("🔵 Light rain inbound starting in 25m:28s — 102 cells", etc).
