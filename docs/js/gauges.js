@@ -523,7 +523,8 @@ function renderGaugeG1000(d){
     const impColor=stmImpact>=80?'#ef4444':stmImpact>=50?amber:stmImpact>=20?'#eab308':green;
     svg+=`<text x="${compassCx}" y="${infoBot+18}" fill="${impColor}" font-size="5" font-weight="700" text-anchor="middle" font-family="monospace">${stmImpact}% IMPACT</text>`;
     if(stmEta&&stmEta.eta!=null){
-      const etaStr=stmEta.eta<60?stmEta.eta.toFixed(0)+'m':(stmEta.eta/60).toFixed(1)+'h';
+      const _stmAdj=Math.max(0,stmEta.eta-radarAgeMin());
+      const etaStr=_stmAdj<60?_stmAdj.toFixed(0)+'m':(_stmAdj/60).toFixed(1)+'h';
       svg+=`<text x="${compassCx}" y="${infoBot+26}" fill="${amber}" font-size="4.5" font-weight="600" text-anchor="middle" font-family="monospace">ETA ${etaStr} · ${stmClosing.toFixed(0)}mph closing</text>`;
     }
   }else{
