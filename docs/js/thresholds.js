@@ -184,7 +184,7 @@ function checkStormCellAlerts(){
     if(!allMatch||!bestMsg)return;
     _STORM_ALERT_COOLDOWN[cellKey]=now;
     let etaMin=null,arrivalMs=null,closingMph=0;
-    try{const se=calcStormETA(storm);if(se&&se.approaching&&se.eta!=null&&se.eta>0){etaMin=se.eta;arrivalMs=now+se.eta*60000;closingMph=se.closingSpeed||0}}catch(e){}
+    try{const se=calcStormETA(storm);if(se&&se.approaching&&se.eta!=null&&se.eta>0){etaMin=Math.max(0,se.eta-radarAgeMin());arrivalMs=now+etaMin*60000;closingMph=se.closingSpeed||0}}catch(e){}
     const distStr=S.radarMetric?parseFloat((storm.distance*1.60934).toFixed(1))+' km':parseFloat(storm.distance.toFixed(1))+' mi';
     const etaStr=etaMin!=null?' · ETA '+formatStormEta(etaMin)+' ('+fmtClockShort(new Date(arrivalMs))+')':'';
     const cellMsg=`🌩️ Storm cell alert: ${storm.dbz} dBZ at ${distStr}${storm.impactPct>0?' · Impact: '+storm.impactPct+'% ('+storm.impactTier+')':''}${etaStr}`;

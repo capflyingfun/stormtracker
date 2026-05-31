@@ -6,7 +6,7 @@ const S = {
   alerts:[], station:null, stationId:null,
   map:null, radarLayer:null, radarFrames:[], radarIdx:0,
   radarPlaying:false, radarTimer:null, scanRadius:80, radarSource:'nexrad', nexradLayer:null, radarMetric:false,
-  activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null, autoScanTimer:null, lastScanMs:0, _lastScanWasHiRes:false, _stormETAs:{}, _etaRescanInProgress:false,
+  activePage:'weather', nearbyStations:[], stormMovement:null, scanTime:null, etaTimer:null, autoScanTimer:null, lastScanMs:0, _lastScanWasHiRes:false, _stormETAs:{}, _etaRescanInProgress:false, _radarAgeMs:null,
   travelMode:false, travelWatchId:null, travelLastUpdate:0, travelMarker:null,
   showClutter:false,
 };
@@ -15,6 +15,38 @@ const WIND_UNITS = ['mph','kts','km/h','m/s'];
 const PRES_UNITS = ['inHg','mb','mmHg','kPa'];
 const VIS_UNITS = ['mi','km'];
 const PRECIP_UNITS = ['in','mm','cm'];
+// v4.72: radar latency. Radar imagery (RainViewer/NEXRAD) is several minutes old
+// by the time it reaches the app, but storm positions are frozen at that
+// observation moment — so every ETA/arrival computed from "now" reads a few
+// minutes late. RADAR_LATENCY_MS is the default assumed age (5 min); when a
+// RainViewer past-frame timestamp is available we use the real measured age.
+// computeRadarAgeMs() is called at scan time to store the canonical age in
+// S._radarAgeMs; radarAgeMin() is the single value every consumer subtracts.
+const RADAR_LATENCY_MS=5*60000;
+function radarAgeMs(){
+  let ms=(typeof S!=='undefined'&&S._radarAgeMs!=null)?S._radarAgeMs:RADAR_LATENCY_MS;
+  if(!(ms>=0))ms=RADAR_LATENCY_MS;
+  if(ms>30*60000)ms=30*60000;
+  return ms;
+}
+function radarAgeMin(){return radarAgeMs()/60000;}
+function computeRadarAgeMs(useNexrad){
+  // Prefer the real age of the latest RainViewer PAST (observed) frame — nowcast
+  // frames are forecasts (future) so they're filtered out. NEXRAD exposes no
+  // timestamp here, so it falls back to the 5-min default. Clamped 0–30 min so a
+  // bad timestamp can never produce an absurd shift.
+  try{
+    if(!useNexrad&&S.radarFrames&&S.radarFrames.length){
+      const past=S.radarFrames.filter(f=>f&&f.time&&(!f.path||!f.path.includes('/nowcast/')));
+      if(past.length){
+        const latest=past[past.length-1];
+        const a=Date.now()-latest.time*1000;
+        if(a>=0&&a<=30*60000)return a;
+      }
+    }
+  }catch(e){}
+  return RADAR_LATENCY_MS;
+}
 let _timeFormat=localStorage.getItem('st_timeFormat')||'auto';
 function _detectSystem24h(){
   try{

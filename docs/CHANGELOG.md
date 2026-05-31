@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.72
+
+**Radar latency time offset.** Radar imagery is several minutes old by the time it reaches the app, but storm positions are frozen at that observation moment — so every ETA and arrival time computed from "now" was reading a few minutes *late*. Now the app accounts for that radar age and shifts every arrival/ETA earlier so the times match reality.
+
+- **One canonical radar age** — a single value (`S._radarAgeMs`) is captured at scan time and read everywhere via `radarAgeMin()` (in `docs/js/core.js`). For RainViewer we measure the real age of the latest observed (past) frame; NEXRAD and any unknown case fall back to a 5-minute default. The value is clamped 0–30 min so a bad timestamp can never produce an absurd shift.
+- **Every ETA consumer subtracts it** — storm-card countdowns, the map-marker popup countdown, the severe/light storm ticker, the threshold storm-cell alerts, the Rain Clock dial cell positions, the 3D arrival sprites, and the AI/briefing arrival lines all now show times shifted ~5 min earlier.
+- **Caption** — a small note under the Rain Clock dial reads "Arrival times shifted ~N min earlier to account for radar age" so the adjustment is transparent.
+
 ## v4.71
 
 Small Rain Clock polish: the 6 dial labels now lead with the **wall-clock arrival time** and show the offset in parentheses underneath — e.g. **14:22** over **(+1:20 hrs)** — instead of the offset on top and the time below. The offset reads as `+H:MM hrs` (or `+N min` under an hour). The per-minute clock refresh still lands on the time line, and everything still scales to the dynamic span.

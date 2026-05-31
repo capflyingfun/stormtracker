@@ -708,6 +708,7 @@ async function scanRadarForView(){
     _clusterSonarPoints();
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);if(typeof bumpStormScanId==='function')bumpStormScanId();
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
+    S._radarAgeMs=(typeof computeRadarAgeMs==='function')?computeRadarAgeMs(useNexrad):RADAR_LATENCY_MS;
     computeTopStorms();
     recordScanSnapshot();
     const srcLabel=useNexrad?'NEXRAD':'RainViewer';
@@ -794,6 +795,7 @@ async function scanRadarHiRes(map,fromHome){
     S._rawScanPts=rawPoints;
     S.storms=spacingFilter(rawPoints,true).sort((a,b)=>a.distance-b.distance);if(typeof bumpStormScanId==='function')bumpStormScanId();
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=true;
+    S._radarAgeMs=(typeof computeRadarAgeMs==='function')?computeRadarAgeMs(useNexrad):RADAR_LATENCY_MS;
     computeTopStorms();
     _sonarZoomMi=15;localStorage.setItem('st_sonarZoom',15);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_syncSonarZoomBtns();
     _clusterSonarPoints();
@@ -1029,7 +1031,7 @@ function plotStormMarkers(map){
           targetMs=S._stormETAs[sk];
         }else{
           const elapsedMin=S.scanTime?(Date.now()-S.scanTime)/60000:0;
-          const remainMin=Math.max(0,eta.eta-elapsedMin);
+          const remainMin=Math.max(0,eta.eta-elapsedMin-radarAgeMin());
           targetMs=Date.now()+remainMin*60000;
           S._stormETAs[sk]=targetMs;
         }
@@ -1403,7 +1405,7 @@ function buildStormZones(map,rawPts){
       else if(diff<=coneHalf+10){impactTier='low';impactPct=Math.max(5,Math.round((coneHalf+10-diff)/10*30));}
       isApproaching=(impactTier==='high'||impactTier==='medium');
       if(isApproaching&&midDist>1){
-        etaSec=Math.round(midDist/Math.max(closing,0.5)*3600);
+        etaSec=Math.max(0,Math.round(midDist/Math.max(closing,0.5)*3600)-Math.round(radarAgeMin()*60));
         const now=new Date();
         const arrival=new Date(now.getTime()+etaSec*1000);
         arrivalStr=fmtClockShort(arrival);
@@ -1769,7 +1771,7 @@ function updateThreatTicker(){
     return{dir:'',spd:0};
   }
   function fmtEtaLive(etaMin){
-    const targetMs=Date.now()+Math.round(etaMin*60)*1000;
+    const targetMs=Date.now()+Math.round(Math.max(0,etaMin-radarAgeMin())*60)*1000;
     const arrival=new Date(targetMs);
     const arrStr=fmtClockShort(arrival);
     const cdSpan=`<span class="ticker-cd" data-target="${targetMs}"></span>`;

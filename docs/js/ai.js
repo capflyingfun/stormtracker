@@ -331,7 +331,7 @@ function buildWeatherContext(){
         const e=tierEmo[it.tier]||'⚫',lbl=tierLbl[it.tier]||(it.tier||'').toUpperCase();
         const close=b.closingMph!=null?((b.closingMph>=0?'+':'')+b.closingMph+' mph'):'?';
         const miss=b.perpMissMi!=null?b.perpMissMi.toFixed(1)+' mi':'?';
-        const eta=b.etaMin!=null?`, ETA ~${b.etaMin} min (${(typeof fmtClock==='function')?fmtClock(new Date(Date.now()+b.etaMin*60000)):''})`:'';
+        const eta=b.etaMin!=null?`, ETA ~${Math.round(Math.max(0,b.etaMin-((typeof radarAgeMin==='function')?radarAgeMin():5)))} min (${(typeof fmtClock==='function')?fmtClock(new Date(Date.now()+Math.max(0,b.etaMin-((typeof radarAgeMin==='function')?radarAgeMin():5))*60000)):''})`:'';
         const pct=b.closenessPct!=null?` (${b.closenessPct}% max intensity at user)`:'';
         const estDbz=b.estDbzAtUser!=null?`, ~${b.estDbzAtUser} dBZ expected at user`:'';
         const mov=(b.movSpdMph&&b.movDirDeg!=null)?` (motion ${degToDir(b.movDirDeg)} @ ${b.movSpdMph} mph)`:'';
