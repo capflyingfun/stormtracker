@@ -3,6 +3,12 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.75
+
+**RainViewer dBZ recalibration.** On non-US locations (RainViewer radar source), storm intensity read noticeably hotter than the NEXRAD scale used in the US — the same rain showed up a few dBZ categories higher. The cause was a legacy "boost" multiplier inside the RainViewer color→dBZ decoder that the NEXRAD decoder never had.
+
+- **Dropped the boost multiplier** — `rvToDbz()` (`docs/js/core.js`) was inflating its decoded dBZ by ×1.10 to ×1.29 depending on intensity (a true 50 dBZ core was reported as 65, a ~15 dBZ over-read at the top end). The RainViewer "Universal Blue" palette and the heuristic color branches already decode the tiles to true dBZ, so the raw value is now returned directly (still clamped to the 75 dBZ ceiling). RainViewer and NEXRAD now report on the same dBZ scale, so storm severity colors, cell counts, the Rain Clock, and alert thresholds behave consistently regardless of radar source. The NEXRAD path is unchanged.
+
 ## v4.74
 
 **Rain Clock "raining now" detection.** When radar showed rain sitting right on top of you, the Rain Clock could still read "Rain starting at <future time>" — it built the dial only from *inbound* storm cards and dropped any overhead/proximity cell (those carry no ETA), so it fell through to the next approaching storm's arrival time. The clock now shares one signal with the conditions card.
