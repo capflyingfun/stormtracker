@@ -744,8 +744,12 @@ function rvToDbz(r,g,b,a){
     raw=bestD<6000?best:0;
   }
   if(raw<=0)return 0;
-  const boost=raw>=30?Math.round(raw*1.29):raw>=20?Math.round(raw*1.18):raw>=15?Math.round(raw*1.10):raw;
-  return Math.min(75,boost);
+  // v4.75: removed the legacy intensity "boost" multiplier (raw×1.10–1.29) that
+  // pushed RainViewer dBZ up to ~15 dBZ above the NEXRAD scale (raw 50 read as
+  // 65). The RV_UB palette + heuristic branches already decode the Universal
+  // Blue scheme to true dBZ, so the raw value is returned directly so RainViewer
+  // and NEXRAD report on the same scale. Clamp only to the 75 dBZ ceiling.
+  return Math.min(75,raw);
 }
 
 // ==========================================
