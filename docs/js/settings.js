@@ -372,3 +372,20 @@ function setTickerSpeed(val,final){
     if(final){updateThreatTicker();toast('📰 Ticker speed set to '+v+'%')}
   }
 }
+// v4.76: manual "reboot startup" — re-runs the startup sequence in place for the
+// current location without a full app reload. Clears the winds-aloft cache so
+// the WA gate genuinely re-fetches, then re-runs the location refresh pipeline
+// (fetch weather → gated scanRadarForStorms → hazards). Useful if storm
+// motion / ETAs look stuck because winds aloft never loaded.
+function rebootStartup(){
+  if(!S.lat||!S.lon){toast('📍 Set a location first');return}
+  if(S._rebooting)return;
+  S._rebooting=true;
+  // Close the settings panel if it's open so the loading screen is visible.
+  const p=document.getElementById('settings-panel');
+  if(p&&p.style.display!=='none'&&typeof toggleSettingsPanel==='function')toggleSettingsPanel();
+  toast('🔄 Rebooting — re-fetching winds aloft & rescanning…');
+  // Force a fresh winds-aloft fetch through the gate.
+  S._windCache=null;S._aloftData=null;
+  Promise.resolve(setLoc(S.lat,S.lon,S.locName)).finally(()=>{S._rebooting=false});
+}

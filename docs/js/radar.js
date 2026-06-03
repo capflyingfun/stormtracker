@@ -660,7 +660,11 @@ async function scanRadarForView(){
   const useNexrad=S.radarSource==='nexrad';
   const radius=S.scanRadius;
   showScanOverlay();
-  await fetchWindsAloft(cLat,cLng);
+  // v4.76: gate on winds aloft before scanning/rendering points.
+  const _vReqId=S._locReqId;
+  const _waOk=await ensureWindsAloft(cLat,cLng,_vReqId);
+  if(_vReqId!==S._locReqId){hideScanOverlay();return}
+  if(!_waOk)toast('⚠️ Winds aloft unavailable — storm motion & ETAs may be limited');
   scanStep(2,'Scanning radar tiles...');
   try{
     let zoom=useNexrad?(radius<=15?11:radius<=30?10:radius<=50?9:8):(radius<=30?8:7);
@@ -753,7 +757,11 @@ async function scanRadarHiRes(map,fromHome){
   const HIRES_RADIUS=15;
   const hiZoom=useNexrad?10:7;
   showScanOverlay();
-  await fetchWindsAloft(cLat,cLng);
+  // v4.76: gate on winds aloft before scanning/rendering points.
+  const _hReqId=S._locReqId;
+  const _waOk=await ensureWindsAloft(cLat,cLng,_hReqId);
+  if(_hReqId!==S._locReqId){hideScanOverlay();return}
+  if(!_waOk)toast('⚠️ Winds aloft unavailable — storm motion & ETAs may be limited');
   scanStep(2,'Hi-Res scanning (step=1)...');
   try{
     const radiusDeg=HIRES_RADIUS/69.0;

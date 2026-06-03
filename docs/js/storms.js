@@ -452,6 +452,54 @@ function _scheduleWindsAloftRetry(lat,lon,attempt){
     }
   },_ALOFT_RETRY_DELAYS[attempt]);
 }
+// v4.76: blocking winds-aloft GATE. Storm steering, movement vectors, ETAs,
+// cones and the Rain Clock all depend on winds aloft. The startup scan used to
+// kick off fetchWindsAloft() without waiting — on a slow/failed fetch it only
+// scheduled a background retry and returned, so points/projections rendered
+// with no steering data on first load. Scan entry points now AWAIT this gate
+// before plotting points or running storm calcs: it force-refreshes WA and
+// retries until S._aloftData has >=2 levels or a ~30s budget elapses. If the
+// budget is spent the gate resolves false and the caller falls through and
+// renders anyway (graceful fallback) with a clear "winds aloft unavailable"
+// notice, rather than hanging forever. The background retry above keeps trying
+// afterward so projections fill in once WA finally arrives.
+const _WA_GATE_BUDGET_MS=30000;
+const _WA_GATE_PAUSE_MS=3000;
+function _waReady(){return !!(S._aloftData&&S._aloftData.length>=2)}
+async function ensureWindsAloft(lat,lon,reqId){
+  lat=lat!=null?lat:S.lat;lon=lon!=null?lon:S.lon;
+  if(!lat)return false;
+  // Idempotent PER REQUEST: share one in-flight gate only when it belongs to
+  // the same location request (reqId). A newer request (e.g. the user changed
+  // location mid-gate) must run its OWN full retry budget rather than inherit an
+  // older gate that will bail early on the reqId guard — otherwise the new scan
+  // would fall through to render with no winds aloft.
+  if(S._waGatePromise&&S._waGateReqId===reqId)return S._waGatePromise;
+  const gate=(async()=>{
+    const deadline=Date.now()+_WA_GATE_BUDGET_MS;
+    let attempt=0;
+    while(Date.now()<deadline){
+      if(reqId!=null&&reqId!==S._locReqId)return false; // user moved on
+      // Drive retries here; cancel the background timer so it can't also fire a
+      // duplicate fetch mid-loop.
+      if(S._aloftRetryTimer){clearTimeout(S._aloftRetryTimer);S._aloftRetryTimer=null}
+      attempt++;
+      if(typeof _bootStep==='function')_bootStep('wind',attempt>1?'Getting winds aloft… (retry '+attempt+')':'Getting winds aloft…');
+      try{await fetchWindsAloft(lat,lon)}catch(e){}
+      if(_waReady()){if(typeof _bootStepDone==='function')_bootStepDone('wind','Winds aloft ✓');return true}
+      if(reqId!=null&&reqId!==S._locReqId)return false;
+      const remain=deadline-Date.now();
+      if(remain<=0)break;
+      await new Promise(r=>setTimeout(r,Math.min(_WA_GATE_PAUSE_MS,remain)));
+    }
+    if(!_waReady()&&typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft unavailable — retrying in background');
+    return _waReady();
+  })();
+  S._waGatePromise=gate;S._waGateReqId=reqId;
+  // Only clear the in-flight slot if it's still OURS — a newer request may have
+  // superseded us with its own gate, which must not be wiped out here.
+  try{return await gate}finally{if(S._waGatePromise===gate){S._waGatePromise=null;S._waGateReqId=null}}
+}
 
 async function fetchAFD(){
   if(!S.lat||!S.lon)return;
@@ -1146,7 +1194,14 @@ async function scanRadarForStorms(){
   if(reqId!==S._locReqId){hideScanOverlay();return}
   S._fullScanActive=true;
   if(typeof _bootStep==='function')_bootStep('scan','Scanning radar…');
-  await Promise.all([fetchWindsAloft(),fetchAFD()]);
+  // v4.76: block on the winds-aloft gate before scanning/rendering any points,
+  // so storm steering / ETAs / cones never run without aloft data on first
+  // load. AFD is fetched in parallel since it doesn't gate point rendering.
+  const _waGateP=ensureWindsAloft(S.lat,S.lon,reqId);
+  const _afdP=fetchAFD();
+  const _waOk=await _waGateP;await _afdP;
+  if(reqId!==S._locReqId){hideScanOverlay();return}
+  if(!_waOk)toast('⚠️ Winds aloft unavailable — storm motion & ETAs may be limited');
   scanStep(2,'Scanning radar tiles...');
   try{
     const radius=S.scanRadius;

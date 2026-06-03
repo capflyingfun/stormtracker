@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.76
+
+**Gate storm points on winds aloft + manual reboot button.** Storm steering, movement vectors, ETAs, cones and the Rain Clock all depend on winds-aloft data, but the startup scan used to fire `fetchWindsAloft()` without waiting on it — on a slow or failed fetch it just scheduled a background retry and returned, so storm points, markers, cones and projections rendered on first load with no steering data behind them.
+
+- **Blocking winds-aloft gate** — new `ensureWindsAloft(lat, lon, reqId)` (`docs/js/storms.js`) force-refreshes winds aloft and retries until `S._aloftData` has ≥2 levels or a ~30-second budget elapses (≈3 s pause between attempts), surfacing progress through the boot/scan overlay's "wind" step. It's idempotent (a single in-flight gate promise is shared across overlapping scans/location changes) and respects the per-request guard `S._locReqId`, so a stale gated scan can't render after the user has moved on. The background retry is left active afterward so projections fill in once winds aloft finally arrives.
+- **Every scan entry point awaits it** — `scanRadarForStorms` (`docs/js/storms.js`), `scanRadarForView` and `scanRadarHiRes` (`docs/js/radar.js`) now `await` the gate before scanning radar tiles or plotting any points, so no storm point/marker/cone/calculation appears until winds aloft is in hand. The AFD fetch still runs in parallel since it doesn't gate point rendering.
+- **One consistent fallback** — if winds aloft genuinely can't be fetched within the 30-second window, the gate resolves and the scan falls through and renders anyway (rather than hanging forever), with a clear "⚠️ Winds aloft unavailable — storm motion & ETAs may be limited" notice. Verified on both NEXRAD (US) and RainViewer (non-US) radar sources.
+- **Manual "Reboot Startup" button** — a new Settings entry (`rebootStartup()` in `docs/js/settings.js`) re-runs the startup sequence in place for the current location without a full app reload: it clears the winds-aloft cache so the gate genuinely re-fetches, then re-runs the location refresh pipeline (weather → gated scan → hazards). Handy if storm motion/ETAs ever look stuck because winds aloft never loaded.
+
 ## v4.75
 
 **RainViewer dBZ recalibration.** On non-US locations (RainViewer radar source), storm intensity read noticeably hotter than the NEXRAD scale used in the US — the same rain showed up a few dBZ categories higher. The cause was a legacy "boost" multiplier inside the RainViewer color→dBZ decoder that the NEXRAD decoder never had.
