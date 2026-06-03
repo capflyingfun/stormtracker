@@ -389,7 +389,8 @@ function showHdScanDialog(){
     clearStormCone();
     S.lat=lat;S.lon=lon;S.locName=name;
     document.getElementById('location-input').value=name;
-    S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
+    S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;S._aloftData=null;
+    S._locReqId=(S._locReqId||0)+1; // HD target is a real location change: invalidate any in-flight winds-aloft gate
     S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
     S.storms=[];if(typeof bumpStormScanId==='function')bumpStormScanId();S._topStorms=[];S._topStormAnalysis={inbound:[],overhead:[],nearby:[],allWithEta:[]};S._rawScanPts=[];S._sonarClusteredPts=[];S._sonarTotalSwept=0;S._sonarSweepAngle=0;S._approachData=null;S._arrowCells=[];clearStormZones();
     try{localStorage.setItem('st_loc',JSON.stringify({lat,lon,name}))}catch(e){}
@@ -435,7 +436,7 @@ function setLoc(lat,lon,name,opts){
   document.getElementById('location-input').value=S.locName;
   document.getElementById('status-dot').classList.add('live');
   document.getElementById('status-text').textContent='Loading · '+S.locName;
-  S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;
+  S.station=null;S.stationId=null;S._stationSource=null;S.stormMovement=null;S._windCache=null;S._aloftData=null;
   S.radarSource=isUSLocation(lat,lon)?'nexrad':'rainviewer';
   updateNavForLocation();
   if(S.map){

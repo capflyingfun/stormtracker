@@ -465,7 +465,18 @@ function _scheduleWindsAloftRetry(lat,lon,attempt){
 // afterward so projections fill in once WA finally arrives.
 const _WA_GATE_BUDGET_MS=30000;
 const _WA_GATE_PAUSE_MS=3000;
-function _waReady(){return !!(S._aloftData&&S._aloftData.length>=2)}
+// Winds-aloft is "ready" only when we have >=2 aloft levels AND that data was
+// fetched FOR the requested location. S._windCache records the lat/lon the aloft
+// data was fetched at and is cleared on every location change (setLoc /
+// prepHdTarget), so stale data from a previous location can't satisfy the gate:
+// after a move the cache is null until a fresh fetch repopulates it.
+function _waReady(lat,lon){
+  if(!(S._aloftData&&S._aloftData.length>=2))return false;
+  const c=S._windCache;
+  if(!c)return false;
+  if(lat==null||lon==null)return true;
+  return haversine(lat,lon,c.lat,c.lon)<100;
+}
 async function ensureWindsAloft(lat,lon,reqId){
   lat=lat!=null?lat:S.lat;lon=lon!=null?lon:S.lon;
   if(!lat)return false;
@@ -474,7 +485,10 @@ async function ensureWindsAloft(lat,lon,reqId){
   // location mid-gate) must run its OWN full retry budget rather than inherit an
   // older gate that will bail early on the reqId guard — otherwise the new scan
   // would fall through to render with no winds aloft.
-  if(S._waGatePromise&&S._waGateReqId===reqId)return S._waGatePromise;
+  // Reuse must match BOTH the request id AND the location: some location changes
+  // (e.g. HD target) reuse the same scan path, so a same-reqId-but-different-loc
+  // call must NOT inherit a gate aimed at the old coordinates.
+  if(S._waGatePromise&&S._waGateReqId===reqId&&S._waGateLat!=null&&haversine(lat,lon,S._waGateLat,S._waGateLon)<25)return S._waGatePromise;
   const gate=(async()=>{
     const deadline=Date.now()+_WA_GATE_BUDGET_MS;
     let attempt=0;
@@ -486,19 +500,19 @@ async function ensureWindsAloft(lat,lon,reqId){
       attempt++;
       if(typeof _bootStep==='function')_bootStep('wind',attempt>1?'Getting winds aloft… (retry '+attempt+')':'Getting winds aloft…');
       try{await fetchWindsAloft(lat,lon)}catch(e){}
-      if(_waReady()){if(typeof _bootStepDone==='function')_bootStepDone('wind','Winds aloft ✓');return true}
+      if(_waReady(lat,lon)){if(typeof _bootStepDone==='function')_bootStepDone('wind','Winds aloft ✓');return true}
       if(reqId!=null&&reqId!==S._locReqId)return false;
       const remain=deadline-Date.now();
       if(remain<=0)break;
       await new Promise(r=>setTimeout(r,Math.min(_WA_GATE_PAUSE_MS,remain)));
     }
-    if(!_waReady()&&typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft unavailable — retrying in background');
-    return _waReady();
+    if(!_waReady(lat,lon)&&typeof _bootStepFail==='function')_bootStepFail('wind','Winds aloft unavailable — retrying in background');
+    return _waReady(lat,lon);
   })();
-  S._waGatePromise=gate;S._waGateReqId=reqId;
+  S._waGatePromise=gate;S._waGateReqId=reqId;S._waGateLat=lat;S._waGateLon=lon;
   // Only clear the in-flight slot if it's still OURS — a newer request may have
   // superseded us with its own gate, which must not be wiped out here.
-  try{return await gate}finally{if(S._waGatePromise===gate){S._waGatePromise=null;S._waGateReqId=null}}
+  try{return await gate}finally{if(S._waGatePromise===gate){S._waGatePromise=null;S._waGateReqId=null;S._waGateLat=null;S._waGateLon=null}}
 }
 
 async function fetchAFD(){
