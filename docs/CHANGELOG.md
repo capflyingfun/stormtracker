@@ -3,6 +3,13 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.81
+
+**Rain Clock forecast now hides drizzle.** The v4.80 forecast fallback plotted *any* measurable rain (floor ~0.1 mm/hr), so the dial could read "raining until …" for hours even when the forecast was just trace/light rain. The forecast dial now has a meaningful-intensity floor.
+
+- **28 dBZ forecast floor** — new `_RC_FC_MIN_DBZ=28` (~0.08 in/hr, light-moderate) in `docs/js/weather.js`. The forecast fallback in `_rainClockProject()` skips forecast hours below it, only builds windows from minutes at/above it, and `renderRainClock()` uses the same value as the forecast arc-draw floor (was 1). The "expected rain" center total now sums only the shown (≥28 dBZ) hours. The live-radar dial is unchanged — it keeps the stricter 15 dBZ radar-noise floor.
+- **Cache bumped** — `?v=579` / `stormtracker-v579`.
+
 ## v4.80
 
 **Rain forecast fallback on the Rain Clock.** The Rain Clock dial is built purely from the live radar / inbound-storm pipeline, so whenever nothing was inbound it showed the empty "No rain expected" face — even when the hourly forecast clearly had rain coming. The dial now falls back to the forecast in that case.
