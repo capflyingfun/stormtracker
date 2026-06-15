@@ -2254,6 +2254,74 @@ function _rainClockProject(){
   // the strongest cell first inside each window's detail list.
   out.windows.sort((a,b)=>a.startMin-b.startMin);
   for(const w of out.windows)w.cells.sort((a,b)=>b.dbz-a.dbz);
+  // === v4.80: FORECAST FALLBACK. The dial above is built purely from the live
+  // radar / inbound-storm pipeline. When that produced NOTHING (no windows, no
+  // cells, not raining now) we fall back to the hourly precipitation FORECAST —
+  // the same data behind the "Total Precipitation Next 36 Hrs" chart — instead of
+  // the empty "No rain expected" face. Each rainy forecast hour's mm/hr is
+  // converted to dBZ (Marshall-Palmer, _precipMmToDbz) and plotted on the dial
+  // with a one-hour duration, so expected rain reads like a real storm (windows,
+  // arcs, tap-details, center summary). Strictly a fallback: it never runs when
+  // the radar path drew anything, so live storms always win. Forecast wins are
+  // tagged out.forecast so the renderer can label them "FORECAST" and word the
+  // summary as a forecast rather than a live-radar nowcast.
+  if(!out.windows.length&&!out.rainingNow&&cellList.length===0&&haveHourly){
+    const nowMs=Date.now();
+    const FC_FLOOR_MM=0.1; // measurable rain in the hour; below this is trace/noise
+    const fcHours=[];
+    let fcMaxMin=0;
+    for(let i=0;i<h.time.length;i++){
+      const ts=new Date(h.time[i]).getTime();
+      if(isNaN(ts))continue;
+      const offMin=(ts-nowMs)/60000; // minutes from now to the START of this hour
+      if(offMin<-60)continue;        // skip fully-past hours (allow the current hour)
+      if(offMin>720)continue;        // 12 h horizon cap (same as the storm span cap)
+      const mm=h.precipitation[i]||0;// mm accumulated in this hour == mm/hr
+      if(mm<FC_FLOOR_MM)continue;
+      const dbz=Math.round(_precipMmToDbz(mm));
+      if(dbz<=0)continue;
+      const start=Math.max(0,offMin);
+      fcHours.push({start,end:offMin+60,dbz,mm});
+      if(offMin+60>fcMaxMin)fcMaxMin=offMin+60;
+    }
+    if(fcHours.length){
+      // Re-pick the dial span to cover the furthest rainy forecast hour, then
+      // repaint the minutes array over that span (it was sized for the empty
+      // 3 h default above).
+      const fspan=_rcPickSpan(Math.min(720,fcMaxMin));
+      out.span=fspan;
+      out.minutes=new Array(fspan+1).fill(0);
+      for(const f of fcHours){
+        const tIn=Math.max(0,Math.floor(f.start));
+        const tOut=Math.min(fspan,Math.ceil(f.end));
+        for(let t=tIn;t<=tOut;t++){if(f.dbz>out.minutes[t])out.minutes[t]=f.dbz}
+      }
+      // Build windows from contiguous painted minutes. Forecast rain can be
+      // lighter than the radar floor, so the threshold here is 1 — every painted
+      // minute is an intentional rainy forecast hour, not radar noise.
+      const fwins=[];
+      let fc=null;
+      for(let t=0;t<=fspan;t++){
+        const v=out.minutes[t];
+        if(v>=1){if(!fc)fc={startMin:t,endMin:t,peakDbz:v};else{fc.endMin=t;if(v>fc.peakDbz)fc.peakDbz=v}}
+        else if(fc){fwins.push(fc);fc=null}
+      }
+      if(fc)fwins.push(fc);
+      // One synthetic forecast cell per window (anchored at the user's location)
+      // so the tap-detail + cell-count UX work exactly like the radar windows.
+      for(const w of fwins){
+        w.cells=[{lat:S.lat,lng:S.lon,dbz:w.peakDbz,dist:0,bearing:0,
+          tIn:w.startMin,tOut:w.endMin,centerMin:Math.round((w.startMin+w.endMin)/2),
+          beyond:false,count:1,forecast:true}];
+      }
+      out.windows=fwins;
+      out.forecast=true; // dial is forecast-sourced; renderer labels & words accordingly
+      // Center "expected rain" amount = sum of forecast mm across the shown span.
+      let fcTotal=0;
+      for(const f of fcHours){if(f.start<=fspan)fcTotal+=f.mm}
+      out.totalMm=fcTotal;
+    }
+  }
   out.ready=true;
   return out;
 }
@@ -2338,7 +2406,10 @@ function renderRainClock(){
     // Per-minute colored segments.
     for(let m=0;m<TOTAL;m++){
       const v=data.minutes[m];
-      if(v<_RC_MIN_DBZ)continue;
+      // Forecast rain can be lighter than the radar floor — draw any painted
+      // minute on the forecast dial (every painted minute is a rainy forecast
+      // hour), but keep the strict radar-noise floor for live-radar dials.
+      if(v<(data.forecast?1:_RC_MIN_DBZ))continue;
       const [x0,y0]=ptAt(m,R_ARC);
       const [x1,y1]=ptAt(m+1,R_ARC);
       const col=(typeof dbzHex==='function')?dbzHex(v):'#39ff14';
@@ -2386,7 +2457,28 @@ function renderRainClock(){
     // the storm's speed (computed in _rainClockProject).
     const peak=w.peakDbz;
     const word=_rcIntensityWord(peak);
-    if(w.startMin===0){
+    if(data.forecast){
+      // v4.80: forecast-sourced summary — no live radar rain, plotted from the
+      // hourly precipitation forecast. Worded as a forecast (not a nowcast) so
+      // the user knows the dial is showing expected, not observed, rain.
+      const fcNote=' (From the hourly forecast — no storms on radar yet.)';
+      if(w.startMin===0){
+        centerLines=['Rain forecast','until '+endStr];
+        const dur=Math.max(1,w.endMin);
+        const head={title:`${word} rain forecast · ~${peak} dBZ`,
+          body:`Forecast shows ${word.toLowerCase()} rain this hour, easing around ${endStr} — about ${_fmtDur(dur)}.${fcNote}`};
+        if(w2){const w2start=fmtClock(new Date(now+w2.startMin*60000));const w2dur=Math.max(1,w2.endMin-w2.startMin);head.body+=` Next round forecast around ${w2start} (~${_fmtDur(w2dur)}).`}
+        _phrases.push(head);
+      } else {
+        centerLines=['Rain forecast at',startStr];
+        const inMin=Math.max(1,Math.round(w.startMin));
+        const dur=Math.max(1,w.endMin-w.startMin);
+        const head={title:`${word} rain forecast in ${_fmtDur(inMin)}`,
+          body:`Forecast shows ${word.toLowerCase()} rain (~${peak} dBZ) starting around ${startStr}, lasting about ${_fmtDur(dur)} (until ${endStr}).${fcNote}`};
+        if(w2){const w2start=fmtClock(new Date(now+w2.startMin*60000));const w2dur=Math.max(1,w2.endMin-w2.startMin);head.body+=` Then more forecast around ${w2start} (~${_fmtDur(w2dur)}).`}
+        _phrases.push(head);
+      }
+    } else if(w.startMin===0){
       centerLines=['Rain until',endStr];
       const dur=Math.max(1,w.endMin);
       const head={title:`${word} rain @ ${peak} dBZ overhead`,
@@ -2454,13 +2546,15 @@ function renderRainClock(){
     foot=`<div style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:4px;font-style:italic">Motion unknown — radar projection limited</div>`;
   }
   const hasClickable=data.ready&&data.windows.some(w=>w.cells&&w.cells.length);
-  const hint=hasClickable?`<div style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:2px;font-style:italic">Tap a colored arc to see which storms cause it</div>`:'';
+  const hint=hasClickable?`<div style="font-size:0.6em;color:var(--text-muted);text-align:center;margin-top:2px;font-style:italic">${data.forecast?'Tap a colored arc for forecast details':'Tap a colored arc to see which storms cause it'}</div>`:'';
   // v4.70: confidence note. The dial is a LIVE-radar projection, which is very
   // accurate in the very short term but degrades the further out it reaches —
   // a cell that's "arriving" can weaken or veer before it gets here. Spell that
   // out so users read the dial as a guide, not a guarantee. Only shown when
   // there's actually rain projected.
-  const accNote=hasClickable?`<div style="font-size:0.58em;color:var(--text-muted);text-align:center;margin-top:5px;line-height:1.45">≈95% accurate within 30&nbsp;min · further out is a live-radar projection — storms can still weaken, build, or shift</div>`:'';
+  const accNote=hasClickable?(data.forecast
+    ?`<div style="font-size:0.58em;color:var(--text-muted);text-align:center;margin-top:5px;line-height:1.45">Forecast-based — plotted from the hourly precipitation forecast, not live radar. Timing and amounts can shift.</div>`
+    :`<div style="font-size:0.58em;color:var(--text-muted);text-align:center;margin-top:5px;line-height:1.45">≈95% accurate within 30&nbsp;min · further out is a live-radar projection — storms can still weaken, build, or shift</div>`):'';
   // v4.72: tell the user arrival times have been shifted earlier to account for
   // radar latency, using the same canonical age every ETA consumer subtracts.
   const _ageMin=Math.round(radarAgeMin());
@@ -2468,7 +2562,10 @@ function renderRainClock(){
   // v4.58: dial is radar-only now, so drop the "+ FORECAST" tag. Forecast is
   // still consulted for the 3h amount when radar isn't ready, but it doesn't
   // paint anything on the dial — labelling it would be misleading.
-  const sourceTag=data.radarReady?'RADAR':data.forecastReady?'FORECAST (fallback)':'';
+  // v4.80: a forecast-sourced dial is labelled FORECAST regardless of radar
+  // readiness — radar may be "ready" but show nothing, in which case the dial is
+  // showing the hourly forecast and must say so.
+  const sourceTag=data.forecast?'FORECAST':data.radarReady?'RADAR':data.forecastReady?'FORECAST (fallback)':'';
   // Header tag uses secBtns when the helper exists, so the rain clock card
   // joins the up/down reorder system used by the other Weather sections.
   const reorder=(typeof secBtns==='function')?secBtns('rainclock'):'';

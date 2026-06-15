@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.80
+
+**Rain forecast fallback on the Rain Clock.** The Rain Clock dial is built purely from the live radar / inbound-storm pipeline, so whenever nothing was inbound it showed the empty "No rain expected" face — even when the hourly forecast clearly had rain coming. The dial now falls back to the forecast in that case.
+
+- **Forecast-to-dBZ projection** — `_rainClockProject()` (`docs/js/weather.js`) gained a fallback block that runs only when the radar path produced nothing (no windows, no cells, not raining now). It walks the hourly precipitation forecast (`S._hourlyData`), converts each rainy hour's mm/hr to dBZ via the existing `_precipMmToDbz()` (Marshall-Palmer), and paints one-hour blocks onto the dial's minutes array, re-picking the dynamic span to cover the furthest rainy hour (12 h cap). Contiguous rainy hours merge into one window; each window gets a synthetic forecast cell so the tap-detail/cell-count UX works. The projection is tagged `out.forecast`.
+- **Forecast-aware rendering** — `renderRainClock()` draws forecast windows with the normal arc/color treatment but lowers the arc-draw floor (forecast rain can be lighter than the radar noise floor), labels the card **FORECAST**, words the center/text summary as a forecast ("Rain forecast at …" / "From the hourly forecast — no storms on radar yet."), and swaps the accuracy/tap hints for forecast-appropriate copy. Live radar always wins — the fallback never alters the dial when storms are inbound.
+- **Cache bumped** — `?v=578` / `stormtracker-v578`.
+
 ## v4.79
 
 **Real version bump + automatic update check on launch.** The visible version label was stuck at v4.76 across several deploys (only the cache-bust counter and SW cache name were bumped, never the `<title>`/header), so the app always *looked* outdated and "Check for update" compared the stale title against itself and reported "up to date."
