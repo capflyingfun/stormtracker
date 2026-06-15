@@ -3,6 +3,16 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.82
+
+**"Rotation" is now gated on a real NWS Tornado Warning.** The radar/sonar Rotation indicator (🌪️ marker + "ROTATION" / "Possible Rotation (Hook Echo)" labels) used to be driven purely by a radar-shape heuristic (`detectHookEchoes()` → `cell._hookEcho`). Hook-shaped echoes frequently have no tornado, so the marker was misleading. Rotation now requires an active warning.
+
+- **Warning-gated rotation flag** — new `detectWarningRotation()` in `docs/js/storms.js` runs each scan after `detectHookEchoes()`. It clears `_rotation` on all cells, then, for each active NWS Tornado Warning in `S.alerts`, marks the single strongest radar cell inside the warning polygon (via `_pointInAlertPoly`) as `_rotation`. The hook-shape score is kept only as an internal tiebreaker — it no longer triggers any display or risk boost on its own.
+- **Hybrid placement** — `_warnStormPoint()` parses the warning's `eventMotionDescription` storm point (lat/lon); when present, the rotation cell is chosen from cells within ~10 mi of that point, falling back to the strongest cell anywhere in the polygon.
+- **All surfaces switched to `_rotation`** — radar-map 🌪️ marker + popup ("Tornado Warning — Rotation") + ring tier (`radar.js`), sonar 🌪️/"ROTATION" overlay (`weather.js`), 3D view flag (`view3d.js`), storm-card icon/name ("Rotation") + badge ("🌪️ Tornado Warning") (`storms.js`), and the Impact %/threat-score boosts now all key off `_rotation` instead of `_hookEcho`.
+- **US-only** — NWS Tornado Warnings don't exist outside NWS coverage, so rotation never shows elsewhere (no reliable rotation source there anyway).
+- **Cache bumped** — `?v=580` / `stormtracker-v580`.
+
 ## v4.81
 
 **Rain Clock forecast now hides drizzle.** The v4.80 forecast fallback plotted *any* measurable rain (floor ~0.1 mm/hr), so the dial could read "raining until …" for hours even when the forecast was just trace/light rain. The forecast dial now has a meaningful-intensity floor.

@@ -1,5 +1,5 @@
-// Version: v4.81 (display) | cache-bust counter: 579 (used in ?v= query strings and SW cache name)
-const CACHE_NAME = 'stormtracker-v579';
+// Version: v4.82 (display) | cache-bust counter: 580 (used in ?v= query strings and SW cache name)
+const CACHE_NAME = 'stormtracker-v580';
 const STATIC_ASSETS = [
   '/StormTracker/',
   '/StormTracker/index.html',

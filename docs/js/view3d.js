@@ -1115,7 +1115,7 @@ function sonarZones3D() {
       var s = storms[i];
       if (s.lat == null || (s.lng == null && s.lon == null)) continue;
       var lng = s.lng != null ? s.lng : s.lon;
-      out.push({ lat: s.lat, lon: lng, lng: lng, dbz: s.dbz, distance: s.distance, bearing: s.bearing, count: s.pixels || 1, hookEcho: !!s._hookEcho });
+      out.push({ lat: s.lat, lon: lng, lng: lng, dbz: s.dbz, distance: s.distance, bearing: s.bearing, count: s.pixels || 1, hookEcho: !!s._rotation });
     }
     out.sort(function (a, b) { return b.dbz - a.dbz; });
     return out;
@@ -1129,7 +1129,7 @@ function sonarZones3D() {
       var s = storms[i];
       if (s.lat == null || (s.lng == null && s.lon == null)) continue;
       var lng = s.lng != null ? s.lng : s.lon;
-      out.push({ lat: s.lat, lon: lng, lng: lng, dbz: s.dbz, distance: s.distance, bearing: s.bearing, count: s.pixels || 1, hookEcho: !!s._hookEcho });
+      out.push({ lat: s.lat, lon: lng, lng: lng, dbz: s.dbz, distance: s.distance, bearing: s.bearing, count: s.pixels || 1, hookEcho: !!s._rotation });
     }
     out.sort(function (a, b) { return b.dbz - a.dbz; });
     return out;
