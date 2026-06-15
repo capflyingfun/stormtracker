@@ -2690,26 +2690,34 @@ function buildStormForecastLines(plain){
     return plain?` (Max: ${m} dBZ)`:` <span class="c-muted-85">(Max: ${m} dBZ)</span>`;
   };
   const lbl=(emoji,plainTxt,htmlColor,htmlTxt)=>plain?`${emoji} ${plainTxt}`:`<span style="color:${htmlColor}">${emoji} ${htmlTxt}</span>`;
+  // Keep a STABLE two-line layout: the description (with cell count + max dBZ)
+  // on top, then the ETA always on its own line below. Because the live 1s
+  // countdown changes the digit width of the time, an inline ETA used to reflow
+  // and bounce between layouts; pinning it to its own line stops that. The
+  // "ETA:" label sits OUTSIDE the .tier-eta-cd span (which the updater rewrites
+  // every tick), so the label survives each update.
+  const countTag=(arr)=>arr.length>1?` — ${arr.length} cells`:'';
+  const etaLine=(min)=>plain?`\n   ETA: ${tierSpan(min)}`:`<br><span style="display:inline-block;padding-left:1.5em">ETA: ${tierSpan(min)}</span>`;
   const lines=[];
   if(light.length){
     const first=light[0];
-    lines.push(`${lbl('🔵','Light rain','#00F8FF','Light rain')} inbound starting in ${tierSpan(first._eta.eta)}${light.length>1?' — '+light.length+' cells':''}${maxTag(light)}`);
+    lines.push(`${lbl('🔵','Light rain','#00F8FF','Light rain')} inbound${countTag(light)}${maxTag(light)}${etaLine(first._eta.eta)}`);
   }
   if(moderate.length){
     const first=moderate[0];
-    lines.push(`${lbl('🟡','Moderate to heavy','#F5FF00','Moderate to heavy')} cells inbound, ETA ${tierSpan(first._eta.eta)}${moderate.length>1?' — '+moderate.length+' cells':''}${maxTag(moderate)}`);
+    lines.push(`${lbl('🟡','Moderate to heavy','#F5FF00','Moderate to heavy')} cells inbound${countTag(moderate)}${maxTag(moderate)}${etaLine(first._eta.eta)}`);
   }
   if(modSevere.length){
     const first=modSevere[0];
-    lines.push(`${lbl('🟠','Moderate to severe','#E63A2C','Moderate to severe')} cells inbound, ETA ${tierSpan(first._eta.eta)}${modSevere.length>1?' — '+modSevere.length+' cells':''}${maxTag(modSevere)}`);
+    lines.push(`${lbl('🟠','Moderate to severe','#E63A2C','Moderate to severe')} cells inbound${countTag(modSevere)}${maxTag(modSevere)}${etaLine(first._eta.eta)}`);
   }
   if(severe.length){
     const first=severe[0];
-    lines.push(`${lbl('🔴','Severe','#FF0200','Severe')} cells inbound (hail possible), ETA ${tierSpan(first._eta.eta)}${severe.length>1?' — '+severe.length+' cells':''}${maxTag(severe)}`);
+    lines.push(`${lbl('🔴','Severe','#FF0200','Severe')} cells inbound (hail possible)${countTag(severe)}${maxTag(severe)}${etaLine(first._eta.eta)}`);
   }
   if(extreme.length){
     const first=extreme[0];
-    lines.push(`${lbl('🟣','Extreme','#FF00F5','Extreme')} cells inbound (hail likely), ETA ${tierSpan(first._eta.eta)}${extreme.length>1?' — '+extreme.length+' cells':''}${maxTag(extreme)}`);
+    lines.push(`${lbl('🟣','Extreme','#FF00F5','Extreme')} cells inbound (hail likely)${countTag(extreme)}${maxTag(extreme)}${etaLine(first._eta.eta)}`);
   }
   return{lines,empty:false};
 }

@@ -3,6 +3,12 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.77
+
+**Stable storm-forecast ETA layout.** The inbound-cells summary at the top of the Storms tab (e.g. "🟡 Moderate to heavy cells inbound…") rendered the live ETA inline, so the once-a-second countdown's changing digit width kept reflowing the text — sometimes the time sat next to "ETA", sometimes it wrapped to the next line.
+
+- **Two-line layout** — each tier line now shows the description (with cell count and max dBZ) on top, then the ETA pinned to its own line below as `ETA: 03h:23m:22s (10:58)`. The time can tick without ever bouncing the layout, since the "ETA:" label lives outside the live-updated countdown span. Applies to the AI/plain text summary too (`buildStormForecastLines` in `docs/js/storms.js`).
+
 ## v4.76
 
 **Gate storm points on winds aloft + manual reboot button.** Storm steering, movement vectors, ETAs, cones and the Rain Clock all depend on winds-aloft data, but the startup scan used to fire `fetchWindsAloft()` without waiting on it — on a slow or failed fetch it just scheduled a background retry and returned, so storm points, markers, cones and projections rendered on first load with no steering data behind them.
