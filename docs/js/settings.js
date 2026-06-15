@@ -17,6 +17,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v4.79',date:'2026-06-15',items:['🔄 Auto Update Check on Launch — the app now checks for a newer build automatically every time it starts, before loading weather, and refreshes itself to the latest version if one is available','🏷️ Version Label Fix — the version shown in the header and the "Check for update" button now reflects the actual deployed build (was stuck at v4.76)','💧 Storm Track Rain Coverage — each storm track cone shows a 💧 badge with the count of rain returns inside its projected path and the strongest dBZ']},
   {ver:'v3.48',date:'2026-03-29',items:['🔤 Desktop text scaled up ~38% for readability on 1920×1080','📡 Radar sonar shrunk 40% on desktop','💨 Wind gauge 175% bigger (700px max)','🗺️ Map control buttons 200% bigger (64px)','📊 7-day forecast items larger with bigger icons and text','🖥️ Desktop single-page mode with scroll spy']},
   {ver:'v3.44',date:'2026-03-29',items:['🖥️ Desktop Full-Width Layout — content now fills the entire screen on 1920×1080 and wider displays (was: capped at 1360px centered, leaving large blank margins). Container spans full available width after sidebar.','⚙️ Settings Panel Desktop — settings overlay card now uses 88% of viewport width (up to 1040px) with a 2-column layout for settings sections, making it much easier to navigate on large screens.']},
   {ver:'v3.43',date:'2026-03-29',items:['📍 Auto GPS on first launch — app now automatically prompts for location permission on first visit (fires once, falls back to welcome screen buttons if denied). Return visits with a saved location already loaded automatically.','🐛 Loading screen now correctly dismisses on fetch error (was hanging 15s)']},
@@ -93,6 +94,36 @@ function getTutorialHtml(){
 }
 function getChangelogHtml(){
   return CHANGELOG.map(c=>`<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border-subtle)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-weight:700;color:var(--accent-cyan);font-size:1em">${c.ver}</span><span style="font-size:0.75em;color:var(--text-muted)">${c.date}</span></div><ul style="margin:0;padding-left:18px">${c.items.map(i=>`<li style="margin-bottom:3px">${i}</li>`).join('')}</ul></div>`).join('');
+}
+// Silent auto update-check run at launch (before weather fetch). Compares the
+// loaded display version against the live network index.html; if they differ a
+// newer build is available, so clear caches, drop the SW, and reload once.
+// A sessionStorage guard prevents reload loops if the CDN is briefly stale.
+async function _autoCheckUpdate(){
+  try{
+    if(sessionStorage.getItem('st_autoUpd')==='1'){sessionStorage.removeItem('st_autoUpd');return false;}
+    const loaded=document.title.match(/v(\d+\.\d+)/);
+    if(!loaded)return false;
+    const loadedVer='v'+loaded[1];
+    const ctrl=new AbortController();
+    const to=setTimeout(()=>ctrl.abort(),3000);
+    let netVer=null;
+    try{
+      const r=await fetch('index.html?_='+Date.now(),{cache:'no-store',signal:ctrl.signal});
+      if(r.ok){
+        const txt=await r.text();
+        const m=txt.match(/<title>[^<]*v(\d+\.\d+)[^<]*<\/title>/i);
+        if(m)netVer='v'+m[1];
+      }
+    }finally{clearTimeout(to);}
+    if(!netVer||netVer===loadedVer)return false;
+    // Newer build available — refresh to it before the app loads weather.
+    sessionStorage.setItem('st_autoUpd','1');
+    try{const keys=await caches.keys();await Promise.all(keys.map(k=>caches.delete(k)));}catch(e){}
+    try{if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.getRegistration();if(reg)await reg.unregister();}}catch(e){}
+    location.reload();
+    return true;
+  }catch(e){return false;}
 }
 async function forceAppUpdate(){
   const btn=document.getElementById('btn-check-update');

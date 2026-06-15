@@ -198,6 +198,7 @@ async function _runConnectionSpeedTest(){
 }
 
 async function init(){
+  if(typeof _autoCheckUpdate==='function'&&await _autoCheckUpdate())return;
   _pruneExpiredAlerts();
   _loadAllCustomIcons().catch(()=>{});
   loadUnits();

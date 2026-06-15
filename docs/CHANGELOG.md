@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.79
+
+**Real version bump + automatic update check on launch.** The visible version label was stuck at v4.76 across several deploys (only the cache-bust counter and SW cache name were bumped, never the `<title>`/header), so the app always *looked* outdated and "Check for update" compared the stale title against itself and reported "up to date."
+
+- **Display version fixed** — `docs/index.html` `<title>` and the header `<span>` now read v4.79 (were hardcoded v4.76). `forceAppUpdate()` reads the title version, so the manual check now reports the correct version and detects real differences.
+- **Auto update check on launch** — new `_autoCheckUpdate()` (`docs/js/settings.js`) runs at the top of `init()` (`docs/js/init.js`) *before* weather loads. It fetches the live `index.html` (`no-store`, 3s abort), and if the network `<title>` version differs from the loaded one it clears caches, unregisters the SW, and reloads once. A `sessionStorage` guard (`st_autoUpd`) prevents reload loops if the CDN is briefly stale.
+- **Cache bumped** — `?v=577` / `stormtracker-v577` to force a fresh SW install so the new build propagates.
+
 ## v4.78
 
 **Rain-coverage detail on storm track cones.** Each green track cone now carries a small label showing how much rain actually sits inside its projected path, so the cone communicates more than just direction.
