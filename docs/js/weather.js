@@ -955,7 +955,7 @@ function drawMiniSonar(){
         }
       }
     }
-    const hookStorms=(S.storms||[]).filter(s=>s._hookEcho&&s.distance<=viewR);
+    const hookStorms=(S.storms||[]).filter(s=>s._rotation&&s.distance<=viewR);
     if(hookStorms.length){
       ctx.save();
       ctx.font=`${Math.max(14,size*0.05)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';

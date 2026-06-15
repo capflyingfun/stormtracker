@@ -975,7 +975,7 @@ function calcStormETA(storm){
   if(storm.distance<=5&&diff<=15)pct=Math.max(pct,92);
   else if(storm.distance<=10&&diff<=15)pct=Math.max(pct,82);
   else if(storm.distance<=20&&diff<=12)pct=Math.max(pct,72);
-  if(storm._hookEcho)pct=Math.max(pct,Math.min(100,pct+15));
+  if(storm._rotation)pct=Math.max(pct,Math.min(100,pct+15));
   if(hasSevereWarning)pct=Math.max(pct,Math.min(95,pct+20));
   if(storm.distance<=proxRange)pct=Math.max(pct,Math.round(75+(proxRange-storm.distance)/proxRange*20));
   let _tierKey=null,_brief=null;
@@ -1267,6 +1267,7 @@ async function scanRadarForStorms(){
     S.storms=spacingFilter(rawPoints).sort((a,b)=>a.distance-b.distance);if(typeof bumpStormScanId==='function')bumpStormScanId();
     console.log('[SCAN] after spacingFilter: '+S.storms.length+' storms');
     detectHookEchoes(rawPoints, S.storms);
+    detectWarningRotation(S.storms); // v4.82: rotation display gated on active NWS Tornado Warning
     S.scanTime=Date.now();S.lastScanMs=Date.now();S._lastScanWasHiRes=false;
     S._radarAgeMs=(typeof computeRadarAgeMs==='function')?computeRadarAgeMs(useNexrad):RADAR_LATENCY_MS;
     computeTopStorms();
@@ -1581,6 +1582,62 @@ function _isPointInSpcWatch(lat, lng, watch) {
     }
   }
   return inside;
+}
+// ==========================================
+// NWS TORNADO-WARNING ROTATION (v4.82)
+// ==========================================
+// The hook-echo shape heuristic (detectHookEchoes) is kept ONLY as an internal
+// tiebreaker — it no longer triggers any "Rotation" display or risk boost on its
+// own, because a hook-shaped echo often has no tornado and the marker was
+// misleading. Rotation is now shown ONLY when an active NWS Tornado Warning
+// covers the cell. The marker is anchored by a hybrid of the official warning and
+// live radar: pick the strongest radar cell inside the warning polygon, and when
+// the warning carries a storm-motion point (eventMotionDescription) prefer the
+// strongest cell nearest that point. US-only (NWS warnings don't exist elsewhere).
+function _warnStormPoint(a){
+  try{
+    const params=a.properties&&a.properties.parameters;
+    let emd=params&&(params.eventMotionDescription||params.EVENTMOTIONDESCRIPTION);
+    if(Array.isArray(emd))emd=emd[0];
+    if(!emd||typeof emd!=='string')return null;
+    // e.g. "...storm...261DEG...26KT...3429,9829" → lat 34.29, lon -98.29
+    const ms=[...emd.matchAll(/(\d{3,4}),\s?(\d{3,5})/g)];
+    if(!ms.length)return null;
+    const m=ms[ms.length-1];
+    const lat=parseInt(m[1],10)/100;
+    const lon=-parseInt(m[2],10)/100;
+    if(!isFinite(lat)||!isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return null;
+    return {lat,lon};
+  }catch(e){return null}
+}
+function _pickRotationCell(cells){
+  let best=null;
+  for(const c of cells){
+    if(!best){best=c;continue}
+    if(c.dbz>best.dbz||(c.dbz===best.dbz&&(c._hookScore||0)>(best._hookScore||0)))best=c;
+  }
+  return best;
+}
+function detectWarningRotation(storms){
+  if(!storms||!storms.length)return;
+  for(const s of storms)s._rotation=false;
+  const torWarnings=(S.alerts||[]).filter(a=>{
+    const ev=((a.properties&&a.properties.event)||'').toLowerCase();
+    return ev.includes('tornado warning')&&a.geometry&&a.geometry.coordinates;
+  });
+  if(!torWarnings.length)return;
+  for(const a of torWarnings){
+    const inside=storms.filter(s=>_pointInAlertPoly(s.lat,s.lng,a.geometry));
+    if(!inside.length)continue;
+    const pt=_warnStormPoint(a);
+    let pool=inside;
+    if(pt){
+      const near=inside.filter(s=>haversine(s.lat,s.lng,pt.lat,pt.lon)<=10);
+      if(near.length)pool=near;
+    }
+    const chosen=_pickRotationCell(pool);
+    if(chosen)chosen._rotation=true;
+  }
 }
 // ==========================================
 // SPC DATA (WATCHES, REPORTS, MESOSCALE DISCUSSIONS)
@@ -2580,7 +2637,7 @@ function _threatScoreRaw(s){
 function stormThreatScore10(s){
   const raw=_threatScoreRaw(s);
   let scaled=Math.log10(Math.max(raw,1))/Math.log10(12100)*10;
-  if(s._hookEcho)scaled=scaled*1.25;
+  if(s._rotation)scaled=scaled*1.25;
   return Math.max(1,Math.min(10,Math.round(scaled*10)/10));
 }
 function _stormSortFn(a,b,key){
@@ -2885,13 +2942,13 @@ function _renderStormsCore(){
         estLine=`<div style="margin-top:4px;font-size:0.7em;color:var(--text-secondary)">${tStr('Est. at you')}: <span style="color:${estCat.color};font-weight:700">${_b.estDbzAtUser} dBZ</span> <span style="color:${estCat.color}">(${tStr(estCat.label)})</span></div>`;
       }
       const hex=dbzHex(s.dbz);
-      const isHook=s._hookEcho;
+      const isHook=s._rotation;
       const tier=s.dbz>=65?'extreme':s.dbz>=60?'severe':s.dbz>=52?'strong':'';
       const pulse=tier?`storm-card-pulse-${tier}`:'';
       const tierBorder=tier==='extreme'?'#ff00ff':tier==='severe'?'#ff1744':tier==='strong'?'#c2410c':hex;
       const cellIcon=isHook?'🌪️':s.dbz>=65?'‼️':s.dbz>=60?'🚨':s.dbz>=52?'🟧':s.dbz>=46?'⚠️':s.dbz>=41?'🟡':s.dbz>=20?'🟢':'🔵';
-      const cellName=isHook?tStr('Possible Rotation'):s.dbz>=65?tStr('Extreme Cell'):s.dbz>=60?tStr('Severe Cell'):s.dbz>=52?tStr('Strong Cell'):s.dbz>=41?tStr('Storm Cell'):tStr('Rain Cell');
-      const hookBadge=isHook?`<span class="hook-echo-badge">🌪️ Hook Echo</span>`:'';
+      const cellName=isHook?tStr('Rotation'):s.dbz>=65?tStr('Extreme Cell'):s.dbz>=60?tStr('Severe Cell'):s.dbz>=52?tStr('Strong Cell'):s.dbz>=41?tStr('Storm Cell'):tStr('Rain Cell');
+      const hookBadge=isHook?`<span class="hook-echo-badge">🌪️ Tornado Warning</span>`:'';
       const ts10=stormThreatScore10(s);
       const tsColor=s.dbz>=65?'#ff00ff':s.dbz>=60?'#ef4444':s.dbz>=52?'#f97316':ts10>=4?'#facc15':'#4ade80';
       const tsLabel=s.dbz>=65?'EXTREME':s.dbz>=60?'SEVERE':s.dbz>=52?'STRONG':ts10>=4?'MODERATE':'LOW';

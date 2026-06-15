@@ -1024,7 +1024,7 @@ function plotStormMarkers(map){
   const visibleSet=new Set(visibleStorms);
   stormList.forEach(storm=>{
     const cat=stormCat(storm.dbz);
-    const _stormTier=storm._hookEcho?'hook':storm.dbz>=65?'extreme':storm.dbz>=60?'severe':storm.dbz>=52?'strong':'';
+    const _stormTier=storm._rotation?'hook':storm.dbz>=65?'extreme':storm.dbz>=60?'severe':storm.dbz>=52?'strong':'';
     const color=_stormTier==='hook'?'#ff1744':_stormTier==='extreme'?'#ff00ff':_stormTier==='severe'?'#ff1744':_stormTier==='strong'?'#c2410c':dbzHex(storm.dbz);
     const _tierBoost=_stormTier==='extreme'?1.35:_stormTier==='severe'?1.2:_stormTier==='strong'?1.1:1.0;
     const r=Math.max(4,Math.round(Math.max(10,storm.dbz/4)*sc*_tierBoost));
@@ -1064,7 +1064,7 @@ function plotStormMarkers(map){
         mvHtml+=`<div style="font-size:0.7em;color:#6b7;margin-top:2px">${tStr('Nearby · Not approaching')}</div>`;
       }
     }
-    const hookInfo=storm._hookEcho?`<div style="font-size:0.8em;font-weight:700;color:#ff1744;margin-top:4px;padding:3px 8px;background:rgba(255,23,68,0.15);border:1px solid rgba(255,23,68,0.3);border-radius:6px;animation:tornado-pulse 1.8s ease-in-out infinite">🌪️ Possible Rotation (Hook Echo)</div>`:'';
+    const hookInfo=storm._rotation?`<div style="font-size:0.8em;font-weight:700;color:#ff1744;margin-top:4px;padding:3px 8px;background:rgba(255,23,68,0.15);border:1px solid rgba(255,23,68,0.3);border-radius:6px;animation:tornado-pulse 1.8s ease-in-out infinite">🌪️ Tornado Warning — Rotation</div>`:'';
     const popupHtml=`<div style="text-align:center;font-family:system-ui;min-width:155px">
       <div style="font-size:1.3em;font-weight:700;color:${color}">${storm.dbz} dBZ</div>
       <div style="font-size:0.8em;margin:2px 0">${tStr(cat.label)}</div>
@@ -1100,7 +1100,7 @@ function plotStormMarkers(map){
       });
       if(hasAlert)pending.push({type:'alertBadge',lat:storm.lat,lng:storm.lng,stormRef:storm});
     }
-    if(storm._hookEcho){
+    if(storm._rotation){
       pending.push({type:'tornado',lat:storm.lat,lng:storm.lng,stormRef:storm});
     }
     
@@ -1137,7 +1137,7 @@ function plotStormMarkers(map){
         S.stormMarkers.push(marker);
       }else if(p.type==='ring'){
         const _dbz=p.dbz||30;
-        const _isHook=p.stormRef&&p.stormRef._hookEcho;
+        const _isHook=p.stormRef&&p.stormRef._rotation;
         const _tier=_isHook?'hook':_dbz>=65?'extreme':_dbz>=60?'severe':_dbz>=52?'strong':'';
         const _baseDur=4.5-(_dbz/20);
         const _sinVal=Math.sin(p.lat*1000+p.lng*7777);

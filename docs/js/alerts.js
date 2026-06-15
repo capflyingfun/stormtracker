@@ -744,7 +744,7 @@ function _renderHazardSummary(){
     droughtStatus.target='hz-drought';
     items.push(droughtStatus);
     const spcW=_spcData.watches;
-    const hookCount=(S.storms||[]).filter(s=>s._hookEcho).length;
+    const hookCount=(S.storms||[]).filter(s=>s._rotation).length;
     if(!spcW)items.push({icon:'🔄',label:'Severe Wx',status:'Loading...',color:'#666',target:'hz-severe-wx'});
     else{
       const localWatches=spcW.filter(w=>_isPointInSpcWatch(S.lat,S.lon,w));
