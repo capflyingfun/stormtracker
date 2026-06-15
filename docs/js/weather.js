@@ -1970,6 +1970,12 @@ const _RC_TOTAL_MIN=180;
 // v4.65: sourced from the shared STORM_MIN_DBZ (15) so the Rain Clock MATCHES
 // the Storms-tab cards' floor instead of using its own stricter cutoff (was 25).
 const _RC_MIN_DBZ=(typeof STORM_MIN_DBZ!=='undefined')?STORM_MIN_DBZ:15;
+// v4.81: forecast-fallback intensity floor. The forecast dial (shown when NO
+// storms are inbound) used to paint any measurable rain (floor ~1 dBZ), so it
+// read "raining for hours" even for trace/drizzle. This floor (~28 dBZ ≈
+// 0.08 in/hr, light-moderate) hides drizzle while still showing real rain.
+// Forecast-only — the live-radar dial keeps the stricter _RC_MIN_DBZ floor.
+const _RC_FC_MIN_DBZ=28;
 // v4.66: intensity-scaled Rain Clock cell radius. Mirrors the Storms-tab cone
 // base width clamp((dbz-20)/15,0,3) but with a 0.2 mi floor so even a light
 // ~20 dBZ cell has a small but non-zero footprint (~0.2 mi), scaling up to
@@ -2279,7 +2285,7 @@ function _rainClockProject(){
       const mm=h.precipitation[i]||0;// mm accumulated in this hour == mm/hr
       if(mm<FC_FLOOR_MM)continue;
       const dbz=Math.round(_precipMmToDbz(mm));
-      if(dbz<=0)continue;
+      if(dbz<_RC_FC_MIN_DBZ)continue; // v4.81: only light-moderate+ forecast rain
       const start=Math.max(0,offMin);
       fcHours.push({start,end:offMin+60,dbz,mm});
       if(offMin+60>fcMaxMin)fcMaxMin=offMin+60;
@@ -2296,14 +2302,14 @@ function _rainClockProject(){
         const tOut=Math.min(fspan,Math.ceil(f.end));
         for(let t=tIn;t<=tOut;t++){if(f.dbz>out.minutes[t])out.minutes[t]=f.dbz}
       }
-      // Build windows from contiguous painted minutes. Forecast rain can be
-      // lighter than the radar floor, so the threshold here is 1 — every painted
-      // minute is an intentional rainy forecast hour, not radar noise.
+      // Build windows from contiguous painted minutes. Only minutes at/above the
+      // forecast floor (_RC_FC_MIN_DBZ) count — every painted minute already
+      // passed that floor above, so this just guards the window boundaries.
       const fwins=[];
       let fc=null;
       for(let t=0;t<=fspan;t++){
         const v=out.minutes[t];
-        if(v>=1){if(!fc)fc={startMin:t,endMin:t,peakDbz:v};else{fc.endMin=t;if(v>fc.peakDbz)fc.peakDbz=v}}
+        if(v>=_RC_FC_MIN_DBZ){if(!fc)fc={startMin:t,endMin:t,peakDbz:v};else{fc.endMin=t;if(v>fc.peakDbz)fc.peakDbz=v}}
         else if(fc){fwins.push(fc);fc=null}
       }
       if(fc)fwins.push(fc);
@@ -2406,10 +2412,9 @@ function renderRainClock(){
     // Per-minute colored segments.
     for(let m=0;m<TOTAL;m++){
       const v=data.minutes[m];
-      // Forecast rain can be lighter than the radar floor — draw any painted
-      // minute on the forecast dial (every painted minute is a rainy forecast
-      // hour), but keep the strict radar-noise floor for live-radar dials.
-      if(v<(data.forecast?1:_RC_MIN_DBZ))continue;
+      // Forecast dial uses the light-moderate forecast floor (_RC_FC_MIN_DBZ);
+      // the live-radar dial keeps the stricter radar-noise floor (_RC_MIN_DBZ).
+      if(v<(data.forecast?_RC_FC_MIN_DBZ:_RC_MIN_DBZ))continue;
       const [x0,y0]=ptAt(m,R_ARC);
       const [x1,y1]=ptAt(m+1,R_ARC);
       const col=(typeof dbzHex==='function')?dbzHex(v):'#39ff14';
