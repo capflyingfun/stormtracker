@@ -3,6 +3,12 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.78
+
+**Rain-coverage detail on storm track cones.** Each green track cone now carries a small label showing how much rain actually sits inside its projected path, so the cone communicates more than just direction.
+
+- **Per-cone rain stats** — `_coneRainStats(pts)` (`docs/js/radar.js`) counts how many raw radar scan points (`S._rawScanPts`) fall inside each cone polygon (ray-cast point-in-polygon with a bounding-box prefilter for speed) and tracks the peak dBZ among them. `plotStormTracks` draws a `💧 <count> · <max> dBZ` badge at the midpoint of each cone, colored to match the cone, and registers it in `S._trackCones` so it clears/redraws with the cones. Selection logic is unchanged — still the top-strongest inbound set; this only adds detail.
+
 ## v4.77
 
 **Stable storm-forecast ETA layout.** The inbound-cells summary at the top of the Storms tab (e.g. "🟡 Moderate to heavy cells inbound…") rendered the live ETA inline, so the once-a-second countdown's changing digit width kept reflowing the text — sometimes the time sat next to "ETA", sometimes it wrapped to the next line.
