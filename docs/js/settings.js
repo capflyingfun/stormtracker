@@ -102,6 +102,7 @@ function getChangelogHtml(){
 async function _autoCheckUpdate(){
   try{
     if(sessionStorage.getItem('st_autoUpd')==='1'){sessionStorage.removeItem('st_autoUpd');return false;}
+    if('onLine' in navigator&&!navigator.onLine)return false;
     const loaded=document.title.match(/v(\d+\.\d+)/);
     if(!loaded)return false;
     const loadedVer='v'+loaded[1];
