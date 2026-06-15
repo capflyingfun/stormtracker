@@ -2404,6 +2404,24 @@ function clearStormTracks(){
   S._trackCones.forEach(l=>{try{if(S.map)S.map.removeLayer(l)}catch(e){}});
   S._trackCones=[];
 }
+function _coneRainStats(pts){
+  const raw=S._rawScanPts;
+  if(!pts||pts.length<3||!raw||!raw.length)return{count:0,maxDbz:0};
+  let minLat=90,maxLat=-90,minLng=180,maxLng=-180;
+  for(const p of pts){if(p[0]<minLat)minLat=p[0];if(p[0]>maxLat)maxLat=p[0];if(p[1]<minLng)minLng=p[1];if(p[1]>maxLng)maxLng=p[1];}
+  let count=0,maxDbz=0;
+  for(let k=0;k<raw.length;k++){
+    const rp=raw[k];const y=rp.lat,x=rp.lng;
+    if(y<minLat||y>maxLat||x<minLng||x>maxLng)continue;
+    let inside=false;
+    for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+      const yi=pts[i][0],xi=pts[i][1],yj=pts[j][0],xj=pts[j][1];
+      if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside;
+    }
+    if(inside){count++;if((rp.dbz||0)>maxDbz)maxDbz=rp.dbz||0;}
+  }
+  return{count,maxDbz};
+}
 function plotStormTracks(map){
   clearStormTracks();
   if(S._tracksMode==='off'||!map)return;
@@ -2437,6 +2455,13 @@ function plotStormTracks(map){
     const fillOpa=0.08*Math.max(0.3,_imp);
     const poly=L.polygon(pts,{color,fillColor:color,fillOpacity:fillOpa,weight:1,dashArray:'4,4',opacity:0.5,interactive:false}).addTo(map);
     S._trackCones.push(poly);
+    const _rs=_coneRainStats(pts);
+    if(_rs.count>0){
+      const _tip=pts[2]||pts[Math.floor(pts.length/2)];
+      const _mid=[(s.lat+_tip[0])/2,(s.lng+_tip[1])/2];
+      const _lbl=L.marker(_mid,{interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:10px;font-weight:700;color:${color};background:rgba(0,0,0,0.65);padding:1px 5px;border-radius:4px;white-space:nowrap;text-shadow:0 0 3px #000;transform:translate(-50%,-50%)">💧 ${_rs.count}${_rs.maxDbz?` · ${_rs.maxDbz} dBZ`:''}</div>`,iconSize:[1,1],iconAnchor:[0,0]})}).addTo(map);
+      S._trackCones.push(_lbl);
+    }
   });
 }
 function clearRelMotionLayers(){
