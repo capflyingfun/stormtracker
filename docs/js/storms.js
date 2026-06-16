@@ -2602,7 +2602,8 @@ function _nhcProximityCheck() {
     const key = 'nhc_alert_' + s.name + '_' + Math.floor(Date.now() / 3600000);
     if (sessionStorage.getItem(key)) continue;
     sessionStorage.setItem(key, '1');
-    const reason = inCone ? 'You are inside the forecast cone!' : `${Math.round(s.dist)} mi from your location`;
+    const dir = (s.lat != null && s.lon != null && S.lat != null && S.lon != null) ? degToDir(bearingDeg(S.lat, S.lon, s.lat, s.lon)) : '';
+    const reason = inCone ? 'You are inside the forecast cone!' : `${Math.round(s.dist)} mi${dir ? ' to the ' + dir : ''} from your location`;
     const msg = `🌀 ${s.type} ${s.name} (${cat.label}) — ${reason}`;
     toast(msg, 8000);
     _sendBrowserNotification('Tropical Cyclone Alert', msg);
@@ -2616,7 +2617,8 @@ function _renderNHCBanner(data) {
   const status = _tropicalStatusLabel(storm);
   const bgColor = inCone ? 'rgba(255,152,0,0.15)' : 'rgba(79,195,247,0.1)';
   const borderColor = status ? status.color : cat.color;
-  const reason = inCone ? 'You are inside the forecast cone' : `${Math.round(storm.dist)} mi away — Tracking`;
+  const dir = (storm.lat != null && storm.lon != null && S.lat != null && S.lon != null) ? degToDir(bearingDeg(S.lat, S.lon, storm.lat, storm.lon)) : '';
+  const reason = inCone ? 'You are inside the forecast cone' : `${Math.round(storm.dist)} mi${dir ? ' to the ' + dir : ''} away — Tracking`;
   const html = `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${bgColor};border:1px solid ${borderColor}44;border-radius:8px;margin:8px 12px 0;cursor:pointer" onclick="_selectNHCStorm('${_escStormName(storm.id||storm.name)}')">
     <span style="font-size:1.4em">🌀</span>
     <div class="flex-1">

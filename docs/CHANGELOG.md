@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.88
+
+**Tropical storm proximity alerts now include a compass direction, and the Rain Clock reverts to its card-driven dial.**
+
+- **Storm direction in tropical alerts** — the NHC/JTWC proximity banner (`_renderNHCBanner()`) and the one-shot proximity toast/notification (`_nhcProximityCheck()`) in `docs/js/storms.js` previously rendered only the distance ("656 mi away — Tracking" / "656 mi from your location") for an approaching tropical system. They now append a compass bearing computed from the user to the storm via `degToDir(bearingDeg(S.lat, S.lon, storm.lat, storm.lon))`, e.g. "656 mi to the SE — Tracking". The direction is omitted gracefully when either set of coordinates is missing, and the in-cone wording ("You are inside the forecast cone") is unchanged.
+- **Rain Clock reverted to card-driven (v4.86 behavior)** — the v4.87 reverse-cone continuous coverage fill is fully removed from `docs/js/weather.js`: the `_RC_COV_MIN_DBZ` / `_RC_COV_MAX_MIN` / `_RC_COV_GAP_TOL` constants, the `_rcCoverageFill()` and `_rcCovTrailEdge()` helpers, the `rawMaxDbz` capture in the nearest-precip loop, the `_covFull`/`_covEdge` computation, and the max-merge of coverage minutes onto `out.minutes[]`. The dynamic span is back to `_rcPickSpan(_maxEta)` (furthest inbound card ETA only). The dial's painted arc is once again built purely from the discrete inbound storm cards, so it agrees exactly with the Storms-tab cards. The inbound count (`S._inboundShown`), tap-detail cell list, header pill, "raining now" path, and the forecast fallback / "no rain inbound" state are all unchanged.
+- **Cache bumped** — `?v=586` / `stormtracker-v586`.
+
 ## v4.87
 
 **Rain Clock dial now fills in continuously for broad rain shields.** The dial built its painted arc only from the discrete inbound-storm *cards* — each card painted a short pass-window (cell diameter ÷ speed) centered on its ETA — so a wide, continuous band of rain rendered as a few isolated colored chunks with dark gaps between them, even though rain was actually falling the whole time. A new reverse-cone coverage pass fills the gaps.
