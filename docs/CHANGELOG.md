@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.85
+
+**Storm briefings now summarize the inbound rain instead of listing every cell.** Both the AI Briefing (`docs/js/ai.js`) and the deterministic System Briefing (`docs/js/briefingEngine.js`) used to enumerate one bullet per inbound storm cell, and the AI prompt additionally mandated that every strong (≥45 dBZ) non-inbound cell be named individually. With a broad rain event this produced a long, repetitive list that duplicated the Storms tab and could get truncated before the Aviation section finished.
+
+- **Inbound = summary, not a list** — both briefings now frame the inbound threat as a short summary and highlight only the two cells that matter: the **SOONEST** (nearest radar-age-adjusted ETA) and the **STRONGEST** (highest projected dBZ-at-user). When ~15+ cells are inbound the lead line describes it as one broad rain shield (repeated rounds over the next hour), not N separate storms. The full per-cell list is left to the Storms tab.
+- **Deterministic engine** — `buildThreats()` drops the per-cell inbound bullet loop (and the "+N more" tally) in favor of a lead summary line plus a "⏱️ Soonest" and "🔺 Strongest at your location" line. Light/drizzle and non-inbound (MISS/DISTANT/FAR, passing, moving-away) summaries are unchanged.
+- **AI prompt** — the DETAIL-vs-MENTAL-PICTURE per-cell mandate, the per-cell two-subsection requirement, and the "every ≥45 dBZ non-inbound cell MUST be named individually" rule are replaced with a SUMMARIZE-DON'T-LIST philosophy. Subsection 1 highlights soonest + strongest; Subsection 2 ("Elsewhere on Radar:") summarizes non-inbound cells by direction and may name only the single strongest non-inbound cell for awareness. The context builder now emits explicit **INBOUND SUMMARY HINTS** (soonest + strongest) and reworded the STRONG NON-INBOUND block to "summarize, name only the strongest."
+- **Cache bumped** — `?v=583` / `stormtracker-v583`.
+
 ## v4.84
 
 **AI briefing now frames high cell counts as a broad rain area, not many discrete storms.** When the radar resolves a single continuous line/area of rain into dozens-to-hundreds of returns, the AI briefing previously mirrored the raw count (e.g. "130+ additional inbound cells"), which read as if 100+ separate thunderstorms were inbound.
