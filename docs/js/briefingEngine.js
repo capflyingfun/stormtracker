@@ -138,31 +138,29 @@
   function _stormLine(item,metric){
     const{s,b,tier}=item;
     const e=_emojiTier(tier);
-    const lbl=_labelTier(tier);
     const dir=_safeDeg(s.bearing);
     const dist=_fmtDist(s.distance,metric);
     const dbz=_dbzTag(s.dbz);
-    if(!b||tier==='unknown')return `${e} ${lbl}: ${dbz} cell ${dist} ${dir}, motion unknown.`;
+    if(!b||tier==='unknown')return `${e} ${dbz} cell ${dist} ${dir}, motion unknown.`;
     const closing=b.closingMph!=null?((b.closingMph>=0?'+':'')+b.closingMph+' mph'):'?';
     const miss=b.perpMissMi!=null?b.perpMissMi.toFixed(1)+' mi':'?';
-    const pct=(b.closenessPct!=null&&(tier==='direct'||tier==='near_direct'||tier==='near_miss'))?' '+b.closenessPct+'%':'';
     const estDbz=b.estDbzAtUser;
     const movStr=(b.movSpdMph&&b.movDirDeg!=null)?`, motion ${_safeDeg(b.movDirDeg)} @ ${b.movSpdMph} mph`:'';
     if(tier==='direct'){
       const eta=b.etaMin!=null?`, ETA __~${Math.round(Math.max(0,b.etaMin-((typeof radarAgeMin==='function')?radarAgeMin():5)))} min__ (__${(typeof fmtClock==='function')?fmtClock(new Date(Date.now()+Math.max(0,b.etaMin-((typeof radarAgeMin==='function')?radarAgeMin():5))*60000)):''}__)`:'';
       const estStr=estDbz!=null?`, ~${_dbzTag(estDbz)} expected at you`:'';
-      return `${e} **DIRECT${pct}**: ${dbz} cell ${dist} ${dir} closing ${closing}${eta}, projected pass within ${miss}${estStr}${movStr}. **Expect overhead impact.**`;
+      return `${e} ${dbz} cell ${dist} ${dir} closing ${closing}${eta}, projected pass within ${miss}${estStr}${movStr}. **Expect overhead impact.**`;
     }
     if(tier==='near_direct'){
       const eta=b.etaMin!=null?`, ETA __~${Math.round(Math.max(0,b.etaMin-((typeof radarAgeMin==='function')?radarAgeMin():5)))} min__ (__${(typeof fmtClock==='function')?fmtClock(new Date(Date.now()+Math.max(0,b.etaMin-((typeof radarAgeMin==='function')?radarAgeMin():5))*60000)):''}__)`:'';
       const estStr=estDbz!=null?`, ~${_dbzTag(estDbz)} at you`:'';
-      return `${e} NEAR DIRECT${pct}: ${dbz} cell ${dist} ${dir} closing ${closing}${eta}, projected miss ${miss}${estStr}${movStr}. Brief heavy downpour likely.`;
+      return `${e} ${dbz} cell ${dist} ${dir} closing ${closing}${eta}, projected miss ${miss}${estStr}${movStr}. Brief heavy downpour likely.`;
     }
     if(tier==='near_miss'){
       const estStr=estDbz!=null?`, ~${_dbzTag(estDbz)} at you`:'';
-      return `${e} NEAR MISS${pct}: ${dbz} cell ${dist} ${dir} closing ${closing}, miss ${miss}${estStr}${movStr}.`;
+      return `${e} ${dbz} cell ${dist} ${dir} closing ${closing}, miss ${miss}${estStr}${movStr}.`;
     }
-    return `${e} ${lbl}: ${dbz} cell ${dist} ${dir}, miss ${miss}${movStr}.`;
+    return `${e} ${dbz} cell ${dist} ${dir}, miss ${miss}${movStr}.`;
   }
 
   function _sumLine(label,cells,emoji,trailing,metric){
