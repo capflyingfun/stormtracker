@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.86
+
+**Inbound storm lines no longer repeat the "DIRECT / NEAR DIRECT / NEAR MISS" tier word.** Inside the inbound section every cell is inbound by definition, so the tier label was redundant and broke the flow of the sentence. The color emoji (🔴🟠🟡…) is kept since it mirrors the storm cell card; only the inline word is dropped.
+
+- **Deterministic engine** — `_stormLine()` in `docs/js/briefingEngine.js` (used for the "⏱️ Soonest" and "🔺 Strongest at your location" lines) now emits just the emoji + dBZ + distance/direction, with no tier word. Unused `lbl`/`pct` locals removed.
+- **AI prompt** — the emoji color-coding rule in `docs/js/ai.js` now instructs the model to use the EMOJI ONLY (no tier word) inside the Inbound subsection, writing natural prose. The "Elsewhere on Radar" subsection may still keep the motion word (passing / moving away) for non-inbound cells.
+- **Cache bumped** — `?v=584` / `stormtracker-v584`.
+
 ## v4.85
 
 **Storm briefings now summarize the inbound rain instead of listing every cell.** Both the AI Briefing (`docs/js/ai.js`) and the deterministic System Briefing (`docs/js/briefingEngine.js`) used to enumerate one bullet per inbound storm cell, and the AI prompt additionally mandated that every strong (≥45 dBZ) non-inbound cell be named individually. With a broad rain event this produced a long, repetitive list that duplicated the Storms tab and could get truncated before the Aviation section finished.
