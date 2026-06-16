@@ -115,7 +115,9 @@ function fmtAIText(raw){
   // still slips past the structured passes is stripped by the final
   // defensive sweep at the end of this function so raw markup like
   // "[!dbz:55]" or "[/!]" can never leak into the rendered briefing.
-  s=s.replace(/\[!\s*dbz\s*:\s*(-?\d+(?:\.\d+)?)(?:\s*[-–]\s*-?\d+(?:\.\d+)?)?\s*\]([\s\S]+?)\[\/!\]/gi,(m,n,t)=>{const c=(typeof dbzHex==='function')?dbzHex(parseFloat(n)):'#888';return `<span style="color:${c};font-weight:600">${t}</span>`;});
+  // v4.89: when the tag carries a RANGE (e.g. [!dbz:35-55]), color the phrase
+  // by the MAX (high end) so "35–55 dBZ" renders red (55), not green (35).
+  s=s.replace(/\[!\s*dbz\s*:\s*(-?\d+(?:\.\d+)?)(?:\s*[-–]\s*(-?\d+(?:\.\d+)?))?\s*\]([\s\S]+?)\[\/!\]/gi,(m,lo,hi,t)=>{const v=(hi!=null&&hi!=='')?Math.max(parseFloat(lo),parseFloat(hi)):parseFloat(lo);const c=(typeof dbzHex==='function')?dbzHex(v):'#888';return `<span style="color:${c};font-weight:600">${t}</span>`;});
   s=s.replace(/\*\*\*(.+?)\*\*\*/g,'<b><i>$1</i></b>');
   s=s.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
   s=s.replace(/\*(.+?)\*/g,'<i>$1</i>');
@@ -688,6 +690,8 @@ Your professional standards:
     * __underline__ for specific times and ETAs ("storm overhead __~34 min__", "expires __11:45 PM CDT__").
     * Semantic color tags for tier callouts — wrap the short status phrase only, never a whole sentence: [!red]severe / imminent threat[/!], [!orange]near miss / cone alert[/!], [!yellow]advisory / watch[/!], [!green]all-clear / receding[/!], [!cyan]atmospheric data[/!]. Example: "Conditions are [!red]critical[/!] — a confirmed tornado is **on the ground 6 mi SW** and tracking NE."
     * EVERY specific dBZ value you mention MUST be wrapped as [!dbz:NN]NN dBZ[/!] so the number renders in the master radar palette color for that intensity. Example: "A [!dbz:55]55 dBZ[/!] cell 14 mi NW closing at +25 mph." Use this everywhere — Situation Overview, Active Threats, Aviation, Marine — never write a bare "55 dBZ" without the tag. Decimals are allowed ([!dbz:47.5]47.5 dBZ[/!]).
+    * For a dBZ RANGE, tag it as [!dbz:LO-HI]LO–HI dBZ[/!] (e.g. [!dbz:35-55]35–55 dBZ[/!]). The phrase renders in the color of the STRONGEST (high) end, so a range topping out at 55 dBZ shows red — never imply the whole range is light just because it starts low.
+    * INTENSITY WORDS: whenever you state a dBZ value or range, pair it with the plain-language intensity term from the radar palette so non-technical readers grasp it — 31-40 = moderate rain, 41-45 = heavy rain, 46-51 = very heavy rain, 52-59 = heavy core (strong, not auto-severe), 60-64 = severe (hail possible), 65+ = extreme (hail likely). Write it naturally, e.g. "heavy rain ([!dbz:41]41 dBZ[/!])" or "a heavy-to-very-heavy core ([!dbz:46-52]46–52 dBZ[/!])". A range spans terms — say so (e.g. "moderate-to-heavy"). Keep the existing calibration guardrail: do NOT label 55 dBZ "severe" — that is a heavy core, not automatically severe.
   Do NOT use ###/##/# headers — section headers are already provided. Do NOT use raw HTML. Do NOT invent new color tags or hex codes. Do NOT wrap section headers in any formatting.
 - Section headers: prefix each section header line with its topical emoji — 🌐 Situation Overview, ⛈️ Active Threats & Storm Tracking, 🚸 Public Safety & Outdoor Guidance, ✈️ Aviation & Marine Briefing. Headers stay on their own line, no markdown characters.
 - Projected-miss phrasing: use natural language — "projected miss around NN mi". Only append "to your <direction>" if the direction has NOT already been stated earlier in the same bullet/sentence (e.g. the storm position "14 mi NW" or the classification label "PASSING TO YOUR NW" both count as already-stated). Never restate direction twice in the same sentence.

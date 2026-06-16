@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.89
+
+**AI briefing dBZ ranges now color by their strongest end, and every dBZ value is paired with a plain-language intensity word.**
+
+- **Range coloring fixed** — the dBZ markup pass in `docs/js/ai.js` (the `[!dbz:…]…[/!]` → colored `<span>` replacement) previously captured only the FIRST number of a tagged range and discarded the second, so a tag like `[!dbz:35-55]35–55 dBZ[/!]` rendered in the color for 35 (green) even though it described a core reaching 55 (red). The regex now captures BOTH ends of the range and colors the phrase by `Math.max(lo, hi)`, so a range is always tinted by its strongest reflectivity. Single-value tags are unaffected. The defensive markup-strip passes are unchanged.
+- **Intensity words in the prompt** — `getSystemPrompt()` in `docs/js/ai.js` gains two formatting rules alongside the existing dBZ-tag rule: (1) emit ranges as `[!dbz:LO-HI]LO–HI dBZ[/!]` and never imply a range is light just because it starts low, and (2) pair every dBZ value/range with the radar palette's plain-language term (31-40 moderate, 41-45 heavy, 46-51 very heavy, 52-59 heavy core, 60-64 severe, 65+ extreme). The prior severity-calibration guardrail is preserved verbatim — 55 dBZ is a heavy core, not automatically "severe".
+- **Cache bumped** — `?v=587` / `stormtracker-v587`.
+
 ## v4.88
 
 **Tropical storm proximity alerts now include a compass direction, and the Rain Clock reverts to its card-driven dial.**
