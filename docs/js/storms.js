@@ -1008,6 +1008,26 @@ function buildStormCone(storm,mv){
   const fR=destPoint(storm.lat,storm.lng,dir+15,range);
   return[[storm.lat,storm.lng],fL,fC,fR,[storm.lat,storm.lng]];
 }
+// v4.83: in-path rain coverage for a storm's projected track cone, shown on the Storms-tab
+// card (replaces the old per-cone 💧 text label that cluttered the radar map). Reuses the
+// same cone + raw-point sweep used for the map cones; cached per storm per scan so re-renders
+// don't re-run the raw-point loop. Returns {count, maxDbz} (count 0 when no track/coverage).
+function getStormConeRain(s){
+  if(!s)return{count:0,maxDbz:0};
+  if(s._coneRainScanId===S._stormScanId&&s._coneRain)return s._coneRain;
+  let res={count:0,maxDbz:0};
+  try{
+    const mv=(typeof getHybridMovement==='function'?getHybridMovement(s):null)
+      ||(typeof getSteeringMv==='function'?getSteeringMv():null)
+      ||((S.stormMovement&&S.stormMovement.speed>=2)?S.stormMovement:null);
+    if(mv&&mv.speed>=2&&typeof buildStormCone==='function'&&typeof _coneRainStats==='function'){
+      const pts=buildStormCone(s,mv);
+      if(pts)res=_coneRainStats(pts)||res;
+    }
+  }catch(e){}
+  s._coneRain=res;s._coneRainScanId=S._stormScanId;
+  return res;
+}
 function isUserInStormCone(storm,mv,uLat,uLon){
   const pts=buildStormCone(storm,mv);
   if(!pts||pts.length<3||uLat==null||uLon==null)return false;
@@ -2966,6 +2986,8 @@ function _renderStormsCore(){
         const _bTitle=_isCloseTier?`Closeness: track passes ~${_missMiTxt} mi from you (${_sc.label.toUpperCase()} tier, ≤${_missMaxMi} mi)`:`Track passes ~${_missMiTxt} mi from you (${_sc.label.toUpperCase()} tier)`;
         clsBadge=`<span class="storm-badge" title="${_bTitle}" style="background:${_impactColor}22;color:${_impactColor};border:1px solid ${_impactColor}66;font-weight:700">${_badgeLabel}${_pct}</span>`;
       }
+      const _cr=getStormConeRain(s);
+      const _coneRainLine=(_cr&&_cr.count>0)?`<div title="${tStr('Rain returns inside the projected track path')}" style="margin-top:5px;font-size:0.68em;color:#5bc0ff;display:flex;align-items:center;gap:5px"><span>💧</span><span style="font-weight:600;color:var(--text-secondary)">${tStr('In path')}:</span><span style="font-weight:700">${_cr.count}</span><span style="color:var(--text-secondary)">${tStr('returns')}</span>${_cr.maxDbz?`<span style="color:var(--text-secondary)">·</span><span style="font-weight:700">${_cr.maxDbz} dBZ</span><span style="color:var(--text-secondary)">${tStr('max')}</span>`:''}</div>`:'';
       return`<div class="storm-cell-card ${pulse}" style="border-color:${borderColor};--pulse-color:${borderColor}${isHook?';animation:tornado-pulse 1.8s ease-in-out infinite,storm-pulse-severe 2s ease-in-out infinite':''}">
         <div class="storm-header"><span style="font-weight:700">${cellIcon} ${cellName}</span>${hookBadge}${clsBadge}<span class="storm-badge" style="background:${hex}22;color:${hex};border:1px solid ${hex}44">${tStr(cat.label)}</span></div>
         <div style="display:flex;align-items:center;gap:6px;margin:4px 0 2px;font-size:0.7em"><span style="font-weight:700;color:var(--text-secondary)">Threat:</span><span style="color:${tsColor};font-weight:700;font-size:1.1em">${ts10.toFixed(1)}</span><span style="color:${tsColor};font-size:0.85em;font-weight:600">/10 ${tsLabel}</span></div>
@@ -2976,6 +2998,7 @@ function _renderStormsCore(){
           ${mvLine}
         </div>
         ${estLine}
+        ${_coneRainLine}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
           <span class="text-hint">
             ${s.lat.toFixed(3)}°N, ${Math.abs(s.lng).toFixed(3)}°${s.lng<0?'W':'E'} &middot; ${s.pixels} returns

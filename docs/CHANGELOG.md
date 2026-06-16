@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.83
+
+**Storm-track rain-coverage labels moved off the map into the Storms tab.** Each storm-track cone used to draw a 💧 "count · max dBZ" text badge on the radar map. With the user sitting inside many overlapping cones, a dozen of these badges stacked into an unreadable pile over the user's location.
+
+- **Removed the on-map cone label** — the per-cone 💧 divIcon marker in `plotStormTracks()` (`docs/js/radar.js`) is no longer created/added. The cone polygon (dashed path shading) still draws as before.
+- **Added in-path coverage to the storm card** — new `getStormConeRain(s)` in `docs/js/storms.js` reuses `buildStormCone()` + `_coneRainStats()` to derive `{count, maxDbz}` for a storm's projected track, cached per storm per scan (`_coneRainScanId`/`_coneRain`) so card re-renders don't re-run the raw-point sweep. Each card now shows a "💧 In path: N returns · max X dBZ" line (only when count > 0 and the storm has a fast-enough track). This is distinct from the existing bottom "N returns" (the cell's own pixel count).
+- **Cache bumped** — `?v=581` / `stormtracker-v581`.
+
 ## v4.82
 
 **"Rotation" is now gated on a real NWS Tornado Warning.** The radar/sonar Rotation indicator (🌪️ marker + "ROTATION" / "Possible Rotation (Hook Echo)" labels) used to be driven purely by a radar-shape heuristic (`detectHookEchoes()` → `cell._hookEcho`). Hook-shaped echoes frequently have no tornado, so the marker was misleading. Rotation now requires an active warning.
