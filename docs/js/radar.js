@@ -2455,13 +2455,9 @@ function plotStormTracks(map){
     const fillOpa=0.08*Math.max(0.3,_imp);
     const poly=L.polygon(pts,{color,fillColor:color,fillOpacity:fillOpa,weight:1,dashArray:'4,4',opacity:0.5,interactive:false}).addTo(map);
     S._trackCones.push(poly);
-    const _rs=_coneRainStats(pts);
-    if(_rs.count>0){
-      const _tip=pts[2]||pts[Math.floor(pts.length/2)];
-      const _mid=[(s.lat+_tip[0])/2,(s.lng+_tip[1])/2];
-      const _lbl=L.marker(_mid,{interactive:false,icon:L.divIcon({className:'',html:`<div style="font-size:10px;font-weight:700;color:${color};background:rgba(0,0,0,0.65);padding:1px 5px;border-radius:4px;white-space:nowrap;text-shadow:0 0 3px #000;transform:translate(-50%,-50%)">💧 ${_rs.count}${_rs.maxDbz?` · ${_rs.maxDbz} dBZ`:''}</div>`,iconSize:[1,1],iconAnchor:[0,0]})}).addTo(map);
-      S._trackCones.push(_lbl);
-    }
+    // v4.83: the per-cone 💧 "count · max dBZ" text label used to be drawn here, but with many
+    // overlapping cones near the user the labels piled up unreadably. The same in-path rain
+    // coverage now shows on each storm's card in the Storms tab (getStormConeRain in storms.js).
   });
 }
 function clearRelMotionLayers(){
