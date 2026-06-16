@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.84
+
+**AI briefing now frames high cell counts as a broad rain area, not many discrete storms.** When the radar resolves a single continuous line/area of rain into dozens-to-hundreds of returns, the AI briefing previously mirrored the raw count (e.g. "130+ additional inbound cells"), which read as if 100+ separate thunderstorms were inbound.
+
+- **Prompt rule added** — new "HIGH CELL COUNT = BROAD RAIN, NOT MANY STORMS" directive in `getSystemPrompt()` (`docs/js/ai.js`). When inbound cell count is high (~15+), the AI leads with the overall band as one feature (motion, dBZ range, how long rain persists at the user's location), details only the strongest cores, and never implies the raw count equals a number of separate storms. It may still quote the engine's "+N more inbound cells" tally but must pair it with language clarifying these are returns within one rain shield.
+- **Scope** — prompt-only change; the deterministic System Briefing and the underlying detection/cell counts are unchanged (the fragmentation itself lives in the radar detector, not the briefing).
+- **Cache bumped** — `?v=582` / `stormtracker-v582`.
+
 ## v4.83
 
 **Storm-track rain-coverage labels moved off the map into the Storms tab.** Each storm-track cone used to draw a 💧 "count · max dBZ" text badge on the radar map. With the user sitting inside many overlapping cones, a dozen of these badges stacked into an unreadable pile over the user's location.
