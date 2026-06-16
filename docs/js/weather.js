@@ -1976,20 +1976,6 @@ const _RC_MIN_DBZ=(typeof STORM_MIN_DBZ!=='undefined')?STORM_MIN_DBZ:15;
 // 0.08 in/hr, light-moderate) hides drizzle while still showing real rain.
 // Forecast-only — the live-radar dial keeps the stricter _RC_MIN_DBZ floor.
 const _RC_FC_MIN_DBZ=28;
-// v4.87: REVERSE-CONE COVERAGE constants. The dial used to paint ONLY the
-// discrete inbound-storm pass-windows, so a broad continuous rain shield showed
-// up as a few isolated arc segments with dark gaps between them. The coverage
-// pass (_rcCoverageFill) sweeps EVERY raw radar return inside an upwind cone from
-// the user, down to this light-rain floor (~18 dBZ ≈ drizzle/light), and buckets
-// each by its arrival minute so the arc fills continuously. Slightly above the
-// 15 dBZ radar-noise floor to keep speckle out of the fill.
-const _RC_COV_MIN_DBZ=18;
-// Largest minute the coverage pass considers — 12 h, the same horizon cap as the
-// dynamic span and the forecast fallback.
-const _RC_COV_MAX_MIN=720;
-// Gap (minutes) that breaks a "continuous" coverage run when finding the trailing
-// edge, so isolated far-out stragglers don't zoom the whole dial out to 12 h.
-const _RC_COV_GAP_TOL=25;
 // v4.66: intensity-scaled Rain Clock cell radius. Mirrors the Storms-tab cone
 // base width clamp((dbz-20)/15,0,3) but with a 0.2 mi floor so even a light
 // ~20 dBZ cell has a small but non-zero footprint (~0.2 mi), scaling up to
@@ -2034,83 +2020,6 @@ function _rcSpanLabel(min){
   const h=min/60;
   return (Number.isInteger(h)?h:(Math.round(h*10)/10))+'h';
 }
-// v4.87: REVERSE-CONE CONTINUOUS COVERAGE. Builds one cone anchored at the USER
-// opening UPWIND (opposite storm motion), sweeps every raw radar return inside it
-// (down to _RC_COV_MIN_DBZ), and buckets each by its arrival minute at the user
-// (along-track distance ÷ storm speed, radar-age-adjusted) into a minute→peak-dBZ
-// array. This is what fills the dial's painted arc CONTINUOUSLY for a broad rain
-// shield — it does NOT touch the inbound storm CARDS or the inbound count (those
-// still drive the dial's tap-detail list and every other surface). Base cone
-// half-width auto-scales to the strongest incoming intensity (the same
-// clamp((dbz-20)/15,0,3) the Storms-tab cone uses), floored at 0.5 mi so even a
-// light shield has a catchable footprint right over the user. Reuses destPoint +
-// the ray-cast point-in-polygon sweep the map cones use. Returns a fixed
-// 0.._RC_COV_MAX_MIN array of peak dBZ per minute, or null when not applicable.
-function _rcCoverageFill(vx,vy,vMag,baseDbz){
-  const raw=S._rawScanPts;
-  if(!raw||!raw.length||vMag<=0.1||typeof destPoint!=='function')return null;
-  if(S.lat==null||S.lon==null)return null;
-  let baseWidthMi=Math.max(0,Math.min(3,(baseDbz-20)/15));
-  if(baseWidthMi<0.5)baseWidthMi=0.5;
-  // Motion direction (deg from N, where storms are GOING) → the upwind opening
-  // is the reciprocal: the cone reaches back along the track storms ride in on.
-  const moveDir=(Math.atan2(vx,vy)*180/Math.PI+360)%360;
-  const upwind=(moveDir+180)%360;
-  const range=Math.max((S&&S.scanRadius)||80,20);
-  const perpL=(upwind-90+360)%360,perpR=(upwind+90)%360;
-  const bL=destPoint(S.lat,S.lon,perpL,baseWidthMi);
-  const bR=destPoint(S.lat,S.lon,perpR,baseWidthMi);
-  const fL=destPoint(bL[0],bL[1],upwind-15,range);
-  const fC=destPoint(S.lat,S.lon,upwind,range);
-  const fR=destPoint(bR[0],bR[1],upwind+15,range);
-  const cone=[bL,fL,fC,fR,bR];
-  let minLat=90,maxLat=-90,minLng=180,maxLng=-180;
-  for(const p of cone){if(p[0]<minLat)minLat=p[0];if(p[0]>maxLat)maxLat=p[0];if(p[1]<minLng)minLng=p[1];if(p[1]>maxLng)maxLng=p[1];}
-  const cov=new Array(_RC_COV_MAX_MIN+1).fill(0);
-  const vhx=vx/vMag,vhy=vy/vMag;
-  const cosLat=Math.cos(S.lat*Math.PI/180);
-  const age=(typeof radarAgeMin==='function')?radarAgeMin():0;
-  let any=false;
-  for(let k=0;k<raw.length;k++){
-    const rp=raw[k];
-    if((rp.dbz||0)<_RC_COV_MIN_DBZ)continue;
-    const y=rp.lat,x=rp.lng;
-    if(y<minLat||y>maxLat||x<minLng||x>maxLng)continue;
-    let inside=false;
-    for(let i=0,j=cone.length-1;i<cone.length;j=i++){
-      const yi=cone[i][0],xi=cone[i][1],yj=cone[j][0],xj=cone[j][1];
-      if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside;
-    }
-    if(!inside)continue;
-    // Arrival minute = how long until this return rides over the user along the
-    // motion vector. Project the point→user offset onto the unit motion vector,
-    // divide by speed, then shift earlier by the radar age (same convention every
-    // other ETA consumer uses). Points already past the user clamp to "now".
-    const dxE=(S.lon-x)*69*cosLat,dyN=(S.lat-y)*69;
-    const along=dxE*vhx+dyN*vhy;
-    let arr=along/vMag*60-age;
-    if(arr<0)arr=0;
-    if(arr>_RC_COV_MAX_MIN)continue;
-    const m=Math.round(arr);
-    if((rp.dbz||0)>cov[m]){cov[m]=rp.dbz;any=true}
-  }
-  return any?cov:null;
-}
-// v4.87: trailing edge of the contiguous coverage run, used to stretch the dial
-// span so the WHOLE shield (through when its back edge clears) is shown — not just
-// the inbound cards' furthest ETA. Walks minutes from now; a gap larger than
-// _RC_COV_GAP_TOL stops the run so isolated far-out stragglers can't zoom the dial
-// out to 12 h on their own (they still paint if they happen to fall inside span).
-function _rcCovTrailEdge(cov){
-  let edge=0,last=-1;
-  for(let t=0;t<=_RC_COV_MAX_MIN;t++){
-    if(cov[t]>0){
-      if(last>=0&&(t-last)>_RC_COV_GAP_TOL)break;
-      edge=t;last=t;
-    }
-  }
-  return edge;
-}
 function _rainClockProject(){
   const out={ready:false,minutes:new Array(_RC_TOTAL_MIN+1).fill(0),windows:[],
     nearest:null,stale:false,motionUnknown:false,noLoc:false,empty:false,
@@ -2134,10 +2043,9 @@ function _rainClockProject(){
     haveMv=true;
   }
   out.motionUnknown=!haveMv;
-  let nearestDist=Infinity,nearestBearing=null,rawMaxDbz=0;
+  let nearestDist=Infinity,nearestBearing=null;
   for(const p of pts){
     if(p.dbz<MIN_DBZ)continue;
-    if(p.dbz>rawMaxDbz)rawMaxDbz=p.dbz; // v4.87: base cone width fallback when no inbound cards yet
     const d=p.dist!=null?p.dist:haversine(S.lat,S.lon,p.lat,p.lng);
     if(d<nearestDist){nearestDist=d;nearestBearing=bearingDeg(S.lat,S.lon,p.lat,p.lng)}
   }
@@ -2163,21 +2071,7 @@ function _rainClockProject(){
   // fixed 3 h edge). Done in a quick pre-pass before we build the minutes array.
   let _maxEta=0;
   for(const s of inboundSrc){if(!s)continue;const e=s._eta;if(!e||e.eta==null)continue;if(e.eta>_maxEta)_maxEta=e.eta}
-  // v4.87: REVERSE-CONE COVERAGE — computed BEFORE the span pick so the dial can
-  // stretch to cover the trailing edge of a broad rain shield (not just the
-  // inbound cards' furthest ETA). Gated on fresh radar + a known motion vector.
-  // Base cone width scales to the strongest inbound storm (the cards already
-  // drive intensity); when no cards have rendered yet it falls back to the raw
-  // scan's peak so a shield still forms a sensible cone. See _rcCoverageFill.
-  let _covFull=null,_covEdge=0;
-  if(hasRadar&&!radarStale&&haveMv&&vMag>0.1){
-    let _covBaseDbz=0;
-    for(const s of inboundSrc){if(s&&(s.dbz||0)>_covBaseDbz)_covBaseDbz=s.dbz}
-    if(_covBaseDbz<=0)_covBaseDbz=rawMaxDbz;
-    _covFull=_rcCoverageFill(vx,vy,vMag,_covBaseDbz);
-    if(_covFull)_covEdge=_rcCovTrailEdge(_covFull);
-  }
-  const span=_rcPickSpan(Math.min(_RC_COV_MAX_MIN,Math.max(_maxEta,_covEdge)));
+  const span=_rcPickSpan(_maxEta);
   out.span=span;
   out.minutes=new Array(span+1).fill(0);
   // v4.68: build cells from the inbound set regardless of radar staleness. The
@@ -2212,13 +2106,6 @@ function _rainClockProject(){
     for(let t=tIn;t<=tOut;t++){if(s.dbz>out.minutes[t])out.minutes[t]=s.dbz}
     cellList.push({lat:s.lat,lng:s.lng,dbz:s.dbz,dist:s.distance,bearing:s.bearing,tIn,tOut,centerMin,beyond,count:s.pixels||1});
   }
-  // v4.87: paint the continuous reverse-cone coverage ON TOP of the discrete
-  // inbound-card pass-windows (max-merge), so a broad shield reads as one
-  // continuous arc with no dark gaps. The cards above still drive the dial's
-  // tap-detail list and the inbound count (cellList) — coverage only fills the
-  // painted ARC + the windows derived from it. Runs before the windows builder
-  // and the radar-amount integration so both see the filled-in minutes.
-  if(_covFull){for(let t=0;t<=span&&t<_covFull.length;t++){if(_covFull[t]>out.minutes[t])out.minutes[t]=_covFull[t]}}
   if(hasRadar&&!radarStale)out.radarReady=true;
   if(radarStale)out.stale=true;
   // v4.56: compute radar-derived per-hour mm/hr for hours 0-2 BEFORE the
