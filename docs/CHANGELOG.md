@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.87
+
+**Rain Clock dial now fills in continuously for broad rain shields.** The dial built its painted arc only from the discrete inbound-storm *cards* — each card painted a short pass-window (cell diameter ÷ speed) centered on its ETA — so a wide, continuous band of rain rendered as a few isolated colored chunks with dark gaps between them, even though rain was actually falling the whole time. A new reverse-cone coverage pass fills the gaps.
+
+- **Reverse-cone coverage fill** — new `_rcCoverageFill()` in `docs/js/weather.js` builds one cone anchored at the user opening UPWIND (storm-motion direction + 180°, ±15°, reaching the full scan radius), sweeps every raw radar return inside it (`S._rawScanPts`) down to a dedicated light-rain floor (`_RC_COV_MIN_DBZ` = 18 dBZ), and buckets each return by its arrival minute over the user (along-track distance projected onto the motion vector ÷ storm speed, shifted earlier by `radarAgeMin()`). The resulting minute→peak-dBZ map is max-merged onto the dial's `out.minutes[]` so the arc paints as one continuous stretch. Cone half-width auto-scales to the strongest inbound storm's dBZ (the same `clamp((dbz-20)/15, 0, 3)` the Storms-tab cone uses), floored at 0.5 mi.
+- **Span stretches to the shield's trailing edge** — the dial's dynamic span now considers the coverage trailing edge (`_rcCovTrailEdge()`, gap-tolerant so isolated far stragglers don't zoom the dial to 12 h) alongside the furthest inbound card ETA, so a continuous band reaching past the closest storms zooms the dial out to show how long it lasts.
+- **Counts & cards untouched** — coverage only fills the painted ARC and the windows derived from it. The inbound count (`S._inboundShown`), the Storms-tab cards, the header pill, and the dial's tap-detail cell list are all still driven by the discrete inbound cards, so card↔dial count agreement is preserved. Motion comes from the existing in-memory `S.stormMovement` (no winds-aloft fetch). The forecast fallback and the stricter 15 dBZ card/window floor are unchanged.
+- **Cache bumped** — `?v=585` / `stormtracker-v585`.
+
 ## v4.86
 
 **Inbound storm lines no longer repeat the "DIRECT / NEAR DIRECT / NEAR MISS" tier word.** Inside the inbound section every cell is inbound by definition, so the tier label was redundant and broke the flow of the sentence. The color emoji (🔴🟠🟡…) is kept since it mirrors the storm cell card; only the inline word is dropped.
