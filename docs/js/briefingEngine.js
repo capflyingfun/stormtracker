@@ -267,29 +267,33 @@
       if(ends){try{endsStr=` (expires __${new Date(ends).toLocaleString()}__)`;}catch(e){}}
       lines.push(`- ⚠️ [!${color}]${ev}[/!]${endsStr}`);
     }
-    // Inbound bullets — significance filter + strongest-cell guarantee applied upstream
-    // in gatherBriefingData. Display order follows miss-band sort (closest pass first).
-    // NEAR MISS cells that are both low-dBZ (<31) and distant (>20 mi) are collapsed
-    // into one summary line so they don't drown out actionable cells.
-    const inboundTop=c.inboundTop||[];
-    const inboundRest=c.inboundRest||[];
+    // Inbound — SUMMARY, not a per-cell list (v4.85). The full per-cell detail
+    // (distance, dBZ, ETA, closing speed) lives on the Storms tab, so the
+    // briefing frames the overall band and highlights only the SOONEST (nearest
+    // ETA) and STRONGEST (highest dBZ-at-user) cells. A high cell count is a
+    // broad rain shield resolved into many returns, NOT many separate storms.
     const inboundLight=c.inboundLight||[];
-    const nmLow=[];
-    for(const it of inboundTop){
-      if(it.tier==='near_miss'&&!(it.s.dbz>=31||it.s.distance<=20)){nmLow.push(it);continue}
-      lines.push('- '+_stormLine(it,d.metric));
-    }
-    const nmSum=_sumLine('NEAR MISS (light)',nmLow,'🟡',' — not actionable.',d.metric);
-    if(nmSum)lines.push(nmSum);
-    if(inboundRest.length){
-      const peak=Math.max(...inboundRest.map(x=>x.s.dbz));
-      const tally={direct:0,near_direct:0,near_miss:0};
-      for(const it of inboundRest){if(tally[it.tier]!=null)tally[it.tier]++}
-      const parts=[];
-      if(tally.direct)parts.push(`${tally.direct} DIRECT`);
-      if(tally.near_direct)parts.push(`${tally.near_direct} NEAR DIRECT`);
-      if(tally.near_miss)parts.push(`${tally.near_miss} NEAR MISS`);
-      lines.push(`- ➕ +${inboundRest.length} more inbound cell${inboundRest.length===1?'':'s'} (${parts.join(', ')}, peak ${_dbzTag(peak)}) — see Storms tab for full list.`);
+    const allInbound=c.inbound||[];
+    if(allInbound.length){
+      const _age=(typeof radarAgeMin==='function')?radarAgeMin():5;
+      const _etaOf=(it)=>{const e=it.b&&it.b.etaMin;return e!=null?Math.max(0,e-_age):Infinity;};
+      const _strOf=(it)=>{const b=it.b||{};return b.estDbzAtUser!=null?b.estDbzAtUser:it.s.dbz;};
+      let soonest=null,strongest=null;
+      for(const it of allInbound){
+        if(soonest===null||_etaOf(it)<_etaOf(soonest))soonest=it;
+        if(strongest===null||_strOf(it)>_strOf(strongest))strongest=it;
+      }
+      const peak=Math.max(...allInbound.map(x=>x.s.dbz));
+      const n=allInbound.length;
+      if(n>=15){
+        lines.push(`- 🌧️ A broad area of rain (${n} radar returns within one shield, peak ${_dbzTag(peak)}) is moving through your impact corridor — repeated rounds of rain over the next hour, not ${n} separate storms. See Storms tab for the full cell list.`);
+      }else{
+        lines.push(`- 🌧️ ${n} inbound cell${n===1?'':'s'} in your impact corridor (peak ${_dbzTag(peak)}) — see Storms tab for the full list.`);
+      }
+      lines.push('- ⏱️ Soonest: '+_stormLine(soonest,d.metric));
+      if(strongest&&strongest!==soonest){
+        lines.push('- 🔺 Strongest at your location: '+_stormLine(strongest,d.metric));
+      }
     }
     if(inboundLight.length){
       const peak=Math.max(...inboundLight.map(x=>x.s.dbz));
