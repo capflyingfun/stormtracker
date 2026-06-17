@@ -7,10 +7,20 @@
 // Persistent VAPID public key (private half lives only in the scanner secrets).
 const PUSH_VAPID_PUBLIC_KEY = 'BArKCxdh8nMmYi1LTdBQj-R_G0nDiBvbm5EvS4KIvcT5nUo45tiovDzkagdfG-1n2v_i0LGQz0VzUNBMfqlZG5Y';
 
+// Deployed Cloudflare Worker that stores push subscriptions in D1. Baked in so
+// alerts work out-of-the-box without the user pasting a sync URL. Override by
+// setting st_pushApiUrl (or the sync server URL) in localStorage.
+const PUSH_API_DEFAULT = 'https://stormtracker-proxy.joshua-622.workers.dev';
+
 function _pushApiUrl() {
-  // Reuse the sync server base URL (same Cloudflare Worker hosts both APIs).
-  try { return (typeof _syncApiUrl === 'function' ? _syncApiUrl() : (localStorage.getItem('st_syncApiUrl') || '')); }
-  catch (e) { return ''; }
+  // Priority: explicit push override -> configured sync server -> baked default.
+  try {
+    const override = localStorage.getItem('st_pushApiUrl');
+    if (override) return override.replace(/\/+$/, '');
+    const sync = (typeof _syncApiUrl === 'function' ? _syncApiUrl() : (localStorage.getItem('st_syncApiUrl') || ''));
+    if (sync) return sync.replace(/\/+$/, '');
+    return PUSH_API_DEFAULT;
+  } catch (e) { return PUSH_API_DEFAULT; }
 }
 function _getPushSub() { try { return JSON.parse(localStorage.getItem('st_pushSub') || 'null'); } catch (e) { return null; } }
 function _setPushSub(v) { try { v ? localStorage.setItem('st_pushSub', JSON.stringify(v)) : localStorage.removeItem('st_pushSub'); } catch (e) {} }
