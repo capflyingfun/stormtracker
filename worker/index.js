@@ -34,6 +34,22 @@ function genCode() {
   return s;
 }
 
+// `code` is UNIQUE in the schema, so a colliding code would make the INSERT
+// throw. Return a code that is guaranteed free (ignoring this endpoint's own
+// row), regenerating on the rare collision.
+async function uniqueCode(env, candidate, selfEndpoint) {
+  const taken = async (c) => {
+    const row = await env.DB.prepare('SELECT endpoint FROM subscriptions WHERE code = ?').bind(c).first();
+    return row && row.endpoint !== selfEndpoint;
+  };
+  if (candidate && !(await taken(candidate))) return candidate;
+  for (let i = 0; i < 8; i++) {
+    const c = genCode();
+    if (!(await taken(c))) return c;
+  }
+  return genCode() + Date.now().toString(36).slice(-3).toUpperCase();
+}
+
 async function proxyAWC(kind, url) {
   const params = new URLSearchParams(url.search);
   const awcUrl = `https://aviationweather.gov/api/data/${kind}?${params.toString()}`;
@@ -83,7 +99,7 @@ export default {
       const existing = await env.DB.prepare('SELECT code FROM subscriptions WHERE endpoint = ?')
         .bind(sub.endpoint).first();
       if (existing && existing.code) code = existing.code;
-      if (!code) code = genCode();
+      code = await uniqueCode(env, code, sub.endpoint);
       await env.DB.prepare(
         `INSERT INTO subscriptions (endpoint, p256dh, auth, lat, lon, name, thresholds, code, created)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

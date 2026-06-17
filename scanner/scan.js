@@ -41,22 +41,26 @@ async function getSubscribers() {
 
 async function markAlert(endpoint, lastAlert) {
   try {
-    await fetch(`${WORKER_URL}/mark-alert`, {
+    const r = await fetch(`${WORKER_URL}/mark-alert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-scanner-secret': SCANNER_SECRET },
       body: JSON.stringify({ endpoint, lastAlert }),
     });
+    // A failed state write means dedupe drifts -> the same cell re-notifies next
+    // run. Surface it loudly so it isn't silently lost.
+    if (!r.ok) console.warn(`  mark-alert HTTP ${r.status} for ${endpoint.slice(-12)}`);
   } catch (e) { console.warn('mark-alert failed:', e.message); }
 }
 
 async function pruneDead(endpoint) {
   try {
-    await fetch(`${WORKER_URL}/mark-alert`, {
+    const r = await fetch(`${WORKER_URL}/mark-alert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-scanner-secret': SCANNER_SECRET },
       body: JSON.stringify({ endpoint, delete: true }),
     });
-    console.log('  pruned dead subscription');
+    if (!r.ok) console.warn(`  prune HTTP ${r.status}`);
+    else console.log('  pruned dead subscription');
   } catch (e) { console.warn('prune failed:', e.message); }
 }
 

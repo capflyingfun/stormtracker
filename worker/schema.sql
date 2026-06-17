@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   lon        REAL NOT NULL,
   name       TEXT,                -- friendly location label
   thresholds TEXT NOT NULL,       -- JSON {dist,dbz,impact,radius}
-  code       TEXT,                -- short shareable manage code
+  code       TEXT UNIQUE,         -- short shareable manage code (unique so a code maps to exactly one sub)
   last_alert TEXT,                -- JSON map cellKey -> timestamp (dedupe)
   created    INTEGER NOT NULL     -- epoch ms
 );
