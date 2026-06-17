@@ -123,33 +123,43 @@ export function rvToDbz(r, g, b, a) {
 // Tile fetch + decode (Node replacement for scanTileForPoints)
 // ---------------------------------------------------------------------------
 async function fetchPng(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
-  if (!res.ok) return null;
-  const buf = Buffer.from(await res.arrayBuffer());
-  return new Promise(resolve => {
-    new PNG().parse(buf, (err, png) => resolve(err ? null : png));
-  });
+  // Never throw — a single tile timeout/network/decode error must not abort the
+  // whole location scan. Callers treat null as "no data for this tile".
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    return await new Promise(resolve => {
+      new PNG().parse(buf, (err, png) => resolve(err ? null : png));
+    });
+  } catch {
+    return null;
+  }
 }
 
 async function scanTile(url, tx, ty, zoom, colorFn, minDbz, scanRadius, origin, step = 2) {
-  const png = await fetchPng(url);
-  if (!png) return [];
-  const { width: w, height: h, data } = png; // RGBA8
-  const pts = [];
-  for (let x = 0; x < w; x += step) {
-    for (let y = 0; y < h; y += step) {
-      const i = (y * w + x) * 4;
-      if (data[i + 3] < 30) continue;
-      const dbz = colorFn(data[i], data[i + 1], data[i + 2], data[i + 3]);
-      if (dbz < minDbz) continue;
-      const ptLon = (tx + x / w) * 360 / Math.pow(2, zoom) - 180;
-      const ptLatRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * (ty + y / h) / Math.pow(2, zoom))));
-      const ptLat = ptLatRad * 180 / Math.PI;
-      const dist = haversine(origin.lat, origin.lon, ptLat, ptLon);
-      if (dist <= scanRadius) pts.push({ lat: ptLat, lng: ptLon, dbz, dist });
+  try {
+    const png = await fetchPng(url);
+    if (!png) return [];
+    const { width: w, height: h, data } = png; // RGBA8
+    const pts = [];
+    for (let x = 0; x < w; x += step) {
+      for (let y = 0; y < h; y += step) {
+        const i = (y * w + x) * 4;
+        if (data[i + 3] < 30) continue;
+        const dbz = colorFn(data[i], data[i + 1], data[i + 2], data[i + 3]);
+        if (dbz < minDbz) continue;
+        const ptLon = (tx + x / w) * 360 / Math.pow(2, zoom) - 180;
+        const ptLatRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * (ty + y / h) / Math.pow(2, zoom))));
+        const ptLat = ptLatRad * 180 / Math.PI;
+        const dist = haversine(origin.lat, origin.lon, ptLat, ptLon);
+        if (dist <= scanRadius) pts.push({ lat: ptLat, lng: ptLon, dbz, dist });
+      }
     }
+    return pts;
+  } catch {
+    return [];
   }
-  return pts;
 }
 
 // ---------------------------------------------------------------------------
@@ -358,7 +368,10 @@ export async function scanLocation(lat, lon, radius = 80) {
       tasks.push(scanTile(url, tx, ty, zoom, colorFn, minDbz, radius, origin));
     }
   }
-  const raw = (await Promise.all(tasks)).flat();
+  // Promise.allSettled so a rejected tile (should be impossible now, but be
+  // defensive) degrades to "no points" rather than failing the whole scan.
+  const settled = await Promise.allSettled(tasks);
+  const raw = settled.flatMap(s => (s.status === 'fulfilled' ? s.value : []));
   const cells = spacingFilter(raw, origin).sort((a, b) => a.distance - b.distance);
   for (const c of cells) {
     const imp = calcImpact(c, mv);
