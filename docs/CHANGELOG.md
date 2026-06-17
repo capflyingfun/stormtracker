@@ -3,6 +3,13 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.91
+
+**Background storm alerts now work out of the box — the companion Cloudflare Worker is live and baked into the app, so you no longer need to paste a sync URL to enable alerts.**
+
+- **Push backend deployed & wired in** — `docs/js/push.js` now defaults to the live Cloudflare Worker (`stormtracker-proxy`, D1-backed) for storing subscriptions. Resolution order: `st_pushApiUrl` override → configured sync server (`_syncApiUrl()`) → baked default. This fixes "Could not enable alerts: Not found" on devices that never set a sync URL.
+- **Cache bumped** — `?v=589` / `stormtracker-v589`.
+
 ## v4.90
 
 **Multi-user background storm push alerts — radar is scanned server-side every ~30 minutes and subscribers get a push when a storm is inbound, even with the app closed.**
