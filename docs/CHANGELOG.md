@@ -3,6 +3,17 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.90
+
+**Multi-user background storm push alerts — radar is scanned server-side every ~30 minutes and subscribers get a push when a storm is inbound, even with the app closed.**
+
+- **PWA opt-in & manage UI** — new "Background Storm Alerts" section in Settings (`docs/js/push.js`, rendered from `syncSettingsUI()` into `#push-alert-settings`). Requests notification permission, calls `pushManager.subscribe()` with the embedded VAPID public key, and POSTs the subscription + saved home location + thresholds (min dBZ / min impact / watch radius) to the Cloudflare Worker. Shows a shareable manage code, an Update button (re-syncs thresholds/location), and one-tap Disable. Reuses the existing sync-server base URL (`_syncApiUrl()`).
+- **Cloudflare Worker + D1** — `worker/index.js` keeps the AWC METAR/TAF proxy and adds a D1-backed subscriptions API: `POST /subscribe`, `POST /unsubscribe`, secret-protected `GET /subscriptions` and `POST /mark-alert` (with dead-subscription pruning). Schema in `worker/schema.sql`, binding in `worker/wrangler.toml`.
+- **Node scanner** — `scanner/detect.js` is a framework-free port of the in-app detection pipeline (NEXRAD/RainViewer dBZ palettes, slippy-tile math, PNG decode via `pngjs`, winds-aloft steering from Open-Meteo with NOMADS-GFS fallback, spacing-filter clustering, impact and ETA). `scanner/scan.js` pulls subscribers, scans per location, evaluates thresholds, dedupes per storm cell (30-min cooldown), and sends Web Push.
+- **GitHub Actions** — `.github/workflows/storm-scan.yml` runs the scanner every 30 minutes (plus manual dispatch), with `WORKER_URL` / `SCANNER_SECRET` / VAPID keys supplied as repository secrets.
+- **Setup runbook** — `PUSH_ALERTS_SETUP.md` documents the one-time Cloudflare + GitHub steps only the repo owner can perform.
+- **Cache bumped** — `?v=588` / `stormtracker-v588`.
+
 ## v4.89
 
 **AI briefing dBZ ranges now color by their strongest end, and every dBZ value is paired with a plain-language intensity word.**

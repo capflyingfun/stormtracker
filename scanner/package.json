@@ -1,0 +1,17 @@
+{
+  "name": "stormtracker-scanner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Background storm-detection scanner that sends Web Push alerts to StormTracker subscribers.",
+  "scripts": {
+    "scan": "node scan.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0",
+    "web-push": "^3.6.7"
+  }
+}
