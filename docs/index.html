@@ -262,11 +262,6 @@
         <div class="text-xxs-muted" style="margin-top:6px">Re-fetches winds aloft and re-scans radar for your current location without closing the app. Use if storm motion / ETAs look stuck.</div>
       </div>
       <div class="setting-sep">
-        <div class="setting-heading">🔔 Push Test (temporary)</div>
-        <button onclick="__testPush()" style="width:100%;padding:8px 10px;font-size:0.75em;font-weight:600;border-radius:8px;cursor:pointer;border:1px solid rgba(255,180,0,0.4);background:rgba(255,180,0,0.12);color:#ffc24d">🔔 Enable test alerts &amp; get my push code</button>
-        <div class="text-xxs-muted" style="margin-top:6px">Tap, allow notifications, then copy the code it shows and paste it back in chat. Used once to test background push.</div>
-      </div>
-      <div class="setting-sep">
         <div class="setting-heading">🧭 Travel Mode</div>
         <div class="setting-row-6">
           <span class="text-xxs-muted">Travel Refresh Interval</span>
@@ -632,39 +627,5 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script src="js/view3d.js?v=587"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(regs=>{const p=regs.map(r=>r.unregister());return Promise.all(p)}).then(()=>{return caches.keys().then(names=>Promise.all(names.map(n=>caches.delete(n))))}).then(()=>{navigator.serviceWorker.register('sw.js?v=587').then(r=>console.log('SW re-registered'))}).catch(e=>console.log('SW reset failed:',e))}</script>
-<script>
-window.__PUSH_VAPID_PUBLIC='BN_XqZoYz_lSwmMTxX_s63Wx9kgZmfesl9P6uZV7htxrGv1Lzg-KByX3W98fHq8o9-Uxdx945EeiO70u-A7DQ3s';
-function __urlB64(s){var pad='='.repeat((4-s.length%4)%4);var b=(s+pad).replace(/-/g,'+').replace(/_/g,'/');var raw=atob(b);var arr=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i);return arr;}
-function __showPushResult(text,ok){
-  var old=document.getElementById('__pushres');if(old)old.remove();
-  var ov=document.createElement('div');ov.id='__pushres';
-  ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(5,8,15,0.94);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:12px';
-  var t=document.createElement('div');t.style.cssText='color:'+(ok?'#4dff9e':'#ff6b6b')+';font-weight:700;font-size:1em;text-align:center';t.textContent=ok?'✅ Subscribed — copy this code & paste it in chat':'⚠️ '+text;
-  ov.appendChild(t);
-  if(ok){
-    var ta=document.createElement('textarea');ta.readOnly=true;ta.value=text;ta.style.cssText='width:100%;max-width:520px;height:42vh;font-size:11px;font-family:monospace;background:#0b1018;color:#cde;border:1px solid #244;border-radius:8px;padding:10px;-webkit-user-select:all;user-select:all';
-    ov.appendChild(ta);
-    var copy=document.createElement('button');copy.textContent='📋 Copy code';copy.style.cssText='padding:10px 18px;font-size:0.9em;font-weight:700;border-radius:8px;border:1px solid #2a8;background:rgba(40,200,150,0.15);color:#4dff9e;cursor:pointer';
-    copy.onclick=function(){ta.select();ta.setSelectionRange(0,99999);try{document.execCommand('copy')}catch(e){}if(navigator.clipboard){navigator.clipboard.writeText(text).catch(function(){})}copy.textContent='✅ Copied!';};
-    ov.appendChild(copy);
-  }
-  var close=document.createElement('button');close.textContent='Close';close.style.cssText='padding:8px 18px;font-size:0.85em;border-radius:8px;border:1px solid #345;background:rgba(255,255,255,0.06);color:#9ab;cursor:pointer';close.onclick=function(){ov.remove()};
-  ov.appendChild(close);
-  document.body.appendChild(ov);
-}
-async function __testPush(){
-  try{
-    if(!('serviceWorker' in navigator)){__showPushResult('This browser has no service worker support.',false);return;}
-    if(!('PushManager' in window)){__showPushResult('PushManager is not available in this install. On iPhone, background push only works if the app was added to the Home Screen from Safari (Share → Add to Home Screen), not from Edge.',false);return;}
-    if(!('Notification' in window)){__showPushResult('Notifications API not available in this install.',false);return;}
-    var perm=await Notification.requestPermission();
-    if(perm!=='granted'){__showPushResult('Notification permission was '+perm+'. Allow notifications and try again.',false);return;}
-    var reg=await navigator.serviceWorker.ready;
-    var sub=await reg.pushManager.getSubscription();
-    if(!sub){sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:__urlB64(window.__PUSH_VAPID_PUBLIC)});}
-    __showPushResult(JSON.stringify(sub),true);
-  }catch(e){__showPushResult('Push error: '+(e&&e.message?e.message:e),false);}
-}
-</script>
 </body>
 </html>
