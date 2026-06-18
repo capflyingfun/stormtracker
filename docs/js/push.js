@@ -27,9 +27,22 @@ function _getPushSub() { try { return JSON.parse(localStorage.getItem('st_pushSu
 function _setPushSub(v) { try { v ? localStorage.setItem('st_pushSub', JSON.stringify(v)) : localStorage.removeItem('st_pushSub'); } catch (e) {} }
 function _getPushThresholds() {
   try { const s = JSON.parse(localStorage.getItem('st_pushThresholds') || 'null'); if (s) return s; } catch (e) {}
-  return { dbz: 40, impact: 50, radius: 60 };
+  return { dbz: 40, impact: 50, radius: 60, nws: true };
 }
 function _savePushThresholds(t) { try { localStorage.setItem('st_pushThresholds', JSON.stringify(t)); } catch (e) {} }
+
+// The user's in-app weather threshold settings (Alerts tab) — sent with the
+// subscription so the server-side scan evaluates them identically.
+function _pushWxCfg() {
+  try { const s = JSON.parse(localStorage.getItem('st_wxThresholds') || 'null'); return (s && typeof s === 'object') ? s : {}; }
+  catch (e) { return {}; }
+}
+// Unit prefs travel too, so the scanner converts metric data into the same
+// units the thresholds were set in.
+function _pushUnits() {
+  try { return { temp: S.tempUnit || 0, wind: S.windUnit || 0, pres: S.presUnit || 0, vis: S.visUnit || 0, precip: S.precipUnit || 0 }; }
+  catch (e) { return { temp: 0, wind: 0, pres: 0, vis: 0, precip: 0 }; }
+}
 
 function _urlB64ToUint8(base64) {
   const padding = '='.repeat((4 - base64.length % 4) % 4);
@@ -48,14 +61,14 @@ function _pushLoc() {
   return null;
 }
 
-async function enablePushAlerts() {
+async function enablePushAlerts(silent) {
   const base = _pushApiUrl();
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) { toast('⚠️ Push not supported on this device'); return; }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) { if (!silent) toast('⚠️ Push not supported on this device'); return; }
   const loc = _pushLoc();
-  if (!loc) { toast('📍 Set a home location first'); return; }
+  if (!loc) { if (!silent) toast('📍 Set a home location first'); return; }
   try {
     const perm = await Notification.requestPermission();
-    if (perm !== 'granted') { toast('🔕 Notification permission denied'); return; }
+    if (perm !== 'granted') { if (!silent) toast('🔕 Notification permission denied'); return; }
     const reg = await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
     if (!sub) {
@@ -69,7 +82,10 @@ async function enablePushAlerts() {
     const body = {
       subscription: sub.toJSON(),
       lat: loc.lat, lon: loc.lon, name: loc.name,
-      thresholds: { dbz: th.dbz, impact: th.impact, dist: th.radius, radius: th.radius },
+      thresholds: {
+        dbz: th.dbz, impact: th.impact, dist: th.radius, radius: th.radius,
+        wx: _pushWxCfg(), units: _pushUnits(), nws: th.nws !== false,
+      },
       code: existing && existing.code ? existing.code : undefined,
     };
     const res = await fetch(base + '/subscribe', {
@@ -79,10 +95,10 @@ async function enablePushAlerts() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'subscribe failed');
     _setPushSub({ endpoint: sub.endpoint, code: data.code, lat: loc.lat, lon: loc.lon, name: loc.name });
-    toast('🔔 Background storm alerts enabled');
+    if (!silent) toast('🔔 Background storm alerts enabled');
   } catch (e) {
     console.log('[push] enable failed:', e.message);
-    toast('⚠️ Could not enable alerts: ' + e.message);
+    if (!silent) toast('⚠️ Could not enable alerts: ' + e.message);
   }
   syncSettingsUI();
 }
@@ -116,6 +132,26 @@ function setPushThreshold(key, val) {
   else syncSettingsUI();
 }
 
+function setPushNws(on) {
+  const th = _getPushThresholds();
+  th.nws = !!on;
+  _savePushThresholds(th);
+  if (_getPushSub()) enablePushAlerts();
+  else syncSettingsUI();
+}
+
+let _pushSyncTimer = null;
+// Called from in-app Alerts/unit changes: silently re-push the subscription
+// (debounced) so the background scanner always evaluates the user's CURRENT
+// weather thresholds + unit prefs. No-op when not subscribed.
+function syncPushAlerts() {
+  try {
+    if (!_getPushSub()) return;
+    clearTimeout(_pushSyncTimer);
+    _pushSyncTimer = setTimeout(() => { enablePushAlerts(true); }, 1500);
+  } catch (e) {}
+}
+
 function renderPushAlertSettings() {
   const sub = _getPushSub();
   const th = _getPushThresholds();
@@ -139,7 +175,11 @@ function renderPushAlertSettings() {
     <div class="setting-row-6"><span class="text-xxs-muted">Watch radius</span>
       <select class="small-btn" onchange="setPushThreshold('radius',this.value)">
         ${opt(30, th.radius)}30 mi</option>${opt(50, th.radius)}50 mi</option>${opt(60, th.radius)}60 mi</option>${opt(80, th.radius)}80 mi</option>
-      </select></div>`;
+      </select></div>
+    <div class="setting-row-6"><span class="text-xxs-muted">NWS warnings</span>
+      <button class="small-btn" onclick="setPushNws(${th.nws === false})" style="${th.nws !== false ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${th.nws !== false ? 'ON' : 'OFF'}</button>
+    </div>
+    <div class="setting-hint" style="font-size:0.7em;margin-top:2px">Storm cells use the settings above. <b>NWS warnings</b> (hurricane, tornado, severe, flood, fire) push when active for your area. Weather alerts (wind, temp, rain, humidity, visibility…) mirror your <b>Alerts</b> tab — turn on the ones you want there and they'll push in the background too.</div>`;
   if (sub) {
     const moved = loc && (Math.abs(loc.lat - sub.lat) > 0.05 || Math.abs(loc.lon - sub.lon) > 0.05);
     return `

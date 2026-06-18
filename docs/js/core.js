@@ -328,6 +328,7 @@ function cycleUnit(key){
   S._skipWindRestart=true;
   reRenderActive();
   S._skipWindRestart=false;
+  if(typeof syncPushAlerts==='function')syncPushAlerts();
 }
 
 function loadUnits(){

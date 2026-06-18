@@ -111,6 +111,7 @@ function toggleWxAlert(key,on){
   if(on)requestNotifPermission();
   const el=document.getElementById('wx-alert-settings');
   if(el)el.innerHTML=renderWxAlertSettings();
+  if(typeof syncPushAlerts==='function')syncPushAlerts();
 }
 function setWxAlertVal(key,val){
   const n=parseFloat(val);if(isNaN(n)||n<0)return;
@@ -118,6 +119,7 @@ function setWxAlertVal(key,val){
   if(!th[key])th[key]={on:false,val:n};
   else th[key].val=n;
   _saveWxThresholds(th);
+  if(typeof syncPushAlerts==='function')syncPushAlerts();
 }
 function clearWxAlertHistory(){_wxAlertHistory=[];_saveWxAlertHistory();if(S.activePage==='alerts')renderAlerts();}
 

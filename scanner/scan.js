@@ -1,8 +1,15 @@
 // StormTracker background scanner — runs on a GitHub Actions cron (~every 30
-// min). Pulls subscribers from the Cloudflare Worker, runs the ported radar
-// detection per location, and sends Web Push notifications for inbound storms
-// that match each subscriber's thresholds. Dedupes per storm cell so a single
-// system doesn't notify on every run.
+// min). Pulls subscribers from the Cloudflare Worker, then for each location
+// runs a FULL "fresh open" scan and pushes every alert type the app would show,
+// even with the app/browser closed:
+//   * Inbound storm cells  (ported radar detection, detect.js)
+//   * Weather thresholds   (Open-Meteo conditions vs the user's in-app alert
+//                           settings — wind/gust/temp/pressure/rain/humidity/
+//                           visibility/UV, alerts.js)
+//   * NWS active warnings  (api.weather.gov at the point; US only, alerts.js)
+// Each alert type is deduped independently in the per-subscriber `last_alert`
+// map (namespaced keys sc_/wx_/nws_) so a sustained system doesn't re-notify
+// every run.
 //
 // Required env (set as GitHub Actions secrets):
 //   WORKER_URL          e.g. https://stormtracker-proxy.<acct>.workers.dev
@@ -15,6 +22,7 @@ import webpush from 'web-push';
 import {
   scanLocation, haversine, bearingDeg, calcImpact, calcETA, degToDir,
 } from './detect.js';
+import { fetchConditions, evalWx, fetchNws, nwsIcon } from './alerts.js';
 
 const WORKER_URL = (process.env.WORKER_URL || '').replace(/\/$/, '');
 const SCANNER_SECRET = process.env.SCANNER_SECRET || '';
@@ -22,13 +30,18 @@ const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:alerts@stormtracker.app';
 
-const COOLDOWN_MS = 30 * 60 * 1000; // per-cell dedupe window
-const PRUNE_MS = 2 * 60 * 60 * 1000; // forget cell keys older than this
 const SITE_URL = 'https://capflyingfun.github.io/StormTracker/';
 
-// Defaults mirror the app's storm-cell alert intent: inbound + reasonably
-// strong + meaningful chance of impact.
+// Per-alert-type dedupe (re-notify) and prune (forget) windows, keyed by the
+// prefix of each dedupe key. Storm cells move fast (short window); a standing
+// NWS warning or weather condition shouldn't re-buzz for hours.
+const COOLDOWN = { sc: 30 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000 };
+const PRUNE = { sc: 2 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000 };
+function keyKind(k) { const p = String(k).split('_')[0]; return p === 'wx' ? 'wx' : p === 'nws' ? 'nws' : 'sc'; }
+
+// Storm-cell defaults mirror the app's intent: inbound + reasonably strong.
 const DEF = { dbz: 40, impact: 50, dist: 60, radius: 80 };
+const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
 
 function fail(msg) { console.error('FATAL:', msg); process.exit(1); }
 
@@ -46,8 +59,8 @@ async function markAlert(endpoint, lastAlert) {
       headers: { 'Content-Type': 'application/json', 'x-scanner-secret': SCANNER_SECRET },
       body: JSON.stringify({ endpoint, lastAlert }),
     });
-    // A failed state write means dedupe drifts -> the same cell re-notifies next
-    // run. Surface it loudly so it isn't silently lost.
+    // A failed state write means dedupe drifts -> the same alert re-notifies
+    // next run. Surface it loudly so it isn't silently lost.
     if (!r.ok) console.warn(`  mark-alert HTTP ${r.status} for ${endpoint.slice(-12)}`);
   } catch (e) { console.warn('mark-alert failed:', e.message); }
 }
@@ -73,15 +86,26 @@ function thresholdsFor(sub) {
     radius: Math.min(80, num(t.radius, DEF.radius)),
   };
 }
-const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
 
-function fmtBody(best, count, mv) {
+function fmtStormBody(best, count, mv) {
   const distStr = best.distance.toFixed(1) + ' mi';
   const etaStr = best.etaMin != null ? ` · ETA ${best.etaMin} min` : '';
   let moveStr = '';
   if (mv && mv.speed >= 2) moveStr = ` · moving ${degToDir(mv.direction)} ~${Math.round(mv.speed)} mph`;
   const lead = count > 1 ? `${count} storm cells inbound — strongest ` : 'Storm cell inbound — ';
   return `${lead}${best.dbz} dBZ at ${distStr}${best.impactPct > 0 ? ` · ${best.impactPct}% impact` : ''}${etaStr}${moveStr}`;
+}
+
+// Returns 'ok' | 'dead' | 'err'. 'dead' means the push endpoint is gone (404/410).
+async function trySend(sub, payload, opts) {
+  try {
+    await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload, opts);
+    return 'ok';
+  } catch (e) {
+    const code = e.statusCode || e.status;
+    console.warn(`  ✗ push failed (${code || e.message})`);
+    return (code === 404 || code === 410) ? 'dead' : 'err';
+  }
 }
 
 async function run() {
@@ -94,7 +118,8 @@ async function run() {
   console.log(`Subscribers: ${subs.length}`);
   if (!subs.length) return;
 
-  // Group by coarse location (~0.7 mi) so co-located devices share one scan.
+  // Group by coarse location (~0.7 mi) so co-located devices share one scan +
+  // one set of conditions/NWS fetches.
   const groups = new Map();
   for (const s of subs) {
     const key = `${s.lat.toFixed(2)},${s.lon.toFixed(2)}`;
@@ -107,62 +132,107 @@ async function run() {
   let sent = 0;
 
   for (const [key, members] of groups) {
-    const radius = Math.min(80, Math.max(...members.map(m => thresholdsFor(m).radius)));
     const o = members[0];
-    let scan;
+    const radius = Math.min(80, Math.max(...members.map(m => thresholdsFor(m).radius)));
+
+    // 1. Radar storm cells.
+    let cells = [], mv = null;
     try {
-      scan = await scanLocation(o.lat, o.lon, radius);
-    } catch (e) { console.warn(`scan ${key} failed: ${e.message}`); continue; }
-    const { cells, mv, source } = scan;
-    console.log(`[${key}] ${source}: ${cells.length} cells (raw ${scan.rawCount || 0}), steering ${mv ? mv.speed + 'mph@' + mv.direction : 'n/a'}`);
-    if (!cells.length) continue;
+      const scan = await scanLocation(o.lat, o.lon, radius);
+      cells = scan.cells || [];
+      mv = scan.mv || null;
+      console.log(`[${key}] ${scan.source}: ${cells.length} cells (raw ${scan.rawCount || 0}), steering ${mv ? mv.speed + 'mph@' + mv.direction : 'n/a'}`);
+    } catch (e) { console.warn(`  radar ${key} failed: ${e.message}`); }
+
+    // 2. Open-Meteo conditions — only if someone here has an enabled wx alert.
+    let conditions = null;
+    const wantWx = members.some(m => m.thresholds && m.thresholds.wx &&
+      Object.values(m.thresholds.wx).some(c => c && c.on));
+    if (wantWx) {
+      try { conditions = await fetchConditions(o.lat, o.lon); }
+      catch (e) { console.warn(`  conditions ${key} failed: ${e.message}`); }
+    }
+
+    // 3. NWS active warnings — unless everyone here opted out.
+    let nwsAlerts = [];
+    const wantNws = members.some(m => !m.thresholds || m.thresholds.nws !== false);
+    if (wantNws) {
+      try { nwsAlerts = await fetchNws(o.lat, o.lon); console.log(`  NWS: ${nwsAlerts.length} active`); }
+      catch (e) { console.warn(`  nws ${key} failed: ${e.message}`); }
+    }
 
     for (const sub of members) {
       const th = thresholdsFor(sub);
-      // Recompute geometry relative to THIS subscriber's exact location.
-      const personal = cells.map(c => {
-        const distance = haversine(sub.lat, sub.lon, c.lat, c.lng);
-        const bearing = bearingDeg(sub.lat, sub.lon, c.lat, c.lng);
-        const cc = { lat: c.lat, lng: c.lng, dbz: c.dbz, distance, bearing };
-        const imp = calcImpact(cc, mv); cc.impactPct = imp.impactPct; cc.impactTier = imp.impactTier;
-        const eta = calcETA(cc, mv); cc.etaMin = eta.etaMin; cc.approaching = eta.approaching;
-        return cc;
-      });
-      const hits = personal.filter(c =>
-        c.distance <= th.radius && c.approaching &&
-        c.dbz >= th.dbz && c.impactPct >= th.impact && c.distance <= th.dist
-      );
-      if (!hits.length) continue;
-
-      // Dedupe per cell key (same scheme the app uses).
       const lastAlert = { ...(sub.lastAlert || {}) };
-      Object.keys(lastAlert).forEach(k => { if (now - lastAlert[k] > PRUNE_MS) delete lastAlert[k]; });
-      const fresh = hits.filter(c => {
-        const ck = `sc_${Math.round(c.bearing / 10)}_${Math.round(c.distance / 3)}`;
-        c._ck = ck;
-        return now - (lastAlert[ck] || 0) >= COOLDOWN_MS;
+      Object.keys(lastAlert).forEach(k => {
+        if (now - lastAlert[k] > (PRUNE[keyKind(k)] || PRUNE.sc)) delete lastAlert[k];
       });
-      if (!fresh.length) continue;
+      let dirty = false, dead = false;
 
-      const best = fresh.slice().sort((a, b) => (b.impactPct - a.impactPct) || (b.dbz - a.dbz))[0];
-      const payload = JSON.stringify({
-        title: '🌩️ StormTracker Alert',
-        body: fmtBody(best, fresh.length, mv),
-        tag: 'storm-cell-alert',
-        url: SITE_URL,
-      });
-
-      try {
-        await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload, { TTL: 1800, urgency: 'high' });
-        sent++;
-        console.log(`  ✓ ${sub.name || key}: ${fmtBody(best, fresh.length, mv)}`);
-        fresh.forEach(c => { lastAlert[c._ck] = now; });
-        await markAlert(sub.endpoint, lastAlert);
-      } catch (e) {
-        const code = e.statusCode || e.status;
-        console.warn(`  ✗ push failed (${code || e.message})`);
-        if (code === 404 || code === 410) await pruneDead(sub.endpoint);
+      // --- Storm cells ---
+      if (cells.length) {
+        const personal = cells.map(c => {
+          const distance = haversine(sub.lat, sub.lon, c.lat, c.lng);
+          const bearing = bearingDeg(sub.lat, sub.lon, c.lat, c.lng);
+          const cc = { lat: c.lat, lng: c.lng, dbz: c.dbz, distance, bearing };
+          const imp = calcImpact(cc, mv); cc.impactPct = imp.impactPct; cc.impactTier = imp.impactTier;
+          const eta = calcETA(cc, mv); cc.etaMin = eta.etaMin; cc.approaching = eta.approaching;
+          return cc;
+        });
+        const hits = personal.filter(c =>
+          c.distance <= th.radius && c.approaching &&
+          c.dbz >= th.dbz && c.impactPct >= th.impact && c.distance <= th.dist
+        );
+        const fresh = hits.filter(c => {
+          const ck = `sc_${Math.round(c.bearing / 10)}_${Math.round(c.distance / 3)}`;
+          c._ck = ck;
+          return now - (lastAlert[ck] || 0) >= COOLDOWN.sc;
+        });
+        if (fresh.length) {
+          const best = fresh.slice().sort((a, b) => (b.impactPct - a.impactPct) || (b.dbz - a.dbz))[0];
+          const payload = JSON.stringify({
+            title: '🌩️ StormTracker Alert', body: fmtStormBody(best, fresh.length, mv),
+            tag: 'storm-cell-alert', url: SITE_URL,
+          });
+          const r = await trySend(sub, payload, { TTL: 1800, urgency: 'high' });
+          if (r === 'ok') { sent++; dirty = true; fresh.forEach(c => { lastAlert[c._ck] = now; }); console.log(`  ✓ ${sub.name || key}: ${fmtStormBody(best, fresh.length, mv)}`); }
+          else if (r === 'dead') dead = true;
+        }
       }
+
+      // --- Weather thresholds (mirror the app's in-app alert settings) ---
+      if (!dead && conditions && sub.thresholds && sub.thresholds.wx) {
+        const breaches = evalWx(conditions, sub.thresholds.wx, sub.thresholds.units || {});
+        const fresh = breaches.filter(b => { b._ck = 'wx_' + b.key; return now - (lastAlert[b._ck] || 0) >= COOLDOWN.wx; });
+        if (fresh.length) {
+          const payload = JSON.stringify({
+            title: fresh.length > 1 ? `⚠️ ${fresh.length} weather alerts` : '⚠️ StormTracker Weather Alert',
+            body: fresh.map(b => b.msg).join(' · '),
+            tag: 'wx-alert', url: SITE_URL,
+          });
+          const r = await trySend(sub, payload, { TTL: 3600, urgency: 'normal' });
+          if (r === 'ok') { sent++; dirty = true; fresh.forEach(b => { lastAlert[b._ck] = now; }); console.log(`  ✓ ${sub.name || key}: wx ${fresh.map(b => b.key).join(',')}`); }
+          else if (r === 'dead') dead = true;
+        }
+      }
+
+      // --- NWS active warnings (US) ---
+      const nwsOn = !sub.thresholds || sub.thresholds.nws !== false;
+      if (!dead && nwsOn && nwsAlerts.length) {
+        const fresh = nwsAlerts.filter(a => { a._ck = 'nws_' + a.id; return now - (lastAlert[a._ck] || 0) >= COOLDOWN.nws; });
+        if (fresh.length) {
+          const top = fresh[0];
+          const title = fresh.length > 1 ? `🚨 ${fresh.length} new weather warnings` : `${nwsIcon(top.event)} ${top.event}`;
+          const body = fresh.length > 1 ? fresh.map(a => a.event).join(', ') : (top.headline || top.area || top.event);
+          const payload = JSON.stringify({ title, body, tag: 'nws-alert', url: SITE_URL });
+          const r = await trySend(sub, payload, { TTL: 3600, urgency: 'high' });
+          if (r === 'ok') { sent++; dirty = true; fresh.forEach(a => { lastAlert[a._ck] = now; }); console.log(`  ✓ ${sub.name || key}: NWS ${fresh.map(a => a.event).join(', ')}`); }
+          else if (r === 'dead') dead = true;
+        }
+      }
+
+      if (dead) { await pruneDead(sub.endpoint); continue; }
+      if (dirty) await markAlert(sub.endpoint, lastAlert);
     }
   }
   console.log(`Done. Notifications sent: ${sent}`);
