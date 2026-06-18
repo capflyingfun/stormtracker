@@ -108,7 +108,10 @@ async function trySend(sub, payload, opts) {
     return 'ok';
   } catch (e) {
     const code = e.statusCode || e.status;
-    console.warn(`  ✗ push failed (${code || e.message})`);
+    let host = '';
+    try { host = new URL(sub.endpoint).host; } catch (_) {}
+    const body = (e.body || e.message || '').toString().slice(0, 300).replace(/\s+/g, ' ');
+    console.warn(`  ✗ push failed (${code || e.message}) host=${host} bytes=${Buffer.byteLength(payload)} body=${body}`);
     return (code === 404 || code === 410) ? 'dead' : 'err';
   }
 }
