@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.95
+
+**One digest notification per scan + tropical (NHC) coverage.**
+
+- `scanner/scan.js` no longer fires a separate push per alert type. Every currently-active alert for a subscriber (storm cells, weather thresholds, NWS warnings, tropical systems) is merged into a single `stormtracker-digest` notification that lists them all. The digest sends whenever at least one item is fresh (past its per-type cooldown) and resets every listed item's cooldown, so a sustained system shows the full picture without re-buzzing per type.
+- New `scanner/tropical.js`: keyless NHC Active Hurricanes ArcGIS FeatureServer (layer 0 positions + layer 4 forecast cone). `evalTropical()` mirrors the in-app proximity + forecast-cone logic — a system pushes when it's within the user's tracking radius (default 200 mi) or the user's location is inside the cone, **before** any local NWS tropical watch is issued. New `trop_` dedupe namespace (12 h cooldown), state-encoded keys so a track→cone escalation re-notifies.
+- `docs/js/push.js` subscription now carries a `tropical {on, radius}` config (radius mirrors the in-app `st_nhc_prox_radius`); added a **Tropical systems** ON/OFF toggle. Existing subscribers default to tropical ON.
+- **Cache bumped** — `?v=593` / `stormtracker-v593`.
+
 ## v4.94
 
 **Full "fresh open" background scan — every alert type now pushes, not just storm cells.**

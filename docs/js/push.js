@@ -43,6 +43,12 @@ function _pushUnits() {
   try { return { temp: S.tempUnit || 0, wind: S.windUnit || 0, pres: S.presUnit || 0, vis: S.visUnit || 0, precip: S.precipUnit || 0 }; }
   catch (e) { return { temp: 0, wind: 0, pres: 0, vis: 0, precip: 0 }; }
 }
+// Tropical proximity radius mirrors the in-app NHC tracking setting so background
+// tropical pushes use the same "within X mi / in the cone" rule as the live map.
+function _pushTropRadius() {
+  try { const v = parseInt(localStorage.getItem('st_nhc_prox_radius'), 10); return v > 0 ? v : 200; }
+  catch (e) { return 200; }
+}
 
 function _urlB64ToUint8(base64) {
   const padding = '='.repeat((4 - base64.length % 4) % 4);
@@ -85,6 +91,7 @@ async function enablePushAlerts(silent) {
       thresholds: {
         dbz: th.dbz, impact: th.impact, dist: th.radius, radius: th.radius,
         wx: _pushWxCfg(), units: _pushUnits(), nws: th.nws !== false,
+        tropical: { on: th.tropical !== false, radius: _pushTropRadius() },
       },
       code: existing && existing.code ? existing.code : undefined,
     };
@@ -140,6 +147,14 @@ function setPushNws(on) {
   else syncSettingsUI();
 }
 
+function setPushTropical(on) {
+  const th = _getPushThresholds();
+  th.tropical = !!on;
+  _savePushThresholds(th);
+  if (_getPushSub()) enablePushAlerts();
+  else syncSettingsUI();
+}
+
 let _pushSyncTimer = null;
 // Called from in-app Alerts/unit changes: silently re-push the subscription
 // (debounced) so the background scanner always evaluates the user's CURRENT
@@ -179,7 +194,10 @@ function renderPushAlertSettings() {
     <div class="setting-row-6"><span class="text-xxs-muted">NWS warnings</span>
       <button class="small-btn" onclick="setPushNws(${th.nws === false})" style="${th.nws !== false ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${th.nws !== false ? 'ON' : 'OFF'}</button>
     </div>
-    <div class="setting-hint" style="font-size:0.7em;margin-top:2px">Storm cells use the settings above. <b>NWS warnings</b> (hurricane, tornado, severe, flood, fire) push when active for your area. Weather alerts (wind, temp, rain, humidity, visibility…) mirror your <b>Alerts</b> tab — turn on the ones you want there and they'll push in the background too.</div>`;
+    <div class="setting-row-6"><span class="text-xxs-muted">Tropical systems</span>
+      <button class="small-btn" onclick="setPushTropical(${th.tropical === false})" style="${th.tropical !== false ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${th.tropical !== false ? 'ON' : 'OFF'}</button>
+    </div>
+    <div class="setting-hint" style="font-size:0.7em;margin-top:2px">Everything active is bundled into <b>one</b> notification each scan (~30 min). Storm cells use the settings above. <b>NWS warnings</b> (hurricane, tornado, severe, flood, fire) push when active for your area. <b>Tropical systems</b> push when a hurricane/storm comes within your tracking radius (${_pushTropRadius()} mi, set on the map) or your location enters its forecast cone. Weather alerts (wind, temp, rain, humidity, visibility…) mirror your <b>Alerts</b> tab — turn on the ones you want there.</div>`;
   if (sub) {
     const moved = loc && (Math.abs(loc.lat - sub.lat) > 0.05 || Math.abs(loc.lon - sub.lon) > 0.05);
     return `
