@@ -103,7 +103,7 @@ function _pushLoc() {
 }
 
 // Full-screen "please wait" overlay with a live count-up timer, shown while a
-// foreground enable/disable/update is in flight. A 45s safety timeout clears it
+// foreground enable/disable/update is in flight. A 30s safety timeout clears it
 // and refreshes the panel if the operation stalls (e.g. permission prompt hangs).
 let _pushBusyTimer = null, _pushBusySafety = null, _pushBusyStart = 0, _pushOpInFlight = false;
 function _showPushBusy(label) {
@@ -138,7 +138,7 @@ function _showPushBusy(label) {
     _hidePushBusy();
     try { syncSettingsPanel(); } catch (e) {}
     toast('⏱️ Still working… settings refreshed — please try again if needed.');
-  }, 45000);
+  }, 30000);
 }
 function _hidePushBusy() {
   _pushOpInFlight = false;
@@ -199,7 +199,7 @@ async function enablePushAlerts(silent) {
       },
       code: existing && existing.code ? existing.code : undefined,
     };
-    const res = await _pushPost(base + '/subscribe', body, { timeout: 20000, retries: 1 });
+    const res = await _pushPost(base + '/subscribe', body, { timeout: 14000, retries: 1 });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'subscribe failed');
     _setPushSub({ endpoint: sub.endpoint, code: data.code, lat: loc.lat, lon: loc.lon, name: loc.name });
@@ -228,13 +228,20 @@ async function disablePushAlerts() {
     const sub = await reg.pushManager.getSubscription();
     if (sub) await sub.unsubscribe();
     if (base && (cur || sub)) {
-      await _pushPost(base + '/unsubscribe', { endpoint: (sub && sub.endpoint) || (cur && cur.endpoint) }, { timeout: 15000, retries: 1 });
+      await _pushPost(base + '/unsubscribe', { endpoint: (sub && sub.endpoint) || (cur && cur.endpoint) }, { timeout: 12000, retries: 1 });
     }
   } catch (e) { console.log('[push] disable:', e.message); }
   finally { _hidePushBusy(); }
   _setPushSub(null);
   toast('🔕 Background alerts disabled');
   syncSettingsPanel();
+}
+
+// Single slide-toggle handler: flipping ON enables (subscribes), OFF disables.
+function togglePushAlerts(want) {
+  if (_pushOpInFlight) return; // a tap is already being processed
+  if (want) enablePushAlerts();
+  else disablePushAlerts();
 }
 
 function setPushThreshold(key, val) {
@@ -280,10 +287,15 @@ function renderPushAlertSettings() {
   const loc = _pushLoc();
   const opt = (v, sel) => `<option value="${v}"${v === sel ? ' selected' : ''}>`;
   const on = !!sub;
-  const statusBadge = `
-    <div style="display:flex;align-items:center;gap:7px;font-weight:700;margin-bottom:6px;color:${on ? 'var(--accent-green)' : 'var(--text-muted)'}">
-      <span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:${on ? 'var(--accent-green)' : 'var(--text-muted)'};${on ? 'box-shadow:0 0 7px var(--accent-green)' : ''}"></span>
-      Background alerts ${on ? 'ON' : 'OFF'}
+  const toggle = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:7px;font-weight:700;color:${on ? 'var(--accent-green)' : 'var(--text-muted)'}">
+        <span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:${on ? 'var(--accent-green)' : 'var(--text-muted)'};${on ? 'box-shadow:0 0 7px var(--accent-green)' : ''}"></span>
+        Background alerts ${on ? 'ON' : 'OFF'}
+      </div>
+      <button role="switch" aria-checked="${on}" aria-label="Toggle background storm alerts" onclick="togglePushAlerts(${!on})" style="position:relative;width:52px;height:30px;border-radius:15px;border:1px solid ${on ? 'var(--accent-green)' : 'var(--border-subtle)'};background:${on ? 'rgba(57,217,138,0.22)' : 'rgba(255,255,255,0.06)'};cursor:pointer;flex:0 0 auto;transition:background .2s,border-color .2s;padding:0">
+        <span style="position:absolute;top:2px;left:${on ? '24px' : '2px'};width:24px;height:24px;border-radius:50%;background:${on ? 'var(--accent-green)' : 'var(--text-muted)'};transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,0.45)"></span>
+      </button>
     </div>`;
   const controls = `
     <div class="setting-row-6"><span class="text-xxs-muted">Min strength (dBZ)</span>
@@ -308,18 +320,14 @@ function renderPushAlertSettings() {
   if (sub) {
     const moved = loc && (Math.abs(loc.lat - sub.lat) > 0.05 || Math.abs(loc.lon - sub.lon) > 0.05);
     return `
-      ${statusBadge}
-      <div class="setting-hint" style="color:var(--accent-green)">Watching <b>${escHtml(sub.name || 'your location')}</b>${moved ? ' <span style="color:var(--accent-yellow)">(location changed — tap Update)</span>' : ''}. You'll get a push when an inbound storm matches your thresholds, even with the app closed.</div>
+      ${toggle}
+      <div class="setting-hint" style="color:var(--accent-green)">Watching <b>${escHtml(sub.name || 'your location')}</b>. You'll get a push when an inbound storm matches your thresholds, even with the app closed.</div>
+      ${moved ? `<div class="setting-hint" style="color:var(--accent-yellow);display:flex;align-items:center;gap:8px;flex-wrap:wrap">Your location changed.<button class="small-btn" onclick="enablePushAlerts()" style="padding:1px 8px">↻ Update to ${escHtml(loc.name || 'here')}</button></div>` : ''}
       ${sub.code ? `<div class="setting-row-6"><span class="text-xxs-muted">Manage code</span><span style="font-family:var(--font-mono);font-weight:700;letter-spacing:1px;color:var(--accent-cyan)">${escHtml(sub.code)}</span></div>` : ''}
-      ${controls}
-      <div style="display:flex;gap:6px;margin-top:8px">
-        <button class="small-btn" onclick="enablePushAlerts()" style="flex:1">↻ Update</button>
-        <button class="small-btn" onclick="disablePushAlerts()" style="flex:1;color:var(--accent-red);border-color:var(--accent-red)">🔕 Turn off</button>
-      </div>`;
+      ${controls}`;
   }
   return `
-    ${statusBadge}
-    <div class="setting-hint">Get a push notification when a storm is inbound — works even when StormTracker is closed. Scanned server-side every ~5 min for <b>${loc ? escHtml(loc.name) : 'your saved Home location'}</b>.</div>
-    ${controls}
-    <button class="small-btn" onclick="enablePushAlerts()" style="width:100%;margin-top:8px;color:var(--accent-green);border-color:var(--accent-green)">🔔 Turn on background alerts</button>`;
+    ${toggle}
+    <div class="setting-hint">Get a push notification when a storm is inbound — works even when StormTracker is closed. Scanned server-side every ~5 min for <b>${loc ? escHtml(loc.name) : 'your saved Home location'}</b>. Flip the switch above to turn it on.</div>
+    ${controls}`;
 }
