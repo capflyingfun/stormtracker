@@ -276,7 +276,7 @@ const _ALERT_BAND_DEFS=[
   {key:'heavy',label:'Heavy',range:'45–54 dBZ',color:'#ffb300',min:45,max:54,defOn:true,defMin:5},
   {key:'severe',label:'Severe',range:'55+ dBZ',color:'#ff3b6b',min:55,max:9999,defOn:true,defMin:5}
 ];
-const _BAND_CADENCE_OPTS=[5,10,15,30];
+const _BAND_CADENCE_OPTS=[0,5,10,15,30,45,60];
 function _normAlertBands(o){
   o=o||{};
   const out={rovOn:o.rovOn!==false};
@@ -325,7 +325,7 @@ function checkRainOverheadAlert(){
 }
 function renderAlertBandSettings(){
   const b=_loadAlertBands();
-  const opts=(sel)=>_BAND_CADENCE_OPTS.map(m=>`<option value="${m}"${m===sel?' selected':''}>every ${m} min</option>`).join('');
+  const opts=(sel)=>_BAND_CADENCE_OPTS.map(m=>`<option value="${m}"${m===sel?' selected':''}>${m===0?'every time':'every '+m+' min'}</option>`).join('');
   let html=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
     <label style="display:flex;align-items:center;gap:6px;font-size:0.72em;color:var(--text-primary);cursor:pointer">
       <input type="checkbox" ${b.rovOn?'checked':''} onchange="toggleRainOverhead(this.checked)" class="accent-cyan-check">
