@@ -46,6 +46,10 @@ function keyKind(k) { const p = String(k).split('_')[0]; return (p === 'wx' || p
 
 // Storm-cell defaults mirror the app's intent: inbound + reasonably strong.
 const DEF = { dbz: 40, impact: 50, dist: 60, radius: 80 };
+// Lightning corridor is a FIXED 80 mi (the system max), independent of each
+// user's personal storm-alert radius — a strong cell 70 mi out still warrants a
+// heads-up even if the user only wants storm pushes inside 30 mi.
+const LTG_RADIUS = 80;
 const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
 
 // Randomized scan cadence (like GameMaker's choose). The GitHub cron should fire
@@ -167,9 +171,8 @@ function dirLong(deg) { const a = degToDir(deg); return DIR_LONG[a] || a; }
 // tier. We look only at cells in the user's impact corridor (approaching / in
 // the cone) out to 80 mi, lead with the closest, and flag any arriving within
 // 15 min as the urgent set the user should act on now.
-function fmtLightning(personal, radius, tz, h24) {
-  const cap = Math.min(80, radius);
-  const ltg = personal.filter(c => c.dbz >= 45 && c.approaching && c.distance <= cap);
+function fmtLightning(personal, tz, h24) {
+  const ltg = personal.filter(c => c.dbz >= 45 && c.approaching && c.distance <= LTG_RADIUS);
   if (!ltg.length) return null;
   ltg.sort((a, b) => a.distance - b.distance);
   const closest = ltg[0];
@@ -181,20 +184,26 @@ function fmtLightning(personal, radius, tz, h24) {
   }
   const lead = `Lightning ⚡ estimated to the ${dirLong(closest.bearing)} around ${dist} mi in a strong storm (${closest.dbz} dBZ)${etaStr}.`;
 
-  // Urgent set: estimated to reach the user within 15 minutes.
+  // Urgent set: any strong cell estimated to reach the user within 15 minutes
+  // — flagged explicitly even when there's only one.
   const soon = ltg.filter(c => c.etaMin != null && c.etaMin <= 15);
   let extra = '';
-  if (soon.length > 1) {
+  if (soon.length === 1) {
+    extra = ' Likely to reach you within 15 min.';
+  } else if (soon.length > 1) {
     const spread = [...new Set(soon.slice(0, 3).map(c => degToDir(c.bearing)))].join('/');
-    extra = ` ${soon.length} strikes likely within 15 min (${spread}); ${ltg.length} strong cells in your corridor out to ${Math.round(cap)} mi.`;
-  } else if (ltg.length > 1) {
-    extra = ` ${ltg.length} strong cells in your corridor out to ${Math.round(cap)} mi.`;
+    extra = ` ${soon.length} strikes likely within 15 min (${spread}).`;
   }
+  if (ltg.length > 1) extra += ` ${ltg.length} strong cells in your corridor out to ${LTG_RADIUS} mi.`;
   const advice = ' Keep an eye on the sky and be ready to move indoors or to a safe location.';
 
-  // Dedupe by coarse direction (45° sectors) + 10 mi distance bucket so a
-  // standing cell doesn't re-buzz, but a genuinely new strike location does.
-  const cks = ['ltg_' + Math.round(closest.bearing / 45) + '_' + Math.round(closest.distance / 10)];
+  // Dedupe across the urgent set (or the whole corridor if nothing is <=15 min)
+  // by coarse direction (45° sectors) + 10 mi distance bucket. Keying on the set
+  // — not just the closest cell — means new lightning activity in a fresh
+  // sector/distance retriggers the digest instead of being masked by an
+  // unchanged closest cell still inside its cooldown.
+  const keySrc = soon.length ? soon : ltg;
+  const cks = [...new Set(keySrc.map(c => 'ltg_' + Math.round(c.bearing / 45) + '_' + Math.round(c.distance / 10)))];
   return {
     cks,
     display: `⚡ Lightning ~${dist} mi ${degToDir(closest.bearing)} (strong storm)`,
@@ -289,7 +298,10 @@ async function run() {
 
   for (const [key, members] of groups) {
     const o = members[0];
-    const radius = Math.min(80, Math.max(...members.map(m => thresholdsFor(m).radius)));
+    // Scan the full system-max radar (covers the fixed 80 mi lightning corridor)
+    // so lightning always has data; per-subscriber storm pushes still filter to
+    // each user's own radius/dist below.
+    const radius = LTG_RADIUS;
 
     // 1. Radar storm cells.
     let cells = [], mv = null;
@@ -359,7 +371,7 @@ async function run() {
         // Lightning runs off the full corridor (approaching strong cells out to
         // 80 mi), independent of the user's dBZ/impact filter, so a strong cell
         // bearing down can warn even if it hasn't met the storm-alert bar yet.
-        const ltg = fmtLightning(personal, th.radius, tz, h24);
+        const ltg = fmtLightning(personal, tz, h24);
         if (ltg) items.push({ kind: 'ltg', urgency: 'high', cks: ltg.cks, display: ltg.display, titleSingle: '⚡ Lightning Nearby', body: ltg.body });
       }
 
