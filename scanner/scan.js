@@ -50,6 +50,10 @@ const DEF = { dbz: 40, impact: 50, dist: 60, radius: 80 };
 // user's personal storm-alert radius — a strong cell 70 mi out still warrants a
 // heads-up even if the user only wants storm pushes inside 30 mi.
 const LTG_RADIUS = 80;
+// Awareness radius: the nearest strong cell within 15 mi is ALWAYS surfaced for
+// safety, even if it isn't approaching — a close strike shouldn't be hidden just
+// because it isn't heading straight at the user.
+const LTG_NEAR = 15;
 const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
 
 // Fixed scan cadence: the GitHub cron IS the schedule (every 5 min), so every
@@ -126,8 +130,14 @@ function fmtStormBody(best, count, mv, tz, h24) {
   }
   let moveStr = '';
   if (mv && mv.speed >= 2) moveStr = ` · moving ${degToDir(mv.direction)} ~${Math.round(mv.speed)} mph`;
-  const lead = count > 1 ? `${count} storm cells inbound — strongest ` : 'Storm cell inbound — ';
-  return `${lead}${best.dbz} dBZ · ${distStr}${best.impactPct > 0 ? ` · ${best.impactPct}% impact` : ''}${etaStr}${moveStr}`;
+  // Always highlight a SINGLE storm — the strongest + soonest inbound. With a lot
+  // of cells (12+) keep the line short and point to the app instead of implying a
+  // long list, so the phone doesn't truncate the notification.
+  let lead, tail = '';
+  if (count >= 12) { lead = `Strongest of ${count} storms inbound — `; tail = ' · more inbound, open for details'; }
+  else if (count > 1) { lead = `${count} storms inbound — strongest `; }
+  else { lead = 'Storm cell inbound — '; }
+  return `${lead}${best.dbz} dBZ · ${distStr}${best.impactPct > 0 ? ` · ${best.impactPct}% impact` : ''}${etaStr}${moveStr}${tail}`;
 }
 
 // Full compass words for the friendlier lightning advisory ("southwest" reads
@@ -142,52 +152,57 @@ function dirLong(deg) { const a = degToDir(deg); return DIR_LONG[a] || a; }
 
 // Smart lightning advisory from radar-derived strong cells. Lightning is
 // estimated (not observed) from reflectivity ≥45 dBZ — the app's "strong storm"
-// tier. We look only at cells in the user's impact corridor (approaching / in
-// the cone) out to 80 mi, lead with the closest, and flag any arriving within
-// 15 min as the urgent set the user should act on now.
+// tier. AWARENESS RULE: always surface the NEAREST strong cell within 15 mi,
+// approaching or not, so a close strike is never hidden just because it isn't in
+// the user's cone. If nothing is within 15 mi, fall back to the nearest
+// approaching cell in the 80 mi corridor so distant inbound lightning still
+// warns. Cells arriving within 15 min are flagged as the urgent set to act on.
 function fmtLightning(personal, tz, h24) {
-  const ltg = personal.filter(c => c.dbz >= 45 && c.approaching && c.distance <= LTG_RADIUS);
-  if (!ltg.length) return null;
-  ltg.sort((a, b) => a.distance - b.distance);
-  const closest = ltg[0];
-  const dist = Math.round(closest.distance);
-  let etaStr = '';
-  if (closest.etaMin != null) {
-    const clock = fmtArrivalClock(closest.etaMin, tz, h24);
-    etaStr = ` · ETA ~${closest.etaMin} min${clock ? ` (${clock})` : ''}`;
-  }
-  const lead = `Lightning ⚡ estimated to the ${dirLong(closest.bearing)} around ${dist} mi in a strong storm (${closest.dbz} dBZ)${etaStr}.`;
+  const strong = personal.filter(c => c.dbz >= 45);
+  if (!strong.length) return null;
+  // Nearest strong cell within 15 mi (any direction) — pure awareness.
+  const near = strong.filter(c => c.distance <= LTG_NEAR).sort((a, b) => a.distance - b.distance);
+  // Approaching strong cells bearing down out to the 80 mi corridor.
+  const corridor = strong.filter(c => c.approaching && c.distance <= LTG_RADIUS).sort((a, b) => a.distance - b.distance);
+  if (!near.length && !corridor.length) return null;
 
-  // Urgent set: any strong cell estimated to reach the user within 15 minutes.
-  // Avoid repeating a time: when the lead cell's own ETA already shows it's
-  // imminent (≤15 min), don't restate "within 15 min" — the ETA says it. Only
-  // add a "within 15 min" phrase when it conveys something the lead ETA doesn't:
-  // a count of multiple imminent cells, or a different/faster cell than the lead.
-  const soon = ltg.filter(c => c.etaMin != null && c.etaMin <= 15);
-  const leadSoon = closest.etaMin != null && closest.etaMin <= 15;
+  // Lead with the closest cell overall: an in-range (≤15 mi) awareness cell if
+  // present, otherwise the nearest approaching corridor cell.
+  const lead = near[0] || corridor[0];
+  const dist = Math.round(lead.distance);
+  let etaStr = '';
+  if (lead.approaching && lead.etaMin != null) {
+    const clock = fmtArrivalClock(lead.etaMin, tz, h24);
+    etaStr = ` · ETA ~${lead.etaMin} min${clock ? ` (${clock})` : ''}`;
+  }
+  const leadSentence = `Lightning ⚡ estimated to the ${dirLong(lead.bearing)} around ${dist} mi in a strong storm (${lead.dbz} dBZ)${etaStr}.`;
+
+  // Urgent set: approaching cells estimated to reach the user within 15 minutes.
+  const soon = corridor.filter(c => c.etaMin != null && c.etaMin <= 15);
+  const leadSoon = lead.approaching && lead.etaMin != null && lead.etaMin <= 15;
   let extra = '';
   if (soon.length > 1) {
     const spread = [...new Set(soon.slice(0, 3).map(c => degToDir(c.bearing)))].join('/');
     extra = ` ${soon.length} cells could reach you within 15 min (${spread}).`;
   } else if (soon.length === 1 && !leadSoon) {
-    extra = ` A faster cell to the ${degToDir(soon[0].bearing)} could reach you within 15 min.`;
+    extra = ` A cell to the ${degToDir(soon[0].bearing)} could reach you within 15 min.`;
   }
-  if (ltg.length > 1) extra += ` ${ltg.length} strong cells in your corridor out to ${LTG_RADIUS} mi.`;
-  const advice = soon.length
+  if (corridor.length > 1) extra += ` ${corridor.length} strong cells approaching within ${LTG_RADIUS} mi.`;
+
+  const advice = (near.length || soon.length)
     ? ' Move indoors or to a safe location now.'
     : ' Keep an eye on the sky and be ready to move indoors or to a safe location.';
 
-  // Dedupe across the urgent set (or the whole corridor if nothing is <=15 min)
-  // by coarse direction (45° sectors) + 10 mi distance bucket. Keying on the set
-  // — not just the closest cell — means new lightning activity in a fresh
-  // sector/distance retriggers the digest instead of being masked by an
-  // unchanged closest cell still inside its cooldown.
-  const keySrc = soon.length ? soon : ltg;
+  // Dedupe by coarse direction (45° sectors) + 10 mi distance buckets across the
+  // cells we lead on (the nearest awareness cell + the urgent/corridor set), so
+  // new activity in a fresh sector/distance retriggers the digest instead of
+  // being masked by an unchanged cell still inside its cooldown.
+  const keySrc = [...near.slice(0, 1), ...(soon.length ? soon : corridor)];
   const cks = [...new Set(keySrc.map(c => 'ltg_' + Math.round(c.bearing / 45) + '_' + Math.round(c.distance / 10)))];
   return {
     cks,
-    display: `⚡ Lightning ~${dist} mi ${degToDir(closest.bearing)} (strong storm)`,
-    body: `${lead}${extra}${advice}`,
+    display: `⚡ Lightning ~${dist} mi ${degToDir(lead.bearing)} (strong storm)`,
+    body: `${leadSentence}${extra}${advice}`,
   };
 }
 
@@ -320,7 +335,14 @@ async function run() {
           c.dbz >= th.dbz && c.impactPct >= th.impact && c.distance <= th.dist
         );
         if (hits.length) {
-          const best = hits.slice().sort((a, b) => (b.impactPct - a.impactPct) || (b.dbz - a.dbz))[0];
+          // Strongest + soonest: bucket ETA into ~10-min bands (soonest first),
+          // then prefer the strongest (dBZ), then highest impact — so an imminent
+          // cell leads, but among similarly-timed cells the strongest wins.
+          const best = hits.slice().sort((a, b) => {
+            const ea = a.etaMin == null ? 1e9 : a.etaMin;
+            const eb = b.etaMin == null ? 1e9 : b.etaMin;
+            return (Math.floor(ea / 10) - Math.floor(eb / 10)) || (b.dbz - a.dbz) || (b.impactPct - a.impactPct);
+          })[0];
           const body = fmtStormBody(best, hits.length, mv, tz, h24);
           const cks = hits.map(c => `sc_${Math.round(c.bearing / 10)}_${Math.round(c.distance / 3)}`);
           items.push({ kind: 'sc', urgency: 'high', cks, display: `🌩️ ${body}`, titleSingle: '🌩️ StormTracker Alert', body });
