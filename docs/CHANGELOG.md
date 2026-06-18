@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.10
+
+  **Storm-card "in path" rain now reflects the path toward you, not the whole radar radius.**
+
+  - The Storms-tab card's 💧 *In path* line (`getStormConeRain` in `docs/js/storms.js`, rendered at the `_coneRainLine` in the card template) reported the max dBZ and return count over the storm's **full projected track cone**, which `buildStormCone` always extends to at least the full scan radius (≥80 mi). That swept up strong cores far down-range and reported them as the cell's "max" — e.g. a 30 dBZ cell showing "55 dBZ max" because an unrelated 55 dBZ core sat 60 mi ahead in the same direction.
+  - `buildStormCone(storm, mv, rangeOverride)` now accepts an optional range override. The map's visual projection cone is unchanged (still shows where a storm *might* go); only the card stat passes a clamped range — `Math.max(10, Math.min(scanRadius, storm.distance + 6))` — so "in path" describes the rain between the storm and you. It scales naturally: a far inbound storm keeps a long path, a near one gets a short path, with a 10 mi floor so close storms still show their near-path core.
+  - **Cache bumped** — `?v=608` / `stormtracker-v608`.
+
   ## v5.09
 
   **Background storm alerts now cover up to 5 saved locations, each with its own 🔔 toggle.**
