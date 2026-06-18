@@ -403,7 +403,7 @@ async function run() {
 
     // 3. NWS active warnings — unless everyone here opted out.
     let nwsAlerts = [];
-    const wantNws = members.some(m => !m.thresholds || m.thresholds.nws !== false);
+    const wantNws = members.some(m => nwsCfgOf(m.thresholds).on);
     if (wantNws) {
       try { nwsAlerts = await fetchNws(o.lat, o.lon); console.log(`  NWS: ${nwsAlerts.length} active`); }
       catch (e) { console.warn(`  nws ${key} failed: ${e.message}`); }
