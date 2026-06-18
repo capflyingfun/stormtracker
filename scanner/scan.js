@@ -66,13 +66,15 @@ async function getSubscribers() {
 
 // Shared "next scan due" timestamp (epoch ms) stored in the Worker/D1 so the
 // randomized cadence survives across stateless cron runs.
+// Returns: number = stored next-due epoch ms, 0 = never set (first run),
+// null = couldn't read (so the caller fails CLOSED instead of scanning every tick).
 async function getScanDue() {
   try {
     const r = await fetch(`${WORKER_URL}/scan-due`, { headers: { 'x-scanner-secret': SCANNER_SECRET } });
-    if (!r.ok) { console.warn(`/scan-due GET HTTP ${r.status}`); return 0; }
+    if (!r.ok) { console.warn(`/scan-due GET HTTP ${r.status}`); return null; }
     const d = await r.json();
     return Number(d.due) || 0;
-  } catch (e) { console.warn('scan-due GET failed:', e.message); return 0; }
+  } catch (e) { console.warn('scan-due GET failed:', e.message); return null; }
 }
 
 async function setScanDue(due) {
@@ -157,16 +159,26 @@ async function run() {
   const manual = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch';
   if (!manual) {
     const due = await getScanDue();
+    if (due === null) {
+      // Couldn't read the schedule — fail CLOSED so a /scan-due outage doesn't
+      // turn every 5-min cron tick into a scan. Next tick retries.
+      console.log('Could not read scan schedule — skipping this tick.');
+      return;
+    }
     if (due && Date.now() < due) {
       console.log(`Not due yet — next scan in ~${Math.ceil((due - Date.now()) / 60000)} min. Skipping tick.`);
       return;
     }
+    // Committed to scanning this scheduled tick — roll the next random gap now so
+    // even an early return below (e.g. no subscribers) keeps the cadence rolling.
+    const gap = choose(SCAN_GAPS);
+    await setScanDue(Date.now() + gap * 60 * 1000);
+    console.log(`Scanning now. Next scan in ~${gap} min.`);
+  } else {
+    // Manual test run — scan immediately but leave the automated cadence alone
+    // so ad-hoc tests don't shift the production schedule.
+    console.log('Manual run — scanning now (cadence unchanged).');
   }
-  // Committed to scanning this tick — roll the next random gap now so even an
-  // early return below (e.g. no subscribers) keeps the cadence rolling.
-  const gap = choose(SCAN_GAPS);
-  await setScanDue(Date.now() + gap * 60 * 1000);
-  console.log(`Scanning now. Next scan in ~${gap} min.`);
 
   const subs = await getSubscribers();
   console.log(`Subscribers: ${subs.length}`);
