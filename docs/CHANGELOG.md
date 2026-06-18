@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v4.98
+
+  **Fix: Background Storm Alerts toggle did not update in real time after tapping Turn on.**
+
+  - `docs/js/push.js` called `syncSettingsUI()` to re-render the settings panel after enable/disable/update, but no such function exists — the panel re-render function is `syncSettingsPanel()`. Every call threw a `ReferenceError`, so the subscription state was saved (line that calls `_setPushSub`) but the toggle only reflected ON after a reload.
+  - Renamed all 5 `syncSettingsUI()` calls in `push.js` to `syncSettingsPanel()`. The toggle now flips to ON/OFF immediately on tap.
+  - **Cache bumped** — `?v=596` / `stormtracker-v596`.
+
   ## v4.97
 
   **Fix: Background Storm Alerts toggle could get stuck after the v4.96 VAPID rotation.**
