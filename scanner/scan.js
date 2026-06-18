@@ -58,7 +58,7 @@ const BAND_DEFS = [
   { key: 'heavy', label: 'Heavy', min: 45, max: 54, defOn: true, defMin: 5 },
   { key: 'severe', label: 'Severe', min: 55, max: 9999, defOn: true, defMin: 5 },
 ];
-const BAND_CADENCE_OPTS = [5, 10, 15, 30];
+const BAND_CADENCE_OPTS = [0, 5, 10, 15, 30, 45, 60];
 function bandForDbz(dbz) {
   if (dbz == null || dbz < 20) return null;
   for (const b of BAND_DEFS) if (dbz >= b.min && dbz <= b.max) return b.key;

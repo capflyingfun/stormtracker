@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.12
+
+  **More re-notify timer choices per band: added 45 min, 60 min, and an "every time" (no cooldown) option.**
+
+  - **Extended band cadence options** — `_BAND_CADENCE_OPTS` in `docs/js/thresholds.js` and `BAND_CADENCE_OPTS` in `scanner/scan.js` widened from `[5,10,15,30]` to `[0,5,10,15,30,45,60]`. A value of `0` means "every time" (no cooldown): the cooldown checks (`now-last < min*60000`) and the scanner's per-item `cooldownMs` both evaluate to `0`, so the alert fires on every eligible check/scan tick. The dropdown renders `0` as "every time" and the rest as "every N min".
+  - **No D1/worker change** — still rides in the free-form `thresholds` JSON; older subscriptions fall back to defaults as before.
+  - **Cache bumped** — `?v=610` / `stormtracker-v610`.
+
   ## v5.11
 
   **New "rain right over you" alert + four configurable intensity bands that gate and pace every storm/rain notification (in-app and background push).**
