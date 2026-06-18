@@ -54,7 +54,7 @@ function _toggleSonarSettings(){
   html+='<div style="'+tl+';margin-bottom:4px">Dot Size by dBZ</div>';
   for(const cls of _SONAR_DBZ_CLASSES){
     const val=Math.round(_getDbzScale(cls)*100);
-    const col=_SONAR_DBZ_COLORS[cls];
+    const col=(_SONAR_DBZ_BINS.find(b=>b.cls===cls)||{color:'#888'}).color;
     html+=`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1px"><span style="font-size:0.5em;color:${col};font-weight:600">${_SONAR_DBZ_LABELS[cls]}</span><span id="sonar-dbz-val-${cls}" style="${vl}">${val}%</span></div><input type="range" min="50" max="200" value="${val}" step="10" id="sonar-dbz-${cls}" oninput="_onDbzSlider('${cls}',this.value)" style="width:100%;height:14px;accent-color:${col};cursor:pointer"></div>`;
   }
   html+='</div>';

@@ -460,25 +460,38 @@ function haversine(lat1,lon1,lat2,lon2){const R=3959,dLat=(lat2-lat1)*Math.PI/18
 function bearingDeg(lat1,lon1,lat2,lon2){const dLon=(lon2-lon1)*Math.PI/180;const y=Math.sin(dLon)*Math.cos(lat2*Math.PI/180);const x=Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180)-Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);return((Math.atan2(y,x)*180/Math.PI)+360)%360}
 
 // Master radar reflectivity palette — drives radar tiles, sonar, storm cells,
-// 3D view, legend and AI [!dbz] tags. Stepped in 5 dBZ increments to match how
-// real radar renders intensity. ≤20 dBZ stays blue (neon→navy), then green
-// (light→neon→hunter), yellow, orange, red (neon→maroon), magenta, and pink at
-// the extreme top end.
+// 3D view, legend and AI [!dbz] tags. Stepped in 5 dBZ increments. Within each
+// color family it goes light→deep (so deeper = stronger); the hue only shifts at
+// a band boundary: blue (≤20) → green → yellow → orange → red → magenta → pink
+// (extreme). Colors are kept vivid (never near-black) because radar tiles draw at
+// low opacity and very dark shades turn muddy/gray on the map.
 const DBZ_SCALE=[
   {min:0,  color:'#004488',label:'Below threshold',         cls:'trace',    opacity:0.10},
   {min:5,  color:'#A8E5FF',label:'Sprinkles',               cls:'sprinkles',opacity:0.12},
-  {min:15, color:'#1F51FF',label:'Drizzle',                 cls:'drizzle',  opacity:0.16},
-  {min:20, color:'#001F8F',label:'Light rain',              cls:'light',    opacity:0.22},
-  {min:25, color:'#90EE90',label:'Light–moderate rain',     cls:'light2',   opacity:0.26},
-  {min:30, color:'#39FF14',label:'Moderate rain',           cls:'moderate', opacity:0.30},
-  {min:35, color:'#355E3B',label:'Moderate–heavy rain',     cls:'moderate2',opacity:0.35},
-  {min:40, color:'#FFFF00',label:'Heavy rain',              cls:'heavy',    opacity:0.40},
-  {min:45, color:'#FF8C00',label:'Very heavy rain',         cls:'intense',  opacity:0.48},
-  {min:50, color:'#FF1E1E',label:'Intense',                 cls:'mod-severe',opacity:0.54},
-  {min:55, color:'#800000',label:'Severe',                  cls:'severe',   opacity:0.57},
-  {min:60, color:'#FF00FF',label:'Severe, hail possible',   cls:'severe2',  opacity:0.59},
-  {min:65, color:'#FF69B4',label:'Extreme, hail likely',    cls:'extreme',  opacity:0.62}
+  {min:15, color:'#7FC4FF',label:'Drizzle',                 cls:'drizzle',  opacity:0.16},
+  {min:20, color:'#2E7BF0',label:'Light rain',              cls:'light',    opacity:0.22},
+  {min:25, color:'#7BF06B',label:'Light–moderate rain',     cls:'light2',   opacity:0.26},
+  {min:30, color:'#28D028',label:'Moderate rain',           cls:'moderate', opacity:0.30},
+  {min:35, color:'#15A523',label:'Moderate–heavy rain',     cls:'moderate2',opacity:0.35},
+  {min:40, color:'#FCE300',label:'Heavy rain',              cls:'heavy',    opacity:0.40},
+  {min:45, color:'#FF9D00',label:'Very heavy rain',         cls:'intense',  opacity:0.46},
+  {min:50, color:'#FF3B23',label:'Intense',                 cls:'mod-severe',opacity:0.52},
+  {min:55, color:'#D11226',label:'Severe',                  cls:'severe',   opacity:0.56},
+  {min:60, color:'#E81DE8',label:'Severe, hail possible',   cls:'severe2',  opacity:0.59},
+  {min:65, color:'#FF8FE0',label:'Extreme, hail likely',    cls:'extreme',  opacity:0.62}
 ];
+// User color overrides for the palette (keyed by bin min dBZ, localStorage
+// 'st_dbzColors'). Applied IN PLACE onto DBZ_SCALE.color so every consumer
+// (radar tiles, sonar, storm cells, 3D, legend, AI tags) picks them up live.
+const DBZ_DEFAULT_COLORS=DBZ_SCALE.map(e=>e.color);
+function _loadDbzColors(){try{const o=JSON.parse(localStorage.getItem('st_dbzColors'));return(o&&typeof o==='object')?o:{}}catch(e){return{}}}
+function applyDbzColorOverrides(){const o=_loadDbzColors();DBZ_SCALE.forEach((e,i)=>{const ov=o[e.min];e.color=(typeof ov==='string'&&/^#[0-9a-fA-F]{6}$/.test(ov))?ov:DBZ_DEFAULT_COLORS[i];});}
+function setDbzColor(min,hex){const o=_loadDbzColors();if(typeof hex==='string'&&/^#[0-9a-fA-F]{6}$/.test(hex))o[min]=hex;else delete o[min];localStorage.setItem('st_dbzColors',JSON.stringify(o));applyDbzColorOverrides();}
+function resetDbzColor(min){const o=_loadDbzColors();delete o[min];localStorage.setItem('st_dbzColors',JSON.stringify(o));applyDbzColorOverrides();}
+function resetAllDbzColors(){localStorage.removeItem('st_dbzColors');applyDbzColorOverrides();}
+function isDbzColorCustom(min){return typeof _loadDbzColors()[min]==='string';}
+function dbzDefaultColor(min){const i=DBZ_SCALE.findIndex(e=>e.min===min);return i>=0?DBZ_DEFAULT_COLORS[i]:'#ffffff';}
+applyDbzColorOverrides();
 function _dbzEntry(dbz){for(let i=DBZ_SCALE.length-1;i>=0;i--){if(dbz>=DBZ_SCALE[i].min)return DBZ_SCALE[i]}return DBZ_SCALE[0]}
 function stormCat(dbz){
   const e=_dbzEntry(dbz);
