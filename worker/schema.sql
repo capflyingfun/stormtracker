@@ -17,3 +17,10 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_code ON subscriptions (code);
+
+-- Small key/value store for scheduler state (e.g. 'scan_due' = next scan epoch ms
+-- for the randomized 5–60 min scan cadence). Created lazily by the Worker too.
+CREATE TABLE IF NOT EXISTS meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT
+);
