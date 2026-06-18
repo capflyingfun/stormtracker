@@ -136,7 +136,7 @@ async function enablePushAlerts(silent) {
     console.log('[push] enable failed:', e.message);
     if (!silent) toast('⚠️ Could not enable alerts: ' + e.message);
   }
-  syncSettingsUI();
+  syncSettingsPanel();
 }
 
 async function disablePushAlerts() {
@@ -156,7 +156,7 @@ async function disablePushAlerts() {
   } catch (e) { console.log('[push] disable:', e.message); }
   _setPushSub(null);
   toast('🔕 Background alerts disabled');
-  syncSettingsUI();
+  syncSettingsPanel();
 }
 
 function setPushThreshold(key, val) {
@@ -165,7 +165,7 @@ function setPushThreshold(key, val) {
   _savePushThresholds(th);
   // If already subscribed, push the new thresholds to the server.
   if (_getPushSub()) enablePushAlerts();
-  else syncSettingsUI();
+  else syncSettingsPanel();
 }
 
 function setPushNws(on) {
@@ -173,7 +173,7 @@ function setPushNws(on) {
   th.nws = !!on;
   _savePushThresholds(th);
   if (_getPushSub()) enablePushAlerts();
-  else syncSettingsUI();
+  else syncSettingsPanel();
 }
 
 function setPushTropical(on) {
@@ -181,7 +181,7 @@ function setPushTropical(on) {
   th.tropical = !!on;
   _savePushThresholds(th);
   if (_getPushSub()) enablePushAlerts();
-  else syncSettingsUI();
+  else syncSettingsPanel();
 }
 
 let _pushSyncTimer = null;
