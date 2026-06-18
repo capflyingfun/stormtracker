@@ -3,6 +3,17 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.14
+
+  **NWS & Tropical re-notify cadence is now severity-based + configurable, and background pushes are split BY TYPE.**
+
+  - **Per-tier NWS cadence** — the flat 12h background cooldown for NWS is replaced by per-severity cadences: warnings (default 30 min), watches (default 2 h), advisories (default 6 h, or off). Warnings & watches additionally TIGHTEN as the alert nears expiry (effective cooldown = min(base, (ends−now)/2), floored at 5 min). Defaults can be overridden from the Background Alerts panel; advisory "off" = advMin 0. Implemented via `nwsCfgOf()`/`nwsTierOf()`/`nwsCooldownMs()` in `scanner/scan.js`, each NWS item carrying its own `cooldownMs` and `cat` (`nws-warn`/`nws-watch`/`nws-adv`).
+  - **Tropical cadence** — base repeat picked from 3/6/9/12 h (default 6 h, `tropical.everyH`); in-cone systems (high urgency) step up to ≤3 h. `tropCfgOf()` normalizes legacy `{on,radius}` subs.
+  - **Notifications split by type** — instead of one bundled digest per location, the scanner now sends ONE push per category (storm cells, rain, lightning, weather, NWS warnings/watches/advisories, tropical), each with its own tag `stormtracker-<locId>-<cat>` so they stack on the device. Per-category "stamp only DUE items" preserves each cadence. (`situationLead` digest helper removed.)
+  - **In-app controls** — Background Alerts panel: NWS master on/off + Warnings/Watches/Advisories repeat dropdowns, Tropical on/off + repeat dropdown. Config rides in the free-form `thresholds` JSON (`nws:{on,warnMin,watchMin,advMin}`, `tropical:{on,radius,everyH}`); legacy boolean subs fall back to defaults. (`docs/js/push.js`)
+  - **Backward compatible** — no D1/worker change; older subscriptions keep working until they re-subscribe.
+  - **Cache bumped** — `?v=612` / `stormtracker-v612`.
+
   ## v5.13
 
   **"Rain right over you" now has its OWN re-notify timer (instead of borrowing the matching band's cadence).**
