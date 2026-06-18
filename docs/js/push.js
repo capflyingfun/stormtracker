@@ -1,8 +1,9 @@
 // Background Storm Push Alerts (Task #308)
 // Opt-in Web Push so subscribers get notified when a storm is inbound even with
-// the app/browser closed. The PWA only stores the subscription on the user's
-// Cloudflare Worker (same base URL as the sync server); a GitHub Actions cron
-// scanner does the radar detection server-side and sends the pushes.
+// the app/browser closed. The PWA stores the subscription on the dedicated
+// Cloudflare Worker (PUSH_API_DEFAULT below — separate from the settings-sync
+// server); a GitHub Actions cron scanner does the radar detection server-side
+// and sends the pushes.
 
 // Persistent VAPID public key (private half lives only in the scanner secrets).
 const PUSH_VAPID_PUBLIC_KEY = 'BArKCxdh8nMmYi1LTdBQj-R_G0nDiBvbm5EvS4KIvcT5nUo45tiovDzkagdfG-1n2v_i0LGQz0VzUNBMfqlZG5Y';
@@ -49,7 +50,6 @@ function _pushLoc() {
 
 async function enablePushAlerts() {
   const base = _pushApiUrl();
-  if (!base) { toast('⚠️ Set your sync server URL in Account first'); return; }
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) { toast('⚠️ Push not supported on this device'); return; }
   const loc = _pushLoc();
   if (!loc) { toast('📍 Set a home location first'); return; }
@@ -117,14 +117,10 @@ function setPushThreshold(key, val) {
 }
 
 function renderPushAlertSettings() {
-  const base = _pushApiUrl();
   const sub = _getPushSub();
   const th = _getPushThresholds();
   const loc = _pushLoc();
   const opt = (v, sel) => `<option value="${v}"${v === sel ? ' selected' : ''}>`;
-  if (!base) {
-    return `<div class="setting-hint" style="color:var(--accent-yellow)">⚠️ Set your sync server URL in the Account section first — background alerts use the same server.</div>`;
-  }
   const controls = `
     <div class="setting-row-6"><span class="text-xxs-muted">Min strength (dBZ)</span>
       <select class="small-btn" onchange="setPushThreshold('dbz',this.value)">
