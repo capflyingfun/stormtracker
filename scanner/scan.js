@@ -1,4 +1,4 @@
-// StormTracker background scanner — runs on a GitHub Actions cron (~every 30
+// StormTracker background scanner — runs on a GitHub Actions cron (~every 10
 // min). Pulls subscribers from the Cloudflare Worker, then for each location
 // runs a FULL "fresh open" scan and pushes every alert type the app would show,
 // even with the app/browser closed:

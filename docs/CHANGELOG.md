@@ -3,6 +3,13 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.02
+
+  **Faster scan cadence — every 10 minutes.**
+
+  - **Scan interval 30 min → 10 min** (`.github/workflows/storm-scan.yml`): the GitHub Actions cron now runs `*/10 * * * *` with `timeout-minutes: 5` (was `*/30` / 10). A fast-developing storm is now detected within ~10 min instead of potentially waiting most of an hour. Per-alert cooldowns are unchanged (`scanner/scan.js` `COOLDOWN`: storms/lightning 30 min, wx 3 h, NWS/tropical 12 h), so the same storm still won't re-buzz every scan — only genuinely new threats trigger between cooldowns. A scan with nothing matching simply runs and exits.
+  - **Cache bumped** — `?v=600` / `stormtracker-v600`.
+
   ## v5.01
 
   **Notification-update progress UI + de-duplicated lightning wording.**
