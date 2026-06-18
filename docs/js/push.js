@@ -121,6 +121,12 @@ function renderPushAlertSettings() {
   const th = _getPushThresholds();
   const loc = _pushLoc();
   const opt = (v, sel) => `<option value="${v}"${v === sel ? ' selected' : ''}>`;
+  const on = !!sub;
+  const statusBadge = `
+    <div style="display:flex;align-items:center;gap:7px;font-weight:700;margin-bottom:6px;color:${on ? 'var(--accent-green)' : 'var(--text-muted)'}">
+      <span style="width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:${on ? 'var(--accent-green)' : 'var(--text-muted)'};${on ? 'box-shadow:0 0 7px var(--accent-green)' : ''}"></span>
+      Background alerts ${on ? 'ON' : 'OFF'}
+    </div>`;
   const controls = `
     <div class="setting-row-6"><span class="text-xxs-muted">Min strength (dBZ)</span>
       <select class="small-btn" onchange="setPushThreshold('dbz',this.value)">
@@ -135,17 +141,20 @@ function renderPushAlertSettings() {
         ${opt(30, th.radius)}30 mi</option>${opt(50, th.radius)}50 mi</option>${opt(60, th.radius)}60 mi</option>${opt(80, th.radius)}80 mi</option>
       </select></div>`;
   if (sub) {
+    const moved = loc && (Math.abs(loc.lat - sub.lat) > 0.05 || Math.abs(loc.lon - sub.lon) > 0.05);
     return `
-      <div class="setting-hint" style="color:var(--accent-green)">✅ Enabled for <b>${escHtml(sub.name || 'your location')}</b>${loc && (Math.abs(loc.lat - sub.lat) > 0.05 || Math.abs(loc.lon - sub.lon) > 0.05) ? ' <span style="color:var(--accent-yellow)">(location changed — tap Update)</span>' : ''}. You'll get a push when an inbound storm matches your thresholds, even with the app closed.</div>
+      ${statusBadge}
+      <div class="setting-hint" style="color:var(--accent-green)">Watching <b>${escHtml(sub.name || 'your location')}</b>${moved ? ' <span style="color:var(--accent-yellow)">(location changed — tap Update)</span>' : ''}. You'll get a push when an inbound storm matches your thresholds, even with the app closed.</div>
       ${sub.code ? `<div class="setting-row-6"><span class="text-xxs-muted">Manage code</span><span style="font-family:var(--font-mono);font-weight:700;letter-spacing:1px;color:var(--accent-cyan)">${escHtml(sub.code)}</span></div>` : ''}
       ${controls}
       <div style="display:flex;gap:6px;margin-top:8px">
         <button class="small-btn" onclick="enablePushAlerts()" style="flex:1">↻ Update</button>
-        <button class="small-btn" onclick="disablePushAlerts()" style="flex:1;color:var(--accent-red)">🔕 Disable</button>
+        <button class="small-btn" onclick="disablePushAlerts()" style="flex:1;color:var(--accent-red);border-color:var(--accent-red)">🔕 Turn off</button>
       </div>`;
   }
   return `
-    <div class="setting-hint">Get a push notification when a storm is inbound — works even when StormTracker is closed. Scanned server-side every ~30 min.</div>
+    ${statusBadge}
+    <div class="setting-hint">Get a push notification when a storm is inbound — works even when StormTracker is closed. Scanned server-side every ~30 min for <b>${loc ? escHtml(loc.name) : 'your saved Home location'}</b>.</div>
     ${controls}
-    <button class="small-btn" onclick="enablePushAlerts()" style="width:100%;margin-top:8px;color:var(--accent-cyan)">🔔 Enable background alerts</button>`;
+    <button class="small-btn" onclick="enablePushAlerts()" style="width:100%;margin-top:8px;color:var(--accent-green);border-color:var(--accent-green)">🔔 Turn on background alerts</button>`;
 }
