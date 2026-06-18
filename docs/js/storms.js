@@ -988,9 +988,9 @@ function calcStormETA(storm){
   storm._eta=_eta;storm._etaScanId=S._stormScanId;
   return _eta;
 }
-function buildStormCone(storm,mv){
+function buildStormCone(storm,mv,rangeOverride){
   if(!mv||!mv.speed||mv.speed<2||typeof destPoint!=='function')return null;
-  const range=Math.max((S&&S.scanRadius)||80,storm.distance*1.3,20);
+  const range=(rangeOverride!=null&&rangeOverride>0)?rangeOverride:Math.max((S&&S.scanRadius)||80,storm.distance*1.3,20);
   const dir=mv.direction;
   const baseWidthMi=Math.max(0,Math.min(3,(storm.dbz-20)/15));
   const perpL=(dir-90+360)%360;
@@ -1009,9 +1009,15 @@ function buildStormCone(storm,mv){
   return[[storm.lat,storm.lng],fL,fC,fR,[storm.lat,storm.lng]];
 }
 // v4.83: in-path rain coverage for a storm's projected track cone, shown on the Storms-tab
-// card (replaces the old per-cone 💧 text label that cluttered the radar map). Reuses the
-// same cone + raw-point sweep used for the map cones; cached per storm per scan so re-renders
-// don't re-run the raw-point loop. Returns {count, maxDbz} (count 0 when no track/coverage).
+// card (replaces the old per-cone 💧 text label that cluttered the radar map). Cached per
+// storm per scan so re-renders don't re-run the raw-point loop. Returns {count, maxDbz}
+// (count 0 when no track/coverage).
+// v5.10: the MAP cone always projects the full scan radius (≥80 mi) to show where a storm
+// MIGHT go, but for the card's "in path" stat that swept the whole radius and reported a
+// distant strong core (e.g. 55 dBZ) as the max even when THIS cell is only 30 dBZ. For the
+// stat we clamp the cone length to roughly the path between the storm and you (scales with
+// distance, floored so close storms still show their near-path core, capped at scan radius),
+// so "in path" reflects the rain this storm actually brings toward you — not the whole radius.
 function getStormConeRain(s){
   if(!s)return{count:0,maxDbz:0};
   if(s._coneRainScanId===S._stormScanId&&s._coneRain)return s._coneRain;
@@ -1021,7 +1027,8 @@ function getStormConeRain(s){
       ||(typeof getSteeringMv==='function'?getSteeringMv():null)
       ||((S.stormMovement&&S.stormMovement.speed>=2)?S.stormMovement:null);
     if(mv&&mv.speed>=2&&typeof buildStormCone==='function'&&typeof _coneRainStats==='function'){
-      const pts=buildStormCone(s,mv);
+      const rng=Math.max(10,Math.min((S.scanRadius||80),(s.distance||0)+6));
+      const pts=buildStormCone(s,mv,rng);
       if(pts)res=_coneRainStats(pts)||res;
     }
   }catch(e){}
