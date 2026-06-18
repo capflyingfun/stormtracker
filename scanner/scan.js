@@ -42,7 +42,7 @@ const SITE_URL = 'https://capflyingfun.github.io/StormTracker/';
 // NWS warning or weather condition shouldn't re-buzz for hours.
 const COOLDOWN = { sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000, trop: 12 * 60 * 60 * 1000 };
 const PRUNE = { sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
-function keyKind(k) { const p = String(k).split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg') ? p : 'sc'; }
+function keyKind(k) { const s = String(k); const base = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s; const p = base.split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg') ? p : 'sc'; }
 
 // Storm-cell defaults mirror the app's intent: inbound + reasonably strong.
 const DEF = { dbz: 40, impact: 50, dist: 60, radius: 80 };
@@ -250,13 +250,53 @@ async function run() {
   console.log(`Subscribers: ${subs.length}`);
   if (!subs.length) return;
 
-  // Group by coarse location (~0.7 mi) so co-located devices share one scan +
-  // one set of conditions/NWS fetches.
-  const groups = new Map();
+  const now = Date.now();
+  let sent = 0;
+
+  // Each device (push endpoint) can watch up to 5 saved locations. Fan every
+  // subscriber out into one virtual entry PER watched location so the existing
+  // per-location scan + grouping handles them all; the device's single endpoint
+  // then receives a SEPARATE notification per location (distinct tag), each
+  // headed with that location's name. Falls back to the legacy single
+  // lat/lon/name for older subscriptions that have no `locs` array.
+  const entries = [];
   for (const s of subs) {
-    const key = `${s.lat.toFixed(2)},${s.lon.toFixed(2)}`;
+    const rawLocs = (s.thresholds && Array.isArray(s.thresholds.locs) && s.thresholds.locs.length)
+      ? s.thresholds.locs
+      : [{ id: 'home', lat: s.lat, lon: s.lon, name: s.name }];
+    // Harden against malformed client payloads: drop invalid coords, de-dupe by
+    // locId, and cap at 5 (the saved-location max) per device.
+    const seen = new Set();
+    for (const L of rawLocs) {
+      if (!L || typeof L.lat !== 'number' || typeof L.lon !== 'number') continue;
+      const locId = String(L.id || `${L.lat.toFixed(3)},${L.lon.toFixed(3)}`).replace(/#/g, '');
+      if (seen.has(locId)) continue;
+      seen.add(locId);
+      entries.push({ ...s, lat: L.lat, lon: L.lon, name: L.name || s.name, _locId: locId });
+      if (seen.size >= 5) break;
+    }
+  }
+  console.log(`Watched locations: ${entries.length}`);
+  if (!entries.length) return;
+
+  // Per-ENDPOINT dedupe state. All of a device's locations share one last_alert
+  // map (keys namespaced by locId) that we merge across locations and flush
+  // ONCE at the end, so locations never clobber each other's cooldowns.
+  const epState = new Map();
+  for (const s of subs) {
+    if (epState.has(s.endpoint)) continue;
+    const la = { ...(s.lastAlert || {}) };
+    Object.keys(la).forEach(k => { if (now - la[k] > (PRUNE[keyKind(k)] || PRUNE.sc)) delete la[k]; });
+    epState.set(s.endpoint, { la, dirty: false, dead: false });
+  }
+
+  // Group watched locations by coarse location (~0.7 mi) so co-located entries
+  // share one radar / conditions / NWS fetch.
+  const groups = new Map();
+  for (const e of entries) {
+    const key = `${e.lat.toFixed(2)},${e.lon.toFixed(2)}`;
     if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(s);
+    groups.get(key).push(e);
   }
   console.log(`Scan groups: ${groups.size}`);
 
@@ -267,9 +307,6 @@ async function run() {
     try { tropical = await fetchTropical(); console.log(`Tropical systems active: ${tropical.length}`); }
     catch (e) { console.warn(`tropical fetch failed: ${e.message}`); }
   }
-
-  const now = Date.now();
-  let sent = 0;
 
   for (const [key, members] of groups) {
     const o = members[0];
@@ -305,12 +342,11 @@ async function run() {
     }
 
     for (const sub of members) {
+      const st = epState.get(sub.endpoint);
+      if (!st || st.dead) continue; // endpoint already dead/pruned this run
+      const lastAlert = st.la;      // shared per-endpoint map (all locations)
+      const ns = sub._locId + '#';  // namespace this location's dedupe keys
       const th = thresholdsFor(sub);
-      const lastAlert = { ...(sub.lastAlert || {}) };
-      Object.keys(lastAlert).forEach(k => {
-        if (now - lastAlert[k] > (PRUNE[keyKind(k)] || PRUNE.sc)) delete lastAlert[k];
-      });
-      let dirty = false, dead = false;
 
       // Collect EVERY currently-active alert for this subscriber across all
       // sources into one list. We send a single digest notification listing them
@@ -390,10 +426,10 @@ async function run() {
 
       // --- Single merged digest ---
       if (items.length) {
-        const triggered = items.some(it => it.cks.some(ck => now - (lastAlert[ck] || 0) >= COOLDOWN[it.kind]));
+        const triggered = items.some(it => it.cks.some(ck => now - (lastAlert[ns + ck] || 0) >= COOLDOWN[it.kind]));
         if (triggered) {
           let title, body;
-          if (items.length === 1) { title = items[0].titleSingle; body = items[0].body; }
+          if (items.length === 1) { title = items[0].titleSingle + (sub.name ? ' · ' + sub.name : ''); body = items[0].body; }
           else {
             title = `🚨 ${items.length} alerts${sub.name ? ' · ' + sub.name : ''}`;
             // iOS (and most OSes) truncate long notification bodies in the banner
@@ -435,19 +471,24 @@ async function run() {
             body = [situationLead(items), ...shown].join('\n');
           }
           const urgency = items.some(i => i.urgency === 'high') ? 'high' : 'normal';
-          const payload = JSON.stringify({ title, body, tag: 'stormtracker-digest', url: SITE_URL });
+          const payload = JSON.stringify({ title, body, tag: 'stormtracker-' + sub._locId, url: SITE_URL });
           const r = await trySend(sub, payload, { TTL: 1800, urgency });
           if (r === 'ok') {
-            sent++; dirty = true;
-            items.forEach(i => i.cks.forEach(ck => { lastAlert[ck] = now; }));
+            sent++; st.dirty = true;
+            items.forEach(i => i.cks.forEach(ck => { lastAlert[ns + ck] = now; }));
             console.log(`  ✓ ${sub.name || key}: digest ${items.length} item(s) [${items.map(i => i.kind).join(',')}]`);
-          } else if (r === 'dead') dead = true;
+          } else if (r === 'dead') st.dead = true;
         }
       }
-
-      if (dead) { await pruneDead(sub.endpoint); continue; }
-      if (dirty) await markAlert(sub.endpoint, lastAlert);
     }
+  }
+
+  // Flush each device ONCE: prune a dead endpoint, else persist its merged
+  // (all-locations) last_alert map a single time so locations don't overwrite
+  // each other's cooldowns.
+  for (const [endpoint, st] of epState) {
+    if (st.dead) { await pruneDead(endpoint); continue; }
+    if (st.dirty) await markAlert(endpoint, st.la);
   }
   console.log(`Done. Notifications sent: ${sent}`);
 }

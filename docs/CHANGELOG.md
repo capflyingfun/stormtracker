@@ -3,6 +3,16 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.09
+
+  **Background storm alerts now cover up to 5 saved locations, each with its own 🔔 toggle.**
+
+  - Each saved location (favorite) in the Location menu's Saved list gets a 🔔/🔕 button (`toggleFavPush` + `renderFavorites` in `docs/js/geo.js`). Bell ON adds that place to the background watch set; OFF mutes it. State persists in `localStorage` (`st_pushLocs`, keyed by a rounded `lat,lon` id).
+  - The push subscription now carries a `thresholds.locs` array (up to 5 `{id,lat,lon,name}`) — `_enabledPushLocs`/`_watchedPushLocs` in `docs/js/push.js`. No D1 schema change: the array rides inside the existing free-form `thresholds` JSON, so the worker is untouched and old single-location subscriptions keep working (they fall back to Home/current). Threshold settings stay global across all watched locations.
+  - The background scanner (`scanner/scan.js`) fans each device out into one virtual entry per watched location, groups them by coarse location for shared radar/conditions/NWS fetches, namespaces each location's dedupe keys (`<locId>#<ck>`, `keyKind` strips the prefix), and merges every location's `last_alert` into ONE per-endpoint write at the end. Each location sends a **separate** notification (`tag: stormtracker-<locId>`) with the location name appended to the header.
+  - The Settings → background-alerts panel now lists every watched location and points to the per-location bells.
+  - **Cache bumped** — `?v=607` / `stormtracker-v607`.
+
   ## v5.08
 
   **Radar palette: smoother gradient + user-customizable colors.**
