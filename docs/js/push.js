@@ -103,7 +103,7 @@ function _pushLoc() {
 }
 
 // Full-screen "please wait" overlay with a live count-up timer, shown while a
-// foreground enable/disable/update is in flight. A 30s safety timeout clears it
+// foreground enable/disable/update is in flight. A 45s safety timeout clears it
 // and refreshes the panel if the operation stalls (e.g. permission prompt hangs).
 let _pushBusyTimer = null, _pushBusySafety = null, _pushBusyStart = 0, _pushOpInFlight = false;
 function _showPushBusy(label) {
@@ -138,7 +138,7 @@ function _showPushBusy(label) {
     _hidePushBusy();
     try { syncSettingsPanel(); } catch (e) {}
     toast('⏱️ Still working… settings refreshed — please try again if needed.');
-  }, 30000);
+  }, 45000);
 }
 function _hidePushBusy() {
   _pushOpInFlight = false;
@@ -146,6 +146,29 @@ function _hidePushBusy() {
   if (_pushBusySafety) { clearTimeout(_pushBusySafety); _pushBusySafety = null; }
   const el = document.getElementById('pushBusyOverlay');
   if (el) el.style.display = 'none';
+}
+
+// POST to the push worker with a generous timeout and one automatic retry.
+// Weak / handoff-prone LTE can make the first TLS connection to the worker exceed
+// a tight timeout (Safari surfaces that as "Fetch is aborted"); a retry plus a
+// longer budget makes enabling alerts reliable on mobile data.
+async function _pushPost(url, body, { timeout = 20000, retries = 1 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetch(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeout),
+      });
+    } catch (e) {
+      lastErr = e;
+      const transient = e && (e.name === 'AbortError' || e.name === 'TypeError' || /abort|network|load failed/i.test(e.message || ''));
+      if (attempt < retries && transient) continue;
+      throw e;
+    }
+  }
+  throw lastErr;
 }
 
 async function enablePushAlerts(silent) {
@@ -176,17 +199,19 @@ async function enablePushAlerts(silent) {
       },
       code: existing && existing.code ? existing.code : undefined,
     };
-    const res = await fetch(base + '/subscribe', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      signal: AbortSignal.timeout(10000),
-    });
+    const res = await _pushPost(base + '/subscribe', body, { timeout: 20000, retries: 1 });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'subscribe failed');
     _setPushSub({ endpoint: sub.endpoint, code: data.code, lat: loc.lat, lon: loc.lon, name: loc.name });
     if (!silent) toast('🔔 Background storm alerts enabled');
   } catch (e) {
     console.log('[push] enable failed:', e.message);
-    if (!silent) toast('⚠️ Could not enable alerts: ' + e.message);
+    if (!silent) {
+      const aborted = e && (e.name === 'AbortError' || /abort/i.test(e.message || ''));
+      toast(aborted
+        ? '⚠️ Couldn’t reach the alert server — connection too slow. Please try again, ideally on Wi-Fi.'
+        : '⚠️ Could not enable alerts: ' + e.message);
+    }
   } finally {
     if (!silent) _hidePushBusy();
     syncSettingsPanel();
@@ -203,11 +228,7 @@ async function disablePushAlerts() {
     const sub = await reg.pushManager.getSubscription();
     if (sub) await sub.unsubscribe();
     if (base && (cur || sub)) {
-      await fetch(base + '/unsubscribe', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: (sub && sub.endpoint) || (cur && cur.endpoint) }),
-        signal: AbortSignal.timeout(10000),
-      });
+      await _pushPost(base + '/unsubscribe', { endpoint: (sub && sub.endpoint) || (cur && cur.endpoint) }, { timeout: 15000, retries: 1 });
     }
   } catch (e) { console.log('[push] disable:', e.message); }
   finally { _hidePushBusy(); }
