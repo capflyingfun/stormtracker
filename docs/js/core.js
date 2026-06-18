@@ -459,23 +459,31 @@ function reRenderActive(){
 function haversine(lat1,lon1,lat2,lon2){const R=3959,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
 function bearingDeg(lat1,lon1,lat2,lon2){const dLon=(lon2-lon1)*Math.PI/180;const y=Math.sin(dLon)*Math.cos(lat2*Math.PI/180);const x=Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180)-Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);return((Math.atan2(y,x)*180/Math.PI)+360)%360}
 
+// Master radar reflectivity palette — drives radar tiles, sonar, storm cells,
+// 3D view, legend and AI [!dbz] tags. Stepped in 5 dBZ increments to match how
+// real radar renders intensity. ≤20 dBZ stays blue (neon→navy), then green
+// (light→neon→hunter), yellow, orange, red (neon→maroon), magenta, and pink at
+// the extreme top end.
 const DBZ_SCALE=[
   {min:0,  color:'#004488',label:'Below threshold',         cls:'trace',    opacity:0.10},
   {min:5,  color:'#A8E5FF',label:'Sprinkles',               cls:'sprinkles',opacity:0.12},
-  {min:15, color:'#5DD8FF',label:'Drizzle',                 cls:'drizzle',  opacity:0.16},
-  {min:20, color:'#00F8FF',label:'Light rain',              cls:'light',    opacity:0.20},
-  {min:31, color:'#00FF39',label:'Moderate rain',           cls:'moderate', opacity:0.30},
-  {min:41, color:'#F5FF00',label:'Heavy rain',              cls:'heavy',    opacity:0.40},
-  {min:46, color:'#FFB200',label:'Very heavy rain',         cls:'intense',  opacity:0.50},
-  {min:52, color:'#E63A2C',label:'Moderate to severe',      cls:'mod-severe',opacity:0.55},
-  {min:60, color:'#FF0200',label:'Severe, hail possible',   cls:'severe',   opacity:0.58},
-  {min:65, color:'#FF00F5',label:'Extreme, hail likely',    cls:'extreme',  opacity:0.60}
+  {min:15, color:'#1F51FF',label:'Drizzle',                 cls:'drizzle',  opacity:0.16},
+  {min:20, color:'#001F8F',label:'Light rain',              cls:'light',    opacity:0.22},
+  {min:25, color:'#90EE90',label:'Light–moderate rain',     cls:'light2',   opacity:0.26},
+  {min:30, color:'#39FF14',label:'Moderate rain',           cls:'moderate', opacity:0.30},
+  {min:35, color:'#355E3B',label:'Moderate–heavy rain',     cls:'moderate2',opacity:0.35},
+  {min:40, color:'#FFFF00',label:'Heavy rain',              cls:'heavy',    opacity:0.40},
+  {min:45, color:'#FF8C00',label:'Very heavy rain',         cls:'intense',  opacity:0.48},
+  {min:50, color:'#FF1E1E',label:'Intense',                 cls:'mod-severe',opacity:0.54},
+  {min:55, color:'#800000',label:'Severe',                  cls:'severe',   opacity:0.57},
+  {min:60, color:'#FF00FF',label:'Severe, hail possible',   cls:'severe2',  opacity:0.59},
+  {min:65, color:'#FF69B4',label:'Extreme, hail likely',    cls:'extreme',  opacity:0.62}
 ];
 function _dbzEntry(dbz){for(let i=DBZ_SCALE.length-1;i>=0;i--){if(dbz>=DBZ_SCALE[i].min)return DBZ_SCALE[i]}return DBZ_SCALE[0]}
 function stormCat(dbz){
   const e=_dbzEntry(dbz);
   const m=S.radarMetric;
-  const rainMap={0:m?'trace':'trace',5:m?'<0.25 mm/hr':'<0.01 in/hr',15:m?'0.25 mm/hr':'0.01 in/hr',20:m?'0.6 mm/hr':'0.02 in/hr',31:m?'2.7 mm/hr':'0.10 in/hr',41:m?'1.1 cm/hr':'0.45 in/hr',46:m?'2.3 cm/hr':'0.92 in/hr',52:m?'5 cm/hr':'2 in/hr',60:m?'10 cm/hr':'4 in/hr',65:m?'>20 cm/hr':'>8 in/hr'};
+  const rainMap={0:m?'trace':'trace',5:m?'<0.25 mm/hr':'<0.01 in/hr',15:m?'0.25 mm/hr':'0.01 in/hr',20:m?'0.6 mm/hr':'0.02 in/hr',25:m?'1.3 mm/hr':'0.05 in/hr',30:m?'2.7 mm/hr':'0.10 in/hr',35:m?'6.4 mm/hr':'0.25 in/hr',40:m?'1.1 cm/hr':'0.45 in/hr',45:m?'2.3 cm/hr':'0.92 in/hr',50:m?'3.8 cm/hr':'1.5 in/hr',55:m?'5 cm/hr':'2 in/hr',60:m?'10 cm/hr':'4 in/hr',65:m?'>20 cm/hr':'>8 in/hr'};
   return{label:e.label,cls:e.cls,color:e.color,rain:rainMap[e.min]||'trace'};
 }
 function dbzHex(dbz){return _dbzEntry(dbz).color}

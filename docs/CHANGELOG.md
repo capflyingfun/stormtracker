@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.07
+
+  **Radar palette: 5 dBZ stepped colors to match real radar.**
+
+  - Reworked the master `DBZ_SCALE` in `docs/js/core.js` so reflectivity steps in 5 dBZ increments. ≤20 dBZ stays blue (15 neon blue `#1F51FF`, 20 navy `#001F8F`), then green (25 light `#90EE90`, 30 neon `#39FF14`, 35 hunter `#355E3B`), 40 yellow `#FFFF00`, 45 orange `#FF8C00`, 50 neon red `#FF1E1E`, 55 maroon `#800000`, 60 magenta `#FF00FF`, 65 pink `#FF69B4`. Sub-15 sprinkle/trace blues unchanged.
+  - `stormCat` rain-rate map extended to the new 25/35/50 bins (imperial + metric). All consumers (radar tiles, sonar, storm cells, 3D view via `_dbzEntry`, the radar legend via `DBZ_BINS`, and AI `[!dbz]` tags) inherit the palette automatically.
+  - **Cache bumped** — `?v=605` / `stormtracker-v605`.
+
   ## v5.06
 
   **UX: single slide toggle for Background Storm Alerts + 30s lockup safety.**
