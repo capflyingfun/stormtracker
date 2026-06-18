@@ -304,8 +304,8 @@ let _rainOverheadCooldown=0;
 try{_rainOverheadCooldown=parseInt(localStorage.getItem('st_rovCooldown'))||0}catch(e){}
 // "Raining right over you" — reads the shared radar-over-user band
 // (rainOverUserNow) so it agrees with the conditions card, then fires when that
-// dBZ falls in an enabled band, throttled by that band's cadence. Independent of
-// any inbound storm.
+// dBZ falls in an enabled band, throttled by its own rovMin timer (not the band's
+// cadence). Independent of any inbound storm.
 function checkRainOverheadAlert(){
   const bands=_loadAlertBands();
   if(!bands.rovOn)return;
