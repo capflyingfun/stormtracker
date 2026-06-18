@@ -494,8 +494,17 @@ async function run() {
 
       // --- Single merged digest ---
       if (items.length) {
-        const triggered = items.some(it => { const cd = it.cooldownMs != null ? it.cooldownMs : COOLDOWN[it.kind]; return it.cks.some(ck => now - (lastAlert[ns + ck] || 0) >= cd); });
-        if (triggered) {
+        // An item is "due" when one of its dedupe keys has passed THAT item's own
+        // cooldown (its band cadence for storm/rain-overhead, else the per-kind
+        // default). The digest fires if ANY item is due and still shows the full
+        // active picture, but on send we reset the cooldown ONLY for the items
+        // that were actually due — so a fast-cadence alert (e.g. severe rain every
+        // 5 min) never keeps resetting a slower sibling sharing the digest (a
+        // 10-min light band, a 12h NWS warning), which is what makes each band's
+        // re-notify cadence actually hold instead of collapsing to the fastest.
+        const isDue = it => { const cd = it.cooldownMs != null ? it.cooldownMs : COOLDOWN[it.kind]; return it.cks.some(ck => now - (lastAlert[ns + ck] || 0) >= cd); };
+        const dueItems = items.filter(isDue);
+        if (dueItems.length) {
           let title, body;
           if (items.length === 1) { title = items[0].titleSingle + (sub.name ? ' · ' + sub.name : ''); body = items[0].body; }
           else {
@@ -544,8 +553,8 @@ async function run() {
           const r = await trySend(sub, payload, { TTL: 1800, urgency });
           if (r === 'ok') {
             sent++; st.dirty = true;
-            items.forEach(i => i.cks.forEach(ck => { lastAlert[ns + ck] = now; }));
-            console.log(`  ✓ ${sub.name || key}: digest ${items.length} item(s) [${items.map(i => i.kind).join(',')}]`);
+            dueItems.forEach(i => i.cks.forEach(ck => { lastAlert[ns + ck] = now; }));
+            console.log(`  ✓ ${sub.name || key}: digest ${items.length} item(s) [${items.map(i => i.kind).join(',')}], reset ${dueItems.length} due`);
           } else if (r === 'dead') st.dead = true;
         }
       }
