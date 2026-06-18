@@ -7,18 +7,18 @@
 // Persistent VAPID public key (private half lives only in the scanner secrets).
 const PUSH_VAPID_PUBLIC_KEY = 'BArKCxdh8nMmYi1LTdBQj-R_G0nDiBvbm5EvS4KIvcT5nUo45tiovDzkagdfG-1n2v_i0LGQz0VzUNBMfqlZG5Y';
 
-// Deployed Cloudflare Worker that stores push subscriptions in D1. Baked in so
-// alerts work out-of-the-box without the user pasting a sync URL. Override by
-// setting st_pushApiUrl (or the sync server URL) in localStorage.
+// Deployed Cloudflare Worker that stores push subscriptions in D1. The push API
+// (/subscribe, /unsubscribe) lives ONLY on this worker, so push always targets it
+// — independent of the settings-sync server URL. Override with st_pushApiUrl.
 const PUSH_API_DEFAULT = 'https://stormtracker-proxy.joshua-622.workers.dev';
 
 function _pushApiUrl() {
-  // Priority: explicit push override -> configured sync server -> baked default.
+  // Priority: explicit push override -> baked worker default. We deliberately do
+  // NOT fall back to st_syncApiUrl: a stale/other sync URL there returns 404
+  // ("Not found") for /subscribe, which previously blocked enabling alerts.
   try {
     const override = localStorage.getItem('st_pushApiUrl');
     if (override) return override.replace(/\/+$/, '');
-    const sync = (typeof _syncApiUrl === 'function' ? _syncApiUrl() : (localStorage.getItem('st_syncApiUrl') || ''));
-    if (sync) return sync.replace(/\/+$/, '');
     return PUSH_API_DEFAULT;
   } catch (e) { return PUSH_API_DEFAULT; }
 }
