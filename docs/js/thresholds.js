@@ -132,7 +132,7 @@ const _STORM_ALERT_DEFS=[
   {key:'stormImpact',label:'Impact Score',icon:'🎯',unit:'%',defVal:50,defOn:false,step:5,
     check:(storm,th)=>{const v=storm.impactPct;if(v==null||v<=0)return null;if(v<th)return null;const b=storm._brief||(typeof calcStormETAForBriefing==='function'?calcStormETAForBriefing(storm):null);const cls=b&&b.classification;if(cls&&typeof isInboundTier==='function'&&!isInboundTier(cls))return null;const miss=(b&&b.perpMissMi!=null)?b.perpMissMi:storm.distance;const tier=(miss!=null&&typeof perpTier==='function')?perpTier(miss):null;const tierLbl=tier?', '+tier.label:'';return{val:v,u:'%',msg:`🌩️ Storm cell impact ${v}% — above your ${th}% threshold (${storm.dbz} dBZ, ${parseFloat(storm.distance.toFixed(1))} mi, tier: ${storm.impactTier}${tierLbl})`}}}
 ];
-const _STORM_ALERT_COOLDOWN=(function(){try{const s=localStorage.getItem('st_stormAlertCooldown');if(s){const o=JSON.parse(s);const now=Date.now();Object.keys(o).forEach(k=>{if(now-o[k]>1800000)delete o[k]});return o}}catch(e){}return{}})();
+const _STORM_ALERT_COOLDOWN=(function(){try{const s=localStorage.getItem('st_stormAlertCooldown');if(s){const o=JSON.parse(s);const now=Date.now();Object.keys(o).forEach(k=>{if(now-o[k]>7200000)delete o[k]});return o}}catch(e){}return{}})();
 let _stormAlertHistory=JSON.parse(localStorage.getItem('st_stormAlertHistory')||'[]');
 function _loadStormThresholds(){
   try{const s=localStorage.getItem('st_stormThresholds');if(s)return JSON.parse(s)}catch(e){}
