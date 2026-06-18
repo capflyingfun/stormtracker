@@ -5,11 +5,15 @@
 //   * Inbound storm cells  (ported radar detection, detect.js)
 //   * Weather thresholds   (Open-Meteo conditions vs the user's in-app alert
 //                           settings — wind/gust/temp/pressure/rain/humidity/
-//                           visibility/UV, alerts.js)
+//                           visibility, alerts.js)
 //   * NWS active warnings  (api.weather.gov at the point; US only, alerts.js)
-// Each alert type is deduped independently in the per-subscriber `last_alert`
-// map (namespaced keys sc_/wx_/nws_) so a sustained system doesn't re-notify
-// every run.
+//   * Tropical systems     (NHC cone / proximity, ahead of any local NWS watch;
+//                           tropical.js)
+// Every active alert for a subscriber is merged into ONE digest notification
+// that lists them all, rather than separate pushes per type. Each item is
+// deduped independently in the per-subscriber `last_alert` map (namespaced keys
+// sc_/wx_/nws_/trop_) so a sustained system doesn't re-notify every run; the
+// digest sends whenever at least one item is fresh and shows the full picture.
 //
 // Required env (set as GitHub Actions secrets):
 //   WORKER_URL          e.g. https://stormtracker-proxy.<acct>.workers.dev
@@ -23,6 +27,7 @@ import {
   scanLocation, haversine, bearingDeg, calcImpact, calcETA, degToDir,
 } from './detect.js';
 import { fetchConditions, evalWx, fetchNws, nwsIcon } from './alerts.js';
+import { fetchTropical, evalTropical } from './tropical.js';
 
 const WORKER_URL = (process.env.WORKER_URL || '').replace(/\/$/, '');
 const SCANNER_SECRET = process.env.SCANNER_SECRET || '';
@@ -35,9 +40,9 @@ const SITE_URL = 'https://capflyingfun.github.io/StormTracker/';
 // Per-alert-type dedupe (re-notify) and prune (forget) windows, keyed by the
 // prefix of each dedupe key. Storm cells move fast (short window); a standing
 // NWS warning or weather condition shouldn't re-buzz for hours.
-const COOLDOWN = { sc: 30 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000 };
-const PRUNE = { sc: 2 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000 };
-function keyKind(k) { const p = String(k).split('_')[0]; return p === 'wx' ? 'wx' : p === 'nws' ? 'nws' : 'sc'; }
+const COOLDOWN = { sc: 30 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000, trop: 12 * 60 * 60 * 1000 };
+const PRUNE = { sc: 2 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
+function keyKind(k) { const p = String(k).split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop') ? p : 'sc'; }
 
 // Storm-cell defaults mirror the app's intent: inbound + reasonably strong.
 const DEF = { dbz: 40, impact: 50, dist: 60, radius: 80 };
@@ -128,6 +133,14 @@ async function run() {
   }
   console.log(`Scan groups: ${groups.size}`);
 
+  // Tropical systems are global, not per-location — fetch once and reuse.
+  let tropical = [];
+  const wantTrop = subs.some(s => { const t = s.thresholds && s.thresholds.tropical; return !t || t.on !== false; });
+  if (wantTrop) {
+    try { tropical = await fetchTropical(); console.log(`Tropical systems active: ${tropical.length}`); }
+    catch (e) { console.warn(`tropical fetch failed: ${e.message}`); }
+  }
+
   const now = Date.now();
   let sent = 0;
 
@@ -169,6 +182,13 @@ async function run() {
       });
       let dirty = false, dead = false;
 
+      // Collect EVERY currently-active alert for this subscriber across all
+      // sources into one list. We send a single digest notification listing them
+      // all; each item carries its own dedupe key(s). The digest fires whenever
+      // at least one item is "fresh" (past its per-type cooldown), but shows the
+      // full active picture and resets every listed item's cooldown.
+      const items = [];
+
       // --- Storm cells ---
       if (cells.length) {
         const personal = cells.map(c => {
@@ -183,51 +203,59 @@ async function run() {
           c.distance <= th.radius && c.approaching &&
           c.dbz >= th.dbz && c.impactPct >= th.impact && c.distance <= th.dist
         );
-        const fresh = hits.filter(c => {
-          const ck = `sc_${Math.round(c.bearing / 10)}_${Math.round(c.distance / 3)}`;
-          c._ck = ck;
-          return now - (lastAlert[ck] || 0) >= COOLDOWN.sc;
-        });
-        if (fresh.length) {
-          const best = fresh.slice().sort((a, b) => (b.impactPct - a.impactPct) || (b.dbz - a.dbz))[0];
-          const payload = JSON.stringify({
-            title: '🌩️ StormTracker Alert', body: fmtStormBody(best, fresh.length, mv),
-            tag: 'storm-cell-alert', url: SITE_URL,
-          });
-          const r = await trySend(sub, payload, { TTL: 1800, urgency: 'high' });
-          if (r === 'ok') { sent++; dirty = true; fresh.forEach(c => { lastAlert[c._ck] = now; }); console.log(`  ✓ ${sub.name || key}: ${fmtStormBody(best, fresh.length, mv)}`); }
-          else if (r === 'dead') dead = true;
+        if (hits.length) {
+          const best = hits.slice().sort((a, b) => (b.impactPct - a.impactPct) || (b.dbz - a.dbz))[0];
+          const body = fmtStormBody(best, hits.length, mv);
+          const cks = hits.map(c => `sc_${Math.round(c.bearing / 10)}_${Math.round(c.distance / 3)}`);
+          items.push({ kind: 'sc', urgency: 'high', cks, display: `🌩️ ${body}`, titleSingle: '🌩️ StormTracker Alert', body });
         }
       }
 
       // --- Weather thresholds (mirror the app's in-app alert settings) ---
-      if (!dead && conditions && sub.thresholds && sub.thresholds.wx) {
+      if (conditions && sub.thresholds && sub.thresholds.wx) {
         const breaches = evalWx(conditions, sub.thresholds.wx, sub.thresholds.units || {});
-        const fresh = breaches.filter(b => { b._ck = 'wx_' + b.key; return now - (lastAlert[b._ck] || 0) >= COOLDOWN.wx; });
-        if (fresh.length) {
-          const payload = JSON.stringify({
-            title: fresh.length > 1 ? `⚠️ ${fresh.length} weather alerts` : '⚠️ StormTracker Weather Alert',
-            body: fresh.map(b => b.msg).join(' · '),
-            tag: 'wx-alert', url: SITE_URL,
-          });
-          const r = await trySend(sub, payload, { TTL: 3600, urgency: 'normal' });
-          if (r === 'ok') { sent++; dirty = true; fresh.forEach(b => { lastAlert[b._ck] = now; }); console.log(`  ✓ ${sub.name || key}: wx ${fresh.map(b => b.key).join(',')}`); }
-          else if (r === 'dead') dead = true;
+        for (const b of breaches) {
+          items.push({ kind: 'wx', urgency: 'normal', cks: ['wx_' + b.key], display: b.msg, titleSingle: '⚠️ StormTracker Weather Alert', body: b.msg });
         }
       }
 
       // --- NWS active warnings (US) ---
       const nwsOn = !sub.thresholds || sub.thresholds.nws !== false;
-      if (!dead && nwsOn && nwsAlerts.length) {
-        const fresh = nwsAlerts.filter(a => { a._ck = 'nws_' + a.id; return now - (lastAlert[a._ck] || 0) >= COOLDOWN.nws; });
-        if (fresh.length) {
-          const top = fresh[0];
-          const title = fresh.length > 1 ? `🚨 ${fresh.length} new weather warnings` : `${nwsIcon(top.event)} ${top.event}`;
-          const body = fresh.length > 1 ? fresh.map(a => a.event).join(', ') : (top.headline || top.area || top.event);
-          const payload = JSON.stringify({ title, body, tag: 'nws-alert', url: SITE_URL });
-          const r = await trySend(sub, payload, { TTL: 3600, urgency: 'high' });
-          if (r === 'ok') { sent++; dirty = true; fresh.forEach(a => { lastAlert[a._ck] = now; }); console.log(`  ✓ ${sub.name || key}: NWS ${fresh.map(a => a.event).join(', ')}`); }
-          else if (r === 'dead') dead = true;
+      if (nwsOn && nwsAlerts.length) {
+        for (const a of nwsAlerts) {
+          const ic = nwsIcon(a.event);
+          items.push({ kind: 'nws', urgency: 'high', cks: ['nws_' + a.id], display: `${ic} ${a.event}`, titleSingle: `${ic} ${a.event}`, body: a.headline || a.area || a.event });
+        }
+      }
+
+      // --- Tropical systems (NHC cone / proximity, ahead of any local NWS watch) ---
+      const tropCfg = sub.thresholds && sub.thresholds.tropical;
+      const tropOn = !tropCfg || tropCfg.on !== false;
+      if (tropOn && tropical.length) {
+        const tropRadius = (tropCfg && num(tropCfg.radius, 0)) || 200;
+        for (const t of evalTropical(tropical, sub.lat, sub.lon, tropRadius)) {
+          items.push({ kind: 'trop', urgency: t.urgency, cks: ['trop_' + t.ck], display: t.msg, titleSingle: '🌀 Tropical Cyclone Alert', body: t.msg });
+        }
+      }
+
+      // --- Single merged digest ---
+      if (items.length) {
+        const triggered = items.some(it => it.cks.some(ck => now - (lastAlert[ck] || 0) >= COOLDOWN[it.kind]));
+        if (triggered) {
+          let title, body;
+          if (items.length === 1) { title = items[0].titleSingle; body = items[0].body; }
+          else {
+            title = `🚨 ${items.length} alerts${sub.name ? ' · ' + sub.name : ''}`;
+            body = items.map(i => i.display).join('\n');
+          }
+          const urgency = items.some(i => i.urgency === 'high') ? 'high' : 'normal';
+          const payload = JSON.stringify({ title, body, tag: 'stormtracker-digest', url: SITE_URL });
+          const r = await trySend(sub, payload, { TTL: 1800, urgency });
+          if (r === 'ok') {
+            sent++; dirty = true;
+            items.forEach(i => i.cks.forEach(ck => { lastAlert[ck] = now; }));
+            console.log(`  ✓ ${sub.name || key}: digest ${items.length} item(s) [${items.map(i => i.kind).join(',')}]`);
+          } else if (r === 'dead') dead = true;
         }
       }
 
