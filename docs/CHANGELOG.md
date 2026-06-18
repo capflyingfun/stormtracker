@@ -3,6 +3,16 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.15
+
+  **New opt-in "Drizzle / very light" overhead alert for sub-band rain (10–19 dBZ), below the Light band floor.**
+
+  - **Why** — the "rain right over you" / Light-band alerts gate at `dbz >= 20` (`bandForDbz` returns null below 20) in both the app and the scanner. Genuinely light drizzle often reads under 20 dBZ, so it stayed silent while the Rain Clock (more sensitive read) still showed rain — a threshold/expectation mismatch, not a bug.
+  - **New tier** — a standalone "🌦️ Drizzle / very light (10–19 dBZ)" toggle + cadence dropdown sits right under "🌧️ Rain right over you" in `renderAlertBandSettings()`. Stored as `drizOn`/`drizMin` in `st_alertBands` (default OFF / 15 min; same `0/5/10/15/30/45/60` options). Wired via `toggleDrizzle()`/`setDrizCadence()`/`drizCadenceMin()` and a new branch in `checkRainOverheadAlert()` (fires when `_DRIZ_MIN_DBZ`≤dbz<20, own `_drizzleCooldown`). The Light band (20–29) is unchanged.
+  - **Scanner parity** — `bandsFor()` returns `drizOn`/`drizMin` (legacy/partial subs default off / 15 min); a new build-loop branch pushes a `driz` item when `10 ≤ overheadDbz < 20`. New `driz` category (own tag, `🌦️` icon) added to `CAT_META`/`CAT_ORDER`/`COOLDOWN`/`PRUNE`/`keyKind`. Mutually exclusive with `rov` (≥20), so no double-fire.
+  - **No D1/worker change** — `drizOn`/`drizMin` ride in the free-form `thresholds.bands` JSON; older subscriptions keep working (drizzle simply off) until they re-subscribe.
+  - **Cache bumped** — `?v=613` / `stormtracker-v613`.
+
   ## v5.14
 
   **NWS & Tropical re-notify cadence is now severity-based + configurable, and background pushes are split BY TYPE.**

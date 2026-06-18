@@ -40,9 +40,9 @@ const SITE_URL = 'https://capflyingfun.github.io/StormTracker/';
 // Per-alert-type dedupe (re-notify) and prune (forget) windows, keyed by the
 // prefix of each dedupe key. Storm cells move fast (short window); a standing
 // NWS warning or weather condition shouldn't re-buzz for hours.
-const COOLDOWN = { sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, rov: 5 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000, trop: 12 * 60 * 60 * 1000 };
-const PRUNE = { sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, rov: 2 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
-function keyKind(k) { const s = String(k); const base = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s; const p = base.split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg' || p === 'rov') ? p : 'sc'; }
+const COOLDOWN = { sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, rov: 5 * 60 * 1000, driz: 15 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000, trop: 12 * 60 * 60 * 1000 };
+const PRUNE = { sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, rov: 2 * 60 * 60 * 1000, driz: 2 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
+function keyKind(k) { const s = String(k); const base = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s; const p = base.split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg' || p === 'rov' || p === 'driz') ? p : 'sc'; }
 
 // --- NWS / Tropical re-notify cadence ---------------------------------------
 // Each NWS severity tier has its OWN re-notify cadence (minutes). Warnings and
@@ -113,6 +113,8 @@ function bandsFor(sub) {
   const out = {
     rovOn: raw ? raw.rovOn !== false : true,
     rovMin: (raw && BAND_CADENCE_OPTS.includes(raw.rovMin)) ? raw.rovMin : 5,
+    drizOn: raw ? raw.drizOn === true : false,
+    drizMin: (raw && BAND_CADENCE_OPTS.includes(raw.drizMin)) ? raw.drizMin : 15,
   };
   for (const b of BAND_DEFS) {
     const c = (raw && raw[b.key]) || {};
@@ -493,6 +495,16 @@ async function run() {
         }
       }
 
+      // --- Drizzle / very light right over you (opt-in, sub-band 10–19 dBZ) ---
+      // Below the Light band floor (20 dBZ); its own toggle + cadence so users can
+      // opt into pings on barely-there rain without changing the band system.
+      if (bands.drizOn && overheadDbz != null && overheadDbz >= 10 && overheadDbz < 20) {
+        const dbz = Math.round(overheadDbz);
+        const cooldownMs = bands.drizMin * 60000;
+        const body = `🌦️ Drizzle right over you — very light (${dbz} dBZ)`;
+        items.push({ kind: 'driz', cat: 'driz', urgency: 'normal', cks: ['driz'], cooldownMs, display: body, titleSingle: '🌦️ Drizzle Overhead', body });
+      }
+
       // --- Weather thresholds (mirror the app's in-app alert settings) ---
       if (conditions && sub.thresholds && sub.thresholds.wx) {
         const breaches = evalWx(conditions, sub.thresholds.wx, sub.thresholds.units || {});
@@ -553,11 +565,12 @@ async function run() {
           'sc':        { icon: '🌩️', noun: 'storm alerts' },
           'ltg':       { icon: '⚡', noun: 'lightning alerts' },
           'rov':       { icon: '🌧️', noun: 'rain alerts' },
+          'driz':      { icon: '🌦️', noun: 'drizzle alerts' },
           'nws-watch': { icon: '👁️', noun: 'watches' },
           'wx':        { icon: '⚠️', noun: 'weather alerts' },
           'nws-adv':   { icon: 'ℹ️', noun: 'advisories' },
         };
-        const CAT_ORDER = ['trop', 'nws-warn', 'sc', 'ltg', 'rov', 'nws-watch', 'wx', 'nws-adv'];
+        const CAT_ORDER = ['trop', 'nws-warn', 'sc', 'ltg', 'rov', 'driz', 'nws-watch', 'wx', 'nws-adv'];
         const catOf = it => it.cat || it.kind;
         const cats = [...new Set(items.map(catOf))]
           .sort((a, b) => { const ia = CAT_ORDER.indexOf(a), ib = CAT_ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
