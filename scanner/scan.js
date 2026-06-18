@@ -48,6 +48,13 @@ function keyKind(k) { const p = String(k).split('_')[0]; return (p === 'wx' || p
 const DEF = { dbz: 40, impact: 50, dist: 60, radius: 80 };
 const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
 
+// Randomized scan cadence (like GameMaker's choose). The GitHub cron should fire
+// every 5 min; on each tick we only actually scan once the randomly-chosen gap
+// has elapsed, then roll the next gap and persist it in the Worker/D1 so the
+// stateless next run knows when it's due. Most ticks just exit immediately.
+const SCAN_GAPS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
+const choose = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
 function fail(msg) { console.error('FATAL:', msg); process.exit(1); }
 
 async function getSubscribers() {
@@ -55,6 +62,28 @@ async function getSubscribers() {
   if (!r.ok) throw new Error(`/subscriptions HTTP ${r.status}`);
   const d = await r.json();
   return d.subscribers || [];
+}
+
+// Shared "next scan due" timestamp (epoch ms) stored in the Worker/D1 so the
+// randomized cadence survives across stateless cron runs.
+async function getScanDue() {
+  try {
+    const r = await fetch(`${WORKER_URL}/scan-due`, { headers: { 'x-scanner-secret': SCANNER_SECRET } });
+    if (!r.ok) { console.warn(`/scan-due GET HTTP ${r.status}`); return 0; }
+    const d = await r.json();
+    return Number(d.due) || 0;
+  } catch (e) { console.warn('scan-due GET failed:', e.message); return 0; }
+}
+
+async function setScanDue(due) {
+  try {
+    const r = await fetch(`${WORKER_URL}/scan-due`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-scanner-secret': SCANNER_SECRET },
+      body: JSON.stringify({ due }),
+    });
+    if (!r.ok) console.warn(`/scan-due POST HTTP ${r.status}`);
+  } catch (e) { console.warn('scan-due POST failed:', e.message); }
 }
 
 async function markAlert(endpoint, lastAlert) {
@@ -121,6 +150,23 @@ async function run() {
   if (!SCANNER_SECRET) fail('SCANNER_SECRET not set');
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) fail('VAPID keys not set');
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+
+  // Randomized cadence gate. The cron fires every 5 min, but a scheduled tick
+  // only proceeds once the previously-rolled random gap has elapsed. Manual
+  // (workflow_dispatch) runs always scan so testing stays immediate.
+  const manual = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch';
+  if (!manual) {
+    const due = await getScanDue();
+    if (due && Date.now() < due) {
+      console.log(`Not due yet — next scan in ~${Math.ceil((due - Date.now()) / 60000)} min. Skipping tick.`);
+      return;
+    }
+  }
+  // Committed to scanning this tick — roll the next random gap now so even an
+  // early return below (e.g. no subscribers) keeps the cadence rolling.
+  const gap = choose(SCAN_GAPS);
+  await setScanDue(Date.now() + gap * 60 * 1000);
+  console.log(`Scanning now. Next scan in ~${gap} min.`);
 
   const subs = await getSubscribers();
   console.log(`Subscribers: ${subs.length}`);

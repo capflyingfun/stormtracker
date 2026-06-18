@@ -162,8 +162,33 @@ export default {
       return json({ ok: true });
     }
 
+    // Shared scheduler state for the randomized scan cadence. The scanner reads
+    // the "next due" timestamp on each cron tick and writes the next one after
+    // it scans. Guarded by the same scanner secret as /subscriptions.
+    if (path === '/scan-due') {
+      if (!env.SCANNER_SECRET || request.headers.get('x-scanner-secret') !== env.SCANNER_SECRET) {
+        return json({ error: 'unauthorized' }, 401);
+      }
+      if (!env.DB) return json({ error: 'D1 not configured' }, 500);
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)').run();
+      if (request.method === 'GET') {
+        const row = await env.DB.prepare("SELECT value FROM meta WHERE key = 'scan_due'").first();
+        return json({ due: row ? Number(row.value) || 0 : 0 });
+      }
+      if (request.method === 'POST') {
+        let b;
+        try { b = await request.json(); } catch { return json({ error: 'bad json' }, 400); }
+        const due = Number(b.due) || 0;
+        await env.DB.prepare(
+          "INSERT INTO meta (key, value) VALUES ('scan_due', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        ).bind(String(due)).run();
+        return json({ ok: true, due });
+      }
+      return json({ error: 'method not allowed' }, 405);
+    }
+
     return new Response(
-      'StormTracker Worker\n\nProxy:\n  /metar?ids=KPNS&format=raw\n  /taf?ids=KPNS&format=raw\n\nPush API:\n  POST /subscribe\n  POST /unsubscribe\n  GET  /subscriptions (scanner)\n  POST /mark-alert    (scanner)\n',
+      'StormTracker Worker\n\nProxy:\n  /metar?ids=KPNS&format=raw\n  /taf?ids=KPNS&format=raw\n\nPush API:\n  POST /subscribe\n  POST /unsubscribe\n  GET  /subscriptions (scanner)\n  POST /mark-alert    (scanner)\n  GET/POST /scan-due  (scanner)\n',
       { headers: { 'Content-Type': 'text/plain', ...CORS } }
     );
   },
