@@ -3,6 +3,16 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.96
+
+**Fix: background push rejected by Apple (`VapidPkHashMismatch`).**
+
+- Root cause: the VAPID keypair the GitHub Actions scanner signs with no longer matched the `applicationServerKey` the iOS/macOS subscription was created with, so every push to `web.push.apple.com` returned HTTP 400 `{"reason":"VapidPkHashMismatch"}` and `Notifications sent: 0` despite the scan correctly detecting alerts. (Apple strictly enforces the public-key hash; FCM is more lenient, which masked the issue earlier.)
+- Fix: rotated to a single fresh VAPID keypair used on **both** ends — the private/public halves are stored in the GitHub Actions secrets (`VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`) and the matching public key is embedded as `PUSH_VAPID_PUBLIC_KEY` in `docs/js/push.js`.
+- `scanner/scan.js` `trySend()` now logs the push-service error body, host, and payload size on failure, so future delivery errors are diagnosable from the Actions log.
+- **Action needed:** rotating VAPID keys invalidates existing subscriptions. Subscribers must open Settings → Background Storm Alerts and tap **Disable** then **Enable** once to re-register.
+- **Cache bumped** — `?v=594` / `stormtracker-v594`.
+
 ## v4.95
 
 **One digest notification per scan + tropical (NHC) coverage.**
