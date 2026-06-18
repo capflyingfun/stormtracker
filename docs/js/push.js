@@ -149,7 +149,7 @@ async function disablePushAlerts() {
     if (base && (cur || sub)) {
       await fetch(base + '/unsubscribe', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: (cur && cur.endpoint) || (sub && sub.endpoint) }),
+        body: JSON.stringify({ endpoint: (sub && sub.endpoint) || (cur && cur.endpoint) }),
         signal: AbortSignal.timeout(10000),
       });
     }
