@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.04
+
+  **Fix: Background Storm Alerts panel could render blank (push.js was never precached).**
+
+  - `docs/sw.js` `STATIC_ASSETS` listed every JS module *except* `js/push.js`, so the service worker never precached it. `push.js` only loaded via a live network fetch (network-first with cache fallback) — and since it was never cached, an offline/flaky fetch left `renderPushAlertSettings` undefined. `settings.js` guards that call with `typeof renderPushAlertSettings==='function'`, so it silently skipped, leaving the Background Storm Alerts section (status badge, controls, on/off toggle, manage code) empty while the other settings sections (from precached `thresholds.js`) rendered fine. Added `/StormTracker/js/push.js` to the precache list so it's always available offline like the other modules.
+  - **Why it surfaced now:** `push.js` was added with the background-alerts feature but never added to the SW precache list; the gap only bites on weak/offline connections (e.g. LTE).
+  - **Cache bumped** — `?v=602` / `stormtracker-v602`.
+
   ## v5.03
 
   **Fixed scan cadence — steady every 5 minutes (randomizer removed).**
