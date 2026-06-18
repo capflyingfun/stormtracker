@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.94
+
+**Full "fresh open" background scan — every alert type now pushes, not just storm cells.**
+
+- New `scanner/alerts.js`: keyless Open-Meteo current conditions for the weather threshold alerts (wind, gusts, temp, pressure, rain, humidity, visibility — comparisons ported verbatim from `_WX_ALERT_DEFS`) and `api.weather.gov` active NWS warnings at the point (US). UV is intentionally omitted to stay at parity with the app, whose UV alert is currently inert.
+- `scanner/scan.js` now runs storms + weather thresholds + NWS for each location every cron, with independent per-type dedupe/prune windows (`sc_`/`wx_`/`nws_` keys in `last_alert`). No D1 migration — the `thresholds`/`last_alert` columns are free-form JSON.
+- `docs/js/push.js` subscription now carries the user's in-app weather thresholds (`st_wxThresholds`) + unit prefs + an NWS warnings toggle, so background pushes match the in-app alerts exactly. Existing subscribers default to NWS warnings ON.
+- **Cache bumped** — `?v=592` / `stormtracker-v592`.
+
 ## v4.93
 
 **Clearer Background Storm Alerts on/off state.**
