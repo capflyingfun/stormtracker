@@ -69,7 +69,10 @@ function bandLabel(key) { const b = BAND_DEFS.find(x => x.key === key); return b
 // missing field so partial/legacy payloads behave like the in-app defaults.
 function bandsFor(sub) {
   const raw = (sub.thresholds && sub.thresholds.bands) || null;
-  const out = { rovOn: raw ? raw.rovOn !== false : true };
+  const out = {
+    rovOn: raw ? raw.rovOn !== false : true,
+    rovMin: (raw && BAND_CADENCE_OPTS.includes(raw.rovMin)) ? raw.rovMin : 5,
+  };
   for (const b of BAND_DEFS) {
     const c = (raw && raw[b.key]) || {};
     out[b.key] = {
@@ -455,7 +458,7 @@ async function run() {
         const dbz = Math.round(overheadDbz);
         const bk = bandForDbz(dbz);
         if (bk && bands[bk] && bands[bk].on) {
-          const cooldownMs = bands[bk].min * 60000;
+          const cooldownMs = bands.rovMin * 60000;
           const body = `🌧️ Rain right over you — ${bandLabel(bk)} (${dbz} dBZ)`;
           items.push({ kind: 'rov', urgency: bk === 'severe' ? 'high' : 'normal', cks: ['rov'], cooldownMs, display: body, titleSingle: '🌧️ Rain Overhead', body });
         }
