@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v4.97
+
+  **Fix: Background Storm Alerts toggle could get stuck after the v4.96 VAPID rotation.**
+
+  - After the key rotation, a device's existing `PushSubscription` still carried the OLD `applicationServerKey`. The old enable flow did `if (!sub) subscribe(...)`, so it either re-registered the dead old key or hit iOS `InvalidStateError` and silently failed — leaving the toggle unable to flip back to ON.
+  - `docs/js/push.js`: new `_ensureFreshSubscription()` compares the existing subscription's `applicationServerKey` to the current `PUSH_VAPID_PUBLIC_KEY`; on mismatch it unsubscribes and re-subscribes with the current key, with a retry that clears a lingering stale subscription if `subscribe()` throws. `enablePushAlerts()` now uses it. Makes Enable/Update self-healing across future key changes.
+  - **Cache bumped** — `?v=595` / `stormtracker-v595`.
+  
 ## v4.96
 
 **Fix: background push rejected by Apple (`VapidPkHashMismatch`).**
