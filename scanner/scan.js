@@ -485,8 +485,11 @@ async function run() {
       // --- Rain right over you (radar dBZ on the exact spot, no inbound needed) ---
       // Fires whenever the overhead radar value lands in an enabled band, even
       // with nothing approaching. Independent of the storm-cell filter above.
-      if (bands.rovOn && overheadDbz != null && overheadDbz >= 20) {
-        const dbz = Math.round(overheadDbz);
+      // Round once (matches the app's checkRainOverheadAlert) so app + scanner
+      // classify boundary values (e.g. 19.6 → 20) into the SAME category.
+      const ovDbz = overheadDbz != null ? Math.round(overheadDbz) : null;
+      if (bands.rovOn && ovDbz != null && ovDbz >= 20) {
+        const dbz = ovDbz;
         const bk = bandForDbz(dbz);
         if (bk && bands[bk] && bands[bk].on) {
           const cooldownMs = bands.rovMin * 60000;
@@ -498,8 +501,8 @@ async function run() {
       // --- Drizzle / very light right over you (opt-in, sub-band 10–19 dBZ) ---
       // Below the Light band floor (20 dBZ); its own toggle + cadence so users can
       // opt into pings on barely-there rain without changing the band system.
-      if (bands.drizOn && overheadDbz != null && overheadDbz >= 10 && overheadDbz < 20) {
-        const dbz = Math.round(overheadDbz);
+      if (bands.drizOn && ovDbz != null && ovDbz >= 10 && ovDbz < 20) {
+        const dbz = ovDbz;
         const cooldownMs = bands.drizMin * 60000;
         const body = `🌦️ Drizzle right over you — very light (${dbz} dBZ)`;
         items.push({ kind: 'driz', cat: 'driz', urgency: 'normal', cks: ['driz'], cooldownMs, display: body, titleSingle: '🌦️ Drizzle Overhead', body });
