@@ -102,6 +102,44 @@ function _pushLoc() {
   return null;
 }
 
+// --- Per-location (saved favorites) background alerts ---------------------
+// Each saved location gets its own 🔔/🔕 toggle. The enabled ones travel with
+// the subscription (thresholds.locs) so the background scanner sends a separate,
+// location-headed notification for each. State is a simple { locId: true } map.
+function pushLocId(lat, lon) { return `${(+lat).toFixed(3)},${(+lon).toFixed(3)}`; }
+function _pushLocState() {
+  try { const o = JSON.parse(localStorage.getItem('st_pushLocs') || '{}'); return (o && typeof o === 'object') ? o : {}; }
+  catch (e) { return {}; }
+}
+function _setPushLocEnabled(id, on) {
+  const o = _pushLocState();
+  if (on) o[id] = true; else delete o[id];
+  try { localStorage.setItem('st_pushLocs', JSON.stringify(o)); } catch (e) {}
+}
+function isPushLocOn(lat, lon) { return !!_pushLocState()[pushLocId(lat, lon)]; }
+// Saved locations (favorites) the user switched alerts ON for, capped at 5.
+function _enabledPushLocs() {
+  const state = _pushLocState();
+  let favs = [];
+  try { favs = (typeof getFavorites === 'function') ? getFavorites() : []; } catch (e) {}
+  const out = [];
+  for (const f of favs) {
+    if (typeof f.lat !== 'number' || typeof f.lon !== 'number') continue;
+    const id = pushLocId(f.lat, f.lon);
+    if (state[id]) out.push({ id, lat: f.lat, lon: f.lon, name: f.name || 'Saved location' });
+    if (out.length >= 5) break;
+  }
+  return out;
+}
+// The full watch set: the bell-enabled favorites, or — for backward
+// compatibility when none are chosen — the single Home/current location.
+function _watchedPushLocs() {
+  const locs = _enabledPushLocs();
+  if (locs.length) return locs;
+  const home = _pushLoc();
+  return home ? [{ id: pushLocId(home.lat, home.lon), lat: home.lat, lon: home.lon, name: home.name }] : [];
+}
+
 // Full-screen "please wait" overlay with a live count-up timer, shown while a
 // foreground enable/disable/update is in flight. A 30s safety timeout clears it
 // and refreshes the panel if the operation stalls (e.g. permission prompt hangs).
@@ -174,8 +212,9 @@ async function _pushPost(url, body, { timeout = 20000, retries = 1 } = {}) {
 async function enablePushAlerts(silent) {
   const base = _pushApiUrl();
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) { if (!silent) toast('⚠️ Push not supported on this device'); return; }
-  const loc = _pushLoc();
-  if (!loc) { if (!silent) toast('📍 Set a home location first'); return; }
+  const watch = _watchedPushLocs();
+  if (!watch.length) { if (!silent) toast('📍 Set a home location or turn on 🔔 for a saved location first'); return; }
+  const loc = watch[0];
   if (!silent) {
     if (_pushOpInFlight) return; // ignore double-clicks while one action is running
     _showPushBusy('Updating your notification settings, please wait…');
@@ -196,13 +235,14 @@ async function enablePushAlerts(silent) {
         tropical: { on: th.tropical !== false, radius: _pushTropRadius() },
         tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; } })(),
         h24: (typeof _is24h === 'function') ? _is24h() : false,
+        locs: watch,
       },
       code: existing && existing.code ? existing.code : undefined,
     };
     const res = await _pushPost(base + '/subscribe', body, { timeout: 14000, retries: 1 });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'subscribe failed');
-    _setPushSub({ endpoint: sub.endpoint, code: data.code, lat: loc.lat, lon: loc.lon, name: loc.name });
+    _setPushSub({ endpoint: sub.endpoint, code: data.code, lat: loc.lat, lon: loc.lon, name: loc.name, locs: watch });
     if (!silent) toast('🔔 Background storm alerts enabled');
   } catch (e) {
     console.log('[push] enable failed:', e.message);
@@ -317,17 +357,29 @@ function renderPushAlertSettings() {
       <button class="small-btn" onclick="setPushTropical(${th.tropical === false})" style="${th.tropical !== false ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${th.tropical !== false ? 'ON' : 'OFF'}</button>
     </div>
     <div class="setting-hint" style="font-size:0.7em;margin-top:2px">Everything active is bundled into <b>one</b> notification each scan (~5 min). Storm cells use the settings above. <b>NWS warnings</b> (hurricane, tornado, severe, flood, fire) push when active for your area. <b>Tropical systems</b> push when a hurricane/storm comes within your tracking radius (${_pushTropRadius()} mi, set on the map) or your location enters its forecast cone. Weather alerts (wind, temp, rain, humidity, visibility…) mirror your <b>Alerts</b> tab — turn on the ones you want there.</div>`;
+  // Locations currently watched: the chosen saved-location bells, else the
+  // single Home/current fallback (legacy single-location mode).
+  const watched = _watchedPushLocs();
+  const enabledFavs = _enabledPushLocs();
+  const legacy = enabledFavs.length === 0; // watching Home only, no per-location bells
+  const locList = watched.length
+    ? watched.map(l => `<span style="display:inline-block;background:rgba(57,217,138,0.14);border:1px solid rgba(57,217,138,0.35);color:var(--accent-green);border-radius:11px;padding:1px 9px;margin:2px 4px 2px 0;font-size:0.92em">🔔 ${escHtml(l.name || 'Saved location')}</span>`).join('')
+    : '';
+  const bellHint = `<div class="setting-hint" style="font-size:0.7em;margin-top:2px">Turn the 🔔 on any saved location (Location menu → Saved) to watch it too — up to 5, each with its own notification headed by the location's name.</div>`;
   if (sub) {
-    const moved = loc && (Math.abs(loc.lat - sub.lat) > 0.05 || Math.abs(loc.lon - sub.lon) > 0.05);
+    const moved = legacy && loc && (Math.abs(loc.lat - sub.lat) > 0.05 || Math.abs(loc.lon - sub.lon) > 0.05);
     return `
       ${toggle}
-      <div class="setting-hint" style="color:var(--accent-green)">Watching <b>${escHtml(sub.name || 'your location')}</b>. You'll get a push when an inbound storm matches your thresholds, even with the app closed.</div>
+      <div class="setting-hint" style="color:var(--accent-green)">Watching ${watched.length} location${watched.length === 1 ? '' : 's'} — a push fires when an inbound storm matches your thresholds, even with the app closed:</div>
+      <div style="margin:2px 0 4px">${locList || `<b>${escHtml(sub.name || 'your location')}</b>`}</div>
+      ${bellHint}
       ${moved ? `<div class="setting-hint" style="color:var(--accent-yellow);display:flex;align-items:center;gap:8px;flex-wrap:wrap">Your location changed.<button class="small-btn" onclick="enablePushAlerts()" style="padding:1px 8px">↻ Update to ${escHtml(loc.name || 'here')}</button></div>` : ''}
       ${sub.code ? `<div class="setting-row-6"><span class="text-xxs-muted">Manage code</span><span style="font-family:var(--font-mono);font-weight:700;letter-spacing:1px;color:var(--accent-cyan)">${escHtml(sub.code)}</span></div>` : ''}
       ${controls}`;
   }
   return `
     ${toggle}
-    <div class="setting-hint">Get a push notification when a storm is inbound — works even when StormTracker is closed. Scanned server-side every ~5 min for <b>${loc ? escHtml(loc.name) : 'your saved Home location'}</b>. Flip the switch above to turn it on.</div>
+    <div class="setting-hint">Get a push notification when a storm is inbound — works even when StormTracker is closed. Scanned server-side every ~5 min for <b>${watched.length ? watched.map(l => escHtml(l.name)).join(', ') : 'your saved Home location'}</b>. Flip the switch above to turn it on.</div>
+    ${bellHint}
     ${controls}`;
 }

@@ -503,9 +503,12 @@ function saveFavorite(){
 }
 function removeFavorite(idx){
   const favs=getFavorites();
+  const f=favs[idx];
+  if(f&&typeof _setPushLocEnabled==='function'){try{_setPushLocEnabled(pushLocId(f.lat,f.lon),false);}catch(e){}}
   favs.splice(idx,1);
   saveFavorites(favs);
   renderFavorites();
+  try{if(typeof syncPushAlerts==='function')syncPushAlerts();}catch(e){}
 }
 function renameFavorite(idx){
   const favs=getFavorites();
@@ -516,8 +519,25 @@ function renameFavorite(idx){
     favs[idx].name=newName.trim();
     saveFavorites(favs);
     renderFavorites();
+    try{if(typeof syncPushAlerts==='function')syncPushAlerts();}catch(e){}
     toast('Renamed to: '+newName.trim());
   }
+}
+// Toggle the background-push 🔔 for one saved location. Updates the per-location
+// state and, if background alerts are already on, re-pushes the watch set.
+function toggleFavPush(idx){
+  const favs=getFavorites();
+  const f=favs[idx];
+  if(!f)return;
+  if(typeof pushLocId!=='function'||typeof _setPushLocEnabled!=='function'){toast('Notifications not available on this device');return;}
+  const on=!isPushLocOn(f.lat,f.lon);
+  _setPushLocEnabled(pushLocId(f.lat,f.lon),on);
+  renderFavorites();
+  toast(on?'🔔 Background alerts ON for '+f.name:'🔕 Background alerts OFF for '+f.name);
+  try{
+    if(typeof _getPushSub==='function'&&_getPushSub()&&typeof enablePushAlerts==='function') enablePushAlerts(true);
+  }catch(e){}
+  try{if(typeof syncSettingsPanel==='function')syncSettingsPanel();}catch(e){}
 }
 function loadFavorite(idx){
   const favs=getFavorites();
@@ -544,12 +564,16 @@ function renderFavorites(){
   const favs=getFavorites();
   if(!favs.length){el.innerHTML='<div style="font-size:0.7em;color:#555;text-align:center;padding:4px">No favorites saved</div>';return}
   const loggedIn=!!_syncToken&&!!_syncApiUrl();
+  const pushSupported=(typeof pushLocId==='function')&&('serviceWorker' in navigator)&&('PushManager' in window);
   el.innerHTML=favs.map((f,i)=>{
     const emailOn=f.emailAlerts!==false;
     const emailBtn=loggedIn&&_emailAlertsOn?`<button onclick="event.stopPropagation();toggleFavEmailAlert(${i})" style="background:none;border:1px solid ${emailOn?'rgba(0,200,100,0.4)':'var(--border-subtle)'};color:${emailOn?'#00cc66':'var(--text-muted)'};font-size:0.55em;cursor:pointer;padding:1px 5px;border-radius:4px;white-space:nowrap" title="${emailOn?'Email alerts ON':'Email alerts OFF'}">${emailOn?'📬':'📭'}</button>`:'';
+    const pushOn=pushSupported&&isPushLocOn(f.lat,f.lon);
+    const pushBtn=pushSupported?`<button onclick="event.stopPropagation();toggleFavPush(${i})" style="background:none;border:1px solid ${pushOn?'rgba(57,217,138,0.5)':'var(--border-subtle)'};color:${pushOn?'var(--accent-green)':'var(--text-muted)'};font-size:0.6em;cursor:pointer;padding:1px 5px;border-radius:4px;white-space:nowrap" title="${pushOn?'Background storm alerts ON — tap to turn off':'Background storm alerts OFF — tap to turn on'}">${pushOn?'🔔':'🔕'}</button>`:'';
     return`<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;margin:2px 0;background:rgba(255,255,255,0.03);border-radius:6px;cursor:pointer" onclick="loadFavorite(${i})">
     <span class="text-sm">⭐</span>
     <span style="flex:1;font-size:0.75em;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</span>
+    ${pushBtn}
     ${emailBtn}
     <button onclick="event.stopPropagation();goToFavorite(${i})" style="background:none;border:1px solid var(--accent-cyan);color:var(--accent-cyan);font-size:0.6em;cursor:pointer;padding:2px 6px;border-radius:3px;white-space:nowrap;font-weight:500" title="Go to location">GO</button>
     <button onclick="event.stopPropagation();renameFavorite(${i})" style="background:none;border:none;color:var(--accent-cyan);font-size:0.7em;cursor:pointer;padding:2px 4px" title="Rename">✏️</button>
