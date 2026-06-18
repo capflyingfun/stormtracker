@@ -72,7 +72,78 @@ const WX_DEFS = [
   // parity with the app we intentionally do NOT evaluate UV here.
 ];
 
-// Fetch current conditions + 3hr pressure trend + visibility from Open-Meteo.
+// Great-circle distance in miles (units irrelevant — only used to pick the
+// nearest METAR station).
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 3958.8, toR = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toR, dLon = (lon2 - lon1) * toR;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * toR) * Math.cos(lat2 * toR) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// Nearest NWS station latest observation (US only; null elsewhere or on error).
+// Mirrors fetchNWSCurrent() in docs/js/weather.js. NWS returns SI units already
+// (windSpeed/windGust in km/h, temperature in °C, visibility in meters), so the
+// fields drop straight into the blend.
+async function fetchNwsStation(lat, lon) {
+  const pt = await fetch(`https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`, { headers: UA, signal: AbortSignal.timeout(7000) });
+  if (!pt.ok) return null;
+  const pj = await pt.json();
+  const stUrl = pj.properties && pj.properties.observationStations;
+  if (!stUrl) return null;
+  const st = await fetch(stUrl, { headers: UA, signal: AbortSignal.timeout(7000) });
+  if (!st.ok) return null;
+  const sj = await st.json();
+  const nearest = sj.features && sj.features[0];
+  const icao = nearest && nearest.properties && nearest.properties.stationIdentifier;
+  if (!icao) return null;
+  const ob = await fetch(`https://api.weather.gov/stations/${icao}/observations/latest`, { headers: UA, signal: AbortSignal.timeout(7000) });
+  if (!ob.ok) return null;
+  const oj = await ob.json();
+  const p = oj.properties || {};
+  if (!p.temperature || p.temperature.value == null) return null;
+  return {
+    temp: p.temperature.value,
+    windKmh: p.windSpeed ? p.windSpeed.value : null,
+    gustKmh: p.windGust ? p.windGust.value : null,
+    visMeter: p.visibility ? p.visibility.value : null,
+  };
+}
+
+// Nearest AWC METAR (keyless, global). Mirrors _fetchAWCOnce()/fetchAWCNearest()
+// in docs/js/weather.js — knots → km/h, statute miles → meters.
+async function fetchAwcNearest(lat, lon) {
+  let data = [];
+  for (const deg of [1.0, 2.0, 3.5]) {
+    try {
+      const url = `https://aviationweather.gov/api/data/metar?ids=&format=json&taf=false&hours=3&bbox=${(lat - deg).toFixed(2)},${(lon - deg).toFixed(2)},${(lat + deg).toFixed(2)},${(lon + deg).toFixed(2)}`;
+      const r = await fetch(url, { headers: UA, signal: AbortSignal.timeout(8000) });
+      if (!r.ok) continue;
+      data = await r.json();
+      if (Array.isArray(data) && data.length) break;
+    } catch (e) { /* try next bbox */ }
+  }
+  if (!Array.isArray(data) || !data.length) return null;
+  let nearest = null, bd = Infinity;
+  for (const m of data) {
+    if (m.lat == null || m.lon == null) continue;
+    const d = haversine(lat, lon, m.lat, m.lon);
+    if (d < bd) { bd = d; nearest = m; }
+  }
+  if (!nearest) return null;
+  const visMeter = nearest.visib != null
+    ? (String(nearest.visib).includes('+') ? 16093 : (Number(nearest.visib) > 100 ? Number(nearest.visib) : Number(nearest.visib) * 1609.34))
+    : null;
+  return {
+    temp: nearest.temp,
+    windKmh: nearest.wspd != null ? nearest.wspd * 1.852 : null,
+    gustKmh: nearest.wgst != null ? nearest.wgst * 1.852 : null,
+    visMeter,
+  };
+}
+
+// Fetch current conditions + 3hr pressure trend + visibility from Open-Meteo,
+// then blend nearby station obs (NWS + AWC METAR) on top — exactly like the app.
 // Returns the field names the WX_DEFS expect, in metric units (km/h, °C, mm, %,
 // meters, mb) — the same source/units the app's threshold checks consume.
 async function fetchConditions(lat, lon) {
@@ -105,6 +176,35 @@ async function fetchConditions(lat, lon) {
   if (nowIdx >= 3 && pres[nowIdx - 3] != null) {
     out._baroTrendMb = +(pres[nowIdx] - pres[nowIdx - 3]).toFixed(2);
   }
+
+  // Blend nearby station obs (NWS + AWC METAR) on top of the Open-Meteo model,
+  // mirroring blendSources() in docs/js/weather.js. The app overwrites
+  // wind/gust/temp/visibility with this blend BEFORE its threshold checks run, so
+  // a model-only scanner under-reports gusts (real station gusts run higher than
+  // the model) and silently misses the wind-gust alerts the app shows. We blend
+  // the same fields the same way — crucially gust = max(avg gusts, avg winds).
+  // Pressure-trend, humidity and rain stay Open-Meteo (the app sources those the
+  // same way). Best-effort: any failure falls back to model-only.
+  try {
+    const [nws, awc] = await Promise.all([
+      fetchNwsStation(lat, lon).catch(() => null),
+      fetchAwcNearest(lat, lon).catch(() => null),
+    ]);
+    const srcs = [{ windKmh: out.wind_speed_10m, gustKmh: out.wind_gusts_10m, temp: out.temperature_2m, visMeter: null }];
+    if (nws) srcs.push(nws);
+    if (awc) srcs.push(awc);
+    if (srcs.length > 1) {
+      const avg = f => { const v = srcs.map(s => s[f]).filter(x => x != null && !isNaN(x)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+      const first = f => { for (const s of srcs) if (s[f] != null) return s[f]; return null; };
+      const tA = avg('temp'); if (tA != null) out.temperature_2m = tA;
+      const wA = avg('windKmh'); if (wA != null) out.wind_speed_10m = wA;
+      const gA = avg('gustKmh'); const g = Math.max(gA || 0, wA || 0) || null; if (g != null) out.wind_gusts_10m = g;
+      const vM = first('visMeter'); if (vM != null) out._visM = vM;
+      const lbl = [nws && 'NWS', awc && 'AWC'].filter(Boolean).join('+');
+      if (lbl) console.log(`  conditions blended w/ ${lbl}: gust ${out.wind_gusts_10m != null ? out.wind_gusts_10m.toFixed(0) : '--'} km/h, wind ${out.wind_speed_10m != null ? out.wind_speed_10m.toFixed(0) : '--'} km/h`);
+    }
+  } catch (e) { /* station blend best-effort */ }
+
   return out;
 }
 
