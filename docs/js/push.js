@@ -102,11 +102,56 @@ function _pushLoc() {
   return null;
 }
 
+// Full-screen "please wait" overlay with a live count-up timer, shown while a
+// foreground enable/disable/update is in flight. A 30s safety timeout clears it
+// and refreshes the panel if the operation stalls (e.g. permission prompt hangs).
+let _pushBusyTimer = null, _pushBusySafety = null, _pushBusyStart = 0;
+function _showPushBusy(label) {
+  _hidePushBusy();
+  _pushBusyStart = Date.now();
+  let el = document.getElementById('pushBusyOverlay');
+  if (!el) {
+    if (!document.getElementById('pushBusyStyle')) {
+      const s = document.createElement('style'); s.id = 'pushBusyStyle';
+      s.textContent = '@keyframes pushBusySpin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(s);
+    }
+    el = document.createElement('div');
+    el.id = 'pushBusyOverlay';
+    el.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)';
+    el.innerHTML = `
+      <div style="background:var(--bg-card,#15171c);border:1px solid var(--border,#2a2d34);border-radius:14px;padding:22px 26px;max-width:280px;text-align:center;box-shadow:0 10px 34px rgba(0,0,0,0.55)">
+        <div style="width:34px;height:34px;margin:0 auto 12px;border:3px solid var(--border,#2a2d34);border-top-color:var(--accent-green,#39d98a);border-radius:50%;animation:pushBusySpin 0.8s linear infinite"></div>
+        <div id="pushBusyLabel" style="font-weight:700;color:var(--text,#e8eaed);font-size:0.95em;line-height:1.3">Updating…</div>
+        <div id="pushBusyTimer" style="margin-top:7px;font-family:var(--font-mono,monospace);color:var(--text-muted,#9aa0a6);font-size:0.85em">0s</div>
+      </div>`;
+    document.body.appendChild(el);
+  }
+  el.querySelector('#pushBusyLabel').textContent = label || 'Updating your notification settings, please wait…';
+  const timerEl = el.querySelector('#pushBusyTimer');
+  el.style.display = 'flex';
+  const tick = () => { timerEl.textContent = Math.floor((Date.now() - _pushBusyStart) / 1000) + 's'; };
+  tick();
+  _pushBusyTimer = setInterval(tick, 250);
+  _pushBusySafety = setTimeout(() => {
+    _hidePushBusy();
+    try { syncSettingsPanel(); } catch (e) {}
+    toast('⏱️ Still working… settings refreshed — please try again if needed.');
+  }, 30000);
+}
+function _hidePushBusy() {
+  if (_pushBusyTimer) { clearInterval(_pushBusyTimer); _pushBusyTimer = null; }
+  if (_pushBusySafety) { clearTimeout(_pushBusySafety); _pushBusySafety = null; }
+  const el = document.getElementById('pushBusyOverlay');
+  if (el) el.style.display = 'none';
+}
+
 async function enablePushAlerts(silent) {
   const base = _pushApiUrl();
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) { if (!silent) toast('⚠️ Push not supported on this device'); return; }
   const loc = _pushLoc();
   if (!loc) { if (!silent) toast('📍 Set a home location first'); return; }
+  if (!silent) _showPushBusy('Updating your notification settings, please wait…');
   try {
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') { if (!silent) toast('🔕 Notification permission denied'); return; }
@@ -137,13 +182,16 @@ async function enablePushAlerts(silent) {
   } catch (e) {
     console.log('[push] enable failed:', e.message);
     if (!silent) toast('⚠️ Could not enable alerts: ' + e.message);
+  } finally {
+    if (!silent) _hidePushBusy();
+    syncSettingsPanel();
   }
-  syncSettingsPanel();
 }
 
 async function disablePushAlerts() {
   const base = _pushApiUrl();
   const cur = _getPushSub();
+  _showPushBusy('Turning off notifications, please wait…');
   try {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
@@ -156,6 +204,7 @@ async function disablePushAlerts() {
       });
     }
   } catch (e) { console.log('[push] disable:', e.message); }
+  finally { _hidePushBusy(); }
   _setPushSub(null);
   toast('🔕 Background alerts disabled');
   syncSettingsPanel();
@@ -166,7 +215,7 @@ function setPushThreshold(key, val) {
   th[key] = parseInt(val, 10);
   _savePushThresholds(th);
   // If already subscribed, push the new thresholds to the server.
-  if (_getPushSub()) enablePushAlerts();
+  if (_getPushSub()) enablePushAlerts(true);
   else syncSettingsPanel();
 }
 
@@ -174,7 +223,7 @@ function setPushNws(on) {
   const th = _getPushThresholds();
   th.nws = !!on;
   _savePushThresholds(th);
-  if (_getPushSub()) enablePushAlerts();
+  if (_getPushSub()) enablePushAlerts(true);
   else syncSettingsPanel();
 }
 
@@ -182,7 +231,7 @@ function setPushTropical(on) {
   const th = _getPushThresholds();
   th.tropical = !!on;
   _savePushThresholds(th);
-  if (_getPushSub()) enablePushAlerts();
+  if (_getPushSub()) enablePushAlerts(true);
   else syncSettingsPanel();
 }
 

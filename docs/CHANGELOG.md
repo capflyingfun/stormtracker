@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.01
+
+  **Notification-update progress UI + de-duplicated lightning wording.**
+
+  - **"Please wait" overlay with count-up timer** (`docs/js/push.js` `_showPushBusy`/`_hidePushBusy`): turning Background Storm Alerts on/off or tapping Update shows a full-screen "Updating your notification settings, please wait…" overlay with a live seconds counter (the disable path reads "Turning off notifications…"). A 30s safety timeout clears the overlay, re-renders the settings panel, and toasts if the operation stalls (e.g. a hung permission prompt). Threshold/NWS/tropical changes now re-sync **silently** (`enablePushAlerts(true)`) so the overlay only appears for the primary on/off/update actions.
+  - **No more double-timed lightning** (`scanner/scan.js` `fmtLightning`): when the lead cell's own ETA already shows it's ≤15 min out, the alert no longer also says "within 15 min" (the two times were redundant). That phrase now only appears when it adds info — a count of multiple imminent cells, or a faster non-lead cell — and the closing advice escalates to "Move indoors or to a safe location now." whenever anything is imminent.
+  - **Cache bumped** — `?v=599` / `stormtracker-v599`.
+
   ## v5.00
 
   **Lightning estimates + bottom-line summary in background push alerts.**
