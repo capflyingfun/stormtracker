@@ -41,9 +41,11 @@ wrangler deploy
 #    -> note the deployed URL, e.g. https://stormtracker-proxy.<account>.workers.dev
 ```
 
-**In the app:** open Settings → Account and set the **Sync server URL** to the Worker URL
-above (this same URL is reused for push). The "Background Storm Alerts" section will then
-let you enable alerts.
+**In the app:** the Worker URL is already baked into `docs/js/push.js` as `PUSH_API_DEFAULT`,
+so standard users just open Settings → **Background Storm Alerts** and enable — no sync URL
+needed. (Push is independent of the settings-sync server.) To point push at a *different*
+worker, set `st_pushApiUrl` in localStorage; if you deploy your own worker, update
+`PUSH_API_DEFAULT` in `docs/js/push.js`.
 
 ---
 
