@@ -246,7 +246,13 @@ async function run() {
           if (items.length === 1) { title = items[0].titleSingle; body = items[0].body; }
           else {
             title = `🚨 ${items.length} alerts${sub.name ? ' · ' + sub.name : ''}`;
-            body = items.map(i => i.display).join('\n');
+            // Cap the body so a major multi-alert event can't blow past the
+            // ~4 KB web-push payload limit; remaining items are still deduped.
+            const MAX_LINES = 12;
+            const lines = items.map(i => i.display);
+            body = (lines.length > MAX_LINES
+              ? lines.slice(0, MAX_LINES).concat(`…and ${lines.length - MAX_LINES} more`)
+              : lines).join('\n');
           }
           const urgency = items.some(i => i.urgency === 'high') ? 'high' : 'normal';
           const payload = JSON.stringify({ title, body, tag: 'stormtracker-digest', url: SITE_URL });
