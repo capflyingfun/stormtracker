@@ -59,6 +59,41 @@ function _urlB64ToUint8(base64) {
   return out;
 }
 
+// True only if an existing PushSubscription was created with the SAME VAPID key
+// we use now. After a key rotation a stale subscription keeps the old key and can
+// never receive our pushes — so we must detect and replace it.
+function _subKeyMatches(sub, wantBytes) {
+  try {
+    const cur = sub && sub.options && sub.options.applicationServerKey;
+    if (!cur) return false;
+    const a = new Uint8Array(cur);
+    if (a.length !== wantBytes.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== wantBytes[i]) return false;
+    return true;
+  } catch (e) { return false; }
+}
+
+// Get a push subscription that is guaranteed to use the CURRENT VAPID key,
+// re-subscribing if a stale-key subscription exists. Handles iOS throwing
+// InvalidStateError when a subscription with a different key is still present.
+async function _ensureFreshSubscription(reg) {
+  const wantKey = _urlB64ToUint8(PUSH_VAPID_PUBLIC_KEY);
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && !_subKeyMatches(sub, wantKey)) {
+    try { await sub.unsubscribe(); } catch (e) {}
+    sub = null;
+  }
+  if (sub) return sub;
+  try {
+    return await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: wantKey });
+  } catch (e) {
+    // A subscription with a different key may still linger — drop it and retry once.
+    const stale = await reg.pushManager.getSubscription();
+    if (stale) { try { await stale.unsubscribe(); } catch (_) {} }
+    return await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: wantKey });
+  }
+}
+
 function _pushLoc() {
   let home = null;
   try { home = (typeof getHomeLocation === 'function') ? getHomeLocation() : null; } catch (e) {}
@@ -76,13 +111,7 @@ async function enablePushAlerts(silent) {
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') { if (!silent) toast('🔕 Notification permission denied'); return; }
     const reg = await navigator.serviceWorker.ready;
-    let sub = await reg.pushManager.getSubscription();
-    if (!sub) {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: _urlB64ToUint8(PUSH_VAPID_PUBLIC_KEY),
-      });
-    }
+    const sub = await _ensureFreshSubscription(reg);
     const th = _getPushThresholds();
     const existing = _getPushSub();
     const body = {
