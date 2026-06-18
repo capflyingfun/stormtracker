@@ -69,6 +69,7 @@ function checkWeatherThresholds(){
   _wxCheckedOnce=true;
   _pruneExpiredAlerts();
   checkRainAlert();
+  checkRainOverheadAlert();
 }
 function _sendBrowserNotification(title,body){
   if(!('Notification' in window))return;
@@ -131,7 +132,7 @@ const _STORM_ALERT_DEFS=[
   {key:'stormImpact',label:'Impact Score',icon:'🎯',unit:'%',defVal:50,defOn:false,step:5,
     check:(storm,th)=>{const v=storm.impactPct;if(v==null||v<=0)return null;if(v<th)return null;const b=storm._brief||(typeof calcStormETAForBriefing==='function'?calcStormETAForBriefing(storm):null);const cls=b&&b.classification;if(cls&&typeof isInboundTier==='function'&&!isInboundTier(cls))return null;const miss=(b&&b.perpMissMi!=null)?b.perpMissMi:storm.distance;const tier=(miss!=null&&typeof perpTier==='function')?perpTier(miss):null;const tierLbl=tier?', '+tier.label:'';return{val:v,u:'%',msg:`🌩️ Storm cell impact ${v}% — above your ${th}% threshold (${storm.dbz} dBZ, ${parseFloat(storm.distance.toFixed(1))} mi, tier: ${storm.impactTier}${tierLbl})`}}}
 ];
-const _STORM_ALERT_COOLDOWN=(function(){try{const s=localStorage.getItem('st_stormAlertCooldown');if(s){const o=JSON.parse(s);const now=Date.now();Object.keys(o).forEach(k=>{if(now-o[k]>900000)delete o[k]});return o}}catch(e){}return{}})();
+const _STORM_ALERT_COOLDOWN=(function(){try{const s=localStorage.getItem('st_stormAlertCooldown');if(s){const o=JSON.parse(s);const now=Date.now();Object.keys(o).forEach(k=>{if(now-o[k]>1800000)delete o[k]});return o}}catch(e){}return{}})();
 let _stormAlertHistory=JSON.parse(localStorage.getItem('st_stormAlertHistory')||'[]');
 function _loadStormThresholds(){
   try{const s=localStorage.getItem('st_stormThresholds');if(s)return JSON.parse(s)}catch(e){}
@@ -172,9 +173,11 @@ function checkStormCellAlerts(){
     const impact=_calcStormImpact(storm);
     storm.impactPct=impact.impactPct;
     storm.impactTier=impact.impactTier;
+    const bandKey=bandForDbz(storm.dbz);
+    if(!bandKey||!bandEnabled(bandKey))return;
     const cellKey='sc_'+Math.round(storm.bearing/10)+'_'+Math.round(storm.distance/3);
     const lastFired=_STORM_ALERT_COOLDOWN[cellKey]||0;
-    if(now-lastFired<900000)return;
+    if(now-lastFired<bandCadenceMin(bandKey)*60000)return;
     let allMatch=true;let bestMsg=null;
     _STORM_ALERT_DEFS.forEach(def=>{
       const cfg=th[def.key];
@@ -256,6 +259,97 @@ function setStormAlertVal(key,val){
   _saveStormThresholds(th);
 }
 function clearStormAlertHistory(){_stormAlertHistory=[];_saveStormAlertHistory();if(S.activePage==='alerts')renderAlerts();}
+
+// ==========================================
+// INTENSITY BANDS + RAIN-OVERHEAD ALERT
+// ==========================================
+// Four dBZ intensity bands (matching the app's storm color tiers). Each band has
+// an on/off toggle (which GATES inbound storm alerts AND the rain-overhead alert
+// at that intensity) and a re-notify cadence (5/10/15/30 min) that drives the
+// cooldown for both. A master `rovOn` toggle controls the "rain right over you"
+// alert, which fires from the radar value on the user's exact spot even when
+// nothing is inbound. Stored in localStorage st_alertBands; rides the push
+// subscription in thresholds.bands so the background scanner matches exactly.
+const _ALERT_BAND_DEFS=[
+  {key:'light',label:'Light',range:'20–29 dBZ',color:'#3aa0ff',min:20,max:29,defOn:true,defMin:10},
+  {key:'moderate',label:'Moderate',range:'30–44 dBZ',color:'#36d96b',min:30,max:44,defOn:true,defMin:5},
+  {key:'heavy',label:'Heavy',range:'45–54 dBZ',color:'#ffb300',min:45,max:54,defOn:true,defMin:5},
+  {key:'severe',label:'Severe',range:'55+ dBZ',color:'#ff3b6b',min:55,max:9999,defOn:true,defMin:5}
+];
+const _BAND_CADENCE_OPTS=[5,10,15,30];
+function _normAlertBands(o){
+  o=o||{};
+  const out={rovOn:o.rovOn!==false};
+  _ALERT_BAND_DEFS.forEach(b=>{
+    const c=o[b.key]||{};
+    out[b.key]={on:c.on!==undefined?!!c.on:b.defOn,min:_BAND_CADENCE_OPTS.includes(c.min)?c.min:b.defMin};
+  });
+  return out;
+}
+function _loadAlertBands(){
+  try{const s=localStorage.getItem('st_alertBands');if(s){const o=JSON.parse(s);if(o&&typeof o==='object')return _normAlertBands(o)}}catch(e){}
+  return _normAlertBands({});
+}
+function _saveAlertBands(b){try{localStorage.setItem('st_alertBands',JSON.stringify(b))}catch(e){}}
+function bandDef(key){return _ALERT_BAND_DEFS.find(b=>b.key===key)||null}
+function bandForDbz(dbz){
+  if(dbz==null||dbz<20)return null;
+  for(const b of _ALERT_BAND_DEFS){if(dbz>=b.min&&dbz<=b.max)return b.key}
+  return null;
+}
+function bandEnabled(key){const b=_loadAlertBands();return!!(key&&b[key]&&b[key].on)}
+function bandCadenceMin(key){const b=_loadAlertBands();const def=bandDef(key);const c=b[key];return(c&&_BAND_CADENCE_OPTS.includes(c.min))?c.min:(def?def.defMin:5)}
+let _rainOverheadCooldown=0;
+try{_rainOverheadCooldown=parseInt(localStorage.getItem('st_rovCooldown'))||0}catch(e){}
+// "Raining right over you" — reads the shared radar-over-user band
+// (rainOverUserNow) so it agrees with the conditions card, then fires when that
+// dBZ falls in an enabled band, throttled by that band's cadence. Independent of
+// any inbound storm.
+function checkRainOverheadAlert(){
+  const bands=_loadAlertBands();
+  if(!bands.rovOn)return;
+  const ov=(typeof rainOverUserNow==='function')?rainOverUserNow():null;
+  if(!ov||ov.maxDbz==null)return;
+  const dbz=Math.round(ov.maxDbz);
+  const key=bandForDbz(dbz);
+  if(!key||!bands[key]||!bands[key].on)return;
+  const now=Date.now();
+  if(now-_rainOverheadCooldown<bandCadenceMin(key)*60000)return;
+  _rainOverheadCooldown=now;
+  try{localStorage.setItem('st_rovCooldown',String(now))}catch(e){}
+  const def=bandDef(key);
+  const msg=`🌧️ Rain right over you — ${def.label} (${dbz} dBZ)`;
+  toast(msg,6000);
+  _sendBrowserNotification('Rain Overhead',msg);
+  if(S.activePage==='alerts')renderAlerts();
+}
+function renderAlertBandSettings(){
+  const b=_loadAlertBands();
+  const opts=(sel)=>_BAND_CADENCE_OPTS.map(m=>`<option value="${m}"${m===sel?' selected':''}>every ${m} min</option>`).join('');
+  let html=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.72em;color:var(--text-primary);cursor:pointer">
+      <input type="checkbox" ${b.rovOn?'checked':''} onchange="toggleRainOverhead(this.checked)" class="accent-cyan-check">
+      <span>🌧️ Rain right over you</span>
+    </label>
+  </div>
+  <div class="setting-hint" style="font-size:0.68em;margin-bottom:8px">Alert when rain is falling directly on your spot (read from radar) — even with no inbound storm. Each band sets the minimum intensity to alert on and how often it can re-notify. These bands also gate inbound storm alerts.</div>`;
+  _ALERT_BAND_DEFS.forEach(def=>{
+    const c=b[def.key];
+    html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.7em;color:var(--text-muted);flex:1;min-width:0;cursor:pointer">
+        <input type="checkbox" ${c.on?'checked':''} onchange="toggleAlertBand('${def.key}',this.checked)" class="accent-cyan-check">
+        <span style="width:11px;height:11px;border-radius:3px;flex:0 0 auto;background:${def.color}"></span>
+        <span style="white-space:nowrap">${def.label} <span style="opacity:0.55">${def.range}</span></span>
+      </label>
+      <select onchange="setAlertBandCadence('${def.key}',this.value)" ${c.on?'':'disabled'} style="font-size:0.7em;padding:3px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;font-family:var(--font-mono)">${opts(c.min)}</select>
+    </div>`;
+  });
+  return html;
+}
+function _refreshAlertBandUI(){const el=document.getElementById('alert-band-settings');if(el)el.innerHTML=renderAlertBandSettings()}
+function toggleRainOverhead(on){const b=_loadAlertBands();b.rovOn=!!on;_saveAlertBands(b);if(on)requestNotifPermission();_refreshAlertBandUI();if(typeof syncPushAlerts==='function')syncPushAlerts()}
+function toggleAlertBand(key,on){const b=_loadAlertBands();if(b[key])b[key].on=!!on;_saveAlertBands(b);if(on)requestNotifPermission();_refreshAlertBandUI();if(typeof syncPushAlerts==='function')syncPushAlerts()}
+function setAlertBandCadence(key,val){const n=parseInt(val,10);if(!_BAND_CADENCE_OPTS.includes(n))return;const b=_loadAlertBands();if(b[key])b[key].min=n;_saveAlertBands(b);if(typeof syncPushAlerts==='function')syncPushAlerts()}
 
 // ==========================================
 // RAIN ALERT

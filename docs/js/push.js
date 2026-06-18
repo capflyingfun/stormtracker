@@ -49,6 +49,14 @@ function _pushTropRadius() {
   try { const v = parseInt(localStorage.getItem('st_nhc_prox_radius'), 10); return v > 0 ? v : 200; }
   catch (e) { return 200; }
 }
+// Intensity bands + rain-overhead toggle (st_alertBands) travel with the
+// subscription so the scanner gates inbound storm pushes and the "rain over you"
+// push by the same on/off + per-band cadence the app uses. Null when never set —
+// the scanner then falls back to its own defaults (all bands on, rovOn true).
+function _pushBands() {
+  try { const s = JSON.parse(localStorage.getItem('st_alertBands') || 'null'); return (s && typeof s === 'object') ? s : null; }
+  catch (e) { return null; }
+}
 
 function _urlB64ToUint8(base64) {
   const padding = '='.repeat((4 - base64.length % 4) % 4);
@@ -232,6 +240,7 @@ async function enablePushAlerts(silent) {
       thresholds: {
         dbz: th.dbz, impact: th.impact, dist: th.radius, radius: th.radius,
         wx: _pushWxCfg(), units: _pushUnits(), nws: th.nws !== false,
+        bands: _pushBands(),
         tropical: { on: th.tropical !== false, radius: _pushTropRadius() },
         tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; } })(),
         h24: (typeof _is24h === 'function') ? _is24h() : false,

@@ -327,6 +327,53 @@ export function calcETA(storm, mv) {
 }
 
 // ---------------------------------------------------------------------------
+// Radar dBZ directly over a point (for the "rain right over you" alert). Mirrors
+// the app's rainOverUserNow(): the radar value on the user's exact spot. We
+// decode the tile(s) covering a tiny bbox (~sampleRadiusMi) around the point at
+// fine step and return the MAX dBZ within that radius — a single pixel is too
+// noisy, so a small neighborhood matches the app's hex-bin-over-user reading.
+// Returns 0 when nothing is overhead (or on any fetch/decode failure).
+// ---------------------------------------------------------------------------
+export async function dbzAtPoint(lat, lon, sampleRadiusMi = 2) {
+  const origin = { lat, lon };
+  const useNexrad = isUSLocation(lat, lon);
+  const zoom = useNexrad ? 11 : 8;
+  const colorFn = useNexrad ? nexradToDbz : rvToDbz;
+
+  let rvPath = null;
+  if (!useNexrad) {
+    try {
+      const rv = await fetch('https://api.rainviewer.com/public/weather-maps.json', { signal: AbortSignal.timeout(6000) }).then(r => r.json());
+      const frames = (rv.radar?.past || []).concat(rv.radar?.nowcast || []);
+      rvPath = frames.length ? frames[frames.length - 1].path : null;
+    } catch { rvPath = null; }
+    if (!rvPath) return 0;
+  }
+
+  const radiusDeg = sampleRadiusMi / 69.0;
+  const north = lat + radiusDeg, south = lat - radiusDeg;
+  const east = lon + radiusDeg / Math.cos(lat * Math.PI / 180);
+  const west = lon - radiusDeg / Math.cos(lat * Math.PI / 180);
+  const minTX = lonToTileX(west, zoom), maxTX = lonToTileX(east, zoom);
+  const minTY = latToTileY(north, zoom), maxTY = latToTileY(south, zoom);
+
+  const tasks = [];
+  for (let tx = minTX; tx <= maxTX; tx++) {
+    for (let ty = minTY; ty <= maxTY; ty++) {
+      const url = useNexrad
+        ? `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/${zoom}/${tx}/${ty}.png`
+        : `https://tilecache.rainviewer.com${rvPath}/256/${zoom}/${tx}/${ty}/2/1_1.png`;
+      tasks.push(scanTile(url, tx, ty, zoom, colorFn, 1, sampleRadiusMi, origin, 1));
+    }
+  }
+  const settled = await Promise.allSettled(tasks);
+  const pts = settled.flatMap(s => (s.status === 'fulfilled' ? s.value : []));
+  let max = 0;
+  for (const p of pts) if (p.dbz > max) max = p.dbz;
+  return max;
+}
+
+// ---------------------------------------------------------------------------
 // Full scan for one location. Returns { cells, mv, source }.
 // thresholds.radius (mi) defaults to 80; clamps tile count like the app.
 // ---------------------------------------------------------------------------

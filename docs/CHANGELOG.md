@@ -3,6 +3,18 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.11
+
+  **New "rain right over you" alert + four configurable intensity bands that gate and pace every storm/rain notification (in-app and background push).**
+
+  - **Rain-overhead alert** — `checkRainOverheadAlert()` in `docs/js/thresholds.js` reads the shared `rainOverUserNow()` band (the same radar-over-user value the conditions card shows) and fires a toast + browser notification whenever the dBZ directly over the user lands in an enabled band, independent of any inbound storm. Throttled by a single `st_rovCooldown` timestamp at the matched band's cadence. Called at the end of `checkWeatherThresholds()`.
+  - **Four intensity bands** — `_ALERT_BAND_DEFS` (Light 20–29 `#3aa0ff`, Moderate 30–44 `#36d96b`, Heavy 45–54 `#ffb300`, Severe 55+ `#ff3b6b`), stored in `localStorage st_alertBands` as `{light,moderate,heavy,severe:{on,min}, rovOn}`. Defaults: all bands on; Light re-notifies every 10 min, the rest every 5; `rovOn` true. Cadence options: 5/10/15/30 min.
+  - **Bands gate intensity AND drive cooldown** — `checkStormCellAlerts()` now drops any storm whose dBZ falls in an off band, and replaces the old fixed 15-min per-cell cooldown with that band's cadence. The storm-alert cooldown prune window widened 15→30 min to cover the longest band cadence. `renderAlertBandSettings()` adds a Settings → **Rain Intensity Bands** section (rain-overhead master toggle + a swatch/toggle/timer row per band), wired in `docs/js/settings.js` and mounted at `#alert-band-settings` in `index.html`.
+  - **Scanner parity** — `dbzAtPoint(lat,lon)` in `scanner/detect.js` decodes the radar tile(s) over the user's exact spot (NEXRAD z11 in the US, RainViewer z8 elsewhere) and returns the max dBZ within ~2 mi. `scanner/scan.js` computes it once per location group, adds a `rov` alert kind (with its own COOLDOWN/PRUNE/keyKind/situationLead/prio entries), band-gates inbound storm hits, and switches the digest trigger to a per-item `cooldownMs` (the matched band's cadence) instead of the fixed `COOLDOWN[kind]`.
+  - **No D1/worker change** — the bands config rides inside the existing free-form `thresholds` JSON on the subscription (`_pushBands()` in `docs/js/push.js`). Subscriptions made before this version have no `bands` field; both the app and the scanner (`bandsFor()`) fall back to all-bands-on + `rovOn` true, so existing users keep their previous behavior until they re-subscribe.
+  - **Heads-up:** background per-band cadence is still bounded by how often the scanner cron actually runs (GitHub cron can be delayed/skipped); the in-app timers are exact.
+  - **Cache bumped** — `?v=609` / `stormtracker-v609`.
+
   ## v5.10
 
   **Storm-card "in path" rain now reflects the path toward you, not the whole radar radius.**
