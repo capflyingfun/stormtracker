@@ -52,12 +52,10 @@ const DEF = { dbz: 40, impact: 50, dist: 60, radius: 80 };
 const LTG_RADIUS = 80;
 const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
 
-// Randomized scan cadence (like GameMaker's choose). The GitHub cron should fire
-// every 5 min; on each tick we only actually scan once the randomly-chosen gap
-// has elapsed, then roll the next gap and persist it in the Worker/D1 so the
-// stateless next run knows when it's due. Most ticks just exit immediately.
-const SCAN_GAPS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
-const choose = (arr) => arr[Math.floor(Math.random() * arr.length)];
+// Fixed scan cadence: the GitHub cron IS the schedule (every 5 min), so every
+// scheduled tick scans. No randomized gap, no shared due-time state — the cron's
+// interval is the only knob. Change the cadence by editing the cron in
+// .github/workflows/storm-scan.yml.
 
 function fail(msg) { console.error('FATAL:', msg); process.exit(1); }
 
@@ -66,30 +64,6 @@ async function getSubscribers() {
   if (!r.ok) throw new Error(`/subscriptions HTTP ${r.status}`);
   const d = await r.json();
   return d.subscribers || [];
-}
-
-// Shared "next scan due" timestamp (epoch ms) stored in the Worker/D1 so the
-// randomized cadence survives across stateless cron runs.
-// Returns: number = stored next-due epoch ms, 0 = never set (first run),
-// null = couldn't read (so the caller fails CLOSED instead of scanning every tick).
-async function getScanDue() {
-  try {
-    const r = await fetch(`${WORKER_URL}/scan-due`, { headers: { 'x-scanner-secret': SCANNER_SECRET } });
-    if (!r.ok) { console.warn(`/scan-due GET HTTP ${r.status}`); return null; }
-    const d = await r.json();
-    return Number(d.due) || 0;
-  } catch (e) { console.warn('scan-due GET failed:', e.message); return null; }
-}
-
-async function setScanDue(due) {
-  try {
-    const r = await fetch(`${WORKER_URL}/scan-due`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-scanner-secret': SCANNER_SECRET },
-      body: JSON.stringify({ due }),
-    });
-    if (!r.ok) console.warn(`/scan-due POST HTTP ${r.status}`);
-  } catch (e) { console.warn('scan-due POST failed:', e.message); }
 }
 
 async function markAlert(endpoint, lastAlert) {
@@ -250,32 +224,10 @@ async function run() {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) fail('VAPID keys not set');
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
-  // Randomized cadence gate. The cron fires every 5 min, but a scheduled tick
-  // only proceeds once the previously-rolled random gap has elapsed. Manual
-  // (workflow_dispatch) runs always scan so testing stays immediate.
+  // Fixed cadence: the GitHub cron is the schedule, so every tick scans. Manual
+  // (workflow_dispatch) runs scan immediately too.
   const manual = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch';
-  if (!manual) {
-    const due = await getScanDue();
-    if (due === null) {
-      // Couldn't read the schedule — fail CLOSED so a /scan-due outage doesn't
-      // turn every 5-min cron tick into a scan. Next tick retries.
-      console.log('Could not read scan schedule — skipping this tick.');
-      return;
-    }
-    if (due && Date.now() < due) {
-      console.log(`Not due yet — next scan in ~${Math.ceil((due - Date.now()) / 60000)} min. Skipping tick.`);
-      return;
-    }
-    // Committed to scanning this scheduled tick — roll the next random gap now so
-    // even an early return below (e.g. no subscribers) keeps the cadence rolling.
-    const gap = choose(SCAN_GAPS);
-    await setScanDue(Date.now() + gap * 60 * 1000);
-    console.log(`Scanning now. Next scan in ~${gap} min.`);
-  } else {
-    // Manual test run — scan immediately but leave the automated cadence alone
-    // so ad-hoc tests don't shift the production schedule.
-    console.log('Manual run — scanning now (cadence unchanged).');
-  }
+  console.log(manual ? 'Manual run — scanning now.' : 'Scheduled run — scanning now.');
 
   const subs = await getSubscribers();
   console.log(`Subscribers: ${subs.length}`);
