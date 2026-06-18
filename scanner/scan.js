@@ -397,8 +397,8 @@ async function run() {
             // iOS (and most OSes) truncate long notification bodies in the banner
             // / lock screen — we can't make the phone show more. So keep the body
             // SHORT and prioritized: lead with the "bottom line", show only the
-            // few most important items in full, and collapse the rest into a
-            // single "+N more · open for details" line that points to the app.
+            // most important items in full, and collapse the rest into a single
+            // "+N more · open for details" line that points to the app.
             // Priority: tropical → NWS warnings → storm cell → lightning → NWS
             // watches → weather thresholds → NWS advisories/statements.
             const nwsTier = ev => /warning/i.test(ev) ? 1 : /watch/i.test(ev) ? 2 : 3;
@@ -410,10 +410,25 @@ async function run() {
               if (it.kind === 'wx') return 2.5;
               return 4;
             };
-            const ordered = items.slice().sort((a, b) => prio(a) - prio(b));
+            // Among NWS warnings, surface the most dangerous first.
+            const WARN_RANK = [/tornado/i, /flash flood/i, /extreme/i, /severe thunderstorm/i, /hurricane/i, /storm surge/i];
+            const warnRank = ev => { const i = WARN_RANK.findIndex(re => re.test(ev)); return i < 0 ? WARN_RANK.length : i; };
+            const ordered = items
+              .map((it, idx) => ({ it, idx }))
+              .sort((a, b) => (prio(a.it) - prio(b.it))
+                || ((a.it.kind === 'nws' ? warnRank(a.it.display) : 0) - (b.it.kind === 'nws' ? warnRank(b.it.display) : 0))
+                || (a.idx - b.idx))
+              .map(x => x.it);
+            // PIN life-threatening hazards (tropical + any NWS Warning) so they
+            // are NEVER collapsed below the fold, even past the soft cap.
+            const isCritical = it => it.kind === 'trop' || (it.kind === 'nws' && /warning/i.test(it.display));
+            const critical = ordered.filter(isCritical);
+            const rest = ordered.filter(it => !isCritical(it));
             const MAX_DETAIL = 3;
-            const shown = ordered.slice(0, MAX_DETAIL).map(i => i.display);
-            const hidden = ordered.length - shown.length;
+            const fill = Math.max(0, MAX_DETAIL - critical.length);
+            const shownItems = [...critical, ...rest.slice(0, fill)];
+            const shown = shownItems.map(i => i.display);
+            const hidden = items.length - shownItems.length;
             if (hidden > 0) shown.push(`⚠️ +${hidden} more alert${hidden > 1 ? 's' : ''} · open for details`);
             body = [situationLead(items), ...shown].join('\n');
           }
