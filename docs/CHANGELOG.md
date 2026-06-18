@@ -3,6 +3,13 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.92
+
+**Fix: "Could not enable alerts: Not found" when turning on Background Storm Alerts.**
+
+- `docs/js/push.js` now resolves the push API as `st_pushApiUrl` override → baked worker default, and no longer falls back to `st_syncApiUrl`. The push endpoints (`/subscribe`, `/unsubscribe`) exist only on the dedicated worker, so a stale/other sync URL saved in `st_syncApiUrl` was causing a 404 ("Not found") on `/subscribe` and blocking enablement.
+- **Cache bumped** — `?v=590` / `stormtracker-v590`.
+
 ## v4.91
 
 **Background storm alerts now work out of the box — the companion Cloudflare Worker is live and baked into the app, so you no longer need to paste a sync URL to enable alerts.**
