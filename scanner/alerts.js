@@ -104,6 +104,7 @@ async function fetchNwsStation(lat, lon) {
   if (!p.temperature || p.temperature.value == null) return null;
   return {
     temp: p.temperature.value,
+    dewp: p.dewpoint ? p.dewpoint.value : null,
     windKmh: p.windSpeed ? p.windSpeed.value : null,
     gustKmh: p.windGust ? p.windGust.value : null,
     visMeter: p.visibility ? p.visibility.value : null,
@@ -136,6 +137,7 @@ async function fetchAwcNearest(lat, lon) {
     : null;
   return {
     temp: nearest.temp,
+    dewp: nearest.dewp != null ? nearest.dewp : null,
     windKmh: nearest.wspd != null ? nearest.wspd * 1.852 : null,
     gustKmh: nearest.wgst != null ? nearest.wgst * 1.852 : null,
     visMeter,
@@ -166,9 +168,6 @@ async function fetchConditions(lat, lon) {
     _visM: null,
     _baroTrendMb: null,
   };
-  // Latest non-null visibility (current hour).
-  const vis = h.visibility || [];
-  for (let i = vis.length - 1; i >= 0; i--) { if (vis[i] != null) { out._visM = vis[i]; break; } }
   // 3hr pressure trend: latest non-null minus the value 3 hours earlier.
   const pres = h.pressure_msl || [];
   let nowIdx = -1;
@@ -179,18 +178,24 @@ async function fetchConditions(lat, lon) {
 
   // Blend nearby station obs (NWS + AWC METAR) on top of the Open-Meteo model,
   // mirroring blendSources() in docs/js/weather.js. The app overwrites
-  // wind/gust/temp/visibility with this blend BEFORE its threshold checks run, so
-  // a model-only scanner under-reports gusts (real station gusts run higher than
-  // the model) and silently misses the wind-gust alerts the app shows. We blend
-  // the same fields the same way — crucially gust = max(avg gusts, avg winds).
-  // Pressure-trend, humidity and rain stay Open-Meteo (the app sources those the
-  // same way). Best-effort: any failure falls back to model-only.
+  // temp/wind/gust/visibility with this blend AND recomputes humidity from the
+  // station dewpoint BEFORE its threshold checks run, so a model-only scanner
+  // diverges from what the app shows (most importantly it under-reports gusts —
+  // real station gusts run higher than the model — and silently misses wind-gust
+  // alerts). We blend the same fields the same way:
+  //   - temp / wind = avg of present sources;  gust = max(avg gusts, avg winds)
+  //   - humidity    = recomputed from station dewpoint (Magnus) when present,
+  //                   otherwise the Open-Meteo model value
+  //   - visibility  = station only (matches the app's S._nwsVisM — no station
+  //                   means no visibility alert, exactly like the app)
+  // Pressure-trend and rain stay Open-Meteo (the app sources those the same way).
+  // Best-effort: any station failure falls back to model-only.
   try {
     const [nws, awc] = await Promise.all([
       fetchNwsStation(lat, lon).catch(() => null),
       fetchAwcNearest(lat, lon).catch(() => null),
     ]);
-    const srcs = [{ windKmh: out.wind_speed_10m, gustKmh: out.wind_gusts_10m, temp: out.temperature_2m, visMeter: null }];
+    const srcs = [{ temp: out.temperature_2m, dewp: null, windKmh: out.wind_speed_10m, gustKmh: out.wind_gusts_10m, visMeter: null }];
     if (nws) srcs.push(nws);
     if (awc) srcs.push(awc);
     if (srcs.length > 1) {
@@ -199,9 +204,15 @@ async function fetchConditions(lat, lon) {
       const tA = avg('temp'); if (tA != null) out.temperature_2m = tA;
       const wA = avg('windKmh'); if (wA != null) out.wind_speed_10m = wA;
       const gA = avg('gustKmh'); const g = Math.max(gA || 0, wA || 0) || null; if (g != null) out.wind_gusts_10m = g;
-      const vM = first('visMeter'); if (vM != null) out._visM = vM;
+      out._visM = first('visMeter'); // station-only, mirrors S._nwsVisM
+      const dew = first('dewp');
+      if (dew != null) {
+        const tFor = out.temperature_2m != null ? out.temperature_2m : dew;
+        const rh = Math.round(100 * Math.exp((17.27 * dew) / (237.7 + dew)) / Math.exp((17.27 * tFor) / (237.7 + tFor)));
+        out.relative_humidity_2m = Math.min(100, Math.max(0, rh));
+      }
       const lbl = [nws && 'NWS', awc && 'AWC'].filter(Boolean).join('+');
-      if (lbl) console.log(`  conditions blended w/ ${lbl}: gust ${out.wind_gusts_10m != null ? out.wind_gusts_10m.toFixed(0) : '--'} km/h, wind ${out.wind_speed_10m != null ? out.wind_speed_10m.toFixed(0) : '--'} km/h`);
+      if (lbl) console.log(`  conditions blended w/ ${lbl}: gust ${out.wind_gusts_10m != null ? out.wind_gusts_10m.toFixed(0) : '--'} km/h, wind ${out.wind_speed_10m != null ? out.wind_speed_10m.toFixed(0) : '--'} km/h, RH ${out.relative_humidity_2m != null ? out.relative_humidity_2m + '%' : '--'}`);
     }
   } catch (e) { /* station blend best-effort */ }
 
