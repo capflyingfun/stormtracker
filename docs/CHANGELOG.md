@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.05
+
+  **Fix: "Could not enable alerts: Fetch is aborted" when enabling Background Storm Alerts on mobile data.**
+
+  - `docs/js/push.js` used `AbortSignal.timeout(10000)` on the `/subscribe` (and `/unsubscribe`) POST to the push worker. The worker itself is fast (root ~130ms, `/subscribe` ~700ms), but on a weak/handoff-prone LTE connection the first TLS connection to `workers.dev` can exceed 10s, and iOS Safari surfaces the aborted fetch as **"Fetch is aborted"** — so enabling alerts failed every time on a poor signal.
+  - Added a `_pushPost(url, body, {timeout, retries})` helper: 20s timeout with one automatic retry on abort/network errors for `/subscribe` (15s for `/unsubscribe`). Bumped the busy-overlay safety timeout 30s → 45s to cover the longer worst case. The enable error toast now distinguishes an abort/timeout ("connection too slow — try Wi-Fi") from other failures.
+  - **Cache bumped** — `?v=603` / `stormtracker-v603`.
+
   ## v5.04
 
   **Fix: Background Storm Alerts panel could render blank (push.js was never precached).**
