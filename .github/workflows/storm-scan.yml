@@ -2,6 +2,12 @@ name: Storm Push Scanner
 
 on:
   schedule:
+    # Target every 5 minutes, to match the app's stated ~5 min cadence so a
+    # fast-developing storm is caught quickly. IMPORTANT: GitHub Actions cron is
+    # best-effort and runs in UTC — scheduled runs are frequently DELAYED (often
+    # 10-30+ min) or skipped entirely under load, especially on public repos.
+    # Treat this as "about every 5 min", not a guarantee. For reliable cadence,
+    # trigger this workflow from an external scheduler via workflow_dispatch.
     - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
@@ -15,12 +21,15 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+
       - name: Install scanner deps
         working-directory: scanner
         run: npm install --no-audit --no-fund
+
       - name: Run scan
         working-directory: scanner
         env:
