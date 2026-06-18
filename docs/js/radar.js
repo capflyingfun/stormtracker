@@ -51,10 +51,7 @@ function initRadar(){
       <div class="map-legend">
         <span>dBZ</span>
         <div class="legend-bar">
-          <span style="background:#A8E5FF" title="5-14 Sprinkles"></span><span style="background:#5DD8FF" title="15-19 Drizzle"></span>
-          <span style="background:#00F8FF" title="20-30 Light"></span><span style="background:#00FF39" title="31-40 Moderate"></span>
-          <span style="background:#F5FF00" title="41-45 Heavy"></span><span style="background:#FFB200" title="46-51 Very heavy"></span><span style="background:#E63A2C" title="52-59 Moderate to severe"></span><span style="background:#FF0200" title="60-64 Severe (hail possible)"></span>
-          <span style="background:#FF00F5" title="65+ Extreme (hail likely)"></span>
+          ${DBZ_SCALE.filter(e=>e.min>=5).map((e,i,a)=>{const nx=a[i+1];const rng=nx?`${e.min}-${nx.min-1}`:`${e.min}+`;return`<span style="background:${e.color}" title="${rng} ${e.label}"></span>`}).join('')}
         </div>
         <span>5 → 65+ dBZ</span>
         <div style="display:flex;gap:6px;margin-left:6px;font-size:0.6em;opacity:0.7">
