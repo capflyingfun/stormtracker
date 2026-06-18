@@ -283,7 +283,7 @@ function renderPushAlertSettings() {
     <div class="setting-row-6"><span class="text-xxs-muted">Tropical systems</span>
       <button class="small-btn" onclick="setPushTropical(${th.tropical === false})" style="${th.tropical !== false ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${th.tropical !== false ? 'ON' : 'OFF'}</button>
     </div>
-    <div class="setting-hint" style="font-size:0.7em;margin-top:2px">Everything active is bundled into <b>one</b> notification each scan (~10 min). Storm cells use the settings above. <b>NWS warnings</b> (hurricane, tornado, severe, flood, fire) push when active for your area. <b>Tropical systems</b> push when a hurricane/storm comes within your tracking radius (${_pushTropRadius()} mi, set on the map) or your location enters its forecast cone. Weather alerts (wind, temp, rain, humidity, visibility…) mirror your <b>Alerts</b> tab — turn on the ones you want there.</div>`;
+    <div class="setting-hint" style="font-size:0.7em;margin-top:2px">Everything active is bundled into <b>one</b> notification each scan (~5 min). Storm cells use the settings above. <b>NWS warnings</b> (hurricane, tornado, severe, flood, fire) push when active for your area. <b>Tropical systems</b> push when a hurricane/storm comes within your tracking radius (${_pushTropRadius()} mi, set on the map) or your location enters its forecast cone. Weather alerts (wind, temp, rain, humidity, visibility…) mirror your <b>Alerts</b> tab — turn on the ones you want there.</div>`;
   if (sub) {
     const moved = loc && (Math.abs(loc.lat - sub.lat) > 0.05 || Math.abs(loc.lon - sub.lon) > 0.05);
     return `
@@ -298,7 +298,7 @@ function renderPushAlertSettings() {
   }
   return `
     ${statusBadge}
-    <div class="setting-hint">Get a push notification when a storm is inbound — works even when StormTracker is closed. Scanned server-side every ~10 min for <b>${loc ? escHtml(loc.name) : 'your saved Home location'}</b>.</div>
+    <div class="setting-hint">Get a push notification when a storm is inbound — works even when StormTracker is closed. Scanned server-side every ~5 min for <b>${loc ? escHtml(loc.name) : 'your saved Home location'}</b>.</div>
     ${controls}
     <button class="small-btn" onclick="enablePushAlerts()" style="width:100%;margin-top:8px;color:var(--accent-green);border-color:var(--accent-green)">🔔 Turn on background alerts</button>`;
 }

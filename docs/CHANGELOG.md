@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.03
+
+  **Fixed scan cadence — steady every 5 minutes (randomizer removed).**
+
+  - **Removed the randomized `choose(5–60)` cadence** (`scanner/scan.js`): the scanner previously used a GameMaker-style `choose(SCAN_GAPS)` to roll a random 5–60 min gap, gated by a frequent cron heartbeat and a shared next-due timestamp persisted in the Worker/D1. That indirection (plus the `getScanDue`/`setScanDue` `/scan-due` round-trips) is gone — every scheduled cron tick now simply scans. The cron interval in `.github/workflows/storm-scan.yml` is the single source of cadence; set to `*/5 * * * *` for a steady 5-minute schedule (the GitHub minimum). Per-alert cooldowns unchanged, so the same storm still won't re-buzz every scan.
+  - **Why:** the random spacing meant a fast storm could wait up to ~60 min between scans, and changing the cron alone didn't produce a clean fixed interval because the randomizer still gated each tick. A plain fixed cadence is predictable and as fast as the platform allows.
+  - **Cache bumped** — `?v=601` / `stormtracker-v601`.
+
   ## v5.02
 
   **Faster scan cadence — every 10 minutes.**
