@@ -40,9 +40,9 @@ const SITE_URL = 'https://capflyingfun.github.io/StormTracker/';
 // Per-alert-type dedupe (re-notify) and prune (forget) windows, keyed by the
 // prefix of each dedupe key. Storm cells move fast (short window); a standing
 // NWS warning or weather condition shouldn't re-buzz for hours.
-const COOLDOWN = { sc: 30 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000, trop: 12 * 60 * 60 * 1000 };
-const PRUNE = { sc: 2 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
-function keyKind(k) { const p = String(k).split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop') ? p : 'sc'; }
+const COOLDOWN = { sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000, trop: 12 * 60 * 60 * 1000 };
+const PRUNE = { sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
+function keyKind(k) { const p = String(k).split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg') ? p : 'sc'; }
 
 // Storm-cell defaults mirror the app's intent: inbound + reasonably strong.
 const DEF = { dbz: 40, impact: 50, dist: 60, radius: 80 };
@@ -150,6 +150,68 @@ function fmtStormBody(best, count, mv, tz, h24) {
   if (mv && mv.speed >= 2) moveStr = ` · moving ${degToDir(mv.direction)} ~${Math.round(mv.speed)} mph`;
   const lead = count > 1 ? `${count} storm cells inbound — strongest ` : 'Storm cell inbound — ';
   return `${lead}${best.dbz} dBZ · ${distStr}${best.impactPct > 0 ? ` · ${best.impactPct}% impact` : ''}${etaStr}${moveStr}`;
+}
+
+// Full compass words for the friendlier lightning advisory ("southwest" reads
+// better than "SW" in a safety sentence).
+const DIR_LONG = {
+  N: 'north', NNE: 'north-northeast', NE: 'northeast', ENE: 'east-northeast',
+  E: 'east', ESE: 'east-southeast', SE: 'southeast', SSE: 'south-southeast',
+  S: 'south', SSW: 'south-southwest', SW: 'southwest', WSW: 'west-southwest',
+  W: 'west', WNW: 'west-northwest', NW: 'northwest', NNW: 'north-northwest',
+};
+function dirLong(deg) { const a = degToDir(deg); return DIR_LONG[a] || a; }
+
+// Smart lightning advisory from radar-derived strong cells. Lightning is
+// estimated (not observed) from reflectivity ≥45 dBZ — the app's "strong storm"
+// tier. We look only at cells in the user's impact corridor (approaching / in
+// the cone) out to 80 mi, lead with the closest, and flag any arriving within
+// 15 min as the urgent set the user should act on now.
+function fmtLightning(personal, radius, tz, h24) {
+  const cap = Math.min(80, radius);
+  const ltg = personal.filter(c => c.dbz >= 45 && c.approaching && c.distance <= cap);
+  if (!ltg.length) return null;
+  ltg.sort((a, b) => a.distance - b.distance);
+  const closest = ltg[0];
+  const dist = Math.round(closest.distance);
+  let etaStr = '';
+  if (closest.etaMin != null) {
+    const clock = fmtArrivalClock(closest.etaMin, tz, h24);
+    etaStr = ` · ETA ~${closest.etaMin} min${clock ? ` (${clock})` : ''}`;
+  }
+  const lead = `Lightning ⚡ estimated to the ${dirLong(closest.bearing)} around ${dist} mi in a strong storm (${closest.dbz} dBZ)${etaStr}.`;
+
+  // Urgent set: estimated to reach the user within 15 minutes.
+  const soon = ltg.filter(c => c.etaMin != null && c.etaMin <= 15);
+  let extra = '';
+  if (soon.length > 1) {
+    const spread = [...new Set(soon.slice(0, 3).map(c => degToDir(c.bearing)))].join('/');
+    extra = ` ${soon.length} strikes likely within 15 min (${spread}); ${ltg.length} strong cells in your corridor out to ${Math.round(cap)} mi.`;
+  } else if (ltg.length > 1) {
+    extra = ` ${ltg.length} strong cells in your corridor out to ${Math.round(cap)} mi.`;
+  }
+  const advice = ' Keep an eye on the sky and be ready to move indoors or to a safe location.';
+
+  // Dedupe by coarse direction (45° sectors) + 10 mi distance bucket so a
+  // standing cell doesn't re-buzz, but a genuinely new strike location does.
+  const cks = ['ltg_' + Math.round(closest.bearing / 45) + '_' + Math.round(closest.distance / 10)];
+  return {
+    cks,
+    display: `⚡ Lightning ~${dist} mi ${degToDir(closest.bearing)} (strong storm)`,
+    body: `${lead}${extra}${advice}`,
+  };
+}
+
+// One-line "bottom line" lead for a multi-alert digest, so the notification
+// opens with what to DO, not just a list of what's active.
+function situationLead(items) {
+  const high = items.some(i => i.urgency === 'high');
+  const hasTrop = items.some(i => i.kind === 'trop');
+  const hasStorm = items.some(i => i.kind === 'sc' || i.kind === 'ltg');
+  if (hasTrop) return '🌀 Bottom line: tropical threat developing — review official guidance now.';
+  if (high) return '🚨 Bottom line: severe weather active near you — take protective action.';
+  if (hasStorm) return '🌧️ Bottom line: storms in your area — stay weather-aware.';
+  return '⚠️ Bottom line: active weather near you — stay aware.';
 }
 
 // Returns 'ok' | 'dead' | 'err'. 'dead' means the push endpoint is gone (404/410).
@@ -270,7 +332,10 @@ async function run() {
       // full active picture and resets every listed item's cooldown.
       const items = [];
 
-      // --- Storm cells ---
+      const tz = sub.thresholds && sub.thresholds.tz;
+      const h24 = sub.thresholds && sub.thresholds.h24;
+
+      // --- Storm cells + estimated lightning ---
       if (cells.length) {
         const personal = cells.map(c => {
           const distance = haversine(sub.lat, sub.lon, c.lat, c.lng);
@@ -286,10 +351,16 @@ async function run() {
         );
         if (hits.length) {
           const best = hits.slice().sort((a, b) => (b.impactPct - a.impactPct) || (b.dbz - a.dbz))[0];
-          const body = fmtStormBody(best, hits.length, mv, sub.thresholds && sub.thresholds.tz, sub.thresholds && sub.thresholds.h24);
+          const body = fmtStormBody(best, hits.length, mv, tz, h24);
           const cks = hits.map(c => `sc_${Math.round(c.bearing / 10)}_${Math.round(c.distance / 3)}`);
           items.push({ kind: 'sc', urgency: 'high', cks, display: `🌩️ ${body}`, titleSingle: '🌩️ StormTracker Alert', body });
         }
+
+        // Lightning runs off the full corridor (approaching strong cells out to
+        // 80 mi), independent of the user's dBZ/impact filter, so a strong cell
+        // bearing down can warn even if it hasn't met the storm-alert bar yet.
+        const ltg = fmtLightning(personal, th.radius, tz, h24);
+        if (ltg) items.push({ kind: 'ltg', urgency: 'high', cks: ltg.cks, display: ltg.display, titleSingle: '⚡ Lightning Nearby', body: ltg.body });
       }
 
       // --- Weather thresholds (mirror the app's in-app alert settings) ---
@@ -333,11 +404,14 @@ async function run() {
             title = `🚨 ${items.length} alerts${sub.name ? ' · ' + sub.name : ''}`;
             // Cap the body so a major multi-alert event can't blow past the
             // ~4 KB web-push payload limit; remaining items are still deduped.
+            // Lead with a one-line "bottom line" so the user sees what to do
+            // before scanning the full list.
             const MAX_LINES = 12;
             const lines = items.map(i => i.display);
-            body = (lines.length > MAX_LINES
+            const list = lines.length > MAX_LINES
               ? lines.slice(0, MAX_LINES).concat(`…and ${lines.length - MAX_LINES} more`)
-              : lines).join('\n');
+              : lines;
+            body = [situationLead(items), ...list].join('\n');
           }
           const urgency = items.some(i => i.urgency === 'high') ? 'high' : 'normal';
           const payload = JSON.stringify({ title, body, tag: 'stormtracker-digest', url: SITE_URL });

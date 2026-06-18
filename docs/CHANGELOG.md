@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.00
+
+  **Lightning estimates + bottom-line summary in background push alerts.**
+
+  - **Estimated lightning advisory** (`scanner/scan.js` `fmtLightning`): a new `ltg` digest item warns when a strong storm (≥45 dBZ) is in the user's impact corridor (approaching / in the cone) out to 80 mi. Leads with the closest cell by direction (full compass word) + distance + ETA — e.g. `Lightning ⚡ estimated to the southwest around 20 mi in a strong storm (52 dBZ) · ETA ~8 min …`. Cells arriving within 15 min are flagged as the urgent set; the total count of strong corridor cells is included for context. Lightning is radar-derived (not observed), runs independent of the user's dBZ/impact storm-alert thresholds, and is deduped by 45° direction sector + 10 mi distance bucket (`ltg_` keys, 30 min cooldown).
+  - **Bottom-line lead** (`scanner/scan.js` `situationLead`): multi-alert digests now open with a one-line actionable summary (e.g. `🚨 Bottom line: severe weather active near you — take protective action.`) before the item list, prioritizing tropical > any high-urgency > storms > general.
+  - **Cache bumped** — `?v=598` / `stormtracker-v598`.
+
   ## v4.99
 
   **Push notification polish: ETA arrival clock, NWS effective times, clearer distance, subscription cleanup.**
