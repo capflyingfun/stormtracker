@@ -24,7 +24,7 @@
 
 import webpush from 'web-push';
 import {
-  scanLocation, haversine, bearingDeg, calcImpact, calcETA, degToDir,
+  scanLocation, dbzAtPoint, haversine, bearingDeg, calcImpact, calcETA, degToDir,
 } from './detect.js';
 import { fetchConditions, evalWx, fetchNws, nwsIcon, nwsWindow } from './alerts.js';
 import { fetchTropical, evalTropical } from './tropical.js';
@@ -40,9 +40,45 @@ const SITE_URL = 'https://capflyingfun.github.io/StormTracker/';
 // Per-alert-type dedupe (re-notify) and prune (forget) windows, keyed by the
 // prefix of each dedupe key. Storm cells move fast (short window); a standing
 // NWS warning or weather condition shouldn't re-buzz for hours.
-const COOLDOWN = { sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000, trop: 12 * 60 * 60 * 1000 };
-const PRUNE = { sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
-function keyKind(k) { const s = String(k); const base = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s; const p = base.split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg') ? p : 'sc'; }
+const COOLDOWN = { sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, rov: 5 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000, trop: 12 * 60 * 60 * 1000 };
+const PRUNE = { sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, rov: 2 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
+function keyKind(k) { const s = String(k); const base = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s; const p = base.split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg' || p === 'rov') ? p : 'sc'; }
+
+// Intensity bands — must match docs/js/thresholds.js _ALERT_BAND_DEFS exactly so
+// the background scanner gates and re-notifies identically to the in-app alerts.
+// Each band carries an on/off toggle (gates inbound storm pushes AND the
+// rain-overhead push at that intensity) and a per-band cadence (minutes) that
+// becomes the dedupe cooldown for items in that band. A master rovOn enables the
+// "rain right over you" push. When a subscription predates this feature (no
+// bands), default to ALL bands on + rovOn true so existing users keep getting
+// pushes at their old behavior.
+const BAND_DEFS = [
+  { key: 'light', label: 'Light', min: 20, max: 29, defOn: true, defMin: 10 },
+  { key: 'moderate', label: 'Moderate', min: 30, max: 44, defOn: true, defMin: 5 },
+  { key: 'heavy', label: 'Heavy', min: 45, max: 54, defOn: true, defMin: 5 },
+  { key: 'severe', label: 'Severe', min: 55, max: 9999, defOn: true, defMin: 5 },
+];
+const BAND_CADENCE_OPTS = [5, 10, 15, 30];
+function bandForDbz(dbz) {
+  if (dbz == null || dbz < 20) return null;
+  for (const b of BAND_DEFS) if (dbz >= b.min && dbz <= b.max) return b.key;
+  return null;
+}
+function bandLabel(key) { const b = BAND_DEFS.find(x => x.key === key); return b ? b.label : ''; }
+// Normalize a subscription's bands config, falling back to defaults for any
+// missing field so partial/legacy payloads behave like the in-app defaults.
+function bandsFor(sub) {
+  const raw = (sub.thresholds && sub.thresholds.bands) || null;
+  const out = { rovOn: raw ? raw.rovOn !== false : true };
+  for (const b of BAND_DEFS) {
+    const c = (raw && raw[b.key]) || {};
+    out[b.key] = {
+      on: c.on !== undefined ? !!c.on : b.defOn,
+      min: BAND_CADENCE_OPTS.includes(c.min) ? c.min : b.defMin,
+    };
+  }
+  return out;
+}
 
 // Storm-cell defaults mirror the app's intent: inbound + reasonably strong.
 const DEF = { dbz: 40, impact: 50, dist: 60, radius: 80 };
@@ -213,7 +249,7 @@ function fmtLightning(personal, tz, h24) {
 function situationLead(items) {
   const high = items.some(i => i.urgency === 'high');
   const hasTrop = items.some(i => i.kind === 'trop');
-  const hasStorm = items.some(i => i.kind === 'sc' || i.kind === 'ltg');
+  const hasStorm = items.some(i => i.kind === 'sc' || i.kind === 'ltg' || i.kind === 'rov');
   if (hasTrop) return '🌀 Bottom line: tropical threat developing — review official guidance now.';
   if (high) return '🚨 Bottom line: severe weather active near you — take protective action.';
   if (hasStorm) return '🌧️ Bottom line: storms in your area — stay weather-aware.';
@@ -341,12 +377,23 @@ async function run() {
       catch (e) { console.warn(`  nws ${key} failed: ${e.message}`); }
     }
 
+    // 4. Rain right over the user — radar dBZ on the exact spot, only if someone
+    // here has the rain-overhead toggle on. One decode per group (members share a
+    // coarse location); each sub still applies its own band gate below.
+    let overheadDbz = null;
+    const wantRov = members.some(m => bandsFor(m).rovOn);
+    if (wantRov) {
+      try { overheadDbz = await dbzAtPoint(o.lat, o.lon); console.log(`  overhead: ${overheadDbz} dBZ`); }
+      catch (e) { console.warn(`  overhead ${key} failed: ${e.message}`); }
+    }
+
     for (const sub of members) {
       const st = epState.get(sub.endpoint);
       if (!st || st.dead) continue; // endpoint already dead/pruned this run
       const lastAlert = st.la;      // shared per-endpoint map (all locations)
       const ns = sub._locId + '#';  // namespace this location's dedupe keys
       const th = thresholdsFor(sub);
+      const bands = bandsFor(sub);  // intensity-band gates + rain-overhead toggle
 
       // Collect EVERY currently-active alert for this subscriber across all
       // sources into one list. We send a single digest notification listing them
@@ -368,9 +415,13 @@ async function run() {
           const eta = calcETA(cc, mv); cc.etaMin = eta.etaMin; cc.approaching = eta.approaching;
           return cc;
         });
+        // Inbound cells passing the user's radius/impact/distance filter, then
+        // GATED by the intensity bands: a cell only counts if its dBZ falls in a
+        // band the user left on. This mirrors the in-app band gate exactly.
         const hits = personal.filter(c =>
           c.distance <= th.radius && c.approaching &&
-          c.dbz >= th.dbz && c.impactPct >= th.impact && c.distance <= th.dist
+          c.dbz >= th.dbz && c.impactPct >= th.impact && c.distance <= th.dist &&
+          (() => { const bk = bandForDbz(c.dbz); return bk && bands[bk] && bands[bk].on; })()
         );
         if (hits.length) {
           // Strongest + soonest: bucket ETA into ~10-min bands (soonest first),
@@ -383,7 +434,11 @@ async function run() {
           })[0];
           const body = fmtStormBody(best, hits.length, mv, tz, h24);
           const cks = hits.map(c => `sc_${Math.round(c.bearing / 10)}_${Math.round(c.distance / 3)}`);
-          items.push({ kind: 'sc', urgency: 'high', cks, display: `🌩️ ${body}`, titleSingle: '🌩️ StormTracker Alert', body });
+          // Re-notify cadence follows the strongest hit's band (the cell that
+          // leads the notification), matching the in-app per-cell band cooldown.
+          const bestBand = bandForDbz(best.dbz);
+          const cooldownMs = bestBand ? bands[bestBand].min * 60000 : COOLDOWN.sc;
+          items.push({ kind: 'sc', urgency: 'high', cks, cooldownMs, display: `🌩️ ${body}`, titleSingle: '🌩️ StormTracker Alert', body });
         }
 
         // Lightning runs off the full corridor (approaching strong cells out to
@@ -391,6 +446,19 @@ async function run() {
         // bearing down can warn even if it hasn't met the storm-alert bar yet.
         const ltg = fmtLightning(personal, tz, h24);
         if (ltg) items.push({ kind: 'ltg', urgency: 'high', cks: ltg.cks, display: ltg.display, titleSingle: '⚡ Lightning Nearby', body: ltg.body });
+      }
+
+      // --- Rain right over you (radar dBZ on the exact spot, no inbound needed) ---
+      // Fires whenever the overhead radar value lands in an enabled band, even
+      // with nothing approaching. Independent of the storm-cell filter above.
+      if (bands.rovOn && overheadDbz != null && overheadDbz >= 20) {
+        const dbz = Math.round(overheadDbz);
+        const bk = bandForDbz(dbz);
+        if (bk && bands[bk] && bands[bk].on) {
+          const cooldownMs = bands[bk].min * 60000;
+          const body = `🌧️ Rain right over you — ${bandLabel(bk)} (${dbz} dBZ)`;
+          items.push({ kind: 'rov', urgency: bk === 'severe' ? 'high' : 'normal', cks: ['rov'], cooldownMs, display: body, titleSingle: '🌧️ Rain Overhead', body });
+        }
       }
 
       // --- Weather thresholds (mirror the app's in-app alert settings) ---
@@ -426,7 +494,7 @@ async function run() {
 
       // --- Single merged digest ---
       if (items.length) {
-        const triggered = items.some(it => it.cks.some(ck => now - (lastAlert[ns + ck] || 0) >= COOLDOWN[it.kind]));
+        const triggered = items.some(it => { const cd = it.cooldownMs != null ? it.cooldownMs : COOLDOWN[it.kind]; return it.cks.some(ck => now - (lastAlert[ns + ck] || 0) >= cd); });
         if (triggered) {
           let title, body;
           if (items.length === 1) { title = items[0].titleSingle + (sub.name ? ' · ' + sub.name : ''); body = items[0].body; }
@@ -445,6 +513,7 @@ async function run() {
               if (it.kind === 'nws') return nwsTier(it.display); // 1 warn, 2 watch, 3 adv
               if (it.kind === 'sc') return 1.5;
               if (it.kind === 'ltg') return 1.6;
+              if (it.kind === 'rov') return 1.7;
               if (it.kind === 'wx') return 2.5;
               return 4;
             };
