@@ -121,6 +121,8 @@ async function enablePushAlerts(silent) {
         dbz: th.dbz, impact: th.impact, dist: th.radius, radius: th.radius,
         wx: _pushWxCfg(), units: _pushUnits(), nws: th.nws !== false,
         tropical: { on: th.tropical !== false, radius: _pushTropRadius() },
+        tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; } })(),
+        h24: (typeof _is24h === 'function') ? _is24h() : false,
       },
       code: existing && existing.code ? existing.code : undefined,
     };

@@ -3,6 +3,17 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v4.99
+
+  **Push notification polish: ETA arrival clock, NWS effective times, clearer distance, subscription cleanup.**
+
+  - **Storm push body** (`scanner/scan.js` `fmtStormBody`) now appends the arrival wall-clock time to the ETA — `ETA 8 min (08:09 AM)` for 12-hour users, `ETA 8 min (0809)` for 24-hour users — and renders distance as `4.7 mi away` instead of `at 4.7 mi`. Arrival time is formatted in the subscriber's own time zone via `Intl.DateTimeFormat`.
+  - **Subscriber tz/format**: `docs/js/push.js` now sends `tz` (IANA zone) and `h24` (resolved 12/24h preference) in the subscription `thresholds`. Existing subscribers must toggle Background Alerts off/on once to populate these; until then the push gracefully omits the clock time.
+  - **NWS push body** (`scanner/alerts.js` `fetchNws` + new `nwsWindow`/`fmtAlertTime`): active watches/warnings now include their effective window — `In effect until Thu 7:12 PM`, or `Begins … · until …` for future onsets — using the offset embedded in the NWS timestamp. Compact `· until …` is appended to each line in multi-alert digests.
+  - **In-app toast** (`docs/js/thresholds.js`): storm-cell toast/notification distance wording changed to `… dBZ · 4.7 mi away …` to match the push.
+  - **Subscription cleanup**: removed stale/duplicate push subscriptions server-side (kept only the active device).
+  - **Cache bumped** — `?v=597` / `stormtracker-v597`.
+
   ## v4.98
 
   **Fix: Background Storm Alerts toggle did not update in real time after tapping Turn on.**

@@ -138,8 +138,40 @@ async function fetchNws(lat, lon) {
       severity: (p.severity || '').toLowerCase(),
       headline: p.headline || '',
       area: p.areaDesc || '',
+      onset: p.onset || p.effective || null,
+      ends: p.ends || p.expires || null,
     };
   }).filter(a => a.id);
+}
+
+// Format an NWS ISO timestamp (which carries the alert area's own UTC offset)
+// into a short human local time like "Wed 8:00 PM", rendered in that same zone.
+function fmtAlertTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const m = String(iso).match(/([+-])(\d{2}):?(\d{2})$/);
+  const offMin = m ? (m[1] === '-' ? -1 : 1) * (parseInt(m[2], 10) * 60 + parseInt(m[3], 10)) : 0;
+  const local = new Date(d.getTime() + offMin * 60000);
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  let h = local.getUTCHours();
+  const mn = local.getUTCMinutes();
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${days[local.getUTCDay()]} ${h}:${String(mn).padStart(2, '0')} ${ap}`;
+}
+
+// Human "in effect" window for an NWS alert. short=true -> "until Wed 8:00 PM"
+// for compact digest lines; short=false -> a fuller phrase for a single alert.
+function nwsWindow(a, short) {
+  const end = fmtAlertTime(a && a.ends);
+  const start = fmtAlertTime(a && a.onset);
+  const future = a && a.onset && new Date(a.onset).getTime() > Date.now();
+  if (short) return end ? `until ${end}` : '';
+  if (future && start && end) return `Begins ${start} · until ${end}`;
+  if (future && start) return `Begins ${start}`;
+  if (end) return `In effect until ${end}`;
+  return '';
 }
 
 function nwsIcon(event) {
@@ -156,4 +188,4 @@ function nwsIcon(event) {
   return '⚠️';
 }
 
-export { fetchConditions, evalWx, fetchNws, nwsIcon };
+export { fetchConditions, evalWx, fetchNws, nwsIcon, nwsWindow };

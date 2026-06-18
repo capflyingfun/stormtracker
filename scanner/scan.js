@@ -26,7 +26,7 @@ import webpush from 'web-push';
 import {
   scanLocation, haversine, bearingDeg, calcImpact, calcETA, degToDir,
 } from './detect.js';
-import { fetchConditions, evalWx, fetchNws, nwsIcon } from './alerts.js';
+import { fetchConditions, evalWx, fetchNws, nwsIcon, nwsWindow } from './alerts.js';
 import { fetchTropical, evalTropical } from './tropical.js';
 
 const WORKER_URL = (process.env.WORKER_URL || '').replace(/\/$/, '');
@@ -123,13 +123,33 @@ function thresholdsFor(sub) {
   };
 }
 
-function fmtStormBody(best, count, mv) {
-  const distStr = best.distance.toFixed(1) + ' mi';
-  const etaStr = best.etaMin != null ? ` · ETA ${best.etaMin} min` : '';
+// Arrival wall-clock for a storm ETA, in the subscriber's own time zone.
+// h24=true -> "0809" (military); otherwise "08:09 AM". Empty if tz unknown.
+function fmtArrivalClock(etaMin, tz, h24) {
+  if (etaMin == null || !tz) return '';
+  try {
+    const d = new Date(Date.now() + etaMin * 60000);
+    if (h24) {
+      const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
+      const hh = (p.find(x => x.type === 'hour') || {}).value || '';
+      const mm = (p.find(x => x.type === 'minute') || {}).value || '';
+      return hh && mm ? `${hh}${mm}` : '';
+    }
+    return new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: true }).format(d);
+  } catch (e) { return ''; }
+}
+
+function fmtStormBody(best, count, mv, tz, h24) {
+  const distStr = best.distance.toFixed(1) + ' mi away';
+  let etaStr = '';
+  if (best.etaMin != null) {
+    const clock = fmtArrivalClock(best.etaMin, tz, h24);
+    etaStr = ` · ETA ${best.etaMin} min${clock ? ` (${clock})` : ''}`;
+  }
   let moveStr = '';
   if (mv && mv.speed >= 2) moveStr = ` · moving ${degToDir(mv.direction)} ~${Math.round(mv.speed)} mph`;
   const lead = count > 1 ? `${count} storm cells inbound — strongest ` : 'Storm cell inbound — ';
-  return `${lead}${best.dbz} dBZ at ${distStr}${best.impactPct > 0 ? ` · ${best.impactPct}% impact` : ''}${etaStr}${moveStr}`;
+  return `${lead}${best.dbz} dBZ · ${distStr}${best.impactPct > 0 ? ` · ${best.impactPct}% impact` : ''}${etaStr}${moveStr}`;
 }
 
 // Returns 'ok' | 'dead' | 'err'. 'dead' means the push endpoint is gone (404/410).
@@ -266,7 +286,7 @@ async function run() {
         );
         if (hits.length) {
           const best = hits.slice().sort((a, b) => (b.impactPct - a.impactPct) || (b.dbz - a.dbz))[0];
-          const body = fmtStormBody(best, hits.length, mv);
+          const body = fmtStormBody(best, hits.length, mv, sub.thresholds && sub.thresholds.tz, sub.thresholds && sub.thresholds.h24);
           const cks = hits.map(c => `sc_${Math.round(c.bearing / 10)}_${Math.round(c.distance / 3)}`);
           items.push({ kind: 'sc', urgency: 'high', cks, display: `🌩️ ${body}`, titleSingle: '🌩️ StormTracker Alert', body });
         }
@@ -285,7 +305,11 @@ async function run() {
       if (nwsOn && nwsAlerts.length) {
         for (const a of nwsAlerts) {
           const ic = nwsIcon(a.event);
-          items.push({ kind: 'nws', urgency: 'high', cks: ['nws_' + a.id], display: `${ic} ${a.event}`, titleSingle: `${ic} ${a.event}`, body: a.headline || a.area || a.event });
+          const shortWin = nwsWindow(a, true);
+          const fullWin = nwsWindow(a, false);
+          const display = `${ic} ${a.event}${shortWin ? ` · ${shortWin}` : ''}`;
+          const body = [a.headline || a.area || a.event, fullWin ? `🕐 ${fullWin}` : ''].filter(Boolean).join('\n');
+          items.push({ kind: 'nws', urgency: 'high', cks: ['nws_' + a.id], display, titleSingle: `${ic} ${a.event}`, body });
         }
       }
 
