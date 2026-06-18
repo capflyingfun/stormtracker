@@ -667,10 +667,7 @@ function show3DView(){
         <canvas id="iso-canvas"></canvas>
         <div class="iso-legend" style="max-height:240px">
           <h4>Elevation = Intensity</h4>
-          <div class="iso-legend-row"><span class="le" style="color:#22c55e">▓</span> Light (15-30 dBZ)</div>
-          <div class="iso-legend-row"><span class="le" style="color:#facc15">▓</span> Moderate (31-45)</div>
-          <div class="iso-legend-row"><span class="le" style="color:#ff3355">▓</span> Heavy (46-55)</div>
-          <div class="iso-legend-row"><span class="le" style="color:#e040fb">▓</span> Severe (56+)</div>
+          ${DBZ_BINS.map((e,i,a)=>{const nx=a[i+1];const rng=nx?`${e.min}–${nx.min-1}`:`${e.min}+`;return`<div class="iso-legend-row"><span class="le" style="color:${e.color}">▓</span> ${e.label} (${rng} dBZ)</div>`}).join('')}
           <div class="iso-legend-row"><span class="le">⚡</span> Lightning (≥40)</div>
         </div>
         <div class="iso-info" id="iso-info"></div>

@@ -1,9 +1,12 @@
 // StormTracker — Wind Gauges, Sonar Config, Gyro Compass
 let _windMinKmh=Infinity,_windMaxKmh=0;
 const _SONAR_ZOOM_LEVELS=[15,20,30,40,50,60,70,80];
-const _SONAR_DBZ_CLASSES=['light','moderate','heavy','intense','severe','extreme'];
-const _SONAR_DBZ_LABELS={light:'Light (20-30)',moderate:'Moderate (31-40)',heavy:'Heavy (41-45)',intense:'Intense (46-51)',severe:'Severe (52-60)',extreme:'Extreme (61+)'};
-const _SONAR_DBZ_COLORS={light:'#00F8FF',moderate:'#00FF39',heavy:'#F5FF00',intense:'#FFB200',severe:'#FF0200',extreme:'#FF00F5'};
+// Derived from the master DBZ_SCALE (core.js) so the sonar dot-size controls stay
+// in lockstep with the radar palette. Covers rain-bearing bins (≥20 dBZ).
+const _SONAR_DBZ_BINS=DBZ_SCALE.filter(e=>e.min>=20);
+const _SONAR_DBZ_CLASSES=_SONAR_DBZ_BINS.map(e=>e.cls);
+const _SONAR_DBZ_LABELS=Object.fromEntries(_SONAR_DBZ_BINS.map((e,i,a)=>{const nx=a[i+1];const rng=nx?`${e.min}-${nx.min-1}`:`${e.min}+`;return[e.cls,`${e.label} (${rng})`]}));
+const _SONAR_DBZ_COLORS=Object.fromEntries(_SONAR_DBZ_BINS.map(e=>[e.cls,e.color]));
 const _SONAR_DEFAULTS={dbzScale:{},sweepSpeed:40,fadeDur:2,alwaysOn:false,dotOpacity:100,glowInt:1,gridBright:100,dbzFloor:0,showStormArrows:true,showAloft:true,showLightning:true,showRelMotion:true};
 let _sonarCfg=(function(){try{const s=JSON.parse(localStorage.getItem('st_sonarCfg'));if(s&&typeof s==='object')return Object.assign({},_SONAR_DEFAULTS,s)}catch(e){}return Object.assign({},_SONAR_DEFAULTS)})();
 function _saveSonarCfg(){localStorage.setItem('st_sonarCfg',JSON.stringify(_sonarCfg))}

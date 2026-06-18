@@ -685,7 +685,7 @@ function renderWeather(data){
   const wxNavBtn=document.querySelector('[data-page="weather"] .nav-icon');
   if(wxNavBtn)wxNavBtn.innerHTML=neonWx(c.weather_code,isDay,20);
   const _zoneOverride=rainOverUserNow();
-  const _zoneDbzToWmo={sprinkles:51,drizzle:53,trace:3,light:61,moderate:63,heavy:65,intense:65,severe:95,extreme:99};
+  const _zoneDbzToWmo={sprinkles:51,drizzle:53,trace:3,light:61,light2:63,moderate:63,moderate2:65,heavy:65,intense:65,'mod-severe':65,severe:95,severe2:96,extreme:99};
   const _heroDesc=_zoneOverride?_zoneOverride.label:(c._nwsDesc||desc);
   const _heroWCode=_zoneOverride?(_zoneDbzToWmo[_zoneOverride.cls]||63):c.weather_code;
   const dewC=Math.min(tempC,c._directDewC!=null?c._directDewC:calcDewC(tempC,Math.min(100,c.relative_humidity_2m)));
