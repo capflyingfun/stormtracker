@@ -105,9 +105,10 @@ function _pushLoc() {
 // Full-screen "please wait" overlay with a live count-up timer, shown while a
 // foreground enable/disable/update is in flight. A 30s safety timeout clears it
 // and refreshes the panel if the operation stalls (e.g. permission prompt hangs).
-let _pushBusyTimer = null, _pushBusySafety = null, _pushBusyStart = 0;
+let _pushBusyTimer = null, _pushBusySafety = null, _pushBusyStart = 0, _pushOpInFlight = false;
 function _showPushBusy(label) {
   _hidePushBusy();
+  _pushOpInFlight = true;
   _pushBusyStart = Date.now();
   let el = document.getElementById('pushBusyOverlay');
   if (!el) {
@@ -140,6 +141,7 @@ function _showPushBusy(label) {
   }, 30000);
 }
 function _hidePushBusy() {
+  _pushOpInFlight = false;
   if (_pushBusyTimer) { clearInterval(_pushBusyTimer); _pushBusyTimer = null; }
   if (_pushBusySafety) { clearTimeout(_pushBusySafety); _pushBusySafety = null; }
   const el = document.getElementById('pushBusyOverlay');
@@ -151,7 +153,10 @@ async function enablePushAlerts(silent) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) { if (!silent) toast('⚠️ Push not supported on this device'); return; }
   const loc = _pushLoc();
   if (!loc) { if (!silent) toast('📍 Set a home location first'); return; }
-  if (!silent) _showPushBusy('Updating your notification settings, please wait…');
+  if (!silent) {
+    if (_pushOpInFlight) return; // ignore double-clicks while one action is running
+    _showPushBusy('Updating your notification settings, please wait…');
+  }
   try {
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') { if (!silent) toast('🔕 Notification permission denied'); return; }
@@ -191,6 +196,7 @@ async function enablePushAlerts(silent) {
 async function disablePushAlerts() {
   const base = _pushApiUrl();
   const cur = _getPushSub();
+  if (_pushOpInFlight) return; // ignore double-clicks while one action is running
   _showPushBusy('Turning off notifications, please wait…');
   try {
     const reg = await navigator.serviceWorker.ready;
