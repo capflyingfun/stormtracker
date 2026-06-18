@@ -4,6 +4,7 @@
 const _RI='img/radar/';
 function _ri(name){return`<img src="${_RI}${name}.svg" alt="">`}
 function _ris(id,name){const el=document.getElementById(id);if(!el)return;const img=el.querySelector('img');if(img)img.src=_RI+name+'.svg';else el.innerHTML=_ri(name)}
+function refreshRadarLegend(){const bar=document.querySelector('.legend-bar');if(!bar)return;bar.innerHTML=DBZ_SCALE.filter(e=>e.min>=5).map((e,i,a)=>{const nx=a[i+1];const rng=nx?`${e.min}-${nx.min-1}`:`${e.min}+`;return`<span style="background:${e.color}" title="${rng} ${e.label}"></span>`}).join('');}
 function initRadar(){
   if(!S.lat)return;
   const el=document.getElementById('page-radar');

@@ -424,7 +424,12 @@ function _dbzColSyncRow(min,hex){
   const l=document.getElementById('dbz-lbl-'+min);if(l)l.style.color=hex;
   const r=document.getElementById('dbz-rst-'+min);if(r)r.style.visibility=isDbzColorCustom(min)?'visible':'hidden';
 }
-function _refreshRadarColors(){try{if(typeof drawMiniSonar==='function')drawMiniSonar()}catch(e){}try{if(typeof renderStorms==='function')renderStorms()}catch(e){}}
+function _refreshRadarColors(){
+  try{if(typeof drawMiniSonar==='function')drawMiniSonar()}catch(e){}
+  try{if(typeof renderStorms==='function')renderStorms()}catch(e){}
+  try{if(typeof refreshRadarLegend==='function')refreshRadarLegend()}catch(e){}
+  try{if(typeof S!=='undefined'&&S.map&&typeof plotStormMarkers==='function')plotStormMarkers(S.map)}catch(e){}
+}
 function onDbzColorInput(min,hex){setDbzColor(min,hex);_dbzColSyncRow(min,hex);_refreshRadarColors()}
 function onDbzHexInput(min,val){let v=(val||'').trim();if(v&&v[0]!=='#')v='#'+v;if(/^#[0-9a-fA-F]{6}$/.test(v)){setDbzColor(min,v);_dbzColSyncRow(min,v);_refreshRadarColors()}}
 function onDbzColorReset(min){resetDbzColor(min);const el=document.getElementById('dbz-color-settings');if(el)el.innerHTML=renderDbzColorSettings();_refreshRadarColors()}
