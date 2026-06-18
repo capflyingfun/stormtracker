@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.06
+
+  **UX: single slide toggle for Background Storm Alerts + 30s lockup safety.**
+
+  - `docs/js/push.js` `renderPushAlertSettings` now renders one accessible slide toggle (`role="switch"`, left=off / right=on) wired to a new `togglePushAlerts(want)` (→ `enablePushAlerts`/`disablePushAlerts`), replacing the separate "🔔 Turn on" / "↻ Update" / "🔕 Turn off" buttons. A contextual "↻ Update" button now appears only when the saved subscription location has drifted (>0.05° lat/lon) so the watch can follow the user.
+  - Retuned the enable/disable network budget to fit a 30s lockup safety (per request): `_pushPost` timeout 20s→14s for `/subscribe` and 15s→12s for `/unsubscribe` (still 1 automatic retry each → worst case ~28s), and the busy-overlay safety timeout 45s→30s.
+  - **Cache bumped** — `?v=604` / `stormtracker-v604`.
+
   ## v5.05
 
   **Fix: "Could not enable alerts: Fetch is aborted" when enabling Background Storm Alerts on mobile data.**
