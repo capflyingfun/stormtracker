@@ -126,7 +126,9 @@ function fmtStormBody(best, count, mv, tz, h24) {
   let etaStr = '';
   if (best.etaMin != null) {
     const clock = fmtArrivalClock(best.etaMin, tz, h24);
-    etaStr = ` · ETA ${best.etaMin} min${clock ? ` (${clock})` : ''}`;
+    // Show the concrete arrival clock time (e.g. "ETA 1058") to save characters;
+    // fall back to "N min" only when a clock time can't be computed (no tz).
+    etaStr = clock ? ` · ETA ${clock}` : ` · ETA ${best.etaMin} min`;
   }
   let moveStr = '';
   if (mv && mv.speed >= 2) moveStr = ` · moving ${degToDir(mv.direction)} ~${Math.round(mv.speed)} mph`;
@@ -173,7 +175,7 @@ function fmtLightning(personal, tz, h24) {
   let etaStr = '';
   if (lead.approaching && lead.etaMin != null) {
     const clock = fmtArrivalClock(lead.etaMin, tz, h24);
-    etaStr = ` · ETA ~${lead.etaMin} min${clock ? ` (${clock})` : ''}`;
+    etaStr = clock ? ` · ETA ${clock}` : ` · ETA ~${lead.etaMin} min`;
   }
   const leadSentence = `Lightning ⚡ estimated to the ${dirLong(lead.bearing)} around ${dist} mi in a strong storm (${lead.dbz} dBZ)${etaStr}.`;
 
