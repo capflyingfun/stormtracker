@@ -17,6 +17,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v5.08',date:'2026-06-18',items:['🎨 <b>Smoother radar colors</b> — refined the new palette so it reads as a clean gradient: each color fades from light to deep as rain gets stronger (deeper = more intense), and the color only changes at the next level up. Removed the very dark blues/greens/reds that turned muddy on the map, so everything stays bright and easy to read.','🖌️ <b>Customize radar colors</b> — new “Radar Colors” section in Settings lets you set your own color for every rain intensity (dBZ). Tap a swatch to pick any color, or type a HEX code, and it applies instantly to the radar map, sonar and 3D view. Tap ↺ to reset any level — or all of them — back to default.']},
   {ver:'v5.07',date:'2026-06-18',items:['🎨 <b>New radar colors</b> — the storm map, sonar, 3D view and legend now step through color in 5 dBZ increments to look more like real weather radar. Light rain stays blue (neon → navy), then greens (light → neon → hunter), yellow, orange, red (neon → maroon), magenta, and pink at the most extreme intensity.']},
   {ver:'v5.06',date:'2026-06-18',items:['🎚️ <b>Background Storm Alerts</b> now uses a simple slide toggle — tap to flip it left (off) or right (on). No more separate “Turn on / Update / Turn off” buttons. If your location moves, a small “Update” button appears so the watch follows you.','⏱️ If turning it on ever locks up, the app gives it a steady 30 seconds (with one automatic retry) before refreshing so you can try again.']},
   {ver:'v5.05',date:'2026-06-18',items:['🔧 Fixed <b>“Could not enable alerts: Fetch is aborted”</b> when turning on Background Storm Alerts. The app was giving up on the connection too quickly (10 seconds), which could fail on a weak cell signal. It now waits longer and automatically retries once, so enabling alerts works reliably on mobile data. If it still can\'t connect, you\'ll get a clearer message suggesting Wi-Fi.']},
@@ -395,7 +396,39 @@ function syncSettingsPanel(){
   const avgWSel=document.getElementById('settings-avg-window');
   if(avgWSel)avgWSel.value=String(_getAvgWindow()/1000);
   syncIconPackUI();
+  const dbzColEl=document.getElementById('dbz-color-settings');
+  if(dbzColEl&&typeof renderDbzColorSettings==='function')dbzColEl.innerHTML=renderDbzColorSettings();
 }
+function renderDbzColorSettings(){
+  const bins=DBZ_SCALE.filter(e=>e.min>=5);
+  let html='';
+  bins.forEach((e,i,a)=>{
+    const nx=a[i+1];const rng=nx?`${e.min}–${nx.min-1}`:`${e.min}+`;
+    const hex=e.color;const custom=isDbzColorCustom(e.min);
+    html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <input type="color" id="dbz-col-${e.min}" value="${hex}" oninput="onDbzColorInput(${e.min},this.value)" title="Pick a color" style="width:36px;height:30px;padding:0;border:1px solid var(--border-subtle);border-radius:6px;background:none;cursor:pointer;flex:none">
+      <div style="flex:1;min-width:0">
+        <div id="dbz-lbl-${e.min}" style="font-size:0.72em;font-weight:600;color:${hex};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.label}</div>
+        <div style="font-size:0.62em;color:var(--text-muted)">${rng} dBZ</div>
+      </div>
+      <input type="text" id="dbz-hex-${e.min}" value="${hex}" maxlength="7" spellcheck="false" autocapitalize="off" oninput="onDbzHexInput(${e.min},this.value)" style="width:80px;flex:none;font-family:monospace;font-size:0.72em;text-align:center;padding:5px 4px;background:rgba(255,255,255,0.04);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary)">
+      <button id="dbz-rst-${e.min}" onclick="onDbzColorReset(${e.min})" title="Reset to default" style="flex:none;width:28px;height:28px;border-radius:6px;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-muted);cursor:pointer;font-size:0.85em;${custom?'':'visibility:hidden'}">↺</button>
+    </div>`;
+  });
+  html+=`<button onclick="onDbzColorResetAll()" style="width:100%;margin-top:4px;padding:7px;background:rgba(255,255,255,0.04);border:1px solid var(--border-subtle);border-radius:8px;color:var(--text-muted);font-size:0.72em;font-weight:600;cursor:pointer">↺ Reset All Colors to Default</button>`;
+  return html;
+}
+function _dbzColSyncRow(min,hex){
+  const c=document.getElementById('dbz-col-'+min);if(c&&c.value.toLowerCase()!==hex.toLowerCase())c.value=hex;
+  const h=document.getElementById('dbz-hex-'+min);if(h&&document.activeElement!==h)h.value=hex;
+  const l=document.getElementById('dbz-lbl-'+min);if(l)l.style.color=hex;
+  const r=document.getElementById('dbz-rst-'+min);if(r)r.style.visibility=isDbzColorCustom(min)?'visible':'hidden';
+}
+function _refreshRadarColors(){try{if(typeof drawMiniSonar==='function')drawMiniSonar()}catch(e){}try{if(typeof renderStorms==='function')renderStorms()}catch(e){}}
+function onDbzColorInput(min,hex){setDbzColor(min,hex);_dbzColSyncRow(min,hex);_refreshRadarColors()}
+function onDbzHexInput(min,val){let v=(val||'').trim();if(v&&v[0]!=='#')v='#'+v;if(/^#[0-9a-fA-F]{6}$/.test(v)){setDbzColor(min,v);_dbzColSyncRow(min,v);_refreshRadarColors()}}
+function onDbzColorReset(min){resetDbzColor(min);const el=document.getElementById('dbz-color-settings');if(el)el.innerHTML=renderDbzColorSettings();_refreshRadarColors()}
+function onDbzColorResetAll(){resetAllDbzColors();const el=document.getElementById('dbz-color-settings');if(el)el.innerHTML=renderDbzColorSettings();_refreshRadarColors()}
 function setSimInterval(val){
   const v=parseInt(val,10);
   if(v>=5&&v<=30){

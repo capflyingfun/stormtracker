@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.08
+
+  **Radar palette: smoother gradient + user-customizable colors.**
+
+  - Refined the `DBZ_SCALE` colors in `docs/js/core.js` for a cleaner light→deep gradient within each color family (deeper = stronger), with hue shifts only at band boundaries. Removed the near-black darks (navy/hunter/maroon) that turned muddy at the low opacity radar tiles render with. New colors: 15 `#7FC4FF`, 20 `#2E7BF0`, 25 `#7BF06B`, 30 `#28D028`, 35 `#15A523`, 40 `#FCE300`, 45 `#FF9D00`, 50 `#FF3B23`, 55 `#D11226`, 60 `#E81DE8`, 65 `#FF8FE0` (0/5 blues unchanged).
+  - **Customizable radar colors** — new "🎨 Radar Colors" section in Settings (`renderDbzColorSettings` in `docs/js/settings.js`) lets users override the color of any dBZ bin via a native color picker or HEX input. Overrides persist in `localStorage` (`st_dbzColors`, keyed by bin min) and are applied in place onto `DBZ_SCALE.color` by `applyDbzColorOverrides()` (core.js), so every consumer (radar tiles, sonar, storm cells, 3D, legend, AI tags) picks them up. Per-bin and global reset to default. `_SONAR_DBZ_COLORS` snapshot in `gauges.js` replaced with a live lookup so the sonar dot-size controls reflect custom colors.
+  - **Cache bumped** — `?v=606` / `stormtracker-v606`.
+
   ## v5.07
 
   **Radar palette: 5 dBZ stepped colors to match real radar.**
