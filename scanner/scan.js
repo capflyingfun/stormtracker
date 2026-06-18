@@ -184,18 +184,24 @@ function fmtLightning(personal, tz, h24) {
   }
   const lead = `Lightning ⚡ estimated to the ${dirLong(closest.bearing)} around ${dist} mi in a strong storm (${closest.dbz} dBZ)${etaStr}.`;
 
-  // Urgent set: any strong cell estimated to reach the user within 15 minutes
-  // — flagged explicitly even when there's only one.
+  // Urgent set: any strong cell estimated to reach the user within 15 minutes.
+  // Avoid repeating a time: when the lead cell's own ETA already shows it's
+  // imminent (≤15 min), don't restate "within 15 min" — the ETA says it. Only
+  // add a "within 15 min" phrase when it conveys something the lead ETA doesn't:
+  // a count of multiple imminent cells, or a different/faster cell than the lead.
   const soon = ltg.filter(c => c.etaMin != null && c.etaMin <= 15);
+  const leadSoon = closest.etaMin != null && closest.etaMin <= 15;
   let extra = '';
-  if (soon.length === 1) {
-    extra = ' Likely to reach you within 15 min.';
-  } else if (soon.length > 1) {
+  if (soon.length > 1) {
     const spread = [...new Set(soon.slice(0, 3).map(c => degToDir(c.bearing)))].join('/');
-    extra = ` ${soon.length} strikes likely within 15 min (${spread}).`;
+    extra = ` ${soon.length} cells could reach you within 15 min (${spread}).`;
+  } else if (soon.length === 1 && !leadSoon) {
+    extra = ` A faster cell to the ${degToDir(soon[0].bearing)} could reach you within 15 min.`;
   }
   if (ltg.length > 1) extra += ` ${ltg.length} strong cells in your corridor out to ${LTG_RADIUS} mi.`;
-  const advice = ' Keep an eye on the sky and be ready to move indoors or to a safe location.';
+  const advice = soon.length
+    ? ' Move indoors or to a safe location now.'
+    : ' Keep an eye on the sky and be ready to move indoors or to a safe location.';
 
   // Dedupe across the urgent set (or the whole corridor if nothing is <=15 min)
   // by coarse direction (45° sectors) + 10 mi distance bucket. Keying on the set
