@@ -44,6 +44,47 @@ const COOLDOWN = { sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, rov: 5 * 60 * 1000, 
 const PRUNE = { sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, rov: 2 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
 function keyKind(k) { const s = String(k); const base = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s; const p = base.split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg' || p === 'rov') ? p : 'sc'; }
 
+// --- NWS / Tropical re-notify cadence ---------------------------------------
+// Each NWS severity tier has its OWN re-notify cadence (minutes). Warnings and
+// watches additionally TIGHTEN as the alert nears its expiry — the effective
+// cooldown is min(base, remaining/2) with a 5-min floor — so the closer the
+// deadline, the more often we re-buzz. advMin === 0 turns advisories off.
+const NWS_DEF = { warnMin: 30, watchMin: 120, advMin: 360 };
+const TROP_DEF_H = 6;
+function nwsTierOf(ev) { const s = String(ev || ''); return /warning/i.test(s) ? 'warn' : /watch/i.test(s) ? 'watch' : 'adv'; }
+// Normalize the subscription's NWS config. Backward compatible: a legacy boolean
+// (or missing) `nws` means on-with-defaults; `false` means off.
+function nwsCfgOf(th) {
+  const n = th && th.nws;
+  if (n === false) return { on: false };
+  if (n && typeof n === 'object') return {
+    on: n.on !== false,
+    warnMin: num(n.warnMin, NWS_DEF.warnMin),
+    watchMin: num(n.watchMin, NWS_DEF.watchMin),
+    advMin: (n.advMin === 0 ? 0 : num(n.advMin, NWS_DEF.advMin)),
+  };
+  return { on: true, ...NWS_DEF };
+}
+// Normalize tropical config. Legacy: boolean, or {on,radius} without everyH.
+function tropCfgOf(th) {
+  const t = th && th.tropical;
+  if (t === false) return { on: false };
+  if (t && typeof t === 'object') return { on: t.on !== false, radius: num(t.radius, 0) || 200, everyH: num(t.everyH, TROP_DEF_H) };
+  return { on: true, radius: 200, everyH: TROP_DEF_H };
+}
+// Effective NWS cooldown (ms) for one alert: base by tier, tightened near expiry
+// for warnings/watches. Returns null when the tier is disabled (advisories off).
+function nwsCooldownMs(tier, cfg, endsIso) {
+  const base = tier === 'warn' ? cfg.warnMin : tier === 'watch' ? cfg.watchMin : cfg.advMin;
+  if (!base) return null;
+  let ms = base * 60000;
+  if ((tier === 'warn' || tier === 'watch') && endsIso) {
+    const rem = new Date(endsIso).getTime() - Date.now();
+    if (rem > 0) ms = Math.max(5 * 60000, Math.min(ms, rem / 2));
+  }
+  return ms;
+}
+
 // Intensity bands — must match docs/js/thresholds.js _ALERT_BAND_DEFS exactly so
 // the background scanner gates and re-notifies identically to the in-app alerts.
 // Each band carries an on/off toggle (gates inbound storm pushes AND the
@@ -247,18 +288,6 @@ function fmtLightning(personal, tz, h24) {
   };
 }
 
-// One-line "bottom line" lead for a multi-alert digest, so the notification
-// opens with what to DO, not just a list of what's active.
-function situationLead(items) {
-  const high = items.some(i => i.urgency === 'high');
-  const hasTrop = items.some(i => i.kind === 'trop');
-  const hasStorm = items.some(i => i.kind === 'sc' || i.kind === 'ltg' || i.kind === 'rov');
-  if (hasTrop) return '🌀 Bottom line: tropical threat developing — review official guidance now.';
-  if (high) return '🚨 Bottom line: severe weather active near you — take protective action.';
-  if (hasStorm) return '🌧️ Bottom line: storms in your area — stay weather-aware.';
-  return '⚠️ Bottom line: active weather near you — stay aware.';
-}
-
 // Returns 'ok' | 'dead' | 'err'. 'dead' means the push endpoint is gone (404/410).
 async function trySend(sub, payload, opts) {
   try {
@@ -441,14 +470,14 @@ async function run() {
           // leads the notification), matching the in-app per-cell band cooldown.
           const bestBand = bandForDbz(best.dbz);
           const cooldownMs = bestBand ? bands[bestBand].min * 60000 : COOLDOWN.sc;
-          items.push({ kind: 'sc', urgency: 'high', cks, cooldownMs, display: `🌩️ ${body}`, titleSingle: '🌩️ StormTracker Alert', body });
+          items.push({ kind: 'sc', cat: 'sc', urgency: 'high', cks, cooldownMs, display: `🌩️ ${body}`, titleSingle: '🌩️ StormTracker Alert', body });
         }
 
         // Lightning runs off the full corridor (approaching strong cells out to
         // 80 mi), independent of the user's dBZ/impact filter, so a strong cell
         // bearing down can warn even if it hasn't met the storm-alert bar yet.
         const ltg = fmtLightning(personal, tz, h24);
-        if (ltg) items.push({ kind: 'ltg', urgency: 'high', cks: ltg.cks, display: ltg.display, titleSingle: '⚡ Lightning Nearby', body: ltg.body });
+        if (ltg) items.push({ kind: 'ltg', cat: 'ltg', urgency: 'high', cks: ltg.cks, display: ltg.display, titleSingle: '⚡ Lightning Nearby', body: ltg.body });
       }
 
       // --- Rain right over you (radar dBZ on the exact spot, no inbound needed) ---
@@ -460,7 +489,7 @@ async function run() {
         if (bk && bands[bk] && bands[bk].on) {
           const cooldownMs = bands.rovMin * 60000;
           const body = `🌧️ Rain right over you — ${bandLabel(bk)} (${dbz} dBZ)`;
-          items.push({ kind: 'rov', urgency: bk === 'severe' ? 'high' : 'normal', cks: ['rov'], cooldownMs, display: body, titleSingle: '🌧️ Rain Overhead', body });
+          items.push({ kind: 'rov', cat: 'rov', urgency: bk === 'severe' ? 'high' : 'normal', cks: ['rov'], cooldownMs, display: body, titleSingle: '🌧️ Rain Overhead', body });
         }
       }
 
@@ -468,97 +497,96 @@ async function run() {
       if (conditions && sub.thresholds && sub.thresholds.wx) {
         const breaches = evalWx(conditions, sub.thresholds.wx, sub.thresholds.units || {});
         for (const b of breaches) {
-          items.push({ kind: 'wx', urgency: 'normal', cks: ['wx_' + b.key], display: b.msg, titleSingle: '⚠️ StormTracker Weather Alert', body: b.msg });
+          items.push({ kind: 'wx', cat: 'wx', urgency: 'normal', cks: ['wx_' + b.key], display: b.msg, titleSingle: '⚠️ StormTracker Weather Alert', body: b.msg });
         }
       }
 
-      // --- NWS active warnings (US) ---
-      const nwsOn = !sub.thresholds || sub.thresholds.nws !== false;
-      if (nwsOn && nwsAlerts.length) {
+      // --- NWS active warnings / watches / advisories (US) ---
+      // Each severity tier carries its OWN re-notify cadence (warnings fast,
+      // watches medium + tighten near expiry, advisories slow or off) via a
+      // per-item cooldownMs, and rides its own notification category.
+      const nwsCfg = nwsCfgOf(sub.thresholds);
+      if (nwsCfg.on && nwsAlerts.length) {
         for (const a of nwsAlerts) {
+          const tier = nwsTierOf(a.event);
+          const cd = nwsCooldownMs(tier, nwsCfg, a.ends);
+          if (cd == null) continue; // tier disabled (e.g. advisories off)
           const ic = nwsIcon(a.event);
           const shortWin = nwsWindow(a, true);
           const fullWin = nwsWindow(a, false);
           const display = `${ic} ${a.event}${shortWin ? ` · ${shortWin}` : ''}`;
           const body = [a.headline || a.area || a.event, fullWin ? `🕐 ${fullWin}` : ''].filter(Boolean).join('\n');
-          items.push({ kind: 'nws', urgency: 'high', cks: ['nws_' + a.id], display, titleSingle: `${ic} ${a.event}`, body });
+          items.push({ kind: 'nws', cat: 'nws-' + tier, urgency: tier === 'adv' ? 'normal' : 'high', cooldownMs: cd, cks: ['nws_' + a.id], display, titleSingle: `${ic} ${a.event}`, body });
         }
       }
 
       // --- Tropical systems (NHC cone / proximity, ahead of any local NWS watch) ---
-      const tropCfg = sub.thresholds && sub.thresholds.tropical;
-      const tropOn = !tropCfg || tropCfg.on !== false;
-      if (tropOn && tropical.length) {
-        const tropRadius = (tropCfg && num(tropCfg.radius, 0)) || 200;
-        for (const t of evalTropical(tropical, sub.lat, sub.lon, tropRadius)) {
-          items.push({ kind: 'trop', urgency: t.urgency, cks: ['trop_' + t.ck], display: t.msg, titleSingle: '🌀 Tropical Cyclone Alert', body: t.msg });
+      const tropCfg = tropCfgOf(sub.thresholds);
+      if (tropCfg.on && tropical.length) {
+        const baseTropMs = tropCfg.everyH * 3600000;
+        for (const t of evalTropical(tropical, sub.lat, sub.lon, tropCfg.radius)) {
+          // Step up frequency for the most serious systems (you're in the cone):
+          // halve the base cadence, floored at 3h.
+          const cd = t.urgency === 'high' ? Math.min(baseTropMs, 3 * 3600000) : baseTropMs;
+          items.push({ kind: 'trop', cat: 'trop', urgency: t.urgency, cooldownMs: cd, cks: ['trop_' + t.ck], display: t.msg, titleSingle: '🌀 Tropical Cyclone Alert', body: t.msg });
         }
       }
 
-      // --- Single merged digest ---
+      // --- Per-category notifications (one push per type) ---
       if (items.length) {
         // An item is "due" when one of its dedupe keys has passed THAT item's own
-        // cooldown (its band cadence for storm/rain-overhead, else the per-kind
-        // default). The digest fires if ANY item is due and still shows the full
-        // active picture, but on send we reset the cooldown ONLY for the items
-        // that were actually due — so a fast-cadence alert (e.g. severe rain every
-        // 5 min) never keeps resetting a slower sibling sharing the digest (a
-        // 10-min light band, a 12h NWS warning), which is what makes each band's
-        // re-notify cadence actually hold instead of collapsing to the fastest.
+        // cooldown (its band cadence for storm/rain-overhead, the per-tier NWS /
+        // tropical cadence, else the per-kind default). On send we reset the
+        // cooldown ONLY for the items that were actually due — so a fast-cadence
+        // alert (e.g. a 30-min warning) never keeps resetting a slower sibling
+        // (a 6h advisory), keeping each cadence intact instead of collapsing to
+        // the fastest.
         const isDue = it => { const cd = it.cooldownMs != null ? it.cooldownMs : COOLDOWN[it.kind]; return it.cks.some(ck => now - (lastAlert[ns + ck] || 0) >= cd); };
-        const dueItems = items.filter(isDue);
-        if (dueItems.length) {
+        // Notifications are split BY TYPE: one push per category (storm cells,
+        // rain, lightning, weather, NWS warnings / watches / advisories,
+        // tropical) with a DISTINCT tag, so each kind stacks separately on the
+        // device instead of collapsing into one bundled digest. Within a category
+        // we still only reset the cooldown for the DUE items.
+        const CAT_META = {
+          'trop':      { icon: '🌀', noun: 'tropical alerts' },
+          'nws-warn':  { icon: '🚨', noun: 'warnings' },
+          'sc':        { icon: '🌩️', noun: 'storm alerts' },
+          'ltg':       { icon: '⚡', noun: 'lightning alerts' },
+          'rov':       { icon: '🌧️', noun: 'rain alerts' },
+          'nws-watch': { icon: '👁️', noun: 'watches' },
+          'wx':        { icon: '⚠️', noun: 'weather alerts' },
+          'nws-adv':   { icon: 'ℹ️', noun: 'advisories' },
+        };
+        const CAT_ORDER = ['trop', 'nws-warn', 'sc', 'ltg', 'rov', 'nws-watch', 'wx', 'nws-adv'];
+        const catOf = it => it.cat || it.kind;
+        const cats = [...new Set(items.map(catOf))]
+          .sort((a, b) => { const ia = CAT_ORDER.indexOf(a), ib = CAT_ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
+        for (const cat of cats) {
+          const catItems = items.filter(it => catOf(it) === cat);
+          const dueItems = catItems.filter(isDue);
+          if (!dueItems.length) continue;
+          const meta = CAT_META[cat] || { icon: '🚨', noun: 'alerts' };
           let title, body;
-          if (items.length === 1) { title = items[0].titleSingle + (sub.name ? ' · ' + sub.name : ''); body = items[0].body; }
-          else {
-            title = `🚨 ${items.length} alerts${sub.name ? ' · ' + sub.name : ''}`;
-            // iOS (and most OSes) truncate long notification bodies in the banner
-            // / lock screen — we can't make the phone show more. So keep the body
-            // SHORT and prioritized: lead with the "bottom line", show only the
-            // most important items in full, and collapse the rest into a single
-            // "+N more · open for details" line that points to the app.
-            // Priority: tropical → NWS warnings → storm cell → lightning → NWS
-            // watches → weather thresholds → NWS advisories/statements.
-            const nwsTier = ev => /warning/i.test(ev) ? 1 : /watch/i.test(ev) ? 2 : 3;
-            const prio = it => {
-              if (it.kind === 'trop') return 0;
-              if (it.kind === 'nws') return nwsTier(it.display); // 1 warn, 2 watch, 3 adv
-              if (it.kind === 'sc') return 1.5;
-              if (it.kind === 'ltg') return 1.6;
-              if (it.kind === 'rov') return 1.7;
-              if (it.kind === 'wx') return 2.5;
-              return 4;
-            };
-            // Among NWS warnings, surface the most dangerous first.
-            const WARN_RANK = [/tornado/i, /flash flood/i, /extreme/i, /severe thunderstorm/i, /hurricane/i, /storm surge/i];
-            const warnRank = ev => { const i = WARN_RANK.findIndex(re => re.test(ev)); return i < 0 ? WARN_RANK.length : i; };
-            const ordered = items
-              .map((it, idx) => ({ it, idx }))
-              .sort((a, b) => (prio(a.it) - prio(b.it))
-                || ((a.it.kind === 'nws' ? warnRank(a.it.display) : 0) - (b.it.kind === 'nws' ? warnRank(b.it.display) : 0))
-                || (a.idx - b.idx))
-              .map(x => x.it);
-            // PIN life-threatening hazards (tropical + any NWS Warning) so they
-            // are NEVER collapsed below the fold, even past the soft cap.
-            const isCritical = it => it.kind === 'trop' || (it.kind === 'nws' && /warning/i.test(it.display));
-            const critical = ordered.filter(isCritical);
-            const rest = ordered.filter(it => !isCritical(it));
-            const MAX_DETAIL = 3;
-            const fill = Math.max(0, MAX_DETAIL - critical.length);
-            const shownItems = [...critical, ...rest.slice(0, fill)];
-            const shown = shownItems.map(i => i.display);
-            const hidden = items.length - shownItems.length;
-            if (hidden > 0) shown.push(`⚠️ +${hidden} more alert${hidden > 1 ? 's' : ''} · open for details`);
-            body = [situationLead(items), ...shown].join('\n');
+          if (catItems.length === 1) {
+            title = catItems[0].titleSingle + (sub.name ? ' · ' + sub.name : '');
+            body = catItems[0].body;
+          } else {
+            title = `${meta.icon} ${catItems.length} ${meta.noun}${sub.name ? ' · ' + sub.name : ''}`;
+            // Keep the body short — banners truncate. Show up to 5, collapse rest.
+            const MAX = 5;
+            const shown = catItems.slice(0, MAX).map(i => i.display);
+            const hidden = catItems.length - shown.length;
+            if (hidden > 0) shown.push(`⚠️ +${hidden} more · open for details`);
+            body = shown.join('\n');
           }
-          const urgency = items.some(i => i.urgency === 'high') ? 'high' : 'normal';
-          const payload = JSON.stringify({ title, body, tag: 'stormtracker-' + sub._locId, url: SITE_URL });
+          const urgency = catItems.some(i => i.urgency === 'high') ? 'high' : 'normal';
+          const payload = JSON.stringify({ title, body, tag: 'stormtracker-' + sub._locId + '-' + cat, url: SITE_URL });
           const r = await trySend(sub, payload, { TTL: 1800, urgency });
           if (r === 'ok') {
             sent++; st.dirty = true;
             dueItems.forEach(i => i.cks.forEach(ck => { lastAlert[ns + ck] = now; }));
-            console.log(`  ✓ ${sub.name || key}: digest ${items.length} item(s) [${items.map(i => i.kind).join(',')}], reset ${dueItems.length} due`);
-          } else if (r === 'dead') st.dead = true;
+            console.log(`  ✓ ${sub.name || key}: ${cat} ${catItems.length} item(s), reset ${dueItems.length} due`);
+          } else if (r === 'dead') { st.dead = true; break; }
         }
       }
     }

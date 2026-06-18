@@ -49,6 +49,23 @@ function _pushTropRadius() {
   try { const v = parseInt(localStorage.getItem('st_nhc_prox_radius'), 10); return v > 0 ? v : 200; }
   catch (e) { return 200; }
 }
+// NWS re-notify cadence per severity tier (minutes). Mirrors nwsCfgOf() in
+// scanner/scan.js. Backward compatible: a legacy boolean `nws` (or missing) means
+// on-with-defaults; `false` means off. advMin === 0 turns advisories off.
+const _NWS_DEF = { warnMin: 30, watchMin: 120, advMin: 360 };
+function _nwsCfg(th) {
+  const n = th && th.nws;
+  if (n === false) return { on: false, ..._NWS_DEF };
+  if (n && typeof n === 'object') return {
+    on: n.on !== false,
+    warnMin: parseInt(n.warnMin, 10) || _NWS_DEF.warnMin,
+    watchMin: parseInt(n.watchMin, 10) || _NWS_DEF.watchMin,
+    advMin: (n.advMin === 0 ? 0 : (parseInt(n.advMin, 10) || _NWS_DEF.advMin)),
+  };
+  return { on: true, ..._NWS_DEF };
+}
+function _tropOn(th) { const t = th && th.tropical; return t === false ? false : ((t && typeof t === 'object') ? t.on !== false : true); }
+function _tropEveryH(th) { const t = th && th.tropical; return (t && typeof t === 'object' && parseInt(t.everyH, 10) > 0) ? parseInt(t.everyH, 10) : 6; }
 // Intensity bands + rain-overhead toggle (st_alertBands) travel with the
 // subscription so the scanner gates inbound storm pushes and the "rain over you"
 // push by the same on/off + per-band cadence the app uses. Null when never set —
@@ -239,9 +256,10 @@ async function enablePushAlerts(silent) {
       lat: loc.lat, lon: loc.lon, name: loc.name,
       thresholds: {
         dbz: th.dbz, impact: th.impact, dist: th.radius, radius: th.radius,
-        wx: _pushWxCfg(), units: _pushUnits(), nws: th.nws !== false,
+        wx: _pushWxCfg(), units: _pushUnits(),
+        nws: (() => { const c = _nwsCfg(th); return c.on ? { on: true, warnMin: c.warnMin, watchMin: c.watchMin, advMin: c.advMin } : false; })(),
         bands: _pushBands(),
-        tropical: { on: th.tropical !== false, radius: _pushTropRadius() },
+        tropical: { on: _tropOn(th), radius: _pushTropRadius(), everyH: _tropEveryH(th) },
         tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; } })(),
         h24: (typeof _is24h === 'function') ? _is24h() : false,
         locs: watch,
@@ -302,20 +320,30 @@ function setPushThreshold(key, val) {
   else syncSettingsPanel();
 }
 
+function _afterPushCfg() { if (_getPushSub()) enablePushAlerts(true); else syncSettingsPanel(); }
+
 function setPushNws(on) {
   const th = _getPushThresholds();
-  th.nws = !!on;
-  _savePushThresholds(th);
-  if (_getPushSub()) enablePushAlerts(true);
-  else syncSettingsPanel();
+  const c = _nwsCfg(th); c.on = !!on;
+  th.nws = { on: c.on, warnMin: c.warnMin, watchMin: c.watchMin, advMin: c.advMin };
+  _savePushThresholds(th); _afterPushCfg();
 }
-
+function setPushNwsCad(tier, val) {
+  const th = _getPushThresholds();
+  const c = _nwsCfg(th); const v = parseInt(val, 10);
+  if (tier === 'warn') c.warnMin = v; else if (tier === 'watch') c.watchMin = v; else c.advMin = v;
+  th.nws = { on: c.on, warnMin: c.warnMin, watchMin: c.watchMin, advMin: c.advMin };
+  _savePushThresholds(th); _afterPushCfg();
+}
 function setPushTropical(on) {
   const th = _getPushThresholds();
-  th.tropical = !!on;
-  _savePushThresholds(th);
-  if (_getPushSub()) enablePushAlerts(true);
-  else syncSettingsPanel();
+  th.tropical = { on: !!on, everyH: _tropEveryH(th) };
+  _savePushThresholds(th); _afterPushCfg();
+}
+function setPushTropEvery(val) {
+  const th = _getPushThresholds();
+  th.tropical = { on: _tropOn(th), everyH: parseInt(val, 10) };
+  _savePushThresholds(th); _afterPushCfg();
 }
 
 let _pushSyncTimer = null;
@@ -335,6 +363,9 @@ function renderPushAlertSettings() {
   const th = _getPushThresholds();
   const loc = _pushLoc();
   const opt = (v, sel) => `<option value="${v}"${v === sel ? ' selected' : ''}>`;
+  const nc = _nwsCfg(th);
+  const tropOn = _tropOn(th);
+  const tropH = _tropEveryH(th);
   const on = !!sub;
   const toggle = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
@@ -359,13 +390,31 @@ function renderPushAlertSettings() {
       <select class="small-btn" onchange="setPushThreshold('radius',this.value)">
         ${opt(30, th.radius)}30 mi</option>${opt(50, th.radius)}50 mi</option>${opt(60, th.radius)}60 mi</option>${opt(80, th.radius)}80 mi</option>
       </select></div>
-    <div class="setting-row-6"><span class="text-xxs-muted">NWS warnings</span>
-      <button class="small-btn" onclick="setPushNws(${th.nws === false})" style="${th.nws !== false ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${th.nws !== false ? 'ON' : 'OFF'}</button>
+    <div class="setting-row-6"><span class="text-xxs-muted">NWS alerts</span>
+      <button class="small-btn" onclick="setPushNws(${!nc.on})" style="${nc.on ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${nc.on ? 'ON' : 'OFF'}</button>
     </div>
+    ${nc.on ? `
+    <div class="setting-row-6"><span class="text-xxs-muted" style="padding-left:10px">↳ Warnings repeat</span>
+      <select class="small-btn" onchange="setPushNwsCad('warn',this.value)">
+        ${opt(15, nc.warnMin)}every 15 min</option>${opt(30, nc.warnMin)}every 30 min</option>${opt(60, nc.warnMin)}every 1 h</option>${opt(120, nc.warnMin)}every 2 h</option>
+      </select></div>
+    <div class="setting-row-6"><span class="text-xxs-muted" style="padding-left:10px">↳ Watches repeat</span>
+      <select class="small-btn" onchange="setPushNwsCad('watch',this.value)">
+        ${opt(30, nc.watchMin)}every 30 min</option>${opt(60, nc.watchMin)}every 1 h</option>${opt(120, nc.watchMin)}every 2 h</option>${opt(240, nc.watchMin)}every 4 h</option>${opt(360, nc.watchMin)}every 6 h</option>
+      </select></div>
+    <div class="setting-row-6"><span class="text-xxs-muted" style="padding-left:10px">↳ Advisories repeat</span>
+      <select class="small-btn" onchange="setPushNwsCad('adv',this.value)">
+        ${opt(0, nc.advMin)}off</option>${opt(60, nc.advMin)}every 1 h</option>${opt(180, nc.advMin)}every 3 h</option>${opt(360, nc.advMin)}every 6 h</option>${opt(720, nc.advMin)}every 12 h</option>
+      </select></div>` : ''}
     <div class="setting-row-6"><span class="text-xxs-muted">Tropical systems</span>
-      <button class="small-btn" onclick="setPushTropical(${th.tropical === false})" style="${th.tropical !== false ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${th.tropical !== false ? 'ON' : 'OFF'}</button>
+      <button class="small-btn" onclick="setPushTropical(${!tropOn})" style="${tropOn ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${tropOn ? 'ON' : 'OFF'}</button>
     </div>
-    <div class="setting-hint" style="font-size:0.7em;margin-top:2px">Everything active is bundled into <b>one</b> notification each scan (~5 min). Storm cells use the settings above. <b>NWS warnings</b> (hurricane, tornado, severe, flood, fire) push when active for your area. <b>Tropical systems</b> push when a hurricane/storm comes within your tracking radius (${_pushTropRadius()} mi, set on the map) or your location enters its forecast cone. Weather alerts (wind, temp, rain, humidity, visibility…) mirror your <b>Alerts</b> tab — turn on the ones you want there.</div>`;
+    ${tropOn ? `
+    <div class="setting-row-6"><span class="text-xxs-muted" style="padding-left:10px">↳ Tropical repeat</span>
+      <select class="small-btn" onchange="setPushTropEvery(this.value)">
+        ${opt(3, tropH)}every 3 h</option>${opt(6, tropH)}every 6 h</option>${opt(9, tropH)}every 9 h</option>${opt(12, tropH)}every 12 h</option>
+      </select></div>` : ''}
+    <div class="setting-hint" style="font-size:0.7em;margin-top:2px">Each type now sends its <b>own</b> notification (warnings, watches, advisories, storms, tropical…) so they stack separately instead of one bundle. <b>Warnings</b> repeat fast and <b>watches</b> automatically speed up as they near expiry; advisories and tropical repeat slower (set above). <b>NWS</b> covers hurricane, tornado, severe, flood, fire. <b>Tropical</b> pushes when a storm comes within your tracking radius (${_pushTropRadius()} mi, set on the map) or your location enters its forecast cone. Weather alerts (wind, temp, rain…) mirror your <b>Alerts</b> tab.</div>`;
   // Locations currently watched: the chosen saved-location bells, else the
   // single Home/current fallback (legacy single-location mode).
   const watched = _watchedPushLocs();
