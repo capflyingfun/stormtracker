@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.13
+
+  **"Rain right over you" now has its OWN re-notify timer (instead of borrowing the matching band's cadence).**
+
+  - **Dedicated overhead cadence** — the rain-overhead alert is throttled by a new standalone `rovMin` (stored in `st_alertBands`, same `0/5/10/15/30/45/60` options, default 5 min) instead of the cadence of whichever band the overhead dBZ matched. `renderAlertBandSettings()` adds a timer dropdown to the "🌧️ Rain right over you" row (above the four bands), wired via `setRovCadence()`/`rovCadenceMin()` in `docs/js/thresholds.js`. The four bands still GATE the overhead alert by intensity (it only fires when the overhead dBZ lands in an enabled band) — they just no longer set its timing.
+  - **Scanner parity** — `bandsFor()` in `scanner/scan.js` returns `rovMin` (legacy/partial subs fall back to 5 min), and the `rov` digest item now uses `bands.rovMin` for its `cooldownMs`.
+  - **No D1/worker change** — `rovMin` rides in the free-form `thresholds.bands` JSON.
+  - **Cache bumped** — `?v=611` / `stormtracker-v611`.
+
   ## v5.12
 
   **More re-notify timer choices per band: added 45 min, 60 min, and an "every time" (no cooldown) option.**
