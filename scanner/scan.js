@@ -394,16 +394,28 @@ async function run() {
           if (items.length === 1) { title = items[0].titleSingle; body = items[0].body; }
           else {
             title = `🚨 ${items.length} alerts${sub.name ? ' · ' + sub.name : ''}`;
-            // Cap the body so a major multi-alert event can't blow past the
-            // ~4 KB web-push payload limit; remaining items are still deduped.
-            // Lead with a one-line "bottom line" so the user sees what to do
-            // before scanning the full list.
-            const MAX_LINES = 12;
-            const lines = items.map(i => i.display);
-            const list = lines.length > MAX_LINES
-              ? lines.slice(0, MAX_LINES).concat(`…and ${lines.length - MAX_LINES} more`)
-              : lines;
-            body = [situationLead(items), ...list].join('\n');
+            // iOS (and most OSes) truncate long notification bodies in the banner
+            // / lock screen — we can't make the phone show more. So keep the body
+            // SHORT and prioritized: lead with the "bottom line", show only the
+            // few most important items in full, and collapse the rest into a
+            // single "+N more · open for details" line that points to the app.
+            // Priority: tropical → NWS warnings → storm cell → lightning → NWS
+            // watches → weather thresholds → NWS advisories/statements.
+            const nwsTier = ev => /warning/i.test(ev) ? 1 : /watch/i.test(ev) ? 2 : 3;
+            const prio = it => {
+              if (it.kind === 'trop') return 0;
+              if (it.kind === 'nws') return nwsTier(it.display); // 1 warn, 2 watch, 3 adv
+              if (it.kind === 'sc') return 1.5;
+              if (it.kind === 'ltg') return 1.6;
+              if (it.kind === 'wx') return 2.5;
+              return 4;
+            };
+            const ordered = items.slice().sort((a, b) => prio(a) - prio(b));
+            const MAX_DETAIL = 3;
+            const shown = ordered.slice(0, MAX_DETAIL).map(i => i.display);
+            const hidden = ordered.length - shown.length;
+            if (hidden > 0) shown.push(`⚠️ +${hidden} more alert${hidden > 1 ? 's' : ''} · open for details`);
+            body = [situationLead(items), ...shown].join('\n');
           }
           const urgency = items.some(i => i.urgency === 'high') ? 'high' : 'normal';
           const payload = JSON.stringify({ title, body, tag: 'stormtracker-digest', url: SITE_URL });
