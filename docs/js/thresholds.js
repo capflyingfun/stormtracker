@@ -279,7 +279,7 @@ const _ALERT_BAND_DEFS=[
 const _BAND_CADENCE_OPTS=[0,5,10,15,30,45,60];
 function _normAlertBands(o){
   o=o||{};
-  const out={rovOn:o.rovOn!==false,rovMin:_BAND_CADENCE_OPTS.includes(o.rovMin)?o.rovMin:5};
+  const out={rovOn:o.rovOn!==false,rovMin:_BAND_CADENCE_OPTS.includes(o.rovMin)?o.rovMin:5,drizOn:o.drizOn===true,drizMin:_BAND_CADENCE_OPTS.includes(o.drizMin)?o.drizMin:15};
   _ALERT_BAND_DEFS.forEach(b=>{
     const c=o[b.key]||{};
     out[b.key]={on:c.on!==undefined?!!c.on:b.defOn,min:_BAND_CADENCE_OPTS.includes(c.min)?c.min:b.defMin};
@@ -302,27 +302,44 @@ function bandCadenceMin(key){const b=_loadAlertBands();const def=bandDef(key);co
 function rovCadenceMin(){const b=_loadAlertBands();return _BAND_CADENCE_OPTS.includes(b.rovMin)?b.rovMin:5}
 let _rainOverheadCooldown=0;
 try{_rainOverheadCooldown=parseInt(localStorage.getItem('st_rovCooldown'))||0}catch(e){}
+// Opt-in "Drizzle / very light" overhead alert for sub-band rain (10–19 dBZ),
+// below the Light band floor. Its own on/off (drizOn) + cadence (drizMin).
+const _DRIZ_MIN_DBZ=10;
+let _drizzleCooldown=0;
+try{_drizzleCooldown=parseInt(localStorage.getItem('st_drizCooldown'))||0}catch(e){}
+function drizCadenceMin(){const b=_loadAlertBands();return _BAND_CADENCE_OPTS.includes(b.drizMin)?b.drizMin:15}
 // "Raining right over you" — reads the shared radar-over-user band
 // (rainOverUserNow) so it agrees with the conditions card, then fires when that
 // dBZ falls in an enabled band, throttled by its own rovMin timer (not the band's
 // cadence). Independent of any inbound storm.
 function checkRainOverheadAlert(){
   const bands=_loadAlertBands();
-  if(!bands.rovOn)return;
   const ov=(typeof rainOverUserNow==='function')?rainOverUserNow():null;
   if(!ov||ov.maxDbz==null)return;
   const dbz=Math.round(ov.maxDbz);
-  const key=bandForDbz(dbz);
-  if(!key||!bands[key]||!bands[key].on)return;
   const now=Date.now();
-  if(now-_rainOverheadCooldown<rovCadenceMin()*60000)return;
-  _rainOverheadCooldown=now;
-  try{localStorage.setItem('st_rovCooldown',String(now))}catch(e){}
-  const def=bandDef(key);
-  const msg=`🌧️ Rain right over you — ${def.label} (${dbz} dBZ)`;
-  toast(msg,6000);
-  _sendBrowserNotification('Rain Overhead',msg);
-  if(S.activePage==='alerts')renderAlerts();
+  // Rain right over you — fires when the overhead dBZ lands in an enabled 20+ band.
+  if(bands.rovOn){
+    const key=bandForDbz(dbz);
+    if(key&&bands[key]&&bands[key].on&&now-_rainOverheadCooldown>=rovCadenceMin()*60000){
+      _rainOverheadCooldown=now;
+      try{localStorage.setItem('st_rovCooldown',String(now))}catch(e){}
+      const def=bandDef(key);
+      const msg=`🌧️ Rain right over you — ${def.label} (${dbz} dBZ)`;
+      toast(msg,6000);
+      _sendBrowserNotification('Rain Overhead',msg);
+      if(S.activePage==='alerts')renderAlerts();
+    }
+  }
+  // Drizzle / very light — opt-in alert for sub-band rain (10–19 dBZ), own timer.
+  if(bands.drizOn&&dbz>=_DRIZ_MIN_DBZ&&dbz<20&&now-_drizzleCooldown>=drizCadenceMin()*60000){
+    _drizzleCooldown=now;
+    try{localStorage.setItem('st_drizCooldown',String(now))}catch(e){}
+    const msg=`🌦️ Drizzle right over you — very light (${dbz} dBZ)`;
+    toast(msg,6000);
+    _sendBrowserNotification('Drizzle Overhead',msg);
+    if(S.activePage==='alerts')renderAlerts();
+  }
 }
 function renderAlertBandSettings(){
   const b=_loadAlertBands();
@@ -333,6 +350,13 @@ function renderAlertBandSettings(){
       <span>🌧️ Rain right over you</span>
     </label>
     <select onchange="setRovCadence(this.value)" ${b.rovOn?'':'disabled'} style="font-size:0.7em;padding:3px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;font-family:var(--font-mono)">${opts(b.rovMin)}</select>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px">
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.72em;color:var(--text-primary);flex:1;min-width:0;cursor:pointer">
+      <input type="checkbox" ${b.drizOn?'checked':''} onchange="toggleDrizzle(this.checked)" class="accent-cyan-check">
+      <span>🌦️ Drizzle / very light <span style="opacity:0.55">10–19 dBZ</span></span>
+    </label>
+    <select onchange="setDrizCadence(this.value)" ${b.drizOn?'':'disabled'} style="font-size:0.7em;padding:3px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;font-family:var(--font-mono)">${opts(b.drizMin)}</select>
   </div>
   <div class="setting-hint" style="font-size:0.68em;margin-bottom:8px">Alert when rain is falling directly on your spot (read from radar) — even with no inbound storm, on its own timer above. The bands below set which storm intensities alert you and how often each can re-notify — they also gate inbound storm alerts.</div>`;
   _ALERT_BAND_DEFS.forEach(def=>{
@@ -353,6 +377,8 @@ function toggleRainOverhead(on){const b=_loadAlertBands();b.rovOn=!!on;_saveAler
 function toggleAlertBand(key,on){const b=_loadAlertBands();if(b[key])b[key].on=!!on;_saveAlertBands(b);if(on)requestNotifPermission();_refreshAlertBandUI();if(typeof syncPushAlerts==='function')syncPushAlerts()}
 function setAlertBandCadence(key,val){const n=parseInt(val,10);if(!_BAND_CADENCE_OPTS.includes(n))return;const b=_loadAlertBands();if(b[key])b[key].min=n;_saveAlertBands(b);if(typeof syncPushAlerts==='function')syncPushAlerts()}
 function setRovCadence(val){const n=parseInt(val,10);if(!_BAND_CADENCE_OPTS.includes(n))return;const b=_loadAlertBands();b.rovMin=n;_saveAlertBands(b);if(typeof syncPushAlerts==='function')syncPushAlerts()}
+function toggleDrizzle(on){const b=_loadAlertBands();b.drizOn=!!on;_saveAlertBands(b);if(on)requestNotifPermission();_refreshAlertBandUI();if(typeof syncPushAlerts==='function')syncPushAlerts()}
+function setDrizCadence(val){const n=parseInt(val,10);if(!_BAND_CADENCE_OPTS.includes(n))return;const b=_loadAlertBands();b.drizMin=n;_saveAlertBands(b);if(typeof syncPushAlerts==='function')syncPushAlerts()}
 
 // ==========================================
 // RAIN ALERT
