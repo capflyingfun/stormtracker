@@ -6,7 +6,7 @@
 // and sends the pushes.
 
 // Persistent VAPID public key (private half lives only in the scanner secrets).
-const PUSH_VAPID_PUBLIC_KEY = 'BArKCxdh8nMmYi1LTdBQj-R_G0nDiBvbm5EvS4KIvcT5nUo45tiovDzkagdfG-1n2v_i0LGQz0VzUNBMfqlZG5Y';
+const PUSH_VAPID_PUBLIC_KEY = 'BEZD0oSMhA2lWQAlaR0sRl8hsmaRL6ioKRxNDCPwHxcKMQuvYGJeUxbyIxsazG3O2OfIgXTAma4TZevHcAe7VM4';
 
 // Deployed Cloudflare Worker that stores push subscriptions in D1. The push API
 // (/subscribe, /unsubscribe) lives ONLY on this worker, so push always targets it
