@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+## v4.93
+
+**Clearer Background Storm Alerts on/off state.**
+
+- `renderPushAlertSettings()` now shows an explicit ON (green dot) / OFF (grey dot) status badge so it is obvious whether alerts are active, names the watched location in both states, and uses a green "Turn on" / red "Turn off" button.
+- Documented that the scanner watches a single location (Home, or current location if no Home), captured at enable/Update time — not all saved locations and not the live position.
+- **Cache bumped** — `?v=591` / `stormtracker-v591`.
+
 ## v4.92
 
 **Fix: "Could not enable alerts: Not found" when turning on Background Storm Alerts.**
