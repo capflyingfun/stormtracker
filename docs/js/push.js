@@ -326,6 +326,10 @@ async function enablePushAlerts(silent, opts) {
       // worker our previous endpoint so it MOVES that row here instead of leaving
       // a stale duplicate that splits delivery and trips Apple's push throttle.
       oldEndpoint: (prevEndpoint && prevEndpoint !== sub.endpoint) ? prevEndpoint : undefined,
+      // On a manual reset / on-open refresh, ask the worker to clear the routine
+      // digest cooldown so the next scan re-confirms delivery within minutes
+      // instead of waiting out the ~45-minute floor.
+      reset: (opts && opts.reset) ? true : undefined,
     };
     const res = await _pushPost(base + '/subscribe', body, { timeout: 14000, retries: 1 });
     const data = await res.json();
@@ -410,7 +414,7 @@ async function resubscribePushAlerts() {
     if (old) { try { await old.unsubscribe(); } catch (e) {} }
   } catch (e) { console.log('[push] reset unsubscribe:', e.message); }
   finally { if (btn) { btn.disabled = false; btn.textContent = '🔄 Re-subscribe'; } }
-  await enablePushAlerts(false, { okMsg: '🔄 Notifications reset — re-subscribed with a fresh connection' });
+  await enablePushAlerts(false, { okMsg: '🔄 Notifications reset — re-subscribed with a fresh connection', reset: true });
 }
 
 // Single slide-toggle handler: flipping ON enables (subscribes), OFF disables.
@@ -556,46 +560,52 @@ function renderPushAlertSettings() {
     ${controls}`;
 }
 
-// --- Subscription health check / auto re-subscribe ------------------------
-// iOS can silently drop or revoke a push subscription with NO event firing, so
-// the only way to catch it is to poll. Whenever the app becomes visible (and once
-// shortly after load), if the user HAS push enabled but the browser no longer
-// holds a matching, current-key subscription, we transparently re-subscribe
-// through the normal worker contract (enablePushAlerts(true)) — which preserves
-// the user's thresholds/code/locations and tells the worker to MOVE the old
-// endpoint instead of leaving a stale duplicate.
-let _pushHealthBusy = false, _pushHealthLast = 0;
-async function ensurePushHealth() {
+// --- Subscription sync on app open ----------------------------------------
+// iOS can silently drop or rotate a Home-Screen PWA's push subscription with no
+// event firing, leaving the worker holding a dead endpoint while alerts quietly
+// stop. On open (and when the tab becomes visible) we run a gentle health check:
+// compare the live browser PushSubscription against what we have stored and
+// re-subscribe ONLY when something is actually wrong — the browser has no
+// subscription, the endpoint rotated, or it carries a stale VAPID key. A healthy
+// connection is left untouched: needless endpoint churn itself burns Apple's
+// delivery budget, so we never re-subscribe "just because" the app opened.
+// User intent is respected for free — disabling alerts clears st_pushSub, so
+// this no-ops until the user turns alerts back on.
+let _pushOpenBusy = false, _pushOpenLast = 0;
+async function refreshPushOnOpen() {
   try {
-    if (_pushHealthBusy || _pushOpInFlight) return;
-    if (!_getPushSub()) return; // user hasn't enabled background alerts
+    if (_pushOpenBusy || _pushOpInFlight) return;
+    const stored = _getPushSub();
+    if (!stored) return; // user hasn't enabled background alerts (or disabled them)
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
     if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') return;
     const now = Date.now();
-    if (now - _pushHealthLast < 60000) return; // at most once a minute
-    _pushHealthLast = now;
-    _pushHealthBusy = true;
+    if (now - _pushOpenLast < 60000) return; // at most once a minute — avoids tab-flick churn
+    _pushOpenLast = now;
+    _pushOpenBusy = true;
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
-    const wantKey = _urlB64ToUint8(PUSH_VAPID_PUBLIC_KEY);
-    const stored = _getPushSub();
-    const healthy = sub && _subKeyMatches(sub, wantKey) &&
-      (!stored || !stored.endpoint || stored.endpoint === sub.endpoint);
-    if (!healthy) {
-      console.log('[push] subscription unhealthy — re-subscribing');
-      await enablePushAlerts(true); // silent; rebuilds via the worker contract
+    let why = '';
+    if (!sub) why = 'browser subscription missing';
+    else if (stored.endpoint && sub.endpoint !== stored.endpoint) why = 'endpoint changed';
+    else if (!_subKeyMatches(sub, _urlB64ToUint8(PUSH_VAPID_PUBLIC_KEY))) why = 'VAPID key mismatch';
+    if (why) {
+      console.log('[push] re-syncing subscription on open:', why);
+      // Silent heal — _ensureFreshSubscription inside enablePushAlerts drops any
+      // stale sub and the worker MOVES the row (code/thresholds/locations kept).
+      await enablePushAlerts(true);
     }
   } catch (e) {
-    console.log('[push] health check failed:', e && e.message);
+    console.log('[push] open-sync failed:', e && e.message);
   } finally {
-    _pushHealthBusy = false;
+    _pushOpenBusy = false;
   }
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') ensurePushHealth();
+  if (document.visibilityState === 'visible') refreshPushOnOpen();
 });
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
-  setTimeout(ensurePushHealth, 3000);
+  setTimeout(refreshPushOnOpen, 3000);
 } else {
-  window.addEventListener('load', () => setTimeout(ensurePushHealth, 3000));
+  window.addEventListener('load', () => setTimeout(refreshPushOnOpen, 3000));
 }

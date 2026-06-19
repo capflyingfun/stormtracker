@@ -152,6 +152,7 @@ export default {
       // caller overwrite someone else's subscription.
       const oldEndpoint = typeof b.oldEndpoint === 'string' ? b.oldEndpoint : '';
       const claimedCode = (b.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+      let finalCode = null;
       if (oldEndpoint && claimedCode && oldEndpoint !== sub.endpoint) {
         const prior = await env.DB.prepare('SELECT code FROM subscriptions WHERE endpoint = ? AND code = ?')
           .bind(oldEndpoint, claimedCode).first();
@@ -163,24 +164,49 @@ export default {
             `UPDATE subscriptions SET endpoint = ?, p256dh = ?, auth = ?, lat = ?, lon = ?, name = ?, thresholds = ?
              WHERE endpoint = ? AND code = ?`
           ).bind(sub.endpoint, sub.keys.p256dh, sub.keys.auth, b.lat, b.lon, name, thresholds, oldEndpoint, claimedCode).run();
-          return json({ ok: true, code: claimedCode });
+          finalCode = claimedCode;
         }
       }
-      // Preserve an existing code/last_alert for this endpoint if present.
-      let code = (b.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
-      const existing = await env.DB.prepare('SELECT code FROM subscriptions WHERE endpoint = ?')
-        .bind(sub.endpoint).first();
-      if (existing && existing.code) code = existing.code;
-      code = await uniqueCode(env, code, sub.endpoint);
-      await env.DB.prepare(
-        `INSERT INTO subscriptions (endpoint, p256dh, auth, lat, lon, name, thresholds, code, created)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(endpoint) DO UPDATE SET
-           p256dh=excluded.p256dh, auth=excluded.auth, lat=excluded.lat, lon=excluded.lon,
-           name=excluded.name, thresholds=excluded.thresholds`
-      ).bind(sub.endpoint, sub.keys.p256dh, sub.keys.auth, b.lat, b.lon, name, thresholds, code, Date.now())
-       .run();
-      return json({ ok: true, code });
+      if (finalCode === null) {
+        // Preserve an existing code/last_alert for this endpoint if present.
+        let code = (b.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+        const existing = await env.DB.prepare('SELECT code FROM subscriptions WHERE endpoint = ?')
+          .bind(sub.endpoint).first();
+        if (existing && existing.code) code = existing.code;
+        code = await uniqueCode(env, code, sub.endpoint);
+        await env.DB.prepare(
+          `INSERT INTO subscriptions (endpoint, p256dh, auth, lat, lon, name, thresholds, code, created)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(endpoint) DO UPDATE SET
+             p256dh=excluded.p256dh, auth=excluded.auth, lat=excluded.lat, lon=excluded.lon,
+             name=excluded.name, thresholds=excluded.thresholds`
+        ).bind(sub.endpoint, sub.keys.p256dh, sub.keys.auth, b.lat, b.lon, name, thresholds, code, Date.now())
+         .run();
+        finalCode = code;
+      }
+      // Manual reset (client sends reset:true): clear the routine digest cooldown
+      // so the very NEXT scan re-sends current conditions promptly — confirming the
+      // freshly-minted push budget actually shows — instead of waiting out the
+      // ~45-minute digest floor. Only the per-location "#__digest" keys are wiped;
+      // per-storm and NWS alert dedupe is preserved so we never re-fire an
+      // already-seen official warning.
+      if (b.reset === true) {
+        try {
+          const row = await env.DB.prepare('SELECT last_alert FROM subscriptions WHERE endpoint = ?')
+            .bind(sub.endpoint).first();
+          let la = {};
+          try { la = JSON.parse((row && row.last_alert) || '{}'); } catch (e) { la = {}; }
+          let changed = false;
+          for (const k of Object.keys(la)) {
+            if (k.endsWith('#__digest')) { delete la[k]; changed = true; }
+          }
+          if (changed) {
+            await env.DB.prepare('UPDATE subscriptions SET last_alert = ? WHERE endpoint = ?')
+              .bind(JSON.stringify(la), sub.endpoint).run();
+          }
+        } catch (e) { /* non-fatal: cooldown clear is best-effort */ }
+      }
+      return json({ ok: true, code: finalCode });
     }
 
     if (path === '/unsubscribe' && request.method === 'POST') {
