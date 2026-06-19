@@ -8,8 +8,8 @@ Newest first. Service-worker cache name follows the version (e.g., `stormtracker
   **Fix: your manage code is now stable per device — toggling alerts off/on no longer mints a new one.**
 
   - **Why** — `disablePushAlerts()` cleared `st_pushSub` (which held the code) AND the worker deleted the D1 row, so re-enabling had no code to send and the worker generated a fresh one via `genCode()`. The manage code changed every enable/disable cycle.
-  - **Change** — the code is now persisted to a separate durable key `st_pushCode` that Disable does NOT clear. `enablePushAlerts()` falls back to it when `st_pushSub` is empty and re-sends it on `/subscribe`; the worker's `uniqueCode()` reuses any free code, and Disable frees the old one, so the same code is reclaimed. No worker/schema change needed.
-  - **Cache bumped** — `?v=617` / `stormtracker-v617`.
+  - **Change** — the code is now persisted to a separate durable key `st_pushCode` that Disable does NOT clear, and the previous endpoint to `st_pushEndpoint` (also kept through Disable). When `st_pushSub` is empty, `enablePushAlerts()` re-sends the saved `code` (the worker's `uniqueCode()` reuses any free code; a clean Disable frees it) AND, if a stale row survived a failed `/unsubscribe`, the saved `oldEndpoint` lets the worker MOVE that row (matched by endpoint+code) onto the fresh endpoint — so the same code is reclaimed either way. No worker/schema change needed.
+  - **Cache bumped** — `?v=618` / `stormtracker-v618`.
 
   ## v5.18
 
