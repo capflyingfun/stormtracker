@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.16
+
+  **Confirmation toasts for rain-band alert settings.**
+
+  - **Why** — toggling a rain band on/off or changing its re-notify cadence saved instantly to `st_alertBands` and silently re-synced the push subscription, but gave no visible confirmation, so users couldn't tell whether a tap registered.
+  - **Change** — `toggleRainOverhead`/`toggleAlertBand`/`toggleDrizzle` and `setRovCadence`/`setAlertBandCadence`/`setDrizCadence` (docs/js/thresholds.js) now fire a 2.5s `toast()` reporting the new state, e.g. "🌦️ Drizzle alerts: ON" or "Light re-notify: every 10 min". Helpers `_cadLbl()` (shared "every time"/"every N min" wording) and `_bandToast()` added. No behavior/threshold change; scanner untouched.
+  - **Cache bumped** — `?v=614` / `stormtracker-v614`.
+
   ## v5.15
 
   **New opt-in "Drizzle / very light" overhead alert for sub-band rain (10–19 dBZ), below the Light band floor.**
