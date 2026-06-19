@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.25
+
+  **New low-urgency "nearby strong storms" awareness push — strong cells inside your radius that AREN'T heading at you.**
+
+  - **New `area` alert category (push)** — the scanner now emits a low-urgency heads-up when STRONG cells (≥45 dBZ, the Heavy-band floor) sit inside the user's watch radius but are NOT inbound: `!approaching`, beyond the 15 mi near-lightning ring, and with valid fleet steering (`mv.speed ≥ 2`). This is the exact non-overlapping complement of the inbound `sc` alert and the `ltg` corridor, so it never double-fires — it fills the gap where a line passing parallel (e.g. to the north all day) leaves the Storms tab at 0 because nothing is approaching. Message: *"Strong storms ~22 mi to the north (within your 80 mi range), moving east ~19 mph — not heading your way, but stay aware. N strong cells, peak NN dBZ."*
+  - **Anti-spam** — `normal` urgency (never bypasses the 45-min digest floor), a 2 h re-notify cooldown, and a single coarse dedupe key from the lead cell's 45° sector × 15 mi distance bucket, so a standing line doesn't re-buzz but activity that relocates does. Steering is required, so "not heading your way" is never claimed from missing motion data (`calcETA` reports `approaching:false` with no steering, which must not be mistaken for "safely parallel").
+  - **Settings toggle** — Settings → Background alerts → "Nearby strong storms" (ON/OFF). Synced with the subscription (`area:{on}`); the scanner defaults it ON for legacy/missing payloads so it works without a re-subscribe. Worker unchanged (thresholds pass through as free-form JSON).
+  - **Cache bumped** — `?v=624` / `stormtracker-v624`.
+
   ## v5.24
 
   **Stop the app from killing its own notification connection on every open — clean service-worker lifecycle + gentle reconnect-when-broken.**
