@@ -1,5 +1,5 @@
-// Version: v5.18 (display) | cache-bust counter: 616 (used in ?v= query strings and SW cache name)
-const CACHE_NAME = 'stormtracker-v620';
+// Version: v5.22 (display) | cache-bust counter: 621 (used in ?v= query strings and SW cache name)
+const CACHE_NAME = 'stormtracker-v621';
 const STATIC_ASSETS = [
   '/StormTracker/',
   '/StormTracker/index.html',
@@ -149,23 +149,42 @@ self.addEventListener('periodicsync', event => {
   }
 });
 
+// iOS treats ANY push event that doesn't end in a visible notification as a
+// "silent push" and may revoke the subscription after a few. So this handler is
+// bulletproof: every code path — even a non-JSON payload or a showNotification
+// failure — still ends in a shown notification.
 self.addEventListener('push', event => {
-  const data = event.data ? event.data.json() : {};
-  const title = data.title || 'StormTracker Alert';
-  const options = {
-    body: data.body || 'Weather alert in your area',
-    icon: '/StormTracker/icons/icon-192x192.png',
-    badge: '/StormTracker/icons/icon-96x96.png',
-    vibrate: [200, 100, 200],
-    tag: data.tag || 'weather-alert',
-    renotify: true,
-    data: { url: data.url || '/StormTracker/' },
-    actions: [
-      { action: 'view', title: 'View Details' },
-      { action: 'dismiss', title: 'Dismiss' }
-    ]
-  };
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil((async () => {
+    let data = {};
+    try {
+      data = event.data ? event.data.json() : {};
+    } catch (e) {
+      // Non-JSON payload — fall back to plain text so we STILL show something.
+      try { data = { body: event.data ? event.data.text() : '' }; } catch (e2) { data = {}; }
+    }
+    if (!data || typeof data !== 'object') data = {}; // guard valid-JSON null/primitive
+    const title = data.title || 'StormTracker Alert';
+    const options = {
+      body: data.body || 'Weather alert in your area',
+      icon: '/StormTracker/icons/icon-192x192.png',
+      badge: '/StormTracker/icons/icon-96x96.png',
+      vibrate: [200, 100, 200],
+      // Unique fallback tag so a payload without one can't silently coalesce.
+      tag: data.tag || ('weather-alert-' + Date.now()),
+      renotify: true,
+      data: { url: data.url || '/StormTracker/' },
+      actions: [
+        { action: 'view', title: 'View Details' },
+        { action: 'dismiss', title: 'Dismiss' }
+      ]
+    };
+    try {
+      await self.registration.showNotification(title, options);
+    } catch (e) {
+      // Last resort — MUST show something or iOS may revoke the subscription.
+      try { await self.registration.showNotification('StormTracker', { body: 'New weather update' }); } catch (e2) {}
+    }
+  })());
 });
 
 self.addEventListener('message', event => {
