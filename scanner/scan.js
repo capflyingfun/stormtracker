@@ -742,11 +742,11 @@ async function run() {
           const cd = nwsCooldownMs(tier, nwsCfg, a.ends);
           if (cd == null) continue; // tier disabled (e.g. advisories off)
           const ic = nwsIcon(a.event);
-          const shortWin = nwsWindow(a, true);
-          const fullWin = nwsWindow(a, false);
+          const shortWin = nwsWindow(a, true, tz, h24);
+          const fullWin = nwsWindow(a, false, tz, h24);
           const display = `${ic} ${a.event}${shortWin ? ` · ${shortWin}` : ''}`;
           const body = [a.headline || a.area || a.event, fullWin ? `🕐 ${fullWin}` : ''].filter(Boolean).join('\n');
-          items.push({ kind: 'nws', cat: 'nws-' + tier, urgency: tier === 'adv' ? 'normal' : 'high', cooldownMs: cd, cks: ['nws_' + a.id], sig: 'nws:' + a.id, display, label: a.event, titleSingle: `${ic} ${a.event}`, body });
+          items.push({ kind: 'nws', cat: 'nws-' + tier, urgency: tier === 'adv' ? 'normal' : 'high', cooldownMs: cd, cks: ['nws_' + a.id], sig: 'nws:' + a.id, display, label: a.event, icon: ic, win: shortWin, titleSingle: `${ic} ${a.event}`, body });
         }
       }
 
@@ -758,7 +758,7 @@ async function run() {
           // Step up frequency for the most serious systems (you're in the cone):
           // halve the base cadence, floored at 3h.
           const cd = t.urgency === 'high' ? Math.min(baseTropMs, 3 * 3600000) : baseTropMs;
-          items.push({ kind: 'trop', cat: 'trop', urgency: t.urgency, cooldownMs: cd, cks: ['trop_' + t.ck], sig: 'trop:' + t.ck, display: t.msg, titleSingle: '🌀 Tropical Cyclone Alert', body: t.msg });
+          items.push({ kind: 'trop', cat: 'trop', urgency: t.urgency, cooldownMs: cd, cks: ['trop_' + t.ck], sig: 'trop:' + t.ck, display: t.msg, label: 'Tropical Cyclone', icon: '🌀', titleSingle: '🌀 Tropical Cyclone Alert', body: t.msg });
         }
       }
 
@@ -826,11 +826,38 @@ async function run() {
           : ordered.filter(isDue);
         if (dueItems.length) {
           let title, body;
+          const nameTail = sub.name ? ' · ' + sub.name : '';
+          // Surface the single most serious "named" alert in the TITLE, leading
+          // with it (+ its end time) so the worst threat — and when it expires —
+          // survives even when iOS truncates the collapsed banner to ~one line.
+          // Only NWS warnings/watches and tropical systems carry a real event name
+          // (and, for NWS, an "until" time); storm-cell / lightning / rain alerts
+          // have no fixed end and stay in the body. Severity: warning > watch >
+          // tropical.
+          const HEAD_ORDER = ['nws-warn', 'nws-watch', 'trop'];
+          let headline = null;
+          for (const c of HEAD_ORDER) { headline = ordered.find(i => i.cat === c); if (headline) break; }
           if (ordered.length === 1) {
-            title = ordered[0].titleSingle + (sub.name ? ' · ' + sub.name : '');
-            body = ordered[0].body;
+            const only = ordered[0];
+            // A lone NWS alert leads with its event + end time
+            // (e.g. "🌪️ Tornado Watch until 8:00 PM · Home").
+            if ((only.cat === 'nws-warn' || only.cat === 'nws-watch') && only.label) {
+              title = `${only.icon || '⚠️'} ${only.label}${only.win ? ' ' + only.win : ''}${nameTail}`;
+            } else {
+              title = only.titleSingle + nameTail;
+            }
+            body = only.body;
           } else {
-            title = `🌩️ ${ordered.length} weather alerts${sub.name ? ' · ' + sub.name : ''}`;
+            // Multi-alert digest. When a serious named alert is present, lead the
+            // title with it + its end time, then the total count
+            // (e.g. "🌪️ Tornado Watch until 8:00 PM · 8 alerts · Home"); otherwise
+            // fall back to the plain count.
+            if (headline && headline.label) {
+              const win = headline.win ? ' ' + headline.win : '';
+              title = `${headline.icon || '🌩️'} ${headline.label}${win} · ${ordered.length} alerts${nameTail}`;
+            } else {
+              title = `🌩️ ${ordered.length} weather alerts${nameTail}`;
+            }
             // iOS banners truncate by HEIGHT, so keep the body short. Show each
             // live / serious threat (storms, lightning, rain, NWS warnings) on its
             // own line, but when several long-lived NWS watches/advisories pile up

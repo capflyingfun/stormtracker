@@ -255,28 +255,48 @@ async function fetchNws(lat, lon) {
   }).filter(a => a.id);
 }
 
-// Format an NWS ISO timestamp (which carries the alert area's own UTC offset)
-// into a short human local time like "Wed 8:00 PM", rendered in that same zone.
-function fmtAlertTime(iso) {
+// Format an NWS ISO timestamp into a short human local time. When the
+// subscriber's IANA zone (`tz`) is known we render in THEIR zone and honor their
+// 12h/24h preference (`h24` -> "20:00" vs "8:00 PM"); otherwise we fall back to
+// the alert area's own UTC offset (carried in the ISO string). The weekday is
+// shown only when the time isn't today in the rendering zone, so a same-day
+// window stays compact ("until 8:00 PM") and a later one is unambiguous
+// ("until Fri 6:00 PM").
+function fmtAlertTime(iso, tz, h24) {
   if (!iso) return '';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
+  let zone = tz || null;
+  if (zone) { try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); } catch (e) { zone = null; } }
+  if (zone) {
+    const partsOf = dt => {
+      const p = new Intl.DateTimeFormat('en-US', { timeZone: zone, weekday: 'short', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: !h24 }).formatToParts(dt);
+      const g = t => (p.find(x => x.type === t) || {}).value || '';
+      return { wd: g('weekday'), md: g('month') + '/' + g('day'), hour: g('hour'), minute: g('minute'), ap: g('dayPeriod') };
+    };
+    const tp = partsOf(d), np = partsOf(new Date());
+    const time = h24 ? `${tp.hour}:${tp.minute}` : `${tp.hour}:${tp.minute}${tp.ap ? ' ' + tp.ap : ''}`;
+    return tp.md === np.md ? time : `${tp.wd} ${time}`;
+  }
+  // No usable subscriber zone: render in the alert area's own UTC offset.
   const m = String(iso).match(/([+-])(\d{2}):?(\d{2})$/);
   const offMin = m ? (m[1] === '-' ? -1 : 1) * (parseInt(m[2], 10) * 60 + parseInt(m[3], 10)) : 0;
   const local = new Date(d.getTime() + offMin * 60000);
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   let h = local.getUTCHours();
   const mn = local.getUTCMinutes();
+  if (h24) return `${days[local.getUTCDay()]} ${String(h).padStart(2, '0')}:${String(mn).padStart(2, '0')}`;
   const ap = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
   return `${days[local.getUTCDay()]} ${h}:${String(mn).padStart(2, '0')} ${ap}`;
 }
 
-// Human "in effect" window for an NWS alert. short=true -> "until Wed 8:00 PM"
-// for compact digest lines; short=false -> a fuller phrase for a single alert.
-function nwsWindow(a, short) {
-  const end = fmtAlertTime(a && a.ends);
-  const start = fmtAlertTime(a && a.onset);
+// Human "in effect" window for an NWS alert, in the subscriber's zone + format.
+// short=true -> "until Wed 8:00 PM" for compact digest lines; short=false -> a
+// fuller phrase for a single alert.
+function nwsWindow(a, short, tz, h24) {
+  const end = fmtAlertTime(a && a.ends, tz, h24);
+  const start = fmtAlertTime(a && a.onset, tz, h24);
   const future = a && a.onset && new Date(a.onset).getTime() > Date.now();
   if (short) return end ? `until ${end}` : '';
   if (future && start && end) return `Begins ${start} · until ${end}`;
