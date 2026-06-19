@@ -177,6 +177,19 @@ async function pruneDead(endpoint) {
   } catch (e) { console.warn('prune failed:', e.message); }
 }
 
+// Clear a one-shot "test notification" flag after we've delivered (or pruned) it,
+// so it fires exactly once.
+async function clearTest(endpoint) {
+  try {
+    const r = await fetch(`${WORKER_URL}/mark-alert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-scanner-secret': SCANNER_SECRET },
+      body: JSON.stringify({ endpoint, clearTest: true }),
+    });
+    if (!r.ok) console.warn(`  clearTest HTTP ${r.status}`);
+  } catch (e) { console.warn('clearTest failed:', e.message); }
+}
+
 function thresholdsFor(sub) {
   const t = sub.thresholds || {};
   return {
@@ -358,6 +371,27 @@ async function run() {
     const la = { ...(s.lastAlert || {}) };
     Object.keys(la).forEach(k => { if (now - la[k] > (PRUNE[keyKind(k)] || PRUNE.sc)) delete la[k]; });
     epState.set(s.endpoint, { la, dirty: false, dead: false });
+  }
+
+  // One-shot test pushes: a user tapped "Send test notification" in Settings.
+  // The worker flagged it; we deliver through the SAME web-push path as real
+  // alerts (so a success genuinely proves delivery works), then clear the flag so
+  // it fires exactly once. Sent up-front, independent of any weather conditions.
+  for (const s of subs) {
+    if (!s.testRequested) continue;
+    const st = epState.get(s.endpoint);
+    if (st && st.dead) continue;
+    const payload = JSON.stringify({
+      title: '✅ StormTracker test',
+      body: 'Notifications are working. Real storm alerts arrive automatically when weather warrants. 🌩️',
+      tag: 'stormtracker-test',
+      url: SITE_URL,
+    });
+    const r = await trySend(s, payload, { TTL: 600, urgency: 'high' });
+    await clearTest(s.endpoint);
+    if (r === 'dead') { if (st) st.dead = true; await pruneDead(s.endpoint); }
+    if (r === 'ok') sent++;
+    console.log(`  ${r === 'ok' ? '✓' : '✗'} test push (${r}) -> ${s.name || s.endpoint.slice(-12)}`);
   }
 
   // Group watched locations by coarse location (~0.7 mi) so co-located entries

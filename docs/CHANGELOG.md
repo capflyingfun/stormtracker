@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.17
+
+  **"Send test notification" button — confirm background alerts really reach your phone, on demand.**
+
+  - **Why** — users had no way to verify push delivery without waiting for real weather. A fake local popup would prove nothing; it must go through the actual server-side path.
+  - **Change** — a "🔔 Send test notification" button now appears under Settings → Background alerts (only when alerts are ON). Tapping it asks the worker to flag a one-shot test and nudge the scanner, which delivers a real push through the **exact same web-push pipeline as live alerts** (proven VAPID encryption), then clears the flag. Arrives within ~1 min.
+  - **How** — new worker `POST /test` (flags `meta` key `test:<endpoint>`, dispatches scanner), `GET /subscriptions` attaches a `testRequested` timestamp (auto-expires after 15 min), `POST /mark-alert {clearTest:true}` drops the flag. Scanner sends the test up-front (independent of weather) via the existing `trySend()` and clears it. Client `sendTestPush()` posts the endpoint. No D1 schema migration (reuses `meta`).
+  - **Cache bumped** — `?v=615` / `stormtracker-v615`.
+
   ## v5.16
 
   **Confirmation toasts for rain-band alert settings.**
