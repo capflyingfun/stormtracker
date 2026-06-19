@@ -676,9 +676,13 @@ async function run() {
             console.log(`  ⏸ ${sub.name || key}: digest floor (${Math.round(sinceDigest / 60000)}m < ${Math.round(minGap / 60000)}m), ${dueItems.length} due held`);
           } else {
             const urgency = ordered.some(i => i.urgency === 'high') ? 'high' : 'normal';
-            // One tag per LOCATION so the device coalesces a location's alerts into a
-            // single updating notification instead of stacking several per scan.
-            const payload = JSON.stringify({ title, body, tag: 'stormtracker-' + sub._locId, url: SITE_URL });
+            // UNIQUE tag per send. A fixed per-location tag let iOS silently COALESCE:
+            // on a home-screen PWA, renotify:true is unreliable, so the 2nd+ push to
+            // the same tag just replaced the existing notification WITHOUT re-alerting.
+            // A 12h audit showed 22 pushes accepted (2xx) but only the first ~3-6 ever
+            // appeared. The 15-min digest floor already prevents flooding, so giving
+            // each accepted digest a distinct tag makes every alert a fresh banner.
+            const payload = JSON.stringify({ title, body, tag: 'stormtracker-' + sub._locId + '-' + now, url: SITE_URL });
             const r = await trySend(sub, payload, { TTL: 1800, urgency });
             if (r === 'ok') {
               sent++; st.dirty = true;
