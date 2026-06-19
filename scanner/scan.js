@@ -126,6 +126,12 @@ function bandsFor(sub) {
   return out;
 }
 
+// Apple/iOS silently throttle a frequent web-push stream to a Home-Screen PWA
+// and drop it, so a user's "every time" (0 min) would deliver NOTHING. Floor the
+// re-notify gap for ROUTINE (non-severe) rain/storm pushes; severe rain, top-band
+// storm cells, lightning and NWS warnings keep their own faster cadence.
+const PUSH_FLOOR_MS = 10 * 60 * 1000;
+
 // Storm-cell defaults mirror the app's intent: inbound + reasonably strong.
 const DEF = { dbz: 40, impact: 50, dist: 60, radius: 80 };
 // Lightning corridor is a FIXED 80 mi (the system max), independent of each
@@ -505,7 +511,10 @@ async function run() {
           // Re-notify cadence follows the strongest hit's band (the cell that
           // leads the notification), matching the in-app per-cell band cooldown.
           const bestBand = bandForDbz(best.dbz);
-          const cooldownMs = bestBand ? bands[bestBand].min * 60000 : COOLDOWN.sc;
+          // Floor non-severe storm-cell re-notifies for delivery; severe stays fast.
+          const cooldownMs = bestBand
+            ? (bestBand === 'severe' ? bands[bestBand].min * 60000 : Math.max(bands[bestBand].min * 60000, PUSH_FLOOR_MS))
+            : COOLDOWN.sc;
           items.push({ kind: 'sc', cat: 'sc', urgency: 'high', cks, cooldownMs, display: `🌩️ ${body}`, titleSingle: '🌩️ StormTracker Alert', body });
         }
 
@@ -526,7 +535,7 @@ async function run() {
         const dbz = ovDbz;
         const bk = bandForDbz(dbz);
         if (bk && bands[bk] && bands[bk].on) {
-          const cooldownMs = bands.rovMin * 60000;
+          const cooldownMs = bk === 'severe' ? bands.rovMin * 60000 : Math.max(bands.rovMin * 60000, PUSH_FLOOR_MS);
           const body = `🌧️ Rain right over you — ${bandLabel(bk)} (${dbz} dBZ)`;
           items.push({ kind: 'rov', cat: 'rov', urgency: bk === 'severe' ? 'high' : 'normal', cks: ['rov'], cooldownMs, display: body, titleSingle: '🌧️ Rain Overhead', body });
         }
@@ -537,7 +546,7 @@ async function run() {
       // opt into pings on barely-there rain without changing the band system.
       if (bands.drizOn && ovDbz != null && ovDbz >= 10 && ovDbz < 20) {
         const dbz = ovDbz;
-        const cooldownMs = bands.drizMin * 60000;
+        const cooldownMs = Math.max(bands.drizMin * 60000, PUSH_FLOOR_MS);
         const body = `🌦️ Drizzle right over you — very light (${dbz} dBZ)`;
         items.push({ kind: 'driz', cat: 'driz', urgency: 'normal', cks: ['driz'], cooldownMs, display: body, titleSingle: '🌦️ Drizzle Overhead', body });
       }
@@ -591,52 +600,40 @@ async function run() {
         // (a 6h advisory), keeping each cadence intact instead of collapsing to
         // the fastest.
         const isDue = it => { const cd = it.cooldownMs != null ? it.cooldownMs : COOLDOWN[it.kind]; return it.cks.some(ck => now - (lastAlert[ns + ck] || 0) >= cd); };
-        // Notifications are split BY TYPE: one push per category (storm cells,
-        // rain, lightning, weather, NWS warnings / watches / advisories,
-        // tropical) with a DISTINCT tag, so each kind stacks separately on the
-        // device instead of collapsing into one bundled digest. Within a category
-        // we still only reset the cooldown for the DUE items.
-        const CAT_META = {
-          'trop':      { icon: '🌀', noun: 'tropical alerts' },
-          'nws-warn':  { icon: '🚨', noun: 'warnings' },
-          'sc':        { icon: '🌩️', noun: 'storm alerts' },
-          'ltg':       { icon: '⚡', noun: 'lightning alerts' },
-          'rov':       { icon: '🌧️', noun: 'rain alerts' },
-          'driz':      { icon: '🌦️', noun: 'drizzle alerts' },
-          'nws-watch': { icon: '👁️', noun: 'watches' },
-          'wx':        { icon: '⚠️', noun: 'weather alerts' },
-          'nws-adv':   { icon: 'ℹ️', noun: 'advisories' },
-        };
+        // ONE coalesced digest push per location per scan. iOS/Apple throttle a
+        // steady stream of separate web-push messages to a Home-Screen PWA and
+        // silently drop them, so instead of one push per category we send a single
+        // notification listing every currently-active alert. It fires whenever at
+        // least one item is past its own cooldown, rides high urgency if ANY item
+        // is high, and resets the cooldown only for the items that were due.
         const CAT_ORDER = ['trop', 'nws-warn', 'sc', 'ltg', 'rov', 'driz', 'nws-watch', 'wx', 'nws-adv'];
-        const catOf = it => it.cat || it.kind;
-        const cats = [...new Set(items.map(catOf))]
-          .sort((a, b) => { const ia = CAT_ORDER.indexOf(a), ib = CAT_ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
-        for (const cat of cats) {
-          const catItems = items.filter(it => catOf(it) === cat);
-          const dueItems = catItems.filter(isDue);
-          if (!dueItems.length) continue;
-          const meta = CAT_META[cat] || { icon: '🚨', noun: 'alerts' };
+        const pri = it => { const i = CAT_ORDER.indexOf(it.cat || it.kind); return i < 0 ? 99 : i; };
+        const ordered = items.slice().sort((a, b) => pri(a) - pri(b));
+        const dueItems = ordered.filter(isDue);
+        if (dueItems.length) {
           let title, body;
-          if (catItems.length === 1) {
-            title = catItems[0].titleSingle + (sub.name ? ' · ' + sub.name : '');
-            body = catItems[0].body;
+          if (ordered.length === 1) {
+            title = ordered[0].titleSingle + (sub.name ? ' · ' + sub.name : '');
+            body = ordered[0].body;
           } else {
-            title = `${meta.icon} ${catItems.length} ${meta.noun}${sub.name ? ' · ' + sub.name : ''}`;
-            // Keep the body short — banners truncate. Show up to 5, collapse rest.
-            const MAX = 5;
-            const shown = catItems.slice(0, MAX).map(i => i.display);
-            const hidden = catItems.length - shown.length;
+            title = `🌩️ ${ordered.length} weather alerts${sub.name ? ' · ' + sub.name : ''}`;
+            // Banners truncate — show the most serious few, collapse the rest.
+            const MAX = 6;
+            const shown = ordered.slice(0, MAX).map(i => i.display);
+            const hidden = ordered.length - shown.length;
             if (hidden > 0) shown.push(`⚠️ +${hidden} more · open for details`);
             body = shown.join('\n');
           }
-          const urgency = catItems.some(i => i.urgency === 'high') ? 'high' : 'normal';
-          const payload = JSON.stringify({ title, body, tag: 'stormtracker-' + sub._locId + '-' + cat, url: SITE_URL });
+          const urgency = ordered.some(i => i.urgency === 'high') ? 'high' : 'normal';
+          // One tag per LOCATION so the device coalesces a location's alerts into a
+          // single updating notification instead of stacking several per scan.
+          const payload = JSON.stringify({ title, body, tag: 'stormtracker-' + sub._locId, url: SITE_URL });
           const r = await trySend(sub, payload, { TTL: 1800, urgency });
           if (r === 'ok') {
             sent++; st.dirty = true;
             dueItems.forEach(i => i.cks.forEach(ck => { lastAlert[ns + ck] = now; }));
-            console.log(`  ✓ ${sub.name || key}: ${cat} ${catItems.length} item(s), reset ${dueItems.length} due`);
-          } else if (r === 'dead') { st.dead = true; break; }
+            console.log(`  ✓ ${sub.name || key}: digest ${ordered.length} item(s), reset ${dueItems.length} due`);
+          } else if (r === 'dead') { st.dead = true; }
         }
       }
     }
