@@ -333,7 +333,10 @@ export default {
       const sinceEmit = now - (state.lastEmit || 0);
       const changed = (sig !== state.sig) && !degraded;
       const emitChange = changed && (urgent || sinceEmit >= MIN_GAP);
-      const emitBeat = sinceEmit >= BRIEF;
+      // Degraded scans (a radar fetch failed) never publish — not even the 30-min
+      // heartbeat — so they can't post a misleading all-clear briefing, shift the
+      // heartbeat timer, or suppress the next real change for the throttle window.
+      const emitBeat = !degraded && sinceEmit >= BRIEF;
       if (emitChange || emitBeat) {
         state.items.unshift({ id: now, time: now, title, body, kind: emitChange ? 'change' : 'briefing' });
         state.items = state.items.slice(0, 25);
@@ -385,17 +388,22 @@ export default {
       const curBody = (state && state.cur && state.cur.body) || '';
       const desc = curBody ? curBody.replace(/\s*\n\s*/g, ' · ').slice(0, 500) : 'Waiting for the next storm scan…';
       const lastBuild = (state && state.cur && state.cur.time) || Date.now();
+      // Opaque, stable GUID namespace derived from the feed TOKEN (which the reader
+      // already holds) — NEVER the manage code. Putting the code in GUIDs would leak
+      // it to any reader/service and let them /unsubscribe or manage the device.
+      const _th = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+      const ns = [...new Uint8Array(_th)].slice(0, 6).map(x => x.toString(16).padStart(2, '0')).join('');
       let items = (state && Array.isArray(state.items) ? state.items : []).map(it => ({
         title: it.title || 'StormTracker update',
         body: it.body || '',
         time: it.time || it.id || Date.now(),
-        guid: `st-${code}-${it.id || it.time}`,
+        guid: `st-${ns}-${it.id || it.time}`,
       }));
       if (!items.length) items = [{
         title: '📡 StormTracker feed is live',
         body: 'Your storm briefings will appear here. A fresh briefing is posted at least every 30 minutes, and immediately when conditions change.',
         time: lastBuild,
-        guid: `st-${code}-welcome`,
+        guid: `st-${ns}-welcome`,
       }];
       const xml = rssDoc({ channelTitle, link, description: desc, lastBuild, items });
       return new Response(xml, {

@@ -35,8 +35,17 @@ function _setPushCode(c) { try { if (c) localStorage.setItem('st_pushCode', Stri
 // Private 128-bit RSS feed token (minted by the worker, mapped to this device's
 // code). Kept separate from the manage code so a feed URL pasted into a reader
 // can't be used to manage/unsubscribe. Cached so the copy button is instant.
-function _getFeedToken() { try { return localStorage.getItem('st_pushFeedToken') || ''; } catch (e) { return ''; } }
-function _setFeedToken(t) { try { if (t) localStorage.setItem('st_pushFeedToken', String(t)); } catch (e) {} }
+// Bound to the manage code so a stale token (e.g. after a re-enable hands back a
+// new code) is discarded and re-minted instead of pointing at the wrong feed.
+function _getFeedToken(code) {
+  try {
+    const raw = localStorage.getItem('st_pushFeedToken') || '';
+    if (!raw) return '';
+    if (raw[0] === '{') { const o = JSON.parse(raw); return (o && (!code || o.code === code)) ? (o.t || '') : ''; }
+    return code ? '' : raw; // legacy bare token: re-mint when we can verify the code
+  } catch (e) { return ''; }
+}
+function _setFeedToken(t, code) { try { if (t) localStorage.setItem('st_pushFeedToken', JSON.stringify({ t: String(t), code: code || '' })); } catch (e) {} }
 // Durable previous endpoint, also kept through Disable. If a flaky-network
 // /unsubscribe failed and left our old D1 row alive, re-enable can hand the worker
 // this endpoint + code so it MOVES that row (verified by endpoint+code) onto the
@@ -262,12 +271,12 @@ async function copyRssFeed(btn) {
   const orig = btn && btn.textContent;
   try {
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Getting link…'; }
-    let token = _getFeedToken();
+    let token = _getFeedToken(sub.code);
     if (!token) {
       const r = await _pushPost(_pushApiUrl() + '/feed-token', { endpoint: sub.endpoint });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.token) throw new Error(d.error || ('HTTP ' + r.status));
-      token = d.token; _setFeedToken(token);
+      token = d.token; _setFeedToken(token, sub.code);
     }
     const url = _pushApiUrl() + '/feed?token=' + encodeURIComponent(token);
     let copied = false;

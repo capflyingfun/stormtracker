@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.21
+
+  **Hardening for the v5.20 RSS feed — closes a manage-code leak, blocks misleading briefings from failed scans, and self-heals a stale token.**
+
+  - **Security: feed GUIDs no longer carry the manage code.** RSS `<item>` guids were `st-<CODE>-<id>`, so any reader/service handed a feed URL could read the manage code and call `/unsubscribe`. Guids are now namespaced by an opaque SHA-256 of the feed *token* (which the reader already holds) — `st-<ns>-<id>` — exposing nothing manageable. This restores the intended separation between the read-only feed token and the manage code.
+  - **Degraded scans never publish.** The 30-min briefing heartbeat (`emitBeat`) was independent of the `degraded` flag, so a failed radar fetch could still post an "all clear" briefing, move `lastEmit`, and suppress the next real change for the 10-min window. Degraded scans now update only the live snapshot — no item, no heartbeat, no `sig`/`lastEmit` change — so the next *healthy* scan still delivers the heartbeat measured from the last real emit.
+  - **Client token self-heals.** `st_pushFeedToken` is now stored bound to its manage code; if a re-enable ever hands back a new code, the cached token is discarded and re-minted instead of copying a link to the wrong device's feed.
+  - **Cache bumped** — `?v=620` / `stormtracker-v620`.
+
   ## v5.20
 
   **New: per-device RSS feed — a reliable, pull-based backup for storm alerts when push is unreliable (especially on iOS).**
