@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.28
+
+  **Push notification times now respect each subscriber's time-format and timezone, and the single most-severe active alert is promoted into the notification title with its end time.**
+
+  - **Localized alert times (`fmtAlertTime(iso, tz, h24)`)** — the scanner's NWS time formatter previously hardcoded 12-hour rendering in the *alert area's* own UTC offset, ignoring the subscriber. It now renders in the subscriber's IANA zone and honors their 12h/24h preference — both already ride along in the subscribe payload (`tz` from `Intl…resolvedOptions().timeZone`, `h24` from `_is24h()`). Same-day times drop the weekday for compactness (`until 8:00 PM`); later ones keep it (`until Fri 6:00 PM`). Falls back to the alert's own offset when no usable `tz` is sent, and to 12h when `h24` is absent. `nwsWindow(a, short, tz, h24)` threads both through. This also fixes AI-written bodies, since the AI rewrites the same deterministic lines.
+  - **Worst-alert title promotion** — the most serious *named* active alert (severity order: NWS **warning** → **watch** → **tropical**) is now surfaced in the notification TITLE with its end time, e.g. `🌪️ Tornado Watch until 8:00 PM · 8 alerts · Home`. iOS collapses the banner to ~one line, so leading with the threat + expiry keeps the critical info visible without opening it. Storm-cell / lightning / rain alerts have no fixed end time and stay in the body; a lone non-NWS/tropical alert keeps its existing single-alert title. NWS items now carry `icon`/`win`, and tropical items carry a `label`/`icon`, for the builder.
+  - **Cache bumped** — `?v=627` / `stormtracker-v627`. Scanner-only logic change (no new static assets).
+
   ## v5.27
 
   **AI-written push alerts now use EACH user's own OpenAI key — the developer's key is never used for another user's notifications.**
