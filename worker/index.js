@@ -50,6 +50,42 @@ async function uniqueCode(env, candidate, selfEndpoint) {
   return genCode() + Date.now().toString(36).slice(-3).toUpperCase();
 }
 
+// --- Per-user OpenAI key encryption at rest -------------------------------
+// AI-written push alerts use EACH user's own OpenAI key (never the developer's).
+// The key MUST be stored server-side so background alerts can be written while
+// the user's browser is closed. To avoid keeping it in plaintext, we AES-GCM
+// encrypt it with a key derived from SCANNER_SECRET. The scanner never receives
+// it (stripped from /subscriptions) and a D1 dump alone can't decrypt it.
+async function _aiCryptoKey(env) {
+  const seed = 'stormtracker-aikey:' + (env.SCANNER_SECRET || '');
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(seed));
+  return crypto.subtle.importKey('raw', h, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+async function encAiKey(env, plain) {
+  try {
+    if (!plain) return null;
+    const key = await _aiCryptoKey(env);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain)));
+    const out = new Uint8Array(iv.length + ct.length);
+    out.set(iv); out.set(ct, iv.length);
+    let bin = '';
+    for (let i = 0; i < out.length; i++) bin += String.fromCharCode(out[i]);
+    return 'enc:' + btoa(bin);
+  } catch (e) { return null; }
+}
+async function decAiKey(env, blob) {
+  try {
+    if (typeof blob !== 'string' || !blob) return null;
+    if (!blob.startsWith('enc:')) return blob; // tolerate a legacy/plaintext value
+    const raw = Uint8Array.from(atob(blob.slice(4)), c => c.charCodeAt(0));
+    const iv = raw.slice(0, 12), ct = raw.slice(12);
+    const key = await _aiCryptoKey(env);
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+    return new TextDecoder().decode(pt);
+  } catch (e) { return null; }
+}
+
 // Reliable scan scheduler. GitHub Actions' own cron is best-effort and skips
 // runs constantly, so the dependable cadence comes from THIS Worker's Cloudflare
 // Cron Trigger (configured every 5 min). On each tick we just poke the existing
@@ -138,7 +174,24 @@ export default {
       if (typeof b.lat !== 'number' || typeof b.lon !== 'number') {
         return json({ error: 'lat/lon required' }, 400);
       }
-      const thresholds = JSON.stringify(b.thresholds || {});
+      // AI-written alerts: the client sends its OWN OpenAI key (plaintext over
+      // HTTPS) inside thresholds.ai.key. Encrypt it at rest before storing, and
+      // never let it leave this Worker (it is stripped from /subscriptions and
+      // only ever decrypted here in /ai-digest). If AI is off or no key was
+      // supplied, no key is stored.
+      const thObj = (b.thresholds && typeof b.thresholds === 'object') ? b.thresholds : {};
+      if (thObj.ai && typeof thObj.ai === 'object') {
+        const tone = String(thObj.ai.tone || 'professional');
+        const rawKey = (typeof thObj.ai.key === 'string') ? thObj.ai.key.trim().slice(0, 500) : '';
+        if (thObj.ai.on && rawKey) {
+          const enc = await encAiKey(env, rawKey);
+          thObj.ai = enc ? { on: true, tone, key: enc } : { on: true, tone };
+        } else {
+          // AI on without a key, or AI off: keep the flag/tone but store no key.
+          thObj.ai = thObj.ai.on ? { on: true, tone } : { on: false };
+        }
+      }
+      const thresholds = JSON.stringify(thObj || {});
       const name = (b.name || '').slice(0, 120);
       // Same-device endpoint migration. Browsers/iOS mint a NEW push endpoint when
       // a subscription is recreated (VAPID-key change, re-enable, reinstall), so
@@ -226,18 +279,33 @@ export default {
     }
 
     // ---- AI digest wording (scanner-gated) ----
-    // The GitHub Actions scanner can't read THIS Worker's OPENAI_API_KEY secret,
-    // so it POSTs the deterministic alert lines here and we do the OpenAI call on
-    // its behalf — the key never leaves Cloudflare. Returns one short, natural push
-    // body. The scanner falls back to its own deterministic text on ANY failure,
-    // so this endpoint is purely best-effort cosmetic polish and never load-bearing.
+    // The GitHub Actions scanner can't read THIS Worker's D1, so it POSTs the
+    // deterministic alert lines here (plus the device endpoint) and we do the
+    // OpenAI call on its behalf using THAT user's own OpenAI key. The key is
+    // looked up from D1 by endpoint and decrypted here — it never leaves
+    // Cloudflare and the developer's key is NEVER used for another user. Returns
+    // one short, natural push body. The scanner falls back to its own
+    // deterministic text on ANY failure, so this is best-effort cosmetic polish
+    // and never load-bearing.
     if (path === '/ai-digest' && request.method === 'POST') {
       if (request.headers.get('x-scanner-secret') !== env.SCANNER_SECRET) {
         return json({ error: 'unauthorized' }, 401);
       }
-      if (!env.OPENAI_API_KEY) return json({ error: 'no openai key' }, 503);
+      if (!env.DB) return json({ error: 'D1 not configured' }, 500);
       let b;
       try { b = await request.json(); } catch { return json({ error: 'bad json' }, 400); }
+      const endpoint = typeof b.endpoint === 'string' ? b.endpoint : '';
+      if (!endpoint) return json({ error: 'endpoint required' }, 400);
+      // Resolve THIS user's OpenAI key. No env-key fallback — if a user hasn't
+      // supplied their own key, AI wording simply isn't available for them.
+      const row = await env.DB.prepare('SELECT thresholds FROM subscriptions WHERE endpoint = ?').bind(endpoint).first();
+      if (!row) return json({ error: 'unknown endpoint' }, 404);
+      const thAi = safeParse(row.thresholds, {}).ai;
+      // Require BOTH a stored key AND that the user still has AI turned ON, so a
+      // scanner bug or a stale key can never bill a user who disabled AI.
+      const aiOn = !!(thAi && typeof thAi === 'object' && thAi.on === true);
+      const userKey = (aiOn && typeof thAi.key === 'string') ? await decAiKey(env, thAi.key) : null;
+      if (!userKey) return json({ error: 'no user key' }, 503);
       const lines = Array.isArray(b.lines) ? b.lines.filter(x => typeof x === 'string' && x.trim()).slice(0, 12) : [];
       if (!lines.length) return json({ error: 'no lines' }, 400);
       const place = String(b.place || '').slice(0, 80);
@@ -255,7 +323,7 @@ Rules:
         const to = setTimeout(() => ctrl.abort(), 9000);
         const r = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+          headers: { 'Authorization': `Bearer ${userKey}`, 'Content-Type': 'application/json' },
           signal: ctrl.signal,
           body: JSON.stringify({
             model: 'gpt-4o-mini',
@@ -343,15 +411,25 @@ Rules:
         const ep = r.key.slice(5), ts = Number(r.value) || 0;
         if (ts && nowT - ts < TEST_TTL) tests.set(ep, ts);
       }
-      const subscribers = (results || []).map(r => ({
-        endpoint: r.endpoint,
-        keys: { p256dh: r.p256dh, auth: r.auth },
-        lat: r.lat, lon: r.lon, name: r.name,
-        thresholds: safeParse(r.thresholds, {}),
-        code: r.code,
-        lastAlert: safeParse(r.last_alert, {}),
-        testRequested: tests.get(r.endpoint) || 0,
-      }));
+      const subscribers = (results || []).map(r => {
+        const th = safeParse(r.thresholds, {});
+        // NEVER expose a user's stored OpenAI key to the scanner. Replace it with
+        // a boolean so the scanner can still gate AI on whether a key exists; the
+        // key itself only ever leaves D1 inside /ai-digest, here in this Worker.
+        if (th && th.ai && typeof th.ai === 'object') {
+          const hasKey = typeof th.ai.key === 'string' && th.ai.key.length > 0;
+          th.ai = { on: th.ai.on === true, tone: th.ai.tone || 'professional', hasKey };
+        }
+        return {
+          endpoint: r.endpoint,
+          keys: { p256dh: r.p256dh, auth: r.auth },
+          lat: r.lat, lon: r.lon, name: r.name,
+          thresholds: th,
+          code: r.code,
+          lastAlert: safeParse(r.last_alert, {}),
+          testRequested: tests.get(r.endpoint) || 0,
+        };
+      });
       return json({ subscribers });
     }
 

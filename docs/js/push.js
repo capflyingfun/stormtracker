@@ -102,15 +102,21 @@ function _areaCfg(th) {
   return { on: true };
 }
 // AI-written alert wording (opt-in, default OFF). Mirrors aiCfgOf() in
-// scanner/scan.js: only `{on:true}` enables it; absent/false/legacy => off. The
-// OpenAI key lives server-side (Cloudflare), so NO key travels from the browser —
-// just the on/off flag and which tone to use (shared with the in-app assistant).
+// scanner/scan.js: only `{on:true}` enables it; absent/false/legacy => off.
+// AI-written background alerts use the user's OWN OpenAI key (never the
+// developer's), so the key travels in the subscribe payload and is stored
+// encrypted server-side. `_aiCfg` reports both the on flag and whether a key is
+// present on this device.
 function _aiCfg(th) {
   const a = th && th.ai;
-  if (a && typeof a === 'object' && a.on === true) return { on: true };
-  return { on: false };
+  if (a && typeof a === 'object' && a.on === true) return { on: true, hasKey: !!_getPushAiKey() };
+  return { on: false, hasKey: !!_getPushAiKey() };
 }
 function _aiTone() { try { return (typeof getAITone === 'function') ? getAITone() : 'professional'; } catch (e) { return 'professional'; } }
+// The user's personal OpenAI key for AI-written background alerts. Stored ONLY on
+// this device (localStorage); it is also sent to the alert server (over HTTPS,
+// stored encrypted) so notifications can be written while the app is closed.
+function _getPushAiKey() { try { return (localStorage.getItem('st_pushAiKey') || '').trim(); } catch (e) { return ''; } }
 // "Only notify on changes" (edge-triggered cadence), opt-in, default OFF. Mirrors
 // changesCfgOf() in scanner/scan.js — it only affects the background scanner's
 // SEND TIMING (notify when the situation changes; severe/warnings/lightning still
@@ -345,7 +351,7 @@ async function enablePushAlerts(silent, opts) {
         bands: _pushBands(),
         tropical: { on: _tropOn(th), radius: _pushTropRadius(), everyH: _tropEveryH(th) },
         area: { on: _areaCfg(th).on },
-        ai: _aiCfg(th).on ? { on: true, tone: _aiTone() } : false,
+        ai: _aiCfg(th).on ? { on: true, tone: _aiTone(), key: _getPushAiKey() || undefined } : false,
         changes: _changesCfg(th).on ? { on: true } : false,
         tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; } })(),
         h24: (typeof _is24h === 'function') ? _is24h() : false,
@@ -496,7 +502,44 @@ function setPushArea(on) {
 function setPushAi(on) {
   const th = _getPushThresholds();
   th.ai = { on: !!on };
-  _savePushThresholds(th); _afterPushCfg();
+  _savePushThresholds(th);
+  if (on && !_getPushAiKey()) toast('🔑 Add your OpenAI key below to activate AI alerts');
+  _afterPushCfg();
+}
+// Save (or clear) the user's personal OpenAI key. Fires on blur of the key field.
+// Re-pushes the subscription so the alert server stores the new key, then
+// re-renders the panel so the "add your key" hint and Test status reflect it.
+function setPushAiKey(v) {
+  const k = (v || '').trim();
+  try { if (k) localStorage.setItem('st_pushAiKey', k); else localStorage.removeItem('st_pushAiKey'); } catch (e) {}
+  toast(k ? '🔑 OpenAI key saved on this device' : '🔑 OpenAI key removed');
+  _afterPushCfg();
+}
+function togglePushAiKeyVis() {
+  const el = document.getElementById('push-ai-key');
+  if (el) el.type = (el.type === 'password') ? 'text' : 'password';
+}
+// Validate a key straight from the browser with a cheap GET /v1/models call, so
+// the user gets instant confirmation it works before relying on it for alerts.
+async function testPushAiKey() {
+  const el = document.getElementById('push-ai-key');
+  const status = document.getElementById('push-ai-key-status');
+  const setMsg = (msg, color) => { if (status) { status.textContent = msg; status.style.color = color; } };
+  const k = (((el && el.value) || _getPushAiKey()) || '').trim();
+  if (!k) { setMsg('Enter a key first', 'var(--accent-yellow)'); return; }
+  setMsg('Testing…', 'var(--text-muted)');
+  try {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 12000);
+    const r = await fetch('https://api.openai.com/v1/models', { headers: { 'Authorization': 'Bearer ' + k }, signal: ctrl.signal });
+    clearTimeout(to);
+    if (r.ok) setMsg('✓ Key works', 'var(--accent-green)');
+    else if (r.status === 401) setMsg('✗ Key was rejected — check it', 'var(--accent-red)');
+    else if (r.status === 429) setMsg('✗ No credit / rate-limited — add billing', 'var(--accent-red)');
+    else setMsg('✗ OpenAI error ' + r.status, 'var(--accent-red)');
+  } catch (e) {
+    setMsg('✗ Could not reach OpenAI', 'var(--accent-red)');
+  }
 }
 function setPushChangesOnly(on) {
   const th = _getPushThresholds();
@@ -581,7 +624,20 @@ function renderPushAlertSettings() {
     <div class="setting-row-6"><span class="text-xxs-muted">AI-written alerts</span>
       <button class="small-btn" onclick="setPushAi(${!aiOn})" style="${aiOn ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${aiOn ? 'ON' : 'OFF'}</button>
     </div>
-    <div class="setting-hint" style="font-size:0.7em;margin-top:2px"><b>AI-written alerts</b> rephrases each notification into one short, natural sentence (uses the app's built-in AI). Off by default; the most urgent threat always stays first, and if the AI is ever unavailable you still get the normal wording.</div>
+    <div class="setting-hint" style="font-size:0.7em;margin-top:2px"><b>AI-written alerts</b> rephrases each notification into one short, natural sentence. It uses <b>your own</b> OpenAI key (so it's billed to your account, not shared). Off by default; the most urgent threat always stays first, and if the AI is ever unavailable you still get the normal wording.</div>
+    ${aiOn ? `
+    <div class="setting-row-6" style="align-items:center"><span class="text-xxs-muted">Your OpenAI key</span>
+      <span style="display:flex;gap:4px;align-items:center;flex:1;justify-content:flex-end">
+        <input id="push-ai-key" type="password" value="${escHtml(_getPushAiKey())}" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false" onchange="setPushAiKey(this.value)" style="flex:1;max-width:170px;background:var(--bg-input,#10151f);border:1px solid var(--border-subtle,#2a3343);color:var(--text-main,#e6edf3);border-radius:6px;padding:3px 7px;font-size:0.82em;font-family:var(--font-mono)">
+        <button class="small-btn" onclick="togglePushAiKeyVis()" title="Show/hide" style="padding:2px 7px">👁</button>
+      </span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:3px;flex-wrap:wrap">
+      <button class="small-btn" onclick="testPushAiKey()" style="padding:2px 9px;font-size:0.82em">Test key</button>
+      <a href="setup-guide.html?v=626" target="_blank" rel="noopener" style="font-size:0.78em;color:var(--accent-cyan)">How to get a key →</a>
+      <span id="push-ai-key-status" style="font-size:0.76em;color:var(--text-muted)"></span>
+    </div>
+    <div class="setting-hint" style="font-size:0.7em;margin-top:3px">Your key is stored on this device and on the alert server (encrypted) only so it can write your notifications while the app is closed. It's used solely to call OpenAI for you, and you're billed on your own OpenAI account. ${_getPushAiKey() ? '' : '<b style="color:var(--accent-yellow)">Add your key to activate AI alerts.</b>'}</div>` : ''}
     <div class="setting-row-6"><span class="text-xxs-muted">Only notify on changes</span>
       <button class="small-btn" onclick="setPushChangesOnly(${!changesOnly})" style="${changesOnly ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${changesOnly ? 'ON' : 'OFF'}</button>
     </div>

@@ -44,27 +44,35 @@ const COOLDOWN = { sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, rov: 5 * 60 * 1000, 
 const PRUNE = { sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, rov: 2 * 60 * 60 * 1000, driz: 2 * 60 * 60 * 1000, area: 4 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
 function keyKind(k) { const s = String(k); const base = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s; const p = base.split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg' || p === 'rov' || p === 'driz' || p === 'area') ? p : 'sc'; }
 
-// Per-user "AI-written alerts" opt-in. Default OFF — we only spend the shared
-// OpenAI key when a user explicitly turns it on. `tone` mirrors the in-app
-// assistant's voice. Legacy/missing payloads stay deterministic.
+// Per-user "AI-written alerts" opt-in. Default OFF. When a user turns it on AND
+// supplies their OWN OpenAI key, the Worker uses THAT key to rewrite the digest;
+// the developer's key is never used. `tone` mirrors the in-app assistant's voice.
+// Legacy/missing payloads stay deterministic.
 function aiCfgOf(th) {
   const a = th && th.ai;
-  if (a && typeof a === 'object' && a.on === true) return { on: true, tone: String(a.tone || 'professional') };
-  return { on: false };
+  if (a && typeof a === 'object' && a.on === true) {
+    // The Worker strips the raw key from /subscriptions and exposes hasKey. AI
+    // wording is only available for users who supplied their OWN OpenAI key.
+    const hasKey = a.hasKey === true || (typeof a.key === 'string' && a.key.length > 0);
+    return { on: true, tone: String(a.tone || 'professional'), hasKey };
+  }
+  return { on: false, hasKey: false };
 }
 
 // Ask the Worker to rewrite a digest's deterministic lines into one short, natural
-// push body using the OpenAI key that lives ONLY in Cloudflare. Best-effort: any
-// error / timeout / missing-key returns null and the caller keeps its own text.
-async function aiDigestBody(lines, place, tone) {
-  if (!WORKER_URL || !Array.isArray(lines) || !lines.length) return null;
+// push body. The OpenAI call uses THAT user's own key, which lives ONLY in
+// Cloudflare D1 — we pass the device `endpoint` so the Worker can look it up and
+// decrypt it. Best-effort: any error / timeout / missing-key returns null and the
+// caller keeps its own deterministic text.
+async function aiDigestBody(lines, place, tone, endpoint) {
+  if (!WORKER_URL || !endpoint || !Array.isArray(lines) || !lines.length) return null;
   try {
     const ctrl = new AbortController();
     const to = setTimeout(() => ctrl.abort(), 11000);
     const r = await fetch(`${WORKER_URL}/ai-digest`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-scanner-secret': SCANNER_SECRET },
-      body: JSON.stringify({ lines, place, tone }),
+      body: JSON.stringify({ lines, place, tone, endpoint }),
       signal: ctrl.signal,
     });
     clearTimeout(to);
@@ -853,13 +861,14 @@ async function run() {
             console.log(`  ⏸ ${sub.name || key}: digest floor (${Math.round(sinceDigest / 60000)}m < ${Math.round(minGap / 60000)}m), ${dueItems.length} due held`);
           } else {
             const urgency = ordered.some(i => i.urgency === 'high') ? 'high' : 'normal';
-            // Optional per-user AI wording: ONLY when opted in AND we're actually
-            // about to send (past the floor) so we never spend a call on a held
-            // digest. The Worker holds the OpenAI key and makes the call; on any
-            // failure the deterministic `body` is left untouched.
+            // Optional per-user AI wording: ONLY when opted in, the user supplied
+            // their own key (hasKey), AND we're actually about to send (past the
+            // floor) so we never spend a call on a held digest. The Worker looks
+            // up that user's key and makes the call; on any failure the
+            // deterministic `body` is left untouched.
             const aiCfg = aiCfgOf(sub.thresholds);
-            if (aiCfg.on) {
-              const aiText = await aiDigestBody(ordered.map(i => i.display).filter(Boolean), sub.name || '', aiCfg.tone);
+            if (aiCfg.on && aiCfg.hasKey) {
+              const aiText = await aiDigestBody(ordered.map(i => i.display).filter(Boolean), sub.name || '', aiCfg.tone, sub.endpoint);
               if (aiText) body = aiText;
             }
             // UNIQUE tag per send. A fixed per-location tag let iOS silently COALESCE:

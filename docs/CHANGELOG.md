@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.27
+
+  **AI-written push alerts now use EACH user's own OpenAI key — the developer's key is never used for another user's notifications.**
+
+  - **Per-user key (`ai:{on,tone,key}`)** — the subscribe payload now carries the user's own OpenAI key (plaintext over HTTPS). The Worker AES-GCM-encrypts it at rest (key derived from `SCANNER_SECRET`) inside the subscription `thresholds`, and STRIPS it from `/subscriptions` — the scanner only ever sees `ai.hasKey:true/false`, never the key. `/ai-digest` now looks the key up BY ENDPOINT, decrypts it, and calls OpenAI with it; the `OPENAI_API_KEY` env fallback was REMOVED, so no user is ever billed to the developer's key.
+  - **Scanner** — `aiCfgOf` returns `{on,tone,hasKey}` and AI wording is gated on `on && hasKey`; `aiDigestBody` now forwards the device `endpoint` so the Worker can resolve that user's key.
+  - **Client** — new "Your OpenAI key" field under Settings → Background alerts (shown only when AI-written alerts is ON), with a browser-side **Test key** check (`GET /v1/models`), a show/hide toggle, and a link to a new **setup-guide.html** walkthrough. The key lives in `st_pushAiKey` on the device and rides along in the subscribe payload. AI alerts stay default OFF and won't run until a key is added.
+  - **Cache bumped** — `?v=626` / `stormtracker-v626`. New static asset: `setup-guide.html`.
+
   ## v5.26
 
   **Two opt-in background-alert refinements: AI-written notification wording, and an event-driven ("only on changes") cadence. Both default OFF; deterministic behavior is unchanged unless a user turns them on.**
