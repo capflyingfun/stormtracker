@@ -373,12 +373,14 @@ function renderAlertBandSettings(){
   return html;
 }
 function _refreshAlertBandUI(){const el=document.getElementById('alert-band-settings');if(el)el.innerHTML=renderAlertBandSettings()}
-function toggleRainOverhead(on){const b=_loadAlertBands();b.rovOn=!!on;_saveAlertBands(b);if(on)requestNotifPermission();_refreshAlertBandUI();if(typeof syncPushAlerts==='function')syncPushAlerts()}
-function toggleAlertBand(key,on){const b=_loadAlertBands();if(b[key])b[key].on=!!on;_saveAlertBands(b);if(on)requestNotifPermission();_refreshAlertBandUI();if(typeof syncPushAlerts==='function')syncPushAlerts()}
-function setAlertBandCadence(key,val){const n=parseInt(val,10);if(!_BAND_CADENCE_OPTS.includes(n))return;const b=_loadAlertBands();if(b[key])b[key].min=n;_saveAlertBands(b);if(typeof syncPushAlerts==='function')syncPushAlerts()}
-function setRovCadence(val){const n=parseInt(val,10);if(!_BAND_CADENCE_OPTS.includes(n))return;const b=_loadAlertBands();b.rovMin=n;_saveAlertBands(b);if(typeof syncPushAlerts==='function')syncPushAlerts()}
-function toggleDrizzle(on){const b=_loadAlertBands();b.drizOn=!!on;_saveAlertBands(b);if(on)requestNotifPermission();_refreshAlertBandUI();if(typeof syncPushAlerts==='function')syncPushAlerts()}
-function setDrizCadence(val){const n=parseInt(val,10);if(!_BAND_CADENCE_OPTS.includes(n))return;const b=_loadAlertBands();b.drizMin=n;_saveAlertBands(b);if(typeof syncPushAlerts==='function')syncPushAlerts()}
+function _cadLbl(m){return m===0?'every time':'every '+m+' min'}
+function _bandToast(msg){if(typeof toast==='function')toast(msg,2500)}
+function toggleRainOverhead(on){const b=_loadAlertBands();b.rovOn=!!on;_saveAlertBands(b);if(on)requestNotifPermission();_refreshAlertBandUI();if(typeof syncPushAlerts==='function')syncPushAlerts();_bandToast(on?'🌧️ Rain right over you: ON':'Rain right over you: OFF')}
+function toggleAlertBand(key,on){const b=_loadAlertBands();if(b[key])b[key].on=!!on;_saveAlertBands(b);if(on)requestNotifPermission();_refreshAlertBandUI();if(typeof syncPushAlerts==='function')syncPushAlerts();const d=bandDef(key);_bandToast((d?d.label:'Band')+(on?' alerts: ON':' alerts: OFF'))}
+function setAlertBandCadence(key,val){const n=parseInt(val,10);if(!_BAND_CADENCE_OPTS.includes(n))return;const b=_loadAlertBands();if(b[key])b[key].min=n;_saveAlertBands(b);if(typeof syncPushAlerts==='function')syncPushAlerts();const d=bandDef(key);_bandToast((d?d.label:'Band')+' re-notify: '+_cadLbl(n))}
+function setRovCadence(val){const n=parseInt(val,10);if(!_BAND_CADENCE_OPTS.includes(n))return;const b=_loadAlertBands();b.rovMin=n;_saveAlertBands(b);if(typeof syncPushAlerts==='function')syncPushAlerts();_bandToast('Rain overhead re-notify: '+_cadLbl(n))}
+function toggleDrizzle(on){const b=_loadAlertBands();b.drizOn=!!on;_saveAlertBands(b);if(on)requestNotifPermission();_refreshAlertBandUI();if(typeof syncPushAlerts==='function')syncPushAlerts();_bandToast(on?'🌦️ Drizzle alerts: ON':'Drizzle alerts: OFF')}
+function setDrizCadence(val){const n=parseInt(val,10);if(!_BAND_CADENCE_OPTS.includes(n))return;const b=_loadAlertBands();b.drizMin=n;_saveAlertBands(b);if(typeof syncPushAlerts==='function')syncPushAlerts();_bandToast('Drizzle re-notify: '+_cadLbl(n))}
 
 // ==========================================
 // RAIN ALERT
