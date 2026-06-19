@@ -243,6 +243,21 @@ function fmtStormBody(best, count, mv, tz, h24) {
   return `${lead}${best.dbz} dBZ · ${distStr}${best.impactPct > 0 ? ` · ${best.impactPct}% impact` : ''}${etaStr}${moveStr}${tail}`;
 }
 
+// Compact one-liner for the multi-alert DIGEST (a single-storm notification
+// keeps the fuller fmtStormBody). Drops "% impact" and the "more inbound" tail,
+// tightens units (2.8mi / 43mph), so a busy digest doesn't truncate on the lock
+// screen and every alert line stays visible.
+function fmtStormShort(best, count, mv, tz, h24) {
+  const parts = [`${best.dbz} dBZ`, `${best.distance.toFixed(1)}mi`];
+  if (best.etaMin != null) {
+    const clock = fmtArrivalClock(best.etaMin, tz, h24);
+    parts.push(clock ? `ETA ${clock}` : `ETA ${best.etaMin}min`);
+  }
+  if (mv && mv.speed >= 2) parts.push(`${degToDir(mv.direction)} ${Math.round(mv.speed)}mph`);
+  const lead = count > 1 ? `${count} storms inbound` : 'Storm inbound';
+  return `${lead} · ${parts.join(' · ')}`;
+}
+
 // Full compass words for the friendlier lightning advisory ("southwest" reads
 // better than "SW" in a safety sentence).
 const DIR_LONG = {
@@ -508,6 +523,7 @@ async function run() {
             return (Math.floor(ea / 10) - Math.floor(eb / 10)) || (b.dbz - a.dbz) || (b.impactPct - a.impactPct);
           })[0];
           const body = fmtStormBody(best, hits.length, mv, tz, h24);
+          const shortBody = fmtStormShort(best, hits.length, mv, tz, h24);
           const cks = hits.map(c => `sc_${Math.round(c.bearing / 10)}_${Math.round(c.distance / 3)}`);
           // Re-notify cadence follows the strongest hit's band (the cell that
           // leads the notification), matching the in-app per-cell band cooldown.
@@ -520,7 +536,7 @@ async function run() {
           const cooldownMs = bestBand
             ? (anySevere ? bands.severe.min * 60000 : Math.max(bands[bestBand].min * 60000, PUSH_FLOOR_MS))
             : COOLDOWN.sc;
-          items.push({ kind: 'sc', cat: 'sc', urgency: 'high', cks, cooldownMs, display: `🌩️ ${body}`, titleSingle: '🌩️ StormTracker Alert', body });
+          items.push({ kind: 'sc', cat: 'sc', urgency: 'high', cks, cooldownMs, display: `🌩️ ${shortBody}`, titleSingle: '🌩️ StormTracker Alert', body });
         }
 
         // Lightning runs off the full corridor (approaching strong cells out to
