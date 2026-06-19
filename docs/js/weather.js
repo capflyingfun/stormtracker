@@ -2682,10 +2682,12 @@ function _rainClockRenderDetail(idx){
   } else {
     cells.forEach(c=>{
       const color=(typeof dbzHex==='function')?dbzHex(c.dbz):'#39ff14';
-      const dir=degToDir(c.bearing);
-      const distMi=c.dist;
-      const distStr=S.radarMetric?(distMi*1.609).toFixed(1)+' km':distMi.toFixed(1)+' mi';
       const cellEta=c.tIn===0?'overhead':`+${c.tIn}-${c.tOut} min`;
+      // Distance is only meaningful for ACTUAL radar storm cells. Synthetic
+      // forecast cells sit at the user's location (dist 0) and overhead cells are
+      // at ~0 mi, so a "0.0 mi" readout there is just confusing — omit it and let
+      // the ETA ("overhead"/projection) speak for those. Real (>0 mi) storms keep it.
+      const distTxt=(c.forecast||!(c.dist>0))?'':(()=>{const distStr=S.radarMetric?(c.dist*1.609).toFixed(1)+' km':c.dist.toFixed(1)+' mi';return ` · ${distStr} ${degToDir(c.bearing)}`;})();
       // v4.70: per-cell confidence — anything arriving within ~30 min is a
       // high-confidence nowcast; further out it's a projection that can shift.
       const _conf=(c.centerMin!=null&&c.centerMin<=30)
@@ -2696,7 +2698,7 @@ function _rainClockRenderDetail(idx){
       rows+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,0.05)">
         <span style="width:10px;height:24px;background:${color};border-radius:3px;flex-shrink:0"></span>
         <div style="flex:1;min-width:0">
-          <div style="font-size:0.78em;color:var(--text-primary);font-weight:600">${c.dbz} dBZ · ${distStr} ${dir}</div>
+          <div style="font-size:0.78em;color:var(--text-primary);font-weight:600">${c.dbz} dBZ${distTxt}</div>
           <div style="font-size:0.65em;color:var(--text-muted)">ETA ${cellEta}${c.count>1?' · '+c.count+' pixels':''} · ${confTag}</div>
         </div>
         <button onclick="_rainClockViewCellOnRadar(${safeLat},${safeLng})" style="font-size:0.65em;padding:4px 8px;border-radius:6px;background:var(--accent-blue,#3b82f6);color:#fff;border:none;cursor:pointer;flex-shrink:0">View on radar</button>
