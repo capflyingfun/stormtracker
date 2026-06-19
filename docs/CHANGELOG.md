@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.29
+
+  **On slow connections, late-arriving winds aloft now refresh ALL storm surfaces in lockstep (not just some), so the map and the counts can no longer disagree. Scans are hardened against stalled tiles, and AI push alerts reuse the AI Assistant key by default.**
+
+  - **Unified late-winds refresh (`refreshStormViewsForWinds()`)** — the MAP layer (hex zones, cone, flashing) is driven by `S._topStormAnalysis` (set by `computeTopStorms`), while the COUNT/LIST surfaces (Storms-tab cards, header pill, nav badge, Rain Clock dial, forecast banner) are driven by `S._inboundShown`, which is set ONLY by `renderStorms()`/`_renderStormsCore()`. On a slow link, winds aloft arrive AFTER the scan rendered; the four late-winds retry paths each refreshed only ONE of those worlds (the post-scan retries repainted the storm list; `_scheduleWindsAloftRetry` repainted ONLY the Rain Clock), so the map could light up with inbound hexes in the cone while every count still read 0. All four paths (`_scheduleWindsAloftRetry`, `scanRadarForStorms`, `scanRadarForView`, `scanRadarHiRes`) now route through one helper anchored on `renderStorms()` — the single source of truth that re-runs `computeTopStorms`, rebuilds `S._inboundShown`, and repaints the badges + Rain Clock in its `finally{}` — plus `drawMiniSonar`, `refreshHeroFromZone`, `buildPathArrows`, and `updateThreatTicker`.
+  - **Scan hang hardening** — added timeouts to the previously-unbounded scan-path network calls so a slow/stuck connection can't freeze the scan: `AbortSignal.timeout(6000)` on the RainViewer `weather-maps.json` fetches in `scanRadarForView` + `scanRadarHiRes` (matching `scanRadarForStorms`), and 15s caps on the per-tile RainViewer `fetch` and the NEXRAD `loadTileImage` so one stalled tile resolves empty instead of blocking `Promise.all`.
+  - **Shared OpenAI key** — `_getPushAiKey()` now falls back to the AI Assistant key (`st_aiKey`) when no push-specific key is set, so AI-written alerts work with a single key. The push key field shows only the explicit override (`_getPushAiKeyOwn()`); the effective key still rides the subscribe payload (encrypted server-side) and is used for `hasKey`/test/toasts.
+  - **Cache bumped** — `?v=628` / `stormtracker-v628`.
+
   ## v5.28
 
   **Push notification times now respect each subscriber's time-format and timezone, and the single most-severe active alert is promoted into the notification title with its end time.**

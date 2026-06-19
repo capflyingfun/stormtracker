@@ -679,7 +679,7 @@ async function scanRadarForView(){
 
     if(!useNexrad){
       try{
-        const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
+        const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json',{signal:AbortSignal.timeout(6000)}).then(r=>r.json());
         const past=rv.radar?.past||[];
         const nowcast=rv.radar?.nowcast||[];
         const allFrames=past.concat(nowcast);
@@ -736,9 +736,8 @@ async function scanRadarForView(){
       setTimeout(async()=>{
         await fetchWindsAloft(cLat,cLng);
         if(S._windCache&&(Date.now()-S._windCache.ts)<6000&&S.storms.length){
-          computeTopStorms();renderStorms();updateStormBadges();
-          if(S.map&&S._showPathArrows)buildPathArrows(S.map);
-          console.log('[WindsAloft] Storm data refreshed with fresh winds');
+          if(typeof refreshStormViewsForWinds==='function')refreshStormViewsForWinds();
+          console.log('[WindsAloft] All storm surfaces refreshed with fresh winds');
         }
       },4000);
     }
@@ -771,7 +770,7 @@ async function scanRadarHiRes(map,fromHome){
 
     if(!useNexrad){
       try{
-        const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
+        const rv=await fetch('https://api.rainviewer.com/public/weather-maps.json',{signal:AbortSignal.timeout(6000)}).then(r=>r.json());
         const past=rv.radar?.past||[];
         const nowcast=rv.radar?.nowcast||[];
         const allFrames=past.concat(nowcast);
@@ -829,9 +828,8 @@ async function scanRadarHiRes(map,fromHome){
       setTimeout(async()=>{
         await fetchWindsAloft(cLat,cLng);
         if(S._windCache&&(Date.now()-S._windCache.ts)<6000&&S.storms.length){
-          computeTopStorms();renderStorms();updateStormBadges();
-          if(S.map&&S._showPathArrows)buildPathArrows(S.map);
-          console.log('[WindsAloft] Storm data refreshed with fresh winds');
+          if(typeof refreshStormViewsForWinds==='function')refreshStormViewsForWinds();
+          console.log('[WindsAloft] All storm surfaces refreshed with fresh winds');
         }
       },4000);
     }
