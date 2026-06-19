@@ -132,6 +132,14 @@ function bandsFor(sub) {
 // storm cells, lightning and NWS warnings keep their own faster cadence.
 const PUSH_FLOOR_MS = 10 * 60 * 1000;
 
+// Per-ITEM floors above aren't enough: each item's cooldown phase-shifts, so on a
+// busy day SOMETHING is due on nearly every 5-min scan and the coalesced digest
+// still goes out ~12x/hr — which re-trips Apple's per-PWA delivery throttle (it
+// returns 2xx but stops DELIVERING after the first handful). DIGEST_FLOOR_MS caps
+// each location to one push per this window for ROUTINE alerts. True emergencies
+// (NWS warnings, tropical, a severe storm core) bypass it — see the send gate.
+const DIGEST_FLOOR_MS = 15 * 60 * 1000;
+
 // Storm-cell defaults mirror the app's intent: inbound + reasonably strong.
 const DEF = { dbz: 40, impact: 50, dist: 60, radius: 80 };
 // Lightning corridor is a FIXED 80 mi (the system max), independent of each
@@ -536,7 +544,7 @@ async function run() {
           const cooldownMs = bestBand
             ? (anySevere ? bands.severe.min * 60000 : Math.max(bands[bestBand].min * 60000, PUSH_FLOOR_MS))
             : COOLDOWN.sc;
-          items.push({ kind: 'sc', cat: 'sc', urgency: 'high', cks, cooldownMs, display: `🌩️ ${shortBody}`, titleSingle: '🌩️ StormTracker Alert', body });
+          items.push({ kind: 'sc', cat: 'sc', urgency: 'high', severe: anySevere, cks, cooldownMs, display: `🌩️ ${shortBody}`, titleSingle: '🌩️ StormTracker Alert', body });
         }
 
         // Lightning runs off the full corridor (approaching strong cells out to
@@ -654,16 +662,31 @@ async function run() {
             if (hidden > 0) shown.push(`⚠️ +${hidden} more · open for details`);
             body = shown.join('\n');
           }
-          const urgency = ordered.some(i => i.urgency === 'high') ? 'high' : 'normal';
-          // One tag per LOCATION so the device coalesces a location's alerts into a
-          // single updating notification instead of stacking several per scan.
-          const payload = JSON.stringify({ title, body, tag: 'stormtracker-' + sub._locId, url: SITE_URL });
-          const r = await trySend(sub, payload, { TTL: 1800, urgency });
-          if (r === 'ok') {
-            sent++; st.dirty = true;
-            dueItems.forEach(i => i.cks.forEach(ck => { lastAlert[ns + ck] = now; }));
-            console.log(`  ✓ ${sub.name || key}: digest ${ordered.length} item(s), reset ${dueItems.length} due`);
-          } else if (r === 'dead') { st.dead = true; }
+          // DIGEST-LEVEL rate limit so we never out-pace Apple's throttle. Pick the
+          // minimum gap since this location's LAST push by how urgent the due items
+          // are: NWS warnings / tropical fire immediately (rare + life-safety);
+          // a severe storm core is held to PUSH_FLOOR_MS so a persistent core can't
+          // become a 5-min firehose; everything routine waits the full digest floor.
+          const digestKey = ns + '__digest';
+          const sinceDigest = now - (lastAlert[digestKey] || 0);
+          const hardEsc = dueItems.some(i => i.cat === 'nws-warn' || i.cat === 'trop');
+          const severeEsc = dueItems.some(i => i.cat === 'sc' && i.severe);
+          const minGap = hardEsc ? 0 : (severeEsc ? PUSH_FLOOR_MS : DIGEST_FLOOR_MS);
+          if (sinceDigest < minGap) {
+            console.log(`  ⏸ ${sub.name || key}: digest floor (${Math.round(sinceDigest / 60000)}m < ${Math.round(minGap / 60000)}m), ${dueItems.length} due held`);
+          } else {
+            const urgency = ordered.some(i => i.urgency === 'high') ? 'high' : 'normal';
+            // One tag per LOCATION so the device coalesces a location's alerts into a
+            // single updating notification instead of stacking several per scan.
+            const payload = JSON.stringify({ title, body, tag: 'stormtracker-' + sub._locId, url: SITE_URL });
+            const r = await trySend(sub, payload, { TTL: 1800, urgency });
+            if (r === 'ok') {
+              sent++; st.dirty = true;
+              lastAlert[digestKey] = now;
+              dueItems.forEach(i => i.cks.forEach(ck => { lastAlert[ns + ck] = now; }));
+              console.log(`  ✓ ${sub.name || key}: digest ${ordered.length} item(s)${hardEsc || severeEsc ? ' [esc]' : ''}, reset ${dueItems.length} due`);
+            } else if (r === 'dead') { st.dead = true; }
+          }
         }
       }
     }
