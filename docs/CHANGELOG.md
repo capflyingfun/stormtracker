@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.23
+
+  **Manual notification “Re-subscribe” button + Rain Clock distance cleanup.**
+
+  - **Re-subscribe / reset button** — added under Settings → Background alerts (next to “Send test notification”). `resubscribePushAlerts()` unsubscribes the current browser PushSubscription (forcing a brand-new endpoint, which resets Apple's per-PWA delivery budget — the throttle that silently stops *showing* notifications) then re-subscribes through the normal `enablePushAlerts()` contract. The previous endpoint is still in storage, so the worker MOVES the row: the manage code, thresholds, and watched locations are all preserved. A manual companion to the automatic self-heal added in v5.22.
+  - **Rain Clock detail: forecast distance removed** — tapping a colored arc opened a per-cell card that could show "0.0 mi N" for *synthetic forecast cells* (anchored at the user's location) and overhead cells. Distance is now shown only for ACTUAL radar storm cells with a real (>0) distance; forecast/overhead cells show just dBZ + ETA + confidence. The radar-derived "Nearest Precipitation" readout below the dial is unchanged.
+  - **Cache bumped** — `?v=622` / `stormtracker-v622`.
+
   ## v5.22
 
   **iOS push reliability — conserve Apple's per-PWA notification budget so the alerts that matter keep getting through; RSS feed turned off.**

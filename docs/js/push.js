@@ -290,7 +290,7 @@ async function copyRssFeed(btn) {
   }
 }
 
-async function enablePushAlerts(silent) {
+async function enablePushAlerts(silent, opts) {
   const base = _pushApiUrl();
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) { if (!silent) toast('⚠️ Push not supported on this device'); return; }
   const watch = _watchedPushLocs();
@@ -333,7 +333,7 @@ async function enablePushAlerts(silent) {
     _setPushSub({ endpoint: sub.endpoint, code: data.code, lat: loc.lat, lon: loc.lon, name: loc.name, locs: watch });
     _setPushCode(data.code);
     _setPushEndpoint(sub.endpoint);
-    if (!silent) toast('🔔 Background storm alerts enabled');
+    if (!silent) toast((opts && opts.okMsg) || '🔔 Background storm alerts enabled');
   } catch (e) {
     console.log('[push] enable failed:', e.message);
     if (!silent) {
@@ -390,6 +390,27 @@ async function sendTestPush() {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '🔔 Send test notification'; }
   }
+}
+
+// Manual "Re-subscribe / reset" — drops the current browser subscription so the
+// next subscribe mints a BRAND-NEW endpoint. On iOS this resets Apple's per-PWA
+// delivery budget (the throttle that silently stops SHOWING notifications even
+// though the subscription stays alive). The previous endpoint is still in storage,
+// so enablePushAlerts() sends it as oldEndpoint and the worker MOVES the row —
+// manage code, thresholds & watched locations are all preserved.
+async function resubscribePushAlerts() {
+  if (_pushOpInFlight) return; // an enable/disable/reset is already running
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) { toast('⚠️ Push not supported on this device'); return; }
+  if (!_getPushSub()) { toast('🔕 Turn on background alerts first'); return; }
+  const btn = document.getElementById('push-reset-btn');
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.textContent = '🔄 Resetting…'; }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const old = await reg.pushManager.getSubscription();
+    if (old) { try { await old.unsubscribe(); } catch (e) {} }
+  } catch (e) { console.log('[push] reset unsubscribe:', e.message); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '🔄 Re-subscribe'; } }
+  await enablePushAlerts(false, { okMsg: '🔄 Notifications reset — re-subscribed with a fresh connection' });
 }
 
 // Single slide-toggle handler: flipping ON enables (subscribes), OFF disables.
@@ -522,10 +543,11 @@ function renderPushAlertSettings() {
       ${moved ? `<div class="setting-hint" style="color:var(--accent-yellow);display:flex;align-items:center;gap:8px;flex-wrap:wrap">Your location changed.<button class="small-btn" onclick="enablePushAlerts()" style="padding:1px 8px">↻ Update to ${escHtml(loc.name || 'here')}</button></div>` : ''}
       ${sub.code ? `<div class="setting-row-6"><span class="text-xxs-muted">Manage code</span><span style="font-family:var(--font-mono);font-weight:700;letter-spacing:1px;color:var(--accent-cyan)">${escHtml(sub.code)}</span></div>` : ''}
       ${controls}
-      <div style="margin-top:11px;display:flex;justify-content:center">
+      <div style="margin-top:11px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
         <button id="push-test-btn" class="small-btn" onclick="sendTestPush()" style="padding:6px 14px;font-size:0.85em;border-color:var(--accent-green);color:var(--accent-green)">🔔 Send test notification</button>
+        <button id="push-reset-btn" class="small-btn" onclick="resubscribePushAlerts()" style="padding:6px 14px;font-size:0.85em;border-color:var(--accent-cyan);color:var(--accent-cyan)">🔄 Re-subscribe</button>
       </div>
-      <div class="setting-hint" style="font-size:0.7em;text-align:center;margin-top:3px">Sends a real push through the same system as live alerts to confirm delivery. Arrives within ~1 min.</div>`;
+      <div class="setting-hint" style="font-size:0.7em;text-align:center;margin-top:3px">Send a test to confirm delivery (arrives within ~1 min). If alerts have stopped showing, tap <b>Re-subscribe</b> to reset the connection — your code and settings are kept.</div>`;
   }
   return `
     ${toggle}
