@@ -40,9 +40,9 @@ const SITE_URL = 'https://capflyingfun.github.io/StormTracker/';
 // Per-alert-type dedupe (re-notify) and prune (forget) windows, keyed by the
 // prefix of each dedupe key. Storm cells move fast (short window); a standing
 // NWS warning or weather condition shouldn't re-buzz for hours.
-const COOLDOWN = { sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, rov: 5 * 60 * 1000, driz: 15 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000, trop: 12 * 60 * 60 * 1000 };
-const PRUNE = { sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, rov: 2 * 60 * 60 * 1000, driz: 2 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
-function keyKind(k) { const s = String(k); const base = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s; const p = base.split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg' || p === 'rov' || p === 'driz') ? p : 'sc'; }
+const COOLDOWN = { sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, rov: 5 * 60 * 1000, driz: 15 * 60 * 1000, area: 2 * 60 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000, trop: 12 * 60 * 60 * 1000 };
+const PRUNE = { sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, rov: 2 * 60 * 60 * 1000, driz: 2 * 60 * 60 * 1000, area: 4 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
+function keyKind(k) { const s = String(k); const base = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s; const p = base.split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg' || p === 'rov' || p === 'driz' || p === 'area') ? p : 'sc'; }
 
 // --- NWS / Tropical re-notify cadence ---------------------------------------
 // Each NWS severity tier has its OWN re-notify cadence (minutes). Warnings and
@@ -71,6 +71,15 @@ function tropCfgOf(th) {
   if (t === false) return { on: false };
   if (t && typeof t === 'object') return { on: t.on !== false, radius: num(t.radius, 0) || 200, everyH: num(t.everyH, TROP_DEF_H) };
   return { on: true, radius: 200, everyH: TROP_DEF_H };
+}
+// Awareness alert config: strong storms NEARBY but not heading at the user
+// (parallel / passing / receding). Legacy/absent => ON, so it works for existing
+// subscribers without a re-subscribe; `false` => off; `{on}` object respected.
+function areaCfgOf(th) {
+  const a = th && th.area;
+  if (a === false) return { on: false };
+  if (a && typeof a === 'object') return { on: a.on !== false };
+  return { on: true };
 }
 // Effective NWS cooldown (ms) for one alert: base by tier, tightened near expiry
 // for warnings/watches. Returns null when the tier is disabled (advisories off).
@@ -154,6 +163,12 @@ const LTG_RADIUS = 80;
 // safety, even if it isn't approaching — a close strike shouldn't be hidden just
 // because it isn't heading straight at the user.
 const LTG_NEAR = 15;
+// Awareness ("nearby strong storms not heading at you") thresholds. A cell counts
+// as STRONG at the Heavy band floor (>=45 dBZ, matching the lightning corridor).
+// The alert covers strong cells inside the user's radius that are NOT inbound and
+// beyond the 15 mi near-lightning ring, so it never double-fires with sc/ltg.
+const AREA_DBZ = 45;
+const AREA_COOLDOWN_MS = 2 * 60 * 60 * 1000;
 const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
 
 // Fixed scan cadence: the GitHub cron IS the schedule (every 5 min), so every
@@ -282,6 +297,25 @@ function fmtStormShort(best, count, mv, tz, h24) {
   if (mv && mv.speed >= 2) parts.push(`${degToDir(mv.direction)} ${Math.round(mv.speed)}mph`);
   const lead = count > 1 ? `${count} storms inbound` : 'Storm inbound';
   return `${lead} · ${parts.join(' · ')}`;
+}
+
+// Awareness summary for STRONG storms nearby that are NOT heading at the user
+// (parallel / passing / receding). Leads with the nearest strong cell's direction
+// + distance, the fleet movement, and a "stay aware" note. Caller guarantees valid
+// steering (mv.speed >= 2) so "not heading your way" is grounded in real motion.
+function fmtArea(area, mv, th, tz, h24) {
+  const best = area.slice().sort((a, b) => a.distance - b.distance)[0];
+  const peak = area.reduce((m, c) => Math.max(m, c.dbz), 0);
+  const move = `moving ${degToDir(mv.direction)} ~${Math.round(mv.speed)} mph`;
+  const moveShort = `${degToDir(mv.direction)} ${Math.round(mv.speed)}mph`;
+  const cnt = area.length === 1 ? '1 strong cell' : `${area.length} strong cells`;
+  const body = `Strong storms ~${Math.round(best.distance)} mi to the ${dirLong(best.bearing)} (within your ${th.radius} mi range), ${move} — not heading your way, but stay aware. ${cnt}, peak ${peak} dBZ.`;
+  const display = `🌩️ Strong storms ~${Math.round(best.distance)}mi ${degToDir(best.bearing)}, ${moveShort} — not inbound (${area.length}, ${peak}dBZ)`;
+  // Single aggregate dedupe key from the LEAD cell's sector (45°) + distance (15mi)
+  // bucket: a standing line won't re-buzz, but activity that relocates to a new
+  // sector/distance does. Per-cell keys were rejected — radar flicker churns them.
+  const cks = [`area_${Math.round(best.bearing / 45) % 8}_${Math.round(best.distance / 15)}`];
+  return { body, display, cks };
 }
 
 // Full compass words for the friendlier lightning advisory ("southwest" reads
@@ -579,6 +613,24 @@ async function run() {
         // bearing down can warn even if it hasn't met the storm-alert bar yet.
         const ltg = fmtLightning(personal, tz, h24);
         if (ltg) items.push({ kind: 'ltg', cat: 'ltg', urgency: 'high', cks: ltg.cks, sig: 'ltg', display: ltg.display, titleSingle: '⚡ Lightning Nearby', body: ltg.body });
+
+        // --- Awareness: strong storms nearby that are NOT heading at the user ---
+        // Strong cells inside the user's radius that are parallel/passing/receding
+        // (not approaching) and beyond the 15 mi near-lightning ring — so this never
+        // overlaps the inbound 'sc' alert or the 'ltg' corridor. Low urgency. Needs
+        // valid steering so "not heading your way" reflects real motion (calcETA
+        // also reports approaching=false when steering is missing, which we must not
+        // mistake for "safely parallel").
+        if (areaCfgOf(sub.thresholds).on && mv && mv.speed >= 2) {
+          const area = personal.filter(c =>
+            c.dbz >= AREA_DBZ && c.distance <= th.radius &&
+            c.distance > LTG_NEAR && !c.approaching
+          );
+          if (area.length) {
+            const a = fmtArea(area, mv, th, tz, h24);
+            items.push({ kind: 'area', cat: 'area', urgency: 'normal', cks: a.cks, cooldownMs: AREA_COOLDOWN_MS, sig: 'area', display: a.display, titleSingle: '🌩️ Strong Storms Nearby', body: a.body });
+          }
+        }
       }
 
       // --- Rain right over you (radar dBZ on the exact spot, no inbound needed) ---
@@ -658,7 +710,7 @@ async function run() {
           let fc = feedByCode.get(sub.code);
           if (!fc) { fc = { name: sub.name || '', sections: [], sigParts: [], urgent: false, degraded: false }; feedByCode.set(sub.code, fc); }
           if (!fc.name) fc.name = sub.name || '';
-          const FORD = ['trop', 'nws-warn', 'sc', 'ltg', 'rov', 'driz', 'nws-watch', 'wx', 'nws-adv'];
+          const FORD = ['trop', 'nws-warn', 'sc', 'ltg', 'rov', 'driz', 'area', 'nws-watch', 'wx', 'nws-adv'];
           const fp = it => { const i = FORD.indexOf(it.cat || it.kind); return i < 0 ? 99 : i; };
           const act = items.slice().sort((a, b) => fp(a) - fp(b));
           const locName = sub.name || 'Location';
@@ -689,7 +741,7 @@ async function run() {
         // notification listing every currently-active alert. It fires whenever at
         // least one item is past its own cooldown, rides high urgency if ANY item
         // is high, and resets the cooldown only for the items that were due.
-        const CAT_ORDER = ['trop', 'nws-warn', 'sc', 'ltg', 'rov', 'driz', 'nws-watch', 'wx', 'nws-adv'];
+        const CAT_ORDER = ['trop', 'nws-warn', 'sc', 'ltg', 'rov', 'driz', 'area', 'nws-watch', 'wx', 'nws-adv'];
         const pri = it => { const i = CAT_ORDER.indexOf(it.cat || it.kind); return i < 0 ? 99 : i; };
         const ordered = items.slice().sort((a, b) => pri(a) - pri(b));
         const dueItems = ordered.filter(isDue);

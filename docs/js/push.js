@@ -93,6 +93,14 @@ function _nwsCfg(th) {
 }
 function _tropOn(th) { const t = th && th.tropical; return t === false ? false : ((t && typeof t === 'object') ? t.on !== false : true); }
 function _tropEveryH(th) { const t = th && th.tropical; return (t && typeof t === 'object' && parseInt(t.everyH, 10) > 0) ? parseInt(t.everyH, 10) : 6; }
+// Awareness toggle (strong storms nearby but NOT heading at you). Mirrors
+// areaCfgOf() in scanner/scan.js: absent/legacy => ON, `false` => off, `{on}` obj.
+function _areaCfg(th) {
+  const a = th && th.area;
+  if (a === false) return { on: false };
+  if (a && typeof a === 'object') return { on: a.on !== false };
+  return { on: true };
+}
 // Intensity bands + rain-overhead toggle (st_alertBands) travel with the
 // subscription so the scanner gates inbound storm pushes and the "rain over you"
 // push by the same on/off + per-band cadence the app uses. Null when never set —
@@ -317,6 +325,7 @@ async function enablePushAlerts(silent, opts) {
         nws: (() => { const c = _nwsCfg(th); return c.on ? { on: true, warnMin: c.warnMin, watchMin: c.watchMin, advMin: c.advMin } : false; })(),
         bands: _pushBands(),
         tropical: { on: _tropOn(th), radius: _pushTropRadius(), everyH: _tropEveryH(th) },
+        area: { on: _areaCfg(th).on },
         tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; } })(),
         h24: (typeof _is24h === 'function') ? _is24h() : false,
         locs: watch,
@@ -458,6 +467,11 @@ function setPushTropEvery(val) {
   th.tropical = { on: _tropOn(th), everyH: parseInt(val, 10) };
   _savePushThresholds(th); _afterPushCfg();
 }
+function setPushArea(on) {
+  const th = _getPushThresholds();
+  th.area = { on: !!on };
+  _savePushThresholds(th); _afterPushCfg();
+}
 
 let _pushSyncTimer = null;
 // Called from in-app Alerts/unit changes: silently re-push the subscription
@@ -479,6 +493,7 @@ function renderPushAlertSettings() {
   const nc = _nwsCfg(th);
   const tropOn = _tropOn(th);
   const tropH = _tropEveryH(th);
+  const areaOn = _areaCfg(th).on;
   const on = !!sub;
   const toggle = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
@@ -527,7 +542,10 @@ function renderPushAlertSettings() {
       <select class="small-btn" onchange="setPushTropEvery(this.value)">
         ${opt(3, tropH)}every 3 h</option>${opt(6, tropH)}every 6 h</option>${opt(9, tropH)}every 9 h</option>${opt(12, tropH)}every 12 h</option>
       </select></div>` : ''}
-    <div class="setting-hint" style="font-size:0.7em;margin-top:2px">Each type now sends its <b>own</b> notification (warnings, watches, advisories, storms, tropical…) so they stack separately instead of one bundle. <b>Warnings</b> repeat fast and <b>watches</b> automatically speed up as they near expiry; advisories and tropical repeat slower (set above). <b>NWS</b> covers hurricane, tornado, severe, flood, fire. <b>Tropical</b> pushes when a storm comes within your tracking radius (${_pushTropRadius()} mi, set on the map) or your location enters its forecast cone. Weather alerts (wind, temp, rain…) mirror your <b>Alerts</b> tab.</div>`;
+    <div class="setting-row-6"><span class="text-xxs-muted">Nearby strong storms</span>
+      <button class="small-btn" onclick="setPushArea(${!areaOn})" style="${areaOn ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${areaOn ? 'ON' : 'OFF'}</button>
+    </div>
+    <div class="setting-hint" style="font-size:0.7em;margin-top:2px">Each type now sends its <b>own</b> notification (warnings, watches, advisories, storms, tropical…) so they stack separately instead of one bundle. <b>Warnings</b> repeat fast and <b>watches</b> automatically speed up as they near expiry; advisories and tropical repeat slower (set above). <b>NWS</b> covers hurricane, tornado, severe, flood, fire. <b>Tropical</b> pushes when a storm comes within your tracking radius (${_pushTropRadius()} mi, set on the map) or your location enters its forecast cone. <b>Nearby strong storms</b> sends a low-key heads-up when strong cells (45+ dBZ) sit inside your watch radius but aren't heading at you — like a line passing parallel to the north — so you stay aware even when nothing's inbound (at most once every couple hours per area). Weather alerts (wind, temp, rain…) mirror your <b>Alerts</b> tab.</div>`;
   // Locations currently watched: the chosen saved-location bells, else the
   // single Home/current fallback (legacy single-location mode).
   const watched = _watchedPushLocs();
