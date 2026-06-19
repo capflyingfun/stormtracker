@@ -32,6 +32,12 @@ function _setPushSub(v) { try { v ? localStorage.setItem('st_pushSub', JSON.stri
 // user's shareable manage code stays stable for the life of the install.
 function _getPushCode() { try { return (localStorage.getItem('st_pushCode') || '').toUpperCase(); } catch (e) { return ''; } }
 function _setPushCode(c) { try { if (c) localStorage.setItem('st_pushCode', String(c).toUpperCase()); } catch (e) {} }
+// Durable previous endpoint, also kept through Disable. If a flaky-network
+// /unsubscribe failed and left our old D1 row alive, re-enable can hand the worker
+// this endpoint + code so it MOVES that row (verified by endpoint+code) onto the
+// fresh endpoint instead of minting a new code.
+function _getPushEndpoint() { try { return localStorage.getItem('st_pushEndpoint') || ''; } catch (e) { return ''; } }
+function _setPushEndpoint(ep) { try { if (ep) localStorage.setItem('st_pushEndpoint', String(ep)); } catch (e) {} }
 function _getPushThresholds() {
   try { const s = JSON.parse(localStorage.getItem('st_pushThresholds') || 'null'); if (s) return s; } catch (e) {}
   return { dbz: 40, impact: 50, radius: 60, nws: true };
@@ -258,6 +264,7 @@ async function enablePushAlerts(silent) {
     const sub = await _ensureFreshSubscription(reg);
     const th = _getPushThresholds();
     const existing = _getPushSub();
+    const prevEndpoint = (existing && existing.endpoint) || _getPushEndpoint();
     const body = {
       subscription: sub.toJSON(),
       lat: loc.lat, lon: loc.lon, name: loc.name,
@@ -275,13 +282,14 @@ async function enablePushAlerts(silent) {
       // If the browser minted a fresh endpoint (key change / reinstall), tell the
       // worker our previous endpoint so it MOVES that row here instead of leaving
       // a stale duplicate that splits delivery and trips Apple's push throttle.
-      oldEndpoint: (existing && existing.endpoint && existing.endpoint !== sub.endpoint) ? existing.endpoint : undefined,
+      oldEndpoint: (prevEndpoint && prevEndpoint !== sub.endpoint) ? prevEndpoint : undefined,
     };
     const res = await _pushPost(base + '/subscribe', body, { timeout: 14000, retries: 1 });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'subscribe failed');
     _setPushSub({ endpoint: sub.endpoint, code: data.code, lat: loc.lat, lon: loc.lon, name: loc.name, locs: watch });
     _setPushCode(data.code);
+    _setPushEndpoint(sub.endpoint);
     if (!silent) toast('🔔 Background storm alerts enabled');
   } catch (e) {
     console.log('[push] enable failed:', e.message);
