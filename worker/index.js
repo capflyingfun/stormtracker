@@ -225,6 +225,60 @@ export default {
       return json({ error: 'endpoint or code required' }, 400);
     }
 
+    // ---- AI digest wording (scanner-gated) ----
+    // The GitHub Actions scanner can't read THIS Worker's OPENAI_API_KEY secret,
+    // so it POSTs the deterministic alert lines here and we do the OpenAI call on
+    // its behalf — the key never leaves Cloudflare. Returns one short, natural push
+    // body. The scanner falls back to its own deterministic text on ANY failure,
+    // so this endpoint is purely best-effort cosmetic polish and never load-bearing.
+    if (path === '/ai-digest' && request.method === 'POST') {
+      if (request.headers.get('x-scanner-secret') !== env.SCANNER_SECRET) {
+        return json({ error: 'unauthorized' }, 401);
+      }
+      if (!env.OPENAI_API_KEY) return json({ error: 'no openai key' }, 503);
+      let b;
+      try { b = await request.json(); } catch { return json({ error: 'bad json' }, 400); }
+      const lines = Array.isArray(b.lines) ? b.lines.filter(x => typeof x === 'string' && x.trim()).slice(0, 12) : [];
+      if (!lines.length) return json({ error: 'no lines' }, 400);
+      const place = String(b.place || '').slice(0, 80);
+      const tone = ({ professional: 'professional', friendly: 'warm and friendly', humorous: 'lightly humorous but still clear' })[String(b.tone || '').toLowerCase()] || 'professional';
+      const facts = lines.join('\n').slice(0, 1200);
+      const sys = `You write ONE weather push-notification body for a storm-tracking app. Rewrite the FACTS below into a single ${tone} message a person reads at a glance on a phone lock screen.
+Rules:
+- Plain text only. No markdown, no surrounding quotes. You may keep emoji that appear in the facts if they help.
+- Keep it SHORT: at most 240 characters, ideally 2-3 short lines.
+- Lead with the most dangerous/urgent item (tornado or severe warning, lightning, inbound storm) first.
+- NEVER invent facts, numbers, distances, directions, or times that are not in the facts. Never drop a life-safety warning.
+- No greeting and no sign-off. Skip generic "stay safe" filler unless the tone clearly calls for a brief nudge.`;
+      try {
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 9000);
+        const r = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+          signal: ctrl.signal,
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            temperature: 0.5,
+            max_tokens: 160,
+            messages: [
+              { role: 'system', content: sys },
+              { role: 'user', content: `Location: ${place || 'your area'}\nFacts:\n${facts}` },
+            ],
+          }),
+        });
+        clearTimeout(to);
+        if (!r.ok) { const t = (await r.text()).slice(0, 160); return json({ error: 'openai ' + r.status, detail: t }, 502); }
+        const d = await r.json();
+        let text = ((d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '').trim();
+        text = text.replace(/^["']+|["']+$/g, '').slice(0, 300).trim();
+        if (!text) return json({ error: 'empty' }, 502);
+        return json({ text });
+      } catch (e) {
+        return json({ error: 'fetch ' + ((e && e.message) || 'err') }, 502);
+      }
+    }
+
     // ---- One-shot test push ----
     // A user tapped "Send test notification" in Settings. We just FLAG the test
     // in D1 `meta` (private — never exposed publicly) and nudge the scanner; the
