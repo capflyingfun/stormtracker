@@ -101,6 +101,25 @@ function _areaCfg(th) {
   if (a && typeof a === 'object') return { on: a.on !== false };
   return { on: true };
 }
+// AI-written alert wording (opt-in, default OFF). Mirrors aiCfgOf() in
+// scanner/scan.js: only `{on:true}` enables it; absent/false/legacy => off. The
+// OpenAI key lives server-side (Cloudflare), so NO key travels from the browser —
+// just the on/off flag and which tone to use (shared with the in-app assistant).
+function _aiCfg(th) {
+  const a = th && th.ai;
+  if (a && typeof a === 'object' && a.on === true) return { on: true };
+  return { on: false };
+}
+function _aiTone() { try { return (typeof getAITone === 'function') ? getAITone() : 'professional'; } catch (e) { return 'professional'; } }
+// "Only notify on changes" (edge-triggered cadence), opt-in, default OFF. Mirrors
+// changesCfgOf() in scanner/scan.js — it only affects the background scanner's
+// SEND TIMING (notify when the situation changes; severe/warnings/lightning still
+// break through), so there is no in-app runtime equivalent; the flag just rides
+// along in the subscription thresholds.
+function _changesCfg(th) {
+  const c = th && th.changes;
+  return { on: !!(c && typeof c === 'object' && c.on === true) };
+}
 // Intensity bands + rain-overhead toggle (st_alertBands) travel with the
 // subscription so the scanner gates inbound storm pushes and the "rain over you"
 // push by the same on/off + per-band cadence the app uses. Null when never set —
@@ -326,6 +345,8 @@ async function enablePushAlerts(silent, opts) {
         bands: _pushBands(),
         tropical: { on: _tropOn(th), radius: _pushTropRadius(), everyH: _tropEveryH(th) },
         area: { on: _areaCfg(th).on },
+        ai: _aiCfg(th).on ? { on: true, tone: _aiTone() } : false,
+        changes: _changesCfg(th).on ? { on: true } : false,
         tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; } })(),
         h24: (typeof _is24h === 'function') ? _is24h() : false,
         locs: watch,
@@ -472,6 +493,16 @@ function setPushArea(on) {
   th.area = { on: !!on };
   _savePushThresholds(th); _afterPushCfg();
 }
+function setPushAi(on) {
+  const th = _getPushThresholds();
+  th.ai = { on: !!on };
+  _savePushThresholds(th); _afterPushCfg();
+}
+function setPushChangesOnly(on) {
+  const th = _getPushThresholds();
+  th.changes = { on: !!on };
+  _savePushThresholds(th); _afterPushCfg();
+}
 
 let _pushSyncTimer = null;
 // Called from in-app Alerts/unit changes: silently re-push the subscription
@@ -494,6 +525,8 @@ function renderPushAlertSettings() {
   const tropOn = _tropOn(th);
   const tropH = _tropEveryH(th);
   const areaOn = _areaCfg(th).on;
+  const aiOn = _aiCfg(th).on;
+  const changesOnly = _changesCfg(th).on;
   const on = !!sub;
   const toggle = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
@@ -545,6 +578,14 @@ function renderPushAlertSettings() {
     <div class="setting-row-6"><span class="text-xxs-muted">Nearby strong storms</span>
       <button class="small-btn" onclick="setPushArea(${!areaOn})" style="${areaOn ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${areaOn ? 'ON' : 'OFF'}</button>
     </div>
+    <div class="setting-row-6"><span class="text-xxs-muted">AI-written alerts</span>
+      <button class="small-btn" onclick="setPushAi(${!aiOn})" style="${aiOn ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${aiOn ? 'ON' : 'OFF'}</button>
+    </div>
+    <div class="setting-hint" style="font-size:0.7em;margin-top:2px"><b>AI-written alerts</b> rephrases each notification into one short, natural sentence (uses the app's built-in AI). Off by default; the most urgent threat always stays first, and if the AI is ever unavailable you still get the normal wording.</div>
+    <div class="setting-row-6"><span class="text-xxs-muted">Only notify on changes</span>
+      <button class="small-btn" onclick="setPushChangesOnly(${!changesOnly})" style="${changesOnly ? 'color:var(--accent-green);border-color:var(--accent-green)' : 'color:var(--text-muted)'}">${changesOnly ? 'ON' : 'OFF'}</button>
+    </div>
+    <div class="setting-hint" style="font-size:0.7em;margin-top:2px"><b>Only notify on changes</b> stops repeat buzzes when nothing's changed — you get a notification when something <b>new</b> develops or a storm shifts, not the same alert over and over. Severe storms, lightning, and official <b>warnings</b> still repeat as usual so you never miss the serious stuff. Off by default.</div>
     <div class="setting-hint" style="font-size:0.7em;margin-top:2px">Each type now sends its <b>own</b> notification (warnings, watches, advisories, storms, tropical…) so they stack separately instead of one bundle. <b>Warnings</b> repeat fast and <b>watches</b> automatically speed up as they near expiry; advisories and tropical repeat slower (set above). <b>NWS</b> covers hurricane, tornado, severe, flood, fire. <b>Tropical</b> pushes when a storm comes within your tracking radius (${_pushTropRadius()} mi, set on the map) or your location enters its forecast cone. <b>Nearby strong storms</b> sends a low-key heads-up when strong cells (45+ dBZ) sit inside your watch radius but aren't heading at you — like a line passing parallel to the north — so you stay aware even when nothing's inbound (at most once every couple hours per area). Weather alerts (wind, temp, rain…) mirror your <b>Alerts</b> tab.</div>`;
   // Locations currently watched: the chosen saved-location bells, else the
   // single Home/current fallback (legacy single-location mode).

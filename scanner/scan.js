@@ -44,6 +44,60 @@ const COOLDOWN = { sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, rov: 5 * 60 * 1000, 
 const PRUNE = { sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, rov: 2 * 60 * 60 * 1000, driz: 2 * 60 * 60 * 1000, area: 4 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
 function keyKind(k) { const s = String(k); const base = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s; const p = base.split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg' || p === 'rov' || p === 'driz' || p === 'area') ? p : 'sc'; }
 
+// Per-user "AI-written alerts" opt-in. Default OFF — we only spend the shared
+// OpenAI key when a user explicitly turns it on. `tone` mirrors the in-app
+// assistant's voice. Legacy/missing payloads stay deterministic.
+function aiCfgOf(th) {
+  const a = th && th.ai;
+  if (a && typeof a === 'object' && a.on === true) return { on: true, tone: String(a.tone || 'professional') };
+  return { on: false };
+}
+
+// Ask the Worker to rewrite a digest's deterministic lines into one short, natural
+// push body using the OpenAI key that lives ONLY in Cloudflare. Best-effort: any
+// error / timeout / missing-key returns null and the caller keeps its own text.
+async function aiDigestBody(lines, place, tone) {
+  if (!WORKER_URL || !Array.isArray(lines) || !lines.length) return null;
+  try {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 11000);
+    const r = await fetch(`${WORKER_URL}/ai-digest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-scanner-secret': SCANNER_SECRET },
+      body: JSON.stringify({ lines, place, tone }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(to);
+    if (!r.ok) { console.warn(`  ai-digest HTTP ${r.status}`); return null; }
+    const d = await r.json();
+    const text = (d && typeof d.text === 'string') ? d.text.trim() : '';
+    return text || null;
+  } catch (e) { console.warn('  ai-digest failed:', e.message); return null; }
+}
+
+// Per-user "changes-only" (edge-triggered) cadence opt-in. Default OFF — legacy
+// behavior (re-notify on each item's own cooldown). When ON, routine alerts fire
+// only when their signature CHANGES; life-safety alerts keep their cadence.
+function changesCfgOf(th) {
+  const c = th && th.changes;
+  return { on: !!(c && typeof c === 'object' && c.on === true) };
+}
+// Life-safety = always allowed to re-buzz on its own cadence even in changes-only
+// mode: active NWS warnings, lightning, a SEVERE storm core, and high-urgency
+// tropical (in-cone / within radius). Everything else is "routine" and is gated
+// by signature change.
+function isLifeSafety(it) {
+  return it.cat === 'nws-warn' || it.cat === 'ltg' || (it.cat === 'sc' && it.severe) || (it.cat === 'trop' && it.urgency === 'high');
+}
+// Stable identity of a routine alert for edge detection: category + coarse
+// signature + sorted dedupe keys. A new threat, a moved/closer cell (new ck
+// bucket), or an intensity change (sig carries the band) all yield a NEW token
+// and thus a fresh notification; an unchanged situation yields the same token
+// and is suppressed.
+function routineToken(it) {
+  return `${it.cat}|${it.sig || ''}|${(it.cks || []).slice().sort().join(',')}`;
+}
+
 // --- NWS / Tropical re-notify cadence ---------------------------------------
 // Each NWS severity tier has its OWN re-notify cadence (minutes). Warnings and
 // watches additionally TIGHTEN as the alert nears its expiry — the effective
@@ -450,7 +504,9 @@ async function run() {
   for (const s of subs) {
     if (epState.has(s.endpoint)) continue;
     const la = { ...(s.lastAlert || {}) };
-    Object.keys(la).forEach(k => { if (now - la[k] > (PRUNE[keyKind(k)] || PRUNE.sc)) delete la[k]; });
+    // Only numeric timestamp keys age out; meta keys like `<loc>#__edge` hold a
+    // JSON string (the last-sent routine signature set) and must never be pruned.
+    Object.keys(la).forEach(k => { const v = la[k]; if (typeof v !== 'number') return; if (now - v > (PRUNE[keyKind(k)] || PRUNE.sc)) delete la[k]; });
     epState.set(s.endpoint, { la, dirty: false, dead: false });
   }
 
@@ -726,6 +782,11 @@ async function run() {
       }
 
       // --- Per-category notifications (one push per type) ---
+      // Hoisted so the edge-state ("changes-only") bookkeeping below runs even
+      // when there are zero active items (a fully-cleared location must forget its
+      // routine signature set so a later return re-fires).
+      const changesOn = changesCfgOf(sub.thresholds).on;
+      let didSend = false, curRoutine = [], routineAdded = [];
       if (items.length) {
         // An item is "due" when one of its dedupe keys has passed THAT item's own
         // cooldown (its band cadence for storm/rain-overhead, the per-tier NWS /
@@ -744,7 +805,17 @@ async function run() {
         const CAT_ORDER = ['trop', 'nws-warn', 'sc', 'ltg', 'rov', 'driz', 'area', 'nws-watch', 'wx', 'nws-adv'];
         const pri = it => { const i = CAT_ORDER.indexOf(it.cat || it.kind); return i < 0 ? 99 : i; };
         const ordered = items.slice().sort((a, b) => pri(a) - pri(b));
-        const dueItems = ordered.filter(isDue);
+        // Routine signature set this scan + what's NEW vs. the last sent set.
+        const routineItems = ordered.filter(it => !isLifeSafety(it));
+        curRoutine = [...new Set(routineItems.map(routineToken))];
+        let prevRoutine = new Set();
+        if (changesOn) { try { const raw = lastAlert[ns + '__edge']; if (typeof raw === 'string') prevRoutine = new Set(JSON.parse(raw)); } catch (e) {} }
+        routineAdded = changesOn ? routineItems.filter(it => !prevRoutine.has(routineToken(it))) : [];
+        // In changes-only mode a send is triggered by a due life-safety item OR a
+        // brand-new routine signature; otherwise by any item past its cooldown.
+        const dueItems = changesOn
+          ? ordered.filter(isLifeSafety).filter(isDue).concat(routineAdded)
+          : ordered.filter(isDue);
         if (dueItems.length) {
           let title, body;
           if (ordered.length === 1) {
@@ -782,6 +853,15 @@ async function run() {
             console.log(`  ⏸ ${sub.name || key}: digest floor (${Math.round(sinceDigest / 60000)}m < ${Math.round(minGap / 60000)}m), ${dueItems.length} due held`);
           } else {
             const urgency = ordered.some(i => i.urgency === 'high') ? 'high' : 'normal';
+            // Optional per-user AI wording: ONLY when opted in AND we're actually
+            // about to send (past the floor) so we never spend a call on a held
+            // digest. The Worker holds the OpenAI key and makes the call; on any
+            // failure the deterministic `body` is left untouched.
+            const aiCfg = aiCfgOf(sub.thresholds);
+            if (aiCfg.on) {
+              const aiText = await aiDigestBody(ordered.map(i => i.display).filter(Boolean), sub.name || '', aiCfg.tone);
+              if (aiText) body = aiText;
+            }
             // UNIQUE tag per send. A fixed per-location tag let iOS silently COALESCE:
             // on a home-screen PWA, renotify:true is unreliable, so the 2nd+ push to
             // the same tag just replaced the existing notification WITHOUT re-alerting.
@@ -791,13 +871,22 @@ async function run() {
             const payload = JSON.stringify({ title, body, tag: 'stormtracker-' + sub._locId + '-' + now, url: SITE_URL });
             const r = await trySend(sub, payload, { TTL: 1800, urgency });
             if (r === 'ok') {
-              sent++; st.dirty = true;
+              sent++; st.dirty = true; didSend = true;
               lastAlert[digestKey] = now;
               dueItems.forEach(i => i.cks.forEach(ck => { lastAlert[ns + ck] = now; }));
               console.log(`  ✓ ${sub.name || key}: digest ${ordered.length} item(s)${hardEsc || severeEsc ? ' [esc]' : ''}, reset ${dueItems.length} due`);
             } else if (r === 'dead') { st.dead = true; }
           }
         }
+      }
+      // Edge-state bookkeeping for changes-only mode. Adopt the CURRENT routine
+      // signature set when we actually sent (the digest showed the full picture),
+      // or when there were no new routine signatures to communicate (so cleared
+      // threats are forgotten and unchanged ones stay quiet). If a routine change
+      // was held by the digest floor, keep the previous set so it retries.
+      if (changesOn && (didSend || routineAdded.length === 0)) {
+        const enc = JSON.stringify(curRoutine);
+        if (lastAlert[ns + '__edge'] !== enc) { lastAlert[ns + '__edge'] = enc; st.dirty = true; }
       }
     }
   }

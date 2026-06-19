@@ -3,6 +3,16 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.26
+
+  **Two opt-in background-alert refinements: AI-written notification wording, and an event-driven ("only on changes") cadence. Both default OFF; deterministic behavior is unchanged unless a user turns them on.**
+
+  - **AI-written alerts (`ai:{on,tone}`)** — when a user opts in, the scanner asks the Worker's new scanner-gated `POST /ai-digest` endpoint to rewrite the deterministic digest lines into one short, natural push body. The OpenAI key lives ONLY as a Cloudflare Worker secret (`OPENAI_API_KEY`) — it never travels from the browser or sits in GitHub Actions; the scanner just forwards the already-built lines (`x-scanner-secret` gated) and gets back ≤300 chars. `gpt-4o-mini`, 9s server-side timeout / 11s scanner timeout, `max_tokens:160`. Best-effort and **never load-bearing**: any failure, missing key, or empty result leaves the deterministic `body` untouched. The call only happens AFTER the digest floor passes (never on a held digest), so we don't spend a call on a suppressed push. Tone reuses the in-app assistant voice (Professional / Friendly / Humorous). Settings → Background alerts → "AI-written alerts".
+  - **"Only notify on changes" (`changes:{on}`)** — opt-in edge-triggered cadence. Life-safety items (active NWS **warnings**, lightning, a **severe** storm core, high-urgency tropical) keep their existing re-notify cooldowns so they always break through. Routine items (watches, advisories, non-severe storms, nearby/area, rain-overhead, drizzle, weather thresholds) fire only when their **signature changes** vs. the last sent set, not on every cooldown tick. Signature = `cat | sig | sorted cks`, so a new threat, a cell moving into a new bearing/distance bucket, or an intensity-band change all count as a change; a standing, unchanged situation goes quiet. A cleared-then-returned routine threat re-fires because its token is dropped from the per-location edge set when it clears. Settings → Background alerts → "Only notify on changes".
+  - **Edge-state storage** — the last-sent routine signature set is persisted per location as a non-numeric meta key `…#__edge` inside the existing `last_alert` map. The prune sweep now skips non-numeric values so the edge set (and any future meta) is never aged out as if it were a timestamp. The set is only adopted after a successful send (or when there were no new signatures to communicate); a change held by the 45-min digest floor keeps the previous set so it retries. Scanner-only — this affects background SEND TIMING, so there is no in-app runtime equivalent; the flag just rides along in the subscription thresholds.
+  - **Parity** — `docs/js/push.js` adds matching `_aiCfg`/`_aiTone`/`_changesCfg` readers, `setPushAi`/`setPushChangesOnly` writers, two new Settings rows + hints, and includes `ai`/`changes` in the subscribe payload. `scanner/scan.js` adds `aiCfgOf`/`aiDigestBody`/`changesCfgOf`/`isLifeSafety`/`routineToken`. Both default OFF, so existing subscribers see no change until they opt in.
+  - **Cache bumped** — `?v=625` / `stormtracker-v625`.
+
   ## v5.25
 
   **New low-urgency "nearby strong storms" awareness push — strong cells inside your radius that AREN'T heading at you.**
