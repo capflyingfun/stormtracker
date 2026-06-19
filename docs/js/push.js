@@ -521,10 +521,6 @@ function renderPushAlertSettings() {
       ${bellHint}
       ${moved ? `<div class="setting-hint" style="color:var(--accent-yellow);display:flex;align-items:center;gap:8px;flex-wrap:wrap">Your location changed.<button class="small-btn" onclick="enablePushAlerts()" style="padding:1px 8px">↻ Update to ${escHtml(loc.name || 'here')}</button></div>` : ''}
       ${sub.code ? `<div class="setting-row-6"><span class="text-xxs-muted">Manage code</span><span style="font-family:var(--font-mono);font-weight:700;letter-spacing:1px;color:var(--accent-cyan)">${escHtml(sub.code)}</span></div>` : ''}
-      <div class="setting-row-6"><span class="text-xxs-muted">RSS feed</span>
-        <button class="small-btn" onclick="copyRssFeed(this)" style="border-color:var(--accent-cyan);color:var(--accent-cyan)">📡 Copy RSS link</button>
-      </div>
-      <div class="setting-hint" style="font-size:0.7em;margin-top:2px">A pull-based backup for when push is unreliable. Add this link to any RSS reader: it shows your latest storm briefing and posts a fresh one at least every <b>30 min</b> — plus right away when conditions change. How often your reader checks for new items is up to that app.</div>
       ${controls}
       <div style="margin-top:11px;display:flex;justify-content:center">
         <button id="push-test-btn" class="small-btn" onclick="sendTestPush()" style="padding:6px 14px;font-size:0.85em;border-color:var(--accent-green);color:var(--accent-green)">🔔 Send test notification</button>
@@ -536,4 +532,48 @@ function renderPushAlertSettings() {
     <div class="setting-hint">Get a push notification when a storm is inbound — works even when StormTracker is closed. Scanned server-side every ~5 min for <b>${watched.length ? watched.map(l => escHtml(l.name)).join(', ') : 'your saved Home location'}</b>. Flip the switch above to turn it on.</div>
     ${bellHint}
     ${controls}`;
+}
+
+// --- Subscription health check / auto re-subscribe ------------------------
+// iOS can silently drop or revoke a push subscription with NO event firing, so
+// the only way to catch it is to poll. Whenever the app becomes visible (and once
+// shortly after load), if the user HAS push enabled but the browser no longer
+// holds a matching, current-key subscription, we transparently re-subscribe
+// through the normal worker contract (enablePushAlerts(true)) — which preserves
+// the user's thresholds/code/locations and tells the worker to MOVE the old
+// endpoint instead of leaving a stale duplicate.
+let _pushHealthBusy = false, _pushHealthLast = 0;
+async function ensurePushHealth() {
+  try {
+    if (_pushHealthBusy || _pushOpInFlight) return;
+    if (!_getPushSub()) return; // user hasn't enabled background alerts
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') return;
+    const now = Date.now();
+    if (now - _pushHealthLast < 60000) return; // at most once a minute
+    _pushHealthLast = now;
+    _pushHealthBusy = true;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    const wantKey = _urlB64ToUint8(PUSH_VAPID_PUBLIC_KEY);
+    const stored = _getPushSub();
+    const healthy = sub && _subKeyMatches(sub, wantKey) &&
+      (!stored || !stored.endpoint || stored.endpoint === sub.endpoint);
+    if (!healthy) {
+      console.log('[push] subscription unhealthy — re-subscribing');
+      await enablePushAlerts(true); // silent; rebuilds via the worker contract
+    }
+  } catch (e) {
+    console.log('[push] health check failed:', e && e.message);
+  } finally {
+    _pushHealthBusy = false;
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') ensurePushHealth();
+});
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  setTimeout(ensurePushHealth, 3000);
+} else {
+  window.addEventListener('load', () => setTimeout(ensurePushHealth, 3000));
 }

@@ -3,6 +3,19 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.22
+
+  **iOS push reliability — conserve Apple's per-PWA notification budget so the alerts that matter keep getting through; RSS feed turned off.**
+
+  - **Root cause** — iOS Home-Screen web push has a small per-app delivery *budget* that depletes as un-tapped notifications accumulate. Once spent, Apple silently stops *showing* pushes while still returning 2xx — the subscription stays alive (no 410) and the scanner logs "sent", but nothing appears. Re-subscribing mints a fresh budget, which is why toggling alerts off/on temporarily restored delivery before it quit again.
+  - **Spend the budget on what matters** — `DIGEST_FLOOR_MS` raised 15 → 45 min, so routine rain/storm digests go out at most ~1.3×/hr instead of ~4×/hr, leaving budget in reserve. Life-safety alerts still bypass the floor: NWS warnings + tropical fire immediately, and a severe storm core is held only to `PUSH_FLOOR_MS` (10 min).
+  - **Lightning escalates fast** — lightning (`cat:'ltg'`) joined the severe-escalation tier, so a nearby strike is held to 10 min instead of waiting the full routine floor.
+  - **Test pushes no longer self-coalesce** — the test notification used a fixed `stormtracker-test` tag, so repeated "Send test" taps silently replaced the existing banner without re-alerting (looked like delivery had stopped). It now uses a unique tag per send, like real digests.
+  - **Bulletproof service-worker push handler** — iOS treats any push event that doesn't end in a *visible* notification as a "silent push" and can revoke the subscription after a few. The `push` handler is now wrapped end-to-end: a non-JSON payload falls back to text, and a failed `showNotification` retries with a minimal one, so every push path still shows something. Defends against the *separate* subscription-revocation failure mode (distinct from the budget throttle above).
+  - **Subscription self-heal** — iOS can silently drop/revoke a subscription with no event firing. A health check now runs when the app becomes visible (and shortly after load): if alerts are on but the browser no longer holds a matching, current-VAPID-key subscription, it transparently re-subscribes through the normal worker contract (`enablePushAlerts(true)`), preserving thresholds/code/locations and moving the old endpoint instead of leaving a duplicate. (Server already prunes 404/410 endpoints.)
+  - **RSS feed UI removed** — the Settings → Background alerts "📡 Copy RSS link" button is hidden while we focus on push reliability (worker/scanner feed code left dormant for an easy restore).
+  - **Cache bumped** — `?v=621` / `stormtracker-v621`.
+
   ## v5.21
 
   **Hardening for the v5.20 RSS feed — closes a manage-code leak, blocks misleading briefings from failed scans, and self-heals a stale token.**

@@ -137,8 +137,12 @@ const PUSH_FLOOR_MS = 10 * 60 * 1000;
 // still goes out ~12x/hr — which re-trips Apple's per-PWA delivery throttle (it
 // returns 2xx but stops DELIVERING after the first handful). DIGEST_FLOOR_MS caps
 // each location to one push per this window for ROUTINE alerts. True emergencies
-// (NWS warnings, tropical, a severe storm core) bypass it — see the send gate.
-const DIGEST_FLOOR_MS = 15 * 60 * 1000;
+// (NWS warnings, tropical, a severe storm core, lightning) bypass it — see the
+// send gate. Apple's per-PWA budget is small and depletes as un-tapped pushes
+// pile up, then it silently suppresses delivery; spending fewer pushes on routine
+// weather keeps budget in reserve for the alerts that actually matter, so this
+// floor is deliberately generous (45 min, not 15).
+const DIGEST_FLOOR_MS = 45 * 60 * 1000;
 
 // Storm-cell defaults mirror the app's intent: inbound + reasonably strong.
 const DEF = { dbz: 40, impact: 50, dist: 60, radius: 80 };
@@ -433,7 +437,10 @@ async function run() {
     const payload = JSON.stringify({
       title: '✅ StormTracker test',
       body: 'Notifications are working. Real storm alerts arrive automatically when weather warrants. 🌩️',
-      tag: 'stormtracker-test',
+      // UNIQUE tag per test (like real digests) — a fixed tag let iOS silently
+      // coalesce repeated tests, so a 2nd/3rd "Send test" replaced the banner
+      // WITHOUT re-alerting and looked like delivery had stopped.
+      tag: 'stormtracker-test-' + Date.now(),
       url: SITE_URL,
     });
     const r = await trySend(s, payload, { TTL: 600, urgency: 'high' });
@@ -717,7 +724,7 @@ async function run() {
           const digestKey = ns + '__digest';
           const sinceDigest = now - (lastAlert[digestKey] || 0);
           const hardEsc = dueItems.some(i => i.cat === 'nws-warn' || i.cat === 'trop');
-          const severeEsc = dueItems.some(i => i.cat === 'sc' && i.severe);
+          const severeEsc = dueItems.some(i => (i.cat === 'sc' && i.severe) || i.cat === 'ltg');
           const minGap = hardEsc ? 0 : (severeEsc ? PUSH_FLOOR_MS : DIGEST_FLOOR_MS);
           if (sinceDigest < minGap) {
             console.log(`  ⏸ ${sub.name || key}: digest floor (${Math.round(sinceDigest / 60000)}m < ${Math.round(minGap / 60000)}m), ${dueItems.length} due held`);
