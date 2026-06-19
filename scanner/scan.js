@@ -595,7 +595,7 @@ async function run() {
           const fullWin = nwsWindow(a, false);
           const display = `${ic} ${a.event}${shortWin ? ` · ${shortWin}` : ''}`;
           const body = [a.headline || a.area || a.event, fullWin ? `🕐 ${fullWin}` : ''].filter(Boolean).join('\n');
-          items.push({ kind: 'nws', cat: 'nws-' + tier, urgency: tier === 'adv' ? 'normal' : 'high', cooldownMs: cd, cks: ['nws_' + a.id], display, titleSingle: `${ic} ${a.event}`, body });
+          items.push({ kind: 'nws', cat: 'nws-' + tier, urgency: tier === 'adv' ? 'normal' : 'high', cooldownMs: cd, cks: ['nws_' + a.id], display, label: a.event, titleSingle: `${ic} ${a.event}`, body });
         }
       }
 
@@ -638,10 +638,19 @@ async function run() {
             body = ordered[0].body;
           } else {
             title = `🌩️ ${ordered.length} weather alerts${sub.name ? ' · ' + sub.name : ''}`;
-            // Banners truncate — show the most serious few, collapse the rest.
-            const MAX = 6;
-            const shown = ordered.slice(0, MAX).map(i => i.display);
-            const hidden = ordered.length - shown.length;
+            // iOS banners truncate by HEIGHT, so keep the body short. Show each
+            // live / serious threat (storms, lightning, rain, NWS warnings) on its
+            // own line, but when several long-lived NWS watches/advisories pile up
+            // (each valid for hours/days, lowest priority) fold them into ONE
+            // names-only line so they never push the live threats off the bottom.
+            const MINOR = new Set(['nws-watch', 'nws-adv']);
+            const primary = ordered.filter(i => !MINOR.has(i.cat));
+            const minor = ordered.filter(i => MINOR.has(i.cat));
+            const MAX_PRIMARY = 5;
+            const shown = primary.slice(0, MAX_PRIMARY).map(i => i.display);
+            let hidden = Math.max(0, primary.length - MAX_PRIMARY);
+            if (minor.length >= 2) shown.push('⚠️ ' + minor.map(i => i.label || i.display).join(' · '));
+            else if (minor.length === 1) shown.push(minor[0].display);
             if (hidden > 0) shown.push(`⚠️ +${hidden} more · open for details`);
             body = shown.join('\n');
           }
