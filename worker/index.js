@@ -299,6 +299,111 @@ export default {
       return json({ ok: true });
     }
 
+    // ---- RSS feed: scanner pushes a per-CODE snapshot here ----
+    // The scanner aggregates EVERY active alert across a code's watched
+    // locations into one comprehensive snapshot and POSTs it each scan. We keep
+    // the live snapshot (`cur`) always fresh for reading, but only EMIT a new
+    // RSS <item> (the thing a reader notifies on) when the coarse signature
+    // changes OR a 30-min "briefing" heartbeat is due — a timer that is wholly
+    // independent of the push cooldowns. A min-change gap + degraded-scan guard
+    // stop band-flapping or a transient radar outage from spamming new items.
+    if (path === '/feed-update' && request.method === 'POST') {
+      if (!env.SCANNER_SECRET || request.headers.get('x-scanner-secret') !== env.SCANNER_SECRET) {
+        return json({ error: 'unauthorized' }, 401);
+      }
+      if (!env.DB) return json({ error: 'D1 not configured' }, 500);
+      let b;
+      try { b = await request.json(); } catch { return json({ error: 'bad json' }, 400); }
+      const code = (b.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+      if (!code) return json({ error: 'code required' }, 400);
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)').run();
+      const k = 'feed:' + code;
+      const row = await env.DB.prepare('SELECT value FROM meta WHERE key = ?').bind(k).first();
+      const state = safeParse(row && row.value, null) || { items: [], cur: null, sig: '', lastEmit: 0 };
+      const now = Date.now();
+      const MIN_GAP = 10 * 60 * 1000;   // throttle routine change-pings
+      const BRIEF = 30 * 60 * 1000;     // guaranteed briefing heartbeat
+      const title = String(b.title || 'StormTracker update').slice(0, 200);
+      const body = String(b.body || '').slice(0, 4000);
+      const sig = String(b.sig || 'clear').slice(0, 2000);
+      const name = String(b.name || '').slice(0, 120);
+      const urgent = !!b.urgent;     // escalation (NWS warning / tropical / severe core) — ping now
+      const degraded = !!b.degraded; // a radar fetch failed — never treat as a real change
+      state.cur = { time: now, title, body, name };
+      const sinceEmit = now - (state.lastEmit || 0);
+      const changed = (sig !== state.sig) && !degraded;
+      const emitChange = changed && (urgent || sinceEmit >= MIN_GAP);
+      const emitBeat = sinceEmit >= BRIEF;
+      if (emitChange || emitBeat) {
+        state.items.unshift({ id: now, time: now, title, body, kind: emitChange ? 'change' : 'briefing' });
+        state.items = state.items.slice(0, 25);
+        state.lastEmit = now;
+      }
+      // Only adopt the new signature once we've actually PUBLISHED something that
+      // reflects it — so a throttled (non-urgent, <10 min) change still fires on a
+      // later scan instead of being silently swallowed. Degraded scans never adopt.
+      if (!degraded && (emitChange || emitBeat)) state.sig = sig;
+      await env.DB.prepare(
+        "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+      ).bind(k, JSON.stringify(state)).run();
+      return json({ ok: true, emitted: emitChange || emitBeat, kind: emitChange ? 'change' : (emitBeat ? 'briefing' : 'none') });
+    }
+
+    // Mint (or fetch) the private feed token for the caller's code. Endpoint-only
+    // proof of ownership (the client always has its own endpoint) — same safe
+    // pattern as /test, with no `code` lookup to avoid an enumeration vector.
+    if (path === '/feed-token' && request.method === 'POST') {
+      if (!env.DB) return json({ error: 'D1 not configured' }, 500);
+      let b;
+      try { b = await request.json(); } catch { return json({ error: 'bad json' }, 400); }
+      const endpoint = b.endpoint || '';
+      if (!endpoint) return json({ error: 'endpoint required' }, 400);
+      const sub = await env.DB.prepare('SELECT code FROM subscriptions WHERE endpoint = ?').bind(endpoint).first();
+      if (!sub || !sub.code) return json({ error: 'not subscribed' }, 404);
+      const token = await feedTokenForCode(env, sub.code, true);
+      return json({ ok: true, token });
+    }
+
+    // Public RSS feed. Authorized ONLY by the private 128-bit feed token (NOT the
+    // short manage code), so a feed URL pasted into a reader can't be used to
+    // unsubscribe or manage the subscription. Read-only; renders the emitted
+    // briefing/change history as RSS 2.0.
+    if ((path === '/feed' || path === '/feed.xml') && request.method === 'GET') {
+      if (!env.DB) return new Response('feed unavailable', { status: 503, headers: { 'Content-Type': 'text/plain', ...CORS } });
+      const token = (url.searchParams.get('token') || '').toLowerCase();
+      const notFound = () => new Response('Feed not found', { status: 404, headers: { 'Content-Type': 'text/plain', ...CORS } });
+      if (!/^[a-f0-9]{16,64}$/.test(token)) return notFound();
+      await env.DB.prepare('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)').run();
+      const tokRow = await env.DB.prepare('SELECT value FROM meta WHERE key = ?').bind('feedtok:' + token).first();
+      if (!tokRow || !tokRow.value) return notFound();
+      const code = tokRow.value;
+      const fRow = await env.DB.prepare('SELECT value FROM meta WHERE key = ?').bind('feed:' + code).first();
+      const state = safeParse(fRow && fRow.value, null);
+      const link = 'https://capflyingfun.github.io/StormTracker/';
+      const name = (state && state.cur && state.cur.name) || 'your locations';
+      const channelTitle = `StormTracker — ${name}`;
+      const curBody = (state && state.cur && state.cur.body) || '';
+      const desc = curBody ? curBody.replace(/\s*\n\s*/g, ' · ').slice(0, 500) : 'Waiting for the next storm scan…';
+      const lastBuild = (state && state.cur && state.cur.time) || Date.now();
+      let items = (state && Array.isArray(state.items) ? state.items : []).map(it => ({
+        title: it.title || 'StormTracker update',
+        body: it.body || '',
+        time: it.time || it.id || Date.now(),
+        guid: `st-${code}-${it.id || it.time}`,
+      }));
+      if (!items.length) items = [{
+        title: '📡 StormTracker feed is live',
+        body: 'Your storm briefings will appear here. A fresh briefing is posted at least every 30 minutes, and immediately when conditions change.',
+        time: lastBuild,
+        guid: `st-${code}-welcome`,
+      }];
+      const xml = rssDoc({ channelTitle, link, description: desc, lastBuild, items });
+      return new Response(xml, {
+        status: 200,
+        headers: { 'Content-Type': 'application/rss+xml; charset=utf-8', 'Cache-Control': 'public, max-age=90', ...CORS },
+      });
+    }
+
     // Shared scheduler state for the randomized scan cadence. The scanner reads
     // the "next due" timestamp on each cron tick and writes the next one after
     // it scans. Guarded by the same scanner secret as /subscriptions.
@@ -325,7 +430,7 @@ export default {
     }
 
     return new Response(
-      'StormTracker Worker\n\nProxy:\n  /metar?ids=KPNS&format=raw\n  /taf?ids=KPNS&format=raw\n\nPush API:\n  POST /subscribe\n  POST /unsubscribe\n  GET  /subscriptions (scanner)\n  POST /mark-alert    (scanner)\n  GET/POST /scan-due  (scanner)\n',
+      'StormTracker Worker\n\nProxy:\n  /metar?ids=KPNS&format=raw\n  /taf?ids=KPNS&format=raw\n\nPush API:\n  POST /subscribe\n  POST /unsubscribe\n  POST /feed-token    { endpoint } -> { token }\n  GET  /feed?token=...  (public RSS 2.0)\n  GET  /subscriptions (scanner)\n  POST /mark-alert    (scanner)\n  POST /feed-update   (scanner)\n  GET/POST /scan-due  (scanner)\n',
       { headers: { 'Content-Type': 'text/plain', ...CORS } }
     );
   },
@@ -333,4 +438,60 @@ export default {
 
 function safeParse(s, fallback) {
   try { return s ? JSON.parse(s) : fallback; } catch { return fallback; }
+}
+
+// ---- RSS feed helpers ----
+
+// 128-bit hex feed token. Unguessable bearer that maps to a code, kept separate
+// from the short manage code so a shared feed URL never exposes account control.
+function mintToken() {
+  const a = new Uint8Array(16);
+  crypto.getRandomValues(a);
+  return Array.from(a).map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+// Get the existing feed token for a code, or mint+persist a new one. Stored as a
+// bidirectional pair in `meta`: feedcode:<code> -> token and feedtok:<token> -> code.
+async function feedTokenForCode(env, code, create) {
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)').run();
+  const k = 'feedcode:' + code;
+  const row = await env.DB.prepare('SELECT value FROM meta WHERE key = ?').bind(k).first();
+  if (row && row.value) return row.value;
+  if (!create) return null;
+  const tok = mintToken();
+  await env.DB.prepare("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(k, tok).run();
+  await env.DB.prepare("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind('feedtok:' + tok, code).run();
+  return tok;
+}
+
+function xmlEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+// Wrap rich body text in CDATA so HTML line breaks render; neutralise any ]]>.
+function cdata(s) {
+  return '<![CDATA[' + String(s == null ? '' : s).replace(/]]>/g, ']]&gt;') + ']]>';
+}
+
+function rssDoc({ channelTitle, link, description, lastBuild, items }) {
+  const head =
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel>' +
+    `<title>${xmlEsc(channelTitle)}</title>` +
+    `<link>${xmlEsc(link)}</link>` +
+    `<description>${xmlEsc(description)}</description>` +
+    `<lastBuildDate>${new Date(lastBuild).toUTCString()}</lastBuildDate>` +
+    '<ttl>5</ttl>';
+  const body = items.map(it =>
+    '<item>' +
+    `<title>${xmlEsc(it.title)}</title>` +
+    `<description>${cdata(String(it.body || '').replace(/\n/g, '<br/>'))}</description>` +
+    `<pubDate>${new Date(it.time).toUTCString()}</pubDate>` +
+    `<guid isPermaLink="false">${xmlEsc(it.guid)}</guid>` +
+    `<link>${xmlEsc(link)}</link>` +
+    '</item>'
+  ).join('');
+  return head + body + '</channel></rss>';
 }

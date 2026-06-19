@@ -3,6 +3,16 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.20
+
+  **New: per-device RSS feed — a reliable, pull-based backup for storm alerts when push is unreliable (especially on iOS).**
+
+  - **Why** — iOS Home-Screen web push is intermittent (Apple silently throttles/drops). A feed a reader pulls on its own schedule sidesteps that entirely while still surfacing the same storm digest.
+  - **Client** — Settings → Background alerts shows a **📡 Copy RSS link** button. On first use it asks the worker (endpoint-only, same safe proof as the test push) for a private 128-bit feed token, caches it (`st_pushFeedToken`), and copies `/feed?token=…`. The token is separate from the manage code so a shared feed URL can never manage/unsubscribe.
+  - **Scanner** — each scan aggregates EVERY active alert across a code's watched locations into one comprehensive snapshot (no iOS truncation) and POSTs it to the worker. A coarse `sig` (storm band / lightning / rain band / NWS id / tropical id, excluding distance & ETA drift) drives change detection; a `degraded` flag marks a failed radar fetch so a transient outage never reads as "all clear".
+  - **Worker** — `POST /feed-update` (scanner-secret) keeps the live snapshot fresh every scan but only EMITS a new RSS `<item>` when the signature changes (debounced by a 10-min min-gap, immediate for NWS warnings / tropical / severe cores) OR a **30-min briefing heartbeat** is due — a timer fully independent of the push cooldowns. `GET /feed?token=…` serves reader-safe RSS 2.0 (emitted items only, each with a unique guid; live snapshot rides in the channel description). `POST /feed-token` mints/returns the token.
+  - **Cache bumped** — `?v=619` / `stormtracker-v619`.
+
   ## v5.19
 
   **Fix: your manage code is now stable per device — toggling alerts off/on no longer mints a new one.**
