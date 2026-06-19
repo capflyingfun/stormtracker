@@ -452,10 +452,11 @@ async function run() {
     }
 
     // 4. Rain right over the user — radar dBZ on the exact spot, only if someone
-    // here has the rain-overhead toggle on. One decode per group (members share a
-    // coarse location); each sub still applies its own band gate below.
+    // here has the rain-overhead OR drizzle toggle on (both read the overhead
+    // value). One decode per group (members share a coarse location); each sub
+    // still applies its own band gate below.
     let overheadDbz = null;
-    const wantRov = members.some(m => bandsFor(m).rovOn);
+    const wantRov = members.some(m => { const b = bandsFor(m); return b.rovOn || b.drizOn; });
     if (wantRov) {
       try { overheadDbz = await dbzAtPoint(o.lat, o.lon); console.log(`  overhead: ${overheadDbz} dBZ`); }
       catch (e) { console.warn(`  overhead ${key} failed: ${e.message}`); }
@@ -511,9 +512,13 @@ async function run() {
           // Re-notify cadence follows the strongest hit's band (the cell that
           // leads the notification), matching the in-app per-cell band cooldown.
           const bestBand = bandForDbz(best.dbz);
-          // Floor non-severe storm-cell re-notifies for delivery; severe stays fast.
+          // Floor non-severe storm-cell re-notifies for delivery; severe stays
+          // fast. Keep the fast cadence whenever ANY hit cell is severe (not just
+          // the lead cell), so a severe cell behind a nearer-but-weaker one isn't
+          // throttled to the 10-min floor.
+          const anySevere = hits.some(c => bandForDbz(c.dbz) === 'severe');
           const cooldownMs = bestBand
-            ? (bestBand === 'severe' ? bands[bestBand].min * 60000 : Math.max(bands[bestBand].min * 60000, PUSH_FLOOR_MS))
+            ? (anySevere ? bands.severe.min * 60000 : Math.max(bands[bestBand].min * 60000, PUSH_FLOOR_MS))
             : COOLDOWN.sc;
           items.push({ kind: 'sc', cat: 'sc', urgency: 'high', cks, cooldownMs, display: `🌩️ ${body}`, titleSingle: '🌩️ StormTracker Alert', body });
         }
