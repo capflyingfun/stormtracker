@@ -21,8 +21,14 @@ function loadTileImage(url){
   return new Promise((resolve)=>{
     const img=new Image();
     img.crossOrigin='anonymous';
-    img.onload=()=>resolve(img);
-    img.onerror=()=>resolve(null);
+    // v5.29: bound the tile load so one stalled image on a slow/flaky link
+    // can't hang the whole Promise.all scan forever. A stuck tile resolves null
+    // (treated as "no returns here") after 15s instead of blocking the scan.
+    let done=false;
+    const finish=(v)=>{if(done)return;done=true;clearTimeout(to);resolve(v)};
+    const to=setTimeout(()=>{try{img.src=''}catch(e){}finish(null)},15000);
+    img.onload=()=>finish(img);
+    img.onerror=()=>finish(null);
     img.src=url;
   });
 }
@@ -91,7 +97,7 @@ async function scanTileForPoints(url,tx,ty,zoom,colorFn,minDbz,scanRadius,stepOv
   const isRV=url.includes('rainviewer');
   if(isRV){
     try{
-      const res=await fetch(url);
+      const res=await fetch(url,{signal:AbortSignal.timeout(15000)});
       if(!res.ok)return[];
       const buf=await res.arrayBuffer();
       const{w,h,data}=await decodeRvRgba(buf);
@@ -445,12 +451,33 @@ function _scheduleWindsAloftRetry(lat,lon,attempt){
     const before=S._aloftData?S._aloftData.length:0;
     await fetchWindsAloft(lat,lon);
     if(S._aloftData&&S._aloftData.length>=2){
-      console.log('Winds aloft retry succeeded — refreshing storm projections');
-      if(typeof refreshRainClock==='function')refreshRainClock(true);
+      console.log('Winds aloft retry succeeded — refreshing ALL storm surfaces');
+      refreshStormViewsForWinds();
     } else if((S._aloftData?S._aloftData.length:0)===before) {
       _scheduleWindsAloftRetry(lat,lon,attempt+1);
     }
   },_ALOFT_RETRY_DELAYS[attempt]);
+}
+// v5.29: complete storm-surface refresh for when winds aloft arrives AFTER a
+// scan already rendered (slow connection: the 30s gate fell through, or a
+// staggered background retry finally landed). The MAP layer (hex zones, cone,
+// flashing) is driven by S._topStormAnalysis (set by computeTopStorms), but the
+// COUNT/LIST surfaces — Storms-tab cards, header pill, nav badge, Rain Clock
+// dial, forecast banner — are driven by S._inboundShown, which is ONLY ever set
+// by renderStorms()/_renderStormsCore(). The old retries refreshed those two
+// worlds separately (the post-scan retry repainted the storm list; the
+// background retry repainted only the Rain Clock), so on a slow link the map
+// could light up with inbound hexes in the cone while every count still read 0.
+// renderStorms() is the single source of truth — it re-runs computeTopStorms,
+// rebuilds S._inboundShown, and repaints the badges + Rain Clock in lockstep —
+// so route every late-winds refresh through here to keep map and counts in sync.
+function refreshStormViewsForWinds(){
+  if(!(S.storms&&S.storms.length))return;
+  if(typeof renderStorms==='function')renderStorms();
+  if(typeof drawMiniSonar==='function')drawMiniSonar();
+  if(typeof refreshHeroFromZone==='function')refreshHeroFromZone();
+  if(S.map&&S._showPathArrows&&typeof buildPathArrows==='function')buildPathArrows(S.map);
+  if(typeof updateThreatTicker==='function')updateThreatTicker();
 }
 // v4.76: blocking winds-aloft GATE. Storm steering, movement vectors, ETAs,
 // cones and the Rain Clock all depend on winds aloft. The startup scan used to
@@ -1323,9 +1350,8 @@ async function scanRadarForStorms(){
       setTimeout(async()=>{
         await fetchWindsAloft();
         if(S._windCache&&(Date.now()-S._windCache.ts)<6000&&S.storms.length){
-          computeTopStorms();renderStorms();updateStormBadges();
-          if(S.map&&S._showPathArrows)buildPathArrows(S.map);
-          console.log('[WindsAloft] Storm data refreshed with fresh winds');
+          if(typeof refreshStormViewsForWinds==='function')refreshStormViewsForWinds();
+          console.log('[WindsAloft] All storm surfaces refreshed with fresh winds');
         }
       },4000);
     }
