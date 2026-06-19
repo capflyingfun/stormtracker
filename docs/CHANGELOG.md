@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.24
+
+  **Stop the app from killing its own notification connection on every open — clean service-worker lifecycle + gentle reconnect-when-broken.**
+
+  - **Removed the destructive service-worker reset on every load** — `index.html` was unregistering *all* service workers and wiping *every* cache on each app open, then re-registering. A registration **owns** its push subscription, so this silently destroyed the background-notification connection on every open and forced a fragile rebuild — the most likely cause of "works for a few pushes then stops." `sw.js` already calls `skipWaiting()` on install and `clients.claim()` on activate (and prunes old caches), so a `?v=` bump still takes over immediately without unregistering. Registration is now a clean `register()` + `update()`. (Cross-checked against the MDN Push tutorial, MagicBell's PWA push guide, rishikc's advanced-PWA guide, and the claritybox lifecycle write-up — none unregister on load.)
+  - **Gentle reconnect on open** — `refreshPushOnOpen()` no longer re-subscribes on every open. On `visibilitychange→visible` and shortly after load it runs a health check and re-subscribes *only* when the browser subscription is missing, its endpoint rotated, or it carries a stale VAPID key; a healthy connection is left untouched (no endpoint churn, which itself burns Apple's delivery budget). Disabling alerts clears `st_pushSub`, so this no-ops until re-enabled.
+  - **Reset clears the digest cooldown** — a manual Re-subscribe now sends `reset:true`; the worker wipes only the per-location `#__digest` keys from `last_alert`, so the very next scan (~5 min) re-confirms current conditions instead of waiting out the ~45-min digest floor. Per-storm and NWS alert dedupe is preserved, so already-seen official warnings are never re-fired.
+  - **Cache bumped** — `?v=623` / `stormtracker-v623`.
+
   ## v5.23
 
   **Manual notification “Re-subscribe” button + Rain Clock distance cleanup.**
