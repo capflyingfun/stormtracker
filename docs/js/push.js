@@ -265,6 +265,10 @@ async function enablePushAlerts(silent) {
         locs: watch,
       },
       code: existing && existing.code ? existing.code : undefined,
+      // If the browser minted a fresh endpoint (key change / reinstall), tell the
+      // worker our previous endpoint so it MOVES that row here instead of leaving
+      // a stale duplicate that splits delivery and trips Apple's push throttle.
+      oldEndpoint: (existing && existing.endpoint && existing.endpoint !== sub.endpoint) ? existing.endpoint : undefined,
     };
     const res = await _pushPost(base + '/subscribe', body, { timeout: 14000, retries: 1 });
     const data = await res.json();

@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.18
+
+  **Fix: real weather pushes never arrived on iOS even though the test push did.**
+
+  - **Why** — the scanner sent a SEPARATE push per category (storm cells, lightning, rain-overhead, weather…) every 5-min scan, and `rovMin=0` ("every time") fired rain-overhead every scan. Apple throttles a frequent multi-message web-push stream to a Home-Screen PWA and silently drops it — amplified ~5× because every settings change / reinstall minted a new push endpoint and the worker INSERTed a duplicate row, so one device ended up with 5 subscriptions. The infrequent one-off test slipped through; the steady barrage didn't.
+  - **Change** — scanner now sends ONE coalesced digest push per location per scan (high urgency if any item is high, a single tag per location) instead of one per category; routine (non-severe) rain/storm re-notifies are floored to ≥10 min so "every time" can't trip the throttle; severe rain, top-band cells, lightning and NWS warnings keep their fast cadence.
+  - **Dedupe** — client now sends its previous `oldEndpoint` on `/subscribe`; the worker MOVES that verified row (matched by old endpoint + code, preserving code + last_alert) onto the new endpoint instead of inserting a duplicate. Code alone is never accepted (subscription-hijack guard).
+  - **Cache bumped** — `?v=616` / `stormtracker-v616`.
+
   ## v5.17
 
   **"Send test notification" button — confirm background alerts really reach your phone, on demand.**

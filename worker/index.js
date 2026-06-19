@@ -140,6 +140,32 @@ export default {
       }
       const thresholds = JSON.stringify(b.thresholds || {});
       const name = (b.name || '').slice(0, 120);
+      // Same-device endpoint migration. Browsers/iOS mint a NEW push endpoint when
+      // a subscription is recreated (VAPID-key change, re-enable, reinstall), so
+      // without this each new endpoint INSERTs a fresh row and stale duplicates
+      // pile up — the scanner then fans the same alert out to several endpoints
+      // for one device, burning its push budget so Apple throttles delivery. The
+      // client proves it owns the prior row by sending BOTH its old endpoint and
+      // its code; we MOVE that row onto the new endpoint (keeping its code +
+      // last_alert) instead of duplicating. Old endpoint AND code are required
+      // together — code alone is a short, semi-public token and must never let a
+      // caller overwrite someone else's subscription.
+      const oldEndpoint = typeof b.oldEndpoint === 'string' ? b.oldEndpoint : '';
+      const claimedCode = (b.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+      if (oldEndpoint && claimedCode && oldEndpoint !== sub.endpoint) {
+        const prior = await env.DB.prepare('SELECT code FROM subscriptions WHERE endpoint = ? AND code = ?')
+          .bind(oldEndpoint, claimedCode).first();
+        if (prior) {
+          // Clear any row already sitting on the NEW endpoint so the move can't
+          // collide with the endpoint PRIMARY KEY, then repoint the verified row.
+          await env.DB.prepare('DELETE FROM subscriptions WHERE endpoint = ?').bind(sub.endpoint).run();
+          await env.DB.prepare(
+            `UPDATE subscriptions SET endpoint = ?, p256dh = ?, auth = ?, lat = ?, lon = ?, name = ?, thresholds = ?
+             WHERE endpoint = ? AND code = ?`
+          ).bind(sub.endpoint, sub.keys.p256dh, sub.keys.auth, b.lat, b.lon, name, thresholds, oldEndpoint, claimedCode).run();
+          return json({ ok: true, code: claimedCode });
+        }
+      }
       // Preserve an existing code/last_alert for this endpoint if present.
       let code = (b.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
       const existing = await env.DB.prepare('SELECT code FROM subscriptions WHERE endpoint = ?')
