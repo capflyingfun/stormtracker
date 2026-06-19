@@ -32,6 +32,11 @@ function _setPushSub(v) { try { v ? localStorage.setItem('st_pushSub', JSON.stri
 // user's shareable manage code stays stable for the life of the install.
 function _getPushCode() { try { return (localStorage.getItem('st_pushCode') || '').toUpperCase(); } catch (e) { return ''; } }
 function _setPushCode(c) { try { if (c) localStorage.setItem('st_pushCode', String(c).toUpperCase()); } catch (e) {} }
+// Private 128-bit RSS feed token (minted by the worker, mapped to this device's
+// code). Kept separate from the manage code so a feed URL pasted into a reader
+// can't be used to manage/unsubscribe. Cached so the copy button is instant.
+function _getFeedToken() { try { return localStorage.getItem('st_pushFeedToken') || ''; } catch (e) { return ''; } }
+function _setFeedToken(t) { try { if (t) localStorage.setItem('st_pushFeedToken', String(t)); } catch (e) {} }
 // Durable previous endpoint, also kept through Disable. If a flaky-network
 // /unsubscribe failed and left our old D1 row alive, re-enable can hand the worker
 // this endpoint + code so it MOVES that row (verified by endpoint+code) onto the
@@ -245,6 +250,35 @@ async function _pushPost(url, body, { timeout = 20000, retries = 1 } = {}) {
     }
   }
   throw lastErr;
+}
+
+// Copy this device's private RSS feed URL. Fetches+caches the feed token on first
+// use (endpoint-only proof, same safe path as the test push), then copies the
+// /feed?token=... URL so it can be pasted into any RSS reader as a pull-based
+// backup for the (flaky on iOS) push notifications.
+async function copyRssFeed(btn) {
+  const sub = _getPushSub();
+  if (!sub || !sub.endpoint) { toast('⚠️ Turn on background alerts first'); return; }
+  const orig = btn && btn.textContent;
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Getting link…'; }
+    let token = _getFeedToken();
+    if (!token) {
+      const r = await _pushPost(_pushApiUrl() + '/feed-token', { endpoint: sub.endpoint });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.token) throw new Error(d.error || ('HTTP ' + r.status));
+      token = d.token; _setFeedToken(token);
+    }
+    const url = _pushApiUrl() + '/feed?token=' + encodeURIComponent(token);
+    let copied = false;
+    try { await navigator.clipboard.writeText(url); copied = true; } catch (e) {}
+    if (!copied) { try { window.prompt('Copy your RSS feed link:', url); copied = true; } catch (e) {} }
+    toast(copied ? '📡 RSS link copied — paste it into your RSS reader' : '⚠️ Could not copy link');
+  } catch (e) {
+    toast('⚠️ Could not get RSS link: ' + (e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; if (orig) btn.textContent = orig; }
+  }
 }
 
 async function enablePushAlerts(silent) {
@@ -478,6 +512,10 @@ function renderPushAlertSettings() {
       ${bellHint}
       ${moved ? `<div class="setting-hint" style="color:var(--accent-yellow);display:flex;align-items:center;gap:8px;flex-wrap:wrap">Your location changed.<button class="small-btn" onclick="enablePushAlerts()" style="padding:1px 8px">↻ Update to ${escHtml(loc.name || 'here')}</button></div>` : ''}
       ${sub.code ? `<div class="setting-row-6"><span class="text-xxs-muted">Manage code</span><span style="font-family:var(--font-mono);font-weight:700;letter-spacing:1px;color:var(--accent-cyan)">${escHtml(sub.code)}</span></div>` : ''}
+      <div class="setting-row-6"><span class="text-xxs-muted">RSS feed</span>
+        <button class="small-btn" onclick="copyRssFeed(this)" style="border-color:var(--accent-cyan);color:var(--accent-cyan)">📡 Copy RSS link</button>
+      </div>
+      <div class="setting-hint" style="font-size:0.7em;margin-top:2px">A pull-based backup for when push is unreliable. Add this link to any RSS reader: it shows your latest storm briefing and posts a fresh one at least every <b>30 min</b> — plus right away when conditions change. How often your reader checks for new items is up to that app.</div>
       ${controls}
       <div style="margin-top:11px;display:flex;justify-content:center">
         <button id="push-test-btn" class="small-btn" onclick="sendTestPush()" style="padding:6px 14px;font-size:0.85em;border-color:var(--accent-green);color:var(--accent-green)">🔔 Send test notification</button>

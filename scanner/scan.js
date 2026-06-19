@@ -204,6 +204,20 @@ async function clearTest(endpoint) {
   } catch (e) { console.warn('clearTest failed:', e.message); }
 }
 
+// Publish the per-CODE RSS snapshot. Independent of push: this fires every scan
+// for every code (active OR all-clear) so the feed's live snapshot stays fresh
+// and the worker can run its own change/30-min-briefing emit logic. Non-fatal.
+async function feedUpdate(code, payload) {
+  try {
+    const r = await fetch(`${WORKER_URL}/feed-update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-scanner-secret': SCANNER_SECRET },
+      body: JSON.stringify({ code, ...payload }),
+    });
+    if (!r.ok) console.warn(`  feed-update HTTP ${r.status} for ${code}`);
+  } catch (e) { console.warn('feed-update failed:', e.message); }
+}
+
 function thresholdsFor(sub) {
   const t = sub.thresholds || {};
   return {
@@ -402,6 +416,12 @@ async function run() {
     epState.set(s.endpoint, { la, dirty: false, dead: false });
   }
 
+  // Per-CODE RSS feed aggregation. Each code's snapshot lists EVERY active alert
+  // across its watched locations (deduped by code|locId so multi-device codes
+  // don't double-list). Fed to the worker every scan, push-independent.
+  const feedByCode = new Map();
+  const feedSeen = new Set();
+
   // One-shot test pushes: a user tapped "Send test notification" in Settings.
   // The worker flagged it; we deliver through the SAME web-push path as real
   // alerts (so a success genuinely proves delivery works), then clear the flag so
@@ -449,13 +469,13 @@ async function run() {
     const radius = LTG_RADIUS;
 
     // 1. Radar storm cells.
-    let cells = [], mv = null;
+    let cells = [], mv = null, groupDegraded = false;
     try {
       const scan = await scanLocation(o.lat, o.lon, radius);
       cells = scan.cells || [];
       mv = scan.mv || null;
       console.log(`[${key}] ${scan.source}: ${cells.length} cells (raw ${scan.rawCount || 0}), steering ${mv ? mv.speed + 'mph@' + mv.direction : 'n/a'}`);
-    } catch (e) { console.warn(`  radar ${key} failed: ${e.message}`); }
+    } catch (e) { groupDegraded = true; console.warn(`  radar ${key} failed: ${e.message}`); }
 
     // 2. Open-Meteo conditions — only if someone here has an enabled wx alert.
     let conditions = null;
@@ -544,14 +564,14 @@ async function run() {
           const cooldownMs = bestBand
             ? (anySevere ? bands.severe.min * 60000 : Math.max(bands[bestBand].min * 60000, PUSH_FLOOR_MS))
             : COOLDOWN.sc;
-          items.push({ kind: 'sc', cat: 'sc', urgency: 'high', severe: anySevere, cks, cooldownMs, display: `🌩️ ${shortBody}`, titleSingle: '🌩️ StormTracker Alert', body });
+          items.push({ kind: 'sc', cat: 'sc', urgency: 'high', severe: anySevere, cks, cooldownMs, sig: 'sc:' + (anySevere ? 'severe' : (bestBand || 'cell')), display: `🌩️ ${shortBody}`, titleSingle: '🌩️ StormTracker Alert', body });
         }
 
         // Lightning runs off the full corridor (approaching strong cells out to
         // 80 mi), independent of the user's dBZ/impact filter, so a strong cell
         // bearing down can warn even if it hasn't met the storm-alert bar yet.
         const ltg = fmtLightning(personal, tz, h24);
-        if (ltg) items.push({ kind: 'ltg', cat: 'ltg', urgency: 'high', cks: ltg.cks, display: ltg.display, titleSingle: '⚡ Lightning Nearby', body: ltg.body });
+        if (ltg) items.push({ kind: 'ltg', cat: 'ltg', urgency: 'high', cks: ltg.cks, sig: 'ltg', display: ltg.display, titleSingle: '⚡ Lightning Nearby', body: ltg.body });
       }
 
       // --- Rain right over you (radar dBZ on the exact spot, no inbound needed) ---
@@ -566,7 +586,7 @@ async function run() {
         if (bk && bands[bk] && bands[bk].on) {
           const cooldownMs = bk === 'severe' ? bands.rovMin * 60000 : Math.max(bands.rovMin * 60000, PUSH_FLOOR_MS);
           const body = `🌧️ Rain right over you — ${bandLabel(bk)} (${dbz} dBZ)`;
-          items.push({ kind: 'rov', cat: 'rov', urgency: bk === 'severe' ? 'high' : 'normal', cks: ['rov'], cooldownMs, display: body, titleSingle: '🌧️ Rain Overhead', body });
+          items.push({ kind: 'rov', cat: 'rov', urgency: bk === 'severe' ? 'high' : 'normal', cks: ['rov'], cooldownMs, sig: 'rov:' + bk, display: body, titleSingle: '🌧️ Rain Overhead', body });
         }
       }
 
@@ -577,14 +597,14 @@ async function run() {
         const dbz = ovDbz;
         const cooldownMs = Math.max(bands.drizMin * 60000, PUSH_FLOOR_MS);
         const body = `🌦️ Drizzle right over you — very light (${dbz} dBZ)`;
-        items.push({ kind: 'driz', cat: 'driz', urgency: 'normal', cks: ['driz'], cooldownMs, display: body, titleSingle: '🌦️ Drizzle Overhead', body });
+        items.push({ kind: 'driz', cat: 'driz', urgency: 'normal', cks: ['driz'], cooldownMs, sig: 'driz', display: body, titleSingle: '🌦️ Drizzle Overhead', body });
       }
 
       // --- Weather thresholds (mirror the app's in-app alert settings) ---
       if (conditions && sub.thresholds && sub.thresholds.wx) {
         const breaches = evalWx(conditions, sub.thresholds.wx, sub.thresholds.units || {});
         for (const b of breaches) {
-          items.push({ kind: 'wx', cat: 'wx', urgency: 'normal', cks: ['wx_' + b.key], display: b.msg, titleSingle: '⚠️ StormTracker Weather Alert', body: b.msg });
+          items.push({ kind: 'wx', cat: 'wx', urgency: 'normal', cks: ['wx_' + b.key], sig: 'wx:' + b.key, display: b.msg, titleSingle: '⚠️ StormTracker Weather Alert', body: b.msg });
         }
       }
 
@@ -603,7 +623,7 @@ async function run() {
           const fullWin = nwsWindow(a, false);
           const display = `${ic} ${a.event}${shortWin ? ` · ${shortWin}` : ''}`;
           const body = [a.headline || a.area || a.event, fullWin ? `🕐 ${fullWin}` : ''].filter(Boolean).join('\n');
-          items.push({ kind: 'nws', cat: 'nws-' + tier, urgency: tier === 'adv' ? 'normal' : 'high', cooldownMs: cd, cks: ['nws_' + a.id], display, label: a.event, titleSingle: `${ic} ${a.event}`, body });
+          items.push({ kind: 'nws', cat: 'nws-' + tier, urgency: tier === 'adv' ? 'normal' : 'high', cooldownMs: cd, cks: ['nws_' + a.id], sig: 'nws:' + a.id, display, label: a.event, titleSingle: `${ic} ${a.event}`, body });
         }
       }
 
@@ -615,7 +635,34 @@ async function run() {
           // Step up frequency for the most serious systems (you're in the cone):
           // halve the base cadence, floored at 3h.
           const cd = t.urgency === 'high' ? Math.min(baseTropMs, 3 * 3600000) : baseTropMs;
-          items.push({ kind: 'trop', cat: 'trop', urgency: t.urgency, cooldownMs: cd, cks: ['trop_' + t.ck], display: t.msg, titleSingle: '🌀 Tropical Cyclone Alert', body: t.msg });
+          items.push({ kind: 'trop', cat: 'trop', urgency: t.urgency, cooldownMs: cd, cks: ['trop_' + t.ck], sig: 'trop:' + t.ck, display: t.msg, titleSingle: '🌀 Tropical Cyclone Alert', body: t.msg });
+        }
+      }
+
+      // --- RSS feed snapshot (push-independent; captured BEFORE push gating) ---
+      // Record this location's full active picture (or all-clear) into its code's
+      // aggregate. Deduped by code|locId so a multi-device code lists each place
+      // once. Distance/ETA are deliberately left out of `sig` so minor drift
+      // doesn't register as a "change".
+      if (sub.code) {
+        const fkey = sub.code + '|' + sub._locId;
+        if (!feedSeen.has(fkey)) {
+          feedSeen.add(fkey);
+          let fc = feedByCode.get(sub.code);
+          if (!fc) { fc = { name: sub.name || '', sections: [], sigParts: [], urgent: false, degraded: false }; feedByCode.set(sub.code, fc); }
+          if (!fc.name) fc.name = sub.name || '';
+          const FORD = ['trop', 'nws-warn', 'sc', 'ltg', 'rov', 'driz', 'nws-watch', 'wx', 'nws-adv'];
+          const fp = it => { const i = FORD.indexOf(it.cat || it.kind); return i < 0 ? 99 : i; };
+          const act = items.slice().sort((a, b) => fp(a) - fp(b));
+          const locName = sub.name || 'Location';
+          if (act.length) {
+            fc.sections.push(`📍 ${locName}\n` + act.map(it => '  ' + it.display).join('\n'));
+            for (const it of act) if (it.sig) fc.sigParts.push(sub._locId + '|' + it.sig);
+            if (act.some(it => it.cat === 'nws-warn' || it.cat === 'trop' || (it.cat === 'sc' && it.severe))) fc.urgent = true;
+          } else {
+            fc.sections.push(`📍 ${locName}: ✅ All clear — nothing within ${th.radius} mi`);
+          }
+          if (groupDegraded) fc.degraded = true;
         }
       }
 
@@ -695,6 +742,20 @@ async function run() {
       }
     }
   }
+
+  // Publish one RSS snapshot per code (active OR all-clear). The worker keeps the
+  // live snapshot fresh and decides whether to EMIT a new item (change-ping or
+  // 30-min briefing). Non-fatal — a feed failure never blocks push.
+  for (const [code, fc] of feedByCode) {
+    const active = fc.sigParts.length > 0;
+    const title = active
+      ? `🌩️ Storm update${fc.name ? ' · ' + fc.name : ''}`
+      : `✅ All clear${fc.name ? ' · ' + fc.name : ''}`;
+    const body = fc.sections.join('\n\n');
+    const sig = active ? Array.from(new Set(fc.sigParts)).sort().join('\n') : 'clear';
+    await feedUpdate(code, { title, body, sig, urgent: fc.urgent, degraded: fc.degraded, name: fc.name });
+  }
+  console.log(`Feed snapshots published: ${feedByCode.size}`);
 
   // Flush each device ONCE: prune a dead endpoint, else persist its merged
   // (all-locations) last_alert map a single time so locations don't overwrite
