@@ -25,6 +25,13 @@ function _pushApiUrl() {
 }
 function _getPushSub() { try { return JSON.parse(localStorage.getItem('st_pushSub') || 'null'); } catch (e) { return null; } }
 function _setPushSub(v) { try { v ? localStorage.setItem('st_pushSub', JSON.stringify(v)) : localStorage.removeItem('st_pushSub'); } catch (e) {} }
+// Durable per-device manage code. Unlike st_pushSub (which Disable clears), this
+// survives enable/disable cycles, so RE-enabling reclaims the SAME code instead of
+// minting a new one each time. The worker reuses any code we send back as long as
+// it's still free — and Disable deletes our D1 row, which frees the code — so the
+// user's shareable manage code stays stable for the life of the install.
+function _getPushCode() { try { return (localStorage.getItem('st_pushCode') || '').toUpperCase(); } catch (e) { return ''; } }
+function _setPushCode(c) { try { if (c) localStorage.setItem('st_pushCode', String(c).toUpperCase()); } catch (e) {} }
 function _getPushThresholds() {
   try { const s = JSON.parse(localStorage.getItem('st_pushThresholds') || 'null'); if (s) return s; } catch (e) {}
   return { dbz: 40, impact: 50, radius: 60, nws: true };
@@ -264,7 +271,7 @@ async function enablePushAlerts(silent) {
         h24: (typeof _is24h === 'function') ? _is24h() : false,
         locs: watch,
       },
-      code: existing && existing.code ? existing.code : undefined,
+      code: (existing && existing.code) ? existing.code : (_getPushCode() || undefined),
       // If the browser minted a fresh endpoint (key change / reinstall), tell the
       // worker our previous endpoint so it MOVES that row here instead of leaving
       // a stale duplicate that splits delivery and trips Apple's push throttle.
@@ -274,6 +281,7 @@ async function enablePushAlerts(silent) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'subscribe failed');
     _setPushSub({ endpoint: sub.endpoint, code: data.code, lat: loc.lat, lon: loc.lon, name: loc.name, locs: watch });
+    _setPushCode(data.code);
     if (!silent) toast('🔔 Background storm alerts enabled');
   } catch (e) {
     console.log('[push] enable failed:', e.message);

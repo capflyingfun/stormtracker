@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.19
+
+  **Fix: your manage code is now stable per device — toggling alerts off/on no longer mints a new one.**
+
+  - **Why** — `disablePushAlerts()` cleared `st_pushSub` (which held the code) AND the worker deleted the D1 row, so re-enabling had no code to send and the worker generated a fresh one via `genCode()`. The manage code changed every enable/disable cycle.
+  - **Change** — the code is now persisted to a separate durable key `st_pushCode` that Disable does NOT clear. `enablePushAlerts()` falls back to it when `st_pushSub` is empty and re-sends it on `/subscribe`; the worker's `uniqueCode()` reuses any free code, and Disable frees the old one, so the same code is reclaimed. No worker/schema change needed.
+  - **Cache bumped** — `?v=617` / `stormtracker-v617`.
+
   ## v5.18
 
   **Fix: real weather pushes never arrived on iOS even though the test push did.**
