@@ -304,6 +304,31 @@ async function disablePushAlerts() {
   syncSettingsPanel();
 }
 
+// "Send test notification" — delivers a REAL push through the same server-side
+// scanner pipeline as live alerts (not a fake local popup), so it genuinely
+// confirms end-to-end delivery. The worker flags the test and nudges the scanner;
+// it arrives within ~1 min.
+async function sendTestPush() {
+  const sub = _getPushSub();
+  if (!sub || !sub.endpoint) { toast('🔕 Turn on background alerts first'); return; }
+  const base = _pushApiUrl();
+  const btn = document.getElementById('push-test-btn');
+  if (btn) { if (btn.disabled) return; btn.disabled = true; btn.textContent = '📨 Sending…'; }
+  try {
+    const res = await _pushPost(base + '/test', { endpoint: sub.endpoint }, { timeout: 12000, retries: 1 });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'test failed');
+    toast('✅ Test sent — watch for the notification (up to ~1 min). If nothing arrives, check that notifications are allowed in your device settings.', 6500);
+  } catch (e) {
+    const aborted = e && (e.name === 'AbortError' || /abort/i.test(e.message || ''));
+    toast(aborted
+      ? '⚠️ Couldn’t reach the alert server — connection too slow. Please try again, ideally on Wi-Fi.'
+      : '⚠️ Could not send test: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔔 Send test notification'; }
+  }
+}
+
 // Single slide-toggle handler: flipping ON enables (subscribes), OFF disables.
 function togglePushAlerts(want) {
   if (_pushOpInFlight) return; // a tap is already being processed
@@ -433,7 +458,11 @@ function renderPushAlertSettings() {
       ${bellHint}
       ${moved ? `<div class="setting-hint" style="color:var(--accent-yellow);display:flex;align-items:center;gap:8px;flex-wrap:wrap">Your location changed.<button class="small-btn" onclick="enablePushAlerts()" style="padding:1px 8px">↻ Update to ${escHtml(loc.name || 'here')}</button></div>` : ''}
       ${sub.code ? `<div class="setting-row-6"><span class="text-xxs-muted">Manage code</span><span style="font-family:var(--font-mono);font-weight:700;letter-spacing:1px;color:var(--accent-cyan)">${escHtml(sub.code)}</span></div>` : ''}
-      ${controls}`;
+      ${controls}
+      <div style="margin-top:11px;display:flex;justify-content:center">
+        <button id="push-test-btn" class="small-btn" onclick="sendTestPush()" style="padding:6px 14px;font-size:0.85em;border-color:var(--accent-green);color:var(--accent-green)">🔔 Send test notification</button>
+      </div>
+      <div class="setting-hint" style="font-size:0.7em;text-align:center;margin-top:3px">Sends a real push through the same system as live alerts to confirm delivery. Arrives within ~1 min.</div>`;
   }
   return `
     ${toggle}
