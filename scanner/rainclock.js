@@ -69,7 +69,7 @@ function fmtClock(offMin, tz, h24, nowMs) {
   try {
     const d = new Date(nowMs + offMin * 60000);
     if (h24) {
-      const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
+      const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d);
       const hh = (p.find(x => x.type === 'hour') || {}).value || '';
       const mm = (p.find(x => x.type === 'minute') || {}).value || '';
       return hh && mm ? `${hh}:${mm}` : '';
