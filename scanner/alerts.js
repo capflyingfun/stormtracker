@@ -270,7 +270,7 @@ function fmtAlertTime(iso, tz, h24) {
   if (zone) { try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); } catch (e) { zone = null; } }
   if (zone) {
     const partsOf = dt => {
-      const p = new Intl.DateTimeFormat('en-US', { timeZone: zone, weekday: 'short', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: !h24 }).formatToParts(dt);
+      const p = new Intl.DateTimeFormat('en-US', { timeZone: zone, weekday: 'short', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', ...(h24 ? { hourCycle: 'h23' } : { hour12: true }) }).formatToParts(dt);
       const g = t => (p.find(x => x.type === t) || {}).value || '';
       return { wd: g('weekday'), md: g('month') + '/' + g('day'), hour: g('hour'), minute: g('minute'), ap: g('dayPeriod') };
     };
