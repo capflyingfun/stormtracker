@@ -224,8 +224,8 @@ export function formatRainClockPush(data, { tz, h24, nowMs = Date.now() } = {}) 
     const strength = stormStrengthWord(next.peakDbz);
     const rainWord = rcIntensityWord(next.peakDbz).toLowerCase();
     const ltg = next.lightning ? ' with ⚡️' : '';
-    sentences.push(`${strength} inbound with ${rainWord} rain starting ${startAt(next.startMin)} lasting ${untilAt(next.startMin, next.endMin)}${ltg}.`);
-    short.push(`${rainWord} ${shortClk(next.startMin)}–${shortClk(next.endMin)}${next.lightning ? ' ⚡' : ''}`);
+    sentences.push(`${strength} inbound with ${rainWord} rain starting ${startAt(next.startMin)}, lasting ${untilAt(next.startMin, next.endMin)}${ltg}.`);
+    short.push(`${rainWord} rain ${shortClk(next.startMin)}–${shortClk(next.endMin)}${next.lightning ? ' ⚡' : ''}`);
   }
 
   if (next2) sentences.push(`Then more rain ${startAt(next2.startMin)}.`);
