@@ -2,9 +2,20 @@
 
 ## Overview
 
-StormTracker is a real-time storm detection web application providing live weather radar maps, storm tracking, and weather alerts. It uses GPS or manual location input to monitor storm activity within a customizable radius. The application is enhanced with AI-powered weather analysis, integrating National Weather Service Area Forecast Discussions for comprehensive meteorological assessments. The project aims to deliver a professional, reliable, and user-friendly tool for anticipating and reacting to severe weather, with a vision to become a leading platform for public safety and meteorological insight. Current version: **v5.29** (cache bust ?v=628, SW cache stormtracker-v628).
+StormTracker is a real-time storm detection web application providing live weather radar maps, storm tracking, and weather alerts. It uses GPS or manual location input to monitor storm activity within a customizable radius. The application is enhanced with AI-powered weather analysis, integrating National Weather Service Area Forecast Discussions for comprehensive meteorological assessments. The project aims to deliver a professional, reliable, and user-friendly tool for anticipating and reacting to severe weather, with a vision to become a leading platform for public safety and meteorological insight. Current version: **v5.30** (cache bust ?v=629, SW cache stormtracker-v629).
 
 For a full per-version changelog, see [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+
+## Repository Structure
+
+This repository contains the **live StormTracker app**: a static, vanilla-JavaScript Progressive Web App (PWA) in `docs/`, deployed via GitHub Pages, plus its supporting services:
+- `docs/` — the live PWA (HTML/CSS/JS, no build step).
+- `scanner/` — GitHub Actions storm scanner that powers background push alerts (own `package.json`).
+- `worker/` — Cloudflare Worker for push notifications and the RSS backup feed (`wrangler.toml`, D1 schema).
+- `windy-plugin-stormtracker/` — a separate, self-contained Windy.com plugin (own build).
+- `scripts/`, `.github/workflows/` — asset generation and automation.
+
+The older **React + Express + TypeScript** version (which rendered "v1.50") has been moved to its own private repository, `CAPFlyingFun/StormTracker-TS`, to keep the two projects from being confused. Nothing in this repo depends on it. The local Replit preview serves `docs/` directly (static file server on port 5000).
 
 ## User Preferences
 
@@ -12,18 +23,20 @@ Preferred communication style: Simple, everyday language with customizable AI as
 
 ## System Architecture
 
-### Frontend
-- **Framework**: React 18 with TypeScript.
-- **Styling**: Tailwind CSS with shadcn/ui and Radix UI for a modern, responsive design.
-- **State Management**: React Query.
-- **Routing**: Wouter.
+### Frontend (live app)
+- **Framework**: Vanilla JavaScript — a static HTML/CSS/JS PWA in `docs/` with no build step. Scripts load in order via global-scope `<script>` tags (see "JavaScript Module Structure" below).
+- **Styling**: Hand-written CSS (`docs/css/style.css`).
+- **Mapping**: Leaflet for interactive maps.
 - **UI/UX**: Mobile-first design featuring interactive Leaflet-based maps, real-time storm tracking panels, and an intuitive alert system. Includes sonar-style radar, 3D storm visualization, and professional meteorological color schemes.
 - **Multilingual Support**: Supports 20 languages with auto-detection, persistence, RTL support, and a dynamic auto-translation system using OpenAI's GPT-4o-mini for UI strings.
+- **Archived TypeScript/React version**: The earlier build used React 18 + TypeScript, Tailwind CSS with shadcn/ui and Radix UI, React Query, and Wouter. That version now lives in the separate `StormTracker-TS` repo.
 
-### Backend
-- **Runtime**: Node.js with Express.js.
-- **Language**: TypeScript.
-- **Database**: PostgreSQL with Drizzle ORM (Neon Database for serverless).
+### Backend / Services (live app)
+- **Hosting**: Static site on GitHub Pages (there is no app server in this repo).
+- **Push & sync**: Cloudflare Worker (`worker/`) backed by D1 (SQLite).
+- **Background scanning**: GitHub Actions runs `scanner/` on a schedule to detect storms and trigger push alerts.
+- **Data**: Most weather logic runs client-side in the browser, calling external APIs directly or via the Worker proxy.
+- **Archived backend**: The earlier version's Express + Drizzle ORM + PostgreSQL (Neon) backend lives in the separate `StormTracker-TS` repo; the PostgreSQL/Neon entries under External Dependencies refer to that archived version.
 - **Core Features**:
     - **Location Services**: GPS detection and OpenWeather geocoding.
     - **Weather Data Integration**: Multiple sources including OpenWeather, RainViewer, NEXRAD, and government weather services.

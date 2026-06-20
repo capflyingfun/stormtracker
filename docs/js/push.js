@@ -641,7 +641,7 @@ function renderPushAlertSettings() {
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-top:3px;flex-wrap:wrap">
       <button class="small-btn" onclick="testPushAiKey()" style="padding:2px 9px;font-size:0.82em">Test key</button>
-      <a href="setup-guide.html?v=628" target="_blank" rel="noopener" style="font-size:0.78em;color:var(--accent-cyan)">How to get a key →</a>
+      <a href="setup-guide.html?v=629" target="_blank" rel="noopener" style="font-size:0.78em;color:var(--accent-cyan)">How to get a key →</a>
       <span id="push-ai-key-status" style="font-size:0.76em;color:var(--text-muted)"></span>
     </div>
     <div class="setting-hint" style="font-size:0.7em;margin-top:3px">${_getPushAiKeyOwn() ? 'Using the key above for background alerts. ' : ((typeof getAIKey==='function'&&getAIKey().trim()) ? '✓ Leave this blank to reuse your <b>AI Assistant</b> key automatically, or paste a different key to bill background alerts separately. ' : '')}Your key is stored on this device and on the alert server (encrypted) only so it can write your notifications while the app is closed, and you're billed on your own OpenAI account. ${_getPushAiKey() ? '' : '<b style="color:var(--accent-yellow)">Add a key here or in AI Assistant to activate AI alerts.</b>'}</div>` : ''}

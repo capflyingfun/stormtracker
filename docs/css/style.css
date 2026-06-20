@@ -736,3 +736,40 @@ canvas.offscreen{display:none}
 #page-3d .pop-row:last-child{border-bottom:none}
 #page-3d .pop-k{color:rgba(255,255,255,0.4)}
 #page-3d .pop-v{color:#e8eef8;font-weight:600}
+
+/* ==========================================
+   LANDSCAPE DASHBOARD — 1024px+  (multi-column tab layouts)
+   Phones / portrait (<1024px) are intentionally left untouched.
+   ========================================== */
+@media(min-width:1024px){
+  /* WEATHER — hero & rain visuals stay full-width banners up top;
+     the remaining cards flow into a balanced 2-column masonry. */
+  #page-weather{column-count:2;column-gap:18px}
+  #page-weather > *{break-inside:avoid;-webkit-column-break-inside:avoid;margin-bottom:16px}
+  #page-weather > #rain-clock,
+  #page-weather > #rain-forecast-bars,
+  #page-weather > .weather-hero{column-span:all}
+  /* sonar fills its masonry column instead of the mobile 60% center cap */
+  #page-weather #mini-sonar-card{max-width:100%;margin:0}
+
+  /* STORMS — tile the storm cards inside each group instead of one tall list. */
+  #page-storms .storm-group-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+  #page-storms .storm-cell-card{margin-bottom:0}
+
+  /* STATION — the console is a single card whose stat grids hold exactly 2 and
+     3 tiles, so leave the inline columns as designed and instead center the
+     whole console at a comfortable width (a stretched full-width console reads
+     as wasted space). */
+  #page-station{max-width:860px;margin:0 auto}
+
+  /* ALERTS — active NWS alerts stay full-width on top; the history & hazard
+     sections flow into a 2-column masonry. */
+  #page-alerts{column-count:2;column-gap:18px}
+  #page-alerts > *{break-inside:avoid;-webkit-column-break-inside:avoid;margin-bottom:16px}
+  #page-alerts > .card[data-alert-sec="nws"]{column-span:all}
+}
+
+/* Ultra-wide screens (1600px+): open the masonry dashboards to 3 columns. */
+@media(min-width:1600px){
+  #page-weather,#page-alerts{column-count:3}
+}
