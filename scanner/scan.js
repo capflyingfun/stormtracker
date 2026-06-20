@@ -417,7 +417,7 @@ function fmtLightning(personal, tz, h24) {
     etaStr = clock ? ` · ETA ${clock}` : ` · ETA ~${lead.etaMin} min`;
   }
   const strength = lead.dbz >= 55 ? 'Severe storm' : 'Strong storm';
-  const leadSentence = `${strength} with lightning ⚡ detected ~${dist} mi ${degToDir(lead.bearing)}${etaStr}.`;
+  const leadSentence = `${strength} with lightning detected ~${dist} mi ${degToDir(lead.bearing)}${etaStr}.`;
 
   // Urgent set: approaching cells estimated to reach the user within 15 minutes.
   const soon = corridor.filter(c => c.etaMin != null && c.etaMin <= 15);
@@ -443,7 +443,7 @@ function fmtLightning(personal, tz, h24) {
   const cks = [...new Set(keySrc.map(c => 'ltg_' + Math.round(c.bearing / 45) + '_' + Math.round(c.distance / 10)))];
   return {
     cks,
-    display: `⚡ Lightning ~${dist} mi ${degToDir(lead.bearing)} (strong storm)`,
+    display: `⚡ ${strength} with lightning detected ~${dist} mi ${degToDir(lead.bearing)}`,
     body: `${leadSentence}${extra}${advice}`,
   };
 }
