@@ -28,6 +28,7 @@ import {
 } from './detect.js';
 import { fetchConditions, evalWx, fetchNws, nwsIcon, nwsWindow } from './alerts.js';
 import { fetchTropical, evalTropical } from './tropical.js';
+import { buildRainClock, formatRainClockPush, rainClockSignature, rainClockKeys } from './rainclock.js';
 
 const WORKER_URL = (process.env.WORKER_URL || '').replace(/\/$/, '');
 const SCANNER_SECRET = process.env.SCANNER_SECRET || '';
@@ -40,9 +41,9 @@ const SITE_URL = 'https://capflyingfun.github.io/StormTracker/';
 // Per-alert-type dedupe (re-notify) and prune (forget) windows, keyed by the
 // prefix of each dedupe key. Storm cells move fast (short window); a standing
 // NWS warning or weather condition shouldn't re-buzz for hours.
-const COOLDOWN = { sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, rov: 5 * 60 * 1000, driz: 15 * 60 * 1000, area: 2 * 60 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000, trop: 12 * 60 * 60 * 1000 };
-const PRUNE = { sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, rov: 2 * 60 * 60 * 1000, driz: 2 * 60 * 60 * 1000, area: 4 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
-function keyKind(k) { const s = String(k); const base = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s; const p = base.split('_')[0]; return (p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg' || p === 'rov' || p === 'driz' || p === 'area') ? p : 'sc'; }
+const COOLDOWN = { rc: 30 * 60 * 1000, sc: 30 * 60 * 1000, ltg: 30 * 60 * 1000, rov: 5 * 60 * 1000, driz: 15 * 60 * 1000, area: 2 * 60 * 60 * 1000, wx: 3 * 60 * 60 * 1000, nws: 12 * 60 * 60 * 1000, trop: 12 * 60 * 60 * 1000 };
+const PRUNE = { rc: 2 * 60 * 60 * 1000, sc: 2 * 60 * 60 * 1000, ltg: 2 * 60 * 60 * 1000, rov: 2 * 60 * 60 * 1000, driz: 2 * 60 * 60 * 1000, area: 4 * 60 * 60 * 1000, wx: 12 * 60 * 60 * 1000, nws: 24 * 60 * 60 * 1000, trop: 24 * 60 * 60 * 1000 };
+function keyKind(k) { const s = String(k); const base = s.includes('#') ? s.slice(s.indexOf('#') + 1) : s; const p = base.split('_')[0]; return (p === 'rc' || p === 'wx' || p === 'nws' || p === 'trop' || p === 'ltg' || p === 'rov' || p === 'driz' || p === 'area') ? p : 'sc'; }
 
 // Per-user "AI-written alerts" opt-in. Default OFF. When a user turns it on AND
 // supplies their OWN OpenAI key, the Worker uses THAT key to rewrite the digest;
@@ -95,7 +96,7 @@ function changesCfgOf(th) {
 // tropical (in-cone / within radius). Everything else is "routine" and is gated
 // by signature change.
 function isLifeSafety(it) {
-  return it.cat === 'nws-warn' || it.cat === 'ltg' || (it.cat === 'sc' && it.severe) || (it.cat === 'trop' && it.urgency === 'high');
+  return it.cat === 'nws-warn' || it.cat === 'ltg' || (it.cat === 'sc' && it.severe) || (it.cat === 'rc' && it.severe) || (it.cat === 'trop' && it.urgency === 'high');
 }
 // Stable identity of a routine alert for edge detection: category + coarse
 // signature + sorted dedupe keys. A new threat, a moved/closer cell (new ck
@@ -628,6 +629,12 @@ async function run() {
       const tz = sub.thresholds && sub.thresholds.tz;
       const h24 = sub.thresholds && sub.thresholds.h24;
 
+      // The inbound storm picture + rain overhead are folded into ONE narrated
+      // "Rain Clock" digest item below (replacing the old storm-count 'sc' line
+      // and the 'rov' line). These hold the legacy items as a no-regression
+      // fallback in case the projection can't build a timeline.
+      let scItem = null, rovItem = null, rcHits = [];
+
       // --- Storm cells + estimated lightning ---
       if (cells.length) {
         const personal = cells.map(c => {
@@ -635,7 +642,7 @@ async function run() {
           const bearing = bearingDeg(sub.lat, sub.lon, c.lat, c.lng);
           const cc = { lat: c.lat, lng: c.lng, dbz: c.dbz, distance, bearing };
           const imp = calcImpact(cc, mv); cc.impactPct = imp.impactPct; cc.impactTier = imp.impactTier;
-          const eta = calcETA(cc, mv); cc.etaMin = eta.etaMin; cc.approaching = eta.approaching;
+          const eta = calcETA(cc, mv); cc.etaMin = eta.etaMin; cc.approaching = eta.approaching; cc.closingSpeed = eta.closingSpeed;
           return cc;
         });
         // Inbound cells passing the user's radius/impact/distance filter, then
@@ -669,7 +676,10 @@ async function run() {
           const cooldownMs = bestBand
             ? (anySevere ? bands.severe.min * 60000 : Math.max(bands[bestBand].min * 60000, PUSH_FLOOR_MS))
             : COOLDOWN.sc;
-          items.push({ kind: 'sc', cat: 'sc', urgency: 'high', severe: anySevere, cks, cooldownMs, sig: 'sc:' + (anySevere ? 'severe' : (bestBand || 'cell')), display: `🌩️ ${shortBody}`, titleSingle: '🌩️ StormTracker Alert', body });
+          // Build but DON'T push: the Rain Clock item below subsumes this. Kept
+          // as a fallback if the timeline projection can't build (no regression).
+          scItem = { kind: 'sc', cat: 'sc', urgency: 'high', severe: anySevere, cks, cooldownMs, sig: 'sc:' + (anySevere ? 'severe' : (bestBand || 'cell')), display: `🌩️ ${shortBody}`, titleSingle: '🌩️ StormTracker Alert', body };
+          rcHits = hits;
         }
 
         // Lightning runs off the full corridor (approaching strong cells out to
@@ -703,13 +713,16 @@ async function run() {
       // Round once (matches the app's checkRainOverheadAlert) so app + scanner
       // classify boundary values (e.g. 19.6 → 20) into the SAME category.
       const ovDbz = overheadDbz != null ? Math.round(overheadDbz) : null;
+      let rovDbz = null;
       if (bands.rovOn && ovDbz != null && ovDbz >= 20) {
         const dbz = ovDbz;
         const bk = bandForDbz(dbz);
         if (bk && bands[bk] && bands[bk].on) {
+          rovDbz = dbz; // feed the Rain Clock "raining now" anchor below
           const cooldownMs = bk === 'severe' ? bands.rovMin * 60000 : Math.max(bands.rovMin * 60000, PUSH_FLOOR_MS);
           const body = `🌧️ Rain right over you — ${bandLabel(bk)} (${dbz} dBZ)`;
-          items.push({ kind: 'rov', cat: 'rov', urgency: bk === 'severe' ? 'high' : 'normal', cks: ['rov'], cooldownMs, sig: 'rov:' + bk, display: body, titleSingle: '🌧️ Rain Overhead', body });
+          // Build but DON'T push: folded into the Rain Clock narrative below.
+          rovItem = { kind: 'rov', cat: 'rov', urgency: bk === 'severe' ? 'high' : 'normal', cks: ['rov'], cooldownMs, sig: 'rov:' + bk, display: body, titleSingle: '🌧️ Rain Overhead', body };
         }
       }
 
@@ -721,6 +734,43 @@ async function run() {
         const cooldownMs = Math.max(bands.drizMin * 60000, PUSH_FLOOR_MS);
         const body = `🌦️ Drizzle right over you — very light (${dbz} dBZ)`;
         items.push({ kind: 'driz', cat: 'driz', urgency: 'normal', cks: ['driz'], cooldownMs, sig: 'driz', display: body, titleSingle: '🌦️ Drizzle Overhead', body });
+      }
+
+      // --- Rain Clock: narrate the rain TIMELINE instead of a storm count ---
+      // One sentence covering rain overhead now + the next inbound rain window
+      // ("Moderate rain overhead, ending in a few minutes. Strong storm inbound
+      // with heavy rain starting around 1948 lasting until 2030 with ⚡️"),
+      // replacing the old "138 storms approaching, ETA 1902" line. Fed only the
+      // user-gated inbound cells (rcHits) + rain overhead when their toggle is on
+      // (rovDbz), so it respects each user's alert settings. Lightning stays its
+      // own life-safety item; the narrative just flags ⚡️ on a stormy window.
+      let rcPushed = false;
+      if (rcHits.length || rovDbz != null) {
+        const rcData = buildRainClock({
+          cells: rcHits.map(c => ({ dbz: c.dbz, etaMin: c.etaMin, distance: c.distance, bearing: c.bearing, closingSpeed: c.closingSpeed })),
+          mv, overheadDbz: rovDbz, nowMs: now,
+        });
+        if (rcData.ready) {
+          const phrase = formatRainClockPush(rcData, { tz, h24, nowMs: now });
+          if (phrase) {
+            const bk = bandForDbz(rcData.peakDbz);
+            const cooldownMs = bk
+              ? (rcData.anySevere ? bands.severe.min * 60000 : Math.max(bands[bk].min * 60000, PUSH_FLOOR_MS))
+              : COOLDOWN.rc;
+            items.push({
+              kind: 'rc', cat: 'rc', urgency: rcData.anySevere ? 'high' : 'normal', severe: rcData.anySevere,
+              cks: rainClockKeys(rcData), cooldownMs, sig: 'rc:' + rainClockSignature(rcData),
+              display: phrase.display, titleSingle: '🌧️ Rain Forecast', body: phrase.body,
+            });
+            rcPushed = true;
+          }
+        }
+      }
+      // No-regression fallback: if the timeline couldn't build, fall back to the
+      // original storm-cell + rain-overhead lines so we never go silent.
+      if (!rcPushed) {
+        if (scItem) items.push(scItem);
+        if (rovItem) items.push(rovItem);
       }
 
       // --- Weather thresholds (mirror the app's in-app alert settings) ---
@@ -774,14 +824,14 @@ async function run() {
           let fc = feedByCode.get(sub.code);
           if (!fc) { fc = { name: sub.name || '', sections: [], sigParts: [], urgent: false, degraded: false }; feedByCode.set(sub.code, fc); }
           if (!fc.name) fc.name = sub.name || '';
-          const FORD = ['trop', 'nws-warn', 'sc', 'ltg', 'rov', 'driz', 'area', 'nws-watch', 'wx', 'nws-adv'];
+          const FORD = ['trop', 'nws-warn', 'rc', 'sc', 'ltg', 'rov', 'driz', 'area', 'nws-watch', 'wx', 'nws-adv'];
           const fp = it => { const i = FORD.indexOf(it.cat || it.kind); return i < 0 ? 99 : i; };
           const act = items.slice().sort((a, b) => fp(a) - fp(b));
           const locName = sub.name || 'Location';
           if (act.length) {
             fc.sections.push(`📍 ${locName}\n` + act.map(it => '  ' + it.display).join('\n'));
             for (const it of act) if (it.sig) fc.sigParts.push(sub._locId + '|' + it.sig);
-            if (act.some(it => it.cat === 'nws-warn' || it.cat === 'trop' || (it.cat === 'sc' && it.severe))) fc.urgent = true;
+            if (act.some(it => it.cat === 'nws-warn' || it.cat === 'trop' || (it.cat === 'sc' && it.severe) || (it.cat === 'rc' && it.severe))) fc.urgent = true;
           } else {
             fc.sections.push(`📍 ${locName}: ✅ All clear — nothing within ${th.radius} mi`);
           }
@@ -810,7 +860,7 @@ async function run() {
         // notification listing every currently-active alert. It fires whenever at
         // least one item is past its own cooldown, rides high urgency if ANY item
         // is high, and resets the cooldown only for the items that were due.
-        const CAT_ORDER = ['trop', 'nws-warn', 'sc', 'ltg', 'rov', 'driz', 'area', 'nws-watch', 'wx', 'nws-adv'];
+        const CAT_ORDER = ['trop', 'nws-warn', 'rc', 'sc', 'ltg', 'rov', 'driz', 'area', 'nws-watch', 'wx', 'nws-adv'];
         const pri = it => { const i = CAT_ORDER.indexOf(it.cat || it.kind); return i < 0 ? 99 : i; };
         const ordered = items.slice().sort((a, b) => pri(a) - pri(b));
         // Routine signature set this scan + what's NEW vs. the last sent set.
@@ -882,7 +932,7 @@ async function run() {
           const digestKey = ns + '__digest';
           const sinceDigest = now - (lastAlert[digestKey] || 0);
           const hardEsc = dueItems.some(i => i.cat === 'nws-warn' || i.cat === 'trop');
-          const severeEsc = dueItems.some(i => (i.cat === 'sc' && i.severe) || i.cat === 'ltg');
+          const severeEsc = dueItems.some(i => (i.cat === 'sc' && i.severe) || (i.cat === 'rc' && i.severe) || i.cat === 'ltg');
           const minGap = hardEsc ? 0 : (severeEsc ? PUSH_FLOOR_MS : DIGEST_FLOOR_MS);
           if (sinceDigest < minGap) {
             console.log(`  ⏸ ${sub.name || key}: digest floor (${Math.round(sinceDigest / 60000)}m < ${Math.round(minGap / 60000)}m), ${dueItems.length} due held`);
