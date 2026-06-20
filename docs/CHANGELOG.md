@@ -3,6 +3,17 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.30
+
+  **Desktop / landscape layout overhaul — on wide screens every tab now uses the full width instead of one tall stacked column. Phones and portrait are unchanged.**
+
+  - **Weather** — the hero and rain visuals stay as full-width banners up top, while the remaining cards (sonar, wind, trends, hourly, 7-day, tropical) flow into a balanced 2-column masonry (3 columns at 1600px+), so cards sit side-by-side instead of stretching edge-to-edge.
+  - **Storms** — storm cards inside each group (approaching / overhead / nearby) tile into a responsive grid instead of one long vertical list.
+  - **Station** — the single station console is centered at a comfortable width on wide screens instead of stretching edge-to-edge (its 2- and 3-tile stat grids keep their intended columns).
+  - **Alerts** — active NWS alerts stay full-width on top; the station/storm history and environmental-hazard sections flow into a 2-column masonry.
+  - All rules are gated to `min-width:1024px`; the mobile/portrait layout is untouched.
+  - **Cache bumped** — `?v=629` / `stormtracker-v629`.
+
   ## v5.29
 
   **On slow connections, late-arriving winds aloft now refresh ALL storm surfaces in lockstep (not just some), so the map and the counts can no longer disagree. Scans are hardened against stalled tiles, and AI push alerts reuse the AI Assistant key by default.**
