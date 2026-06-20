@@ -63,7 +63,7 @@ function rcPickSpan(maxEtaMin) {
 }
 
 // Wall-clock for an offset (minutes from now) in the subscriber's time zone.
-// h24=true -> "1948"; else "07:48 PM". Empty when tz is unknown.
+// h24=true -> "19:48"; else "07:48 PM". Empty when tz is unknown.
 function fmtClock(offMin, tz, h24, nowMs) {
   if (offMin == null || !tz) return '';
   try {
@@ -72,7 +72,7 @@ function fmtClock(offMin, tz, h24, nowMs) {
       const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
       const hh = (p.find(x => x.type === 'hour') || {}).value || '';
       const mm = (p.find(x => x.type === 'minute') || {}).value || '';
-      return hh && mm ? `${hh}${mm}` : '';
+      return hh && mm ? `${hh}:${mm}` : '';
     }
     return new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: true }).format(d);
   } catch (e) { return ''; }
