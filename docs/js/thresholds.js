@@ -247,6 +247,21 @@ function renderStormCellAlertSettings(){
   let html='';
   _STORM_ALERT_DEFS.forEach(def=>{
     const cfg=th[def.key]||{on:def.defOn,val:def.defVal};
+    // stormDbz is the SHARED min-strength number, edited ONLY in 📡 Background
+    // Storm Alerts → Min strength. Keep just the on/off toggle for the in-app
+    // intensity alert here and show the shared value read-only, so there is a
+    // single editable dBZ control. getConeMinDbz() is the source of truth.
+    if(def.key==='stormDbz'){
+      const shared=(typeof getConeMinDbz==='function')?getConeMinDbz():cfg.val;
+      html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px">
+        <label style="display:flex;align-items:center;gap:4px;font-size:0.7em;color:var(--text-muted);flex:1;min-width:0;cursor:pointer">
+          <input type="checkbox" ${cfg.on?'checked':''} onchange="toggleStormAlert('stormDbz',this.checked)" class="accent-cyan-check">
+          <span style="white-space:nowrap">${def.icon} ${def.label}</span>
+        </label>
+        <span style="font-size:0.68em;color:var(--text-muted);font-family:var(--font-mono);white-space:nowrap" title="Set in 📡 Background Storm Alerts → Min strength">≥ ${shared} dBZ</span>
+      </div>`;
+      return;
+    }
     const step=def.step||1;
     const mn=(def.min!=null)?def.min:0;
     const maxAttr=(def.max!=null)?` max="${def.max}"`:'';
@@ -285,15 +300,12 @@ function setStormAlertVal(key,val){
   if(!th[key])th[key]={on:false,val:n};
   else th[key].val=n;
   _saveStormThresholds(th);
-  // The "Intensity (dBZ)" threshold is ONE SHARED NUMBER with the storm-track
-  // cone floor (getConeMinDbz reads stormDbz.val), so refresh the cones, the
-  // "in N cones" count, the cone settings input and this panel (to show the
-  // snapped value) when it changes.
+  // The shared min-strength dBZ (getConeMinDbz reads stormDbz.val) drives the
+  // storm-track cone floor, so refresh the cones, the "in N cones" count and
+  // this panel (to show the snapped value) when it changes.
   if(key==='stormDbz'){
     const sa=document.getElementById('storm-alert-settings');
     if(sa&&typeof renderStormCellAlertSettings==='function')sa.innerHTML=renderStormCellAlertSettings();
-    const ci=document.getElementById('settings-cone-mindbz');
-    if(ci)ci.value=String(n);
     try{if(S.map&&typeof plotStormTracks==='function'&&S._tracksMode!=='off')plotStormTracks(S.map);}catch(e){}
     try{if(S.activePage==='storms'&&typeof renderStorms==='function')renderStorms();}catch(e){}
     try{if(typeof updateStormBadges==='function')updateStormBadges();}catch(e){}

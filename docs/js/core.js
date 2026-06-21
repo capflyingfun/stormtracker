@@ -533,13 +533,14 @@ const APPROACHING_TIER_KEYS=['direct','near_direct'];
 // which hid inbound cards — reverted here.)
 const STORM_MIN_DBZ=15;
 if(typeof window!=='undefined'){window.STORM_MIN_DBZ=STORM_MIN_DBZ}
-// v5.32: the storm-track cone floor is ONE SHARED NUMBER with the Storm Cell
-// Alerts "Intensity (dBZ)" notification threshold — stored in
-// st_stormThresholds.stormDbz.val — so changing either updates both. The floor
-// gates BOTH the "you are in N cones" count (storms.js) and the cones drawn on
-// the map (radar.js). Default 40 (the notification default); the settings
-// control offers 20-60 in 5 dBZ steps. We read the value regardless of whether
-// the notification toggle itself is on, since the cone floor is a display gate.
+// v5.33: the storm-track cone floor, the in-app Storm Cell Alerts "Intensity"
+// gate, and the Background Storm Alerts push threshold are ONE SHARED NUMBER —
+// stored in st_stormThresholds.stormDbz.val and edited from the single control
+// at Settings → 📡 Background Storm Alerts → Min strength. The floor gates BOTH
+// the "you are in N cones" count (storms.js) and the cones drawn on the map
+// (radar.js). Default 40; the control offers 20-60 in 5 dBZ steps. We read the
+// value regardless of whether the in-app notification toggle itself is on,
+// since the cone floor is a display gate.
 const CONE_MIN_DBZ_DEFAULT=40;
 function getConeMinDbz(){
   try{
