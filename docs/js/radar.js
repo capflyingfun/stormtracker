@@ -2437,7 +2437,9 @@ function plotStormTracks(map){
       }).sort((a,b)=>(b._eta.impact||0)-(a._eta.impact||0)).slice(0,12);
     }
   }
+  const _coneFloor=(typeof getConeMinDbz==='function')?getConeMinDbz():30;
   storms.forEach(s=>{
+    if((s.dbz||0)<_coneFloor)return;
     const _smv=(typeof getHybridMovement==='function'?getHybridMovement(s):null)||_mv;
     if(!_smv||_smv.speed<2)return;
     const pts=(typeof buildStormCone==='function')?buildStormCone(s,_smv):null;

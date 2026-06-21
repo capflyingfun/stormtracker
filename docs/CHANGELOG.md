@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.31
+
+  **Storm track cones now honor a minimum intensity (default 30 dBZ, user-adjustable, min 29) so faint cells no longer inflate the "you are in N storm track cones" count or get drawn on the map.**
+
+  - **Storms tab** — the "🎯 You are currently in N storm track cones" line now only counts a cell whose intensity is at or above the cone floor, matching the storm cards (which already drop cells that would arrive as essentially nothing). Fixes the "in 2 cones but nothing listed / nothing approaching" mismatch.
+  - **Radar map** — `plotStormTracks` applies the same floor, so the cones drawn on the map and the header count always agree.
+  - **New setting** — Settings → 🎯 Storm Track Cones → "Min cone dBZ" (number input, default 30, min 29, max 70). Stored in `st_coneMinDbz`; the count and the drawn cones update immediately on change.
+  - **Cache bumped** — `?v=630` / `stormtracker-v630`.
+
   ## v5.30
 
   **Desktop / landscape layout overhaul — on wide screens every tab now uses the full width instead of one tall stacked column. Phones and portrait are unchanged.**

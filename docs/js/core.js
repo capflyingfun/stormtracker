@@ -533,6 +533,17 @@ const APPROACHING_TIER_KEYS=['direct','near_direct'];
 // which hid inbound cards — reverted here.)
 const STORM_MIN_DBZ=15;
 if(typeof window!=='undefined'){window.STORM_MIN_DBZ=STORM_MIN_DBZ}
+// v5.31: user-configurable minimum cell intensity (dBZ) before a storm's
+// projected forward path counts as a "storm track cone" you're inside. Applied
+// to BOTH the "you are in N cones" count (storms.js) and the cones drawn on the
+// map (radar.js) so the number always matches what's shown. Default 30
+// (moderate rain); clamped to >=29 so trivial/drizzle cells never trip a cone.
+const CONE_MIN_DBZ_DEFAULT=30;
+function getConeMinDbz(){
+  try{const v=parseInt(localStorage.getItem('st_coneMinDbz'),10);if(!isNaN(v)&&v>=29&&v<=70)return v;}catch(e){}
+  return CONE_MIN_DBZ_DEFAULT;
+}
+if(typeof window!=='undefined'){window.getConeMinDbz=getConeMinDbz}
 function isInboundTier(k){return INBOUND_TIER_KEYS.indexOf(k)>=0}
 function isApproachingTier(k){return APPROACHING_TIER_KEYS.indexOf(k)>=0}
 function bumpStormScanId(){if(!S._stormScanId)S._stormScanId=0;S._stormScanId++;return S._stormScanId}
