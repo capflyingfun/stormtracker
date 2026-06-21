@@ -2914,15 +2914,20 @@ function _renderStormsCore(){
   let inConeWorstCls=null;
   if(mv&&mv.speed>=2&&S._tracksMode!=='off'){
     const uLat=S.lat,uLng=S.lon;
-    let coneStorms=storms;
+    const _coneFloor=(typeof getConeMinDbz==='function')?getConeMinDbz():30;
+    // Base the cone COUNT on the same population the map draws (plotStormTracks
+    // also uses getVisibleStormList), so clutter-hiding keeps the count and the
+    // drawn cones in agreement.
+    let coneStorms=(typeof getVisibleStormList==='function')?getVisibleStormList():storms;
     if(S._tracksMode==='inbound'){
       if(S._topStorms&&S._topStorms.length){
-        coneStorms=storms.filter(s=>S._topStorms.includes(s));
+        coneStorms=coneStorms.filter(s=>S._topStorms.includes(s));
       }else{
-        coneStorms=storms.filter(s=>{try{if(!s._brief)s._brief=calcStormETAForBriefing(s);return s._brief&&s._brief.impactScore>0}catch(e){return false}}).sort((a,b)=>((b._brief&&b._brief.impactScore)||0)-((a._brief&&a._brief.impactScore)||0)).slice(0,12);
+        coneStorms=coneStorms.filter(s=>{try{if(!s._brief)s._brief=calcStormETAForBriefing(s);return s._brief&&s._brief.impactScore>0}catch(e){return false}}).sort((a,b)=>((b._brief&&b._brief.impactScore)||0)-((a._brief&&a._brief.impactScore)||0)).slice(0,12);
       }
     }
     coneStorms.forEach(s=>{
+      if((s.dbz||0)<_coneFloor)return;
       const _smv=(typeof getHybridMovement==='function'?getHybridMovement(s):null)||mv;
       if(isUserInStormCone(s,_smv,uLat,uLng)){
         inConeCount++;
