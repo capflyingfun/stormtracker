@@ -127,7 +127,7 @@ function clearWxAlertHistory(){_wxAlertHistory=[];_saveWxAlertHistory();if(S.act
 const _STORM_ALERT_DEFS=[
   {key:'stormDist',label:'Projected Miss',icon:'📏',unit:'mi',defVal:6,defOn:false,dir:'below',step:1,
     check:(storm,th)=>{const b=storm._brief||(typeof calcStormETAForBriefing==='function'?calcStormETAForBriefing(storm):null);const miss=(b&&b.perpMissMi!=null)?b.perpMissMi:storm.distance;if(miss==null)return null;const tier=(typeof perpTier==='function')?perpTier(miss):null;const cls=b&&b.classification;if(typeof isApproachingTier==='function'){const tierKey=cls||(tier&&tier.key);if(!tierKey||!isApproachingTier(tierKey))return null}else if(cls&&typeof isInboundTier==='function'&&!isInboundTier(cls))return null;const v=S.radarMetric?parseFloat((miss*1.60934).toFixed(1)):parseFloat(miss.toFixed(1));const u=S.radarMetric?'km':'mi';const tierLbl=tier?tier.label:(cls?cls.replace('_',' ').toUpperCase():'');return miss<=th?{val:v,u,msg:`🌩️ Storm cell approaching — projected to pass ${v} ${u} from you (${storm.dbz} dBZ${tierLbl?', '+tierLbl:''})`}:null}},
-  {key:'stormDbz',label:'Intensity (dBZ)',icon:'📡',unit:'dBZ',defVal:40,defOn:false,step:5,
+  {key:'stormDbz',label:'Intensity (dBZ)',icon:'📡',unit:'dBZ',defVal:40,defOn:false,step:5,min:20,max:60,
     check:(storm,th)=>{const v=storm.dbz;if(v==null)return null;if(v<th)return null;const b=storm._brief||(typeof calcStormETAForBriefing==='function'?calcStormETAForBriefing(storm):null);const cls=b&&b.classification;if(cls&&typeof isInboundTier==='function'&&!isInboundTier(cls))return null;const miss=(b&&b.perpMissMi!=null)?b.perpMissMi:storm.distance;const tier=(miss!=null&&typeof perpTier==='function')?perpTier(miss):null;const tierLbl=tier?', '+tier.label:'';return{val:v,u:'dBZ',msg:`🌩️ Storm cell at ${v} dBZ — above your ${th} dBZ intensity threshold (${parseFloat(storm.distance.toFixed(1))} mi away${tierLbl})`}}},
   {key:'stormImpact',label:'Impact Score',icon:'🎯',unit:'%',defVal:50,defOn:false,step:5,
     check:(storm,th)=>{const v=storm.impactPct;if(v==null||v<=0)return null;if(v<th)return null;const b=storm._brief||(typeof calcStormETAForBriefing==='function'?calcStormETAForBriefing(storm):null);const cls=b&&b.classification;if(cls&&typeof isInboundTier==='function'&&!isInboundTier(cls))return null;const miss=(b&&b.perpMissMi!=null)?b.perpMissMi:storm.distance;const tier=(miss!=null&&typeof perpTier==='function')?perpTier(miss):null;const tierLbl=tier?', '+tier.label:'';return{val:v,u:'%',msg:`🌩️ Storm cell impact ${v}% — above your ${th}% threshold (${storm.dbz} dBZ, ${parseFloat(storm.distance.toFixed(1))} mi, tier: ${storm.impactTier}${tierLbl})`}}}
@@ -139,6 +139,22 @@ function _loadStormThresholds(){
   const d={};_STORM_ALERT_DEFS.forEach(a=>{d[a.key]={on:a.defOn,val:a.defVal}});return d;
 }
 function _saveStormThresholds(th){try{localStorage.setItem('st_stormThresholds',JSON.stringify(th))}catch(e){}}
+// v5.32: stormDbz is a SHARED value (storm-track cone floor + notification
+// intensity), constrained to 20-60 dBZ in 5 dBZ steps. Normalize any preexisting
+// out-of-range / non-multiple stored value once so the stored value,
+// getConeMinDbz() and notification firing all agree.
+(function _normalizeStormDbz(){
+  try{
+    const def=_STORM_ALERT_DEFS.find(d=>d.key==='stormDbz');if(!def)return;
+    const th=_loadStormThresholds();
+    if(th&&th.stormDbz&&th.stormDbz.val!=null){
+      let v=parseFloat(th.stormDbz.val);if(isNaN(v))return;
+      const step=def.step||5;let nv=Math.round(v/step)*step;
+      if(def.min!=null&&nv<def.min)nv=def.min;if(def.max!=null&&nv>def.max)nv=def.max;
+      if(nv!==v){th.stormDbz.val=nv;_saveStormThresholds(th);}
+    }
+  }catch(e){}
+})();
 function _saveStormAlertHistory(){
   if(_stormAlertHistory.length>50)_stormAlertHistory=_stormAlertHistory.slice(-50);
   try{localStorage.setItem('st_stormAlertHistory',JSON.stringify(_stormAlertHistory))}catch(e){}
@@ -232,12 +248,17 @@ function renderStormCellAlertSettings(){
   _STORM_ALERT_DEFS.forEach(def=>{
     const cfg=th[def.key]||{on:def.defOn,val:def.defVal};
     const step=def.step||1;
+    const mn=(def.min!=null)?def.min:0;
+    const maxAttr=(def.max!=null)?` max="${def.max}"`:'';
+    let dispVal=cfg.val;
+    if(def.min!=null&&dispVal<def.min)dispVal=def.min;
+    if(def.max!=null&&dispVal>def.max)dispVal=def.max;
     html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px">
       <label style="display:flex;align-items:center;gap:4px;font-size:0.7em;color:var(--text-muted);flex:1;min-width:0;cursor:pointer">
         <input type="checkbox" ${cfg.on?'checked':''} onchange="toggleStormAlert('${def.key}',this.checked)" class="accent-cyan-check">
         <span style="white-space:nowrap">${def.icon} ${def.label}</span>
       </label>
-      <input type="number" value="${cfg.val}" step="${step}" min="0" style="width:60px;font-size:0.7em;padding:3px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;text-align:center;font-family:var(--font-mono)" onchange="setStormAlertVal('${def.key}',this.value)" ${cfg.on?'':'disabled'}>
+      <input type="number" value="${dispVal}" step="${step}" min="${mn}"${maxAttr} style="width:60px;font-size:0.7em;padding:3px 4px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:4px;text-align:center;font-family:var(--font-mono)" onchange="setStormAlertVal('${def.key}',this.value)" ${cfg.on?'':'disabled'}>
     </div>`;
   });
   return html;
@@ -252,11 +273,31 @@ function toggleStormAlert(key,on){
   if(el)el.innerHTML=renderStormCellAlertSettings();
 }
 function setStormAlertVal(key,val){
-  const n=parseFloat(val);if(isNaN(n)||n<0)return;
+  let n=parseFloat(val);if(isNaN(n)||n<0)return;
+  const def=_STORM_ALERT_DEFS.find(d=>d.key===key);
+  if(def&&(def.min!=null||def.max!=null)){
+    const step=def.step||1;
+    n=Math.round(n/step)*step;
+    if(def.min!=null&&n<def.min)n=def.min;
+    if(def.max!=null&&n>def.max)n=def.max;
+  }
   const th=_loadStormThresholds();
   if(!th[key])th[key]={on:false,val:n};
   else th[key].val=n;
   _saveStormThresholds(th);
+  // The "Intensity (dBZ)" threshold is ONE SHARED NUMBER with the storm-track
+  // cone floor (getConeMinDbz reads stormDbz.val), so refresh the cones, the
+  // "in N cones" count, the cone settings input and this panel (to show the
+  // snapped value) when it changes.
+  if(key==='stormDbz'){
+    const sa=document.getElementById('storm-alert-settings');
+    if(sa&&typeof renderStormCellAlertSettings==='function')sa.innerHTML=renderStormCellAlertSettings();
+    const ci=document.getElementById('settings-cone-mindbz');
+    if(ci)ci.value=String(n);
+    try{if(S.map&&typeof plotStormTracks==='function'&&S._tracksMode!=='off')plotStormTracks(S.map);}catch(e){}
+    try{if(S.activePage==='storms'&&typeof renderStorms==='function')renderStorms();}catch(e){}
+    try{if(typeof updateStormBadges==='function')updateStormBadges();}catch(e){}
+  }
 }
 function clearStormAlertHistory(){_stormAlertHistory=[];_saveStormAlertHistory();if(S.activePage==='alerts')renderAlerts();}
 
