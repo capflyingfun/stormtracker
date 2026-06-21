@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.32
+
+  **The storm-track cone intensity floor and the Storm Cell Alerts "Intensity (dBZ)" notification threshold are now one shared number — set it once and both follow.**
+
+  - **Shared value** — the cone floor now reads the same setting as Storm Cell Alerts → Intensity (dBZ) (`st_stormThresholds.stormDbz.val`). Changing it in either place (Settings → 🎯 Storm Track Cones, or the 🌩️ Storm Cell Alerts intensity box) updates the other, plus the "in N cones" count and the cones drawn on the map, immediately.
+  - **Range** — the cone control is now 20–60 dBZ in steps of 5 (default 40, matching the notification default). The value is used as the cone floor whether or not the Intensity (dBZ) alert toggle itself is on.
+  - **Cache bumped** — `?v=631` / `stormtracker-v631`.
+
   ## v5.31
 
   **Storm track cones now honor a minimum intensity (default 30 dBZ, user-adjustable, min 29) so faint cells no longer inflate the "you are in N storm track cones" count or get drawn on the map.**

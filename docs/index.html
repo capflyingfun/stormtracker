@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<title>StormTracker v5.31</title>
+<title>StormTracker v5.32</title>
 <meta name="description" content="Real-time storm detection with live radar, weather alerts, and storm tracking. No account required.">
 <meta name="theme-color" content="#0a1020">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=630">
+<link rel="stylesheet" href="css/style.css?v=631">
 </head>
 <body>
 <div class="toast-container" id="toast-container"></div>
@@ -28,7 +28,7 @@
     <span class="storm-count-badge" id="header-storm-count" onclick="switchPage('storms')"></span>
   </div>
   <div class="header-center">
-    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v5.31</span></h1>
+    <h1><span id="header-lightning">⚡</span> StormTracker <span style="font-size:0.45em;font-weight:500;color:var(--text-muted);vertical-align:middle">v5.32</span></h1>
     <div class="header-status">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text">Initializing...</span>
@@ -348,10 +348,10 @@
       </div>
       <div class="setting-sep">
         <div style="font-size:0.8em;font-weight:600;color:var(--accent-cyan);margin-bottom:8px">🎯 Storm Track Cones</div>
-        <div class="setting-hint">A storm only counts toward "🎯 you are in N storm track cones" — and only gets a cone drawn on the radar map — when its intensity is at or above this. Higher = only stronger storms count. Minimum 29 dBZ.</div>
+        <div class="setting-hint">A storm only counts toward "🎯 you are in N storm track cones" — and only gets a cone drawn on the radar map — when its intensity is at or above this. This is the <b>same number</b> as 🌩️ Storm Cell Alerts → Intensity (dBZ) above: changing it here changes it there too. 20–60 dBZ, in steps of 5.</div>
         <div class="setting-row">
           <span class="text-xs-muted">Min cone dBZ</span>
-          <input id="settings-cone-mindbz" type="number" inputmode="numeric" min="29" max="70" step="1" value="30" onchange="setConeMinDbz(this.value)" onblur="setConeMinDbz(this.value)" style="width:54px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;padding:4px 6px;font-size:0.9em;text-align:center">
+          <input id="settings-cone-mindbz" type="number" inputmode="numeric" min="20" max="60" step="5" value="40" onchange="setConeMinDbz(this.value)" onblur="setConeMinDbz(this.value)" style="width:54px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:6px;padding:4px 6px;font-size:0.9em;text-align:center">
         </div>
       </div>
       <div class="setting-sep">
@@ -629,25 +629,25 @@
   </div>
 </div>
 
-<script src="js/core.js?v=630"></script>
-<script src="js/gauges.js?v=630"></script>
-<script src="js/icons.js?v=630"></script>
-<script src="js/geo.js?v=630"></script>
-<script src="js/settings.js?v=630"></script>
-<script src="js/thresholds.js?v=630"></script>
-<script src="js/weather.js?v=630"></script>
-<script src="js/radar.js?v=630"></script>
-<script src="js/storms.js?v=630"></script>
-<script src="js/station.js?v=630"></script>
-<script src="js/alerts.js?v=630"></script>
-<script src="js/briefingEngine.js?v=630"></script>
-<script src="js/ai.js?v=630"></script>
-<script src="js/push.js?v=630"></script>
-<script src="js/init.js?v=630"></script>
+<script src="js/core.js?v=631"></script>
+<script src="js/gauges.js?v=631"></script>
+<script src="js/icons.js?v=631"></script>
+<script src="js/geo.js?v=631"></script>
+<script src="js/settings.js?v=631"></script>
+<script src="js/thresholds.js?v=631"></script>
+<script src="js/weather.js?v=631"></script>
+<script src="js/radar.js?v=631"></script>
+<script src="js/storms.js?v=631"></script>
+<script src="js/station.js?v=631"></script>
+<script src="js/alerts.js?v=631"></script>
+<script src="js/briefingEngine.js?v=631"></script>
+<script src="js/ai.js?v=631"></script>
+<script src="js/push.js?v=631"></script>
+<script src="js/init.js?v=631"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
-<script src="js/view3d.js?v=630"></script>
+<script src="js/view3d.js?v=631"></script>
 <script>
 // Clean service-worker registration. sw.js calls skipWaiting() on install and
 // clients.claim() on activate (and its activate handler prunes old caches), so a
@@ -657,7 +657,7 @@
 // background-notification connection on each app open and forced a fragile rebuild.
 if('serviceWorker' in navigator){
   window.addEventListener('load',function(){
-    navigator.serviceWorker.register('sw.js?v=630')
+    navigator.serviceWorker.register('sw.js?v=631')
       .then(function(reg){try{reg.update();}catch(e){}})
       .catch(function(e){console.log('SW register failed:',e);});
   });

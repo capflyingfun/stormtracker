@@ -17,6 +17,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v5.32',date:'2026-06-21',items:['🔗 <b>Storm-cone strength is now the same setting as your storm-alert intensity</b> — the "🎯 Storm Track Cones" minimum dBZ and the <b>Storm Cell Alerts → Intensity (dBZ)</b> threshold are now <b>one shared number</b>. Set it in either spot and the other follows, along with the "you are in N cones" count and the cones drawn on the map. It runs 20–60 dBZ in steps of 5 (default 40).'],},
   {ver:'v5.31',date:'2026-06-21',items:['🎯 <b>Storm track cones now ignore weak cells</b> — the "🎯 You are currently in N storm track cones" line (and the cones drawn on the radar map) used to count <i>every</i> detected cell whose path crossed you, even faint drizzle — so you could be told you were "in 2 cones" while the Storms list correctly showed nothing approaching. Cones now require a storm to be at least moderate intensity, and you can set that threshold yourself under <b>Settings → 🎯 Storm Track Cones</b> (default 30 dBZ, minimum 29).'],},
   {ver:'v5.29',date:'2026-06-19',items:['🌩️ <b>Storm counts keep up on slow connections</b> — on a weak signal, storms could show on the map (with the flashing cells inside the cone) while the Storms tab, Rain Clock, and the header count still said “0”. Now the moment your wind data finishes loading, every part of the app updates together, so the count always matches what you see on the map.','📶 <b>Scans no longer get stuck</b> — added time limits so a single slow or stalled radar tile can’t freeze the whole scan on bad LTE. It finishes with whatever loaded instead of hanging.','🔑 <b>One OpenAI key for everything</b> — AI-written alerts now automatically use the same OpenAI key as the in-app AI Assistant, so you only enter it once. You can still paste a separate key just for alerts if you’d like those billed differently.'],},
   {ver:'v5.28',date:'2026-06-19',items:['🕐 <b>Notification times now match your settings</b> — push alert times follow your <b>Time Format</b> (12-hour or 24-hour) and your time zone, so a watch ending at 8 PM shows as <b>“8:00 PM”</b> or <b>“20:00”</b> just like everywhere else in the app. Same-day times skip the day name (e.g. <b>“until 8:00 PM”</b>); later ones show it (<b>“until Fri 6:00 PM”</b>).','🌪️ <b>Worst alert now leads the notification</b> — the most serious active alert (Tornado/Severe Thunderstorm/Hurricane Warning, watches, etc.) is promoted into the notification’s title <b>with its end time</b> — e.g. <b>“🌪️ Tornado Watch until 8:00 PM · 8 alerts · Home”</b> — so you see the biggest threat and when it expires at a glance, before even opening the banner.'],},
@@ -500,16 +501,26 @@ function setTickerSpeed(val,final){
 }
 function setConeMinDbz(val){
   let v=parseInt(val,10);
-  if(isNaN(v))v=30;
-  if(v<29)v=29;
-  if(v>70)v=70;
-  localStorage.setItem('st_coneMinDbz',String(v));
+  if(isNaN(v))v=(typeof CONE_MIN_DBZ_DEFAULT!=='undefined')?CONE_MIN_DBZ_DEFAULT:40;
+  v=Math.round(v/5)*5;
+  if(v<20)v=20;
+  if(v>60)v=60;
+  // One shared number: write the Storm Cell Alerts "Intensity (dBZ)" threshold
+  // (st_stormThresholds.stormDbz.val). getConeMinDbz() reads the same field, so
+  // the cones and the notification threshold stay in lockstep.
+  try{
+    const th=(typeof _loadStormThresholds==='function')?_loadStormThresholds():(JSON.parse(localStorage.getItem('st_stormThresholds')||'{}'));
+    if(!th.stormDbz)th.stormDbz={on:false,val:v};else th.stormDbz.val=v;
+    if(typeof _saveStormThresholds==='function')_saveStormThresholds(th);else localStorage.setItem('st_stormThresholds',JSON.stringify(th));
+  }catch(e){}
   const inp=document.getElementById('settings-cone-mindbz');
   if(inp)inp.value=String(v);
+  const stormAlertEl=document.getElementById('storm-alert-settings');
+  if(stormAlertEl&&typeof renderStormCellAlertSettings==='function')stormAlertEl.innerHTML=renderStormCellAlertSettings();
   try{if(S.map&&typeof plotStormTracks==='function'&&S._tracksMode!=='off')plotStormTracks(S.map);}catch(e){}
   try{if(S.activePage==='storms'&&typeof renderStorms==='function')renderStorms();}catch(e){}
   try{if(typeof updateStormBadges==='function')updateStormBadges();}catch(e){}
-  toast('🎯 Cone min set to '+v+' dBZ');
+  toast('🎯 Cone & alert intensity set to '+v+' dBZ');
 }
 // v4.76: manual "reboot startup" — re-runs the startup sequence in place for the
 // current location without a full app reload. Clears the winds-aloft cache so
