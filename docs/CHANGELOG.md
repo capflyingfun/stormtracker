@@ -3,6 +3,15 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.33
+
+  **One storm-strength setting instead of three — the minimum dBZ for storm-track cones, in-app Storm Cell Alerts, and Background Storm Alerts is now a single shared control.**
+
+  - **Single control** — the only editable minimum-dBZ control now lives under Settings → 📡 Background Storm Alerts → **Min strength (dBZ)**. The 🎯 Storm Track Cones section (and its separate input) has been removed, and the 🌩️ Storm Cell Alerts "Intensity (dBZ)" row is now an on/off toggle that shows the shared value read-only.
+  - **Everything syncs** — changing **Min strength** updates the background push threshold, the cone floor (`getConeMinDbz()` / `st_stormThresholds.stormDbz.val`), the "in N cones" count + cones drawn on the map, and the in-app storm-cell intensity gate together.
+  - **Range** — 20–60 dBZ in steps of 5 (default 40). The shared value rides the push subscription as `thresholds.dbz`, so the scanner uses the same number (no scanner change).
+  - **Cache bumped** — `?v=632` / `stormtracker-v632`.
+
   ## v5.32
 
   **The storm-track cone intensity floor and the Storm Cell Alerts "Intensity (dBZ)" notification threshold are now one shared number — set it once and both follow.**

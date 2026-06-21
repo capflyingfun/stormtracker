@@ -5,6 +5,35 @@
 // server); a GitHub Actions cron scanner does the radar detection server-side
 // and sends the pushes.
 
+// v5.33 one-time migration: the three separate min-dBZ controls (storm-track
+// cones, in-app Storm Cell Alerts, Background Storm Alerts push) collapsed into
+// ONE shared value at st_stormThresholds.stormDbz.val (read by getConeMinDbz()).
+// If a user customized ONLY the old Background-Alerts "Min strength"
+// (st_pushThresholds.dbz) while leaving the shared cone/alert value at its
+// default, adopt their push value so it isn't silently lost. If the shared value
+// was already customized, it wins (it already drove 2 of the 3 uses in v5.32).
+(function _migrateSharedMinDbz_v533(){
+  try{
+    if(localStorage.getItem('st_minDbzMerged_v533'))return;
+    const ptRaw=localStorage.getItem('st_pushThresholds');
+    const pt=ptRaw?JSON.parse(ptRaw):null;
+    const legacy=(pt&&typeof pt.dbz==='number')?pt.dbz:null;
+    if(legacy!=null){
+      const st=JSON.parse(localStorage.getItem('st_stormThresholds')||'{}');
+      const curRaw=(st.stormDbz&&st.stormDbz.val!=null)?parseFloat(st.stormDbz.val):NaN;
+      const cur=isNaN(curRaw)?null:curRaw;
+      // Only adopt the legacy push value when the shared value is still default
+      // (40) or unset — i.e. the user never customized cones/in-app intensity.
+      if((cur==null||cur===40)&&legacy!==40){
+        const snap=Math.max(20,Math.min(60,Math.round(legacy/5)*5));
+        if(!st.stormDbz)st.stormDbz={on:false,val:snap};else st.stormDbz.val=snap;
+        localStorage.setItem('st_stormThresholds',JSON.stringify(st));
+      }
+    }
+    localStorage.setItem('st_minDbzMerged_v533','1');
+  }catch(e){}
+})();
+
 // Persistent VAPID public key (private half lives only in the scanner secrets).
 const PUSH_VAPID_PUBLIC_KEY = 'BEZD0oSMhA2lWQAlaR0sRl8hsmaRL6ioKRxNDCPwHxcKMQuvYGJeUxbyIxsazG3O2OfIgXTAma4TZevHcAe7VM4';
 
@@ -352,7 +381,7 @@ async function enablePushAlerts(silent, opts) {
       subscription: sub.toJSON(),
       lat: loc.lat, lon: loc.lon, name: loc.name,
       thresholds: {
-        dbz: th.dbz, impact: th.impact, dist: th.radius, radius: th.radius,
+        dbz: (typeof getConeMinDbz === 'function') ? getConeMinDbz() : th.dbz, impact: th.impact, dist: th.radius, radius: th.radius,
         wx: _pushWxCfg(), units: _pushUnits(),
         nws: (() => { const c = _nwsCfg(th); return c.on ? { on: true, warnMin: c.warnMin, watchMin: c.watchMin, advMin: c.advMin } : false; })(),
         bands: _pushBands(),
@@ -468,6 +497,16 @@ function togglePushAlerts(want) {
 }
 
 function setPushThreshold(key, val) {
+  if (key === 'dbz') {
+    // Shared min-strength dBZ: one number drives background push, the storm-track
+    // cone floor and the in-app storm-cell intensity gate. Write it through the
+    // shared setter (clamps 20-60/step-5, re-renders cones + storms + the storm-
+    // cell panel), then sync the subscription so the scanner uses the same value.
+    if (typeof setConeMinDbz === 'function') setConeMinDbz(val);
+    if (_getPushSub()) enablePushAlerts(true);
+    else syncSettingsPanel();
+    return;
+  }
   const th = _getPushThresholds();
   th[key] = parseInt(val, 10);
   _savePushThresholds(th);
@@ -588,11 +627,15 @@ function renderPushAlertSettings() {
         <span style="position:absolute;top:2px;left:${on ? '24px' : '2px'};width:24px;height:24px;border-radius:50%;background:${on ? 'var(--accent-green)' : 'var(--text-muted)'};transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,0.45)"></span>
       </button>
     </div>`;
+  // Shared min-strength dBZ — one number drives background push, the storm-track
+  // cone floor and the in-app storm-cell intensity gate (getConeMinDbz()).
+  const _smd = (typeof getConeMinDbz === 'function') ? getConeMinDbz() : (th.dbz || 40);
   const controls = `
     <div class="setting-row-6"><span class="text-xxs-muted">Min strength (dBZ)</span>
       <select class="small-btn" onchange="setPushThreshold('dbz',this.value)">
-        ${opt(30, th.dbz)}30</option>${opt(35, th.dbz)}35</option>${opt(40, th.dbz)}40</option>${opt(45, th.dbz)}45</option>${opt(50, th.dbz)}50</option>
+        ${opt(20, _smd)}20</option>${opt(25, _smd)}25</option>${opt(30, _smd)}30</option>${opt(35, _smd)}35</option>${opt(40, _smd)}40</option>${opt(45, _smd)}45</option>${opt(50, _smd)}50</option>${opt(55, _smd)}55</option>${opt(60, _smd)}60</option>
       </select></div>
+    <div class="setting-hint" style="font-size:0.7em;margin-top:2px">This <b>Min strength</b> is shared — it also sets the 🎯 storm-track cone floor and the 🌩️ Storm Cell Alerts intensity. 20–60 dBZ in steps of 5.</div>
     <div class="setting-row-6"><span class="text-xxs-muted">Min impact</span>
       <select class="small-btn" onchange="setPushThreshold('impact',this.value)">
         ${opt(30, th.impact)}30%</option>${opt(50, th.impact)}50%</option>${opt(70, th.impact)}70%</option>
