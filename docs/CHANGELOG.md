@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.34
+
+  **Faster Weather-tab sonar on phones — HD deep scans no longer flood the radar sonar with thousands of dots.**
+
+  - **Mobile point cap** — the Weather-tab "🛰️ Radar Sonar" now renders at most ~800 clustered points on phones (screens under 1024px). HD deep scans could previously balloon to 15,000+ dots, which slowed the sweep animation on mobile. Desktops keep full, uncapped resolution.
+  - **How** — `_clusterSonarPoints()` coarsens its spatial grid until the point count is under budget (preserving spatial spread), with an intensity-based backstop. Storm detection, hex zones and the Rain Clock still use the full-resolution raw scan points, so accuracy is unchanged.
+  - **Cache bumped** — `?v=633` / `stormtracker-v633`.
+
   ## v5.33
 
   **One storm-strength setting instead of three — the minimum dBZ for storm-track cones, in-app Storm Cell Alerts, and Background Storm Alerts is now a single shared control.**
