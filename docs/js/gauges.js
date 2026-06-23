@@ -84,25 +84,41 @@ let _sonarZoomMi=parseInt(localStorage.getItem('st_sonarZoom'))||80;
 if(!_SONAR_ZOOM_LEVELS.includes(_sonarZoomMi))_sonarZoomMi=80;
 function sonarZoomIn(){const i=_SONAR_ZOOM_LEVELS.indexOf(_sonarZoomMi);if(i>0){_sonarZoomMi=_SONAR_ZOOM_LEVELS[i-1];localStorage.setItem('st_sonarZoom',_sonarZoomMi);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_clusterSonarPoints();drawMiniSonar();_syncSonarZoomBtns()}}
 function sonarZoomOut(){const i=_SONAR_ZOOM_LEVELS.indexOf(_sonarZoomMi);if(i<_SONAR_ZOOM_LEVELS.length-1){_sonarZoomMi=_SONAR_ZOOM_LEVELS[i+1];localStorage.setItem('st_sonarZoom',_sonarZoomMi);S._sonarTotalSwept=0;S._sonarSweepAngle=0;_clusterSonarPoints();drawMiniSonar();_syncSonarZoomBtns()}}
+// Mobile sonar render budget: phones choke when the Weather-tab "Radar Sonar"
+// draws many thousands of clustered dots (an HD deep scan can produce 15k+),
+// stalling the sweep animation. On phones (screen < 1024px, via _isDesktop())
+// we cap the rendered point count; desktops stay uncapped. We coarsen the grid
+// until under budget so spatial spread is preserved, with an intensity backstop.
+// Only the mini-sonar visual + its "N zones" label use _sonarClusteredPts —
+// storm detection, hex zones and the Rain Clock keep the full raw scan points.
+const SONAR_MOBILE_PT_CAP=800;
 function _clusterSonarPoints(){
   const pts=S._rawScanPts;
   if(!pts||!pts.length){S._sonarClusteredPts=[];return}
   const viewR=_sonarZoomMi;
-  const res=viewR<=20?0.003:viewR<=40?0.005:0.01;
-  const inv=1/res;
-  const cells=new Map();
-  for(let i=0;i<pts.length;i++){
-    const p=pts[i];
-    const gx=Math.floor(p.lat*inv);
-    const gy=Math.floor(p.lng*inv);
-    const k=gx+','+gy;
-    const c=cells.get(k);
-    if(c){c.sLat+=p.lat;c.sLng+=p.lng;if(p.dbz>c.dbz)c.dbz=p.dbz;c.n++}
-    else{cells.set(k,{sLat:p.lat,sLng:p.lng,dbz:p.dbz,n:1})}
+  const baseRes=viewR<=20?0.003:viewR<=40?0.005:0.01;
+  const cap=(typeof _isDesktop==='function'&&_isDesktop())?Infinity:SONAR_MOBILE_PT_CAP;
+  let res=baseRes,cells;
+  for(let attempt=0;attempt<6;attempt++){
+    const inv=1/res;
+    cells=new Map();
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i];
+      const k=Math.floor(p.lat*inv)+','+Math.floor(p.lng*inv);
+      const c=cells.get(k);
+      if(c){c.sLat+=p.lat;c.sLng+=p.lng;if(p.dbz>c.dbz)c.dbz=p.dbz;c.n++}
+      else{cells.set(k,{sLat:p.lat,sLng:p.lng,dbz:p.dbz,n:1})}
+    }
+    if(cells.size<=cap)break;
+    // Cell count scales ~1/res^2, so jump res toward the target in one step
+    // (min 1.3x so we always make progress); re-bin and re-check.
+    res*=Math.max(1.3,Math.sqrt(cells.size/cap));
   }
-  const out=new Array(cells.size);
+  let out=new Array(cells.size);
   let idx=0;
   for(const c of cells.values()){out[idx++]={lat:c.sLat/c.n,lng:c.sLng/c.n,dbz:c.dbz,count:c.n}}
+  // Backstop: if coarsening still left us over budget, keep the strongest cells.
+  if(isFinite(cap)&&out.length>cap){out.sort((a,b)=>b.dbz-a.dbz);out.length=cap}
   S._sonarClusteredPts=out;
   if(typeof refreshRainClock==='function')try{refreshRainClock(true)}catch(e){}
 }
