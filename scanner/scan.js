@@ -370,10 +370,8 @@ function fmtArea(area, mv, th, tz, h24) {
   const best = area.slice().sort((a, b) => a.distance - b.distance)[0];
   const peak = area.reduce((m, c) => Math.max(m, c.dbz), 0);
   const move = `moving ${degToDir(mv.direction)} ~${Math.round(mv.speed)} mph`;
-  const moveShort = `${degToDir(mv.direction)} ${Math.round(mv.speed)}mph`;
-  const cnt = area.length === 1 ? '1 strong cell' : `${area.length} strong cells`;
-  const body = `Strong storms ~${Math.round(best.distance)} mi to the ${dirLong(best.bearing)} (within your ${th.radius} mi range), ${move} — not heading your way, but stay aware. ${cnt}, peak ${peak} dBZ.`;
-  const display = `🌩️ Strong storms ~${Math.round(best.distance)}mi ${degToDir(best.bearing)}, ${moveShort} — not inbound (${area.length}, ${peak}dBZ)`;
+  const body = `Strong storms ~${Math.round(best.distance)} mi to the ${dirLong(best.bearing)} (within your ${th.radius} mi range), ${move} — not heading your way, but stay aware. Peak ${peak} dBZ.`;
+  const display = `🌩️ Strong storms ${degToDir(best.bearing)} @ ${Math.round(best.distance)}mi, moving ${degToDir(mv.direction)} @ ${Math.round(mv.speed)}mph — not inbound (${peak}dBZ)`;
   // Single aggregate dedupe key from the LEAD cell's sector (45°) + distance (15mi)
   // bucket: a standing line won't re-buzz, but activity that relocates to a new
   // sector/distance does. Per-cell keys were rejected — radar flicker churns them.
@@ -417,7 +415,7 @@ function fmtLightning(personal, tz, h24) {
     etaStr = clock ? ` · ETA ${clock}` : ` · ETA ~${lead.etaMin} min`;
   }
   const strength = lead.dbz >= 55 ? 'Severe storm' : 'Strong storm';
-  const leadSentence = `${strength} with lightning detected ~${dist} mi ${degToDir(lead.bearing)}${etaStr}.`;
+  const leadSentence = `${strength} with lightning detected ${degToDir(lead.bearing)} @ ${dist} mi${etaStr}.`;
 
   // Urgent set: approaching cells estimated to reach the user within 15 minutes.
   const soon = corridor.filter(c => c.etaMin != null && c.etaMin <= 15);
@@ -443,7 +441,7 @@ function fmtLightning(personal, tz, h24) {
   const cks = [...new Set(keySrc.map(c => 'ltg_' + Math.round(c.bearing / 45) + '_' + Math.round(c.distance / 10)))];
   return {
     cks,
-    display: `⚡ ${strength} with lightning detected ~${dist} mi ${degToDir(lead.bearing)}`,
+    display: `⚡ ${strength} with lightning detected ${degToDir(lead.bearing)} @ ${dist} mi`,
     body: `${leadSentence}${extra}${advice}`,
   };
 }
