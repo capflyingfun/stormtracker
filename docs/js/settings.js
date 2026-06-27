@@ -17,6 +17,7 @@ const TUTORIAL_SECTIONS=[
   {title:'💡 Tips',text:'• Storm intensity is measured in <b>dBZ</b> (decibels of reflectivity). Higher = stronger: 15-30 light rain, 30-45 moderate, 45-55 heavy, 55+ severe/hail.<br>• The <b>Impact %</b> shown on storms estimates the likelihood of affecting your exact location. NWS warning polygons and terrain effects are factored in.<br>• Scan circle on the radar shows your current detection range.<br>• The sonar mini-map on the Weather tab updates with every scan — use the +/− buttons to zoom in for detail or out for a wider view.<br>• Use the <b>sonar settings gear</b> to customize the sweep animation, dot glow, grid brightness, and more.<br>• The ⚡ lightning icon on storm cells indicates radar-derived lightning potential (≥40 dBZ).<br>• Install StormTracker as a <b>standalone app</b> on your phone — tap "Add to Home Screen" in your browser menu for the best experience.'}
 ];
 const CHANGELOG=[
+  {ver:'v5.35',date:'2026-06-27',items:['📱 <b>Bottom tab bar no longer drifts while scrolling</b> — on phones, swiping the page up and down used to make the bottom navigation bar (Weather / Radar / Storms / 3D / Alerts) float or jump as the browser\'s address bar slid in and out. The page is now locked so only the content area scrolls, keeping the tab bar rock-solid at the bottom.'],},
   {ver:'v5.34',date:'2026-06-21',items:['⚡ <b>Smoother sonar on phones</b> — the Weather tab\'s 🛰️ Radar Sonar now caps at ~800 dots on mobile so HD deep scans (which could hit 15,000+ dots) no longer slow the sweep animation. Desktops keep full resolution. Storm detection, hex zones, and the Rain Clock still use every raw scan point, so accuracy is unchanged.'],},
   {ver:'v5.33',date:'2026-06-21',items:['🔗 <b>One storm-strength setting instead of three</b> — the minimum dBZ for 🎯 storm-track cones, 🌩️ Storm Cell Alerts, and 📡 Background Storm Alerts is now a <b>single shared control</b>. Set it once under <b>Settings → 📡 Background Storm Alerts → Min strength</b> and the cones, the in-app storm-cell intensity, and your background push alerts all follow it. The separate Storm Track Cones control has been removed, and the Storm Cell Alerts intensity row now just toggles on/off and shows the shared value read-only. Runs 20–60 dBZ in steps of 5 (default 40).'],},
   {ver:'v5.32',date:'2026-06-21',items:['🔗 <b>Storm-cone strength is now the same setting as your storm-alert intensity</b> — the "🎯 Storm Track Cones" minimum dBZ and the <b>Storm Cell Alerts → Intensity (dBZ)</b> threshold are now <b>one shared number</b>. Set it in either spot and the other follows, along with the "you are in N cones" count and the cones drawn on the map. It runs 20–60 dBZ in steps of 5 (default 40).'],},
@@ -328,15 +329,13 @@ function showTutorialDirect(){
 function toggleSettingsPanel(){
   const p=document.getElementById('settings-panel');
   if(!p)return;
+  const c=document.querySelector('.container');
   const vis=p.style.display==='flex';
   if(vis){
-    const scrollY=Math.abs(parseInt(document.body.style.top||'0'));
     p.style.display='none';
-    document.body.style.overflow='';document.body.style.position='';document.body.style.width='';document.body.style.top='';
-    window.scrollTo(0,scrollY);
+    if(c)c.style.overflowY='';
   }else{
-    const scrollY=window.scrollY;
-    document.body.style.overflow='hidden';document.body.style.position='fixed';document.body.style.width='100%';document.body.style.top=`-${scrollY}px`;
+    if(c)c.style.overflowY='hidden';
     p.style.display='flex';
     syncSettingsPanel();
   }

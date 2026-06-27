@@ -3,6 +3,14 @@
 This file tracks per-version changes for the static site under `docs/`.
 Newest first. Service-worker cache name follows the version (e.g., `stormtracker-v542` for v4.46).
 
+  ## v5.35
+
+  **Bottom tab bar no longer drifts while scrolling on phones — the navigation bar stays pinned for good.**
+
+  - **What changed** — on mobile, swiping the page up/down used to make the bottom tab bar (Weather/Radar/Storms/3D/Alerts) float or jump as the browser's address bar slid in and out. The bar is now rock-solid at the bottom of the screen.
+  - **How** — the page body is locked and scrolling moved into the main content area (`.container`), so the document itself no longer scrolls. That stops mobile browsers from resizing the viewport mid-scroll, which was what shifted the fixed nav. The Settings overlay's background-lock and the desktop/landscape sidebar layout were updated to match.
+  - **Cache bumped** — `?v=634` / `stormtracker-v634`.
+
   ## v5.34
 
   **Faster Weather-tab sonar on phones — HD deep scans no longer flood the radar sonar with thousands of dots.**
